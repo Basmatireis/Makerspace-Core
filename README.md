@@ -69,6 +69,12 @@ make migrate-status
 
 Run `make test-e2e` after the one-time browser setup for the complete smoke/accessibility suite, including the isolated live Go/PostgreSQL vertical slice. Run `pnpm test:e2e` from `frontend/` for the faster mocked UI scenarios during frontend development.
 
+## CI and releases
+
+Pull requests to `main` and pushes to `main` run generated-code checks, backend and frontend checks, PostgreSQL integration tests, the full-stack Playwright suite, and production container builds. These validation runs never publish images.
+
+Stable releases are explicit: push a `vMAJOR.MINOR.PATCH` tag to run the same validation, publish versioned backend and frontend images to GHCR, and create a GitHub Release. See [CI, releases, and container images](docs/ci-cd.md) for the release commands, tag policy, rollback procedure, and recommended branch rules.
+
 ## Documentation
 
 - [Architecture and domain model](docs/architecture.md)
@@ -77,5 +83,6 @@ Run `make test-e2e` after the one-time browser setup for the complete smoke/acce
 - [Authorization and registered permissions](docs/authorization.md)
 - [Development and code generation](docs/development.md)
 - [Logging and optional OpenTelemetry export](docs/observability.md)
+- [CI, releases, and container images](docs/ci-cd.md)
 
 Repository-wide AI-agent conventions are in [`AGENTS.md`](AGENTS.md), with path-specific rules under `.github/instructions/`.

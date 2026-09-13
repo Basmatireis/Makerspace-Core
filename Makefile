@@ -79,9 +79,9 @@ check-frontend: ## Run lint, type checking, tests, and a production build.
 	docker compose run --rm --no-deps -e CI=true frontend pnpm test
 	docker compose run --rm --no-deps -e CI=true frontend pnpm build
 
-build: ## Build the backend final image and frontend build stage.
+build: ## Build the backend and frontend production images.
 	docker build --target final -f backend/Dockerfile .
-	docker build --target build -f frontend/Dockerfile .
+	docker build --target final -f frontend/Dockerfile .
 
 admin: db-up ## Run the administrative CLI; pass non-secret arguments with ARGS='...'.
 	docker compose --profile tools run --rm --build admin $(ARGS)

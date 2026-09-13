@@ -18,7 +18,7 @@ The development services are:
 - `migrate`: profile-gated goose command using the backend final image.
 - `admin`: profile-gated interactive administrative CLI from the backend final image.
 
-The backend runtime stage is exactly `alpine:3.24.1`. Package versions are exact in `backend/go.mod`, `frontend/package.json`, and `frontend/pnpm-lock.yaml`; dependency installation in the frontend image uses the frozen lockfile.
+The backend runtime stage is exactly `alpine:3.24.1`. The frontend production stage uses the unprivileged NGINX image `nginxinc/nginx-unprivileged:1.31.3-alpine3.24`, listens on port 8080, and serves the built single-page application; production ingress remains responsible for routing `/api/v1` to the backend. Package versions are exact in `backend/go.mod`, `frontend/package.json`, and `frontend/pnpm-lock.yaml`; dependency installation in the frontend image uses the frozen lockfile.
 
 Start the schema and application explicitly:
 

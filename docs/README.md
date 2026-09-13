@@ -1,6 +1,7 @@
 # Documentation
 
 - [Architecture and domain model](architecture.md)
+- [CI, releases, and container images](ci-cd.md)
 - [Authentication and sessions](authentication.md)
 - [Bootstrap, recovery, cleanup, and deployment operations](operations.md)
 - [Authorization](authorization.md)
