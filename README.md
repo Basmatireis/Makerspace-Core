@@ -1,5 +1,9 @@
 # Makerspace Core
 
+[![CI](https://github.com/Basmatireis/Makerspace-Core/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Basmatireis/Makerspace-Core/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/Basmatireis/Makerspace-Core?sort=semver)](https://github.com/Basmatireis/Makerspace-Core/releases/latest)
+[![License](https://img.shields.io/github/license/Basmatireis/Makerspace-Core)](LICENSE)
+
 Makerspace Core is a privacy-conscious management application for one makerspace/location. It is a modular monolith: one Go API, one React application, and one PostgreSQL database per deployment.
 
 The first vertical slice covers people, optional user accounts, email/password authentication, server-side sessions, permission-based roles, user administration, and audit logging. Machines, orders, open days, training, rental, terminals, PIN login, documents, visits, analytics, and feedback are deliberately not implemented yet.
