@@ -1,0 +1,10 @@
+# Documentation
+
+- [Architecture and domain model](architecture.md)
+- [Authentication and sessions](authentication.md)
+- [Bootstrap, recovery, cleanup, and deployment operations](operations.md)
+- [Authorization](authorization.md)
+- [Development and generation workflow](development.md)
+- [Observability](observability.md)
+
+These documents describe the implemented first vertical slice. Future makerspace modules belong here only when their implementation is accepted; they must not appear as empty tables, APIs, modules, or UI routes.
