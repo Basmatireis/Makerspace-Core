@@ -1,0 +1,221 @@
+@use '@carbon/react';
+@use '@carbon/react/scss/spacing' as *;
+@use '@carbon/react/scss/type' as *;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--cds-background);
+  color: var(--cds-text-primary);
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h2 {
+  @include type-style('heading-03');
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.app-main {
+  min-height: calc(100vh - 3rem);
+  padding: $spacing-07 $spacing-05 $spacing-09;
+  margin-top: 3rem;
+  transition: margin-inline-start 110ms cubic-bezier(0.2, 0, 1, 0.9);
+}
+
+.app-main--nav-expanded {
+  margin-inline-start: 16rem;
+}
+
+.cds--side-nav {
+  top: 3rem;
+  height: calc(100vh - 3rem);
+}
+
+.profile-panel.cds--header-panel--expanded {
+  inline-size: min(22rem, 100vw);
+}
+
+.profile-panel__content {
+  padding: $spacing-06;
+}
+
+.profile-panel__name {
+  @include type-style('heading-compact-01');
+}
+
+.profile-panel__email,
+.section-description,
+.page-header__description,
+.auth-card__subtitle,
+.auth-card__help {
+  @include type-style('body-compact-01');
+  color: var(--cds-text-secondary);
+}
+
+.page-header,
+.form-tile,
+.secret-tile {
+  width: 100%;
+  max-width: 100rem;
+}
+
+.page-header__row,
+.page-header__actions,
+.section-heading,
+.form-actions,
+.button-cluster,
+.role-assignment,
+.account-summary,
+.tag-list {
+  display: flex;
+  align-items: center;
+  gap: $spacing-04;
+}
+
+.page-header__row,
+.section-heading {
+  justify-content: space-between;
+}
+
+.page-header__actions,
+.form-actions,
+.button-cluster,
+.tag-list {
+  flex-wrap: wrap;
+}
+
+.form-actions {
+  justify-content: flex-end;
+}
+
+.form-grid {
+  row-gap: $spacing-06;
+  padding: 0;
+}
+
+.settings-tile {
+  min-height: 12rem;
+}
+
+.empty-state {
+  padding: $spacing-09 $spacing-05;
+  text-align: center;
+  border-block-end: 1px solid var(--cds-border-subtle);
+}
+
+.empty-state p {
+  margin-top: $spacing-03;
+  color: var(--cds-text-secondary);
+}
+
+.label {
+  display: block;
+  margin-bottom: $spacing-02;
+  @include type-style('label-01');
+  color: var(--cds-text-secondary);
+}
+
+.permission-group {
+  padding: 0;
+  border: 0;
+}
+
+.permission-group legend {
+  margin-bottom: $spacing-04;
+  text-transform: capitalize;
+  @include type-style('heading-compact-01');
+}
+
+.auth-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: $spacing-05;
+  background: var(--cds-layer-01);
+}
+
+.auth-card {
+  width: min(100%, 28rem);
+  padding: $spacing-08;
+  background: var(--cds-background);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 20%);
+}
+
+.auth-card__eyebrow {
+  @include type-style('label-02');
+  margin-bottom: $spacing-03;
+}
+
+.auth-card__title {
+  @include type-style('heading-06');
+}
+
+.auth-card__subtitle {
+  margin-top: $spacing-03;
+}
+
+.page-state {
+  display: flex;
+  min-height: 12rem;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-05;
+}
+
+.page-state--error {
+  align-items: flex-start;
+  padding: $spacing-07;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@media (max-width: 65.98rem) {
+  .app-main,
+  .app-main--nav-expanded {
+    margin-inline-start: 0;
+  }
+}
+
+@media (max-width: 41.98rem) {
+  .app-main {
+    padding: $spacing-06 $spacing-05 $spacing-08;
+  }
+
+  .page-header__row,
+  .section-heading,
+  .role-assignment {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .auth-card {
+    padding: $spacing-06;
+  }
+}
