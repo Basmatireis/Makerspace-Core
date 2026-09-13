@@ -1,0 +1,1745 @@
+openapi: 3.0.3
+info:
+  title: Makerspace Core API
+  version: 0.1.0
+  description: |
+    HTTP contract for one makerspace deployment. OpenAPI is the transport source
+    of truth; authorization and domain invariants remain backend responsibilities.
+
+    Optional nullable fields deliberately distinguish three states: an omitted
+    property is unavailable or unchanged, `null` clears or represents no value,
+    and a non-null value is present. In particular, `matriculationNumber` is
+    omitted from responses unless the caller has `people.read.matriculation`.
+servers:
+  - url: /api/v1
+    description: Same-origin application API
+tags:
+  - name: Health
+  - name: Authentication
+    description: "Every authentication-route response is emitted with `Cache-Control: no-store`, including errors."
+  - name: People
+  - name: Accounts
+  - name: Permissions
+  - name: Roles
+  - name: Audit
+
+paths:
+  /health/live:
+    get:
+      tags: [Health]
+      operationId: getLiveness
+      summary: Report that the API process is running
+      security: []
+      responses:
+        "200":
+          description: The process is running.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /health/ready:
+    get:
+      tags: [Health]
+      operationId: getReadiness
+      summary: Report whether required dependencies are ready
+      security: []
+      responses:
+        "200":
+          description: The API can serve requests.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+        "503":
+          description: A required dependency is unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/login:
+    post:
+      tags: [Authentication]
+      operationId: login
+      summary: Start an email/password session
+      description: |
+        On success, sets an HttpOnly session cookie and a separate readable CSRF
+        cookie. Authentication failures use one generic response regardless of
+        whether the email exists.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "204":
+          description: Session created. The browser receives session and CSRF cookies.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            Set-Cookie:
+              description: Session and CSRF cookies. Multiple Set-Cookie headers may be sent.
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      operationId: logout
+      summary: Revoke the current session
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      responses:
+        "204":
+          description: Session revoked and authentication cookies cleared.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            Set-Cookie:
+              description: Expired session and CSRF cookies. Multiple Set-Cookie headers may be sent.
+              schema:
+                type: string
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/me:
+    get:
+      tags: [Authentication]
+      operationId: getCurrentUser
+      summary: Return the authenticated principal and current permissions
+      description: Permissions and account state are resolved from current server state.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Current authenticated user.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUser"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/password:
+    put:
+      tags: [Authentication]
+      operationId: changeOwnPassword
+      summary: Change the current account password
+      description: Verifies the current password, rotates the current session, and revokes other sessions.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeOwnPasswordRequest"
+      responses:
+        "204":
+          description: Password changed and session state rotated.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            Set-Cookie:
+              description: Rotated session and CSRF cookies. Multiple Set-Cookie headers may be sent.
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/password-reset/complete:
+    post:
+      tags: [Authentication]
+      operationId: completePasswordReset
+      summary: Redeem a one-time password-reset token
+      description: The token is accepted only in the request body and is never placed in an API URL.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompletePasswordResetRequest"
+      responses:
+        "204":
+          description: Password replaced, token consumed, existing sessions revoked, and stale authentication cookies cleared.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+            Set-Cookie:
+              description: Expired session and CSRF cookies when present. Multiple Set-Cookie headers may be sent.
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /people:
+    get:
+      tags: [People]
+      operationId: listPeople
+      summary: List people for user administration
+      description: Requires `people.read.all`; account data is omitted without `accounts.read`.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+        - name: search
+          in: query
+          description: Case-insensitive search over permitted name and contact fields.
+          schema:
+            type: string
+            maxLength: 200
+      responses:
+        "200":
+          description: A page of people.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags: [People]
+      operationId: createPerson
+      summary: Create a person
+      description: Requires `people.create`; matriculation input additionally requires `people.update.matriculation`.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePersonRequest"
+      responses:
+        "201":
+          description: Person created.
+          headers:
+            Location:
+              description: Relative API URL of the created person.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Person"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /people/{personId}:
+    parameters:
+      - $ref: "#/components/parameters/PersonId"
+    get:
+      tags: [People]
+      operationId: getPerson
+      summary: Get one person
+      description: Requires the applicable `people.read.self` or `people.read.all` permission.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Person details, filtered for field-level permissions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Person"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    patch:
+      tags: [People]
+      operationId: updatePerson
+      summary: Update one person
+      description: |
+        Requires the applicable `people.update.self` or `people.update.all`
+        permission. Sending `matriculationNumber` additionally requires
+        `people.update.matriculation`. Omitted fields are unchanged; nullable
+        fields sent as `null` are cleared.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePersonRequest"
+      responses:
+        "200":
+          description: Updated person.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Person"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [People]
+      operationId: deletePerson
+      summary: Permanently delete one person
+      description: |
+        Requires `people.delete`. If the person has an account, also requires
+        `accounts.delete`. Audit references remain non-PII identifiers and do not
+        prevent hard deletion.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionRequest"
+      responses:
+        "204":
+          description: Person and dependent authentication data permanently deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /people/{personId}/account:
+    parameters:
+      - $ref: "#/components/parameters/PersonId"
+    post:
+      tags: [Accounts]
+      operationId: createPersonAccount
+      summary: Create an account and email identity for a person
+      description: Requires `accounts.create`. New accounts are disabled and have no password until explicitly configured.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAccountRequest"
+      responses:
+        "201":
+          description: Account created.
+          headers:
+            Location:
+              description: Relative API URL of the created account.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /accounts/{accountId}:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+    get:
+      tags: [Accounts]
+      operationId: getAccount
+      summary: Get one account
+      description: Requires `accounts.read`.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Account details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [Accounts]
+      operationId: deleteAccount
+      summary: Permanently delete an account while retaining its person
+      description: Requires `accounts.delete` and enforces the last-enabled-master invariant.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionRequest"
+      responses:
+        "204":
+          description: Account, identities, sessions, reset tokens, and role assignments deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /accounts/{accountId}/enable:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+    post:
+      tags: [Accounts]
+      operationId: enableAccount
+      summary: Enable an account
+      description: Requires `accounts.enable`; an active password credential is required.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionRequest"
+      responses:
+        "200":
+          description: Enabled account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /accounts/{accountId}/disable:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+    post:
+      tags: [Accounts]
+      operationId: disableAccount
+      summary: Disable an account and revoke its sessions
+      description: Requires `accounts.disable` and enforces the last-enabled-master invariant.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionRequest"
+      responses:
+        "200":
+          description: Disabled account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /accounts/{accountId}/login-email:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+    put:
+      tags: [Accounts]
+      operationId: updateAccountLoginEmail
+      summary: Replace an account's email login identifier
+      description: Requires `accounts.login_email.update`; this does not silently change the person's contact email.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateLoginEmailRequest"
+      responses:
+        "200":
+          description: Updated account.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /accounts/{accountId}/password:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+    put:
+      tags: [Accounts]
+      operationId: setAccountPassword
+      summary: Administratively set an account password
+      description: Requires `accounts.password.set`; revokes existing sessions and reset tokens without logging the secret.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetAccountPasswordRequest"
+      responses:
+        "200":
+          description: Account with active password credential.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /accounts/{accountId}/password-reset:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+    post:
+      tags: [Accounts]
+      operationId: issueAccountPasswordReset
+      summary: Issue a one-time administrative password-reset link
+      description: |
+        Requires `accounts.password.reset`. The link expires after the configured
+        reset lifetime (30 minutes by default), uses a URL fragment so the token
+        is not sent in HTTP request URLs, and is returned only once. Issuance
+        invalidates the password for login and revokes existing sessions.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionRequest"
+      responses:
+        "201":
+          description: One-time reset link issued.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordResetIssue"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /accounts/{accountId}/roles/{roleId}:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+      - $ref: "#/components/parameters/RoleId"
+    put:
+      tags: [Accounts]
+      operationId: assignAccountRole
+      summary: Assign a role to an account
+      description: |
+        Requires `accounts.roles.assign`. Non-master actors may assign only roles
+        whose permission set is a subset of their own effective permissions. Only
+        a master actor may assign the master role.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionRequest"
+      responses:
+        "200":
+          description: Account with updated roles.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [Accounts]
+      operationId: removeAccountRole
+      summary: Remove a role from an account
+      description: Requires `accounts.roles.assign`; master removal also enforces master-only and last-enabled-master rules.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionRequest"
+      responses:
+        "200":
+          description: Account with updated roles.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /permissions:
+    get:
+      tags: [Permissions]
+      operationId: listPermissions
+      summary: List permissions registered by this application version
+      description: Requires `roles.read`; unknown permission identifiers are never accepted for role configuration.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Registered permissions in stable identifier order.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Permission"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /roles:
+    get:
+      tags: [Roles]
+      operationId: listRoles
+      summary: List configured roles
+      description: Requires `roles.read`.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200":
+          description: A page of roles.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RolePage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    post:
+      tags: [Roles]
+      operationId: createRole
+      summary: Create a configurable role
+      description: Requires `roles.manage`; a non-master actor may grant only permissions they currently hold.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoleRequest"
+      responses:
+        "201":
+          description: Role created.
+          headers:
+            Location:
+              description: Relative API URL of the created role.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /roles/{roleId}:
+    parameters:
+      - $ref: "#/components/parameters/RoleId"
+    get:
+      tags: [Roles]
+      operationId: getRole
+      summary: Get one role
+      description: Requires `roles.read`.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Role details.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    patch:
+      tags: [Roles]
+      operationId: updateRole
+      summary: Update role metadata
+      description: Requires `roles.manage`. The master role cannot be renamed or edited.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoleRequest"
+      responses:
+        "200":
+          description: Updated role.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [Roles]
+      operationId: deleteRole
+      summary: Delete a configurable role
+      description: Requires `roles.manage`. Deletion removes the role's assignments and permission rows; the master role cannot be deleted.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionRequest"
+      responses:
+        "204":
+          description: Role deleted.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /roles/{roleId}/permissions:
+    parameters:
+      - $ref: "#/components/parameters/RoleId"
+    put:
+      tags: [Roles]
+      operationId: replaceRolePermissions
+      summary: Replace a configurable role's permissions
+      description: |
+        Requires `roles.manage`. Unknown permission IDs are rejected. A non-master
+        actor may grant only a subset of their effective permissions. The master
+        role's effective permissions always come from application code and cannot
+        be edited here.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplaceRolePermissionsRequest"
+      responses:
+        "200":
+          description: Role with replaced permissions.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Role"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /audit-events:
+    get:
+      tags: [Audit]
+      operationId: listAuditEvents
+      summary: List privacy-minimized audit events
+      description: Requires `audit.read`. Audit metadata never contains credentials, tokens, or before/after PII snapshots.
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+        - name: action
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+        - name: resourceType
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+        - name: resourceId
+          in: query
+          schema:
+            $ref: "#/components/schemas/UUIDv7"
+        - name: actorAccountId
+          in: query
+          schema:
+            $ref: "#/components/schemas/UUIDv7"
+        - name: occurredFrom
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: occurredTo
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        "200":
+          description: A page of audit events ordered newest first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditEventPage"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+components:
+  headers:
+    NoStore:
+      description: Prevent browsers and intermediaries from retaining authentication or one-time-secret responses.
+      schema:
+        type: string
+        enum: [no-store]
+
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: makerspace_session
+      description: Opaque server-side session token. Only a digest is stored; the cookie is HttpOnly. Secure production uses the `__Host-makerspace_session` name.
+    csrfHeader:
+      type: apiKey
+      in: header
+      name: X-CSRF-Token
+      description: Must exactly mirror `makerspace_csrf` (or secure production `__Host-makerspace_csrf`) on unsafe authenticated requests.
+
+  parameters:
+    PersonId:
+      name: personId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/UUIDv7"
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/UUIDv7"
+    RoleId:
+      name: roleId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/UUIDv7"
+    Limit:
+      name: limit
+      in: query
+      description: Maximum records to return.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+    Page:
+      name: page
+      in: query
+      description: One-based result page.
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      description: Maximum records to return per page.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque cursor returned by the previous page.
+      schema:
+        type: string
+        maxLength: 500
+
+  responses:
+    BadRequest:
+      description: Malformed request, invalid JSON, or unsupported query value.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Authentication is missing, expired, revoked, disabled, or invalid.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: The caller lacks permission or the CSRF check failed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: The requested resource does not exist or is not visible to the caller.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Conflict:
+      description: Stale `expectedVersion` (`stale_write`), uniqueness conflict, or protected invariant violation.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    UnprocessableEntity:
+      description: Structurally valid input violates field or domain validation.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    TooManyRequests:
+      description: Security-sensitive request rate exceeded.
+      headers:
+        Retry-After:
+          description: Seconds until another attempt may be made.
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InternalServerError:
+      description: Unexpected server error; internal details are not exposed.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    UUIDv7:
+      type: string
+      format: uuid
+      pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+      description: Lowercase RFC 9562 UUID version 7 generated by the application.
+
+    Version:
+      type: integer
+      format: int64
+      minimum: 1
+      description: Optimistic-concurrency version.
+
+    Email:
+      type: string
+      format: email
+      maxLength: 254
+
+    ExistingPassword:
+      type: string
+      format: password
+      minLength: 1
+      maxLength: 128
+      writeOnly: true
+      description: Opaque existing secret. Transport decoding also enforces a 1024-byte request-field limit.
+
+    NewPassword:
+      type: string
+      format: password
+      minLength: 12
+      maxLength: 128
+      writeOnly: true
+
+    PermissionId:
+      type: string
+      enum:
+        - people.read.self
+        - people.read.all
+        - people.create
+        - people.update.self
+        - people.update.all
+        - people.delete
+        - people.read.matriculation
+        - people.update.matriculation
+        - accounts.read
+        - accounts.create
+        - accounts.delete
+        - accounts.enable
+        - accounts.disable
+        - accounts.login_email.update
+        - accounts.password.set
+        - accounts.password.reset
+        - accounts.roles.assign
+        - roles.read
+        - roles.manage
+        - audit.read
+
+    HealthStatus:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [ok, unavailable]
+
+    Error:
+      type: object
+      additionalProperties: false
+      required: [code, message, requestId]
+      properties:
+        code:
+          type: string
+          pattern: "^[a-z][a-z0-9_]*$"
+          maxLength: 100
+          description: Stable machine-readable error code.
+        message:
+          type: string
+          maxLength: 500
+          description: Safe human-readable summary.
+        details:
+          type: object
+          additionalProperties: true
+          description: Safe structured context, such as field validation errors.
+        requestId:
+          type: string
+          minLength: 1
+          maxLength: 200
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          $ref: "#/components/schemas/Email"
+        password:
+          $ref: "#/components/schemas/ExistingPassword"
+
+    ChangeOwnPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          $ref: "#/components/schemas/ExistingPassword"
+        newPassword:
+          $ref: "#/components/schemas/NewPassword"
+
+    CompletePasswordResetRequest:
+      type: object
+      additionalProperties: false
+      required: [token, newPassword]
+      properties:
+        token:
+          type: string
+          minLength: 32
+          maxLength: 512
+          writeOnly: true
+        newPassword:
+          $ref: "#/components/schemas/NewPassword"
+
+    CurrentUser:
+      type: object
+      additionalProperties: false
+      required: [account, person, permissions]
+      properties:
+        account:
+          $ref: "#/components/schemas/Account"
+        person:
+          $ref: "#/components/schemas/Person"
+        permissions:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/PermissionId"
+
+    Person:
+      type: object
+      additionalProperties: false
+      required: [id, firstName, lastName, createdAt, updatedAt, version]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUIDv7"
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          allOf:
+            - $ref: "#/components/schemas/Email"
+          nullable: true
+        phone:
+          type: string
+          minLength: 1
+          maxLength: 64
+          nullable: true
+        matriculationNumber:
+          type: string
+          minLength: 1
+          maxLength: 64
+          nullable: true
+          description: Omitted unless the caller has `people.read.matriculation`; null means no value.
+        photoReference:
+          type: string
+          minLength: 1
+          maxLength: 500
+          nullable: true
+          readOnly: true
+          description: Reserved response-only reference; photo upload/storage is not implemented in v1.
+        account:
+          allOf:
+            - $ref: "#/components/schemas/AccountSummary"
+          nullable: true
+          description: Omitted without `accounts.read`; null means this person has no account.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          $ref: "#/components/schemas/Version"
+
+    CreatePersonRequest:
+      type: object
+      additionalProperties: false
+      required: [firstName, lastName]
+      description: At least one non-null contact method (`email` or `phone`) is required.
+      properties:
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          allOf:
+            - $ref: "#/components/schemas/Email"
+          nullable: true
+        phone:
+          type: string
+          minLength: 1
+          maxLength: 64
+          nullable: true
+        matriculationNumber:
+          type: string
+          minLength: 1
+          maxLength: 64
+          nullable: true
+
+    UpdatePersonRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      description: At least one update field must be present and a contact method must remain afterward.
+      properties:
+        expectedVersion:
+          $ref: "#/components/schemas/Version"
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          allOf:
+            - $ref: "#/components/schemas/Email"
+          nullable: true
+        phone:
+          type: string
+          minLength: 1
+          maxLength: 64
+          nullable: true
+        matriculationNumber:
+          type: string
+          minLength: 1
+          maxLength: 64
+          nullable: true
+
+    PersonPage:
+      type: object
+      additionalProperties: false
+      required: [items, page, pageSize, total]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Person"
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+        total:
+          type: integer
+          format: int64
+          minimum: 0
+
+    AccountStatus:
+      type: string
+      enum: [enabled, disabled]
+
+    PasswordStatus:
+      type: string
+      enum: [not_set, active, reset_required]
+
+    AccountSummary:
+      type: object
+      additionalProperties: false
+      required: [id, personId, status, passwordStatus, loginEmail, roles, version]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUIDv7"
+        personId:
+          $ref: "#/components/schemas/UUIDv7"
+        status:
+          $ref: "#/components/schemas/AccountStatus"
+        passwordStatus:
+          $ref: "#/components/schemas/PasswordStatus"
+        loginEmail:
+          $ref: "#/components/schemas/Email"
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleSummary"
+        version:
+          $ref: "#/components/schemas/Version"
+
+    Account:
+      type: object
+      additionalProperties: false
+      required: [id, personId, status, passwordStatus, loginEmail, roles, createdAt, updatedAt, version]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUIDv7"
+        personId:
+          $ref: "#/components/schemas/UUIDv7"
+        status:
+          $ref: "#/components/schemas/AccountStatus"
+        passwordStatus:
+          $ref: "#/components/schemas/PasswordStatus"
+        loginEmail:
+          $ref: "#/components/schemas/Email"
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleSummary"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          $ref: "#/components/schemas/Version"
+
+    CreateAccountRequest:
+      type: object
+      additionalProperties: false
+      required: [loginEmail, expectedVersion]
+      properties:
+        loginEmail:
+          $ref: "#/components/schemas/Email"
+        expectedVersion:
+          allOf:
+            - $ref: "#/components/schemas/Version"
+          description: Expected version of the owning person loaded by the caller.
+
+    UpdateLoginEmailRequest:
+      type: object
+      additionalProperties: false
+      required: [loginEmail, expectedVersion]
+      properties:
+        loginEmail:
+          $ref: "#/components/schemas/Email"
+        expectedVersion:
+          $ref: "#/components/schemas/Version"
+
+    SetAccountPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [newPassword, expectedVersion]
+      properties:
+        newPassword:
+          $ref: "#/components/schemas/NewPassword"
+        expectedVersion:
+          $ref: "#/components/schemas/Version"
+
+    PasswordResetIssue:
+      type: object
+      additionalProperties: false
+      required: [resetUrl, expiresAt, account]
+      properties:
+        resetUrl:
+          type: string
+          format: uri
+          readOnly: true
+          description: One-time frontend URL containing the token in its fragment. Treat as a secret.
+        expiresAt:
+          type: string
+          format: date-time
+        account:
+          $ref: "#/components/schemas/Account"
+
+    VersionRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      properties:
+        expectedVersion:
+          $ref: "#/components/schemas/Version"
+
+    Permission:
+      type: object
+      additionalProperties: false
+      required: [id, description]
+      properties:
+        id:
+          $ref: "#/components/schemas/PermissionId"
+        description:
+          type: string
+          minLength: 1
+          maxLength: 500
+
+    RoleSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUIDv7"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        systemKey:
+          type: string
+          enum: [master]
+          nullable: true
+          description: Present only for a protected system role.
+
+    Role:
+      type: object
+      additionalProperties: false
+      required: [id, name, description, systemKey, permissionIds, createdAt, updatedAt, version]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUIDv7"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        systemKey:
+          type: string
+          enum: [master]
+          nullable: true
+        permissionIds:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/PermissionId"
+          description: For master, this is the current complete application permission set.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          $ref: "#/components/schemas/Version"
+
+    CreateRoleRequest:
+      type: object
+      additionalProperties: false
+      required: [name, permissionIds]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+        permissionIds:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/PermissionId"
+
+    UpdateRoleRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion]
+      description: At least one update field must be present.
+      properties:
+        expectedVersion:
+          $ref: "#/components/schemas/Version"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+          nullable: true
+
+    ReplaceRolePermissionsRequest:
+      type: object
+      additionalProperties: false
+      required: [permissionIds, expectedVersion]
+      properties:
+        permissionIds:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/PermissionId"
+        expectedVersion:
+          $ref: "#/components/schemas/Version"
+
+    RolePage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Role"
+        nextCursor:
+          type: string
+          maxLength: 500
+          nullable: true
+
+    AuditEvent:
+      type: object
+      additionalProperties: false
+      required: [id, action, resourceType, occurredAt, requestId, changedFields, metadata, source]
+      properties:
+        id:
+          $ref: "#/components/schemas/UUIDv7"
+        actorAccountId:
+          allOf:
+            - $ref: "#/components/schemas/UUIDv7"
+          nullable: true
+          description: Null for system/CLI actions or after privacy-preserving deletion.
+        action:
+          type: string
+          minLength: 1
+          maxLength: 100
+        resourceType:
+          type: string
+          minLength: 1
+          maxLength: 100
+        resourceId:
+          allOf:
+            - $ref: "#/components/schemas/UUIDv7"
+          nullable: true
+        occurredAt:
+          type: string
+          format: date-time
+        requestId:
+          type: string
+          minLength: 1
+          maxLength: 200
+          nullable: true
+          description: Null for system or administrative CLI events without an HTTP request.
+        changedFields:
+          type: array
+          uniqueItems: true
+          items:
+            type: string
+            maxLength: 100
+          description: Field names only; never before/after values.
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+            maxLength: 500
+          description: Selected non-sensitive values only.
+        source:
+          type: string
+          enum: [http, admin_cli, system]
+
+    AuditEventPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEvent"
+        nextCursor:
+          type: string
+          maxLength: 500
+          nullable: true
