@@ -131,15 +131,57 @@ jobs:
           echo "### ${COMPONENT} image" >> "$GITHUB_STEP_SUMMARY"
           echo "Digest: \`${DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"
 
+  public-images:
+    name: Public release images
+    needs: [tag, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Verify anonymous image access
+        env:
+          IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+          VERSION: ${{ needs.tag.outputs.version }}
+        run: |
+          image_prefix="${IMAGE_PREFIX,,}"
+          for component in backend frontend; do
+            image="${image_prefix}-${component}:${VERSION}"
+            available=false
+            for attempt in 1 2 3 4 5 6; do
+              if docker buildx imagetools inspect "$image" >/dev/null; then
+                available=true
+                break
+              fi
+              sleep 10
+            done
+            if [ "$available" != true ]; then
+              echo "Release image is not anonymously pullable: $image"
+              echo "Set both GHCR packages to public before creating a release."
+              exit 1
+            fi
+          done
+
   github-release:
     name: GitHub Release
-    needs: publish
+    needs: [tag, public-images]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Package production Compose bundle
+        id: bundle
+        env:
+          VERSION: ${{ needs.tag.outputs.version }}
+        run: |
+          archive_path="$(./scripts/package-production-compose.sh "$VERSION" "$RUNNER_TEMP")"
+          echo "archive_path=$archive_path" >> "$GITHUB_OUTPUT"
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.ref_name }}
-        run: gh release create "$RELEASE_TAG" --verify-tag --generate-notes --title "$RELEASE_TAG"
+          COMPOSE_BUNDLE: ${{ steps.bundle.outputs.archive_path }}
+        run: gh release create "$RELEASE_TAG" "$COMPOSE_BUNDLE#Production Compose bundle" --verify-tag --generate-notes --title "$RELEASE_TAG"

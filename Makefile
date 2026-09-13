@@ -60,7 +60,7 @@ test-frontend: ## Run frontend tests.
 test-e2e: ## Run all Playwright checks against an isolated live Go/PostgreSQL stack.
 	./scripts/test-e2e.sh
 
-test-production-compose: ## Smoke-test the production images and three-service Compose topology.
+test-production-compose: ## Smoke-test the standalone production Compose release bundle.
 	./scripts/test-production-compose.sh
 
 test-integration: migrate-up ## Run Go tests against the Compose PostgreSQL instance.

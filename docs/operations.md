@@ -51,44 +51,49 @@ No production deployment is ready until these values and owners are explicit in 
 
 ## Production Compose deployment
 
-[`compose.production.yaml`](../compose.production.yaml) is the production example. It defines exactly three runtime services: PostgreSQL, the Go backend, and the nginx frontend. PostgreSQL and the backend are reachable only on the Compose network. The frontend alone publishes a host port, serves the SPA, and proxies `/api/` to the backend so the browser uses one origin for the UI and `/api/v1`.
+Every GitHub Release includes `makerspace-core-VERSION-compose.tar.gz`. This is a standalone deployment bundle: it contains a conventional `compose.yaml` pinned to that exact immutable frontend/backend release and a secret-free `.env.example`. A production host needs Docker Compose and this bundle, not a repository checkout or build toolchain. The release images are public and require no registry login.
 
-The example pulls matching immutable frontend and backend release images. Prepare a deployment-only environment file:
+Extract the archive into an otherwise empty deployment directory, then prepare the installation-specific configuration once:
 
 ```sh
-cp production.env.example .env.production
-chmod 600 .env.production
+cp .env.example .env
+chmod 600 .env
 ```
 
-Set `MAKERSPACE_VERSION` to a full release image tag such as `0.4.0`, without the Git tag's leading `v`. Set `PUBLIC_BASE_URL` to the exact HTTPS browser origin without a path or trailing slash. Replace `POSTGRES_PASSWORD` with a long random value, preferably using URL-safe characters so the environment file needs no quoting; Compose passes it separately from the database URL. `MAKERSPACE_IMAGE_PREFIX` can point to an approved registry mirror while retaining the `-backend` and `-frontend` image-name suffixes.
+Set the two blank values in `.env`: `PUBLIC_BASE_URL` is the exact HTTPS browser origin without a path or trailing slash, and `POSTGRES_PASSWORD` is a long random database password. Prefer URL-safe password characters so the environment file needs no quoting. The optional `MAKERSPACE_IMAGE_PREFIX` override supports an approved public registry mirror while retaining the `-backend` and `-frontend` image-name suffixes.
 
 `APP_ENV=production`, `SESSION_COOKIE_SECURE=true`, the backend listen address, and all internal service addresses are fixed in the Compose file. Do not weaken those settings through a deployment override.
 
 ### First deployment
 
-Approve the audit, application-log, and backup retention policies above before creating live data. Then pull the selected images, start PostgreSQL, apply migrations explicitly, and start the application:
+Approve the audit, application-log, and backup retention policies above before creating live data. Start the complete deployment from its bundle directory:
 
 ```sh
-docker compose --env-file .env.production -f compose.production.yaml pull
-docker compose --env-file .env.production -f compose.production.yaml up -d --wait db
-docker compose --env-file .env.production -f compose.production.yaml run --rm --no-deps --entrypoint goose backend -dir /app/migrations up
-docker compose --env-file .env.production -f compose.production.yaml run --rm --no-deps --entrypoint goose backend -dir /app/migrations status
-docker compose --env-file .env.production -f compose.production.yaml up -d --wait backend frontend
+docker compose up -d
 ```
 
-The migration command reuses the backend image's bundled goose binary and migrations. API startup never applies or reverts migrations.
+Compose pulls missing images and waits for healthy PostgreSQL. The backend container runs `goose up` and starts the API process only after migration succeeds; the frontend starts only after the backend is healthy. The deployment defines and runs exactly three containers: database, backend, and frontend. The API binary itself never applies or reverts migrations.
+
+Inspect startup and automatic migration state with:
+
+```sh
+docker compose ps
+docker compose logs backend frontend
+```
+
+If migration fails, the backend exits before the API starts and the frontend cannot pass its backend-health dependency. The backend restart policy retries startup, leaving the migration error inspectable in `docker compose logs backend`. Correct the database or release issue and run the same startup command again.
 
 Create the first master only after the migrated application is healthy:
 
 ```sh
-docker compose --env-file .env.production -f compose.production.yaml run --rm --no-deps --entrypoint /app/admin backend bootstrap-master
+docker compose run --rm --entrypoint /app/admin backend bootstrap-master
 ```
 
 The same entrypoint override supports deliberate recovery and cleanup operations:
 
 ```sh
-docker compose --env-file .env.production -f compose.production.yaml run --rm --no-deps --entrypoint /app/admin backend recover-master
-docker compose --env-file .env.production -f compose.production.yaml run --rm --no-deps --entrypoint /app/admin backend cleanup
+docker compose run --rm --entrypoint /app/admin backend recover-master
+docker compose run --rm --entrypoint /app/admin backend cleanup
 ```
 
 ### TLS reverse proxy and health
@@ -109,24 +114,22 @@ Use the configured `FRONTEND_PORT` instead of 8080 when overridden. Liveness rep
 
 ### Upgrade and stop
 
-Back up PostgreSQL and confirm restore readiness before each upgrade. Change only `MAKERSPACE_VERSION` to the desired immutable release, then pull, apply that release's migrations, and replace the application containers:
+Back up PostgreSQL and confirm restore readiness before each upgrade. Download the newer release bundle and extract its `compose.yaml` and `.env.example` over the deployment directory; keep the populated `.env`. The new Compose file carries the new immutable image version. Upgrade application containers and the schema with the same command used for initial startup:
 
 ```sh
-docker compose --env-file .env.production -f compose.production.yaml pull
-docker compose --env-file .env.production -f compose.production.yaml run --rm --no-deps --entrypoint goose backend -dir /app/migrations up
-docker compose --env-file .env.production -f compose.production.yaml up -d --wait backend frontend
+docker compose up -d
 ```
 
 Stopping the stack preserves the named PostgreSQL volume:
 
 ```sh
-docker compose --env-file .env.production -f compose.production.yaml down
+docker compose down
 ```
 
 Do not add `--volumes` unless deliberate, irreversible database deletion is intended. The expected load is a handful of concurrent users: run one backend process with its conservative pgx pool. Domains, certificates, ACME, reverse-proxy products, backup infrastructure, and any external OTLP collector remain site-specific responsibilities.
 
 ## Failure and rollback
 
-Application rollback is safe only while its binary remains compatible with the migrated schema. Prefer forward fixes for data-bearing migrations. For production, restore the previous immutable `MAKERSPACE_VERSION`, pull it, and run `docker compose --env-file .env.production -f compose.production.yaml up -d --wait backend frontend`. Revert a production migration only after reviewing its Down section and confirming that losing new schema/data is acceptable; use the explicit goose entrypoint override rather than expecting API startup to change the schema. `make migrate-down` remains the development-stack helper.
+Application rollback is safe only while its binary remains compatible with the migrated schema. Prefer forward fixes for data-bearing migrations. For production, restore `compose.yaml` from the previous immutable release bundle and run `docker compose up -d`; backend startup only applies missing forward migrations and never silently downgrades the schema. Revert a production migration only after reviewing its Down section and confirming that losing new schema/data is acceptable. `make migrate-down` remains the development-stack helper for deliberate manual work from a repository checkout.
 
 Account disablement, password set/reset, and Role changes take effect through database-backed authorization on the next request. If access is lost, use the recovery CLI rather than direct table edits. Never extract or manually alter password hashes or session/reset token digests.

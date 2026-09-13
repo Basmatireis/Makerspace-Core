@@ -159,10 +159,10 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.component }}
 
   production-compose:
-    name: Production Compose
+    name: Production bundle
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
-      - name: Test production deployment topology
+      - name: Test standalone production deployment
         run: make test-production-compose

@@ -4,7 +4,7 @@
 
 One deployment serves exactly one makerspace/location. The system is a modular monolith composed of a React browser application, one Go API process, and one PostgreSQL database. Modules share a process and database but expose behavior through explicit service boundaries. There is no multi-tenancy, queue, Redis, distributed cache, or eventual-consistency layer.
 
-The browser calls relative `/api/v1` routes. In development Vite proxies `/api` to the Go container. PostgreSQL is reachable only as the transactional store; migrations run through an explicit goose command rather than API startup.
+The browser calls relative `/api/v1` routes. In development Vite proxies `/api` to the Go container. PostgreSQL is reachable only as the transactional store. Development invokes goose explicitly. In production, the backend container entrypoint runs goose before replacing itself with the API process; a migration failure therefore prevents the API from starting. The API binary never changes the schema itself.
 
 ## Backend boundaries
 

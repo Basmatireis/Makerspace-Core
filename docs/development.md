@@ -18,7 +18,7 @@ The development services are:
 - `migrate`: profile-gated goose command using the backend final image.
 - `admin`: profile-gated interactive administrative CLI from the backend final image.
 
-The backend runtime stage is exactly `alpine:3.24.1`. The frontend production stage uses the unprivileged NGINX image `nginxinc/nginx-unprivileged:1.31.3-alpine3.24`, listens on port 8080, serves the built single-page application, and proxies `/api/` to the Compose backend service. External production ingress forwards the complete origin to this frontend and remains responsible for TLS. Package versions are exact in `backend/go.mod`, `frontend/package.json`, and `frontend/pnpm-lock.yaml`; dependency installation in the frontend image uses the frozen lockfile.
+The backend runtime stage is exactly `alpine:3.24.1`. Its normal image entrypoint remains the API binary; the production Compose bundle selects `/app/production-entrypoint`, which applies goose migrations and then replaces itself with the API process. The frontend production stage uses the unprivileged NGINX image `nginxinc/nginx-unprivileged:1.31.3-alpine3.24`, listens on port 8080, serves the built single-page application, and proxies `/api/` to the Compose backend service. External production ingress forwards the complete origin to this frontend and remains responsible for TLS. `compose.production.yaml` is the source template for the version-pinned bundle attached to each GitHub Release; `make test-production-compose` packages and tests that standalone bundle. Package versions are exact in `backend/go.mod`, `frontend/package.json`, and `frontend/pnpm-lock.yaml`; dependency installation in the frontend image uses the frozen lockfile.
 
 Start the schema and application explicitly:
 
