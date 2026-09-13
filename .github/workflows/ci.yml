@@ -151,3 +151,12 @@ jobs:
           push: false
           cache-from: type=gha,scope=${{ matrix.component }}
           cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+
+  production-compose:
+    name: Production Compose
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Test production deployment topology
+        run: make test-production-compose

@@ -49,24 +49,84 @@ Application-log and backup retention are separate deployment policies; neither i
 
 No production deployment is ready until these values and owners are explicit in that deployment's operating record. Repository defaults cannot decide the makerspace's legal or organizational obligations.
 
-## Deployment expectations
+## Production Compose deployment
 
-This repository supplies application images and a development Compose topology, not production ingress. A production environment provides PostgreSQL 18, TLS termination, durable storage, secret injection, backups, and any external OTLP collector.
+[`compose.production.yaml`](../compose.production.yaml) is the production example. It defines exactly three runtime services: PostgreSQL, the Go backend, and the nginx frontend. PostgreSQL and the backend are reachable only on the Compose network. The frontend alone publishes a host port, serves the SPA, and proxies `/api/` to the backend so the browser uses one origin for the UI and `/api/v1`.
 
-Before serving traffic:
+The example pulls matching immutable frontend and backend release images. Prepare a deployment-only environment file:
 
-1. Approve the audit, application-log, and backup retention policies above; back up PostgreSQL and verify restoration procedures.
-2. Run goose migrations as an explicit release step and verify status.
-3. Set `APP_ENV=production` and `SESSION_COOKIE_SECURE=true`; startup must reject an insecure production cookie configuration.
-4. Set `PUBLIC_BASE_URL` to the exact HTTPS browser origin without a path.
-5. Supply `DATABASE_URL` from the deployment's secret facility, with TLS settings appropriate to the database network.
-6. Keep the API and frontend same-origin at `/api/v1` and `/`; do not expose PostgreSQL publicly.
-7. Check `/api/v1/health/live` for process liveness and `/api/v1/health/ready` for dependency readiness.
+```sh
+cp production.env.example .env.production
+chmod 600 .env.production
+```
 
-The expected load is a handful of concurrent users. Run one backend process with a conservative pgx pool; do not add Redis, queues, replicas, or distributed session infrastructure. Production edge/TLS, domains, ACME, Cloudflare, Pangolin, Kubernetes, and other site-specific infrastructure remain outside this repository.
+Set `MAKERSPACE_VERSION` to a full release image tag such as `0.4.0`, without the Git tag's leading `v`. Set `PUBLIC_BASE_URL` to the exact HTTPS browser origin without a path or trailing slash. Replace `POSTGRES_PASSWORD` with a long random value, preferably using URL-safe characters so the environment file needs no quoting; Compose passes it separately from the database URL. `MAKERSPACE_IMAGE_PREFIX` can point to an approved registry mirror while retaining the `-backend` and `-frontend` image-name suffixes.
+
+`APP_ENV=production`, `SESSION_COOKIE_SECURE=true`, the backend listen address, and all internal service addresses are fixed in the Compose file. Do not weaken those settings through a deployment override.
+
+### First deployment
+
+Approve the audit, application-log, and backup retention policies above before creating live data. Then pull the selected images, start PostgreSQL, apply migrations explicitly, and start the application:
+
+```sh
+docker compose --env-file .env.production -f compose.production.yaml pull
+docker compose --env-file .env.production -f compose.production.yaml up -d --wait db
+docker compose --env-file .env.production -f compose.production.yaml run --rm --no-deps --entrypoint goose backend -dir /app/migrations up
+docker compose --env-file .env.production -f compose.production.yaml run --rm --no-deps --entrypoint goose backend -dir /app/migrations status
+docker compose --env-file .env.production -f compose.production.yaml up -d --wait backend frontend
+```
+
+The migration command reuses the backend image's bundled goose binary and migrations. API startup never applies or reverts migrations.
+
+Create the first master only after the migrated application is healthy:
+
+```sh
+docker compose --env-file .env.production -f compose.production.yaml run --rm --no-deps --entrypoint /app/admin backend bootstrap-master
+```
+
+The same entrypoint override supports deliberate recovery and cleanup operations:
+
+```sh
+docker compose --env-file .env.production -f compose.production.yaml run --rm --no-deps --entrypoint /app/admin backend recover-master
+docker compose --env-file .env.production -f compose.production.yaml run --rm --no-deps --entrypoint /app/admin backend cleanup
+```
+
+### TLS reverse proxy and health
+
+The frontend defaults to `127.0.0.1:8080` for a reverse proxy on the Docker host. Configure that proxy to terminate HTTPS and forward the complete site—not a separate API origin—to the frontend port. Preserve the public `Host`, append the client address to `X-Forwarded-For`, and send `X-Forwarded-Proto: https`. Keep port 8080 loopback-only or protected by a firewall; never publish the backend or PostgreSQL ports.
+
+If the reverse proxy itself runs in a container, adapt the example to attach it to the Compose network or deliberately override `FRONTEND_BIND_ADDRESS`. Binding to `0.0.0.0` makes unencrypted HTTP reachable on every host interface unless the host firewall prevents it.
+
+Check the complete request path through nginx after deployment:
+
+```sh
+curl --fail http://127.0.0.1:8080/
+curl --fail http://127.0.0.1:8080/api/v1/health/live
+curl --fail http://127.0.0.1:8080/api/v1/health/ready
+```
+
+Use the configured `FRONTEND_PORT` instead of 8080 when overridden. Liveness reports that the API process runs; readiness additionally checks PostgreSQL.
+
+### Upgrade and stop
+
+Back up PostgreSQL and confirm restore readiness before each upgrade. Change only `MAKERSPACE_VERSION` to the desired immutable release, then pull, apply that release's migrations, and replace the application containers:
+
+```sh
+docker compose --env-file .env.production -f compose.production.yaml pull
+docker compose --env-file .env.production -f compose.production.yaml run --rm --no-deps --entrypoint goose backend -dir /app/migrations up
+docker compose --env-file .env.production -f compose.production.yaml up -d --wait backend frontend
+```
+
+Stopping the stack preserves the named PostgreSQL volume:
+
+```sh
+docker compose --env-file .env.production -f compose.production.yaml down
+```
+
+Do not add `--volumes` unless deliberate, irreversible database deletion is intended. The expected load is a handful of concurrent users: run one backend process with its conservative pgx pool. Domains, certificates, ACME, reverse-proxy products, backup infrastructure, and any external OTLP collector remain site-specific responsibilities.
 
 ## Failure and rollback
 
-Application rollback is safe only while its binary remains compatible with the migrated schema. Prefer forward fixes for data-bearing migrations. Use `make migrate-down` only after reviewing the migration's Down section and confirming that losing new schema/data is acceptable.
+Application rollback is safe only while its binary remains compatible with the migrated schema. Prefer forward fixes for data-bearing migrations. For production, restore the previous immutable `MAKERSPACE_VERSION`, pull it, and run `docker compose --env-file .env.production -f compose.production.yaml up -d --wait backend frontend`. Revert a production migration only after reviewing its Down section and confirming that losing new schema/data is acceptable; use the explicit goose entrypoint override rather than expecting API startup to change the schema. `make migrate-down` remains the development-stack helper.
 
 Account disablement, password set/reset, and Role changes take effect through database-backed authorization on the next request. If access is lost, use the recovery CLI rather than direct table edits. Never extract or manually alter password hashes or session/reset token digests.

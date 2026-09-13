@@ -2,7 +2,7 @@
 
 ## CI
 
-GitHub Actions runs `.github/workflows/ci.yml` for pull requests targeting `main` and pushes to `main`. It verifies committed generated code, Go formatting/vet/tests/build, frontend lint/type checking/tests/build, real-PostgreSQL integration tests, the isolated full-stack Playwright suite, and both production Docker images.
+GitHub Actions runs `.github/workflows/ci.yml` for pull requests targeting `main` and pushes to `main`. It verifies committed generated code, Go formatting/vet/tests/build, frontend lint/type checking/tests/build, real-PostgreSQL integration tests, the isolated full-stack Playwright suite, both production Docker images, and the production Compose topology. The Compose smoke check applies migrations, reaches the frontend and proxied readiness endpoint, recreates the backend to verify dynamic nginx resolution, and confirms that only the frontend publishes a port.
 
 CI uses read-only repository permission. Docker builds use the GitHub Actions BuildKit cache and set `push: false`; a pull request or ordinary commit cannot publish a container image.
 
@@ -56,6 +56,7 @@ After the first CI run, create a branch ruleset for `main` that requires pull re
 - `End-to-end`
 - `Container (backend)`
 - `Container (frontend)`
+- `Production Compose`
 
 Also block force pushes and branch deletion. No special administrator-approval policy is required by this project.
 

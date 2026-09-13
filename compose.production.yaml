@@ -1,0 +1,74 @@
+name: ${COMPOSE_PROJECT_NAME:-makerspace-core}
+
+services:
+  db:
+    image: postgres:18.6-alpine3.24
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-makerspace}
+      POSTGRES_USER: ${POSTGRES_USER:-makerspace}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the production environment file}
+    volumes:
+      # PostgreSQL 18 stores versioned data below /var/lib/postgresql.
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+  backend:
+    image: ${MAKERSPACE_IMAGE_PREFIX:-ghcr.io/basmatireis/makerspace-core}-backend:${MAKERSPACE_VERSION:?Set MAKERSPACE_VERSION to an immutable release version}
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-makerspace}@db:5432/${POSTGRES_DB:-makerspace}?sslmode=disable
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the production environment file}
+      HTTP_ADDR: :8080
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL to the public HTTPS origin}
+      SESSION_COOKIE_SECURE: "true"
+      SESSION_IDLE_TTL: ${SESSION_IDLE_TTL:-6h}
+      SESSION_ABSOLUTE_TTL: ${SESSION_ABSOLUTE_TTL:-72h}
+      PASSWORD_RESET_TTL: ${PASSWORD_RESET_TTL:-30m}
+      AUDIT_RETENTION: ${AUDIT_RETENTION:-8760h}
+      OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-true}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-http/protobuf}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-makerspace-core-api}
+      # These duplicate the application connection settings so this same image can
+      # run explicit one-off goose commands without defining another service.
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: postgres://${POSTGRES_USER:-makerspace}@db:5432/${POSTGRES_DB:-makerspace}?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/api/v1/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+    stop_grace_period: 15s
+    restart: unless-stopped
+    init: true
+
+  frontend:
+    image: ${MAKERSPACE_IMAGE_PREFIX:-ghcr.io/basmatireis/makerspace-core}-frontend:${MAKERSPACE_VERSION:?Set MAKERSPACE_VERSION to an immutable release version}
+    ports:
+      - "${FRONTEND_BIND_ADDRESS:-127.0.0.1}:${FRONTEND_PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    stop_grace_period: 10s
+    restart: unless-stopped
+    init: true
+
+volumes:
+  postgres_data:
