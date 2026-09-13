@@ -24,6 +24,13 @@ compose.yaml         local PostgreSQL/backend/frontend environment
 
 Generated Go, TypeScript, and sqlc files are committed but never edited by hand. Change their source contract/query and run `make generate`.
 
+## License
+
+Makerspace Core is licensed under the [Apache License 2.0](LICENSE). The
+[NOTICE](NOTICE) file records the project copyright and third-party
+attributions. Browser builds expose the applicable Carbon and IBM Plex notices
+at `/THIRD_PARTY_NOTICES.txt`.
+
 ## Local quick start
 
 Docker with Compose is the only required host dependency for running the application, generation, unit/integration checks, and production builds. The Playwright browser smoke suite is host-run and additionally requires Node 24, pnpm 11, and Chrome or the Playwright-managed Chromium described in [development](docs/development.md#browser-end-to-end-checks).

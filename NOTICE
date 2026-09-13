@@ -1,0 +1,34 @@
+Makerspace Core
+Copyright 2026 Noel Hauke
+
+The project-authored source code in this repository is licensed under the
+Apache License, Version 2.0. See LICENSE.
+
+Third-party notices
+---------------------
+
+Carbon Design System
+Copyright 2015 IBM Corp.
+Copyright IBM Corp. 2016-2026
+
+This application uses the Carbon packages, including @carbon/react,
+@carbon/icons-react, and their @carbon/* dependencies. They are licensed
+under the Apache License, Version 2.0. A copy of that license is in LICENSE.
+Carbon is a design system built by IBM. The use of its name here only
+identifies the origin of these components and does not imply endorsement.
+
+IBM Plex
+Copyright © 2017 IBM Corp. with Reserved Font Name "Plex"
+
+The browser build includes IBM Plex font files through @ibm/plex. The font
+software is licensed under the SIL Open Font License, Version 1.1. The full
+license and this copyright notice are published with the browser build at
+frontend/public/THIRD_PARTY_NOTICES.txt.
+
+SecLists common-password data
+Copyright (c) 2012-2025 Daniel Miessler and SecLists contributors
+
+The bundled common-password denylist is a curated subset inspired by the
+SecLists Passwords/Common-Credentials lists and is licensed under the MIT
+License. Its complete copyright, attribution, and license text are in
+backend/internal/security/COMMON_PASSWORDS_LICENSE.md.

@@ -37,6 +37,8 @@ COPY --from=build /out/api /app/api
 COPY --from=build /out/admin /app/admin
 COPY --from=tools /go/bin/goose /usr/local/bin/goose
 COPY backend/migrations/ /app/migrations/
+COPY LICENSE NOTICE /app/
+COPY backend/internal/security/COMMON_PASSWORDS_LICENSE.md /app/THIRD_PARTY_NOTICES.txt
 
 USER makerspace
 EXPOSE 8080
