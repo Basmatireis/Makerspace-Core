@@ -1,0 +1,33 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Logs, coverage, and temporary output
+*.log
+coverage/
+tmp/
+.cache/
+*.coverprofile
+*.prof
+*.test
+
+# Go build output
+backend/bin/
+
+# Frontend dependency and build output
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+.pnpm-store/
+
+# Local PostgreSQL data when a bind mount is used for troubleshooting
+.postgres-data/
+
+# Generated OpenAPI and sqlc sources are intentionally committed; do not ignore them.
