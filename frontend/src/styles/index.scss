@@ -412,7 +412,11 @@ h2 {
 .calendar-slot__time { display: block; font-weight: 600; white-space: nowrap; }
 .calendar-slot__indicators { display: flex; align-items: center; gap: $spacing-02; margin-block-start: 2px; }
 .calendar-slot__status,
-.calendar-slot__assignment { display: inline-flex; }
+.calendar-slot__assignment,
+.calendar-slot__other-assignments { display: inline-flex; align-items: center; }
+.calendar-slot__other-assignments,
+.calendar-slot__other-count { color: var(--cds-text-primary); }
+.calendar-slot__other-count { font-weight: 600; }
 .calendar-slot--staffed { border-inline-start-width: 5px; border-color: var(--cds-support-success, #24a148); background: var(--cds-notification-background-success, #defbe6); }
 .calendar-slot--staffed .calendar-slot__status { color: var(--cds-support-success, #24a148); }
 .calendar-slot--needs-supervisor { border-inline-start-width: 5px; border-color: var(--cds-support-error, #da1e28); background: var(--cds-notification-background-error, #fff1f1); }

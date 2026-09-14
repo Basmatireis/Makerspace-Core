@@ -296,6 +296,16 @@ describe('Open Day table and calendar filters', () => {
     const cancelledEvent = within(calendar).getByTitle('Cancelled').closest('.calendar-slot');
     expect(staffedEvent).toHaveClass('calendar-slot--staffed');
     expect(cancelledEvent).toHaveClass('calendar-slot--cancelled');
+    expect(within(staffedEvent as HTMLElement).getByTitle('Your assignment')).toBeInTheDocument();
+    expect(within(staffedEvent as HTMLElement).getByTitle('2 other people registered')).toBeInTheDocument();
+    expect(within(staffedEvent as HTMLElement).getByText('+2')).toBeInTheDocument();
+    expect(within(staffedEvent as HTMLElement).queryByTitle('3 people registered')).not.toBeInTheDocument();
+    expect(within(cancelledEvent as HTMLElement).getByTitle('Your assignment')).toBeInTheDocument();
+    expect(within(cancelledEvent as HTMLElement).queryByTitle(/other (person|people) registered/)).not.toBeInTheDocument();
+
+    const vacancyEvent = within(calendar).getByTitle('Supervisor position open').closest('.calendar-slot');
+    expect(within(vacancyEvent as HTMLElement).getByTitle('2 people registered')).toBeInTheDocument();
+    expect(within(vacancyEvent as HTMLElement).queryByText(/^\+/)).not.toBeInTheDocument();
 
     const holidayMarker = within(calendar).getByText('National Day').closest('.calendar-marker');
     const holidayIcon = within(calendar).getByLabelText('Public holiday: National Day');

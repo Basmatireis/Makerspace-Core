@@ -24,6 +24,10 @@ export function isFullyStaffed(day: OpenDay) {
   return day.requirements.every((item) => item.assignedCount >= item.requiredCount);
 }
 
+export function registeredPeopleCount(day: Pick<OpenDay, 'requirements'>) {
+  return day.requirements.reduce((total, requirement) => total + requirement.assignedCount, 0);
+}
+
 export function staffingLabel(day: OpenDay) {
   if (day.status === 'cancelled') return 'Cancelled';
   if (isFullyStaffed(day)) return 'Fully staffed';

@@ -14,6 +14,7 @@ import { CalendarLegend } from './CalendarLegend';
 import { calendarContextQueryOptions, openDayKeys, scheduleQueryOptions } from './queries';
 import { scheduleEditorReducer, type WorkingSlot } from './scheduleState';
 import { dateInTimeZone, timeInTimeZone, zonedDateTimeToISO } from './dateTime';
+import { registeredPeopleCount } from './format';
 import { CalendarDayCell, SemesterCalendarGrid, type CalendarGridDay } from './SemesterCalendarGrid';
 
 function toWorking(day: OpenDay): WorkingSlot {
@@ -149,7 +150,7 @@ function DropDate({ day, slots, timeZone, published, onAdd, onEdit }: { day: Cal
 function DraggableSlot({ slot, timeZone, disabled, onEdit }: { slot: WorkingSlot; timeZone: string; disabled: boolean; onEdit: () => void }) {
   const { ref, handleRef, isDragging } = useDraggable({ id: slot.id, disabled });
   const presentation = workingSlotPresentation(slot);
-  return <div ref={ref}><CalendarEvent kind={presentation.kind} timeLabel={`${timeInTimeZone(slot.startsAt, timeZone)}–${timeInTimeZone(slot.endsAt, timeZone)}`} statusLabel={presentation.label} statusIcon={presentation.Icon} assignmentLabel={slot.original?.myAssignment ? 'Your assignment' : undefined} assignmentIcon={UserAvatarFilledAlt} onActivate={onEdit} mainRef={handleRef} dragging={isDragging} ariaLabel={`${disabled ? 'Edit' : 'Drag or edit'} Open Day ${timeInTimeZone(slot.startsAt, timeZone)} to ${timeInTimeZone(slot.endsAt, timeZone)}`} actions={<Button hasIconOnly kind="ghost" size="sm" renderIcon={Edit} iconDescription="Edit Open Day" onClick={onEdit} />} /></div>;
+  return <div ref={ref}><CalendarEvent kind={presentation.kind} timeLabel={`${timeInTimeZone(slot.startsAt, timeZone)}–${timeInTimeZone(slot.endsAt, timeZone)}`} statusLabel={presentation.label} statusIcon={presentation.Icon} assignmentLabel={slot.original?.myAssignment ? 'Your assignment' : undefined} assignmentIcon={UserAvatarFilledAlt} registeredCount={slot.original ? registeredPeopleCount(slot.original) : 0} onActivate={onEdit} mainRef={handleRef} dragging={isDragging} ariaLabel={`${disabled ? 'Edit' : 'Drag or edit'} Open Day ${timeInTimeZone(slot.startsAt, timeZone)} to ${timeInTimeZone(slot.endsAt, timeZone)}`} actions={<Button hasIconOnly kind="ghost" size="sm" renderIcon={Edit} iconDescription="Edit Open Day" onClick={onEdit} />} /></div>;
 }
 function SlotForm({ slot, roles, timeZone, removalLabel, onChange, onRemove }: { slot: WorkingSlot; roles: EligibilityRole[]; timeZone: string; removalLabel: string; onChange: (slot: WorkingSlot) => void; onRemove: () => void }) {
   const supervisor = slot.requirements.find((item) => item.kind === 'supervisor')!;

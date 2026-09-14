@@ -1,6 +1,6 @@
 import { CheckmarkFilled, InformationFilled, Misuse, UserAvatarFilledAlt, WarningFilled } from '@carbon/icons-react';
 import type { CalendarEntry, OpenDay } from '../../api/generated/models';
-import { timeRange, isFullyStaffed } from './format';
+import { timeRange, isFullyStaffed, registeredPeopleCount } from './format';
 import { dateInTimeZone } from './dateTime';
 import { hasOpenSupervisorPosition } from './openDayFilters';
 import { CalendarEvent } from './CalendarEvent';
@@ -38,7 +38,7 @@ export function SemesterCalendar({ startsOn, endsOn, days, entries = [], timeZon
 function CalendarSlot({ day, timeZone, onOpenDay }: { day: OpenDay; timeZone: string; onOpenDay: (day: OpenDay) => void }) {
   const presentation = slotPresentation(day);
   const Icon = presentation.Icon;
-  return <CalendarEvent kind={presentation.kind} timeLabel={timeRange(day, timeZone)} statusLabel={presentation.label} statusIcon={Icon} assignmentLabel={day.myAssignment ? 'Your assignment' : undefined} assignmentIcon={UserAvatarFilledAlt} onActivate={() => onOpenDay(day)} />;
+  return <CalendarEvent kind={presentation.kind} timeLabel={timeRange(day, timeZone)} statusLabel={presentation.label} statusIcon={Icon} assignmentLabel={day.myAssignment ? 'Your assignment' : undefined} assignmentIcon={UserAvatarFilledAlt} registeredCount={registeredPeopleCount(day)} onActivate={() => onOpenDay(day)} />;
 }
 
 function slotPresentation(day: OpenDay) {
