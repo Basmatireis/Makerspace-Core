@@ -415,8 +415,7 @@ h2 {
 .calendar-marker svg { flex: none; }
 .calendar-marker span { overflow-wrap: anywhere; }
 .calendar-cell__context .calendar-marker { flex: none; padding: 0; border: 0; background: transparent; }
-.calendar-marker--academicBreak { border: 0; background: transparent; }
-.calendar-marker--continuation { color: var(--cds-text-secondary); }
+.calendar-marker--academicBreak { color: var(--cds-text-secondary); border-block-end-color: var(--cds-border-strong); background: var(--cds-background-hover); }
 .calendar-marker--label { margin-block-end: 2px; }
 .calendar-slot { display: block; inline-size: 100%; padding: $spacing-02; margin-block-end: 2px; text-align: start; border: 0; border-inline-start: 3px solid; background: var(--cds-layer-accent); cursor: pointer; @include type-style('helper-text-01'); }
 .calendar-slot__time { display: block; font-weight: 600; white-space: nowrap; }

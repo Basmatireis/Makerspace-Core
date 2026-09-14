@@ -8,7 +8,6 @@ export type CalendarGridDay = {
   date: string;
   dayNumber: number;
   entries: CalendarEntry[];
-  showBreakLabel: boolean;
   withinRange: boolean;
 };
 
@@ -48,7 +47,6 @@ export function SemesterCalendarGrid({ startsOn, endsOn, entries = [], renderDay
                   date,
                   dayNumber: index + 1,
                   entries: entries.filter((entry) => entry.startsOn <= date && entry.endsOn >= date),
-                  showBreakLabel: entries.some((entry) => entry.category === 'academicBreak' && entry.startsOn === date) || index === 0,
                   withinRange: date >= startsOn && date <= endsOn,
                 });
               })}
@@ -70,7 +68,6 @@ type CellProps = {
 };
 
 export const CalendarDayCell = forwardRef<HTMLDivElement, CellProps>(function CalendarDayCell({ day, children, className = '', onSelectDate, tooltipDescription }, ref) {
-  const holidays = day.entries.filter((entry) => entry.category === 'publicHoliday');
   const fullDate = new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, { dateStyle: 'full' });
   const contextDescription = day.entries.map((entry) => `${entry.category === 'academicBreak' ? 'Academic break' : 'Public holiday'}: ${entry.name}`);
   const description = tooltipDescription ?? [fullDate, ...contextDescription].join('. ');
@@ -96,15 +93,14 @@ export const CalendarDayCell = forwardRef<HTMLDivElement, CellProps>(function Ca
               {day.entries.map((entry) => (
                 <CalendarContextMarker
                   entry={entry}
-                  showBreakLabel={entry.category !== 'academicBreak' || day.showBreakLabel}
-                  mode={entry.category === 'publicHoliday' ? 'icon' : 'full'}
+                  mode="icon"
                   key={`${entry.source}-${entry.id ?? entry.name}`}
                 />
               ))}
             </div>
           )}
         </div>
-        {holidays.map((entry) => (
+        {day.entries.map((entry) => (
           <CalendarContextMarker
             entry={entry}
             mode="label"

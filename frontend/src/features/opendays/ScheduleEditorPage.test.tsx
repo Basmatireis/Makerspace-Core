@@ -137,7 +137,7 @@ describe('schedule editor calendar context', () => {
     expect(await screen.findByLabelText('Public holiday: Nationalfeiertag')).toBeInTheDocument();
     expect(screen.getAllByLabelText('Academic break: Autumn break, 2026-10-27 to 2026-10-28')).toHaveLength(2);
     const planningCalendar = screen.getByLabelText('Schedule planning calendar');
-    expect(within(planningCalendar).getByText('Autumn break')).toBeInTheDocument();
+    expect(within(planningCalendar).getAllByText('Autumn break')).toHaveLength(2);
     expect(within(planningCalendar).queryByText('Academic break: Autumn break')).not.toBeInTheDocument();
 
     const holidayAdd = screen.getByRole('button', { name: 'Add Open Day on 2026-10-26' });

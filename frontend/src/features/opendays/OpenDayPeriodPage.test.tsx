@@ -350,9 +350,9 @@ describe('Open Day table and calendar filters', () => {
     expect(within(calendar).getByTitle('Cancelled')).toBeInTheDocument();
     expect(within(calendar).getAllByTitle('Your assignment')).toHaveLength(2);
     const holidayLabel = within(calendar).getAllByText('National Day').find((item) => item.closest('.calendar-marker--label'));
-    const breakLabel = within(calendar).getAllByText('Autumn break').find((item) => item.closest('.calendar-marker--academicBreak'));
+    const breakLabels = within(calendar).getAllByText('Autumn break').filter((item) => item.closest('.calendar-marker--academicBreak.calendar-marker--label'));
     expect(holidayLabel).toBeInTheDocument();
-    expect(breakLabel).toBeInTheDocument();
+    expect(breakLabels).toHaveLength(3);
     expect(within(calendar).getAllByLabelText('Academic break: Autumn break, 2026-10-02 to 2026-10-04')).toHaveLength(3);
 
     const staffedEvent = within(calendar).getByTitle('Fully staffed').closest('.calendar-slot');
@@ -372,12 +372,12 @@ describe('Open Day table and calendar filters', () => {
 
     const holidayMarker = holidayLabel!.closest('.calendar-marker');
     const holidayIcon = within(calendar).getByLabelText('Public holiday: National Day');
-    const breakMarker = breakLabel!.closest('.calendar-marker');
+    const breakMarker = breakLabels[0].closest('.calendar-marker');
     expect(holidayMarker).toHaveClass('calendar-marker--label');
     expect(holidayMarker?.closest('.calendar-cell__header')).toBeNull();
     expect(holidayIcon.parentElement).toHaveClass('calendar-cell__context');
-    expect(breakMarker?.parentElement).toHaveClass('calendar-cell__context');
-    expect(breakMarker?.closest('.calendar-cell__header')).not.toBeNull();
+    expect(breakMarker).toHaveClass('calendar-marker--label');
+    expect(breakMarker?.closest('.calendar-cell__header')).toBeNull();
 
     const weekdays = container.querySelector('.calendar-weekdays');
     expect(Array.from(weekdays?.children ?? []).map((item) => item.textContent)).toEqual(['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']);
