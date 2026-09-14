@@ -52,13 +52,13 @@ function slotPresentation(day: OpenDay) {
 
 function dateTooltipContent(date: string, days: OpenDay[], entries: CalendarEntry[], timeZone: string) {
   const fullDate = new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { dateStyle: 'full' });
-  const context = entries.map((entry) => `${entry.category === 'academicBreak' ? 'Academic break' : 'Public holiday'}: ${entry.name}`);
   return (
     <div className="calendar-cell__tooltip-content">
       <strong>{fullDate}</strong>
-      {context.map((item) => <span key={item}>{item}</span>)}
+      {entries.map((entry) => <span key={`${entry.source}-${entry.id ?? entry.name}`}>{entry.name}</span>)}
       {days.map((day) => <div className="calendar-cell__tooltip-slot" key={day.id}>
-        <strong>{timeRange(day, timeZone)}: {slotPresentation(day).label}{day.myAssignment ? ', your assignment' : ''}</strong>
+        <strong>{timeRange(day, timeZone)}</strong>
+        <span>{slotPresentation(day).label}</span>
         {day.requirements.map((requirement) => {
           const role = requirement.kind === 'supervisor' ? 'Supervisors' : 'Trainees';
           const vacancies = Math.max(0, requirement.requiredCount - requirement.assignedCount);

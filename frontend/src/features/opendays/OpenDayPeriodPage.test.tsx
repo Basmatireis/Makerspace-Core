@@ -324,8 +324,10 @@ describe('Open Day table and calendar filters', () => {
     expect(within(calendar).getByTitle('Fully staffed')).toBeInTheDocument();
     expect(within(calendar).getByTitle('Cancelled')).toBeInTheDocument();
     expect(within(calendar).getAllByTitle('Your assignment')).toHaveLength(2);
-    expect(within(calendar).getByText('National Day')).toBeInTheDocument();
-    expect(within(calendar).getByText('Autumn break')).toBeInTheDocument();
+    const holidayLabel = within(calendar).getAllByText('National Day').find((item) => item.closest('.calendar-marker--label'));
+    const breakLabel = within(calendar).getAllByText('Autumn break').find((item) => item.closest('.calendar-marker--academicBreak'));
+    expect(holidayLabel).toBeInTheDocument();
+    expect(breakLabel).toBeInTheDocument();
     expect(within(calendar).getAllByLabelText('Academic break: Autumn break, 2026-10-02 to 2026-10-04')).toHaveLength(3);
 
     const staffedEvent = within(calendar).getByTitle('Fully staffed').closest('.calendar-slot');
@@ -343,9 +345,9 @@ describe('Open Day table and calendar filters', () => {
     expect(within(vacancyEvent as HTMLElement).getByTitle('2 people registered')).toBeInTheDocument();
     expect(within(vacancyEvent as HTMLElement).queryByText(/^\+/)).not.toBeInTheDocument();
 
-    const holidayMarker = within(calendar).getByText('National Day').closest('.calendar-marker');
+    const holidayMarker = holidayLabel!.closest('.calendar-marker');
     const holidayIcon = within(calendar).getByLabelText('Public holiday: National Day');
-    const breakMarker = within(calendar).getByText('Autumn break').closest('.calendar-marker');
+    const breakMarker = breakLabel!.closest('.calendar-marker');
     expect(holidayMarker).toHaveClass('calendar-marker--label');
     expect(holidayMarker?.closest('.calendar-cell__header')).toBeNull();
     expect(holidayIcon.parentElement).toHaveClass('calendar-cell__context');
@@ -430,14 +432,24 @@ describe('Open Day table and calendar filters', () => {
 
     await user.hover(hoverSurface!);
     const tooltip = await screen.findByRole('tooltip');
-    expect(tooltip).toHaveTextContent('Public holiday: National Day');
-    expect(tooltip).toHaveTextContent(/08:00.*11:00.*Supervisor position open/);
+    expect(within(tooltip).getByText('National Day')).toBeInTheDocument();
+    expect(within(tooltip).queryByText('Public holiday: National Day')).not.toBeInTheDocument();
+    const timeRow = within(tooltip).getByText(/08:00.*11:00/);
+    expect(timeRow).not.toHaveTextContent('Supervisor position open');
+    expect(within(tooltip).getByText('Supervisor position open')).toBeInTheDocument();
     const supervisorSummary = within(tooltip).getByText('Supervisors').closest<HTMLElement>('.calendar-cell__tooltip-requirement');
     expect(supervisorSummary).not.toBeNull();
     expect(within(supervisorSummary!).getByText('1 registered')).toBeInTheDocument();
     expect(within(supervisorSummary!).getByText('1 position open')).toBeInTheDocument();
     expect(tooltip).not.toHaveTextContent('Max Mustermann');
     await user.unhover(hoverSurface!);
+
+    const ownOpenDayButton = within(calendar).getByRole('button', { name: /Fully staffed, Your assignment/ });
+    const ownHoverSurface = ownOpenDayButton.closest('.calendar-cell')?.querySelector<HTMLElement>('.calendar-cell__tooltip-target');
+    expect(ownHoverSurface).not.toBeNull();
+    await user.hover(ownHoverSurface!);
+    expect(await screen.findByRole('tooltip')).not.toHaveTextContent(/your assignment/i);
+    await user.unhover(ownHoverSurface!);
 
     await user.click(openDayButton);
     const registration = await screen.findByRole('dialog', { name: /Thursday, October 1, 2026/ });
