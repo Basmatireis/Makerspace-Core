@@ -15,6 +15,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	goholidays "github.com/coredds/GoHoliday"
+	"github.com/coredds/GoHoliday/countries"
 	"github.com/emersion/go-ical"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -33,18 +34,32 @@ type goHolidayProvider struct {
 	language string
 }
 
+type austriaHolidayProvider struct {
+	provider    *countries.ATProvider
+	subdivision string
+	language    string
+}
+
 func newHolidayProvider(cfg config.Config) (HolidayProvider, error) {
-	country := cfg.HolidayCountry
+	country := strings.ToUpper(strings.TrimSpace(cfg.HolidayCountry))
 	if country == "" {
 		country = "AT"
 	}
-	subdivision := cfg.HolidaySubdivision
+	subdivision := strings.ToUpper(strings.TrimSpace(cfg.HolidaySubdivision))
 	if subdivision == "" {
 		subdivision = "AT-6"
 	}
-	language := cfg.HolidayLanguage
+	language := strings.ToLower(strings.TrimSpace(cfg.HolidayLanguage))
 	if language == "" {
 		language = "de"
+	}
+	if country == "AT" {
+		provider := countries.NewATProvider()
+		providerSubdivision := strings.TrimPrefix(subdivision, "AT-")
+		if !containsString(provider.GetSupportedSubdivisions(), providerSubdivision) {
+			return nil, fmt.Errorf("validate Open Days holiday jurisdiction %s/%s: unsupported subdivision", country, subdivision)
+		}
+		return &austriaHolidayProvider{provider: provider, subdivision: providerSubdivision, language: language}, nil
 	}
 	options := goholidays.CountryOptions{Language: language}
 	if subdivision != "" {
@@ -57,18 +72,50 @@ func newHolidayProvider(cfg config.Config) (HolidayProvider, error) {
 	return &goHolidayProvider{country: value, language: language}, nil
 }
 
+func (p *austriaHolidayProvider) Between(start, end time.Time) ([]Holiday, error) {
+	start = dateOnly(start)
+	end = dateOnly(end)
+	items := []Holiday{}
+	for year := start.Year(); year <= end.Year(); year++ {
+		for date, value := range p.provider.LoadHolidays(year) {
+			if !date.Before(start) && !date.After(end) {
+				items = append(items, Holiday{Name: translatedHolidayName(value.Name, value.Languages, p.language), Date: date})
+			}
+		}
+		for date, value := range p.provider.GetRegionalHolidays(year, []string{p.subdivision}) {
+			if !date.Before(start) && !date.After(end) {
+				items = append(items, Holiday{Name: translatedHolidayName(value.Name, value.Languages, p.language), Date: date})
+			}
+		}
+	}
+	sortHolidays(items)
+	return items, nil
+}
+
 func (p *goHolidayProvider) Between(start, end time.Time) ([]Holiday, error) {
 	values := p.country.HolidaysForDateRange(start, end)
 	items := make([]Holiday, 0, len(values))
 	for date, value := range values {
-		name := value.Name
-		if translated := value.Languages[p.language]; translated != "" {
-			name = translated
-		}
-		items = append(items, Holiday{Name: name, Date: date})
+		items = append(items, Holiday{Name: translatedHolidayName(value.Name, value.Languages, p.language), Date: date})
 	}
 	sortHolidays(items)
 	return items, nil
+}
+
+func translatedHolidayName(name string, translations map[string]string, language string) string {
+	if translated := translations[language]; translated != "" {
+		return translated
+	}
+	return name
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func sortHolidays(items []Holiday) {
@@ -114,13 +161,13 @@ func (s *Service) CalendarContext(ctx context.Context, principal authorization.P
 	result := CalendarContext{TimeZone: s.location.String(), CountryCode: valueOr(s.cfg.HolidayCountry, "AT"), SubdivisionCode: valueOr(s.cfg.HolidaySubdivision, "AT-6"), LanguageCode: valueOr(s.cfg.HolidayLanguage, "de"), Entries: []CalendarEntry{}, AcademicBreaks: []AcademicBreak{}}
 	for _, holiday := range holidays {
 		date := dateOnly(holiday.Date)
-		result.Entries = append(result.Entries, CalendarEntry{Name: holiday.Name, Source: "public_holiday", Category: "public_holiday", StartsOn: date, EndsOn: date})
+		result.Entries = append(result.Entries, CalendarEntry{Name: holiday.Name, Source: "holidayLibrary", Category: "publicHoliday", StartsOn: date, EndsOn: date})
 	}
 	for _, row := range breaks {
 		item := breakFromRow(row)
 		result.AcademicBreaks = append(result.AcademicBreaks, item)
 		id := item.ID
-		result.Entries = append(result.Entries, CalendarEntry{ID: &id, Name: item.Name, Source: "academic_break", Category: "academic_break", StartsOn: item.StartsOn, EndsOn: item.EndsOn})
+		result.Entries = append(result.Entries, CalendarEntry{ID: &id, Name: item.Name, Source: "manual", Category: "academicBreak", StartsOn: item.StartsOn, EndsOn: item.EndsOn})
 	}
 	return result, nil
 }
@@ -289,12 +336,12 @@ func (s *Service) PreviewRecurrence(ctx context.Context, p authorization.Princip
 		}
 		item := RecurrenceOccurrence{Date: date, StartsAt: start.UTC(), EndsAt: end.UTC(), Disposition: "create"}
 		if name, ok := holidayDates[dateKey(date)]; ok && input.SkipPublicHolidays {
-			item.Disposition = "holiday"
+			item.Disposition = "publicHoliday"
 			item.Reason = name
 		}
 		for _, b := range breaks {
 			if dateWithin(date, b.StartsOn.Time, b.EndsOn.Time) && input.SkipAcademicBreaks {
-				item.Disposition = "academic_break"
+				item.Disposition = "academicBreak"
 				item.Reason = b.Name
 				break
 			}

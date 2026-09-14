@@ -343,3 +343,90 @@ func TestOpenDaysVisibilityAndValidation(t *testing.T) {
 	_, err = service.CreateOpenDay(ctx, manager, period.ID, period.Version, bad, nil)
 	expectAppCode(t, err, "validation_failed")
 }
+
+func TestOpenDayCalendarContextUsesAustrianProviderAndDoesNotBlockManualScheduling(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	account := seedAccount(t, pool, "open-days-calendar-context", true)
+	manager := authorization.Principal{AccountID: account.accountID, PersonID: account.personID, Master: true}
+	service, err := opendays.NewService(pool, config.Config{
+		MakerspaceTimeZone: "Europe/Vienna",
+		HolidayCountry:     "AT",
+		HolidaySubdivision: "AT-6",
+		HolidayLanguage:    "de",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	period, err := service.CreatePeriod(ctx, manager, "Holiday context", time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), time.Date(2027, 1, 31, 0, 0, 0, 0, time.UTC), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	academicBreak, err := service.CreateAcademicBreak(ctx, manager, "Christmas break", time.Date(2026, 12, 23, 0, 0, 0, 0, time.UTC), time.Date(2027, 1, 6, 0, 0, 0, 0, time.UTC), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	calendar, err := service.CalendarContext(ctx, manager, period.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calendar.CountryCode != "AT" || calendar.SubdivisionCode != "AT-6" {
+		t.Fatalf("calendar jurisdiction = %s/%s", calendar.CountryCode, calendar.SubdivisionCode)
+	}
+	foundNationalDay := false
+	foundBreak := false
+	for _, entry := range calendar.Entries {
+		if entry.Name == "Nationalfeiertag" && dateKeyForTest(entry.StartsOn) == "2026-10-26" {
+			foundNationalDay = entry.Category == "publicHoliday" && entry.Source == "holidayLibrary"
+		}
+		if entry.ID != nil && *entry.ID == academicBreak.ID {
+			foundBreak = entry.Category == "academicBreak" && entry.Source == "manual" && dateKeyForTest(entry.EndsOn) == "2027-01-06"
+		}
+	}
+	if !foundNationalDay || !foundBreak {
+		t.Fatalf("calendar entries did not contain typed Austrian holiday and academic break: %#v", calendar.Entries)
+	}
+
+	publicHolidayPreview, err := service.PreviewRecurrence(ctx, manager, period.ID, opendays.RecurrenceInput{
+		Weekday: 1, StartsOn: time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC), EndsOn: time.Date(2026, 10, 26, 0, 0, 0, 0, time.UTC),
+		StartTime: "16:00", EndTime: "19:00", EveryWeeks: 1, SkipPublicHolidays: true, SkipAcademicBreaks: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(publicHolidayPreview) != 1 || publicHolidayPreview[0].Disposition != "publicHoliday" {
+		t.Fatalf("public holiday preview = %#v", publicHolidayPreview)
+	}
+	academicBreakPreview, err := service.PreviewRecurrence(ctx, manager, period.ID, opendays.RecurrenceInput{
+		Weekday: 1, StartsOn: time.Date(2026, 12, 28, 0, 0, 0, 0, time.UTC), EndsOn: time.Date(2026, 12, 28, 0, 0, 0, 0, time.UTC),
+		StartTime: "16:00", EndTime: "19:00", EveryWeeks: 1, SkipPublicHolidays: true, SkipAcademicBreaks: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(academicBreakPreview) != 1 || academicBreakPreview[0].Disposition != "academicBreak" {
+		t.Fatalf("academic break preview = %#v", academicBreakPreview)
+	}
+
+	zeroRequirements := []opendays.RequirementInput{
+		{Kind: "supervisor", RequiredCount: 0},
+		{Kind: "trainee", RequiredCount: 0},
+	}
+	schedule, err := service.CreateOpenDay(ctx, manager, period.ID, period.Version, opendays.ScheduleInput{
+		StartsAt: time.Date(2026, 10, 26, 15, 0, 0, 0, time.UTC), EndsAt: time.Date(2026, 10, 26, 18, 0, 0, 0, time.UTC), Requirements: zeroRequirements,
+	}, nil)
+	if err != nil {
+		t.Fatalf("manual Open Day on public holiday: %v", err)
+	}
+	_, err = service.CreateOpenDay(ctx, manager, period.ID, schedule.Period.Version, opendays.ScheduleInput{
+		StartsAt: time.Date(2026, 12, 28, 15, 0, 0, 0, time.UTC), EndsAt: time.Date(2026, 12, 28, 18, 0, 0, 0, time.UTC), Requirements: zeroRequirements,
+	}, nil)
+	if err != nil {
+		t.Fatalf("manual Open Day during academic break: %v", err)
+	}
+}
+
+func dateKeyForTest(value time.Time) string {
+	return value.Format("2006-01-02")
+}
