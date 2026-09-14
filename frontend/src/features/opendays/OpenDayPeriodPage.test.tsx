@@ -272,6 +272,18 @@ describe('Open Day table and calendar filters', () => {
     expect(within(calendar).getByText('Autumn break')).toBeInTheDocument();
     expect(within(calendar).getAllByLabelText('Academic break: Autumn break, 2026-10-02 to 2026-10-04')).toHaveLength(3);
 
+    const staffedEvent = within(calendar).getByTitle('Fully staffed').closest('.calendar-slot');
+    const cancelledEvent = within(calendar).getByTitle('Cancelled').closest('.calendar-slot');
+    expect(staffedEvent).toHaveClass('calendar-slot--staffed');
+    expect(cancelledEvent).toHaveClass('calendar-slot--cancelled');
+
+    const holidayMarker = within(calendar).getByText('National Day').closest('.calendar-marker');
+    const breakMarker = within(calendar).getByText('Autumn break').closest('.calendar-marker');
+    expect(holidayMarker?.parentElement).toHaveClass('calendar-cell__context');
+    expect(breakMarker?.parentElement).toHaveClass('calendar-cell__context');
+    expect(holidayMarker?.closest('.calendar-cell__header')).not.toBeNull();
+    expect(breakMarker?.closest('.calendar-cell__header')).not.toBeNull();
+
     const weekdays = container.querySelector('.calendar-weekdays');
     expect(Array.from(weekdays?.children ?? []).map((item) => item.textContent)).toEqual(['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']);
     expect(container.querySelectorAll('.calendar-month:first-child .calendar-cell--empty')).toHaveLength(4);

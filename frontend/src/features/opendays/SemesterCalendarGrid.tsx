@@ -70,18 +70,24 @@ type CellProps = {
 export const CalendarDayCell = forwardRef<HTMLDivElement, CellProps>(function CalendarDayCell({ day, children, className = '', onSelectDate }, ref) {
   return (
     <div ref={ref} className={`calendar-cell${day.withinRange ? '' : ' calendar-cell--outside-period'}${className ? ` ${className}` : ''}`} aria-label={new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, { dateStyle: 'full' })}>
-      {onSelectDate ? (
-        <Button kind="ghost" size="sm" renderIcon={Add} className="calendar-cell__date-action" onClick={onSelectDate} aria-label={`Add Open Day on ${day.date}`}>
-          {day.dayNumber}
-        </Button>
-      ) : <span className="calendar-cell__date">{day.dayNumber}</span>}
-      {day.entries.map((entry) => (
-        <CalendarContextMarker
-          entry={entry}
-          showBreakLabel={entry.category !== 'academicBreak' || day.showBreakLabel}
-          key={`${entry.source}-${entry.id ?? entry.name}`}
-        />
-      ))}
+      <div className="calendar-cell__header">
+        {onSelectDate ? (
+          <Button kind="ghost" size="sm" renderIcon={Add} className="calendar-cell__date-action" onClick={onSelectDate} aria-label={`Add Open Day on ${day.date}`}>
+            {day.dayNumber}
+          </Button>
+        ) : <span className="calendar-cell__date">{day.dayNumber}</span>}
+        {day.entries.length > 0 && (
+          <div className="calendar-cell__context">
+            {day.entries.map((entry) => (
+              <CalendarContextMarker
+                entry={entry}
+                showBreakLabel={entry.category !== 'academicBreak' || day.showBreakLabel}
+                key={`${entry.source}-${entry.id ?? entry.name}`}
+              />
+            ))}
+          </div>
+        )}
+      </div>
       {children}
     </div>
   );
