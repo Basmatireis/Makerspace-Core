@@ -358,8 +358,16 @@ h2 {
 .open-days-view-toolbar__filters .cds--btn { min-block-size: 3rem; white-space: nowrap; }
 .open-days-view-toolbar__views { margin-inline-start: auto; }
 .open-days-view-toolbar__views .cds--btn { inline-size: 3rem; min-block-size: 3rem; padding: 0; }
-.open-days-view-content--calendar { padding-block-start: $spacing-05; background: var(--cds-layer); }
-.open-days-view-content--calendar .calendar-legend { padding-inline: $spacing-05; }
+.open-days-view-content--calendar { background: var(--cds-layer); }
+.open-days-view-content--calendar .calendar-legend {
+  align-items: center;
+  min-block-size: 3rem;
+  padding: $spacing-04 $spacing-05;
+  margin-block-end: 0;
+  background: var(--cds-layer-accent, #e0e0e0);
+  font-weight: 600;
+  @include type-style('body-compact-01');
+}
 .responsive-table { overflow-x: auto; }
 .responsive-table .cds--data-table { min-inline-size: 58rem; }
 .responsive-table tbody tr { cursor: pointer; }
