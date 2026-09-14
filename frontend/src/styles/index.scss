@@ -391,9 +391,11 @@ h2 {
 .calendar-marker { display: flex; align-items: center; min-inline-size: 0; max-inline-size: 100%; gap: $spacing-01; padding: 1px $spacing-01; overflow: hidden; color: var(--cds-text-primary); border-block-end: 2px solid var(--cds-support-warning, #f1c21b); background: var(--cds-notification-background-warning, #fcf4d6); @include type-style('helper-text-01'); }
 .calendar-marker svg { flex: none; }
 .calendar-marker span { overflow-wrap: anywhere; }
-.calendar-marker--academicBreak { border-block-end-style: dashed; border-block-end-color: var(--cds-support-info, #0043ce); background: var(--cds-notification-background-info, #edf5ff); }
+.calendar-cell__context .calendar-marker { flex: none; padding: 0; border: 0; background: transparent; }
+.calendar-marker--academicBreak { border: 0; background: transparent; }
 .calendar-marker--academicBreak svg { color: var(--cds-support-info, #0043ce); }
-.calendar-marker--continuation { color: var(--cds-text-secondary); border-block-end-style: dotted; }
+.calendar-marker--continuation { color: var(--cds-text-secondary); }
+.calendar-marker--label { margin-block-end: 2px; }
 .calendar-slot { display: block; inline-size: 100%; padding: $spacing-02; margin-block-end: 2px; text-align: start; border: 0; border-inline-start: 3px solid; background: var(--cds-layer-accent); cursor: pointer; @include type-style('helper-text-01'); }
 .calendar-slot__time { display: block; font-weight: 600; white-space: nowrap; }
 .calendar-slot__indicators { display: flex; align-items: center; gap: $spacing-02; margin-block-start: 2px; }

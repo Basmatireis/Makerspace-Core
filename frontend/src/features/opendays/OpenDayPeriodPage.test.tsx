@@ -278,10 +278,12 @@ describe('Open Day table and calendar filters', () => {
     expect(cancelledEvent).toHaveClass('calendar-slot--cancelled');
 
     const holidayMarker = within(calendar).getByText('National Day').closest('.calendar-marker');
+    const holidayIcon = within(calendar).getByLabelText('Public holiday: National Day');
     const breakMarker = within(calendar).getByText('Autumn break').closest('.calendar-marker');
-    expect(holidayMarker?.parentElement).toHaveClass('calendar-cell__context');
+    expect(holidayMarker).toHaveClass('calendar-marker--label');
+    expect(holidayMarker?.closest('.calendar-cell__header')).toBeNull();
+    expect(holidayIcon.parentElement).toHaveClass('calendar-cell__context');
     expect(breakMarker?.parentElement).toHaveClass('calendar-cell__context');
-    expect(holidayMarker?.closest('.calendar-cell__header')).not.toBeNull();
     expect(breakMarker?.closest('.calendar-cell__header')).not.toBeNull();
 
     const weekdays = container.querySelector('.calendar-weekdays');

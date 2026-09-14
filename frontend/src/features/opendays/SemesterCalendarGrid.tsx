@@ -68,6 +68,8 @@ type CellProps = {
 };
 
 export const CalendarDayCell = forwardRef<HTMLDivElement, CellProps>(function CalendarDayCell({ day, children, className = '', onSelectDate }, ref) {
+  const holidays = day.entries.filter((entry) => entry.category === 'publicHoliday');
+
   return (
     <div ref={ref} className={`calendar-cell${day.withinRange ? '' : ' calendar-cell--outside-period'}${className ? ` ${className}` : ''}`} aria-label={new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, { dateStyle: 'full' })}>
       <div className="calendar-cell__header">
@@ -82,12 +84,20 @@ export const CalendarDayCell = forwardRef<HTMLDivElement, CellProps>(function Ca
               <CalendarContextMarker
                 entry={entry}
                 showBreakLabel={entry.category !== 'academicBreak' || day.showBreakLabel}
+                mode={entry.category === 'publicHoliday' ? 'icon' : 'full'}
                 key={`${entry.source}-${entry.id ?? entry.name}`}
               />
             ))}
           </div>
         )}
       </div>
+      {holidays.map((entry) => (
+        <CalendarContextMarker
+          entry={entry}
+          mode="label"
+          key={`label-${entry.source}-${entry.id ?? entry.name}`}
+        />
+      ))}
       {children}
     </div>
   );
