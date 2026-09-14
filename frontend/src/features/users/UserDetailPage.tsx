@@ -75,12 +75,12 @@ export function UserDetailPage() {
   const { personId = '' } = useParams();
   const personQuery = useQuery(personOptions(personId));
 
-  if (personQuery.isPending) return <FullPageLoading label="Loading person" />;
+  if (personQuery.isPending) return <FullPageLoading label="Loading member" />;
   if (personQuery.isError || !personQuery.data) {
     return (
       <ErrorState
-        title="Unable to load person"
-        message="The person may no longer exist or you may not have access."
+        title="Unable to load member"
+        message="The member may no longer exist or you may not have access."
         onRetry={() => void personQuery.refetch()}
       />
     );
@@ -266,8 +266,8 @@ function UserDetailContent({ person }: { person: Person }) {
   };
 
   const confirmation = {
-    'delete-person': ['Delete person permanently?', 'This permanently deletes the person and, if present, their account. This cannot be undone.', 'Delete person'],
-    'delete-account': ['Delete account permanently?', 'The person record remains, but the login account is permanently removed.', 'Delete account'],
+    'delete-person': ['Delete member permanently?', 'This permanently deletes the member and, if present, their account. This cannot be undone.', 'Delete member'],
+    'delete-account': ['Delete account permanently?', 'The member record remains, but the login account is permanently removed.', 'Delete account'],
     'disable-account': ['Disable this account?', 'The user will be signed out and will not be able to sign in.', 'Disable account'],
     'reset-password': ['Issue a password reset link?', 'The current password and sessions will be invalidated. The link is shown only once.', 'Issue reset link'],
   } as const;
@@ -278,10 +278,10 @@ function UserDetailContent({ person }: { person: Person }) {
     <Stack gap={7}>
       <PageHeader
         title={`${person.firstName} ${person.lastName}`}
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Users', to: '/settings/users' }]}
-        description="Person details and account access."
+        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Members', to: '/settings/users' }]}
+        description="Member details and account access."
         actions={canDeletePerson ? (
-          <Button kind="danger--tertiary" renderIcon={TrashCan} onClick={(event) => { confirmationLauncherRef.current = event.currentTarget; setConfirmKind('delete-person'); }}>Delete person</Button>
+          <Button kind="danger--tertiary" renderIcon={TrashCan} onClick={(event) => { confirmationLauncherRef.current = event.currentTarget; setConfirmKind('delete-person'); }}>Delete member</Button>
         ) : undefined}
       />
       {mutationError && (
@@ -326,7 +326,7 @@ function UserDetailContent({ person }: { person: Person }) {
                 <InlineNotification kind="info" lowContrast hideCloseButton title="Account details unavailable" subtitle="Your permissions do not include account access." />
               ) : !account ? (
                 <Stack gap={4}>
-                  <p>This person does not have a login account.</p>
+                  <p>This member does not have a login account.</p>
                   {hasPermission(currentUser, PermissionId.accountscreate) && <Button ref={createAccountButtonRef} renderIcon={Add} onClick={() => setCreateAccountOpen(true)}>Create account</Button>}
                 </Stack>
               ) : (

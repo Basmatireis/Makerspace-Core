@@ -52,12 +52,12 @@ export function UserCreatePage() {
   return (
     <Stack gap={7}>
       <PageHeader
-        title="Add person"
+        title="Add member"
         breadcrumbs={[
           { label: 'Settings', to: '/settings' },
-          { label: 'Users', to: '/settings/users' },
+          { label: 'Members', to: '/settings/users' },
         ]}
-        description="Create a person record. A login account can be added afterward."
+        description="Create a member record. A login account can be added afterward."
       />
       <Tile className="form-tile">
         <Form onSubmit={onSubmit}>
@@ -67,7 +67,7 @@ export function UserCreatePage() {
                 kind="error"
                 lowContrast
                 hideCloseButton
-                title="Person not created"
+                title="Member not created"
                 subtitle="Review the information and try again."
               />
             )}
@@ -81,7 +81,7 @@ export function UserCreatePage() {
                 Cancel
               </Button>
               <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? 'Creating…' : 'Create person'}
+                {createMutation.isPending ? 'Creating…' : 'Create member'}
               </Button>
             </div>
           </Stack>

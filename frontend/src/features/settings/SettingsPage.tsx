@@ -24,8 +24,8 @@ export function SettingsPage() {
               <Stack gap={5}>
                 <UserMultiple size={32} />
                 <div>
-                  <h2>Users</h2>
-                  <p>Manage people, login accounts, roles, and security.</p>
+                  <h2>Members</h2>
+                  <p>Manage member records, login accounts, roles, and security.</p>
                 </div>
               </Stack>
             </ClickableTile>

@@ -13,7 +13,7 @@ import {
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 
-describe('Create person page', () => {
+describe('Create member page', () => {
   it('submits the permitted fields and opens the new Person', async () => {
     const created = personFixture({
       firstName: 'Katherine',
@@ -51,7 +51,7 @@ describe('Create person page', () => {
       'katherine@example.test',
     );
     await user.type(screen.getByLabelText('Matriculation number'), 'M-2042');
-    await user.click(screen.getByRole('button', { name: 'Create person' }));
+    await user.click(screen.getByRole('button', { name: 'Create member' }));
 
     await waitFor(() =>
       expect(submitted).toEqual({

@@ -32,7 +32,7 @@ describe('protected application routing', () => {
     );
     renderRoute(<App />, '/settings');
     expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Users' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Members' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Roles' })).not.toBeInTheDocument();
   });
 
