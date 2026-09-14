@@ -1129,12 +1129,46 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /open-day-periods/{periodId}/return-to-draft:
+    parameters: [{$ref: "#/components/parameters/OpenDayPeriodId"}]
+    post:
+      tags: [Open Days]
+      operationId: returnOpenDayPeriodToDraft
+      summary: Return a staffing period to draft
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Updated period., content: {application/json: {schema: {$ref: "#/components/schemas/OpenDayPeriod"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /open-day-periods/{periodId}/publish:
     parameters: [{$ref: "#/components/parameters/OpenDayPeriodId"}]
     post:
       tags: [Open Days]
       operationId: publishOpenDayPeriod
       summary: Publish a staffing period
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Updated period., content: {application/json: {schema: {$ref: "#/components/schemas/OpenDayPeriod"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-day-periods/{periodId}/return-to-staffing:
+    parameters: [{$ref: "#/components/parameters/OpenDayPeriodId"}]
+    post:
+      tags: [Open Days]
+      operationId: returnOpenDayPeriodToStaffing
+      summary: Unpublish a period and return it to staffing
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
       responses:

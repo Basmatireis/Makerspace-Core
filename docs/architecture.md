@@ -48,7 +48,7 @@ AcademicBreak provides independently versioned calendar context.
 - **PasswordResetToken** stores only a token digest, expiry, target account, and nullable issuing account. Only one active reset token exists per account.
 - **Role** is operator-configurable. `master` is the sole protected system role; its permissions are computed from the application registry rather than copied into role-permission rows.
 - **AuditEvent** contains an action, resource type/ID, nullable actor account, time, nullable HTTP request ID, changed field names, source, and selected non-sensitive metadata.
-- **OpenDayPeriod** owns an inclusive local-date range and follows `draft → staffing → published → archived`. Its version serializes schedule edits; archive makes the slice read-only.
+- **OpenDayPeriod** owns an inclusive local-date range and follows `draft ↔ staffing ↔ published → archived`. Backward transitions retain schedules and assignments; archive remains final and read-only. Its version serializes schedule edits and lifecycle changes.
 - **OpenDay** stores UTC instants, a scheduled/cancelled state, an optimistic version, and a manager-only note. Each Open Day has stable supervisor and trainee requirements. Person assignments remain as history if eligibility Roles later change.
 - **AcademicBreak** is operator-maintained inclusive date context. Public holidays are computed offline from pinned country/subdivision configuration.
 

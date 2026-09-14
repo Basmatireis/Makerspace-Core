@@ -160,6 +160,31 @@ export const openOpenDayPeriodForStaffing = async (periodId: string,
 
 
 /**
+ * @summary Return a staffing period to draft
+ */
+export const getReturnOpenDayPeriodToDraftUrl = (periodId: string,) => {
+
+
+  
+
+  return `/api/v1/open-day-periods/${periodId}/return-to-draft`
+}
+
+export const returnOpenDayPeriodToDraft = async (periodId: string,
+    versionRequest: VersionRequest, options?: RequestInit): Promise<OpenDayPeriod> => {
+  
+  return apiFetch<OpenDayPeriod>(getReturnOpenDayPeriodToDraftUrl(periodId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      versionRequest,)
+  }
+);}
+
+
+/**
  * @summary Publish a staffing period
  */
 export const getPublishOpenDayPeriodUrl = (periodId: string,) => {
@@ -174,6 +199,31 @@ export const publishOpenDayPeriod = async (periodId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<OpenDayPeriod> => {
   
   return apiFetch<OpenDayPeriod>(getPublishOpenDayPeriodUrl(periodId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      versionRequest,)
+  }
+);}
+
+
+/**
+ * @summary Unpublish a period and return it to staffing
+ */
+export const getReturnOpenDayPeriodToStaffingUrl = (periodId: string,) => {
+
+
+  
+
+  return `/api/v1/open-day-periods/${periodId}/return-to-staffing`
+}
+
+export const returnOpenDayPeriodToStaffing = async (periodId: string,
+    versionRequest: VersionRequest, options?: RequestInit): Promise<OpenDayPeriod> => {
+  
+  return apiFetch<OpenDayPeriod>(getReturnOpenDayPeriodToStaffingUrl(periodId),
   {      
     ...options,
     method: 'POST',

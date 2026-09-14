@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -97,6 +98,29 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
+	_, err = service.TransitionPeriod(ctx, reader, period.ID, staffing.Version, "draft", nil)
+	if !errors.Is(err, apperror.PermissionDenied) {
+		t.Fatalf("reader transition error = %v, want permission denied", err)
+	}
+	draft, err := service.TransitionPeriod(ctx, manager, period.ID, staffing.Version, "draft", nil)
+	if err != nil || draft.Status != "draft" {
+		t.Fatalf("return to draft = %#v, err=%v", draft, err)
+	}
+	assertCount(t, pool, `SELECT count(*) FROM open_day_assignments WHERE open_day_id = $1`, 1, day.ID)
+	readerPeriods, err := service.ListPeriods(ctx, reader)
+	if err != nil || len(readerPeriods) != 0 {
+		t.Fatalf("reader periods after return to draft = %#v, err=%v", readerPeriods, err)
+	}
+	_, err = service.GetPeriod(ctx, reader, period.ID)
+	if !errors.Is(err, apperror.NotFound) {
+		t.Fatalf("reader draft lookup error = %v, want not found", err)
+	}
+	_, err = service.Join(ctx, manager, day.ID, day.Requirements[0].ID, nil)
+	expectAppCode(t, err, "assignment_closed")
+	reopenedStaffing, err := service.TransitionPeriod(ctx, manager, period.ID, draft.Version, "staffing", nil)
+	if err != nil || reopenedStaffing.Status != "staffing" {
+		t.Fatalf("reopen for staffing = %#v, err=%v", reopenedStaffing, err)
+	}
 	redacted, err := service.GetOpenDay(ctx, reader, day.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -119,7 +143,7 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	if len(public) != 0 {
 		t.Fatalf("staffing period leaked publicly: %#v", public)
 	}
-	published, err := service.TransitionPeriod(ctx, manager, period.ID, staffing.Version, "published", nil)
+	published, err := service.TransitionPeriod(ctx, manager, period.ID, reopenedStaffing.Version, "published", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,6 +158,25 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	calendar := string(ics)
 	if !strings.Contains(calendar, "UID:urn:uuid:"+day.ID.String()) || strings.Contains(calendar, note) || strings.Contains(calendar, "open-days-manager") {
 		t.Fatalf("unsafe or incomplete calendar:\n%s", calendar)
+	}
+	_, err = service.TransitionPeriod(ctx, manager, period.ID, published.Version, "draft", nil)
+	expectAppCode(t, err, "invalid_period_transition")
+	returnedStaffing, err := service.TransitionPeriod(ctx, manager, period.ID, published.Version, "staffing", nil)
+	if err != nil || returnedStaffing.Status != "staffing" {
+		t.Fatalf("unpublish to staffing = %#v, err=%v", returnedStaffing, err)
+	}
+	assertCount(t, pool, `SELECT count(*) FROM open_day_assignments WHERE open_day_id = $1`, 1, day.ID)
+	public, err = service.ListPublic(ctx)
+	if err != nil || len(public) != 0 {
+		t.Fatalf("unpublished period leaked through public JSON: %#v, err=%v", public, err)
+	}
+	ics, err = service.PublicICS(ctx)
+	if err != nil || strings.Contains(string(ics), "UID:urn:uuid:"+day.ID.String()) {
+		t.Fatalf("unpublished period leaked through ICS: %q, err=%v", ics, err)
+	}
+	published, err = service.TransitionPeriod(ctx, manager, period.ID, returnedStaffing.Version, "published", nil)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	cancelled, err := service.CancelOpenDay(ctx, manager, day.ID, published.Version, day.Version, nil)
@@ -155,6 +198,12 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	}
 	_, err = service.SaveSchedule(ctx, manager, period.ID, opendays.ScheduleDelta{ExpectedPeriodVersion: archived.Version}, nil)
 	expectAppCode(t, err, "period_archived")
+	_, err = service.TransitionPeriod(ctx, manager, period.ID, archived.Version, "published", nil)
+	expectAppCode(t, err, "invalid_period_transition")
+	_, err = service.TransitionPeriod(ctx, manager, period.ID, archived.Version, "staffing", nil)
+	expectAppCode(t, err, "invalid_period_transition")
+	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE resource_id = $1 AND action = 'open_day_period.draft'`, 1, period.ID)
+	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE resource_id = $1 AND action = 'open_day_period.staffing'`, 3, period.ID)
 }
 
 func TestOpenDaysConcurrentFinalSlotAssignment(t *testing.T) {

@@ -85,6 +85,20 @@ func (s *Server) OpenOpenDayPeriodForStaffing(ctx context.Context, r openapi.Ope
 	}
 	return openapi.OpenOpenDayPeriodForStaffing200JSONResponse(openDayPeriodDTO(item)), nil
 }
+func (s *Server) ReturnOpenDayPeriodToDraft(ctx context.Context, r openapi.ReturnOpenDayPeriodToDraftRequestObject) (openapi.ReturnOpenDayPeriodToDraftResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.opendays.TransitionPeriod(ctx, p, r.PeriodId, r.Body.ExpectedVersion, "draft", requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.ReturnOpenDayPeriodToDraft200JSONResponse(openDayPeriodDTO(item)), nil
+}
 func (s *Server) PublishOpenDayPeriod(ctx context.Context, r openapi.PublishOpenDayPeriodRequestObject) (openapi.PublishOpenDayPeriodResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
@@ -98,6 +112,20 @@ func (s *Server) PublishOpenDayPeriod(ctx context.Context, r openapi.PublishOpen
 		return nil, err
 	}
 	return openapi.PublishOpenDayPeriod200JSONResponse(openDayPeriodDTO(item)), nil
+}
+func (s *Server) ReturnOpenDayPeriodToStaffing(ctx context.Context, r openapi.ReturnOpenDayPeriodToStaffingRequestObject) (openapi.ReturnOpenDayPeriodToStaffingResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.opendays.TransitionPeriod(ctx, p, r.PeriodId, r.Body.ExpectedVersion, "staffing", requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.ReturnOpenDayPeriodToStaffing200JSONResponse(openDayPeriodDTO(item)), nil
 }
 func (s *Server) ArchiveOpenDayPeriod(ctx context.Context, r openapi.ArchiveOpenDayPeriodRequestObject) (openapi.ArchiveOpenDayPeriodResponseObject, error) {
 	p, err := requirePrincipal(ctx)

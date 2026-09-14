@@ -240,7 +240,11 @@ func (s *Service) TransitionPeriod(ctx context.Context, principal authorization.
 	if !principal.Has(authorization.OpenDaysManage) {
 		return Period{}, apperror.PermissionDenied
 	}
-	next := map[string]string{"draft": "staffing", "staffing": "published", "published": "archived"}
+	allowed := map[string]map[string]bool{
+		"draft":     {"staffing": true},
+		"staffing":  {"draft": true, "published": true},
+		"published": {"staffing": true, "archived": true},
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Period{}, err
@@ -257,7 +261,7 @@ func (s *Service) TransitionPeriod(ctx context.Context, principal authorization.
 	if current.Version != expected {
 		return Period{}, apperror.StaleWrite
 	}
-	if next[current.Status] != target {
+	if !allowed[current.Status][target] {
 		return Period{}, conflict("invalid_period_transition", "Open Day period transition is not allowed")
 	}
 	row, err := q.TransitionPeriod(ctx, opendaysdb.TransitionPeriodParams{Status: target, ID: id, ExpectedVersion: expected})

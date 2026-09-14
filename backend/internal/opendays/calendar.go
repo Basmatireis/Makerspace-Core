@@ -342,6 +342,16 @@ func (s *Service) PublicICS(ctx context.Context) ([]byte, error) {
 	cal.Props.SetText(ical.PropVersion, "2.0")
 	cal.Props.SetText(ical.PropCalendarScale, "GREGORIAN")
 	cal.Props.SetText(ical.PropName, "Open Days")
+	if len(items) == 0 {
+		zone := ical.NewComponent(ical.CompTimezone)
+		zone.Props.SetText(ical.PropTimezoneID, "UTC")
+		standard := ical.NewComponent(ical.CompTimezoneStandard)
+		standard.Props.SetDateTime(ical.PropDateTimeStart, time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC))
+		standard.Props.SetText(ical.PropTimezoneOffsetFrom, "+0000")
+		standard.Props.SetText(ical.PropTimezoneOffsetTo, "+0000")
+		zone.Children = append(zone.Children, standard)
+		cal.Children = append(cal.Children, zone)
+	}
 	for _, item := range items {
 		event := ical.NewEvent()
 		event.Props.SetText(ical.PropUID, "urn:uuid:"+item.ID.String())
