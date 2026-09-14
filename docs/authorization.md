@@ -26,6 +26,11 @@ Authorization is based on application-registered permission identifiers. Backend
 | `roles.read` | List registered permissions and read configured Roles. |
 | `roles.manage` | Create, edit, delete, and replace permissions on configurable Roles. |
 | `audit.read` | Read privacy-minimized audit events. |
+| `open_days.read` | Read visible Open Day periods, schedules, staffing counts, and the caller's own assignment. |
+| `open_days.read_assignments` | Read the minimal names and IDs of other assigned people. |
+| `open_days.signup` | Join and leave an eligible Open Day requirement as the current Person. |
+| `open_days.assign` | Search minimal eligible identities and administratively add or remove assignments. |
+| `open_days.manage` | Manage periods, schedules, eligibility, academic breaks, and lifecycle state. |
 
 The registry in application code is authoritative. Database RolePermission rows may reference only identifiers in this registry; unknown values from stale data or client requests never become effective. Additions require coordinated backend registry, OpenAPI enum, documentation, and authorization tests.
 
@@ -36,6 +41,8 @@ The registry in application code is authoritative. Database RolePermission rows 
 Matriculation access is an additional field gate, not a substitute for record access. Without `people.read.matriculation`, the backend omits `matriculationNumber` entirely even if the caller has `people.read.all`. `null` is reserved for an authorized response with no stored value. Sending the field requires `people.update.matriculation` in addition to the applicable create/update permission.
 
 Account data nested in Person responses is omitted without `accounts.read`. `/auth/me` inherently returns the current principal's Account, minimal Person identity, and sorted effective permissions. Contact fields require the applicable self/all Person-read permission, and matriculation still requires its dedicated read permission.
+
+Open Day readers always receive requirement totals and their own assignment. Other identities are omitted unless `open_days.read_assignments` is effective, and internal notes are emitted only with `open_days.manage`. The assignment search endpoint returns only enabled, role-eligible Person IDs and display names; it does not inherit or require `roles.read` or a broader people permission. All assignment and schedule rules are enforced again in the backend service.
 
 ## Dynamic roles and privilege boundaries
 

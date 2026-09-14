@@ -8,7 +8,7 @@ The browser calls relative `/api/v1` routes. In development Vite proxies `/api` 
 
 ## Backend boundaries
 
-Business features own their service, repository/query, domain model, and tests. The initial modules are people, accounts, auth, authorization, roles, and audit. A single thin `httpapi` adapter implements the generated strict interface and delegates business behavior to those feature services; it owns only transport mapping, cookies, and HTTP middleware. Shared platform code is limited to configuration, database setup, HTTP/error plumbing, logging, and optional telemetry integration.
+Business features own their service, repository/query, domain model, and tests. The modules are people, accounts, auth, authorization, roles, audit, and Open Days. A single thin `httpapi` adapter implements the generated strict interface and delegates business behavior to those feature services; it owns only transport mapping, cookies, and HTTP middleware. Shared platform code is limited to configuration, database setup, HTTP/error plumbing, logging, and optional telemetry integration.
 
 Within a feature:
 
@@ -32,6 +32,12 @@ Person 1 ─── 0..1 Account 1 ─── 1 AuthIdentity(email_password)
                      └── 0..1 active PasswordResetToken
 
 AuditEvent references an actor account and resource by nullable/minimal identifiers.
+
+OpenDayPeriod 1 ─── * OpenDay 1 ─── 2 StaffRequirement
+                              │              ├── * eligible Role
+                              └── * Assignment ─── 1 Person
+
+AcademicBreak provides independently versioned calendar context.
 ```
 
 - **Person** is the human/business record. It has a UUIDv7, required first and last names, optional contact email, phone, matriculation number, and a reserved photo reference. At least one of email or phone must remain non-null. Photo storage and arbitrary photo-reference writes are not part of v1.
@@ -42,6 +48,9 @@ AuditEvent references an actor account and resource by nullable/minimal identifi
 - **PasswordResetToken** stores only a token digest, expiry, target account, and nullable issuing account. Only one active reset token exists per account.
 - **Role** is operator-configurable. `master` is the sole protected system role; its permissions are computed from the application registry rather than copied into role-permission rows.
 - **AuditEvent** contains an action, resource type/ID, nullable actor account, time, nullable HTTP request ID, changed field names, source, and selected non-sensitive metadata.
+- **OpenDayPeriod** owns an inclusive local-date range and follows `draft → staffing → published → archived`. Its version serializes schedule edits; archive makes the slice read-only.
+- **OpenDay** stores UTC instants, a scheduled/cancelled state, an optimistic version, and a manager-only note. Each Open Day has stable supervisor and trainee requirements. Person assignments remain as history if eligibility Roles later change.
+- **AcademicBreak** is operator-maintained inclusive date context. Public holidays are computed offline from pinned country/subdivision configuration.
 
 UUIDv7 values are generated in application code. Timestamps use UTC `timestamptz`. Mutable people, accounts, and roles use a monotonically increasing version; clients submit `expectedVersion`, and stale writes fail with HTTP 409 and the stable `stale_write` code. Person deletion locks the Person and any attached Account so concurrent Account creation or Role assignment cannot bypass cascade-delete authorization. Login/session creation and security-sensitive Account mutations serialize on the Account row, preventing an in-flight login or password change from escaping a concurrent disable, identity change, administrative password action, or reset. Operations that could remove an enabled master acquire the last-master advisory lock before the Account lock so the invariant and lock order remain safe under concurrency.
 
@@ -59,4 +68,4 @@ The contract uses lower-camel JSON properties. Optional nullable PATCH propertie
 
 ## Deliberate non-goals
 
-The initial schema and code contain no Machines, Orders, Open Days, Trainings, Rental, Documentation, Terminals, PIN authentication, document signing, Visits, Analytics, or Feedback placeholders. The Person/Account/AuthIdentity separation and recorded session authentication method provide an ordinary extension seam when a future requirement is accepted; they do not justify implementing those features now.
+The schema and code contain no Machines, Orders, Events, Trainings, Rental, Documentation, Terminals, PIN authentication, document signing, Visits, Analytics, or Feedback placeholders. Events remain deliberately outside the Open Days module. The Person/Account/AuthIdentity separation and recorded session authentication method provide an ordinary extension seam when a future requirement is accepted; they do not justify implementing those features now.
