@@ -34,3 +34,16 @@ class ResizeObserverMock {
 }
 
 vi.stubGlobal('ResizeObserver', ResizeObserverMock);
+
+class IntersectionObserverMock {
+  readonly root = null;
+  readonly rootMargin = '';
+  readonly thresholds = [];
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() { return []; }
+}
+
+vi.stubGlobal('IntersectionObserver', IntersectionObserverMock);
+Object.defineProperty(document, 'getAnimations', { value: () => [], writable: true });

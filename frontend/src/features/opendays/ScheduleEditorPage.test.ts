@@ -38,4 +38,22 @@ describe('schedule editor working copy', () => {
     expect(dateInTimeZone(instant, 'Europe/Vienna')).toBe('2026-10-07');
     expect(timeInTimeZone(instant, 'Europe/Vienna')).toBe('16:00');
   });
+
+  it('moves only the date and preserves duration, staffing, roles, and notes', () => {
+    const configured: WorkingSlot = {
+      ...slot('configured'),
+      internalNote: 'Bring the laser checklist',
+      requirements: [
+        { kind: 'supervisor', requiredCount: 2, eligibleRoleIds: ['role-supervisor', 'role-master'] },
+        { kind: 'trainee', requiredCount: 1, eligibleRoleIds: ['role-trainee'] },
+      ],
+    };
+    const initial: EditorState = { slots: [configured], previous: null, dirty: false };
+    const moved = scheduleEditorReducer(initial, { type: 'move', id: configured.id, date: '2026-10-14', timeZone: 'Europe/Vienna' });
+
+    expect(dateInTimeZone(moved.slots[0].startsAt, 'Europe/Vienna')).toBe('2026-10-14');
+    expect(new Date(moved.slots[0].endsAt).getTime() - new Date(moved.slots[0].startsAt).getTime()).toBe(3 * 60 * 60 * 1000);
+    expect(moved.slots[0].requirements).toEqual(configured.requirements);
+    expect(moved.slots[0].internalNote).toBe(configured.internalNote);
+  });
 });
