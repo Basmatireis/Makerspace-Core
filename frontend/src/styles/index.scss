@@ -400,8 +400,14 @@ h2 {
 .calendar-cell > .cds--tooltip-trigger__wrapper,
 .calendar-cell__tooltip-target { block-size: 100%; }
 .calendar-cell__tooltip-target { padding: $spacing-02; }
-.calendar-cell__tooltip-content { display: grid; min-inline-size: 14rem; max-inline-size: 22rem; gap: $spacing-02; }
-.calendar-cell__tooltip-slot { display: grid; gap: 2px; }
+.calendar-cell__tooltip-content { display: grid; min-inline-size: 16rem; max-inline-size: 24rem; gap: $spacing-03; }
+.calendar-cell__tooltip-slot,
+.calendar-cell__tooltip-requirement { display: grid; gap: $spacing-02; }
+.calendar-cell__tooltip-requirement { padding-block-start: $spacing-02; border-block-start: 1px solid var(--cds-border-inverse); }
+.calendar-cell__tooltip-requirement-header { display: flex; justify-content: space-between; gap: $spacing-05; }
+.calendar-cell__tooltip-requirement ul { margin: 0; padding: 0; list-style: none; }
+.calendar-cell__tooltip-requirement li { display: block; }
+.calendar-cell__tooltip-overflow { color: var(--cds-text-inverse); opacity: .75; }
 .calendar-cell__date { display: inline-flex; flex: none; align-items: center; min-block-size: 1.75rem; @include type-style('label-01'); }
 .calendar-cell__date-action { flex: none; min-block-size: 1.75rem; margin: 0; padding-inline: $spacing-02; }
 .calendar-cell__context { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; min-inline-size: 0; gap: 2px $spacing-02; margin-inline-start: auto; }

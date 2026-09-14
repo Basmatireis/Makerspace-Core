@@ -7,6 +7,8 @@ import { CalendarEvent } from './CalendarEvent';
 import { CalendarLegend } from './CalendarLegend';
 import { CalendarDayCell, SemesterCalendarGrid } from './SemesterCalendarGrid';
 
+const maxTooltipNames = 3;
+
 type Props = {
   startsOn: string;
   endsOn: string;
@@ -61,12 +63,19 @@ function dateTooltipContent(date: string, days: OpenDay[], entries: CalendarEntr
           const role = requirement.kind === 'supervisor' ? 'Supervisors' : 'Trainees';
           const vacancies = Math.max(0, requirement.requiredCount - requirement.assignedCount);
           const vacancyLabel = `${vacancies} ${vacancies === 1 ? 'position' : 'positions'} open`;
-          let detail = `${requirement.assignedCount} registered`;
-          if (requirement.assignments !== undefined) {
-            const names = requirement.assignments.map((assignment) => `${assignment.displayName}${assignment.isCurrentUser ? ' (you)' : ''}`);
-            detail = names.length > 0 ? names.join(', ') : 'nobody registered';
-          }
-          return <span key={requirement.id}>{role}: {detail}, {vacancyLabel}</span>;
+          const visibleAssignments = requirement.assignments?.slice(0, maxTooltipNames);
+          const overflowCount = Math.max(0, (requirement.assignments?.length ?? 0) - maxTooltipNames);
+          return <div className="calendar-cell__tooltip-requirement" key={requirement.id}>
+            <span className="calendar-cell__tooltip-requirement-header"><strong>{role}</strong><span>{vacancyLabel}</span></span>
+            {requirement.assignments === undefined
+              ? <span>{requirement.assignedCount} registered</span>
+              : requirement.assignments.length === 0
+                ? <span>Nobody registered</span>
+                : <ul>
+                    {visibleAssignments?.map((assignment) => <li key={assignment.id}>{assignment.displayName}{assignment.isCurrentUser ? ' (you)' : ''}</li>)}
+                    {overflowCount > 0 && <li className="calendar-cell__tooltip-overflow">+{overflowCount} others</li>}
+                  </ul>}
+          </div>;
         })}
       </div>)}
     </div>

@@ -246,15 +246,17 @@ describe('Open Day table and calendar filters', () => {
         requirements: [
           {
             ...day.requirements[0],
-            assignments: [{
-              id: '0192f6f8-743e-7c77-a349-cd07c3e8a961',
+            assignedCount: 5,
+            requiredCount: 6,
+            assignments: ['Max Mustermann', 'Linus Torvalds', 'Margaret Hamilton', 'Katherine Johnson', 'Alan Turing'].map((displayName, index) => ({
+              id: `0192f6f8-743e-7c77-a349-cd07c3e8a96${index + 1}`,
               openDayId: day.id,
               requirementId: day.requirements[0].id,
-              personId: '0192f6f8-743e-7c77-a349-cd07c3e8a902',
-              displayName: 'Max Mustermann',
+              personId: `0192f6f8-743e-7c77-a349-cd07c3e8a90${index + 2}`,
+              displayName,
               isCurrentUser: false,
               createdAt: '2026-09-02T10:00:00Z',
-            }],
+            })),
           },
           {
             ...day.requirements[1],
@@ -430,7 +432,10 @@ describe('Open Day table and calendar filters', () => {
     const tooltip = await screen.findByRole('tooltip');
     expect(tooltip).toHaveTextContent('Public holiday: National Day');
     expect(tooltip).toHaveTextContent(/08:00.*11:00.*Supervisor position open/);
-    expect(tooltip).toHaveTextContent('Supervisors: 1 registered, 1 position open');
+    const supervisorSummary = within(tooltip).getByText('Supervisors').closest<HTMLElement>('.calendar-cell__tooltip-requirement');
+    expect(supervisorSummary).not.toBeNull();
+    expect(within(supervisorSummary!).getByText('1 registered')).toBeInTheDocument();
+    expect(within(supervisorSummary!).getByText('1 position open')).toBeInTheDocument();
     expect(tooltip).not.toHaveTextContent('Max Mustermann');
     await user.unhover(hoverSurface!);
 
@@ -457,7 +462,14 @@ describe('Open Day table and calendar filters', () => {
 
     await user.hover(hoverSurface!);
     const tooltip = await screen.findByRole('tooltip');
-    expect(tooltip).toHaveTextContent('Supervisors: Max Mustermann, 1 position open');
-    expect(tooltip).toHaveTextContent('Trainees: Grace Hopper, 0 positions open');
+    expect(within(tooltip).getByText('Supervisors').parentElement).toHaveTextContent('1 position open');
+    expect(within(tooltip).getByText('Max Mustermann').tagName).toBe('LI');
+    expect(within(tooltip).getByText('Linus Torvalds').tagName).toBe('LI');
+    expect(within(tooltip).getByText('Margaret Hamilton').tagName).toBe('LI');
+    expect(within(tooltip).getByText('+2 others').tagName).toBe('LI');
+    expect(within(tooltip).queryByText('Katherine Johnson')).not.toBeInTheDocument();
+    expect(within(tooltip).queryByText('Alan Turing')).not.toBeInTheDocument();
+    expect(within(tooltip).getByText('Trainees').parentElement).toHaveTextContent('0 positions open');
+    expect(within(tooltip).getByText('Grace Hopper').tagName).toBe('LI');
   });
 });
