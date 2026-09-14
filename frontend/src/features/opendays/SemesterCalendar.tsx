@@ -3,6 +3,7 @@ import type { CalendarEntry, OpenDay } from '../../api/generated/models';
 import { timeRange, isFullyStaffed } from './format';
 import { dateInTimeZone } from './dateTime';
 import { hasOpenSupervisorPosition } from './openDayFilters';
+import { CalendarContextMarker } from './CalendarContextMarker';
 
 type Props = {
   startsOn: string;
@@ -62,7 +63,13 @@ export function SemesterCalendar({ startsOn, endsOn, days, entries = [], timeZon
                   return (
                     <div className="calendar-cell" key={key} aria-label={date.toLocaleDateString(undefined, { dateStyle: 'full' })}>
                       <span className="calendar-cell__date">{index + 1}</span>
-                      {markers.map((entry) => <CalendarMarker entry={entry} key={`${entry.source}-${entry.id ?? entry.name}`} />)}
+                      {markers.map((entry) => (
+                        <CalendarContextMarker
+                          entry={entry}
+                          showBreakLabel={entry.startsOn === key || index === 0}
+                          key={`${entry.source}-${entry.id ?? entry.name}`}
+                        />
+                      ))}
                       {slots.map((slot) => <CalendarSlot day={slot} timeZone={timeZone} onOpenDay={onOpenDay} key={slot.id} />)}
                     </div>
                   );
@@ -74,13 +81,6 @@ export function SemesterCalendar({ startsOn, endsOn, days, entries = [], timeZon
       </div>
     </>
   );
-}
-
-function CalendarMarker({ entry }: { entry: CalendarEntry }) {
-  const academicBreak = entry.category === 'academicBreak';
-  const Icon = academicBreak ? Education : Calendar;
-  const category = academicBreak ? 'Academic break' : 'Public holiday';
-  return <span className={`calendar-marker calendar-marker--${entry.category}`}><Icon size={12} aria-hidden="true" /><span>{category}: {entry.name}</span></span>;
 }
 
 function CalendarSlot({ day, timeZone, onOpenDay }: { day: OpenDay; timeZone: string; onOpenDay: (day: OpenDay) => void }) {

@@ -3,7 +3,7 @@ import { Edit, Repeat } from '@carbon/icons-react';
 import { Button, ContentSwitcher, DataTable, InlineNotification, Modal, Stack, Switch, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, Tag } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { archiveOpenDayPeriod, getOpenDayCalendarContext, openOpenDayPeriodForStaffing, publishOpenDayPeriod, returnOpenDayPeriodToDraft, returnOpenDayPeriodToStaffing } from '../../api/generated/open-days/open-days';
+import { archiveOpenDayPeriod, openOpenDayPeriodForStaffing, publishOpenDayPeriod, returnOpenDayPeriodToDraft, returnOpenDayPeriodToStaffing } from '../../api/generated/open-days/open-days';
 import type { OpenDayPeriodStatus } from '../../api/generated/models';
 import { PageHeader } from '../../app/PageHeader';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
@@ -12,7 +12,7 @@ import { hasPermission, PermissionId } from '../auth/permissions';
 import { longDate, staffingLabel, statusTagType, timeRange } from './format';
 import { filterOpenDays, openDayFilterOptions, type OpenDayFilter } from './openDayFilters';
 import { openDaySchedulePath } from './paths';
-import { openDayKeys, scheduleQueryOptions } from './queries';
+import { calendarContextQueryOptions, openDayKeys, scheduleQueryOptions } from './queries';
 import { SemesterCalendar } from './SemesterCalendar';
 
 export function OpenDayPeriodPage() {
@@ -24,7 +24,7 @@ export function OpenDayPeriodPage() {
   const [filter, setFilter] = useState<OpenDayFilter>('all');
   const [pendingTransition, setPendingTransition] = useState<LifecycleAction | null>(null);
   const scheduleQuery = useQuery(scheduleQueryOptions(periodId));
-  const contextQuery = useQuery({ queryKey: [...openDayKeys.schedule(periodId), 'context'], queryFn: ({ signal }) => getOpenDayCalendarContext(periodId, { signal }), enabled: Boolean(periodId) });
+  const contextQuery = useQuery(calendarContextQueryOptions(periodId));
   const lifecycleMutation = useMutation({
     mutationFn: async (target: LifecycleTarget) => {
       const period = scheduleQuery.data!.period;

@@ -376,6 +376,7 @@ h2 {
 .calendar-marker svg { flex: none; }
 .calendar-marker span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .calendar-marker--academicBreak { background: var(--cds-layer-accent); border-inline-start: 2px dashed var(--cds-border-strong); }
+.calendar-marker--continuation { color: var(--cds-text-secondary); border-inline-start-style: dotted; }
 .calendar-slot { display: block; inline-size: 100%; padding: $spacing-02; margin-block-end: 2px; text-align: start; border: 0; border-inline-start: 3px solid; background: var(--cds-layer-accent); cursor: pointer; @include type-style('helper-text-01'); }
 .calendar-slot small { display: flex; align-items: center; gap: $spacing-02; }
 .calendar-slot__time { display: block; font-weight: 600; }

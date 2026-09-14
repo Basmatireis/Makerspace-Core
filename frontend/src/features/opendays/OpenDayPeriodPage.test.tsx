@@ -249,7 +249,7 @@ describe('Open Day table and calendar filters', () => {
           languageCode: 'de',
           entries: [
             { name: 'National Day', startsOn: '2026-10-01', endsOn: '2026-10-01', category: 'publicHoliday', source: 'holidayLibrary' },
-            { id: '0192f6f8-743e-7c77-a349-cd07c3e8a951', name: 'Autumn break', startsOn: '2026-10-02', endsOn: '2026-10-02', category: 'academicBreak', source: 'manual' },
+            { id: '0192f6f8-743e-7c77-a349-cd07c3e8a951', name: 'Autumn break', startsOn: '2026-10-02', endsOn: '2026-10-04', category: 'academicBreak', source: 'manual' },
           ],
           academicBreaks: [],
         }),
@@ -269,6 +269,7 @@ describe('Open Day table and calendar filters', () => {
     expect(within(calendar).getAllByText('Your assignment')).toHaveLength(2);
     expect(within(calendar).getByText('Public holiday: National Day')).toBeInTheDocument();
     expect(within(calendar).getByText('Academic break: Autumn break')).toBeInTheDocument();
+    expect(within(calendar).getAllByLabelText('Academic break: Autumn break, 2026-10-02 to 2026-10-04')).toHaveLength(3);
 
     const weekdays = container.querySelector('.calendar-weekdays');
     expect(Array.from(weekdays?.children ?? []).map((item) => item.textContent)).toEqual(['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']);

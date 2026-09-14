@@ -5,10 +5,12 @@ import { DragDropProvider, useDraggable, useDroppable, type DragEndEvent } from 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useBlocker, useParams, useSearchParams } from 'react-router-dom';
 import { listOpenDayEligibilityRoles, previewOpenDayRecurrence, saveOpenDaySchedule } from '../../api/generated/open-days/open-days';
-import type { OpenDay, RecurrenceOccurrence, StaffingRequirementInput } from '../../api/generated/models';
+import type { CalendarEntry, OpenDay, RecurrenceOccurrence, StaffingRequirementInput } from '../../api/generated/models';
 import { PageHeader } from '../../app/PageHeader';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
-import { openDayKeys, scheduleQueryOptions } from './queries';
+import { AcademicBreakManager } from './AcademicBreakManager';
+import { CalendarContextMarker } from './CalendarContextMarker';
+import { calendarContextQueryOptions, openDayKeys, scheduleQueryOptions } from './queries';
 import { scheduleEditorReducer, type WorkingSlot } from './scheduleState';
 import { dateInTimeZone, timeInTimeZone, zonedDateTimeToISO } from './dateTime';
 
@@ -22,6 +24,7 @@ export function ScheduleEditorPage() {
   const queryClient = useQueryClient();
   const scheduleQuery = useQuery(scheduleQueryOptions(periodId));
   const rolesQuery = useQuery({ queryKey: [...openDayKeys.all, 'eligibility-roles'], queryFn: ({ signal }) => listOpenDayEligibilityRoles({ signal }) });
+  const contextQuery = useQuery(calendarContextQueryOptions(periodId));
   const [state, dispatch] = useReducer(scheduleEditorReducer, { slots: [], previous: null, dirty: false });
   const [defaults, setDefaults] = useState({ startTime: '16:00', endTime: '19:00', supervisors: 2, trainees: 1 });
   const [editing, setEditing] = useState<WorkingSlot | null>(null);
@@ -87,12 +90,13 @@ export function ScheduleEditorPage() {
 
   return <DragDropProvider onDragEnd={(event: DragEndEvent) => { if (!event.canceled && event.operation.source?.id && event.operation.target?.id) dispatch({ type: 'move', id: String(event.operation.source.id), date: String(event.operation.target.id), timeZone: scheduleQuery.data.timeZone }); }}>
     <Stack gap={6} className="schedule-editor-page">
-      <PageHeader title={`Edit ${scheduleQuery.data.period.name}`} breadcrumbs={[{ label: 'Open Days', to: '/open-days' }, { label: scheduleQuery.data.period.name, to: `/open-days/${periodId}` }]} description={`All changes are saved together · ${scheduleQuery.data.timeZone}`} actions={<><Button kind="secondary" renderIcon={Undo} disabled={!state.previous} onClick={() => dispatch({ type: 'undo' })}>Undo</Button><Button renderIcon={Save} disabled={!state.dirty || saveMutation.isPending} onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? 'Saving…' : 'Save & close'}</Button></>} />
+      <PageHeader title={`Edit ${scheduleQuery.data.period.name}`} breadcrumbs={[{ label: 'Open Days', to: '/open-days' }, { label: scheduleQuery.data.period.name, to: `/open-days/${periodId}` }]} description={`All changes are saved together · ${scheduleQuery.data.timeZone}`} actions={<><AcademicBreakManager periodId={periodId} periodStartsOn={scheduleQuery.data.period.startsOn} academicBreaks={contextQuery.data?.academicBreaks ?? []} isPending={contextQuery.isPending} isError={contextQuery.isError} /><Button kind="secondary" renderIcon={Undo} disabled={!state.previous} onClick={() => dispatch({ type: 'undo' })}>Undo</Button><Button renderIcon={Save} disabled={!state.dirty || saveMutation.isPending} onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? 'Saving…' : 'Save & close'}</Button></>} />
       {period?.status === 'published' && <InlineNotification kind="warning" lowContrast hideCloseButton title="Published schedule" subtitle="Date changes use the edit form and require confirmation because they affect the public calendar." />}
       {saveMutation.isError && <InlineNotification kind="error" lowContrast title="Schedule was not saved" subtitle="Your working copy is preserved. If the schedule changed elsewhere, reload before retrying." />}
+      {contextQuery.isError && <InlineNotification kind="warning" lowContrast hideCloseButton title="Calendar context unavailable" subtitle="Open Days can still be edited, but holidays and academic breaks are temporarily hidden." />}
       <section className="schedule-toolbar" aria-labelledby="slot-defaults-heading"><h2 id="slot-defaults-heading">New slot defaults</h2><TimePicker id="default-start" labelText="Start" value={defaults.startTime} onChange={(event) => setDefaults({ ...defaults, startTime: event.target.value })}><TimePickerSelect id="start-zone" aria-label="Time zone"><option>{scheduleQuery.data.timeZone}</option></TimePickerSelect></TimePicker><TimePicker id="default-end" labelText="End" value={defaults.endTime} onChange={(event) => setDefaults({ ...defaults, endTime: event.target.value })}><TimePickerSelect id="end-zone" aria-label="Time zone"><option>{scheduleQuery.data.timeZone}</option></TimePickerSelect></TimePicker><NumberInput id="default-supervisors" label="Supervisors" min={0} max={100} value={defaults.supervisors} onChange={(_, state) => setDefaults({ ...defaults, supervisors: Number(state.value) })} /><NumberInput id="default-trainees" label="Trainees" min={0} max={100} value={defaults.trainees} onChange={(_, state) => setDefaults({ ...defaults, trainees: Number(state.value) })} /><Button kind="secondary" onClick={() => setRecurrenceOpen(true)}>Recurrence preview</Button></section>
       <p className="schedule-editor-hint">Select a date to add a slot. Drag existing slots to another date in draft or staffing; use Edit as the keyboard-accessible alternative.</p>
-      <div className="schedule-date-grid">{allDates.map((date) => <DropDate key={date} date={date} slots={state.slots.filter((slot) => dateInTimeZone(slot.startsAt, scheduleQuery.data.timeZone) === date)} published={period?.status === 'published'} onAdd={() => addDate(date)} onEdit={setEditing} />)}</div>
+      <div className="schedule-date-grid">{allDates.map((date) => <DropDate key={date} date={date} periodStartsOn={scheduleQuery.data.period.startsOn} entries={contextQuery.data?.entries ?? []} slots={state.slots.filter((slot) => dateInTimeZone(slot.startsAt, scheduleQuery.data.timeZone) === date)} published={period?.status === 'published'} onAdd={() => addDate(date)} onEdit={setEditing} />)}</div>
       <Modal open={Boolean(editing)} modalHeading="Edit Open Day" primaryButtonText="Apply" secondaryButtonText="Cancel" onRequestClose={() => setEditing(null)} onRequestSubmit={() => { if (!editing) return; const dateChanged = editing.original && dateInTimeZone(editing.original.startsAt, scheduleQuery.data.timeZone) !== dateInTimeZone(editing.startsAt, scheduleQuery.data.timeZone); if (period?.status === 'published' && dateChanged) setPublishedConfirmation(editing); else dispatch({ type: 'update', slot: editing }); setEditing(null); }}>
         {editing && <SlotForm slot={editing} roles={rolesQuery.data.items} timeZone={scheduleQuery.data.timeZone} onChange={setEditing} onRemove={() => { dispatch({ type: 'remove', id: editing.id }); setEditing(null); }} />}
       </Modal>
@@ -105,9 +109,10 @@ export function ScheduleEditorPage() {
   </DragDropProvider>;
 }
 
-function DropDate({ date, slots, published, onAdd, onEdit }: { date: string; slots: WorkingSlot[]; published: boolean; onAdd: () => void; onEdit: (slot: WorkingSlot) => void }) {
+function DropDate({ date, periodStartsOn, entries, slots, published, onAdd, onEdit }: { date: string; periodStartsOn: string; entries: CalendarEntry[]; slots: WorkingSlot[]; published: boolean; onAdd: () => void; onEdit: (slot: WorkingSlot) => void }) {
   const { ref, isDropTarget } = useDroppable({ id: date, disabled: published });
-  return <section ref={ref} className={`schedule-date${isDropTarget ? ' schedule-date--target' : ''}`}><header><strong>{new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}</strong><Button hasIconOnly kind="ghost" size="sm" renderIcon={Add} iconDescription={`Add slot on ${date}`} onClick={onAdd} /></header>{slots.map((slot) => <DraggableSlot key={slot.id} slot={slot} disabled={published} onEdit={() => onEdit(slot)} />)}</section>;
+  const contextEntries = entries.filter((entry) => entry.startsOn <= date && entry.endsOn >= date);
+  return <section ref={ref} className={`schedule-date${isDropTarget ? ' schedule-date--target' : ''}`}><header><strong>{new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}</strong><Button hasIconOnly kind="ghost" size="sm" renderIcon={Add} iconDescription={`Add slot on ${date}`} onClick={onAdd} /></header>{contextEntries.map((entry) => <CalendarContextMarker entry={entry} showBreakLabel={entry.startsOn === date || date === periodStartsOn} key={`${entry.source}-${entry.id ?? entry.name}`} />)}{slots.map((slot) => <DraggableSlot key={slot.id} slot={slot} disabled={published} onEdit={() => onEdit(slot)} />)}</section>;
 }
 function DraggableSlot({ slot, disabled, onEdit }: { slot: WorkingSlot; disabled: boolean; onEdit: () => void }) {
   const { ref, handleRef, isDragging } = useDraggable({ id: slot.id, disabled });

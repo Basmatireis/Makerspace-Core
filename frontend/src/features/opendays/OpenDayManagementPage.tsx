@@ -22,7 +22,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   createOpenDayAcademicBreak,
   deleteOpenDayAcademicBreak,
-  getOpenDayCalendarContext,
   updateOpenDayAcademicBreak,
   updateOpenDayPeriod,
 } from '../../api/generated/open-days/open-days';
@@ -31,7 +30,7 @@ import { PageHeader } from '../../app/PageHeader';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { periodRange, statusTagType } from './format';
 import { openDaySchedulePath } from './paths';
-import { openDayKeys, periodsQueryOptions } from './queries';
+import { calendarContextQueryOptions, openDayKeys, periodsQueryOptions } from './queries';
 
 type PeriodDraft = Pick<OpenDayPeriod, 'id' | 'name' | 'startsOn' | 'endsOn' | 'version'>;
 type BreakDraft = Pick<AcademicBreak, 'id' | 'name' | 'startsOn' | 'endsOn' | 'version'>;
@@ -59,11 +58,7 @@ export function OpenDayManagementPage() {
     }
   }, [periodsQuery.data, selectedPeriodId]);
 
-  const contextQuery = useQuery({
-    queryKey: [...openDayKeys.all, 'calendar-context', selectedPeriodId],
-    queryFn: ({ signal }) => getOpenDayCalendarContext(selectedPeriodId, { signal }),
-    enabled: Boolean(selectedPeriodId),
-  });
+  const contextQuery = useQuery(calendarContextQueryOptions(selectedPeriodId));
   const periodMutation = useMutation({
     mutationFn: (value: PeriodDraft) =>
       updateOpenDayPeriod(value.id, {
@@ -93,9 +88,7 @@ export function OpenDayManagementPage() {
           }),
     onSuccess: async () => {
       setBreakDraft(null);
-      await queryClient.invalidateQueries({
-        queryKey: [...openDayKeys.all, 'calendar-context'],
-      });
+      await queryClient.invalidateQueries({ queryKey: openDayKeys.calendarContext(selectedPeriodId) });
     },
   });
   const deleteMutation = useMutation({
@@ -103,9 +96,7 @@ export function OpenDayManagementPage() {
       deleteOpenDayAcademicBreak(value.id, { expectedVersion: value.version }),
     onSuccess: async () => {
       setDeleteBreak(null);
-      await queryClient.invalidateQueries({
-        queryKey: [...openDayKeys.all, 'calendar-context'],
-      });
+      await queryClient.invalidateQueries({ queryKey: openDayKeys.calendarContext(selectedPeriodId) });
     },
   });
 
