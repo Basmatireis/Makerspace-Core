@@ -383,14 +383,16 @@ h2 {
 .calendar-legend__group--context .calendar-legend__cancelled { padding-inline-start: $spacing-05; border-inline-start: 1px solid var(--cds-border-strong); }
 .calendar-legend__cancelled svg { color: var(--cds-text-secondary, #525252); }
 
-.semester-calendar { --calendar-month-size: 36rem; display: grid; grid-template-columns: repeat(2, minmax(32rem, 1fr)); align-items: start; background: var(--cds-border-subtle); gap: 1px; }
-.calendar-month { display: grid; grid-template-rows: auto auto 1fr; block-size: var(--calendar-month-size); min-block-size: 0; padding: $spacing-05; background: var(--cds-layer); }
+.semester-calendar { --calendar-month-size: 36rem; display: grid; grid-template-columns: repeat(2, minmax(32rem, 1fr)); align-items: stretch; background: var(--cds-border-subtle); gap: 1px; }
+.calendar-month { display: grid; grid-template-rows: auto auto 1fr; min-block-size: var(--calendar-month-size); padding: $spacing-05; background: var(--cds-layer); }
 .calendar-month h3 { margin-block-end: $spacing-05; @include type-style('heading-compact-02'); }
 .calendar-weekdays,
 .calendar-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
 .calendar-days { min-block-size: 0; }
 .calendar-weekdays span { padding: $spacing-03; text-align: center; color: var(--cds-text-secondary); @include type-style('label-01'); }
-.calendar-cell { min-block-size: 0; padding: $spacing-02; border-block-start: 1px solid var(--cds-border-subtle); overflow: auto; }
+.calendar-cell { min-block-size: 0; padding: $spacing-02; border-block-start: 1px solid var(--cds-border-subtle); overflow: visible; }
+.calendar-cell:hover,
+.calendar-cell:focus-within { position: relative; z-index: 2; }
 .calendar-days > .calendar-cell:nth-child(odd) { background: color-mix(in srgb, var(--cds-layer, #fff) 96%, var(--cds-text-primary, #161616)); }
 .calendar-cell--empty { border: 0; }
 .semester-calendar--editor .calendar-cell--outside-period { color: var(--cds-text-disabled); background: var(--cds-layer-accent); }

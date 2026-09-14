@@ -310,6 +310,7 @@ describe('Open Day table and calendar filters', () => {
     expect(Array.from(weekdays?.children ?? []).map((item) => item.textContent)).toEqual(['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']);
     expect(container.querySelectorAll('.calendar-month:first-child .calendar-cell--empty')).toHaveLength(4);
     expect(container.querySelectorAll('.calendar-month:first-child .calendar-days > .calendar-cell')).toHaveLength(35);
+    expect(container.querySelector<HTMLElement>('.calendar-month:first-child .calendar-days')?.style.gridTemplateRows).toBe('repeat(5, minmax(5rem, auto))');
   });
 
   it('shares filters across views and preserves the active selection', async () => {
