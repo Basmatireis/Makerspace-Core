@@ -1,5 +1,5 @@
 import { Add } from '@carbon/icons-react';
-import { Button } from '@carbon/react';
+import { Button, Tooltip } from '@carbon/react';
 import { forwardRef, type ReactNode } from 'react';
 import type { CalendarEntry } from '../../api/generated/models';
 import { CalendarContextMarker } from './CalendarContextMarker';
@@ -65,19 +65,27 @@ type CellProps = {
   children?: ReactNode;
   className?: string;
   onSelectDate?: () => void;
+  tooltipDescription?: string;
 };
 
-export const CalendarDayCell = forwardRef<HTMLDivElement, CellProps>(function CalendarDayCell({ day, children, className = '', onSelectDate }, ref) {
+export const CalendarDayCell = forwardRef<HTMLDivElement, CellProps>(function CalendarDayCell({ day, children, className = '', onSelectDate, tooltipDescription }, ref) {
   const holidays = day.entries.filter((entry) => entry.category === 'publicHoliday');
+  const fullDate = new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, { dateStyle: 'full' });
+  const contextDescription = day.entries.map((entry) => `${entry.category === 'academicBreak' ? 'Academic break' : 'Public holiday'}: ${entry.name}`);
+  const description = tooltipDescription ?? [fullDate, ...contextDescription].join('. ');
 
   return (
-    <div ref={ref} className={`calendar-cell${day.withinRange ? '' : ' calendar-cell--outside-period'}${className ? ` ${className}` : ''}`} aria-label={new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, { dateStyle: 'full' })}>
+    <div ref={ref} className={`calendar-cell${day.withinRange ? '' : ' calendar-cell--outside-period'}${className ? ` ${className}` : ''}`} aria-label={fullDate}>
       <div className="calendar-cell__header">
-        {onSelectDate ? (
-          <Button kind="ghost" size="sm" renderIcon={Add} className="calendar-cell__date-action" onClick={onSelectDate} aria-label={`Add Open Day on ${day.date}`}>
-            {day.dayNumber}
-          </Button>
-        ) : <span className="calendar-cell__date">{day.dayNumber}</span>}
+        <Tooltip description={description} align="bottom-start" enterDelayMs={300}>
+          <span className="calendar-cell__date-tooltip">
+            {onSelectDate ? (
+              <Button kind="ghost" size="sm" renderIcon={Add} className="calendar-cell__date-action" onClick={onSelectDate} aria-label={`Add Open Day on ${day.date}`}>
+                {day.dayNumber}
+              </Button>
+            ) : <span className="calendar-cell__date">{day.dayNumber}</span>}
+          </span>
+        </Tooltip>
         {day.entries.length > 0 && (
           <div className="calendar-cell__context">
             {day.entries.map((entry) => (

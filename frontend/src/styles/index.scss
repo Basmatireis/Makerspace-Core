@@ -386,6 +386,7 @@ h2 {
 .calendar-cell--empty { border: 0; }
 .semester-calendar--editor .calendar-cell--outside-period { color: var(--cds-text-disabled); background: var(--cds-layer-accent); }
 .calendar-cell__header { display: flex; align-items: center; min-inline-size: 0; min-block-size: 1.75rem; gap: $spacing-02; margin-block-end: $spacing-02; }
+.calendar-cell__date-tooltip { display: inline-flex; flex: none; }
 .calendar-cell__date { display: inline-flex; flex: none; align-items: center; min-block-size: 1.75rem; @include type-style('label-01'); }
 .calendar-cell__date-action { flex: none; min-block-size: 1.75rem; margin: 0; padding-inline: $spacing-02; }
 .calendar-cell__context { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; min-inline-size: 0; gap: 2px $spacing-02; margin-inline-start: auto; }
@@ -420,6 +421,8 @@ h2 {
 
 .open-day-detail-status,
 .assignment-banner { display: flex; align-items: center; justify-content: space-between; gap: $spacing-05; max-inline-size: 50rem; }
+.open-day-registration-modal__summary { display: flex; align-items: center; justify-content: space-between; gap: $spacing-05; }
+.open-day-registration-modal__summary p { @include type-style('heading-compact-01'); }
 .assignment-banner { padding: $spacing-05; border-inline-start: 3px solid var(--cds-support-success); background: var(--cds-notification-background-success); }
 .requirements-grid { display: grid; grid-template-columns: repeat(2, minmax(18rem, 25rem)); gap: $spacing-05; }
 .requirement-card { min-block-size: 15rem; border: 1px solid var(--cds-border-subtle); background: var(--cds-layer); }
@@ -486,7 +489,8 @@ h2 {
 
   .period-summary-bar,
   .open-day-detail-status,
-  .assignment-banner { align-items: stretch; flex-direction: column; }
+  .assignment-banner,
+  .open-day-registration-modal__summary { align-items: stretch; flex-direction: column; }
 
   .period-summary-bar__stats { justify-content: space-between; text-align: start; }
 

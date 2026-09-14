@@ -27,7 +27,7 @@ export function SemesterCalendar({ startsOn, endsOn, days, entries = [], timeZon
     <>
       <CalendarLegend />
       <SemesterCalendarGrid startsOn={startsOn} endsOn={endsOn} entries={entries} renderDay={(day) => (
-        <CalendarDayCell day={day} key={day.date}>
+        <CalendarDayCell day={day} tooltipDescription={dateTooltipDescription(day.date, byDate.get(day.date) ?? [], day.entries, timeZone)} key={day.date}>
           {(byDate.get(day.date) ?? []).map((slot) => <CalendarSlot day={slot} timeZone={timeZone} onOpenDay={onOpenDay} key={slot.id} />)}
         </CalendarDayCell>
       )} />
@@ -46,4 +46,11 @@ function slotPresentation(day: OpenDay) {
   if (hasOpenSupervisorPosition(day)) return { kind: 'needs-supervisor' as const, label: 'Supervisor position open', Icon: WarningFilled };
   if (isFullyStaffed(day)) return { kind: 'staffed' as const, label: 'Fully staffed', Icon: CheckmarkFilled };
   return { kind: 'needs-trainee' as const, label: 'Trainee position open', Icon: InformationFilled };
+}
+
+function dateTooltipDescription(date: string, days: OpenDay[], entries: CalendarEntry[], timeZone: string) {
+  const fullDate = new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { dateStyle: 'full' });
+  const context = entries.map((entry) => `${entry.category === 'academicBreak' ? 'Academic break' : 'Public holiday'}: ${entry.name}`);
+  const openDays = days.map((day) => `${timeRange(day, timeZone)}: ${slotPresentation(day).label}${day.myAssignment ? ', your assignment' : ''}`);
+  return [fullDate, ...context, ...openDays].join('. ');
 }

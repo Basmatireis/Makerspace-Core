@@ -13,6 +13,7 @@ import { longDate, staffingLabel, statusTagType, timeRange } from './format';
 import { filterOpenDays, openDayFilterOptions, type OpenDayFilter } from './openDayFilters';
 import { openDaySchedulePath } from './paths';
 import { calendarContextQueryOptions, openDayKeys, scheduleQueryOptions } from './queries';
+import { OpenDayRegistrationModal } from './OpenDayDetailPage';
 import { SemesterCalendar } from './SemesterCalendar';
 
 export function OpenDayPeriodPage() {
@@ -22,6 +23,7 @@ export function OpenDayPeriodPage() {
   const queryClient = useQueryClient();
   const [view, setView] = useState<'table' | 'calendar'>('calendar');
   const [filter, setFilter] = useState<OpenDayFilter>('all');
+  const [selectedOpenDayId, setSelectedOpenDayId] = useState<string | null>(null);
   const [pendingTransition, setPendingTransition] = useState<LifecycleAction | null>(null);
   const scheduleQuery = useQuery(scheduleQueryOptions(periodId));
   const contextQuery = useQuery(calendarContextQueryOptions(periodId));
@@ -82,19 +84,20 @@ export function OpenDayPeriodPage() {
           <OpenDayViewToolbar filter={filter} view={view} onFilter={setFilter} onView={setView} />
           {view === 'calendar' ? (
             <div className="open-days-view-content open-days-view-content--calendar">
-              <SemesterCalendar startsOn={period.startsOn} endsOn={period.endsOn} days={visibleItems} entries={contextQuery.data?.entries} timeZone={scheduleQuery.data.timeZone} onOpenDay={(day) => navigate(`/open-days/${period.id}/days/${day.id}`)} />
+              <SemesterCalendar startsOn={period.startsOn} endsOn={period.endsOn} days={visibleItems} entries={contextQuery.data?.entries} timeZone={scheduleQuery.data.timeZone} onOpenDay={(day) => setSelectedOpenDayId(day.id)} />
             </div>
           ) : (
             <div className="responsive-table open-days-view-content">
               <Table {...getTableProps()}>
                 <TableHead><TableRow>{tableHeaders.map((header) => <TableHeader {...getHeaderProps({ header })} key={header.key}>{header.header}</TableHeader>)}</TableRow></TableHead>
-                <TableBody>{tableRows.map((row) => <TableRow {...getRowProps({ row })} key={row.id} onClick={() => navigate(`/open-days/${period.id}/days/${row.id}`)}>{row.cells.map((cell) => <TableCell key={cell.id}>{cell.info.header === 'status' ? <Tag type={statusTagType(String(cell.value))}>{String(cell.value)}</Tag> : String(cell.value)}</TableCell>)}</TableRow>)}</TableBody>
+                <TableBody>{tableRows.map((row) => <TableRow {...getRowProps({ row })} key={row.id} onClick={() => setSelectedOpenDayId(row.id)}>{row.cells.map((cell) => <TableCell key={cell.id}>{cell.info.header === 'status' ? <Tag type={statusTagType(String(cell.value))}>{String(cell.value)}</Tag> : String(cell.value)}</TableCell>)}</TableRow>)}</TableBody>
               </Table>
             </div>
           )}
         </TableContainer>
       )}
     </DataTable>
+    {selectedOpenDayId && <OpenDayRegistrationModal periodId={period.id} openDayId={selectedOpenDayId} onRequestClose={() => setSelectedOpenDayId(null)} />}
   </Stack>;
 }
 

@@ -14,6 +14,14 @@ import { openDayKeys, openDayQueryOptions } from './queries';
 
 export function OpenDayDetailPage() {
   const { periodId = '', openDayId = '' } = useParams();
+  return <OpenDayDetails periodId={periodId} openDayId={openDayId} presentation="page" />;
+}
+
+export function OpenDayRegistrationModal({ periodId, openDayId, onRequestClose }: { periodId: string; openDayId: string; onRequestClose: () => void }) {
+  return <OpenDayDetails periodId={periodId} openDayId={openDayId} presentation="modal" onRequestClose={onRequestClose} />;
+}
+
+function OpenDayDetails({ periodId, openDayId, presentation, onRequestClose }: { periodId: string; openDayId: string; presentation: 'page' | 'modal'; onRequestClose?: () => void }) {
   const currentUser = useCurrentUser();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -34,13 +42,22 @@ export function OpenDayDetailPage() {
 
   const timeZone = contextQuery.data?.timeZone ?? 'UTC';
   const heading = useMemo(() => dayQuery.data ? longDate(dayQuery.data.startsAt, timeZone) : 'Open Day', [dayQuery.data, timeZone]);
-  if (dayQuery.isPending) return <InlineLoadingState label="Loading Open Day" />;
-  if (dayQuery.isError || !dayQuery.data) return <ErrorState title="Unable to load this Open Day" message="It may no longer be visible, or the connection failed." onRetry={() => void dayQuery.refetch()} />;
+  if (dayQuery.isPending) {
+    const loading = <InlineLoadingState label="Loading Open Day" />;
+    return presentation === 'modal'
+      ? <Modal open passiveModal modalHeading="Open Day" onRequestClose={onRequestClose}>{loading}</Modal>
+      : loading;
+  }
+  if (dayQuery.isError || !dayQuery.data) {
+    const error = <ErrorState title="Unable to load this Open Day" message="It may no longer be visible, or the connection failed." onRetry={() => void dayQuery.refetch()} />;
+    return presentation === 'modal'
+      ? <Modal open passiveModal modalHeading="Open Day" onRequestClose={onRequestClose}>{error}</Modal>
+      : error;
+  }
   const day = dayQuery.data;
   const assignmentOpen = day.status === 'scheduled';
 
-  return <Stack gap={6}>
-    <PageHeader title={heading} breadcrumbs={[{ label: 'Open Days', to: '/open-days' }, { label: 'Period', to: `/open-days/${periodId}` }]} description={timeRange(day, timeZone)} actions={canManage ? <Button renderIcon={Edit} onClick={() => navigate(`/open-days/${periodId}/schedule?edit=${openDayId}`)}>Edit</Button> : undefined} />
+  const detailContent = <>
     <div className="open-day-detail-status"><Tag type={statusTagType(staffingLabel(day))}>{staffingLabel(day)}</Tag>{day.internalNote && <p><strong>Internal note:</strong> {day.internalNote}</p>}</div>
     {day.myAssignment && <div className="assignment-banner"><strong>You are assigned as {day.requirements.find((item) => item.id === day.myAssignment?.requirementId)?.kind}.</strong>{canSignup && assignmentOpen && <Button kind="danger--ghost" size="sm" disabled={leaveMutation.isPending} onClick={() => leaveMutation.mutate()}>Leave Open Day</Button>}</div>}
     {mutationError && <InlineNotification kind="error" lowContrast title="Assignment change failed" subtitle="The position may be full, you may not be eligible, or sign-ups may have closed." />}
@@ -67,5 +84,22 @@ export function OpenDayDetailPage() {
         {eligibleQuery.data?.items.length === 0 && <p>No enabled eligible people found.</p>}
       </Stack>
     </Modal>
+  </>;
+
+  if (presentation === 'modal') {
+    return <Modal open passiveModal size="lg" modalHeading={heading} onRequestClose={onRequestClose}>
+      <Stack gap={6} className="open-day-registration-modal">
+        <div className="open-day-registration-modal__summary">
+          <p>{timeRange(day, timeZone)}</p>
+          {canManage && <Button kind="ghost" size="sm" renderIcon={Edit} onClick={() => navigate(`/open-days/${periodId}/schedule?edit=${openDayId}`)}>Edit Open Day</Button>}
+        </div>
+        {detailContent}
+      </Stack>
+    </Modal>;
+  }
+
+  return <Stack gap={6}>
+    <PageHeader title={heading} breadcrumbs={[{ label: 'Open Days', to: '/open-days' }, { label: 'Period', to: `/open-days/${periodId}` }]} description={timeRange(day, timeZone)} actions={canManage ? <Button renderIcon={Edit} onClick={() => navigate(`/open-days/${periodId}/schedule?edit=${openDayId}`)}>Edit</Button> : undefined} />
+    {detailContent}
   </Stack>;
 }

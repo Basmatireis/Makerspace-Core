@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { OpenDay, OpenDayPeriodStatus, OpenDayRequirementKind, PermissionId as Permission } from '../../api/generated/models';
@@ -231,16 +231,25 @@ describe('Open Day table and calendar filters', () => {
     },
   });
 
-  function mockFilteredPeriodPage() {
+  function mockFilteredPeriodPage(permissions: Permission[] = [PermissionId.open_daysread]) {
+    const openDays = [supervisorVacancy, traineeVacancy, fullyStaffedMine, cancelledMine];
     server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.open_daysread]))),
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
       http.get('*/api/v1/open-day-periods/:periodId/open-days', () =>
         HttpResponse.json({
           period: { ...period('staffing'), endsOn: '2026-10-04', totalOpenDays: 4 },
-          items: [supervisorVacancy, traineeVacancy, fullyStaffedMine, cancelledMine],
+          items: openDays,
           timeZone: 'UTC',
         }),
       ),
+      http.get('*/api/v1/open-days/:openDayId', ({ params }) => {
+        const selected = openDays.find((day) => day.id === params.openDayId);
+        if (!selected) return new HttpResponse(null, { status: 404 });
+        return HttpResponse.json({
+          ...selected,
+          requirements: selected.requirements.map((item) => ({ ...item, assignments: [] })),
+        });
+      }),
       http.get('*/api/v1/open-day-periods/:periodId/calendar-context', () =>
         HttpResponse.json({
           timeZone: 'UTC',
@@ -333,5 +342,46 @@ describe('Open Day table and calendar filters', () => {
 
     await user.click(within(filterSwitcher!).getByText('All'));
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(5);
+  });
+
+  it('shows date details on hover and handles self-registration in a modal', async () => {
+    let joinedRequirementId = '';
+    mockFilteredPeriodPage([PermissionId.open_daysread, PermissionId.open_dayssignup]);
+    server.use(
+      http.put('*/api/v1/open-days/:openDayId/assignments/me', async ({ request }) => {
+        joinedRequirementId = String((await request.json() as { requirementId: string }).requirementId);
+        return HttpResponse.json({
+          id: '0192f6f8-743e-7c77-a349-cd07c3e8a999',
+          openDayId: supervisorVacancy.id,
+          requirementId: joinedRequirementId,
+          personId,
+          displayName: 'Ada Lovelace',
+          isCurrentUser: true,
+          createdAt: '2026-09-02T10:00:00Z',
+        });
+      }),
+    );
+    const { container } = renderRoute(<App />, `/open-days/${periodId}`);
+    const user = userEvent.setup();
+
+    const calendar = await screen.findByLabelText('Semester calendar');
+    const openDayButton = within(calendar).getByRole('button', { name: /Supervisor position open/ });
+    const dateTrigger = openDayButton.closest('.calendar-cell')?.querySelector<HTMLElement>('.calendar-cell__date-tooltip');
+    expect(dateTrigger).not.toBeNull();
+
+    await user.hover(dateTrigger!);
+    const tooltip = await screen.findByRole('tooltip');
+    expect(tooltip).toHaveTextContent('Public holiday: National Day');
+    expect(tooltip).toHaveTextContent(/08:00.*11:00.*Supervisor position open/);
+    await user.unhover(dateTrigger!);
+
+    await user.click(openDayButton);
+    const registration = await screen.findByRole('dialog', { name: /Thursday, October 1, 2026/ });
+    expect(within(registration).getByText(/08:00.*11:00/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeInTheDocument();
+
+    await user.click(within(registration).getByRole('button', { name: 'Join as supervisor' }));
+    await waitFor(() => expect(joinedRequirementId).toBe(supervisorVacancy.requirements[0].id));
+    expect(container.querySelector('.open-day-period-page')).toBeInTheDocument();
   });
 });
