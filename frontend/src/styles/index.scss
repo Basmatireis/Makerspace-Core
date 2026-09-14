@@ -461,6 +461,7 @@ h2 {
 .assignment-banner { display: flex; align-items: center; justify-content: space-between; gap: $spacing-05; max-inline-size: 50rem; }
 .open-day-registration-modal__summary { display: flex; align-items: center; justify-content: space-between; gap: $spacing-05; }
 .open-day-registration-modal__summary p { @include type-style('heading-compact-01'); }
+.open-day-registration-modal__actions { display: flex; align-items: center; }
 .assignment-banner { padding: $spacing-05; border-inline-start: 3px solid var(--cds-support-success); background: var(--cds-notification-background-success); }
 .requirements-grid { display: grid; grid-template-columns: repeat(2, minmax(18rem, 25rem)); gap: $spacing-05; }
 .requirement-card { min-block-size: 15rem; border: 1px solid var(--cds-border-subtle); background: var(--cds-layer); }

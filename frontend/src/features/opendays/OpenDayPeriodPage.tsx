@@ -100,7 +100,7 @@ export function OpenDayPeriodPage() {
         </TableContainer>
       )}
     </DataTable>
-    {selectedOpenDayId && <OpenDayRegistrationModal periodId={period.id} openDayId={selectedOpenDayId} onRequestClose={() => setSelectedOpenDayId(null)} />}
+    {selectedOpenDayId && <OpenDayRegistrationModal periodId={period.id} periodStatus={period.status} openDayId={selectedOpenDayId} onRequestClose={() => setSelectedOpenDayId(null)} />}
   </Stack>;
 }
 

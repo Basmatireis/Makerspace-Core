@@ -310,7 +310,7 @@ describe('Open Day table and calendar filters', () => {
     },
   });
 
-  function mockFilteredPeriodPage(permissions: Permission[] = [PermissionId.open_daysread]) {
+  function mockFilteredPeriodPage(permissions: Permission[] = [PermissionId.open_daysread], status: OpenDayPeriodStatus = 'staffing') {
     const openDays = [supervisorVacancy, traineeVacancy, fullyStaffedMine, cancelledMine];
     const visibleOpenDays = permissions.includes(PermissionId.open_daysread_assignments)
       ? openDays.map((day) => day.id === supervisorVacancy.id ? {
@@ -349,7 +349,7 @@ describe('Open Day table and calendar filters', () => {
       http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
       http.get('*/api/v1/open-day-periods/:periodId/open-days', () =>
         HttpResponse.json({
-          period: { ...period('staffing'), endsOn: '2026-10-04', totalOpenDays: 4 },
+          period: { ...period(status), endsOn: '2026-10-04', totalOpenDays: 4 },
           items: visibleOpenDays,
           timeZone: 'UTC',
         }),
@@ -526,6 +526,8 @@ describe('Open Day table and calendar filters', () => {
     await user.click(openDayButton);
     const registration = await screen.findByRole('dialog', { name: /Thursday, October 1, 2026/ });
     expect(within(registration).getByText(/08:00.*11:00/)).toBeInTheDocument();
+    expect(within(registration).queryByRole('button', { name: 'Cancel Open Day' })).not.toBeInTheDocument();
+    expect(within(registration).queryByRole('button', { name: 'Delete Open Day' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeInTheDocument();
 
     await user.click(within(registration).getByRole('button', { name: 'Join as supervisor' }));
@@ -555,5 +557,69 @@ describe('Open Day table and calendar filters', () => {
     expect(within(tooltip).queryByText('Alan Turing')).not.toBeInTheDocument();
     expect(within(tooltip).getByText('Trainees').parentElement).toHaveTextContent('0 positions open');
     expect(within(tooltip).getByText('Grace Hopper').tagName).toBe('LI');
+  });
+
+  it('lets managers cancel a scheduled Open Day from the registration modal', async () => {
+    let submittedVersion: unknown;
+    mockFilteredPeriodPage([PermissionId.open_daysmanage], 'staffing');
+    server.use(
+      http.post('*/api/v1/open-days/:openDayId/cancel', async ({ request }) => {
+        submittedVersion = await request.json();
+        return HttpResponse.json({ ...supervisorVacancy, status: 'cancelled', version: 2 });
+      }),
+    );
+    renderRoute(<App />, `/open-days/${periodId}`);
+    const user = userEvent.setup();
+
+    const calendar = await screen.findByLabelText('Semester calendar');
+    await user.click(within(calendar).getByRole('button', { name: /Supervisor position open/ }));
+    const registration = await screen.findByRole('dialog', { name: /Thursday, October 1, 2026/ });
+    await user.click(within(registration).getByRole('button', { name: 'Cancel Open Day' }));
+
+    const confirmation = await screen.findByRole('dialog', { name: 'Cancel Open Day?' });
+    expect(within(confirmation).getByText('The Open Day will be marked as cancelled. Existing assignments and history will be kept.')).toBeInTheDocument();
+    await user.click(within(confirmation).getByRole('button', { name: 'Cancel Open Day' }));
+
+    await waitFor(() => expect(submittedVersion).toEqual({ expectedVersion: supervisorVacancy.version }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Thursday, October 1, 2026/ })).not.toBeInTheDocument());
+  });
+
+  it('lets managers permanently delete a draft Open Day from the registration modal', async () => {
+    let submittedVersion: unknown;
+    mockFilteredPeriodPage([PermissionId.open_daysmanage], 'draft');
+    server.use(
+      http.delete('*/api/v1/open-days/:openDayId', async ({ request }) => {
+        submittedVersion = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderRoute(<App />, `/open-days/${periodId}`);
+    const user = userEvent.setup();
+
+    const calendar = await screen.findByLabelText('Semester calendar');
+    await user.click(within(calendar).getByRole('button', { name: /Supervisor position open/ }));
+    const registration = await screen.findByRole('dialog', { name: /Thursday, October 1, 2026/ });
+    await user.click(within(registration).getByRole('button', { name: 'Delete Open Day' }));
+
+    const confirmation = await screen.findByRole('dialog', { name: 'Delete Open Day?' });
+    expect(within(confirmation).getByText('This draft Open Day will be permanently removed.')).toBeInTheDocument();
+    await user.click(within(confirmation).getByRole('button', { name: 'Delete Open Day' }));
+
+    await waitFor(() => expect(submittedVersion).toEqual({ expectedVersion: supervisorVacancy.version }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Thursday, October 1, 2026/ })).not.toBeInTheDocument());
+  });
+
+  it('keeps archived Open Days read-only in the registration modal', async () => {
+    mockFilteredPeriodPage([PermissionId.open_daysmanage], 'archived');
+    renderRoute(<App />, `/open-days/${periodId}`);
+    const user = userEvent.setup();
+
+    const calendar = await screen.findByLabelText('Semester calendar');
+    await user.click(within(calendar).getByRole('button', { name: /Supervisor position open/ }));
+    const registration = await screen.findByRole('dialog', { name: /Thursday, October 1, 2026/ });
+
+    expect(within(registration).queryByRole('button', { name: 'Edit Open Day' })).not.toBeInTheDocument();
+    expect(within(registration).queryByRole('button', { name: 'Cancel Open Day' })).not.toBeInTheDocument();
+    expect(within(registration).queryByRole('button', { name: 'Delete Open Day' })).not.toBeInTheDocument();
   });
 });

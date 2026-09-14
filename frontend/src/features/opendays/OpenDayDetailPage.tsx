@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Add, Close, Edit } from '@carbon/icons-react';
+import { Add, Close, Edit, Misuse, TrashCan } from '@carbon/icons-react';
 import { Button, InlineNotification, Modal, Search, Stack, Tag } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { assignOpenDayPerson, getOpenDayCalendarContext, joinOpenDay, leaveOpenDay, listOpenDayEligiblePeople, removeOpenDayAssignment } from '../../api/generated/open-days/open-days';
-import type { OpenDayStaffRequirement } from '../../api/generated/models';
+import { assignOpenDayPerson, cancelOpenDay, deleteOpenDay, getOpenDayCalendarContext, joinOpenDay, leaveOpenDay, listOpenDayEligiblePeople, removeOpenDayAssignment } from '../../api/generated/open-days/open-days';
+import type { OpenDayPeriodStatus, OpenDayStaffRequirement } from '../../api/generated/models';
 import { PageHeader } from '../../app/PageHeader';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
@@ -17,17 +17,18 @@ export function OpenDayDetailPage() {
   return <OpenDayDetails periodId={periodId} openDayId={openDayId} presentation="page" />;
 }
 
-export function OpenDayRegistrationModal({ periodId, openDayId, onRequestClose }: { periodId: string; openDayId: string; onRequestClose: () => void }) {
-  return <OpenDayDetails periodId={periodId} openDayId={openDayId} presentation="modal" onRequestClose={onRequestClose} />;
+export function OpenDayRegistrationModal({ periodId, periodStatus, openDayId, onRequestClose }: { periodId: string; periodStatus: OpenDayPeriodStatus; openDayId: string; onRequestClose: () => void }) {
+  return <OpenDayDetails periodId={periodId} periodStatus={periodStatus} openDayId={openDayId} presentation="modal" onRequestClose={onRequestClose} />;
 }
 
-function OpenDayDetails({ periodId, openDayId, presentation, onRequestClose }: { periodId: string; openDayId: string; presentation: 'page' | 'modal'; onRequestClose?: () => void }) {
+function OpenDayDetails({ periodId, periodStatus, openDayId, presentation, onRequestClose }: { periodId: string; periodStatus?: OpenDayPeriodStatus; openDayId: string; presentation: 'page' | 'modal'; onRequestClose?: () => void }) {
   const currentUser = useCurrentUser();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const dayQuery = useQuery(openDayQueryOptions(openDayId));
   const contextQuery = useQuery({ queryKey: [...openDayKeys.schedule(periodId), 'context'], queryFn: ({ signal }) => getOpenDayCalendarContext(periodId, { signal }), enabled: Boolean(periodId) });
   const [assignRequirement, setAssignRequirement] = useState<OpenDayStaffRequirement | null>(null);
+  const [removeOpen, setRemoveOpen] = useState(false);
   const [search, setSearch] = useState('');
   const eligibleQuery = useQuery({ queryKey: [...openDayKeys.day(openDayId), 'eligible', assignRequirement?.id, search], queryFn: ({ signal }) => listOpenDayEligiblePeople(assignRequirement!.id, search ? { search } : undefined, { signal }), enabled: Boolean(assignRequirement) });
   const refresh = async () => Promise.all([queryClient.invalidateQueries({ queryKey: openDayKeys.day(openDayId) }), queryClient.invalidateQueries({ queryKey: openDayKeys.schedule(periodId) }), queryClient.invalidateQueries({ queryKey: openDayKeys.periods() })]);
@@ -35,6 +36,21 @@ function OpenDayDetails({ periodId, openDayId, presentation, onRequestClose }: {
   const leaveMutation = useMutation({ mutationFn: () => leaveOpenDay(openDayId), onSuccess: refresh });
   const assignMutation = useMutation({ mutationFn: ({ requirementId, personId }: { requirementId: string; personId: string }) => assignOpenDayPerson(openDayId, { requirementId, personId }), onSuccess: async () => { setAssignRequirement(null); setSearch(''); await refresh(); } });
   const removeMutation = useMutation({ mutationFn: (assignmentId: string) => removeOpenDayAssignment(openDayId, assignmentId), onSuccess: refresh });
+  const openDayRemovalMutation = useMutation({
+    mutationFn: async () => {
+      const day = dayQuery.data!;
+      if (periodStatus === 'draft') return deleteOpenDay(openDayId, { expectedVersion: day.version });
+      return cancelOpenDay(openDayId, { expectedVersion: day.version });
+    },
+    onSuccess: async () => {
+      setRemoveOpen(false);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: openDayKeys.schedule(periodId) }),
+        queryClient.invalidateQueries({ queryKey: openDayKeys.periods() }),
+      ]);
+      onRequestClose?.();
+    },
+  });
   const mutationError = joinMutation.isError || leaveMutation.isError || assignMutation.isError || removeMutation.isError;
   const canSignup = hasPermission(currentUser, PermissionId.open_dayssignup);
   const canAssign = hasPermission(currentUser, PermissionId.open_daysassign);
@@ -56,6 +72,9 @@ function OpenDayDetails({ periodId, openDayId, presentation, onRequestClose }: {
   }
   const day = dayQuery.data;
   const assignmentOpen = day.status === 'scheduled';
+  const canEditOpenDay = canManage && periodStatus !== 'archived';
+  const canRemoveOpenDay = canManage && presentation === 'modal' && periodStatus !== 'archived' && assignmentOpen;
+  const removesDraft = periodStatus === 'draft';
 
   const detailContent = <>
     <div className="open-day-detail-status"><Tag type={statusTagType(staffingLabel(day))}>{staffingLabel(day)}</Tag>{day.internalNote && <p><strong>Internal note:</strong> {day.internalNote}</p>}</div>
@@ -84,6 +103,24 @@ function OpenDayDetails({ periodId, openDayId, presentation, onRequestClose }: {
         {eligibleQuery.data?.items.length === 0 && <p>No enabled eligible people found.</p>}
       </Stack>
     </Modal>
+    {removeOpen && <Modal
+      open={removeOpen}
+      danger
+      modalHeading={removesDraft ? 'Delete Open Day?' : 'Cancel Open Day?'}
+      primaryButtonText={removesDraft ? 'Delete Open Day' : 'Cancel Open Day'}
+      secondaryButtonText="Keep Open Day"
+      primaryButtonDisabled={openDayRemovalMutation.isPending}
+      onRequestClose={() => {
+        setRemoveOpen(false);
+        openDayRemovalMutation.reset();
+      }}
+      onRequestSubmit={() => openDayRemovalMutation.mutate()}
+    >
+      <Stack gap={4}>
+        {openDayRemovalMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title={removesDraft ? 'Open Day was not deleted' : 'Open Day was not cancelled'} subtitle="The Open Day may have changed. Reload and try again." />}
+        <p>{removesDraft ? 'This draft Open Day will be permanently removed.' : 'The Open Day will be marked as cancelled. Existing assignments and history will be kept.'}</p>
+      </Stack>
+    </Modal>}
   </>;
 
   if (presentation === 'modal') {
@@ -91,7 +128,10 @@ function OpenDayDetails({ periodId, openDayId, presentation, onRequestClose }: {
       <Stack gap={6} className="open-day-registration-modal">
         <div className="open-day-registration-modal__summary">
           <p>{timeRange(day, timeZone)}</p>
-          {canManage && <Button kind="ghost" size="sm" renderIcon={Edit} onClick={() => navigate(`/open-days/${periodId}/schedule?edit=${openDayId}`)}>Edit Open Day</Button>}
+          {canEditOpenDay && <div className="open-day-registration-modal__actions">
+            <Button kind="ghost" size="sm" renderIcon={Edit} onClick={() => navigate(`/open-days/${periodId}/schedule?edit=${openDayId}`)}>Edit Open Day</Button>
+            {canRemoveOpenDay && <Button kind="danger--ghost" size="sm" renderIcon={removesDraft ? TrashCan : Misuse} onClick={() => setRemoveOpen(true)}>{removesDraft ? 'Delete Open Day' : 'Cancel Open Day'}</Button>}
+          </div>}
         </div>
         {detailContent}
       </Stack>
