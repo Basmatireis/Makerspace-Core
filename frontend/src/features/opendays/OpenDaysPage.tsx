@@ -1,38 +1,22 @@
-import { useState, type ChangeEvent } from 'react';
+import { useState } from 'react';
 import { Add, ArrowRight, Edit, SettingsAdjust } from '@carbon/icons-react';
-import { Button, ClickableTile, DatePicker, DatePickerInput, InlineNotification, Modal, Stack, Tag, TextInput, Tile } from '@carbon/react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { Button, ClickableTile, Stack, Tag, Tile } from '@carbon/react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { createOpenDayPeriod } from '../../api/generated/open-days/open-days';
 import { PageHeader } from '../../app/PageHeader';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
+import { CreateOpenDayPeriodWizard } from './CreateOpenDayPeriodWizard';
 import { periodRange, statusTagType } from './format';
 import { openDaySchedulePath } from './paths';
-import { openDayKeys, periodsQueryOptions } from './queries';
-
-type PeriodForm = { name: string; startsOn: string; endsOn: string };
+import { periodsQueryOptions } from './queries';
 
 export function OpenDaysPage() {
   const currentUser = useCurrentUser();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const periodsQuery = useQuery(periodsQueryOptions());
-  const { register, handleSubmit, reset, setValue, formState: { errors, submitCount } } = useForm<PeriodForm>({
-    defaultValues: { name: '', startsOn: '', endsOn: '' },
-  });
-  const createMutation = useMutation({
-    mutationFn: (values: PeriodForm) => createOpenDayPeriod(values),
-    onSuccess: async (period) => {
-      await queryClient.invalidateQueries({ queryKey: openDayKeys.periods() });
-      setCreateOpen(false);
-      reset();
-      navigate(openDaySchedulePath(period.id));
-    },
-  });
   const canManage = hasPermission(currentUser, PermissionId.open_daysmanage);
 
   return (
@@ -68,56 +52,14 @@ export function OpenDaysPage() {
           {periodsQuery.data.items.length === 0 && !canManage && <div className="empty-state"><h2>No visible periods</h2><p>Open Day periods will appear here when staffing opens.</p></div>}
         </section>
       )}
-      {createOpen && <Modal
+      {createOpen && <CreateOpenDayPeriodWizard
         open={createOpen}
-        modalHeading="Create Open Day period"
-        primaryButtonText={createMutation.isPending ? 'Creating…' : 'Create period'}
-        secondaryButtonText="Cancel"
-        primaryButtonDisabled={createMutation.isPending}
-        onRequestClose={() => {
+        onClose={() => setCreateOpen(false)}
+        onCreated={(periodId, defaults) => {
           setCreateOpen(false);
-          reset();
-          createMutation.reset();
+          navigate(openDaySchedulePath(periodId), { state: { openDayDefaults: defaults } });
         }}
-        onRequestSubmit={() => void handleSubmit((values) => createMutation.mutate(values))()}
-      >
-        <Stack gap={5}>
-          {createMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Period could not be created" subtitle="Review the values and try again." />}
-          <TextInput id="period-name" labelText="Name" invalid={Boolean(errors.name)} invalidText="Enter a name." {...register('name', { required: true })} />
-          <input type="hidden" {...register('startsOn', { required: true })} />
-          <input type="hidden" {...register('endsOn', { required: true })} />
-          <DatePicker
-            datePickerType="range"
-            dateFormat="Y-m-d"
-            onChange={(dates) => {
-              setValue('startsOn', dateValue(dates[0]), { shouldDirty: true, shouldValidate: submitCount > 0 });
-              setValue('endsOn', dateValue(dates[1]), { shouldDirty: true, shouldValidate: submitCount > 0 });
-            }}
-          >
-            <DatePickerInput
-              id="period-start"
-              labelText="Start date"
-              placeholder="yyyy-mm-dd"
-              invalid={submitCount > 0 && Boolean(errors.startsOn)}
-              invalidText="Choose a start date."
-              onChange={(event: ChangeEvent<HTMLInputElement>) => setValue('startsOn', event.target.value, { shouldDirty: true, shouldValidate: submitCount > 0 })}
-            />
-            <DatePickerInput
-              id="period-end"
-              labelText="End date"
-              placeholder="yyyy-mm-dd"
-              invalid={submitCount > 0 && Boolean(errors.endsOn)}
-              invalidText="Choose an end date."
-              onChange={(event: ChangeEvent<HTMLInputElement>) => setValue('endsOn', event.target.value, { shouldDirty: true, shouldValidate: submitCount > 0 })}
-            />
-          </DatePicker>
-        </Stack>
-      </Modal>}
+      />}
     </Stack>
   );
-}
-
-function dateValue(date?: Date) {
-  if (!date) return '';
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }

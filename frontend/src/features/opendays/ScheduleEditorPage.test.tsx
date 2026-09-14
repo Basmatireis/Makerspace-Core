@@ -8,6 +8,7 @@ import type { AcademicBreak, CreateAcademicBreakRequest, OpenDay, RecurrenceOccu
 import { testQueryClient } from '../../test/render';
 import { server } from '../../test/server';
 import { ScheduleEditorPage } from './ScheduleEditorPage';
+import type { OpenDayScheduleDefaults } from './scheduleDefaults';
 
 const periodId = '0192f6f8-743e-7c77-a349-cd07c3e8a911';
 const breakId = '0192f6f8-743e-7c77-a349-cd07c3e8a951';
@@ -51,6 +52,7 @@ function openDay(overrides: Partial<OpenDay> = {}): OpenDay {
 type RenderOptions = {
   items?: OpenDay[];
   recurrence?: RecurrenceOccurrence[];
+  navigationDefaults?: OpenDayScheduleDefaults;
 };
 
 function renderEditor(initialBreaks: AcademicBreak[] = [academicBreak()], options: RenderOptions = {}) {
@@ -121,7 +123,12 @@ function renderEditor(initialBreaks: AcademicBreak[] = [academicBreak()], option
     { path: '/open-days/:periodId/schedule', element: <ScheduleEditorPage /> },
     { path: '/open-days/:periodId', element: <h1>Period detail</h1> },
     { path: '/open-days', element: <h1>Open Days overview</h1> },
-  ], { initialEntries: [`/open-days/${periodId}/schedule`] });
+  ], {
+    initialEntries: [{
+      pathname: `/open-days/${periodId}/schedule`,
+      state: options.navigationDefaults ? { openDayDefaults: options.navigationDefaults } : undefined,
+    }],
+  });
   const result = render(
     <QueryClientProvider client={testQueryClient()}>
       <RouterProvider router={router} />
@@ -184,6 +191,36 @@ describe('schedule editor calendar context', () => {
     expect(body?.updates).toEqual([]);
     expect(body?.creates).toHaveLength(1);
     expect(body?.creates[0].requirements.find((item) => item.kind === 'supervisor')).toEqual({ kind: 'supervisor', requiredCount: 4, eligibleRoleIds: [supervisorRoleId, traineeRoleId] });
+  }, 10_000);
+
+  it('uses period-wizard defaults for the first newly added Open Day', async () => {
+    const navigationDefaults: OpenDayScheduleDefaults = {
+      startTime: '09:30',
+      endTime: '13:15',
+      supervisors: 3,
+      trainees: 0,
+      supervisorRoleIds: [supervisorRoleId],
+      traineeRoleIds: [],
+    };
+    const { getSavedBody } = renderEditor([], { navigationDefaults });
+    const user = userEvent.setup();
+
+    expect(await screen.findByLabelText('Start')).toHaveValue('09:30');
+    expect(screen.getByLabelText('End')).toHaveValue('13:15');
+    expect(screen.getByRole('spinbutton', { name: 'Supervisors' })).toHaveValue(3);
+    expect(screen.getByRole('spinbutton', { name: 'Trainees' })).toHaveValue(0);
+    await user.click(screen.getByRole('button', { name: 'Add Open Day on 2026-10-26' }));
+    await user.click(screen.getByRole('button', { name: 'Save & close' }));
+
+    expect(await screen.findByRole('heading', { name: 'Period detail' })).toBeInTheDocument();
+    expect(getSavedBody()?.creates[0]).toMatchObject({
+      startsAt: '2026-10-26T08:30:00.000Z',
+      endsAt: '2026-10-26T12:15:00.000Z',
+      requirements: [
+        { kind: 'supervisor', requiredCount: 3, eligibleRoleIds: [supervisorRoleId] },
+        { kind: 'trainee', requiredCount: 0, eligibleRoleIds: [] },
+      ],
+    });
   }, 10_000);
 
   it('blocks navigation while local changes are unsaved', async () => {

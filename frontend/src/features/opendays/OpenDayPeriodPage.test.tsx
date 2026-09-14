@@ -9,9 +9,15 @@ import { currentUserFixture } from '../../test/fixtures';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 
-vi.mock('./ScheduleEditorPage', () => ({
-  ScheduleEditorPage: () => <h1>Schedule planning</h1>,
-}));
+vi.mock('./ScheduleEditorPage', async () => {
+  const { useLocation } = await import('react-router-dom');
+  return {
+    ScheduleEditorPage: () => {
+      const location = useLocation();
+      return <><h1>Schedule planning</h1><output aria-label="Schedule defaults">{JSON.stringify(location.state)}</output></>;
+    },
+  };
+});
 
 const periodId = '0192f6f8-743e-7c77-a349-cd07c3e8a911';
 const personId = '0192f6f8-743e-7c77-a349-cd07c3e8a901';
@@ -124,29 +130,39 @@ describe('Open Day period lifecycle controls', () => {
 });
 
 describe('Open Day period creation', () => {
-  it('shows a missing range endpoint only after creation is submitted', async () => {
+  const supervisorRoleId = '0192f6f8-743e-7c77-a349-cd07c3e8a971';
+  const traineeRoleId = '0192f6f8-743e-7c77-a349-cd07c3e8a972';
+  const eligibilityRoles = [
+    { id: supervisorRoleId, name: 'Supervisor' },
+    { id: traineeRoleId, name: 'Trainee' },
+  ];
+
+  it('shows field and bottom errors only after the first step is submitted', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.open_daysmanage]))),
       http.get('*/api/v1/open-day-periods', () => HttpResponse.json({ items: [] })),
+      http.get('*/api/v1/open-day-eligibility-roles', () => HttpResponse.json({ items: eligibilityRoles })),
     );
     renderRoute(<App />, '/open-days');
     const user = userEvent.setup();
 
     await user.click((await screen.findAllByRole('button', { name: 'New period' }))[0]);
-    await user.type(screen.getByLabelText('Name'), 'Winter Semester 2026/27');
-    await user.type(screen.getByLabelText('Start date'), '2026-10-01');
 
+    expect(screen.queryByText('Enter a name.')).not.toBeInTheDocument();
     expect(screen.queryByText('Choose an end date.')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Create period' }));
-    expect(await screen.findByText('Choose an end date.')).toBeInTheDocument();
+    expect(screen.queryByText('Missing required information')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    expect(await screen.findByText('Enter a name.')).toBeInTheDocument();
+    expect(screen.getByText('Missing required information')).toBeInTheDocument();
 
-    await user.type(screen.getByLabelText('End date'), '2027-01-31');
-    await waitFor(() => expect(screen.queryByText('Choose an end date.')).not.toBeInTheDocument());
+    await user.type(screen.getByLabelText('Name'), 'Winter Semester 2026/27');
+    expect(screen.queryByText('Missing required information')).not.toBeInTheDocument();
   });
 
-  it('opens the schedule editor immediately after creating a draft period', async () => {
+  it('collects setup in four steps and opens the schedule editor with the selected defaults', async () => {
     const created = period('draft');
     let submittedPeriod: unknown;
+    let submittedBreak: unknown;
     server.use(
       http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.open_daysmanage]))),
       http.get('*/api/v1/open-day-periods', () => HttpResponse.json({ items: [] })),
@@ -154,10 +170,22 @@ describe('Open Day period creation', () => {
         submittedPeriod = await request.json();
         return HttpResponse.json(created, { status: 201 });
       }),
+      http.post('*/api/v1/open-day-academic-breaks', async ({ request }) => {
+        submittedBreak = await request.json();
+        return HttpResponse.json({
+          id: '0192f6f8-743e-7c77-a349-cd07c3e8a973',
+          name: 'Semester break',
+          startsOn: created.startsOn,
+          endsOn: created.startsOn,
+          version: 1,
+          createdAt: '2026-09-01T10:00:00Z',
+          updatedAt: '2026-09-01T10:00:00Z',
+        }, { status: 201 });
+      }),
       http.get('*/api/v1/open-day-periods/:periodId/open-days', () =>
         HttpResponse.json({ period: created, items: [], timeZone: 'Europe/Vienna' }),
       ),
-      http.get('*/api/v1/open-day-eligibility-roles', () => HttpResponse.json({ items: [] })),
+      http.get('*/api/v1/open-day-eligibility-roles', () => HttpResponse.json({ items: eligibilityRoles })),
     );
     renderRoute(<App />, '/open-days');
     const user = userEvent.setup();
@@ -166,10 +194,29 @@ describe('Open Day period creation', () => {
     await user.type(screen.getByLabelText('Name'), created.name);
     await user.type(screen.getByLabelText('Start date'), created.startsOn);
     await user.type(screen.getByLabelText('End date'), created.endsOn);
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(screen.getByRole('heading', { name: 'Academic breaks' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Add academic break' }));
+    await user.type(screen.getByLabelText('Name'), 'Semester break');
+    await user.click(screen.getByRole('button', { name: 'Add break' }));
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(screen.getByRole('heading', { name: 'Base timeslot' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Supervisor positions')).toHaveValue(2);
+    expect(screen.getByLabelText('Trainee positions')).toHaveValue(1);
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
+    expect(screen.getByText('2 positions · Supervisor')).toBeInTheDocument();
+    expect(screen.getByText('1 position · Trainee')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Create period' }));
 
     expect(await screen.findByRole('heading', { name: 'Schedule planning' })).toBeInTheDocument();
     expect(submittedPeriod).toMatchObject({ startsOn: created.startsOn, endsOn: created.endsOn });
+    expect(submittedBreak).toMatchObject({ name: 'Semester break', startsOn: created.startsOn, endsOn: created.startsOn });
+    expect(screen.getByLabelText('Schedule defaults')).toHaveTextContent(`"supervisorRoleIds":["${supervisorRoleId}"]`);
+    expect(screen.getByLabelText('Schedule defaults')).toHaveTextContent(`"traineeRoleIds":["${traineeRoleId}"]`);
   });
 });
 

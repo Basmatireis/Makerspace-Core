@@ -340,6 +340,21 @@ h2 {
 .period-tile__footer { margin-block-start: $spacing-04; }
 .period-tile__actions { display: flex; justify-content: flex-end; gap: $spacing-02; margin-block-start: auto; padding-block-start: $spacing-04; }
 .period-tile--new { display: grid; place-content: center; justify-items: center; gap: $spacing-04; border: 1px dashed var(--cds-border-strong); }
+.period-wizard__body { min-block-size: 34rem; }
+.period-wizard__progress { inline-size: 100%; max-inline-size: none; margin-block-end: $spacing-07; }
+.period-wizard__content { min-block-size: 20rem; }
+.period-wizard__content h3 { margin-block-end: $spacing-02; @include type-style('heading-compact-02'); }
+.period-wizard__content h3 + p { color: var(--cds-text-secondary); }
+.period-wizard__break-editor { padding: $spacing-05; background: var(--cds-layer-accent); }
+.period-wizard__break-dates,
+.period-wizard__times,
+.period-wizard__requirements { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: $spacing-05; }
+.period-wizard__inline-actions { display: flex; justify-content: flex-end; }
+.period-wizard__summary { display: grid; gap: 1px; background: var(--cds-border-subtle); }
+.period-wizard__summary > div { display: grid; grid-template-columns: minmax(10rem, .6fr) 1.4fr; gap: $spacing-05; padding: $spacing-04 $spacing-05; background: var(--cds-layer); }
+.period-wizard__summary dt { color: var(--cds-text-secondary); font-weight: 600; }
+.period-wizard__summary dd { margin: 0; }
+.period-wizard__error { margin-block-start: $spacing-06; }
 
 .period-summary-bar {
   display: flex;

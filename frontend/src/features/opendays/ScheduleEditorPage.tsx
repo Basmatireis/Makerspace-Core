@@ -1,17 +1,19 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { CheckmarkFilled, Edit, InformationFilled, Misuse, Save, Settings, TrashCan, Undo, UserAvatarFilledAlt, WarningFilled } from '@carbon/icons-react';
-import { Button, Checkbox, InlineNotification, Modal, MultiSelect, NumberInput, Select, SelectItem, Stack, Tag, TextInput, TimePicker, TimePickerSelect } from '@carbon/react';
+import { Button, Checkbox, InlineNotification, Modal, NumberInput, Select, SelectItem, Stack, Tag, TextInput, TimePicker, TimePickerSelect } from '@carbon/react';
 import { DragDropProvider, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { listOpenDayEligibilityRoles, previewOpenDayRecurrence, saveOpenDaySchedule } from '../../api/generated/open-days/open-days';
+import { useBlocker, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { previewOpenDayRecurrence, saveOpenDaySchedule } from '../../api/generated/open-days/open-days';
 import type { CalendarEntry, EligibilityRole, OpenDay, RecurrenceOccurrence, StaffingRequirementInput } from '../../api/generated/models';
 import { PageHeader } from '../../app/PageHeader';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { AcademicBreakManager } from './AcademicBreakManager';
 import { CalendarEvent } from './CalendarEvent';
 import { CalendarLegend } from './CalendarLegend';
-import { calendarContextQueryOptions, openDayKeys, scheduleQueryOptions } from './queries';
+import { calendarContextQueryOptions, eligibilityRolesQueryOptions, openDayKeys, scheduleQueryOptions } from './queries';
+import { RoleMultiSelect } from './RoleMultiSelect';
+import { scheduleDefaultsFromNavigationState, standardOpenDayScheduleDefaults } from './scheduleDefaults';
 import { scheduleEditorReducer, type WorkingSlot } from './scheduleState';
 import { dateInTimeZone, timeInTimeZone, zonedDateTimeToISO } from './dateTime';
 import { registeredPeopleCount } from './format';
@@ -24,14 +26,16 @@ function toWorking(day: OpenDay): WorkingSlot {
 export function ScheduleEditorPage() {
   const { periodId = '' } = useParams();
   const [params] = useSearchParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const scheduleQuery = useQuery(scheduleQueryOptions(periodId));
-  const rolesQuery = useQuery({ queryKey: [...openDayKeys.all, 'eligibility-roles'], queryFn: ({ signal }) => listOpenDayEligibilityRoles({ signal }) });
+  const rolesQuery = useQuery(eligibilityRolesQueryOptions());
   const contextQuery = useQuery(calendarContextQueryOptions(periodId));
   const [state, dispatch] = useReducer(scheduleEditorReducer, { slots: [], previous: null, dirty: false });
-  const [defaults, setDefaults] = useState({ startTime: '16:00', endTime: '19:00', supervisors: 2, trainees: 1, supervisorRoleIds: [] as string[], traineeRoleIds: [] as string[] });
-  const defaultsSeeded = useRef(false);
+  const incomingDefaults = scheduleDefaultsFromNavigationState(location.state);
+  const [defaults, setDefaults] = useState(() => incomingDefaults ?? standardOpenDayScheduleDefaults);
+  const defaultsSeeded = useRef(Boolean(incomingDefaults));
   const [defaultRolesOpen, setDefaultRolesOpen] = useState(false);
   const [editing, setEditing] = useState<WorkingSlot | null>(null);
   const [publishedConfirmation, setPublishedConfirmation] = useState<WorkingSlot | null>(null);
@@ -158,7 +162,6 @@ function SlotForm({ slot, roles, timeZone, removalLabel, onChange, onRemove }: {
   const updateRequirement = (kind: 'supervisor' | 'trainee', patch: Partial<StaffingRequirementInput>) => onChange({ ...slot, requirements: slot.requirements.map((item) => item.kind === kind ? { ...item, ...patch } : item) });
   return <Stack gap={5}><TextInput id="slot-date" type="date" labelText="Date" value={dateInTimeZone(slot.startsAt, timeZone)} onChange={(event) => { const duration = new Date(slot.endsAt).getTime() - new Date(slot.startsAt).getTime(); const start = zonedDateTimeToISO(event.target.value, timeInTimeZone(slot.startsAt, timeZone), timeZone); onChange({ ...slot, startsAt: start, endsAt: new Date(new Date(start).getTime() + duration).toISOString() }); }} /><TextInput id="slot-start" type="time" labelText="Start time" value={timeInTimeZone(slot.startsAt, timeZone)} onChange={(event) => onChange({ ...slot, startsAt: zonedDateTimeToISO(dateInTimeZone(slot.startsAt, timeZone), event.target.value, timeZone) })} /><TextInput id="slot-end" type="time" labelText="End time" value={timeInTimeZone(slot.endsAt, timeZone)} onChange={(event) => onChange({ ...slot, endsAt: zonedDateTimeToISO(dateInTimeZone(slot.endsAt, timeZone), event.target.value, timeZone) })} /><TextInput id="slot-note" labelText="Internal note" value={slot.internalNote ?? ''} onChange={(event) => onChange({ ...slot, internalNote: event.target.value || null })} /><NumberInput id="slot-supervisor-count" label="Supervisors required" min={0} max={100} value={supervisor.requiredCount} onChange={(_, value) => updateRequirement('supervisor', { requiredCount: Number(value.value) })} /><RoleMultiSelect id="slot-supervisor-roles" titleText="Eligible supervisor roles" roles={roles} selectedRoleIds={supervisor.eligibleRoleIds} onChange={(eligibleRoleIds) => updateRequirement('supervisor', { eligibleRoleIds })} /><NumberInput id="slot-trainee-count" label="Trainees required" min={0} max={100} value={trainee.requiredCount} onChange={(_, value) => updateRequirement('trainee', { requiredCount: Number(value.value) })} /><RoleMultiSelect id="slot-trainee-roles" titleText="Eligible trainee roles" roles={roles} selectedRoleIds={trainee.eligibleRoleIds} onChange={(eligibleRoleIds) => updateRequirement('trainee', { eligibleRoleIds })} /><Button kind="danger--ghost" renderIcon={TrashCan} onClick={onRemove}>{removalLabel}</Button></Stack>;
 }
-function RoleMultiSelect({ id, titleText, roles, selectedRoleIds, onChange }: { id: string; titleText: string; roles: EligibilityRole[]; selectedRoleIds: string[]; onChange: (roleIds: string[]) => void }) { return <MultiSelect id={id} titleText={titleText} label="Choose roles" items={roles} itemToString={(role) => role?.name ?? ''} selectedItems={roles.filter((role) => selectedRoleIds.includes(role.id))} onChange={({ selectedItems }) => onChange((selectedItems ?? []).map((role) => role.id))} />; }
 function workingSlotPresentation(slot: WorkingSlot) {
   if (slot.original?.status === 'cancelled') return { kind: 'cancelled' as const, label: 'Cancelled', Icon: Misuse };
   const assigned = new Map(slot.original?.requirements.map((item) => [item.kind, item.assignedCount]) ?? []);
