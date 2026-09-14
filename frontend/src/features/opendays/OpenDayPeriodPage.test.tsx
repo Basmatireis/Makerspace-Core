@@ -290,16 +290,20 @@ describe('Open Day table and calendar filters', () => {
     const sharedToolbar = screen.getByLabelText('Open Days tools');
     expect(viewSwitcher).not.toBeNull();
     expect(filterSwitcher).not.toBeNull();
+    expect(within(filterSwitcher!).getAllByRole('button')).toHaveLength(3);
+    expect(within(filterSwitcher!).getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(viewSwitcher!).getByRole('button', { name: 'Calendar view' })).toHaveAttribute('aria-pressed', 'true');
 
-    await user.click(within(viewSwitcher!).getByText('Table'));
+    await user.click(within(viewSwitcher!).getByRole('button', { name: 'Table view' }));
     expect(screen.getByLabelText('Open Days tools')).toBe(sharedToolbar);
+    expect(within(viewSwitcher!).getByRole('button', { name: 'Table view' })).toHaveAttribute('aria-pressed', 'true');
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(5);
 
     await user.click(within(filterSwitcher!).getByText('Needs staff'));
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2);
     expect(screen.getByText('1 / 2')).toBeInTheDocument();
 
-    await user.click(within(viewSwitcher!).getByText('Calendar'));
+    await user.click(within(viewSwitcher!).getByRole('button', { name: 'Calendar view' }));
     expect(screen.getByLabelText('Open Days tools')).toBe(sharedToolbar);
     const filteredCalendar = screen.getByLabelText('Semester calendar');
     expect(within(filteredCalendar).getByTitle('Supervisor position open')).toBeInTheDocument();
@@ -310,7 +314,7 @@ describe('Open Day table and calendar filters', () => {
     await user.click(within(filterSwitcher!).getByText('My Open Days'));
     expect(within(screen.getByLabelText('Semester calendar')).getAllByTitle('Your assignment')).toHaveLength(2);
 
-    await user.click(within(viewSwitcher!).getByText('Table'));
+    await user.click(within(viewSwitcher!).getByRole('button', { name: 'Table view' }));
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(3);
 
     await user.click(within(filterSwitcher!).getByText('All'));

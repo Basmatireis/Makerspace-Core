@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Edit, Repeat } from '@carbon/icons-react';
-import { Button, ContentSwitcher, DataTable, InlineNotification, Modal, Stack, Switch, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, Tag } from '@carbon/react';
+import { Calendar as CalendarIcon, Edit, List, Repeat } from '@carbon/icons-react';
+import { Button, DataTable, InlineNotification, Modal, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, Tag } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { archiveOpenDayPeriod, openOpenDayPeriodForStaffing, publishOpenDayPeriod, returnOpenDayPeriodToDraft, returnOpenDayPeriodToStaffing } from '../../api/generated/open-days/open-days';
@@ -102,13 +102,13 @@ function OpenDayViewToolbar({ filter, view, onFilter, onView }: { filter: OpenDa
   return (
     <TableToolbar aria-label="Open Days tools" className="open-days-view-toolbar">
       <TableToolbarContent>
-        <ContentSwitcher className="open-days-view-toolbar__filters" aria-label="Filter Open Days" selectedIndex={openDayFilterOptions.findIndex((option) => option.value === filter)} onChange={({ index }) => onFilter(openDayFilterOptions[index ?? 0]?.value ?? 'all')} size="sm">
-          {openDayFilterOptions.map((option) => <Switch key={option.value} name={`filter-${option.value}`} text={option.label} />)}
-        </ContentSwitcher>
-        <ContentSwitcher className="open-days-view-toolbar__views" aria-label="Open Days view" selectedIndex={view === 'table' ? 0 : 1} onChange={({ index }) => onView(index === 0 ? 'table' : 'calendar')} size="sm">
-          <Switch name="table" text="Table" />
-          <Switch name="calendar" text="Calendar" />
-        </ContentSwitcher>
+        <div className="open-days-view-toolbar__filters" role="group" aria-label="Filter Open Days">
+          {openDayFilterOptions.map((option) => <Button key={option.value} kind={filter === option.value ? 'secondary' : 'ghost'} size="md" aria-pressed={filter === option.value} onClick={() => onFilter(option.value)}>{option.label}</Button>)}
+        </div>
+        <div className="open-days-view-toolbar__views" role="group" aria-label="Open Days view">
+          <Button hasIconOnly kind={view === 'table' ? 'primary' : 'ghost'} size="md" renderIcon={List} iconDescription="Table view" aria-pressed={view === 'table'} onClick={() => onView('table')} />
+          <Button hasIconOnly kind={view === 'calendar' ? 'primary' : 'ghost'} size="md" renderIcon={CalendarIcon} iconDescription="Calendar view" aria-pressed={view === 'calendar'} onClick={() => onView('calendar')} />
+        </div>
       </TableToolbarContent>
     </TableToolbar>
   );
