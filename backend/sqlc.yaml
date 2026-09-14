@@ -92,3 +92,16 @@ sql:
         emit_empty_slices: true
         emit_pointers_for_null_types: true
         overrides: *overrides
+  - engine: "postgresql"
+    schema: "migrations"
+    queries: "internal/opendays/db/queries.sql"
+    gen:
+      go:
+        package: "opendaysdb"
+        out: "internal/opendays/db"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_json_tags: false
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+        overrides: *overrides

@@ -422,16 +422,22 @@ func migratedPool(t *testing.T) *pgxpool.Pool {
 	if !ok {
 		t.Fatal("cannot locate integration test source")
 	}
-	migration, err := os.ReadFile(filepath.Join(filepath.Dir(filename), "..", "..", "migrations", "00001_initial.sql"))
-	if err != nil {
-		t.Fatal(err)
+	migrations, err := filepath.Glob(filepath.Join(filepath.Dir(filename), "..", "..", "migrations", "*.sql"))
+	if err != nil || len(migrations) == 0 {
+		t.Fatalf("locate migrations: %v", err)
 	}
-	up, _, found := strings.Cut(string(migration), "-- +goose Down")
-	if !found {
-		t.Fatal("migration has no Goose Down section")
-	}
-	if _, err := pool.Exec(ctx, up); err != nil {
-		t.Fatalf("apply initial migration: %v", err)
+	for _, path := range migrations {
+		migration, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		up, _, found := strings.Cut(string(migration), "-- +goose Down")
+		if !found {
+			t.Fatalf("migration %s has no Goose Down section", filepath.Base(path))
+		}
+		if _, err := pool.Exec(ctx, up); err != nil {
+			t.Fatalf("apply migration %s: %v", filepath.Base(path), err)
+		}
 	}
 	return pool
 }

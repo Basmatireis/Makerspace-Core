@@ -368,7 +368,8 @@ func remoteHost(remoteAddress string) string {
 
 func isPublicPath(path string) bool {
 	switch path {
-	case apiBasePath + "/health/live", apiBasePath + "/health/ready", apiBasePath + "/auth/login", apiBasePath + "/auth/password-reset/complete":
+	case apiBasePath + "/health/live", apiBasePath + "/health/ready", apiBasePath + "/auth/login", apiBasePath + "/auth/password-reset/complete",
+		apiBasePath + "/public/open-days", apiBasePath + "/public/open-days/calendar.ics":
 		return true
 	default:
 		return false

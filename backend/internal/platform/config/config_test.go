@@ -14,6 +14,10 @@ func setValidEnvironment(t *testing.T) {
 	t.Setenv("SESSION_ABSOLUTE_TTL", "")
 	t.Setenv("PASSWORD_RESET_TTL", "")
 	t.Setenv("AUDIT_RETENTION", "")
+	t.Setenv("MAKERSPACE_TIME_ZONE", "")
+	t.Setenv("OPEN_DAYS_HOLIDAY_COUNTRY", "")
+	t.Setenv("OPEN_DAYS_HOLIDAY_SUBDIVISION", "")
+	t.Setenv("OPEN_DAYS_HOLIDAY_LANGUAGE", "")
 }
 
 func TestLoadUsesLockedSessionAndRetentionDefaults(t *testing.T) {
@@ -27,6 +31,17 @@ func TestLoadUsesLockedSessionAndRetentionDefaults(t *testing.T) {
 	}
 	if cfg.PasswordResetTTL != 30*time.Minute || cfg.AuditRetention != 365*24*time.Hour {
 		t.Fatalf("unexpected retention defaults: reset=%s audit=%s", cfg.PasswordResetTTL, cfg.AuditRetention)
+	}
+	if cfg.MakerspaceTimeZone != "Europe/Vienna" || cfg.HolidayCountry != "AT" || cfg.HolidaySubdivision != "AT-6" || cfg.HolidayLanguage != "de" {
+		t.Fatalf("unexpected Open Days defaults: %#v", cfg)
+	}
+}
+
+func TestLoadRejectsInvalidMakerspaceTimeZone(t *testing.T) {
+	setValidEnvironment(t)
+	t.Setenv("MAKERSPACE_TIME_ZONE", "Mars/Olympus_Mons")
+	if _, err := Load(); err == nil {
+		t.Fatal("invalid makerspace timezone was accepted")
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
@@ -32,12 +33,17 @@ type Server struct {
 	permissions *authorization.Service
 	roles       *roles.Service
 	audit       *audit.Service
+	opendays    *opendays.Service
 }
 
 func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	authService, err := auth.NewService(pool, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("initialize authentication: %w", err)
+	}
+	openDaysService, err := opendays.NewService(pool, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("initialize Open Days: %w", err)
 	}
 	return &Server{
 		pool:        pool,
@@ -48,6 +54,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		permissions: authorization.NewService(),
 		roles:       roles.NewService(pool),
 		audit:       audit.NewService(pool),
+		opendays:    openDaysService,
 	}, nil
 }
 

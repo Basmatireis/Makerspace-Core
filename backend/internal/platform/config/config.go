@@ -23,6 +23,10 @@ type Config struct {
 	PasswordResetTTL    time.Duration
 	AuditRetention      time.Duration
 	ShutdownTimeout     time.Duration
+	MakerspaceTimeZone  string
+	HolidayCountry      string
+	HolidaySubdivision  string
+	HolidayLanguage     string
 }
 
 func Load() (Config, error) {
@@ -72,6 +76,13 @@ func Load() (Config, error) {
 	if resetTTL <= 0 {
 		return Config{}, errors.New("PASSWORD_RESET_TTL must be positive")
 	}
+	timeZone := envOr("MAKERSPACE_TIME_ZONE", "Europe/Vienna")
+	if _, err := time.LoadLocation(timeZone); err != nil {
+		return Config{}, fmt.Errorf("MAKERSPACE_TIME_ZONE is invalid: %w", err)
+	}
+	holidayCountry := strings.ToUpper(envOr("OPEN_DAYS_HOLIDAY_COUNTRY", "AT"))
+	holidaySubdivision := strings.ToUpper(envOr("OPEN_DAYS_HOLIDAY_SUBDIVISION", "AT-6"))
+	holidayLanguage := strings.ToLower(envOr("OPEN_DAYS_HOLIDAY_LANGUAGE", "de"))
 
 	sessionName := "makerspace_session"
 	csrfName := "makerspace_csrf"
@@ -93,6 +104,10 @@ func Load() (Config, error) {
 		PasswordResetTTL:    resetTTL,
 		AuditRetention:      auditRetention,
 		ShutdownTimeout:     10 * time.Second,
+		MakerspaceTimeZone:  timeZone,
+		HolidayCountry:      holidayCountry,
+		HolidaySubdivision:  holidaySubdivision,
+		HolidayLanguage:     holidayLanguage,
 	}, nil
 }
 

@@ -22,6 +22,8 @@ tags:
   - name: Permissions
   - name: Roles
   - name: Audit
+  - name: Open Days
+  - name: Public Open Days
 
 paths:
   /health/live:
@@ -1042,6 +1044,420 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
 
+  /open-day-periods:
+    get:
+      tags: [Open Days]
+      operationId: listOpenDayPeriods
+      summary: List Open Day periods visible to the caller
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Visible periods with staffing summaries.
+          content: {application/json: {schema: {$ref: "#/components/schemas/OpenDayPeriodList"}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Open Days]
+      operationId: createOpenDayPeriod
+      summary: Create a draft Open Day period
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/CreateOpenDayPeriodRequest"}}}
+      responses:
+        "201":
+          description: Draft period created.
+          content: {application/json: {schema: {$ref: "#/components/schemas/OpenDayPeriod"}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-day-periods/{periodId}:
+    parameters: [{$ref: "#/components/parameters/OpenDayPeriodId"}]
+    get:
+      tags: [Open Days]
+      operationId: getOpenDayPeriod
+      summary: Get an Open Day period
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Period details.
+          content: {application/json: {schema: {$ref: "#/components/schemas/OpenDayPeriod"}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    patch:
+      tags: [Open Days]
+      operationId: updateOpenDayPeriod
+      summary: Update draft period metadata
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/UpdateOpenDayPeriodRequest"}}}
+      responses:
+        "200":
+          description: Updated period.
+          content: {application/json: {schema: {$ref: "#/components/schemas/OpenDayPeriod"}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-day-periods/{periodId}/open-for-staffing:
+    parameters: [{$ref: "#/components/parameters/OpenDayPeriodId"}]
+    post:
+      tags: [Open Days]
+      operationId: openOpenDayPeriodForStaffing
+      summary: Transition a draft period to open for staffing
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}
+      responses:
+        "200": {description: Updated period., content: {application/json: {schema: {$ref: "#/components/schemas/OpenDayPeriod"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-day-periods/{periodId}/publish:
+    parameters: [{$ref: "#/components/parameters/OpenDayPeriodId"}]
+    post:
+      tags: [Open Days]
+      operationId: publishOpenDayPeriod
+      summary: Publish a staffing period
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Updated period., content: {application/json: {schema: {$ref: "#/components/schemas/OpenDayPeriod"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-day-periods/{periodId}/archive:
+    parameters: [{$ref: "#/components/parameters/OpenDayPeriodId"}]
+    post:
+      tags: [Open Days]
+      operationId: archiveOpenDayPeriod
+      summary: Archive a published period
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Updated period., content: {application/json: {schema: {$ref: "#/components/schemas/OpenDayPeriod"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-day-periods/{periodId}/open-days:
+    parameters: [{$ref: "#/components/parameters/OpenDayPeriodId"}]
+    get:
+      tags: [Open Days]
+      operationId: listOpenDays
+      summary: List Open Days in a period
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Period schedule., content: {application/json: {schema: {$ref: "#/components/schemas/OpenDaySchedule"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Open Days]
+      operationId: createOpenDay
+      summary: Create one Open Day
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateOpenDayRequest"}}}}
+      responses:
+        "201": {description: Open Day created., content: {application/json: {schema: {$ref: "#/components/schemas/OpenDay"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-days/{openDayId}:
+    parameters: [{$ref: "#/components/parameters/OpenDayId"}]
+    get:
+      tags: [Open Days]
+      operationId: getOpenDay
+      summary: Get one Open Day
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Open Day details., content: {application/json: {schema: {$ref: "#/components/schemas/OpenDay"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    patch:
+      tags: [Open Days]
+      operationId: updateOpenDay
+      summary: Update one scheduled Open Day
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateOpenDayRequest"}}}}
+      responses:
+        "200": {description: Updated Open Day., content: {application/json: {schema: {$ref: "#/components/schemas/OpenDay"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Open Days]
+      operationId: deleteOpenDay
+      summary: Delete one Open Day from a draft period
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Open Day deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-days/{openDayId}/cancel:
+    parameters: [{$ref: "#/components/parameters/OpenDayId"}]
+    post:
+      tags: [Open Days]
+      operationId: cancelOpenDay
+      summary: Cancel a scheduled Open Day
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Cancelled Open Day., content: {application/json: {schema: {$ref: "#/components/schemas/OpenDay"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-day-periods/{periodId}/schedule:
+    parameters: [{$ref: "#/components/parameters/OpenDayPeriodId"}]
+    put:
+      tags: [Open Days]
+      operationId: saveOpenDaySchedule
+      summary: Atomically save a period schedule delta
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SaveOpenDayScheduleRequest"}}}}
+      responses:
+        "200": {description: Saved schedule., content: {application/json: {schema: {$ref: "#/components/schemas/OpenDaySchedule"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-day-periods/{periodId}/schedule/recurrence-preview:
+    parameters: [{$ref: "#/components/parameters/OpenDayPeriodId"}]
+    post:
+      tags: [Open Days]
+      operationId: previewOpenDayRecurrence
+      summary: Preview recurring Open Days without persisting them
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RecurrencePreviewRequest"}}}}
+      responses:
+        "200": {description: Recurrence preview., content: {application/json: {schema: {$ref: "#/components/schemas/RecurrencePreview"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-days/{openDayId}/assignments/me:
+    parameters: [{$ref: "#/components/parameters/OpenDayId"}]
+    put:
+      tags: [Open Days]
+      operationId: joinOpenDay
+      summary: Assign the current Person to one staffing requirement
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/JoinOpenDayRequest"}}}}
+      responses:
+        "201": {description: Assignment created., content: {application/json: {schema: {$ref: "#/components/schemas/OpenDayAssignment"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Open Days]
+      operationId: leaveOpenDay
+      summary: Remove the current Person's assignment
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Assignment removed.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-days/{openDayId}/assignments:
+    parameters: [{$ref: "#/components/parameters/OpenDayId"}]
+    post:
+      tags: [Open Days]
+      operationId: assignOpenDayPerson
+      summary: Administratively assign an eligible Person
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AssignOpenDayPersonRequest"}}}}
+      responses:
+        "201": {description: Assignment created., content: {application/json: {schema: {$ref: "#/components/schemas/OpenDayAssignment"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-days/{openDayId}/assignments/{assignmentId}:
+    parameters:
+      - {$ref: "#/components/parameters/OpenDayId"}
+      - {$ref: "#/components/parameters/OpenDayAssignmentId"}
+    delete:
+      tags: [Open Days]
+      operationId: removeOpenDayAssignment
+      summary: Administratively remove an assignment
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Assignment removed.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-day-staff-requirements/{requirementId}/eligible-people:
+    parameters: [{$ref: "#/components/parameters/OpenDayRequirementId"}]
+    get:
+      tags: [Open Days]
+      operationId: listOpenDayEligiblePeople
+      summary: Search minimal eligible Person identities
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: search, in: query, schema: {type: string, maxLength: 200}}
+      responses:
+        "200": {description: Eligible people., content: {application/json: {schema: {$ref: "#/components/schemas/EligiblePersonList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-day-eligibility-roles:
+    get:
+      tags: [Open Days]
+      operationId: listOpenDayEligibilityRoles
+      summary: List minimal roles usable for Open Day eligibility
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Eligibility roles., content: {application/json: {schema: {$ref: "#/components/schemas/EligibilityRoleList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-day-periods/{periodId}/calendar-context:
+    parameters: [{$ref: "#/components/parameters/OpenDayPeriodId"}]
+    get:
+      tags: [Open Days]
+      operationId: getOpenDayCalendarContext
+      summary: Get holidays and academic breaks for a period
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Calendar context., content: {application/json: {schema: {$ref: "#/components/schemas/OpenDayCalendarContext"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-day-academic-breaks:
+    post:
+      tags: [Open Days]
+      operationId: createOpenDayAcademicBreak
+      summary: Create an academic break
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateAcademicBreakRequest"}}}}
+      responses:
+        "201": {description: Academic break created., content: {application/json: {schema: {$ref: "#/components/schemas/AcademicBreak"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /open-day-academic-breaks/{academicBreakId}:
+    parameters: [{$ref: "#/components/parameters/AcademicBreakId"}]
+    patch:
+      tags: [Open Days]
+      operationId: updateOpenDayAcademicBreak
+      summary: Update an academic break
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateAcademicBreakRequest"}}}}
+      responses:
+        "200": {description: Academic break updated., content: {application/json: {schema: {$ref: "#/components/schemas/AcademicBreak"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Open Days]
+      operationId: deleteOpenDayAcademicBreak
+      summary: Delete an academic break
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Academic break deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/open-days:
+    get:
+      tags: [Public Open Days]
+      operationId: listPublicOpenDays
+      summary: List the public Open Day schedule
+      security: []
+      responses:
+        "200": {description: Public schedule only., content: {application/json: {schema: {$ref: "#/components/schemas/PublicOpenDayList"}}}}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/open-days/calendar.ics:
+    get:
+      tags: [Public Open Days]
+      operationId: getPublicOpenDaysCalendar
+      summary: Subscribe to the public Open Day iCalendar feed
+      security: []
+      responses:
+        "200":
+          description: RFC 5545 calendar containing public schedule data only.
+          content: {text/calendar: {schema: {type: string}}}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
 components:
   headers:
     NoStore:
@@ -1081,6 +1497,31 @@ components:
       required: true
       schema:
         $ref: "#/components/schemas/UUIDv7"
+    OpenDayPeriodId:
+      name: periodId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
+    OpenDayId:
+      name: openDayId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
+    OpenDayRequirementId:
+      name: requirementId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
+    OpenDayAssignmentId:
+      name: assignmentId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
+    AcademicBreakId:
+      name: academicBreakId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
     Limit:
       name: limit
       in: query
@@ -1227,6 +1668,11 @@ components:
         - roles.read
         - roles.manage
         - audit.read
+        - open_days.read
+        - open_days.read_assignments
+        - open_days.signup
+        - open_days.assign
+        - open_days.manage
 
     HealthStatus:
       type: object
@@ -1743,3 +2189,356 @@ components:
           type: string
           maxLength: 500
           nullable: true
+
+    OpenDayPeriodStatus:
+      type: string
+      enum: [draft, staffing, published, archived]
+
+    OpenDayStatus:
+      type: string
+      enum: [scheduled, cancelled]
+
+    OpenDayRequirementKind:
+      type: string
+      enum: [supervisor, trainee]
+
+    OpenDayPeriod:
+      type: object
+      additionalProperties: false
+      required: [id, name, startsOn, endsOn, status, totalOpenDays, fullyStaffedCount, needsStaffCount, cancelledCount, myAssignmentCount, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, maxLength: 150}
+        startsOn: {type: string, format: date}
+        endsOn: {type: string, format: date}
+        status: {$ref: "#/components/schemas/OpenDayPeriodStatus"}
+        totalOpenDays: {type: integer, minimum: 0}
+        fullyStaffedCount: {type: integer, minimum: 0}
+        needsStaffCount: {type: integer, minimum: 0}
+        cancelledCount: {type: integer, minimum: 0}
+        myAssignmentCount: {type: integer, minimum: 0}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+
+    OpenDayPeriodList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/OpenDayPeriod"}}
+
+    CreateOpenDayPeriodRequest:
+      type: object
+      additionalProperties: false
+      required: [name, startsOn, endsOn]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 150}
+        startsOn: {type: string, format: date}
+        endsOn: {type: string, format: date}
+
+    UpdateOpenDayPeriodRequest:
+      type: object
+      additionalProperties: false
+      required: [name, startsOn, endsOn, expectedVersion]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 150}
+        startsOn: {type: string, format: date}
+        endsOn: {type: string, format: date}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    StaffingRequirementInput:
+      type: object
+      additionalProperties: false
+      required: [kind, requiredCount, eligibleRoleIds]
+      properties:
+        kind: {$ref: "#/components/schemas/OpenDayRequirementKind"}
+        requiredCount: {type: integer, minimum: 0, maximum: 100}
+        eligibleRoleIds:
+          type: array
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/UUIDv7"}
+
+    CreateOpenDayRequest:
+      type: object
+      additionalProperties: false
+      required: [startsAt, endsAt, requirements, expectedPeriodVersion]
+      properties:
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        internalNote: {type: string, maxLength: 2000, nullable: true}
+        requirements:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items: {$ref: "#/components/schemas/StaffingRequirementInput"}
+        expectedPeriodVersion: {$ref: "#/components/schemas/Version"}
+
+    UpdateOpenDayRequest:
+      allOf:
+        - {$ref: "#/components/schemas/CreateOpenDayRequest"}
+        - type: object
+          required: [expectedVersion]
+          properties:
+            expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    MinimalPerson:
+      type: object
+      additionalProperties: false
+      required: [personId, displayName]
+      properties:
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+        displayName: {type: string, maxLength: 201}
+
+    OpenDayAssignment:
+      type: object
+      additionalProperties: false
+      required: [id, openDayId, requirementId, personId, displayName, isCurrentUser, createdAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        openDayId: {$ref: "#/components/schemas/UUIDv7"}
+        requirementId: {$ref: "#/components/schemas/UUIDv7"}
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+        displayName: {type: string, maxLength: 201}
+        isCurrentUser: {type: boolean}
+        createdAt: {type: string, format: date-time}
+
+    OpenDayStaffRequirement:
+      type: object
+      additionalProperties: false
+      required: [id, kind, requiredCount, assignedCount]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        kind: {$ref: "#/components/schemas/OpenDayRequirementKind"}
+        requiredCount: {type: integer, minimum: 0, maximum: 100}
+        assignedCount: {type: integer, minimum: 0}
+        eligibleRoleIds:
+          type: array
+          description: Omitted unless the caller has open_days.manage.
+          items: {$ref: "#/components/schemas/UUIDv7"}
+        assignments:
+          type: array
+          description: Omitted unless other assignment identities are authorized.
+          items: {$ref: "#/components/schemas/OpenDayAssignment"}
+
+    OpenDay:
+      type: object
+      additionalProperties: false
+      required: [id, periodId, startsAt, endsAt, status, requirements, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        periodId: {$ref: "#/components/schemas/UUIDv7"}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        internalNote:
+          type: string
+          maxLength: 2000
+          nullable: true
+          description: Omitted unless the caller has open_days.manage.
+        status: {$ref: "#/components/schemas/OpenDayStatus"}
+        requirements: {type: array, items: {$ref: "#/components/schemas/OpenDayStaffRequirement"}}
+        myAssignment:
+          allOf: [{$ref: "#/components/schemas/OpenDayAssignment"}]
+          nullable: true
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+
+    OpenDaySchedule:
+      type: object
+      additionalProperties: false
+      required: [period, items, timeZone]
+      properties:
+        period: {$ref: "#/components/schemas/OpenDayPeriod"}
+        items: {type: array, items: {$ref: "#/components/schemas/OpenDay"}}
+        timeZone: {type: string, maxLength: 100}
+
+    ScheduleCreate:
+      type: object
+      additionalProperties: false
+      required: [startsAt, endsAt, requirements]
+      properties:
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        internalNote: {type: string, maxLength: 2000, nullable: true}
+        requirements:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items: {$ref: "#/components/schemas/StaffingRequirementInput"}
+
+    ScheduleUpdate:
+      type: object
+      additionalProperties: false
+      required: [id, startsAt, endsAt, requirements, expectedVersion]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        internalNote: {type: string, maxLength: 2000, nullable: true}
+        requirements:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items: {$ref: "#/components/schemas/StaffingRequirementInput"}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    ScheduleRemoval:
+      type: object
+      additionalProperties: false
+      required: [id, expectedVersion]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    SaveOpenDayScheduleRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedPeriodVersion, creates, updates, removals]
+      properties:
+        expectedPeriodVersion: {$ref: "#/components/schemas/Version"}
+        creates: {type: array, maxItems: 366, items: {$ref: "#/components/schemas/ScheduleCreate"}}
+        updates: {type: array, maxItems: 366, items: {$ref: "#/components/schemas/ScheduleUpdate"}}
+        removals: {type: array, maxItems: 366, items: {$ref: "#/components/schemas/ScheduleRemoval"}}
+
+    RecurrencePreviewRequest:
+      type: object
+      additionalProperties: false
+      required: [weekday, startsOn, endsOn, startTime, endTime, everyWeeks, skipPublicHolidays, skipAcademicBreaks]
+      properties:
+        weekday: {type: integer, minimum: 1, maximum: 7, description: "ISO weekday; Monday is 1."}
+        startsOn: {type: string, format: date}
+        endsOn: {type: string, format: date}
+        startTime: {type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
+        endTime: {type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
+        everyWeeks: {type: integer, minimum: 1, maximum: 52}
+        skipPublicHolidays: {type: boolean}
+        skipAcademicBreaks: {type: boolean}
+
+    RecurrenceOccurrence:
+      type: object
+      additionalProperties: false
+      required: [date, startsAt, endsAt, disposition]
+      properties:
+        date: {type: string, format: date}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        disposition: {type: string, enum: [create, publicHoliday, academicBreak, conflict]}
+        reason: {type: string, maxLength: 200}
+
+    RecurrencePreview:
+      type: object
+      additionalProperties: false
+      required: [occurrences]
+      properties:
+        occurrences: {type: array, items: {$ref: "#/components/schemas/RecurrenceOccurrence"}}
+
+    JoinOpenDayRequest:
+      type: object
+      additionalProperties: false
+      required: [requirementId]
+      properties:
+        requirementId: {$ref: "#/components/schemas/UUIDv7"}
+
+    AssignOpenDayPersonRequest:
+      type: object
+      additionalProperties: false
+      required: [requirementId, personId]
+      properties:
+        requirementId: {$ref: "#/components/schemas/UUIDv7"}
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+
+    EligiblePersonList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/MinimalPerson"}}
+
+    EligibilityRole:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, maxLength: 100}
+
+    EligibilityRoleList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/EligibilityRole"}}
+
+    CalendarEntry:
+      type: object
+      additionalProperties: false
+      required: [name, startsOn, endsOn, category, source]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, maxLength: 150}
+        startsOn: {type: string, format: date}
+        endsOn: {type: string, format: date}
+        category: {type: string, enum: [publicHoliday, academicBreak]}
+        source: {type: string, enum: [holidayLibrary, manual]}
+
+    AcademicBreak:
+      type: object
+      additionalProperties: false
+      required: [id, name, startsOn, endsOn, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, maxLength: 150}
+        startsOn: {type: string, format: date}
+        endsOn: {type: string, format: date}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+
+    CreateAcademicBreakRequest:
+      type: object
+      additionalProperties: false
+      required: [name, startsOn, endsOn]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 150}
+        startsOn: {type: string, format: date}
+        endsOn: {type: string, format: date}
+
+    UpdateAcademicBreakRequest:
+      allOf:
+        - {$ref: "#/components/schemas/CreateAcademicBreakRequest"}
+        - type: object
+          required: [expectedVersion]
+          properties:
+            expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    OpenDayCalendarContext:
+      type: object
+      additionalProperties: false
+      required: [timeZone, countryCode, subdivisionCode, languageCode, entries, academicBreaks]
+      properties:
+        timeZone: {type: string, maxLength: 100}
+        countryCode: {type: string, minLength: 2, maxLength: 2}
+        subdivisionCode: {type: string, maxLength: 20, nullable: true}
+        languageCode: {type: string, maxLength: 10}
+        entries: {type: array, items: {$ref: "#/components/schemas/CalendarEntry"}}
+        academicBreaks: {type: array, items: {$ref: "#/components/schemas/AcademicBreak"}}
+
+    PublicOpenDay:
+      type: object
+      additionalProperties: false
+      required: [id, title, startsAt, endsAt, status, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        title: {type: string, enum: [Open Day]}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        status: {$ref: "#/components/schemas/OpenDayStatus"}
+        updatedAt: {type: string, format: date-time}
+
+    PublicOpenDayList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/PublicOpenDay"}}

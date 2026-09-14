@@ -38,4 +38,9 @@ export const PermissionId = {
   rolesread: 'roles.read',
   rolesmanage: 'roles.manage',
   auditread: 'audit.read',
+  open_daysread: 'open_days.read',
+  open_daysread_assignments: 'open_days.read_assignments',
+  open_dayssignup: 'open_days.signup',
+  open_daysassign: 'open_days.assign',
+  open_daysmanage: 'open_days.manage',
 } as const;

@@ -50,6 +50,60 @@ type AuthIdentity struct {
 	UpdatedAt            time.Time
 }
 
+type OpenDay struct {
+	ID           uuid.UUID
+	PeriodID     uuid.UUID
+	StartsAt     time.Time
+	EndsAt       time.Time
+	InternalNote *string
+	Status       string
+	Version      int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type OpenDayAcademicBreak struct {
+	ID        uuid.UUID
+	Name      string
+	StartsOn  pgtype.Date
+	EndsOn    pgtype.Date
+	Version   int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type OpenDayAssignment struct {
+	ID                 uuid.UUID
+	OpenDayID          uuid.UUID
+	RequirementID      uuid.UUID
+	PersonID           uuid.UUID
+	CreatedByAccountID *uuid.UUID
+	CreatedAt          time.Time
+}
+
+type OpenDayPeriod struct {
+	ID        uuid.UUID
+	Name      string
+	StartsOn  pgtype.Date
+	EndsOn    pgtype.Date
+	Status    string
+	Version   int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type OpenDayStaffRequirement struct {
+	ID            uuid.UUID
+	OpenDayID     uuid.UUID
+	Kind          string
+	RequiredCount int32
+}
+
+type OpenDayStaffRequirementRole struct {
+	RequirementID uuid.UUID
+	RoleID        uuid.UUID
+}
+
 type PasswordCredential struct {
 	AuthIdentityID uuid.UUID
 	PasswordHash   string

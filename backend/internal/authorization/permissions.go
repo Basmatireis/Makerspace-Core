@@ -33,6 +33,11 @@ const (
 	RolesRead                 Permission = Permission(openapi.RolesRead)
 	RolesManage               Permission = Permission(openapi.RolesManage)
 	AuditRead                 Permission = Permission(openapi.AuditRead)
+	OpenDaysRead              Permission = Permission(openapi.OpenDaysRead)
+	OpenDaysReadAssignments   Permission = Permission(openapi.OpenDaysReadAssignments)
+	OpenDaysSignup            Permission = Permission(openapi.OpenDaysSignup)
+	OpenDaysAssign            Permission = Permission(openapi.OpenDaysAssign)
+	OpenDaysManage            Permission = Permission(openapi.OpenDaysManage)
 )
 
 type Definition struct {
@@ -46,6 +51,7 @@ var registry = []Permission{
 	AccountsRead, AccountsCreate, AccountsDelete, AccountsEnable, AccountsDisable,
 	AccountsLoginEmailUpdate, AccountsPasswordSet, AccountsPasswordReset, AccountsRolesAssign,
 	RolesRead, RolesManage, AuditRead,
+	OpenDaysRead, OpenDaysReadAssignments, OpenDaysSignup, OpenDaysAssign, OpenDaysManage,
 }
 
 var known = func() map[Permission]struct{} {
@@ -77,6 +83,11 @@ var descriptions = map[Permission]string{
 	RolesRead:                 "Read roles and the application permission registry.",
 	RolesManage:               "Create, update, and delete permitted configurable roles.",
 	AuditRead:                 "Read privacy-minimized audit events.",
+	OpenDaysRead:              "Read visible Open Day periods and staffing summaries.",
+	OpenDaysReadAssignments:   "Read the identities assigned to Open Days.",
+	OpenDaysSignup:            "Sign up for and leave eligible Open Day assignments.",
+	OpenDaysAssign:            "Assign and remove eligible people on Open Days.",
+	OpenDaysManage:            "Manage Open Day periods, schedules, calendar context, and lifecycle.",
 }
 
 type Principal struct {

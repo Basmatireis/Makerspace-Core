@@ -15,6 +15,7 @@ backend/internal/auth/db
 backend/internal/authorization/db
 backend/internal/people/db
 backend/internal/roles/db
+backend/internal/opendays/db
 frontend/src/api/generated'
 
 for path in $generated_paths; do

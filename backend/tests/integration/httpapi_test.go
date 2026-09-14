@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
@@ -86,7 +87,7 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	assertStatus(t, response, http.StatusOK)
 	var current openapi.CurrentUser
 	decodeResponse(t, response, &current)
-	if current.Account.LoginEmail != openapi.Email(adminLogin) || len(current.Permissions) != 20 {
+	if current.Account.LoginEmail != openapi.Email(adminLogin) || len(current.Permissions) != len(authorization.Registry()) {
 		t.Fatalf("unexpected master identity or permission set: %#v", current)
 	}
 
