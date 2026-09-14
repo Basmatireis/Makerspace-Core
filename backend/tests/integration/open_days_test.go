@@ -261,6 +261,68 @@ func TestOpenDaysConcurrentFinalSlotAssignment(t *testing.T) {
 	assertCount(t, pool, `SELECT count(*) FROM open_day_assignments WHERE requirement_id = $1`, 1, requirementID)
 }
 
+func TestOpenDayPeriodSummaryCountsIndividualSupervisorVacancies(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	managerAccount := seedAccount(t, pool, "open-days-summary-manager", true)
+	secondSupervisor := seedAccount(t, pool, "open-days-summary-second", true)
+	manager := authorization.Principal{AccountID: managerAccount.accountID, PersonID: managerAccount.personID, Master: true}
+	service, err := opendays.NewService(pool, config.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	period, err := service.CreatePeriod(ctx, manager, "Supervisor vacancy summary", time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 5, 31, 0, 0, 0, 0, time.UTC), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	roleID := uuid.MustParse(masterRoleID)
+	create := func(day int) opendays.ScheduleInput {
+		return opendays.ScheduleInput{
+			StartsAt: time.Date(2026, 5, day, 14, 0, 0, 0, time.UTC),
+			EndsAt:   time.Date(2026, 5, day, 17, 0, 0, 0, time.UTC),
+			Requirements: []opendays.RequirementInput{
+				{Kind: "supervisor", RequiredCount: 2, EligibleRoleIDs: []uuid.UUID{roleID}},
+				{Kind: "trainee", RequiredCount: 3, EligibleRoleIDs: []uuid.UUID{roleID}},
+			},
+		}
+	}
+	schedule, err := service.SaveSchedule(ctx, manager, period.ID, opendays.ScheduleDelta{
+		ExpectedPeriodVersion: period.Version,
+		Creates:               []opendays.ScheduleInput{create(6), create(13), create(20)},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.TransitionPeriod(ctx, manager, period.ID, schedule.Period.Version, "staffing", nil); err != nil {
+		t.Fatal(err)
+	}
+	supervisorRequirement := func(day opendays.OpenDay) uuid.UUID {
+		for _, requirement := range day.Requirements {
+			if requirement.Kind == "supervisor" {
+				return requirement.ID
+			}
+		}
+		t.Fatalf("Open Day %s has no supervisor requirement", day.ID)
+		return uuid.Nil
+	}
+	if _, err := service.Assign(ctx, manager, schedule.Items[0].ID, supervisorRequirement(schedule.Items[0]), managerAccount.personID, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Assign(ctx, manager, schedule.Items[2].ID, supervisorRequirement(schedule.Items[2]), managerAccount.personID, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Assign(ctx, manager, schedule.Items[2].ID, supervisorRequirement(schedule.Items[2]), secondSupervisor.personID, nil); err != nil {
+		t.Fatal(err)
+	}
+	summary, err := service.GetPeriod(ctx, manager, period.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.OpenSupervisorPositions != 3 {
+		t.Fatalf("open supervisor positions = %d, want 3; trainee vacancies must be excluded", summary.OpenSupervisorPositions)
+	}
+}
+
 func TestOpenDaysVisibilityAndValidation(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)

@@ -287,6 +287,8 @@ h2 {
 .period-tile {
   min-block-size: 15rem;
   background: var(--cds-layer);
+  display: flex;
+  flex-direction: column;
 }
 
 .period-tile__heading,
@@ -320,6 +322,7 @@ h2 {
   margin-block-start: $spacing-05;
   border-block-start: 1px solid var(--cds-border-subtle);
 }
+.period-tile__stats--summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
 .period-tile__stats span,
 .period-summary-bar__stats span {
@@ -335,9 +338,8 @@ h2 {
 .status-good { color: var(--cds-support-success); }
 .status-bad { color: var(--cds-support-error); }
 
-.period-tile__progress { block-size: .25rem; background: var(--cds-border-subtle); }
-.period-tile__progress span { display: block; block-size: 100%; background: var(--cds-support-success); }
 .period-tile__footer { margin-block-start: $spacing-04; }
+.period-tile__actions { display: flex; justify-content: flex-end; gap: $spacing-02; margin-block-start: auto; padding-block-start: $spacing-04; }
 .period-tile--new { display: grid; place-content: center; justify-items: center; gap: $spacing-04; border: 1px dashed var(--cds-border-strong); }
 
 .period-summary-bar {
@@ -409,6 +411,7 @@ h2 {
 .open-day-management-page { max-inline-size: 90rem; }
 .managed-period-list { display: grid; gap: $spacing-03; margin-block-start: $spacing-05; }
 .managed-period { display: grid; grid-template-columns: minmax(16rem, 1fr) auto auto; align-items: center; gap: $spacing-05; padding: $spacing-05; background: var(--cds-layer); border-block-end: 1px solid var(--cds-border-subtle); }
+.managed-period__actions { display: flex; justify-content: flex-end; gap: $spacing-02; }
 .managed-period p,
 .management-section-heading p { margin-block-start: $spacing-02; color: var(--cds-text-secondary); }
 .management-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: $spacing-05; margin-block-end: $spacing-05; }

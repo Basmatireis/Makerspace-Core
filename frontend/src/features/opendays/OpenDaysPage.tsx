@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Add, SettingsAdjust } from '@carbon/icons-react';
-import { Button, ClickableTile, InlineNotification, Modal, Stack, Tag, TextInput } from '@carbon/react';
+import { Add, ArrowRight, Edit, SettingsAdjust } from '@carbon/icons-react';
+import { Button, ClickableTile, InlineNotification, Modal, Stack, Tag, TextInput, Tile } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +10,7 @@ import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { periodRange, statusTagType } from './format';
+import { openDaySchedulePath } from './paths';
 import { openDayKeys, periodsQueryOptions } from './queries';
 
 type PeriodForm = { name: string; startsOn: string; endsOn: string };
@@ -27,7 +28,7 @@ export function OpenDaysPage() {
       await queryClient.invalidateQueries({ queryKey: openDayKeys.periods() });
       setCreateOpen(false);
       reset();
-      navigate(`/open-days/${period.id}/schedule`);
+      navigate(openDaySchedulePath(period.id));
     },
   });
   const canManage = hasPermission(currentUser, PermissionId.open_daysmanage);
@@ -45,22 +46,21 @@ export function OpenDaysPage() {
         <section aria-labelledby="periods-heading">
           <h2 id="periods-heading" className="open-days-section-title">Periods</h2>
           <div className="period-grid">
-            {periodsQuery.data.items.map((period) => {
-              const staffingPercent = period.totalOpenDays === 0 ? 0 : Math.round(period.fullyStaffedCount / period.totalOpenDays * 100);
-              return (
-                <ClickableTile key={period.id} className="period-tile" onClick={() => navigate(`/open-days/${period.id}`)}>
-                  <div className="period-tile__heading"><h3>{period.name}</h3><Tag type={statusTagType(period.status)}>{period.status}</Tag></div>
-                  <p className="period-tile__range">{periodRange(period)}</p>
-                  <div className="period-tile__stats">
-                    <span><strong>{period.totalOpenDays}</strong><small>Total</small></span>
-                    <span><strong className="status-good">{period.fullyStaffedCount}</strong><small>Staffed</small></span>
-                    <span><strong className="status-bad">{period.needsStaffCount}</strong><small>Needs staff</small></span>
-                  </div>
-                  <div className="period-tile__progress" aria-label={`${staffingPercent}% fully staffed`}><span style={{ width: `${staffingPercent}%` }} /></div>
-                  <p className="period-tile__footer">{period.myAssignmentCount > 0 ? `You: ${period.myAssignmentCount} assignment${period.myAssignmentCount === 1 ? '' : 's'}` : 'No assignments'}{period.cancelledCount > 0 ? ` · ${period.cancelledCount} cancelled` : ''}</p>
-                </ClickableTile>
-              );
-            })}
+            {periodsQuery.data.items.map((period) => (
+              <Tile key={period.id} className="period-tile">
+                <div className="period-tile__heading"><h3>{period.name}</h3><Tag type={statusTagType(period.status)}>{period.status}</Tag></div>
+                <p className="period-tile__range">{periodRange(period)}</p>
+                <div className="period-tile__stats period-tile__stats--summary">
+                  <span><strong>{period.totalOpenDays}</strong><small>Open Days</small></span>
+                  <span><strong className={period.openSupervisorPositions > 0 ? 'status-bad' : 'status-good'}>{period.openSupervisorPositions}</strong><small>Open supervisor positions</small></span>
+                </div>
+                <p className="period-tile__footer">{period.myAssignmentCount > 0 ? `You: ${period.myAssignmentCount} assignment${period.myAssignmentCount === 1 ? '' : 's'}` : 'No assignments'}{period.cancelledCount > 0 ? ` · ${period.cancelledCount} cancelled` : ''}</p>
+                <div className="period-tile__actions">
+                  <Button kind="ghost" size="sm" renderIcon={ArrowRight} onClick={() => navigate(`/open-days/${period.id}`)}>View period</Button>
+                  {canManage && period.status !== 'archived' && <Button kind="ghost" size="sm" renderIcon={Edit} onClick={() => navigate(openDaySchedulePath(period.id))}>Edit period</Button>}
+                </div>
+              </Tile>
+            ))}
             {canManage && <ClickableTile className="period-tile period-tile--new" onClick={() => setCreateOpen(true)}><Add size={24} /><span>New period</span></ClickableTile>}
           </div>
           {periodsQuery.data.items.length === 0 && !canManage && <div className="empty-state"><h2>No visible periods</h2><p>Open Day periods will appear here when staffing opens.</p></div>}

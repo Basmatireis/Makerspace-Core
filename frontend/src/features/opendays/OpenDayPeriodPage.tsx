@@ -10,6 +10,7 @@ import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { longDate, staffingLabel, statusTagType, timeRange } from './format';
+import { openDaySchedulePath } from './paths';
 import { openDayKeys, scheduleQueryOptions } from './queries';
 import { SemesterCalendar } from './SemesterCalendar';
 
@@ -49,8 +50,8 @@ export function OpenDayPeriodPage() {
 
   return <Stack gap={6} className="open-day-period-page">
     <PageHeader title={period.name} breadcrumbs={[{ label: 'Open Days', to: '/open-days' }]} description={`${period.startsOn} – ${period.endsOn}`} actions={<>
-      {canManage && period.status !== 'archived' && <Button kind="secondary" renderIcon={Repeat} onClick={() => navigate(`/open-days/${period.id}/schedule?recurrence=1`)}>Create recurring</Button>}
-      {canManage && period.status !== 'archived' && <Button renderIcon={Edit} onClick={() => navigate(`/open-days/${period.id}/schedule`)}>Edit schedule</Button>}
+      {canManage && period.status !== 'archived' && <Button kind="secondary" renderIcon={Repeat} onClick={() => navigate(`${openDaySchedulePath(period.id)}?recurrence=1`)}>Create recurring</Button>}
+      {canManage && period.status !== 'archived' && <Button renderIcon={Edit} onClick={() => navigate(openDaySchedulePath(period.id))}>Edit schedule</Button>}
       {canManage && lifecycleActions.map((action) => <Button key={action.target} kind={action.danger ? 'danger' : 'tertiary'} disabled={lifecycleMutation.isPending} onClick={() => setPendingTransition(action)}>{action.label}</Button>)}
     </>} />
     <div className="period-summary-bar"><div><span>Period</span><strong>{period.name}</strong><Tag type={statusTagType(period.status)}>{period.status}</Tag></div><div className="period-summary-bar__stats"><span><strong>{period.totalOpenDays}</strong>Total</span><span><strong className="status-good">{period.fullyStaffedCount}</strong>Fully staffed</span><span><strong className="status-bad">{period.needsStaffCount}</strong>Needs staff</span></div></div>

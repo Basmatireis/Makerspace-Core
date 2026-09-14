@@ -29,6 +29,11 @@ export interface OpenDayPeriod {
   fullyStaffedCount: number;
   /** @minimum 0 */
   needsStaffCount: number;
+  /**
+   * Total unfilled positions across scheduled supervisor requirements; trainee vacancies are excluded.
+   * @minimum 0
+   */
+  openSupervisorPositions: number;
   /** @minimum 0 */
   cancelledCount: number;
   /** @minimum 0 */

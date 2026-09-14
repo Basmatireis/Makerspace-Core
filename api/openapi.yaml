@@ -2239,7 +2239,7 @@ components:
     OpenDayPeriod:
       type: object
       additionalProperties: false
-      required: [id, name, startsOn, endsOn, status, totalOpenDays, fullyStaffedCount, needsStaffCount, cancelledCount, myAssignmentCount, version, createdAt, updatedAt]
+      required: [id, name, startsOn, endsOn, status, totalOpenDays, fullyStaffedCount, needsStaffCount, openSupervisorPositions, cancelledCount, myAssignmentCount, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, maxLength: 150}
@@ -2249,6 +2249,10 @@ components:
         totalOpenDays: {type: integer, minimum: 0}
         fullyStaffedCount: {type: integer, minimum: 0}
         needsStaffCount: {type: integer, minimum: 0}
+        openSupervisorPositions:
+          type: integer
+          minimum: 0
+          description: Total unfilled positions across scheduled supervisor requirements; trainee vacancies are excluded.
         cancelledCount: {type: integer, minimum: 0}
         myAssignmentCount: {type: integer, minimum: 0}
         version: {$ref: "#/components/schemas/Version"}

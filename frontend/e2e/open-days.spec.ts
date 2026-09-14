@@ -57,6 +57,7 @@ function period(status: 'draft' | 'staffing' | 'published' = 'staffing') {
     totalOpenDays: status === 'draft' ? 0 : 1,
     fullyStaffedCount: 0,
     needsStaffCount: status === 'draft' ? 0 : 1,
+    openSupervisorPositions: status === 'draft' ? 0 : 1,
     cancelledCount: 0,
     myAssignmentCount: 0,
     version: 1,

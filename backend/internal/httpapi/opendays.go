@@ -456,7 +456,7 @@ func (s *Server) GetPublicOpenDaysCalendar(ctx context.Context, _ openapi.GetPub
 }
 
 func openDayPeriodDTO(v opendays.Period) openapi.OpenDayPeriod {
-	return openapi.OpenDayPeriod{Id: v.ID, Name: v.Name, StartsOn: apiDate(v.StartsOn), EndsOn: apiDate(v.EndsOn), Status: openapi.OpenDayPeriodStatus(v.Status), Version: v.Version, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, TotalOpenDays: v.TotalOpenDays, FullyStaffedCount: v.FullyStaffedCount, NeedsStaffCount: v.NeedsStaffCount, CancelledCount: v.CancelledCount, MyAssignmentCount: v.MyAssignmentCount}
+	return openapi.OpenDayPeriod{Id: v.ID, Name: v.Name, StartsOn: apiDate(v.StartsOn), EndsOn: apiDate(v.EndsOn), Status: openapi.OpenDayPeriodStatus(v.Status), Version: v.Version, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, TotalOpenDays: v.TotalOpenDays, FullyStaffedCount: v.FullyStaffedCount, NeedsStaffCount: v.NeedsStaffCount, OpenSupervisorPositions: v.OpenSupervisorPositions, CancelledCount: v.CancelledCount, MyAssignmentCount: v.MyAssignmentCount}
 }
 func openDayScheduleDTO(v opendays.Schedule) openapi.OpenDaySchedule {
 	items := make([]openapi.OpenDay, 0, len(v.Items))

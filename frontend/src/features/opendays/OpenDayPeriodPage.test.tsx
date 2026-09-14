@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { OpenDayPeriodStatus, PermissionId as Permission } from '../../api/generated/models';
@@ -25,6 +25,7 @@ function period(status: OpenDayPeriodStatus = 'staffing') {
     totalOpenDays: 0,
     fullyStaffedCount: 0,
     needsStaffCount: 0,
+    openSupervisorPositions: 3,
     cancelledCount: 0,
     myAssignmentCount: 0,
     version: 3,
@@ -112,6 +113,55 @@ describe('Open Day period creation', () => {
     await user.type(screen.getByLabelText('Start date'), created.startsOn);
     await user.type(screen.getByLabelText('End date'), created.endsOn);
     await user.click(screen.getByRole('button', { name: 'Create period' }));
+
+    expect(await screen.findByRole('heading', { name: 'Schedule planning' })).toBeInTheDocument();
+  });
+});
+
+describe('Open Day period management entry points', () => {
+  function mockPeriodList(permissions: Permission[]) {
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
+      http.get('*/api/v1/open-day-periods', () => HttpResponse.json({ items: [period('draft')] })),
+      http.get('*/api/v1/open-day-periods/:periodId/calendar-context', () =>
+        HttpResponse.json({
+          timeZone: 'Europe/Vienna',
+          countryCode: 'AT',
+          subdivisionCode: 'AT-6',
+          languageCode: 'de',
+          entries: [],
+          academicBreaks: [],
+        }),
+      ),
+    );
+  }
+
+  it('shows the backend supervisor-position aggregate and opens planning from a manager card', async () => {
+    mockPeriodList([PermissionId.open_daysmanage]);
+    renderRoute(<App />, '/open-days');
+    const user = userEvent.setup();
+
+    const label = await screen.findByText('Open supervisor positions');
+    expect(within(label.parentElement!).getByText('3')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Edit period' }));
+
+    expect(await screen.findByRole('heading', { name: 'Schedule planning' })).toBeInTheDocument();
+  });
+
+  it('does not show a period card Edit action to readers', async () => {
+    mockPeriodList([PermissionId.open_daysread]);
+    renderRoute(<App />, '/open-days');
+
+    expect(await screen.findByText('Open supervisor positions')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit period' })).not.toBeInTheDocument();
+  });
+
+  it('opens the same planning workflow from Manage Open Days', async () => {
+    mockPeriodList([PermissionId.open_daysmanage]);
+    renderRoute(<App />, '/open-days/manage');
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Edit period' }));
 
     expect(await screen.findByRole('heading', { name: 'Schedule planning' })).toBeInTheDocument();
   });

@@ -18,6 +18,7 @@ import {
   TextInput,
 } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   createOpenDayAcademicBreak,
   deleteOpenDayAcademicBreak,
@@ -29,6 +30,7 @@ import type { AcademicBreak, OpenDayPeriod } from '../../api/generated/models';
 import { PageHeader } from '../../app/PageHeader';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { periodRange, statusTagType } from './format';
+import { openDaySchedulePath } from './paths';
 import { openDayKeys, periodsQueryOptions } from './queries';
 
 type PeriodDraft = Pick<OpenDayPeriod, 'id' | 'name' | 'startsOn' | 'endsOn' | 'version'>;
@@ -43,6 +45,7 @@ const emptyBreak: BreakDraft = {
 };
 
 export function OpenDayManagementPage() {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const periodsQuery = useQuery(periodsQueryOptions());
   const [selectedPeriodId, setSelectedPeriodId] = useState('');
@@ -150,16 +153,19 @@ export function OpenDayManagementPage() {
                 <p>{periodRange(item)}</p>
               </div>
               <Tag type={statusTagType(item.status)}>{item.status}</Tag>
-              {item.status === 'draft' && (
-                <Button
-                  kind="ghost"
-                  size="sm"
-                  renderIcon={Edit}
-                  onClick={() => setPeriodDraft(item)}
-                >
-                  Edit metadata
-                </Button>
-              )}
+              <div className="managed-period__actions">
+                {item.status === 'draft' && (
+                  <Button
+                    kind="ghost"
+                    size="sm"
+                    renderIcon={Edit}
+                    onClick={() => setPeriodDraft(item)}
+                  >
+                    Edit metadata
+                  </Button>
+                )}
+                {item.status !== 'archived' && <Button kind="ghost" size="sm" renderIcon={Edit} onClick={() => navigate(openDaySchedulePath(item.id))}>Edit period</Button>}
+              </div>
             </div>
           ))}
         </div>

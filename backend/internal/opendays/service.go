@@ -21,13 +21,18 @@ import (
 )
 
 type Period struct {
-	ID                                                                                   uuid.UUID
-	Name                                                                                 string
-	StartsOn, EndsOn                                                                     time.Time
-	Status                                                                               string
-	Version                                                                              int64
-	CreatedAt, UpdatedAt                                                                 time.Time
-	TotalOpenDays, FullyStaffedCount, NeedsStaffCount, CancelledCount, MyAssignmentCount int
+	ID                      uuid.UUID
+	Name                    string
+	StartsOn, EndsOn        time.Time
+	Status                  string
+	Version                 int64
+	CreatedAt, UpdatedAt    time.Time
+	TotalOpenDays           int
+	FullyStaffedCount       int
+	NeedsStaffCount         int
+	OpenSupervisorPositions int
+	CancelledCount          int
+	MyAssignmentCount       int
 }
 
 type Assignment struct {
@@ -543,6 +548,9 @@ func (s *Service) periodFromRow(ctx context.Context, q *opendaysdb.Queries, prin
 			count, err := q.CountRequirementAssignments(ctx, req.ID)
 			if err != nil {
 				return Period{}, err
+			}
+			if req.Kind == "supervisor" && count < int64(req.RequiredCount) {
+				result.OpenSupervisorPositions += int(int64(req.RequiredCount) - count)
 			}
 			if count < int64(req.RequiredCount) {
 				full = false
