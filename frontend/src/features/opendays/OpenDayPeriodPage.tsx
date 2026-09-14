@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Edit, Repeat } from '@carbon/icons-react';
-import { Button, ContentSwitcher, DataTable, InlineNotification, Modal, Stack, Switch, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, Tag } from '@carbon/react';
+import { Button, ContentSwitcher, DataTable, InlineNotification, Modal, Stack, Switch, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, Tag } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { archiveOpenDayPeriod, openOpenDayPeriodForStaffing, publishOpenDayPeriod, returnOpenDayPeriodToDraft, returnOpenDayPeriodToStaffing } from '../../api/generated/open-days/open-days';
@@ -76,31 +76,42 @@ export function OpenDayPeriodPage() {
     >
       <p>{pendingTransition?.confirmation}</p>
     </Modal>
-    <div className="period-view-toolbar">
-      <ContentSwitcher aria-label="Filter Open Days" selectedIndex={openDayFilterOptions.findIndex((option) => option.value === filter)} onChange={({ index }) => setFilter(openDayFilterOptions[index ?? 0]?.value ?? 'all')} size="sm">
-        {openDayFilterOptions.map((option) => <Switch key={option.value} name={`filter-${option.value}`} text={option.label} />)}
-      </ContentSwitcher>
-      <ContentSwitcher aria-label="Open Days view" selectedIndex={view === 'table' ? 0 : 1} onChange={({ index }) => setView(index === 0 ? 'table' : 'calendar')} size="sm"><Switch name="table" text="Table" /><Switch name="calendar" text="Calendar" /></ContentSwitcher>
-    </div>
-    {view === 'calendar' ? (
-      <>
-        <SemesterCalendar startsOn={period.startsOn} endsOn={period.endsOn} days={visibleItems} entries={contextQuery.data?.entries} timeZone={scheduleQuery.data.timeZone} onOpenDay={(day) => navigate(`/open-days/${period.id}/days/${day.id}`)} />
-      </>
-    ) : (
-      <div className="responsive-table">
-        <DataTable rows={rows} headers={headers}>
-          {({ rows: tableRows, headers: tableHeaders, getHeaderProps, getRowProps, getTableProps }) => (
-            <TableContainer title="Open Days">
+    <DataTable rows={rows} headers={headers}>
+      {({ rows: tableRows, headers: tableHeaders, getHeaderProps, getRowProps, getTableProps }) => (
+        <TableContainer className="open-days-view-container">
+          <OpenDayViewToolbar filter={filter} view={view} onFilter={setFilter} onView={setView} />
+          {view === 'calendar' ? (
+            <div className="open-days-view-content open-days-view-content--calendar">
+              <SemesterCalendar startsOn={period.startsOn} endsOn={period.endsOn} days={visibleItems} entries={contextQuery.data?.entries} timeZone={scheduleQuery.data.timeZone} onOpenDay={(day) => navigate(`/open-days/${period.id}/days/${day.id}`)} />
+            </div>
+          ) : (
+            <div className="responsive-table open-days-view-content">
               <Table {...getTableProps()}>
                 <TableHead><TableRow>{tableHeaders.map((header) => <TableHeader {...getHeaderProps({ header })} key={header.key}>{header.header}</TableHeader>)}</TableRow></TableHead>
                 <TableBody>{tableRows.map((row) => <TableRow {...getRowProps({ row })} key={row.id} onClick={() => navigate(`/open-days/${period.id}/days/${row.id}`)}>{row.cells.map((cell) => <TableCell key={cell.id}>{cell.info.header === 'status' ? <Tag type={statusTagType(String(cell.value))}>{String(cell.value)}</Tag> : String(cell.value)}</TableCell>)}</TableRow>)}</TableBody>
               </Table>
-            </TableContainer>
+            </div>
           )}
-        </DataTable>
-      </div>
-    )}
+        </TableContainer>
+      )}
+    </DataTable>
   </Stack>;
+}
+
+function OpenDayViewToolbar({ filter, view, onFilter, onView }: { filter: OpenDayFilter; view: 'table' | 'calendar'; onFilter: (filter: OpenDayFilter) => void; onView: (view: 'table' | 'calendar') => void }) {
+  return (
+    <TableToolbar aria-label="Open Days tools" className="open-days-view-toolbar">
+      <TableToolbarContent>
+        <ContentSwitcher className="open-days-view-toolbar__filters" aria-label="Filter Open Days" selectedIndex={openDayFilterOptions.findIndex((option) => option.value === filter)} onChange={({ index }) => onFilter(openDayFilterOptions[index ?? 0]?.value ?? 'all')} size="sm">
+          {openDayFilterOptions.map((option) => <Switch key={option.value} name={`filter-${option.value}`} text={option.label} />)}
+        </ContentSwitcher>
+        <ContentSwitcher className="open-days-view-toolbar__views" aria-label="Open Days view" selectedIndex={view === 'table' ? 0 : 1} onChange={({ index }) => onView(index === 0 ? 'table' : 'calendar')} size="sm">
+          <Switch name="table" text="Table" />
+          <Switch name="calendar" text="Calendar" />
+        </ContentSwitcher>
+      </TableToolbarContent>
+    </TableToolbar>
+  );
 }
 
 type LifecycleTarget = 'draft' | 'staffing' | 'published' | 'archived';

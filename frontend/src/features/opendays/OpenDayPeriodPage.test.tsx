@@ -287,10 +287,12 @@ describe('Open Day table and calendar filters', () => {
 
     const viewSwitcher = container.querySelector<HTMLElement>('[aria-label="Open Days view"]');
     const filterSwitcher = container.querySelector<HTMLElement>('[aria-label="Filter Open Days"]');
+    const sharedToolbar = screen.getByLabelText('Open Days tools');
     expect(viewSwitcher).not.toBeNull();
     expect(filterSwitcher).not.toBeNull();
 
     await user.click(within(viewSwitcher!).getByText('Table'));
+    expect(screen.getByLabelText('Open Days tools')).toBe(sharedToolbar);
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(5);
 
     await user.click(within(filterSwitcher!).getByText('Needs staff'));
@@ -298,6 +300,7 @@ describe('Open Day table and calendar filters', () => {
     expect(screen.getByText('1 / 2')).toBeInTheDocument();
 
     await user.click(within(viewSwitcher!).getByText('Calendar'));
+    expect(screen.getByLabelText('Open Days tools')).toBe(sharedToolbar);
     const filteredCalendar = screen.getByLabelText('Semester calendar');
     expect(within(filteredCalendar).getByTitle('Supervisor position open')).toBeInTheDocument();
     expect(within(filteredCalendar).queryByTitle('Trainee position open')).not.toBeInTheDocument();
