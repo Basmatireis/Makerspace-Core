@@ -266,7 +266,7 @@ describe('Open Day table and calendar filters', () => {
     );
   }
 
-  it('uses accessible status icons, fixed six-week months, and a Sunday-first calendar grid', async () => {
+  it('uses accessible status icons, removes empty trailing weeks, and starts weeks on Sunday', async () => {
     mockFilteredPeriodPage();
     const { container } = renderRoute(<App />, `/open-days/${periodId}`);
 
@@ -298,7 +298,7 @@ describe('Open Day table and calendar filters', () => {
     const weekdays = container.querySelector('.calendar-weekdays');
     expect(Array.from(weekdays?.children ?? []).map((item) => item.textContent)).toEqual(['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']);
     expect(container.querySelectorAll('.calendar-month:first-child .calendar-cell--empty')).toHaveLength(4);
-    expect(container.querySelectorAll('.calendar-month:first-child .calendar-days > .calendar-cell')).toHaveLength(42);
+    expect(container.querySelectorAll('.calendar-month:first-child .calendar-days > .calendar-cell')).toHaveLength(35);
   });
 
   it('shares filters across views and preserves the active selection', async () => {

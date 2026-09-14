@@ -387,7 +387,7 @@ h2 {
 .calendar-month h3 { margin-block-end: $spacing-05; @include type-style('heading-compact-02'); }
 .calendar-weekdays,
 .calendar-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
-.calendar-days { min-block-size: 0; grid-template-rows: repeat(6, minmax(0, 1fr)); }
+.calendar-days { min-block-size: 0; }
 .calendar-weekdays span { padding: $spacing-03; text-align: center; color: var(--cds-text-secondary); @include type-style('label-01'); }
 .calendar-cell { min-block-size: 0; padding: $spacing-02; border-block-start: 1px solid var(--cds-border-subtle); overflow: auto; }
 .calendar-days > .calendar-cell:nth-child(odd) { background: color-mix(in srgb, var(--cds-layer, #fff) 96%, var(--cds-text-primary, #161616)); }

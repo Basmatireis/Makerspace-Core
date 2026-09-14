@@ -34,12 +34,13 @@ export function SemesterCalendarGrid({ startsOn, endsOn, entries = [], renderDay
       {months.map((month) => {
         const count = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
         const sundayOffset = new Date(month.getFullYear(), month.getMonth(), 1).getDay();
-        const trailingCount = 42 - sundayOffset - count;
+        const weekCount = Math.ceil((sundayOffset + count) / 7);
+        const trailingCount = weekCount * 7 - sundayOffset - count;
         return (
           <section className="calendar-month" key={month.toISOString()} aria-labelledby={`month-${month.getFullYear()}-${month.getMonth()}`}>
             <h3 id={`month-${month.getFullYear()}-${month.getMonth()}`}>{month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h3>
             <div className="calendar-weekdays" aria-hidden="true">{['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day}>{day}</span>)}</div>
-            <div className="calendar-days">
+            <div className="calendar-days" style={{ gridTemplateRows: `repeat(${weekCount}, minmax(0, 1fr))` }}>
               {Array.from({ length: sundayOffset }, (_, index) => <span className="calendar-cell calendar-cell--empty" key={`empty-${index}`} />)}
               {Array.from({ length: count }, (_, index) => {
                 const date = dateKey(month.getFullYear(), month.getMonth(), index + 1);
