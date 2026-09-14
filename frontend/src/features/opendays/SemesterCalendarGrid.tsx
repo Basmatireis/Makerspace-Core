@@ -66,7 +66,7 @@ type CellProps = {
   children?: ReactNode;
   className?: string;
   onSelectDate?: () => void;
-  tooltipDescription?: string;
+  tooltipDescription?: ReactNode;
 };
 
 export const CalendarDayCell = forwardRef<HTMLDivElement, CellProps>(function CalendarDayCell({ day, children, className = '', onSelectDate, tooltipDescription }, ref) {
@@ -76,39 +76,44 @@ export const CalendarDayCell = forwardRef<HTMLDivElement, CellProps>(function Ca
   const description = tooltipDescription ?? [fullDate, ...contextDescription].join('. ');
 
   return (
-    <div ref={ref} className={`calendar-cell${day.withinRange ? '' : ' calendar-cell--outside-period'}${className ? ` ${className}` : ''}`} aria-label={fullDate}>
-      <div className="calendar-cell__header">
-        <Tooltip description={description} align="bottom-start" enterDelayMs={300}>
-          <span className="calendar-cell__date-tooltip">
-            {onSelectDate ? (
-              <Button kind="ghost" size="sm" renderIcon={Add} className="calendar-cell__date-action" onClick={onSelectDate} aria-label={`Add Open Day on ${day.date}`}>
-                {day.dayNumber}
-              </Button>
-            ) : <span className="calendar-cell__date">{day.dayNumber}</span>}
-          </span>
-        </Tooltip>
-        {day.entries.length > 0 && (
-          <div className="calendar-cell__context">
-            {day.entries.map((entry) => (
-              <CalendarContextMarker
-                entry={entry}
-                showBreakLabel={entry.category !== 'academicBreak' || day.showBreakLabel}
-                mode={entry.category === 'publicHoliday' ? 'icon' : 'full'}
-                key={`${entry.source}-${entry.id ?? entry.name}`}
-              />
-            ))}
-          </div>
-        )}
+    <Tooltip
+      as="div"
+      ref={ref}
+      description={description}
+      align="bottom-start"
+      enterDelayMs={300}
+      className={`calendar-cell${day.withinRange ? '' : ' calendar-cell--outside-period'}${className ? ` ${className}` : ''}`}
+    >
+      <div className="calendar-cell__tooltip-target" aria-label={fullDate}>
+        <div className="calendar-cell__header">
+          {onSelectDate ? (
+            <Button kind="ghost" size="sm" renderIcon={Add} className="calendar-cell__date-action" onClick={onSelectDate} aria-label={`Add Open Day on ${day.date}`}>
+              {day.dayNumber}
+            </Button>
+          ) : <span className="calendar-cell__date">{day.dayNumber}</span>}
+          {day.entries.length > 0 && (
+            <div className="calendar-cell__context">
+              {day.entries.map((entry) => (
+                <CalendarContextMarker
+                  entry={entry}
+                  showBreakLabel={entry.category !== 'academicBreak' || day.showBreakLabel}
+                  mode={entry.category === 'publicHoliday' ? 'icon' : 'full'}
+                  key={`${entry.source}-${entry.id ?? entry.name}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+        {holidays.map((entry) => (
+          <CalendarContextMarker
+            entry={entry}
+            mode="label"
+            key={`label-${entry.source}-${entry.id ?? entry.name}`}
+          />
+        ))}
+        {children}
       </div>
-      {holidays.map((entry) => (
-        <CalendarContextMarker
-          entry={entry}
-          mode="label"
-          key={`label-${entry.source}-${entry.id ?? entry.name}`}
-        />
-      ))}
-      {children}
-    </div>
+    </Tooltip>
   );
 });
 

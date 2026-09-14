@@ -240,22 +240,50 @@ describe('Open Day table and calendar filters', () => {
 
   function mockFilteredPeriodPage(permissions: Permission[] = [PermissionId.open_daysread]) {
     const openDays = [supervisorVacancy, traineeVacancy, fullyStaffedMine, cancelledMine];
+    const visibleOpenDays = permissions.includes(PermissionId.open_daysread_assignments)
+      ? openDays.map((day) => day.id === supervisorVacancy.id ? {
+        ...day,
+        requirements: [
+          {
+            ...day.requirements[0],
+            assignments: [{
+              id: '0192f6f8-743e-7c77-a349-cd07c3e8a961',
+              openDayId: day.id,
+              requirementId: day.requirements[0].id,
+              personId: '0192f6f8-743e-7c77-a349-cd07c3e8a902',
+              displayName: 'Max Mustermann',
+              isCurrentUser: false,
+              createdAt: '2026-09-02T10:00:00Z',
+            }],
+          },
+          {
+            ...day.requirements[1],
+            assignments: [{
+              id: '0192f6f8-743e-7c77-a349-cd07c3e8a962',
+              openDayId: day.id,
+              requirementId: day.requirements[1].id,
+              personId: '0192f6f8-743e-7c77-a349-cd07c3e8a903',
+              displayName: 'Grace Hopper',
+              isCurrentUser: false,
+              createdAt: '2026-09-02T10:00:00Z',
+            }],
+          },
+        ],
+      } : day)
+      : openDays;
     server.use(
       http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
       http.get('*/api/v1/open-day-periods/:periodId/open-days', () =>
         HttpResponse.json({
           period: { ...period('staffing'), endsOn: '2026-10-04', totalOpenDays: 4 },
-          items: openDays,
+          items: visibleOpenDays,
           timeZone: 'UTC',
         }),
       ),
       http.get('*/api/v1/open-days/:openDayId', ({ params }) => {
-        const selected = openDays.find((day) => day.id === params.openDayId);
+        const selected = visibleOpenDays.find((day) => day.id === params.openDayId);
         if (!selected) return new HttpResponse(null, { status: 404 });
-        return HttpResponse.json({
-          ...selected,
-          requirements: selected.requirements.map((item) => ({ ...item, assignments: [] })),
-        });
+        return HttpResponse.json(selected);
       }),
       http.get('*/api/v1/open-day-periods/:periodId/calendar-context', () =>
         HttpResponse.json({
@@ -295,7 +323,6 @@ describe('Open Day table and calendar filters', () => {
     expect(within(calendar).getByTitle('Cancelled')).toBeInTheDocument();
     expect(within(calendar).getAllByTitle('Your assignment')).toHaveLength(2);
     expect(within(calendar).getByText('National Day')).toBeInTheDocument();
-    expect(within(calendar).queryByText('Public holiday: National Day')).not.toBeInTheDocument();
     expect(within(calendar).getByText('Autumn break')).toBeInTheDocument();
     expect(within(calendar).getAllByLabelText('Academic break: Autumn break, 2026-10-02 to 2026-10-04')).toHaveLength(3);
 
@@ -395,14 +422,17 @@ describe('Open Day table and calendar filters', () => {
 
     const calendar = await screen.findByLabelText('Semester calendar');
     const openDayButton = within(calendar).getByRole('button', { name: /Supervisor position open/ });
-    const dateTrigger = openDayButton.closest('.calendar-cell')?.querySelector<HTMLElement>('.calendar-cell__date-tooltip');
-    expect(dateTrigger).not.toBeNull();
+    const dateCell = openDayButton.closest<HTMLElement>('.calendar-cell');
+    const hoverSurface = dateCell?.querySelector<HTMLElement>('.calendar-cell__tooltip-target');
+    expect(hoverSurface).not.toBeNull();
 
-    await user.hover(dateTrigger!);
+    await user.hover(hoverSurface!);
     const tooltip = await screen.findByRole('tooltip');
     expect(tooltip).toHaveTextContent('Public holiday: National Day');
     expect(tooltip).toHaveTextContent(/08:00.*11:00.*Supervisor position open/);
-    await user.unhover(dateTrigger!);
+    expect(tooltip).toHaveTextContent('Supervisors: 1 registered, 1 position open');
+    expect(tooltip).not.toHaveTextContent('Max Mustermann');
+    await user.unhover(hoverSurface!);
 
     await user.click(openDayButton);
     const registration = await screen.findByRole('dialog', { name: /Thursday, October 1, 2026/ });
@@ -412,5 +442,22 @@ describe('Open Day table and calendar filters', () => {
     await user.click(within(registration).getByRole('button', { name: 'Join as supervisor' }));
     await waitFor(() => expect(joinedRequirementId).toBe(supervisorVacancy.requirements[0].id));
     expect(container.querySelector('.open-day-period-page')).toBeInTheDocument();
+  });
+
+  it('shows assignment identities in the whole-day tooltip only with assignment-read permission', async () => {
+    mockFilteredPeriodPage([PermissionId.open_daysread, PermissionId.open_daysread_assignments]);
+    renderRoute(<App />, `/open-days/${periodId}`);
+    const user = userEvent.setup();
+
+    const calendar = await screen.findByLabelText('Semester calendar');
+    const openDayButton = within(calendar).getByRole('button', { name: /Supervisor position open/ });
+    const dateCell = openDayButton.closest<HTMLElement>('.calendar-cell');
+    const hoverSurface = dateCell?.querySelector<HTMLElement>('.calendar-cell__tooltip-target');
+    expect(hoverSurface).not.toBeNull();
+
+    await user.hover(hoverSurface!);
+    const tooltip = await screen.findByRole('tooltip');
+    expect(tooltip).toHaveTextContent('Supervisors: Max Mustermann, 1 position open');
+    expect(tooltip).toHaveTextContent('Trainees: Grace Hopper, 0 positions open');
   });
 });

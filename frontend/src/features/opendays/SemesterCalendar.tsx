@@ -27,7 +27,7 @@ export function SemesterCalendar({ startsOn, endsOn, days, entries = [], timeZon
     <>
       <CalendarLegend />
       <SemesterCalendarGrid startsOn={startsOn} endsOn={endsOn} entries={entries} renderDay={(day) => (
-        <CalendarDayCell day={day} tooltipDescription={dateTooltipDescription(day.date, byDate.get(day.date) ?? [], day.entries, timeZone)} key={day.date}>
+        <CalendarDayCell day={day} tooltipDescription={dateTooltipContent(day.date, byDate.get(day.date) ?? [], day.entries, timeZone)} key={day.date}>
           {(byDate.get(day.date) ?? []).map((slot) => <CalendarSlot day={slot} timeZone={timeZone} onOpenDay={onOpenDay} key={slot.id} />)}
         </CalendarDayCell>
       )} />
@@ -48,9 +48,27 @@ function slotPresentation(day: OpenDay) {
   return { kind: 'needs-trainee' as const, label: 'Trainee position open', Icon: InformationFilled };
 }
 
-function dateTooltipDescription(date: string, days: OpenDay[], entries: CalendarEntry[], timeZone: string) {
+function dateTooltipContent(date: string, days: OpenDay[], entries: CalendarEntry[], timeZone: string) {
   const fullDate = new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { dateStyle: 'full' });
   const context = entries.map((entry) => `${entry.category === 'academicBreak' ? 'Academic break' : 'Public holiday'}: ${entry.name}`);
-  const openDays = days.map((day) => `${timeRange(day, timeZone)}: ${slotPresentation(day).label}${day.myAssignment ? ', your assignment' : ''}`);
-  return [fullDate, ...context, ...openDays].join('. ');
+  return (
+    <div className="calendar-cell__tooltip-content">
+      <strong>{fullDate}</strong>
+      {context.map((item) => <span key={item}>{item}</span>)}
+      {days.map((day) => <div className="calendar-cell__tooltip-slot" key={day.id}>
+        <strong>{timeRange(day, timeZone)}: {slotPresentation(day).label}{day.myAssignment ? ', your assignment' : ''}</strong>
+        {day.requirements.map((requirement) => {
+          const role = requirement.kind === 'supervisor' ? 'Supervisors' : 'Trainees';
+          const vacancies = Math.max(0, requirement.requiredCount - requirement.assignedCount);
+          const vacancyLabel = `${vacancies} ${vacancies === 1 ? 'position' : 'positions'} open`;
+          let detail = `${requirement.assignedCount} registered`;
+          if (requirement.assignments !== undefined) {
+            const names = requirement.assignments.map((assignment) => `${assignment.displayName}${assignment.isCurrentUser ? ' (you)' : ''}`);
+            detail = names.length > 0 ? names.join(', ') : 'nobody registered';
+          }
+          return <span key={requirement.id}>{role}: {detail}, {vacancyLabel}</span>;
+        })}
+      </div>)}
+    </div>
+  );
 }
