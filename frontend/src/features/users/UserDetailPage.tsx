@@ -1,12 +1,16 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Column,
   ComposedModal,
+  DismissibleTag,
   Dropdown,
   Form,
   Grid,
   InlineNotification,
+  MenuButton,
+  MenuItem,
+  MenuItemDivider,
   ModalBody,
   ModalFooter,
   ModalHeader,
@@ -20,7 +24,7 @@ import {
   TextInput,
   Tile,
 } from '@carbon/react';
-import { Add, Copy, Edit, Password, TrashCan } from '@carbon/icons-react';
+import { Copy, TrashCan } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -102,6 +106,7 @@ function UserDetailContent({ person }: { person: Person }) {
   const account: Account | AccountSummary | undefined = accountQuery.data ?? accountSummary;
   const [editingPerson, setEditingPerson] = useState(false);
   const [editingEmail, setEditingEmail] = useState(false);
+  const [assignRoleOpen, setAssignRoleOpen] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [createAccountOpen, setCreateAccountOpen] = useState(false);
   const [confirmKind, setConfirmKind] = useState<ConfirmKind>(null);
@@ -111,9 +116,6 @@ function UserDetailContent({ person }: { person: Person }) {
   const [resetPending, setResetPending] = useState(false);
   const [resetFailed, setResetFailed] = useState(false);
   const [copied, setCopied] = useState(false);
-  const createAccountButtonRef = useRef<HTMLButtonElement>(null);
-  const passwordButtonRef = useRef<HTMLButtonElement>(null);
-  const confirmationLauncherRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => () => setSecretResetUrl(null), []);
 
@@ -129,9 +131,35 @@ function UserDetailContent({ person }: { person: Person }) {
   const canReadAccounts = hasPermission(currentUser, PermissionId.accountsread);
   const canAssignRoles = hasPermission(currentUser, PermissionId.accountsrolesassign);
   const canReadRoles = hasPermission(currentUser, PermissionId.rolesread);
+  const canEditAccount = Boolean(account) && hasPermission(
+    currentUser,
+    PermissionId.accountslogin_emailupdate,
+  );
+  const canCreateAccount = person.account === null && hasPermission(
+    currentUser,
+    PermissionId.accountscreate,
+  );
   const canDeletePerson = hasPermission(currentUser, PermissionId.peopledelete) &&
     (hasPermission(currentUser, PermissionId.accountsdelete) ||
       (canReadAccounts && person.account === null));
+  const canDisableAccount =
+    account?.status === 'enabled' &&
+    hasPermission(currentUser, PermissionId.accountsdisable);
+  const canDeleteAccount = Boolean(account) && hasPermission(
+    currentUser,
+    PermissionId.accountsdelete,
+  );
+  const canAssignRole = Boolean(account) && canAssignRoles && canReadRoles;
+  const canSetPassword = Boolean(account) && hasPermission(
+    currentUser,
+    PermissionId.accountspasswordset,
+  );
+  const canIssuePasswordReset = Boolean(account) && hasPermission(
+    currentUser,
+    PermissionId.accountspasswordreset,
+  );
+  const hasAccountActions = canEditAccount || canCreateAccount || canAssignRole;
+  const hasCredentialActions = canSetPassword || canIssuePasswordReset;
 
   const personForm = useForm<PersonFormValues>({
     defaultValues: {
@@ -207,6 +235,7 @@ function UserDetailContent({ person }: { person: Person }) {
       : assignAccountRole(account!.id, roleId, { expectedVersion: account!.version }),
     onSuccess: async (updated) => {
       setSelectedRole(null);
+      setAssignRoleOpen(false);
       await Promise.all([
         refresh(updated),
         queryClient.invalidateQueries({ queryKey: authQueryKey }),
@@ -275,25 +304,59 @@ function UserDetailContent({ person }: { person: Person }) {
   const mutationError = personMutation.isError || createAccountMutation.isError || emailMutation.isError || passwordMutation.isError || enableMutation.isError || disableMutation.isError || deleteAccountMutation.isError || deletePersonMutation.isError || roleMutation.isError || resetFailed;
 
   return (
-    <Stack gap={7}>
+    <Stack gap={7} className="member-detail-page">
       <PageHeader
         title={`${person.firstName} ${person.lastName}`}
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Members', to: '/settings/users' }]}
+        breadcrumbs={[
+          { label: 'Settings', to: '/settings' },
+          { label: 'Members', to: '/settings/users' },
+          { label: `${person.firstName} ${person.lastName}` },
+        ]}
         description="Member details and account access."
-        actions={canDeletePerson ? (
-          <Button kind="danger--tertiary" renderIcon={TrashCan} onClick={(event) => { confirmationLauncherRef.current = event.currentTarget; setConfirmKind('delete-person'); }}>Delete member</Button>
-        ) : undefined}
+        actions={
+          canEditPerson ||
+          canEditAccount ||
+          canCreateAccount ||
+          canAssignRole ||
+          canSetPassword ||
+          canIssuePasswordReset ? (
+            <MenuButton label="Actions" kind="tertiary" menuAlignment="bottom-end" size="md">
+              {canEditPerson && !editingPerson && (
+                <MenuItem label="Edit member" onClick={() => setEditingPerson(true)} />
+              )}
+              {canEditPerson && !editingPerson && (hasAccountActions || hasCredentialActions) && (
+                <MenuItemDivider />
+              )}
+              {canEditAccount && (
+                <MenuItem label="Edit account" onClick={() => setEditingEmail(true)} />
+              )}
+              {canCreateAccount && (
+                <MenuItem label="Create account" onClick={() => setCreateAccountOpen(true)} />
+              )}
+              {canAssignRole && (
+                <MenuItem label="Assign role" onClick={() => setAssignRoleOpen(true)} />
+              )}
+              {hasAccountActions && hasCredentialActions && <MenuItemDivider />}
+              {canSetPassword && (
+                <MenuItem label="Set password" onClick={() => setPasswordModalOpen(true)} />
+              )}
+              {canIssuePasswordReset && (
+                <MenuItem label="Issue reset link" onClick={() => setConfirmKind('reset-password')} />
+              )}
+            </MenuButton>
+          ) : undefined
+        }
       />
       {mutationError && (
         <InlineNotification kind="error" lowContrast hideCloseButton title="Change not completed" subtitle="The record may have changed. Reload it and try again." />
       )}
-      <Grid condensed>
-        <Column sm={4} md={8} lg={8}>
-          <Tile>
+      <div className="member-detail-layout">
+      <Grid condensed className="member-detail-grid">
+        <Column sm={4} md={8} lg={10} className="member-detail__personal">
+          <Tile className="member-detail__card">
             <Stack gap={6}>
               <div className="section-heading">
                 <h2>Personal information</h2>
-                {canEditPerson && !editingPerson && <Button kind="ghost" size="sm" renderIcon={Edit} onClick={() => setEditingPerson(true)}>Edit</Button>}
               </div>
               {editingPerson ? (
                 <Form onSubmit={submitPerson}>
@@ -318,8 +381,8 @@ function UserDetailContent({ person }: { person: Person }) {
           </Tile>
         </Column>
 
-        <Column sm={4} md={8} lg={8}>
-          <Tile>
+        <Column sm={4} md={8} lg={6} className="member-detail__account">
+          <Tile className="member-detail__card">
             <Stack gap={6}>
               <div className="section-heading"><h2>Login account</h2></div>
               {!canReadAccounts || person.account === undefined ? (
@@ -327,7 +390,6 @@ function UserDetailContent({ person }: { person: Person }) {
               ) : !account ? (
                 <Stack gap={4}>
                   <p>This member does not have a login account.</p>
-                  {hasPermission(currentUser, PermissionId.accountscreate) && <Button ref={createAccountButtonRef} renderIcon={Add} onClick={() => setCreateAccountOpen(true)}>Create account</Button>}
                 </Stack>
               ) : (
                 <Stack gap={6}>
@@ -343,7 +405,7 @@ function UserDetailContent({ person }: { person: Person }) {
                       </Stack>
                     </Form>
                   ) : (
-                    <div className="section-heading"><div><span className="label">Login email</span><p>{account.loginEmail}</p></div>{hasPermission(currentUser, PermissionId.accountslogin_emailupdate) && <Button kind="ghost" size="sm" onClick={() => setEditingEmail(true)}>Change</Button>}</div>
+                    <div><span className="label">Login email</span><p>{account.loginEmail}</p></div>
                   )}
                   <div className="tag-list" aria-label="Assigned roles">
                     {account.roles.length === 0 && <span>No roles assigned</span>}
@@ -352,43 +414,26 @@ function UserDetailContent({ person }: { person: Person }) {
                       const mayRemove = Boolean(
                         roleDetails && canManageRoleMembership(currentUser, roleDetails),
                       );
-                      return <Tag key={role.id} type={role.systemKey === 'master' ? 'purple' : 'blue'} filter={mayRemove} onClose={mayRemove ? () => roleMutation.mutate({ roleId: role.id, remove: true }) : undefined}>{role.name}</Tag>;
+                      if (mayRemove) {
+                        return (
+                          <DismissibleTag
+                            key={role.id}
+                            type={role.systemKey === 'master' ? 'purple' : 'blue'}
+                            text={role.name}
+                            title={`Remove ${role.name} role`}
+                            dismissTooltipLabel={`Remove ${role.name} role`}
+                            onClose={() => roleMutation.mutate({ roleId: role.id, remove: true })}
+                          />
+                        );
+                      }
+                      return <Tag key={role.id} type={role.systemKey === 'master' ? 'purple' : 'blue'}>{role.name}</Tag>;
                     })}
                   </div>
-                  {canAssignRoles && canReadRoles && rolesQuery.isPending && (
-                    <InlineLoadingState label="Loading role catalog" />
-                  )}
-                  {canAssignRoles && canReadRoles && rolesQuery.isError && (
-                    <Stack gap={4}>
-                      <InlineNotification
-                        kind="error"
-                        lowContrast
-                        hideCloseButton
-                        title="Role catalog unavailable"
-                        subtitle="Roles cannot be assigned or removed until the catalog loads."
-                      />
-                      <Button kind="tertiary" size="sm" onClick={() => void rolesQuery.refetch()}>
-                        Try again
-                      </Button>
-                    </Stack>
-                  )}
-                  {canAssignRoles && canReadRoles && rolesQuery.data && assignableRoles.length > 0 && (
-                    <div className="role-assignment">
-                      <Dropdown id="assign-role" titleText="Assign role" label="Choose a role" items={assignableRoles} itemToString={(item) => item?.name ?? ''} selectedItem={selectedRole} onChange={({ selectedItem }) => setSelectedRole(selectedItem ?? null)} />
-                      <Button disabled={!selectedRole || roleMutation.isPending} onClick={() => selectedRole && roleMutation.mutate({ roleId: selectedRole.id, remove: false })}>Assign</Button>
+                  {account.status === 'disabled' && hasPermission(currentUser, PermissionId.accountsenable) && (
+                    <div className="button-cluster">
+                      <Button disabled={account.passwordStatus !== 'active' || enableMutation.isPending} onClick={() => enableMutation.mutate()}>Enable</Button>
                     </div>
                   )}
-                  {canAssignRoles && canReadRoles && rolesQuery.data && assignableRoles.length === 0 && (
-                    <p className="section-description">No additional roles are available.</p>
-                  )}
-                  {canAssignRoles && !canReadRoles && <p className="section-description">Role assignment needs permission to view the role catalog.</p>}
-                  <div className="button-cluster">
-                    {hasPermission(currentUser, PermissionId.accountspasswordset) && <Button ref={passwordButtonRef} kind="secondary" renderIcon={Password} onClick={() => setPasswordModalOpen(true)}>Set password</Button>}
-                    {hasPermission(currentUser, PermissionId.accountspasswordreset) && <Button kind="secondary" onClick={(event) => { confirmationLauncherRef.current = event.currentTarget; setConfirmKind('reset-password'); }}>Issue reset link</Button>}
-                    {account.status === 'disabled' && hasPermission(currentUser, PermissionId.accountsenable) && <Button disabled={account.passwordStatus !== 'active' || enableMutation.isPending} onClick={() => enableMutation.mutate()}>Enable</Button>}
-                    {account.status === 'enabled' && hasPermission(currentUser, PermissionId.accountsdisable) && <Button kind="danger--tertiary" onClick={(event) => { confirmationLauncherRef.current = event.currentTarget; setConfirmKind('disable-account'); }}>Disable</Button>}
-                    {hasPermission(currentUser, PermissionId.accountsdelete) && <Button kind="danger--tertiary" onClick={(event) => { confirmationLauncherRef.current = event.currentTarget; setConfirmKind('delete-account'); }}>Delete account</Button>}
-                  </div>
                   {account.status === 'disabled' && account.passwordStatus !== 'active' && hasPermission(currentUser, PermissionId.accountsenable) && <p className="section-description">Set an active password before enabling this account.</p>}
                 </Stack>
               )}
@@ -411,7 +456,38 @@ function UserDetailContent({ person }: { person: Person }) {
         </Tile>
       )}
 
-      <ComposedModal open={createAccountOpen} launcherButtonRef={createAccountButtonRef} onClose={() => setCreateAccountOpen(false)}>
+      {(canDisableAccount || canDeleteAccount || canDeletePerson) && (
+        <Tile className="danger-zone">
+          <Stack gap={5}>
+            <div>
+              <h2>Danger zone</h2>
+              <p className="danger-zone__description">
+                These actions affect account access or permanently remove data.
+              </p>
+            </div>
+            <div className="button-cluster">
+              {canDisableAccount && (
+                <Button kind="danger--tertiary" size="md" onClick={() => setConfirmKind('disable-account')}>
+                  Disable account
+                </Button>
+              )}
+              {canDeleteAccount && (
+                <Button kind="danger--tertiary" size="md" onClick={() => setConfirmKind('delete-account')}>
+                  Delete account
+                </Button>
+              )}
+              {canDeletePerson && (
+                <Button kind="danger--tertiary" size="md" renderIcon={TrashCan} onClick={() => setConfirmKind('delete-person')}>
+                  Delete member
+                </Button>
+              )}
+            </div>
+          </Stack>
+        </Tile>
+      )}
+      </div>
+
+      <ComposedModal open={createAccountOpen} onClose={() => setCreateAccountOpen(false)}>
         <ModalHeader title="Create login account" label={`${person.firstName} ${person.lastName}`} />
         <ModalBody>
           <Form id="create-account-form" onSubmit={submitCreateAccount}>
@@ -425,7 +501,39 @@ function UserDetailContent({ person }: { person: Person }) {
         <ModalFooter><Button kind="secondary" onClick={() => setCreateAccountOpen(false)}>Cancel</Button><Button type="submit" form="create-account-form" disabled={createAccountMutation.isPending}>Create account</Button></ModalFooter>
       </ComposedModal>
 
-      <ComposedModal open={passwordModalOpen} launcherButtonRef={passwordButtonRef} onClose={() => { accountPasswordForm.reset(); passwordMutation.reset(); setPasswordModalOpen(false); }}>
+      <ComposedModal open={assignRoleOpen} onClose={() => { setSelectedRole(null); setAssignRoleOpen(false); }}>
+        <ModalHeader title="Assign role" label={`${person.firstName} ${person.lastName}`} />
+        <ModalBody>
+          <Stack gap={5}>
+            {rolesQuery.isPending && <InlineLoadingState label="Loading role catalog" />}
+            {rolesQuery.isError && (
+              <InlineNotification
+                kind="error"
+                lowContrast
+                hideCloseButton
+                title="Role catalog unavailable"
+                subtitle="Reload the member and try again."
+              />
+            )}
+            {rolesQuery.data && assignableRoles.length === 0 && (
+              <p>No additional roles are available.</p>
+            )}
+            {rolesQuery.data && assignableRoles.length > 0 && (
+              <Dropdown id="assign-role" titleText="Role" label="Choose a role" items={assignableRoles} itemToString={(item) => item?.name ?? ''} selectedItem={selectedRole} onChange={({ selectedItem }) => setSelectedRole(selectedItem ?? null)} />
+            )}
+          </Stack>
+        </ModalBody>
+        <ModalFooter>
+          <Button kind="secondary" onClick={() => { setSelectedRole(null); setAssignRoleOpen(false); }}>
+            Cancel
+          </Button>
+          <Button disabled={!selectedRole || roleMutation.isPending} onClick={() => selectedRole && roleMutation.mutate({ roleId: selectedRole.id, remove: false })}>
+            {roleMutation.isPending ? 'Assigning…' : 'Assign role'}
+          </Button>
+        </ModalFooter>
+      </ComposedModal>
+
+      <ComposedModal open={passwordModalOpen} onClose={() => { accountPasswordForm.reset(); passwordMutation.reset(); setPasswordModalOpen(false); }}>
         <ModalHeader title="Set account password" label={account?.loginEmail} />
         <ModalBody>
           <Form id="set-account-password-form" onSubmit={submitPassword}>
@@ -440,7 +548,7 @@ function UserDetailContent({ person }: { person: Person }) {
         <ModalFooter><Button kind="secondary" onClick={() => { accountPasswordForm.reset(); passwordMutation.reset(); setPasswordModalOpen(false); }}>Cancel</Button><Button type="submit" form="set-account-password-form" disabled={passwordMutation.isPending}>Set password</Button></ModalFooter>
       </ComposedModal>
 
-      <ComposedModal open={Boolean(selectedConfirmation)} danger launcherButtonRef={confirmationLauncherRef} onClose={() => setConfirmKind(null)}>
+      <ComposedModal open={Boolean(selectedConfirmation)} danger onClose={() => setConfirmKind(null)}>
         <ModalHeader title={selectedConfirmation?.[0] ?? ''} />
         <ModalBody><p>{selectedConfirmation?.[1]}</p>{resetFailed && confirmKind === 'reset-password' && <InlineNotification kind="error" lowContrast hideCloseButton title="Reset link not issued" subtitle="Reload the account and try again." />}</ModalBody>
         <ModalFooter><Button kind="secondary" onClick={() => setConfirmKind(null)}>Cancel</Button><Button kind="danger" disabled={resetPending || deletePersonMutation.isPending || deleteAccountMutation.isPending || disableMutation.isPending} onClick={() => void confirmAction()}>{selectedConfirmation?.[2] ?? 'Confirm'}</Button></ModalFooter>

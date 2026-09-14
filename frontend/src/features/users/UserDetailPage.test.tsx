@@ -19,6 +19,30 @@ import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 
 describe('User detail page', () => {
+  it('starts member editing from the page header action', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.peoplereadall,
+            PermissionId.peopleupdateall,
+          ]),
+        ),
+      ),
+      http.get(`*/api/v1/people/${otherPersonId}`, () =>
+        HttpResponse.json(personFixture()),
+      ),
+    );
+    const user = userEvent.setup();
+
+    renderRoute(<App />, `/settings/users/${otherPersonId}`);
+
+    await user.click(await screen.findByRole('button', { name: 'Actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Edit member' }));
+    expect(within(screen.getByLabelText('Breadcrumb')).getByText('Grace Hopper')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
+  });
+
   it('creates an Account and provisions its password through the security forms', async () => {
     let person = personFixture({ account: null });
     let account: Account | undefined;
@@ -69,9 +93,8 @@ describe('User detail page', () => {
     const user = userEvent.setup();
     renderRoute(<App />, `/settings/users/${otherPersonId}`);
 
-    await user.click(
-      await screen.findByRole('button', { name: 'Create account' }),
-    );
+    await user.click(await screen.findByRole('button', { name: 'Actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Create account' }));
     const createDialog = screen.getByRole('dialog');
     const loginEmail = within(createDialog).getByLabelText('Login email');
     await user.clear(loginEmail);
@@ -90,7 +113,8 @@ describe('User detail page', () => {
       await screen.findByText('member@example.test', { selector: 'p' }),
     ).toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Set password' }));
+    await user.click(screen.getByRole('button', { name: 'Actions' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Set password' }));
     const passwordDialog = screen.getByRole('dialog');
     await user.type(
       within(passwordDialog).getByLabelText('New password'),

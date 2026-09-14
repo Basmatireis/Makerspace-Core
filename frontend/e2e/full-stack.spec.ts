@@ -75,14 +75,15 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await page.getByLabel('Last name').fill('Johnson');
     await page.getByLabel('Contact email').fill('e2e-contact@example.test');
     await page.getByLabel('Matriculation number').fill('E2E-MAT-2042');
-    await page.getByRole('button', { name: 'Create person' }).click();
+    await page.getByRole('button', { name: 'Create member' }).click();
     await expect(page).toHaveURL(/\/settings\/users\/[0-9a-f-]+$/);
     personPath = new URL(page.url()).pathname;
     await expect(
       page.getByRole('heading', { name: 'Katherine Johnson' }),
     ).toBeVisible();
 
-    await page.getByRole('button', { name: 'Create account' }).click();
+    await page.getByRole('button', { name: 'Actions' }).click();
+    await page.getByRole('menuitem', { name: 'Create account' }).click();
     const createAccountDialog = page.getByRole('dialog', {
       name: 'Katherine Johnson',
     });
@@ -95,7 +96,8 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
       page.getByRole('paragraph').filter({ hasText: memberLogin }),
     ).toBeVisible();
 
-    await page.getByRole('button', { name: 'Set password' }).click();
+    await page.getByRole('button', { name: 'Actions' }).click();
+    await page.getByRole('menuitem', { name: 'Set password' }).click();
     const passwordDialog = page.getByRole('dialog');
     await passwordDialog.getByLabel('New password').fill(memberPassword);
     await passwordDialog.getByLabel('Confirm password').fill(memberPassword);
@@ -106,9 +108,12 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await page.getByRole('button', { name: 'Enable', exact: true }).click();
     await expect(page.getByText('enabled', { exact: true })).toBeVisible();
 
-    await page.getByText('Choose a role').click();
+    await page.getByRole('button', { name: 'Actions' }).click();
+    await page.getByRole('menuitem', { name: 'Assign role' }).click();
+    const assignRoleDialog = page.getByRole('dialog');
+    await assignRoleDialog.getByText('Choose a role').click();
     await page.getByRole('option', { name: 'E2E workshop supervisors' }).click();
-    await page.getByRole('button', { name: 'Assign', exact: true }).click();
+    await assignRoleDialog.getByRole('button', { name: 'Assign role' }).click();
     await expect(
       page
         .getByLabel('Assigned roles')
@@ -121,7 +126,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await signIn(page, memberLogin, memberPassword);
 
     await page.goto('/settings/users');
-    await expect(page.getByRole('heading', { name: 'Users' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Members' })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Name' })).toBeVisible();
     await expect(
       page.getByRole('columnheader', { name: 'Matriculation number' }),
@@ -145,9 +150,9 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await signIn(page, masterLogin, masterPassword);
 
     await page.goto(personPath);
-    await page.getByRole('button', { name: 'Delete person' }).click();
-    await expect(page.getByText('Delete person permanently?')).toBeVisible();
-    await page.getByRole('button', { name: 'Delete person' }).last().click();
+    await page.getByRole('button', { name: 'Delete member' }).click();
+    await expect(page.getByText('Delete member permanently?')).toBeVisible();
+    await page.getByRole('button', { name: 'Delete member' }).last().click();
     await expect(page).toHaveURL(/\/settings\/users$/);
     await expect(page.getByText('Katherine Johnson')).toHaveCount(0);
 
