@@ -12,6 +12,11 @@ import { SettingsPage } from '../features/settings/SettingsPage';
 import { UserCreatePage } from '../features/users/UserCreatePage';
 import { UserDetailPage } from '../features/users/UserDetailPage';
 import { UsersPage } from '../features/users/UsersPage';
+import { OpenDaysPage } from '../features/opendays/OpenDaysPage';
+import { OpenDayPeriodPage } from '../features/opendays/OpenDayPeriodPage';
+import { OpenDayDetailPage } from '../features/opendays/OpenDayDetailPage';
+import { ScheduleEditorPage } from '../features/opendays/ScheduleEditorPage';
+import { OpenDayManagementPage } from '../features/opendays/OpenDayManagementPage';
 import { AppShell } from './AppShell';
 import { NotFoundPage } from './NotFoundPage';
 
@@ -32,6 +37,26 @@ export function App() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="profile" element={<ProfilePage />} />
+        <Route
+          path="open-days"
+          element={<PermissionRoute anyOf={[PermissionId.open_daysread, PermissionId.open_daysmanage]}><OpenDaysPage /></PermissionRoute>}
+        />
+        <Route
+          path="open-days/:periodId"
+          element={<PermissionRoute anyOf={[PermissionId.open_daysread, PermissionId.open_daysmanage]}><OpenDayPeriodPage /></PermissionRoute>}
+        />
+        <Route
+          path="open-days/:periodId/days/:openDayId"
+          element={<PermissionRoute anyOf={[PermissionId.open_daysread, PermissionId.open_daysmanage]}><OpenDayDetailPage /></PermissionRoute>}
+        />
+        <Route
+          path="open-days/:periodId/schedule"
+          element={<PermissionRoute allOf={[PermissionId.open_daysmanage]}><ScheduleEditorPage /></PermissionRoute>}
+        />
+        <Route
+          path="open-days/manage"
+          element={<PermissionRoute allOf={[PermissionId.open_daysmanage]}><OpenDayManagementPage /></PermissionRoute>}
+        />
         <Route
           path="settings"
           element={

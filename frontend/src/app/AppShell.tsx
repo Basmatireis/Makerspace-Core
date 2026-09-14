@@ -20,13 +20,14 @@ import {
 } from '@carbon/react';
 import {
   Dashboard as DashboardIcon,
+  Calendar,
   Logout,
   Settings as SettingsIcon,
   UserAvatar,
 } from '@carbon/icons-react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useCurrentUser, useLogout } from '../features/auth/auth';
-import { canAccessSettings } from '../features/auth/permissions';
+import { canAccessOpenDays, canAccessSettings } from '../features/auth/permissions';
 
 const NARROW_SHELL_QUERY = '(max-width: 65.98rem)';
 
@@ -173,6 +174,16 @@ export function AppShell() {
               >
                 Dashboard
               </SideNavLink>
+              {canAccessOpenDays(currentUser) && (
+                <SideNavLink
+                  as={Link}
+                  to="/open-days"
+                  renderIcon={Calendar}
+                  isActive={location.pathname.startsWith('/open-days')}
+                >
+                  Open Days
+                </SideNavLink>
+              )}
               {canAccessSettings(currentUser) && (
                 <SideNavMenu
                   title="Administration"

@@ -36,6 +36,19 @@ describe('protected application routing', () => {
     expect(screen.queryByRole('heading', { name: 'Roles' })).not.toBeInTheDocument();
   });
 
+  it('shows Open Days navigation only with an Open Days read or manage permission', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(currentUserFixture([PermissionId.open_daysread])),
+      ),
+      http.get('*/api/v1/open-day-periods', () => HttpResponse.json({ items: [] })),
+    );
+    renderRoute(<App />, '/open-days');
+    expect(await screen.findByRole('heading', { name: 'Open Days' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Days' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New period' })).not.toBeInTheDocument();
+  });
+
   it('keeps the authenticated state when server-side logout fails', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture())),

@@ -49,6 +49,13 @@ export function canAccessSettings(currentUser: CurrentUser): boolean {
   ]);
 }
 
+export function canAccessOpenDays(currentUser: CurrentUser): boolean {
+  return hasAnyPermission(currentUser, [
+    PermissionId.open_daysread,
+    PermissionId.open_daysmanage,
+  ]);
+}
+
 export function canManageRoleMembership(
   currentUser: CurrentUser,
   role: Pick<Role, 'permissionIds' | 'systemKey'>,
