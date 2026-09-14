@@ -21,7 +21,7 @@ export function OpenDaysPage() {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const periodsQuery = useQuery(periodsQueryOptions());
-  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<PeriodForm>({
+  const { register, handleSubmit, reset, setValue, formState: { errors, submitCount } } = useForm<PeriodForm>({
     defaultValues: { name: '', startsOn: '', endsOn: '' },
   });
   const createMutation = useMutation({
@@ -90,25 +90,25 @@ export function OpenDaysPage() {
             datePickerType="range"
             dateFormat="Y-m-d"
             onChange={(dates) => {
-              setValue('startsOn', dateValue(dates[0]), { shouldDirty: true, shouldValidate: true });
-              setValue('endsOn', dateValue(dates[1]), { shouldDirty: true, shouldValidate: true });
+              setValue('startsOn', dateValue(dates[0]), { shouldDirty: true, shouldValidate: submitCount > 0 });
+              setValue('endsOn', dateValue(dates[1]), { shouldDirty: true, shouldValidate: submitCount > 0 });
             }}
           >
             <DatePickerInput
               id="period-start"
               labelText="Start date"
               placeholder="yyyy-mm-dd"
-              invalid={Boolean(errors.startsOn)}
+              invalid={submitCount > 0 && Boolean(errors.startsOn)}
               invalidText="Choose a start date."
-              onChange={(event: ChangeEvent<HTMLInputElement>) => setValue('startsOn', event.target.value, { shouldDirty: true, shouldValidate: true })}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setValue('startsOn', event.target.value, { shouldDirty: true, shouldValidate: submitCount > 0 })}
             />
             <DatePickerInput
               id="period-end"
               labelText="End date"
               placeholder="yyyy-mm-dd"
-              invalid={Boolean(errors.endsOn)}
+              invalid={submitCount > 0 && Boolean(errors.endsOn)}
               invalidText="Choose an end date."
-              onChange={(event: ChangeEvent<HTMLInputElement>) => setValue('endsOn', event.target.value, { shouldDirty: true, shouldValidate: true })}
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setValue('endsOn', event.target.value, { shouldDirty: true, shouldValidate: submitCount > 0 })}
             />
           </DatePicker>
         </Stack>

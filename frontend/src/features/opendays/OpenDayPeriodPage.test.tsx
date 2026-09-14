@@ -124,6 +124,26 @@ describe('Open Day period lifecycle controls', () => {
 });
 
 describe('Open Day period creation', () => {
+  it('shows a missing range endpoint only after creation is submitted', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.open_daysmanage]))),
+      http.get('*/api/v1/open-day-periods', () => HttpResponse.json({ items: [] })),
+    );
+    renderRoute(<App />, '/open-days');
+    const user = userEvent.setup();
+
+    await user.click((await screen.findAllByRole('button', { name: 'New period' }))[0]);
+    await user.type(screen.getByLabelText('Name'), 'Winter Semester 2026/27');
+    await user.type(screen.getByLabelText('Start date'), '2026-10-01');
+
+    expect(screen.queryByText('Choose an end date.')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Create period' }));
+    expect(await screen.findByText('Choose an end date.')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('End date'), '2027-01-31');
+    await waitFor(() => expect(screen.queryByText('Choose an end date.')).not.toBeInTheDocument());
+  });
+
   it('opens the schedule editor immediately after creating a draft period', async () => {
     const created = period('draft');
     let submittedPeriod: unknown;
