@@ -382,8 +382,6 @@ h2 {
 .calendar-legend__mine svg { color: var(--cds-link-primary, #0f62fe); }
 .calendar-legend__group--context .calendar-legend__cancelled { padding-inline-start: $spacing-05; border-inline-start: 1px solid var(--cds-border-strong); }
 .calendar-legend__cancelled svg { color: var(--cds-text-secondary, #525252); }
-.calendar-legend__holiday svg { color: var(--cds-support-warning, #f1c21b); }
-.calendar-legend__break svg { color: var(--cds-support-info, #0043ce); }
 
 .semester-calendar { --calendar-month-size: 36rem; display: grid; grid-template-columns: repeat(2, minmax(32rem, 1fr)); align-items: start; background: var(--cds-border-subtle); gap: 1px; }
 .calendar-month { display: grid; grid-template-rows: auto auto 1fr; block-size: var(--calendar-month-size); min-block-size: 0; padding: $spacing-05; background: var(--cds-layer); }
@@ -406,7 +404,6 @@ h2 {
 .calendar-marker span { overflow-wrap: anywhere; }
 .calendar-cell__context .calendar-marker { flex: none; padding: 0; border: 0; background: transparent; }
 .calendar-marker--academicBreak { border: 0; background: transparent; }
-.calendar-marker--academicBreak svg { color: var(--cds-support-info, #0043ce); }
 .calendar-marker--continuation { color: var(--cds-text-secondary); }
 .calendar-marker--label { margin-block-end: 2px; }
 .calendar-slot { display: block; inline-size: 100%; padding: $spacing-02; margin-block-end: 2px; text-align: start; border: 0; border-inline-start: 3px solid; background: var(--cds-layer-accent); cursor: pointer; @include type-style('helper-text-01'); }
