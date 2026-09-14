@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Calendar as CalendarIcon, Edit, List, Repeat } from '@carbon/icons-react';
-import { Button, DataTable, InlineNotification, Modal, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, Tag } from '@carbon/react';
+import { Button, DataTable, InlineNotification, MenuButton, MenuItem, MenuItemDivider, Modal, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, Tag } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { archiveOpenDayPeriod, openOpenDayPeriodForStaffing, publishOpenDayPeriod, returnOpenDayPeriodToDraft, returnOpenDayPeriodToStaffing } from '../../api/generated/open-days/open-days';
@@ -54,11 +54,14 @@ export function OpenDayPeriodPage() {
   const headers = [{ key: 'date', header: 'Date' }, { key: 'time', header: 'Time' }, { key: 'supervisors', header: 'Supervisors' }, { key: 'trainees', header: 'Trainees' }, { key: 'status', header: 'Staffing status' }, { key: 'assignment', header: 'My assignment' }];
 
   return <Stack gap={6} className="open-day-period-page">
-    <PageHeader title={period.name} breadcrumbs={[{ label: 'Open Days', to: '/open-days' }]} description={`${period.startsOn} – ${period.endsOn}`} actions={<>
-      {canManage && period.status !== 'archived' && <Button kind="secondary" renderIcon={Repeat} onClick={() => navigate(`${openDaySchedulePath(period.id)}?recurrence=1`)}>Create recurring</Button>}
-      {canManage && period.status !== 'archived' && <Button renderIcon={Edit} onClick={() => navigate(openDaySchedulePath(period.id))}>Edit schedule</Button>}
-      {canManage && lifecycleActions.map((action) => <Button key={action.target} kind={action.danger ? 'danger' : 'tertiary'} disabled={lifecycleMutation.isPending} onClick={() => setPendingTransition(action)}>{action.label}</Button>)}
-    </>} />
+    <PageHeader title={period.name} breadcrumbs={[{ label: 'Open Days', to: '/open-days' }]} description={`${period.startsOn} – ${period.endsOn}`} actions={canManage && period.status !== 'archived' ? (
+      <MenuButton label="Actions" kind="tertiary" menuAlignment="bottom-end" size="md" disabled={lifecycleMutation.isPending}>
+        <MenuItem label="Create recurring" renderIcon={Repeat} onClick={() => navigate(`${openDaySchedulePath(period.id)}?recurrence=1`)} />
+        <MenuItem label="Edit schedule" renderIcon={Edit} onClick={() => navigate(openDaySchedulePath(period.id))} />
+        {lifecycleActions.length > 0 && <MenuItemDivider />}
+        {lifecycleActions.map((action) => <MenuItem key={action.target} label={action.label} kind={action.danger ? 'danger' : 'default'} onClick={() => setPendingTransition(action)} />)}
+      </MenuButton>
+    ) : undefined} />
     <div className="period-summary-bar"><div><span>Period</span><strong>{period.name}</strong><Tag type={statusTagType(period.status)}>{period.status}</Tag></div><div className="period-summary-bar__stats"><span><strong>{period.totalOpenDays}</strong>Total</span><span><strong className="status-good">{period.fullyStaffedCount}</strong>Fully staffed</span><span><strong className="status-bad">{period.needsStaffCount}</strong>Needs staff</span></div></div>
     {lifecycleMutation.isError && <InlineNotification kind="error" lowContrast title="Status change failed" subtitle="The period may have changed. Reload and try again." onCloseButtonClick={() => lifecycleMutation.reset()} />}
     <Modal

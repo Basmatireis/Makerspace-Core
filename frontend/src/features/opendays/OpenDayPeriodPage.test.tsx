@@ -85,10 +85,18 @@ describe('Open Day period lifecycle controls', () => {
   ] as const)('shows only valid actions for %s periods', async (status, visible, hidden) => {
     mockPeriodPage(status);
     renderRoute(<App />, `/open-days/${periodId}`);
+    const user = userEvent.setup();
 
     expect(await screen.findByRole('heading', { name: 'Winter Semester 2026/27' })).toBeInTheDocument();
-    for (const label of visible) expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
-    for (const label of hidden) expect(screen.queryByRole('button', { name: label })).not.toBeInTheDocument();
+    if (status === 'archived') {
+      expect(screen.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument();
+      return;
+    }
+    await user.click(screen.getByRole('button', { name: 'Actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Create recurring' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Edit schedule' })).toBeInTheDocument();
+    for (const label of visible) expect(screen.getByRole('menuitem', { name: label })).toBeInTheDocument();
+    for (const label of hidden) expect(screen.queryByRole('menuitem', { name: label })).not.toBeInTheDocument();
   });
 
   it.each([
@@ -99,7 +107,8 @@ describe('Open Day period lifecycle controls', () => {
     renderRoute(<App />, `/open-days/${periodId}`);
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('button', { name: action }));
+    await user.click(await screen.findByRole('button', { name: 'Actions' }));
+    await user.click(screen.getByRole('menuitem', { name: action }));
 
     expect(screen.getByText(confirmation)).toBeInTheDocument();
     expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -110,9 +119,7 @@ describe('Open Day period lifecycle controls', () => {
     renderRoute(<App />, `/open-days/${periodId}`);
 
     expect(await screen.findByRole('heading', { name: 'Winter Semester 2026/27' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Move back to Draft' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Publish' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Edit schedule' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument();
   });
 });
 
