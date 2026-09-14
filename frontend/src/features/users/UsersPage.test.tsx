@@ -1,5 +1,6 @@
 import { delay, http, HttpResponse } from 'msw';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
@@ -92,6 +93,89 @@ describe('Members page', () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Roles/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add member' })).not.toBeInTheDocument();
+  });
+
+  it('creates selected member accounts using their existing email addresses', async () => {
+    let accountRequest: unknown;
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.peoplereadall,
+            PermissionId.accountsread,
+            PermissionId.accountscreate,
+          ]),
+        ),
+      ),
+      http.get('*/api/v1/people', () =>
+        HttpResponse.json(peoplePage([personFixture({ account: null })])),
+      ),
+      http.post('*/api/v1/people/:personId/account', async ({ request }) => {
+        accountRequest = await request.json();
+        return HttpResponse.json(accountFixture(), { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+
+    renderRoute(<App />, '/settings/users');
+
+    await screen.findByText('Grace Hopper');
+    await user.click(screen.getByRole('checkbox', { name: /select row/i }));
+    await user.click(screen.getByRole('button', { name: 'Create accounts' }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText(/existing email address/i)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Create accounts' }));
+
+    await waitFor(() =>
+      expect(accountRequest).toEqual({
+        loginEmail: 'grace@example.test',
+        expectedVersion: 1,
+      }),
+    );
+  });
+
+  it('assigns an allowed role to selected member accounts', async () => {
+    let roleRequest: unknown;
+    const role = roleFixture();
+    const account = accountFixture({ roles: [] });
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.peoplereadall,
+            PermissionId.accountsread,
+            PermissionId.accountsrolesassign,
+            PermissionId.rolesread,
+          ]),
+        ),
+      ),
+      http.get('*/api/v1/people', () =>
+        HttpResponse.json(peoplePage([personFixture({ account })])),
+      ),
+      http.get('*/api/v1/roles', () =>
+        HttpResponse.json({ items: [role], nextCursor: null }),
+      ),
+      http.put('*/api/v1/accounts/:accountId/roles/:roleId', async ({ request }) => {
+        roleRequest = await request.json();
+        return HttpResponse.json({ ...account, roles: [role] });
+      }),
+    );
+    const user = userEvent.setup();
+
+    renderRoute(<App />, '/settings/users');
+
+    await screen.findByText('Grace Hopper');
+    await user.click(screen.getByRole('checkbox', { name: /select row/i }));
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Assign role' })).toBeEnabled(),
+    );
+    await user.click(screen.getByRole('button', { name: 'Assign role' }));
+    const dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('combobox', { name: 'Role' }));
+    await user.click(await screen.findByText('Workshop supervisors'));
+    await user.click(within(dialog).getByRole('button', { name: 'Assign role' }));
+
+    await waitFor(() => expect(roleRequest).toEqual({ expectedVersion: 1 }));
   });
 
   it('moves from the loading state to the empty state', async () => {
