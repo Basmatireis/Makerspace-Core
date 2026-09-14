@@ -271,6 +271,17 @@ describe('Open Day table and calendar filters', () => {
     const { container } = renderRoute(<App />, `/open-days/${periodId}`);
 
     const calendar = await screen.findByLabelText('Semester calendar');
+    const legend = screen.getByLabelText('Calendar status legend');
+    expect(Array.from(legend.querySelectorAll('.calendar-legend__group--context > span')).map((item) => item.textContent)).toEqual([
+      'Public holiday',
+      'Academic break',
+      'Cancelled',
+    ]);
+    expect(Array.from(legend.querySelectorAll('.calendar-legend__group--staffing > span')).map((item) => item.textContent)).toEqual([
+      'Fully staffed',
+      'Supervisor position open',
+      'Your assignment',
+    ]);
     expect(within(calendar).getByTitle('Supervisor position open')).toBeInTheDocument();
     expect(within(calendar).getByTitle('Trainee position open')).toBeInTheDocument();
     expect(within(calendar).getByTitle('Fully staffed')).toBeInTheDocument();

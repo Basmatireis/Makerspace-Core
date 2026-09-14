@@ -372,12 +372,15 @@ h2 {
 .responsive-table .cds--data-table { min-inline-size: 58rem; }
 .responsive-table tbody tr { cursor: pointer; }
 
-.calendar-legend { display: flex; flex-wrap: wrap; gap: $spacing-05; margin-block-end: $spacing-04; @include type-style('label-01'); }
+.calendar-legend { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: $spacing-04 $spacing-07; margin-block-end: $spacing-04; @include type-style('label-01'); }
+.calendar-legend__group { display: flex; flex-wrap: wrap; align-items: center; gap: $spacing-05; }
+.calendar-legend__group--staffing { justify-content: flex-end; margin-inline-start: auto; }
 .calendar-legend span { display: inline-flex; align-items: center; gap: $spacing-02; }
 .calendar-legend svg { flex: none; }
 .calendar-legend__staffed svg { color: var(--cds-support-success, #24a148); }
 .calendar-legend__needs-supervisor svg { color: var(--cds-support-error, #da1e28); }
 .calendar-legend__mine svg { color: var(--cds-link-primary, #0f62fe); }
+.calendar-legend__group--context .calendar-legend__cancelled { padding-inline-start: $spacing-05; border-inline-start: 1px solid var(--cds-border-strong); }
 .calendar-legend__cancelled svg { color: var(--cds-text-secondary, #525252); }
 .calendar-legend__holiday svg { color: var(--cds-support-warning, #f1c21b); }
 .calendar-legend__break svg { color: var(--cds-support-info, #0043ce); }
