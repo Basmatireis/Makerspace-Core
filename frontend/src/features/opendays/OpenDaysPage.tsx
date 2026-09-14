@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import { Add, ArrowRight, Edit, SettingsAdjust } from '@carbon/icons-react';
-import { Button, ClickableTile, InlineNotification, Modal, Stack, Tag, TextInput, Tile } from '@carbon/react';
+import { Button, ClickableTile, DatePicker, DatePickerInput, InlineNotification, Modal, Stack, Tag, TextInput, Tile } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
@@ -21,7 +21,9 @@ export function OpenDaysPage() {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const periodsQuery = useQuery(periodsQueryOptions());
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<PeriodForm>();
+  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<PeriodForm>({
+    defaultValues: { name: '', startsOn: '', endsOn: '' },
+  });
   const createMutation = useMutation({
     mutationFn: (values: PeriodForm) => createOpenDayPeriod(values),
     onSuccess: async (period) => {
@@ -66,22 +68,56 @@ export function OpenDaysPage() {
           {periodsQuery.data.items.length === 0 && !canManage && <div className="empty-state"><h2>No visible periods</h2><p>Open Day periods will appear here when staffing opens.</p></div>}
         </section>
       )}
-      <Modal
+      {createOpen && <Modal
         open={createOpen}
         modalHeading="Create Open Day period"
         primaryButtonText={createMutation.isPending ? 'Creating…' : 'Create period'}
         secondaryButtonText="Cancel"
         primaryButtonDisabled={createMutation.isPending}
-        onRequestClose={() => setCreateOpen(false)}
+        onRequestClose={() => {
+          setCreateOpen(false);
+          reset();
+          createMutation.reset();
+        }}
         onRequestSubmit={() => void handleSubmit((values) => createMutation.mutate(values))()}
       >
         <Stack gap={5}>
           {createMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Period could not be created" subtitle="Review the values and try again." />}
           <TextInput id="period-name" labelText="Name" invalid={Boolean(errors.name)} invalidText="Enter a name." {...register('name', { required: true })} />
-          <TextInput id="period-start" type="date" labelText="Start date" invalid={Boolean(errors.startsOn)} invalidText="Choose a start date." {...register('startsOn', { required: true })} />
-          <TextInput id="period-end" type="date" labelText="End date" invalid={Boolean(errors.endsOn)} invalidText="Choose an end date." {...register('endsOn', { required: true })} />
+          <input type="hidden" {...register('startsOn', { required: true })} />
+          <input type="hidden" {...register('endsOn', { required: true })} />
+          <DatePicker
+            datePickerType="range"
+            dateFormat="Y-m-d"
+            onChange={(dates) => {
+              setValue('startsOn', dateValue(dates[0]), { shouldDirty: true, shouldValidate: true });
+              setValue('endsOn', dateValue(dates[1]), { shouldDirty: true, shouldValidate: true });
+            }}
+          >
+            <DatePickerInput
+              id="period-start"
+              labelText="Start date"
+              placeholder="yyyy-mm-dd"
+              invalid={Boolean(errors.startsOn)}
+              invalidText="Choose a start date."
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setValue('startsOn', event.target.value, { shouldDirty: true, shouldValidate: true })}
+            />
+            <DatePickerInput
+              id="period-end"
+              labelText="End date"
+              placeholder="yyyy-mm-dd"
+              invalid={Boolean(errors.endsOn)}
+              invalidText="Choose an end date."
+              onChange={(event: ChangeEvent<HTMLInputElement>) => setValue('endsOn', event.target.value, { shouldDirty: true, shouldValidate: true })}
+            />
+          </DatePicker>
         </Stack>
-      </Modal>
+      </Modal>}
     </Stack>
   );
+}
+
+function dateValue(date?: Date) {
+  if (!date) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }

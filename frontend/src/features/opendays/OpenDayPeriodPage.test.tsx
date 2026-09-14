@@ -126,10 +126,14 @@ describe('Open Day period lifecycle controls', () => {
 describe('Open Day period creation', () => {
   it('opens the schedule editor immediately after creating a draft period', async () => {
     const created = period('draft');
+    let submittedPeriod: unknown;
     server.use(
       http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.open_daysmanage]))),
       http.get('*/api/v1/open-day-periods', () => HttpResponse.json({ items: [] })),
-      http.post('*/api/v1/open-day-periods', () => HttpResponse.json(created, { status: 201 })),
+      http.post('*/api/v1/open-day-periods', async ({ request }) => {
+        submittedPeriod = await request.json();
+        return HttpResponse.json(created, { status: 201 });
+      }),
       http.get('*/api/v1/open-day-periods/:periodId/open-days', () =>
         HttpResponse.json({ period: created, items: [], timeZone: 'Europe/Vienna' }),
       ),
@@ -145,6 +149,7 @@ describe('Open Day period creation', () => {
     await user.click(screen.getByRole('button', { name: 'Create period' }));
 
     expect(await screen.findByRole('heading', { name: 'Schedule planning' })).toBeInTheDocument();
+    expect(submittedPeriod).toMatchObject({ startsOn: created.startsOn, endsOn: created.endsOn });
   });
 });
 
