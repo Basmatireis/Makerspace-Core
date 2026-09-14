@@ -257,23 +257,25 @@ describe('Open Day table and calendar filters', () => {
     );
   }
 
-  it('uses explicit status labels and a Sunday-first calendar grid', async () => {
+  it('uses accessible status icons, fixed six-week months, and a Sunday-first calendar grid', async () => {
     mockFilteredPeriodPage();
     const { container } = renderRoute(<App />, `/open-days/${periodId}`);
 
     const calendar = await screen.findByLabelText('Semester calendar');
-    expect(within(calendar).getByText('Supervisor position open')).toBeInTheDocument();
-    expect(within(calendar).getByText('Trainee position open')).toBeInTheDocument();
-    expect(within(calendar).getByText('Fully staffed')).toBeInTheDocument();
-    expect(within(calendar).getByText('Cancelled')).toBeInTheDocument();
-    expect(within(calendar).getAllByText('Your assignment')).toHaveLength(2);
-    expect(within(calendar).getByText('Public holiday: National Day')).toBeInTheDocument();
-    expect(within(calendar).getByText('Academic break: Autumn break')).toBeInTheDocument();
+    expect(within(calendar).getByTitle('Supervisor position open')).toBeInTheDocument();
+    expect(within(calendar).getByTitle('Trainee position open')).toBeInTheDocument();
+    expect(within(calendar).getByTitle('Fully staffed')).toBeInTheDocument();
+    expect(within(calendar).getByTitle('Cancelled')).toBeInTheDocument();
+    expect(within(calendar).getAllByTitle('Your assignment')).toHaveLength(2);
+    expect(within(calendar).getByText('National Day')).toBeInTheDocument();
+    expect(within(calendar).queryByText('Public holiday: National Day')).not.toBeInTheDocument();
+    expect(within(calendar).getByText('Autumn break')).toBeInTheDocument();
     expect(within(calendar).getAllByLabelText('Academic break: Autumn break, 2026-10-02 to 2026-10-04')).toHaveLength(3);
 
     const weekdays = container.querySelector('.calendar-weekdays');
     expect(Array.from(weekdays?.children ?? []).map((item) => item.textContent)).toEqual(['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']);
     expect(container.querySelectorAll('.calendar-month:first-child .calendar-cell--empty')).toHaveLength(4);
+    expect(container.querySelectorAll('.calendar-month:first-child .calendar-days > .calendar-cell')).toHaveLength(42);
   });
 
   it('shares filters across views and preserves the active selection', async () => {
@@ -297,13 +299,13 @@ describe('Open Day table and calendar filters', () => {
 
     await user.click(within(viewSwitcher!).getByText('Calendar'));
     const filteredCalendar = screen.getByLabelText('Semester calendar');
-    expect(within(filteredCalendar).getByText('Supervisor position open')).toBeInTheDocument();
-    expect(within(filteredCalendar).queryByText('Trainee position open')).not.toBeInTheDocument();
-    expect(within(filteredCalendar).queryByText('Fully staffed')).not.toBeInTheDocument();
-    expect(within(filteredCalendar).queryByText('Cancelled')).not.toBeInTheDocument();
+    expect(within(filteredCalendar).getByTitle('Supervisor position open')).toBeInTheDocument();
+    expect(within(filteredCalendar).queryByTitle('Trainee position open')).not.toBeInTheDocument();
+    expect(within(filteredCalendar).queryByTitle('Fully staffed')).not.toBeInTheDocument();
+    expect(within(filteredCalendar).queryByTitle('Cancelled')).not.toBeInTheDocument();
 
     await user.click(within(filterSwitcher!).getByText('My Open Days'));
-    expect(within(screen.getByLabelText('Semester calendar')).getAllByText('Your assignment')).toHaveLength(2);
+    expect(within(screen.getByLabelText('Semester calendar')).getAllByTitle('Your assignment')).toHaveLength(2);
 
     await user.click(within(viewSwitcher!).getByText('Table'));
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(3);

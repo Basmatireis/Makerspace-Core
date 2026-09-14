@@ -34,6 +34,7 @@ export function SemesterCalendarGrid({ startsOn, endsOn, entries = [], renderDay
       {months.map((month) => {
         const count = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
         const sundayOffset = new Date(month.getFullYear(), month.getMonth(), 1).getDay();
+        const trailingCount = 42 - sundayOffset - count;
         return (
           <section className="calendar-month" key={month.toISOString()} aria-labelledby={`month-${month.getFullYear()}-${month.getMonth()}`}>
             <h3 id={`month-${month.getFullYear()}-${month.getMonth()}`}>{month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h3>
@@ -50,6 +51,7 @@ export function SemesterCalendarGrid({ startsOn, endsOn, entries = [], renderDay
                   withinRange: date >= startsOn && date <= endsOn,
                 });
               })}
+              {Array.from({ length: trailingCount }, (_, index) => <span className="calendar-cell calendar-cell--trailing" aria-hidden="true" key={`trailing-${index}`} />)}
             </div>
           </section>
         );

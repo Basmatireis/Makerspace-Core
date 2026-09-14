@@ -136,8 +136,9 @@ describe('schedule editor calendar context', () => {
 
     expect(await screen.findByLabelText('Public holiday: Nationalfeiertag')).toBeInTheDocument();
     expect(screen.getAllByLabelText('Academic break: Autumn break, 2026-10-27 to 2026-10-28')).toHaveLength(2);
-    expect(screen.getByText('Academic break: Autumn break')).toBeInTheDocument();
-    expect(within(screen.getByLabelText('Schedule planning calendar')).getByText('Academic break')).toBeInTheDocument();
+    const planningCalendar = screen.getByLabelText('Schedule planning calendar');
+    expect(within(planningCalendar).getByText('Autumn break')).toBeInTheDocument();
+    expect(within(planningCalendar).queryByText('Academic break: Autumn break')).not.toBeInTheDocument();
 
     const holidayAdd = screen.getByRole('button', { name: 'Add Open Day on 2026-10-26' });
     const breakAdd = screen.getByRole('button', { name: 'Add Open Day on 2026-10-27' });
@@ -154,11 +155,11 @@ describe('schedule editor calendar context', () => {
 
     expect(await screen.findByRole('heading', { name: 'October 2026' })).toBeInTheDocument();
     expect(document.querySelector('.calendar-weekdays')?.textContent).toBe('SuMoTuWeThFrSa');
-    fireEvent.click(screen.getByRole('button', { name: 'Drag or edit Open Day 16:00 to 19:00' }));
+    fireEvent.click(screen.getByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ }));
     expect(await screen.findByRole('dialog', { name: 'Edit Open Day' })).toBeInTheDocument();
     expect(screen.getByLabelText('Internal note')).toHaveValue('Keep this setup');
     await user.click(screen.getByRole('button', { name: 'Remove slot' }));
-    expect(screen.queryByRole('button', { name: 'Drag or edit Open Day 16:00 to 19:00' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ })).not.toBeInTheDocument();
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
   }, 10_000);
 
@@ -205,7 +206,7 @@ describe('schedule editor calendar context', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Preview' }));
     expect(await within(dialog).findByRole('checkbox', { name: '2026-10-28 · create' })).toBeChecked();
     await user.click(within(dialog).getByRole('button', { name: 'Add selected' }));
-    expect(screen.getByRole('button', { name: 'Drag or edit Open Day 16:00 to 19:00' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ })).toBeInTheDocument();
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
   }, 10_000);
 

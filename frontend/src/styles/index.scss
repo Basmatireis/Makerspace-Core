@@ -361,33 +361,45 @@ h2 {
 .calendar-legend { display: flex; flex-wrap: wrap; gap: $spacing-05; margin-block-end: $spacing-04; @include type-style('label-01'); }
 .calendar-legend span { display: inline-flex; align-items: center; gap: $spacing-02; }
 .calendar-legend svg { flex: none; }
+.calendar-legend__staffed svg { color: var(--cds-support-success); }
+.calendar-legend__needs-supervisor svg { color: var(--cds-support-error); }
+.calendar-legend__mine svg { color: var(--cds-link-primary); }
+.calendar-legend__cancelled svg { color: var(--cds-text-secondary); }
+.calendar-legend__holiday svg { color: var(--cds-support-warning); }
+.calendar-legend__break svg { color: var(--cds-support-info); }
 
-.semester-calendar { display: grid; grid-template-columns: repeat(3, minmax(21rem, 1fr)); background: var(--cds-border-subtle); gap: 1px; }
-.calendar-month { min-block-size: 28rem; padding: $spacing-05; background: var(--cds-layer); }
+.semester-calendar { --calendar-month-size: 36rem; display: grid; grid-template-columns: repeat(3, minmax(21rem, 1fr)); align-items: start; background: var(--cds-border-subtle); gap: 1px; }
+.calendar-month { display: grid; grid-template-rows: auto auto 1fr; block-size: var(--calendar-month-size); min-block-size: 0; padding: $spacing-05; background: var(--cds-layer); }
 .calendar-month h3 { margin-block-end: $spacing-05; @include type-style('heading-compact-02'); }
 .calendar-weekdays,
 .calendar-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.calendar-days { min-block-size: 0; grid-template-rows: repeat(6, minmax(0, 1fr)); }
 .calendar-weekdays span { padding: $spacing-03; text-align: center; color: var(--cds-text-secondary); @include type-style('label-01'); }
-.calendar-cell { min-block-size: 5rem; padding: $spacing-02; border-block-start: 1px solid var(--cds-border-subtle); overflow: hidden; }
+.calendar-cell { min-block-size: 0; padding: $spacing-02; border-block-start: 1px solid var(--cds-border-subtle); overflow: auto; }
 .calendar-cell--empty { border: 0; }
 .semester-calendar--editor .calendar-cell--outside-period { color: var(--cds-text-disabled); background: var(--cds-layer-accent); }
 .calendar-cell__date { display: block; margin-block-end: $spacing-02; @include type-style('label-01'); }
 .calendar-cell__date-action { min-block-size: 1.75rem; margin-block-end: $spacing-02; padding-inline: $spacing-02; }
-.calendar-marker { display: flex; align-items: center; gap: $spacing-02; padding: 2px $spacing-02; margin-block-end: 2px; overflow: hidden; color: var(--cds-text-primary); background: var(--cds-support-warning-inverse); @include type-style('helper-text-01'); }
+.calendar-marker { display: flex; align-items: center; gap: $spacing-02; padding: 2px $spacing-02; margin-block-end: 2px; overflow: hidden; color: var(--cds-text-primary); border-inline-start: 3px solid var(--cds-support-warning); background: var(--cds-notification-background-warning); @include type-style('helper-text-01'); }
 .calendar-marker svg { flex: none; }
 .calendar-marker span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.calendar-marker--academicBreak { background: var(--cds-layer-accent); border-inline-start: 2px dashed var(--cds-border-strong); }
+.calendar-marker--academicBreak { border-inline-start: 3px dashed var(--cds-support-info); background: var(--cds-notification-background-info); }
+.calendar-marker--academicBreak svg { color: var(--cds-support-info); }
 .calendar-marker--continuation { color: var(--cds-text-secondary); border-inline-start-style: dotted; }
 .calendar-slot { display: block; inline-size: 100%; padding: $spacing-02; margin-block-end: 2px; text-align: start; border: 0; border-inline-start: 3px solid; background: var(--cds-layer-accent); cursor: pointer; @include type-style('helper-text-01'); }
-.calendar-slot small { display: flex; align-items: center; gap: $spacing-02; }
-.calendar-slot__time { display: block; font-weight: 600; }
+.calendar-slot__time { display: block; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.calendar-slot__indicators { display: flex; align-items: center; gap: $spacing-02; margin-block-start: 2px; }
+.calendar-slot__status,
+.calendar-slot__assignment { display: inline-flex; }
 .calendar-slot--staffed { border-color: var(--cds-support-success); background: var(--cds-notification-background-success); }
+.calendar-slot--staffed .calendar-slot__status { color: var(--cds-support-success); }
 .calendar-slot--needs-supervisor { border-inline-start-width: 5px; border-color: var(--cds-support-error); background: var(--cds-notification-background-error); }
-.calendar-slot--needs-supervisor .calendar-slot__status { font-weight: 600; }
+.calendar-slot--needs-supervisor .calendar-slot__status { color: var(--cds-support-error); }
 .calendar-slot--needs-trainee { border-color: var(--cds-support-warning); background: var(--cds-notification-background-warning); }
+.calendar-slot--needs-trainee .calendar-slot__status { color: var(--cds-support-warning); }
 .calendar-slot--cancelled { border-color: var(--cds-text-disabled); color: var(--cds-text-secondary); background: var(--cds-layer-accent); }
 .calendar-slot--mine { box-shadow: inset 0 -2px var(--cds-link-primary); }
-.calendar-slot__assignment { color: var(--cds-link-primary); font-weight: 600; }
+.calendar-slot__assignment { color: var(--cds-link-primary); }
 .calendar-slot--editable { display: flex; align-items: stretch; padding: 0; }
 .calendar-slot__main { flex: 1; min-inline-size: 0; padding: $spacing-02; text-align: start; color: inherit; border: 0; background: transparent; cursor: grab; }
 .calendar-slot__main:focus { outline: 2px solid var(--cds-focus); outline-offset: -2px; }
@@ -410,7 +422,7 @@ h2 {
 .schedule-toolbar { display: flex; align-items: flex-end; flex-wrap: wrap; gap: $spacing-05; padding: $spacing-05; background: var(--cds-layer); }
 .schedule-toolbar h2 { flex-basis: 100%; text-transform: uppercase; @include type-style('label-02'); }
 .schedule-toolbar .cds--number { inline-size: 9rem; }
-.semester-calendar--editor .calendar-cell { min-block-size: 8rem; }
+.semester-calendar--editor { --calendar-month-size: 48rem; }
 .calendar-cell--target { position: relative; z-index: 1; outline: 3px solid var(--cds-focus); outline-offset: -3px; background: var(--cds-highlight); }
 
 .open-day-management-page { max-inline-size: 90rem; }

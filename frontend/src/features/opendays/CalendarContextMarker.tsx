@@ -13,7 +13,7 @@ export function CalendarContextMarker({ entry, showBreakLabel = true }: Props) {
   const description = academicBreak
     ? `${category}: ${entry.name}, ${entry.startsOn} to ${entry.endsOn}`
     : `${category}: ${entry.name}`;
-  const visibleLabel = academicBreak && !showBreakLabel ? category : `${category}: ${entry.name}`;
+  const visibleLabel = academicBreak && !showBreakLabel ? '' : entry.name;
 
   return (
     <span
@@ -22,7 +22,7 @@ export function CalendarContextMarker({ entry, showBreakLabel = true }: Props) {
       title={description}
     >
       <Icon size={12} aria-hidden="true" />
-      <span aria-hidden="true">{visibleLabel}</span>
+      {visibleLabel && <span aria-hidden="true">{visibleLabel}</span>}
     </span>
   );
 }
