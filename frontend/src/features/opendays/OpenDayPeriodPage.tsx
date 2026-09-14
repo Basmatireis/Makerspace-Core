@@ -10,6 +10,7 @@ import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { longDate, staffingLabel, statusTagType, timeRange } from './format';
+import { filterOpenDays, openDayFilterOptions, type OpenDayFilter } from './openDayFilters';
 import { openDaySchedulePath } from './paths';
 import { openDayKeys, scheduleQueryOptions } from './queries';
 import { SemesterCalendar } from './SemesterCalendar';
@@ -20,6 +21,7 @@ export function OpenDayPeriodPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [view, setView] = useState<'table' | 'calendar'>('calendar');
+  const [filter, setFilter] = useState<OpenDayFilter>('all');
   const [pendingTransition, setPendingTransition] = useState<LifecycleAction | null>(null);
   const scheduleQuery = useQuery(scheduleQueryOptions(periodId));
   const contextQuery = useQuery({ queryKey: [...openDayKeys.schedule(periodId), 'context'], queryFn: ({ signal }) => getOpenDayCalendarContext(periodId, { signal }), enabled: Boolean(periodId) });
@@ -45,7 +47,8 @@ export function OpenDayPeriodPage() {
   if (scheduleQuery.isError || !scheduleQuery.data) return <ErrorState title="Unable to load this period" message="It may no longer be visible, or the connection failed." onRetry={() => void scheduleQuery.refetch()} />;
   const { period, items } = scheduleQuery.data;
   const lifecycleActions = actionsForStatus(period.status);
-  const rows = items.map((day) => ({ id: day.id, date: longDate(day.startsAt, scheduleQuery.data.timeZone), time: timeRange(day, scheduleQuery.data.timeZone), supervisors: requirementCount(day, 'supervisor'), trainees: requirementCount(day, 'trainee'), status: staffingLabel(day), assignment: day.myAssignment ? (day.requirements.find((item) => item.id === day.myAssignment?.requirementId)?.kind ?? 'Assigned') : '—' }));
+  const visibleItems = filterOpenDays(items, filter);
+  const rows = visibleItems.map((day) => ({ id: day.id, date: longDate(day.startsAt, scheduleQuery.data.timeZone), time: timeRange(day, scheduleQuery.data.timeZone), supervisors: requirementCount(day, 'supervisor'), trainees: requirementCount(day, 'trainee'), status: staffingLabel(day), assignment: day.myAssignment ? (day.requirements.find((item) => item.id === day.myAssignment?.requirementId)?.kind ?? 'Assigned') : '—' }));
   const headers = [{ key: 'date', header: 'Date' }, { key: 'time', header: 'Time' }, { key: 'supervisors', header: 'Supervisors' }, { key: 'trainees', header: 'Trainees' }, { key: 'status', header: 'Staffing status' }, { key: 'assignment', header: 'My assignment' }];
 
   return <Stack gap={6} className="open-day-period-page">
@@ -73,11 +76,15 @@ export function OpenDayPeriodPage() {
     >
       <p>{pendingTransition?.confirmation}</p>
     </Modal>
-    <div className="period-view-toolbar"><ContentSwitcher selectedIndex={view === 'table' ? 0 : 1} onChange={({ index }) => setView(index === 0 ? 'table' : 'calendar')} size="sm"><Switch name="table" text="Table" /><Switch name="calendar" text="Calendar" /></ContentSwitcher></div>
+    <div className="period-view-toolbar">
+      <ContentSwitcher aria-label="Filter Open Days" selectedIndex={openDayFilterOptions.findIndex((option) => option.value === filter)} onChange={({ index }) => setFilter(openDayFilterOptions[index ?? 0]?.value ?? 'all')} size="sm">
+        {openDayFilterOptions.map((option) => <Switch key={option.value} name={`filter-${option.value}`} text={option.label} />)}
+      </ContentSwitcher>
+      <ContentSwitcher aria-label="Open Days view" selectedIndex={view === 'table' ? 0 : 1} onChange={({ index }) => setView(index === 0 ? 'table' : 'calendar')} size="sm"><Switch name="table" text="Table" /><Switch name="calendar" text="Calendar" /></ContentSwitcher>
+    </div>
     {view === 'calendar' ? (
       <>
-        <div className="calendar-legend"><span className="legend-good">Fully staffed</span><span className="legend-bad">Needs staff</span><span className="legend-cancelled">Cancelled</span><span className="legend-mine">Your assignment</span><span className="legend-context">Holiday / break</span></div>
-        <SemesterCalendar startsOn={period.startsOn} endsOn={period.endsOn} days={items} entries={contextQuery.data?.entries} timeZone={scheduleQuery.data.timeZone} onOpenDay={(day) => navigate(`/open-days/${period.id}/days/${day.id}`)} />
+        <SemesterCalendar startsOn={period.startsOn} endsOn={period.endsOn} days={visibleItems} entries={contextQuery.data?.entries} timeZone={scheduleQuery.data.timeZone} onOpenDay={(day) => navigate(`/open-days/${period.id}/days/${day.id}`)} />
       </>
     ) : (
       <div className="responsive-table">

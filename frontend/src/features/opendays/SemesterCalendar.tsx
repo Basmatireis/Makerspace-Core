@@ -1,6 +1,8 @@
+import { Calendar, CheckmarkFilled, Education, InformationFilled, Misuse, UserAvatarFilledAlt, WarningFilled } from '@carbon/icons-react';
 import type { CalendarEntry, OpenDay } from '../../api/generated/models';
-import { timeRange, staffingLabel } from './format';
+import { timeRange, isFullyStaffed } from './format';
 import { dateInTimeZone } from './dateTime';
+import { hasOpenSupervisorPosition } from './openDayFilters';
 
 type Props = {
   startsOn: string;
@@ -33,33 +35,69 @@ export function SemesterCalendar({ startsOn, endsOn, days, entries = [], timeZon
   }
 
   return (
-    <div className="semester-calendar" aria-label="Semester calendar">
-      {months.map((month) => {
-        const count = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-        const mondayOffset = (new Date(month.getFullYear(), month.getMonth(), 1).getDay() + 6) % 7;
-        return (
-          <section className="calendar-month" key={month.toISOString()} aria-labelledby={`month-${month.getFullYear()}-${month.getMonth()}`}>
-            <h3 id={`month-${month.getFullYear()}-${month.getMonth()}`}>{month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h3>
-            <div className="calendar-weekdays" aria-hidden="true">{['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((day) => <span key={day}>{day}</span>)}</div>
-            <div className="calendar-days">
-              {Array.from({ length: mondayOffset }, (_, index) => <span className="calendar-cell calendar-cell--empty" key={`empty-${index}`} />)}
-              {Array.from({ length: count }, (_, index) => {
-                const date = new Date(month.getFullYear(), month.getMonth(), index + 1);
-                const key = dateKey(date);
-                const slots = byDate.get(key) ?? [];
-                const markers = entries.filter((entry) => entry.startsOn <= key && entry.endsOn >= key);
-                return (
-                  <div className="calendar-cell" key={key} aria-label={date.toLocaleDateString(undefined, { dateStyle: 'full' })}>
-                    <span className="calendar-cell__date">{index + 1}</span>
-                    {markers.map((entry) => <span className={`calendar-marker calendar-marker--${entry.source}`} key={`${entry.source}-${entry.id ?? entry.name}`}>{entry.name}</span>)}
-                    {slots.map((slot) => <button type="button" className={`calendar-slot calendar-slot--${slot.status === 'cancelled' ? 'cancelled' : staffingLabel(slot).startsWith('Needs') ? 'needs' : 'staffed'}${slot.myAssignment ? ' calendar-slot--mine' : ''}`} key={slot.id} onClick={() => onOpenDay(slot)}><span>{timeRange(slot, timeZone)}</span><small>{slot.myAssignment ? 'Your assignment' : staffingLabel(slot)}</small></button>)}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        );
-      })}
-    </div>
+    <>
+      <div className="calendar-legend" aria-label="Calendar status legend">
+        <span><CheckmarkFilled size={14} aria-hidden="true" />Fully staffed</span>
+        <span><WarningFilled size={14} aria-hidden="true" />Supervisor position open</span>
+        <span><UserAvatarFilledAlt size={14} aria-hidden="true" />Your assignment</span>
+        <span><Misuse size={14} aria-hidden="true" />Cancelled</span>
+        <span><Calendar size={14} aria-hidden="true" />Public holiday</span>
+        <span><Education size={14} aria-hidden="true" />Academic break</span>
+      </div>
+      <div className="semester-calendar" aria-label="Semester calendar">
+        {months.map((month) => {
+          const count = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+          const sundayOffset = new Date(month.getFullYear(), month.getMonth(), 1).getDay();
+          return (
+            <section className="calendar-month" key={month.toISOString()} aria-labelledby={`month-${month.getFullYear()}-${month.getMonth()}`}>
+              <h3 id={`month-${month.getFullYear()}-${month.getMonth()}`}>{month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h3>
+              <div className="calendar-weekdays" aria-hidden="true">{['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day}>{day}</span>)}</div>
+              <div className="calendar-days">
+                {Array.from({ length: sundayOffset }, (_, index) => <span className="calendar-cell calendar-cell--empty" key={`empty-${index}`} />)}
+                {Array.from({ length: count }, (_, index) => {
+                  const date = new Date(month.getFullYear(), month.getMonth(), index + 1);
+                  const key = dateKey(date);
+                  const slots = byDate.get(key) ?? [];
+                  const markers = entries.filter((entry) => entry.startsOn <= key && entry.endsOn >= key);
+                  return (
+                    <div className="calendar-cell" key={key} aria-label={date.toLocaleDateString(undefined, { dateStyle: 'full' })}>
+                      <span className="calendar-cell__date">{index + 1}</span>
+                      {markers.map((entry) => <CalendarMarker entry={entry} key={`${entry.source}-${entry.id ?? entry.name}`} />)}
+                      {slots.map((slot) => <CalendarSlot day={slot} timeZone={timeZone} onOpenDay={onOpenDay} key={slot.id} />)}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
+      </div>
+    </>
   );
+}
+
+function CalendarMarker({ entry }: { entry: CalendarEntry }) {
+  const academicBreak = entry.category === 'academicBreak';
+  const Icon = academicBreak ? Education : Calendar;
+  const category = academicBreak ? 'Academic break' : 'Public holiday';
+  return <span className={`calendar-marker calendar-marker--${entry.category}`}><Icon size={12} aria-hidden="true" /><span>{category}: {entry.name}</span></span>;
+}
+
+function CalendarSlot({ day, timeZone, onOpenDay }: { day: OpenDay; timeZone: string; onOpenDay: (day: OpenDay) => void }) {
+  const presentation = slotPresentation(day);
+  const Icon = presentation.Icon;
+  return (
+    <button type="button" className={`calendar-slot calendar-slot--${presentation.kind}${day.myAssignment ? ' calendar-slot--mine' : ''}`} onClick={() => onOpenDay(day)}>
+      <span className="calendar-slot__time">{timeRange(day, timeZone)}</span>
+      <small className="calendar-slot__status"><Icon size={12} aria-hidden="true" />{presentation.label}</small>
+      {day.myAssignment && <small className="calendar-slot__assignment"><UserAvatarFilledAlt size={12} aria-hidden="true" />Your assignment</small>}
+    </button>
+  );
+}
+
+function slotPresentation(day: OpenDay) {
+  if (day.status === 'cancelled') return { kind: 'cancelled', label: 'Cancelled', Icon: Misuse };
+  if (hasOpenSupervisorPosition(day)) return { kind: 'needs-supervisor', label: 'Supervisor position open', Icon: WarningFilled };
+  if (isFullyStaffed(day)) return { kind: 'staffed', label: 'Fully staffed', Icon: CheckmarkFilled };
+  return { kind: 'needs-trainee', label: 'Trainee position open', Icon: InformationFilled };
 }
