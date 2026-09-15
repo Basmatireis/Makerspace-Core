@@ -37,7 +37,7 @@ export function RolesPage() {
     id: role.id,
     name: role.name,
     type: role.systemKey === 'master' ? 'System' : 'Custom',
-    permissions: String(role.permissionIds.length),
+    permissions: String(role.permissionGrants.length),
   }));
   const headers = [
     { key: 'name', header: 'Role' },

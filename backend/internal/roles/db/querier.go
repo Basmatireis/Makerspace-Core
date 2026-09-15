@@ -12,13 +12,14 @@ import (
 
 type Querier interface {
 	AddRolePermission(ctx context.Context, arg AddRolePermissionParams) error
+	AddRolePermissionDeviceType(ctx context.Context, arg AddRolePermissionDeviceTypeParams) error
 	BumpRoleVersion(ctx context.Context, arg BumpRoleVersionParams) (Role, error)
 	CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error)
 	DeleteRole(ctx context.Context, arg DeleteRoleParams) (uuid.UUID, error)
 	DeleteRolePermissions(ctx context.Context, roleID uuid.UUID) error
 	GetRole(ctx context.Context, id uuid.UUID) (Role, error)
 	GetRoleForMutation(ctx context.Context, id uuid.UUID) (Role, error)
-	GetRolePermissions(ctx context.Context, roleID uuid.UUID) ([]string, error)
+	GetRolePermissionGrants(ctx context.Context, roleID uuid.UUID) ([]GetRolePermissionGrantsRow, error)
 	ListRoles(ctx context.Context) ([]Role, error)
 	RoleAssignmentCount(ctx context.Context, roleID uuid.UUID) (int64, error)
 	UpdateRole(ctx context.Context, arg UpdateRoleParams) (Role, error)

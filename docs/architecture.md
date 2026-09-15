@@ -8,7 +8,7 @@ The browser calls relative `/api/v1` routes. In development Vite proxies `/api` 
 
 ## Backend boundaries
 
-Business features own their service, repository/query, domain model, and tests. The modules are people, accounts, auth, authorization, roles, audit, and Open Days. A single thin `httpapi` adapter implements the generated strict interface and delegates business behavior to those feature services; it owns only transport mapping, cookies, and HTTP middleware. Shared platform code is limited to configuration, database setup, HTTP/error plumbing, logging, and optional telemetry integration.
+Business features own their service, repository/query, domain model, and tests. The modules are people, accounts, auth, authorization, roles, audit, managed devices, and Open Days. A single thin `httpapi` adapter implements the generated strict interface and delegates business behavior to those feature services; it owns only transport mapping, cookies, and HTTP middleware. Shared platform code is limited to configuration, database setup, HTTP/error plumbing, logging, and optional telemetry integration.
 
 Within a feature:
 
@@ -31,6 +31,9 @@ Person 1 ─── 0..1 Account 1 ─── 1 AuthIdentity(email_password)
                      ├── * Session
                      └── 0..1 active PasswordResetToken
 
+DeviceType 1 ─── * ManagedDevice
+     └── * RolePermissionDeviceType * ─── 1 RolePermission
+
 AuditEvent references an actor account and resource by nullable/minimal identifiers.
 
 OpenDayPeriod 1 ─── * OpenDay 1 ─── 2 StaffRequirement
@@ -46,7 +49,9 @@ AcademicBreak provides independently versioned calendar context.
 - **PasswordCredential** contains only the dedicated password hash and reset-required state. Its absence means no password has been set.
 - **Session** stores digests of opaque session and CSRF tokens, the account/identity, password authentication method, idle and absolute expiry, and revocation state.
 - **PasswordResetToken** stores only a token digest, expiry, target account, and nullable issuing account. Only one active reset token exists per account.
-- **Role** is operator-configurable. `master` is the sole protected system role; its permissions are computed from the application registry rather than copied into role-permission rows.
+- **Role** is operator-configurable. Each permission grant is global, valid on any authenticated managed device, or restricted to selected device types. `master` is the sole protected system role; its permissions are computed from the application registry as global rather than copied into role-permission rows.
+- **DeviceType** is administrator-maintained classification data used by scoped role grants; authorization never hard-codes names such as Reception or Laser Terminal.
+- **ManagedDevice** stores a reusable device identity, its type, token digest, expiration/revocation state, throttled last-seen time, and optimistic version. It never authenticates a user.
 - **AuditEvent** contains an action, resource type/ID, nullable actor account, time, nullable HTTP request ID, changed field names, source, and selected non-sensitive metadata.
 - **OpenDayPeriod** owns an inclusive local-date range and follows `draft ↔ staffing ↔ published → archived`. Backward transitions retain schedules and assignments; archive remains final and read-only. Its version serializes schedule edits and lifecycle changes.
 - **OpenDay** stores UTC instants, a scheduled/cancelled state, an optimistic version, and a manager-only note. Each Open Day has stable supervisor and trainee requirements. Person assignments remain as history if eligibility Roles later change.

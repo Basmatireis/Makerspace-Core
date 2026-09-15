@@ -133,6 +133,22 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 			writeAPIError(w, r, err, logger)
 			return
 		}
+		device, err := s.managedDevices.Authenticate(r.Context(), r.Header.Get("X-Managed-Device-Token"))
+		if err != nil {
+			writeAPIError(w, r, err, logger)
+			return
+		}
+		var deviceContext *authorization.ManagedDevice
+		if device != nil {
+			deviceContext = &authorization.ManagedDevice{ID: device.ID, Name: device.Name, DeviceTypeID: device.DeviceTypeID, DeviceTypeName: device.DeviceTypeName, ExpiresAt: device.ExpiresAt}
+		}
+		if deviceContext != nil {
+			authenticated, err = s.auth.WithDevice(r.Context(), authenticated, deviceContext)
+			if err != nil {
+				writeAPIError(w, r, err, logger)
+				return
+			}
+		}
 		if isUnsafeMethod(r.Method) {
 			csrfCookie, err := r.Cookie(s.config.CSRFCookieName)
 			if err != nil {
@@ -182,7 +198,8 @@ func maxBodyMiddleware(next http.Handler) http.Handler {
 
 func noStoreMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, apiBasePath+"/auth/") || strings.HasSuffix(r.URL.Path, "/password-reset") {
+		if strings.HasPrefix(r.URL.Path, apiBasePath+"/auth/") || strings.HasSuffix(r.URL.Path, "/password-reset") ||
+			(r.Method == http.MethodPost && r.URL.Path == apiBasePath+"/managed-devices") || strings.HasSuffix(r.URL.Path, "/token") {
 			w.Header().Set("Cache-Control", "no-store")
 		}
 		next.ServeHTTP(w, r)

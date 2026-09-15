@@ -141,6 +141,17 @@ func (s *Service) Authenticate(ctx context.Context, sessionToken string) (Authen
 	return Authenticated{Principal: principal, CSRFDigest: row.CsrfDigest}, nil
 }
 
+func (s *Service) WithDevice(ctx context.Context, authenticated Authenticated, device *authorization.ManagedDevice) (Authenticated, error) {
+	principal := authenticated.Principal
+	principal.Device = device
+	principal, err := authorization.LoadPermissionsFrom(ctx, s.pool, principal)
+	if err != nil {
+		return Authenticated{}, err
+	}
+	authenticated.Principal = principal
+	return authenticated, nil
+}
+
 func ValidateCSRF(authenticated Authenticated, cookieToken, headerToken string) error {
 	if cookieToken == "" || headerToken == "" || subtle.ConstantTimeCompare([]byte(cookieToken), []byte(headerToken)) != 1 {
 		return apperror.New(403, "csrf_invalid", "CSRF validation failed")

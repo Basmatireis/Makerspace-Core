@@ -9,6 +9,7 @@ import { RoleCreatePage } from '../features/roles/RoleCreatePage';
 import { RoleDetailPage } from '../features/roles/RoleDetailPage';
 import { RolesPage } from '../features/roles/RolesPage';
 import { SettingsPage } from '../features/settings/SettingsPage';
+import { ManagedDevicesPage } from '../features/devices/ManagedDevicesPage';
 import { UserCreatePage } from '../features/users/UserCreatePage';
 import { UserDetailPage } from '../features/users/UserDetailPage';
 import { UsersPage } from '../features/users/UsersPage';
@@ -60,10 +61,22 @@ export function App() {
         <Route
           path="settings"
           element={
-            <PermissionRoute anyOf={[PermissionId.peoplereadall, PermissionId.rolesread]}>
+            <PermissionRoute anyOf={[
+              PermissionId.peoplereadall,
+              PermissionId.rolesread,
+              PermissionId.managed_devicesread,
+            ]}>
               <SettingsPage />
             </PermissionRoute>
           }
+        />
+        <Route
+          path="settings/managed-devices"
+          element={(
+            <PermissionRoute allOf={[PermissionId.managed_devicesread]}>
+              <ManagedDevicesPage />
+            </PermissionRoute>
+          )}
         />
         <Route
           path="settings/users"

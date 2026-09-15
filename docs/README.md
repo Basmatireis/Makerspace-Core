@@ -5,6 +5,7 @@
 - [Authentication and sessions](authentication.md)
 - [Bootstrap, recovery, cleanup, and deployment operations](operations.md)
 - [Authorization](authorization.md)
+- [Managed devices](managed-devices.md)
 - [Development and generation workflow](development.md)
 - [Observability](observability.md)
 

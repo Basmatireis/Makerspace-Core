@@ -10,7 +10,7 @@ function role(id: string, name: string) {
     name,
     description: null,
     systemKey: null,
-    permissionIds: [],
+    permissionGrants: [],
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
     version: 1,

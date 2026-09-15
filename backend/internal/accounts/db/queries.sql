@@ -75,8 +75,12 @@ ORDER BY r.system_key DESC NULLS LAST, lower(r.name), r.id;
 -- name: GetRoleForAssignment :one
 SELECT * FROM roles WHERE id = sqlc.arg(id) FOR SHARE;
 
--- name: GetRolePermissionsForAssignment :many
-SELECT permission_id FROM role_permissions WHERE role_id = sqlc.arg(role_id) ORDER BY permission_id;
+-- name: GetRolePermissionGrantsForAssignment :many
+SELECT rp.permission_id, rp.scope, rpdt.device_type_id
+FROM role_permissions rp LEFT JOIN role_permission_device_types rpdt
+  ON rpdt.role_id = rp.role_id AND rpdt.permission_id = rp.permission_id
+WHERE rp.role_id = sqlc.arg(role_id)
+ORDER BY rp.permission_id, rpdt.device_type_id;
 
 -- name: IsAccountRoleAssigned :one
 SELECT EXISTS (SELECT 1 FROM account_roles WHERE account_id = sqlc.arg(account_id) AND role_id = sqlc.arg(role_id));

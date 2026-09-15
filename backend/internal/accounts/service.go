@@ -427,7 +427,7 @@ func (s *Service) ChangeRole(ctx context.Context, principal authorization.Princi
 	if err != nil {
 		return Account{}, err
 	}
-	permissions, err := queries.GetRolePermissionsForAssignment(ctx, roleID)
+	permissions, err := queries.GetRolePermissionGrantsForAssignment(ctx, roleID)
 	if err != nil {
 		return Account{}, err
 	}
@@ -436,16 +436,25 @@ func (s *Service) ChangeRole(ctx context.Context, principal authorization.Princi
 			return Account{}, apperror.PermissionDenied
 		}
 	} else {
+		grants := map[authorization.Permission]authorization.PermissionGrant{}
 		for _, permission := range permissions {
-			permissionID := authorization.Permission(permission)
+			permissionID := authorization.Permission(permission.PermissionID)
 			if !authorization.Known(permissionID) {
-				slog.WarnContext(ctx, "unknown stored permission blocked role assignment", "role_id", roleID, "permission_id", permission)
+				slog.WarnContext(ctx, "unknown stored permission blocked role assignment", "role_id", roleID, "permission_id", permission.PermissionID)
 				if !principal.Master {
 					return Account{}, apperror.PermissionDenied
 				}
 				continue
 			}
-			if !principal.Master && !principal.Has(permissionID) {
+			grant := grants[permissionID]
+			if grant.PermissionID == "" {
+				grant = authorization.PermissionGrant{PermissionID: permissionID, Scope: authorization.GrantScope(permission.Scope)}
+			}
+			if permission.DeviceTypeID != nil {
+				grant.DeviceTypeIDs = append(grant.DeviceTypeIDs, *permission.DeviceTypeID)
+			}
+			grants[permissionID] = grant
+			if !principal.Master && !principal.CanDelegate(grant) {
 				return Account{}, apperror.PermissionDenied
 			}
 		}

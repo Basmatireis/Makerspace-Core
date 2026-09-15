@@ -31,6 +31,16 @@ Authorization is based on application-registered permission identifiers. Backend
 | `open_days.signup` | Join and leave an eligible Open Day requirement as the current Person. |
 | `open_days.assign` | Search minimal eligible identities and administratively add or remove assignments. |
 | `open_days.manage` | Manage periods, schedules, eligibility, academic breaks, and lifecycle state. |
+| `managed_devices.read` | Read managed devices and device-type catalog entries. |
+| `managed_devices.manage` | Administer managed devices, their tokens, and device types. |
+
+## Device-scoped grants
+
+Each role permission grant is global, valid on any currently valid managed
+device, or restricted to selected administrator-managed device types. Device
+scope is evaluated server-side alongside the ordinary user session; resource
+scope such as `people.read.self` remains independent. The `master` role retains
+its existing global bypass.
 
 The registry in application code is authoritative. Database RolePermission rows may reference only identifiers in this registry; unknown values from stale data or client requests never become effective. Additions require coordinated backend registry, OpenAPI enum, documentation, and authorization tests.
 

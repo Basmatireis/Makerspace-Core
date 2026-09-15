@@ -1,5 +1,5 @@
 import { Column, Grid, Stack, ClickableTile } from '@carbon/react';
-import { Group, UserMultiple } from '@carbon/icons-react';
+import { Devices, Group, UserMultiple } from '@carbon/icons-react';
 import { PageHeader } from '../../app/PageHeader';
 import { useCurrentUser } from '../auth/auth';
 import { hasAnyPermission, PermissionId } from '../auth/permissions';
@@ -10,6 +10,7 @@ export function SettingsPage() {
     PermissionId.peoplereadall,
   ]);
   const canUseRoles = hasAnyPermission(currentUser, [PermissionId.rolesread]);
+  const canUseDevices = hasAnyPermission(currentUser, [PermissionId.managed_devicesread]);
 
   return (
     <Stack gap={8}>
@@ -39,6 +40,19 @@ export function SettingsPage() {
                 <div>
                   <h2>Roles</h2>
                   <p>Configure reusable permission sets for accounts.</p>
+                </div>
+              </Stack>
+            </ClickableTile>
+          </Column>
+        )}
+        {canUseDevices && (
+          <Column sm={4} md={4} lg={5}>
+            <ClickableTile href="/settings/managed-devices" className="settings-tile">
+              <Stack gap={5}>
+                <Devices size={32} />
+                <div>
+                  <h2>Managed devices</h2>
+                  <p>Register trusted terminals and device types.</p>
                 </div>
               </Stack>
             </ClickableTile>

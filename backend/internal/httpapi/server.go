@@ -3,11 +3,13 @@ package httpapi
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
@@ -25,15 +27,16 @@ const apiBasePath = "/api/v1"
 // service calls. Business validation, authorization, transactions, and audit
 // writes deliberately remain in those services.
 type Server struct {
-	pool        *pgxpool.Pool
-	config      config.Config
-	auth        *auth.Service
-	people      *people.Service
-	accounts    *accounts.Service
-	permissions *authorization.Service
-	roles       *roles.Service
-	audit       *audit.Service
-	opendays    *opendays.Service
+	pool           *pgxpool.Pool
+	config         config.Config
+	auth           *auth.Service
+	people         *people.Service
+	accounts       *accounts.Service
+	permissions    *authorization.Service
+	roles          *roles.Service
+	audit          *audit.Service
+	opendays       *opendays.Service
+	managedDevices *manageddevices.Service
 }
 
 func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
@@ -46,15 +49,16 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		return nil, fmt.Errorf("initialize Open Days: %w", err)
 	}
 	return &Server{
-		pool:        pool,
-		config:      cfg,
-		auth:        authService,
-		people:      people.NewService(pool),
-		accounts:    accounts.NewService(pool, cfg),
-		permissions: authorization.NewService(),
-		roles:       roles.NewService(pool),
-		audit:       audit.NewService(pool),
-		opendays:    openDaysService,
+		pool:           pool,
+		config:         cfg,
+		auth:           authService,
+		people:         people.NewService(pool),
+		accounts:       accounts.NewService(pool, cfg),
+		permissions:    authorization.NewService(),
+		roles:          roles.NewService(pool),
+		audit:          audit.NewService(pool),
+		opendays:       openDaysService,
+		managedDevices: manageddevices.NewService(pool),
 	}, nil
 }
 
@@ -263,8 +267,16 @@ func (s *Server) GetCurrentUser(ctx context.Context, _ openapi.GetCurrentUserReq
 	for _, permission := range permissions {
 		permissionIDs = append(permissionIDs, openapi.PermissionId(permission))
 	}
+	delegable := make([]openapi.PermissionGrant, 0)
+	for _, grant := range principal.DelegablePermissionGrants() {
+		delegable = append(delegable, grantDTO(grant))
+	}
+	device := nullable.NewNullNullable[openapi.ManagedDeviceContext]()
+	if principal.Device != nil {
+		device = nullable.NewNullableWithValue(openapi.ManagedDeviceContext{Id: principal.Device.ID, Name: principal.Device.Name, DeviceTypeId: principal.Device.DeviceTypeID, DeviceTypeName: principal.Device.DeviceTypeName, ExpiresAt: nullablePointer[time.Time](principal.Device.ExpiresAt, func(v time.Time) time.Time { return v })})
+	}
 	return openapi.GetCurrentUser200JSONResponse{
-		Body:    openapi.CurrentUser{Account: accountDTO(account), Person: personResponse, Permissions: permissionIDs},
+		Body:    openapi.CurrentUser{Account: accountDTO(account), Person: personResponse, Permissions: permissionIDs, ManagedDevice: device, DelegablePermissionGrants: delegable},
 		Headers: openapi.GetCurrentUser200ResponseHeaders{CacheControl: "no-store"},
 	}, nil
 }
@@ -474,7 +486,11 @@ func (s *Server) CreateRole(ctx context.Context, request openapi.CreateRoleReque
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	role, err := s.roles.Create(ctx, principal, request.Body.Name, nullableStringPointer(request.Body.Description), permissionStrings(request.Body.PermissionIds), requestIDPointer(ctx))
+	grants := make([]authorization.PermissionGrant, 0, len(request.Body.PermissionGrants))
+	for _, grant := range request.Body.PermissionGrants {
+		grants = append(grants, grantDomain(grant))
+	}
+	role, err := s.roles.Create(ctx, principal, request.Body.Name, nullableStringPointer(request.Body.Description), grants, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -533,7 +549,11 @@ func (s *Server) ReplaceRolePermissions(ctx context.Context, request openapi.Rep
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	role, err := s.roles.ReplacePermissions(ctx, principal, request.RoleId, request.Body.ExpectedVersion, permissionStrings(request.Body.PermissionIds), requestIDPointer(ctx))
+	grants := make([]authorization.PermissionGrant, 0, len(request.Body.PermissionGrants))
+	for _, grant := range request.Body.PermissionGrants {
+		grants = append(grants, grantDomain(grant))
+	}
+	role, err := s.roles.ReplacePermissions(ctx, principal, request.RoleId, request.Body.ExpectedVersion, grants, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -596,12 +616,12 @@ func roleSummaryDTO(role accounts.RoleSummary) openapi.RoleSummary {
 }
 
 func roleDTO(role roles.Role) openapi.Role {
-	permissionIDs := make([]openapi.PermissionId, 0, len(role.PermissionIDs))
-	for _, permission := range role.PermissionIDs {
-		permissionIDs = append(permissionIDs, openapi.PermissionId(permission))
+	grants := make([]openapi.PermissionGrant, 0, len(role.PermissionGrants))
+	for _, grant := range role.PermissionGrants {
+		grants = append(grants, grantDTO(grant))
 	}
 	response := openapi.Role{
-		Id: role.ID, Name: role.Name, PermissionIds: permissionIDs, Version: role.Version,
+		Id: role.ID, Name: role.Name, PermissionGrants: grants, Version: role.Version,
 		CreatedAt: role.CreatedAt, UpdatedAt: role.UpdatedAt,
 		Description: nullablePointer[string](role.Description, func(value string) string { return value }),
 	}

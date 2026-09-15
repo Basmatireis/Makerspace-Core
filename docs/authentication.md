@@ -16,6 +16,13 @@ Successful `POST /api/v1/auth/login` creates random session and CSRF tokens. Pos
 
 Default limits are a sliding six-hour idle lifetime and a fixed 72-hour absolute lifetime. The server evaluates current account status, credential reset state, and effective permissions on every request, so disablement and role changes take effect without waiting for a cached claim or JWT to expire.
 
+Requests may independently carry the optional `X-Managed-Device-Token` bearer
+credential. It answers which trusted terminal is making the request and never
+answers who the user is. It is not merged into the session cookie. Unknown,
+malformed, expired, and revoked device credentials are treated as absent, so
+global permissions on a valid user session keep working while device-scoped
+permissions disappear immediately. See [managed devices](managed-devices.md).
+
 Development uses:
 
 - `makerspace_session`: HttpOnly, SameSite=Lax, Path=/

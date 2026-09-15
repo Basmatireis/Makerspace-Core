@@ -116,7 +116,7 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	assertStatus(t, response, http.StatusCreated)
 	var account openapi.Account
 	decodeResponse(t, response, &account)
-	if account.Status != openapi.Disabled || account.PasswordStatus != openapi.NotSet {
+	if account.Status != openapi.Disabled || account.PasswordStatus != openapi.PasswordStatusNotSet {
 		t.Fatalf("new account state = %s/%s", account.Status, account.PasswordStatus)
 	}
 
@@ -133,7 +133,7 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 
 	response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/roles", origin, adminCSRF, map[string]any{
 		"name": "Member self-service", "description": "May read and update only the linked person",
-		"permissionIds": []string{"people.read.self", "people.update.self"},
+		"permissionGrants": []map[string]any{{"permissionId": "people.read.self", "scope": "everywhere", "deviceTypeIds": []string{}}, {"permissionId": "people.update.self", "scope": "everywhere", "deviceTypeIds": []string{}}},
 	})
 	assertStatus(t, response, http.StatusCreated)
 	var role openapi.Role

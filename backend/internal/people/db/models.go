@@ -50,6 +50,28 @@ type AuthIdentity struct {
 	UpdatedAt            time.Time
 }
 
+type DeviceType struct {
+	ID          uuid.UUID
+	Name        string
+	Description *string
+	Version     int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type ManagedDevice struct {
+	ID           uuid.UUID
+	Name         string
+	DeviceTypeID uuid.UUID
+	TokenDigest  []byte
+	ExpiresAt    pgtype.Timestamptz
+	RevokedAt    pgtype.Timestamptz
+	LastSeenAt   pgtype.Timestamptz
+	Version      int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 type OpenDay struct {
 	ID           uuid.UUID
 	PeriodID     uuid.UUID
@@ -146,6 +168,13 @@ type Role struct {
 type RolePermission struct {
 	RoleID       uuid.UUID
 	PermissionID string
+	Scope        string
+}
+
+type RolePermissionDeviceType struct {
+	RoleID       uuid.UUID
+	PermissionID string
+	DeviceTypeID uuid.UUID
 }
 
 type Session struct {

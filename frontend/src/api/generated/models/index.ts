@@ -10,6 +10,12 @@ property is unavailable or unchanged, `null` clears or represents no value,
 and a non-null value is present. In particular, `matriculationNumber` is
 omitted from responses unless the caller has `people.read.matriculation`.
 
+Every session-authenticated operation also accepts the optional
+`X-Managed-Device-Token` credential declared below. OpenAPI security
+requirements cannot express an optional second credential without changing
+their boolean meaning, so the server evaluates this header independently of
+the required session and CSRF credentials.
+
  * OpenAPI spec version: 0.1.0
  */
 
@@ -33,12 +39,15 @@ export * from './completePasswordResetRequest';
 export * from './conflictResponse';
 export * from './createAcademicBreakRequest';
 export * from './createAccountRequest';
+export * from './createManagedDeviceRequest';
+export * from './createManagedDeviceTypeRequest';
 export * from './createOpenDayPeriodRequest';
 export * from './createOpenDayRequest';
 export * from './createPersonRequest';
 export * from './createPersonRequestEmail';
 export * from './createRoleRequest';
 export * from './currentUser';
+export * from './currentUserManagedDevice';
 export * from './cursorParameter';
 export * from './eligibilityRole';
 export * from './eligibilityRoleList';
@@ -54,11 +63,19 @@ export * from './internalServerErrorResponse';
 export * from './joinOpenDayRequest';
 export * from './limitParameter';
 export * from './listAuditEventsParams';
+export * from './listManagedDevicesParams';
 export * from './listOpenDayEligiblePeopleParams';
 export * from './listPeopleParams';
 export * from './listPermissions200';
 export * from './listRolesParams';
 export * from './loginRequest';
+export * from './managedDevice';
+export * from './managedDeviceContext';
+export * from './managedDeviceList';
+export * from './managedDeviceProvisioning';
+export * from './managedDeviceStatus';
+export * from './managedDeviceType';
+export * from './managedDeviceTypeList';
 export * from './minimalPerson';
 export * from './newPassword';
 export * from './notFoundResponse';
@@ -78,6 +95,8 @@ export * from './pageSizeParameter';
 export * from './passwordResetIssue';
 export * from './passwordStatus';
 export * from './permission';
+export * from './permissionGrant';
+export * from './permissionGrantScope';
 export * from './permissionId';
 export * from './person';
 export * from './personAccount';
@@ -96,6 +115,7 @@ export * from './rolePage';
 export * from './roleSummary';
 export * from './roleSummarySystemKey';
 export * from './roleSystemKey';
+export * from './rotateManagedDeviceTokenRequest';
 export * from './saveOpenDayScheduleRequest';
 export * from './scheduleCreate';
 export * from './scheduleRemoval';
@@ -109,6 +129,8 @@ export * from './unprocessableEntityResponse';
 export * from './updateAcademicBreakRequest';
 export * from './updateAcademicBreakRequestAllOf';
 export * from './updateLoginEmailRequest';
+export * from './updateManagedDeviceRequest';
+export * from './updateManagedDeviceTypeRequest';
 export * from './updateOpenDayPeriodRequest';
 export * from './updateOpenDayRequest';
 export * from './updateOpenDayRequestAllOf';

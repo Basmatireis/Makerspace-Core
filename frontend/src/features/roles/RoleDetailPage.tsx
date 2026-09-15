@@ -17,14 +17,14 @@ import { TrashCan } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
-import type { PermissionId, Role, UpdateRoleRequest } from '../../api/generated/models';
+import type { PermissionGrant, Role, UpdateRoleRequest } from '../../api/generated/models';
 import { deleteRole, replaceRolePermissions, updateRole } from '../../api/generated/roles/roles';
 import { PageHeader } from '../../app/PageHeader';
 import { ErrorState, FullPageLoading, InlineLoadingState } from '../../app/PageState';
 import { authQueryKey, useCurrentUser } from '../auth/auth';
-import { hasPermission, PermissionId as PermissionIds } from '../auth/permissions';
+import { grantCoveredBy, hasPermission, permissionGrantsValid, PermissionId as PermissionIds } from '../auth/permissions';
 import { PermissionChecklist } from './PermissionChecklist';
-import { permissionListOptions, roleKeys, roleOptions } from './queries';
+import { deviceTypeListOptions, permissionListOptions, roleKeys, roleOptions } from './queries';
 
 type RoleMetadataForm = { name: string; description: string };
 
@@ -42,7 +42,9 @@ function RoleDetailContent({ role }: { role: Role }) {
   const queryClient = useQueryClient();
   const permissionQuery = useQuery(permissionListOptions);
   const isMasterActor = currentUser.account.roles.some((assignedRole) => assignedRole.systemKey === 'master');
-  const roleIsSubset = role.permissionIds.every((permission) => currentUser.permissions.includes(permission));
+  const roleIsSubset = role.permissionGrants.every((grant) =>
+    currentUser.delegablePermissionGrants.some((own) => grantCoveredBy(own, grant)),
+  );
   const canManage = hasPermission(currentUser, PermissionIds.rolesmanage) &&
     role.systemKey !== 'master' &&
     (isMasterActor || roleIsSubset);
@@ -50,10 +52,11 @@ function RoleDetailContent({ role }: { role: Role }) {
   const [editingPermissions, setEditingPermissions] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const deleteButtonRef = useRef<HTMLButtonElement>(null);
-  const [selectedPermissions, setSelectedPermissions] = useState<PermissionId[]>(role.permissionIds);
+  const [permissionGrants, setPermissionGrants] = useState<PermissionGrant[]>(role.permissionGrants);
+  const deviceTypesQuery = useQuery(deviceTypeListOptions);
   const form = useForm<RoleMetadataForm>({ defaultValues: { name: role.name, description: role.description ?? '' } });
 
-  useEffect(() => setSelectedPermissions(role.permissionIds), [role.permissionIds]);
+  useEffect(() => setPermissionGrants(role.permissionGrants), [role.permissionGrants]);
   const updateMutation = useMutation({
     mutationFn: (request: UpdateRoleRequest) => updateRole(role.id, request),
     onSuccess: async (updated) => {
@@ -66,7 +69,7 @@ function RoleDetailContent({ role }: { role: Role }) {
     },
   });
   const permissionMutation = useMutation({
-    mutationFn: () => replaceRolePermissions(role.id, { permissionIds: selectedPermissions, expectedVersion: role.version }),
+    mutationFn: () => replaceRolePermissions(role.id, { permissionGrants, expectedVersion: role.version }),
     onSuccess: async (updated) => {
       queryClient.setQueryData(roleKeys.detail(role.id), updated);
       setEditingPermissions(false);
@@ -118,11 +121,11 @@ function RoleDetailContent({ role }: { role: Role }) {
       </Tile>
       <Tile>
         <Stack gap={6}>
-          <div className="section-heading"><div><h2>Permissions</h2><p className="section-description">{role.permissionIds.length} assigned</p></div>{canManage && !editingPermissions && <Button kind="ghost" size="sm" onClick={() => setEditingPermissions(true)}>Edit</Button>}</div>
+          <div className="section-heading"><div><h2>Permissions</h2><p className="section-description">{role.permissionGrants.length} assigned</p></div>{canManage && !editingPermissions && <Button kind="ghost" size="sm" onClick={() => setEditingPermissions(true)}>Edit</Button>}</div>
           {permissionQuery.isPending && <InlineLoadingState label="Loading permissions" />}
           {permissionQuery.isError && <ErrorState message="Unable to load permission definitions." onRetry={() => void permissionQuery.refetch()} />}
-          {permissionQuery.data && <PermissionChecklist permissions={permissionQuery.data.items} selected={editingPermissions ? selectedPermissions : role.permissionIds} allowed={currentUser.permissions} disabled={!editingPermissions} onChange={setSelectedPermissions} />}
-          {editingPermissions && <div className="form-actions"><Button kind="secondary" onClick={() => { setSelectedPermissions(role.permissionIds); setEditingPermissions(false); }}>Cancel</Button><Button disabled={permissionMutation.isPending} onClick={() => permissionMutation.mutate()}>Save permissions</Button></div>}
+          {permissionQuery.data && <PermissionChecklist permissions={permissionQuery.data.items} grants={editingPermissions ? permissionGrants : role.permissionGrants} allowed={currentUser.delegablePermissionGrants} deviceTypes={deviceTypesQuery.data?.items ?? []} disabled={!editingPermissions} onChange={setPermissionGrants} />}
+          {editingPermissions && <div className="form-actions"><Button kind="secondary" onClick={() => { setPermissionGrants(role.permissionGrants); setEditingPermissions(false); }}>Cancel</Button><Button disabled={permissionMutation.isPending || !permissionGrantsValid(permissionGrants)} onClick={() => permissionMutation.mutate()}>Save permissions</Button></div>}
         </Stack>
       </Tile>
       <ComposedModal open={deleteOpen} danger launcherButtonRef={deleteButtonRef} onClose={() => setDeleteOpen(false)}>

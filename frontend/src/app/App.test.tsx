@@ -36,6 +36,19 @@ describe('protected application routing', () => {
     expect(screen.queryByRole('heading', { name: 'Roles' })).not.toBeInTheDocument();
   });
 
+  it('shows the managed-devices settings tile only with inventory access', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(currentUserFixture([PermissionId.managed_devicesread])),
+      ),
+    );
+    renderRoute(<App />, '/settings');
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Managed devices' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Members' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Roles' })).not.toBeInTheDocument();
+  });
+
   it('shows Open Days navigation only with an Open Days read or manage permission', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
@@ -89,7 +102,7 @@ describe('role protection UX', () => {
           name: 'Master',
           description: 'Protected master role',
           systemKey: 'master',
-          permissionIds: [PermissionId.rolesread, PermissionId.rolesmanage],
+          permissionGrants: [PermissionId.rolesread, PermissionId.rolesmanage].map((permissionId) => ({permissionId, scope:'everywhere', deviceTypeIds:[]})),
           createdAt: '2026-01-01T00:00:00Z',
           updatedAt: '2026-01-01T00:00:00Z',
           version: 2,

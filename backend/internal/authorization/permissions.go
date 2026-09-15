@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"sort"
+	"time"
 
 	authorizationdb "github.com/Basmatireis/Makerspace-Core/backend/internal/authorization/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
@@ -38,6 +39,8 @@ const (
 	OpenDaysSignup            Permission = Permission(openapi.OpenDaysSignup)
 	OpenDaysAssign            Permission = Permission(openapi.OpenDaysAssign)
 	OpenDaysManage            Permission = Permission(openapi.OpenDaysManage)
+	ManagedDevicesRead        Permission = Permission(openapi.ManagedDevicesRead)
+	ManagedDevicesManage      Permission = Permission(openapi.ManagedDevicesManage)
 )
 
 type Definition struct {
@@ -52,6 +55,7 @@ var registry = []Permission{
 	AccountsLoginEmailUpdate, AccountsPasswordSet, AccountsPasswordReset, AccountsRolesAssign,
 	RolesRead, RolesManage, AuditRead,
 	OpenDaysRead, OpenDaysReadAssignments, OpenDaysSignup, OpenDaysAssign, OpenDaysManage,
+	ManagedDevicesRead, ManagedDevicesManage,
 }
 
 var known = func() map[Permission]struct{} {
@@ -88,6 +92,29 @@ var descriptions = map[Permission]string{
 	OpenDaysSignup:            "Sign up for and leave eligible Open Day assignments.",
 	OpenDaysAssign:            "Assign and remove eligible people on Open Days.",
 	OpenDaysManage:            "Manage Open Day periods, schedules, calendar context, and lifecycle.",
+	ManagedDevicesRead:        "Read managed devices and device types.",
+	ManagedDevicesManage:      "Create, edit, revoke, rotate, and delete managed devices and device types.",
+}
+
+type GrantScope string
+
+const (
+	GrantEverywhere          GrantScope = "global"
+	GrantAnyManagedDevice    GrantScope = "managed_device"
+	GrantSelectedDeviceTypes GrantScope = "device_type"
+)
+
+type PermissionGrant struct {
+	PermissionID  Permission
+	Scope         GrantScope
+	DeviceTypeIDs []uuid.UUID
+}
+type ManagedDevice struct {
+	ID             uuid.UUID
+	Name           string
+	DeviceTypeID   uuid.UUID
+	DeviceTypeName string
+	ExpiresAt      *time.Time
 }
 
 type Principal struct {
@@ -99,6 +126,8 @@ type Principal struct {
 	LoginEmail  string
 	Master      bool
 	permissions map[Permission]struct{}
+	grants      map[Permission]PermissionGrant
+	Device      *ManagedDevice
 }
 
 func Registry() []Permission {
@@ -172,6 +201,7 @@ func LoadPermissions(ctx context.Context, queries authorizationdb.Querier, princ
 	// after its master assignment has been removed.
 	principal.Master = false
 	principal.permissions = make(map[Permission]struct{})
+	principal.grants = make(map[Permission]PermissionGrant)
 	for _, row := range rows {
 		if row.SystemKey != nil && *row.SystemKey == "master" {
 			principal.Master = true
@@ -188,7 +218,122 @@ func LoadPermissions(ctx context.Context, queries authorizationdb.Querier, princ
 			)
 			continue
 		}
-		principal.permissions[permission] = struct{}{}
+		rowScope := GrantEverywhere
+		if row.Scope != nil {
+			rowScope = GrantScope(*row.Scope)
+		}
+		if !validGrantScope(rowScope) {
+			slog.WarnContext(ctx, "ignored stored permission with invalid scope",
+				"account_id", principal.AccountID,
+				"role_id", row.RoleID,
+				"permission_id", *row.PermissionID,
+			)
+			continue
+		}
+		grant := principal.grants[permission]
+		if grant.PermissionID == "" {
+			grant = PermissionGrant{PermissionID: permission, Scope: rowScope}
+		}
+		if grant.Scope == GrantEverywhere || rowScope == GrantEverywhere {
+			grant.Scope = GrantEverywhere
+			grant.DeviceTypeIDs = nil
+		} else if grant.Scope == GrantAnyManagedDevice || rowScope == GrantAnyManagedDevice {
+			grant.Scope = GrantAnyManagedDevice
+			grant.DeviceTypeIDs = nil
+		} else if row.DeviceTypeID != nil {
+			grant.DeviceTypeIDs = appendUniqueUUID(grant.DeviceTypeIDs, *row.DeviceTypeID)
+		}
+		principal.grants[permission] = grant
+	}
+	for permission, grant := range principal.grants {
+		if principal.grantEffective(grant) {
+			principal.permissions[permission] = struct{}{}
+		}
 	}
 	return principal, nil
+}
+
+func (p Principal) grantEffective(grant PermissionGrant) bool {
+	if p.Master || grant.Scope == GrantEverywhere {
+		return true
+	}
+	if p.Device == nil {
+		return false
+	}
+	if grant.Scope == GrantAnyManagedDevice {
+		return true
+	}
+	if grant.Scope != GrantSelectedDeviceTypes || len(grant.DeviceTypeIDs) == 0 {
+		return false
+	}
+	for _, id := range grant.DeviceTypeIDs {
+		if id == p.Device.DeviceTypeID {
+			return true
+		}
+	}
+	return false
+}
+
+func (p Principal) DelegablePermissionGrants() []PermissionGrant {
+	if p.Master {
+		result := make([]PermissionGrant, 0, len(registry))
+		for _, v := range Registry() {
+			result = append(result, PermissionGrant{PermissionID: v, Scope: GrantEverywhere})
+		}
+		return result
+	}
+	result := make([]PermissionGrant, 0, len(p.grants))
+	for _, grant := range p.grants {
+		result = append(result, grant)
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].PermissionID < result[j].PermissionID })
+	return result
+}
+
+func (p Principal) CanDelegate(grant PermissionGrant) bool {
+	if p.Master {
+		return true
+	}
+	if !validGrantScope(grant.Scope) || (grant.Scope == GrantSelectedDeviceTypes && len(grant.DeviceTypeIDs) == 0) {
+		return false
+	}
+	envelope, ok := p.grants[grant.PermissionID]
+	if !ok || !validGrantScope(envelope.Scope) || (envelope.Scope == GrantSelectedDeviceTypes && len(envelope.DeviceTypeIDs) == 0) {
+		return false
+	}
+	if envelope.Scope == GrantEverywhere {
+		return true
+	}
+	if grant.Scope == GrantEverywhere {
+		return false
+	}
+	if envelope.Scope == GrantAnyManagedDevice {
+		return true
+	}
+	if grant.Scope == GrantAnyManagedDevice {
+		return false
+	}
+	have := map[uuid.UUID]struct{}{}
+	for _, id := range envelope.DeviceTypeIDs {
+		have[id] = struct{}{}
+	}
+	for _, id := range grant.DeviceTypeIDs {
+		if _, ok := have[id]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+func validGrantScope(scope GrantScope) bool {
+	return scope == GrantEverywhere || scope == GrantAnyManagedDevice || scope == GrantSelectedDeviceTypes
+}
+
+func appendUniqueUUID(values []uuid.UUID, candidate uuid.UUID) []uuid.UUID {
+	for _, value := range values {
+		if value == candidate {
+			return values
+		}
+	}
+	return append(values, candidate)
 }

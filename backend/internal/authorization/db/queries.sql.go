@@ -12,16 +12,20 @@ import (
 )
 
 const getPrincipalRolePermissions = `-- name: GetPrincipalRolePermissions :many
-SELECT r.id AS role_id, r.system_key, rp.permission_id
+SELECT r.id AS role_id, r.system_key, rp.permission_id, rp.scope, rpdt.device_type_id
 FROM account_roles ar JOIN roles r ON r.id = ar.role_id
 LEFT JOIN role_permissions rp ON rp.role_id = r.id
-WHERE ar.account_id = $1 ORDER BY r.id, rp.permission_id
+LEFT JOIN role_permission_device_types rpdt
+  ON rpdt.role_id = rp.role_id AND rpdt.permission_id = rp.permission_id
+WHERE ar.account_id = $1 ORDER BY r.id, rp.permission_id, rpdt.device_type_id
 `
 
 type GetPrincipalRolePermissionsRow struct {
 	RoleID       uuid.UUID
 	SystemKey    *string
 	PermissionID *string
+	Scope        *string
+	DeviceTypeID *uuid.UUID
 }
 
 func (q *Queries) GetPrincipalRolePermissions(ctx context.Context, accountID uuid.UUID) ([]GetPrincipalRolePermissionsRow, error) {
@@ -33,7 +37,13 @@ func (q *Queries) GetPrincipalRolePermissions(ctx context.Context, accountID uui
 	items := []GetPrincipalRolePermissionsRow{}
 	for rows.Next() {
 		var i GetPrincipalRolePermissionsRow
-		if err := rows.Scan(&i.RoleID, &i.SystemKey, &i.PermissionID); err != nil {
+		if err := rows.Scan(
+			&i.RoleID,
+			&i.SystemKey,
+			&i.PermissionID,
+			&i.Scope,
+			&i.DeviceTypeID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

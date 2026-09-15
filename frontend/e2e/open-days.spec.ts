@@ -207,6 +207,20 @@ test('creates and atomically saves a manager schedule working copy', async ({
       return;
     }
     if (
+      path === `/api/v1/open-day-periods/${periodId}/calendar-context` &&
+      request.method() === 'GET'
+    ) {
+      await json(route, {
+        timeZone: 'Europe/Vienna',
+        countryCode: 'AT',
+        subdivisionCode: 'AT-6',
+        languageCode: 'de',
+        entries: [],
+        academicBreaks: [],
+      });
+      return;
+    }
+    if (
       path === `/api/v1/open-day-periods/${periodId}/schedule` &&
       request.method() === 'PUT'
     ) {
@@ -250,12 +264,12 @@ test('creates and atomically saves a manager schedule working copy', async ({
 
   await page.goto(`/open-days/${periodId}/schedule`);
   await expect(page.getByRole('heading', { name: 'Edit Winter Semester 2026/27' })).toBeVisible();
-  await expect(page.getByText('All changes are saved together · Europe/Vienna')).toBeVisible();
+  await expect(page.getByText('Calendar planning · Europe/Vienna')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save & close' })).toBeDisabled();
   await expectAccessible(page);
 
-  await page.getByRole('button', { name: 'Add slot on 2026-10-02' }).click();
-  await expect(page.getByRole('button', { name: 'Drag Open Day to another date' })).toBeVisible();
+  await page.getByRole('button', { name: 'Add Open Day on 2026-10-02' }).click();
+  await expect(page.getByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save & close' })).toBeEnabled();
   await capture(page, testInfo, 'open-days-manager-working-copy.png');
   await page.getByRole('button', { name: 'Save & close' }).click();

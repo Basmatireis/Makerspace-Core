@@ -17,14 +17,23 @@ WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND system_key 
 -- name: DeleteRole :one
 DELETE FROM roles WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND system_key IS NULL RETURNING id;
 
--- name: GetRolePermissions :many
-SELECT permission_id FROM role_permissions WHERE role_id = sqlc.arg(role_id) ORDER BY permission_id;
+-- name: GetRolePermissionGrants :many
+SELECT rp.permission_id, rp.scope, rpdt.device_type_id
+FROM role_permissions rp LEFT JOIN role_permission_device_types rpdt
+  ON rpdt.role_id = rp.role_id AND rpdt.permission_id = rp.permission_id
+WHERE rp.role_id = sqlc.arg(role_id)
+ORDER BY rp.permission_id, rpdt.device_type_id;
 
 -- name: DeleteRolePermissions :exec
 DELETE FROM role_permissions WHERE role_id = sqlc.arg(role_id);
 
 -- name: AddRolePermission :exec
-INSERT INTO role_permissions (role_id, permission_id) VALUES (sqlc.arg(role_id), sqlc.arg(permission_id));
+INSERT INTO role_permissions (role_id, permission_id, scope)
+VALUES (sqlc.arg(role_id), sqlc.arg(permission_id), sqlc.arg(scope));
+
+-- name: AddRolePermissionDeviceType :exec
+INSERT INTO role_permission_device_types (role_id, permission_id, device_type_id)
+VALUES (sqlc.arg(role_id), sqlc.arg(permission_id), sqlc.arg(device_type_id));
 
 -- name: BumpRoleVersion :one
 UPDATE roles SET version = version + 1, updated_at = now()

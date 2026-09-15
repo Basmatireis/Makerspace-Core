@@ -12,16 +12,34 @@ import (
 )
 
 const addRolePermission = `-- name: AddRolePermission :exec
-INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)
+INSERT INTO role_permissions (role_id, permission_id, scope)
+VALUES ($1, $2, $3)
 `
 
 type AddRolePermissionParams struct {
 	RoleID       uuid.UUID
 	PermissionID string
+	Scope        string
 }
 
 func (q *Queries) AddRolePermission(ctx context.Context, arg AddRolePermissionParams) error {
-	_, err := q.db.Exec(ctx, addRolePermission, arg.RoleID, arg.PermissionID)
+	_, err := q.db.Exec(ctx, addRolePermission, arg.RoleID, arg.PermissionID, arg.Scope)
+	return err
+}
+
+const addRolePermissionDeviceType = `-- name: AddRolePermissionDeviceType :exec
+INSERT INTO role_permission_device_types (role_id, permission_id, device_type_id)
+VALUES ($1, $2, $3)
+`
+
+type AddRolePermissionDeviceTypeParams struct {
+	RoleID       uuid.UUID
+	PermissionID string
+	DeviceTypeID uuid.UUID
+}
+
+func (q *Queries) AddRolePermissionDeviceType(ctx context.Context, arg AddRolePermissionDeviceTypeParams) error {
+	_, err := q.db.Exec(ctx, addRolePermissionDeviceType, arg.RoleID, arg.PermissionID, arg.DeviceTypeID)
 	return err
 }
 
@@ -138,23 +156,33 @@ func (q *Queries) GetRoleForMutation(ctx context.Context, id uuid.UUID) (Role, e
 	return i, err
 }
 
-const getRolePermissions = `-- name: GetRolePermissions :many
-SELECT permission_id FROM role_permissions WHERE role_id = $1 ORDER BY permission_id
+const getRolePermissionGrants = `-- name: GetRolePermissionGrants :many
+SELECT rp.permission_id, rp.scope, rpdt.device_type_id
+FROM role_permissions rp LEFT JOIN role_permission_device_types rpdt
+  ON rpdt.role_id = rp.role_id AND rpdt.permission_id = rp.permission_id
+WHERE rp.role_id = $1
+ORDER BY rp.permission_id, rpdt.device_type_id
 `
 
-func (q *Queries) GetRolePermissions(ctx context.Context, roleID uuid.UUID) ([]string, error) {
-	rows, err := q.db.Query(ctx, getRolePermissions, roleID)
+type GetRolePermissionGrantsRow struct {
+	PermissionID string
+	Scope        string
+	DeviceTypeID *uuid.UUID
+}
+
+func (q *Queries) GetRolePermissionGrants(ctx context.Context, roleID uuid.UUID) ([]GetRolePermissionGrantsRow, error) {
+	rows, err := q.db.Query(ctx, getRolePermissionGrants, roleID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []string{}
+	items := []GetRolePermissionGrantsRow{}
 	for rows.Next() {
-		var permission_id string
-		if err := rows.Scan(&permission_id); err != nil {
+		var i GetRolePermissionGrantsRow
+		if err := rows.Scan(&i.PermissionID, &i.Scope, &i.DeviceTypeID); err != nil {
 			return nil, err
 		}
-		items = append(items, permission_id)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

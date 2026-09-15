@@ -402,23 +402,33 @@ func (q *Queries) GetRoleForAssignment(ctx context.Context, id uuid.UUID) (Role,
 	return i, err
 }
 
-const getRolePermissionsForAssignment = `-- name: GetRolePermissionsForAssignment :many
-SELECT permission_id FROM role_permissions WHERE role_id = $1 ORDER BY permission_id
+const getRolePermissionGrantsForAssignment = `-- name: GetRolePermissionGrantsForAssignment :many
+SELECT rp.permission_id, rp.scope, rpdt.device_type_id
+FROM role_permissions rp LEFT JOIN role_permission_device_types rpdt
+  ON rpdt.role_id = rp.role_id AND rpdt.permission_id = rp.permission_id
+WHERE rp.role_id = $1
+ORDER BY rp.permission_id, rpdt.device_type_id
 `
 
-func (q *Queries) GetRolePermissionsForAssignment(ctx context.Context, roleID uuid.UUID) ([]string, error) {
-	rows, err := q.db.Query(ctx, getRolePermissionsForAssignment, roleID)
+type GetRolePermissionGrantsForAssignmentRow struct {
+	PermissionID string
+	Scope        string
+	DeviceTypeID *uuid.UUID
+}
+
+func (q *Queries) GetRolePermissionGrantsForAssignment(ctx context.Context, roleID uuid.UUID) ([]GetRolePermissionGrantsForAssignmentRow, error) {
+	rows, err := q.db.Query(ctx, getRolePermissionGrantsForAssignment, roleID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []string{}
+	items := []GetRolePermissionGrantsForAssignmentRow{}
 	for rows.Next() {
-		var permission_id string
-		if err := rows.Scan(&permission_id); err != nil {
+		var i GetRolePermissionGrantsForAssignmentRow
+		if err := rows.Scan(&i.PermissionID, &i.Scope, &i.DeviceTypeID); err != nil {
 			return nil, err
 		}
-		items = append(items, permission_id)
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

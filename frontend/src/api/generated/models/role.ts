@@ -10,11 +10,17 @@ property is unavailable or unchanged, `null` clears or represents no value,
 and a non-null value is present. In particular, `matriculationNumber` is
 omitted from responses unless the caller has `people.read.matriculation`.
 
+Every session-authenticated operation also accepts the optional
+`X-Managed-Device-Token` credential declared below. OpenAPI security
+requirements cannot express an optional second credential without changing
+their boolean meaning, so the server evaluates this header independently of
+the required session and CSRF credentials.
+
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
 import type { RoleSystemKey } from './roleSystemKey';
-import type { PermissionId } from './permissionId';
+import type { PermissionGrant } from './permissionGrant';
 import type { Version } from './version';
 
 export interface Role {
@@ -32,7 +38,7 @@ export interface Role {
   /** @nullable */
   systemKey: RoleSystemKey;
   /** For master, this is the current complete application permission set. */
-  permissionIds: PermissionId[];
+  permissionGrants: PermissionGrant[];
   createdAt: string;
   updatedAt: string;
   version: Version;

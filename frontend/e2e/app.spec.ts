@@ -57,6 +57,12 @@ function currentUser(permissions: string[] = []) {
       version: 1,
     },
     permissions,
+    managedDevice: null,
+    delegablePermissionGrants: permissions.map((permissionId) => ({
+      permissionId,
+      scope: 'everywhere',
+      deviceTypeIds: [],
+    })),
   };
 }
 
@@ -66,7 +72,11 @@ function customRole() {
     name: 'Workshop supervisors',
     description: 'May manage routine workshop access.',
     systemKey: null,
-    permissionIds: ['people.read.all', 'roles.read', 'roles.manage'],
+    permissionGrants: ['people.read.all', 'roles.read', 'roles.manage'].map((permissionId) => ({
+      permissionId,
+      scope: 'everywhere',
+      deviceTypeIds: [],
+    })),
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
     version: 1,
@@ -122,11 +132,16 @@ async function installApi(page: Page, state: ApiState) {
 
     if (path === '/api/v1/permissions' && request.method() === 'GET' && state.role) {
       await json(route, {
-        items: state.role.permissionIds.map((id) => ({
+        items: state.role.permissionGrants.map(({ permissionId: id }) => ({
           id,
           description: `Description for ${id}.`,
         })),
       });
+      return;
+    }
+
+    if (path === '/api/v1/managed-device-types' && request.method() === 'GET') {
+      await json(route, { items: [] });
       return;
     }
 
@@ -223,7 +238,7 @@ test('shows an accessible destructive confirmation before deleting a custom role
   await installApi(page, {
     authenticated: true,
     role,
-    user: currentUser(role.permissionIds),
+    user: currentUser(role.permissionGrants.map((grant) => grant.permissionId)),
   });
 
   await page.goto(`/settings/roles/${roleId}`);

@@ -296,10 +296,10 @@ func TestNonMasterRolePrivilegeSubsetIsEnforced(t *testing.T) {
 
 	roleService := roles.NewService(pool)
 	accountService := accounts.NewService(pool, config.Config{})
-	capabilityRole, err := roleService.Create(ctx, master, "subset-manager", nil, []string{
-		string(authorization.AccountsRolesAssign),
-		string(authorization.PeopleReadSelf),
-		string(authorization.RolesManage),
+	capabilityRole, err := roleService.Create(ctx, master, "subset-manager", nil, []authorization.PermissionGrant{
+		{PermissionID: authorization.AccountsRolesAssign, Scope: authorization.GrantEverywhere},
+		{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere},
+		{PermissionID: authorization.RolesManage, Scope: authorization.GrantEverywhere},
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -326,37 +326,37 @@ func TestNonMasterRolePrivilegeSubsetIsEnforced(t *testing.T) {
 		t.Fatal("non-master actor unexpectedly has people.delete")
 	}
 
-	_, err = roleService.Create(ctx, actor, "forbidden-elevated-role", nil, []string{string(authorization.PeopleDelete)}, nil)
+	_, err = roleService.Create(ctx, actor, "forbidden-elevated-role", nil, []authorization.PermissionGrant{{PermissionID: authorization.PeopleDelete, Scope: authorization.GrantEverywhere}}, nil)
 	expectAppCode(t, err, "permission_denied")
 	assertCount(t, pool, `SELECT count(*) FROM roles WHERE name = 'forbidden-elevated-role'`, 0)
 
-	elevatedRole, err := roleService.Create(ctx, master, "elevated-role", nil, []string{string(authorization.PeopleDelete)}, nil)
+	elevatedRole, err := roleService.Create(ctx, master, "elevated-role", nil, []authorization.PermissionGrant{{PermissionID: authorization.PeopleDelete, Scope: authorization.GrantEverywhere}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = roleService.ReplacePermissions(ctx, actor, elevatedRole.ID, elevatedRole.Version, []string{string(authorization.PeopleReadSelf)}, nil)
+	_, err = roleService.ReplacePermissions(ctx, actor, elevatedRole.ID, elevatedRole.Version, []authorization.PermissionGrant{{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere}}, nil)
 	expectAppCode(t, err, "permission_denied")
 	assertRoleVersion(t, pool, elevatedRole.ID, elevatedRole.Version)
 
-	subsetRole, err := roleService.Create(ctx, actor, "self-reader", nil, []string{string(authorization.PeopleReadSelf)}, nil)
+	subsetRole, err := roleService.Create(ctx, actor, "self-reader", nil, []authorization.PermissionGrant{{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if subsetRole.Version != 1 {
 		t.Fatalf("new subset role version = %d, want 1", subsetRole.Version)
 	}
-	_, err = roleService.ReplacePermissions(ctx, actor, subsetRole.ID, subsetRole.Version, []string{string(authorization.PeopleDelete)}, nil)
+	_, err = roleService.ReplacePermissions(ctx, actor, subsetRole.ID, subsetRole.Version, []authorization.PermissionGrant{{PermissionID: authorization.PeopleDelete, Scope: authorization.GrantEverywhere}}, nil)
 	expectAppCode(t, err, "permission_denied")
 	assertRoleVersion(t, pool, subsetRole.ID, 1)
 
-	configuredSubsetRole, err := roleService.ReplacePermissions(ctx, actor, subsetRole.ID, subsetRole.Version, []string{string(authorization.PeopleReadSelf)}, nil)
+	configuredSubsetRole, err := roleService.ReplacePermissions(ctx, actor, subsetRole.ID, subsetRole.Version, []authorization.PermissionGrant{{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if configuredSubsetRole.Version != 2 {
 		t.Fatalf("configured subset role version = %d, want 2", configuredSubsetRole.Version)
 	}
-	_, err = roleService.ReplacePermissions(ctx, actor, subsetRole.ID, subsetRole.Version, []string{string(authorization.PeopleReadSelf)}, nil)
+	_, err = roleService.ReplacePermissions(ctx, actor, subsetRole.ID, subsetRole.Version, []authorization.PermissionGrant{{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere}}, nil)
 	expectAppCode(t, err, "stale_write")
 	assertRoleVersion(t, pool, subsetRole.ID, 2)
 

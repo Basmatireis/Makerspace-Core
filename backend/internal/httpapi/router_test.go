@@ -181,6 +181,20 @@ func TestHandlerValidatesContractAndProtectsRoutes(t *testing.T) {
 		t.Fatalf("protected status=%d cache=%q", recorder.Code, recorder.Header().Get("Cache-Control"))
 	}
 
+	for _, path := range []string{
+		"/api/v1/managed-devices",
+		"/api/v1/managed-devices/0192f6f8-743e-7c77-a349-cd07c3e8a921/token",
+	} {
+		request = httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(`{}`))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Origin", "http://localhost:5173")
+		recorder = httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		if recorder.Header().Get("Cache-Control") != "no-store" {
+			t.Fatalf("one-time-secret path %s error was cacheable", path)
+		}
+	}
+
 	request = httptest.NewRequest(http.MethodGet, "/api/v1/not-a-route", nil)
 	recorder = httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)

@@ -18,7 +18,7 @@ export function roleFixture(overrides: Partial<Role> = {}): Role {
     name: 'Workshop supervisors',
     description: 'Routine workshop access.',
     systemKey: null,
-    permissionIds: [],
+    permissionGrants: [],
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
     version: 1,
@@ -100,5 +100,7 @@ export function currentUserFixture(
       version: 1,
     },
     permissions,
+    managedDevice: null,
+    delegablePermissionGrants: permissions.map((permissionId) => ({ permissionId, scope: 'everywhere', deviceTypeIds: [] })),
   };
 }

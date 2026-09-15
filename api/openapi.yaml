@@ -10,6 +10,12 @@ info:
     property is unavailable or unchanged, `null` clears or represents no value,
     and a non-null value is present. In particular, `matriculationNumber` is
     omitted from responses unless the caller has `people.read.matriculation`.
+
+    Every session-authenticated operation also accepts the optional
+    `X-Managed-Device-Token` credential declared below. OpenAPI security
+    requirements cannot express an optional second credential without changing
+    their boolean meaning, so the server evaluates this header independently of
+    the required session and CSRF credentials.
 servers:
   - url: /api/v1
     description: Same-origin application API
@@ -21,6 +27,7 @@ tags:
   - name: Accounts
   - name: Permissions
   - name: Roles
+  - name: Managed Devices
   - name: Audit
   - name: Open Days
   - name: Public Open Days
@@ -789,6 +796,182 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
 
+  /managed-device-types:
+    get:
+      tags: [Managed Devices]
+      operationId: listManagedDeviceTypes
+      summary: List managed-device types
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Device-type catalog., content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceTypeList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Managed Devices]
+      operationId: createManagedDeviceType
+      summary: Create a managed-device type
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateManagedDeviceTypeRequest"}}}}
+      responses:
+        "201": {description: Device type created., content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceType"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /managed-device-types/{deviceTypeId}:
+    parameters: [{$ref: "#/components/parameters/DeviceTypeId"}]
+    get:
+      tags: [Managed Devices]
+      operationId: getManagedDeviceType
+      summary: Get a managed-device type
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Device type., content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceType"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    patch:
+      tags: [Managed Devices]
+      operationId: updateManagedDeviceType
+      summary: Update a managed-device type
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateManagedDeviceTypeRequest"}}}}
+      responses:
+        "200": {description: Device type updated., content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceType"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Managed Devices]
+      operationId: deleteManagedDeviceType
+      summary: Delete an unused managed-device type
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Device type deleted.}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /managed-devices:
+    get:
+      tags: [Managed Devices]
+      operationId: listManagedDevices
+      summary: List managed devices
+      security: [{sessionCookie: []}]
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Cursor"
+      responses:
+        "200": {description: Managed devices., content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Managed Devices]
+      operationId: createManagedDevice
+      summary: Create a managed device and issue its token once
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateManagedDeviceRequest"}}}}
+      responses:
+        "201": {description: Device and one-time token., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceProvisioning"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /managed-devices/{managedDeviceId}:
+    parameters: [{$ref: "#/components/parameters/ManagedDeviceId"}]
+    get:
+      tags: [Managed Devices]
+      operationId: getManagedDevice
+      summary: Get a managed device
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Managed device., content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDevice"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    patch:
+      tags: [Managed Devices]
+      operationId: updateManagedDevice
+      summary: Update managed-device metadata
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateManagedDeviceRequest"}}}}
+      responses:
+        "200": {description: Device updated., content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDevice"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Managed Devices]
+      operationId: deleteManagedDevice
+      summary: Delete a revoked managed device
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Device deleted.}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /managed-devices/{managedDeviceId}/revoke:
+    parameters: [{$ref: "#/components/parameters/ManagedDeviceId"}]
+    post:
+      tags: [Managed Devices]
+      operationId: revokeManagedDevice
+      summary: Permanently revoke a managed device
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Revoked device., content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDevice"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /managed-devices/{managedDeviceId}/token:
+    parameters: [{$ref: "#/components/parameters/ManagedDeviceId"}]
+    post:
+      tags: [Managed Devices]
+      operationId: rotateManagedDeviceToken
+      summary: Rotate a managed-device token
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RotateManagedDeviceTokenRequest"}}}}
+      responses:
+        "200": {description: Device and replacement token., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceProvisioning"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /roles:
     get:
       tags: [Roles]
@@ -1511,6 +1694,11 @@ components:
       in: header
       name: X-CSRF-Token
       description: Must exactly mirror `makerspace_csrf` (or secure production `__Host-makerspace_csrf`) on unsafe authenticated requests.
+    managedDeviceToken:
+      type: apiKey
+      in: header
+      name: X-Managed-Device-Token
+      description: Optional opaque managed-device bearer credential accepted on every session-authenticated operation and injected by a trusted native client. It never replaces the user session.
 
   parameters:
     PersonId:
@@ -1531,6 +1719,16 @@ components:
       required: true
       schema:
         $ref: "#/components/schemas/UUIDv7"
+    DeviceTypeId:
+      name: deviceTypeId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
+    ManagedDeviceId:
+      name: managedDeviceId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
     OpenDayPeriodId:
       name: periodId
       in: path
@@ -1707,6 +1905,8 @@ components:
         - open_days.signup
         - open_days.assign
         - open_days.manage
+        - managed_devices.read
+        - managed_devices.manage
 
     HealthStatus:
       type: object
@@ -1776,7 +1976,7 @@ components:
     CurrentUser:
       type: object
       additionalProperties: false
-      required: [account, person, permissions]
+      required: [account, person, permissions, managedDevice, delegablePermissionGrants]
       properties:
         account:
           $ref: "#/components/schemas/Account"
@@ -1787,6 +1987,23 @@ components:
           uniqueItems: true
           items:
             $ref: "#/components/schemas/PermissionId"
+        managedDevice:
+          allOf: [{$ref: "#/components/schemas/ManagedDeviceContext"}]
+          nullable: true
+        delegablePermissionGrants:
+          type: array
+          items: {$ref: "#/components/schemas/PermissionGrant"}
+
+    ManagedDeviceContext:
+      type: object
+      additionalProperties: false
+      required: [id, name, deviceTypeId, deviceTypeName, expiresAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        deviceTypeId: {$ref: "#/components/schemas/UUIDv7"}
+        deviceTypeName: {type: string}
+        expiresAt: {type: string, format: date-time, nullable: true}
 
     Person:
       type: object
@@ -2046,6 +2263,104 @@ components:
           minLength: 1
           maxLength: 500
 
+    ManagedDeviceType:
+      type: object
+      additionalProperties: false
+      required: [id, name, description, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        description: {type: string, maxLength: 500, nullable: true}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    ManagedDeviceTypeList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, maxItems: 500, items: {$ref: "#/components/schemas/ManagedDeviceType"}}
+    CreateManagedDeviceTypeRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        description: {type: string, maxLength: 500, nullable: true}
+    UpdateManagedDeviceTypeRequest:
+      type: object
+      additionalProperties: false
+      required: [name, description, expectedVersion]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        description: {type: string, maxLength: 500, nullable: true}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+    ManagedDeviceStatus:
+      type: string
+      enum: [active, expired, revoked]
+    ManagedDevice:
+      type: object
+      additionalProperties: false
+      required: [id, name, deviceTypeId, deviceTypeName, status, expiresAt, revokedAt, lastSeenAt, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        deviceTypeId: {$ref: "#/components/schemas/UUIDv7"}
+        deviceTypeName: {type: string, minLength: 1, maxLength: 100}
+        status: {$ref: "#/components/schemas/ManagedDeviceStatus"}
+        expiresAt: {type: string, format: date-time, nullable: true}
+        revokedAt: {type: string, format: date-time, nullable: true}
+        lastSeenAt: {type: string, format: date-time, nullable: true}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    ManagedDeviceList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/ManagedDevice"}}
+        nextCursor:
+          type: string
+          maxLength: 500
+          nullable: true
+    CreateManagedDeviceRequest:
+      type: object
+      additionalProperties: false
+      required: [name, deviceTypeId, expiresAt]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        deviceTypeId: {$ref: "#/components/schemas/UUIDv7"}
+        expiresAt: {type: string, format: date-time, nullable: true}
+    UpdateManagedDeviceRequest:
+      type: object
+      additionalProperties: false
+      required: [name, deviceTypeId, expiresAt, expectedVersion]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        deviceTypeId: {$ref: "#/components/schemas/UUIDv7"}
+        expiresAt: {type: string, format: date-time, nullable: true}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+    RotateManagedDeviceTokenRequest:
+      type: object
+      additionalProperties: false
+      required: [expiresAt, expectedVersion]
+      properties:
+        expiresAt: {type: string, format: date-time, nullable: true}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+    ManagedDeviceProvisioning:
+      type: object
+      additionalProperties: false
+      required: [device, token]
+      properties:
+        device: {$ref: "#/components/schemas/ManagedDevice"}
+        token:
+          type: string
+          minLength: 43
+          maxLength: 43
+          readOnly: true
+          description: Returned only by device creation and token rotation; it cannot be retrieved later.
+
     RoleSummary:
       type: object
       additionalProperties: false
@@ -2066,7 +2381,7 @@ components:
     Role:
       type: object
       additionalProperties: false
-      required: [id, name, description, systemKey, permissionIds, createdAt, updatedAt, version]
+      required: [id, name, description, systemKey, permissionGrants, createdAt, updatedAt, version]
       properties:
         id:
           $ref: "#/components/schemas/UUIDv7"
@@ -2082,11 +2397,11 @@ components:
           type: string
           enum: [master]
           nullable: true
-        permissionIds:
+        permissionGrants:
           type: array
           uniqueItems: true
           items:
-            $ref: "#/components/schemas/PermissionId"
+            $ref: "#/components/schemas/PermissionGrant"
           description: For master, this is the current complete application permission set.
         createdAt:
           type: string
@@ -2100,7 +2415,7 @@ components:
     CreateRoleRequest:
       type: object
       additionalProperties: false
-      required: [name, permissionIds]
+      required: [name, permissionGrants]
       properties:
         name:
           type: string
@@ -2110,11 +2425,11 @@ components:
           type: string
           maxLength: 500
           nullable: true
-        permissionIds:
+        permissionGrants:
           type: array
           uniqueItems: true
           items:
-            $ref: "#/components/schemas/PermissionId"
+            $ref: "#/components/schemas/PermissionGrant"
 
     UpdateRoleRequest:
       type: object
@@ -2136,15 +2451,29 @@ components:
     ReplaceRolePermissionsRequest:
       type: object
       additionalProperties: false
-      required: [permissionIds, expectedVersion]
+      required: [permissionGrants, expectedVersion]
       properties:
-        permissionIds:
+        permissionGrants:
           type: array
           uniqueItems: true
           items:
-            $ref: "#/components/schemas/PermissionId"
+            $ref: "#/components/schemas/PermissionGrant"
         expectedVersion:
           $ref: "#/components/schemas/Version"
+
+    PermissionGrant:
+      type: object
+      additionalProperties: false
+      required: [permissionId, scope, deviceTypeIds]
+      properties:
+        permissionId: {$ref: "#/components/schemas/PermissionId"}
+        scope:
+          type: string
+          enum: [everywhere, anyManagedDevice, selectedDeviceTypes]
+        deviceTypeIds:
+          type: array
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/UUIDv7"}
 
     RolePage:
       type: object

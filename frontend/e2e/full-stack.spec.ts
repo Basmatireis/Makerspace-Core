@@ -117,7 +117,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await expect(
       page
         .getByLabel('Assigned roles')
-        .getByText('E2E workshop supervisors'),
+        .getByText('E2E workshop supervisors', { exact: true }),
     ).toBeVisible();
   });
 

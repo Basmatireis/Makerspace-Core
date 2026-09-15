@@ -30,7 +30,7 @@ type Querier interface {
 	GetMasterRole(ctx context.Context) (Role, error)
 	GetPersonVersionForAccountCreation(ctx context.Context, personID uuid.UUID) (int64, error)
 	GetRoleForAssignment(ctx context.Context, id uuid.UUID) (Role, error)
-	GetRolePermissionsForAssignment(ctx context.Context, roleID uuid.UUID) ([]string, error)
+	GetRolePermissionGrantsForAssignment(ctx context.Context, roleID uuid.UUID) ([]GetRolePermissionGrantsForAssignmentRow, error)
 	IsAccountMaster(ctx context.Context, accountID uuid.UUID) (bool, error)
 	IsAccountRoleAssigned(ctx context.Context, arg IsAccountRoleAssignedParams) (bool, error)
 	ListAccountRoles(ctx context.Context, accountID uuid.UUID) ([]Role, error)

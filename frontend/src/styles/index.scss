@@ -219,6 +219,20 @@ h2 {
   @include type-style('heading-compact-01');
 }
 
+.permission-grant-row {
+  display: grid;
+  grid-template-columns: minmax(18rem, 1fr) minmax(12rem, 18rem);
+  gap: $spacing-04;
+  padding-block-end: $spacing-04;
+  border-block-end: 1px solid var(--cds-border-subtle);
+}
+
+.device-type-options {
+  grid-column: 1 / -1;
+  padding: $spacing-04;
+  border: 1px solid var(--cds-border-subtle);
+}
+
 .auth-page {
   display: grid;
   min-height: 100vh;

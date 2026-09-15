@@ -1,5 +1,6 @@
 import type {
   CurrentUser,
+  PermissionGrant,
   PermissionId as PermissionIdType,
   Role,
 } from '../../api/generated/models';
@@ -46,6 +47,7 @@ export function canAccessSettings(currentUser: CurrentUser): boolean {
   return hasAnyPermission(currentUser, [
     PermissionId.peoplereadall,
     PermissionId.rolesread,
+    PermissionId.managed_devicesread,
   ]);
 }
 
@@ -58,7 +60,7 @@ export function canAccessOpenDays(currentUser: CurrentUser): boolean {
 
 export function canManageRoleMembership(
   currentUser: CurrentUser,
-  role: Pick<Role, 'permissionIds' | 'systemKey'>,
+  role: Pick<Role, 'permissionGrants' | 'systemKey'>,
 ): boolean {
   if (!hasPermission(currentUser, PermissionId.accountsrolesassign)) {
     return false;
@@ -73,6 +75,21 @@ export function canManageRoleMembership(
 
   return (
     role.systemKey !== 'master' &&
-    role.permissionIds.every((permission) => hasPermission(currentUser, permission))
+    role.permissionGrants.every((grant) => currentUser.delegablePermissionGrants.some((own) => grantCoveredBy(own, grant)))
+  );
+}
+
+export function grantCoveredBy(own: PermissionGrant, requested: PermissionGrant): boolean {
+  if (own.permissionId !== requested.permissionId) return false;
+  if (own.scope === 'everywhere') return true;
+  if (requested.scope === 'everywhere') return false;
+  if (own.scope === 'anyManagedDevice') return true;
+  if (requested.scope === 'anyManagedDevice') return false;
+  return requested.deviceTypeIds.every((id) => own.deviceTypeIds.includes(id));
+}
+
+export function permissionGrantsValid(grants: readonly PermissionGrant[]) {
+  return grants.every((grant) =>
+    grant.scope !== 'selectedDeviceTypes' || grant.deviceTypeIds.length > 0,
   );
 }

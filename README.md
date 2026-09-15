@@ -6,7 +6,7 @@
 
 Makerspace Core is a privacy-conscious management application for one makerspace/location. It is a modular monolith: one Go API, one React application, and one PostgreSQL database per deployment.
 
-The first vertical slice covers people, optional user accounts, email/password authentication, server-side sessions, permission-based roles, user administration, and audit logging. Machines, orders, open days, training, rental, terminals, PIN login, documents, visits, analytics, and feedback are deliberately not implemented yet.
+The implemented modules cover people, optional user accounts, email/password authentication, server-side sessions, device-scoped permission roles, managed-device identities, user administration, Open Days, and audit logging. Machines, orders, training, rental, kiosk behavior, PIN login, documents, visits, analytics, and feedback are deliberately not implemented yet.
 
 ## Technology
 
@@ -98,6 +98,7 @@ Stable releases are explicit: push a `vMAJOR.MINOR.PATCH` tag to run the same va
 - [Authentication and sessions](docs/authentication.md)
 - [Bootstrap, recovery, cleanup, and deployment operations](docs/operations.md)
 - [Authorization and registered permissions](docs/authorization.md)
+- [Managed-device trust and provisioning](docs/managed-devices.md)
 - [Development and code generation](docs/development.md)
 - [Logging and optional OpenTelemetry export](docs/observability.md)
 - [CI, releases, and container images](docs/ci-cd.md)
