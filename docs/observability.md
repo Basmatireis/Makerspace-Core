@@ -4,13 +4,21 @@ Observability must remain useful without becoming a second store of personal dat
 
 ## Structured application logs
 
-The API emits JSON records to standard output. Request records contain the timestamp, level, message, request ID, HTTP method, generated OpenAPI operation name, status, response-byte count, and duration. Process lifecycle records include the configured environment where relevant.
+The API emits JSON records to standard output. Request records contain the timestamp, level, message, request ID, HTTP method, generated OpenAPI operation name or normalized route, client IP, bounded User-Agent, status, response-byte count, and duration. Process lifecycle records include the configured environment where relevant.
 
-Use generated operation names (or route templates such as `/api/v1/people/{personId}` in future instrumentation), never raw URLs containing identifiers. Do not log request or response bodies, query searches, contact details, matriculation numbers, passwords/hashes, Authorization headers, cookies, session/reset/CSRF tokens, database URLs, or arbitrary error objects. Expected client/auth failures are concise; internal errors retain safe diagnostic context without being returned to the client.
+Matched requests use generated operation names, with normalized route templates such as `/api/v1/people/{personId}` as a fallback for requests rejected before the generated handler runs. They never log a raw matched URL containing identifiers. Genuinely unmatched requests additionally include `path`, limited to 1,024 UTF-8 bytes; this value comes only from `URL.Path`, so query strings are excluded. The `user_agent` field is limited to 512 UTF-8 bytes. Do not log request or response bodies, query searches, contact details, matriculation numbers, passwords/hashes, Authorization headers, cookies, session/reset/CSRF tokens, database URLs, arbitrary request headers, or arbitrary error objects. Expected client/auth failures are concise; internal errors retain safe diagnostic context without being returned to the client.
+
+The `client_ip` field uses the TCP peer by default. `X-Forwarded-For` is considered only when that peer belongs to a CIDR configured in `HTTP_TRUSTED_PROXIES`; `Forwarded` and `X-Real-IP` are not used. Configure trusted proxies as a comma-separated IPv4/IPv6 CIDR list:
+
+```env
+HTTP_TRUSTED_PROXIES=10.20.0.0/24,2001:db8:1234::/48
+```
+
+The backend walks `X-Forwarded-For` from right to left, discards configured trusted proxy hops, and records the first untrusted address. A missing or malformed chain falls back to the TCP peer. Every proxy whose hop should be discarded must append the address that connected to it, and its network must be configured explicitly. Never add a broad client-accessible network merely because it also contains a proxy: any peer in a trusted CIDR is authorized to supply forwarding information. When no trusted proxies are configured, all forwarding headers are ignored. Docker or ingress networks are deliberately not trusted by default.
 
 HTTP middleware generates a fresh UUIDv7 request ID, returns it in `X-Request-ID`, and passes it to audit writes. Client-supplied request IDs are not trusted or reused. Audit events and operational logs serve different purposes: logs are diagnostic and disposable; audit events are transactionally coupled records of important actions.
 
-The repository deliberately sets no application-log retention period because log storage is deployment-owned. Before production, configure and record rotation/deletion separately from `AUDIT_RETENTION`; follow the approval checklist in [operations](operations.md#cleanup-and-retention).
+The repository deliberately sets no application-log retention period because log storage is deployment-owned. IP addresses are personal data, so access to request logs and their retention must be intentionally limited to the shortest period needed for diagnosis. Before production, configure and record rotation/deletion separately from `AUDIT_RETENTION`; follow the approval checklist in [operations](operations.md#cleanup-and-retention).
 
 ## Request traces
 

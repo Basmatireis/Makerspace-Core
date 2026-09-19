@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"net/url"
 	"os"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 type Config struct {
 	DatabaseURL         string
 	HTTPAddr            string
+	HTTPTrustedProxies  []netip.Prefix
 	Environment         string
 	PublicBaseURL       *url.URL
 	SessionCookieName   string
@@ -83,6 +85,10 @@ func Load() (Config, error) {
 	holidayCountry := strings.ToUpper(envOr("OPEN_DAYS_HOLIDAY_COUNTRY", "AT"))
 	holidaySubdivision := strings.ToUpper(envOr("OPEN_DAYS_HOLIDAY_SUBDIVISION", "AT-6"))
 	holidayLanguage := strings.ToLower(envOr("OPEN_DAYS_HOLIDAY_LANGUAGE", "de"))
+	trustedProxies, err := prefixListEnv("HTTP_TRUSTED_PROXIES")
+	if err != nil {
+		return Config{}, err
+	}
 
 	sessionName := "makerspace_session"
 	csrfName := "makerspace_csrf"
@@ -94,6 +100,7 @@ func Load() (Config, error) {
 	return Config{
 		DatabaseURL:         strings.TrimSpace(os.Getenv("DATABASE_URL")),
 		HTTPAddr:            envOr("HTTP_ADDR", ":8080"),
+		HTTPTrustedProxies:  trustedProxies,
 		Environment:         environment,
 		PublicBaseURL:       base,
 		SessionCookieName:   sessionName,
@@ -109,6 +116,28 @@ func Load() (Config, error) {
 		HolidaySubdivision:  holidaySubdivision,
 		HolidayLanguage:     holidayLanguage,
 	}, nil
+}
+
+func prefixListEnv(name string) ([]netip.Prefix, error) {
+	raw := strings.TrimSpace(os.Getenv(name))
+	if raw == "" {
+		return nil, nil
+	}
+
+	parts := strings.Split(raw, ",")
+	prefixes := make([]netip.Prefix, 0, len(parts))
+	for _, part := range parts {
+		value := strings.TrimSpace(part)
+		if value == "" {
+			return nil, fmt.Errorf("parse %s: empty CIDR", name)
+		}
+		prefix, err := netip.ParsePrefix(value)
+		if err != nil {
+			return nil, fmt.Errorf("parse %s CIDR %q: %w", name, value, err)
+		}
+		prefixes = append(prefixes, prefix.Masked())
+	}
+	return prefixes, nil
 }
 
 func (c Config) ValidateDatabase() error {

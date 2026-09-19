@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net/netip"
 	"testing"
 	"time"
 )
@@ -18,6 +19,52 @@ func setValidEnvironment(t *testing.T) {
 	t.Setenv("OPEN_DAYS_HOLIDAY_COUNTRY", "")
 	t.Setenv("OPEN_DAYS_HOLIDAY_SUBDIVISION", "")
 	t.Setenv("OPEN_DAYS_HOLIDAY_LANGUAGE", "")
+	t.Setenv("HTTP_TRUSTED_PROXIES", "")
+}
+
+func TestLoadParsesHTTPTrustedProxyCIDRs(t *testing.T) {
+	setValidEnvironment(t)
+	t.Setenv("HTTP_TRUSTED_PROXIES", " 10.0.0.3/8, 2001:db8:1234::1/48 ")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []netip.Prefix{
+		netip.MustParsePrefix("10.0.0.0/8"),
+		netip.MustParsePrefix("2001:db8:1234::/48"),
+	}
+	if len(cfg.HTTPTrustedProxies) != len(want) {
+		t.Fatalf("trusted proxy count = %d, want %d", len(cfg.HTTPTrustedProxies), len(want))
+	}
+	for index := range want {
+		if cfg.HTTPTrustedProxies[index] != want[index] {
+			t.Fatalf("trusted proxy %d = %s, want %s", index, cfg.HTTPTrustedProxies[index], want[index])
+		}
+	}
+}
+
+func TestLoadDefaultsToNoHTTPTrustedProxies(t *testing.T) {
+	setValidEnvironment(t)
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.HTTPTrustedProxies) != 0 {
+		t.Fatalf("trusted proxies = %v, want none", cfg.HTTPTrustedProxies)
+	}
+}
+
+func TestLoadRejectsInvalidHTTPTrustedProxyCIDRs(t *testing.T) {
+	for _, value := range []string{"10.0.0.1", "10.0.0.0/8,", "not-a-cidr"} {
+		t.Run(value, func(t *testing.T) {
+			setValidEnvironment(t)
+			t.Setenv("HTTP_TRUSTED_PROXIES", value)
+			if _, err := Load(); err == nil {
+				t.Fatalf("invalid trusted proxy list %q was accepted", value)
+			}
+		})
+	}
 }
 
 func TestLoadUsesLockedSessionAndRetentionDefaults(t *testing.T) {

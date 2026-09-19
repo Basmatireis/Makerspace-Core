@@ -8,8 +8,10 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -29,8 +31,11 @@ import (
 
 const (
 	maxRequestBodyBytes = 64 << 10
+	maxLogPathBytes     = 1024
+	maxUserAgentBytes   = 512
 	csrfHeaderName      = "X-CSRF-Token"
 	requestIDHeaderName = "X-Request-ID"
+	forwardedForHeader  = "X-Forwarded-For"
 )
 
 type contextKey uint8
@@ -40,6 +45,7 @@ const (
 	authenticatedContextKey
 	sourceAddressContextKey
 	operationStateContextKey
+	normalizedRouteContextKey
 )
 
 type operationState struct{ name string }
@@ -112,8 +118,8 @@ func NewHandler(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (htt
 	handler = noStoreMiddleware(handler)
 	handler = recoveryMiddleware(handler, logger)
 	handler = traceMiddleware(handler)
-	handler = accessLogMiddleware(handler, logger)
-	handler = requestMetadataMiddleware(handler)
+	handler = accessLogMiddleware(handler, logger, cfg.HTTPTrustedProxies)
+	handler = requestMetadataMiddleware(handler, router)
 	return handler, nil
 }
 
@@ -176,13 +182,14 @@ func (s *Server) originMiddleware(next http.Handler, logger *slog.Logger) http.H
 	})
 }
 
-func requestMetadataMiddleware(next http.Handler) http.Handler {
+func requestMetadataMiddleware(next http.Handler, routes chi.Routes) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestID := uuid.Must(uuid.NewV7())
 		w.Header().Set(requestIDHeaderName, requestID.String())
 		ctx := context.WithValue(r.Context(), requestIDContextKey, requestID)
 		ctx = context.WithValue(ctx, sourceAddressContextKey, remoteHost(r.RemoteAddr))
 		ctx = context.WithValue(ctx, operationStateContextKey, &operationState{})
+		ctx = context.WithValue(ctx, normalizedRouteContextKey, matchedRoutePattern(routes, r.Method, r.URL.Path))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -243,7 +250,7 @@ func (r *responseRecorder) Write(body []byte) (int, error) {
 
 func (r *responseRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
 
-func accessLogMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
+func accessLogMiddleware(next http.Handler, logger *slog.Logger, trustedProxies []netip.Prefix) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		started := time.Now()
 		recorder := &responseRecorder{ResponseWriter: w}
@@ -254,16 +261,27 @@ func accessLogMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 		}
 		route := operationName(r.Context())
 		if route == "" {
+			route = normalizedRoute(r.Context())
+		}
+		if route == "" {
 			route = "unmatched"
 		}
-		logger.InfoContext(r.Context(), "http request",
+		attributes := []any{
 			"request_id", requestIDString(r.Context()),
 			"method", r.Method,
 			"route", route,
+		}
+		if route == "unmatched" {
+			attributes = append(attributes, "path", boundedLogValue(r.URL.Path, maxLogPathBytes))
+		}
+		attributes = append(attributes,
+			"client_ip", requestClientIP(r, trustedProxies),
+			"user_agent", boundedLogValue(r.UserAgent(), maxUserAgentBytes),
 			"status", status,
 			"response_bytes", recorder.bytes,
 			"duration_ms", time.Since(started).Milliseconds(),
 		)
+		logger.InfoContext(r.Context(), "http request", attributes...)
 	})
 }
 
@@ -312,6 +330,105 @@ func operationName(ctx context.Context) string {
 		return ""
 	}
 	return state.name
+}
+
+func normalizedRoute(ctx context.Context) string {
+	value, _ := ctx.Value(normalizedRouteContextKey).(string)
+	return value
+}
+
+func matchedRoutePattern(routes chi.Routes, method, path string) string {
+	if routes == nil {
+		return ""
+	}
+	methods := []string{method, http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions}
+	seen := make(map[string]struct{}, len(methods))
+	for _, candidate := range methods {
+		if _, duplicate := seen[candidate]; duplicate {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		routeContext := chi.NewRouteContext()
+		if routes.Match(routeContext, candidate, path) {
+			return routeContext.RoutePattern()
+		}
+	}
+	return ""
+}
+
+func requestClientIP(r *http.Request, trustedProxies []netip.Prefix) string {
+	peer, ok := parseIP(r.RemoteAddr)
+	if !ok {
+		return ""
+	}
+	if !isTrustedProxy(peer, trustedProxies) {
+		return peer.String()
+	}
+
+	forwardedValues := r.Header.Values(forwardedForHeader)
+	if len(forwardedValues) == 0 {
+		return peer.String()
+	}
+	forwarded := make([]netip.Addr, 0, len(forwardedValues))
+	for _, value := range forwardedValues {
+		for _, part := range strings.Split(value, ",") {
+			address, err := netip.ParseAddr(strings.TrimSpace(part))
+			if err != nil {
+				return peer.String()
+			}
+			forwarded = append(forwarded, canonicalIP(address))
+		}
+	}
+	if len(forwarded) == 0 {
+		return peer.String()
+	}
+
+	client := peer
+	for index := len(forwarded) - 1; index >= 0 && isTrustedProxy(client, trustedProxies); index-- {
+		client = forwarded[index]
+	}
+	return client.String()
+}
+
+func parseIP(address string) (netip.Addr, bool) {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		host = address
+	}
+	parsed, err := netip.ParseAddr(host)
+	if err != nil {
+		return netip.Addr{}, false
+	}
+	return canonicalIP(parsed), true
+}
+
+func canonicalIP(address netip.Addr) netip.Addr {
+	if address.Zone() != "" {
+		address = address.WithZone("")
+	}
+	return address.Unmap()
+}
+
+func isTrustedProxy(address netip.Addr, trustedProxies []netip.Prefix) bool {
+	for _, prefix := range trustedProxies {
+		if prefix.Contains(address) {
+			return true
+		}
+	}
+	return false
+}
+
+func boundedLogValue(value string, maxBytes int) string {
+	value = strings.ToValidUTF8(value, "\uFFFD")
+	if len(value) <= maxBytes {
+		return value
+	}
+	const suffix = "…"
+	cut := maxBytes - len(suffix)
+	for cut > 0 && !utf8.RuneStart(value[cut]) {
+		cut--
+	}
+	return value[:cut] + suffix
 }
 
 func writeAPIError(w http.ResponseWriter, r *http.Request, err error, logger *slog.Logger) {

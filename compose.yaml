@@ -29,6 +29,7 @@ services:
       APP_ENV: ${APP_ENV:-development}
       DATABASE_URL: postgres://${POSTGRES_USER:-makerspace}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-makerspace}?sslmode=disable
       HTTP_ADDR: ${HTTP_ADDR:-:8080}
+      HTTP_TRUSTED_PROXIES: ${HTTP_TRUSTED_PROXIES:-}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:5173}
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
       SESSION_IDLE_TTL: ${SESSION_IDLE_TTL:-6h}
