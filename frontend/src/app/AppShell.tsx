@@ -25,13 +25,14 @@ import {
   Settings as SettingsIcon,
   UserAvatar,
 	UserMultiple,
+	DataBase,
 } from '@carbon/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { getGetLaborordnungPDFUrl, requestOwnLaborordnungConfirmation } from '../api/generated/laborordnung/laborordnung';
 import { evaluateVisitorAdmission } from '../api/generated/visitor-enrollment/visitor-enrollment';
 import { authQueryKey, useCurrentUser, useLogout } from '../features/auth/auth';
-import { canAccessOpenDays, canAccessSettings, hasPermission, PermissionId } from '../features/auth/permissions';
+import { canAccessMachineLogbook, canAccessOpenDays, canAccessSettings, hasPermission, PermissionId } from '../features/auth/permissions';
 
 const NARROW_SHELL_QUERY = '(max-width: 65.98rem)';
 
@@ -90,6 +91,7 @@ export function AppShell() {
   }, [isNarrow, location.pathname]);
 
   const settingsActive = location.pathname.startsWith('/settings');
+  const machineLogbookActive = location.pathname.startsWith('/machine-logbook');
 
   return (
     <div className="app-shell">
@@ -199,6 +201,14 @@ export function AppShell() {
                 </SideNavLink>
               )}
 			  {hasPermission(currentUser, PermissionId.supervisor_dashboardread) && <SideNavLink as={Link} to="/supervisors" renderIcon={UserMultiple} isActive={location.pathname.startsWith('/supervisors')}>Supervisors</SideNavLink>}
+              {canAccessMachineLogbook(currentUser) && <SideNavMenu title="Machine logbook" renderIcon={DataBase} defaultExpanded={machineLogbookActive} isActive={machineLogbookActive}>
+                {(hasPermission(currentUser, PermissionId.machine_jobsread) || hasPermission(currentUser, PermissionId.statisticsread)) && <SideNavMenuItem as={Link} to="/machine-logbook" isActive={location.pathname === '/machine-logbook'}>Overview</SideNavMenuItem>}
+                {hasPermission(currentUser, PermissionId.machine_jobsread) && <SideNavMenuItem as={Link} to="/machine-logbook/jobs" isActive={location.pathname.startsWith('/machine-logbook/jobs')}>Jobs</SideNavMenuItem>}
+                {hasPermission(currentUser, PermissionId.machine_jobsreview) && <SideNavMenuItem as={Link} to="/machine-logbook/review" isActive={location.pathname.startsWith('/machine-logbook/review')}>Review</SideNavMenuItem>}
+                {hasPermission(currentUser, PermissionId.inventoryread) && <SideNavMenuItem as={Link} to="/machine-logbook/inventory" isActive={location.pathname.startsWith('/machine-logbook/inventory')}>Inventory</SideNavMenuItem>}
+                {hasPermission(currentUser, PermissionId.machinesread) && <SideNavMenuItem as={Link} to="/machine-logbook/machines" isActive={location.pathname.startsWith('/machine-logbook/machines')}>Machines</SideNavMenuItem>}
+                {hasPermission(currentUser, PermissionId.statisticsread) && <SideNavMenuItem as={Link} to="/machine-logbook/statistics" isActive={location.pathname.startsWith('/machine-logbook/statistics')}>Statistics</SideNavMenuItem>}
+              </SideNavMenu>}
               {canAccessSettings(currentUser) && (
                 <SideNavMenu
                   title="Administration"

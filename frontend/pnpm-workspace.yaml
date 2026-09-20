@@ -1,4 +1,6 @@
 allowBuilds:
+  '@carbon/charts': true
+  '@carbon/charts-react': true
   '@carbon/colors': false
   '@carbon/feature-flags': false
   '@carbon/grid': false
@@ -11,6 +13,7 @@ allowBuilds:
   '@carbon/themes': false
   '@carbon/type': false
   '@carbon/utilities': false
+  '@carbon/utils-position': true
   '@ibm/plex': false
   '@ibm/plex-mono': false
   '@ibm/plex-sans': false

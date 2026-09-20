@@ -832,8 +832,69 @@ h2 {
 .table-actions { display: flex; gap: $spacing-02; }
 .lab-rules-warning { display: grid; gap: $spacing-03; margin-block-end: $spacing-06; padding: $spacing-05; border-inline-start: 4px solid var(--cds-support-warning); background: var(--cds-notification-background-warning); }
 
+.machine-logbook-page { max-inline-size: 112rem; }
+.machine-logbook-page .page-header { max-inline-size: none; }
+.machine-logbook-grid { inline-size: 100%; padding: 0; row-gap: $spacing-05; }
+.metric-grid { display: grid; grid-template-columns: repeat(5, minmax(10rem, 1fr)); gap: 1px; background: var(--cds-border-subtle); }
+.metric-grid--three { grid-template-columns: repeat(3, 1fr); }
+.metric-grid .cds--tile { display: grid; min-block-size: 9rem; gap: $spacing-02; border-block-start: 3px solid var(--cds-link-primary); }
+.metric-grid strong { @include type-style('productive-heading-05'); }
+.metric-grid small { color: var(--cds-text-secondary); }
+.review-callout { display: flex; align-items: center; justify-content: space-between; gap: $spacing-05; border-inline-start: 4px solid var(--cds-support-warning); background: var(--cds-notification-background-warning); }
+.review-callout p { margin-block-start: $spacing-02; color: var(--cds-text-secondary); }
+.summary-list, .transaction-list { margin: $spacing-04 0 0; padding: 0; list-style: none; }
+.summary-list li, .transaction-list li { border-block-end: 1px solid var(--cds-border-subtle); }
+.summary-list a, .transaction-list li { display: flex; align-items: center; justify-content: space-between; min-block-size: 4.5rem; gap: $spacing-04; color: inherit; text-decoration: none; }
+.summary-list span, .transaction-list div { display: grid; gap: $spacing-02; }
+.summary-list small, .transaction-list small { color: var(--cds-text-secondary); }
+.chart-tile { min-inline-size: 0; overflow: hidden; }
+.accessible-data-table { position: absolute; inline-size: 1px; block-size: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.filter-bar { display: grid; grid-template-columns: minmax(18rem, 2fr) repeat(4, minmax(10rem, 1fr)); gap: $spacing-03; align-items: end; background: var(--cds-layer); }
+.jobs-filter-bar { grid-template-columns: repeat(4, minmax(11rem, 1fr)); }
+.jobs-filter-bar .cds--search { grid-column: span 2; }
+.table-page .cds--data-table-container { overflow-x: auto; }
+.table-page .cds--data-table { min-inline-size: 72rem; }
+.clickable-row { cursor: pointer; }
+.clickable-row:focus-within, .clickable-row:hover { background: var(--cds-layer-hover); }
+.job-id-cell { display: flex; align-items: center; gap: $spacing-02; }
+.detail-grid { display: grid; grid-template-columns: repeat(2, minmax(22rem, 1fr)); gap: $spacing-05; }
+.detail-grid > .cds--tile { min-inline-size: 0; }
+.detail-grid h2, .material-layout h2, .configuration-list h3 { margin-block-end: $spacing-04; }
+.pricing-snapshot { margin-block: $spacing-05; padding: $spacing-05; background: var(--cds-layer-accent); }
+.pricing-snapshot ul { display: grid; gap: $spacing-02; margin: $spacing-04 0 0; padding: 0; list-style: none; }
+.pricing-snapshot li, .amount-list > div { display: flex; justify-content: space-between; gap: $spacing-04; }
+.amount-list { display: grid; gap: $spacing-03; }
+.amount-list > div { padding-block-end: $spacing-03; border-block-end: 1px solid var(--cds-border-subtle); }
+.amount-list dd { margin: 0; text-align: end; }
+.form-error, .negative { color: var(--cds-support-error); }
+.positive { color: var(--cds-support-success); }
+.machine-logbook-page .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: $spacing-05; }
+.usage-row { display: grid; grid-template-columns: minmax(14rem, 1fr) minmax(8rem, 0.4fr) auto; align-items: end; gap: $spacing-03; }
+.review-layout { display: grid; grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr); min-block-size: 42rem; background: var(--cds-layer); }
+.review-list { border-inline-end: 1px solid var(--cds-border-subtle); }
+.review-list__item { display: grid; inline-size: 100%; gap: $spacing-02; padding: $spacing-05; text-align: start; border: 0; border-block-end: 1px solid var(--cds-border-subtle); background: transparent; cursor: pointer; }
+.review-list__item span { color: var(--cds-text-secondary); }
+.review-list__item--active { box-shadow: inset 4px 0 var(--cds-link-primary); background: var(--cds-highlight); }
+.review-detail { display: grid; align-content: start; gap: $spacing-05; padding: $spacing-06; }
+.review-detail__heading, .review-submit { display: flex; align-items: center; justify-content: space-between; gap: $spacing-05; }
+.review-machine-data { display: grid; grid-template-columns: repeat(3, 1fr); gap: $spacing-05; }
+.review-machine-data div { display: grid; gap: $spacing-02; }
+.review-machine-data dt { @include type-style('label-01'); color: var(--cds-text-secondary); }
+.review-machine-data dd { margin: 0; @include type-style('heading-compact-01'); }
+.review-form { display: grid; grid-template-columns: repeat(2, 1fr); gap: $spacing-05; }
+.review-submit, .review-form > .cds--inline-notification { grid-column: 1 / -1; }
+.material-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(22rem, 1fr); gap: $spacing-05; }
+.statistics-grid { display: grid; grid-template-columns: repeat(2, minmax(26rem, 1fr)); gap: $spacing-05; }
+.date-filter { display: flex; align-items: end; gap: $spacing-03; }
+.configuration-list { display: grid; gap: $spacing-04; }
+.configuration-table { inline-size: 100%; border-collapse: collapse; }
+.configuration-table th, .configuration-table td { padding: $spacing-03; text-align: start; border-block-end: 1px solid var(--cds-border-subtle); }
+
 @media (max-width: 82rem) {
   .semester-calendar { grid-template-columns: 1fr; }
+  .metric-grid { grid-template-columns: repeat(3, 1fr); }
+  .filter-bar { grid-template-columns: repeat(2, 1fr); }
+  .material-layout { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 65.98rem) {
@@ -843,6 +904,10 @@ h2 {
   }
 
   .semester-calendar { grid-template-columns: 1fr; }
+  .review-layout { grid-template-columns: 1fr; }
+  .review-list { display: flex; overflow-x: auto; border-inline-end: 0; border-block-end: 1px solid var(--cds-border-subtle); }
+  .review-list__item { min-inline-size: 15rem; }
+  .statistics-grid { grid-template-columns: 1fr; }
 
 }
 
@@ -884,4 +949,7 @@ h2 {
 
   .managed-period { grid-template-columns: 1fr; }
   .management-section-heading { align-items: stretch; flex-direction: column; }
+  .metric-grid, .metric-grid--three, .detail-grid, .review-form, .review-machine-data, .filter-bar, .machine-logbook-page .form-grid, .usage-row { grid-template-columns: 1fr; }
+  .review-detail { padding: $spacing-05; }
+  .date-filter { align-items: stretch; flex-direction: column; }
 }

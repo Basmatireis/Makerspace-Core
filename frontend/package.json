@@ -8,6 +8,13 @@
   "engines": {
     "node": ">=24 <25"
   },
+  "pnpm": {
+    "ignoredBuiltDependencies": [
+      "@carbon/charts",
+      "@carbon/charts-react",
+      "@carbon/utils-position"
+    ]
+  },
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
@@ -20,6 +27,8 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
+    "@carbon/charts": "1.27.18",
+    "@carbon/charts-react": "1.27.18",
     "@carbon/icons-react": "11.88.0",
     "@carbon/react": "1.116.0",
     "@dnd-kit/react": "0.5.0",

@@ -2,7 +2,7 @@ import { Column, Grid, Stack, ClickableTile } from '@carbon/react';
 import { DataBase, Devices, Document, Group, UserMultiple, IbmCloudKeyProtect, Email } from '@carbon/icons-react';
 import { PageHeader } from '../../app/PageHeader';
 import { useCurrentUser } from '../auth/auth';
-import { hasAnyPermission, PermissionId } from '../auth/permissions';
+import { hasAnyPermission, hasPermission, PermissionId } from '../auth/permissions';
 
 export function SettingsPage() {
   const currentUser = useCurrentUser();
@@ -16,6 +16,7 @@ export function SettingsPage() {
   const canManageSCIM = hasAnyPermission(currentUser, [PermissionId.scimmanage]);
   const canManageVisitorEnrollment = hasAnyPermission(currentUser, [PermissionId.visitor_enrollmentmanage]);
   const canManageMail = hasAnyPermission(currentUser, [PermissionId.mailmanage]);
+  const canConfigureMachineLogbook = hasPermission(currentUser, PermissionId.organizationsread) && hasPermission(currentUser, PermissionId.pricingread) && hasPermission(currentUser, PermissionId.machinesread);
 
   return (
     <Stack gap={8}>
@@ -68,6 +69,7 @@ export function SettingsPage() {
         {canManageSCIM && <Column sm={4} md={4} lg={5}><ClickableTile href="/settings/scim" className="settings-tile"><Stack gap={5}><DataBase size={32} /><div><h2>SCIM provisioning</h2><p>Manage connectors, bearer tokens, and Account reconciliation.</p></div></Stack></ClickableTile></Column>}
         {canManageVisitorEnrollment && <Column sm={4} md={4} lg={5}><ClickableTile href="/settings/visitor-enrollment" className="settings-tile"><Stack gap={5}><UserMultiple size={32} /><div><h2>Visitor enrollment</h2><p>Configure approved terminals, the initial Role, and authentication methods.</p></div></Stack></ClickableTile></Column>}
         {canManageMail && <Column sm={4} md={4} lg={5}><ClickableTile href="/settings/mail" className="settings-tile"><Stack gap={5}><Email size={32} /><div><h2>Email delivery</h2><p>Configure SMTP, sender identity, and recovery-link delivery.</p></div></Stack></ClickableTile></Column>}
+        {canConfigureMachineLogbook && <Column sm={4} md={4} lg={5}><ClickableTile href="/settings/machine-logbook" className="settings-tile"><Stack gap={5}><DataBase size={32} /><div><h2>Machine logbook</h2><p>Configure organizations, pricing groups, and rates.</p></div></Stack></ClickableTile></Column>}
       </Grid>
     </Stack>
   );

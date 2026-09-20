@@ -24,6 +24,15 @@ import { SCIMConnectorsPage } from '../features/scim/SCIMConnectorsPage';
 import { VisitorEnrollmentPage } from '../features/visitor/VisitorEnrollmentPage';
 import { VisitorEnrollmentSettingsPage } from '../features/visitor/VisitorEnrollmentSettingsPage';
 import { MailSettingsPage } from '../features/mail/MailSettingsPage';
+import { MachineLogbookOverviewPage } from '../features/machinelogbook/OverviewPage';
+import { JobsPage } from '../features/machinelogbook/JobsPage';
+import { JobDetailPage } from '../features/machinelogbook/JobDetailPage';
+import { ReviewPage } from '../features/machinelogbook/ReviewPage';
+import { InventoryPage } from '../features/machinelogbook/InventoryPage';
+import { MaterialDetailPage } from '../features/machinelogbook/MaterialDetailPage';
+import { MachinesPage } from '../features/machinelogbook/MachinesPage';
+import { StatisticsPage } from '../features/machinelogbook/StatisticsPage';
+import { ConfigurationPage } from '../features/machinelogbook/ConfigurationPage';
 import { AppShell } from './AppShell';
 import { NotFoundPage } from './NotFoundPage';
 
@@ -48,6 +57,14 @@ export function App() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="profile" element={<ProfilePage />} />
+		<Route path="machine-logbook" element={<PermissionRoute anyOf={[PermissionId.machine_jobsread, PermissionId.statisticsread]}><MachineLogbookOverviewPage /></PermissionRoute>} />
+		<Route path="machine-logbook/jobs" element={<PermissionRoute allOf={[PermissionId.machine_jobsread]}><JobsPage /></PermissionRoute>} />
+		<Route path="machine-logbook/jobs/:jobId" element={<PermissionRoute allOf={[PermissionId.machine_jobsread]}><JobDetailPage /></PermissionRoute>} />
+		<Route path="machine-logbook/review" element={<PermissionRoute allOf={[PermissionId.machine_jobsreview]}><ReviewPage /></PermissionRoute>} />
+		<Route path="machine-logbook/inventory" element={<PermissionRoute allOf={[PermissionId.inventoryread]}><InventoryPage /></PermissionRoute>} />
+		<Route path="machine-logbook/inventory/:materialId" element={<PermissionRoute allOf={[PermissionId.inventoryread]}><MaterialDetailPage /></PermissionRoute>} />
+		<Route path="machine-logbook/machines" element={<PermissionRoute allOf={[PermissionId.machinesread]}><MachinesPage /></PermissionRoute>} />
+		<Route path="machine-logbook/statistics" element={<PermissionRoute allOf={[PermissionId.statisticsread]}><StatisticsPage /></PermissionRoute>} />
 		<Route path="supervisors" element={<PermissionRoute allOf={[PermissionId.supervisor_dashboardread]}><SupervisorDashboardPage /></PermissionRoute>} />
         <Route
           path="open-days"
@@ -90,6 +107,7 @@ export function App() {
         <Route path="settings/scim" element={<PermissionRoute allOf={[PermissionId.scimmanage]}><SCIMConnectorsPage /></PermissionRoute>} />
         <Route path="settings/visitor-enrollment" element={<PermissionRoute allOf={[PermissionId.visitor_enrollmentmanage]}><VisitorEnrollmentSettingsPage /></PermissionRoute>} />
         <Route path="settings/mail" element={<PermissionRoute allOf={[PermissionId.mailmanage]}><MailSettingsPage /></PermissionRoute>} />
+		<Route path="settings/machine-logbook" element={<PermissionRoute allOf={[PermissionId.organizationsread, PermissionId.pricingread, PermissionId.machinesread]}><ConfigurationPage /></PermissionRoute>} />
         <Route
           path="settings/users"
           element={<PermissionRoute allOf={[PermissionId.peoplereadall]}><UsersPage /></PermissionRoute>}
