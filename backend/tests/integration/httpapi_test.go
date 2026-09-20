@@ -18,6 +18,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
+	"github.com/google/uuid"
 )
 
 func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
@@ -87,9 +88,38 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	assertStatus(t, response, http.StatusOK)
 	var current openapi.CurrentUser
 	decodeResponse(t, response, &current)
-	if current.Account.LoginEmail != openapi.Email(adminLogin) || len(current.Permissions) != len(authorization.Registry()) {
+	loginEmail, loginEmailErr := current.Account.LoginEmail.Get()
+	if loginEmailErr != nil || loginEmail != openapi.Email(adminLogin) || len(current.Permissions) != len(authorization.Registry()) {
 		t.Fatalf("unexpected master identity or permission set: %#v", current)
 	}
+	response = doJSON(t, adminClient, http.MethodGet, server.URL+"/api/v1/roles/effective-permissions?authenticationAssurance=normal", "", "", nil)
+	assertStatus(t, response, http.StatusOK)
+	var evaluations openapi.RoleEffectivePermissionEvaluationList
+	decodeResponse(t, response, &evaluations)
+	var masterRoleID uuid.UUID
+	var masterRoleVersion int64
+	if err := pool.QueryRow(ctx, `SELECT id, version FROM roles WHERE system_key = 'master'`).Scan(&masterRoleID, &masterRoleVersion); err != nil {
+		t.Fatal(err)
+	}
+	foundMasterEvaluation := false
+	for _, evaluation := range evaluations.Items {
+		if uuid.UUID(evaluation.RoleId) != masterRoleID {
+			continue
+		}
+		foundMasterEvaluation = true
+		if evaluation.RoleVersion != masterRoleVersion || len(evaluation.PermissionIds) != len(authorization.Registry()) {
+			t.Fatalf("unexpected master effective evaluation: %#v", evaluation)
+		}
+	}
+	if !foundMasterEvaluation {
+		t.Fatal("effective permission response omitted the master role")
+	}
+	response = doJSON(t, adminClient, http.MethodGet, server.URL+"/api/v1/roles/effective-permissions?authenticationAssurance=invalid", "", "", nil)
+	assertStatus(t, response, http.StatusBadRequest)
+	response.Body.Close()
+	response = doJSON(t, adminClient, http.MethodGet, server.URL+"/api/v1/roles/effective-permissions?authenticationAssurance=normal&deviceTypeId="+uuid.Must(uuid.NewV7()).String(), "", "", nil)
+	assertStatus(t, response, http.StatusNotFound)
+	response.Body.Close()
 
 	response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/people", origin, adminCSRF, map[string]any{
 		"firstName": "Grace", "lastName": "Hopper", "email": "grace-contact@example.test", "matriculationNumber": "M-0042",
@@ -116,7 +146,7 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	assertStatus(t, response, http.StatusCreated)
 	var account openapi.Account
 	decodeResponse(t, response, &account)
-	if account.Status != openapi.Disabled || account.PasswordStatus != openapi.PasswordStatusNotSet {
+	if account.Status != openapi.AccountStatusDisabled || account.PasswordStatus != openapi.PasswordStatusNotSet {
 		t.Fatalf("new account state = %s/%s", account.Status, account.PasswordStatus)
 	}
 
@@ -133,7 +163,7 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 
 	response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/roles", origin, adminCSRF, map[string]any{
 		"name": "Member self-service", "description": "May read and update only the linked person",
-		"permissionGrants": []map[string]any{{"permissionId": "people.read.self", "scope": "everywhere", "deviceTypeIds": []string{}}, {"permissionId": "people.update.self", "scope": "everywhere", "deviceTypeIds": []string{}}},
+		"permissionGrants": []map[string]any{{"permissionId": "people.read.self", "scope": "everywhere", "deviceTypeIds": []string{}, "minimumAssurance": "low"}, {"permissionId": "people.update.self", "scope": "everywhere", "deviceTypeIds": []string{}, "minimumAssurance": "low"}},
 	})
 	assertStatus(t, response, http.StatusCreated)
 	var role openapi.Role
@@ -152,6 +182,9 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	assertStatus(t, response, http.StatusNoContent)
 	response.Body.Close()
 	memberCSRF := cookieValue(t, memberClient, server.URL, cfg.CSRFCookieName)
+	response = doJSON(t, memberClient, http.MethodGet, server.URL+"/api/v1/roles/effective-permissions?authenticationAssurance=normal", "", "", nil)
+	assertStatus(t, response, http.StatusForbidden)
+	response.Body.Close()
 
 	response = doJSON(t, memberClient, http.MethodGet, server.URL+"/api/v1/people/"+person.Id.String(), "", "", nil)
 	assertStatus(t, response, http.StatusOK)

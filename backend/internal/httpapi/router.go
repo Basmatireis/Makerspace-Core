@@ -18,6 +18,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -30,12 +31,14 @@ import (
 )
 
 const (
-	maxRequestBodyBytes = 64 << 10
-	maxLogPathBytes     = 1024
-	maxUserAgentBytes   = 512
-	csrfHeaderName      = "X-CSRF-Token"
-	requestIDHeaderName = "X-Request-ID"
-	forwardedForHeader  = "X-Forwarded-For"
+	maxJSONRequestBodyBytes  = 64 << 10
+	maxImageRequestBodyBytes = 9 << 20
+	maxPDFRequestBodyBytes   = 26 << 20
+	maxLogPathBytes          = 1024
+	maxUserAgentBytes        = 512
+	csrfHeaderName           = "X-CSRF-Token"
+	requestIDHeaderName      = "X-Request-ID"
+	forwardedForHeader       = "X-Forwarded-For"
 )
 
 type contextKey uint8
@@ -46,6 +49,10 @@ const (
 	sourceAddressContextKey
 	operationStateContextKey
 	normalizedRouteContextKey
+	oidcFlowTokenContextKey
+	scimConnectorContextKey
+	visitorDeviceContextKey
+	visitorEnrollmentContextKey
 )
 
 type operationState struct{ name string }
@@ -125,6 +132,74 @@ func NewHandler(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (htt
 
 func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if cookie, err := r.Cookie(s.config.OIDCFlowCookieName); err == nil {
+			r = r.WithContext(context.WithValue(r.Context(), oidcFlowTokenContextKey, cookie.Value))
+		}
+		if isSCIMPath(r.URL.Path) {
+			scheme, token, found := strings.Cut(strings.TrimSpace(r.Header.Get("Authorization")), " ")
+			if !found || !strings.EqualFold(scheme, "Bearer") || strings.TrimSpace(token) == "" {
+				writeSCIMAuthenticationError(w, r, logger)
+				return
+			}
+			connector, err := s.scim.Authenticate(r.Context(), strings.TrimSpace(token))
+			if err != nil {
+				writeSCIMServiceError(w, r, err, logger)
+				return
+			}
+			ctx := context.WithValue(r.Context(), scimConnectorContextKey, connector)
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
+		if isVisitorEnrollmentPublicPath(r.URL.Path) {
+			headerToken := r.Header.Get("X-Managed-Device-Token")
+			browserToken := ""
+			if cookie, err := r.Cookie(s.config.ManagedDeviceCookieName); err == nil {
+				browserToken = cookie.Value
+			}
+			if headerToken != "" && browserToken != "" {
+				writeAPIError(w, r, apperror.New(http.StatusBadRequest, "managed_device_credentials_conflict", "Use either native or browser managed-device credentials, not both"), logger)
+				return
+			}
+			token := headerToken
+			if token == "" {
+				token = browserToken
+			}
+			device, err := s.managedDevices.Authenticate(r.Context(), token)
+			if err != nil {
+				writeAPIError(w, r, err, logger)
+				return
+			}
+			if device == nil {
+				writeAPIError(w, r, apperror.NotFound, logger)
+				return
+			}
+			ctx := context.WithValue(r.Context(), visitorDeviceContextKey, *device)
+			if r.URL.Path != apiBasePath+"/visitor-enrollment/context" {
+				cookie, err := r.Cookie(s.config.EnrollmentCookieName)
+				if err != nil {
+					writeAPIError(w, r, apperror.Unauthenticated, logger)
+					return
+				}
+				enrollment, err := s.visitor.AuthenticateContext(ctx, cookie.Value)
+				if err != nil || enrollment.ManagedDeviceID != device.ID {
+					if err == nil {
+						err = apperror.Unauthenticated
+					}
+					writeAPIError(w, r, err, logger)
+					return
+				}
+				if isUnsafeMethod(r.Method) {
+					csrfCookie, cookieErr := r.Cookie(s.config.EnrollmentCSRFName)
+					if cookieErr != nil || visitor.ValidateCSRF(enrollment, cookieValue(csrfCookie), r.Header.Get("X-Enrollment-CSRF-Token")) != nil {
+						writeAPIError(w, r, apperror.New(http.StatusForbidden, "csrf_invalid", "CSRF validation failed"), logger)
+						return
+					}
+				}
+				ctx = context.WithValue(ctx, visitorEnrollmentContextKey, enrollment)
+			}
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
+		}
 		if isPublicPath(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
@@ -139,7 +214,21 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 			writeAPIError(w, r, err, logger)
 			return
 		}
-		device, err := s.managedDevices.Authenticate(r.Context(), r.Header.Get("X-Managed-Device-Token"))
+		headerDeviceToken := r.Header.Get("X-Managed-Device-Token")
+		browserDeviceCookie, browserCookieErr := r.Cookie(s.config.ManagedDeviceCookieName)
+		browserDeviceToken := ""
+		if browserCookieErr == nil {
+			browserDeviceToken = browserDeviceCookie.Value
+		}
+		if headerDeviceToken != "" && browserDeviceToken != "" {
+			writeAPIError(w, r, apperror.New(http.StatusBadRequest, "managed_device_credentials_conflict", "Use either native or browser managed-device credentials, not both"), logger)
+			return
+		}
+		deviceToken := headerDeviceToken
+		if deviceToken == "" {
+			deviceToken = browserDeviceToken
+		}
+		device, err := s.managedDevices.Authenticate(r.Context(), deviceToken)
 		if err != nil {
 			writeAPIError(w, r, err, logger)
 			return
@@ -174,6 +263,10 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 func (s *Server) originMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 	expectedOrigin := s.config.PublicBaseURL.Scheme + "://" + s.config.PublicBaseURL.Host
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isSCIMPath(r.URL.Path) {
+			next.ServeHTTP(w, r)
+			return
+		}
 		if isUnsafeMethod(r.Method) && r.Header.Get("Origin") != expectedOrigin {
 			writeAPIError(w, r, apperror.New(http.StatusForbidden, "origin_invalid", "Request origin is not allowed"), logger)
 			return
@@ -197,7 +290,15 @@ func requestMetadataMiddleware(next http.Handler, routes chi.Routes) http.Handle
 func maxBodyMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Body != nil {
-			r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
+			limit := int64(maxJSONRequestBodyBytes)
+			if strings.HasSuffix(r.URL.Path, "/profile-image") {
+				limit = maxImageRequestBodyBytes
+			} else if r.URL.Path == apiBasePath+"/laborordnung/versions" {
+				limit = maxPDFRequestBodyBytes
+			} else if r.URL.Path == apiBasePath+"/visitor-enrollment/submissions" {
+				limit = 12 << 20
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
 		}
 		next.ServeHTTP(w, r)
 	})
@@ -206,7 +307,9 @@ func maxBodyMiddleware(next http.Handler) http.Handler {
 func noStoreMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, apiBasePath+"/auth/") || strings.HasSuffix(r.URL.Path, "/password-reset") ||
-			(r.Method == http.MethodPost && r.URL.Path == apiBasePath+"/managed-devices") || strings.HasSuffix(r.URL.Path, "/token") {
+			strings.HasPrefix(r.URL.Path, apiBasePath+"/visitor-enrollment/") ||
+			strings.HasSuffix(r.URL.Path, "/invitations") || strings.HasSuffix(r.URL.Path, "/pin-enrollment") ||
+			(r.Method == http.MethodPost && (r.URL.Path == apiBasePath+"/managed-devices" || r.URL.Path == apiBasePath+"/scim/connectors")) || strings.HasSuffix(r.URL.Path, "/token") {
 			w.Header().Set("Cache-Control", "no-store")
 		}
 		next.ServeHTTP(w, r)
@@ -501,13 +604,47 @@ func remoteHost(remoteAddress string) string {
 }
 
 func isPublicPath(path string) bool {
+	if isSCIMPath(path) {
+		return true
+	}
+	if isVisitorEnrollmentPublicPath(path) {
+		return true
+	}
+	if path == apiBasePath+"/auth/oidc/callback" || path == apiBasePath+"/auth/oidc/providers" ||
+		(strings.HasPrefix(path, apiBasePath+"/auth/oidc/") && strings.HasSuffix(path, "/start")) {
+		return true
+	}
 	switch path {
 	case apiBasePath + "/health/live", apiBasePath + "/health/ready", apiBasePath + "/auth/login", apiBasePath + "/auth/password-reset/complete",
+		apiBasePath + "/auth/pin/login",
+		apiBasePath + "/auth/password-reset/request", apiBasePath + "/auth/password-reset/complete-code",
+		apiBasePath + "/auth/invitations/complete", apiBasePath + "/auth/email-verification/complete",
 		apiBasePath + "/public/open-days", apiBasePath + "/public/open-days/calendar.ics":
 		return true
 	default:
 		return false
 	}
+}
+
+func isVisitorEnrollmentPublicPath(path string) bool {
+	switch path {
+	case apiBasePath + "/visitor-enrollment/context", apiBasePath + "/visitor-enrollment/state",
+		apiBasePath + "/visitor-enrollment/lab-rules.pdf", apiBasePath + "/visitor-enrollment/submissions":
+		return true
+	default:
+		return false
+	}
+}
+
+func cookieValue(cookie *http.Cookie) string {
+	if cookie == nil {
+		return ""
+	}
+	return cookie.Value
+}
+
+func isSCIMPath(path string) bool {
+	return strings.HasPrefix(path, apiBasePath+"/scim/v2/")
 }
 
 func isUnsafeMethod(method string) bool {

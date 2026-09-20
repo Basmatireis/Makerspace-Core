@@ -21,11 +21,19 @@ func (response cookieNoContentResponse) VisitLoginResponse(w http.ResponseWriter
 	return response.write(w)
 }
 
+func (response cookieNoContentResponse) VisitLoginWithPinResponse(w http.ResponseWriter) error {
+	return response.write(w)
+}
+
 func (response cookieNoContentResponse) VisitLogoutResponse(w http.ResponseWriter) error {
 	return response.write(w)
 }
 
 func (response cookieNoContentResponse) VisitChangeOwnPasswordResponse(w http.ResponseWriter) error {
+	return response.write(w)
+}
+
+func (response cookieNoContentResponse) VisitRemoveOwnPasswordResponse(w http.ResponseWriter) error {
 	return response.write(w)
 }
 

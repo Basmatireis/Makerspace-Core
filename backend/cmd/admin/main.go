@@ -11,8 +11,11 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
+	oidcservice "github.com/Basmatireis/Makerspace-Core/backend/internal/oidc"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
 	"golang.org/x/term"
 )
 
@@ -25,7 +28,10 @@ func main() {
 
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: admin <bootstrap-master|recover-master|cleanup>")
+		return errors.New("usage: admin <bootstrap-master|recover-master|reset-password|cleanup|verify-files|reencrypt-oidc-secrets|migrate-files-local-to-s3>")
+	}
+	if args[0] == "reset-password" && len(args) != 1 {
+		return errors.New("reset-password accepts no flags, password arguments, environment values, or piped input")
 	}
 	cfg, err := config.Load()
 	if err != nil {
@@ -70,6 +76,17 @@ func run(ctx context.Context, args []string) error {
 		}
 		fmt.Println("master account recovered:", id)
 		return nil
+	case "reset-password":
+		identifier, password, err := promptExistingAccountPasswordReset()
+		if err != nil {
+			return err
+		}
+		id, err := service.ResetPassword(ctx, identifier, password)
+		if err != nil {
+			return err
+		}
+		fmt.Println("existing account password reset:", id)
+		return nil
 	case "cleanup":
 		flags := flag.NewFlagSet("cleanup", flag.ContinueOnError)
 		auditBeforeRaw := flags.String("audit-before", "", "optional RFC3339 audit cutoff")
@@ -90,6 +107,61 @@ func run(ctx context.Context, args []string) error {
 			return err
 		}
 		fmt.Printf("deleted sessions=%d reset_tokens=%d audit_events=%d\n", sessions, resets, events)
+		return nil
+	case "verify-files":
+		if len(args) != 1 {
+			return errors.New("verify-files accepts no flags")
+		}
+		store, err := storage.NewFromConfig(ctx, cfg)
+		if err != nil {
+			return err
+		}
+		invalid, err := files.NewService(pool, store).Verify(ctx)
+		if err != nil {
+			return err
+		}
+		if len(invalid) != 0 {
+			for _, id := range invalid {
+				fmt.Println("invalid file:", id)
+			}
+			return fmt.Errorf("file integrity verification failed for %d database-referenced object(s)", len(invalid))
+		}
+		fmt.Println("verified all database-referenced files")
+		return nil
+	case "reencrypt-oidc-secrets":
+		if len(args) != 1 {
+			return errors.New("reencrypt-oidc-secrets accepts no flags or piped values")
+		}
+		oidcService, err := oidcservice.NewService(pool, cfg, nil)
+		if err != nil {
+			return err
+		}
+		count, err := oidcService.ReencryptProviderSecrets(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("reencrypted oidc_provider_secrets=%d\n", count)
+		return nil
+	case "migrate-files-local-to-s3":
+		if len(args) != 1 {
+			return errors.New("migrate-files-local-to-s3 accepts no flags")
+		}
+		if cfg.LocalStorageRoot == "" || cfg.S3Region == "" || cfg.S3Bucket == "" {
+			return errors.New("LOCAL_STORAGE_ROOT, S3_REGION, and S3_BUCKET are required")
+		}
+		source, err := storage.NewLocal(cfg.LocalStorageRoot)
+		if err != nil {
+			return err
+		}
+		destination, err := storage.NewS3(ctx, storage.S3Config{Endpoint: cfg.S3Endpoint, Region: cfg.S3Region, Bucket: cfg.S3Bucket, AccessKeyID: cfg.S3AccessKeyID, SecretAccessKey: cfg.S3SecretAccessKey, UsePathStyle: cfg.S3UsePathStyle, DisableTLS: cfg.S3DisableTLS})
+		if err != nil {
+			return err
+		}
+		count, err := files.NewService(pool, source).CopyStorage(ctx, source, destination)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("copied_and_verified files=%d\n", count)
 		return nil
 	default:
 		return fmt.Errorf("unknown command %q", args[0])
@@ -135,6 +207,19 @@ func promptRecovery() (string, string, error) {
 	}
 	password, err := promptPasswordTwice()
 	return email, password, err
+}
+
+func promptExistingAccountPasswordReset() (string, string, error) {
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return "", "", errors.New("reset-password requires an interactive terminal; stdin pipes are refused")
+	}
+	reader := bufio.NewReader(os.Stdin)
+	identifier, err := promptLine(reader, "Existing account login email or identifier: ")
+	if err != nil {
+		return "", "", err
+	}
+	password, err := promptPasswordTwice()
+	return identifier, password, err
 }
 
 func promptLine(reader *bufio.Reader, label string) (string, error) {

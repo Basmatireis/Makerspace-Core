@@ -14,11 +14,48 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
+
+func TestGrantDTOAlwaysSerializesDeviceTypeIDsAsArray(t *testing.T) {
+	tests := []struct {
+		name  string
+		scope authorization.GrantScope
+	}{
+		{name: "everywhere", scope: authorization.GrantEverywhere},
+		{name: "any managed device", scope: authorization.GrantAnyManagedDevice},
+		{name: "selected device types", scope: authorization.GrantSelectedDeviceTypes},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			encoded, err := json.Marshal(grantDTO(authorization.PermissionGrant{
+				PermissionID:     authorization.PeopleReadAll,
+				Scope:            test.scope,
+				MinimumAssurance: authorization.AssuranceStrong,
+			}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var value map[string]any
+			if err := json.Unmarshal(encoded, &value); err != nil {
+				t.Fatal(err)
+			}
+			ids, ok := value["deviceTypeIds"].([]any)
+			if !ok || len(ids) != 0 {
+				t.Fatalf("deviceTypeIds = %#v, want []", value["deviceTypeIds"])
+			}
+			if value["minimumAssurance"] != "strong" {
+				t.Fatalf("minimumAssurance = %#v", value["minimumAssurance"])
+			}
+		})
+	}
+}
 
 func TestCookieResponseWritesSeparateSecureCookies(t *testing.T) {
 	cfg := testConfig(t)
@@ -84,6 +121,66 @@ func TestCookieResponseClearsBothCookies(t *testing.T) {
 		if cookie.MaxAge >= 0 || cookie.Value != "" {
 			t.Fatalf("cookie was not expired: %#v", cookie)
 		}
+	}
+}
+
+func TestBrowserManagedDeviceProvisioningNeverExposesTokenToJavaScript(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.SessionCookieSecure = true
+	cfg.ManagedDeviceCookieName = "__Host-makerspace_device"
+	server := &Server{config: cfg}
+	expiresAt := time.Now().UTC().Add(24 * time.Hour)
+	provisioned := manageddevices.ProvisionedDevice{
+		Device: manageddevices.Device{ID: uuid.Must(uuid.NewV7()), Name: "Visitor terminal", ExpiresAt: &expiresAt},
+		Token:  "one-time-device-token",
+	}
+
+	browser, setCookie := server.managedDeviceProvisioning(provisioned, openapi.BindBrowser)
+	if browser.Token != nil {
+		t.Fatal("browser binding exposed the managed-device token in JSON")
+	}
+	response := httptest.NewRecorder()
+	response.Header().Set("Set-Cookie", setCookie)
+	cookies := response.Result().Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("cookie count=%d, want 1", len(cookies))
+	}
+	cookie := cookies[0]
+	if cookie.Name != cfg.ManagedDeviceCookieName || cookie.Value != provisioned.Token || !cookie.HttpOnly || !cookie.Secure || cookie.Path != "/" || cookie.SameSite != http.SameSiteStrictMode {
+		t.Fatalf("invalid managed-device browser cookie: %#v", cookie)
+	}
+
+	native, setCookie := server.managedDeviceProvisioning(provisioned, openapi.NativeToken)
+	if native.Token == nil || *native.Token != provisioned.Token || setCookie != "" {
+		t.Fatalf("native token delivery=%#v cookie=%q", native.Token, setCookie)
+	}
+}
+
+func TestVisitorEnrollmentCookiesUseStrictOneReadableCSRFPattern(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.SessionCookieSecure = true
+	cfg.EnrollmentCookieName = "__Host-makerspace_enrollment"
+	cfg.EnrollmentCSRFName = "__Host-makerspace_enrollment_csrf"
+	response := visitorContextCookieResponse{config: cfg, issue: visitor.ContextIssue{
+		ContextToken: "enrollment-context-token", CSRFToken: "enrollment-csrf-token", ExpiresAt: time.Now().UTC().Add(15 * time.Minute),
+	}}
+	recorder := httptest.NewRecorder()
+	if err := response.VisitBeginVisitorEnrollmentResponse(recorder); err != nil {
+		t.Fatal(err)
+	}
+	cookies := recorder.Result().Cookies()
+	if len(cookies) != 2 {
+		t.Fatalf("cookie count=%d, want 2", len(cookies))
+	}
+	byName := map[string]*http.Cookie{}
+	for _, cookie := range cookies {
+		byName[cookie.Name] = cookie
+		if !cookie.Secure || cookie.Path != "/" || cookie.SameSite != http.SameSiteStrictMode || cookie.MaxAge <= 0 {
+			t.Fatalf("invalid enrollment cookie: %#v", cookie)
+		}
+	}
+	if !byName[cfg.EnrollmentCookieName].HttpOnly || byName[cfg.EnrollmentCSRFName].HttpOnly {
+		t.Fatal("enrollment context must be HttpOnly and enrollment CSRF must be readable")
 	}
 }
 
@@ -187,6 +284,10 @@ func TestHandlerValidatesContractAndProtectsRoutes(t *testing.T) {
 	for _, path := range []string{
 		"/api/v1/managed-devices",
 		"/api/v1/managed-devices/0192f6f8-743e-7c77-a349-cd07c3e8a921/token",
+		"/api/v1/scim/connectors",
+		"/api/v1/accounts/0192f6f8-743e-7c77-a349-cd07c3e8a921/invitations",
+		"/api/v1/accounts/0192f6f8-743e-7c77-a349-cd07c3e8a921/pin-enrollment",
+		"/api/v1/visitor-enrollment/context",
 	} {
 		request = httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(`{}`))
 		request.Header.Set("Content-Type", "application/json")

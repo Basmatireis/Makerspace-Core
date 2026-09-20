@@ -2,11 +2,13 @@ package httpapi
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
+	"github.com/google/uuid"
 	"github.com/oapi-codegen/nullable"
 )
 
@@ -122,7 +124,8 @@ func (s *Server) CreateManagedDevice(ctx context.Context, r openapi.CreateManage
 	if e != nil {
 		return nil, e
 	}
-	return openapi.CreateManagedDevice201JSONResponse{Body: provisioningDTO(item), Headers: openapi.CreateManagedDevice201ResponseHeaders{CacheControl: "no-store"}}, nil
+	body, setCookie := s.managedDeviceProvisioning(item, r.Body.CredentialDelivery)
+	return openapi.CreateManagedDevice201JSONResponse{Body: body, Headers: openapi.CreateManagedDevice201ResponseHeaders{CacheControl: "no-store", SetCookie: setCookie}}, nil
 }
 func (s *Server) UpdateManagedDevice(ctx context.Context, r openapi.UpdateManagedDeviceRequestObject) (openapi.UpdateManagedDeviceResponseObject, error) {
 	p, e := requirePrincipal(ctx)
@@ -177,7 +180,24 @@ func (s *Server) RotateManagedDeviceToken(ctx context.Context, r openapi.RotateM
 	if e != nil {
 		return nil, e
 	}
-	return openapi.RotateManagedDeviceToken200JSONResponse{Body: provisioningDTO(item), Headers: openapi.RotateManagedDeviceToken200ResponseHeaders{CacheControl: "no-store"}}, nil
+	body, setCookie := s.managedDeviceProvisioning(item, r.Body.CredentialDelivery)
+	return openapi.RotateManagedDeviceToken200JSONResponse{Body: body, Headers: openapi.RotateManagedDeviceToken200ResponseHeaders{CacheControl: "no-store", SetCookie: setCookie}}, nil
+}
+
+func (s *Server) managedDeviceProvisioning(v manageddevices.ProvisionedDevice, delivery openapi.ManagedDeviceCredentialDelivery) (openapi.ManagedDeviceProvisioning, string) {
+	result := openapi.ManagedDeviceProvisioning{Device: managedDeviceDTO(v.Device)}
+	if delivery == openapi.BindBrowser {
+		expires := time.Now().UTC().AddDate(10, 0, 0)
+		maxAge := 10 * 365 * 24 * 60 * 60
+		if v.Device.ExpiresAt != nil {
+			expires = v.Device.ExpiresAt.UTC()
+			maxAge = max(1, int(time.Until(expires).Seconds()))
+		}
+		cookie := (&http.Cookie{Name: s.config.ManagedDeviceCookieName, Value: v.Token, Path: "/", HttpOnly: true, Secure: s.config.SessionCookieSecure, SameSite: http.SameSiteStrictMode, Expires: expires, MaxAge: maxAge}).String()
+		return result, cookie
+	}
+	result.Token = &v.Token
+	return result, ""
 }
 
 func deviceTypeDTO(v manageddevices.DeviceType) openapi.ManagedDeviceType {
@@ -186,9 +206,6 @@ func deviceTypeDTO(v manageddevices.DeviceType) openapi.ManagedDeviceType {
 func managedDeviceDTO(v manageddevices.Device) openapi.ManagedDevice {
 	status := openapi.ManagedDeviceStatus(v.Status(time.Now()))
 	return openapi.ManagedDevice{Id: v.ID, Name: v.Name, DeviceTypeId: v.DeviceTypeID, DeviceTypeName: v.DeviceTypeName, Status: status, ExpiresAt: nullablePointer[time.Time](v.ExpiresAt, func(x time.Time) time.Time { return x }), RevokedAt: nullablePointer[time.Time](v.RevokedAt, func(x time.Time) time.Time { return x }), LastSeenAt: nullablePointer[time.Time](v.LastSeenAt, func(x time.Time) time.Time { return x }), Version: v.Version, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
-}
-func provisioningDTO(v manageddevices.ProvisionedDevice) openapi.ManagedDeviceProvisioning {
-	return openapi.ManagedDeviceProvisioning{Device: managedDeviceDTO(v.Device), Token: &v.Token}
 }
 func nullableTime(v nullable.Nullable[time.Time]) *time.Time {
 	if !v.IsSpecified() || v.IsNull() {
@@ -204,8 +221,21 @@ func grantDTO(v authorization.PermissionGrant) openapi.PermissionGrant {
 	} else if v.Scope == authorization.GrantSelectedDeviceTypes {
 		scope = openapi.SelectedDeviceTypes
 	}
-	ids := append([]openapi.UUIDv7(nil), v.DeviceTypeIDs...)
-	return openapi.PermissionGrant{PermissionId: openapi.PermissionId(v.PermissionID), Scope: scope, DeviceTypeIds: ids}
+	// The OpenAPI contract requires an array. A nil Go slice would otherwise
+	// serialize as JSON null and crash clients that correctly expect an array.
+	ids := make([]openapi.UUIDv7, len(v.DeviceTypeIDs))
+	copy(ids, v.DeviceTypeIDs)
+	result := openapi.PermissionGrant{
+		PermissionId:     openapi.PermissionId(v.PermissionID),
+		Scope:            scope,
+		DeviceTypeIds:    ids,
+		MinimumAssurance: openapi.AuthenticationAssurance(v.MinimumAssurance),
+	}
+	if v.ID != uuid.Nil {
+		id := openapi.UUIDv7(v.ID)
+		result.Id = &id
+	}
+	return result
 }
 func grantDomain(v openapi.PermissionGrant) authorization.PermissionGrant {
 	scope := authorization.GrantEverywhere
@@ -214,5 +244,10 @@ func grantDomain(v openapi.PermissionGrant) authorization.PermissionGrant {
 	} else if v.Scope == openapi.SelectedDeviceTypes {
 		scope = authorization.GrantSelectedDeviceTypes
 	}
-	return authorization.PermissionGrant{PermissionID: authorization.Permission(v.PermissionId), Scope: scope, DeviceTypeIDs: append([]openapi.UUIDv7(nil), v.DeviceTypeIds...)}
+	return authorization.PermissionGrant{
+		PermissionID:     authorization.Permission(v.PermissionId),
+		Scope:            scope,
+		DeviceTypeIDs:    append([]openapi.UUIDv7(nil), v.DeviceTypeIds...),
+		MinimumAssurance: authorization.Assurance(v.MinimumAssurance),
+	}
 }
