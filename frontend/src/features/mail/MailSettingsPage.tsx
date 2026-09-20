@@ -37,7 +37,7 @@ export function MailSettingsPage() {
       <TextInput id="mail-from-address" type="email" labelText="From address" {...form.register('fromAddress')} />
       <TextInput id="mail-from-name" labelText="From name" {...form.register('fromName')} />
       <TextInput id="mail-base-url" type="url" labelText="Public application URL" helperText="Used in invitation and recovery links, without a trailing path." {...form.register('baseUrl')} />
-      {!form.watch('enabled') && <InlineNotification kind="info" lowContrast hideCloseButton title="Manual-link mode" subtitle="Authorized administrators can generate one-time invitation, password-reset, and PIN-setup links from a member’s Authentication actions." />}
+      {!form.watch('enabled') && <InlineNotification kind="info" lowContrast hideCloseButton title="Manual-link mode" subtitle="Authorized administrators can generate one-time invitation, password-reset, and PIN-setup links from a person’s authentication actions." />}
       <Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Saving…' : 'Save email configuration'}</Button>
     </Stack></Form></Tile>}
   </Stack>;

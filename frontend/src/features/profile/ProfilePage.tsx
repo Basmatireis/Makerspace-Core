@@ -2,7 +2,6 @@ import { useState } from 'react';
 import {
   Button,
   Column,
-	FileUploaderDropContainer,
   Form,
   Grid,
   InlineNotification,
@@ -36,6 +35,7 @@ import {
   PermissionId,
 } from '../auth/permissions';
 import { PersonFields, type PersonFormValues, toPersonPatch } from '../users/PersonForm';
+import { ProfilePictureEditor } from '../users/ProfilePictureEditor';
 
 type PasswordFormValues = {
   currentPassword: string;
@@ -166,7 +166,7 @@ export function ProfilePage() {
   });
 
   return (
-    <Stack gap={8}>
+    <Stack gap={7} className="person-detail-page">
       <PageHeader
         title="Profile"
         description="Review your personal information and account security."
@@ -179,19 +179,31 @@ export function ProfilePage() {
         }
       />
 
-      <Grid condensed>
-        <Column sm={4} md={8} lg={8}>
+      <div className="person-detail-layout">
+      <Grid condensed className="person-detail-grid">
+        <Column sm={4} md={3} lg={4}>
           <Stack gap={6}>
-			<Tile>
+			<Tile className="person-detail-card person-profile-card">
 				<Stack gap={5}>
-					<div><h2>Profile image</h2><p className="section-description">Images are normalized to a private JPEG and metadata is removed.</p></div>
-					{currentUser.person.profileImage ? <img className="profile-image-preview" src={currentUser.person.profileImage.downloadUrl} alt={`${currentUser.person.firstName} ${currentUser.person.lastName}`} /> : <p>{currentUser.person.profileImageRequired ? 'A profile image is required by an assigned role.' : 'No profile image.'}</p>}
-					{profileImageMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Image not updated" subtitle="Use a JPEG, PNG, or WebP image up to 8 MiB and 4096×4096 pixels." />}
-					{mayUpdateProfileImage && <FileUploaderDropContainer id="profile-image-upload" accept={['image/jpeg', 'image/png', 'image/webp']} maxFileSize={8 << 20} multiple={false} disabled={profileImageMutation.isPending} labelText={profileImageMutation.isPending ? 'Uploading…' : 'Drag an image here or click to upload'} onAddFiles={(_, { addedFiles }) => { const file = addedFiles[0]; if (file) profileImageMutation.mutate(file); }} />}
-					{currentUser.person.profileImage && mayRemoveProfileImage && <Button kind="danger--tertiary" disabled={removeProfileImageMutation.isPending} onClick={() => removeProfileImageMutation.mutate()}>Remove image</Button>}
+					<h2>Profile picture</h2>
+					<ProfilePictureEditor
+						id="own-profile-image"
+						firstName={currentUser.person.firstName}
+						lastName={currentUser.person.lastName}
+						profileImage={currentUser.person.profileImage}
+						canUpdate={mayUpdateProfileImage}
+						canRemove={mayRemoveProfileImage}
+						isUploading={profileImageMutation.isPending}
+						isRemoving={removeProfileImageMutation.isPending}
+						onUpload={(file) => profileImageMutation.mutate(file)}
+						onRemove={() => removeProfileImageMutation.mutate()}
+					/>
+					<p className="person-profile-card__name">{currentUser.person.firstName} {currentUser.person.lastName}</p>
+					{currentUser.person.profileImageRequired && !currentUser.person.profileImage && <InlineNotification kind="warning" lowContrast hideCloseButton title="Profile picture required" subtitle="At least one assigned role requires a profile picture." />}
+					{profileImageMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Picture not updated" subtitle="Use a JPEG, PNG, or WebP image up to 8 MiB and 4096×4096 pixels." />}
 				</Stack>
 			</Tile>
-			<Tile>
+			<Tile className="person-detail-card">
             <Stack gap={6}>
               <h2>Personal information</h2>
               {updateProfileMutation.isError && (
@@ -271,37 +283,36 @@ export function ProfilePage() {
 		  </Stack>
         </Column>
 
-        <Column sm={4} md={8} lg={8}>
+        <Column sm={4} md={5} lg={12}>
           <Stack gap={6}>
-            <Tile>
-              <Stack gap={5}>
-                <h2>Account</h2>
-                <div className="account-summary">
-                  <div>
-                    <span className="label">Login email</span>
-                    <span>{currentUser.account.loginEmail ?? 'Not configured'}</span>
-                  </div>
+            <Tile className="person-detail-card">
+              <Stack gap={6}>
+                <div className="section-heading">
+                  <h2>Account access</h2>
                   <Tag
                     type={
                       currentUser.account.status === 'enabled' ? 'green' : 'gray'
                     }
                   >
-                    {currentUser.account.status}
+                    {currentUser.account.status === 'enabled' ? 'Enabled' : 'Disabled'}
                   </Tag>
                 </div>
-                {currentUser.account.roles.length > 0 && (
-                  <div className="tag-list" aria-label="Assigned roles">
-                    {currentUser.account.roles.map((role) => (
-                      <Tag key={role.id} type="blue">
-                        {role.name}
-                      </Tag>
-                    ))}
-                  </div>
-                )}
+                <StructuredListWrapper isCondensed>
+                  <StructuredListBody>
+                    <StructuredListRow>
+                      <StructuredListCell>Login email</StructuredListCell>
+                      <StructuredListCell>{currentUser.account.loginEmail ?? 'Not configured'}</StructuredListCell>
+                    </StructuredListRow>
+                    <StructuredListRow>
+                      <StructuredListCell>Account ID</StructuredListCell>
+                      <StructuredListCell><code>{currentUser.account.id}</code></StructuredListCell>
+                    </StructuredListRow>
+                  </StructuredListBody>
+                </StructuredListWrapper>
               </Stack>
             </Tile>
 
-            <Tile>
+            <Tile className="person-detail-card">
               <Stack gap={6}>
                 <div>
                   <h2>Authentication methods</h2>
@@ -339,7 +350,7 @@ export function ProfilePage() {
                 {oidcIdentities.map((identity) => (
                   <div className="account-summary" key={identity.id}>
                     <div><span className="label">External identity</span><span>{identity.displayIdentifier ?? 'OIDC provider'}</span></div>
-                    {identity.providerSlug && oidcProviders.data?.items.some((provider) => provider.slug === identity.providerSlug) && <Button type="button" kind="tertiary" size="sm" disabled={reauthenticateOIDCMutation.isPending} onClick={() => reauthenticateOIDCMutation.mutate(identity.providerSlug!)}>Reauthenticate with {identity.displayIdentifier ?? 'OIDC'}</Button>}
+                    {identity.providerSlug && <Button type="button" kind="tertiary" size="sm" disabled={reauthenticateOIDCMutation.isPending} onClick={() => reauthenticateOIDCMutation.mutate(identity.providerSlug!)}>Reauthenticate with {identity.displayIdentifier ?? 'OIDC'}</Button>}
                     {mayUnlinkOIDC && <Button type="button" kind="danger--tertiary" size="sm" disabled={unlinkOIDCMutation.isPending} onClick={() => unlinkOIDCMutation.mutate(identity.id)}>Unlink</Button>}
                   </div>
                 ))}
@@ -358,7 +369,24 @@ export function ProfilePage() {
               </Stack>
             </Tile>
 
-            <Tile>
+            <Tile className="person-detail-card">
+              <Stack gap={5}>
+                <div className="section-heading">
+                  <h2>Roles</h2>
+                  <span className="section-description">{currentUser.account.roles.length} assigned</span>
+                </div>
+                <div className="tag-list" aria-label="Assigned roles">
+                  {currentUser.account.roles.length === 0 && <span>No roles assigned</span>}
+                  {currentUser.account.roles.map((role) => (
+                    <Tag key={role.id} type={role.systemKey === 'master' ? 'purple' : 'blue'}>
+                      {role.name}
+                    </Tag>
+                  ))}
+                </div>
+              </Stack>
+            </Tile>
+
+            <Tile className="person-detail-card">
               <Form onSubmit={submitPassword}>
                 <Stack gap={6}>
                   <div>
@@ -436,6 +464,7 @@ export function ProfilePage() {
           </Stack>
         </Column>
       </Grid>
+      </div>
     </Stack>
   );
 }

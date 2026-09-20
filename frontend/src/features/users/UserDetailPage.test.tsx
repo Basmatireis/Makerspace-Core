@@ -18,7 +18,7 @@ import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 
 describe('User detail page', () => {
-  it('starts member editing from the page header action', async () => {
+  it('starts person editing from the page header action', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(
@@ -37,7 +37,7 @@ describe('User detail page', () => {
     renderRoute(<App />, `/settings/users/${otherPersonId}`);
 
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
-    await user.click(await screen.findByRole('menuitem', { name: 'Edit member' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Edit person' }));
     expect(within(screen.getByLabelText('Breadcrumb')).getByText('Grace Hopper')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
   });
@@ -69,6 +69,7 @@ describe('User detail page', () => {
             loginEmail: accountRequest.loginEmail,
             status: 'disabled',
             passwordStatus: 'not_set',
+            authIdentities: [],
           });
           person = { ...person, account };
           return HttpResponse.json(account, { status: 201 });
@@ -108,9 +109,10 @@ describe('User detail page', () => {
         expectedVersion: 1,
       }),
     );
-    expect(
-      await screen.findByText('member@example.test', { selector: 'p' }),
-    ).toBeInTheDocument();
+    const accountSection = (await screen.findByRole('heading', { name: 'Account access' }))
+      .closest('.person-detail-card');
+    expect(accountSection).toBeInstanceOf(HTMLElement);
+    expect(within(accountSection as HTMLElement).getByText('member@example.test')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Actions' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Send invitation' }));
@@ -119,5 +121,118 @@ describe('User detail page', () => {
 
     await waitFor(() => expect(invitationRequested).toBe(true));
     expect(await screen.findByText('Message sent')).toBeInTheDocument();
+  });
+
+  it('separates account, authentication, personal, role, and Makerspace information', async () => {
+    const account = accountFixture({
+      roles: [{
+        id: '0192f6f8-743e-7c77-a349-cd07c3e8a903',
+        name: 'Workshop supervisors',
+        systemKey: null,
+      }],
+      authIdentities: [
+        {
+          id: '0192f6f8-743e-7c77-a349-cd07c3e8a906',
+          kind: 'password',
+          displayIdentifier: 'grace.login@example.test',
+          verifiedAt: '2026-01-01T00:00:00Z',
+          disabledAt: null,
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+        {
+          id: '0192f6f8-743e-7c77-a349-cd07c3e8a907',
+          kind: 'pin',
+          displayIdentifier: 'grace',
+          verifiedAt: '2026-01-01T00:00:00Z',
+          disabledAt: null,
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+        {
+          id: '0192f6f8-743e-7c77-a349-cd07c3e8a908',
+          kind: 'oidc',
+          providerSlug: 'tugraz',
+          displayIdentifier: 'Grace Hopper · TU Graz',
+          verifiedAt: '2026-01-01T00:00:00Z',
+          disabledAt: null,
+          createdAt: '2026-01-01T00:00:00Z',
+        },
+      ],
+    });
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.peoplereadall,
+            PermissionId.peoplereadmatriculation,
+            PermissionId.accountsread,
+            PermissionId.open_daysread_assignments,
+            PermissionId.laborordnungrequestsread,
+          ]),
+        ),
+      ),
+      http.get(`*/api/v1/people/${otherPersonId}`, () =>
+        HttpResponse.json(personFixture({ account })),
+      ),
+      http.get(`*/api/v1/people/${otherPersonId}/makerspace-status`, () =>
+        HttpResponse.json({
+          upcomingOpenDayAssignments: [{
+            assignmentId: '0192f6f8-743e-7c77-a349-cd07c3e8a930',
+            openDayId: '0192f6f8-743e-7c77-a349-cd07c3e8a931',
+            periodId: '0192f6f8-743e-7c77-a349-cd07c3e8a932',
+            periodName: 'Autumn Open Days',
+            startsAt: '2026-10-10T08:00:00Z',
+            endsAt: '2026-10-10T12:00:00Z',
+            role: 'supervisor',
+          }],
+          laborordnungStatus: {
+            mode: 'warning',
+            state: 'outdated',
+            actionRequired: true,
+            currentVersion: {
+              id: '0192f6f8-743e-7c77-a349-cd07c3e8a933',
+              status: 'published',
+              humanRevision: '2026-09',
+              pdfFileId: '0192f6f8-743e-7c77-a349-cd07c3e8a934',
+              sha256: 'a'.repeat(64),
+              effectiveAt: '2026-09-01T00:00:00Z',
+              publishedAt: '2026-08-20T00:00:00Z',
+              createdAt: '2026-08-20T00:00:00Z',
+            },
+            latestConfirmedVersion: {
+              id: '0192f6f8-743e-7c77-a349-cd07c3e8a935',
+              status: 'published',
+              humanRevision: '2025-09',
+              pdfFileId: '0192f6f8-743e-7c77-a349-cd07c3e8a936',
+              sha256: 'b'.repeat(64),
+              effectiveAt: '2025-09-01T00:00:00Z',
+              publishedAt: '2025-08-20T00:00:00Z',
+              createdAt: '2025-08-20T00:00:00Z',
+            },
+            requestId: '0192f6f8-743e-7c77-a349-cd07c3e8a937',
+          },
+        }),
+      ),
+    );
+
+    renderRoute(<App />, `/settings/users/${otherPersonId}`);
+
+    const accountHeading = await screen.findByRole('heading', { name: 'Account access' });
+    const authenticationHeading = screen.getByRole('heading', { name: 'Authentication methods' });
+    expect(accountHeading).toBeInTheDocument();
+    expect(authenticationHeading).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Personal information' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Profile picture' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Roles' })).toBeInTheDocument();
+    expect(within(accountHeading.closest('.person-detail-card') as HTMLElement).getByText('grace.login@example.test')).toBeInTheDocument();
+    expect(within(authenticationHeading.closest('.person-detail-card') as HTMLElement).queryByText('grace.login@example.test')).not.toBeInTheDocument();
+    expect(screen.getByText('Username: grace')).toBeInTheDocument();
+    expect(screen.getByText('Grace Hopper · TU Graz')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Makerspace status' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Lab Rules' })).toBeInTheDocument();
+    expect(screen.getByText('Confirmation pending')).toBeInTheDocument();
+    expect(screen.getByText('2026-09')).toBeInTheDocument();
+    expect(screen.getByText('2025-09')).toBeInTheDocument();
+    expect(screen.getByText('Autumn Open Days')).toBeInTheDocument();
+    expect(screen.getByText('Supervisor')).toBeInTheDocument();
   });
 });

@@ -109,6 +109,68 @@ func (s *Service) GetForPerson(ctx context.Context, principal authorization.Prin
 	return &account, err
 }
 
+// ListForPeople returns account administration summaries in a fixed number of
+// queries so the people table does not hydrate accounts, identities, and roles
+// one person at a time.
+func (s *Service) ListForPeople(ctx context.Context, principal authorization.Principal, personIDs []uuid.UUID) (map[uuid.UUID]Account, error) {
+	if !principal.Has(authorization.AccountsRead) {
+		return nil, apperror.PermissionDenied
+	}
+	result := make(map[uuid.UUID]Account, len(personIDs))
+	if len(personIDs) == 0 {
+		return result, nil
+	}
+	queries := accountsdb.New(s.pool)
+	rows, err := queries.ListAccountViewsByPeople(ctx, personIDs)
+	if err != nil {
+		return nil, err
+	}
+	accountIDs := make([]uuid.UUID, 0, len(rows))
+	personByAccount := make(map[uuid.UUID]uuid.UUID, len(rows))
+	for _, row := range rows {
+		loginEmail := ""
+		if row.LoginEmail != nil {
+			loginEmail = *row.LoginEmail
+		}
+		result[row.PersonID] = Account{
+			ID: row.ID, PersonID: row.PersonID, Status: row.Status,
+			ProvisioningSource: row.ProvisioningSource, FirstAuthenticatedAt: timeFromPG(row.FirstAuthenticatedAt),
+			PasswordStatus: row.PasswordStatus, LoginEmail: loginEmail, AuthIdentities: []AuthIdentity{},
+			Roles: []RoleSummary{}, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		}
+		accountIDs = append(accountIDs, row.ID)
+		personByAccount[row.ID] = row.PersonID
+	}
+	if len(accountIDs) == 0 {
+		return result, nil
+	}
+	identityRows, err := queries.ListAuthIdentitiesByAccounts(ctx, accountIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range identityRows {
+		personID := personByAccount[row.AccountID]
+		account := result[personID]
+		displayIdentifier := row.DisplayIdentifier
+		account.AuthIdentities = append(account.AuthIdentities, AuthIdentity{
+			ID: row.ID, Kind: row.Kind, DisplayIdentifier: &displayIdentifier, ProviderSlug: row.ProviderSlug,
+			VerifiedAt: timeFromPG(row.VerifiedAt), DisabledAt: timeFromPG(row.DisabledAt), CreatedAt: row.CreatedAt,
+		})
+		result[personID] = account
+	}
+	roleRows, err := queries.ListAccountRolesByAccounts(ctx, accountIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range roleRows {
+		personID := personByAccount[row.AccountID]
+		account := result[personID]
+		account.Roles = append(account.Roles, RoleSummary{ID: row.ID, Name: row.Name, SystemKey: row.SystemKey})
+		result[personID] = account
+	}
+	return result, nil
+}
+
 func (s *Service) Create(ctx context.Context, principal authorization.Principal, personID uuid.UUID, loginEmail string, expectedPersonVersion int64, requestID *uuid.UUID) (Account, error) {
 	return s.create(ctx, principal, personID, &loginEmail, expectedPersonVersion, requestID)
 }

@@ -702,6 +702,120 @@ func (q *Queries) ListAccountRoles(ctx context.Context, accountID uuid.UUID) ([]
 	return items, nil
 }
 
+const listAccountRolesByAccounts = `-- name: ListAccountRolesByAccounts :many
+SELECT ar.account_id, r.id, r.name, r.description, r.system_key, r.version, r.created_at, r.updated_at, r.profile_image_required, r.laborordnung_mode, r.supervisor_dashboard FROM roles r JOIN account_roles ar ON ar.role_id = r.id
+WHERE ar.account_id = ANY($1::uuid[])
+ORDER BY ar.account_id, r.system_key DESC NULLS LAST, lower(r.name), r.id
+`
+
+type ListAccountRolesByAccountsRow struct {
+	AccountID            uuid.UUID
+	ID                   uuid.UUID
+	Name                 string
+	Description          *string
+	SystemKey            *string
+	Version              int64
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	ProfileImageRequired bool
+	LaborordnungMode     string
+	SupervisorDashboard  bool
+}
+
+func (q *Queries) ListAccountRolesByAccounts(ctx context.Context, accountIds []uuid.UUID) ([]ListAccountRolesByAccountsRow, error) {
+	rows, err := q.db.Query(ctx, listAccountRolesByAccounts, accountIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAccountRolesByAccountsRow{}
+	for rows.Next() {
+		var i ListAccountRolesByAccountsRow
+		if err := rows.Scan(
+			&i.AccountID,
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.SystemKey,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProfileImageRequired,
+			&i.LaborordnungMode,
+			&i.SupervisorDashboard,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAccountViewsByPeople = `-- name: ListAccountViewsByPeople :many
+SELECT a.id, a.person_id, a.status, a.provisioning_source, a.first_authenticated_at,
+       a.version, a.created_at, a.updated_at,
+       i.id AS auth_identity_id, i.identifier_display AS login_email,
+       CASE WHEN EXISTS (
+                SELECT 1 FROM password_reset_tokens prt
+                WHERE prt.account_id = a.id AND prt.expires_at > now()
+            ) OR pc.reset_required THEN 'reset_required'
+            WHEN pc.auth_identity_id IS NULL THEN 'not_set' ELSE 'active' END AS password_status
+FROM accounts a
+LEFT JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'password'
+LEFT JOIN password_credentials pc ON pc.auth_identity_id = i.id
+WHERE a.person_id = ANY($1::uuid[])
+ORDER BY a.person_id
+`
+
+type ListAccountViewsByPeopleRow struct {
+	ID                   uuid.UUID
+	PersonID             uuid.UUID
+	Status               string
+	ProvisioningSource   string
+	FirstAuthenticatedAt pgtype.Timestamptz
+	Version              int64
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	AuthIdentityID       *uuid.UUID
+	LoginEmail           *string
+	PasswordStatus       string
+}
+
+func (q *Queries) ListAccountViewsByPeople(ctx context.Context, personIds []uuid.UUID) ([]ListAccountViewsByPeopleRow, error) {
+	rows, err := q.db.Query(ctx, listAccountViewsByPeople, personIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAccountViewsByPeopleRow{}
+	for rows.Next() {
+		var i ListAccountViewsByPeopleRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PersonID,
+			&i.Status,
+			&i.ProvisioningSource,
+			&i.FirstAuthenticatedAt,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.AuthIdentityID,
+			&i.LoginEmail,
+			&i.PasswordStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAuthIdentitiesByAccount = `-- name: ListAuthIdentitiesByAccount :many
 SELECT i.id, i.account_id, i.kind, i.identifier_display, i.identifier_normalized, i.created_at, i.updated_at, i.provider_id, i.issuer, i.subject, i.verified_at, i.disabled_at, i.last_used_at, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug
 FROM auth_identities i
@@ -737,6 +851,68 @@ func (q *Queries) ListAuthIdentitiesByAccount(ctx context.Context, accountID uui
 	items := []ListAuthIdentitiesByAccountRow{}
 	for rows.Next() {
 		var i ListAuthIdentitiesByAccountRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AccountID,
+			&i.Kind,
+			&i.IdentifierDisplay,
+			&i.IdentifierNormalized,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProviderID,
+			&i.Issuer,
+			&i.Subject,
+			&i.VerifiedAt,
+			&i.DisabledAt,
+			&i.LastUsedAt,
+			&i.DisplayIdentifier,
+			&i.ProviderSlug,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAuthIdentitiesByAccounts = `-- name: ListAuthIdentitiesByAccounts :many
+SELECT i.id, i.account_id, i.kind, i.identifier_display, i.identifier_normalized, i.created_at, i.updated_at, i.provider_id, i.issuer, i.subject, i.verified_at, i.disabled_at, i.last_used_at, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug
+FROM auth_identities i
+LEFT JOIN oidc_providers p ON p.id = i.provider_id
+WHERE i.account_id = ANY($1::uuid[])
+ORDER BY i.account_id, i.kind, i.created_at, i.id
+`
+
+type ListAuthIdentitiesByAccountsRow struct {
+	ID                   uuid.UUID
+	AccountID            uuid.UUID
+	Kind                 string
+	IdentifierDisplay    *string
+	IdentifierNormalized *string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	ProviderID           *uuid.UUID
+	Issuer               *string
+	Subject              *string
+	VerifiedAt           pgtype.Timestamptz
+	DisabledAt           pgtype.Timestamptz
+	LastUsedAt           pgtype.Timestamptz
+	DisplayIdentifier    string
+	ProviderSlug         *string
+}
+
+func (q *Queries) ListAuthIdentitiesByAccounts(ctx context.Context, accountIds []uuid.UUID) ([]ListAuthIdentitiesByAccountsRow, error) {
+	rows, err := q.db.Query(ctx, listAuthIdentitiesByAccounts, accountIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAuthIdentitiesByAccountsRow{}
+	for rows.Next() {
+		var i ListAuthIdentitiesByAccountsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.AccountID,

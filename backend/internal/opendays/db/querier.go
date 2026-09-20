@@ -43,6 +43,7 @@ type Querier interface {
 	ListPublishedOpenDays(ctx context.Context) ([]OpenDay, error)
 	ListRequirementRoleIDs(ctx context.Context, requirementID uuid.UUID) ([]uuid.UUID, error)
 	ListRequirements(ctx context.Context, openDayID uuid.UUID) ([]OpenDayStaffRequirement, error)
+	ListUpcomingAssignmentsForPerson(ctx context.Context, personID uuid.UUID) ([]ListUpcomingAssignmentsForPersonRow, error)
 	PersonEligibleForRequirement(ctx context.Context, arg PersonEligibleForRequirementParams) (bool, error)
 	TransitionPeriod(ctx context.Context, arg TransitionPeriodParams) (OpenDayPeriod, error)
 	UpdateAcademicBreak(ctx context.Context, arg UpdateAcademicBreakParams) (OpenDayAcademicBreak, error)

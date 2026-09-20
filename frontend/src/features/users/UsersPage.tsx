@@ -10,6 +10,7 @@ import {
   ModalBody,
   ModalFooter,
   ModalHeader,
+  MultiSelect,
   Pagination,
   Stack,
   Table,
@@ -39,9 +40,10 @@ import { useCurrentUser } from '../auth/auth';
 import { canManageRoleMembership, hasPermission, PermissionId } from '../auth/permissions';
 import { fullRoleCatalogOptions } from '../roles/queries';
 import { peopleKeys, peopleListOptions } from './queries';
+import { PersonAvatar } from './PersonAvatar';
 
 const PAGE_SIZES = [10, 25, 50, 100];
-const EMPTY_MEMBERS: Person[] = [];
+const EMPTY_PEOPLE: Person[] = [];
 
 type BatchAction = 'create-accounts' | 'assign-role' | null;
 type BatchResult = {
@@ -55,8 +57,8 @@ function positiveInteger(value: string | null, fallback: number): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function accountMembers(members: Person[]): Person[] {
-  return members.filter((member) => member.account && typeof member.account === 'object');
+function peopleWithAccounts(people: Person[]): Person[] {
+  return people.filter((person) => person.account && typeof person.account === 'object');
 }
 
 export function UsersPage() {
@@ -67,12 +69,20 @@ export function UsersPage() {
   const page = positiveInteger(searchParams.get('page'), 1);
   const pageSize = Math.min(100, positiveInteger(searchParams.get('pageSize'), 25));
   const search = searchParams.get('search') ?? '';
+  const selectedRoleIds = searchParams.getAll('role');
   const [searchValue, setSearchValue] = useState(search);
   const [batchAction, setBatchAction] = useState<BatchAction>(null);
   const [batchMembers, setBatchMembers] = useState<Person[]>([]);
   const [batchRole, setBatchRole] = useState<Role | null>(null);
   const [batchResult, setBatchResult] = useState<BatchResult | null>(null);
   const [tableKey, setTableKey] = useState(0);
+  const mayCreate = hasPermission(currentUser, PermissionId.peoplecreate);
+  const showMatriculation = hasPermission(
+    currentUser,
+    PermissionId.peoplereadmatriculation,
+  );
+  const showAccounts = hasPermission(currentUser, PermissionId.accountsread);
+  const mayReadRoles = hasPermission(currentUser, PermissionId.rolesread);
 
   useEffect(() => setSearchValue(search), [search]);
   useEffect(() => {
@@ -89,15 +99,14 @@ export function UsersPage() {
   }, [search, searchParams, searchValue, setSearchParams]);
 
   const peopleQuery = useQuery({
-    ...peopleListOptions({ page, pageSize, ...(search ? { search } : {}) }),
+    ...peopleListOptions({
+      page,
+      pageSize,
+      ...(search ? { search } : {}),
+      ...(showAccounts && selectedRoleIds.length ? { roleIds: selectedRoleIds } : {}),
+    }),
     placeholderData: keepPreviousData,
   });
-  const mayCreate = hasPermission(currentUser, PermissionId.peoplecreate);
-  const showMatriculation = hasPermission(
-    currentUser,
-    PermissionId.peoplereadmatriculation,
-  );
-  const showAccounts = hasPermission(currentUser, PermissionId.accountsread);
   const mayCreateAccounts =
     showAccounts && hasPermission(currentUser, PermissionId.accountscreate);
   const mayAssignRoles =
@@ -105,7 +114,7 @@ export function UsersPage() {
     hasPermission(currentUser, PermissionId.accountsrolesassign) &&
     hasPermission(currentUser, PermissionId.rolesread);
   const canBatchManage = mayCreateAccounts || mayAssignRoles;
-  const rolesQuery = useQuery({ ...fullRoleCatalogOptions, enabled: mayAssignRoles });
+  const rolesQuery = useQuery({ ...fullRoleCatalogOptions, enabled: showAccounts && mayReadRoles });
   const assignableRoles = useMemo(
     () =>
       (rolesQuery.data ?? []).filter((role) =>
@@ -124,10 +133,10 @@ export function UsersPage() {
         (member) => member.account === null && Boolean(member.email),
       );
       const results = await Promise.allSettled(
-        eligible.map((member) =>
-          createPersonAccount(member.id, {
-            loginEmail: member.email!,
-            expectedVersion: member.version,
+        eligible.map((person) =>
+          createPersonAccount(person.id, {
+            loginEmail: person.email!,
+            expectedVersion: person.version,
           }),
         ),
       );
@@ -150,13 +159,13 @@ export function UsersPage() {
   });
   const batchAssignRole = useMutation({
     mutationFn: async ({ members, role }: { members: Person[]; role: Role }) => {
-      const eligible = accountMembers(members).filter(
-        (member) => !member.account!.roles.some((assigned) => assigned.id === role.id),
+      const eligible = peopleWithAccounts(members).filter(
+        (person) => !person.account!.roles.some((assigned) => assigned.id === role.id),
       );
       const results = await Promise.allSettled(
-        eligible.map((member) =>
-          assignAccountRole(member.account!.id, role.id, {
-            expectedVersion: member.account!.version,
+        eligible.map((person) =>
+          assignAccountRole(person.account!.id, role.id, {
+            expectedVersion: person.account!.version,
           }),
         ),
       );
@@ -179,12 +188,13 @@ export function UsersPage() {
     },
   });
 
-  const members = peopleQuery.data?.items ?? EMPTY_MEMBERS;
-  const membersById = useMemo(
-    () => new Map(members.map((member) => [member.id, member])),
-    [members],
+  const people = peopleQuery.data?.items ?? EMPTY_PEOPLE;
+  const peopleById = useMemo(
+    () => new Map(people.map((person) => [person.id, person])),
+    [people],
   );
   const headers = [
+    { key: 'avatar', header: 'Profile' },
     { key: 'name', header: 'Name' },
     { key: 'contact', header: 'Contact' },
     ...(showMatriculation
@@ -197,27 +207,28 @@ export function UsersPage() {
         ]
       : []),
   ];
-  const rows = members.map((member) => ({
-    id: member.id,
-    name: `${member.firstName} ${member.lastName}`,
-    contact: member.email ?? member.phone ?? 'Not provided',
+  const rows = people.map((person) => ({
+    id: person.id,
+    avatar: person.id,
+    name: `${person.firstName} ${person.lastName}`,
+    contact: person.email ?? person.phone ?? 'Not provided',
     ...(showMatriculation
-      ? { matriculationNumber: member.matriculationNumber ?? 'Not provided' }
+      ? { matriculationNumber: person.matriculationNumber ?? 'Not provided' }
       : {}),
     ...(showAccounts
       ? {
           account:
-            member.account === undefined
+            person.account === undefined
               ? 'Restricted'
-              : member.account === null
+              : person.account === null
                 ? 'No account'
-                : member.account.status,
+                : person.account.status,
           roles:
-            member.account === undefined
+            person.account === undefined
               ? 'Restricted'
-              : member.account === null || member.account.roles.length === 0
+              : person.account === null || person.account.roles.length === 0
                 ? '—'
-                : member.account.roles.map((role) => role.name).join(', '),
+                : person.account.roles.map((role) => role.name).join(', '),
         }
       : {}),
   }));
@@ -225,24 +236,36 @@ export function UsersPage() {
     (member) => member.account === null && Boolean(member.email),
   );
   const membersEligibleForRoleAssignment = batchRole
-    ? accountMembers(batchMembers).filter(
+    ? peopleWithAccounts(batchMembers).filter(
         (member) =>
           !member.account!.roles.some((assigned) => assigned.id === batchRole.id),
       )
-    : accountMembers(batchMembers);
+    : peopleWithAccounts(batchMembers);
+
+  const selectedRoles = (rolesQuery.data ?? []).filter((role) =>
+    selectedRoleIds.includes(role.id),
+  );
+
+  const updateRoleFilter = (roles: Role[]) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('page', '1');
+    next.delete('role');
+    for (const role of roles) next.append('role', role.id);
+    setSearchParams(next, { replace: true });
+  };
 
   return (
     <Stack gap={7}>
       <PageHeader
-        title="Members"
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Members' }]}
-        description="Manage member records and their optional login accounts."
+        title="People"
+        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'People' }]}
+        description="Manage people, login accounts, roles, and access."
       />
 
-      {peopleQuery.isPending && <InlineLoadingState label="Loading members" />}
+      {peopleQuery.isPending && <InlineLoadingState label="Loading people" />}
       {peopleQuery.isError && (
         <ErrorState
-          title="Unable to load members"
+          title="Unable to load people"
           message="Check the connection and try again."
           onRetry={() => void peopleQuery.refetch()}
         />
@@ -269,16 +292,16 @@ export function UsersPage() {
             getTableProps,
           }) => {
             const selectedMembers = selectedRows
-              .map((row) => membersById.get(row.id))
-              .filter((member): member is Person => Boolean(member));
+              .map((row) => peopleById.get(row.id))
+              .filter((person): person is Person => Boolean(person));
             const selectedForAccountCreation = selectedMembers.filter(
               (member) => member.account === null && Boolean(member.email),
             );
-            const selectedForRoleAssignment = accountMembers(selectedMembers);
+            const selectedForRoleAssignment = peopleWithAccounts(selectedMembers);
 
             return (
-              <TableContainer>
-                <TableToolbar aria-label="Members table toolbar">
+              <TableContainer className="people-table-container">
+                <TableToolbar className="people-table-toolbar" aria-label="People table toolbar">
                   {canBatchManage && (
                     <TableBatchActions {...getBatchActionProps()}>
                       {mayCreateAccounts && (
@@ -315,19 +338,33 @@ export function UsersPage() {
                   <TableToolbarContent>
                     <TableToolbarSearch
                       id="people-search"
-                      labelText="Search members"
-                      placeholder="Search members"
+                      labelText="Search people"
+                      placeholder="Search people"
                       defaultValue={search}
                       onChange={(_event, value) => setSearchValue(value ?? '')}
                       onClear={() => setSearchValue('')}
                     />
+                    {showAccounts && mayReadRoles && (
+                      <MultiSelect
+                        id="people-role-filter"
+                        className="people-role-filter"
+                        titleText="Filter by role"
+                        hideLabel
+                        label={rolesQuery.isPending ? 'Loading roles…' : 'Filter by role'}
+                        items={rolesQuery.data ?? []}
+                        itemToString={(role) => role?.name ?? ''}
+                        selectedItems={selectedRoles}
+                        disabled={rolesQuery.isPending || rolesQuery.isError}
+                        onChange={({ selectedItems }) => updateRoleFilter(selectedItems ?? [])}
+                      />
+                    )}
                     {mayCreate && (
                       <Button
                         kind="primary"
                         renderIcon={Add}
                         onClick={() => navigate('/settings/users/new')}
                       >
-                        Add member
+                        Add person
                       </Button>
                     )}
                   </TableToolbarContent>
@@ -337,7 +374,7 @@ export function UsersPage() {
                     <TableRow>
                       {canBatchManage && <TableSelectAll {...getSelectionProps()} />}
                       {tableHeaders.map((header) => (
-                        <TableHeader {...getHeaderProps({ header })} key={header.key}>
+                        <TableHeader {...getHeaderProps({ header, isSortable: header.key !== 'avatar' })} key={header.key}>
                           {header.header}
                         </TableHeader>
                       ))}
@@ -349,9 +386,12 @@ export function UsersPage() {
                         {canBatchManage && (
                           <TableSelectRow {...getSelectionProps({ row })} />
                         )}
-                        {row.cells.map((cell, index) => (
-                          <TableCell key={cell.id}>
-                            {index === 0 ? (
+                        {row.cells.map((cell) => (
+                          <TableCell key={cell.id} className={cell.info.header === 'avatar' ? 'people-table__avatar-cell' : undefined}>
+                            {cell.info.header === 'avatar' ? (() => {
+                              const person = peopleById.get(row.id);
+                              return person ? <PersonAvatar firstName={person.firstName} lastName={person.lastName} profileImage={person.profileImage} size="sm" decorative /> : null;
+                            })() : cell.info.header === 'name' ? (
                               <CarbonLink
                                 href={`/settings/users/${row.id}`}
                                 onClick={(event) => {
@@ -378,8 +418,8 @@ export function UsersPage() {
                 </Table>
                 {rows.length === 0 && (
                   <div className="empty-state">
-                    <h2>No members found</h2>
-                    <p>{search ? 'Try a different search.' : 'No members have been added yet.'}</p>
+                    <h2>No people found</h2>
+                    <p>{search || selectedRoleIds.length ? 'Try different search terms or role filters.' : 'No people have been added yet.'}</p>
                   </div>
                 )}
                 <Pagination
@@ -409,15 +449,15 @@ export function UsersPage() {
           <Stack gap={5}>
             <p>
               This creates disabled login accounts for {membersEligibleForAccountCreation.length}{' '}
-              selected {membersEligibleForAccountCreation.length === 1 ? 'member' : 'members'}.
-              Each account uses the member’s existing email address as its login email.
+              selected {membersEligibleForAccountCreation.length === 1 ? 'person' : 'people'}.
+              Each account uses the person’s existing email address as its login email.
             </p>
             {batchMembers.length !== membersEligibleForAccountCreation.length && (
               <InlineNotification
                 kind="info"
                 lowContrast
                 hideCloseButton
-                title="Some members will be skipped"
+                title="Some people will be skipped"
                 subtitle="An existing account or an email address is required."
               />
             )}
@@ -442,7 +482,7 @@ export function UsersPage() {
         open={batchAction === 'assign-role'}
         onClose={() => setBatchAction(null)}
       >
-        <ModalHeader title="Assign role to members" />
+        <ModalHeader title="Assign role to people" />
         <ModalBody>
           <Form>
             <Stack gap={5}>
@@ -464,8 +504,8 @@ export function UsersPage() {
                   kind="info"
                   lowContrast
                   hideCloseButton
-                  title="Some members will be skipped"
-                  subtitle="An account is required, and members who already have the role are not changed."
+                  title="Some people will be skipped"
+                  subtitle="An account is required, and people who already have the role are not changed."
                 />
               )}
             </Stack>

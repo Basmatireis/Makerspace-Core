@@ -233,6 +233,13 @@ func (s *Service) Evaluate(ctx context.Context, personID uuid.UUID) (Status, err
 	return status, nil
 }
 
+func (s *Service) EvaluateForPerson(ctx context.Context, principal authorization.Principal, personID uuid.UUID) (Status, error) {
+	if !principal.CanReadPerson(personID) || !principal.Has(authorization.LaborordnungRequestsRead) {
+		return Status{}, apperror.PermissionDenied
+	}
+	return s.Evaluate(ctx, personID)
+}
+
 // RequestOwnConfirmation is the explicit, idempotent command that enqueues a
 // physical-signature confirmation. It is never called from authentication or
 // status reads.

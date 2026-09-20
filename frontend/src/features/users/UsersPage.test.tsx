@@ -7,6 +7,7 @@ import { App } from '../../app/App';
 import {
   accountFixture,
   currentUserFixture,
+  otherPersonId,
   personFixture,
   roleFixture,
 } from '../../test/fixtures';
@@ -17,7 +18,7 @@ function peoplePage(items: ReturnType<typeof personFixture>[]) {
   return { items, page: 1, pageSize: 25, total: items.length };
 }
 
-describe('Members page', () => {
+describe('People page', () => {
   it('renders permitted table columns and actions', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
@@ -36,6 +37,11 @@ describe('Members page', () => {
             personFixture({
               matriculationNumber: 'M-0042',
               account: accountFixture({ roles: [roleFixture()] }),
+              profileImage: {
+                fileId: '0192f6f8-743e-7c77-a349-cd07c3e8a920',
+                source: 'admin_upload',
+                downloadUrl: `/api/v1/people/${otherPersonId}/profile-image`,
+              },
             }),
           ]),
         ),
@@ -47,11 +53,11 @@ describe('Members page', () => {
     expect(await screen.findByText('Grace Hopper')).toBeInTheDocument();
     const breadcrumbs = screen.getByLabelText('Breadcrumb');
     expect(within(breadcrumbs).getByRole('link', { name: 'Settings' })).toBeInTheDocument();
-    expect(within(breadcrumbs).getByText('Members')).toBeInTheDocument();
-    const addMemberButton = screen.getByRole('button', { name: 'Add member' });
-    expect(addMemberButton).toBeInTheDocument();
-    expect(screen.getByLabelText('Members table toolbar')).toContainElement(
-      addMemberButton,
+    expect(within(breadcrumbs).getByText('People')).toBeInTheDocument();
+    const addPersonButton = screen.getByRole('button', { name: 'Add person' });
+    expect(addPersonButton).toBeInTheDocument();
+    expect(screen.getByLabelText('People table toolbar')).toContainElement(
+      addPersonButton,
     );
     expect(
       screen.getByRole('columnheader', { name: /Matriculation number/ }),
@@ -63,6 +69,48 @@ describe('Members page', () => {
     expect(screen.getByText('M-0042')).toBeInTheDocument();
     expect(screen.getByText('enabled')).toBeInTheDocument();
     expect(screen.getByText('Workshop supervisors')).toBeInTheDocument();
+    expect(document.querySelector('.people-table__avatar-cell img')).toHaveAttribute(
+      'src',
+      `/api/v1/people/${otherPersonId}/profile-image`,
+    );
+  });
+
+  it('passes all selected role filters to the people API', async () => {
+    const secondRole = roleFixture({
+      id: '0192f6f8-743e-7c77-a349-cd07c3e8a921',
+      name: 'Trainees',
+    });
+    let requestedRoleIds: string[] = [];
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.peoplereadall,
+            PermissionId.accountsread,
+            PermissionId.rolesread,
+          ]),
+        ),
+      ),
+      http.get('*/api/v1/roles', () =>
+        HttpResponse.json({ items: [roleFixture(), secondRole], nextCursor: null }),
+      ),
+      http.get('*/api/v1/people', ({ request }) => {
+        requestedRoleIds = new URL(request.url).searchParams.getAll('roleIds');
+        return HttpResponse.json(peoplePage([]));
+      }),
+    );
+
+    renderRoute(
+      <App />,
+      `/settings/users?role=${roleFixture().id}&role=${secondRole.id}`,
+    );
+
+    expect(
+      await screen.findByRole('combobox', { name: /Filter by role/ }),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(requestedRoleIds).toEqual([roleFixture().id, secondRole.id]),
+    );
   });
 
   it('omits sensitive and account columns when the actor lacks permission', async () => {
@@ -92,7 +140,7 @@ describe('Members page', () => {
       screen.queryByRole('columnheader', { name: /Account/ }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Roles/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Add member' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add person' })).not.toBeInTheDocument();
   });
 
   it('creates selected member accounts using their existing email addresses', async () => {
@@ -191,9 +239,9 @@ describe('Members page', () => {
 
     renderRoute(<App />, '/settings/users');
 
-    expect(await screen.findByText('Loading members')).toBeInTheDocument();
-    expect(await screen.findByRole('heading', { name: 'No members found' })).toBeInTheDocument();
-    expect(screen.getByText('No members have been added yet.')).toBeInTheDocument();
+    expect(await screen.findByText('Loading people')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'No people found' })).toBeInTheDocument();
+    expect(screen.getByText('No people have been added yet.')).toBeInTheDocument();
   });
 
   it('shows a retryable error state', async () => {
@@ -211,7 +259,7 @@ describe('Members page', () => {
 
     renderRoute(<App />, '/settings/users');
 
-    expect(await screen.findByText('Unable to load members')).toBeInTheDocument();
+    expect(await screen.findByText('Unable to load people')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
   });
 });

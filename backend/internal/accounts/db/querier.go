@@ -41,7 +41,10 @@ type Querier interface {
 	IsAccountMaster(ctx context.Context, accountID uuid.UUID) (bool, error)
 	IsAccountRoleAssigned(ctx context.Context, arg IsAccountRoleAssignedParams) (bool, error)
 	ListAccountRoles(ctx context.Context, accountID uuid.UUID) ([]Role, error)
+	ListAccountRolesByAccounts(ctx context.Context, accountIds []uuid.UUID) ([]ListAccountRolesByAccountsRow, error)
+	ListAccountViewsByPeople(ctx context.Context, personIds []uuid.UUID) ([]ListAccountViewsByPeopleRow, error)
 	ListAuthIdentitiesByAccount(ctx context.Context, accountID uuid.UUID) ([]ListAuthIdentitiesByAccountRow, error)
+	ListAuthIdentitiesByAccounts(ctx context.Context, accountIds []uuid.UUID) ([]ListAuthIdentitiesByAccountsRow, error)
 	LockMasterRole(ctx context.Context) (uuid.UUID, error)
 	MarkInvitationProvisioning(ctx context.Context, id uuid.UUID) error
 	MarkPasswordResetRequired(ctx context.Context, authIdentityID uuid.UUID) error

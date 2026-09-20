@@ -12,22 +12,34 @@ import (
 )
 
 const countPeople = `-- name: CountPeople :one
-SELECT count(*) FROM people
-WHERE $1::text = ''
-   OR first_name ILIKE '%' || $1::text || '%'
-   OR last_name ILIKE '%' || $1::text || '%'
-   OR COALESCE(email, '') ILIKE '%' || $1::text || '%'
-   OR COALESCE(phone, '') ILIKE '%' || $1::text || '%'
-   OR ($2::boolean AND COALESCE(matriculation_number, '') ILIKE '%' || $1::text || '%')
+SELECT count(*) FROM people p
+WHERE (
+       $1::text = ''
+       OR p.first_name ILIKE '%' || $1::text || '%'
+       OR p.last_name ILIKE '%' || $1::text || '%'
+       OR COALESCE(p.email, '') ILIKE '%' || $1::text || '%'
+       OR COALESCE(p.phone, '') ILIKE '%' || $1::text || '%'
+       OR ($2::boolean AND COALESCE(p.matriculation_number, '') ILIKE '%' || $1::text || '%')
+   )
+  AND (
+       cardinality($3::uuid[]) = 0
+       OR EXISTS (
+           SELECT 1
+           FROM accounts a
+           JOIN account_roles ar ON ar.account_id = a.id
+           WHERE a.person_id = p.id AND ar.role_id = ANY($3::uuid[])
+       )
+   )
 `
 
 type CountPeopleParams struct {
 	Search               string
 	IncludeMatriculation bool
+	RoleIds              []uuid.UUID
 }
 
 func (q *Queries) CountPeople(ctx context.Context, arg CountPeopleParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countPeople, arg.Search, arg.IncludeMatriculation)
+	row := q.db.QueryRow(ctx, countPeople, arg.Search, arg.IncludeMatriculation, arg.RoleIds)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -161,20 +173,32 @@ func (q *Queries) GetProfileImage(ctx context.Context, id uuid.UUID) (GetProfile
 }
 
 const listPeople = `-- name: ListPeople :many
-SELECT id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source FROM people
-WHERE $1::text = ''
-   OR first_name ILIKE '%' || $1::text || '%'
-   OR last_name ILIKE '%' || $1::text || '%'
-   OR COALESCE(email, '') ILIKE '%' || $1::text || '%'
-   OR COALESCE(phone, '') ILIKE '%' || $1::text || '%'
-   OR ($2::boolean AND COALESCE(matriculation_number, '') ILIKE '%' || $1::text || '%')
+SELECT p.id, p.first_name, p.last_name, p.email, p.phone, p.matriculation_number, p.photo_reference, p.version, p.created_at, p.updated_at, p.profile_image_file_id, p.profile_image_source FROM people p
+WHERE (
+       $1::text = ''
+       OR p.first_name ILIKE '%' || $1::text || '%'
+       OR p.last_name ILIKE '%' || $1::text || '%'
+       OR COALESCE(p.email, '') ILIKE '%' || $1::text || '%'
+       OR COALESCE(p.phone, '') ILIKE '%' || $1::text || '%'
+       OR ($2::boolean AND COALESCE(p.matriculation_number, '') ILIKE '%' || $1::text || '%')
+   )
+  AND (
+       cardinality($3::uuid[]) = 0
+       OR EXISTS (
+           SELECT 1
+           FROM accounts a
+           JOIN account_roles ar ON ar.account_id = a.id
+           WHERE a.person_id = p.id AND ar.role_id = ANY($3::uuid[])
+       )
+   )
 ORDER BY lower(last_name), lower(first_name), id
-LIMIT $4 OFFSET $3
+LIMIT $5 OFFSET $4
 `
 
 type ListPeopleParams struct {
 	Search               string
 	IncludeMatriculation bool
+	RoleIds              []uuid.UUID
 	PageOffset           int32
 	PageLimit            int32
 }
@@ -183,6 +207,7 @@ func (q *Queries) ListPeople(ctx context.Context, arg ListPeopleParams) ([]Perso
 	rows, err := q.db.Query(ctx, listPeople,
 		arg.Search,
 		arg.IncludeMatriculation,
+		arg.RoleIds,
 		arg.PageOffset,
 		arg.PageLimit,
 	)
@@ -207,6 +232,41 @@ func (q *Queries) ListPeople(ctx context.Context, arg ListPeopleParams) ([]Perso
 			&i.ProfileImageFileID,
 			&i.ProfileImageSource,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProfileImageRequirements = `-- name: ListProfileImageRequirements :many
+SELECT p.id AS person_id, COALESCE(bool_or(r.profile_image_required), false)::boolean AS required
+FROM people p
+LEFT JOIN accounts a ON a.person_id = p.id
+LEFT JOIN account_roles ar ON ar.account_id = a.id
+LEFT JOIN roles r ON r.id = ar.role_id
+WHERE p.id = ANY($1::uuid[])
+GROUP BY p.id
+`
+
+type ListProfileImageRequirementsRow struct {
+	PersonID uuid.UUID
+	Required bool
+}
+
+func (q *Queries) ListProfileImageRequirements(ctx context.Context, personIds []uuid.UUID) ([]ListProfileImageRequirementsRow, error) {
+	rows, err := q.db.Query(ctx, listProfileImageRequirements, personIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListProfileImageRequirementsRow{}
+	for rows.Next() {
+		var i ListProfileImageRequirementsRow
+		if err := rows.Scan(&i.PersonID, &i.Required); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -224,6 +224,8 @@ export * from './permissionId';
 export * from './person';
 export * from './personAccount';
 export * from './personEmail';
+export * from './personMakerspaceStatus';
+export * from './personOpenDayAssignmentSummary';
 export * from './personPage';
 export * from './personProfileImage';
 export * from './pinLoginRequest';

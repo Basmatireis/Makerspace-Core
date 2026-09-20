@@ -89,7 +89,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await page.getByLabel('Last name').fill('Johnson');
     await page.getByLabel('Contact email').fill('e2e-contact@example.test');
     await page.getByLabel('Matriculation number').fill('E2E-MAT-2042');
-    await page.getByRole('button', { name: 'Create member' }).click();
+    await page.getByRole('button', { name: 'Create person' }).click();
     await expect(page).toHaveURL(/\/settings\/users\/[0-9a-f-]+$/);
     personPath = new URL(page.url()).pathname;
     await expect(
@@ -149,7 +149,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await signIn(page, memberLogin, memberPassword);
 
     await page.goto('/settings/users');
-    await expect(page.getByRole('heading', { name: 'Members' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'People' })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Name' })).toBeVisible();
     await expect(
       page.getByRole('columnheader', { name: 'Matriculation number' }),
@@ -173,9 +173,9 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await signIn(page, masterLogin, masterPassword);
 
     await page.goto(personPath);
-    await page.getByRole('button', { name: 'Delete member' }).click();
-    await expect(page.getByText('Delete member permanently?')).toBeVisible();
-    await page.getByRole('button', { name: 'Delete member' }).last().click();
+    await page.getByRole('button', { name: 'Delete person' }).click();
+    await expect(page.getByText('Delete person permanently?')).toBeVisible();
+    await page.getByRole('button', { name: 'Delete person' }).last().click();
     await expect(page).toHaveURL(/\/settings\/users$/);
     await expect(page.getByText('Katherine Johnson')).toHaveCount(0);
 

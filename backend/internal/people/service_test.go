@@ -1,13 +1,44 @@
 package people
 
 import (
+	"context"
 	"math"
 	"testing"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	authorizationdb "github.com/Basmatireis/Makerspace-Core/backend/internal/authorization/db"
 	peopledb "github.com/Basmatireis/Makerspace-Core/backend/internal/people/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/google/uuid"
 )
+
+type permissionsStub struct {
+	rows []authorizationdb.GetPrincipalRolePermissionsRow
+}
+
+func (s permissionsStub) GetPrincipalRolePermissions(context.Context, uuid.UUID) ([]authorizationdb.GetPrincipalRolePermissionsRow, error) {
+	return s.rows, nil
+}
+
+func principalWithPermissions(t *testing.T, permissions ...authorization.Permission) authorization.Principal {
+	t.Helper()
+	rows := make([]authorizationdb.GetPrincipalRolePermissionsRow, 0, len(permissions))
+	for _, permission := range permissions {
+		permissionID := string(permission)
+		grantID := uuid.Must(uuid.NewV7())
+		scope := string(authorization.GrantEverywhere)
+		minimum := string(authorization.AssuranceLow)
+		rows = append(rows, authorizationdb.GetPrincipalRolePermissionsRow{
+			RoleID: uuid.Must(uuid.NewV7()), GrantID: &grantID, PermissionID: &permissionID,
+			Scope: &scope, MinimumAssurance: &minimum,
+		})
+	}
+	principal, err := authorization.LoadPermissions(t.Context(), permissionsStub{rows: rows}, authorization.Principal{AccountID: uuid.Must(uuid.NewV7())})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return principal
+}
 
 func TestFromRowRedactsDetailsWithoutPersonReadPermission(t *testing.T) {
 	email := "contact@example.test"
@@ -61,8 +92,17 @@ func TestCleanOptionalNormalizesWhitespaceToNull(t *testing.T) {
 
 func TestListRejectsPaginationOffsetOverflowBeforeQuery(t *testing.T) {
 	service := NewService(nil)
-	_, err := service.List(t.Context(), authorization.Principal{Master: true}, math.MaxInt32, 100, "")
+	_, err := service.List(t.Context(), authorization.Principal{Master: true}, math.MaxInt32, 100, "", nil)
 	if !apperror.IsCode(err, "invalid_request") {
 		t.Fatalf("expected invalid_request, got %v", err)
+	}
+}
+
+func TestListRequiresAccountsReadForRoleFiltering(t *testing.T) {
+	service := NewService(nil)
+	principal := principalWithPermissions(t, authorization.PeopleReadAll)
+	_, err := service.List(t.Context(), principal, 1, 25, "", []uuid.UUID{uuid.Must(uuid.NewV7())})
+	if !apperror.IsCode(err, "permission_denied") {
+		t.Fatalf("expected permission_denied, got %v", err)
 	}
 }

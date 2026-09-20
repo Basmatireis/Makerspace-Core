@@ -18,32 +18,19 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { PageParameter } from './pageParameter';
-import type { PageSizeParameter } from './pageSizeParameter';
 import type { UUIDv7 } from './uUIDv7';
+import type { OpenDayRequirementKind } from './openDayRequirementKind';
 
-export type ListPeopleParams = {
-/**
- * One-based result page.
- * @minimum 1
- */
-page?: PageParameter;
-/**
- * Maximum records to return per page.
- * @minimum 1
- * @maximum 100
- */
-pageSize?: PageSizeParameter;
-/**
- * Case-insensitive search over permitted name and contact fields.
- * @maxLength 200
- */
-search?: string;
-/**
- * Return people assigned to at least one of these roles. Supplying this
-filter requires `accounts.read` because role membership is account data.
-
- * @maxItems 50
- */
-roleIds?: UUIDv7[];
-};
+export interface PersonOpenDayAssignmentSummary {
+  assignmentId: UUIDv7;
+  openDayId: UUIDv7;
+  periodId: UUIDv7;
+  /**
+   * @minLength 1
+   * @maxLength 150
+   */
+  periodName: string;
+  startsAt: string;
+  endsAt: string;
+  role: OpenDayRequirementKind;
+}

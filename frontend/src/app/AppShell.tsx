@@ -33,6 +33,7 @@ import { getGetLaborordnungPDFUrl, requestOwnLaborordnungConfirmation } from '..
 import { evaluateVisitorAdmission } from '../api/generated/visitor-enrollment/visitor-enrollment';
 import { authQueryKey, useCurrentUser, useLogout } from '../features/auth/auth';
 import { canAccessMachineLogbook, canAccessOpenDays, canAccessSettings, hasPermission, PermissionId } from '../features/auth/permissions';
+import { PersonAvatar } from '../features/users/PersonAvatar';
 
 const NARROW_SHELL_QUERY = '(max-width: 65.98rem)';
 
@@ -113,6 +114,7 @@ export function AppShell() {
             Makerspace
           </HeaderName>
           <HeaderGlobalBar>
+            <span className="header-account__name">{displayName}</span>
             <HeaderGlobalAction
             aria-label={`${profilePanelOpen ? 'Close' : 'Open'} profile menu for ${displayName}`}
             tooltipAlignment="end"
@@ -120,7 +122,17 @@ export function AppShell() {
             ref={profileActionRef}
             onClick={() => setProfilePanelOpen((open) => !open)}
             >
-              <UserAvatar size={20} />
+              {currentUser.person.profileImage ? (
+                <PersonAvatar
+                  firstName={currentUser.person.firstName}
+                  lastName={currentUser.person.lastName}
+                  profileImage={currentUser.person.profileImage}
+                  size="sm"
+                  decorative
+                />
+              ) : (
+                <UserAvatar size={20} />
+              )}
             </HeaderGlobalAction>
           </HeaderGlobalBar>
           <HeaderPanel

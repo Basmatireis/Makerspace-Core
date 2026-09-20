@@ -136,6 +136,19 @@ SELECT first_name, last_name FROM people WHERE id = sqlc.arg(id);
 SELECT * FROM open_day_assignments
 WHERE open_day_id = sqlc.arg(open_day_id) AND person_id = sqlc.arg(person_id);
 
+-- name: ListUpcomingAssignmentsForPerson :many
+SELECT a.id AS assignment_id, d.id AS open_day_id, d.period_id, p.name AS period_name,
+       d.starts_at, d.ends_at, r.kind
+FROM open_day_assignments a
+JOIN open_days d ON d.id = a.open_day_id
+JOIN open_day_periods p ON p.id = d.period_id
+JOIN open_day_staff_requirements r ON r.id = a.requirement_id
+WHERE a.person_id = sqlc.arg(person_id)
+  AND d.status = 'scheduled'
+  AND d.starts_at >= now()
+  AND p.status IN ('staffing', 'published')
+ORDER BY d.starts_at, d.id;
+
 -- name: DeleteAssignment :one
 DELETE FROM open_day_assignments WHERE id = sqlc.arg(id) RETURNING *;
 

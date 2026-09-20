@@ -147,20 +147,26 @@ func (s *Service) GetCurrent(ctx context.Context, principal authorization.Princi
 	return fromRow(row, includeDetails, includeDetails && principal.Has(authorization.PeopleReadMatriculation)), nil
 }
 
-func (s *Service) List(ctx context.Context, principal authorization.Principal, page, pageSize int, search string) (Page, error) {
+func (s *Service) List(ctx context.Context, principal authorization.Principal, page, pageSize int, search string, roleIDs []uuid.UUID) (Page, error) {
 	if !principal.Has(authorization.PeopleReadAll) {
+		return Page{}, apperror.PermissionDenied
+	}
+	if len(roleIDs) > 0 && !principal.Has(authorization.AccountsRead) {
 		return Page{}, apperror.PermissionDenied
 	}
 	if page < 1 || pageSize < 1 || pageSize > 100 || page > math.MaxInt32/pageSize || !utf8.ValidString(search) || utf8.RuneCountInString(search) > 200 {
 		return Page{}, invalidRequest("invalid pagination or search")
 	}
-	params := peopledb.ListPeopleParams{Search: search, IncludeMatriculation: principal.Has(authorization.PeopleReadMatriculation), PageLimit: int32(pageSize), PageOffset: int32((page - 1) * pageSize)}
+	if len(roleIDs) > 50 {
+		return Page{}, invalidRequest("too many role filters")
+	}
+	params := peopledb.ListPeopleParams{Search: search, IncludeMatriculation: principal.Has(authorization.PeopleReadMatriculation), RoleIds: roleIDs, PageLimit: int32(pageSize), PageOffset: int32((page - 1) * pageSize)}
 	queries := peopledb.New(s.pool)
 	rows, err := queries.ListPeople(ctx, params)
 	if err != nil {
 		return Page{}, err
 	}
-	total, err := queries.CountPeople(ctx, peopledb.CountPeopleParams{Search: params.Search, IncludeMatriculation: params.IncludeMatriculation})
+	total, err := queries.CountPeople(ctx, peopledb.CountPeopleParams{Search: params.Search, IncludeMatriculation: params.IncludeMatriculation, RoleIds: roleIDs})
 	if err != nil {
 		return Page{}, err
 	}
@@ -169,6 +175,24 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal, p
 		items = append(items, fromRow(row, true, params.IncludeMatriculation))
 	}
 	return Page{Items: items, Page: page, PageSize: pageSize, Total: total}, nil
+}
+
+func (s *Service) ProfileImageRequirements(ctx context.Context, principal authorization.Principal, personIDs []uuid.UUID) (map[uuid.UUID]bool, error) {
+	if !principal.Has(authorization.PeopleReadAll) {
+		return nil, apperror.PermissionDenied
+	}
+	result := make(map[uuid.UUID]bool, len(personIDs))
+	if len(personIDs) == 0 {
+		return result, nil
+	}
+	rows, err := peopledb.New(s.pool).ListProfileImageRequirements(ctx, personIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.PersonID] = row.Required
+	}
+	return result, nil
 }
 
 func (s *Service) Update(ctx context.Context, principal authorization.Principal, id uuid.UUID, input UpdateInput, requestID *uuid.UUID) (Person, error) {

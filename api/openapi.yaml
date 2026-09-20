@@ -461,6 +461,19 @@ paths:
           schema:
             type: string
             maxLength: 200
+        - name: roleIds
+          in: query
+          description: |
+            Return people assigned to at least one of these roles. Supplying this
+            filter requires `accounts.read` because role membership is account data.
+          style: form
+          explode: true
+          schema:
+            type: array
+            uniqueItems: true
+            maxItems: 50
+            items:
+              $ref: "#/components/schemas/UUIDv7"
       responses:
         "200":
           description: A page of people.
@@ -678,6 +691,7 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+
     put:
       tags: [People]
       operationId: putPersonProfileImage
@@ -723,6 +737,33 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /people/{personId}/makerspace-status:
+    parameters:
+      - $ref: "#/components/parameters/PersonId"
+    get:
+      tags: [People]
+      operationId: getPersonMakerspaceStatus
+      summary: Get permission-filtered Makerspace status for one person
+      description: |
+        Requires the applicable `people.read.self` or `people.read.all`
+        permission. Upcoming Open Day assignments are omitted without
+        `open_days.read.assignments`; Lab Rules status is omitted without
+        `laborordnung.requests.read`.
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Makerspace-specific status visible to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PersonMakerspaceStatus"
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /accounts/{accountId}:
@@ -3915,6 +3956,33 @@ components:
         fileId: {$ref: "#/components/schemas/UUIDv7"}
         source: {type: string, enum: [terminal_capture, self_upload, admin_upload]}
         downloadUrl: {type: string, pattern: "^/api/v1/people/"}
+
+    PersonMakerspaceStatus:
+      type: object
+      additionalProperties: false
+      properties:
+        upcomingOpenDayAssignments:
+          type: array
+          description: Omitted unless the caller may read Open Day assignment identities.
+          items:
+            $ref: "#/components/schemas/PersonOpenDayAssignmentSummary"
+        laborordnungStatus:
+          description: Omitted unless the caller may read Lab Rules confirmation requests.
+          allOf:
+            - $ref: "#/components/schemas/LaborordnungStatus"
+
+    PersonOpenDayAssignmentSummary:
+      type: object
+      additionalProperties: false
+      required: [assignmentId, openDayId, periodId, periodName, startsAt, endsAt, role]
+      properties:
+        assignmentId: {$ref: "#/components/schemas/UUIDv7"}
+        openDayId: {$ref: "#/components/schemas/UUIDv7"}
+        periodId: {$ref: "#/components/schemas/UUIDv7"}
+        periodName: {type: string, minLength: 1, maxLength: 150}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        role: {$ref: "#/components/schemas/OpenDayRequirementKind"}
 
     LaborordnungVersion:
       type: object

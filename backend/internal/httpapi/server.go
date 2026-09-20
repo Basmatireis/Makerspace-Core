@@ -531,19 +531,75 @@ func (s *Server) ListPeople(ctx context.Context, request openapi.ListPeopleReque
 	if request.Params.Search != nil {
 		search = *request.Params.Search
 	}
-	page, err := s.people.List(ctx, principal, pageNumber, pageSize, search)
+	roleIDs := []uuid.UUID{}
+	if request.Params.RoleIds != nil {
+		roleIDs = *request.Params.RoleIds
+	}
+	page, err := s.people.List(ctx, principal, pageNumber, pageSize, search, roleIDs)
 	if err != nil {
 		return nil, err
 	}
-	items := make([]openapi.Person, 0, len(page.Items))
+	personIDs := make([]uuid.UUID, 0, len(page.Items))
 	for _, person := range page.Items {
-		item, err := s.personDTO(ctx, principal, person, true, true)
+		personIDs = append(personIDs, person.ID)
+	}
+	profileImageRequirements, err := s.people.ProfileImageRequirements(ctx, principal, personIDs)
+	if err != nil {
+		return nil, err
+	}
+	accountsByPerson := map[uuid.UUID]accounts.Account{}
+	if principal.Has(authorization.AccountsRead) {
+		accountsByPerson, err = s.accounts.ListForPeople(ctx, principal, personIDs)
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, item)
+	}
+	items := make([]openapi.Person, 0, len(page.Items))
+	for _, person := range page.Items {
+		var account *accounts.Account
+		if value, ok := accountsByPerson[person.ID]; ok {
+			copy := value
+			account = &copy
+		}
+		items = append(items, personDTOWithRelated(principal, person, true, true, profileImageRequirements[person.ID], account))
 	}
 	return openapi.ListPeople200JSONResponse(openapi.PersonPage{Items: items, Page: page.Page, PageSize: page.PageSize, Total: page.Total}), nil
+}
+
+func (s *Server) GetPersonMakerspaceStatus(ctx context.Context, request openapi.GetPersonMakerspaceStatusRequestObject) (openapi.GetPersonMakerspaceStatusResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.people.Get(ctx, principal, request.PersonId); err != nil {
+		return nil, err
+	}
+	response := openapi.PersonMakerspaceStatus{}
+	if principal.Has(authorization.OpenDaysReadAssignments) {
+		assignments, err := s.opendays.ListUpcomingAssignmentsForPerson(ctx, principal, request.PersonId)
+		if err != nil {
+			return nil, err
+		}
+		items := make([]openapi.PersonOpenDayAssignmentSummary, 0, len(assignments))
+		for _, assignment := range assignments {
+			items = append(items, openapi.PersonOpenDayAssignmentSummary{
+				AssignmentId: assignment.AssignmentID, OpenDayId: assignment.OpenDayID,
+				PeriodId: assignment.PeriodID, PeriodName: assignment.PeriodName,
+				StartsAt: assignment.StartsAt, EndsAt: assignment.EndsAt,
+				Role: openapi.OpenDayRequirementKind(assignment.Role),
+			})
+		}
+		response.UpcomingOpenDayAssignments = &items
+	}
+	if principal.Has(authorization.LaborordnungRequestsRead) {
+		status, err := s.laborordnung.EvaluateForPerson(ctx, principal, request.PersonId)
+		if err != nil {
+			return nil, err
+		}
+		value := laborordnungStatusDTO(status)
+		response.LaborordnungStatus = &value
+	}
+	return openapi.GetPersonMakerspaceStatus200JSONResponse(response), nil
 }
 
 func (s *Server) CreatePerson(ctx context.Context, request openapi.CreatePersonRequestObject) (openapi.CreatePersonResponseObject, error) {
@@ -862,9 +918,25 @@ func (s *Server) ReplaceRolePermissions(ctx context.Context, request openapi.Rep
 }
 
 func (s *Server) personDTO(ctx context.Context, principal authorization.Principal, person people.Person, includeContact, includeAccount bool) (openapi.Person, error) {
+	required, err := s.people.RequiresProfileImage(ctx, person.ID)
+	if err != nil {
+		return openapi.Person{}, err
+	}
+	var account *accounts.Account
+	if includeAccount && principal.Has(authorization.AccountsRead) {
+		account, err = s.accounts.GetForPerson(ctx, principal, person.ID)
+		if err != nil {
+			return openapi.Person{}, err
+		}
+	}
+	return personDTOWithRelated(principal, person, includeContact, includeAccount, required, account), nil
+}
+
+func personDTOWithRelated(principal authorization.Principal, person people.Person, includeContact, includeAccount, profileImageRequired bool, account *accounts.Account) openapi.Person {
 	response := openapi.Person{
 		Id: person.ID, FirstName: person.FirstName, LastName: person.LastName,
 		Version: person.Version, CreatedAt: person.CreatedAt, UpdatedAt: person.UpdatedAt,
+		ProfileImageRequired: &profileImageRequired,
 	}
 	if includeContact {
 		response.Email = nullablePointer[string, openapi.Email](person.Email, func(value string) openapi.Email { return openapi.Email(value) })
@@ -875,27 +947,18 @@ func (s *Server) personDTO(ctx context.Context, principal authorization.Principa
 		} else {
 			response.ProfileImage = nullable.NewNullableWithValue(profileImageDTO(person))
 		}
-	}
-	required, err := s.people.RequiresProfileImage(ctx, person.ID)
-	if err != nil {
-		return openapi.Person{}, err
-	}
-	response.ProfileImageRequired = &required
-	if includeContact && principal.Has(authorization.PeopleReadMatriculation) {
-		response.MatriculationNumber = nullablePointer[string](person.MatriculationNumber, func(value string) string { return value })
+		if principal.Has(authorization.PeopleReadMatriculation) {
+			response.MatriculationNumber = nullablePointer[string](person.MatriculationNumber, func(value string) string { return value })
+		}
 	}
 	if includeAccount && principal.Has(authorization.AccountsRead) {
-		account, err := s.accounts.GetForPerson(ctx, principal, person.ID)
-		if err != nil {
-			return openapi.Person{}, err
-		}
 		if account == nil {
 			response.Account = nullable.NewNullNullable[openapi.AccountSummary]()
 		} else {
 			response.Account = nullable.NewNullableWithValue(accountSummaryDTO(*account))
 		}
 	}
-	return response, nil
+	return response
 }
 
 func profileImageDTO(person people.Person) openapi.ProfileImage {

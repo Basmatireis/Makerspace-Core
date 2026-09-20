@@ -18,32 +18,12 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { PageParameter } from './pageParameter';
-import type { PageSizeParameter } from './pageSizeParameter';
-import type { UUIDv7 } from './uUIDv7';
+import type { PersonOpenDayAssignmentSummary } from './personOpenDayAssignmentSummary';
+import type { LaborordnungStatus } from './laborordnungStatus';
 
-export type ListPeopleParams = {
-/**
- * One-based result page.
- * @minimum 1
- */
-page?: PageParameter;
-/**
- * Maximum records to return per page.
- * @minimum 1
- * @maximum 100
- */
-pageSize?: PageSizeParameter;
-/**
- * Case-insensitive search over permitted name and contact fields.
- * @maxLength 200
- */
-search?: string;
-/**
- * Return people assigned to at least one of these roles. Supplying this
-filter requires `accounts.read` because role membership is account data.
-
- * @maxItems 50
- */
-roleIds?: UUIDv7[];
-};
+export interface PersonMakerspaceStatus {
+  /** Omitted unless the caller may read Open Day assignment identities. */
+  upcomingOpenDayAssignments?: PersonOpenDayAssignmentSummary[];
+  /** Omitted unless the caller may read Lab Rules confirmation requests. */
+  laborordnungStatus?: LaborordnungStatus;
+}

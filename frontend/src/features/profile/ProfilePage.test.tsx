@@ -62,6 +62,29 @@ describe('Profile page', () => {
     expect(screen.queryByText('Matriculation number')).not.toBeInTheDocument();
     expect(screen.queryByText('SECRET-42')).not.toBeInTheDocument();
   });
+
+  it('opens profile-picture actions from the picture instead of showing a large uploader', async () => {
+    const currentUser = currentUserFixture([
+      PermissionId.peopleprofile_imageupdateself,
+      PermissionId.peopleprofile_imageremoveself,
+    ]);
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUser)),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/profile');
+
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'Edit profile picture for Ada Lovelace',
+      }),
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'Edit profile picture' });
+    expect(dialog).toBeInTheDocument();
+    expect(screen.getByText('Edit')).toBeInTheDocument();
+    expect(screen.queryByText('Drag an image here or click to upload')).not.toBeInTheDocument();
+  });
 });
 
 it('lets an OIDC-only account request reauthentication and link without a password', async () => {

@@ -22,6 +22,7 @@ import type {
   CreatePersonRequest,
   ListPeopleParams,
   Person,
+  PersonMakerspaceStatus,
   PersonPage,
   ProfileImage,
   PutPersonProfileImageParams,
@@ -39,7 +40,15 @@ export const getListPeopleUrl = (params?: ListPeopleParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+    const explodeParameters = ["roleIds"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : v.toString());
+      });
+      return;
+    }
+      
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -248,6 +257,34 @@ export const deletePersonProfileImage = async (personId: string,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       versionRequest,)
+  }
+);}
+
+
+/**
+ * Requires the applicable `people.read.self` or `people.read.all`
+permission. Upcoming Open Day assignments are omitted without
+`open_days.read.assignments`; Lab Rules status is omitted without
+`laborordnung.requests.read`.
+
+ * @summary Get permission-filtered Makerspace status for one person
+ */
+export const getGetPersonMakerspaceStatusUrl = (personId: string,) => {
+
+
+  
+
+  return `/api/v1/people/${personId}/makerspace-status`
+}
+
+export const getPersonMakerspaceStatus = async (personId: string, options?: RequestInit): Promise<PersonMakerspaceStatus> => {
+  
+  return apiFetch<PersonMakerspaceStatus>(getGetPersonMakerspaceStatusUrl(personId),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
   }
 );}
 

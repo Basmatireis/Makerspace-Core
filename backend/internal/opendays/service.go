@@ -42,6 +42,13 @@ type Assignment struct {
 	CreatedAt                              time.Time
 }
 
+type PersonAssignmentSummary struct {
+	AssignmentID, OpenDayID, PeriodID uuid.UUID
+	PeriodName                        string
+	StartsAt, EndsAt                  time.Time
+	Role                              string
+}
+
 type Requirement struct {
 	ID                           uuid.UUID
 	Kind                         string
@@ -138,6 +145,24 @@ func (s *Service) ListPeriods(ctx context.Context, principal authorization.Princ
 		items = append(items, item)
 	}
 	return items, nil
+}
+
+func (s *Service) ListUpcomingAssignmentsForPerson(ctx context.Context, principal authorization.Principal, personID uuid.UUID) ([]PersonAssignmentSummary, error) {
+	if !principal.CanReadPerson(personID) || !principal.Has(authorization.OpenDaysReadAssignments) {
+		return nil, apperror.PermissionDenied
+	}
+	rows, err := opendaysdb.New(s.pool).ListUpcomingAssignmentsForPerson(ctx, personID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]PersonAssignmentSummary, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, PersonAssignmentSummary{
+			AssignmentID: row.AssignmentID, OpenDayID: row.OpenDayID, PeriodID: row.PeriodID,
+			PeriodName: row.PeriodName, StartsAt: row.StartsAt, EndsAt: row.EndsAt, Role: row.Kind,
+		})
+	}
+	return result, nil
 }
 
 func (s *Service) GetPeriod(ctx context.Context, principal authorization.Principal, id uuid.UUID) (Period, error) {

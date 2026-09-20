@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   Button,
   Column,
@@ -34,7 +34,6 @@ import {
   deleteAccount,
   disableAccount,
   enableAccount,
-  getAccount,
   issueAccountInvitation,
   issueAccountPinEnrollment,
   issueAccountPasswordReset,
@@ -43,13 +42,21 @@ import {
   updateAccountLoginEmail,
 } from '../../api/generated/accounts/accounts';
 import type {
-  Account,
   AccountSummary,
+  LaborordnungStatus,
   Person,
+  ProfileImage,
   Role,
   UpdatePersonRequest,
 } from '../../api/generated/models';
-import { deletePerson, updatePerson } from '../../api/generated/people/people';
+import {
+  deletePerson,
+  deletePersonProfileImage,
+  getPersonMakerspaceStatus,
+  getPutPersonProfileImageUrl,
+  updatePerson,
+} from '../../api/generated/people/people';
+import { apiFetch } from '../../api/http-client';
 import { useSecretMutation } from '../../api/use-secret-mutation';
 import { PageHeader } from '../../app/PageHeader';
 import { ErrorState, FullPageLoading, InlineLoadingState } from '../../app/PageState';
@@ -68,6 +75,7 @@ import {
   toPersonPatch,
 } from './PersonForm';
 import { peopleKeys, personOptions, refreshPersonData } from './queries';
+import { ProfilePictureEditor } from './ProfilePictureEditor';
 
 type ConfirmKind = 'delete-person' | 'delete-account' | 'disable-account' | 'reset-password' | 'invite' | 'pin-setup' | null;
 type AccountEmailForm = { loginEmail: string };
@@ -81,12 +89,12 @@ export function UserDetailPage() {
   const { personId = '' } = useParams();
   const personQuery = useQuery(personOptions(personId));
 
-  if (personQuery.isPending) return <FullPageLoading label="Loading member" />;
+  if (personQuery.isPending) return <FullPageLoading label="Loading person" />;
   if (personQuery.isError || !personQuery.data) {
     return (
       <ErrorState
-        title="Unable to load member"
-        message="The member may no longer exist or you may not have access."
+        title="Unable to load person"
+        message="The person may no longer exist or you may not have access."
         onRetry={() => void personQuery.refetch()}
       />
     );
@@ -100,12 +108,7 @@ function UserDetailContent({ person }: { person: Person }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const accountSummary = asAccount(person.account);
-  const accountQuery = useQuery({
-    queryKey: ['accounts', 'detail', accountSummary?.id],
-    queryFn: ({ signal }) => getAccount(accountSummary!.id, { signal }),
-    enabled: Boolean(accountSummary && hasPermission(currentUser, PermissionId.accountsread)),
-  });
-  const account: Account | AccountSummary | undefined = accountQuery.data ?? accountSummary;
+  const account: AccountSummary | undefined = accountSummary;
   const [editingPerson, setEditingPerson] = useState(false);
   const [editingEmail, setEditingEmail] = useState(false);
   const [assignRoleOpen, setAssignRoleOpen] = useState(false);
@@ -131,6 +134,17 @@ function UserDetailContent({ person }: { person: Person }) {
   const canReadAccounts = hasPermission(currentUser, PermissionId.accountsread);
   const canAssignRoles = hasPermission(currentUser, PermissionId.accountsrolesassign);
   const canReadRoles = hasPermission(currentUser, PermissionId.rolesread);
+  const canReadMakerspaceStatus = hasPermission(currentUser, PermissionId.open_daysread_assignments) ||
+    hasPermission(currentUser, PermissionId.laborordnungrequestsread);
+  const makerspaceStatusQuery = useQuery({
+    queryKey: [...peopleKeys.detail(person.id), 'makerspace-status'],
+    queryFn: ({ signal }) => getPersonMakerspaceStatus(person.id, { signal }),
+    enabled: canReadMakerspaceStatus,
+  });
+  const canUpdateProfileImage = hasPermission(currentUser, PermissionId.peopleprofile_imageupdateall) ||
+    (currentUser.person.id === person.id && hasPermission(currentUser, PermissionId.peopleprofile_imageupdateself));
+  const canRemoveProfileImage = hasPermission(currentUser, PermissionId.peopleprofile_imageremoveall) ||
+    (currentUser.person.id === person.id && hasPermission(currentUser, PermissionId.peopleprofile_imageremoveself));
   const canEditAccount = Boolean(account) && hasPermission(
     currentUser,
     PermissionId.accountslogin_emailupdate,
@@ -186,10 +200,7 @@ function UserDetailContent({ person }: { person: Person }) {
     accountEmailForm.reset({ loginEmail: account?.loginEmail ?? '' });
   }, [account?.loginEmail, accountEmailForm]);
 
-  const refresh = async (updatedAccount?: Account) => {
-    if (updatedAccount) {
-      queryClient.setQueryData(['accounts', 'detail', updatedAccount.id], updatedAccount);
-    }
+  const refresh = async () => {
     await refreshPersonData(queryClient, person.id);
   };
   const personMutation = useMutation({
@@ -202,32 +213,32 @@ function UserDetailContent({ person }: { person: Person }) {
   });
   const createAccountMutation = useMutation({
     mutationFn: ({ loginEmail }: AccountEmailForm) => createPersonAccount(person.id, { loginEmail: loginEmail.trim(), expectedVersion: person.version }),
-    onSuccess: async (created) => {
+    onSuccess: async () => {
       setCreateAccountOpen(false);
       accountCreateForm.reset({ loginEmail: '' });
-      await refresh(created);
+      await refresh();
     },
   });
   const emailMutation = useMutation({
     mutationFn: ({ loginEmail }: AccountEmailForm) => updateAccountLoginEmail(account!.id, { loginEmail: loginEmail.trim(), expectedVersion: account!.version }),
-    onSuccess: async (updated) => {
+    onSuccess: async () => {
       setEditingEmail(false);
-      await refresh(updated);
+      await refresh();
     },
   });
   const passwordMutation = useSecretMutation(
     ({ newPassword }: AccountPasswordForm) => setAccountPassword(account!.id, { newPassword, expectedVersion: account!.version }),
     {
-    onSuccess: async (updated) => {
+    onSuccess: async () => {
       accountPasswordForm.reset();
       clearResetIssue();
       setPasswordModalOpen(false);
-      await refresh(updated);
+      await refresh();
     },
     },
   );
   const enableMutation = useMutation({ mutationFn: () => enableAccount(account!.id, { expectedVersion: account!.version }), onSuccess: refresh });
-  const disableMutation = useMutation({ mutationFn: () => disableAccount(account!.id, { expectedVersion: account!.version }), onSuccess: async (updated) => { setConfirmKind(null); await refresh(updated); } });
+  const disableMutation = useMutation({ mutationFn: () => disableAccount(account!.id, { expectedVersion: account!.version }), onSuccess: async () => { setConfirmKind(null); await refresh(); } });
   const deleteAccountMutation = useMutation({ mutationFn: () => deleteAccount(account!.id, { expectedVersion: account!.version }), onSuccess: async () => { setConfirmKind(null); clearResetIssue(); queryClient.removeQueries({ queryKey: ['accounts', 'detail', account!.id] }); await refresh(); } });
   const deletePersonMutation = useMutation({
     mutationFn: () => deletePerson(person.id, { expectedVersion: person.version }),
@@ -241,13 +252,42 @@ function UserDetailContent({ person }: { person: Person }) {
     mutationFn: ({ roleId, remove }: { roleId: string; remove: boolean }) => remove
       ? removeAccountRole(account!.id, roleId, { expectedVersion: account!.version })
       : assignAccountRole(account!.id, roleId, { expectedVersion: account!.version }),
-    onSuccess: async (updated) => {
+    onSuccess: async () => {
       setSelectedRole(null);
       setAssignRoleOpen(false);
       await Promise.all([
-        refresh(updated),
+        refresh(),
         queryClient.invalidateQueries({ queryKey: authQueryKey }),
       ]);
+    },
+  });
+  const profileImageMutation = useMutation({
+    mutationFn: (file: File) => apiFetch<ProfileImage>(
+      getPutPersonProfileImageUrl(person.id, { expectedVersion: person.version }),
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'X-File-Name': file.name,
+          'X-Profile-Image-Source': currentUser.person.id === person.id ? 'self_upload' : 'admin_upload',
+        },
+        body: file,
+      },
+    ),
+    onSuccess: async () => {
+      await refreshPersonData(queryClient, person.id);
+      if (currentUser.person.id === person.id) {
+        await queryClient.invalidateQueries({ queryKey: authQueryKey });
+      }
+    },
+  });
+  const removeProfileImageMutation = useMutation({
+    mutationFn: () => deletePersonProfileImage(person.id, { expectedVersion: person.version }),
+    onSuccess: async () => {
+      await refreshPersonData(queryClient, person.id);
+      if (currentUser.person.id === person.id) {
+        await queryClient.invalidateQueries({ queryKey: authQueryKey });
+      }
     },
   });
 
@@ -293,7 +333,7 @@ function UserDetailContent({ person }: { person: Person }) {
         setResetExpiresAt(issue.expiresAt);
         setManualSetupUrl(issue.setupUrl ?? null);
         queryClient.setQueryData(['accounts', 'detail', issue.account.id], issue.account);
-        await refresh(issue.account);
+        await refresh();
         setConfirmKind(null);
       }
       if (confirmKind === 'invite' && account) {
@@ -304,7 +344,7 @@ function UserDetailContent({ person }: { person: Person }) {
         setResetExpiresAt(issue.expiresAt);
         setManualSetupUrl(issue.setupUrl ?? null);
         queryClient.setQueryData(['accounts', 'detail', issue.account.id], issue.account);
-        await refresh(issue.account);
+        await refresh();
         setConfirmKind(null);
       }
 	  if (confirmKind === 'pin-setup' && account) {
@@ -315,7 +355,7 @@ function UserDetailContent({ person }: { person: Person }) {
 		setResetExpiresAt(issue.expiresAt);
 		setManualSetupUrl(issue.setupUrl ?? null);
 		queryClient.setQueryData(['accounts', 'detail', issue.account.id], issue.account);
-		await refresh(issue.account);
+		await refresh();
 		setConfirmKind(null);
 	  }
     } catch {
@@ -326,8 +366,8 @@ function UserDetailContent({ person }: { person: Person }) {
   };
 
   const confirmation = {
-    'delete-person': ['Delete member permanently?', 'This permanently deletes the member and, if present, their account. This cannot be undone.', 'Delete member'],
-    'delete-account': ['Delete account permanently?', 'The member record remains, but the login account is permanently removed.', 'Delete account'],
+    'delete-person': ['Delete person permanently?', 'This permanently deletes the person and, if present, their account. This cannot be undone.', 'Delete person'],
+    'delete-account': ['Delete account permanently?', 'The person record remains, but the login account is permanently removed.', 'Delete account'],
     'disable-account': ['Disable this account?', 'The user will be signed out and will not be able to sign in.', 'Disable account'],
     'reset-password': ['Send a password reset code?', 'A one-time code will be emailed. The current password remains active until the recipient completes the reset.', 'Send reset code'],
     invite: ['Send an account invitation?', 'A one-time setup code will be emailed. Completing it verifies the email, sets the password, and enables an account that was not explicitly disabled.', 'Send invitation'],
@@ -337,15 +377,15 @@ function UserDetailContent({ person }: { person: Person }) {
   const mutationError = personMutation.isError || createAccountMutation.isError || emailMutation.isError || passwordMutation.isError || enableMutation.isError || disableMutation.isError || deleteAccountMutation.isError || deletePersonMutation.isError || roleMutation.isError || resetFailed;
 
   return (
-    <Stack gap={7} className="member-detail-page">
+    <Stack gap={7} className="person-detail-page">
       <PageHeader
         title={`${person.firstName} ${person.lastName}`}
         breadcrumbs={[
           { label: 'Settings', to: '/settings' },
-          { label: 'Members', to: '/settings/users' },
+          { label: 'People', to: '/settings/users' },
           { label: `${person.firstName} ${person.lastName}` },
         ]}
-        description="Member details and account access."
+        description="Personal details, account access, and Makerspace status."
         actions={
           canEditPerson ||
           canEditAccount ||
@@ -357,7 +397,7 @@ function UserDetailContent({ person }: { person: Person }) {
 		  canIssuePINSetup ? (
             <MenuButton label="Actions" kind="tertiary" menuAlignment="bottom-end" size="md">
               {canEditPerson && !editingPerson && (
-                <MenuItem label="Edit member" onClick={() => setEditingPerson(true)} />
+                <MenuItem label="Edit person" onClick={() => setEditingPerson(true)} />
               )}
               {canEditPerson && !editingPerson && (hasAccountActions || hasCredentialActions) && (
                 <MenuItemDivider />
@@ -391,104 +431,193 @@ function UserDetailContent({ person }: { person: Person }) {
       {mutationError && (
         <InlineNotification kind="error" lowContrast hideCloseButton title="Change not completed" subtitle="The record may have changed. Reload it and try again." />
       )}
-      <div className="member-detail-layout">
-      <Grid condensed className="member-detail-grid">
-        <Column sm={4} md={8} lg={10} className="member-detail__personal">
-          <Tile className="member-detail__card">
+      <div className="person-detail-layout">
+        <Grid condensed className="person-detail-grid">
+          <Column sm={4} md={3} lg={4}>
             <Stack gap={6}>
-              <div className="section-heading">
-                <h2>Personal information</h2>
-              </div>
-              {editingPerson ? (
-                <Form onSubmit={submitPerson}>
-                  <Stack gap={6}>
-                    <PersonFields form={personForm} showMatriculation={canReadMatriculation} editMatriculation={canEditMatriculation} />
-                    <div className="form-actions">
-                      <Button kind="secondary" type="button" onClick={() => { personForm.reset(); setEditingPerson(false); }}>Cancel</Button>
-                      <Button type="submit" disabled={!personForm.formState.isDirty || personMutation.isPending}>{personMutation.isPending ? 'Saving…' : 'Save'}</Button>
-                    </div>
-                  </Stack>
-                </Form>
-              ) : (
-                <StructuredListWrapper isCondensed>
-                  <StructuredListBody>
-                    <DetailRow label="Contact email" value={person.email ?? 'Not provided'} />
-                    <DetailRow label="Phone" value={person.phone ?? 'Not provided'} />
-                    {canReadMatriculation && <DetailRow label="Matriculation number" value={person.matriculationNumber ?? 'Not provided'} />}
-                  </StructuredListBody>
-                </StructuredListWrapper>
-              )}
-            </Stack>
-          </Tile>
-        </Column>
-
-        <Column sm={4} md={8} lg={6} className="member-detail__account">
-          <Tile className="member-detail__card">
-            <Stack gap={6}>
-              <div className="section-heading"><h2>Login account</h2></div>
-              {!canReadAccounts || person.account === undefined ? (
-                <InlineNotification kind="info" lowContrast hideCloseButton title="Account details unavailable" subtitle="Your permissions do not include account access." />
-              ) : !account ? (
-                <Stack gap={4}>
-                  <p>This member does not have a login account.</p>
+              <Tile className="person-detail-card person-profile-card">
+                <Stack gap={5}>
+                  <h2>Profile picture</h2>
+                  <ProfilePictureEditor
+                    id="person-profile-image"
+                    firstName={person.firstName}
+                    lastName={person.lastName}
+                    profileImage={person.profileImage}
+                    canUpdate={canUpdateProfileImage}
+                    canRemove={canRemoveProfileImage}
+                    isUploading={profileImageMutation.isPending}
+                    isRemoving={removeProfileImageMutation.isPending}
+                    onUpload={(file) => profileImageMutation.mutate(file)}
+                    onRemove={() => removeProfileImageMutation.mutate()}
+                  />
+                  <p className="person-profile-card__name">{person.firstName} {person.lastName}</p>
+                  {person.profileImageRequired && !person.profileImage && (
+                    <InlineNotification kind="warning" lowContrast hideCloseButton title="Profile picture required" subtitle="At least one assigned role requires a profile picture." />
+                  )}
+                  {profileImageMutation.isError && (
+                    <InlineNotification kind="error" lowContrast hideCloseButton title="Picture not updated" subtitle="Use a JPEG, PNG, or WebP image up to 8 MiB and 4096×4096 pixels." />
+                  )}
                 </Stack>
-              ) : (
+              </Tile>
+
+              <Tile className="person-detail-card">
                 <Stack gap={6}>
-                  <div className="account-summary">
-                    <div><span className="label">Status</span><Tag type={account.status === 'enabled' ? 'green' : 'gray'}>{account.status}</Tag></div>
-                  </div>
-                  {editingEmail ? (
-                    <Form onSubmit={submitEmail}>
-                      <Stack gap={5}>
-                        <TextInput id="account-login-email" type="email" labelText="Login email" invalid={Boolean(accountEmailForm.formState.errors.loginEmail)} invalidText={accountEmailForm.formState.errors.loginEmail?.message} {...accountEmailForm.register('loginEmail', { required: 'Enter a login email.' })} />
-                        <div className="form-actions"><Button kind="secondary" type="button" onClick={() => setEditingEmail(false)}>Cancel</Button><Button type="submit" disabled={emailMutation.isPending}>Save</Button></div>
+                  <h2>Personal information</h2>
+                  {editingPerson ? (
+                    <Form onSubmit={submitPerson}>
+                      <Stack gap={6}>
+                        <PersonFields form={personForm} showMatriculation={canReadMatriculation} editMatriculation={canEditMatriculation} />
+                        <div className="form-actions">
+                          <Button kind="secondary" type="button" onClick={() => { personForm.reset(); setEditingPerson(false); }}>Cancel</Button>
+                          <Button type="submit" disabled={!personForm.formState.isDirty || personMutation.isPending}>{personMutation.isPending ? 'Saving…' : 'Save'}</Button>
+                        </div>
                       </Stack>
                     </Form>
                   ) : (
-                    <div><span className="label">Login email</span><p>{account.loginEmail ?? 'Not configured'}</p></div>
+                    <StructuredListWrapper isCondensed>
+                      <StructuredListBody>
+                        <DetailRow label="First name" value={person.firstName} />
+                        <DetailRow label="Last name" value={person.lastName} />
+                        <DetailRow label="Contact email" value={person.email ?? 'Not provided'} />
+                        <DetailRow label="Phone" value={person.phone ?? 'Not provided'} />
+                        {canReadMatriculation && <DetailRow label="Matriculation number" value={person.matriculationNumber ?? 'Not provided'} />}
+                      </StructuredListBody>
+                    </StructuredListWrapper>
                   )}
-				  <div>
-					<span className="label">Authentication</span>
-					<Stack gap={3}>
-						<div className="account-summary"><span>Local password</span><Tag type={account.passwordStatus === 'active' ? 'green' : 'gray'}>{account.passwordStatus === 'active' ? 'Enabled' : 'Not configured'}</Tag></div>
-						<div className="account-summary"><span>PIN</span><Tag type={activePINIdentity ? 'green' : 'gray'}>{activePINIdentity ? `Enabled — username: ${activePINIdentity.displayIdentifier ?? 'configured'}` : 'Not configured'}</Tag></div>
-						<div className="account-summary"><span>OIDC / authentication provider</span><Tag type={activeOIDCIdentities.length > 0 ? 'green' : 'gray'}>{activeOIDCIdentities.length > 0 ? `Connected (${activeOIDCIdentities.length})` : 'Not connected'}</Tag></div>
-					</Stack>
-				  </div>
-                  <div className="tag-list" aria-label="Assigned roles">
-                    {account.roles.length === 0 && <span>No roles assigned</span>}
-                    {account.roles.map((role) => {
-                      const roleDetails = rolesById.get(role.id);
-                      const mayRemove = Boolean(
-                        roleDetails && canManageRoleMembership(currentUser, roleDetails),
-                      );
-                      if (mayRemove) {
-                        return (
-                          <DismissibleTag
-                            key={role.id}
-                            type={role.systemKey === 'master' ? 'purple' : 'blue'}
-                            text={role.name}
-                            title={`Remove ${role.name} role`}
-                            dismissTooltipLabel={`Remove ${role.name} role`}
-                            onClose={() => roleMutation.mutate({ roleId: role.id, remove: true })}
-                          />
-                        );
-                      }
-                      return <Tag key={role.id} type={role.systemKey === 'master' ? 'purple' : 'blue'}>{role.name}</Tag>;
-                    })}
-                  </div>
-                  {account.status === 'disabled' && hasPermission(currentUser, PermissionId.accountsenable) && (
-                    <div className="button-cluster">
-                      <Button disabled={account.passwordStatus !== 'active' || enableMutation.isPending} onClick={() => enableMutation.mutate()}>Enable</Button>
-                    </div>
-                  )}
-                  {account.status === 'disabled' && account.passwordStatus !== 'active' && hasPermission(currentUser, PermissionId.accountsenable) && <p className="section-description">Set an active password before enabling this account.</p>}
                 </Stack>
+              </Tile>
+            </Stack>
+          </Column>
+
+          <Column sm={4} md={5} lg={12}>
+            <Stack gap={6}>
+              <Tile className="person-detail-card">
+                <Stack gap={6}>
+                  <div className="section-heading"><h2>Account access</h2>{account && <Tag type={account.status === 'enabled' ? 'green' : 'gray'}>{account.status === 'enabled' ? 'Enabled' : 'Disabled'}</Tag>}</div>
+                  {!canReadAccounts || person.account === undefined ? (
+                    <InlineNotification kind="info" lowContrast hideCloseButton title="Account details unavailable" subtitle="Your permissions do not include account access." />
+                  ) : !account ? (
+                    <p>This person does not have a login account.</p>
+                  ) : (
+                    <Stack gap={5}>
+                      {editingEmail ? (
+                        <Form onSubmit={submitEmail}>
+                          <Stack gap={5}>
+                            <TextInput id="account-login-email" type="email" labelText="Login email" invalid={Boolean(accountEmailForm.formState.errors.loginEmail)} invalidText={accountEmailForm.formState.errors.loginEmail?.message} {...accountEmailForm.register('loginEmail', { required: 'Enter a login email.' })} />
+                            <div className="form-actions"><Button kind="secondary" type="button" onClick={() => setEditingEmail(false)}>Cancel</Button><Button type="submit" disabled={emailMutation.isPending}>Save</Button></div>
+                          </Stack>
+                        </Form>
+                      ) : (
+                        <StructuredListWrapper isCondensed>
+                          <StructuredListBody>
+                            <DetailRow label="Login email" value={account.loginEmail ?? 'Not configured'} />
+                            <DetailRow label="Account source" value={formatProvisioningSource(account.provisioningSource)} />
+                            <DetailRow label="First sign-in" value={account.firstAuthenticatedAt ? new Date(account.firstAuthenticatedAt).toLocaleString() : 'Not yet'} />
+                            <DetailRow label="Account ID" value={account.id} monospace />
+                          </StructuredListBody>
+                        </StructuredListWrapper>
+                      )}
+                      {account.status === 'disabled' && hasPermission(currentUser, PermissionId.accountsenable) && (
+                        <div>
+                          <Button size="sm" disabled={account.passwordStatus !== 'active' || enableMutation.isPending} onClick={() => enableMutation.mutate()}>Enable account</Button>
+                          {account.passwordStatus !== 'active' && <p className="section-description">An active password is required before this account can be enabled.</p>}
+                        </div>
+                      )}
+                    </Stack>
+                  )}
+                </Stack>
+              </Tile>
+
+              {account && (
+                <Tile className="person-detail-card">
+                  <Stack gap={6}>
+                    <h2>Authentication methods</h2>
+                    <div className="authentication-methods">
+                      <AuthenticationMethod
+                        label="Local password"
+                        status={account.passwordStatus === 'active' ? 'Active' : account.passwordStatus === 'reset_required' ? 'Reset required' : 'Not configured'}
+                        active={account.passwordStatus === 'active'}
+                        warning={account.passwordStatus === 'reset_required'}
+                      />
+                      <AuthenticationMethod
+                        label="Username and PIN"
+                        status={activePINIdentity ? 'Active' : 'Not configured'}
+                        detail={activePINIdentity?.displayIdentifier ? `Username: ${activePINIdentity.displayIdentifier}` : undefined}
+                        active={Boolean(activePINIdentity)}
+                      />
+                      <AuthenticationMethod
+                        label="OIDC / SSO"
+                        status={activeOIDCIdentities.length ? `${activeOIDCIdentities.length} linked` : 'Not connected'}
+                        active={activeOIDCIdentities.length > 0}
+                      >
+                        {activeOIDCIdentities.map((identity) => (
+                          <div className="authentication-method__identity" key={identity.id}>
+                            <span>{identity.displayIdentifier ?? 'OIDC provider'}</span>
+                            {identity.providerSlug && <code>{identity.providerSlug}</code>}
+                          </div>
+                        ))}
+                      </AuthenticationMethod>
+                    </div>
+                  </Stack>
+                </Tile>
+              )}
+
+              {account && (
+                <Tile className="person-detail-card">
+                  <Stack gap={5}>
+                    <div className="section-heading"><h2>Roles</h2><span className="section-description">{account.roles.length} assigned</span></div>
+                    <div className="tag-list" aria-label="Assigned roles">
+                      {account.roles.length === 0 && <span>No roles assigned</span>}
+                      {account.roles.map((role) => {
+                        const roleDetails = rolesById.get(role.id);
+                        const mayRemove = Boolean(roleDetails && canManageRoleMembership(currentUser, roleDetails));
+                        if (mayRemove) {
+                          return <DismissibleTag key={role.id} type={role.systemKey === 'master' ? 'purple' : 'blue'} text={role.name} title={`Remove ${role.name} role`} dismissTooltipLabel={`Remove ${role.name} role`} onClose={() => roleMutation.mutate({ roleId: role.id, remove: true })} />;
+                        }
+                        return <Tag key={role.id} type={role.systemKey === 'master' ? 'purple' : 'blue'}>{role.name}</Tag>;
+                      })}
+                    </div>
+                  </Stack>
+                </Tile>
+              )}
+            </Stack>
+          </Column>
+        </Grid>
+
+        {canReadMakerspaceStatus && (
+          <Tile className="person-detail-card person-makerspace-card">
+            <Stack gap={6}>
+              <div><h2>Makerspace status</h2><p className="section-description">Upcoming participation and current Lab Rules acknowledgement.</p></div>
+              {makerspaceStatusQuery.isPending && <InlineLoadingState label="Loading Makerspace status" />}
+              {makerspaceStatusQuery.isError && <InlineNotification kind="warning" lowContrast hideCloseButton title="Makerspace status unavailable" subtitle="Personal and account details are still available. Reload to try again." />}
+              {makerspaceStatusQuery.data?.laborordnungStatus && (
+                <LabRulesOverview status={makerspaceStatusQuery.data.laborordnungStatus} />
+              )}
+              {makerspaceStatusQuery.data?.upcomingOpenDayAssignments && (
+                <div className="person-open-days">
+                  <div className="section-heading"><h3>Upcoming Open Days</h3><Tag type="cool-gray">{makerspaceStatusQuery.data.upcomingOpenDayAssignments.length}</Tag></div>
+                  {makerspaceStatusQuery.data.upcomingOpenDayAssignments.length === 0 ? (
+                    <p className="section-description">No upcoming Open Day assignments.</p>
+                  ) : (
+                    <StructuredListWrapper isCondensed aria-label="Upcoming Open Day assignments">
+                      <StructuredListBody>
+                        {makerspaceStatusQuery.data.upcomingOpenDayAssignments.map((assignment) => (
+                          <StructuredListRow key={assignment.assignmentId}>
+                            <StructuredListCell>
+                              <strong>{assignment.periodName}</strong>
+                              <span className="person-open-days__time">{formatDateTimeRange(assignment.startsAt, assignment.endsAt)}</span>
+                            </StructuredListCell>
+                            <StructuredListCell><Tag type={assignment.role === 'supervisor' ? 'blue' : 'teal'}>{capitalize(assignment.role)}</Tag></StructuredListCell>
+                          </StructuredListRow>
+                        ))}
+                      </StructuredListBody>
+                    </StructuredListWrapper>
+                  )}
+                </div>
               )}
             </Stack>
           </Tile>
-        </Column>
-      </Grid>
+        )}
 
       {resetSent && (
         <Tile className="secret-tile">
@@ -525,7 +654,7 @@ function UserDetailContent({ person }: { person: Person }) {
               )}
               {canDeletePerson && (
                 <Button kind="danger--tertiary" size="md" renderIcon={TrashCan} onClick={() => setConfirmKind('delete-person')}>
-                  Delete member
+                  Delete person
                 </Button>
               )}
             </div>
@@ -559,7 +688,7 @@ function UserDetailContent({ person }: { person: Person }) {
                 lowContrast
                 hideCloseButton
                 title="Role catalog unavailable"
-                subtitle="Reload the member and try again."
+                subtitle="Reload the person and try again."
               />
             )}
             {rolesQuery.data && assignableRoles.length === 0 && (
@@ -604,6 +733,78 @@ function UserDetailContent({ person }: { person: Person }) {
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
-  return <StructuredListRow><StructuredListCell>{label}</StructuredListCell><StructuredListCell>{value}</StructuredListCell></StructuredListRow>;
+function DetailRow({ label, value, monospace = false }: { label: string; value: string; monospace?: boolean }) {
+  return <StructuredListRow><StructuredListCell>{label}</StructuredListCell><StructuredListCell>{monospace ? <code>{value}</code> : value}</StructuredListCell></StructuredListRow>;
+}
+
+function AuthenticationMethod({
+  label,
+  status,
+  detail,
+  active,
+  warning = false,
+  children,
+}: {
+  label: string;
+  status: string;
+  detail?: string;
+  active: boolean;
+  warning?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="authentication-method">
+      <div className="authentication-method__header">
+        <div><strong>{label}</strong>{detail && <span>{detail}</span>}</div>
+        <Tag type={warning ? 'warm-gray' : active ? 'green' : 'gray'}>{status}</Tag>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function LabRulesOverview({ status }: { status: LaborordnungStatus }) {
+  const stateLabel = status.state === 'current'
+    ? 'Current'
+    : status.state === 'outdated'
+      ? 'Acknowledgement outdated'
+      : status.state === 'no_published_version'
+        ? 'No published version'
+        : 'Not required';
+  const tagType = status.state === 'current' ? 'green' : status.actionRequired ? 'warm-gray' : 'gray';
+
+  return (
+    <section className="lab-rules-overview" aria-labelledby="person-lab-rules-heading">
+      <div className="section-heading">
+        <div>
+          <h3 id="person-lab-rules-heading">Lab Rules</h3>
+          <p className="section-description">Requirement mode: {status.mode.replace('_', ' ')}</p>
+        </div>
+        <div className="tag-list">
+          <Tag type={tagType}>{stateLabel}</Tag>
+          {status.requestId && <Tag type="purple">Confirmation pending</Tag>}
+        </div>
+      </div>
+      <div className="lab-rules-overview__versions">
+        <div><span className="label">Current version</span><strong>{status.currentVersion?.humanRevision ?? 'None published'}</strong></div>
+        <div><span className="label">Acknowledged version</span><strong>{status.latestConfirmedVersion?.humanRevision ?? 'None'}</strong></div>
+      </div>
+    </section>
+  );
+}
+
+function formatProvisioningSource(source: string): string {
+  return source.replaceAll('_', ' ').replace(/^./, (value) => value.toUpperCase());
+}
+
+function formatDateTimeRange(startsAt: string, endsAt: string): string {
+  const start = new Date(startsAt);
+  const end = new Date(endsAt);
+  const date = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(start);
+  const time = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' });
+  return `${date}, ${time.format(start)}–${time.format(end)}`;
+}
+
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }

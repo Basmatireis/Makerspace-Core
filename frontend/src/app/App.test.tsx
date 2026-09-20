@@ -9,6 +9,27 @@ import { renderRoute } from '../test/render';
 import { App } from './App';
 
 describe('protected application routing', () => {
+  it('shows the signed-in person name and profile image in the account control', async () => {
+    const currentUser = currentUserFixture();
+    currentUser.person.profileImage = {
+      fileId: '0192f6f8-743e-7c77-a349-cd07c3e8a920',
+      source: 'self_upload',
+      downloadUrl: `/api/v1/people/${currentUser.person.id}/profile-image`,
+    };
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUser)),
+    );
+
+    renderRoute(<App />, '/dashboard');
+
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(document.querySelector('.header-account__name')).toHaveTextContent('Ada Lovelace');
+    expect(document.querySelector('.cds--header__action img.person-avatar')).toHaveAttribute(
+      'src',
+      `/api/v1/people/${currentUser.person.id}/profile-image`,
+    );
+  });
+
   it.each([
     [PermissionId.oidcmanage, 'OpenID Connect'],
     [PermissionId.mailmanage, 'Email delivery'],
@@ -20,7 +41,7 @@ describe('protected application routing', () => {
     expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Members' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'People' })).not.toBeInTheDocument();
   });
 
   it.each(['/settings/oidc', '/settings/mail'])('denies %s without its permission', async (path) => {
@@ -97,7 +118,7 @@ describe('protected application routing', () => {
     );
     renderRoute(<App />, '/settings');
     expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Members' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'People' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Roles' })).not.toBeInTheDocument();
   });
 
@@ -110,7 +131,7 @@ describe('protected application routing', () => {
     renderRoute(<App />, '/settings');
     expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Managed devices' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Members' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'People' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Roles' })).not.toBeInTheDocument();
   });
 

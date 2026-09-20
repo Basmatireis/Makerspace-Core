@@ -229,7 +229,7 @@ test('shows only authorized settings tools and exposes self-service profile acce
 
   await page.goto('/settings');
   await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Members' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'People' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Roles' })).toHaveCount(0);
   await expectNoSeriousAccessibilityViolations(page);
 

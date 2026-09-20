@@ -23,6 +23,21 @@ LEFT JOIN password_credentials pc ON pc.auth_identity_id = i.id
 LEFT JOIN password_reset_tokens prt ON prt.account_id = a.id AND prt.expires_at > now()
 WHERE a.id = sqlc.arg(id);
 
+-- name: ListAccountViewsByPeople :many
+SELECT a.id, a.person_id, a.status, a.provisioning_source, a.first_authenticated_at,
+       a.version, a.created_at, a.updated_at,
+       i.id AS auth_identity_id, i.identifier_display AS login_email,
+       CASE WHEN EXISTS (
+                SELECT 1 FROM password_reset_tokens prt
+                WHERE prt.account_id = a.id AND prt.expires_at > now()
+            ) OR pc.reset_required THEN 'reset_required'
+            WHEN pc.auth_identity_id IS NULL THEN 'not_set' ELSE 'active' END AS password_status
+FROM accounts a
+LEFT JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'password'
+LEFT JOIN password_credentials pc ON pc.auth_identity_id = i.id
+WHERE a.person_id = ANY(sqlc.arg(person_ids)::uuid[])
+ORDER BY a.person_id;
+
 -- name: GetPersonVersionForAccountCreation :one
 SELECT version FROM people WHERE id = sqlc.arg(person_id) FOR UPDATE;
 
@@ -60,6 +75,13 @@ FROM auth_identities i
 LEFT JOIN oidc_providers p ON p.id = i.provider_id
 WHERE i.account_id = sqlc.arg(account_id)
 ORDER BY i.kind, i.created_at, i.id;
+
+-- name: ListAuthIdentitiesByAccounts :many
+SELECT i.*, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug
+FROM auth_identities i
+LEFT JOIN oidc_providers p ON p.id = i.provider_id
+WHERE i.account_id = ANY(sqlc.arg(account_ids)::uuid[])
+ORDER BY i.account_id, i.kind, i.created_at, i.id;
 
 -- name: CountUsableAuthIdentities :one
 SELECT count(*) FROM auth_identities i
@@ -99,6 +121,11 @@ DELETE FROM account_roles WHERE account_id = sqlc.arg(account_id) AND role_id = 
 SELECT r.* FROM roles r JOIN account_roles ar ON ar.role_id = r.id
 WHERE ar.account_id = sqlc.arg(account_id)
 ORDER BY r.system_key DESC NULLS LAST, lower(r.name), r.id;
+
+-- name: ListAccountRolesByAccounts :many
+SELECT ar.account_id, r.* FROM roles r JOIN account_roles ar ON ar.role_id = r.id
+WHERE ar.account_id = ANY(sqlc.arg(account_ids)::uuid[])
+ORDER BY ar.account_id, r.system_key DESC NULLS LAST, lower(r.name), r.id;
 
 -- name: GetRoleForAssignment :one
 SELECT * FROM roles WHERE id = sqlc.arg(id) FOR SHARE;

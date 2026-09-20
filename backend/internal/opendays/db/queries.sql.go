@@ -826,6 +826,58 @@ func (q *Queries) ListRequirements(ctx context.Context, openDayID uuid.UUID) ([]
 	return items, nil
 }
 
+const listUpcomingAssignmentsForPerson = `-- name: ListUpcomingAssignmentsForPerson :many
+SELECT a.id AS assignment_id, d.id AS open_day_id, d.period_id, p.name AS period_name,
+       d.starts_at, d.ends_at, r.kind
+FROM open_day_assignments a
+JOIN open_days d ON d.id = a.open_day_id
+JOIN open_day_periods p ON p.id = d.period_id
+JOIN open_day_staff_requirements r ON r.id = a.requirement_id
+WHERE a.person_id = $1
+  AND d.status = 'scheduled'
+  AND d.starts_at >= now()
+  AND p.status IN ('staffing', 'published')
+ORDER BY d.starts_at, d.id
+`
+
+type ListUpcomingAssignmentsForPersonRow struct {
+	AssignmentID uuid.UUID
+	OpenDayID    uuid.UUID
+	PeriodID     uuid.UUID
+	PeriodName   string
+	StartsAt     time.Time
+	EndsAt       time.Time
+	Kind         string
+}
+
+func (q *Queries) ListUpcomingAssignmentsForPerson(ctx context.Context, personID uuid.UUID) ([]ListUpcomingAssignmentsForPersonRow, error) {
+	rows, err := q.db.Query(ctx, listUpcomingAssignmentsForPerson, personID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUpcomingAssignmentsForPersonRow{}
+	for rows.Next() {
+		var i ListUpcomingAssignmentsForPersonRow
+		if err := rows.Scan(
+			&i.AssignmentID,
+			&i.OpenDayID,
+			&i.PeriodID,
+			&i.PeriodName,
+			&i.StartsAt,
+			&i.EndsAt,
+			&i.Kind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const personEligibleForRequirement = `-- name: PersonEligibleForRequirement :one
 SELECT EXISTS (
     SELECT 1 FROM people p
