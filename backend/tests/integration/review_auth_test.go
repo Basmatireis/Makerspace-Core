@@ -110,7 +110,7 @@ func TestOIDCSessionRejectsDisabledOrForeignIdentity(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			session, err := service.CreateOIDCSession(ctx, tx, targetID, identityID, authorization.AssuranceNormal)
+			session, err := service.CreateOIDCSession(ctx, tx, targetID, identityID, authorization.AssuranceNormal, time.Now().UTC())
 			if state == "enabled" {
 				if err != nil || session.Token == "" {
 					t.Fatalf("valid OIDC identity rejected: %v", err)

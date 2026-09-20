@@ -13,7 +13,7 @@ import (
 
 type Querier interface {
 	BumpAccountVersion(ctx context.Context, id uuid.UUID) error
-	CountUsableIdentities(ctx context.Context, accountID uuid.UUID) (int64, error)
+	CountUsableIdentities(ctx context.Context, arg CountUsableIdentitiesParams) (int64, error)
 	CreateFlow(ctx context.Context, arg CreateFlowParams) (OidcFlow, error)
 	CreateJITAccount(ctx context.Context, arg CreateJITAccountParams) (Account, error)
 	CreateJITPerson(ctx context.Context, arg CreateJITPersonParams) (Person, error)
@@ -24,10 +24,12 @@ type Querier interface {
 	FindOIDCIdentity(ctx context.Context, arg FindOIDCIdentityParams) (FindOIDCIdentityRow, error)
 	GetAccountStatusForUpdate(ctx context.Context, id uuid.UUID) (string, error)
 	GetEnabledProviderBySlug(ctx context.Context, slug string) (OidcProvider, error)
+	GetFlowContext(ctx context.Context, arg GetFlowContextParams) (OidcFlow, error)
 	GetFlowForCallback(ctx context.Context, arg GetFlowForCallbackParams) (OidcFlow, error)
 	GetOIDCIdentityForUnlink(ctx context.Context, id uuid.UUID) (AuthIdentity, error)
-	GetPasswordHashForAccount(ctx context.Context, accountID uuid.UUID) (string, error)
 	GetProvider(ctx context.Context, id uuid.UUID) (OidcProvider, error)
+	GetProviderForFlow(ctx context.Context, id uuid.UUID) (OidcProvider, error)
+	HasLinkedProvider(ctx context.Context, arg HasLinkedProviderParams) (bool, error)
 	ListEnabledLoginProviders(ctx context.Context) ([]ListEnabledLoginProvidersRow, error)
 	ListProviders(ctx context.Context) ([]OidcProvider, error)
 	MarkFlowUsed(ctx context.Context, id uuid.UUID) (int64, error)

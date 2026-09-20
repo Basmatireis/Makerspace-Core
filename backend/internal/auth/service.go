@@ -389,7 +389,7 @@ func (s *Service) createSession(ctx context.Context, queries *authdb.Queries, ac
 	return Session{ID: id, Token: token, CSRFToken: csrf, IdleExpiresAt: idle, AbsoluteExpiry: absolute}, nil
 }
 
-func (s *Service) CreateOIDCSession(ctx context.Context, db authdb.DBTX, accountID, identityID uuid.UUID, assurance authorization.Assurance) (Session, error) {
+func (s *Service) CreateOIDCSession(ctx context.Context, db authdb.DBTX, accountID, identityID uuid.UUID, assurance authorization.Assurance, authenticatedAt time.Time) (Session, error) {
 	if assurance != authorization.AssuranceNormal && assurance != authorization.AssuranceStrong && assurance != authorization.AssuranceStrongMFA {
 		return Session{}, errors.New("invalid OIDC assurance")
 	}
@@ -428,7 +428,7 @@ func (s *Service) CreateOIDCSession(ctx context.Context, db authdb.DBTX, account
 	id := uuid.Must(uuid.NewV7())
 	if _, err := queries.CreateOIDCSession(ctx, authdb.CreateOIDCSessionParams{
 		ID: id, AccountID: accountID, AuthIdentityID: identityID, TokenDigest: tokenDigest,
-		CsrfDigest: csrfDigest, Assurance: string(assurance), IdleExpiresAt: idle, AbsoluteExpiresAt: absolute,
+		CsrfDigest: csrfDigest, Assurance: string(assurance), AuthenticatedAt: authenticatedAt, IdleExpiresAt: idle, AbsoluteExpiresAt: absolute,
 	}); err != nil {
 		return Session{}, err
 	}

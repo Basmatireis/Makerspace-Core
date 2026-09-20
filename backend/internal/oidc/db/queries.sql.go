@@ -23,23 +23,28 @@ func (q *Queries) BumpAccountVersion(ctx context.Context, id uuid.UUID) error {
 
 const countUsableIdentities = `-- name: CountUsableIdentities :one
 SELECT count(*) FROM auth_identities i
-WHERE i.account_id = $1 AND i.disabled_at IS NULL
+WHERE i.account_id = $1 AND i.id <> $2 AND i.disabled_at IS NULL
   AND ((i.kind = 'password' AND EXISTS (SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required))
     OR (i.kind = 'pin' AND EXISTS (SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id = i.id))
-    OR i.kind = 'oidc')
+    OR (i.kind = 'oidc' AND EXISTS (SELECT 1 FROM oidc_providers op WHERE op.id=i.provider_id AND op.enabled)))
 `
 
-func (q *Queries) CountUsableIdentities(ctx context.Context, accountID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countUsableIdentities, accountID)
+type CountUsableIdentitiesParams struct {
+	AccountID          uuid.UUID
+	ExcludedIdentityID uuid.UUID
+}
+
+func (q *Queries) CountUsableIdentities(ctx context.Context, arg CountUsableIdentitiesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsableIdentities, arg.AccountID, arg.ExcludedIdentityID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
 const createFlow = `-- name: CreateFlow :one
-INSERT INTO oidc_flows (id, provider_id, kind, account_id, state_digest, browser_token_digest, encrypted_nonce, encrypted_pkce_verifier, expires_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, provider_id, kind, account_id, state_digest, browser_token_digest, encrypted_nonce, encrypted_pkce_verifier, expires_at, used_at, created_at
+INSERT INTO oidc_flows (id, provider_id, kind, account_id, session_id, state_digest, browser_token_digest, encrypted_nonce, encrypted_pkce_verifier, expires_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, provider_id, kind, account_id, state_digest, browser_token_digest, encrypted_nonce, encrypted_pkce_verifier, expires_at, used_at, created_at, session_id
 `
 
 type CreateFlowParams struct {
@@ -47,6 +52,7 @@ type CreateFlowParams struct {
 	ProviderID            uuid.UUID
 	Kind                  string
 	AccountID             *uuid.UUID
+	SessionID             *uuid.UUID
 	StateDigest           []byte
 	BrowserTokenDigest    []byte
 	EncryptedNonce        []byte
@@ -60,6 +66,7 @@ func (q *Queries) CreateFlow(ctx context.Context, arg CreateFlowParams) (OidcFlo
 		arg.ProviderID,
 		arg.Kind,
 		arg.AccountID,
+		arg.SessionID,
 		arg.StateDigest,
 		arg.BrowserTokenDigest,
 		arg.EncryptedNonce,
@@ -79,6 +86,7 @@ func (q *Queries) CreateFlow(ctx context.Context, arg CreateFlowParams) (OidcFlo
 		&i.ExpiresAt,
 		&i.UsedAt,
 		&i.CreatedAt,
+		&i.SessionID,
 	)
 	return i, err
 }
@@ -320,8 +328,39 @@ func (q *Queries) GetEnabledProviderBySlug(ctx context.Context, slug string) (Oi
 	return i, err
 }
 
+const getFlowContext = `-- name: GetFlowContext :one
+SELECT id, provider_id, kind, account_id, state_digest, browser_token_digest, encrypted_nonce, encrypted_pkce_verifier, expires_at, used_at, created_at, session_id FROM oidc_flows
+WHERE state_digest=$1 AND browser_token_digest=$2
+  AND expires_at>now() AND used_at IS NULL
+`
+
+type GetFlowContextParams struct {
+	StateDigest        []byte
+	BrowserTokenDigest []byte
+}
+
+func (q *Queries) GetFlowContext(ctx context.Context, arg GetFlowContextParams) (OidcFlow, error) {
+	row := q.db.QueryRow(ctx, getFlowContext, arg.StateDigest, arg.BrowserTokenDigest)
+	var i OidcFlow
+	err := row.Scan(
+		&i.ID,
+		&i.ProviderID,
+		&i.Kind,
+		&i.AccountID,
+		&i.StateDigest,
+		&i.BrowserTokenDigest,
+		&i.EncryptedNonce,
+		&i.EncryptedPkceVerifier,
+		&i.ExpiresAt,
+		&i.UsedAt,
+		&i.CreatedAt,
+		&i.SessionID,
+	)
+	return i, err
+}
+
 const getFlowForCallback = `-- name: GetFlowForCallback :one
-SELECT id, provider_id, kind, account_id, state_digest, browser_token_digest, encrypted_nonce, encrypted_pkce_verifier, expires_at, used_at, created_at FROM oidc_flows
+SELECT id, provider_id, kind, account_id, state_digest, browser_token_digest, encrypted_nonce, encrypted_pkce_verifier, expires_at, used_at, created_at, session_id FROM oidc_flows
 WHERE state_digest = $1 AND browser_token_digest = $2
   AND expires_at > now() AND used_at IS NULL
 FOR UPDATE
@@ -347,6 +386,7 @@ func (q *Queries) GetFlowForCallback(ctx context.Context, arg GetFlowForCallback
 		&i.ExpiresAt,
 		&i.UsedAt,
 		&i.CreatedAt,
+		&i.SessionID,
 	)
 	return i, err
 }
@@ -376,19 +416,6 @@ func (q *Queries) GetOIDCIdentityForUnlink(ctx context.Context, id uuid.UUID) (A
 	return i, err
 }
 
-const getPasswordHashForAccount = `-- name: GetPasswordHashForAccount :one
-SELECT pc.password_hash
-FROM auth_identities i JOIN password_credentials pc ON pc.auth_identity_id = i.id
-WHERE i.account_id = $1 AND i.kind = 'password' AND i.disabled_at IS NULL AND NOT pc.reset_required
-`
-
-func (q *Queries) GetPasswordHashForAccount(ctx context.Context, accountID uuid.UUID) (string, error) {
-	row := q.db.QueryRow(ctx, getPasswordHashForAccount, accountID)
-	var password_hash string
-	err := row.Scan(&password_hash)
-	return password_hash, err
-}
-
 const getProvider = `-- name: GetProvider :one
 SELECT id, slug, display_name, issuer, client_id, encrypted_client_secret, enabled, jit_enabled, acr_assurance_mappings, version, created_at, updated_at FROM oidc_providers WHERE id = $1
 `
@@ -411,6 +438,47 @@ func (q *Queries) GetProvider(ctx context.Context, id uuid.UUID) (OidcProvider, 
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getProviderForFlow = `-- name: GetProviderForFlow :one
+SELECT id, slug, display_name, issuer, client_id, encrypted_client_secret, enabled, jit_enabled, acr_assurance_mappings, version, created_at, updated_at FROM oidc_providers WHERE id=$1 FOR SHARE
+`
+
+func (q *Queries) GetProviderForFlow(ctx context.Context, id uuid.UUID) (OidcProvider, error) {
+	row := q.db.QueryRow(ctx, getProviderForFlow, id)
+	var i OidcProvider
+	err := row.Scan(
+		&i.ID,
+		&i.Slug,
+		&i.DisplayName,
+		&i.Issuer,
+		&i.ClientID,
+		&i.EncryptedClientSecret,
+		&i.Enabled,
+		&i.JitEnabled,
+		&i.AcrAssuranceMappings,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const hasLinkedProvider = `-- name: HasLinkedProvider :one
+SELECT EXISTS (SELECT 1 FROM auth_identities
+WHERE account_id=$1 AND provider_id=$2 AND kind='oidc' AND disabled_at IS NULL)
+`
+
+type HasLinkedProviderParams struct {
+	AccountID  uuid.UUID
+	ProviderID *uuid.UUID
+}
+
+func (q *Queries) HasLinkedProvider(ctx context.Context, arg HasLinkedProviderParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasLinkedProvider, arg.AccountID, arg.ProviderID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const listEnabledLoginProviders = `-- name: ListEnabledLoginProviders :many

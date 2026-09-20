@@ -910,7 +910,7 @@ func accountDTO(account accounts.Account) openapi.Account {
 	identities := make([]openapi.AuthIdentitySummary, 0, len(account.AuthIdentities))
 	for _, identity := range account.AuthIdentities {
 		identities = append(identities, openapi.AuthIdentitySummary{
-			Id: identity.ID, Kind: openapi.AuthIdentitySummaryKind(identity.Kind), CreatedAt: identity.CreatedAt,
+			Id: identity.ID, Kind: openapi.AuthIdentitySummaryKind(identity.Kind), CreatedAt: identity.CreatedAt, ProviderSlug: identity.ProviderSlug,
 			DisplayIdentifier: nullablePointer[string](identity.DisplayIdentifier, func(value string) string { return value }),
 			VerifiedAt:        nullablePointer[time.Time](identity.VerifiedAt, func(value time.Time) time.Time { return value }),
 			DisabledAt:        nullablePointer[time.Time](identity.DisabledAt, func(value time.Time) time.Time { return value }),

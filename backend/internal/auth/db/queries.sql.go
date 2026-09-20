@@ -73,7 +73,7 @@ SELECT count(*) FROM auth_identities i
 WHERE i.account_id = $1 AND i.disabled_at IS NULL
   AND ((i.kind = 'password' AND EXISTS (SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required))
     OR (i.kind = 'pin' AND EXISTS (SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id = i.id))
-    OR i.kind = 'oidc')
+    OR (i.kind = 'oidc' AND EXISTS (SELECT 1 FROM oidc_providers op WHERE op.id=i.provider_id AND op.enabled)))
 `
 
 func (q *Queries) CountUsableIdentitiesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error) {
@@ -90,8 +90,8 @@ INSERT INTO sessions (
 )
 VALUES (
     $1, $2, $3, $4,
-    $5, 'oidc', $6, $6, now(),
-    $7, $8
+    $5, 'oidc', $6, $6, $7,
+    $8, $9
 )
 RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at
 `
@@ -103,6 +103,7 @@ type CreateOIDCSessionParams struct {
 	TokenDigest       []byte
 	CsrfDigest        []byte
 	Assurance         string
+	AuthenticatedAt   time.Time
 	IdleExpiresAt     time.Time
 	AbsoluteExpiresAt time.Time
 }
@@ -115,6 +116,7 @@ func (q *Queries) CreateOIDCSession(ctx context.Context, arg CreateOIDCSessionPa
 		arg.TokenDigest,
 		arg.CsrfDigest,
 		arg.Assurance,
+		arg.AuthenticatedAt,
 		arg.IdleExpiresAt,
 		arg.AbsoluteExpiresAt,
 	)
@@ -711,6 +713,43 @@ func (q *Queries) GetPasswordResetByDigest(ctx context.Context, tokenDigest []by
 	return i, err
 }
 
+const getSessionForReauthentication = `-- name: GetSessionForReauthentication :one
+SELECT s.id, s.account_id, s.auth_identity_id, s.token_digest, s.csrf_digest, s.auth_method, s.created_at, s.last_seen_at, s.idle_expires_at, s.absolute_expires_at, s.revoked_at, s.revocation_reason, s.base_assurance, s.current_assurance, s.authenticated_at, s.assurance_expires_at FROM sessions s JOIN auth_identities i ON i.id=s.auth_identity_id
+WHERE s.id=$1 AND s.account_id=$2
+  AND s.revoked_at IS NULL AND s.idle_expires_at>now() AND s.absolute_expires_at>now()
+  AND i.disabled_at IS NULL
+FOR UPDATE OF s
+`
+
+type GetSessionForReauthenticationParams struct {
+	SessionID uuid.UUID
+	AccountID uuid.UUID
+}
+
+func (q *Queries) GetSessionForReauthentication(ctx context.Context, arg GetSessionForReauthenticationParams) (Session, error) {
+	row := q.db.QueryRow(ctx, getSessionForReauthentication, arg.SessionID, arg.AccountID)
+	var i Session
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.AuthIdentityID,
+		&i.TokenDigest,
+		&i.CsrfDigest,
+		&i.AuthMethod,
+		&i.CreatedAt,
+		&i.LastSeenAt,
+		&i.IdleExpiresAt,
+		&i.AbsoluteExpiresAt,
+		&i.RevokedAt,
+		&i.RevocationReason,
+		&i.BaseAssurance,
+		&i.CurrentAssurance,
+		&i.AuthenticatedAt,
+		&i.AssuranceExpiresAt,
+	)
+	return i, err
+}
+
 const getSessionPrincipal = `-- name: GetSessionPrincipal :one
 SELECT s.id AS session_id, s.account_id, s.auth_identity_id, s.csrf_digest,
        s.idle_expires_at, s.absolute_expires_at, s.last_seen_at,
@@ -762,6 +801,29 @@ func (q *Queries) GetSessionPrincipal(ctx context.Context, tokenDigest []byte) (
 		&i.LoginEmail,
 	)
 	return i, err
+}
+
+const grantRecentAuthentication = `-- name: GrantRecentAuthentication :exec
+UPDATE sessions SET current_assurance=$1, authenticated_at=$2,
+    assurance_expires_at=$3
+WHERE id=$4
+`
+
+type GrantRecentAuthenticationParams struct {
+	Assurance       string
+	AuthenticatedAt time.Time
+	ExpiresAt       pgtype.Timestamptz
+	ID              uuid.UUID
+}
+
+func (q *Queries) GrantRecentAuthentication(ctx context.Context, arg GrantRecentAuthenticationParams) error {
+	_, err := q.db.Exec(ctx, grantRecentAuthentication,
+		arg.Assurance,
+		arg.AuthenticatedAt,
+		arg.ExpiresAt,
+		arg.ID,
+	)
+	return err
 }
 
 const incrementAuthChallengeFailure = `-- name: IncrementAuthChallengeFailure :exec

@@ -26,7 +26,7 @@ import { updatePerson } from '../../api/generated/people/people';
 import { deletePersonProfileImage, getPutPersonProfileImageUrl } from '../../api/generated/people/people';
 import type { ProfileImage, UpdatePersonRequest } from '../../api/generated/models';
 import { apiFetch } from '../../api/http-client';
-import { listOIDCLoginProviders, startOIDCLink, unlinkOwnOIDCIdentity } from '../../api/generated/oidc/oidc';
+import { listOIDCLoginProviders, startOIDCLink, startOIDCReauthentication, unlinkOwnOIDCIdentity } from '../../api/generated/oidc/oidc';
 import { useSecretMutation } from '../../api/use-secret-mutation';
 import { authQueryKey, useCurrentUser } from '../auth/auth';
 import { validatePasswordLength } from '../auth/password-validation';
@@ -96,9 +96,13 @@ export function ProfilePage() {
   });
 	const emailVerificationMutation = useMutation({ mutationFn: () => requestOwnEmailVerification() });
   const linkOIDCMutation = useSecretMutation(
-    ({ slug, currentPassword }: { slug: string; currentPassword: string }) => startOIDCLink(slug, { currentPassword }),
+    ({ slug, currentPassword }: { slug: string; currentPassword: string }) => startOIDCLink(slug, currentPassword ? { currentPassword } : {}),
     { onSuccess: (flow) => window.location.assign(flow.authorizationUrl) },
   );
+  const reauthenticateOIDCMutation = useMutation({
+    mutationFn: (slug: string) => startOIDCReauthentication(slug),
+    onSuccess: (flow) => window.location.assign(flow.authorizationUrl),
+  });
   const unlinkOIDCMutation = useMutation({
     mutationFn: (identityId: string) => unlinkOwnOIDCIdentity(identityId),
     onSuccess: async () => queryClient.invalidateQueries({ queryKey: authQueryKey }),
@@ -315,7 +319,7 @@ export function ProfilePage() {
 						<Button as={Link} kind="ghost" size="sm" to={`/verify-email?email=${encodeURIComponent(passwordIdentity.displayIdentifier ?? '')}`}>Enter verification code</Button>
 					</div>
 				</Stack>}
-                {!freshEnoughForMethods && <InlineNotification kind="info" lowContrast hideCloseButton title="Password sign-in required" subtitle="Sign in with your password before changing authentication methods." />}
+                {!freshEnoughForMethods && <InlineNotification kind="info" lowContrast hideCloseButton title="Recent authentication required" subtitle="Use a password or an already linked OIDC provider before changing authentication methods. PIN alone is insufficient." />}
                 {pinMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="PIN not changed" subtitle="The login name may be unavailable or the session is not fresh enough." />}
                 {pinMutation.isSuccess && <InlineNotification kind="success" lowContrast hideCloseButton title="PIN method updated" subtitle="Other sessions were signed out." />}
                 {mayEnrollPIN && (
@@ -331,20 +335,22 @@ export function ProfilePage() {
                     </Stack>
                   </Form>
                 )}
+                {reauthenticateOIDCMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Reauthentication failed" subtitle="Use an enabled provider already linked to your account." />}
                 {oidcIdentities.map((identity) => (
                   <div className="account-summary" key={identity.id}>
                     <div><span className="label">External identity</span><span>{identity.displayIdentifier ?? 'OIDC provider'}</span></div>
+                    {identity.providerSlug && oidcProviders.data?.items.some((provider) => provider.slug === identity.providerSlug) && <Button type="button" kind="tertiary" size="sm" disabled={reauthenticateOIDCMutation.isPending} onClick={() => reauthenticateOIDCMutation.mutate(identity.providerSlug!)}>Reauthenticate with {identity.displayIdentifier ?? 'OIDC'}</Button>}
                     {mayUnlinkOIDC && <Button type="button" kind="danger--tertiary" size="sm" disabled={unlinkOIDCMutation.isPending} onClick={() => unlinkOIDCMutation.mutate(identity.id)}>Unlink</Button>}
                   </div>
                 ))}
                 {mayLinkOIDC && oidcProviders.data && oidcProviders.data.items.length > 0 && (
                   <Form onSubmit={(event) => event.preventDefault()}>
                     <Stack gap={4}>
-                      <PasswordInput id="oidc-link-password" labelText="Current local password" autoComplete="current-password" {...oidcLinkForm.register('currentPassword', { required: true })} />
+                      {passwordIdentity && <PasswordInput id="oidc-link-password" labelText="Current local password (optional)" helperText="Leave blank after recent password or OIDC authentication. Linking is available for five minutes." autoComplete="current-password" {...oidcLinkForm.register('currentPassword')} />}
                       <div className="button-cluster">
-                        {oidcProviders.data.items.map((provider) => <Button key={provider.slug} type="button" kind="tertiary" disabled={linkOIDCMutation.isPending} onClick={oidcLinkForm.handleSubmit(({ currentPassword }) => void linkOIDCMutation.mutateAsync({ slug: provider.slug, currentPassword }))}>Link {provider.displayName}</Button>)}
+                        {oidcProviders.data.items.map((provider) => <Button key={provider.slug} type="button" kind="tertiary" disabled={linkOIDCMutation.isPending} onClick={oidcLinkForm.handleSubmit(({ currentPassword }) => void linkOIDCMutation.mutateAsync({ slug: provider.slug, currentPassword }).catch(() => {}))}>Link {provider.displayName}</Button>)}
                       </div>
-                      {linkOIDCMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="External identity not linked" subtitle="Check your current password and try again." />}
+                      {linkOIDCMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="External identity not linked" subtitle={linkOIDCMutation.error?.message ?? "Reauthenticate with a password or linked OIDC provider and try again."} />}
                       {unlinkOIDCMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="External identity not removed" subtitle="An enabled account must retain at least one usable sign-in method." />}
                     </Stack>
                   </Form>

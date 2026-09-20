@@ -130,7 +130,7 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 			token, challenge = unsigned+"."+base64.RawURLEncoding.EncodeToString(signature), params.Get("code_challenge")
 			before := exchanges
 			mu.Unlock()
-			completion, err := service.Complete(ctx, state, "local-code", browser, nil)
+			completion, err := service.Complete(ctx, state, "local-code", browser, authorization.Principal{}, nil)
 			if scenario != "valid" {
 				if err == nil {
 					t.Fatalf("%s callback accepted", scenario)
@@ -158,7 +158,7 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 				t.Fatal("email merged an existing account or trusted assurance was lost")
 			}
 			assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id=$1`, 0, accountID)
-			if _, err := service.Complete(ctx, state, "local-code", browser, nil); err == nil {
+			if _, err := service.Complete(ctx, state, "local-code", browser, authorization.Principal{}, nil); err == nil {
 				t.Fatal("OIDC callback replay accepted")
 			}
 		})

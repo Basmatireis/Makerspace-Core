@@ -55,7 +55,7 @@ WHERE account_id = sqlc.arg(account_id) AND kind = 'password' RETURNING *;
 SELECT * FROM auth_identities WHERE account_id = sqlc.arg(account_id) AND kind = 'password';
 
 -- name: ListAuthIdentitiesByAccount :many
-SELECT i.*, COALESCE(i.identifier_display, p.display_name) AS display_identifier
+SELECT i.*, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug
 FROM auth_identities i
 LEFT JOIN oidc_providers p ON p.id = i.provider_id
 WHERE i.account_id = sqlc.arg(account_id)
@@ -68,7 +68,8 @@ WHERE i.account_id = sqlc.arg(account_id) AND i.disabled_at IS NULL
     (i.kind = 'password' AND i.verified_at IS NOT NULL AND EXISTS (
       SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required
     ))
-    OR i.kind IN ('pin', 'oidc')
+    OR (i.kind = 'pin' AND EXISTS (SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id=i.id))
+    OR (i.kind = 'oidc' AND EXISTS (SELECT 1 FROM oidc_providers op WHERE op.id=i.provider_id AND op.enabled))
   );
 
 -- name: UpsertPasswordCredential :exec

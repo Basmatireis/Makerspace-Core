@@ -40,7 +40,9 @@ type Querier interface {
 	GetPasswordCredentialForAccount(ctx context.Context, accountID uuid.UUID) (PasswordCredential, error)
 	GetPasswordIdentityTargetForAccount(ctx context.Context, accountID uuid.UUID) (GetPasswordIdentityTargetForAccountRow, error)
 	GetPasswordResetByDigest(ctx context.Context, tokenDigest []byte) (GetPasswordResetByDigestRow, error)
+	GetSessionForReauthentication(ctx context.Context, arg GetSessionForReauthenticationParams) (Session, error)
 	GetSessionPrincipal(ctx context.Context, tokenDigest []byte) (GetSessionPrincipalRow, error)
+	GrantRecentAuthentication(ctx context.Context, arg GrantRecentAuthenticationParams) error
 	IncrementAuthChallengeFailure(ctx context.Context, id uuid.UUID) error
 	MarkAuthenticationSucceeded(ctx context.Context, arg MarkAuthenticationSucceededParams) error
 	OIDCIdentityUsable(ctx context.Context, arg OIDCIdentityUsableParams) (bool, error)

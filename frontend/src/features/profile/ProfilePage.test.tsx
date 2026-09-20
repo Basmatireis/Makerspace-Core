@@ -63,3 +63,33 @@ describe('Profile page', () => {
     expect(screen.queryByText('SECRET-42')).not.toBeInTheDocument();
   });
 });
+
+it('lets an OIDC-only account request reauthentication and link without a password', async () => {
+  const current = currentUserFixture([PermissionId.identitiesoidclinkself]);
+  current.account.passwordStatus = 'not_set';
+  current.account.loginEmail = null;
+  current.account.authIdentities = [{ id: current.account.id, kind: 'oidc', providerSlug: 'linked', displayIdentifier: 'Linked provider', verifiedAt: current.account.createdAt, disabledAt: null, createdAt: current.account.createdAt }];
+  let reauthenticated = false;
+  let linkBody: unknown;
+  server.use(
+    http.get('*/api/v1/auth/me', () => HttpResponse.json(current)),
+    http.get('*/api/v1/auth/oidc/providers', () => HttpResponse.json({ items: [{ slug: 'linked', displayName: 'Linked provider' }, { slug: 'another', displayName: 'Another provider' }] })),
+    http.post('*/api/v1/auth/oidc/linked/reauthenticate', () => {
+      reauthenticated = true;
+      return HttpResponse.json({ code: 'oidc_provider_unavailable', message: 'Try again later' }, { status: 403 });
+    }),
+    http.post('*/api/v1/auth/oidc/another/link', async ({ request }) => {
+      linkBody = await request.json();
+      return HttpResponse.json({ code: 'reauthentication_required', message: 'Authenticate again before linking' }, { status: 403 });
+    }),
+  );
+  const user = userEvent.setup();
+  renderRoute(<App />, '/profile');
+  await user.click(await screen.findByRole('button', { name: 'Reauthenticate with Linked provider' }));
+  expect(await screen.findByText('Reauthentication failed')).toBeInTheDocument();
+  expect(reauthenticated).toBe(true);
+  expect(screen.queryByLabelText('Current local password (optional)')).not.toBeInTheDocument();
+  await user.click(screen.getByRole('button', { name: 'Link Another provider' }));
+  await waitFor(() => expect(linkBody).toEqual({}));
+  expect(await screen.findByText('Authenticate again before linking')).toBeInTheDocument();
+});

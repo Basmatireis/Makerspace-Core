@@ -200,7 +200,9 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
-		if isPublicPath(r.URL.Path) {
+		callback := r.URL.Path == apiBasePath+"/auth/oidc/callback"
+		_, sessionCookieErr := r.Cookie(s.config.SessionCookieName)
+		if isPublicPath(r.URL.Path) && (!callback || sessionCookieErr != nil) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -211,6 +213,10 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 		}
 		authenticated, err := s.auth.Authenticate(r.Context(), cookie.Value)
 		if err != nil {
+			if callback && apperror.IsCode(err, "unauthenticated") {
+				next.ServeHTTP(w, r)
+				return
+			}
 			writeAPIError(w, r, err, logger)
 			return
 		}

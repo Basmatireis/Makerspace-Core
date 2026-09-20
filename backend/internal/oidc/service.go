@@ -298,31 +298,75 @@ func (s *Service) StartLogin(ctx context.Context, slug string) (FlowStart, error
 	if err != nil {
 		return FlowStart{}, err
 	}
-	return s.startFlow(ctx, provider, "login", nil)
+	return s.startFlow(ctx, provider, "login", nil, nil)
 }
 
 func (s *Service) StartLink(ctx context.Context, principal authorization.Principal, slug, password string) (FlowStart, error) {
+	if password != "" {
+		var err error
+		principal, err = s.auth.ReauthenticatePassword(ctx, principal, password, nil)
+		if err != nil {
+			return FlowStart{}, err
+		}
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return FlowStart{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	principal, err = s.auth.SessionForSensitiveOperation(ctx, tx, principal, true)
+	if err != nil {
+		return FlowStart{}, err
+	}
 	if !principal.Has(authorization.OIDCLinkSelf) {
 		return FlowStart{}, apperror.PermissionDenied
 	}
-	hash, err := oidcdb.New(s.pool).GetPasswordHashForAccount(ctx, principal.AccountID)
-	if err != nil || !security.VerifyPassword(hash, password) {
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			return FlowStart{}, err
-		}
-		return FlowStart{}, apperror.New(401, "invalid_credentials", "Invalid password")
-	}
-	provider, err := oidcdb.New(s.pool).GetEnabledProviderBySlug(ctx, strings.TrimSpace(slug))
+	provider, err := oidcdb.New(tx).GetEnabledProviderBySlug(ctx, strings.TrimSpace(slug))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return FlowStart{}, apperror.NotFound
 	}
 	if err != nil {
 		return FlowStart{}, err
 	}
-	return s.startFlow(ctx, provider, "link", &principal.AccountID)
+	if err := tx.Commit(ctx); err != nil {
+		return FlowStart{}, err
+	}
+	return s.startFlow(ctx, provider, "link", &principal.AccountID, &principal.SessionID)
 }
 
-func (s *Service) startFlow(ctx context.Context, provider oidcdb.OidcProvider, kind string, accountID *uuid.UUID) (FlowStart, error) {
+// Reauthentication is bound to an existing session and an already-linked
+// provider. Its callback cannot provision, link, or switch to another account.
+func (s *Service) StartReauthentication(ctx context.Context, principal authorization.Principal, slug string) (FlowStart, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return FlowStart{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := s.auth.SessionForSensitiveOperation(ctx, tx, principal, false); err != nil {
+		return FlowStart{}, err
+	}
+	queries := oidcdb.New(tx)
+	provider, err := queries.GetEnabledProviderBySlug(ctx, strings.TrimSpace(slug))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return FlowStart{}, apperror.NotFound
+	}
+	if err != nil {
+		return FlowStart{}, err
+	}
+	linked, err := queries.HasLinkedProvider(ctx, oidcdb.HasLinkedProviderParams{AccountID: principal.AccountID, ProviderID: &provider.ID})
+	if err != nil {
+		return FlowStart{}, err
+	}
+	if !linked {
+		return FlowStart{}, apperror.PermissionDenied
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return FlowStart{}, err
+	}
+	return s.startFlow(ctx, provider, "reauthenticate", &principal.AccountID, &principal.SessionID)
+}
+
+func (s *Service) startFlow(ctx context.Context, provider oidcdb.OidcProvider, kind string, accountID, sessionID *uuid.UUID) (FlowStart, error) {
 	if s.keyring == nil {
 		return FlowStart{}, oidcNotConfigured()
 	}
@@ -361,20 +405,24 @@ func (s *Service) startFlow(ctx context.Context, provider oidcdb.OidcProvider, k
 	}
 	expiresAt := s.now().Add(flowTTL)
 	if _, err := oidcdb.New(s.pool).CreateFlow(ctx, oidcdb.CreateFlowParams{
-		ID: flowID, ProviderID: provider.ID, Kind: kind, AccountID: accountID,
+		ID: flowID, ProviderID: provider.ID, Kind: kind, AccountID: accountID, SessionID: sessionID,
 		StateDigest: stateDigest, BrowserTokenDigest: browserDigest, EncryptedNonce: encryptedNonce,
 		EncryptedPkceVerifier: encryptedVerifier, ExpiresAt: expiresAt,
 	}); err != nil {
 		return FlowStart{}, err
 	}
 	config := oauthConfig(discovered, provider, string(clientSecret), s.callbackURL())
+	options := []oauth2.AuthCodeOption{oauth2.SetAuthURLParam("nonce", nonce), oauth2.S256ChallengeOption(verifier)}
+	if kind == "reauthenticate" {
+		options = append(options, oauth2.SetAuthURLParam("max_age", "0"), oauth2.SetAuthURLParam("prompt", "login"))
+	}
 	return FlowStart{
-		AuthorizationURL: config.AuthCodeURL(state, oauth2.SetAuthURLParam("nonce", nonce), oauth2.S256ChallengeOption(verifier)),
+		AuthorizationURL: config.AuthCodeURL(state, options...),
 		BrowserToken:     browserToken, ExpiresAt: expiresAt,
 	}, nil
 }
 
-func (s *Service) Complete(ctx context.Context, state, code, browserToken string, requestID *uuid.UUID) (Completion, error) {
+func (s *Service) Complete(ctx context.Context, state, code, browserToken string, principal authorization.Principal, requestID *uuid.UUID) (Completion, error) {
 	if s.keyring == nil || strings.TrimSpace(state) == "" || strings.TrimSpace(code) == "" || strings.TrimSpace(browserToken) == "" {
 		return Completion{}, invalidRequest("OIDC callback state is invalid")
 	}
@@ -386,6 +434,25 @@ func (s *Service) Complete(ctx context.Context, state, code, browserToken string
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := oidcdb.New(tx)
+	contextFlow, err := queries.GetFlowContext(ctx, oidcdb.GetFlowContextParams{StateDigest: stateDigest[:], BrowserTokenDigest: browserDigest[:]})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Completion{}, invalidRequest("OIDC callback state is invalid or expired")
+	}
+	if err != nil {
+		return Completion{}, err
+	}
+	if contextFlow.Kind != "login" {
+		if contextFlow.SessionID == nil || contextFlow.AccountID == nil || *contextFlow.SessionID != principal.SessionID || *contextFlow.AccountID != principal.AccountID {
+			return Completion{}, apperror.Unauthenticated
+		}
+		principal, err = s.auth.SessionForSensitiveOperation(ctx, tx, principal, contextFlow.Kind == "link")
+		if err != nil {
+			return Completion{}, err
+		}
+		if contextFlow.Kind == "link" && !principal.Has(authorization.OIDCLinkSelf) {
+			return Completion{}, apperror.PermissionDenied
+		}
+	}
 	flow, err := queries.GetFlowForCallback(ctx, oidcdb.GetFlowForCallbackParams{StateDigest: stateDigest[:], BrowserTokenDigest: browserDigest[:]})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Completion{}, invalidRequest("OIDC callback state is invalid or expired")
@@ -393,7 +460,7 @@ func (s *Service) Complete(ctx context.Context, state, code, browserToken string
 	if err != nil {
 		return Completion{}, err
 	}
-	provider, err := queries.GetProvider(ctx, flow.ProviderID)
+	provider, err := queries.GetProviderForFlow(ctx, flow.ProviderID)
 	if err != nil || !provider.Enabled {
 		return Completion{}, apperror.New(403, "oidc_provider_unavailable", "OIDC provider is unavailable")
 	}
@@ -439,6 +506,11 @@ func (s *Service) Complete(ctx context.Context, state, code, browserToken string
 	var accountID, identityID uuid.UUID
 	var actor *uuid.UUID
 	if flow.Kind == "link" {
+		// Discovery and token exchange may take time; the capability must still
+		// be fresh at the point where the new identity is attached.
+		if _, err := s.auth.SessionForSensitiveOperation(ctx, tx, principal, true); err != nil {
+			return Completion{}, err
+		}
 		if flow.AccountID == nil {
 			return Completion{}, invalidRequest("OIDC linking context is invalid")
 		}
@@ -457,6 +529,18 @@ func (s *Service) Complete(ctx context.Context, state, code, browserToken string
 		}
 		actor = &accountID
 		if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: actor, Action: "auth.oidc_linked", ResourceType: "auth_identity", ResourceID: &identityID, RequestID: requestID, ChangedFields: []string{"kind", "providerId", "issuer", "subject"}}); err != nil {
+			return Completion{}, err
+		}
+	} else if flow.Kind == "reauthenticate" {
+		found, err := queries.FindOIDCIdentity(ctx, oidcdb.FindOIDCIdentityParams{Issuer: &issuer, Subject: &subject})
+		if err != nil || found.AccountID != principal.AccountID || found.Status != "enabled" {
+			return Completion{}, apperror.PermissionDenied
+		}
+		authenticatedAt := time.Unix(claims.AuthTime, 0).UTC()
+		if claims.AuthTime == 0 || authenticatedAt.Before(flow.CreatedAt.Truncate(time.Second)) || authenticatedAt.After(s.now()) {
+			return Completion{}, invalidRequest("OIDC reauthentication did not prove recent authentication")
+		}
+		if err := s.auth.GrantRecentAuthentication(ctx, tx, principal, assurance, authenticatedAt, requestID); err != nil {
 			return Completion{}, err
 		}
 	} else if flow.Kind == "login" {
@@ -504,7 +588,7 @@ func (s *Service) Complete(ctx context.Context, state, code, browserToken string
 	}
 	result := Completion{Kind: flow.Kind}
 	if flow.Kind == "login" {
-		session, err := s.auth.CreateOIDCSession(ctx, tx, accountID, identityID, assurance)
+		session, err := s.auth.CreateOIDCSession(ctx, tx, accountID, identityID, assurance, time.Unix(claims.AuthTime, 0).UTC())
 		if err != nil {
 			return Completion{}, err
 		}
@@ -544,11 +628,11 @@ func (s *Service) Unlink(ctx context.Context, principal authorization.Principal,
 	if err != nil {
 		return err
 	}
-	usable, err := queries.CountUsableIdentities(ctx, identity.AccountID)
+	usable, err := queries.CountUsableIdentities(ctx, oidcdb.CountUsableIdentitiesParams{AccountID: identity.AccountID, ExcludedIdentityID: identityID})
 	if err != nil {
 		return err
 	}
-	if status == "enabled" && usable <= 1 {
+	if status == "enabled" && usable == 0 {
 		return apperror.New(409, "last_authentication_method", "An enabled account must retain an authentication method")
 	}
 	if err := queries.DeleteOIDCIdentity(ctx, identityID); err != nil {
@@ -612,6 +696,7 @@ func validateProviderInput(input ProviderInput, requireSecret bool) (ProviderInp
 }
 
 type tokenClaims struct {
+	AuthTime      int64  `json:"auth_time"`
 	Subject       string `json:"sub"`
 	Nonce         string `json:"nonce"`
 	Email         string `json:"email"`

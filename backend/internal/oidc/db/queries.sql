@@ -28,8 +28,8 @@ SET encrypted_client_secret = sqlc.arg(encrypted_client_secret), version = versi
 WHERE id = sqlc.arg(id);
 
 -- name: CreateFlow :one
-INSERT INTO oidc_flows (id, provider_id, kind, account_id, state_digest, browser_token_digest, encrypted_nonce, encrypted_pkce_verifier, expires_at)
-VALUES (sqlc.arg(id), sqlc.arg(provider_id), sqlc.arg(kind), sqlc.narg(account_id), sqlc.arg(state_digest), sqlc.arg(browser_token_digest), sqlc.arg(encrypted_nonce), sqlc.arg(encrypted_pkce_verifier), sqlc.arg(expires_at))
+INSERT INTO oidc_flows (id, provider_id, kind, account_id, session_id, state_digest, browser_token_digest, encrypted_nonce, encrypted_pkce_verifier, expires_at)
+VALUES (sqlc.arg(id), sqlc.arg(provider_id), sqlc.arg(kind), sqlc.narg(account_id), sqlc.narg(session_id), sqlc.arg(state_digest), sqlc.arg(browser_token_digest), sqlc.arg(encrypted_nonce), sqlc.arg(encrypted_pkce_verifier), sqlc.arg(expires_at))
 RETURNING *;
 
 -- name: GetFlowForCallback :one
@@ -64,11 +64,6 @@ INSERT INTO accounts (id, person_id, status, provisioning_source)
 VALUES (sqlc.arg(id), sqlc.arg(person_id), 'enabled', 'oidc_jit')
 RETURNING *;
 
--- name: GetPasswordHashForAccount :one
-SELECT pc.password_hash
-FROM auth_identities i JOIN password_credentials pc ON pc.auth_identity_id = i.id
-WHERE i.account_id = sqlc.arg(account_id) AND i.kind = 'password' AND i.disabled_at IS NULL AND NOT pc.reset_required;
-
 -- name: GetOIDCIdentityForUnlink :one
 SELECT * FROM auth_identities WHERE id = sqlc.arg(id) AND kind = 'oidc' FOR UPDATE;
 
@@ -77,10 +72,10 @@ SELECT status FROM accounts WHERE id = sqlc.arg(id) FOR UPDATE;
 
 -- name: CountUsableIdentities :one
 SELECT count(*) FROM auth_identities i
-WHERE i.account_id = sqlc.arg(account_id) AND i.disabled_at IS NULL
+WHERE i.account_id = sqlc.arg(account_id) AND i.id <> sqlc.arg(excluded_identity_id) AND i.disabled_at IS NULL
   AND ((i.kind = 'password' AND EXISTS (SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required))
     OR (i.kind = 'pin' AND EXISTS (SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id = i.id))
-    OR i.kind = 'oidc');
+    OR (i.kind = 'oidc' AND EXISTS (SELECT 1 FROM oidc_providers op WHERE op.id=i.provider_id AND op.enabled)));
 
 -- name: DeleteOIDCIdentity :exec
 DELETE FROM auth_identities WHERE id = sqlc.arg(id) AND kind = 'oidc';
@@ -91,3 +86,15 @@ WHERE auth_identity_id = sqlc.arg(auth_identity_id) AND revoked_at IS NULL;
 
 -- name: BumpAccountVersion :exec
 UPDATE accounts SET version = version + 1, updated_at = now() WHERE id = sqlc.arg(id);
+
+-- name: HasLinkedProvider :one
+SELECT EXISTS (SELECT 1 FROM auth_identities
+WHERE account_id=sqlc.arg(account_id) AND provider_id=sqlc.arg(provider_id) AND kind='oidc' AND disabled_at IS NULL);
+
+-- name: GetFlowContext :one
+SELECT * FROM oidc_flows
+WHERE state_digest=sqlc.arg(state_digest) AND browser_token_digest=sqlc.arg(browser_token_digest)
+  AND expires_at>now() AND used_at IS NULL;
+
+-- name: GetProviderForFlow :one
+SELECT * FROM oidc_providers WHERE id=sqlc.arg(id) FOR SHARE;

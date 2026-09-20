@@ -47,7 +47,7 @@ INSERT INTO sessions (
 )
 VALUES (
     sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(auth_identity_id), sqlc.arg(token_digest),
-    sqlc.arg(csrf_digest), 'oidc', sqlc.arg(assurance), sqlc.arg(assurance), now(),
+    sqlc.arg(csrf_digest), 'oidc', sqlc.arg(assurance), sqlc.arg(assurance), sqlc.arg(authenticated_at),
     sqlc.arg(idle_expires_at), sqlc.arg(absolute_expires_at)
 )
 RETURNING *;
@@ -284,7 +284,19 @@ SELECT count(*) FROM auth_identities i
 WHERE i.account_id = sqlc.arg(account_id) AND i.disabled_at IS NULL
   AND ((i.kind = 'password' AND EXISTS (SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required))
     OR (i.kind = 'pin' AND EXISTS (SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id = i.id))
-    OR i.kind = 'oidc');
+    OR (i.kind = 'oidc' AND EXISTS (SELECT 1 FROM oidc_providers op WHERE op.id=i.provider_id AND op.enabled)));
 
 -- name: DeletePasswordIdentity :exec
 DELETE FROM auth_identities WHERE id = sqlc.arg(id) AND kind = 'password';
+
+-- name: GetSessionForReauthentication :one
+SELECT s.* FROM sessions s JOIN auth_identities i ON i.id=s.auth_identity_id
+WHERE s.id=sqlc.arg(session_id) AND s.account_id=sqlc.arg(account_id)
+  AND s.revoked_at IS NULL AND s.idle_expires_at>now() AND s.absolute_expires_at>now()
+  AND i.disabled_at IS NULL
+FOR UPDATE OF s;
+
+-- name: GrantRecentAuthentication :exec
+UPDATE sessions SET current_assurance=sqlc.arg(assurance), authenticated_at=sqlc.arg(authenticated_at),
+    assurance_expires_at=sqlc.arg(expires_at)
+WHERE id=sqlc.arg(id);

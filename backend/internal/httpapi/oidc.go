@@ -92,10 +92,11 @@ func (s *Server) StartOIDCLink(ctx context.Context, request openapi.StartOIDCLin
 	if err != nil {
 		return nil, err
 	}
-	if request.Body == nil || request.Body.CurrentPassword == nil {
-		return nil, invalidRequest("currentPassword is required")
+	password := ""
+	if request.Body != nil && request.Body.CurrentPassword != nil {
+		password = *request.Body.CurrentPassword
 	}
-	flow, err := s.oidc.StartLink(ctx, principal, request.ProviderSlug, *request.Body.CurrentPassword)
+	flow, err := s.oidc.StartLink(ctx, principal, request.ProviderSlug, password)
 	if err != nil {
 		return nil, err
 	}
@@ -107,13 +108,16 @@ func (s *Server) StartOIDCLink(ctx context.Context, request openapi.StartOIDCLin
 
 func (s *Server) CompleteOIDCCallback(ctx context.Context, request openapi.CompleteOIDCCallbackRequestObject) (openapi.CompleteOIDCCallbackResponseObject, error) {
 	browserToken, _ := ctx.Value(oidcFlowTokenContextKey).(string)
-	result, err := s.oidc.Complete(ctx, request.Params.State, request.Params.Code, browserToken, requestIDPointer(ctx))
+	principal, _ := requirePrincipal(ctx)
+	result, err := s.oidc.Complete(ctx, request.Params.State, request.Params.Code, browserToken, principal, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
 	location := "/profile?oidc=linked"
 	if result.Kind == "login" {
 		location = "/"
+	} else if result.Kind == "reauthenticate" {
+		location = "/profile?oidc=reauthenticated"
 	}
 	return oidcCallbackResponse{server: s, session: result.Session, location: location}, nil
 }
@@ -175,4 +179,16 @@ func (response oidcCallbackResponse) VisitCompleteOIDCCallbackResponse(w http.Re
 	}
 	w.WriteHeader(http.StatusFound)
 	return nil
+}
+
+func (s *Server) StartOIDCReauthentication(ctx context.Context, request openapi.StartOIDCReauthenticationRequestObject) (openapi.StartOIDCReauthenticationResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	flow, err := s.oidc.StartReauthentication(ctx, principal, request.ProviderSlug)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.StartOIDCReauthentication200JSONResponse{Body: openapi.OIDCFlowStart{AuthorizationUrl: flow.AuthorizationURL}, Headers: openapi.StartOIDCReauthentication200ResponseHeaders{SetCookie: s.oidcFlowCookie(flow.BrowserToken, flow.ExpiresAt).String()}}, nil
 }

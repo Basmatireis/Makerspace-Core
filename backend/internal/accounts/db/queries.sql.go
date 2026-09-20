@@ -110,7 +110,8 @@ WHERE i.account_id = $1 AND i.disabled_at IS NULL
     (i.kind = 'password' AND i.verified_at IS NOT NULL AND EXISTS (
       SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required
     ))
-    OR i.kind IN ('pin', 'oidc')
+    OR (i.kind = 'pin' AND EXISTS (SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id=i.id))
+    OR (i.kind = 'oidc' AND EXISTS (SELECT 1 FROM oidc_providers op WHERE op.id=i.provider_id AND op.enabled))
   )
 `
 
@@ -702,7 +703,7 @@ func (q *Queries) ListAccountRoles(ctx context.Context, accountID uuid.UUID) ([]
 }
 
 const listAuthIdentitiesByAccount = `-- name: ListAuthIdentitiesByAccount :many
-SELECT i.id, i.account_id, i.kind, i.identifier_display, i.identifier_normalized, i.created_at, i.updated_at, i.provider_id, i.issuer, i.subject, i.verified_at, i.disabled_at, i.last_used_at, COALESCE(i.identifier_display, p.display_name) AS display_identifier
+SELECT i.id, i.account_id, i.kind, i.identifier_display, i.identifier_normalized, i.created_at, i.updated_at, i.provider_id, i.issuer, i.subject, i.verified_at, i.disabled_at, i.last_used_at, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug
 FROM auth_identities i
 LEFT JOIN oidc_providers p ON p.id = i.provider_id
 WHERE i.account_id = $1
@@ -724,6 +725,7 @@ type ListAuthIdentitiesByAccountRow struct {
 	DisabledAt           pgtype.Timestamptz
 	LastUsedAt           pgtype.Timestamptz
 	DisplayIdentifier    string
+	ProviderSlug         *string
 }
 
 func (q *Queries) ListAuthIdentitiesByAccount(ctx context.Context, accountID uuid.UUID) ([]ListAuthIdentitiesByAccountRow, error) {
@@ -750,6 +752,7 @@ func (q *Queries) ListAuthIdentitiesByAccount(ctx context.Context, accountID uui
 			&i.DisabledAt,
 			&i.LastUsedAt,
 			&i.DisplayIdentifier,
+			&i.ProviderSlug,
 		); err != nil {
 			return nil, err
 		}
