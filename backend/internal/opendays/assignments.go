@@ -93,17 +93,11 @@ func (s *Service) assign(ctx context.Context, p authorization.Principal, openDay
 	if err := writeAudit(ctx, tx, p, action, "open_day_assignment", id, requestID, []string{"requirementId", "personId"}); err != nil {
 		return Assignment{}, err
 	}
-	people, err := q.ListEligiblePeople(ctx, opendaysdb.ListEligiblePeopleParams{RequirementID: requirementID, Search: "", PageLimit: 200})
+	person, err := q.GetAssignmentPersonName(ctx, personID)
 	if err != nil {
 		return Assignment{}, err
 	}
-	name := ""
-	for _, person := range people {
-		if person.ID == personID {
-			name = strings.TrimSpace(person.FirstName + " " + person.LastName)
-			break
-		}
-	}
+	name := strings.TrimSpace(person.FirstName + " " + person.LastName)
 	if err := tx.Commit(ctx); err != nil {
 		return Assignment{}, err
 	}

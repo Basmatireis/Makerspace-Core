@@ -221,7 +221,8 @@ func (s *Service) UpdatePeriod(ctx context.Context, principal authorization.Prin
 		return Period{}, err
 	}
 	for _, day := range days {
-		if !dateWithin(day.StartsAt.In(s.location), startsOn, endsOn) {
+		if !dateWithin(day.StartsAt.In(s.location), startsOn, endsOn) ||
+			!dateWithin(day.EndsAt.Add(-time.Nanosecond).In(s.location), startsOn, endsOn) {
 			return Period{}, validation("period bounds must contain every Open Day")
 		}
 	}

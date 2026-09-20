@@ -88,7 +88,7 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	if _, err := pool.Exec(ctx, `INSERT INTO roles (id, name) VALUES ($1, 'Open Days reader')`, readerRoleID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2)`, readerRoleID, authorization.OpenDaysRead); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, $2)`, readerRoleID, authorization.OpenDaysRead); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO account_roles (account_id, role_id) VALUES ($1, $2)`, readerAccount.accountID, readerRoleID); err != nil {

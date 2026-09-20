@@ -129,6 +129,9 @@ ORDER BY a.created_at, a.id;
 -- name: GetAssignment :one
 SELECT * FROM open_day_assignments WHERE id = sqlc.arg(id);
 
+-- name: GetAssignmentPersonName :one
+SELECT first_name, last_name FROM people WHERE id = sqlc.arg(id);
+
 -- name: GetPersonOpenDayAssignment :one
 SELECT * FROM open_day_assignments
 WHERE open_day_id = sqlc.arg(open_day_id) AND person_id = sqlc.arg(person_id);

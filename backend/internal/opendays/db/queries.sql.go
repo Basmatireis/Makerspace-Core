@@ -354,6 +354,22 @@ func (q *Queries) GetAssignment(ctx context.Context, id uuid.UUID) (OpenDayAssig
 	return i, err
 }
 
+const getAssignmentPersonName = `-- name: GetAssignmentPersonName :one
+SELECT first_name, last_name FROM people WHERE id = $1
+`
+
+type GetAssignmentPersonNameRow struct {
+	FirstName string
+	LastName  string
+}
+
+func (q *Queries) GetAssignmentPersonName(ctx context.Context, id uuid.UUID) (GetAssignmentPersonNameRow, error) {
+	row := q.db.QueryRow(ctx, getAssignmentPersonName, id)
+	var i GetAssignmentPersonNameRow
+	err := row.Scan(&i.FirstName, &i.LastName)
+	return i, err
+}
+
 const getOpenDay = `-- name: GetOpenDay :one
 SELECT id, period_id, starts_at, ends_at, internal_note, status, version, created_at, updated_at FROM open_days WHERE id = $1
 `

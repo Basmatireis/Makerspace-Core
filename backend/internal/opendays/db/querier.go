@@ -26,6 +26,7 @@ type Querier interface {
 	DeleteRequirementRoles(ctx context.Context, requirementID uuid.UUID) error
 	GetAcademicBreakForUpdate(ctx context.Context, id uuid.UUID) (OpenDayAcademicBreak, error)
 	GetAssignment(ctx context.Context, id uuid.UUID) (OpenDayAssignment, error)
+	GetAssignmentPersonName(ctx context.Context, id uuid.UUID) (GetAssignmentPersonNameRow, error)
 	GetOpenDay(ctx context.Context, id uuid.UUID) (OpenDay, error)
 	GetOpenDayForUpdate(ctx context.Context, id uuid.UUID) (OpenDay, error)
 	GetPeriod(ctx context.Context, id uuid.UUID) (OpenDayPeriod, error)
