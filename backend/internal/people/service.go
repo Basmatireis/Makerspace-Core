@@ -1,8 +1,13 @@
 package people
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"image"
+	"image/jpeg"
+	_ "image/png"
+	"io"
 	"math"
 	"strings"
 	"time"
@@ -11,6 +16,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
 	peopledb "github.com/Basmatireis/Makerspace-Core/backend/internal/people/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
@@ -18,6 +24,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/image/draw"
+	_ "golang.org/x/image/webp"
 )
 
 type Person struct {
@@ -28,6 +36,8 @@ type Person struct {
 	Phone               *string
 	MatriculationNumber *string
 	PhotoReference      *string
+	ProfileImageFileID  *uuid.UUID
+	ProfileImageSource  *string
 	Version             int64
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
@@ -62,9 +72,18 @@ type Page struct {
 	Total    int64
 }
 
-type Service struct{ pool *pgxpool.Pool }
+type Service struct {
+	pool  *pgxpool.Pool
+	files *files.Service
+}
 
-func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
+func NewService(pool *pgxpool.Pool, fileServices ...*files.Service) *Service {
+	service := &Service{pool: pool}
+	if len(fileServices) != 0 {
+		service.files = fileServices[0]
+	}
+	return service
+}
 
 func (s *Service) Create(ctx context.Context, principal authorization.Principal, input CreateInput, requestID *uuid.UUID) (Person, error) {
 	if !principal.Has(authorization.PeopleCreate) {
@@ -241,6 +260,9 @@ func (s *Service) Delete(ctx context.Context, principal authorization.Principal,
 	if err := accounts.AuthorizePersonDeletion(ctx, tx, principal, id); err != nil {
 		return err
 	}
+	if current.ProfileImageFileID != nil && s.files == nil {
+		return errors.New("file storage is unavailable")
+	}
 	actor := principal.AccountID
 	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "person.deleted", ResourceType: "person", ResourceID: &id, RequestID: requestID}); err != nil {
 		return err
@@ -250,8 +272,185 @@ func (s *Service) Delete(ctx context.Context, principal authorization.Principal,
 	} else if err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	if current.ProfileImageFileID != nil {
+		// The actor may have deleted their own Account. The Person deletion's
+		// audit event records the actor; subsequent file cleanup is system-owned.
+		return s.files.DeleteSystem(ctx, *current.ProfileImageFileID, requestID)
+	}
+	return nil
 }
+
+const maxProfileImageBytes = 8 << 20
+
+func (s *Service) PutProfileImage(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, filename, source string, reader io.Reader, requestID *uuid.UUID) (Person, error) {
+	if s.files == nil {
+		return Person{}, errors.New("file storage is unavailable")
+	}
+	if !(principal.Has(authorization.PeopleProfileImageUpdateAll) || (principal.PersonID == id && principal.Has(authorization.PeopleProfileImageUpdateSelf))) {
+		return Person{}, apperror.PermissionDenied
+	}
+	if expectedVersion < 1 {
+		return Person{}, validation("expectedVersion must be positive")
+	}
+	if source == "" {
+		if principal.PersonID == id {
+			source = "self_upload"
+		} else {
+			source = "admin_upload"
+		}
+	}
+	if source != "terminal_capture" && source != "self_upload" && source != "admin_upload" {
+		return Person{}, validation("profile image source is invalid")
+	}
+	if source == "self_upload" && principal.PersonID != id {
+		source = "admin_upload"
+	}
+	normalized, err := NormalizeProfileImage(reader)
+	if err != nil {
+		return Person{}, err
+	}
+	stored, err := s.files.StoreBytes(ctx, principal, filename, "image/jpeg", normalized, requestID)
+	if err != nil {
+		return Person{}, err
+	}
+	linked := false
+	defer func() {
+		if !linked {
+			_ = s.files.Delete(context.Background(), principal, stored.ID, requestID)
+		}
+	}()
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Person{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	queries := peopledb.New(tx)
+	current, err := queries.GetPersonForDeletion(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Person{}, apperror.NotFound
+	}
+	if err != nil {
+		return Person{}, err
+	}
+	if current.Version != expectedVersion {
+		return Person{}, apperror.StaleWrite
+	}
+	row, err := queries.SetProfileImage(ctx, peopledb.SetProfileImageParams{ID: id, ExpectedVersion: expectedVersion, ProfileImageFileID: &stored.ID, ProfileImageSource: &source})
+	if err != nil {
+		return Person{}, err
+	}
+	actor := principal.AccountID
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "person.profile_image.updated", ResourceType: "person", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"profileImage"}}); err != nil {
+		return Person{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Person{}, err
+	}
+	linked = true
+	if current.ProfileImageFileID != nil {
+		_ = s.files.Delete(context.Background(), principal, *current.ProfileImageFileID, requestID)
+	}
+	return fromRow(row, principal.CanReadPerson(id), principal.Has(authorization.PeopleReadMatriculation)), nil
+}
+
+func (s *Service) DeleteProfileImage(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, requestID *uuid.UUID) error {
+	if s.files == nil {
+		return errors.New("file storage is unavailable")
+	}
+	if !(principal.Has(authorization.PeopleProfileImageRemoveAll) || (principal.PersonID == id && principal.Has(authorization.PeopleProfileImageRemoveSelf))) {
+		return apperror.PermissionDenied
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	queries := peopledb.New(tx)
+	current, err := queries.GetPersonForDeletion(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperror.NotFound
+	}
+	if err != nil {
+		return err
+	}
+	if current.Version != expectedVersion {
+		return apperror.StaleWrite
+	}
+	if current.ProfileImageFileID == nil {
+		return apperror.NotFound
+	}
+	if _, err := queries.SetProfileImage(ctx, peopledb.SetProfileImageParams{ID: id, ExpectedVersion: expectedVersion}); err != nil {
+		return err
+	}
+	actor := principal.AccountID
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "person.profile_image.removed", ResourceType: "person", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"profileImage"}}); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	_ = s.files.Delete(context.Background(), principal, *current.ProfileImageFileID, requestID)
+	return nil
+}
+
+func (s *Service) OpenProfileImage(ctx context.Context, principal authorization.Principal, id uuid.UUID) (files.File, io.ReadCloser, error) {
+	if s.files == nil {
+		return files.File{}, nil, errors.New("file storage is unavailable")
+	}
+	if !principal.CanReadPerson(id) {
+		return files.File{}, nil, apperror.PermissionDenied
+	}
+	profile, err := peopledb.New(s.pool).GetProfileImage(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) || profile.ProfileImageFileID == nil {
+		return files.File{}, nil, apperror.NotFound
+	}
+	if err != nil {
+		return files.File{}, nil, err
+	}
+	return s.files.Open(ctx, *profile.ProfileImageFileID)
+}
+
+func (s *Service) RequiresProfileImage(ctx context.Context, id uuid.UUID) (bool, error) {
+	return peopledb.New(s.pool).PersonRequiresProfileImage(ctx, id)
+}
+
+func NormalizeProfileImage(reader io.Reader) ([]byte, error) {
+	raw, err := io.ReadAll(io.LimitReader(reader, maxProfileImageBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) == 0 || len(raw) > maxProfileImageBytes {
+		return nil, apperror.New(413, "profile_image_too_large", "Profile image exceeds 8 MiB")
+	}
+	configuration, format, err := image.DecodeConfig(bytes.NewReader(raw))
+	if err != nil || (format != "jpeg" && format != "png" && format != "webp") {
+		return nil, validation("profile image must be a valid JPEG, PNG, or WebP image")
+	}
+	if configuration.Width < 1 || configuration.Height < 1 || configuration.Width > 4096 || configuration.Height > 4096 || int64(configuration.Width)*int64(configuration.Height) > 16_000_000 {
+		return nil, validation("profile image dimensions exceed 4096x4096 or 16 megapixels")
+	}
+	decoded, _, err := image.Decode(bytes.NewReader(raw))
+	if err != nil {
+		return nil, validation("profile image could not be decoded")
+	}
+	width, height := configuration.Width, configuration.Height
+	if width > 1024 || height > 1024 {
+		scale := math.Min(1024/float64(width), 1024/float64(height))
+		width, height = int(float64(width)*scale), int(float64(height)*scale)
+	}
+	canvas := image.NewRGBA(image.Rect(0, 0, width, height))
+	draw.CatmullRom.Scale(canvas, canvas.Bounds(), decoded, decoded.Bounds(), draw.Over, nil)
+	var output bytes.Buffer
+	if err := jpeg.Encode(&output, canvas, &jpeg.Options{Quality: 88}); err != nil {
+		return nil, err
+	}
+	return output.Bytes(), nil
+}
+
+func normalizeProfileImage(reader io.Reader) ([]byte, error) { return NormalizeProfileImage(reader) }
 
 func validate(firstName, lastName string, email, phone, matriculation *string) error {
 	firstName, lastName = strings.TrimSpace(firstName), strings.TrimSpace(lastName)
@@ -298,7 +497,8 @@ func fromRow(row peopledb.Person, includeDetails, includeMatriculation bool) Per
 		matriculation = nil
 	}
 	return Person{ID: row.ID, FirstName: row.FirstName, LastName: row.LastName, Email: email, Phone: phone,
-		MatriculationNumber: matriculation, PhotoReference: photoReference, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+		MatriculationNumber: matriculation, PhotoReference: photoReference, ProfileImageFileID: row.ProfileImageFileID,
+		ProfileImageSource: row.ProfileImageSource, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
 func changedFields(current peopledb.Person, firstName, lastName string, email, phone, matriculation *string) []string {
