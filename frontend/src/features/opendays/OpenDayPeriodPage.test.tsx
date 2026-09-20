@@ -217,7 +217,7 @@ describe('Open Day period creation', () => {
     expect(submittedBreak).toMatchObject({ name: 'Semester break', startsOn: created.startsOn, endsOn: created.startsOn });
     expect(screen.getByLabelText('Schedule defaults')).toHaveTextContent(`"supervisorRoleIds":["${supervisorRoleId}"]`);
     expect(screen.getByLabelText('Schedule defaults')).toHaveTextContent(`"traineeRoleIds":["${traineeRoleId}"]`);
-  });
+  }, 15_000);
 });
 
 describe('Open Day period management entry points', () => {

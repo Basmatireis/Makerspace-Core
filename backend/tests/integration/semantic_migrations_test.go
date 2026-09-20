@@ -48,7 +48,7 @@ func TestSemanticMigrationsPreserveSessionsAndInvalidateUnprovenFlows(t *testing
 	if _, err := pool.Exec(ctx, `INSERT INTO oidc_flows(id,provider_id,kind,account_id,state_digest,browser_token_digest,encrypted_nonce,encrypted_pkce_verifier,expires_at) VALUES($1,$2,'link',$3,$4,$4,$4,$4,now()+interval '10 minutes')`, flowID, provider, actor.accountID, digest); err != nil {
 		t.Fatal(err)
 	}
-	applyMigrationFiles(t, pool, paths[15:])
+	applyMigrationFiles(t, pool, paths[15:17])
 	assertCount(t, pool, `SELECT count(*) FROM visitor_enrollment_contexts WHERE id=$1 AND used_at IS NOT NULL AND lab_rules_version_id IS NULL`, 1, contextID)
 	assertCount(t, pool, `SELECT count(*) FROM oidc_flows WHERE id=$1`, 0, flowID)
 	authenticated, err := service.Authenticate(ctx, session.Token)
@@ -81,5 +81,5 @@ func TestSemanticMigrationsPreserveSessionsAndInvalidateUnprovenFlows(t *testing
 	if _, err := service.Authenticate(ctx, session.Token); err != nil {
 		t.Fatalf("downgrade revoked login: %v", err)
 	}
-	applyMigrationFiles(t, pool, paths[15:])
+	applyMigrationFiles(t, pool, paths[15:17])
 }

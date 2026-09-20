@@ -71,7 +71,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await expect(page.getByRole('button', { name: /View View all people for E2E workshop supervisors: Granted in this context/ })).toBeVisible();
     await page.getByRole('tab', { name: 'Configuration' }).click();
 
-    await page.getByRole('button', { name: 'Actions for E2E workshop supervisors' }).click();
+    await page.getByRole('button', { name: 'Actions for E2E workshop supervisors', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Edit role' }).click();
     await expect(page).toHaveURL(/\/settings\/roles\/[0-9a-f-]+$/);
     rolePath = new URL(page.url()).pathname;
@@ -181,7 +181,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
 
     await page.goto(rolePath);
     await page.getByRole('button', { name: 'Cancel' }).click();
-    await page.getByRole('button', { name: 'Actions for E2E workshop supervisors' }).click();
+    await page.getByRole('button', { name: 'Actions for E2E workshop supervisors', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Delete role' }).click();
     await expect(page.getByRole('heading', { name: 'Delete role?' })).toBeVisible();
     await page.getByRole('button', { name: 'Delete role' }).click();

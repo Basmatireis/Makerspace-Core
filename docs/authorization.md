@@ -48,6 +48,14 @@ Authorization is based on application-registered permission identifiers. Backend
 | `oidc.manage` | Configure OIDC providers and trusted assurance mappings. |
 | `scim.manage` | Configure SCIM connectors and reconcile never-authenticated provisional Accounts. Role transfer separately requires `accounts.roles.assign` and ordinary delegation authority; master transfer is forbidden. |
 | `mail.manage` | Configure encrypted transactional SMTP settings. |
+| `machines.read`, `machines.manage` | Read machine catalog/metrics or create and update machine types and machines. |
+| `machine_jobs.read`, `machine_jobs.create` | Read/filter jobs or create confirmed manual jobs and session-authenticated automatic ingests. |
+| `machine_jobs.edit`, `machine_jobs.review` | Correct confirmed unbilled jobs or confirm the automatic review queue. |
+| `machine_jobs.override_price` | Set and clear final-price overrides while retaining calculated prices. |
+| `inventory.read`, `inventory.manage` | Read material balances/ledger or mutate catalog and stock through ledger-backed operations. |
+| `organizations.read`, `organizations.manage` | Read billing organizations or create/update/deactivate them. |
+| `pricing.read`, `pricing.manage` | Read pricing groups/rules or manage rates and party defaults. |
+| `statistics.read` | Read date-filtered machine-logbook operational and financial statistics. |
 
 ## Device-scoped grants
 

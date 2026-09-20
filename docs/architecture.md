@@ -8,7 +8,7 @@ The browser calls relative `/api/v1` routes. In development Vite proxies `/api` 
 
 ## Backend boundaries
 
-Business features own their service, repository/query, domain model, and tests. The modules include people, accounts, auth, authorization, roles, audit, managed devices, files/storage, Lab Rules, OIDC, SCIM, visitor enrollment, supervisors, and Open Days. A single thin `httpapi` adapter implements the generated strict interface and delegates business behavior to those feature services; it owns only transport mapping, cookies, and HTTP middleware. Shared platform code is limited to configuration, database setup, HTTP/error plumbing, logging, and optional telemetry integration.
+Business features own their service, repository/query, domain model, and tests. The modules include people, accounts, auth, authorization, roles, audit, managed devices, files/storage, Lab Rules, OIDC, SCIM, visitor enrollment, supervisors, Open Days, and the machine logbook. A single thin `httpapi` adapter implements the generated strict interface and delegates business behavior to those feature services; it owns only transport mapping, cookies, and HTTP middleware. Shared platform code is limited to configuration, database setup, HTTP/error plumbing, logging, and optional telemetry integration.
 
 Within a feature:
 
@@ -47,6 +47,14 @@ OpenDayPeriod 1 ─── * OpenDay 1 ─── 2 StaffRequirement
                               └── * Assignment ─── 1 Person
 
 AcademicBreak provides independently versioned calendar context.
+
+MachineType 1 ─── * Machine 1 ─── * MachineJob ─── * MaterialUsage ─── 1 Material
+                                      │     │                              │
+                                      │     └── * immutable PricingSnapshot│
+                                      └── customer Person xor Organization │
+Material 1 ─── 1 transactional Balance ─── * immutable InventoryTransaction
+PricingGroup 1 ─── * explicit PricingRule
+      └── optional default assignment for Person or Organization
 ```
 
 - **Person** is the human/business record. It has a UUIDv7, required first and last names, optional contact email, phone, matriculation number, and a private normalized profile-image File. At least one of email or phone must remain non-null. The old `photo_reference` field is preserved as read-only legacy metadata.
@@ -62,6 +70,9 @@ AcademicBreak provides independently versioned calendar context.
 - **OpenDayPeriod** owns an inclusive local-date range and follows `draft ↔ staffing ↔ published → archived`. Backward transitions retain schedules and assignments; archive remains final and read-only. Its version serializes schedule edits and lifecycle changes.
 - **OpenDay** stores UTC instants, a scheduled/cancelled state, an optimistic version, and a manager-only note. Each Open Day has stable supervisor and trainee requirements. Person assignments remain as history if eligibility Roles later change.
 - **AcademicBreak** is operator-maintained inclusive date context. Public holidays are computed offline from pinned country/subdivision configuration.
+- **Machine** has a versioned type and truthful administrative status. **MachineJob** records its UTC interval, source, review/billing state, nullable customer/operator references, typed material usage, and immutable pricing-snapshot revisions.
+- **Material** has one transactionally maintained balance and an immutable inventory ledger. Job confirmation and corrections lock materials deterministically and commit stock, price, job, and audit effects atomically.
+- **PricingGroup** resolves explicitly, from a party assignment, or from the global default. Exact-decimal runtime/material rules are copied into immutable job snapshots; final price overrides remain separate from calculations.
 
 UUIDv7 values are generated in application code. Timestamps use UTC `timestamptz`. Mutable people, accounts, and roles use a monotonically increasing version; clients submit `expectedVersion`, and stale writes fail with HTTP 409 and the stable `stale_write` code. Person deletion locks the Person and any attached Account so concurrent Account creation or Role assignment cannot bypass cascade-delete authorization. Login/session creation and security-sensitive Account mutations serialize on the Account row, preventing an in-flight login or password change from escaping a concurrent disable, identity change, administrative password action, or reset. Operations that could remove an enabled master acquire the last-master advisory lock before the Account lock so the invariant and lock order remain safe under concurrency.
 
@@ -79,6 +90,6 @@ The contract uses lower-camel JSON properties. Optional nullable PATCH propertie
 
 ## Deliberate non-goals
 
-The schema and code contain no Machines, Orders, general Events, Trainings, Rental, general-purpose document signing, Visits, Analytics, or Feedback placeholders. Events remain deliberately outside the Open Days module. Lab Rules evidence records verification of a physical document; it does not store a drawn signature or treat a checkbox, PIN, or session as a legal signature. SCIM supports Users only—Groups, Roles, and entitlements are deliberately unsupported. Visitor enrollment is available only on explicitly approved managed-device types and never creates a generic public registration route.
+The schema and code contain no Orders, general Events, Trainings, Rental, general-purpose document signing, Visits, or Feedback placeholders. Machine-logbook statistics are purpose-built operational reports, not a generic analytics platform. Events remain deliberately outside the Open Days module. Lab Rules evidence records verification of a physical document; it does not store a drawn signature or treat a checkbox, PIN, or session as a legal signature. SCIM supports Users only—Groups, Roles, and entitlements are deliberately unsupported. Visitor enrollment is available only on explicitly approved managed-device types and never creates a generic public registration route.
 
 Visitor enrollment contexts pin the applicable Lab Rules version at creation. Their state, PDF, and resulting physical-confirmation request all reference that exact immutable version, even if another version becomes current while the visitor is enrolling. Confirmation evidence retains the signed version; ordinary policy evaluation can then report the newer version as outstanding. Device eligibility, enabled state, allowed methods, and initial-role configuration are still checked at submission; pinning the document does not freeze security configuration.
