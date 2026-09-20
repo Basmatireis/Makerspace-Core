@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const bumpAccountVersionAfterCredentialChange = `-- name: BumpAccountVersionAfterCredentialChange :exec
@@ -21,6 +22,215 @@ WHERE id = $1
 func (q *Queries) BumpAccountVersionAfterCredentialChange(ctx context.Context, accountID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, bumpAccountVersionAfterCredentialChange, accountID)
 	return err
+}
+
+const clearPINThrottle = `-- name: ClearPINThrottle :exec
+DELETE FROM pin_login_throttles
+WHERE dimension = $1 AND key_digest = $2
+`
+
+type ClearPINThrottleParams struct {
+	Dimension string
+	KeyDigest []byte
+}
+
+func (q *Queries) ClearPINThrottle(ctx context.Context, arg ClearPINThrottleParams) error {
+	_, err := q.db.Exec(ctx, clearPINThrottle, arg.Dimension, arg.KeyDigest)
+	return err
+}
+
+const consumeAuthRateLimit = `-- name: ConsumeAuthRateLimit :one
+INSERT INTO auth_rate_limits (action, key_digest, window_started_at, attempt_count)
+VALUES ($1, $2, now(), 1)
+ON CONFLICT (action, key_digest) DO UPDATE SET
+    window_started_at = CASE WHEN auth_rate_limits.window_started_at < now() - interval '15 minutes' THEN now() ELSE auth_rate_limits.window_started_at END,
+    attempt_count = CASE WHEN auth_rate_limits.window_started_at < now() - interval '15 minutes' THEN 1 ELSE auth_rate_limits.attempt_count + 1 END,
+    blocked_until = CASE
+        WHEN auth_rate_limits.blocked_until > now() THEN auth_rate_limits.blocked_until
+        WHEN (CASE WHEN auth_rate_limits.window_started_at < now() - interval '15 minutes' THEN 1 ELSE auth_rate_limits.attempt_count + 1 END) > $3::integer
+            THEN now() + interval '15 minutes'
+        ELSE NULL
+    END,
+    updated_at = now()
+RETURNING blocked_until IS NULL OR blocked_until <= now() AS allowed
+`
+
+type ConsumeAuthRateLimitParams struct {
+	Action      string
+	KeyDigest   []byte
+	MaxAttempts int32
+}
+
+func (q *Queries) ConsumeAuthRateLimit(ctx context.Context, arg ConsumeAuthRateLimitParams) (*bool, error) {
+	row := q.db.QueryRow(ctx, consumeAuthRateLimit, arg.Action, arg.KeyDigest, arg.MaxAttempts)
+	var allowed *bool
+	err := row.Scan(&allowed)
+	return allowed, err
+}
+
+const countUsableIdentitiesForAccount = `-- name: CountUsableIdentitiesForAccount :one
+SELECT count(*) FROM auth_identities i
+WHERE i.account_id = $1 AND i.disabled_at IS NULL
+  AND ((i.kind = 'password' AND EXISTS (SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required))
+    OR (i.kind = 'pin' AND EXISTS (SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id = i.id))
+    OR i.kind = 'oidc')
+`
+
+func (q *Queries) CountUsableIdentitiesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsableIdentitiesForAccount, accountID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const createOIDCSession = `-- name: CreateOIDCSession :one
+INSERT INTO sessions (
+    id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method,
+    base_assurance, current_assurance, authenticated_at, idle_expires_at, absolute_expires_at
+)
+VALUES (
+    $1, $2, $3, $4,
+    $5, 'oidc', $6, $6, now(),
+    $7, $8
+)
+RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at
+`
+
+type CreateOIDCSessionParams struct {
+	ID                uuid.UUID
+	AccountID         uuid.UUID
+	AuthIdentityID    uuid.UUID
+	TokenDigest       []byte
+	CsrfDigest        []byte
+	Assurance         string
+	IdleExpiresAt     time.Time
+	AbsoluteExpiresAt time.Time
+}
+
+func (q *Queries) CreateOIDCSession(ctx context.Context, arg CreateOIDCSessionParams) (Session, error) {
+	row := q.db.QueryRow(ctx, createOIDCSession,
+		arg.ID,
+		arg.AccountID,
+		arg.AuthIdentityID,
+		arg.TokenDigest,
+		arg.CsrfDigest,
+		arg.Assurance,
+		arg.IdleExpiresAt,
+		arg.AbsoluteExpiresAt,
+	)
+	var i Session
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.AuthIdentityID,
+		&i.TokenDigest,
+		&i.CsrfDigest,
+		&i.AuthMethod,
+		&i.CreatedAt,
+		&i.LastSeenAt,
+		&i.IdleExpiresAt,
+		&i.AbsoluteExpiresAt,
+		&i.RevokedAt,
+		&i.RevocationReason,
+		&i.BaseAssurance,
+		&i.CurrentAssurance,
+		&i.AuthenticatedAt,
+		&i.AssuranceExpiresAt,
+	)
+	return i, err
+}
+
+const createPINIdentity = `-- name: CreatePINIdentity :one
+INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifier_normalized, verified_at)
+VALUES ($1, $2, 'pin', $3, $4, now())
+RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at
+`
+
+type CreatePINIdentityParams struct {
+	ID                   uuid.UUID
+	AccountID            uuid.UUID
+	IdentifierDisplay    *string
+	IdentifierNormalized *string
+}
+
+func (q *Queries) CreatePINIdentity(ctx context.Context, arg CreatePINIdentityParams) (AuthIdentity, error) {
+	row := q.db.QueryRow(ctx, createPINIdentity,
+		arg.ID,
+		arg.AccountID,
+		arg.IdentifierDisplay,
+		arg.IdentifierNormalized,
+	)
+	var i AuthIdentity
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Kind,
+		&i.IdentifierDisplay,
+		&i.IdentifierNormalized,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProviderID,
+		&i.Issuer,
+		&i.Subject,
+		&i.VerifiedAt,
+		&i.DisabledAt,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
+const createPINSession = `-- name: CreatePINSession :one
+INSERT INTO sessions (
+    id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method,
+    base_assurance, current_assurance, authenticated_at, idle_expires_at, absolute_expires_at
+)
+VALUES (
+    $1, $2, $3, $4,
+    $5, 'pin', 'low', 'low', now(), $6, $7
+)
+RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at
+`
+
+type CreatePINSessionParams struct {
+	ID                uuid.UUID
+	AccountID         uuid.UUID
+	AuthIdentityID    uuid.UUID
+	TokenDigest       []byte
+	CsrfDigest        []byte
+	IdleExpiresAt     time.Time
+	AbsoluteExpiresAt time.Time
+}
+
+func (q *Queries) CreatePINSession(ctx context.Context, arg CreatePINSessionParams) (Session, error) {
+	row := q.db.QueryRow(ctx, createPINSession,
+		arg.ID,
+		arg.AccountID,
+		arg.AuthIdentityID,
+		arg.TokenDigest,
+		arg.CsrfDigest,
+		arg.IdleExpiresAt,
+		arg.AbsoluteExpiresAt,
+	)
+	var i Session
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.AuthIdentityID,
+		&i.TokenDigest,
+		&i.CsrfDigest,
+		&i.AuthMethod,
+		&i.CreatedAt,
+		&i.LastSeenAt,
+		&i.IdleExpiresAt,
+		&i.AbsoluteExpiresAt,
+		&i.RevokedAt,
+		&i.RevocationReason,
+		&i.BaseAssurance,
+		&i.CurrentAssurance,
+		&i.AuthenticatedAt,
+		&i.AssuranceExpiresAt,
+	)
+	return i, err
 }
 
 const createPasswordResetToken = `-- name: CreatePasswordResetToken :one
@@ -60,9 +270,9 @@ func (q *Queries) CreatePasswordResetToken(ctx context.Context, arg CreatePasswo
 }
 
 const createSession = `-- name: CreateSession :one
-INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, idle_expires_at, absolute_expires_at)
-VALUES ($1, $2, $3, $4, $5, 'password', $6, $7)
-RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason
+INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, authenticated_at, idle_expires_at, absolute_expires_at)
+VALUES ($1, $2, $3, $4, $5, 'password', now(), $6, $7)
+RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at
 `
 
 type CreateSessionParams struct {
@@ -99,8 +309,29 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		&i.AbsoluteExpiresAt,
 		&i.RevokedAt,
 		&i.RevocationReason,
+		&i.BaseAssurance,
+		&i.CurrentAssurance,
+		&i.AuthenticatedAt,
+		&i.AssuranceExpiresAt,
 	)
 	return i, err
+}
+
+const deleteExpiredAuthSecurityState = `-- name: DeleteExpiredAuthSecurityState :execrows
+WITH deleted_challenges AS (
+    DELETE FROM auth_challenges WHERE expires_at < $1 RETURNING 1
+), deleted_limits AS (
+    DELETE FROM auth_rate_limits WHERE updated_at < $1 - interval '1 day' RETURNING 1
+)
+SELECT count(*) FROM deleted_challenges
+`
+
+func (q *Queries) DeleteExpiredAuthSecurityState(ctx context.Context, beforeTime time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredAuthSecurityState, beforeTime)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteExpiredPasswordResetTokens = `-- name: DeleteExpiredPasswordResetTokens :execrows
@@ -129,6 +360,24 @@ func (q *Queries) DeleteExpiredSessions(ctx context.Context, beforeTime time.Tim
 	return result.RowsAffected(), nil
 }
 
+const deletePINIdentity = `-- name: DeletePINIdentity :exec
+DELETE FROM auth_identities WHERE id = $1 AND kind = 'pin'
+`
+
+func (q *Queries) DeletePINIdentity(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePINIdentity, id)
+	return err
+}
+
+const deletePasswordIdentity = `-- name: DeletePasswordIdentity :exec
+DELETE FROM auth_identities WHERE id = $1 AND kind = 'password'
+`
+
+func (q *Queries) DeletePasswordIdentity(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePasswordIdentity, id)
+	return err
+}
+
 const deletePasswordResetToken = `-- name: DeletePasswordResetToken :exec
 DELETE FROM password_reset_tokens WHERE id = $1
 `
@@ -138,10 +387,20 @@ func (q *Queries) DeletePasswordResetToken(ctx context.Context, id uuid.UUID) er
 	return err
 }
 
+const enableInvitedAccount = `-- name: EnableInvitedAccount :exec
+UPDATE accounts SET status = 'enabled', updated_at = now()
+WHERE id = $1 AND status = 'disabled' AND administratively_disabled_at IS NULL
+`
+
+func (q *Queries) EnableInvitedAccount(ctx context.Context, accountID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, enableInvitedAccount, accountID)
+	return err
+}
+
 const findLoginAccountByEmail = `-- name: FindLoginAccountByEmail :one
 SELECT account_id
 FROM auth_identities
-WHERE kind = 'email_password' AND identifier_normalized = $1
+WHERE kind = 'password' AND disabled_at IS NULL AND identifier_normalized = $1::text
 `
 
 func (q *Queries) FindLoginAccountByEmail(ctx context.Context, identifierNormalized string) (uuid.UUID, error) {
@@ -149,6 +408,97 @@ func (q *Queries) FindLoginAccountByEmail(ctx context.Context, identifierNormali
 	var account_id uuid.UUID
 	err := row.Scan(&account_id)
 	return account_id, err
+}
+
+const findPINLogin = `-- name: FindPINLogin :one
+SELECT a.id AS account_id, a.status, i.id AS auth_identity_id, i.identifier_display AS login_name,
+       pc.pin_hash, p.first_name, p.last_name
+FROM auth_identities i
+JOIN accounts a ON a.id = i.account_id
+JOIN people p ON p.id = a.person_id
+JOIN pin_credentials pc ON pc.auth_identity_id = i.id
+WHERE i.kind = 'pin' AND i.identifier_normalized = $1::text
+  AND i.disabled_at IS NULL
+`
+
+type FindPINLoginRow struct {
+	AccountID      uuid.UUID
+	Status         string
+	AuthIdentityID uuid.UUID
+	LoginName      *string
+	PinHash        string
+	FirstName      string
+	LastName       string
+}
+
+func (q *Queries) FindPINLogin(ctx context.Context, identifierNormalized string) (FindPINLoginRow, error) {
+	row := q.db.QueryRow(ctx, findPINLogin, identifierNormalized)
+	var i FindPINLoginRow
+	err := row.Scan(
+		&i.AccountID,
+		&i.Status,
+		&i.AuthIdentityID,
+		&i.LoginName,
+		&i.PinHash,
+		&i.FirstName,
+		&i.LastName,
+	)
+	return i, err
+}
+
+const findPasswordChallengeTarget = `-- name: FindPasswordChallengeTarget :one
+SELECT a.id AS account_id, a.status, i.id AS auth_identity_id, i.identifier_display AS delivery_address
+FROM auth_identities i
+JOIN accounts a ON a.id = i.account_id
+JOIN password_credentials pc ON pc.auth_identity_id = i.id
+WHERE i.kind = 'password' AND i.identifier_normalized = $1::text
+  AND i.disabled_at IS NULL
+`
+
+type FindPasswordChallengeTargetRow struct {
+	AccountID       uuid.UUID
+	Status          string
+	AuthIdentityID  uuid.UUID
+	DeliveryAddress *string
+}
+
+func (q *Queries) FindPasswordChallengeTarget(ctx context.Context, identifierNormalized string) (FindPasswordChallengeTargetRow, error) {
+	row := q.db.QueryRow(ctx, findPasswordChallengeTarget, identifierNormalized)
+	var i FindPasswordChallengeTargetRow
+	err := row.Scan(
+		&i.AccountID,
+		&i.Status,
+		&i.AuthIdentityID,
+		&i.DeliveryAddress,
+	)
+	return i, err
+}
+
+const findPasswordIdentityTarget = `-- name: FindPasswordIdentityTarget :one
+SELECT a.id AS account_id, a.status, i.id AS auth_identity_id, i.identifier_display AS delivery_address
+FROM auth_identities i
+JOIN accounts a ON a.id = i.account_id
+WHERE i.kind = 'password' AND i.identifier_normalized = $1::text
+  AND i.disabled_at IS NULL
+`
+
+type FindPasswordIdentityTargetRow struct {
+	AccountID       uuid.UUID
+	Status          string
+	AuthIdentityID  uuid.UUID
+	DeliveryAddress *string
+}
+
+func (q *Queries) FindPasswordIdentityTarget(ctx context.Context, identifierNormalized string) (FindPasswordIdentityTargetRow, error) {
+	row := q.db.QueryRow(ctx, findPasswordIdentityTarget, identifierNormalized)
+	var i FindPasswordIdentityTargetRow
+	err := row.Scan(
+		&i.AccountID,
+		&i.Status,
+		&i.AuthIdentityID,
+		&i.DeliveryAddress,
+	)
+	return i, err
 }
 
 const findPasswordResetAccountByDigest = `-- name: FindPasswordResetAccountByDigest :one
@@ -183,13 +533,47 @@ func (q *Queries) GetAccountForAuthentication(ctx context.Context, id uuid.UUID)
 	return i, err
 }
 
+const getActiveAuthChallengeForUpdate = `-- name: GetActiveAuthChallengeForUpdate :one
+SELECT id, kind, account_id, auth_identity_id, code_digest, delivery_address, attempt_count, created_by_account_id, expires_at, used_at, cancelled_at, delivery_status, delivery_attempted_at, delivery_failure_code, created_at FROM auth_challenges
+WHERE account_id = $1 AND kind = $2
+FOR UPDATE
+`
+
+type GetActiveAuthChallengeForUpdateParams struct {
+	AccountID uuid.UUID
+	Kind      string
+}
+
+func (q *Queries) GetActiveAuthChallengeForUpdate(ctx context.Context, arg GetActiveAuthChallengeForUpdateParams) (AuthChallenge, error) {
+	row := q.db.QueryRow(ctx, getActiveAuthChallengeForUpdate, arg.AccountID, arg.Kind)
+	var i AuthChallenge
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.AccountID,
+		&i.AuthIdentityID,
+		&i.CodeDigest,
+		&i.DeliveryAddress,
+		&i.AttemptCount,
+		&i.CreatedByAccountID,
+		&i.ExpiresAt,
+		&i.UsedAt,
+		&i.CancelledAt,
+		&i.DeliveryStatus,
+		&i.DeliveryAttemptedAt,
+		&i.DeliveryFailureCode,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getLoginByEmail = `-- name: GetLoginByEmail :one
 SELECT a.id AS account_id, a.person_id, a.status, a.version AS account_version,
        i.id AS auth_identity_id, i.identifier_display AS login_email,
        pc.password_hash, pc.reset_required, p.first_name, p.last_name
 FROM auth_identities i JOIN accounts a ON a.id = i.account_id
 JOIN people p ON p.id = a.person_id JOIN password_credentials pc ON pc.auth_identity_id = i.id
-WHERE i.kind = 'email_password' AND i.identifier_normalized = $1
+WHERE i.kind = 'password' AND i.disabled_at IS NULL AND i.identifier_normalized = $1::text
 `
 
 type GetLoginByEmailRow struct {
@@ -198,7 +582,7 @@ type GetLoginByEmailRow struct {
 	Status         string
 	AccountVersion int64
 	AuthIdentityID uuid.UUID
-	LoginEmail     string
+	LoginEmail     *string
 	PasswordHash   string
 	ResetRequired  bool
 	FirstName      string
@@ -223,9 +607,34 @@ func (q *Queries) GetLoginByEmail(ctx context.Context, identifierNormalized stri
 	return i, err
 }
 
+const getPINIdentityForAccount = `-- name: GetPINIdentityForAccount :one
+SELECT id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at FROM auth_identities WHERE account_id = $1 AND kind = 'pin' FOR UPDATE
+`
+
+func (q *Queries) GetPINIdentityForAccount(ctx context.Context, accountID uuid.UUID) (AuthIdentity, error) {
+	row := q.db.QueryRow(ctx, getPINIdentityForAccount, accountID)
+	var i AuthIdentity
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Kind,
+		&i.IdentifierDisplay,
+		&i.IdentifierNormalized,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProviderID,
+		&i.Issuer,
+		&i.Subject,
+		&i.VerifiedAt,
+		&i.DisabledAt,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
 const getPasswordCredentialForAccount = `-- name: GetPasswordCredentialForAccount :one
 SELECT pc.auth_identity_id, pc.password_hash, pc.reset_required, pc.changed_at FROM password_credentials pc JOIN auth_identities i ON i.id = pc.auth_identity_id
-WHERE i.account_id = $1 AND i.kind = 'email_password'
+WHERE i.account_id = $1 AND i.kind = 'password' AND i.disabled_at IS NULL
 `
 
 func (q *Queries) GetPasswordCredentialForAccount(ctx context.Context, accountID uuid.UUID) (PasswordCredential, error) {
@@ -240,9 +649,39 @@ func (q *Queries) GetPasswordCredentialForAccount(ctx context.Context, accountID
 	return i, err
 }
 
+const getPasswordIdentityTargetForAccount = `-- name: GetPasswordIdentityTargetForAccount :one
+SELECT a.id AS account_id, a.status, i.id AS auth_identity_id,
+       i.identifier_display AS delivery_address, i.verified_at
+FROM auth_identities i
+JOIN accounts a ON a.id = i.account_id
+WHERE i.account_id = $1 AND i.kind = 'password'
+  AND i.disabled_at IS NULL
+`
+
+type GetPasswordIdentityTargetForAccountRow struct {
+	AccountID       uuid.UUID
+	Status          string
+	AuthIdentityID  uuid.UUID
+	DeliveryAddress *string
+	VerifiedAt      pgtype.Timestamptz
+}
+
+func (q *Queries) GetPasswordIdentityTargetForAccount(ctx context.Context, accountID uuid.UUID) (GetPasswordIdentityTargetForAccountRow, error) {
+	row := q.db.QueryRow(ctx, getPasswordIdentityTargetForAccount, accountID)
+	var i GetPasswordIdentityTargetForAccountRow
+	err := row.Scan(
+		&i.AccountID,
+		&i.Status,
+		&i.AuthIdentityID,
+		&i.DeliveryAddress,
+		&i.VerifiedAt,
+	)
+	return i, err
+}
+
 const getPasswordResetByDigest = `-- name: GetPasswordResetByDigest :one
 SELECT prt.id, prt.account_id, prt.token_digest, prt.created_by_account_id, prt.created_at, prt.expires_at, i.id AS auth_identity_id
-FROM password_reset_tokens prt JOIN auth_identities i ON i.account_id = prt.account_id AND i.kind = 'email_password'
+FROM password_reset_tokens prt JOIN auth_identities i ON i.account_id = prt.account_id AND i.kind = 'password'
 WHERE prt.token_digest = $1 AND prt.expires_at > now()
 FOR UPDATE OF prt
 `
@@ -275,25 +714,31 @@ func (q *Queries) GetPasswordResetByDigest(ctx context.Context, tokenDigest []by
 const getSessionPrincipal = `-- name: GetSessionPrincipal :one
 SELECT s.id AS session_id, s.account_id, s.auth_identity_id, s.csrf_digest,
        s.idle_expires_at, s.absolute_expires_at, s.last_seen_at,
-       a.person_id, p.first_name, p.last_name, i.identifier_display AS login_email
+       s.base_assurance, s.current_assurance, s.authenticated_at, s.assurance_expires_at,
+       a.person_id, p.first_name, p.last_name, COALESCE(i.identifier_display, '')::text AS login_email
 FROM sessions s JOIN accounts a ON a.id = s.account_id JOIN people p ON p.id = a.person_id
 JOIN auth_identities i ON i.id = s.auth_identity_id
 WHERE s.token_digest = $1 AND s.revoked_at IS NULL
   AND s.idle_expires_at > now() AND s.absolute_expires_at > now() AND a.status = 'enabled'
+  AND i.disabled_at IS NULL
 `
 
 type GetSessionPrincipalRow struct {
-	SessionID         uuid.UUID
-	AccountID         uuid.UUID
-	AuthIdentityID    uuid.UUID
-	CsrfDigest        []byte
-	IdleExpiresAt     time.Time
-	AbsoluteExpiresAt time.Time
-	LastSeenAt        time.Time
-	PersonID          uuid.UUID
-	FirstName         string
-	LastName          string
-	LoginEmail        string
+	SessionID          uuid.UUID
+	AccountID          uuid.UUID
+	AuthIdentityID     uuid.UUID
+	CsrfDigest         []byte
+	IdleExpiresAt      time.Time
+	AbsoluteExpiresAt  time.Time
+	LastSeenAt         time.Time
+	BaseAssurance      string
+	CurrentAssurance   string
+	AuthenticatedAt    time.Time
+	AssuranceExpiresAt pgtype.Timestamptz
+	PersonID           uuid.UUID
+	FirstName          string
+	LastName           string
+	LoginEmail         string
 }
 
 func (q *Queries) GetSessionPrincipal(ctx context.Context, tokenDigest []byte) (GetSessionPrincipalRow, error) {
@@ -307,12 +752,122 @@ func (q *Queries) GetSessionPrincipal(ctx context.Context, tokenDigest []byte) (
 		&i.IdleExpiresAt,
 		&i.AbsoluteExpiresAt,
 		&i.LastSeenAt,
+		&i.BaseAssurance,
+		&i.CurrentAssurance,
+		&i.AuthenticatedAt,
+		&i.AssuranceExpiresAt,
 		&i.PersonID,
 		&i.FirstName,
 		&i.LastName,
 		&i.LoginEmail,
 	)
 	return i, err
+}
+
+const incrementAuthChallengeFailure = `-- name: IncrementAuthChallengeFailure :exec
+UPDATE auth_challenges SET attempt_count = LEAST(attempt_count + 1, 5)
+WHERE id = $1
+`
+
+func (q *Queries) IncrementAuthChallengeFailure(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, incrementAuthChallengeFailure, id)
+	return err
+}
+
+const markAuthenticationSucceeded = `-- name: MarkAuthenticationSucceeded :exec
+WITH touched_identity AS (
+    UPDATE auth_identities
+    SET last_used_at = now()
+    WHERE auth_identities.id = $2
+)
+UPDATE accounts
+SET first_authenticated_at = COALESCE(first_authenticated_at, now()), updated_at = updated_at
+WHERE accounts.id = $1
+`
+
+type MarkAuthenticationSucceededParams struct {
+	AccountID      uuid.UUID
+	AuthIdentityID uuid.UUID
+}
+
+func (q *Queries) MarkAuthenticationSucceeded(ctx context.Context, arg MarkAuthenticationSucceededParams) error {
+	_, err := q.db.Exec(ctx, markAuthenticationSucceeded, arg.AccountID, arg.AuthIdentityID)
+	return err
+}
+
+const oIDCIdentityUsable = `-- name: OIDCIdentityUsable :one
+SELECT EXISTS (
+    SELECT 1 FROM auth_identities
+    WHERE id = $1 AND account_id = $2
+      AND kind = 'oidc' AND disabled_at IS NULL
+)
+`
+
+type OIDCIdentityUsableParams struct {
+	ID        uuid.UUID
+	AccountID uuid.UUID
+}
+
+func (q *Queries) OIDCIdentityUsable(ctx context.Context, arg OIDCIdentityUsableParams) (bool, error) {
+	row := q.db.QueryRow(ctx, oIDCIdentityUsable, arg.ID, arg.AccountID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const pINThrottleBlocked = `-- name: PINThrottleBlocked :one
+SELECT EXISTS (
+    SELECT 1 FROM pin_login_throttles
+    WHERE dimension = $1 AND key_digest = $2
+      AND blocked_until > now()
+)
+`
+
+type PINThrottleBlockedParams struct {
+	Dimension string
+	KeyDigest []byte
+}
+
+func (q *Queries) PINThrottleBlocked(ctx context.Context, arg PINThrottleBlockedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, pINThrottleBlocked, arg.Dimension, arg.KeyDigest)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const recordPINFailure = `-- name: RecordPINFailure :exec
+INSERT INTO pin_login_throttles (dimension, key_digest, failure_count, blocked_until)
+VALUES ($1, $2, 1, now() + interval '1 second')
+ON CONFLICT (dimension, key_digest) DO UPDATE SET
+    failure_count = LEAST(pin_login_throttles.failure_count + 1, 20),
+    blocked_until = now() + make_interval(secs => LEAST(300, power(2, LEAST(pin_login_throttles.failure_count, 8))::integer)),
+    updated_at = now()
+`
+
+type RecordPINFailureParams struct {
+	Dimension string
+	KeyDigest []byte
+}
+
+func (q *Queries) RecordPINFailure(ctx context.Context, arg RecordPINFailureParams) error {
+	_, err := q.db.Exec(ctx, recordPINFailure, arg.Dimension, arg.KeyDigest)
+	return err
+}
+
+const revokeOtherSessionsForAccount = `-- name: RevokeOtherSessionsForAccount :exec
+UPDATE sessions SET revoked_at = COALESCE(revoked_at, now()), revocation_reason = COALESCE(revocation_reason, $1)
+WHERE account_id = $2 AND id <> $3 AND revoked_at IS NULL
+`
+
+type RevokeOtherSessionsForAccountParams struct {
+	Reason           *string
+	AccountID        uuid.UUID
+	CurrentSessionID uuid.UUID
+}
+
+func (q *Queries) RevokeOtherSessionsForAccount(ctx context.Context, arg RevokeOtherSessionsForAccountParams) error {
+	_, err := q.db.Exec(ctx, revokeOtherSessionsForAccount, arg.Reason, arg.AccountID, arg.CurrentSessionID)
+	return err
 }
 
 const revokeSession = `-- name: RevokeSession :exec
@@ -345,6 +900,23 @@ func (q *Queries) RevokeSessionsForAccount(ctx context.Context, arg RevokeSessio
 	return err
 }
 
+const setAuthChallengeDelivery = `-- name: SetAuthChallengeDelivery :exec
+UPDATE auth_challenges
+SET delivery_status = $1, delivery_attempted_at = now(), delivery_failure_code = $2
+WHERE id = $3 AND delivery_status = 'pending'
+`
+
+type SetAuthChallengeDeliveryParams struct {
+	DeliveryStatus      string
+	DeliveryFailureCode *string
+	ID                  uuid.UUID
+}
+
+func (q *Queries) SetAuthChallengeDelivery(ctx context.Context, arg SetAuthChallengeDeliveryParams) error {
+	_, err := q.db.Exec(ctx, setAuthChallengeDelivery, arg.DeliveryStatus, arg.DeliveryFailureCode, arg.ID)
+	return err
+}
+
 const touchSession = `-- name: TouchSession :exec
 UPDATE sessions SET last_seen_at = now(), idle_expires_at = LEAST($1, absolute_expires_at)
 WHERE id = $2 AND last_seen_at < now() - interval '5 minutes' AND revoked_at IS NULL
@@ -357,6 +929,124 @@ type TouchSessionParams struct {
 
 func (q *Queries) TouchSession(ctx context.Context, arg TouchSessionParams) error {
 	_, err := q.db.Exec(ctx, touchSession, arg.IdleExpiresAt, arg.ID)
+	return err
+}
+
+const updatePINIdentity = `-- name: UpdatePINIdentity :one
+UPDATE auth_identities SET identifier_display = $1,
+    identifier_normalized = $2, disabled_at = NULL, updated_at = now()
+WHERE account_id = $3 AND kind = 'pin'
+RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at
+`
+
+type UpdatePINIdentityParams struct {
+	IdentifierDisplay    *string
+	IdentifierNormalized *string
+	AccountID            uuid.UUID
+}
+
+func (q *Queries) UpdatePINIdentity(ctx context.Context, arg UpdatePINIdentityParams) (AuthIdentity, error) {
+	row := q.db.QueryRow(ctx, updatePINIdentity, arg.IdentifierDisplay, arg.IdentifierNormalized, arg.AccountID)
+	var i AuthIdentity
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Kind,
+		&i.IdentifierDisplay,
+		&i.IdentifierNormalized,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProviderID,
+		&i.Issuer,
+		&i.Subject,
+		&i.VerifiedAt,
+		&i.DisabledAt,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
+const upsertAuthChallenge = `-- name: UpsertAuthChallenge :one
+INSERT INTO auth_challenges (
+    id, kind, account_id, auth_identity_id, code_digest, delivery_address,
+    created_by_account_id, expires_at
+) VALUES (
+    $1, $2, $3, $4,
+    $5, $6, $7, $8
+)
+ON CONFLICT (account_id, kind) DO UPDATE SET
+    id = EXCLUDED.id,
+    auth_identity_id = EXCLUDED.auth_identity_id,
+    code_digest = EXCLUDED.code_digest,
+    delivery_address = EXCLUDED.delivery_address,
+    attempt_count = 0,
+    created_by_account_id = EXCLUDED.created_by_account_id,
+    expires_at = EXCLUDED.expires_at,
+    used_at = NULL,
+    cancelled_at = NULL,
+    delivery_status = 'pending',
+    delivery_attempted_at = NULL,
+    delivery_failure_code = NULL,
+    created_at = now()
+RETURNING id, kind, account_id, auth_identity_id, code_digest, delivery_address, attempt_count, created_by_account_id, expires_at, used_at, cancelled_at, delivery_status, delivery_attempted_at, delivery_failure_code, created_at
+`
+
+type UpsertAuthChallengeParams struct {
+	ID                 uuid.UUID
+	Kind               string
+	AccountID          uuid.UUID
+	AuthIdentityID     *uuid.UUID
+	CodeDigest         []byte
+	DeliveryAddress    string
+	CreatedByAccountID *uuid.UUID
+	ExpiresAt          time.Time
+}
+
+func (q *Queries) UpsertAuthChallenge(ctx context.Context, arg UpsertAuthChallengeParams) (AuthChallenge, error) {
+	row := q.db.QueryRow(ctx, upsertAuthChallenge,
+		arg.ID,
+		arg.Kind,
+		arg.AccountID,
+		arg.AuthIdentityID,
+		arg.CodeDigest,
+		arg.DeliveryAddress,
+		arg.CreatedByAccountID,
+		arg.ExpiresAt,
+	)
+	var i AuthChallenge
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.AccountID,
+		&i.AuthIdentityID,
+		&i.CodeDigest,
+		&i.DeliveryAddress,
+		&i.AttemptCount,
+		&i.CreatedByAccountID,
+		&i.ExpiresAt,
+		&i.UsedAt,
+		&i.CancelledAt,
+		&i.DeliveryStatus,
+		&i.DeliveryAttemptedAt,
+		&i.DeliveryFailureCode,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const upsertPINCredential = `-- name: UpsertPINCredential :exec
+INSERT INTO pin_credentials (auth_identity_id, pin_hash, changed_at)
+VALUES ($1, $2, now())
+ON CONFLICT (auth_identity_id) DO UPDATE SET pin_hash = EXCLUDED.pin_hash, changed_at = now()
+`
+
+type UpsertPINCredentialParams struct {
+	AuthIdentityID uuid.UUID
+	PinHash        string
+}
+
+func (q *Queries) UpsertPINCredential(ctx context.Context, arg UpsertPINCredentialParams) error {
+	_, err := q.db.Exec(ctx, upsertPINCredential, arg.AuthIdentityID, arg.PinHash)
 	return err
 }
 
@@ -373,5 +1063,25 @@ type UpsertPasswordCredentialParams struct {
 
 func (q *Queries) UpsertPasswordCredential(ctx context.Context, arg UpsertPasswordCredentialParams) error {
 	_, err := q.db.Exec(ctx, upsertPasswordCredential, arg.AuthIdentityID, arg.PasswordHash)
+	return err
+}
+
+const useAuthChallenge = `-- name: UseAuthChallenge :exec
+UPDATE auth_challenges SET used_at = now()
+WHERE id = $1 AND used_at IS NULL AND cancelled_at IS NULL
+`
+
+func (q *Queries) UseAuthChallenge(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, useAuthChallenge, id)
+	return err
+}
+
+const verifyPasswordIdentity = `-- name: VerifyPasswordIdentity :exec
+UPDATE auth_identities SET verified_at = COALESCE(verified_at, now()), updated_at = now()
+WHERE id = $1 AND kind = 'password'
+`
+
+func (q *Queries) VerifyPasswordIdentity(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, verifyPasswordIdentity, id)
 	return err
 }

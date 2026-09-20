@@ -41,3 +41,24 @@ RETURNING *;
 -- name: DeletePerson :one
 DELETE FROM people WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING id;
+
+-- name: SetProfileImage :one
+UPDATE people
+SET profile_image_file_id = sqlc.narg(profile_image_file_id),
+    profile_image_source = sqlc.narg(profile_image_source),
+    version = version + 1,
+    updated_at = now()
+WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
+RETURNING *;
+
+-- name: GetProfileImage :one
+SELECT profile_image_file_id, profile_image_source
+FROM people
+WHERE id = sqlc.arg(id);
+
+-- name: PersonRequiresProfileImage :one
+SELECT COALESCE(bool_or(r.profile_image_required), false)::boolean
+FROM accounts a
+LEFT JOIN account_roles ar ON ar.account_id = a.id
+LEFT JOIN roles r ON r.id = ar.role_id
+WHERE a.person_id = sqlc.arg(person_id);

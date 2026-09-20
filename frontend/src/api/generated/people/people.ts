@@ -23,6 +23,8 @@ import type {
   ListPeopleParams,
   Person,
   PersonPage,
+  ProfileImage,
+  PutPersonProfileImageParams,
   UpdatePersonRequest,
   VersionRequest
 } from '.././models';
@@ -158,6 +160,88 @@ export const deletePerson = async (personId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
   
   return apiFetch<void>(getDeletePersonUrl(personId),
+  {      
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      versionRequest,)
+  }
+);}
+
+
+/**
+ * @summary Read a private normalized profile image
+ */
+export const getGetPersonProfileImageUrl = (personId: string,) => {
+
+
+  
+
+  return `/api/v1/people/${personId}/profile-image`
+}
+
+export const getPersonProfileImage = async (personId: string, options?: RequestInit): Promise<Blob> => {
+  
+  return apiFetch<Blob>(getGetPersonProfileImageUrl(personId),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+/**
+ * @summary Validate, normalize, and replace a profile image
+ */
+export const getPutPersonProfileImageUrl = (personId: string,
+    params: PutPersonProfileImageParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/people/${personId}/profile-image?${stringifiedParams}` : `/api/v1/people/${personId}/profile-image`
+}
+
+export const putPersonProfileImage = async (personId: string,
+    putPersonProfileImageBody: Blob,
+    params: PutPersonProfileImageParams, options?: RequestInit): Promise<ProfileImage> => {
+  
+  return apiFetch<ProfileImage>(getPutPersonProfileImageUrl(personId,params),
+  {      
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/octet-stream', ...options?.headers },
+    body: JSON.stringify(
+      putPersonProfileImageBody,)
+  }
+);}
+
+
+/**
+ * @summary Remove a profile image
+ */
+export const getDeletePersonProfileImageUrl = (personId: string,) => {
+
+
+  
+
+  return `/api/v1/people/${personId}/profile-image`
+}
+
+export const deletePersonProfileImage = async (personId: string,
+    versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
+  
+  return apiFetch<void>(getDeletePersonProfileImageUrl(personId),
   {      
     ...options,
     method: 'DELETE',

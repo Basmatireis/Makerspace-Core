@@ -19,9 +19,11 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { Version } from './version';
+import type { ManagedDeviceCredentialDelivery } from './managedDeviceCredentialDelivery';
 
 export interface RotateManagedDeviceTokenRequest {
   /** @nullable */
   expiresAt: string | null;
   expectedVersion: Version;
+  credentialDelivery: ManagedDeviceCredentialDelivery;
 }

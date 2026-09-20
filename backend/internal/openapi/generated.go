@@ -27,13 +27,32 @@ import (
 
 const (
 	CsrfHeaderScopes    = "csrfHeader.Scopes"
+	ScimBearerScopes    = "scimBearer.Scopes"
 	SessionCookieScopes = "sessionCookie.Scopes"
+)
+
+// Defines values for AccountProvisioningSource.
+const (
+	AccountProvisioningSourceInvitation AccountProvisioningSource = "invitation"
+	AccountProvisioningSourceLocal      AccountProvisioningSource = "local"
+	AccountProvisioningSourceOidcJit    AccountProvisioningSource = "oidc_jit"
+	AccountProvisioningSourceScim       AccountProvisioningSource = "scim"
+	AccountProvisioningSourceVisitor    AccountProvisioningSource = "visitor"
 )
 
 // Defines values for AccountStatus.
 const (
-	Disabled AccountStatus = "disabled"
-	Enabled  AccountStatus = "enabled"
+	AccountStatusDisabled AccountStatus = "disabled"
+	AccountStatusEnabled  AccountStatus = "enabled"
+)
+
+// Defines values for AccountSummaryProvisioningSource.
+const (
+	AccountSummaryProvisioningSourceInvitation AccountSummaryProvisioningSource = "invitation"
+	AccountSummaryProvisioningSourceLocal      AccountSummaryProvisioningSource = "local"
+	AccountSummaryProvisioningSourceOidcJit    AccountSummaryProvisioningSource = "oidc_jit"
+	AccountSummaryProvisioningSourceScim       AccountSummaryProvisioningSource = "scim"
+	AccountSummaryProvisioningSourceVisitor    AccountSummaryProvisioningSource = "visitor"
 )
 
 // Defines values for AuditEventSource.
@@ -41,6 +60,21 @@ const (
 	AdminCli AuditEventSource = "admin_cli"
 	Http     AuditEventSource = "http"
 	System   AuditEventSource = "system"
+)
+
+// Defines values for AuthIdentitySummaryKind.
+const (
+	AuthIdentitySummaryKindOidc     AuthIdentitySummaryKind = "oidc"
+	AuthIdentitySummaryKindPassword AuthIdentitySummaryKind = "password"
+	AuthIdentitySummaryKindPin      AuthIdentitySummaryKind = "pin"
+)
+
+// Defines values for AuthenticationAssurance.
+const (
+	Low       AuthenticationAssurance = "low"
+	Normal    AuthenticationAssurance = "normal"
+	Strong    AuthenticationAssurance = "strong"
+	StrongMfa AuthenticationAssurance = "strong_mfa"
 )
 
 // Defines values for CalendarEntryCategory.
@@ -51,14 +85,67 @@ const (
 
 // Defines values for CalendarEntrySource.
 const (
-	HolidayLibrary CalendarEntrySource = "holidayLibrary"
-	Manual         CalendarEntrySource = "manual"
+	CalendarEntrySourceHolidayLibrary CalendarEntrySource = "holidayLibrary"
+	CalendarEntrySourceManual         CalendarEntrySource = "manual"
+)
+
+// Defines values for CreateRoleRequestLaborordnungMode.
+const (
+	CreateRoleRequestLaborordnungModeBlocking    CreateRoleRequestLaborordnungMode = "blocking"
+	CreateRoleRequestLaborordnungModeNotRequired CreateRoleRequestLaborordnungMode = "not_required"
+	CreateRoleRequestLaborordnungModeWarning     CreateRoleRequestLaborordnungMode = "warning"
 )
 
 // Defines values for HealthStatusStatus.
 const (
 	Ok          HealthStatusStatus = "ok"
 	Unavailable HealthStatusStatus = "unavailable"
+)
+
+// Defines values for LaborordnungRequestStatus.
+const (
+	Completed  LaborordnungRequestStatus = "completed"
+	Pending    LaborordnungRequestStatus = "pending"
+	Superseded LaborordnungRequestStatus = "superseded"
+)
+
+// Defines values for LaborordnungStatusMode.
+const (
+	LaborordnungStatusModeBlocking    LaborordnungStatusMode = "blocking"
+	LaborordnungStatusModeNotRequired LaborordnungStatusMode = "not_required"
+	LaborordnungStatusModeWarning     LaborordnungStatusMode = "warning"
+)
+
+// Defines values for LaborordnungStatusState.
+const (
+	LaborordnungStatusStateCurrent            LaborordnungStatusState = "current"
+	LaborordnungStatusStateNoPublishedVersion LaborordnungStatusState = "no_published_version"
+	LaborordnungStatusStateNotRequired        LaborordnungStatusState = "not_required"
+	LaborordnungStatusStateOutdated           LaborordnungStatusState = "outdated"
+)
+
+// Defines values for LaborordnungVersionStatus.
+const (
+	LaborordnungVersionStatusDraft     LaborordnungVersionStatus = "draft"
+	LaborordnungVersionStatusPublished LaborordnungVersionStatus = "published"
+)
+
+// Defines values for MailConfigurationProvider.
+const (
+	Smtp MailConfigurationProvider = "smtp"
+)
+
+// Defines values for MailConfigurationTlsMode.
+const (
+	MailConfigurationTlsModeNone     MailConfigurationTlsMode = "none"
+	MailConfigurationTlsModeStarttls MailConfigurationTlsMode = "starttls"
+	MailConfigurationTlsModeTls      MailConfigurationTlsMode = "tls"
+)
+
+// Defines values for ManagedDeviceCredentialDelivery.
+const (
+	BindBrowser ManagedDeviceCredentialDelivery = "bindBrowser"
+	NativeToken ManagedDeviceCredentialDelivery = "nativeToken"
 )
 
 // Defines values for ManagedDeviceStatus.
@@ -70,10 +157,10 @@ const (
 
 // Defines values for OpenDayPeriodStatus.
 const (
-	Archived  OpenDayPeriodStatus = "archived"
-	Draft     OpenDayPeriodStatus = "draft"
-	Published OpenDayPeriodStatus = "published"
-	Staffing  OpenDayPeriodStatus = "staffing"
+	OpenDayPeriodStatusArchived  OpenDayPeriodStatus = "archived"
+	OpenDayPeriodStatusDraft     OpenDayPeriodStatus = "draft"
+	OpenDayPeriodStatusPublished OpenDayPeriodStatus = "published"
+	OpenDayPeriodStatusStaffing  OpenDayPeriodStatus = "staffing"
 )
 
 // Defines values for OpenDayRequirementKind.
@@ -86,6 +173,12 @@ const (
 const (
 	Cancelled OpenDayStatus = "cancelled"
 	Scheduled OpenDayStatus = "scheduled"
+)
+
+// Defines values for PasswordResetIssueDeliveryStatus.
+const (
+	PasswordResetIssueDeliveryStatusManual PasswordResetIssueDeliveryStatus = "manual"
+	PasswordResetIssueDeliveryStatusSent   PasswordResetIssueDeliveryStatus = "sent"
 )
 
 // Defines values for PasswordStatus.
@@ -104,33 +197,66 @@ const (
 
 // Defines values for PermissionId.
 const (
-	AccountsCreate            PermissionId = "accounts.create"
-	AccountsDelete            PermissionId = "accounts.delete"
-	AccountsDisable           PermissionId = "accounts.disable"
-	AccountsEnable            PermissionId = "accounts.enable"
-	AccountsLoginEmailUpdate  PermissionId = "accounts.login_email.update"
-	AccountsPasswordReset     PermissionId = "accounts.password.reset"
-	AccountsPasswordSet       PermissionId = "accounts.password.set"
-	AccountsRead              PermissionId = "accounts.read"
-	AccountsRolesAssign       PermissionId = "accounts.roles.assign"
-	AuditRead                 PermissionId = "audit.read"
-	ManagedDevicesManage      PermissionId = "managed_devices.manage"
-	ManagedDevicesRead        PermissionId = "managed_devices.read"
-	OpenDaysAssign            PermissionId = "open_days.assign"
-	OpenDaysManage            PermissionId = "open_days.manage"
-	OpenDaysRead              PermissionId = "open_days.read"
-	OpenDaysReadAssignments   PermissionId = "open_days.read_assignments"
-	OpenDaysSignup            PermissionId = "open_days.signup"
-	PeopleCreate              PermissionId = "people.create"
-	PeopleDelete              PermissionId = "people.delete"
-	PeopleReadAll             PermissionId = "people.read.all"
-	PeopleReadMatriculation   PermissionId = "people.read.matriculation"
-	PeopleReadSelf            PermissionId = "people.read.self"
-	PeopleUpdateAll           PermissionId = "people.update.all"
-	PeopleUpdateMatriculation PermissionId = "people.update.matriculation"
-	PeopleUpdateSelf          PermissionId = "people.update.self"
-	RolesManage               PermissionId = "roles.manage"
-	RolesRead                 PermissionId = "roles.read"
+	AccountsCreate               PermissionId = "accounts.create"
+	AccountsDelete               PermissionId = "accounts.delete"
+	AccountsDisable              PermissionId = "accounts.disable"
+	AccountsEnable               PermissionId = "accounts.enable"
+	AccountsLoginEmailUpdate     PermissionId = "accounts.login_email.update"
+	AccountsPasswordEnrollAll    PermissionId = "accounts.password.enroll.all"
+	AccountsPasswordEnrollSelf   PermissionId = "accounts.password.enroll.self"
+	AccountsPasswordRemoveAll    PermissionId = "accounts.password.remove.all"
+	AccountsPasswordRemoveSelf   PermissionId = "accounts.password.remove.self"
+	AccountsPasswordReset        PermissionId = "accounts.password.reset"
+	AccountsPasswordSet          PermissionId = "accounts.password.set"
+	AccountsPinEnrollAll         PermissionId = "accounts.pin.enroll.all"
+	AccountsPinEnrollSelf        PermissionId = "accounts.pin.enroll.self"
+	AccountsPinRemoveAll         PermissionId = "accounts.pin.remove.all"
+	AccountsPinRemoveSelf        PermissionId = "accounts.pin.remove.self"
+	AccountsPinReset             PermissionId = "accounts.pin.reset"
+	AccountsRead                 PermissionId = "accounts.read"
+	AccountsRolesAssign          PermissionId = "accounts.roles.assign"
+	AuditRead                    PermissionId = "audit.read"
+	IdentitiesOidcLinkAll        PermissionId = "identities.oidc.link.all"
+	IdentitiesOidcLinkSelf       PermissionId = "identities.oidc.link.self"
+	IdentitiesOidcUnlinkAll      PermissionId = "identities.oidc.unlink.all"
+	IdentitiesOidcUnlinkSelf     PermissionId = "identities.oidc.unlink.self"
+	LaborordnungConfirm          PermissionId = "laborordnung.confirm"
+	LaborordnungManage           PermissionId = "laborordnung.manage"
+	LaborordnungRead             PermissionId = "laborordnung.read"
+	LaborordnungRequestsRead     PermissionId = "laborordnung.requests.read"
+	MailManage                   PermissionId = "mail.manage"
+	ManagedDevicesManage         PermissionId = "managed_devices.manage"
+	ManagedDevicesRead           PermissionId = "managed_devices.read"
+	OidcManage                   PermissionId = "oidc.manage"
+	OpenDaysAssign               PermissionId = "open_days.assign"
+	OpenDaysManage               PermissionId = "open_days.manage"
+	OpenDaysRead                 PermissionId = "open_days.read"
+	OpenDaysReadAssignments      PermissionId = "open_days.read_assignments"
+	OpenDaysSignup               PermissionId = "open_days.signup"
+	PeopleCreate                 PermissionId = "people.create"
+	PeopleDelete                 PermissionId = "people.delete"
+	PeopleProfileImageRemoveAll  PermissionId = "people.profile_image.remove.all"
+	PeopleProfileImageRemoveSelf PermissionId = "people.profile_image.remove.self"
+	PeopleProfileImageUpdateAll  PermissionId = "people.profile_image.update.all"
+	PeopleProfileImageUpdateSelf PermissionId = "people.profile_image.update.self"
+	PeopleReadAll                PermissionId = "people.read.all"
+	PeopleReadMatriculation      PermissionId = "people.read.matriculation"
+	PeopleReadSelf               PermissionId = "people.read.self"
+	PeopleUpdateAll              PermissionId = "people.update.all"
+	PeopleUpdateMatriculation    PermissionId = "people.update.matriculation"
+	PeopleUpdateSelf             PermissionId = "people.update.self"
+	RolesManage                  PermissionId = "roles.manage"
+	RolesRead                    PermissionId = "roles.read"
+	ScimManage                   PermissionId = "scim.manage"
+	SupervisorDashboardRead      PermissionId = "supervisor_dashboard.read"
+	VisitorEnrollmentManage      PermissionId = "visitor_enrollment.manage"
+)
+
+// Defines values for ProfileImageSource.
+const (
+	ProfileImageSourceAdminUpload     ProfileImageSource = "admin_upload"
+	ProfileImageSourceSelfUpload      ProfileImageSource = "self_upload"
+	ProfileImageSourceTerminalCapture ProfileImageSource = "terminal_capture"
 )
 
 // Defines values for PublicOpenDayTitle.
@@ -146,6 +272,13 @@ const (
 	RecurrenceOccurrenceDispositionPublicHoliday RecurrenceOccurrenceDisposition = "publicHoliday"
 )
 
+// Defines values for RoleLaborordnungMode.
+const (
+	RoleLaborordnungModeBlocking    RoleLaborordnungMode = "blocking"
+	RoleLaborordnungModeNotRequired RoleLaborordnungMode = "not_required"
+	RoleLaborordnungModeWarning     RoleLaborordnungMode = "warning"
+)
+
 // Defines values for RoleSystemKey.
 const (
 	RoleSystemKeyMaster RoleSystemKey = "master"
@@ -154,6 +287,85 @@ const (
 // Defines values for RoleSummarySystemKey.
 const (
 	RoleSummarySystemKeyMaster RoleSummarySystemKey = "master"
+)
+
+// Defines values for SCIMMetaResourceType.
+const (
+	User SCIMMetaResourceType = "User"
+)
+
+// Defines values for SCIMPatchOperationOp.
+const (
+	Add     SCIMPatchOperationOp = "add"
+	Remove  SCIMPatchOperationOp = "remove"
+	Replace SCIMPatchOperationOp = "replace"
+)
+
+// Defines values for SupervisorPeriodStatus.
+const (
+	Published SupervisorPeriodStatus = "published"
+	Staffing  SupervisorPeriodStatus = "staffing"
+)
+
+// Defines values for SupervisorRowLaborordnungState.
+const (
+	SupervisorRowLaborordnungStateCurrent            SupervisorRowLaborordnungState = "current"
+	SupervisorRowLaborordnungStateNoPublishedVersion SupervisorRowLaborordnungState = "no_published_version"
+	SupervisorRowLaborordnungStateNotRequired        SupervisorRowLaborordnungState = "not_required"
+	SupervisorRowLaborordnungStateOutdated           SupervisorRowLaborordnungState = "outdated"
+)
+
+// Defines values for UpdateMailConfigurationRequestTlsMode.
+const (
+	UpdateMailConfigurationRequestTlsModeNone     UpdateMailConfigurationRequestTlsMode = "none"
+	UpdateMailConfigurationRequestTlsModeStarttls UpdateMailConfigurationRequestTlsMode = "starttls"
+	UpdateMailConfigurationRequestTlsModeTls      UpdateMailConfigurationRequestTlsMode = "tls"
+)
+
+// Defines values for UpdateRoleRequestLaborordnungMode.
+const (
+	UpdateRoleRequestLaborordnungModeBlocking    UpdateRoleRequestLaborordnungMode = "blocking"
+	UpdateRoleRequestLaborordnungModeNotRequired UpdateRoleRequestLaborordnungMode = "not_required"
+	UpdateRoleRequestLaborordnungModeWarning     UpdateRoleRequestLaborordnungMode = "warning"
+)
+
+// Defines values for VisitorAdmissionResultDecision.
+const (
+	VisitorAdmissionResultDecisionAdmitted VisitorAdmissionResultDecision = "admitted"
+	VisitorAdmissionResultDecisionBlocked  VisitorAdmissionResultDecision = "blocked"
+	VisitorAdmissionResultDecisionWarning  VisitorAdmissionResultDecision = "warning"
+)
+
+// Defines values for VisitorAuthenticationMethod.
+const (
+	VisitorAuthenticationMethodPassword VisitorAuthenticationMethod = "password"
+	VisitorAuthenticationMethodPin      VisitorAuthenticationMethod = "pin"
+)
+
+// Defines values for VisitorEnrollmentResultAccountStatus.
+const (
+	VisitorEnrollmentResultAccountStatusDisabled VisitorEnrollmentResultAccountStatus = "disabled"
+	VisitorEnrollmentResultAccountStatusEnabled  VisitorEnrollmentResultAccountStatus = "enabled"
+)
+
+// Defines values for VisitorEnrollmentResultAdmission.
+const (
+	VisitorEnrollmentResultAdmissionAdmitted VisitorEnrollmentResultAdmission = "admitted"
+	VisitorEnrollmentResultAdmissionBlocked  VisitorEnrollmentResultAdmission = "blocked"
+	VisitorEnrollmentResultAdmissionWarning  VisitorEnrollmentResultAdmission = "warning"
+)
+
+// Defines values for VisitorEnrollmentResultInvitationDelivery.
+const (
+	Failed VisitorEnrollmentResultInvitationDelivery = "failed"
+	Sent   VisitorEnrollmentResultInvitationDelivery = "sent"
+)
+
+// Defines values for PutPersonProfileImageParamsXProfileImageSource.
+const (
+	PutPersonProfileImageParamsXProfileImageSourceAdminUpload     PutPersonProfileImageParamsXProfileImageSource = "admin_upload"
+	PutPersonProfileImageParamsXProfileImageSourceSelfUpload      PutPersonProfileImageParamsXProfileImageSource = "self_upload"
+	PutPersonProfileImageParamsXProfileImageSourceTerminalCapture PutPersonProfileImageParamsXProfileImageSource = "terminal_capture"
 )
 
 // AcademicBreak defines model for AcademicBreak.
@@ -173,41 +385,58 @@ type AcademicBreak struct {
 
 // Account defines model for Account.
 type Account struct {
-	CreatedAt time.Time `json:"createdAt"`
+	AuthIdentities       []AuthIdentitySummary        `json:"authIdentities"`
+	CreatedAt            time.Time                    `json:"createdAt"`
+	FirstAuthenticatedAt nullable.Nullable[time.Time] `json:"firstAuthenticatedAt"`
 
 	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
-	Id             UUIDv7         `json:"id"`
-	LoginEmail     Email          `json:"loginEmail"`
-	PasswordStatus PasswordStatus `json:"passwordStatus"`
+	Id UUIDv7 `json:"id"`
+	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
+	LoginEmail     nullable.Nullable[Email] `json:"loginEmail"`
+	PasswordStatus PasswordStatus           `json:"passwordStatus"`
 
 	// PersonId Lowercase RFC 9562 UUID version 7 generated by the application.
-	PersonId  UUIDv7        `json:"personId"`
-	Roles     []RoleSummary `json:"roles"`
-	Status    AccountStatus `json:"status"`
-	UpdatedAt time.Time     `json:"updatedAt"`
+	PersonId           UUIDv7                    `json:"personId"`
+	ProvisioningSource AccountProvisioningSource `json:"provisioningSource"`
+	Roles              []RoleSummary             `json:"roles"`
+	Status             AccountStatus             `json:"status"`
+	UpdatedAt          time.Time                 `json:"updatedAt"`
 
 	// Version Optimistic-concurrency version.
 	Version Version `json:"version"`
 }
+
+// AccountProvisioningSource defines model for Account.ProvisioningSource.
+type AccountProvisioningSource string
 
 // AccountStatus defines model for AccountStatus.
 type AccountStatus string
 
 // AccountSummary defines model for AccountSummary.
 type AccountSummary struct {
+	AuthIdentities       []AuthIdentitySummary        `json:"authIdentities"`
+	FirstAuthenticatedAt nullable.Nullable[time.Time] `json:"firstAuthenticatedAt"`
+
 	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
-	Id             UUIDv7         `json:"id"`
-	LoginEmail     Email          `json:"loginEmail"`
-	PasswordStatus PasswordStatus `json:"passwordStatus"`
+	Id UUIDv7 `json:"id"`
+
+	// LoginEmail Compatibility view of the local password identifier; use authIdentities.
+	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
+	LoginEmail     nullable.Nullable[Email] `json:"loginEmail"`
+	PasswordStatus PasswordStatus           `json:"passwordStatus"`
 
 	// PersonId Lowercase RFC 9562 UUID version 7 generated by the application.
-	PersonId UUIDv7        `json:"personId"`
-	Roles    []RoleSummary `json:"roles"`
-	Status   AccountStatus `json:"status"`
+	PersonId           UUIDv7                           `json:"personId"`
+	ProvisioningSource AccountSummaryProvisioningSource `json:"provisioningSource"`
+	Roles              []RoleSummary                    `json:"roles"`
+	Status             AccountStatus                    `json:"status"`
 
 	// Version Optimistic-concurrency version.
 	Version Version `json:"version"`
 }
+
+// AccountSummaryProvisioningSource defines model for AccountSummary.ProvisioningSource.
+type AccountSummaryProvisioningSource string
 
 // AssignOpenDayPersonRequest defines model for AssignOpenDayPersonRequest.
 type AssignOpenDayPersonRequest struct {
@@ -251,6 +480,24 @@ type AuditEventPage struct {
 	NextCursor nullable.Nullable[string] `json:"nextCursor,omitempty"`
 }
 
+// AuthIdentitySummary defines model for AuthIdentitySummary.
+type AuthIdentitySummary struct {
+	CreatedAt         time.Time                    `json:"createdAt"`
+	DisabledAt        nullable.Nullable[time.Time] `json:"disabledAt"`
+	DisplayIdentifier nullable.Nullable[string]    `json:"displayIdentifier"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id         UUIDv7                       `json:"id"`
+	Kind       AuthIdentitySummaryKind      `json:"kind"`
+	VerifiedAt nullable.Nullable[time.Time] `json:"verifiedAt"`
+}
+
+// AuthIdentitySummaryKind defines model for AuthIdentitySummary.Kind.
+type AuthIdentitySummaryKind string
+
+// AuthenticationAssurance Ordered authentication assurance required by a permission grant or held by a session.
+type AuthenticationAssurance string
+
 // CalendarEntry defines model for CalendarEntry.
 type CalendarEntry struct {
 	Category CalendarEntryCategory `json:"category"`
@@ -276,10 +523,46 @@ type ChangeOwnPasswordRequest struct {
 	NewPassword     *NewPassword      `json:"newPassword,omitempty"`
 }
 
+// CompleteEmailVerificationRequest defines model for CompleteEmailVerificationRequest.
+type CompleteEmailVerificationRequest struct {
+	Code  string `json:"code"`
+	Email Email  `json:"email"`
+}
+
+// CompleteInvitationRequest defines model for CompleteInvitationRequest.
+type CompleteInvitationRequest struct {
+	Code        string       `json:"code"`
+	Email       Email        `json:"email"`
+	NewPassword *NewPassword `json:"newPassword,omitempty"`
+}
+
+// CompletePasswordResetCodeRequest defines model for CompletePasswordResetCodeRequest.
+type CompletePasswordResetCodeRequest struct {
+	Code        string       `json:"code"`
+	Email       Email        `json:"email"`
+	NewPassword *NewPassword `json:"newPassword,omitempty"`
+}
+
 // CompletePasswordResetRequest defines model for CompletePasswordResetRequest.
 type CompletePasswordResetRequest struct {
 	NewPassword *NewPassword `json:"newPassword,omitempty"`
 	Token       *string      `json:"token,omitempty"`
+}
+
+// CompletePinEnrollmentRequest defines model for CompletePinEnrollmentRequest.
+type CompletePinEnrollmentRequest struct {
+	// AccountId Lowercase RFC 9562 UUID version 7 generated by the application.
+	AccountId UUIDv7  `json:"accountId"`
+	Code      string  `json:"code"`
+	LoginName string  `json:"loginName"`
+	Pin       *string `json:"pin,omitempty"`
+}
+
+// ConfirmLaborordnungRequest defines model for ConfirmLaborordnungRequest.
+type ConfirmLaborordnungRequest struct {
+	ArchiveNote               nullable.Nullable[string]             `json:"archiveNote,omitempty"`
+	PhysicalDocumentReference string                                `json:"physicalDocumentReference"`
+	SignedDate                nullable.Nullable[openapi_types.Date] `json:"signedDate,omitempty"`
 }
 
 // CreateAcademicBreakRequest defines model for CreateAcademicBreakRequest.
@@ -292,12 +575,14 @@ type CreateAcademicBreakRequest struct {
 // CreateAccountRequest defines model for CreateAccountRequest.
 type CreateAccountRequest struct {
 	// ExpectedVersion Expected version of the owning person loaded by the caller.
-	ExpectedVersion Version `json:"expectedVersion"`
-	LoginEmail      Email   `json:"loginEmail"`
+	ExpectedVersion Version                  `json:"expectedVersion"`
+	LoginEmail      nullable.Nullable[Email] `json:"loginEmail"`
 }
 
 // CreateManagedDeviceRequest defines model for CreateManagedDeviceRequest.
 type CreateManagedDeviceRequest struct {
+	CredentialDelivery ManagedDeviceCredentialDelivery `json:"credentialDelivery"`
+
 	// DeviceTypeId Lowercase RFC 9562 UUID version 7 generated by the application.
 	DeviceTypeId UUIDv7                       `json:"deviceTypeId"`
 	ExpiresAt    nullable.Nullable[time.Time] `json:"expiresAt"`
@@ -308,6 +593,18 @@ type CreateManagedDeviceRequest struct {
 type CreateManagedDeviceTypeRequest struct {
 	Description nullable.Nullable[string] `json:"description,omitempty"`
 	Name        string                    `json:"name"`
+}
+
+// CreateOIDCProviderRequest defines model for CreateOIDCProviderRequest.
+type CreateOIDCProviderRequest struct {
+	AcrAssuranceMappings map[string]AuthenticationAssurance `json:"acrAssuranceMappings"`
+	ClientId             string                             `json:"clientId"`
+	ClientSecret         *string                            `json:"clientSecret,omitempty"`
+	DisplayName          string                             `json:"displayName"`
+	Enabled              bool                               `json:"enabled"`
+	Issuer               string                             `json:"issuer"`
+	JitEnabled           bool                               `json:"jitEnabled"`
+	Slug                 string                             `json:"slug"`
 }
 
 // CreateOpenDayPeriodRequest defines model for CreateOpenDayPeriodRequest.
@@ -339,15 +636,33 @@ type CreatePersonRequest struct {
 
 // CreateRoleRequest defines model for CreateRoleRequest.
 type CreateRoleRequest struct {
-	Description      nullable.Nullable[string] `json:"description,omitempty"`
-	Name             string                    `json:"name"`
-	PermissionGrants []PermissionGrant         `json:"permissionGrants"`
+	Description          nullable.Nullable[string]          `json:"description,omitempty"`
+	LaborordnungMode     *CreateRoleRequestLaborordnungMode `json:"laborordnungMode,omitempty"`
+	Name                 string                             `json:"name"`
+	PermissionGrants     []PermissionGrant                  `json:"permissionGrants"`
+	ProfileImageRequired *bool                              `json:"profileImageRequired,omitempty"`
+	SupervisorDashboard  *bool                              `json:"supervisorDashboard,omitempty"`
+}
+
+// CreateRoleRequestLaborordnungMode defines model for CreateRoleRequest.LaborordnungMode.
+type CreateRoleRequestLaborordnungMode string
+
+// CreateSCIMConnectorRequest defines model for CreateSCIMConnectorRequest.
+type CreateSCIMConnectorRequest struct {
+	Enabled        bool                      `json:"enabled"`
+	Name           string                    `json:"name"`
+	OidcProviderId nullable.Nullable[UUIDv7] `json:"oidcProviderId"`
+	TokenExpiresAt time.Time                 `json:"tokenExpiresAt"`
 }
 
 // CurrentUser defines model for CurrentUser.
 type CurrentUser struct {
-	Account                   Account                                 `json:"account"`
+	Account Account `json:"account"`
+
+	// AuthenticationAssurance Ordered authentication assurance required by a permission grant or held by a session.
+	AuthenticationAssurance   AuthenticationAssurance                 `json:"authenticationAssurance"`
 	DelegablePermissionGrants []PermissionGrant                       `json:"delegablePermissionGrants"`
+	LaborordnungStatus        LaborordnungStatus                      `json:"laborordnungStatus"`
 	ManagedDevice             nullable.Nullable[ManagedDeviceContext] `json:"managedDevice"`
 	Permissions               []PermissionId                          `json:"permissions"`
 	Person                    Person                                  `json:"person"`
@@ -372,6 +687,12 @@ type EligiblePersonList struct {
 
 // Email defines model for Email.
 type Email = openapi_types.Email
+
+// EnrollPinRequest defines model for EnrollPinRequest.
+type EnrollPinRequest struct {
+	LoginName string  `json:"loginName"`
+	Pin       *string `json:"pin,omitempty"`
+}
 
 // Error defines model for Error.
 type Error struct {
@@ -403,6 +724,73 @@ type JoinOpenDayRequest struct {
 	RequirementId UUIDv7 `json:"requirementId"`
 }
 
+// LaborordnungRequest defines model for LaborordnungRequest.
+type LaborordnungRequest struct {
+	ArchiveNote nullable.Nullable[string]    `json:"archiveNote"`
+	CompletedAt nullable.Nullable[time.Time] `json:"completedAt"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id UUIDv7 `json:"id"`
+
+	// PersonId Lowercase RFC 9562 UUID version 7 generated by the application.
+	PersonId                  UUIDv7                                 `json:"personId"`
+	PersonName                string                                 `json:"personName"`
+	PhysicalDocumentReference nullable.Nullable[string]              `json:"physicalDocumentReference"`
+	PreviousVersion           nullable.Nullable[LaborordnungVersion] `json:"previousVersion"`
+	RequestedAt               time.Time                              `json:"requestedAt"`
+	RequiredVersion           LaborordnungVersion                    `json:"requiredVersion"`
+	SignedDate                nullable.Nullable[openapi_types.Date]  `json:"signedDate"`
+	Status                    LaborordnungRequestStatus              `json:"status"`
+}
+
+// LaborordnungRequestStatus defines model for LaborordnungRequest.Status.
+type LaborordnungRequestStatus string
+
+// LaborordnungRequestList defines model for LaborordnungRequestList.
+type LaborordnungRequestList struct {
+	Items []LaborordnungRequest `json:"items"`
+}
+
+// LaborordnungStatus defines model for LaborordnungStatus.
+type LaborordnungStatus struct {
+	ActionRequired         bool                                   `json:"actionRequired"`
+	CurrentVersion         nullable.Nullable[LaborordnungVersion] `json:"currentVersion"`
+	LatestConfirmedVersion nullable.Nullable[LaborordnungVersion] `json:"latestConfirmedVersion"`
+	Mode                   LaborordnungStatusMode                 `json:"mode"`
+	RequestId              nullable.Nullable[UUIDv7]              `json:"requestId"`
+	State                  LaborordnungStatusState                `json:"state"`
+}
+
+// LaborordnungStatusMode defines model for LaborordnungStatus.Mode.
+type LaborordnungStatusMode string
+
+// LaborordnungStatusState defines model for LaborordnungStatus.State.
+type LaborordnungStatusState string
+
+// LaborordnungVersion defines model for LaborordnungVersion.
+type LaborordnungVersion struct {
+	CreatedAt     time.Time                    `json:"createdAt"`
+	EffectiveAt   nullable.Nullable[time.Time] `json:"effectiveAt"`
+	HumanRevision string                       `json:"humanRevision"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id UUIDv7 `json:"id"`
+
+	// PdfFileId Lowercase RFC 9562 UUID version 7 generated by the application.
+	PdfFileId   UUIDv7                       `json:"pdfFileId"`
+	PublishedAt nullable.Nullable[time.Time] `json:"publishedAt"`
+	Sha256      string                       `json:"sha256"`
+	Status      LaborordnungVersionStatus    `json:"status"`
+}
+
+// LaborordnungVersionStatus defines model for LaborordnungVersion.Status.
+type LaborordnungVersionStatus string
+
+// LaborordnungVersionList defines model for LaborordnungVersionList.
+type LaborordnungVersionList struct {
+	Items []LaborordnungVersion `json:"items"`
+}
+
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
 	Email Email `json:"email"`
@@ -410,6 +798,30 @@ type LoginRequest struct {
 	// Password Opaque existing secret. Transport decoding also enforces a 1024-byte request-field limit.
 	Password *ExistingPassword `json:"password,omitempty"`
 }
+
+// MailConfiguration defines model for MailConfiguration.
+type MailConfiguration struct {
+	BaseUrl            string                    `json:"baseUrl"`
+	Enabled            bool                      `json:"enabled"`
+	FromAddress        string                    `json:"fromAddress"`
+	FromName           string                    `json:"fromName"`
+	Host               string                    `json:"host"`
+	PasswordConfigured bool                      `json:"passwordConfigured"`
+	Port               int                       `json:"port"`
+	Provider           MailConfigurationProvider `json:"provider"`
+	TlsMode            MailConfigurationTlsMode  `json:"tlsMode"`
+	UpdatedAt          time.Time                 `json:"updatedAt"`
+	Username           string                    `json:"username"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// MailConfigurationProvider defines model for MailConfiguration.Provider.
+type MailConfigurationProvider string
+
+// MailConfigurationTlsMode defines model for MailConfiguration.TlsMode.
+type MailConfigurationTlsMode string
 
 // ManagedDevice defines model for ManagedDevice.
 type ManagedDevice struct {
@@ -443,6 +855,9 @@ type ManagedDeviceContext struct {
 	Id   UUIDv7 `json:"id"`
 	Name string `json:"name"`
 }
+
+// ManagedDeviceCredentialDelivery defines model for ManagedDeviceCredentialDelivery.
+type ManagedDeviceCredentialDelivery string
 
 // ManagedDeviceList defines model for ManagedDeviceList.
 type ManagedDeviceList struct {
@@ -490,6 +905,52 @@ type MinimalPerson struct {
 
 // NewPassword defines model for NewPassword.
 type NewPassword = string
+
+// OIDCFlowStart defines model for OIDCFlowStart.
+type OIDCFlowStart struct {
+	AuthorizationUrl string `json:"authorizationUrl"`
+}
+
+// OIDCLinkRequest defines model for OIDCLinkRequest.
+type OIDCLinkRequest struct {
+	// CurrentPassword Opaque existing secret. Transport decoding also enforces a 1024-byte request-field limit.
+	CurrentPassword *ExistingPassword `json:"currentPassword,omitempty"`
+}
+
+// OIDCLoginProvider defines model for OIDCLoginProvider.
+type OIDCLoginProvider struct {
+	DisplayName string `json:"displayName"`
+	Slug        string `json:"slug"`
+}
+
+// OIDCLoginProviderList defines model for OIDCLoginProviderList.
+type OIDCLoginProviderList struct {
+	Items []OIDCLoginProvider `json:"items"`
+}
+
+// OIDCProvider defines model for OIDCProvider.
+type OIDCProvider struct {
+	AcrAssuranceMappings map[string]AuthenticationAssurance `json:"acrAssuranceMappings"`
+	ClientId             string                             `json:"clientId"`
+	CreatedAt            time.Time                          `json:"createdAt"`
+	DisplayName          string                             `json:"displayName"`
+	Enabled              bool                               `json:"enabled"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id         UUIDv7    `json:"id"`
+	Issuer     string    `json:"issuer"`
+	JitEnabled bool      `json:"jitEnabled"`
+	Slug       string    `json:"slug"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// OIDCProviderList defines model for OIDCProviderList.
+type OIDCProviderList struct {
+	Items []OIDCProvider `json:"items"`
+}
 
 // OpenDay defines model for OpenDay.
 type OpenDay struct {
@@ -606,12 +1067,16 @@ type OpenDayStatus string
 
 // PasswordResetIssue defines model for PasswordResetIssue.
 type PasswordResetIssue struct {
-	Account   Account   `json:"account"`
-	ExpiresAt time.Time `json:"expiresAt"`
+	Account        Account                          `json:"account"`
+	DeliveryStatus PasswordResetIssueDeliveryStatus `json:"deliveryStatus"`
+	ExpiresAt      time.Time                        `json:"expiresAt"`
 
-	// ResetUrl One-time frontend URL containing the token in its fragment. Treat as a secret.
-	ResetUrl *string `json:"resetUrl,omitempty"`
+	// SetupUrl One-time relative setup URL returned only to an authorized administrator when mail is not configured.
+	SetupUrl nullable.Nullable[string] `json:"setupUrl"`
 }
+
+// PasswordResetIssueDeliveryStatus defines model for PasswordResetIssue.DeliveryStatus.
+type PasswordResetIssueDeliveryStatus string
 
 // PasswordStatus defines model for PasswordStatus.
 type PasswordStatus string
@@ -624,9 +1089,13 @@ type Permission struct {
 
 // PermissionGrant defines model for PermissionGrant.
 type PermissionGrant struct {
-	DeviceTypeIds []UUIDv7             `json:"deviceTypeIds"`
-	PermissionId  PermissionId         `json:"permissionId"`
-	Scope         PermissionGrantScope `json:"scope"`
+	DeviceTypeIds []UUIDv7 `json:"deviceTypeIds"`
+	Id            *UUIDv7  `json:"id,omitempty"`
+
+	// MinimumAssurance Ordered authentication assurance required by a permission grant or held by a session.
+	MinimumAssurance AuthenticationAssurance `json:"minimumAssurance"`
+	PermissionId     PermissionId            `json:"permissionId"`
+	Scope            PermissionGrantScope    `json:"scope"`
 }
 
 // PermissionGrantScope defines model for PermissionGrant.Scope.
@@ -651,9 +1120,13 @@ type Person struct {
 	MatriculationNumber nullable.Nullable[string] `json:"matriculationNumber,omitempty"`
 	Phone               nullable.Nullable[string] `json:"phone,omitempty"`
 
-	// PhotoReference Reserved response-only reference; photo upload/storage is not implemented in v1.
-	PhotoReference nullable.Nullable[string] `json:"photoReference,omitempty"`
-	UpdatedAt      time.Time                 `json:"updatedAt"`
+	// PhotoReference Read-only legacy metadata preserved until a managed profile image replaces it.
+	PhotoReference nullable.Nullable[string]       `json:"photoReference,omitempty"`
+	ProfileImage   nullable.Nullable[ProfileImage] `json:"profileImage,omitempty"`
+
+	// ProfileImageRequired True when any assigned Role requires a profile image.
+	ProfileImageRequired *bool     `json:"profileImageRequired,omitempty"`
+	UpdatedAt            time.Time `json:"updatedAt"`
 
 	// Version Optimistic-concurrency version.
 	Version Version `json:"version"`
@@ -666,6 +1139,24 @@ type PersonPage struct {
 	PageSize int      `json:"pageSize"`
 	Total    int64    `json:"total"`
 }
+
+// PinLoginRequest defines model for PinLoginRequest.
+type PinLoginRequest struct {
+	LoginName string  `json:"loginName"`
+	Pin       *string `json:"pin,omitempty"`
+}
+
+// ProfileImage defines model for ProfileImage.
+type ProfileImage struct {
+	DownloadUrl string `json:"downloadUrl"`
+
+	// FileId Lowercase RFC 9562 UUID version 7 generated by the application.
+	FileId UUIDv7             `json:"fileId"`
+	Source ProfileImageSource `json:"source"`
+}
+
+// ProfileImageSource defines model for ProfileImage.Source.
+type ProfileImageSource string
 
 // PublicOpenDay defines model for PublicOpenDay.
 type PublicOpenDay struct {
@@ -685,6 +1176,11 @@ type PublicOpenDayTitle string
 // PublicOpenDayList defines model for PublicOpenDayList.
 type PublicOpenDayList struct {
 	Items []PublicOpenDay `json:"items"`
+}
+
+// PublishLaborordnungRequest defines model for PublishLaborordnungRequest.
+type PublishLaborordnungRequest struct {
+	EffectiveAt time.Time `json:"effectiveAt"`
 }
 
 // RecurrenceOccurrence defines model for RecurrenceOccurrence.
@@ -718,11 +1214,22 @@ type RecurrencePreviewRequest struct {
 	Weekday int `json:"weekday"`
 }
 
+// RemoveOwnPasswordRequest defines model for RemoveOwnPasswordRequest.
+type RemoveOwnPasswordRequest struct {
+	// CurrentPassword Opaque existing secret. Transport decoding also enforces a 1024-byte request-field limit.
+	CurrentPassword *ExistingPassword `json:"currentPassword,omitempty"`
+}
+
 // ReplaceRolePermissionsRequest defines model for ReplaceRolePermissionsRequest.
 type ReplaceRolePermissionsRequest struct {
 	// ExpectedVersion Optimistic-concurrency version.
 	ExpectedVersion  Version           `json:"expectedVersion"`
 	PermissionGrants []PermissionGrant `json:"permissionGrants"`
+}
+
+// RequestPasswordResetRequest defines model for RequestPasswordResetRequest.
+type RequestPasswordResetRequest struct {
+	Email Email `json:"email"`
 }
 
 // Role defines model for Role.
@@ -731,20 +1238,42 @@ type Role struct {
 	Description nullable.Nullable[string] `json:"description"`
 
 	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
-	Id   UUIDv7 `json:"id"`
-	Name string `json:"name"`
+	Id               UUIDv7               `json:"id"`
+	LaborordnungMode RoleLaborordnungMode `json:"laborordnungMode"`
+	Name             string               `json:"name"`
 
 	// PermissionGrants For master, this is the current complete application permission set.
-	PermissionGrants []PermissionGrant                `json:"permissionGrants"`
-	SystemKey        nullable.Nullable[RoleSystemKey] `json:"systemKey"`
-	UpdatedAt        time.Time                        `json:"updatedAt"`
+	PermissionGrants     []PermissionGrant                `json:"permissionGrants"`
+	ProfileImageRequired bool                             `json:"profileImageRequired"`
+	SupervisorDashboard  bool                             `json:"supervisorDashboard"`
+	SystemKey            nullable.Nullable[RoleSystemKey] `json:"systemKey"`
+	UpdatedAt            time.Time                        `json:"updatedAt"`
 
 	// Version Optimistic-concurrency version.
 	Version Version `json:"version"`
 }
 
+// RoleLaborordnungMode defines model for Role.LaborordnungMode.
+type RoleLaborordnungMode string
+
 // RoleSystemKey defines model for Role.SystemKey.
 type RoleSystemKey string
+
+// RoleEffectivePermissionEvaluation defines model for RoleEffectivePermissionEvaluation.
+type RoleEffectivePermissionEvaluation struct {
+	PermissionIds []PermissionId `json:"permissionIds"`
+
+	// RoleId Lowercase RFC 9562 UUID version 7 generated by the application.
+	RoleId UUIDv7 `json:"roleId"`
+
+	// RoleVersion Optimistic-concurrency version.
+	RoleVersion Version `json:"roleVersion"`
+}
+
+// RoleEffectivePermissionEvaluationList defines model for RoleEffectivePermissionEvaluationList.
+type RoleEffectivePermissionEvaluationList struct {
+	Items []RoleEffectivePermissionEvaluation `json:"items"`
+}
 
 // RolePage defines model for RolePage.
 type RolePage struct {
@@ -767,9 +1296,194 @@ type RoleSummarySystemKey string
 
 // RotateManagedDeviceTokenRequest defines model for RotateManagedDeviceTokenRequest.
 type RotateManagedDeviceTokenRequest struct {
+	CredentialDelivery ManagedDeviceCredentialDelivery `json:"credentialDelivery"`
+
 	// ExpectedVersion Optimistic-concurrency version.
 	ExpectedVersion Version                      `json:"expectedVersion"`
 	ExpiresAt       nullable.Nullable[time.Time] `json:"expiresAt"`
+}
+
+// RotateSCIMTokenRequest defines model for RotateSCIMTokenRequest.
+type RotateSCIMTokenRequest struct {
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version   `json:"expectedVersion"`
+	ExpiresAt       time.Time `json:"expiresAt"`
+}
+
+// SCIMConnector defines model for SCIMConnector.
+type SCIMConnector struct {
+	CreatedAt time.Time `json:"createdAt"`
+	Enabled   bool      `json:"enabled"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id             UUIDv7                       `json:"id"`
+	Name           string                       `json:"name"`
+	OidcProviderId nullable.Nullable[UUIDv7]    `json:"oidcProviderId"`
+	TokenExpiresAt nullable.Nullable[time.Time] `json:"tokenExpiresAt"`
+	TokenRevokedAt nullable.Nullable[time.Time] `json:"tokenRevokedAt"`
+	UpdatedAt      time.Time                    `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// SCIMConnectorList defines model for SCIMConnectorList.
+type SCIMConnectorList struct {
+	Items []SCIMConnector `json:"items"`
+}
+
+// SCIMConnectorTokenIssue defines model for SCIMConnectorTokenIssue.
+type SCIMConnectorTokenIssue struct {
+	BearerToken *string       `json:"bearerToken,omitempty"`
+	Connector   SCIMConnector `json:"connector"`
+}
+
+// SCIMError defines model for SCIMError.
+type SCIMError struct {
+	Detail   string   `json:"detail"`
+	Schemas  []string `json:"schemas"`
+	ScimType *string  `json:"scimType,omitempty"`
+	Status   string   `json:"status"`
+}
+
+// SCIMListResponse defines model for SCIMListResponse.
+type SCIMListResponse struct {
+	Resources    []map[string]interface{} `json:"Resources"`
+	ItemsPerPage int                      `json:"itemsPerPage"`
+	Schemas      []string                 `json:"schemas"`
+	StartIndex   int                      `json:"startIndex"`
+	TotalResults int                      `json:"totalResults"`
+}
+
+// SCIMMeta defines model for SCIMMeta.
+type SCIMMeta struct {
+	Created      time.Time            `json:"created"`
+	LastModified time.Time            `json:"lastModified"`
+	Location     string               `json:"location"`
+	ResourceType SCIMMetaResourceType `json:"resourceType"`
+	Version      string               `json:"version"`
+}
+
+// SCIMMetaResourceType defines model for SCIMMeta.ResourceType.
+type SCIMMetaResourceType string
+
+// SCIMMultiValue defines model for SCIMMultiValue.
+type SCIMMultiValue struct {
+	Primary              *bool                  `json:"primary,omitempty"`
+	Type                 *string                `json:"type,omitempty"`
+	Value                string                 `json:"value"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// SCIMName defines model for SCIMName.
+type SCIMName struct {
+	FamilyName string  `json:"familyName"`
+	Formatted  *string `json:"formatted,omitempty"`
+	GivenName  string  `json:"givenName"`
+}
+
+// SCIMPatchOperation defines model for SCIMPatchOperation.
+type SCIMPatchOperation struct {
+	Op    SCIMPatchOperationOp `json:"op"`
+	Path  *string              `json:"path,omitempty"`
+	Value interface{}          `json:"value,omitempty"`
+}
+
+// SCIMPatchOperationOp defines model for SCIMPatchOperation.Op.
+type SCIMPatchOperationOp string
+
+// SCIMPatchRequest defines model for SCIMPatchRequest.
+type SCIMPatchRequest struct {
+	Operations []SCIMPatchOperation `json:"Operations"`
+	Schemas    []string             `json:"schemas"`
+}
+
+// SCIMReconciliationConflict defines model for SCIMReconciliationConflict.
+type SCIMReconciliationConflict struct {
+	Code       string                    `json:"code"`
+	Message    string                    `json:"message"`
+	ResourceId nullable.Nullable[UUIDv7] `json:"resourceId"`
+}
+
+// SCIMReconciliationReport defines model for SCIMReconciliationReport.
+type SCIMReconciliationReport struct {
+	CanReconcile bool                         `json:"canReconcile"`
+	Completed    bool                         `json:"completed"`
+	Conflicts    []SCIMReconciliationConflict `json:"conflicts"`
+
+	// ProvisionalAccountId Lowercase RFC 9562 UUID version 7 generated by the application.
+	ProvisionalAccountId UUIDv7 `json:"provisionalAccountId"`
+
+	// TargetAccountId Lowercase RFC 9562 UUID version 7 generated by the application.
+	TargetAccountId UUIDv7 `json:"targetAccountId"`
+}
+
+// SCIMReconciliationRequest defines model for SCIMReconciliationRequest.
+type SCIMReconciliationRequest struct {
+	// ProvisionalAccountId Lowercase RFC 9562 UUID version 7 generated by the application.
+	ProvisionalAccountId UUIDv7 `json:"provisionalAccountId"`
+
+	// TargetAccountId Lowercase RFC 9562 UUID version 7 generated by the application.
+	TargetAccountId UUIDv7 `json:"targetAccountId"`
+}
+
+// SCIMServiceProviderConfig defines model for SCIMServiceProviderConfig.
+type SCIMServiceProviderConfig struct {
+	Bulk struct {
+		Supported bool `json:"supported"`
+	} `json:"bulk"`
+	ChangePassword struct {
+		Supported bool `json:"supported"`
+	} `json:"changePassword"`
+	Etag struct {
+		Supported bool `json:"supported"`
+	} `json:"etag"`
+	Filter struct {
+		MaxResults int  `json:"maxResults"`
+		Supported  bool `json:"supported"`
+	} `json:"filter"`
+	Patch struct {
+		Supported bool `json:"supported"`
+	} `json:"patch"`
+	Schemas []string `json:"schemas"`
+	Sort    struct {
+		Supported bool `json:"supported"`
+	} `json:"sort"`
+}
+
+// SCIMUser defines model for SCIMUser.
+type SCIMUser struct {
+	Active     bool                      `json:"active"`
+	Emails     *[]SCIMMultiValue         `json:"emails,omitempty"`
+	ExternalId nullable.Nullable[string] `json:"externalId,omitempty"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id           UUIDv7            `json:"id"`
+	Meta         SCIMMeta          `json:"meta"`
+	Name         SCIMName          `json:"name"`
+	PhoneNumbers *[]SCIMMultiValue `json:"phoneNumbers,omitempty"`
+	Schemas      []string          `json:"schemas"`
+	UserName     string            `json:"userName"`
+}
+
+// SCIMUserListResponse defines model for SCIMUserListResponse.
+type SCIMUserListResponse struct {
+	Resources    []SCIMUser `json:"Resources"`
+	ItemsPerPage int        `json:"itemsPerPage"`
+	Schemas      []string   `json:"schemas"`
+	StartIndex   int        `json:"startIndex"`
+	TotalResults int        `json:"totalResults"`
+}
+
+// SCIMUserWrite defines model for SCIMUserWrite.
+type SCIMUserWrite struct {
+	Active       bool                      `json:"active"`
+	Emails       *[]SCIMMultiValue         `json:"emails,omitempty"`
+	ExternalId   nullable.Nullable[string] `json:"externalId,omitempty"`
+	Name         SCIMName                  `json:"name"`
+	PhoneNumbers *[]SCIMMultiValue         `json:"phoneNumbers,omitempty"`
+	Schemas      *[]string                 `json:"schemas,omitempty"`
+	UserName     string                    `json:"userName"`
 }
 
 // SaveOpenDayScheduleRequest defines model for SaveOpenDayScheduleRequest.
@@ -827,6 +1541,55 @@ type StaffingRequirementInput struct {
 	RequiredCount   int                    `json:"requiredCount"`
 }
 
+// SupervisorAssignmentCount defines model for SupervisorAssignmentCount.
+type SupervisorAssignmentCount struct {
+	Count int `json:"count"`
+
+	// PeriodId Lowercase RFC 9562 UUID version 7 generated by the application.
+	PeriodId UUIDv7 `json:"periodId"`
+}
+
+// SupervisorDashboard defines model for SupervisorDashboard.
+type SupervisorDashboard struct {
+	Periods     []SupervisorPeriod `json:"periods"`
+	Supervisors []SupervisorRow    `json:"supervisors"`
+	Totals      SupervisorTotals   `json:"totals"`
+}
+
+// SupervisorPeriod defines model for SupervisorPeriod.
+type SupervisorPeriod struct {
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id                    UUIDv7                 `json:"id"`
+	Name                  string                 `json:"name"`
+	Status                SupervisorPeriodStatus `json:"status"`
+	SupervisorAssignments int                    `json:"supervisorAssignments"`
+}
+
+// SupervisorPeriodStatus defines model for SupervisorPeriod.Status.
+type SupervisorPeriodStatus string
+
+// SupervisorRow defines model for SupervisorRow.
+type SupervisorRow struct {
+	AssignmentCounts  []SupervisorAssignmentCount    `json:"assignmentCounts"`
+	HasProfileImage   bool                           `json:"hasProfileImage"`
+	LaborordnungState SupervisorRowLaborordnungState `json:"laborordnungState"`
+	Name              string                         `json:"name"`
+
+	// PersonId Lowercase RFC 9562 UUID version 7 generated by the application.
+	PersonId UUIDv7 `json:"personId"`
+}
+
+// SupervisorRowLaborordnungState defines model for SupervisorRow.LaborordnungState.
+type SupervisorRowLaborordnungState string
+
+// SupervisorTotals defines model for SupervisorTotals.
+type SupervisorTotals struct {
+	LaborordnungCurrent   int `json:"laborordnungCurrent"`
+	LaborordnungOutdated  int `json:"laborordnungOutdated"`
+	ProfileImagesComplete int `json:"profileImagesComplete"`
+	Supervisors           int `json:"supervisors"`
+}
+
 // UUIDv7 Lowercase RFC 9562 UUID version 7 generated by the application.
 type UUIDv7 = openapi_types.UUID
 
@@ -847,6 +1610,27 @@ type UpdateLoginEmailRequest struct {
 	LoginEmail      Email   `json:"loginEmail"`
 }
 
+// UpdateMailConfigurationRequest defines model for UpdateMailConfigurationRequest.
+type UpdateMailConfigurationRequest struct {
+	BaseUrl string `json:"baseUrl"`
+	Enabled bool   `json:"enabled"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version `json:"expectedVersion"`
+	FromAddress     string  `json:"fromAddress"`
+	FromName        string  `json:"fromName"`
+	Host            string  `json:"host"`
+
+	// Password Leave empty to retain the existing encrypted password.
+	Password *string                               `json:"password,omitempty"`
+	Port     int                                   `json:"port"`
+	TlsMode  UpdateMailConfigurationRequestTlsMode `json:"tlsMode"`
+	Username string                                `json:"username"`
+}
+
+// UpdateMailConfigurationRequestTlsMode defines model for UpdateMailConfigurationRequest.TlsMode.
+type UpdateMailConfigurationRequestTlsMode string
+
 // UpdateManagedDeviceRequest defines model for UpdateManagedDeviceRequest.
 type UpdateManagedDeviceRequest struct {
 	// DeviceTypeId Lowercase RFC 9562 UUID version 7 generated by the application.
@@ -865,6 +1649,20 @@ type UpdateManagedDeviceTypeRequest struct {
 	// ExpectedVersion Optimistic-concurrency version.
 	ExpectedVersion Version `json:"expectedVersion"`
 	Name            string  `json:"name"`
+}
+
+// UpdateOIDCProviderRequest defines model for UpdateOIDCProviderRequest.
+type UpdateOIDCProviderRequest struct {
+	AcrAssuranceMappings map[string]AuthenticationAssurance `json:"acrAssuranceMappings"`
+	ClientId             string                             `json:"clientId"`
+	ClientSecret         *string                            `json:"clientSecret,omitempty"`
+	DisplayName          string                             `json:"displayName"`
+	Enabled              bool                               `json:"enabled"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version `json:"expectedVersion"`
+	Issuer          string  `json:"issuer"`
+	JitEnabled      bool    `json:"jitEnabled"`
 }
 
 // UpdateOpenDayPeriodRequest defines model for UpdateOpenDayPeriodRequest.
@@ -908,8 +1706,35 @@ type UpdateRoleRequest struct {
 	Description nullable.Nullable[string] `json:"description,omitempty"`
 
 	// ExpectedVersion Optimistic-concurrency version.
-	ExpectedVersion Version `json:"expectedVersion"`
-	Name            *string `json:"name,omitempty"`
+	ExpectedVersion      Version                            `json:"expectedVersion"`
+	LaborordnungMode     *UpdateRoleRequestLaborordnungMode `json:"laborordnungMode,omitempty"`
+	Name                 *string                            `json:"name,omitempty"`
+	ProfileImageRequired *bool                              `json:"profileImageRequired,omitempty"`
+	SupervisorDashboard  *bool                              `json:"supervisorDashboard,omitempty"`
+}
+
+// UpdateRoleRequestLaborordnungMode defines model for UpdateRoleRequest.LaborordnungMode.
+type UpdateRoleRequestLaborordnungMode string
+
+// UpdateSCIMConnectorRequest defines model for UpdateSCIMConnectorRequest.
+type UpdateSCIMConnectorRequest struct {
+	Enabled bool `json:"enabled"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version                   `json:"expectedVersion"`
+	Name            string                    `json:"name"`
+	OidcProviderId  nullable.Nullable[UUIDv7] `json:"oidcProviderId"`
+}
+
+// UpdateVisitorEnrollmentConfigurationRequest defines model for UpdateVisitorEnrollmentConfigurationRequest.
+type UpdateVisitorEnrollmentConfigurationRequest struct {
+	AllowedMethods []VisitorAuthenticationMethod `json:"allowedMethods"`
+	DeviceTypeIds  []UUIDv7                      `json:"deviceTypeIds"`
+	Enabled        bool                          `json:"enabled"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version                   `json:"expectedVersion"`
+	InitialRoleId   nullable.Nullable[UUIDv7] `json:"initialRoleId"`
 }
 
 // Version Optimistic-concurrency version.
@@ -919,6 +1744,85 @@ type Version = int64
 type VersionRequest struct {
 	// ExpectedVersion Optimistic-concurrency version.
 	ExpectedVersion Version `json:"expectedVersion"`
+}
+
+// VisitorAdmissionResult defines model for VisitorAdmissionResult.
+type VisitorAdmissionResult struct {
+	Decision  VisitorAdmissionResultDecision `json:"decision"`
+	RequestId nullable.Nullable[UUIDv7]      `json:"requestId"`
+	Status    LaborordnungStatus             `json:"status"`
+}
+
+// VisitorAdmissionResultDecision defines model for VisitorAdmissionResult.Decision.
+type VisitorAdmissionResultDecision string
+
+// VisitorAuthenticationMethod defines model for VisitorAuthenticationMethod.
+type VisitorAuthenticationMethod string
+
+// VisitorEnrollmentConfiguration defines model for VisitorEnrollmentConfiguration.
+type VisitorEnrollmentConfiguration struct {
+	AllowedMethods []VisitorAuthenticationMethod `json:"allowedMethods"`
+	DeviceTypeIds  []UUIDv7                      `json:"deviceTypeIds"`
+	Enabled        bool                          `json:"enabled"`
+	InitialRoleId  nullable.Nullable[UUIDv7]     `json:"initialRoleId"`
+	UpdatedAt      time.Time                     `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// VisitorEnrollmentResult defines model for VisitorEnrollmentResult.
+type VisitorEnrollmentResult struct {
+	// AccountId Lowercase RFC 9562 UUID version 7 generated by the application.
+	AccountId          UUIDv7                                                       `json:"accountId"`
+	AccountStatus      VisitorEnrollmentResultAccountStatus                         `json:"accountStatus"`
+	Admission          VisitorEnrollmentResultAdmission                             `json:"admission"`
+	InvitationDelivery nullable.Nullable[VisitorEnrollmentResultInvitationDelivery] `json:"invitationDelivery"`
+	LabRulesRequestId  nullable.Nullable[UUIDv7]                                    `json:"labRulesRequestId"`
+
+	// PersonId Lowercase RFC 9562 UUID version 7 generated by the application.
+	PersonId UUIDv7 `json:"personId"`
+}
+
+// VisitorEnrollmentResultAccountStatus defines model for VisitorEnrollmentResult.AccountStatus.
+type VisitorEnrollmentResultAccountStatus string
+
+// VisitorEnrollmentResultAdmission defines model for VisitorEnrollmentResult.Admission.
+type VisitorEnrollmentResultAdmission string
+
+// VisitorEnrollmentResultInvitationDelivery defines model for VisitorEnrollmentResult.InvitationDelivery.
+type VisitorEnrollmentResultInvitationDelivery string
+
+// VisitorEnrollmentState defines model for VisitorEnrollmentState.
+type VisitorEnrollmentState struct {
+	AllowedMethods  []VisitorAuthenticationMethod             `json:"allowedMethods"`
+	CurrentLabRules nullable.Nullable[VisitorLabRulesVersion] `json:"currentLabRules"`
+	ExpiresAt       time.Time                                 `json:"expiresAt"`
+}
+
+// VisitorEnrollmentSubmission defines model for VisitorEnrollmentSubmission.
+type VisitorEnrollmentSubmission struct {
+	AuthMethods          []VisitorAuthenticationMethod          `json:"authMethods"`
+	Email                nullable.Nullable[openapi_types.Email] `json:"email"`
+	FirstName            string                                 `json:"firstName"`
+	LastName             string                                 `json:"lastName"`
+	Phone                nullable.Nullable[string]              `json:"phone"`
+	Pin                  nullable.Nullable[string]              `json:"pin,omitempty"`
+	PinLoginName         nullable.Nullable[string]              `json:"pinLoginName"`
+	ProfileImageBase64   *[]byte                                `json:"profileImageBase64,omitempty"`
+	ProfileImageFilename string                                 `json:"profileImageFilename"`
+
+	// RequestConfirmation Must be true as the visitor's explicit request to enter the physical-signature workflow.
+	RequestConfirmation bool `json:"requestConfirmation"`
+}
+
+// VisitorLabRulesVersion defines model for VisitorLabRulesVersion.
+type VisitorLabRulesVersion struct {
+	EffectiveAt   time.Time `json:"effectiveAt"`
+	HumanRevision string    `json:"humanRevision"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id UUIDv7 `json:"id"`
 }
 
 // AcademicBreakId Lowercase RFC 9562 UUID version 7 generated by the application.
@@ -933,11 +1837,20 @@ type Cursor = string
 // DeviceTypeId Lowercase RFC 9562 UUID version 7 generated by the application.
 type DeviceTypeId = UUIDv7
 
+// LaborordnungRequestId Lowercase RFC 9562 UUID version 7 generated by the application.
+type LaborordnungRequestId = UUIDv7
+
+// LaborordnungVersionId Lowercase RFC 9562 UUID version 7 generated by the application.
+type LaborordnungVersionId = UUIDv7
+
 // Limit defines model for Limit.
 type Limit = int
 
 // ManagedDeviceId Lowercase RFC 9562 UUID version 7 generated by the application.
 type ManagedDeviceId = UUIDv7
+
+// OIDCProviderId Lowercase RFC 9562 UUID version 7 generated by the application.
+type OIDCProviderId = UUIDv7
 
 // OpenDayAssignmentId Lowercase RFC 9562 UUID version 7 generated by the application.
 type OpenDayAssignmentId = UUIDv7
@@ -978,6 +1891,12 @@ type InternalServerError = Error
 // NotFound defines model for NotFound.
 type NotFound = Error
 
+// PayloadTooLarge defines model for PayloadTooLarge.
+type PayloadTooLarge = Error
+
+// ServiceUnavailable defines model for ServiceUnavailable.
+type ServiceUnavailable = Error
+
 // TooManyRequests defines model for TooManyRequests.
 type TooManyRequests = Error
 
@@ -1000,6 +1919,18 @@ type ListAuditEventsParams struct {
 	ActorAccountId *UUIDv7    `form:"actorAccountId,omitempty" json:"actorAccountId,omitempty"`
 	OccurredFrom   *time.Time `form:"occurredFrom,omitempty" json:"occurredFrom,omitempty"`
 	OccurredTo     *time.Time `form:"occurredTo,omitempty" json:"occurredTo,omitempty"`
+}
+
+// CompleteOIDCCallbackParams defines parameters for CompleteOIDCCallback.
+type CompleteOIDCCallbackParams struct {
+	Code  string `form:"code" json:"code"`
+	State string `form:"state" json:"state"`
+}
+
+// CreateLaborordnungVersionParams defines parameters for CreateLaborordnungVersion.
+type CreateLaborordnungVersionParams struct {
+	XHumanRevision string `json:"X-Human-Revision"`
+	XFileName      string `json:"X-File-Name"`
 }
 
 // ListManagedDevicesParams defines parameters for ListManagedDevices.
@@ -1028,6 +1959,16 @@ type ListPeopleParams struct {
 	Search *string `form:"search,omitempty" json:"search,omitempty"`
 }
 
+// PutPersonProfileImageParams defines parameters for PutPersonProfileImage.
+type PutPersonProfileImageParams struct {
+	ExpectedVersion     Version                                         `form:"expectedVersion" json:"expectedVersion"`
+	XFileName           string                                          `json:"X-File-Name"`
+	XProfileImageSource *PutPersonProfileImageParamsXProfileImageSource `json:"X-Profile-Image-Source,omitempty"`
+}
+
+// PutPersonProfileImageParamsXProfileImageSource defines parameters for PutPersonProfileImage.
+type PutPersonProfileImageParamsXProfileImageSource string
+
 // ListRolesParams defines parameters for ListRoles.
 type ListRolesParams struct {
 	// Limit Maximum records to return.
@@ -1035,6 +1976,24 @@ type ListRolesParams struct {
 
 	// Cursor Opaque cursor returned by the previous page.
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// EvaluateRolePermissionsParams defines parameters for EvaluateRolePermissions.
+type EvaluateRolePermissionsParams struct {
+	AuthenticationAssurance AuthenticationAssurance `form:"authenticationAssurance" json:"authenticationAssurance"`
+	DeviceTypeId            *UUIDv7                 `form:"deviceTypeId,omitempty" json:"deviceTypeId,omitempty"`
+}
+
+// ListSCIMUsersParams defines parameters for ListSCIMUsers.
+type ListSCIMUsersParams struct {
+	Filter     *string `form:"filter,omitempty" json:"filter,omitempty"`
+	StartIndex *int    `form:"startIndex,omitempty" json:"startIndex,omitempty"`
+	Count      *int    `form:"count,omitempty" json:"count,omitempty"`
+}
+
+// SubmitVisitorEnrollmentParams defines parameters for SubmitVisitorEnrollment.
+type SubmitVisitorEnrollmentParams struct {
+	XEnrollmentCSRFToken string `json:"X-Enrollment-CSRF-Token"`
 }
 
 // DeleteAccountJSONRequestBody defines body for DeleteAccount for application/json ContentType.
@@ -1046,6 +2005,9 @@ type DisableAccountJSONRequestBody = VersionRequest
 // EnableAccountJSONRequestBody defines body for EnableAccount for application/json ContentType.
 type EnableAccountJSONRequestBody = VersionRequest
 
+// IssueAccountInvitationJSONRequestBody defines body for IssueAccountInvitation for application/json ContentType.
+type IssueAccountInvitationJSONRequestBody = VersionRequest
+
 // UpdateAccountLoginEmailJSONRequestBody defines body for UpdateAccountLoginEmail for application/json ContentType.
 type UpdateAccountLoginEmailJSONRequestBody = UpdateLoginEmailRequest
 
@@ -1055,20 +2017,59 @@ type SetAccountPasswordJSONRequestBody = SetAccountPasswordRequest
 // IssueAccountPasswordResetJSONRequestBody defines body for IssueAccountPasswordReset for application/json ContentType.
 type IssueAccountPasswordResetJSONRequestBody = VersionRequest
 
+// IssueAccountPinEnrollmentJSONRequestBody defines body for IssueAccountPinEnrollment for application/json ContentType.
+type IssueAccountPinEnrollmentJSONRequestBody = VersionRequest
+
 // RemoveAccountRoleJSONRequestBody defines body for RemoveAccountRole for application/json ContentType.
 type RemoveAccountRoleJSONRequestBody = VersionRequest
 
 // AssignAccountRoleJSONRequestBody defines body for AssignAccountRole for application/json ContentType.
 type AssignAccountRoleJSONRequestBody = VersionRequest
 
+// CompleteEmailVerificationJSONRequestBody defines body for CompleteEmailVerification for application/json ContentType.
+type CompleteEmailVerificationJSONRequestBody = CompleteEmailVerificationRequest
+
+// CompleteInvitationJSONRequestBody defines body for CompleteInvitation for application/json ContentType.
+type CompleteInvitationJSONRequestBody = CompleteInvitationRequest
+
 // LoginJSONRequestBody defines body for Login for application/json ContentType.
 type LoginJSONRequestBody = LoginRequest
+
+// EnrollOwnPinJSONRequestBody defines body for EnrollOwnPin for application/json ContentType.
+type EnrollOwnPinJSONRequestBody = EnrollPinRequest
+
+// StartOIDCLinkJSONRequestBody defines body for StartOIDCLink for application/json ContentType.
+type StartOIDCLinkJSONRequestBody = OIDCLinkRequest
+
+// RemoveOwnPasswordJSONRequestBody defines body for RemoveOwnPassword for application/json ContentType.
+type RemoveOwnPasswordJSONRequestBody = RemoveOwnPasswordRequest
 
 // ChangeOwnPasswordJSONRequestBody defines body for ChangeOwnPassword for application/json ContentType.
 type ChangeOwnPasswordJSONRequestBody = ChangeOwnPasswordRequest
 
 // CompletePasswordResetJSONRequestBody defines body for CompletePasswordReset for application/json ContentType.
 type CompletePasswordResetJSONRequestBody = CompletePasswordResetRequest
+
+// CompletePasswordResetCodeJSONRequestBody defines body for CompletePasswordResetCode for application/json ContentType.
+type CompletePasswordResetCodeJSONRequestBody = CompletePasswordResetCodeRequest
+
+// RequestPasswordResetJSONRequestBody defines body for RequestPasswordReset for application/json ContentType.
+type RequestPasswordResetJSONRequestBody = RequestPasswordResetRequest
+
+// CompletePinEnrollmentJSONRequestBody defines body for CompletePinEnrollment for application/json ContentType.
+type CompletePinEnrollmentJSONRequestBody = CompletePinEnrollmentRequest
+
+// LoginWithPinJSONRequestBody defines body for LoginWithPin for application/json ContentType.
+type LoginWithPinJSONRequestBody = PinLoginRequest
+
+// ConfirmLaborordnungRequestJSONRequestBody defines body for ConfirmLaborordnungRequest for application/json ContentType.
+type ConfirmLaborordnungRequestJSONRequestBody = ConfirmLaborordnungRequest
+
+// PublishLaborordnungVersionJSONRequestBody defines body for PublishLaborordnungVersion for application/json ContentType.
+type PublishLaborordnungVersionJSONRequestBody = PublishLaborordnungRequest
+
+// UpdateMailConfigurationJSONRequestBody defines body for UpdateMailConfiguration for application/json ContentType.
+type UpdateMailConfigurationJSONRequestBody = UpdateMailConfigurationRequest
 
 // CreateManagedDeviceTypeJSONRequestBody defines body for CreateManagedDeviceType for application/json ContentType.
 type CreateManagedDeviceTypeJSONRequestBody = CreateManagedDeviceTypeRequest
@@ -1093,6 +2094,12 @@ type RevokeManagedDeviceJSONRequestBody = VersionRequest
 
 // RotateManagedDeviceTokenJSONRequestBody defines body for RotateManagedDeviceToken for application/json ContentType.
 type RotateManagedDeviceTokenJSONRequestBody = RotateManagedDeviceTokenRequest
+
+// CreateOIDCProviderJSONRequestBody defines body for CreateOIDCProvider for application/json ContentType.
+type CreateOIDCProviderJSONRequestBody = CreateOIDCProviderRequest
+
+// UpdateOIDCProviderJSONRequestBody defines body for UpdateOIDCProvider for application/json ContentType.
+type UpdateOIDCProviderJSONRequestBody = UpdateOIDCProviderRequest
 
 // CreateOpenDayAcademicBreakJSONRequestBody defines body for CreateOpenDayAcademicBreak for application/json ContentType.
 type CreateOpenDayAcademicBreakJSONRequestBody = CreateAcademicBreakRequest
@@ -1160,6 +2167,9 @@ type UpdatePersonJSONRequestBody = UpdatePersonRequest
 // CreatePersonAccountJSONRequestBody defines body for CreatePersonAccount for application/json ContentType.
 type CreatePersonAccountJSONRequestBody = CreateAccountRequest
 
+// DeletePersonProfileImageJSONRequestBody defines body for DeletePersonProfileImage for application/json ContentType.
+type DeletePersonProfileImageJSONRequestBody = VersionRequest
+
 // CreateRoleJSONRequestBody defines body for CreateRole for application/json ContentType.
 type CreateRoleJSONRequestBody = CreateRoleRequest
 
@@ -1171,6 +2181,135 @@ type UpdateRoleJSONRequestBody = UpdateRoleRequest
 
 // ReplaceRolePermissionsJSONRequestBody defines body for ReplaceRolePermissions for application/json ContentType.
 type ReplaceRolePermissionsJSONRequestBody = ReplaceRolePermissionsRequest
+
+// CreateSCIMConnectorJSONRequestBody defines body for CreateSCIMConnector for application/json ContentType.
+type CreateSCIMConnectorJSONRequestBody = CreateSCIMConnectorRequest
+
+// UpdateSCIMConnectorJSONRequestBody defines body for UpdateSCIMConnector for application/json ContentType.
+type UpdateSCIMConnectorJSONRequestBody = UpdateSCIMConnectorRequest
+
+// RevokeSCIMConnectorTokenJSONRequestBody defines body for RevokeSCIMConnectorToken for application/json ContentType.
+type RevokeSCIMConnectorTokenJSONRequestBody = VersionRequest
+
+// RotateSCIMConnectorTokenJSONRequestBody defines body for RotateSCIMConnectorToken for application/json ContentType.
+type RotateSCIMConnectorTokenJSONRequestBody = RotateSCIMTokenRequest
+
+// ReconcileSCIMAccountJSONRequestBody defines body for ReconcileSCIMAccount for application/json ContentType.
+type ReconcileSCIMAccountJSONRequestBody = SCIMReconciliationRequest
+
+// PreflightSCIMReconciliationJSONRequestBody defines body for PreflightSCIMReconciliation for application/json ContentType.
+type PreflightSCIMReconciliationJSONRequestBody = SCIMReconciliationRequest
+
+// CreateSCIMUserApplicationScimPlusJSONRequestBody defines body for CreateSCIMUser for application/scim+json ContentType.
+type CreateSCIMUserApplicationScimPlusJSONRequestBody = SCIMUserWrite
+
+// PatchSCIMUserApplicationScimPlusJSONRequestBody defines body for PatchSCIMUser for application/scim+json ContentType.
+type PatchSCIMUserApplicationScimPlusJSONRequestBody = SCIMPatchRequest
+
+// ReplaceSCIMUserApplicationScimPlusJSONRequestBody defines body for ReplaceSCIMUser for application/scim+json ContentType.
+type ReplaceSCIMUserApplicationScimPlusJSONRequestBody = SCIMUserWrite
+
+// UpdateVisitorEnrollmentConfigurationJSONRequestBody defines body for UpdateVisitorEnrollmentConfiguration for application/json ContentType.
+type UpdateVisitorEnrollmentConfigurationJSONRequestBody = UpdateVisitorEnrollmentConfigurationRequest
+
+// SubmitVisitorEnrollmentJSONRequestBody defines body for SubmitVisitorEnrollment for application/json ContentType.
+type SubmitVisitorEnrollmentJSONRequestBody = VisitorEnrollmentSubmission
+
+// Getter for additional properties for SCIMMultiValue. Returns the specified
+// element and whether it was found
+func (a SCIMMultiValue) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for SCIMMultiValue
+func (a *SCIMMultiValue) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for SCIMMultiValue to handle AdditionalProperties
+func (a *SCIMMultiValue) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["primary"]; found {
+		err = json.Unmarshal(raw, &a.Primary)
+		if err != nil {
+			return fmt.Errorf("error reading 'primary': %w", err)
+		}
+		delete(object, "primary")
+	}
+
+	if raw, found := object["type"]; found {
+		err = json.Unmarshal(raw, &a.Type)
+		if err != nil {
+			return fmt.Errorf("error reading 'type': %w", err)
+		}
+		delete(object, "type")
+	}
+
+	if raw, found := object["value"]; found {
+		err = json.Unmarshal(raw, &a.Value)
+		if err != nil {
+			return fmt.Errorf("error reading 'value': %w", err)
+		}
+		delete(object, "value")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for SCIMMultiValue to handle AdditionalProperties
+func (a SCIMMultiValue) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	if a.Primary != nil {
+		object["primary"], err = json.Marshal(a.Primary)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'primary': %w", err)
+		}
+	}
+
+	if a.Type != nil {
+		object["type"], err = json.Marshal(a.Type)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'type': %w", err)
+		}
+	}
+
+	object["value"], err = json.Marshal(a.Value)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'value': %w", err)
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
@@ -1186,15 +2325,21 @@ type ServerInterface interface {
 	// Enable an account
 	// (POST /accounts/{accountId}/enable)
 	EnableAccount(w http.ResponseWriter, r *http.Request, accountId AccountId)
+	// Send or safely resend an account invitation
+	// (POST /accounts/{accountId}/invitations)
+	IssueAccountInvitation(w http.ResponseWriter, r *http.Request, accountId AccountId)
 	// Replace an account's email login identifier
 	// (PUT /accounts/{accountId}/login-email)
 	UpdateAccountLoginEmail(w http.ResponseWriter, r *http.Request, accountId AccountId)
 	// Administratively set an account password
 	// (PUT /accounts/{accountId}/password)
 	SetAccountPassword(w http.ResponseWriter, r *http.Request, accountId AccountId)
-	// Issue a one-time administrative password-reset link
+	// Send a one-time administrative password-reset code
 	// (POST /accounts/{accountId}/password-reset)
 	IssueAccountPasswordReset(w http.ResponseWriter, r *http.Request, accountId AccountId)
+	// Send or safely resend a one-time PIN setup challenge
+	// (POST /accounts/{accountId}/pin-enrollment)
+	IssueAccountPinEnrollment(w http.ResponseWriter, r *http.Request, accountId AccountId)
 	// Remove a role from an account
 	// (DELETE /accounts/{accountId}/roles/{roleId})
 	RemoveAccountRole(w http.ResponseWriter, r *http.Request, accountId AccountId, roleId RoleId)
@@ -1204,6 +2349,15 @@ type ServerInterface interface {
 	// List privacy-minimized audit events
 	// (GET /audit-events)
 	ListAuditEvents(w http.ResponseWriter, r *http.Request, params ListAuditEventsParams)
+	// Verify a local login email with a one-time code
+	// (POST /auth/email-verification/complete)
+	CompleteEmailVerification(w http.ResponseWriter, r *http.Request)
+	// Send a verification code for the current account's local login email
+	// (POST /auth/email-verification/request)
+	RequestOwnEmailVerification(w http.ResponseWriter, r *http.Request)
+	// Complete an invitation and set the initial password
+	// (POST /auth/invitations/complete)
+	CompleteInvitation(w http.ResponseWriter, r *http.Request)
 	// Start an email/password session
 	// (POST /auth/login)
 	Login(w http.ResponseWriter, r *http.Request)
@@ -1213,18 +2367,84 @@ type ServerInterface interface {
 	// Return the authenticated principal and current permissions
 	// (GET /auth/me)
 	GetCurrentUser(w http.ResponseWriter, r *http.Request)
+	// Unlink an external identity without stranding the enabled Account
+	// (DELETE /auth/methods/oidc/{identityId})
+	UnlinkOwnOIDCIdentity(w http.ResponseWriter, r *http.Request, identityId UUIDv7)
+	// Enroll or replace the current account's PIN method
+	// (PUT /auth/methods/pin)
+	EnrollOwnPin(w http.ResponseWriter, r *http.Request)
+	// Validate OIDC callback state, nonce, PKCE, issuer, signature, audience, expiry, and configured ACR
+	// (GET /auth/oidc/callback)
+	CompleteOIDCCallback(w http.ResponseWriter, r *http.Request, params CompleteOIDCCallbackParams)
+	// List enabled OIDC providers available for login
+	// (GET /auth/oidc/providers)
+	ListOIDCLoginProviders(w http.ResponseWriter, r *http.Request)
+	// Reauthenticate with the local password and start secure identity linking
+	// (POST /auth/oidc/{providerSlug}/link)
+	StartOIDCLink(w http.ResponseWriter, r *http.Request, providerSlug string)
+	// Start an OIDC Authorization Code flow with PKCE S256
+	// (GET /auth/oidc/{providerSlug}/start)
+	StartOIDCLogin(w http.ResponseWriter, r *http.Request, providerSlug string)
+	// Remove the current account password without stranding the account
+	// (DELETE /auth/password)
+	RemoveOwnPassword(w http.ResponseWriter, r *http.Request)
 	// Change the current account password
 	// (PUT /auth/password)
 	ChangeOwnPassword(w http.ResponseWriter, r *http.Request)
 	// Redeem a one-time password-reset token
 	// (POST /auth/password-reset/complete)
 	CompletePasswordReset(w http.ResponseWriter, r *http.Request)
+	// Complete password recovery with an emailed code
+	// (POST /auth/password-reset/complete-code)
+	CompletePasswordResetCode(w http.ResponseWriter, r *http.Request)
+	// Request a password-reset code
+	// (POST /auth/password-reset/request)
+	RequestPasswordReset(w http.ResponseWriter, r *http.Request)
+	// Remove the current account's PIN method
+	// (DELETE /auth/pin/enrollment/complete)
+	RemoveOwnPin(w http.ResponseWriter, r *http.Request)
+	// Complete a one-time PIN enrollment challenge
+	// (POST /auth/pin/enrollment/complete)
+	CompletePinEnrollment(w http.ResponseWriter, r *http.Request)
+	// Start a low-assurance login-name/PIN session
+	// (POST /auth/pin/login)
+	LoginWithPin(w http.ResponseWriter, r *http.Request)
 	// Report that the API process is running
 	// (GET /health/live)
 	GetLiveness(w http.ResponseWriter, r *http.Request)
 	// Report whether required dependencies are ready
 	// (GET /health/ready)
 	GetReadiness(w http.ResponseWriter, r *http.Request)
+	// List the supervisor physical-evidence confirmation queue
+	// (GET /laborordnung/requests)
+	ListLaborordnungRequests(w http.ResponseWriter, r *http.Request)
+	// Explicitly create or reuse the current Person's physical-signature request
+	// (POST /laborordnung/requests/me)
+	RequestOwnLaborordnungConfirmation(w http.ResponseWriter, r *http.Request)
+	// Confirm verification of a physical signed document
+	// (POST /laborordnung/requests/{laborordnungRequestId}/confirm)
+	ConfirmLaborordnungRequest(w http.ResponseWriter, r *http.Request, laborordnungRequestId LaborordnungRequestId)
+	// Read the current Person's Lab Rules status without side effects
+	// (GET /laborordnung/status/me)
+	GetOwnLaborordnungStatus(w http.ResponseWriter, r *http.Request)
+	// List Laborordnung history and upcoming publications
+	// (GET /laborordnung/versions)
+	ListLaborordnungVersions(w http.ResponseWriter, r *http.Request)
+	// Validate and store a draft Laborordnung PDF
+	// (POST /laborordnung/versions)
+	CreateLaborordnungVersion(w http.ResponseWriter, r *http.Request, params CreateLaborordnungVersionParams)
+	// View or download the exact private PDF
+	// (GET /laborordnung/versions/{laborordnungVersionId}/pdf)
+	GetLaborordnungPDF(w http.ResponseWriter, r *http.Request, laborordnungVersionId LaborordnungVersionId)
+	// Immutably publish a draft for an effective time
+	// (POST /laborordnung/versions/{laborordnungVersionId}/publish)
+	PublishLaborordnungVersion(w http.ResponseWriter, r *http.Request, laborordnungVersionId LaborordnungVersionId)
+	// Read write-only-safe transactional mail configuration
+	// (GET /mail/configuration)
+	GetMailConfiguration(w http.ResponseWriter, r *http.Request)
+	// Replace transactional SMTP configuration
+	// (PUT /mail/configuration)
+	UpdateMailConfiguration(w http.ResponseWriter, r *http.Request)
 	// List managed-device types
 	// (GET /managed-device-types)
 	ListManagedDeviceTypes(w http.ResponseWriter, r *http.Request)
@@ -1261,6 +2481,15 @@ type ServerInterface interface {
 	// Rotate a managed-device token
 	// (POST /managed-devices/{managedDeviceId}/token)
 	RotateManagedDeviceToken(w http.ResponseWriter, r *http.Request, managedDeviceId ManagedDeviceId)
+	// List configured OIDC providers without secrets
+	// (GET /oidc/providers)
+	ListOIDCProviders(w http.ResponseWriter, r *http.Request)
+	// Configure an OIDC provider
+	// (POST /oidc/providers)
+	CreateOIDCProvider(w http.ResponseWriter, r *http.Request)
+	// Update OIDC provider configuration; omitted client secret is unchanged
+	// (PATCH /oidc/providers/{oidcProviderId})
+	UpdateOIDCProvider(w http.ResponseWriter, r *http.Request, oidcProviderId OIDCProviderId)
 	// Create an academic break
 	// (POST /open-day-academic-breaks)
 	CreateOpenDayAcademicBreak(w http.ResponseWriter, r *http.Request)
@@ -1360,6 +2589,15 @@ type ServerInterface interface {
 	// Create an account and email identity for a person
 	// (POST /people/{personId}/account)
 	CreatePersonAccount(w http.ResponseWriter, r *http.Request, personId PersonId)
+	// Remove a profile image
+	// (DELETE /people/{personId}/profile-image)
+	DeletePersonProfileImage(w http.ResponseWriter, r *http.Request, personId PersonId)
+	// Read a private normalized profile image
+	// (GET /people/{personId}/profile-image)
+	GetPersonProfileImage(w http.ResponseWriter, r *http.Request, personId PersonId)
+	// Validate, normalize, and replace a profile image
+	// (PUT /people/{personId}/profile-image)
+	PutPersonProfileImage(w http.ResponseWriter, r *http.Request, personId PersonId, params PutPersonProfileImageParams)
 	// List permissions registered by this application version
 	// (GET /permissions)
 	ListPermissions(w http.ResponseWriter, r *http.Request)
@@ -1375,6 +2613,9 @@ type ServerInterface interface {
 	// Create a configurable role
 	// (POST /roles)
 	CreateRole(w http.ResponseWriter, r *http.Request)
+	// Resolve every role's permissions for a hypothetical request context
+	// (GET /roles/effective-permissions)
+	EvaluateRolePermissions(w http.ResponseWriter, r *http.Request, params EvaluateRolePermissionsParams)
 	// Delete a configurable role
 	// (DELETE /roles/{roleId})
 	DeleteRole(w http.ResponseWriter, r *http.Request, roleId RoleId)
@@ -1387,6 +2628,78 @@ type ServerInterface interface {
 	// Replace a configurable role's permissions
 	// (PUT /roles/{roleId}/permissions)
 	ReplaceRolePermissions(w http.ResponseWriter, r *http.Request, roleId RoleId)
+	// List SCIM connectors without bearer-token secrets
+	// (GET /scim/connectors)
+	ListSCIMConnectors(w http.ResponseWriter, r *http.Request)
+	// Create a SCIM connector and its first one-time-displayed bearer token
+	// (POST /scim/connectors)
+	CreateSCIMConnector(w http.ResponseWriter, r *http.Request)
+	// Update a SCIM connector without changing its token
+	// (PUT /scim/connectors/{scimConnectorId})
+	UpdateSCIMConnector(w http.ResponseWriter, r *http.Request, scimConnectorId UUIDv7)
+	// Revoke the connector's active bearer token
+	// (DELETE /scim/connectors/{scimConnectorId}/token)
+	RevokeSCIMConnectorToken(w http.ResponseWriter, r *http.Request, scimConnectorId UUIDv7)
+	// Revoke the old token and issue a new one-time-displayed bearer token
+	// (POST /scim/connectors/{scimConnectorId}/token)
+	RotateSCIMConnectorToken(w http.ResponseWriter, r *http.Request, scimConnectorId UUIDv7)
+	// Atomically reconcile a conflict-free provisional SCIM Account into an established Account
+	// (POST /scim/reconciliation)
+	ReconcileSCIMAccount(w http.ResponseWriter, r *http.Request)
+	// Analyze a provisional-to-established Account reconciliation without modifying data
+	// (POST /scim/reconciliation/preflight)
+	PreflightSCIMReconciliation(w http.ResponseWriter, r *http.Request)
+
+	// (GET /scim/v2/ResourceTypes)
+	ListSCIMResourceTypes(w http.ResponseWriter, r *http.Request)
+
+	// (GET /scim/v2/Schemas)
+	ListSCIMSchemas(w http.ResponseWriter, r *http.Request)
+
+	// (GET /scim/v2/ServiceProviderConfig)
+	GetSCIMServiceProviderConfig(w http.ResponseWriter, r *http.Request)
+
+	// (GET /scim/v2/Users)
+	ListSCIMUsers(w http.ResponseWriter, r *http.Request, params ListSCIMUsersParams)
+
+	// (POST /scim/v2/Users)
+	CreateSCIMUser(w http.ResponseWriter, r *http.Request)
+	// Deprovision the connector mapping without deleting the Person
+	// (DELETE /scim/v2/Users/{scimUserId})
+	DeleteSCIMUser(w http.ResponseWriter, r *http.Request, scimUserId UUIDv7)
+
+	// (GET /scim/v2/Users/{scimUserId})
+	GetSCIMUser(w http.ResponseWriter, r *http.Request, scimUserId UUIDv7)
+
+	// (PATCH /scim/v2/Users/{scimUserId})
+	PatchSCIMUser(w http.ResponseWriter, r *http.Request, scimUserId UUIDv7)
+
+	// (PUT /scim/v2/Users/{scimUserId})
+	ReplaceSCIMUser(w http.ResponseWriter, r *http.Request, scimUserId UUIDv7)
+	// Aggregate designated supervisors, compliance, profile images, and open-period assignment counts
+	// (GET /supervisor-dashboard)
+	GetSupervisorDashboard(w http.ResponseWriter, r *http.Request)
+	// Explicitly request/reuse required physical confirmation and evaluate admission on an approved ManagedDevice
+	// (POST /visitor-admission)
+	EvaluateVisitorAdmission(w http.ResponseWriter, r *http.Request)
+	// Read the controlled visitor-terminal configuration
+	// (GET /visitor-enrollment/configuration)
+	GetVisitorEnrollmentConfiguration(w http.ResponseWriter, r *http.Request)
+	// Replace the controlled visitor-terminal configuration
+	// (PUT /visitor-enrollment/configuration)
+	UpdateVisitorEnrollmentConfiguration(w http.ResponseWriter, r *http.Request)
+	// Begin enrollment on an enabled, approved ManagedDevice
+	// (POST /visitor-enrollment/context)
+	BeginVisitorEnrollment(w http.ResponseWriter, r *http.Request)
+	// Read the current Lab Rules PDF within an enrollment context
+	// (GET /visitor-enrollment/lab-rules.pdf)
+	GetVisitorEnrollmentLabRulesPDF(w http.ResponseWriter, r *http.Request)
+	// Read enrollment methods and current Lab Rules without creating records
+	// (GET /visitor-enrollment/state)
+	GetVisitorEnrollmentState(w http.ResponseWriter, r *http.Request)
+	// Atomically create one visitor using the backend-configured Role
+	// (POST /visitor-enrollment/submissions)
+	SubmitVisitorEnrollment(w http.ResponseWriter, r *http.Request, params SubmitVisitorEnrollmentParams)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -1417,6 +2730,12 @@ func (_ Unimplemented) EnableAccount(w http.ResponseWriter, r *http.Request, acc
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Send or safely resend an account invitation
+// (POST /accounts/{accountId}/invitations)
+func (_ Unimplemented) IssueAccountInvitation(w http.ResponseWriter, r *http.Request, accountId AccountId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Replace an account's email login identifier
 // (PUT /accounts/{accountId}/login-email)
 func (_ Unimplemented) UpdateAccountLoginEmail(w http.ResponseWriter, r *http.Request, accountId AccountId) {
@@ -1429,9 +2748,15 @@ func (_ Unimplemented) SetAccountPassword(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Issue a one-time administrative password-reset link
+// Send a one-time administrative password-reset code
 // (POST /accounts/{accountId}/password-reset)
 func (_ Unimplemented) IssueAccountPasswordReset(w http.ResponseWriter, r *http.Request, accountId AccountId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Send or safely resend a one-time PIN setup challenge
+// (POST /accounts/{accountId}/pin-enrollment)
+func (_ Unimplemented) IssueAccountPinEnrollment(w http.ResponseWriter, r *http.Request, accountId AccountId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1453,6 +2778,24 @@ func (_ Unimplemented) ListAuditEvents(w http.ResponseWriter, r *http.Request, p
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Verify a local login email with a one-time code
+// (POST /auth/email-verification/complete)
+func (_ Unimplemented) CompleteEmailVerification(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Send a verification code for the current account's local login email
+// (POST /auth/email-verification/request)
+func (_ Unimplemented) RequestOwnEmailVerification(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Complete an invitation and set the initial password
+// (POST /auth/invitations/complete)
+func (_ Unimplemented) CompleteInvitation(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Start an email/password session
 // (POST /auth/login)
 func (_ Unimplemented) Login(w http.ResponseWriter, r *http.Request) {
@@ -1471,6 +2814,48 @@ func (_ Unimplemented) GetCurrentUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Unlink an external identity without stranding the enabled Account
+// (DELETE /auth/methods/oidc/{identityId})
+func (_ Unimplemented) UnlinkOwnOIDCIdentity(w http.ResponseWriter, r *http.Request, identityId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Enroll or replace the current account's PIN method
+// (PUT /auth/methods/pin)
+func (_ Unimplemented) EnrollOwnPin(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Validate OIDC callback state, nonce, PKCE, issuer, signature, audience, expiry, and configured ACR
+// (GET /auth/oidc/callback)
+func (_ Unimplemented) CompleteOIDCCallback(w http.ResponseWriter, r *http.Request, params CompleteOIDCCallbackParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List enabled OIDC providers available for login
+// (GET /auth/oidc/providers)
+func (_ Unimplemented) ListOIDCLoginProviders(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Reauthenticate with the local password and start secure identity linking
+// (POST /auth/oidc/{providerSlug}/link)
+func (_ Unimplemented) StartOIDCLink(w http.ResponseWriter, r *http.Request, providerSlug string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Start an OIDC Authorization Code flow with PKCE S256
+// (GET /auth/oidc/{providerSlug}/start)
+func (_ Unimplemented) StartOIDCLogin(w http.ResponseWriter, r *http.Request, providerSlug string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Remove the current account password without stranding the account
+// (DELETE /auth/password)
+func (_ Unimplemented) RemoveOwnPassword(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Change the current account password
 // (PUT /auth/password)
 func (_ Unimplemented) ChangeOwnPassword(w http.ResponseWriter, r *http.Request) {
@@ -1483,6 +2868,36 @@ func (_ Unimplemented) CompletePasswordReset(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Complete password recovery with an emailed code
+// (POST /auth/password-reset/complete-code)
+func (_ Unimplemented) CompletePasswordResetCode(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Request a password-reset code
+// (POST /auth/password-reset/request)
+func (_ Unimplemented) RequestPasswordReset(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Remove the current account's PIN method
+// (DELETE /auth/pin/enrollment/complete)
+func (_ Unimplemented) RemoveOwnPin(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Complete a one-time PIN enrollment challenge
+// (POST /auth/pin/enrollment/complete)
+func (_ Unimplemented) CompletePinEnrollment(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Start a low-assurance login-name/PIN session
+// (POST /auth/pin/login)
+func (_ Unimplemented) LoginWithPin(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Report that the API process is running
 // (GET /health/live)
 func (_ Unimplemented) GetLiveness(w http.ResponseWriter, r *http.Request) {
@@ -1492,6 +2907,66 @@ func (_ Unimplemented) GetLiveness(w http.ResponseWriter, r *http.Request) {
 // Report whether required dependencies are ready
 // (GET /health/ready)
 func (_ Unimplemented) GetReadiness(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List the supervisor physical-evidence confirmation queue
+// (GET /laborordnung/requests)
+func (_ Unimplemented) ListLaborordnungRequests(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Explicitly create or reuse the current Person's physical-signature request
+// (POST /laborordnung/requests/me)
+func (_ Unimplemented) RequestOwnLaborordnungConfirmation(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Confirm verification of a physical signed document
+// (POST /laborordnung/requests/{laborordnungRequestId}/confirm)
+func (_ Unimplemented) ConfirmLaborordnungRequest(w http.ResponseWriter, r *http.Request, laborordnungRequestId LaborordnungRequestId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Read the current Person's Lab Rules status without side effects
+// (GET /laborordnung/status/me)
+func (_ Unimplemented) GetOwnLaborordnungStatus(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List Laborordnung history and upcoming publications
+// (GET /laborordnung/versions)
+func (_ Unimplemented) ListLaborordnungVersions(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Validate and store a draft Laborordnung PDF
+// (POST /laborordnung/versions)
+func (_ Unimplemented) CreateLaborordnungVersion(w http.ResponseWriter, r *http.Request, params CreateLaborordnungVersionParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// View or download the exact private PDF
+// (GET /laborordnung/versions/{laborordnungVersionId}/pdf)
+func (_ Unimplemented) GetLaborordnungPDF(w http.ResponseWriter, r *http.Request, laborordnungVersionId LaborordnungVersionId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Immutably publish a draft for an effective time
+// (POST /laborordnung/versions/{laborordnungVersionId}/publish)
+func (_ Unimplemented) PublishLaborordnungVersion(w http.ResponseWriter, r *http.Request, laborordnungVersionId LaborordnungVersionId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Read write-only-safe transactional mail configuration
+// (GET /mail/configuration)
+func (_ Unimplemented) GetMailConfiguration(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace transactional SMTP configuration
+// (PUT /mail/configuration)
+func (_ Unimplemented) UpdateMailConfiguration(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1564,6 +3039,24 @@ func (_ Unimplemented) RevokeManagedDevice(w http.ResponseWriter, r *http.Reques
 // Rotate a managed-device token
 // (POST /managed-devices/{managedDeviceId}/token)
 func (_ Unimplemented) RotateManagedDeviceToken(w http.ResponseWriter, r *http.Request, managedDeviceId ManagedDeviceId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List configured OIDC providers without secrets
+// (GET /oidc/providers)
+func (_ Unimplemented) ListOIDCProviders(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Configure an OIDC provider
+// (POST /oidc/providers)
+func (_ Unimplemented) CreateOIDCProvider(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update OIDC provider configuration; omitted client secret is unchanged
+// (PATCH /oidc/providers/{oidcProviderId})
+func (_ Unimplemented) UpdateOIDCProvider(w http.ResponseWriter, r *http.Request, oidcProviderId OIDCProviderId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1765,6 +3258,24 @@ func (_ Unimplemented) CreatePersonAccount(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Remove a profile image
+// (DELETE /people/{personId}/profile-image)
+func (_ Unimplemented) DeletePersonProfileImage(w http.ResponseWriter, r *http.Request, personId PersonId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Read a private normalized profile image
+// (GET /people/{personId}/profile-image)
+func (_ Unimplemented) GetPersonProfileImage(w http.ResponseWriter, r *http.Request, personId PersonId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Validate, normalize, and replace a profile image
+// (PUT /people/{personId}/profile-image)
+func (_ Unimplemented) PutPersonProfileImage(w http.ResponseWriter, r *http.Request, personId PersonId, params PutPersonProfileImageParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // List permissions registered by this application version
 // (GET /permissions)
 func (_ Unimplemented) ListPermissions(w http.ResponseWriter, r *http.Request) {
@@ -1795,6 +3306,12 @@ func (_ Unimplemented) CreateRole(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Resolve every role's permissions for a hypothetical request context
+// (GET /roles/effective-permissions)
+func (_ Unimplemented) EvaluateRolePermissions(w http.ResponseWriter, r *http.Request, params EvaluateRolePermissionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Delete a configurable role
 // (DELETE /roles/{roleId})
 func (_ Unimplemented) DeleteRole(w http.ResponseWriter, r *http.Request, roleId RoleId) {
@@ -1816,6 +3333,142 @@ func (_ Unimplemented) UpdateRole(w http.ResponseWriter, r *http.Request, roleId
 // Replace a configurable role's permissions
 // (PUT /roles/{roleId}/permissions)
 func (_ Unimplemented) ReplaceRolePermissions(w http.ResponseWriter, r *http.Request, roleId RoleId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List SCIM connectors without bearer-token secrets
+// (GET /scim/connectors)
+func (_ Unimplemented) ListSCIMConnectors(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a SCIM connector and its first one-time-displayed bearer token
+// (POST /scim/connectors)
+func (_ Unimplemented) CreateSCIMConnector(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update a SCIM connector without changing its token
+// (PUT /scim/connectors/{scimConnectorId})
+func (_ Unimplemented) UpdateSCIMConnector(w http.ResponseWriter, r *http.Request, scimConnectorId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Revoke the connector's active bearer token
+// (DELETE /scim/connectors/{scimConnectorId}/token)
+func (_ Unimplemented) RevokeSCIMConnectorToken(w http.ResponseWriter, r *http.Request, scimConnectorId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Revoke the old token and issue a new one-time-displayed bearer token
+// (POST /scim/connectors/{scimConnectorId}/token)
+func (_ Unimplemented) RotateSCIMConnectorToken(w http.ResponseWriter, r *http.Request, scimConnectorId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Atomically reconcile a conflict-free provisional SCIM Account into an established Account
+// (POST /scim/reconciliation)
+func (_ Unimplemented) ReconcileSCIMAccount(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Analyze a provisional-to-established Account reconciliation without modifying data
+// (POST /scim/reconciliation/preflight)
+func (_ Unimplemented) PreflightSCIMReconciliation(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /scim/v2/ResourceTypes)
+func (_ Unimplemented) ListSCIMResourceTypes(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /scim/v2/Schemas)
+func (_ Unimplemented) ListSCIMSchemas(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /scim/v2/ServiceProviderConfig)
+func (_ Unimplemented) GetSCIMServiceProviderConfig(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /scim/v2/Users)
+func (_ Unimplemented) ListSCIMUsers(w http.ResponseWriter, r *http.Request, params ListSCIMUsersParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /scim/v2/Users)
+func (_ Unimplemented) CreateSCIMUser(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Deprovision the connector mapping without deleting the Person
+// (DELETE /scim/v2/Users/{scimUserId})
+func (_ Unimplemented) DeleteSCIMUser(w http.ResponseWriter, r *http.Request, scimUserId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /scim/v2/Users/{scimUserId})
+func (_ Unimplemented) GetSCIMUser(w http.ResponseWriter, r *http.Request, scimUserId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PATCH /scim/v2/Users/{scimUserId})
+func (_ Unimplemented) PatchSCIMUser(w http.ResponseWriter, r *http.Request, scimUserId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PUT /scim/v2/Users/{scimUserId})
+func (_ Unimplemented) ReplaceSCIMUser(w http.ResponseWriter, r *http.Request, scimUserId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Aggregate designated supervisors, compliance, profile images, and open-period assignment counts
+// (GET /supervisor-dashboard)
+func (_ Unimplemented) GetSupervisorDashboard(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Explicitly request/reuse required physical confirmation and evaluate admission on an approved ManagedDevice
+// (POST /visitor-admission)
+func (_ Unimplemented) EvaluateVisitorAdmission(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Read the controlled visitor-terminal configuration
+// (GET /visitor-enrollment/configuration)
+func (_ Unimplemented) GetVisitorEnrollmentConfiguration(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace the controlled visitor-terminal configuration
+// (PUT /visitor-enrollment/configuration)
+func (_ Unimplemented) UpdateVisitorEnrollmentConfiguration(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Begin enrollment on an enabled, approved ManagedDevice
+// (POST /visitor-enrollment/context)
+func (_ Unimplemented) BeginVisitorEnrollment(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Read the current Lab Rules PDF within an enrollment context
+// (GET /visitor-enrollment/lab-rules.pdf)
+func (_ Unimplemented) GetVisitorEnrollmentLabRulesPDF(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Read enrollment methods and current Lab Rules without creating records
+// (GET /visitor-enrollment/state)
+func (_ Unimplemented) GetVisitorEnrollmentState(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Atomically create one visitor using the backend-configured Role
+// (POST /visitor-enrollment/submissions)
+func (_ Unimplemented) SubmitVisitorEnrollment(w http.ResponseWriter, r *http.Request, params SubmitVisitorEnrollmentParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1958,6 +3611,39 @@ func (siw *ServerInterfaceWrapper) EnableAccount(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// IssueAccountInvitation operation middleware
+func (siw *ServerInterfaceWrapper) IssueAccountInvitation(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "accountId" -------------
+	var accountId AccountId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "accountId", chi.URLParam(r, "accountId"), &accountId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "accountId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.IssueAccountInvitation(w, r, accountId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // UpdateAccountLoginEmail operation middleware
 func (siw *ServerInterfaceWrapper) UpdateAccountLoginEmail(w http.ResponseWriter, r *http.Request) {
 
@@ -2048,6 +3734,39 @@ func (siw *ServerInterfaceWrapper) IssueAccountPasswordReset(w http.ResponseWrit
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.IssueAccountPasswordReset(w, r, accountId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// IssueAccountPinEnrollment operation middleware
+func (siw *ServerInterfaceWrapper) IssueAccountPinEnrollment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "accountId" -------------
+	var accountId AccountId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "accountId", chi.URLParam(r, "accountId"), &accountId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "accountId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.IssueAccountPinEnrollment(w, r, accountId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2230,6 +3949,56 @@ func (siw *ServerInterfaceWrapper) ListAuditEvents(w http.ResponseWriter, r *htt
 	handler.ServeHTTP(w, r)
 }
 
+// CompleteEmailVerification operation middleware
+func (siw *ServerInterfaceWrapper) CompleteEmailVerification(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompleteEmailVerification(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RequestOwnEmailVerification operation middleware
+func (siw *ServerInterfaceWrapper) RequestOwnEmailVerification(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RequestOwnEmailVerification(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CompleteInvitation operation middleware
+func (siw *ServerInterfaceWrapper) CompleteInvitation(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompleteInvitation(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // Login operation middleware
 func (siw *ServerInterfaceWrapper) Login(w http.ResponseWriter, r *http.Request) {
 
@@ -2286,6 +4055,204 @@ func (siw *ServerInterfaceWrapper) GetCurrentUser(w http.ResponseWriter, r *http
 	handler.ServeHTTP(w, r)
 }
 
+// UnlinkOwnOIDCIdentity operation middleware
+func (siw *ServerInterfaceWrapper) UnlinkOwnOIDCIdentity(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "identityId" -------------
+	var identityId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "identityId", chi.URLParam(r, "identityId"), &identityId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "identityId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnlinkOwnOIDCIdentity(w, r, identityId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// EnrollOwnPin operation middleware
+func (siw *ServerInterfaceWrapper) EnrollOwnPin(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EnrollOwnPin(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CompleteOIDCCallback operation middleware
+func (siw *ServerInterfaceWrapper) CompleteOIDCCallback(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CompleteOIDCCallbackParams
+
+	// ------------- Required query parameter "code" -------------
+
+	if paramValue := r.URL.Query().Get("code"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "code"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "code", r.URL.Query(), &params.Code)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "code", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "state" -------------
+
+	if paramValue := r.URL.Query().Get("state"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "state"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "state", r.URL.Query(), &params.State)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "state", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompleteOIDCCallback(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListOIDCLoginProviders operation middleware
+func (siw *ServerInterfaceWrapper) ListOIDCLoginProviders(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListOIDCLoginProviders(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StartOIDCLink operation middleware
+func (siw *ServerInterfaceWrapper) StartOIDCLink(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "providerSlug" -------------
+	var providerSlug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "providerSlug", chi.URLParam(r, "providerSlug"), &providerSlug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "providerSlug", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StartOIDCLink(w, r, providerSlug)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StartOIDCLogin operation middleware
+func (siw *ServerInterfaceWrapper) StartOIDCLogin(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "providerSlug" -------------
+	var providerSlug string
+
+	err = runtime.BindStyledParameterWithOptions("simple", "providerSlug", chi.URLParam(r, "providerSlug"), &providerSlug, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "providerSlug", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StartOIDCLogin(w, r, providerSlug)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RemoveOwnPassword operation middleware
+func (siw *ServerInterfaceWrapper) RemoveOwnPassword(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RemoveOwnPassword(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ChangeOwnPassword operation middleware
 func (siw *ServerInterfaceWrapper) ChangeOwnPassword(w http.ResponseWriter, r *http.Request) {
 
@@ -2322,6 +4289,84 @@ func (siw *ServerInterfaceWrapper) CompletePasswordReset(w http.ResponseWriter, 
 	handler.ServeHTTP(w, r)
 }
 
+// CompletePasswordResetCode operation middleware
+func (siw *ServerInterfaceWrapper) CompletePasswordResetCode(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompletePasswordResetCode(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RequestPasswordReset operation middleware
+func (siw *ServerInterfaceWrapper) RequestPasswordReset(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RequestPasswordReset(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RemoveOwnPin operation middleware
+func (siw *ServerInterfaceWrapper) RemoveOwnPin(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RemoveOwnPin(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CompletePinEnrollment operation middleware
+func (siw *ServerInterfaceWrapper) CompletePinEnrollment(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompletePinEnrollment(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// LoginWithPin operation middleware
+func (siw *ServerInterfaceWrapper) LoginWithPin(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.LoginWithPin(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetLiveness operation middleware
 func (siw *ServerInterfaceWrapper) GetLiveness(w http.ResponseWriter, r *http.Request) {
 
@@ -2341,6 +4386,302 @@ func (siw *ServerInterfaceWrapper) GetReadiness(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetReadiness(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListLaborordnungRequests operation middleware
+func (siw *ServerInterfaceWrapper) ListLaborordnungRequests(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListLaborordnungRequests(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RequestOwnLaborordnungConfirmation operation middleware
+func (siw *ServerInterfaceWrapper) RequestOwnLaborordnungConfirmation(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RequestOwnLaborordnungConfirmation(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConfirmLaborordnungRequest operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmLaborordnungRequest(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "laborordnungRequestId" -------------
+	var laborordnungRequestId LaborordnungRequestId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "laborordnungRequestId", chi.URLParam(r, "laborordnungRequestId"), &laborordnungRequestId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "laborordnungRequestId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConfirmLaborordnungRequest(w, r, laborordnungRequestId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetOwnLaborordnungStatus operation middleware
+func (siw *ServerInterfaceWrapper) GetOwnLaborordnungStatus(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetOwnLaborordnungStatus(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListLaborordnungVersions operation middleware
+func (siw *ServerInterfaceWrapper) ListLaborordnungVersions(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListLaborordnungVersions(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateLaborordnungVersion operation middleware
+func (siw *ServerInterfaceWrapper) CreateLaborordnungVersion(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CreateLaborordnungVersionParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-Human-Revision" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Human-Revision")]; found {
+		var XHumanRevision string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Human-Revision", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Human-Revision", valueList[0], &XHumanRevision, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Human-Revision", Err: err})
+			return
+		}
+
+		params.XHumanRevision = XHumanRevision
+
+	} else {
+		err := fmt.Errorf("Header parameter X-Human-Revision is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-Human-Revision", Err: err})
+		return
+	}
+
+	// ------------- Required header parameter "X-File-Name" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-File-Name")]; found {
+		var XFileName string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-File-Name", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-File-Name", valueList[0], &XFileName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-File-Name", Err: err})
+			return
+		}
+
+		params.XFileName = XFileName
+
+	} else {
+		err := fmt.Errorf("Header parameter X-File-Name is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-File-Name", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateLaborordnungVersion(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetLaborordnungPDF operation middleware
+func (siw *ServerInterfaceWrapper) GetLaborordnungPDF(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "laborordnungVersionId" -------------
+	var laborordnungVersionId LaborordnungVersionId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "laborordnungVersionId", chi.URLParam(r, "laborordnungVersionId"), &laborordnungVersionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "laborordnungVersionId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetLaborordnungPDF(w, r, laborordnungVersionId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PublishLaborordnungVersion operation middleware
+func (siw *ServerInterfaceWrapper) PublishLaborordnungVersion(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "laborordnungVersionId" -------------
+	var laborordnungVersionId LaborordnungVersionId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "laborordnungVersionId", chi.URLParam(r, "laborordnungVersionId"), &laborordnungVersionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "laborordnungVersionId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PublishLaborordnungVersion(w, r, laborordnungVersionId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMailConfiguration operation middleware
+func (siw *ServerInterfaceWrapper) GetMailConfiguration(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMailConfiguration(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateMailConfiguration operation middleware
+func (siw *ServerInterfaceWrapper) UpdateMailConfiguration(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateMailConfiguration(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2706,6 +5047,81 @@ func (siw *ServerInterfaceWrapper) RotateManagedDeviceToken(w http.ResponseWrite
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.RotateManagedDeviceToken(w, r, managedDeviceId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListOIDCProviders operation middleware
+func (siw *ServerInterfaceWrapper) ListOIDCProviders(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListOIDCProviders(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateOIDCProvider operation middleware
+func (siw *ServerInterfaceWrapper) CreateOIDCProvider(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateOIDCProvider(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateOIDCProvider operation middleware
+func (siw *ServerInterfaceWrapper) UpdateOIDCProvider(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "oidcProviderId" -------------
+	var oidcProviderId OIDCProviderId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "oidcProviderId", chi.URLParam(r, "oidcProviderId"), &oidcProviderId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "oidcProviderId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateOIDCProvider(w, r, oidcProviderId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -3769,6 +6185,165 @@ func (siw *ServerInterfaceWrapper) CreatePersonAccount(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// DeletePersonProfileImage operation middleware
+func (siw *ServerInterfaceWrapper) DeletePersonProfileImage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "personId" -------------
+	var personId PersonId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "personId", chi.URLParam(r, "personId"), &personId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "personId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeletePersonProfileImage(w, r, personId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPersonProfileImage operation middleware
+func (siw *ServerInterfaceWrapper) GetPersonProfileImage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "personId" -------------
+	var personId PersonId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "personId", chi.URLParam(r, "personId"), &personId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "personId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPersonProfileImage(w, r, personId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PutPersonProfileImage operation middleware
+func (siw *ServerInterfaceWrapper) PutPersonProfileImage(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "personId" -------------
+	var personId PersonId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "personId", chi.URLParam(r, "personId"), &personId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "personId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params PutPersonProfileImageParams
+
+	// ------------- Required query parameter "expectedVersion" -------------
+
+	if paramValue := r.URL.Query().Get("expectedVersion"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "expectedVersion"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "expectedVersion", r.URL.Query(), &params.ExpectedVersion)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "expectedVersion", Err: err})
+		return
+	}
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-File-Name" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-File-Name")]; found {
+		var XFileName string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-File-Name", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-File-Name", valueList[0], &XFileName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-File-Name", Err: err})
+			return
+		}
+
+		params.XFileName = XFileName
+
+	} else {
+		err := fmt.Errorf("Header parameter X-File-Name is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-File-Name", Err: err})
+		return
+	}
+
+	// ------------- Optional header parameter "X-Profile-Image-Source" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Profile-Image-Source")]; found {
+		var XProfileImageSource PutPersonProfileImageParamsXProfileImageSource
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Profile-Image-Source", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Profile-Image-Source", valueList[0], &XProfileImageSource, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Profile-Image-Source", Err: err})
+			return
+		}
+
+		params.XProfileImageSource = &XProfileImageSource
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PutPersonProfileImage(w, r, personId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListPermissions operation middleware
 func (siw *ServerInterfaceWrapper) ListPermissions(w http.ResponseWriter, r *http.Request) {
 
@@ -3871,6 +6446,54 @@ func (siw *ServerInterfaceWrapper) CreateRole(w http.ResponseWriter, r *http.Req
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreateRole(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// EvaluateRolePermissions operation middleware
+func (siw *ServerInterfaceWrapper) EvaluateRolePermissions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params EvaluateRolePermissionsParams
+
+	// ------------- Required query parameter "authenticationAssurance" -------------
+
+	if paramValue := r.URL.Query().Get("authenticationAssurance"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "authenticationAssurance"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "authenticationAssurance", r.URL.Query(), &params.AuthenticationAssurance)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "authenticationAssurance", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "deviceTypeId" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "deviceTypeId", r.URL.Query(), &params.DeviceTypeId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "deviceTypeId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EvaluateRolePermissions(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -4010,6 +6633,614 @@ func (siw *ServerInterfaceWrapper) ReplaceRolePermissions(w http.ResponseWriter,
 	handler.ServeHTTP(w, r)
 }
 
+// ListSCIMConnectors operation middleware
+func (siw *ServerInterfaceWrapper) ListSCIMConnectors(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSCIMConnectors(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateSCIMConnector operation middleware
+func (siw *ServerInterfaceWrapper) CreateSCIMConnector(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateSCIMConnector(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateSCIMConnector operation middleware
+func (siw *ServerInterfaceWrapper) UpdateSCIMConnector(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "scimConnectorId" -------------
+	var scimConnectorId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "scimConnectorId", chi.URLParam(r, "scimConnectorId"), &scimConnectorId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scimConnectorId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateSCIMConnector(w, r, scimConnectorId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RevokeSCIMConnectorToken operation middleware
+func (siw *ServerInterfaceWrapper) RevokeSCIMConnectorToken(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "scimConnectorId" -------------
+	var scimConnectorId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "scimConnectorId", chi.URLParam(r, "scimConnectorId"), &scimConnectorId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scimConnectorId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RevokeSCIMConnectorToken(w, r, scimConnectorId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RotateSCIMConnectorToken operation middleware
+func (siw *ServerInterfaceWrapper) RotateSCIMConnectorToken(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "scimConnectorId" -------------
+	var scimConnectorId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "scimConnectorId", chi.URLParam(r, "scimConnectorId"), &scimConnectorId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scimConnectorId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RotateSCIMConnectorToken(w, r, scimConnectorId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReconcileSCIMAccount operation middleware
+func (siw *ServerInterfaceWrapper) ReconcileSCIMAccount(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReconcileSCIMAccount(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PreflightSCIMReconciliation operation middleware
+func (siw *ServerInterfaceWrapper) PreflightSCIMReconciliation(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PreflightSCIMReconciliation(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListSCIMResourceTypes operation middleware
+func (siw *ServerInterfaceWrapper) ListSCIMResourceTypes(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ScimBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSCIMResourceTypes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListSCIMSchemas operation middleware
+func (siw *ServerInterfaceWrapper) ListSCIMSchemas(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ScimBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSCIMSchemas(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSCIMServiceProviderConfig operation middleware
+func (siw *ServerInterfaceWrapper) GetSCIMServiceProviderConfig(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ScimBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSCIMServiceProviderConfig(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListSCIMUsers operation middleware
+func (siw *ServerInterfaceWrapper) ListSCIMUsers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ScimBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListSCIMUsersParams
+
+	// ------------- Optional query parameter "filter" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "filter", r.URL.Query(), &params.Filter)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "filter", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "startIndex" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "startIndex", r.URL.Query(), &params.StartIndex)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "startIndex", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "count" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "count", r.URL.Query(), &params.Count)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "count", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSCIMUsers(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateSCIMUser operation middleware
+func (siw *ServerInterfaceWrapper) CreateSCIMUser(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ScimBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateSCIMUser(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteSCIMUser operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSCIMUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "scimUserId" -------------
+	var scimUserId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "scimUserId", chi.URLParam(r, "scimUserId"), &scimUserId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scimUserId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ScimBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteSCIMUser(w, r, scimUserId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSCIMUser operation middleware
+func (siw *ServerInterfaceWrapper) GetSCIMUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "scimUserId" -------------
+	var scimUserId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "scimUserId", chi.URLParam(r, "scimUserId"), &scimUserId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scimUserId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ScimBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSCIMUser(w, r, scimUserId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PatchSCIMUser operation middleware
+func (siw *ServerInterfaceWrapper) PatchSCIMUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "scimUserId" -------------
+	var scimUserId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "scimUserId", chi.URLParam(r, "scimUserId"), &scimUserId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scimUserId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ScimBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PatchSCIMUser(w, r, scimUserId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReplaceSCIMUser operation middleware
+func (siw *ServerInterfaceWrapper) ReplaceSCIMUser(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "scimUserId" -------------
+	var scimUserId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "scimUserId", chi.URLParam(r, "scimUserId"), &scimUserId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "scimUserId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, ScimBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReplaceSCIMUser(w, r, scimUserId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSupervisorDashboard operation middleware
+func (siw *ServerInterfaceWrapper) GetSupervisorDashboard(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSupervisorDashboard(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// EvaluateVisitorAdmission operation middleware
+func (siw *ServerInterfaceWrapper) EvaluateVisitorAdmission(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EvaluateVisitorAdmission(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetVisitorEnrollmentConfiguration operation middleware
+func (siw *ServerInterfaceWrapper) GetVisitorEnrollmentConfiguration(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetVisitorEnrollmentConfiguration(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateVisitorEnrollmentConfiguration operation middleware
+func (siw *ServerInterfaceWrapper) UpdateVisitorEnrollmentConfiguration(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateVisitorEnrollmentConfiguration(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// BeginVisitorEnrollment operation middleware
+func (siw *ServerInterfaceWrapper) BeginVisitorEnrollment(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.BeginVisitorEnrollment(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetVisitorEnrollmentLabRulesPDF operation middleware
+func (siw *ServerInterfaceWrapper) GetVisitorEnrollmentLabRulesPDF(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetVisitorEnrollmentLabRulesPDF(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetVisitorEnrollmentState operation middleware
+func (siw *ServerInterfaceWrapper) GetVisitorEnrollmentState(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetVisitorEnrollmentState(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SubmitVisitorEnrollment operation middleware
+func (siw *ServerInterfaceWrapper) SubmitVisitorEnrollment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SubmitVisitorEnrollmentParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-Enrollment-CSRF-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Enrollment-CSRF-Token")]; found {
+		var XEnrollmentCSRFToken string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Enrollment-CSRF-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Enrollment-CSRF-Token", valueList[0], &XEnrollmentCSRFToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Enrollment-CSRF-Token", Err: err})
+			return
+		}
+
+		params.XEnrollmentCSRFToken = XEnrollmentCSRFToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-Enrollment-CSRF-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-Enrollment-CSRF-Token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SubmitVisitorEnrollment(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 type UnescapedCookieParamError struct {
 	ParamName string
 	Err       error
@@ -4136,6 +7367,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/accounts/{accountId}/enable", wrapper.EnableAccount)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/accounts/{accountId}/invitations", wrapper.IssueAccountInvitation)
+	})
+	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/accounts/{accountId}/login-email", wrapper.UpdateAccountLoginEmail)
 	})
 	r.Group(func(r chi.Router) {
@@ -4143,6 +7377,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/accounts/{accountId}/password-reset", wrapper.IssueAccountPasswordReset)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/accounts/{accountId}/pin-enrollment", wrapper.IssueAccountPinEnrollment)
 	})
 	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/accounts/{accountId}/roles/{roleId}", wrapper.RemoveAccountRole)
@@ -4154,6 +7391,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/audit-events", wrapper.ListAuditEvents)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/email-verification/complete", wrapper.CompleteEmailVerification)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/email-verification/request", wrapper.RequestOwnEmailVerification)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/invitations/complete", wrapper.CompleteInvitation)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/auth/login", wrapper.Login)
 	})
 	r.Group(func(r chi.Router) {
@@ -4163,16 +7409,82 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/auth/me", wrapper.GetCurrentUser)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/auth/methods/oidc/{identityId}", wrapper.UnlinkOwnOIDCIdentity)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/auth/methods/pin", wrapper.EnrollOwnPin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/auth/oidc/callback", wrapper.CompleteOIDCCallback)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/auth/oidc/providers", wrapper.ListOIDCLoginProviders)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/oidc/{providerSlug}/link", wrapper.StartOIDCLink)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/auth/oidc/{providerSlug}/start", wrapper.StartOIDCLogin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/auth/password", wrapper.RemoveOwnPassword)
+	})
+	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/auth/password", wrapper.ChangeOwnPassword)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/auth/password-reset/complete", wrapper.CompletePasswordReset)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/password-reset/complete-code", wrapper.CompletePasswordResetCode)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/password-reset/request", wrapper.RequestPasswordReset)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/auth/pin/enrollment/complete", wrapper.RemoveOwnPin)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/pin/enrollment/complete", wrapper.CompletePinEnrollment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/pin/login", wrapper.LoginWithPin)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/health/live", wrapper.GetLiveness)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/health/ready", wrapper.GetReadiness)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/laborordnung/requests", wrapper.ListLaborordnungRequests)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/laborordnung/requests/me", wrapper.RequestOwnLaborordnungConfirmation)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/laborordnung/requests/{laborordnungRequestId}/confirm", wrapper.ConfirmLaborordnungRequest)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/laborordnung/status/me", wrapper.GetOwnLaborordnungStatus)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/laborordnung/versions", wrapper.ListLaborordnungVersions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/laborordnung/versions", wrapper.CreateLaborordnungVersion)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/laborordnung/versions/{laborordnungVersionId}/pdf", wrapper.GetLaborordnungPDF)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/laborordnung/versions/{laborordnungVersionId}/publish", wrapper.PublishLaborordnungVersion)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/mail/configuration", wrapper.GetMailConfiguration)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/mail/configuration", wrapper.UpdateMailConfiguration)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/managed-device-types", wrapper.ListManagedDeviceTypes)
@@ -4209,6 +7521,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/managed-devices/{managedDeviceId}/token", wrapper.RotateManagedDeviceToken)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/oidc/providers", wrapper.ListOIDCProviders)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/oidc/providers", wrapper.CreateOIDCProvider)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/oidc/providers/{oidcProviderId}", wrapper.UpdateOIDCProvider)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/open-day-academic-breaks", wrapper.CreateOpenDayAcademicBreak)
@@ -4310,6 +7631,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/people/{personId}/account", wrapper.CreatePersonAccount)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/people/{personId}/profile-image", wrapper.DeletePersonProfileImage)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/people/{personId}/profile-image", wrapper.GetPersonProfileImage)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/people/{personId}/profile-image", wrapper.PutPersonProfileImage)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/permissions", wrapper.ListPermissions)
 	})
 	r.Group(func(r chi.Router) {
@@ -4325,6 +7655,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/roles", wrapper.CreateRole)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/roles/effective-permissions", wrapper.EvaluateRolePermissions)
+	})
+	r.Group(func(r chi.Router) {
 		r.Delete(options.BaseURL+"/roles/{roleId}", wrapper.DeleteRole)
 	})
 	r.Group(func(r chi.Router) {
@@ -4335,6 +7668,78 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/roles/{roleId}/permissions", wrapper.ReplaceRolePermissions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/scim/connectors", wrapper.ListSCIMConnectors)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/scim/connectors", wrapper.CreateSCIMConnector)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/scim/connectors/{scimConnectorId}", wrapper.UpdateSCIMConnector)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/scim/connectors/{scimConnectorId}/token", wrapper.RevokeSCIMConnectorToken)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/scim/connectors/{scimConnectorId}/token", wrapper.RotateSCIMConnectorToken)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/scim/reconciliation", wrapper.ReconcileSCIMAccount)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/scim/reconciliation/preflight", wrapper.PreflightSCIMReconciliation)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/scim/v2/ResourceTypes", wrapper.ListSCIMResourceTypes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/scim/v2/Schemas", wrapper.ListSCIMSchemas)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/scim/v2/ServiceProviderConfig", wrapper.GetSCIMServiceProviderConfig)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/scim/v2/Users", wrapper.ListSCIMUsers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/scim/v2/Users", wrapper.CreateSCIMUser)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/scim/v2/Users/{scimUserId}", wrapper.DeleteSCIMUser)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/scim/v2/Users/{scimUserId}", wrapper.GetSCIMUser)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/scim/v2/Users/{scimUserId}", wrapper.PatchSCIMUser)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/scim/v2/Users/{scimUserId}", wrapper.ReplaceSCIMUser)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/supervisor-dashboard", wrapper.GetSupervisorDashboard)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/visitor-admission", wrapper.EvaluateVisitorAdmission)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/visitor-enrollment/configuration", wrapper.GetVisitorEnrollmentConfiguration)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/visitor-enrollment/configuration", wrapper.UpdateVisitorEnrollmentConfiguration)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/visitor-enrollment/context", wrapper.BeginVisitorEnrollment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/visitor-enrollment/lab-rules.pdf", wrapper.GetVisitorEnrollmentLabRulesPDF)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/visitor-enrollment/state", wrapper.GetVisitorEnrollmentState)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/visitor-enrollment/submissions", wrapper.SubmitVisitorEnrollment)
 	})
 
 	return r
@@ -4349,6 +7754,10 @@ type ForbiddenJSONResponse Error
 type InternalServerErrorJSONResponse Error
 
 type NotFoundJSONResponse Error
+
+type PayloadTooLargeJSONResponse Error
+
+type ServiceUnavailableJSONResponse Error
 
 type TooManyRequestsResponseHeaders struct {
 	RetryAfter int
@@ -4659,6 +8068,99 @@ func (response EnableAccount500JSONResponse) VisitEnableAccountResponse(w http.R
 	return json.NewEncoder(w).Encode(response)
 }
 
+type IssueAccountInvitationRequestObject struct {
+	AccountId AccountId `json:"accountId"`
+	Body      *IssueAccountInvitationJSONRequestBody
+}
+
+type IssueAccountInvitationResponseObject interface {
+	VisitIssueAccountInvitationResponse(w http.ResponseWriter) error
+}
+
+type IssueAccountInvitation201ResponseHeaders struct {
+	CacheControl string
+}
+
+type IssueAccountInvitation201JSONResponse struct {
+	Body    PasswordResetIssue
+	Headers IssueAccountInvitation201ResponseHeaders
+}
+
+func (response IssueAccountInvitation201JSONResponse) VisitIssueAccountInvitationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type IssueAccountInvitation400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response IssueAccountInvitation400JSONResponse) VisitIssueAccountInvitationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IssueAccountInvitation401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response IssueAccountInvitation401JSONResponse) VisitIssueAccountInvitationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IssueAccountInvitation403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response IssueAccountInvitation403JSONResponse) VisitIssueAccountInvitationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IssueAccountInvitation404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response IssueAccountInvitation404JSONResponse) VisitIssueAccountInvitationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IssueAccountInvitation409JSONResponse struct{ ConflictJSONResponse }
+
+func (response IssueAccountInvitation409JSONResponse) VisitIssueAccountInvitationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IssueAccountInvitation422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response IssueAccountInvitation422JSONResponse) VisitIssueAccountInvitationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IssueAccountInvitation500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response IssueAccountInvitation500JSONResponse) VisitIssueAccountInvitationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type UpdateAccountLoginEmailRequestObject struct {
 	AccountId AccountId `json:"accountId"`
 	Body      *UpdateAccountLoginEmailJSONRequestBody
@@ -4911,6 +8413,99 @@ func (response IssueAccountPasswordReset500JSONResponse) VisitIssueAccountPasswo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type IssueAccountPinEnrollmentRequestObject struct {
+	AccountId AccountId `json:"accountId"`
+	Body      *IssueAccountPinEnrollmentJSONRequestBody
+}
+
+type IssueAccountPinEnrollmentResponseObject interface {
+	VisitIssueAccountPinEnrollmentResponse(w http.ResponseWriter) error
+}
+
+type IssueAccountPinEnrollment201ResponseHeaders struct {
+	CacheControl string
+}
+
+type IssueAccountPinEnrollment201JSONResponse struct {
+	Body    PasswordResetIssue
+	Headers IssueAccountPinEnrollment201ResponseHeaders
+}
+
+func (response IssueAccountPinEnrollment201JSONResponse) VisitIssueAccountPinEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type IssueAccountPinEnrollment400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response IssueAccountPinEnrollment400JSONResponse) VisitIssueAccountPinEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IssueAccountPinEnrollment401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response IssueAccountPinEnrollment401JSONResponse) VisitIssueAccountPinEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IssueAccountPinEnrollment403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response IssueAccountPinEnrollment403JSONResponse) VisitIssueAccountPinEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IssueAccountPinEnrollment404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response IssueAccountPinEnrollment404JSONResponse) VisitIssueAccountPinEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IssueAccountPinEnrollment409JSONResponse struct{ ConflictJSONResponse }
+
+func (response IssueAccountPinEnrollment409JSONResponse) VisitIssueAccountPinEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IssueAccountPinEnrollment422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response IssueAccountPinEnrollment422JSONResponse) VisitIssueAccountPinEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IssueAccountPinEnrollment500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response IssueAccountPinEnrollment500JSONResponse) VisitIssueAccountPinEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type RemoveAccountRoleRequestObject struct {
 	AccountId AccountId `json:"accountId"`
 	RoleId    RoleId    `json:"roleId"`
@@ -5116,6 +8711,199 @@ func (response ListAuditEvents500JSONResponse) VisitListAuditEventsResponse(w ht
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CompleteEmailVerificationRequestObject struct {
+	Body *CompleteEmailVerificationJSONRequestBody
+}
+
+type CompleteEmailVerificationResponseObject interface {
+	VisitCompleteEmailVerificationResponse(w http.ResponseWriter) error
+}
+
+type CompleteEmailVerification204ResponseHeaders struct {
+	CacheControl string
+}
+
+type CompleteEmailVerification204Response struct {
+	Headers CompleteEmailVerification204ResponseHeaders
+}
+
+func (response CompleteEmailVerification204Response) VisitCompleteEmailVerificationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(204)
+	return nil
+}
+
+type CompleteEmailVerification400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CompleteEmailVerification400JSONResponse) VisitCompleteEmailVerificationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompleteEmailVerification422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CompleteEmailVerification422JSONResponse) VisitCompleteEmailVerificationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompleteEmailVerification429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response CompleteEmailVerification429JSONResponse) VisitCompleteEmailVerificationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Retry-After", fmt.Sprint(response.Headers.RetryAfter))
+	w.WriteHeader(429)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type CompleteEmailVerification500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CompleteEmailVerification500JSONResponse) VisitCompleteEmailVerificationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RequestOwnEmailVerificationRequestObject struct {
+}
+
+type RequestOwnEmailVerificationResponseObject interface {
+	VisitRequestOwnEmailVerificationResponse(w http.ResponseWriter) error
+}
+
+type RequestOwnEmailVerification202ResponseHeaders struct {
+	CacheControl string
+}
+
+type RequestOwnEmailVerification202Response struct {
+	Headers RequestOwnEmailVerification202ResponseHeaders
+}
+
+func (response RequestOwnEmailVerification202Response) VisitRequestOwnEmailVerificationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(202)
+	return nil
+}
+
+type RequestOwnEmailVerification401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RequestOwnEmailVerification401JSONResponse) VisitRequestOwnEmailVerificationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RequestOwnEmailVerification403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RequestOwnEmailVerification403JSONResponse) VisitRequestOwnEmailVerificationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RequestOwnEmailVerification404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RequestOwnEmailVerification404JSONResponse) VisitRequestOwnEmailVerificationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RequestOwnEmailVerification409JSONResponse struct{ ConflictJSONResponse }
+
+func (response RequestOwnEmailVerification409JSONResponse) VisitRequestOwnEmailVerificationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RequestOwnEmailVerification500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response RequestOwnEmailVerification500JSONResponse) VisitRequestOwnEmailVerificationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RequestOwnEmailVerification503JSONResponse struct{ ServiceUnavailableJSONResponse }
+
+func (response RequestOwnEmailVerification503JSONResponse) VisitRequestOwnEmailVerificationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompleteInvitationRequestObject struct {
+	Body *CompleteInvitationJSONRequestBody
+}
+
+type CompleteInvitationResponseObject interface {
+	VisitCompleteInvitationResponse(w http.ResponseWriter) error
+}
+
+type CompleteInvitation204ResponseHeaders struct {
+	CacheControl string
+}
+
+type CompleteInvitation204Response struct {
+	Headers CompleteInvitation204ResponseHeaders
+}
+
+func (response CompleteInvitation204Response) VisitCompleteInvitationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(204)
+	return nil
+}
+
+type CompleteInvitation400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CompleteInvitation400JSONResponse) VisitCompleteInvitationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompleteInvitation422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CompleteInvitation422JSONResponse) VisitCompleteInvitationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompleteInvitation500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CompleteInvitation500JSONResponse) VisitCompleteInvitationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type LoginRequestObject struct {
 	Body *LoginJSONRequestBody
 }
@@ -5284,6 +9072,404 @@ func (response GetCurrentUser500JSONResponse) VisitGetCurrentUserResponse(w http
 	return json.NewEncoder(w).Encode(response)
 }
 
+type UnlinkOwnOIDCIdentityRequestObject struct {
+	IdentityId UUIDv7 `json:"identityId"`
+}
+
+type UnlinkOwnOIDCIdentityResponseObject interface {
+	VisitUnlinkOwnOIDCIdentityResponse(w http.ResponseWriter) error
+}
+
+type UnlinkOwnOIDCIdentity204Response struct {
+}
+
+func (response UnlinkOwnOIDCIdentity204Response) VisitUnlinkOwnOIDCIdentityResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type UnlinkOwnOIDCIdentity401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UnlinkOwnOIDCIdentity401JSONResponse) VisitUnlinkOwnOIDCIdentityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UnlinkOwnOIDCIdentity403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UnlinkOwnOIDCIdentity403JSONResponse) VisitUnlinkOwnOIDCIdentityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UnlinkOwnOIDCIdentity404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UnlinkOwnOIDCIdentity404JSONResponse) VisitUnlinkOwnOIDCIdentityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UnlinkOwnOIDCIdentity409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UnlinkOwnOIDCIdentity409JSONResponse) VisitUnlinkOwnOIDCIdentityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UnlinkOwnOIDCIdentity500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UnlinkOwnOIDCIdentity500JSONResponse) VisitUnlinkOwnOIDCIdentityResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EnrollOwnPinRequestObject struct {
+	Body *EnrollOwnPinJSONRequestBody
+}
+
+type EnrollOwnPinResponseObject interface {
+	VisitEnrollOwnPinResponse(w http.ResponseWriter) error
+}
+
+type EnrollOwnPin204Response struct {
+}
+
+func (response EnrollOwnPin204Response) VisitEnrollOwnPinResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type EnrollOwnPin400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response EnrollOwnPin400JSONResponse) VisitEnrollOwnPinResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EnrollOwnPin401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response EnrollOwnPin401JSONResponse) VisitEnrollOwnPinResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EnrollOwnPin403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response EnrollOwnPin403JSONResponse) VisitEnrollOwnPinResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EnrollOwnPin409JSONResponse struct{ ConflictJSONResponse }
+
+func (response EnrollOwnPin409JSONResponse) VisitEnrollOwnPinResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EnrollOwnPin422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response EnrollOwnPin422JSONResponse) VisitEnrollOwnPinResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EnrollOwnPin500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response EnrollOwnPin500JSONResponse) VisitEnrollOwnPinResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompleteOIDCCallbackRequestObject struct {
+	Params CompleteOIDCCallbackParams
+}
+
+type CompleteOIDCCallbackResponseObject interface {
+	VisitCompleteOIDCCallbackResponse(w http.ResponseWriter) error
+}
+
+type CompleteOIDCCallback302ResponseHeaders struct {
+	Location  string
+	SetCookie string
+}
+
+type CompleteOIDCCallback302Response struct {
+	Headers CompleteOIDCCallback302ResponseHeaders
+}
+
+func (response CompleteOIDCCallback302Response) VisitCompleteOIDCCallbackResponse(w http.ResponseWriter) error {
+	w.Header().Set("Location", fmt.Sprint(response.Headers.Location))
+	w.Header().Set("Set-Cookie", fmt.Sprint(response.Headers.SetCookie))
+	w.WriteHeader(302)
+	return nil
+}
+
+type CompleteOIDCCallback400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CompleteOIDCCallback400JSONResponse) VisitCompleteOIDCCallbackResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompleteOIDCCallback403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CompleteOIDCCallback403JSONResponse) VisitCompleteOIDCCallbackResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompleteOIDCCallback500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CompleteOIDCCallback500JSONResponse) VisitCompleteOIDCCallbackResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListOIDCLoginProvidersRequestObject struct {
+}
+
+type ListOIDCLoginProvidersResponseObject interface {
+	VisitListOIDCLoginProvidersResponse(w http.ResponseWriter) error
+}
+
+type ListOIDCLoginProviders200JSONResponse OIDCLoginProviderList
+
+func (response ListOIDCLoginProviders200JSONResponse) VisitListOIDCLoginProvidersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListOIDCLoginProviders500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListOIDCLoginProviders500JSONResponse) VisitListOIDCLoginProvidersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StartOIDCLinkRequestObject struct {
+	ProviderSlug string `json:"providerSlug"`
+	Body         *StartOIDCLinkJSONRequestBody
+}
+
+type StartOIDCLinkResponseObject interface {
+	VisitStartOIDCLinkResponse(w http.ResponseWriter) error
+}
+
+type StartOIDCLink200ResponseHeaders struct {
+	SetCookie string
+}
+
+type StartOIDCLink200JSONResponse struct {
+	Body    OIDCFlowStart
+	Headers StartOIDCLink200ResponseHeaders
+}
+
+func (response StartOIDCLink200JSONResponse) VisitStartOIDCLinkResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Set-Cookie", fmt.Sprint(response.Headers.SetCookie))
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type StartOIDCLink401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response StartOIDCLink401JSONResponse) VisitStartOIDCLinkResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StartOIDCLink403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response StartOIDCLink403JSONResponse) VisitStartOIDCLinkResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StartOIDCLink422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response StartOIDCLink422JSONResponse) VisitStartOIDCLinkResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StartOIDCLink500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response StartOIDCLink500JSONResponse) VisitStartOIDCLinkResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StartOIDCLoginRequestObject struct {
+	ProviderSlug string `json:"providerSlug"`
+}
+
+type StartOIDCLoginResponseObject interface {
+	VisitStartOIDCLoginResponse(w http.ResponseWriter) error
+}
+
+type StartOIDCLogin302ResponseHeaders struct {
+	Location  string
+	SetCookie string
+}
+
+type StartOIDCLogin302Response struct {
+	Headers StartOIDCLogin302ResponseHeaders
+}
+
+func (response StartOIDCLogin302Response) VisitStartOIDCLoginResponse(w http.ResponseWriter) error {
+	w.Header().Set("Location", fmt.Sprint(response.Headers.Location))
+	w.Header().Set("Set-Cookie", fmt.Sprint(response.Headers.SetCookie))
+	w.WriteHeader(302)
+	return nil
+}
+
+type StartOIDCLogin404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response StartOIDCLogin404JSONResponse) VisitStartOIDCLoginResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StartOIDCLogin500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response StartOIDCLogin500JSONResponse) VisitStartOIDCLoginResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RemoveOwnPasswordRequestObject struct {
+	Body *RemoveOwnPasswordJSONRequestBody
+}
+
+type RemoveOwnPasswordResponseObject interface {
+	VisitRemoveOwnPasswordResponse(w http.ResponseWriter) error
+}
+
+type RemoveOwnPassword204ResponseHeaders struct {
+	SetCookie string
+}
+
+type RemoveOwnPassword204Response struct {
+	Headers RemoveOwnPassword204ResponseHeaders
+}
+
+func (response RemoveOwnPassword204Response) VisitRemoveOwnPasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Set-Cookie", fmt.Sprint(response.Headers.SetCookie))
+	w.WriteHeader(204)
+	return nil
+}
+
+type RemoveOwnPassword401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RemoveOwnPassword401JSONResponse) VisitRemoveOwnPasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RemoveOwnPassword403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RemoveOwnPassword403JSONResponse) VisitRemoveOwnPasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RemoveOwnPassword409JSONResponse struct{ ConflictJSONResponse }
+
+func (response RemoveOwnPassword409JSONResponse) VisitRemoveOwnPasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RemoveOwnPassword422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response RemoveOwnPassword422JSONResponse) VisitRemoveOwnPasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RemoveOwnPassword500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response RemoveOwnPassword500JSONResponse) VisitRemoveOwnPasswordResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type ChangeOwnPasswordRequestObject struct {
 	Body *ChangeOwnPasswordJSONRequestBody
 }
@@ -5421,6 +9607,292 @@ func (response CompletePasswordReset500JSONResponse) VisitCompletePasswordResetR
 	return json.NewEncoder(w).Encode(response)
 }
 
+type CompletePasswordResetCodeRequestObject struct {
+	Body *CompletePasswordResetCodeJSONRequestBody
+}
+
+type CompletePasswordResetCodeResponseObject interface {
+	VisitCompletePasswordResetCodeResponse(w http.ResponseWriter) error
+}
+
+type CompletePasswordResetCode204ResponseHeaders struct {
+	CacheControl string
+}
+
+type CompletePasswordResetCode204Response struct {
+	Headers CompletePasswordResetCode204ResponseHeaders
+}
+
+func (response CompletePasswordResetCode204Response) VisitCompletePasswordResetCodeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(204)
+	return nil
+}
+
+type CompletePasswordResetCode400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CompletePasswordResetCode400JSONResponse) VisitCompletePasswordResetCodeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompletePasswordResetCode422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CompletePasswordResetCode422JSONResponse) VisitCompletePasswordResetCodeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompletePasswordResetCode500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CompletePasswordResetCode500JSONResponse) VisitCompletePasswordResetCodeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RequestPasswordResetRequestObject struct {
+	Body *RequestPasswordResetJSONRequestBody
+}
+
+type RequestPasswordResetResponseObject interface {
+	VisitRequestPasswordResetResponse(w http.ResponseWriter) error
+}
+
+type RequestPasswordReset202ResponseHeaders struct {
+	CacheControl string
+}
+
+type RequestPasswordReset202Response struct {
+	Headers RequestPasswordReset202ResponseHeaders
+}
+
+func (response RequestPasswordReset202Response) VisitRequestPasswordResetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(202)
+	return nil
+}
+
+type RequestPasswordReset400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response RequestPasswordReset400JSONResponse) VisitRequestPasswordResetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RequestPasswordReset500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response RequestPasswordReset500JSONResponse) VisitRequestPasswordResetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RemoveOwnPinRequestObject struct {
+}
+
+type RemoveOwnPinResponseObject interface {
+	VisitRemoveOwnPinResponse(w http.ResponseWriter) error
+}
+
+type RemoveOwnPin204Response struct {
+}
+
+func (response RemoveOwnPin204Response) VisitRemoveOwnPinResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RemoveOwnPin401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RemoveOwnPin401JSONResponse) VisitRemoveOwnPinResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RemoveOwnPin403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RemoveOwnPin403JSONResponse) VisitRemoveOwnPinResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RemoveOwnPin409JSONResponse struct{ ConflictJSONResponse }
+
+func (response RemoveOwnPin409JSONResponse) VisitRemoveOwnPinResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RemoveOwnPin500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response RemoveOwnPin500JSONResponse) VisitRemoveOwnPinResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompletePinEnrollmentRequestObject struct {
+	Body *CompletePinEnrollmentJSONRequestBody
+}
+
+type CompletePinEnrollmentResponseObject interface {
+	VisitCompletePinEnrollmentResponse(w http.ResponseWriter) error
+}
+
+type CompletePinEnrollment204Response struct {
+}
+
+func (response CompletePinEnrollment204Response) VisitCompletePinEnrollmentResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type CompletePinEnrollment400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CompletePinEnrollment400JSONResponse) VisitCompletePinEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompletePinEnrollment401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CompletePinEnrollment401JSONResponse) VisitCompletePinEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompletePinEnrollment409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CompletePinEnrollment409JSONResponse) VisitCompletePinEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompletePinEnrollment422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CompletePinEnrollment422JSONResponse) VisitCompletePinEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompletePinEnrollment429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response CompletePinEnrollment429JSONResponse) VisitCompletePinEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Retry-After", fmt.Sprint(response.Headers.RetryAfter))
+	w.WriteHeader(429)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type CompletePinEnrollment500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CompletePinEnrollment500JSONResponse) VisitCompletePinEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LoginWithPinRequestObject struct {
+	Body *LoginWithPinJSONRequestBody
+}
+
+type LoginWithPinResponseObject interface {
+	VisitLoginWithPinResponse(w http.ResponseWriter) error
+}
+
+type LoginWithPin204ResponseHeaders struct {
+	CacheControl string
+	SetCookie    string
+}
+
+type LoginWithPin204Response struct {
+	Headers LoginWithPin204ResponseHeaders
+}
+
+func (response LoginWithPin204Response) VisitLoginWithPinResponse(w http.ResponseWriter) error {
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Set-Cookie", fmt.Sprint(response.Headers.SetCookie))
+	w.WriteHeader(204)
+	return nil
+}
+
+type LoginWithPin400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response LoginWithPin400JSONResponse) VisitLoginWithPinResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LoginWithPin401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response LoginWithPin401JSONResponse) VisitLoginWithPinResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LoginWithPin429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response LoginWithPin429JSONResponse) VisitLoginWithPinResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Retry-After", fmt.Sprint(response.Headers.RetryAfter))
+	w.WriteHeader(429)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type LoginWithPin500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response LoginWithPin500JSONResponse) VisitLoginWithPinResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetLivenessRequestObject struct {
 }
 
@@ -5480,6 +9952,602 @@ type GetReadiness503JSONResponse HealthStatus
 func (response GetReadiness503JSONResponse) VisitGetReadinessResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(503)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListLaborordnungRequestsRequestObject struct {
+}
+
+type ListLaborordnungRequestsResponseObject interface {
+	VisitListLaborordnungRequestsResponse(w http.ResponseWriter) error
+}
+
+type ListLaborordnungRequests200JSONResponse LaborordnungRequestList
+
+func (response ListLaborordnungRequests200JSONResponse) VisitListLaborordnungRequestsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListLaborordnungRequests401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListLaborordnungRequests401JSONResponse) VisitListLaborordnungRequestsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListLaborordnungRequests403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListLaborordnungRequests403JSONResponse) VisitListLaborordnungRequestsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListLaborordnungRequests500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListLaborordnungRequests500JSONResponse) VisitListLaborordnungRequestsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RequestOwnLaborordnungConfirmationRequestObject struct {
+}
+
+type RequestOwnLaborordnungConfirmationResponseObject interface {
+	VisitRequestOwnLaborordnungConfirmationResponse(w http.ResponseWriter) error
+}
+
+type RequestOwnLaborordnungConfirmation200JSONResponse LaborordnungRequest
+
+func (response RequestOwnLaborordnungConfirmation200JSONResponse) VisitRequestOwnLaborordnungConfirmationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RequestOwnLaborordnungConfirmation201JSONResponse LaborordnungRequest
+
+func (response RequestOwnLaborordnungConfirmation201JSONResponse) VisitRequestOwnLaborordnungConfirmationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RequestOwnLaborordnungConfirmation401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RequestOwnLaborordnungConfirmation401JSONResponse) VisitRequestOwnLaborordnungConfirmationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RequestOwnLaborordnungConfirmation403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RequestOwnLaborordnungConfirmation403JSONResponse) VisitRequestOwnLaborordnungConfirmationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RequestOwnLaborordnungConfirmation409JSONResponse struct{ ConflictJSONResponse }
+
+func (response RequestOwnLaborordnungConfirmation409JSONResponse) VisitRequestOwnLaborordnungConfirmationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RequestOwnLaborordnungConfirmation500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response RequestOwnLaborordnungConfirmation500JSONResponse) VisitRequestOwnLaborordnungConfirmationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmLaborordnungRequestRequestObject struct {
+	LaborordnungRequestId LaborordnungRequestId `json:"laborordnungRequestId"`
+	Body                  *ConfirmLaborordnungRequestJSONRequestBody
+}
+
+type ConfirmLaborordnungRequestResponseObject interface {
+	VisitConfirmLaborordnungRequestResponse(w http.ResponseWriter) error
+}
+
+type ConfirmLaborordnungRequest200JSONResponse LaborordnungRequest
+
+func (response ConfirmLaborordnungRequest200JSONResponse) VisitConfirmLaborordnungRequestResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmLaborordnungRequest401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ConfirmLaborordnungRequest401JSONResponse) VisitConfirmLaborordnungRequestResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmLaborordnungRequest403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ConfirmLaborordnungRequest403JSONResponse) VisitConfirmLaborordnungRequestResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmLaborordnungRequest404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ConfirmLaborordnungRequest404JSONResponse) VisitConfirmLaborordnungRequestResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmLaborordnungRequest409JSONResponse struct{ ConflictJSONResponse }
+
+func (response ConfirmLaborordnungRequest409JSONResponse) VisitConfirmLaborordnungRequestResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmLaborordnungRequest422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response ConfirmLaborordnungRequest422JSONResponse) VisitConfirmLaborordnungRequestResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmLaborordnungRequest500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ConfirmLaborordnungRequest500JSONResponse) VisitConfirmLaborordnungRequestResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetOwnLaborordnungStatusRequestObject struct {
+}
+
+type GetOwnLaborordnungStatusResponseObject interface {
+	VisitGetOwnLaborordnungStatusResponse(w http.ResponseWriter) error
+}
+
+type GetOwnLaborordnungStatus200JSONResponse LaborordnungStatus
+
+func (response GetOwnLaborordnungStatus200JSONResponse) VisitGetOwnLaborordnungStatusResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetOwnLaborordnungStatus401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetOwnLaborordnungStatus401JSONResponse) VisitGetOwnLaborordnungStatusResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetOwnLaborordnungStatus403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetOwnLaborordnungStatus403JSONResponse) VisitGetOwnLaborordnungStatusResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetOwnLaborordnungStatus500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetOwnLaborordnungStatus500JSONResponse) VisitGetOwnLaborordnungStatusResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListLaborordnungVersionsRequestObject struct {
+}
+
+type ListLaborordnungVersionsResponseObject interface {
+	VisitListLaborordnungVersionsResponse(w http.ResponseWriter) error
+}
+
+type ListLaborordnungVersions200JSONResponse LaborordnungVersionList
+
+func (response ListLaborordnungVersions200JSONResponse) VisitListLaborordnungVersionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListLaborordnungVersions401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListLaborordnungVersions401JSONResponse) VisitListLaborordnungVersionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListLaborordnungVersions403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListLaborordnungVersions403JSONResponse) VisitListLaborordnungVersionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListLaborordnungVersions500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListLaborordnungVersions500JSONResponse) VisitListLaborordnungVersionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateLaborordnungVersionRequestObject struct {
+	Params CreateLaborordnungVersionParams
+	Body   io.Reader
+}
+
+type CreateLaborordnungVersionResponseObject interface {
+	VisitCreateLaborordnungVersionResponse(w http.ResponseWriter) error
+}
+
+type CreateLaborordnungVersion201JSONResponse LaborordnungVersion
+
+func (response CreateLaborordnungVersion201JSONResponse) VisitCreateLaborordnungVersionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateLaborordnungVersion400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response CreateLaborordnungVersion400JSONResponse) VisitCreateLaborordnungVersionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateLaborordnungVersion401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateLaborordnungVersion401JSONResponse) VisitCreateLaborordnungVersionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateLaborordnungVersion403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateLaborordnungVersion403JSONResponse) VisitCreateLaborordnungVersionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateLaborordnungVersion413Response struct {
+}
+
+func (response CreateLaborordnungVersion413Response) VisitCreateLaborordnungVersionResponse(w http.ResponseWriter) error {
+	w.WriteHeader(413)
+	return nil
+}
+
+type CreateLaborordnungVersion422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateLaborordnungVersion422JSONResponse) VisitCreateLaborordnungVersionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateLaborordnungVersion500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateLaborordnungVersion500JSONResponse) VisitCreateLaborordnungVersionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetLaborordnungPDFRequestObject struct {
+	LaborordnungVersionId LaborordnungVersionId `json:"laborordnungVersionId"`
+}
+
+type GetLaborordnungPDFResponseObject interface {
+	VisitGetLaborordnungPDFResponse(w http.ResponseWriter) error
+}
+
+type GetLaborordnungPDF200ResponseHeaders struct {
+	CacheControl string
+}
+
+type GetLaborordnungPDF200ApplicationpdfResponse struct {
+	Body          io.Reader
+	Headers       GetLaborordnungPDF200ResponseHeaders
+	ContentLength int64
+}
+
+func (response GetLaborordnungPDF200ApplicationpdfResponse) VisitGetLaborordnungPDFResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/pdf")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetLaborordnungPDF401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetLaborordnungPDF401JSONResponse) VisitGetLaborordnungPDFResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetLaborordnungPDF403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetLaborordnungPDF403JSONResponse) VisitGetLaborordnungPDFResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetLaborordnungPDF404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetLaborordnungPDF404JSONResponse) VisitGetLaborordnungPDFResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetLaborordnungPDF500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetLaborordnungPDF500JSONResponse) VisitGetLaborordnungPDFResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PublishLaborordnungVersionRequestObject struct {
+	LaborordnungVersionId LaborordnungVersionId `json:"laborordnungVersionId"`
+	Body                  *PublishLaborordnungVersionJSONRequestBody
+}
+
+type PublishLaborordnungVersionResponseObject interface {
+	VisitPublishLaborordnungVersionResponse(w http.ResponseWriter) error
+}
+
+type PublishLaborordnungVersion200JSONResponse LaborordnungVersion
+
+func (response PublishLaborordnungVersion200JSONResponse) VisitPublishLaborordnungVersionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PublishLaborordnungVersion401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PublishLaborordnungVersion401JSONResponse) VisitPublishLaborordnungVersionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PublishLaborordnungVersion403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response PublishLaborordnungVersion403JSONResponse) VisitPublishLaborordnungVersionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PublishLaborordnungVersion404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response PublishLaborordnungVersion404JSONResponse) VisitPublishLaborordnungVersionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PublishLaborordnungVersion409JSONResponse struct{ ConflictJSONResponse }
+
+func (response PublishLaborordnungVersion409JSONResponse) VisitPublishLaborordnungVersionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PublishLaborordnungVersion500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response PublishLaborordnungVersion500JSONResponse) VisitPublishLaborordnungVersionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMailConfigurationRequestObject struct {
+}
+
+type GetMailConfigurationResponseObject interface {
+	VisitGetMailConfigurationResponse(w http.ResponseWriter) error
+}
+
+type GetMailConfiguration200JSONResponse MailConfiguration
+
+func (response GetMailConfiguration200JSONResponse) VisitGetMailConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMailConfiguration401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetMailConfiguration401JSONResponse) VisitGetMailConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMailConfiguration403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetMailConfiguration403JSONResponse) VisitGetMailConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMailConfiguration500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetMailConfiguration500JSONResponse) VisitGetMailConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMailConfigurationRequestObject struct {
+	Body *UpdateMailConfigurationJSONRequestBody
+}
+
+type UpdateMailConfigurationResponseObject interface {
+	VisitUpdateMailConfigurationResponse(w http.ResponseWriter) error
+}
+
+type UpdateMailConfiguration200JSONResponse MailConfiguration
+
+func (response UpdateMailConfiguration200JSONResponse) VisitUpdateMailConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMailConfiguration401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateMailConfiguration401JSONResponse) VisitUpdateMailConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMailConfiguration403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateMailConfiguration403JSONResponse) VisitUpdateMailConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMailConfiguration409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateMailConfiguration409JSONResponse) VisitUpdateMailConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMailConfiguration422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateMailConfiguration422JSONResponse) VisitUpdateMailConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMailConfiguration500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateMailConfiguration500JSONResponse) VisitUpdateMailConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
 
 	return json.NewEncoder(w).Encode(response)
 }
@@ -5873,6 +10941,7 @@ type CreateManagedDeviceResponseObject interface {
 
 type CreateManagedDevice201ResponseHeaders struct {
 	CacheControl string
+	SetCookie    string
 }
 
 type CreateManagedDevice201JSONResponse struct {
@@ -5883,6 +10952,7 @@ type CreateManagedDevice201JSONResponse struct {
 func (response CreateManagedDevice201JSONResponse) VisitCreateManagedDeviceResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Set-Cookie", fmt.Sprint(response.Headers.SetCookie))
 	w.WriteHeader(201)
 
 	return json.NewEncoder(w).Encode(response.Body)
@@ -6244,6 +11314,7 @@ type RotateManagedDeviceTokenResponseObject interface {
 
 type RotateManagedDeviceToken200ResponseHeaders struct {
 	CacheControl string
+	SetCookie    string
 }
 
 type RotateManagedDeviceToken200JSONResponse struct {
@@ -6254,6 +11325,7 @@ type RotateManagedDeviceToken200JSONResponse struct {
 func (response RotateManagedDeviceToken200JSONResponse) VisitRotateManagedDeviceTokenResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Set-Cookie", fmt.Sprint(response.Headers.SetCookie))
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response.Body)
@@ -6320,6 +11392,193 @@ type RotateManagedDeviceToken500JSONResponse struct {
 }
 
 func (response RotateManagedDeviceToken500JSONResponse) VisitRotateManagedDeviceTokenResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListOIDCProvidersRequestObject struct {
+}
+
+type ListOIDCProvidersResponseObject interface {
+	VisitListOIDCProvidersResponse(w http.ResponseWriter) error
+}
+
+type ListOIDCProviders200JSONResponse OIDCProviderList
+
+func (response ListOIDCProviders200JSONResponse) VisitListOIDCProvidersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListOIDCProviders401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListOIDCProviders401JSONResponse) VisitListOIDCProvidersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListOIDCProviders403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListOIDCProviders403JSONResponse) VisitListOIDCProvidersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListOIDCProviders500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListOIDCProviders500JSONResponse) VisitListOIDCProvidersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateOIDCProviderRequestObject struct {
+	Body *CreateOIDCProviderJSONRequestBody
+}
+
+type CreateOIDCProviderResponseObject interface {
+	VisitCreateOIDCProviderResponse(w http.ResponseWriter) error
+}
+
+type CreateOIDCProvider201JSONResponse OIDCProvider
+
+func (response CreateOIDCProvider201JSONResponse) VisitCreateOIDCProviderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateOIDCProvider401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateOIDCProvider401JSONResponse) VisitCreateOIDCProviderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateOIDCProvider403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateOIDCProvider403JSONResponse) VisitCreateOIDCProviderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateOIDCProvider409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateOIDCProvider409JSONResponse) VisitCreateOIDCProviderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateOIDCProvider422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateOIDCProvider422JSONResponse) VisitCreateOIDCProviderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateOIDCProvider500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateOIDCProvider500JSONResponse) VisitCreateOIDCProviderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOIDCProviderRequestObject struct {
+	OidcProviderId OIDCProviderId `json:"oidcProviderId"`
+	Body           *UpdateOIDCProviderJSONRequestBody
+}
+
+type UpdateOIDCProviderResponseObject interface {
+	VisitUpdateOIDCProviderResponse(w http.ResponseWriter) error
+}
+
+type UpdateOIDCProvider200JSONResponse OIDCProvider
+
+func (response UpdateOIDCProvider200JSONResponse) VisitUpdateOIDCProviderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOIDCProvider401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateOIDCProvider401JSONResponse) VisitUpdateOIDCProviderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOIDCProvider403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateOIDCProvider403JSONResponse) VisitUpdateOIDCProviderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOIDCProvider404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateOIDCProvider404JSONResponse) VisitUpdateOIDCProviderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOIDCProvider409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateOIDCProvider409JSONResponse) VisitUpdateOIDCProviderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOIDCProvider422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateOIDCProvider422JSONResponse) VisitUpdateOIDCProviderResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOIDCProvider500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateOIDCProvider500JSONResponse) VisitUpdateOIDCProviderResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -8638,6 +13897,235 @@ func (response CreatePersonAccount500JSONResponse) VisitCreatePersonAccountRespo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type DeletePersonProfileImageRequestObject struct {
+	PersonId PersonId `json:"personId"`
+	Body     *DeletePersonProfileImageJSONRequestBody
+}
+
+type DeletePersonProfileImageResponseObject interface {
+	VisitDeletePersonProfileImageResponse(w http.ResponseWriter) error
+}
+
+type DeletePersonProfileImage204Response struct {
+}
+
+func (response DeletePersonProfileImage204Response) VisitDeletePersonProfileImageResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeletePersonProfileImage401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeletePersonProfileImage401JSONResponse) VisitDeletePersonProfileImageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeletePersonProfileImage403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeletePersonProfileImage403JSONResponse) VisitDeletePersonProfileImageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeletePersonProfileImage404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeletePersonProfileImage404JSONResponse) VisitDeletePersonProfileImageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeletePersonProfileImage409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeletePersonProfileImage409JSONResponse) VisitDeletePersonProfileImageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeletePersonProfileImage500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response DeletePersonProfileImage500JSONResponse) VisitDeletePersonProfileImageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPersonProfileImageRequestObject struct {
+	PersonId PersonId `json:"personId"`
+}
+
+type GetPersonProfileImageResponseObject interface {
+	VisitGetPersonProfileImageResponse(w http.ResponseWriter) error
+}
+
+type GetPersonProfileImage200ResponseHeaders struct {
+	CacheControl string
+}
+
+type GetPersonProfileImage200ImagejpegResponse struct {
+	Body          io.Reader
+	Headers       GetPersonProfileImage200ResponseHeaders
+	ContentLength int64
+}
+
+func (response GetPersonProfileImage200ImagejpegResponse) VisitGetPersonProfileImageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "image/jpeg")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetPersonProfileImage401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetPersonProfileImage401JSONResponse) VisitGetPersonProfileImageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPersonProfileImage403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetPersonProfileImage403JSONResponse) VisitGetPersonProfileImageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPersonProfileImage404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetPersonProfileImage404JSONResponse) VisitGetPersonProfileImageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPersonProfileImage500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetPersonProfileImage500JSONResponse) VisitGetPersonProfileImageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PutPersonProfileImageRequestObject struct {
+	PersonId PersonId `json:"personId"`
+	Params   PutPersonProfileImageParams
+	Body     io.Reader
+}
+
+type PutPersonProfileImageResponseObject interface {
+	VisitPutPersonProfileImageResponse(w http.ResponseWriter) error
+}
+
+type PutPersonProfileImage200JSONResponse ProfileImage
+
+func (response PutPersonProfileImage200JSONResponse) VisitPutPersonProfileImageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PutPersonProfileImage400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response PutPersonProfileImage400JSONResponse) VisitPutPersonProfileImageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PutPersonProfileImage401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PutPersonProfileImage401JSONResponse) VisitPutPersonProfileImageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PutPersonProfileImage403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response PutPersonProfileImage403JSONResponse) VisitPutPersonProfileImageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PutPersonProfileImage404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response PutPersonProfileImage404JSONResponse) VisitPutPersonProfileImageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PutPersonProfileImage409JSONResponse struct{ ConflictJSONResponse }
+
+func (response PutPersonProfileImage409JSONResponse) VisitPutPersonProfileImageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PutPersonProfileImage413Response struct {
+}
+
+func (response PutPersonProfileImage413Response) VisitPutPersonProfileImageResponse(w http.ResponseWriter) error {
+	w.WriteHeader(413)
+	return nil
+}
+
+type PutPersonProfileImage422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response PutPersonProfileImage422JSONResponse) VisitPutPersonProfileImageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PutPersonProfileImage500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response PutPersonProfileImage500JSONResponse) VisitPutPersonProfileImageResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type ListPermissionsRequestObject struct {
 }
 
@@ -8881,6 +14369,70 @@ type CreateRole500JSONResponse struct {
 }
 
 func (response CreateRole500JSONResponse) VisitCreateRoleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EvaluateRolePermissionsRequestObject struct {
+	Params EvaluateRolePermissionsParams
+}
+
+type EvaluateRolePermissionsResponseObject interface {
+	VisitEvaluateRolePermissionsResponse(w http.ResponseWriter) error
+}
+
+type EvaluateRolePermissions200JSONResponse RoleEffectivePermissionEvaluationList
+
+func (response EvaluateRolePermissions200JSONResponse) VisitEvaluateRolePermissionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EvaluateRolePermissions400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response EvaluateRolePermissions400JSONResponse) VisitEvaluateRolePermissionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EvaluateRolePermissions401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response EvaluateRolePermissions401JSONResponse) VisitEvaluateRolePermissionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EvaluateRolePermissions403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response EvaluateRolePermissions403JSONResponse) VisitEvaluateRolePermissionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EvaluateRolePermissions404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response EvaluateRolePermissions404JSONResponse) VisitEvaluateRolePermissionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EvaluateRolePermissions500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response EvaluateRolePermissions500JSONResponse) VisitEvaluateRolePermissionsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -9194,6 +14746,1297 @@ func (response ReplaceRolePermissions500JSONResponse) VisitReplaceRolePermission
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ListSCIMConnectorsRequestObject struct {
+}
+
+type ListSCIMConnectorsResponseObject interface {
+	VisitListSCIMConnectorsResponse(w http.ResponseWriter) error
+}
+
+type ListSCIMConnectors200JSONResponse SCIMConnectorList
+
+func (response ListSCIMConnectors200JSONResponse) VisitListSCIMConnectorsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSCIMConnectors401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListSCIMConnectors401JSONResponse) VisitListSCIMConnectorsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSCIMConnectors403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListSCIMConnectors403JSONResponse) VisitListSCIMConnectorsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSCIMConnectors500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListSCIMConnectors500JSONResponse) VisitListSCIMConnectorsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSCIMConnectorRequestObject struct {
+	Body *CreateSCIMConnectorJSONRequestBody
+}
+
+type CreateSCIMConnectorResponseObject interface {
+	VisitCreateSCIMConnectorResponse(w http.ResponseWriter) error
+}
+
+type CreateSCIMConnector201ResponseHeaders struct {
+	CacheControl string
+}
+
+type CreateSCIMConnector201JSONResponse struct {
+	Body    SCIMConnectorTokenIssue
+	Headers CreateSCIMConnector201ResponseHeaders
+}
+
+func (response CreateSCIMConnector201JSONResponse) VisitCreateSCIMConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type CreateSCIMConnector401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateSCIMConnector401JSONResponse) VisitCreateSCIMConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSCIMConnector403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateSCIMConnector403JSONResponse) VisitCreateSCIMConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSCIMConnector409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateSCIMConnector409JSONResponse) VisitCreateSCIMConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSCIMConnector422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateSCIMConnector422JSONResponse) VisitCreateSCIMConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSCIMConnector500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateSCIMConnector500JSONResponse) VisitCreateSCIMConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSCIMConnectorRequestObject struct {
+	ScimConnectorId UUIDv7 `json:"scimConnectorId"`
+	Body            *UpdateSCIMConnectorJSONRequestBody
+}
+
+type UpdateSCIMConnectorResponseObject interface {
+	VisitUpdateSCIMConnectorResponse(w http.ResponseWriter) error
+}
+
+type UpdateSCIMConnector200JSONResponse SCIMConnector
+
+func (response UpdateSCIMConnector200JSONResponse) VisitUpdateSCIMConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSCIMConnector401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateSCIMConnector401JSONResponse) VisitUpdateSCIMConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSCIMConnector403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateSCIMConnector403JSONResponse) VisitUpdateSCIMConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSCIMConnector404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateSCIMConnector404JSONResponse) VisitUpdateSCIMConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSCIMConnector409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateSCIMConnector409JSONResponse) VisitUpdateSCIMConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSCIMConnector422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateSCIMConnector422JSONResponse) VisitUpdateSCIMConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSCIMConnector500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateSCIMConnector500JSONResponse) VisitUpdateSCIMConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RevokeSCIMConnectorTokenRequestObject struct {
+	ScimConnectorId UUIDv7 `json:"scimConnectorId"`
+	Body            *RevokeSCIMConnectorTokenJSONRequestBody
+}
+
+type RevokeSCIMConnectorTokenResponseObject interface {
+	VisitRevokeSCIMConnectorTokenResponse(w http.ResponseWriter) error
+}
+
+type RevokeSCIMConnectorToken200JSONResponse SCIMConnector
+
+func (response RevokeSCIMConnectorToken200JSONResponse) VisitRevokeSCIMConnectorTokenResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RevokeSCIMConnectorToken401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RevokeSCIMConnectorToken401JSONResponse) VisitRevokeSCIMConnectorTokenResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RevokeSCIMConnectorToken403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RevokeSCIMConnectorToken403JSONResponse) VisitRevokeSCIMConnectorTokenResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RevokeSCIMConnectorToken404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RevokeSCIMConnectorToken404JSONResponse) VisitRevokeSCIMConnectorTokenResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RevokeSCIMConnectorToken409JSONResponse struct{ ConflictJSONResponse }
+
+func (response RevokeSCIMConnectorToken409JSONResponse) VisitRevokeSCIMConnectorTokenResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RevokeSCIMConnectorToken500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response RevokeSCIMConnectorToken500JSONResponse) VisitRevokeSCIMConnectorTokenResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RotateSCIMConnectorTokenRequestObject struct {
+	ScimConnectorId UUIDv7 `json:"scimConnectorId"`
+	Body            *RotateSCIMConnectorTokenJSONRequestBody
+}
+
+type RotateSCIMConnectorTokenResponseObject interface {
+	VisitRotateSCIMConnectorTokenResponse(w http.ResponseWriter) error
+}
+
+type RotateSCIMConnectorToken201ResponseHeaders struct {
+	CacheControl string
+}
+
+type RotateSCIMConnectorToken201JSONResponse struct {
+	Body    SCIMConnectorTokenIssue
+	Headers RotateSCIMConnectorToken201ResponseHeaders
+}
+
+func (response RotateSCIMConnectorToken201JSONResponse) VisitRotateSCIMConnectorTokenResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type RotateSCIMConnectorToken401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RotateSCIMConnectorToken401JSONResponse) VisitRotateSCIMConnectorTokenResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RotateSCIMConnectorToken403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RotateSCIMConnectorToken403JSONResponse) VisitRotateSCIMConnectorTokenResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RotateSCIMConnectorToken404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RotateSCIMConnectorToken404JSONResponse) VisitRotateSCIMConnectorTokenResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RotateSCIMConnectorToken409JSONResponse struct{ ConflictJSONResponse }
+
+func (response RotateSCIMConnectorToken409JSONResponse) VisitRotateSCIMConnectorTokenResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RotateSCIMConnectorToken422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response RotateSCIMConnectorToken422JSONResponse) VisitRotateSCIMConnectorTokenResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RotateSCIMConnectorToken500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response RotateSCIMConnectorToken500JSONResponse) VisitRotateSCIMConnectorTokenResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReconcileSCIMAccountRequestObject struct {
+	Body *ReconcileSCIMAccountJSONRequestBody
+}
+
+type ReconcileSCIMAccountResponseObject interface {
+	VisitReconcileSCIMAccountResponse(w http.ResponseWriter) error
+}
+
+type ReconcileSCIMAccount200JSONResponse SCIMReconciliationReport
+
+func (response ReconcileSCIMAccount200JSONResponse) VisitReconcileSCIMAccountResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReconcileSCIMAccount401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ReconcileSCIMAccount401JSONResponse) VisitReconcileSCIMAccountResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReconcileSCIMAccount403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ReconcileSCIMAccount403JSONResponse) VisitReconcileSCIMAccountResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReconcileSCIMAccount404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ReconcileSCIMAccount404JSONResponse) VisitReconcileSCIMAccountResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReconcileSCIMAccount409JSONResponse SCIMReconciliationReport
+
+func (response ReconcileSCIMAccount409JSONResponse) VisitReconcileSCIMAccountResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReconcileSCIMAccount422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response ReconcileSCIMAccount422JSONResponse) VisitReconcileSCIMAccountResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReconcileSCIMAccount500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ReconcileSCIMAccount500JSONResponse) VisitReconcileSCIMAccountResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PreflightSCIMReconciliationRequestObject struct {
+	Body *PreflightSCIMReconciliationJSONRequestBody
+}
+
+type PreflightSCIMReconciliationResponseObject interface {
+	VisitPreflightSCIMReconciliationResponse(w http.ResponseWriter) error
+}
+
+type PreflightSCIMReconciliation200JSONResponse SCIMReconciliationReport
+
+func (response PreflightSCIMReconciliation200JSONResponse) VisitPreflightSCIMReconciliationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PreflightSCIMReconciliation401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PreflightSCIMReconciliation401JSONResponse) VisitPreflightSCIMReconciliationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PreflightSCIMReconciliation403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response PreflightSCIMReconciliation403JSONResponse) VisitPreflightSCIMReconciliationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PreflightSCIMReconciliation404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response PreflightSCIMReconciliation404JSONResponse) VisitPreflightSCIMReconciliationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PreflightSCIMReconciliation422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response PreflightSCIMReconciliation422JSONResponse) VisitPreflightSCIMReconciliationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PreflightSCIMReconciliation500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response PreflightSCIMReconciliation500JSONResponse) VisitPreflightSCIMReconciliationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSCIMResourceTypesRequestObject struct {
+}
+
+type ListSCIMResourceTypesResponseObject interface {
+	VisitListSCIMResourceTypesResponse(w http.ResponseWriter) error
+}
+
+type ListSCIMResourceTypes200ApplicationScimPlusJSONResponse SCIMListResponse
+
+func (response ListSCIMResourceTypes200ApplicationScimPlusJSONResponse) VisitListSCIMResourceTypesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSCIMResourceTypes401ApplicationScimPlusJSONResponse SCIMError
+
+func (response ListSCIMResourceTypes401ApplicationScimPlusJSONResponse) VisitListSCIMResourceTypesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSCIMSchemasRequestObject struct {
+}
+
+type ListSCIMSchemasResponseObject interface {
+	VisitListSCIMSchemasResponse(w http.ResponseWriter) error
+}
+
+type ListSCIMSchemas200ApplicationScimPlusJSONResponse SCIMListResponse
+
+func (response ListSCIMSchemas200ApplicationScimPlusJSONResponse) VisitListSCIMSchemasResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSCIMSchemas401ApplicationScimPlusJSONResponse SCIMError
+
+func (response ListSCIMSchemas401ApplicationScimPlusJSONResponse) VisitListSCIMSchemasResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSCIMServiceProviderConfigRequestObject struct {
+}
+
+type GetSCIMServiceProviderConfigResponseObject interface {
+	VisitGetSCIMServiceProviderConfigResponse(w http.ResponseWriter) error
+}
+
+type GetSCIMServiceProviderConfig200ApplicationScimPlusJSONResponse SCIMServiceProviderConfig
+
+func (response GetSCIMServiceProviderConfig200ApplicationScimPlusJSONResponse) VisitGetSCIMServiceProviderConfigResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSCIMServiceProviderConfig401ApplicationScimPlusJSONResponse SCIMError
+
+func (response GetSCIMServiceProviderConfig401ApplicationScimPlusJSONResponse) VisitGetSCIMServiceProviderConfigResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSCIMUsersRequestObject struct {
+	Params ListSCIMUsersParams
+}
+
+type ListSCIMUsersResponseObject interface {
+	VisitListSCIMUsersResponse(w http.ResponseWriter) error
+}
+
+type ListSCIMUsers200ApplicationScimPlusJSONResponse SCIMUserListResponse
+
+func (response ListSCIMUsers200ApplicationScimPlusJSONResponse) VisitListSCIMUsersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSCIMUsers400ApplicationScimPlusJSONResponse SCIMError
+
+func (response ListSCIMUsers400ApplicationScimPlusJSONResponse) VisitListSCIMUsersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSCIMUsers401ApplicationScimPlusJSONResponse SCIMError
+
+func (response ListSCIMUsers401ApplicationScimPlusJSONResponse) VisitListSCIMUsersResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSCIMUserRequestObject struct {
+	Body *CreateSCIMUserApplicationScimPlusJSONRequestBody
+}
+
+type CreateSCIMUserResponseObject interface {
+	VisitCreateSCIMUserResponse(w http.ResponseWriter) error
+}
+
+type CreateSCIMUser201ApplicationScimPlusJSONResponse SCIMUser
+
+func (response CreateSCIMUser201ApplicationScimPlusJSONResponse) VisitCreateSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSCIMUser400ApplicationScimPlusJSONResponse SCIMError
+
+func (response CreateSCIMUser400ApplicationScimPlusJSONResponse) VisitCreateSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSCIMUser401ApplicationScimPlusJSONResponse SCIMError
+
+func (response CreateSCIMUser401ApplicationScimPlusJSONResponse) VisitCreateSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSCIMUser409ApplicationScimPlusJSONResponse SCIMError
+
+func (response CreateSCIMUser409ApplicationScimPlusJSONResponse) VisitCreateSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSCIMUserRequestObject struct {
+	ScimUserId UUIDv7 `json:"scimUserId"`
+}
+
+type DeleteSCIMUserResponseObject interface {
+	VisitDeleteSCIMUserResponse(w http.ResponseWriter) error
+}
+
+type DeleteSCIMUser204Response struct {
+}
+
+func (response DeleteSCIMUser204Response) VisitDeleteSCIMUserResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteSCIMUser401ApplicationScimPlusJSONResponse SCIMError
+
+func (response DeleteSCIMUser401ApplicationScimPlusJSONResponse) VisitDeleteSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSCIMUser404ApplicationScimPlusJSONResponse SCIMError
+
+func (response DeleteSCIMUser404ApplicationScimPlusJSONResponse) VisitDeleteSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSCIMUser409ApplicationScimPlusJSONResponse SCIMError
+
+func (response DeleteSCIMUser409ApplicationScimPlusJSONResponse) VisitDeleteSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSCIMUserRequestObject struct {
+	ScimUserId UUIDv7 `json:"scimUserId"`
+}
+
+type GetSCIMUserResponseObject interface {
+	VisitGetSCIMUserResponse(w http.ResponseWriter) error
+}
+
+type GetSCIMUser200ApplicationScimPlusJSONResponse SCIMUser
+
+func (response GetSCIMUser200ApplicationScimPlusJSONResponse) VisitGetSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSCIMUser401ApplicationScimPlusJSONResponse SCIMError
+
+func (response GetSCIMUser401ApplicationScimPlusJSONResponse) VisitGetSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSCIMUser404ApplicationScimPlusJSONResponse SCIMError
+
+func (response GetSCIMUser404ApplicationScimPlusJSONResponse) VisitGetSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PatchSCIMUserRequestObject struct {
+	ScimUserId UUIDv7 `json:"scimUserId"`
+	Body       *PatchSCIMUserApplicationScimPlusJSONRequestBody
+}
+
+type PatchSCIMUserResponseObject interface {
+	VisitPatchSCIMUserResponse(w http.ResponseWriter) error
+}
+
+type PatchSCIMUser200ApplicationScimPlusJSONResponse SCIMUser
+
+func (response PatchSCIMUser200ApplicationScimPlusJSONResponse) VisitPatchSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PatchSCIMUser400ApplicationScimPlusJSONResponse SCIMError
+
+func (response PatchSCIMUser400ApplicationScimPlusJSONResponse) VisitPatchSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PatchSCIMUser401ApplicationScimPlusJSONResponse SCIMError
+
+func (response PatchSCIMUser401ApplicationScimPlusJSONResponse) VisitPatchSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PatchSCIMUser404ApplicationScimPlusJSONResponse SCIMError
+
+func (response PatchSCIMUser404ApplicationScimPlusJSONResponse) VisitPatchSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PatchSCIMUser409ApplicationScimPlusJSONResponse SCIMError
+
+func (response PatchSCIMUser409ApplicationScimPlusJSONResponse) VisitPatchSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceSCIMUserRequestObject struct {
+	ScimUserId UUIDv7 `json:"scimUserId"`
+	Body       *ReplaceSCIMUserApplicationScimPlusJSONRequestBody
+}
+
+type ReplaceSCIMUserResponseObject interface {
+	VisitReplaceSCIMUserResponse(w http.ResponseWriter) error
+}
+
+type ReplaceSCIMUser200ApplicationScimPlusJSONResponse SCIMUser
+
+func (response ReplaceSCIMUser200ApplicationScimPlusJSONResponse) VisitReplaceSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceSCIMUser400ApplicationScimPlusJSONResponse SCIMError
+
+func (response ReplaceSCIMUser400ApplicationScimPlusJSONResponse) VisitReplaceSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceSCIMUser401ApplicationScimPlusJSONResponse SCIMError
+
+func (response ReplaceSCIMUser401ApplicationScimPlusJSONResponse) VisitReplaceSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceSCIMUser404ApplicationScimPlusJSONResponse SCIMError
+
+func (response ReplaceSCIMUser404ApplicationScimPlusJSONResponse) VisitReplaceSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceSCIMUser409ApplicationScimPlusJSONResponse SCIMError
+
+func (response ReplaceSCIMUser409ApplicationScimPlusJSONResponse) VisitReplaceSCIMUserResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/scim+json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSupervisorDashboardRequestObject struct {
+}
+
+type GetSupervisorDashboardResponseObject interface {
+	VisitGetSupervisorDashboardResponse(w http.ResponseWriter) error
+}
+
+type GetSupervisorDashboard200JSONResponse SupervisorDashboard
+
+func (response GetSupervisorDashboard200JSONResponse) VisitGetSupervisorDashboardResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSupervisorDashboard401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetSupervisorDashboard401JSONResponse) VisitGetSupervisorDashboardResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSupervisorDashboard403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetSupervisorDashboard403JSONResponse) VisitGetSupervisorDashboardResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSupervisorDashboard500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetSupervisorDashboard500JSONResponse) VisitGetSupervisorDashboardResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EvaluateVisitorAdmissionRequestObject struct {
+}
+
+type EvaluateVisitorAdmissionResponseObject interface {
+	VisitEvaluateVisitorAdmissionResponse(w http.ResponseWriter) error
+}
+
+type EvaluateVisitorAdmission200JSONResponse VisitorAdmissionResult
+
+func (response EvaluateVisitorAdmission200JSONResponse) VisitEvaluateVisitorAdmissionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EvaluateVisitorAdmission401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response EvaluateVisitorAdmission401JSONResponse) VisitEvaluateVisitorAdmissionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EvaluateVisitorAdmission403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response EvaluateVisitorAdmission403JSONResponse) VisitEvaluateVisitorAdmissionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EvaluateVisitorAdmission409JSONResponse struct{ ConflictJSONResponse }
+
+func (response EvaluateVisitorAdmission409JSONResponse) VisitEvaluateVisitorAdmissionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EvaluateVisitorAdmission500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response EvaluateVisitorAdmission500JSONResponse) VisitEvaluateVisitorAdmissionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetVisitorEnrollmentConfigurationRequestObject struct {
+}
+
+type GetVisitorEnrollmentConfigurationResponseObject interface {
+	VisitGetVisitorEnrollmentConfigurationResponse(w http.ResponseWriter) error
+}
+
+type GetVisitorEnrollmentConfiguration200JSONResponse VisitorEnrollmentConfiguration
+
+func (response GetVisitorEnrollmentConfiguration200JSONResponse) VisitGetVisitorEnrollmentConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetVisitorEnrollmentConfiguration401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetVisitorEnrollmentConfiguration401JSONResponse) VisitGetVisitorEnrollmentConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetVisitorEnrollmentConfiguration403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetVisitorEnrollmentConfiguration403JSONResponse) VisitGetVisitorEnrollmentConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetVisitorEnrollmentConfiguration500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetVisitorEnrollmentConfiguration500JSONResponse) VisitGetVisitorEnrollmentConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateVisitorEnrollmentConfigurationRequestObject struct {
+	Body *UpdateVisitorEnrollmentConfigurationJSONRequestBody
+}
+
+type UpdateVisitorEnrollmentConfigurationResponseObject interface {
+	VisitUpdateVisitorEnrollmentConfigurationResponse(w http.ResponseWriter) error
+}
+
+type UpdateVisitorEnrollmentConfiguration200JSONResponse VisitorEnrollmentConfiguration
+
+func (response UpdateVisitorEnrollmentConfiguration200JSONResponse) VisitUpdateVisitorEnrollmentConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateVisitorEnrollmentConfiguration401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateVisitorEnrollmentConfiguration401JSONResponse) VisitUpdateVisitorEnrollmentConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateVisitorEnrollmentConfiguration403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateVisitorEnrollmentConfiguration403JSONResponse) VisitUpdateVisitorEnrollmentConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateVisitorEnrollmentConfiguration404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateVisitorEnrollmentConfiguration404JSONResponse) VisitUpdateVisitorEnrollmentConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateVisitorEnrollmentConfiguration409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateVisitorEnrollmentConfiguration409JSONResponse) VisitUpdateVisitorEnrollmentConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateVisitorEnrollmentConfiguration422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateVisitorEnrollmentConfiguration422JSONResponse) VisitUpdateVisitorEnrollmentConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateVisitorEnrollmentConfiguration500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateVisitorEnrollmentConfiguration500JSONResponse) VisitUpdateVisitorEnrollmentConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type BeginVisitorEnrollmentRequestObject struct {
+}
+
+type BeginVisitorEnrollmentResponseObject interface {
+	VisitBeginVisitorEnrollmentResponse(w http.ResponseWriter) error
+}
+
+type BeginVisitorEnrollment204ResponseHeaders struct {
+	CacheControl string
+	SetCookie    string
+}
+
+type BeginVisitorEnrollment204Response struct {
+	Headers BeginVisitorEnrollment204ResponseHeaders
+}
+
+func (response BeginVisitorEnrollment204Response) VisitBeginVisitorEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Set-Cookie", fmt.Sprint(response.Headers.SetCookie))
+	w.WriteHeader(204)
+	return nil
+}
+
+type BeginVisitorEnrollment400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response BeginVisitorEnrollment400JSONResponse) VisitBeginVisitorEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type BeginVisitorEnrollment404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response BeginVisitorEnrollment404JSONResponse) VisitBeginVisitorEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type BeginVisitorEnrollment500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response BeginVisitorEnrollment500JSONResponse) VisitBeginVisitorEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetVisitorEnrollmentLabRulesPDFRequestObject struct {
+}
+
+type GetVisitorEnrollmentLabRulesPDFResponseObject interface {
+	VisitGetVisitorEnrollmentLabRulesPDFResponse(w http.ResponseWriter) error
+}
+
+type GetVisitorEnrollmentLabRulesPDF200ApplicationpdfResponse struct {
+	Body          io.Reader
+	ContentLength int64
+}
+
+func (response GetVisitorEnrollmentLabRulesPDF200ApplicationpdfResponse) VisitGetVisitorEnrollmentLabRulesPDFResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/pdf")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetVisitorEnrollmentLabRulesPDF401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetVisitorEnrollmentLabRulesPDF401JSONResponse) VisitGetVisitorEnrollmentLabRulesPDFResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetVisitorEnrollmentLabRulesPDF404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetVisitorEnrollmentLabRulesPDF404JSONResponse) VisitGetVisitorEnrollmentLabRulesPDFResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetVisitorEnrollmentLabRulesPDF500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetVisitorEnrollmentLabRulesPDF500JSONResponse) VisitGetVisitorEnrollmentLabRulesPDFResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetVisitorEnrollmentStateRequestObject struct {
+}
+
+type GetVisitorEnrollmentStateResponseObject interface {
+	VisitGetVisitorEnrollmentStateResponse(w http.ResponseWriter) error
+}
+
+type GetVisitorEnrollmentState200JSONResponse VisitorEnrollmentState
+
+func (response GetVisitorEnrollmentState200JSONResponse) VisitGetVisitorEnrollmentStateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetVisitorEnrollmentState401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetVisitorEnrollmentState401JSONResponse) VisitGetVisitorEnrollmentStateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetVisitorEnrollmentState404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetVisitorEnrollmentState404JSONResponse) VisitGetVisitorEnrollmentStateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetVisitorEnrollmentState500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetVisitorEnrollmentState500JSONResponse) VisitGetVisitorEnrollmentStateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SubmitVisitorEnrollmentRequestObject struct {
+	Params SubmitVisitorEnrollmentParams
+	Body   *SubmitVisitorEnrollmentJSONRequestBody
+}
+
+type SubmitVisitorEnrollmentResponseObject interface {
+	VisitSubmitVisitorEnrollmentResponse(w http.ResponseWriter) error
+}
+
+type SubmitVisitorEnrollment201ResponseHeaders struct {
+	CacheControl string
+	SetCookie    string
+}
+
+type SubmitVisitorEnrollment201JSONResponse struct {
+	Body    VisitorEnrollmentResult
+	Headers SubmitVisitorEnrollment201ResponseHeaders
+}
+
+func (response SubmitVisitorEnrollment201JSONResponse) VisitSubmitVisitorEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Set-Cookie", fmt.Sprint(response.Headers.SetCookie))
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type SubmitVisitorEnrollment400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response SubmitVisitorEnrollment400JSONResponse) VisitSubmitVisitorEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SubmitVisitorEnrollment401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response SubmitVisitorEnrollment401JSONResponse) VisitSubmitVisitorEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SubmitVisitorEnrollment403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SubmitVisitorEnrollment403JSONResponse) VisitSubmitVisitorEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SubmitVisitorEnrollment409JSONResponse struct{ ConflictJSONResponse }
+
+func (response SubmitVisitorEnrollment409JSONResponse) VisitSubmitVisitorEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SubmitVisitorEnrollment413JSONResponse struct{ PayloadTooLargeJSONResponse }
+
+func (response SubmitVisitorEnrollment413JSONResponse) VisitSubmitVisitorEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(413)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SubmitVisitorEnrollment422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response SubmitVisitorEnrollment422JSONResponse) VisitSubmitVisitorEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SubmitVisitorEnrollment500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response SubmitVisitorEnrollment500JSONResponse) VisitSubmitVisitorEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// Permanently delete an account while retaining its person
@@ -9208,15 +16051,21 @@ type StrictServerInterface interface {
 	// Enable an account
 	// (POST /accounts/{accountId}/enable)
 	EnableAccount(ctx context.Context, request EnableAccountRequestObject) (EnableAccountResponseObject, error)
+	// Send or safely resend an account invitation
+	// (POST /accounts/{accountId}/invitations)
+	IssueAccountInvitation(ctx context.Context, request IssueAccountInvitationRequestObject) (IssueAccountInvitationResponseObject, error)
 	// Replace an account's email login identifier
 	// (PUT /accounts/{accountId}/login-email)
 	UpdateAccountLoginEmail(ctx context.Context, request UpdateAccountLoginEmailRequestObject) (UpdateAccountLoginEmailResponseObject, error)
 	// Administratively set an account password
 	// (PUT /accounts/{accountId}/password)
 	SetAccountPassword(ctx context.Context, request SetAccountPasswordRequestObject) (SetAccountPasswordResponseObject, error)
-	// Issue a one-time administrative password-reset link
+	// Send a one-time administrative password-reset code
 	// (POST /accounts/{accountId}/password-reset)
 	IssueAccountPasswordReset(ctx context.Context, request IssueAccountPasswordResetRequestObject) (IssueAccountPasswordResetResponseObject, error)
+	// Send or safely resend a one-time PIN setup challenge
+	// (POST /accounts/{accountId}/pin-enrollment)
+	IssueAccountPinEnrollment(ctx context.Context, request IssueAccountPinEnrollmentRequestObject) (IssueAccountPinEnrollmentResponseObject, error)
 	// Remove a role from an account
 	// (DELETE /accounts/{accountId}/roles/{roleId})
 	RemoveAccountRole(ctx context.Context, request RemoveAccountRoleRequestObject) (RemoveAccountRoleResponseObject, error)
@@ -9226,6 +16075,15 @@ type StrictServerInterface interface {
 	// List privacy-minimized audit events
 	// (GET /audit-events)
 	ListAuditEvents(ctx context.Context, request ListAuditEventsRequestObject) (ListAuditEventsResponseObject, error)
+	// Verify a local login email with a one-time code
+	// (POST /auth/email-verification/complete)
+	CompleteEmailVerification(ctx context.Context, request CompleteEmailVerificationRequestObject) (CompleteEmailVerificationResponseObject, error)
+	// Send a verification code for the current account's local login email
+	// (POST /auth/email-verification/request)
+	RequestOwnEmailVerification(ctx context.Context, request RequestOwnEmailVerificationRequestObject) (RequestOwnEmailVerificationResponseObject, error)
+	// Complete an invitation and set the initial password
+	// (POST /auth/invitations/complete)
+	CompleteInvitation(ctx context.Context, request CompleteInvitationRequestObject) (CompleteInvitationResponseObject, error)
 	// Start an email/password session
 	// (POST /auth/login)
 	Login(ctx context.Context, request LoginRequestObject) (LoginResponseObject, error)
@@ -9235,18 +16093,84 @@ type StrictServerInterface interface {
 	// Return the authenticated principal and current permissions
 	// (GET /auth/me)
 	GetCurrentUser(ctx context.Context, request GetCurrentUserRequestObject) (GetCurrentUserResponseObject, error)
+	// Unlink an external identity without stranding the enabled Account
+	// (DELETE /auth/methods/oidc/{identityId})
+	UnlinkOwnOIDCIdentity(ctx context.Context, request UnlinkOwnOIDCIdentityRequestObject) (UnlinkOwnOIDCIdentityResponseObject, error)
+	// Enroll or replace the current account's PIN method
+	// (PUT /auth/methods/pin)
+	EnrollOwnPin(ctx context.Context, request EnrollOwnPinRequestObject) (EnrollOwnPinResponseObject, error)
+	// Validate OIDC callback state, nonce, PKCE, issuer, signature, audience, expiry, and configured ACR
+	// (GET /auth/oidc/callback)
+	CompleteOIDCCallback(ctx context.Context, request CompleteOIDCCallbackRequestObject) (CompleteOIDCCallbackResponseObject, error)
+	// List enabled OIDC providers available for login
+	// (GET /auth/oidc/providers)
+	ListOIDCLoginProviders(ctx context.Context, request ListOIDCLoginProvidersRequestObject) (ListOIDCLoginProvidersResponseObject, error)
+	// Reauthenticate with the local password and start secure identity linking
+	// (POST /auth/oidc/{providerSlug}/link)
+	StartOIDCLink(ctx context.Context, request StartOIDCLinkRequestObject) (StartOIDCLinkResponseObject, error)
+	// Start an OIDC Authorization Code flow with PKCE S256
+	// (GET /auth/oidc/{providerSlug}/start)
+	StartOIDCLogin(ctx context.Context, request StartOIDCLoginRequestObject) (StartOIDCLoginResponseObject, error)
+	// Remove the current account password without stranding the account
+	// (DELETE /auth/password)
+	RemoveOwnPassword(ctx context.Context, request RemoveOwnPasswordRequestObject) (RemoveOwnPasswordResponseObject, error)
 	// Change the current account password
 	// (PUT /auth/password)
 	ChangeOwnPassword(ctx context.Context, request ChangeOwnPasswordRequestObject) (ChangeOwnPasswordResponseObject, error)
 	// Redeem a one-time password-reset token
 	// (POST /auth/password-reset/complete)
 	CompletePasswordReset(ctx context.Context, request CompletePasswordResetRequestObject) (CompletePasswordResetResponseObject, error)
+	// Complete password recovery with an emailed code
+	// (POST /auth/password-reset/complete-code)
+	CompletePasswordResetCode(ctx context.Context, request CompletePasswordResetCodeRequestObject) (CompletePasswordResetCodeResponseObject, error)
+	// Request a password-reset code
+	// (POST /auth/password-reset/request)
+	RequestPasswordReset(ctx context.Context, request RequestPasswordResetRequestObject) (RequestPasswordResetResponseObject, error)
+	// Remove the current account's PIN method
+	// (DELETE /auth/pin/enrollment/complete)
+	RemoveOwnPin(ctx context.Context, request RemoveOwnPinRequestObject) (RemoveOwnPinResponseObject, error)
+	// Complete a one-time PIN enrollment challenge
+	// (POST /auth/pin/enrollment/complete)
+	CompletePinEnrollment(ctx context.Context, request CompletePinEnrollmentRequestObject) (CompletePinEnrollmentResponseObject, error)
+	// Start a low-assurance login-name/PIN session
+	// (POST /auth/pin/login)
+	LoginWithPin(ctx context.Context, request LoginWithPinRequestObject) (LoginWithPinResponseObject, error)
 	// Report that the API process is running
 	// (GET /health/live)
 	GetLiveness(ctx context.Context, request GetLivenessRequestObject) (GetLivenessResponseObject, error)
 	// Report whether required dependencies are ready
 	// (GET /health/ready)
 	GetReadiness(ctx context.Context, request GetReadinessRequestObject) (GetReadinessResponseObject, error)
+	// List the supervisor physical-evidence confirmation queue
+	// (GET /laborordnung/requests)
+	ListLaborordnungRequests(ctx context.Context, request ListLaborordnungRequestsRequestObject) (ListLaborordnungRequestsResponseObject, error)
+	// Explicitly create or reuse the current Person's physical-signature request
+	// (POST /laborordnung/requests/me)
+	RequestOwnLaborordnungConfirmation(ctx context.Context, request RequestOwnLaborordnungConfirmationRequestObject) (RequestOwnLaborordnungConfirmationResponseObject, error)
+	// Confirm verification of a physical signed document
+	// (POST /laborordnung/requests/{laborordnungRequestId}/confirm)
+	ConfirmLaborordnungRequest(ctx context.Context, request ConfirmLaborordnungRequestRequestObject) (ConfirmLaborordnungRequestResponseObject, error)
+	// Read the current Person's Lab Rules status without side effects
+	// (GET /laborordnung/status/me)
+	GetOwnLaborordnungStatus(ctx context.Context, request GetOwnLaborordnungStatusRequestObject) (GetOwnLaborordnungStatusResponseObject, error)
+	// List Laborordnung history and upcoming publications
+	// (GET /laborordnung/versions)
+	ListLaborordnungVersions(ctx context.Context, request ListLaborordnungVersionsRequestObject) (ListLaborordnungVersionsResponseObject, error)
+	// Validate and store a draft Laborordnung PDF
+	// (POST /laborordnung/versions)
+	CreateLaborordnungVersion(ctx context.Context, request CreateLaborordnungVersionRequestObject) (CreateLaborordnungVersionResponseObject, error)
+	// View or download the exact private PDF
+	// (GET /laborordnung/versions/{laborordnungVersionId}/pdf)
+	GetLaborordnungPDF(ctx context.Context, request GetLaborordnungPDFRequestObject) (GetLaborordnungPDFResponseObject, error)
+	// Immutably publish a draft for an effective time
+	// (POST /laborordnung/versions/{laborordnungVersionId}/publish)
+	PublishLaborordnungVersion(ctx context.Context, request PublishLaborordnungVersionRequestObject) (PublishLaborordnungVersionResponseObject, error)
+	// Read write-only-safe transactional mail configuration
+	// (GET /mail/configuration)
+	GetMailConfiguration(ctx context.Context, request GetMailConfigurationRequestObject) (GetMailConfigurationResponseObject, error)
+	// Replace transactional SMTP configuration
+	// (PUT /mail/configuration)
+	UpdateMailConfiguration(ctx context.Context, request UpdateMailConfigurationRequestObject) (UpdateMailConfigurationResponseObject, error)
 	// List managed-device types
 	// (GET /managed-device-types)
 	ListManagedDeviceTypes(ctx context.Context, request ListManagedDeviceTypesRequestObject) (ListManagedDeviceTypesResponseObject, error)
@@ -9283,6 +16207,15 @@ type StrictServerInterface interface {
 	// Rotate a managed-device token
 	// (POST /managed-devices/{managedDeviceId}/token)
 	RotateManagedDeviceToken(ctx context.Context, request RotateManagedDeviceTokenRequestObject) (RotateManagedDeviceTokenResponseObject, error)
+	// List configured OIDC providers without secrets
+	// (GET /oidc/providers)
+	ListOIDCProviders(ctx context.Context, request ListOIDCProvidersRequestObject) (ListOIDCProvidersResponseObject, error)
+	// Configure an OIDC provider
+	// (POST /oidc/providers)
+	CreateOIDCProvider(ctx context.Context, request CreateOIDCProviderRequestObject) (CreateOIDCProviderResponseObject, error)
+	// Update OIDC provider configuration; omitted client secret is unchanged
+	// (PATCH /oidc/providers/{oidcProviderId})
+	UpdateOIDCProvider(ctx context.Context, request UpdateOIDCProviderRequestObject) (UpdateOIDCProviderResponseObject, error)
 	// Create an academic break
 	// (POST /open-day-academic-breaks)
 	CreateOpenDayAcademicBreak(ctx context.Context, request CreateOpenDayAcademicBreakRequestObject) (CreateOpenDayAcademicBreakResponseObject, error)
@@ -9382,6 +16315,15 @@ type StrictServerInterface interface {
 	// Create an account and email identity for a person
 	// (POST /people/{personId}/account)
 	CreatePersonAccount(ctx context.Context, request CreatePersonAccountRequestObject) (CreatePersonAccountResponseObject, error)
+	// Remove a profile image
+	// (DELETE /people/{personId}/profile-image)
+	DeletePersonProfileImage(ctx context.Context, request DeletePersonProfileImageRequestObject) (DeletePersonProfileImageResponseObject, error)
+	// Read a private normalized profile image
+	// (GET /people/{personId}/profile-image)
+	GetPersonProfileImage(ctx context.Context, request GetPersonProfileImageRequestObject) (GetPersonProfileImageResponseObject, error)
+	// Validate, normalize, and replace a profile image
+	// (PUT /people/{personId}/profile-image)
+	PutPersonProfileImage(ctx context.Context, request PutPersonProfileImageRequestObject) (PutPersonProfileImageResponseObject, error)
 	// List permissions registered by this application version
 	// (GET /permissions)
 	ListPermissions(ctx context.Context, request ListPermissionsRequestObject) (ListPermissionsResponseObject, error)
@@ -9397,6 +16339,9 @@ type StrictServerInterface interface {
 	// Create a configurable role
 	// (POST /roles)
 	CreateRole(ctx context.Context, request CreateRoleRequestObject) (CreateRoleResponseObject, error)
+	// Resolve every role's permissions for a hypothetical request context
+	// (GET /roles/effective-permissions)
+	EvaluateRolePermissions(ctx context.Context, request EvaluateRolePermissionsRequestObject) (EvaluateRolePermissionsResponseObject, error)
 	// Delete a configurable role
 	// (DELETE /roles/{roleId})
 	DeleteRole(ctx context.Context, request DeleteRoleRequestObject) (DeleteRoleResponseObject, error)
@@ -9409,6 +16354,78 @@ type StrictServerInterface interface {
 	// Replace a configurable role's permissions
 	// (PUT /roles/{roleId}/permissions)
 	ReplaceRolePermissions(ctx context.Context, request ReplaceRolePermissionsRequestObject) (ReplaceRolePermissionsResponseObject, error)
+	// List SCIM connectors without bearer-token secrets
+	// (GET /scim/connectors)
+	ListSCIMConnectors(ctx context.Context, request ListSCIMConnectorsRequestObject) (ListSCIMConnectorsResponseObject, error)
+	// Create a SCIM connector and its first one-time-displayed bearer token
+	// (POST /scim/connectors)
+	CreateSCIMConnector(ctx context.Context, request CreateSCIMConnectorRequestObject) (CreateSCIMConnectorResponseObject, error)
+	// Update a SCIM connector without changing its token
+	// (PUT /scim/connectors/{scimConnectorId})
+	UpdateSCIMConnector(ctx context.Context, request UpdateSCIMConnectorRequestObject) (UpdateSCIMConnectorResponseObject, error)
+	// Revoke the connector's active bearer token
+	// (DELETE /scim/connectors/{scimConnectorId}/token)
+	RevokeSCIMConnectorToken(ctx context.Context, request RevokeSCIMConnectorTokenRequestObject) (RevokeSCIMConnectorTokenResponseObject, error)
+	// Revoke the old token and issue a new one-time-displayed bearer token
+	// (POST /scim/connectors/{scimConnectorId}/token)
+	RotateSCIMConnectorToken(ctx context.Context, request RotateSCIMConnectorTokenRequestObject) (RotateSCIMConnectorTokenResponseObject, error)
+	// Atomically reconcile a conflict-free provisional SCIM Account into an established Account
+	// (POST /scim/reconciliation)
+	ReconcileSCIMAccount(ctx context.Context, request ReconcileSCIMAccountRequestObject) (ReconcileSCIMAccountResponseObject, error)
+	// Analyze a provisional-to-established Account reconciliation without modifying data
+	// (POST /scim/reconciliation/preflight)
+	PreflightSCIMReconciliation(ctx context.Context, request PreflightSCIMReconciliationRequestObject) (PreflightSCIMReconciliationResponseObject, error)
+
+	// (GET /scim/v2/ResourceTypes)
+	ListSCIMResourceTypes(ctx context.Context, request ListSCIMResourceTypesRequestObject) (ListSCIMResourceTypesResponseObject, error)
+
+	// (GET /scim/v2/Schemas)
+	ListSCIMSchemas(ctx context.Context, request ListSCIMSchemasRequestObject) (ListSCIMSchemasResponseObject, error)
+
+	// (GET /scim/v2/ServiceProviderConfig)
+	GetSCIMServiceProviderConfig(ctx context.Context, request GetSCIMServiceProviderConfigRequestObject) (GetSCIMServiceProviderConfigResponseObject, error)
+
+	// (GET /scim/v2/Users)
+	ListSCIMUsers(ctx context.Context, request ListSCIMUsersRequestObject) (ListSCIMUsersResponseObject, error)
+
+	// (POST /scim/v2/Users)
+	CreateSCIMUser(ctx context.Context, request CreateSCIMUserRequestObject) (CreateSCIMUserResponseObject, error)
+	// Deprovision the connector mapping without deleting the Person
+	// (DELETE /scim/v2/Users/{scimUserId})
+	DeleteSCIMUser(ctx context.Context, request DeleteSCIMUserRequestObject) (DeleteSCIMUserResponseObject, error)
+
+	// (GET /scim/v2/Users/{scimUserId})
+	GetSCIMUser(ctx context.Context, request GetSCIMUserRequestObject) (GetSCIMUserResponseObject, error)
+
+	// (PATCH /scim/v2/Users/{scimUserId})
+	PatchSCIMUser(ctx context.Context, request PatchSCIMUserRequestObject) (PatchSCIMUserResponseObject, error)
+
+	// (PUT /scim/v2/Users/{scimUserId})
+	ReplaceSCIMUser(ctx context.Context, request ReplaceSCIMUserRequestObject) (ReplaceSCIMUserResponseObject, error)
+	// Aggregate designated supervisors, compliance, profile images, and open-period assignment counts
+	// (GET /supervisor-dashboard)
+	GetSupervisorDashboard(ctx context.Context, request GetSupervisorDashboardRequestObject) (GetSupervisorDashboardResponseObject, error)
+	// Explicitly request/reuse required physical confirmation and evaluate admission on an approved ManagedDevice
+	// (POST /visitor-admission)
+	EvaluateVisitorAdmission(ctx context.Context, request EvaluateVisitorAdmissionRequestObject) (EvaluateVisitorAdmissionResponseObject, error)
+	// Read the controlled visitor-terminal configuration
+	// (GET /visitor-enrollment/configuration)
+	GetVisitorEnrollmentConfiguration(ctx context.Context, request GetVisitorEnrollmentConfigurationRequestObject) (GetVisitorEnrollmentConfigurationResponseObject, error)
+	// Replace the controlled visitor-terminal configuration
+	// (PUT /visitor-enrollment/configuration)
+	UpdateVisitorEnrollmentConfiguration(ctx context.Context, request UpdateVisitorEnrollmentConfigurationRequestObject) (UpdateVisitorEnrollmentConfigurationResponseObject, error)
+	// Begin enrollment on an enabled, approved ManagedDevice
+	// (POST /visitor-enrollment/context)
+	BeginVisitorEnrollment(ctx context.Context, request BeginVisitorEnrollmentRequestObject) (BeginVisitorEnrollmentResponseObject, error)
+	// Read the current Lab Rules PDF within an enrollment context
+	// (GET /visitor-enrollment/lab-rules.pdf)
+	GetVisitorEnrollmentLabRulesPDF(ctx context.Context, request GetVisitorEnrollmentLabRulesPDFRequestObject) (GetVisitorEnrollmentLabRulesPDFResponseObject, error)
+	// Read enrollment methods and current Lab Rules without creating records
+	// (GET /visitor-enrollment/state)
+	GetVisitorEnrollmentState(ctx context.Context, request GetVisitorEnrollmentStateRequestObject) (GetVisitorEnrollmentStateResponseObject, error)
+	// Atomically create one visitor using the backend-configured Role
+	// (POST /visitor-enrollment/submissions)
+	SubmitVisitorEnrollment(ctx context.Context, request SubmitVisitorEnrollmentRequestObject) (SubmitVisitorEnrollmentResponseObject, error)
 }
 
 type StrictHandlerFunc = strictnethttp.StrictHTTPHandlerFunc
@@ -9565,6 +16582,39 @@ func (sh *strictHandler) EnableAccount(w http.ResponseWriter, r *http.Request, a
 	}
 }
 
+// IssueAccountInvitation operation middleware
+func (sh *strictHandler) IssueAccountInvitation(w http.ResponseWriter, r *http.Request, accountId AccountId) {
+	var request IssueAccountInvitationRequestObject
+
+	request.AccountId = accountId
+
+	var body IssueAccountInvitationJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.IssueAccountInvitation(ctx, request.(IssueAccountInvitationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "IssueAccountInvitation")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(IssueAccountInvitationResponseObject); ok {
+		if err := validResponse.VisitIssueAccountInvitationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // UpdateAccountLoginEmail operation middleware
 func (sh *strictHandler) UpdateAccountLoginEmail(w http.ResponseWriter, r *http.Request, accountId AccountId) {
 	var request UpdateAccountLoginEmailRequestObject
@@ -9657,6 +16707,39 @@ func (sh *strictHandler) IssueAccountPasswordReset(w http.ResponseWriter, r *htt
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(IssueAccountPasswordResetResponseObject); ok {
 		if err := validResponse.VisitIssueAccountPasswordResetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// IssueAccountPinEnrollment operation middleware
+func (sh *strictHandler) IssueAccountPinEnrollment(w http.ResponseWriter, r *http.Request, accountId AccountId) {
+	var request IssueAccountPinEnrollmentRequestObject
+
+	request.AccountId = accountId
+
+	var body IssueAccountPinEnrollmentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.IssueAccountPinEnrollment(ctx, request.(IssueAccountPinEnrollmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "IssueAccountPinEnrollment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(IssueAccountPinEnrollmentResponseObject); ok {
+		if err := validResponse.VisitIssueAccountPinEnrollmentResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -9758,6 +16841,92 @@ func (sh *strictHandler) ListAuditEvents(w http.ResponseWriter, r *http.Request,
 	}
 }
 
+// CompleteEmailVerification operation middleware
+func (sh *strictHandler) CompleteEmailVerification(w http.ResponseWriter, r *http.Request) {
+	var request CompleteEmailVerificationRequestObject
+
+	var body CompleteEmailVerificationJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CompleteEmailVerification(ctx, request.(CompleteEmailVerificationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CompleteEmailVerification")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CompleteEmailVerificationResponseObject); ok {
+		if err := validResponse.VisitCompleteEmailVerificationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RequestOwnEmailVerification operation middleware
+func (sh *strictHandler) RequestOwnEmailVerification(w http.ResponseWriter, r *http.Request) {
+	var request RequestOwnEmailVerificationRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RequestOwnEmailVerification(ctx, request.(RequestOwnEmailVerificationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RequestOwnEmailVerification")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RequestOwnEmailVerificationResponseObject); ok {
+		if err := validResponse.VisitRequestOwnEmailVerificationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CompleteInvitation operation middleware
+func (sh *strictHandler) CompleteInvitation(w http.ResponseWriter, r *http.Request) {
+	var request CompleteInvitationRequestObject
+
+	var body CompleteInvitationJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CompleteInvitation(ctx, request.(CompleteInvitationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CompleteInvitation")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CompleteInvitationResponseObject); ok {
+		if err := validResponse.VisitCompleteInvitationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Login operation middleware
 func (sh *strictHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var request LoginRequestObject
@@ -9837,6 +17006,203 @@ func (sh *strictHandler) GetCurrentUser(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+// UnlinkOwnOIDCIdentity operation middleware
+func (sh *strictHandler) UnlinkOwnOIDCIdentity(w http.ResponseWriter, r *http.Request, identityId UUIDv7) {
+	var request UnlinkOwnOIDCIdentityRequestObject
+
+	request.IdentityId = identityId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnlinkOwnOIDCIdentity(ctx, request.(UnlinkOwnOIDCIdentityRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnlinkOwnOIDCIdentity")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnlinkOwnOIDCIdentityResponseObject); ok {
+		if err := validResponse.VisitUnlinkOwnOIDCIdentityResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// EnrollOwnPin operation middleware
+func (sh *strictHandler) EnrollOwnPin(w http.ResponseWriter, r *http.Request) {
+	var request EnrollOwnPinRequestObject
+
+	var body EnrollOwnPinJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.EnrollOwnPin(ctx, request.(EnrollOwnPinRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "EnrollOwnPin")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(EnrollOwnPinResponseObject); ok {
+		if err := validResponse.VisitEnrollOwnPinResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CompleteOIDCCallback operation middleware
+func (sh *strictHandler) CompleteOIDCCallback(w http.ResponseWriter, r *http.Request, params CompleteOIDCCallbackParams) {
+	var request CompleteOIDCCallbackRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CompleteOIDCCallback(ctx, request.(CompleteOIDCCallbackRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CompleteOIDCCallback")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CompleteOIDCCallbackResponseObject); ok {
+		if err := validResponse.VisitCompleteOIDCCallbackResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListOIDCLoginProviders operation middleware
+func (sh *strictHandler) ListOIDCLoginProviders(w http.ResponseWriter, r *http.Request) {
+	var request ListOIDCLoginProvidersRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListOIDCLoginProviders(ctx, request.(ListOIDCLoginProvidersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListOIDCLoginProviders")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListOIDCLoginProvidersResponseObject); ok {
+		if err := validResponse.VisitListOIDCLoginProvidersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StartOIDCLink operation middleware
+func (sh *strictHandler) StartOIDCLink(w http.ResponseWriter, r *http.Request, providerSlug string) {
+	var request StartOIDCLinkRequestObject
+
+	request.ProviderSlug = providerSlug
+
+	var body StartOIDCLinkJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StartOIDCLink(ctx, request.(StartOIDCLinkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StartOIDCLink")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StartOIDCLinkResponseObject); ok {
+		if err := validResponse.VisitStartOIDCLinkResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StartOIDCLogin operation middleware
+func (sh *strictHandler) StartOIDCLogin(w http.ResponseWriter, r *http.Request, providerSlug string) {
+	var request StartOIDCLoginRequestObject
+
+	request.ProviderSlug = providerSlug
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StartOIDCLogin(ctx, request.(StartOIDCLoginRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StartOIDCLogin")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StartOIDCLoginResponseObject); ok {
+		if err := validResponse.VisitStartOIDCLoginResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RemoveOwnPassword operation middleware
+func (sh *strictHandler) RemoveOwnPassword(w http.ResponseWriter, r *http.Request) {
+	var request RemoveOwnPasswordRequestObject
+
+	var body RemoveOwnPasswordJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RemoveOwnPassword(ctx, request.(RemoveOwnPasswordRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RemoveOwnPassword")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RemoveOwnPasswordResponseObject); ok {
+		if err := validResponse.VisitRemoveOwnPasswordResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ChangeOwnPassword operation middleware
 func (sh *strictHandler) ChangeOwnPassword(w http.ResponseWriter, r *http.Request) {
 	var request ChangeOwnPasswordRequestObject
@@ -9899,6 +17265,154 @@ func (sh *strictHandler) CompletePasswordReset(w http.ResponseWriter, r *http.Re
 	}
 }
 
+// CompletePasswordResetCode operation middleware
+func (sh *strictHandler) CompletePasswordResetCode(w http.ResponseWriter, r *http.Request) {
+	var request CompletePasswordResetCodeRequestObject
+
+	var body CompletePasswordResetCodeJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CompletePasswordResetCode(ctx, request.(CompletePasswordResetCodeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CompletePasswordResetCode")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CompletePasswordResetCodeResponseObject); ok {
+		if err := validResponse.VisitCompletePasswordResetCodeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RequestPasswordReset operation middleware
+func (sh *strictHandler) RequestPasswordReset(w http.ResponseWriter, r *http.Request) {
+	var request RequestPasswordResetRequestObject
+
+	var body RequestPasswordResetJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RequestPasswordReset(ctx, request.(RequestPasswordResetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RequestPasswordReset")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RequestPasswordResetResponseObject); ok {
+		if err := validResponse.VisitRequestPasswordResetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RemoveOwnPin operation middleware
+func (sh *strictHandler) RemoveOwnPin(w http.ResponseWriter, r *http.Request) {
+	var request RemoveOwnPinRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RemoveOwnPin(ctx, request.(RemoveOwnPinRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RemoveOwnPin")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RemoveOwnPinResponseObject); ok {
+		if err := validResponse.VisitRemoveOwnPinResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CompletePinEnrollment operation middleware
+func (sh *strictHandler) CompletePinEnrollment(w http.ResponseWriter, r *http.Request) {
+	var request CompletePinEnrollmentRequestObject
+
+	var body CompletePinEnrollmentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CompletePinEnrollment(ctx, request.(CompletePinEnrollmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CompletePinEnrollment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CompletePinEnrollmentResponseObject); ok {
+		if err := validResponse.VisitCompletePinEnrollmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// LoginWithPin operation middleware
+func (sh *strictHandler) LoginWithPin(w http.ResponseWriter, r *http.Request) {
+	var request LoginWithPinRequestObject
+
+	var body LoginWithPinJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.LoginWithPin(ctx, request.(LoginWithPinRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "LoginWithPin")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(LoginWithPinResponseObject); ok {
+		if err := validResponse.VisitLoginWithPinResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetLiveness operation middleware
 func (sh *strictHandler) GetLiveness(w http.ResponseWriter, r *http.Request) {
 	var request GetLivenessRequestObject
@@ -9940,6 +17454,277 @@ func (sh *strictHandler) GetReadiness(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetReadinessResponseObject); ok {
 		if err := validResponse.VisitGetReadinessResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListLaborordnungRequests operation middleware
+func (sh *strictHandler) ListLaborordnungRequests(w http.ResponseWriter, r *http.Request) {
+	var request ListLaborordnungRequestsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListLaborordnungRequests(ctx, request.(ListLaborordnungRequestsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListLaborordnungRequests")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListLaborordnungRequestsResponseObject); ok {
+		if err := validResponse.VisitListLaborordnungRequestsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RequestOwnLaborordnungConfirmation operation middleware
+func (sh *strictHandler) RequestOwnLaborordnungConfirmation(w http.ResponseWriter, r *http.Request) {
+	var request RequestOwnLaborordnungConfirmationRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RequestOwnLaborordnungConfirmation(ctx, request.(RequestOwnLaborordnungConfirmationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RequestOwnLaborordnungConfirmation")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RequestOwnLaborordnungConfirmationResponseObject); ok {
+		if err := validResponse.VisitRequestOwnLaborordnungConfirmationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConfirmLaborordnungRequest operation middleware
+func (sh *strictHandler) ConfirmLaborordnungRequest(w http.ResponseWriter, r *http.Request, laborordnungRequestId LaborordnungRequestId) {
+	var request ConfirmLaborordnungRequestRequestObject
+
+	request.LaborordnungRequestId = laborordnungRequestId
+
+	var body ConfirmLaborordnungRequestJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ConfirmLaborordnungRequest(ctx, request.(ConfirmLaborordnungRequestRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConfirmLaborordnungRequest")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ConfirmLaborordnungRequestResponseObject); ok {
+		if err := validResponse.VisitConfirmLaborordnungRequestResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetOwnLaborordnungStatus operation middleware
+func (sh *strictHandler) GetOwnLaborordnungStatus(w http.ResponseWriter, r *http.Request) {
+	var request GetOwnLaborordnungStatusRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetOwnLaborordnungStatus(ctx, request.(GetOwnLaborordnungStatusRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetOwnLaborordnungStatus")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetOwnLaborordnungStatusResponseObject); ok {
+		if err := validResponse.VisitGetOwnLaborordnungStatusResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListLaborordnungVersions operation middleware
+func (sh *strictHandler) ListLaborordnungVersions(w http.ResponseWriter, r *http.Request) {
+	var request ListLaborordnungVersionsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListLaborordnungVersions(ctx, request.(ListLaborordnungVersionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListLaborordnungVersions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListLaborordnungVersionsResponseObject); ok {
+		if err := validResponse.VisitListLaborordnungVersionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateLaborordnungVersion operation middleware
+func (sh *strictHandler) CreateLaborordnungVersion(w http.ResponseWriter, r *http.Request, params CreateLaborordnungVersionParams) {
+	var request CreateLaborordnungVersionRequestObject
+
+	request.Params = params
+
+	request.Body = r.Body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateLaborordnungVersion(ctx, request.(CreateLaborordnungVersionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateLaborordnungVersion")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateLaborordnungVersionResponseObject); ok {
+		if err := validResponse.VisitCreateLaborordnungVersionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetLaborordnungPDF operation middleware
+func (sh *strictHandler) GetLaborordnungPDF(w http.ResponseWriter, r *http.Request, laborordnungVersionId LaborordnungVersionId) {
+	var request GetLaborordnungPDFRequestObject
+
+	request.LaborordnungVersionId = laborordnungVersionId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetLaborordnungPDF(ctx, request.(GetLaborordnungPDFRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetLaborordnungPDF")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetLaborordnungPDFResponseObject); ok {
+		if err := validResponse.VisitGetLaborordnungPDFResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PublishLaborordnungVersion operation middleware
+func (sh *strictHandler) PublishLaborordnungVersion(w http.ResponseWriter, r *http.Request, laborordnungVersionId LaborordnungVersionId) {
+	var request PublishLaborordnungVersionRequestObject
+
+	request.LaborordnungVersionId = laborordnungVersionId
+
+	var body PublishLaborordnungVersionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PublishLaborordnungVersion(ctx, request.(PublishLaborordnungVersionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PublishLaborordnungVersion")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PublishLaborordnungVersionResponseObject); ok {
+		if err := validResponse.VisitPublishLaborordnungVersionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMailConfiguration operation middleware
+func (sh *strictHandler) GetMailConfiguration(w http.ResponseWriter, r *http.Request) {
+	var request GetMailConfigurationRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMailConfiguration(ctx, request.(GetMailConfigurationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMailConfiguration")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMailConfigurationResponseObject); ok {
+		if err := validResponse.VisitGetMailConfigurationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateMailConfiguration operation middleware
+func (sh *strictHandler) UpdateMailConfiguration(w http.ResponseWriter, r *http.Request) {
+	var request UpdateMailConfigurationRequestObject
+
+	var body UpdateMailConfigurationJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateMailConfiguration(ctx, request.(UpdateMailConfigurationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateMailConfiguration")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateMailConfigurationResponseObject); ok {
+		if err := validResponse.VisitUpdateMailConfigurationResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -10302,6 +18087,94 @@ func (sh *strictHandler) RotateManagedDeviceToken(w http.ResponseWriter, r *http
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(RotateManagedDeviceTokenResponseObject); ok {
 		if err := validResponse.VisitRotateManagedDeviceTokenResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListOIDCProviders operation middleware
+func (sh *strictHandler) ListOIDCProviders(w http.ResponseWriter, r *http.Request) {
+	var request ListOIDCProvidersRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListOIDCProviders(ctx, request.(ListOIDCProvidersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListOIDCProviders")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListOIDCProvidersResponseObject); ok {
+		if err := validResponse.VisitListOIDCProvidersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateOIDCProvider operation middleware
+func (sh *strictHandler) CreateOIDCProvider(w http.ResponseWriter, r *http.Request) {
+	var request CreateOIDCProviderRequestObject
+
+	var body CreateOIDCProviderJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateOIDCProvider(ctx, request.(CreateOIDCProviderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateOIDCProvider")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateOIDCProviderResponseObject); ok {
+		if err := validResponse.VisitCreateOIDCProviderResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateOIDCProvider operation middleware
+func (sh *strictHandler) UpdateOIDCProvider(w http.ResponseWriter, r *http.Request, oidcProviderId OIDCProviderId) {
+	var request UpdateOIDCProviderRequestObject
+
+	request.OidcProviderId = oidcProviderId
+
+	var body UpdateOIDCProviderJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateOIDCProvider(ctx, request.(UpdateOIDCProviderRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateOIDCProvider")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateOIDCProviderResponseObject); ok {
+		if err := validResponse.VisitUpdateOIDCProviderResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -11313,6 +19186,94 @@ func (sh *strictHandler) CreatePersonAccount(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+// DeletePersonProfileImage operation middleware
+func (sh *strictHandler) DeletePersonProfileImage(w http.ResponseWriter, r *http.Request, personId PersonId) {
+	var request DeletePersonProfileImageRequestObject
+
+	request.PersonId = personId
+
+	var body DeletePersonProfileImageJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeletePersonProfileImage(ctx, request.(DeletePersonProfileImageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeletePersonProfileImage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeletePersonProfileImageResponseObject); ok {
+		if err := validResponse.VisitDeletePersonProfileImageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPersonProfileImage operation middleware
+func (sh *strictHandler) GetPersonProfileImage(w http.ResponseWriter, r *http.Request, personId PersonId) {
+	var request GetPersonProfileImageRequestObject
+
+	request.PersonId = personId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPersonProfileImage(ctx, request.(GetPersonProfileImageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPersonProfileImage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPersonProfileImageResponseObject); ok {
+		if err := validResponse.VisitGetPersonProfileImageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PutPersonProfileImage operation middleware
+func (sh *strictHandler) PutPersonProfileImage(w http.ResponseWriter, r *http.Request, personId PersonId, params PutPersonProfileImageParams) {
+	var request PutPersonProfileImageRequestObject
+
+	request.PersonId = personId
+	request.Params = params
+
+	request.Body = r.Body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PutPersonProfileImage(ctx, request.(PutPersonProfileImageRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PutPersonProfileImage")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PutPersonProfileImageResponseObject); ok {
+		if err := validResponse.VisitPutPersonProfileImageResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListPermissions operation middleware
 func (sh *strictHandler) ListPermissions(w http.ResponseWriter, r *http.Request) {
 	var request ListPermissionsRequestObject
@@ -11435,6 +19396,32 @@ func (sh *strictHandler) CreateRole(w http.ResponseWriter, r *http.Request) {
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreateRoleResponseObject); ok {
 		if err := validResponse.VisitCreateRoleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// EvaluateRolePermissions operation middleware
+func (sh *strictHandler) EvaluateRolePermissions(w http.ResponseWriter, r *http.Request, params EvaluateRolePermissionsParams) {
+	var request EvaluateRolePermissionsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.EvaluateRolePermissions(ctx, request.(EvaluateRolePermissionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "EvaluateRolePermissions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(EvaluateRolePermissionsResponseObject); ok {
+		if err := validResponse.VisitEvaluateRolePermissionsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -11567,184 +19554,989 @@ func (sh *strictHandler) ReplaceRolePermissions(w http.ResponseWriter, r *http.R
 	}
 }
 
+// ListSCIMConnectors operation middleware
+func (sh *strictHandler) ListSCIMConnectors(w http.ResponseWriter, r *http.Request) {
+	var request ListSCIMConnectorsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSCIMConnectors(ctx, request.(ListSCIMConnectorsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSCIMConnectors")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSCIMConnectorsResponseObject); ok {
+		if err := validResponse.VisitListSCIMConnectorsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateSCIMConnector operation middleware
+func (sh *strictHandler) CreateSCIMConnector(w http.ResponseWriter, r *http.Request) {
+	var request CreateSCIMConnectorRequestObject
+
+	var body CreateSCIMConnectorJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateSCIMConnector(ctx, request.(CreateSCIMConnectorRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateSCIMConnector")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateSCIMConnectorResponseObject); ok {
+		if err := validResponse.VisitCreateSCIMConnectorResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateSCIMConnector operation middleware
+func (sh *strictHandler) UpdateSCIMConnector(w http.ResponseWriter, r *http.Request, scimConnectorId UUIDv7) {
+	var request UpdateSCIMConnectorRequestObject
+
+	request.ScimConnectorId = scimConnectorId
+
+	var body UpdateSCIMConnectorJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateSCIMConnector(ctx, request.(UpdateSCIMConnectorRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateSCIMConnector")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateSCIMConnectorResponseObject); ok {
+		if err := validResponse.VisitUpdateSCIMConnectorResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RevokeSCIMConnectorToken operation middleware
+func (sh *strictHandler) RevokeSCIMConnectorToken(w http.ResponseWriter, r *http.Request, scimConnectorId UUIDv7) {
+	var request RevokeSCIMConnectorTokenRequestObject
+
+	request.ScimConnectorId = scimConnectorId
+
+	var body RevokeSCIMConnectorTokenJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RevokeSCIMConnectorToken(ctx, request.(RevokeSCIMConnectorTokenRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RevokeSCIMConnectorToken")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RevokeSCIMConnectorTokenResponseObject); ok {
+		if err := validResponse.VisitRevokeSCIMConnectorTokenResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RotateSCIMConnectorToken operation middleware
+func (sh *strictHandler) RotateSCIMConnectorToken(w http.ResponseWriter, r *http.Request, scimConnectorId UUIDv7) {
+	var request RotateSCIMConnectorTokenRequestObject
+
+	request.ScimConnectorId = scimConnectorId
+
+	var body RotateSCIMConnectorTokenJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RotateSCIMConnectorToken(ctx, request.(RotateSCIMConnectorTokenRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RotateSCIMConnectorToken")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RotateSCIMConnectorTokenResponseObject); ok {
+		if err := validResponse.VisitRotateSCIMConnectorTokenResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReconcileSCIMAccount operation middleware
+func (sh *strictHandler) ReconcileSCIMAccount(w http.ResponseWriter, r *http.Request) {
+	var request ReconcileSCIMAccountRequestObject
+
+	var body ReconcileSCIMAccountJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReconcileSCIMAccount(ctx, request.(ReconcileSCIMAccountRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReconcileSCIMAccount")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReconcileSCIMAccountResponseObject); ok {
+		if err := validResponse.VisitReconcileSCIMAccountResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PreflightSCIMReconciliation operation middleware
+func (sh *strictHandler) PreflightSCIMReconciliation(w http.ResponseWriter, r *http.Request) {
+	var request PreflightSCIMReconciliationRequestObject
+
+	var body PreflightSCIMReconciliationJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PreflightSCIMReconciliation(ctx, request.(PreflightSCIMReconciliationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PreflightSCIMReconciliation")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PreflightSCIMReconciliationResponseObject); ok {
+		if err := validResponse.VisitPreflightSCIMReconciliationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListSCIMResourceTypes operation middleware
+func (sh *strictHandler) ListSCIMResourceTypes(w http.ResponseWriter, r *http.Request) {
+	var request ListSCIMResourceTypesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSCIMResourceTypes(ctx, request.(ListSCIMResourceTypesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSCIMResourceTypes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSCIMResourceTypesResponseObject); ok {
+		if err := validResponse.VisitListSCIMResourceTypesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListSCIMSchemas operation middleware
+func (sh *strictHandler) ListSCIMSchemas(w http.ResponseWriter, r *http.Request) {
+	var request ListSCIMSchemasRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSCIMSchemas(ctx, request.(ListSCIMSchemasRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSCIMSchemas")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSCIMSchemasResponseObject); ok {
+		if err := validResponse.VisitListSCIMSchemasResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSCIMServiceProviderConfig operation middleware
+func (sh *strictHandler) GetSCIMServiceProviderConfig(w http.ResponseWriter, r *http.Request) {
+	var request GetSCIMServiceProviderConfigRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSCIMServiceProviderConfig(ctx, request.(GetSCIMServiceProviderConfigRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSCIMServiceProviderConfig")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSCIMServiceProviderConfigResponseObject); ok {
+		if err := validResponse.VisitGetSCIMServiceProviderConfigResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListSCIMUsers operation middleware
+func (sh *strictHandler) ListSCIMUsers(w http.ResponseWriter, r *http.Request, params ListSCIMUsersParams) {
+	var request ListSCIMUsersRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSCIMUsers(ctx, request.(ListSCIMUsersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSCIMUsers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSCIMUsersResponseObject); ok {
+		if err := validResponse.VisitListSCIMUsersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateSCIMUser operation middleware
+func (sh *strictHandler) CreateSCIMUser(w http.ResponseWriter, r *http.Request) {
+	var request CreateSCIMUserRequestObject
+
+	var body CreateSCIMUserApplicationScimPlusJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateSCIMUser(ctx, request.(CreateSCIMUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateSCIMUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateSCIMUserResponseObject); ok {
+		if err := validResponse.VisitCreateSCIMUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteSCIMUser operation middleware
+func (sh *strictHandler) DeleteSCIMUser(w http.ResponseWriter, r *http.Request, scimUserId UUIDv7) {
+	var request DeleteSCIMUserRequestObject
+
+	request.ScimUserId = scimUserId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteSCIMUser(ctx, request.(DeleteSCIMUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteSCIMUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteSCIMUserResponseObject); ok {
+		if err := validResponse.VisitDeleteSCIMUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSCIMUser operation middleware
+func (sh *strictHandler) GetSCIMUser(w http.ResponseWriter, r *http.Request, scimUserId UUIDv7) {
+	var request GetSCIMUserRequestObject
+
+	request.ScimUserId = scimUserId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSCIMUser(ctx, request.(GetSCIMUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSCIMUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSCIMUserResponseObject); ok {
+		if err := validResponse.VisitGetSCIMUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PatchSCIMUser operation middleware
+func (sh *strictHandler) PatchSCIMUser(w http.ResponseWriter, r *http.Request, scimUserId UUIDv7) {
+	var request PatchSCIMUserRequestObject
+
+	request.ScimUserId = scimUserId
+
+	var body PatchSCIMUserApplicationScimPlusJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PatchSCIMUser(ctx, request.(PatchSCIMUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PatchSCIMUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PatchSCIMUserResponseObject); ok {
+		if err := validResponse.VisitPatchSCIMUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReplaceSCIMUser operation middleware
+func (sh *strictHandler) ReplaceSCIMUser(w http.ResponseWriter, r *http.Request, scimUserId UUIDv7) {
+	var request ReplaceSCIMUserRequestObject
+
+	request.ScimUserId = scimUserId
+
+	var body ReplaceSCIMUserApplicationScimPlusJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReplaceSCIMUser(ctx, request.(ReplaceSCIMUserRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReplaceSCIMUser")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReplaceSCIMUserResponseObject); ok {
+		if err := validResponse.VisitReplaceSCIMUserResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSupervisorDashboard operation middleware
+func (sh *strictHandler) GetSupervisorDashboard(w http.ResponseWriter, r *http.Request) {
+	var request GetSupervisorDashboardRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSupervisorDashboard(ctx, request.(GetSupervisorDashboardRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSupervisorDashboard")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSupervisorDashboardResponseObject); ok {
+		if err := validResponse.VisitGetSupervisorDashboardResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// EvaluateVisitorAdmission operation middleware
+func (sh *strictHandler) EvaluateVisitorAdmission(w http.ResponseWriter, r *http.Request) {
+	var request EvaluateVisitorAdmissionRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.EvaluateVisitorAdmission(ctx, request.(EvaluateVisitorAdmissionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "EvaluateVisitorAdmission")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(EvaluateVisitorAdmissionResponseObject); ok {
+		if err := validResponse.VisitEvaluateVisitorAdmissionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetVisitorEnrollmentConfiguration operation middleware
+func (sh *strictHandler) GetVisitorEnrollmentConfiguration(w http.ResponseWriter, r *http.Request) {
+	var request GetVisitorEnrollmentConfigurationRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetVisitorEnrollmentConfiguration(ctx, request.(GetVisitorEnrollmentConfigurationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetVisitorEnrollmentConfiguration")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetVisitorEnrollmentConfigurationResponseObject); ok {
+		if err := validResponse.VisitGetVisitorEnrollmentConfigurationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateVisitorEnrollmentConfiguration operation middleware
+func (sh *strictHandler) UpdateVisitorEnrollmentConfiguration(w http.ResponseWriter, r *http.Request) {
+	var request UpdateVisitorEnrollmentConfigurationRequestObject
+
+	var body UpdateVisitorEnrollmentConfigurationJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateVisitorEnrollmentConfiguration(ctx, request.(UpdateVisitorEnrollmentConfigurationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateVisitorEnrollmentConfiguration")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateVisitorEnrollmentConfigurationResponseObject); ok {
+		if err := validResponse.VisitUpdateVisitorEnrollmentConfigurationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// BeginVisitorEnrollment operation middleware
+func (sh *strictHandler) BeginVisitorEnrollment(w http.ResponseWriter, r *http.Request) {
+	var request BeginVisitorEnrollmentRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.BeginVisitorEnrollment(ctx, request.(BeginVisitorEnrollmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "BeginVisitorEnrollment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(BeginVisitorEnrollmentResponseObject); ok {
+		if err := validResponse.VisitBeginVisitorEnrollmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetVisitorEnrollmentLabRulesPDF operation middleware
+func (sh *strictHandler) GetVisitorEnrollmentLabRulesPDF(w http.ResponseWriter, r *http.Request) {
+	var request GetVisitorEnrollmentLabRulesPDFRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetVisitorEnrollmentLabRulesPDF(ctx, request.(GetVisitorEnrollmentLabRulesPDFRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetVisitorEnrollmentLabRulesPDF")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetVisitorEnrollmentLabRulesPDFResponseObject); ok {
+		if err := validResponse.VisitGetVisitorEnrollmentLabRulesPDFResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetVisitorEnrollmentState operation middleware
+func (sh *strictHandler) GetVisitorEnrollmentState(w http.ResponseWriter, r *http.Request) {
+	var request GetVisitorEnrollmentStateRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetVisitorEnrollmentState(ctx, request.(GetVisitorEnrollmentStateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetVisitorEnrollmentState")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetVisitorEnrollmentStateResponseObject); ok {
+		if err := validResponse.VisitGetVisitorEnrollmentStateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SubmitVisitorEnrollment operation middleware
+func (sh *strictHandler) SubmitVisitorEnrollment(w http.ResponseWriter, r *http.Request, params SubmitVisitorEnrollmentParams) {
+	var request SubmitVisitorEnrollmentRequestObject
+
+	request.Params = params
+
+	var body SubmitVisitorEnrollmentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SubmitVisitorEnrollment(ctx, request.(SubmitVisitorEnrollmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SubmitVisitorEnrollment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SubmitVisitorEnrollmentResponseObject); ok {
+		if err := validResponse.VisitSubmitVisitorEnrollmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/+x9a3PbOBLgX0Hptmp3ryTbcZLdneST15PMeDcPl53sXV3siyCyJWFCARwAlKPN5b9f",
-	"4UWCJCiRsh52Rl9mYpHEo9Hd6Hd/60VsljIKVIrei2+9KeAYuP7nO3YtGQf1zxhExEkqCaO9F71LDnOg",
-	"Eo04uxPABcI0RoRK4DOICeYEBBpzNkMcJCaU0AnCmZwClSTCagzEOGIUBpLMYCAg4iARB5EyKkAc9fo9",
-	"EU1hhtXMQLNZ78WnHmUDoVdz2+/JRQq9Fz0hOaGT3vfv3/u9FHM8A2lXfhbhGGYk+icH/OUiVj8RtfAU",
-	"y2mv36N4pr7Hlbf6PQ6/Z4RD3HsheQb+Mv7EYdx70fsfxwW0js1Tcfzx48XP87/31DLOoohlVC6Z0j3f",
-	"wGTnGReM14/nfYp/zwBF+rE6g4xTiNFogeQUUMphTlgmUIonoGCtl/l7BnxRrNN8WzqIGf76BuhETnsv",
-	"np+c1A+h3/sZ5iSCD4sUGvcf+69sAARvyIzIOgTe4q9klin8ixiPBZLMgqFpv4kex19ADGOcJVJttq/2",
-	"rsbrvXiidj4j1P6VQ0Eh/wS4XtNbTPEEYgONRkjMKm9tABjvU6A/48WZEGRCZ7AMDf1XNjdz43wsf765",
-	"yS6BExY3Tpm6x5ub8cqMsxSyvPTOBua+xJMAB35PYTDCAmLFNrNELiVm9SyM209WIrOa/pr8FzrQGEqB",
-	"r1yPHjO4ptPnHentErhgdBkimMcbOIwrljRTNDcP7z3NdzWCvQvVR//EscI8EJrRRYxKoPqfOE0Te6Ee",
-	"/ybUoXxrOdcrzhk3U1UPNRkzdYsjbqbsI0LnOCEx+tf1+3d9dXFnVGRpyriEGOmTRXOcZHDUU1cSo+OE",
-	"RDtY6bXECaAhfE0hkhD/B7ggjA7RX4ZCPfl8x4mE4V/7KKPk9wwoCIEiuzq9jZQzqT/VO+QEU4nmhCV6",
-	"lXozrxkfkTgGuv3dfJgCinCSAEcJjr4IRUMzIoSVldS9fX599RpFU4i+oDEmCcR6jRdK6qI4uQY+B27G",
-	"3/pqP1IHdiT0vAjUqy+NDEhxgmIl+CUCYQ6IMonga8qEXfI7Jl+zjMa7garFY8MpWcYjQDEDYVdFhFTw",
-	"JebvORFklIBiZTI/EL3mD4y9xXRh6VDsAL0hyjiRi4EAKogk83wniGMJCL5GALGCaN8X2a9A8sXgbCwh",
-	"IBdeQ8RoLFBGJUkQpkxOgSMsJcxSiWZ4gUaAZjiGsgS+lP2qlX+kSrpnnPwXdnCoZ2VNggikCYVO+grL",
-	"FN/tIw5z9kX9IyYCjxL1L3XKhpPpA/1IU84iEPrxKyqJXOyCZ/EskhnHSaKZJlG8J80c31FaE4EkVmuN",
-	"2QwTal5yHOm7O5W6jqMXHMdEvYmTS85S4JKo+2OMEwH9Xur99K0XccAS4jO9UcXwsVTCOZZGJevVpPt+",
-	"D2gs3tPa+6FXSdz2rnN3Z0m7ePL8JDCokJjLtivI0rjr/ubmAlm1cnvP9Mwt7e75T2rPdjPeUnOoFcP3",
-	"Pdj76yy0Wjb6DSLZK5TJ7Z9tlwNL2ITQVzNMkpVkoF/SurkQd4zH1xLLTKz67LL8tvreE/DaLVKJYnoi",
-	"ImG2ckYl1V1nsxnmC/WxBQ/mHC8s5rVYtj2sYtV7wkFP3LULrx1A6RAdsJoQs1jVEhQtTtaZa4Bqvtvr",
-	"9xwLDhhuiu8t9Lth+gFtt4C2+8XBpbimjRaF9i8Y9fSiDnizxsFUNf+W+qIPmaplIF9FcK9ZTOSrOXTm",
-	"/jiS9vT8G9Vq0fnfAUrEkWS8ZL7ESfJ+3Hvxqd1ub6vCzrssSdCYcSQWQsLs+PzNBTKrE0rAwUpGRSkn",
-	"cxwtBikHpUkQOkExJGAEnn6PZkmimIfRpL/3e9EU0wnEr5WYJOoSrv4dqWtYIEaTxUtEQaknIxgzDsdm",
-	"Tq2taitzTmZVWNWgUyKufs/olBfmc7u0LtxoBhLHWOLmw11pb60rDInRyCijntJgNquBcdQLIBqLoozz",
-	"bteUVUQMliw9dH3QsVIghORYL0ihgfYeCHRH5JRlEmGKfv3w4dIpOGqd3uZP68hbRovgCo2qtyYi19DO",
-	"jfdBT9SZtszH/vU4lTLt9XsaNp+jhChOqSEWcm8EOKwl88rKSsfpn1OVcDwMzFe3nA05M2SX69lRV6vb",
-	"zON4gcuMwldZuDuqpLECH6oA1MsJbfccJ0BjzF9R2VkYibCECTOfuVNOs1FCol+Z0uEW+tR8le32IWpZ",
-	"dUw1q39DRhxrI+4M0wwnwdV30NEqZ7JEc8oBuxRTzzV+v7+jTg5bTzTQ1KOw3QyyUlb8SoQkdJK/r1H1",
-	"ru3n77xXqxCprqQ8cBAEbJYmIKGAgAC5HhjW3UO/J9kXqIofz5+clljk09MqOvR72lz7niYLy3Mr0DDD",
-	"toCB1mFKppH1INCBEJuIa9WlsHliWQYRLditCYuyjb39lZorCTXh8JWzH1uBH7GxNrmyOx0tYGRjlDAc",
-	"F45rzxzbWZurQLCke1S31wzFkmd3PVjGFR95O/5tDJtiiZC2UiQKYelK0SWMeBUnfrG4lpBTX64LPQ+J",
-	"OssBGwRC805L3ukD7ykgsj4sOpmpLTEb+P+nozGj33MerHdMVgF7etIKxzw9v730ey3xeEzoxA8xoGmm",
-	"oTjDX62maa7R4o+AyYfLDuCqnG3+ed+BvbKbJvA2n303M03F0SNRAlhIxChorVaBHkWMShxJNAM5ZTH6",
-	"yxAUGx8qTXOYThmF4V8REcjtSymTFYxy10a7O8xeICGtcEy4kO/WYSn9XoLX/nSGJSdRZhzV77LZCKpK",
-	"0d+eddaYNejuO0wFnwr4ePttxpUrljyma0Fb8KyP/heOu1D7ZfnDVgamMB+uLSEIXqNKfBQGUTpZE3MP",
-	"VAsjsjFKJTBRwL7cFnA0BXjSRHtSLgkh54xK+CrDlF2AdZ11X8QtTYZGzG0xsAhY2t3Z5MOUl12F0rKj",
-	"CSHNq4RMyIgkRC4UYW7RNdNEfS3MYI2yWGX1b0hnntLNelWFVg1pW9ugzEiJvTm3vvC3hJIZThyOrb9s",
-	"d6vmcgdY9cqXoJ4/C7DRPGipi52GxYGQxGup0BvNcDQlFAYccKx/0NFJSH1TsS1rPEuxVDJf70Xv/37C",
-	"g//eqv+cDH76fPs//9QLmt11aFPzgs0lU1kZHgMSNvwDYi3FwFfZRyKLpgi7wI8i3MOsWQRt9jMQIhgV",
-	"qmeZZjNMi70L4yGsbDzsUSgZ9peb4JcTpz6eYqH+yEHkqZrRmkLawb6ITM7AEfrAMRUp4xLFELFYZxok",
-	"giGgY8YjEAijJyenzwajhcwDqAYG1jrkW4Elx9i0sLX5OHL6j+Wbrxuv+r1fASdyWniOO6C2qPnS2Rd9",
-	"f+A5Juaaum0hyasxQrD+FyP0XhrZ5n2hoWW+YROypnsX1vLydzf1Vvbk+F26zD75tia5bDWwZz1rU/HV",
-	"mhrKBsxVnWI7sJDXAHTn5jGFADrQ8D4zt4vTKCHO3oOMwobACt54wR8FQvggK53ceiFyQZF+FxbZOo3s",
-	"mwpoeB33OL7lht0S6Lcvp5YY5948xKVlXHI2Jwpl1RjrIF33TTvvWlk6unIpfowmCzRaIDM80nSkhElM",
-	"Y6S/RZxJ/dNLRCSKMKVMopESjSQnMIcYJVgCr0iLz56WGKH6U8mXhcSzCqCx00HNBlZCth5PiCNJ5gVS",
-	"xgUjCXqia/6GXdy19zNCbUJlXnFb7fu2KAC0AW6vTnW3bEfjUckg76tRXTXmsubdkX0QkSZ4ERDPTk8a",
-	"LJWdIh4rm/DiOf2ZQ7t6V44c6KpbnbZRrqz6spuch23F0VcdTRV9d0akhBhlNAEhPPc3mmKBWAr0c4wX",
-	"4sjY+OoRc20YzszLFG5vRK0lGTdaUPPs3M4xtu3p065Gu88831lDPHQn51hbybxYwt4D/13Cc8iRl8vi",
-	"FY/eOny4jgPbv107crxOpCgqHhI72oixBLC2ijI/wb3dqPuJMteoEEi3r4edl2FahYKPDktQwEVMrqd6",
-	"leIhO4SKlsIoA6SuHSN8cW6NxD6ylK6b0yDPV5Jw+8WUY0YDi0kwnWR4AoHVPAmGYGajmBi9IrSBNpxd",
-	"EdH/qftzW3hV8i/LQKyvqrKvAm796qkuwR4TRdA50JZGkCQQnzvXZJ6gelJPUO1vOddxnCWJuX5aL6hT",
-	"ooDHZFsO3zrWlwLEQi+95ciKrVxnKfA5EYxfMqGPLJCG8YFJnKCMjok6J5S6NxGOOBMCqX3GmXok8uGQ",
-	"fy+9RJJjQgHQHKvzJmBSyeFrlGQ263n5Wjuli3a66A3SFte9VJu1z8RqID681NRcMijvJITbdaRpxop+",
-	"lVJD2Hwv+cOcxNZ1wDKzWt9FGsIfz8IRczy2gpoOBVN3dTZKiJhqawfm0ZTMG8wd9QI1/yamwIIbvSA0",
-	"ddCGuJYNdW1JdBeQDd2aaX41dDuatW8+O6FLCvOGWnKWNb2jo/yjqaH1xVFUbRIrNUZb2yH/ApEYqCTS",
-	"cdKiYkMpEa6j5lc/N7DhC6ZSjtiEZttqccWVWV1Rl+v2i6WaFmCo0pqHTsVxhssYnQTLGNVYtl5MddR+",
-	"BWmWI2eFxeT3rs+cg1yglENyIUQGW48cW+0uCaX5gfzIk3B9LPUVGnNd0SNGH6/emNhRU49Q4Z2xiBOK",
-	"iBRozPFEHeYR+qDuIYQFwi7MwA8SyDjpdTV/5+sse8IcjEJneFlLPi8KIcrPAqRNApyb6AoB8nM+Y/BA",
-	"85ivzcZWrrA4rya+cthciA78FQRBVQkYXN/91/7mamA3jWF+xRY7RhGKiKWlfDyYA1/cTYGrg8d08bYS",
-	"5SdsHnBhshar40VKK3ST9iuwWQ77i5K4kQJLEzhSZHIkIBlrw0PxE06S4hcj9xV/G9mv8pn9sfShzhSH",
-	"ytCl6Oja99WnlgSF/tb/O19U/ks+W/6LqXFResfUuvB/0qlGn3VwiF2E/9SZxY8cRVd/16RdWihLQByZ",
-	"S8AVTnCrN3+Ym1N9k8VEumfFzRr84bMvXPgP1a9ZWvopn7x6WxdBp58N6uSTVX+27zdwqu4OEe+6aWfG",
-	"rhQeqWeoOTnFJakPS6gyfIl0NsIMMFVCDBEuZ01JMZQh+3a4iMEaFokHkbTQNShnswkOXeTIYSNLKJ8c",
-	"Za54Yf8hJFDoYSS7gjFwoBGEXP264l6cl0seaJ8/d1+8RHoElKUJw/GxkIzjCbgCd2SWJlpk1VUP0fxJ",
-	"KCx0+YpXSD57M3AEk03WK2pkONDWKx40xVz3TcHWFZX3+kUZ1WZNI/idNvOUDodQ+bdnvW4aitWSbW1Z",
-	"r6SrGT4IV10OYT3v7TZdsTvzDEoik5Iwp95AChi3myCkEFmYKVe4BJdb20rHtnVrWxlJ1re2XYGpoBDB",
-	"+8j9q6tqgI1rfqX9OCbC2bj90y0E26V1QPo9V5e2sSRIN6UYi5qudnrSXFNxbQSz4Aihlg+R5adzyWFO",
-	"4K7j0bD8TDvUSwthxCoE8ydqtZG105w/ECMseekof/l08uT208ngp9v/d/rpZPD09q8vPp0Mnpuf/nRP",
-	"z5VWJP8XwBdRukCen666P8QXkp7VPLd1n7l679LH/Kb3FP5sZPednD53AF9icw+VRayL6/fIPnyJ3jIa",
-	"44WSn5ysZCDz95VlyX0scnM1OmAsAPo5IpTOJwjL4EGEUTRNcKQtsoW6LjZWCqRlYv0+k2Vrc7cr+rFG",
-	"3uOPGTcaOrtK4T3G0QwLCbxvtGFiVTITUoIiW5sIeVWV/RrnwlhZt4YQrrzav6FUoMssuXfbAswPKXa2",
-	"2Es/hNvr6DyaO2xb4wmnxu4qdt+vl7r7bOZVFVl89Kx1WxKKhrSiP2YcYa93ga2zyFmibRidEbtTVvUV",
-	"k7VaPuwL0F3fJffOrKmm7nlOmTYXwzWeQ8VPvma5OU2pHcrE2NlMwYxyLPrTv/0t4I69ZzkcDjM2x0n3",
-	"FV6ZD1ss0XCo7jN8NMb0VRPUjzoAkH5+EsV6vM0HcaB8FFu2ZhyqEjVXJVp2Og4Nd8WZyL3idlvxnjL6",
-	"76aa1jYB8cfGbtIUr99QeGspaoC0bq37FUFd/9Q3VPvUH6bl1pvOsuPO69FLmw8HeChBRg3xRVUYhMBt",
-	"91sTVd+wO+ARFoCuXp+jn57/7RSpV/Mqn39HE6DAlUbiqnp6CmE5ziYzWS1ecZaTwU94ML799o/vg/zf",
-	"z74P/p7/8fT74NM/fsKj29Iv7t9PTr8HrUaGkzbWjG3lcF1Sd/Z7/9uG6KtBlGmmi9t8d2/ygqe7Zgk7",
-	"L9VqNrzPUq370mp2U+R17VPYX9nXe1xomwSob8JpD8PdFpTdLKj2U4p2DeiuyfArXz8IVr+xkqtGEbaV",
-	"yWaZ0IUiUmuMwjRGuFqMVb/EQXeu071W7jDfagXW9bH1ULt1pUmsJQV1Kdu6JrbVUehx3whtgOutrFoK",
-	"T5IZEZJEg4hR631eOBG7JEPX4nqC/lw7024Fw84QUVeF7Yl6rQazBlTBx7/q9qeBBtUKieArjmSyQDOi",
-	"a0AOZ/gLcJHiCD6rb4foL4wjPbDCNhZnurEOGn7+/CsTclB9/a+IUZRRgccmhcY2Ii36JYu86bXpylq0",
-	"h/7fg/Prq9eDD7aThVMUU/JvqBe1/RAu9PM+NceCmKmHaL8Z2Ho/I8AcOIo46GQfnCAcRZBKXRkIaYcy",
-	"EqCdRYPy6tWRFqWCCP3NeBdGC4SR5Jnun0tNA6coITpN4kLa5lrc+JeNwy8TwN0cS0BhBcOB2W0zUOxI",
-	"54x9IdBYFtI0IR4IEoOb2yR3HKH3NFF7iMkEhEREICEZh/il8U7qYdWvv0qZqleP0HUNFzJh9xZACjvb",
-	"UPccy/drxvV7/Vc/qO/1uzaEjVl9k7o3lrppubpqx4xrflmMiWJIE7YwyStKIjm7vHD+V5nXxzS9c24o",
-	"G6sDldOXeQpYce626WzeD1u4y3yEoy9A86BTU+mWgDi6oTc0R0rHdQ0TFyiGhIy0tp8sUGzKJ2ZETJGc",
-	"cgAkJJYgXiBMETPBvDfUMhcdcOFVvDRtx20Pqz4aqpmGKEoAc91MjoO9KYqI3v4NNTJKXjle/6wGdrcK",
-	"uqAoxVzqC5n3FXOo3c5DRMQNtetDY85meeSt6B57rOH1qh0dJoJZ8jUzMAvmGzoM08/QJ/wYogRzRcKQ",
-	"sLsCLxwPvaG+gdFVAoOvCjZCH4k7VaG7Rvtju5B4fR6ETm6onALhyMb06NBq3Y9ZmD7arke4OgDd5VhH",
-	"CBimgAiNIQWqxk4WiI31YHn5/pyc1VmaDuj5OhT25RGOL3pvC4I4ZxzQ2eWF5/N+0Ts5enJ04tLYcUp6",
-	"L3pPj06Onhoj01RfJ8cuyP/4G3atEL8bitTJH4FwbL1O4aUHmFeHesV5GVq1JyU2Dmxf1IFx0BakdmTS",
-	"KczhX8S9F72f9ThneZVve8H8k8Wb61Rdufq/l6/lovmdwXc12unJszoU7CL7XpJp352c6COdw2IYsuhr",
-	"uHCWgJecKkzTR9sf/tnJSdO686Uc/xPHhdbVe3byZPUnpTbl+qOnqz96zfiIxDFQ88Wz1V/k7e31Bz+t",
-	"/uDcRX9+7/eet9l7qOe/Lx9pjcqXjD7d1m7ST7dKoRIuHEIncmFqiNAchmICFqnR3ZQkukigzZ4k0uW7",
-	"KALEE6FkOIsFoqd00QnIVtSik2nqyP9L7sro1RDwZGPon2efBrrM253bat8/GmJuDs9W4NUvYNS7oltB",
-	"EF1SzPEMJHDRaA4oXjku2tRqu0eQax+7XDwdVLru6P1eykQ7TLbzbYDxm4EeHuffCeHZ3cdFBt3hStjP",
-	"lWBPwr8H9N2ty67qK8Bd8WGqbqRMmze7K8I00w1fmo1oHdal1/pSbaVpVJkmX9E/MEmazR8o0lHks9PT",
-	"NhtJOYtAaBp6paTixV6p2RyiR8wdiVb7YQe56f5elJu1I9x66vzwpdEdYwYmoVWQxMisxjagr1sjmP5Z",
-	"5N4JM0KNpp3fX8/2xnczb4O6m/zwD4fMzQoPZP6oydwm+3h0/mdhCABpcrIq+phoe2wXBuA3StkF9ful",
-	"MYYvrdgh/BZARviwQklhYsjtUwmbTFytn6KST5kJ1GPmtkT/zcF5D4cDOKVXAXCJqHTgDI+RM5zFM0KJ",
-	"kFy7cZIFUhTjyfZehfZ12MLAVKrZlVBfLpAzPEIflKJN6BdkI5VMAIJ189AxmWQc4htqGEVCxqDLg/3l",
-	"6QmaEZpJEKZvxhhnifxr3zh9sK4a5iqDOXO25jI31JbU0NEQhCLtpbGMQ31mLZ1aq/C7czAawRG6ECLD",
-	"NIIbSqht+maNBTm9jRm3LLvQugLszxjBy0xNF2yrcRtTSOihaC5PNjZ7oFZdgLflFeEcBtAviKiXtbZn",
-	"nBF6aec4msLgnFHJWWPMon3/+B27lozbCQ9Wij2wNX3gCCPmzheX+Bwq8yd97h05nK6qdfyN63jort4g",
-	"v1zX8KXNkUU2s6jSq9A8NAV9FM2H7IY8U+PVKF7nuTiS12mWfzAbRUl0sUmvyAD/YEDcmy6ikBJh4+7T",
-	"vvNV5od7eAL6K182GQ2dlJAS+R6hd4w6QsSRZFzR7MI6Ms31rj+4oXdTJqCS4K5kAYxENlL/ZmNknObs",
-	"jiIYj8FK20WBBhO7ckMx8mf0J1TigmMLLIGQJGCK9R74woEvPCC+YJDS8QXJ2hkls5jIAcxdit8qB3Ne",
-	"+3J4hM7UH2gGEsdYYhu2ZosBCz+ipJ9HKTCORjBmHI6NHnF5cYEExamYMhm4f98QIfUsr+Y2Ya8bH3tD",
-	"ZkS24WG2TIJ6U4ea/Z4BXxSRZjhyJSJywllZBj08EgcTMaabnm1wPFtgtpXJNE+Vbdws48UNsKlhbcmn",
-	"+DVns9Kg7dI7lw/6gXUf8nabrDNHWl39I8RBUYonoC4sTVPIkCBiPAYOMaJwpzReHU//wFnqzoIeFDdA",
-	"KSdzHC0GOvhaLboEP5/RqZ9zLienxtWiLSlBa8h7ikQWRSB0kJXU0XoufjWPl7OhrSYEUoDiILoDuu0K",
-	"f3599fqGmpcUf8xjENW3Y0ySTHHRTIAO3tBJmyTKIx8RhwnmsWk0MFbSDuh2A0ogMbZmbaYI2ia0B2RL",
-	"Ukipafi6wWzXDoKmio6xLI04uxNacYuAzEEE4hI1LMVGjAk6lXvQFPR83TQ1epslkqQJoOJzG2ZpBNUR",
-	"IJdOUQC0ym0euCXjtIWU84Gxt5i6tCyxSdov0fm1xFzbUDXS56ZQ5AV55zTuU1iF2JlRRhy11+hFPe+C",
-	"ubYxriH+MmlbVDGh0xsyfS3H1lemX28zwWwSax/ZNdJZn9aRN35dtS6YZvKWgnKzVxfQYI3VmnSIvu4X",
-	"o8S3ZO5C4IvpdWS3fi0YxFluKbg1KcafJiDC2MeVjJ1MmEbXG7L9roF7OxNITINwU2+hBIOUExqRFCf6",
-	"2N2xelaIVphVcg2HLCv/AU7GBMo1Ad1XfdOUvPLU7qhf8n6Yrka566OGcec6CuT9Hd2yM7c2z32Fjsvc",
-	"y2pyXPSuHcs0VGiAtAuWbcq87YhlP1xB4xH6eM+LKChHR8vcuysJ2jhNjl31zmad5EPRTkn4SYfJAhHD",
-	"d5xrdMTihfOMGkOMDljR/QgwRWeXF+jj1ZsAads17MKfGZxrYyRu8yVja2xCEaMim6m/67EtVpQzXFBI",
-	"nMDDl+jQ3RRokWS3X17xGMm+cnXHADPfwVnxaEqXO7uMqqeAE6VskLkvBNbEtTdkDhSE2Kas9qteimuK",
-	"UBfWFCux4NXRExmlhE6OtghgnR8rp1hqRqU4UH1+D8BmA2XAcsCG/zRB9gpwTB4CaNX2IkyN6O5lrd8L",
-	"vOrbpzvbxlmRHupyR6NqxvBRmzN3dqv6cK5NpjnXhrMvZ98PpO611oQDb4iQtXJIW8WG2my6d0co5aZY",
-	"P4qwxAmbHP2wZtlKyQRpT8EdsAUaMjCxLumgYcZUAKoBeVsiSXi2PYVc1XfdiFbIoJU1pj50n+sfIRDU",
-	"oBLCIVJYSglNPO/4m18srhIhFUpq3xXRbCi93UfkQ6L6vrMS8+T0jGYC4s5Y3G+U0cJouavbeQULPTqk",
-	"k9t0crzGkXeLxvjZr32pw8WwjKZ1nGkocrnVDLL7iQD7w18XfHVIHnmMMoPBvY3IDB1UpB3EUd3uikSa",
-	"lC8HMtcZ+UdXvNxGN6Vz7U7fegi61iVnc6JAbc2iDQwX07iwF5pKeH+EJJc/ovZm6cm6VERmKnMYzwKj",
-	"UWfufPytVIiyuz73KHS5gxr3QNS4PFipjM6b0OB2pr2tvtYPyltNeWt30N2kv7dlztVRddud2vYQVLYl",
-	"0sNBU3v8mlpFT3O5L/eXBo4Nw+6e6B8kzqCUb+IcH6pQsUN6vLJ3Y+kSOQgrey2OasvfdbrH2hGWdDXf",
-	"t0ZXDe1bt0Rcq7rF7pPaOujRNlxLVwD546jSh7s1FEbNZNgKWgnBCnMAlgIdxHgxwLZN3GBkmvY35n6U",
-	"mgyVmstt1eoVbmO3W6tXebfBxG7zAtJArAQYHCKEV5mPKMIlAHrYq/AN/YwXq/D2+Bv2D6mVpWiHuLyx",
-	"2vYlPCsbjg6C1aac+a2wsXt1kBJ+rrYH7BA9l3Qd3Xn1jG6stmweOMgj+/fKrsPMTZtfkhC5GOh6KEvd",
-	"spYwXhUfXelvtoiWlbma/Kfea6W6Lj+iB5VQMsOJ2SbKTHX2MePIHTLyDrUNDqS6p2irk7+0r27xwEsz",
-	"NR33f4ggatt26aauj7Ddv5EBGPmRkSA/aweBuYWIZF4jquYLdLWiYQ5gqxpGsKftjjWM8m5DNgCOx9KC",
-	"+bEEMD9qj3asAV5B8A587Pib+YfVRJqchHU03wVDC2GYeVLpMXRwEiqBph0WdFUISifSQSHYKktc0uZ7",
-	"x5rASoR1LQLMoRwchI9YaYj92y3gHuzAbI8xj6Y2s3QD9BiUUM7MFLugx/06BdejwQNB7bGcpUFNhFGa",
-	"jRIipvnhrElOEU6AxpgPNEJ9lS2EmXP7ybn9YvsIWp0xVHbHvoLsPg4CjhNwpiwhMV64Yku+7UZojR5v",
-	"W+5ZhYPuWSvjwC7MAtfRFOIsgSVytLCvHPCsZi0QurzKDoTp1eaFXRgW9mtSCLafcPrMY8mEPlz1zaYK",
-	"RiGnrDXveP1szPjA2S63KTyrN0tvv2b82s17EKIPQvT+KesDx1QQXdEKl3VTyZAiFi0WiQJp1yE6K59v",
-	"k9QuzRQHPfVAYg+NxCxqIlz4y+6lppq+ZgPJBppet0lVpn5p6f0PTPtnDrR1oK0H0XZVF9itkZa6vWKL",
-	"p/ejsV3IiUEyOwiKB0p7SO4Lmub3mKUxE6WvCZBIRXH3FBOdHWlDpJYFKO0a576M3LC1pb7D9Zn2S2vL",
-	"DHlqsTU73sFG8rjcIZLNSISTZIEENm6RsnkWxZCs7Wp0gxxzMBWuIxikHOYE7raq1pkpcvOim3tbqVP5",
-	"BHbiPZFsbR3hLEX3ErIn8cMR7qNU98xZIEMoSiQtnAGuQ36qhC9TclxOYdaGJvXdOrAoONP7+Ob9pWjU",
-	"RKEmMEiBpQm0DyxO4NJ8UXNFhFqqCcA8mjb1pjsN9aa73Xq8stoCF4wuD1fWAaxqpwdXle6jpE8yj292",
-	"+IMMKBHR7RklKRWN2oDn6spH24pPVBx/Y+atLnlNDzuVKfdB/ZBJTI+SSdsEKN+hZBsll4zgjXi/Iixk",
-	"B375pc7OQ2RrJfCjhedwTWbWIZp1F3Gs+9Uxl1lyHKwP2uUjjl5VdORUwbiLL750rx+bRuoz11P6XoQX",
-	"DlvVExR6pmDbqrYRmGm/UTBnOWyDOaX5072k7h+IK2i6iZUILqRC4DkkC4Rtp3ZalcnvQ2m2EWWTQP0G",
-	"Cotlq7anHipxmLH5Q0elx+nfUoAtNZYziPBngYqj3Y5EE7Kf/4sRul1pxpvhwEcPfLQbHzVss04tOphJ",
-	"iS7OS+xZzu7FUr8Vf6ywVxhKruPWgdM+0DvYQFoXedgio+23ffnMQ7RlNrPjCNMIku2I1ed67IdndNuJ",
-	"Ims2n9RV2QPL32NkuD4UhLtppTUHSdWzptFNoKH1FnDA8RFOkuHLvK9vjCVGRCA2I1JCnLt2hvYFoT8a",
-	"1hvqviFCNrlbVpDoJZ5AG5ah3rsm/zXvVpFYwIBQATrqdw7IeHMQ0x2BgdvdUDwzVRgVUeFIojGBJNad",
-	"vx+BS8hc+gZaoTaWKZ4AYuOyL+ihGqR2m7hkQKKDvjMBHGHvWiypnxaF/domK4jIyMnDl2iGJSdRlphG",
-	"yoSmmUQ4jnUUuo5f4NVPTemro9KHAdIyaSJbNff4U+xJP7H7C+fjKWE3V0hK9VLfMNuZOHBSiRZ6XBNw",
-	"RRpahjbjaG81o4+6qfwfq0VJWrUV5cRaXH46uEcowqmoLSuo2Lw4PEIXBknMKGiKhamHpi+/PsKJYDkd",
-	"39DiVsy/P8tiovSZMegYFqEEbkwooowOLi8urPd5TICbdN2YIcrkDU05zJUmNMU8Nh5VwujRDa1xA+Pj",
-	"2yo32JCD2NKt3qXthCyr/ea1vJF6BbEPrVQeUHXyuPAnNxNff4W0qcjJ4uIogbLwKSAZDxHjdZHUSG16",
-	"pfUb8ReQHgFsVdxaciFZd3QfjUkigUOs5QstUg4SmEPi7UH8aAi9cz/3MgTsqG/YG6Ls4e6GvVZ0q+Gv",
-	"/V1h8A31UBhdA40JnaBhSdp7l81GwIdhOfGGLhcU0Xur1hgtRneYz2g0xXQC8UtEs0T3rr+h9rnQ/Feg",
-	"oXoy1K9HCWAOceieMa7Rrd4z/hR7Mow0E7mXqqHFxIN7/1G79zsKj8dWsutucCxzlxU6ZC4/Wi3yCL2D",
-	"OyduGoqOiYamyUuZ4jkgylCKhbhjPEYZlSRB8FXhP1FXdsTomEwybhSlZkXyzO5vu5X/9Rx7q/lvdhgs",
-	"QW2sXZtWKe3BPW6d8sBJVjQ6MLijyFGpdokLKF4UpZbKnMZiW2GlzYXCFqZaU4RaG11foox+oeyOenJl",
-	"WZ/kgCjMgatFQiqtRKqGyPmCxuwm822xsHteuYU8c8nVRDra+sUYJwL6vdT76VuPSJiV/7HivrZrVOhg",
-	"SQtzrn0bPnf5ZMe7zd9io98gkuGUkwkRRoL3DgcRioTUUl8BZMR4DPzoBzaUFvvnBVhGCySnRCDv1NHc",
-	"WAlKV2qBQBbXs1FCopblv3RFgWgXRcBKMzXlVpiXijwzRhPjGtvUidShry1PZto86FkUCZ05nMuvNAE7",
-	"r/x3RCKxrOpfGfCuzt7qA5DwVeaTlKFfu/RqNPf6HD1//uw5ivyyfphQne1eAb22Em0X/tfZSC1vlFc+",
-	"r54DyesPjgHi1adR7YLQgsGH2bJrjfCIW9erLaz2W/n9Fg5uK8UPCmHeAMfDOoMVbfxUBqymx9jwJcLa",
-	"FD3DirMjHEnG0Qwv0IRjKjWNle4AOYWFizpKFmjKkka9Qq1oq+qEmmBPuoTeW4iLadFqw1qEOrCDW+rR",
-	"uKVyyVpJipyVbmpHpfmFcPxN/a+1d6pEu0foZ+sXslFcxjqp3inFzRrHkqcjcHYnXup3LdkbjQBTyiQa",
-	"ee3rw76mLRL2hjxNmgwPnqOH0oS/DUX07yUX/QIyx8otyiyNLL+ciXhw6qzr1GlEjm7C7pXmqa38OVWW",
-	"+qGRK3KgeAYxYhxBTIL80diXt8gfiwn2VbKjgQqcd8TIKgeL5qP1jWikDzTsaJZcqgbM9Uk1kx0I9WPd",
-	"9nnxs7F5cvgNIkWg6MxTbm5oULvBSGQjofiPlroJRzAeQ6QFct9f73GGG2plrOCbCCd3eCFQxGZgs+09",
-	"K1nEYhtyqhnLDR2BZSdoChxCntcr0yJcK80Vk+w2agOFJntg3Ebfubo3n22fHv/IoRV/lBqX+iRD4uKf",
-	"hX+8Iaak51ZrMTynWvZtBgPGyYTQEimeXV70+r2MJ70XvWOckuP5E82H7OjfXNj3r4ATOQ1Emb+aA19U",
-	"ItgGnGWKjVpYISIQeLHzaFhq6P8CUTYQknEY9hGhUZLpoBBQENVh6HYJZ6U59FLsE+u29n7J3Uultwrw",
-	"eT8b+Hk/VFvL+8NmsTUg2h8KA6c/UdX4+f32+/8PAAD//5pZ53sEYgEA",
+	"H4sIAAAAAAAC/+y9a5fbNrIo+lewdPdaM3Ov1N127Exif+q07aRn/OjbbWf22bGPGyJLEmIKYABQbcXH",
+	"//0svEiQBCVS73Y0HyZukcSjUFWod33pRWyaMgpUit6TL70J4Bi4/udrdiMZB/XPGETESSoJo70nvSsO",
+	"M6ASDTm7E8AFwjRGhErgU4gJ5gQEGnE2RRwkJpTQMcKZnACVJMJqDMQ4YhQGkkxhICDiIBEHkTIqQJz0",
+	"+j0RTWCK1cxAs2nvyW89ygZCr+ZDvyfnKfSe9ITkhI57X79+7fdSzPEUpF35eYRjmJLoJw7402WsfiJq",
+	"4SmWk16/R/FUfY8rb/V7HP7ICIe490TyDPxl/BeHUe9J7/85LaB1ap6K03fvLp/N/tlTyziPIpZRuWBK",
+	"93wDk11kXDBeP543Kf4jAxTpx+oMMk4hRsM5khNAKYcZYZlAKR6DgrVe5h8Z8HmxTvNt6SCm+PNLoGM5",
+	"6T15fHZWP4R+7xnMSARv5yk07j/2X9kACF7iIeOMxzSj42v4IwPRDPsk+O6GF/ErcEEYbbWI4t1NLIJM",
+	"iazjwiv8mUwzRYkR47FAklmEaDr5RI/jLyCGEc4SqY69r7BAjdd78kDhwJRQ+1eOD4oNjIHrNb3CFI8h",
+	"NnjRCJJp5a0NAOPN5bOLK85mJAbeOC8jceS9tIlpU6DP8PxcCDKmU1jEB/xXNjdz817z55ub7Ao4YXHj",
+	"lKl7vLkZr804CyHLS+9sYO4rPA5cgW8oDIZYQKzurSyRC7mpehYmqQdLaUhNf0P+hA6kjVLgS9ejxwyu",
+	"6eHjjmR+BVwsYHmpe7yBw7hmSTMj4ebh2tN8VSNYYUR99BOO7X2h/ooYlUD1P3GaJlaiOf1dqEP50nKu",
+	"55wzbqaqHmoyYkqMQtxM2UeEznBCYvSvmzev+0pyyqjI0pRxCTHSJ4tmOMngpKdkAkZHCYl2sNIbiRNA",
+	"t/A5hUhCbC+zW/T3W6GefLzjRMLtP/ooo+SPDCgIgSK7Or2NlDOpP9U75ARTiWaEJXqVejMvGB+SOAa6",
+	"/d28nQCKcJIARwmOPglFQ1MihBVWleB0cXP9AkUTiD6hESYJxHqNl0rspTi5AT4Dbsbf+mrfUQd2JPS8",
+	"CNSrT40QTnGCYiV5JwJhDogyieBzyoRd8msmX7CMxruBqsVjwylZxiNAMQNhV0WEVPAl5u8ZEWSYgGJl",
+	"Mj8QveYrPE8Yjt8y9hJzw5C3v3SRDadEagyd4jGohcYsytTdguBzBBALRKRAnGUSBiKFiIxIhLQIpVet",
+	"kIJE8I7iGSYJHiY7WPg5cuwPMf0bTjRajLlRvYhAWbEevSdIyEyxEYPWSOARJHO9gbeMvcJ0btmf2AFX",
+	"gSjjRM4HAqggksxyBEIcS7BgV4jc91XVa5B8PjgfSQjoQzcQMRqrbUuSIEyZnABHWEqYphJN8RwNAU1x",
+	"DGXNc+Gtp1b+jiqtlnHyJ+yAls7LGjQRSPMnOu4r4lbn3UccZuyT+kdMhDrdWDNae4HoA31HU84iEPrx",
+	"cyqJnO/iquBZJDOOk0TfVUSx/DRz7B4EGhFIYkNfU0yoecldBF/dqdR1e73gOCYGz684S4FLoq7tEU4E",
+	"9Hup99OXXsQBS4jP9UbVPYulUkqxNKaIXk2r7feAxuINrb0fepXEbUUMJ7KUtOoHj88CgwqJuWy7giyN",
+	"u+5vZu7tZSu313vPCEdOvPpN7dluxltqDrVi+L4He3+dhTWHDX+HSPYKI0rHs1W0eBkrCnG/EAlTsWxj",
+	"58Vn85tsOsV8rtZgF4U5x/rvFTBnRLiQHtUu/Jpmib0fjMi6FnIlbEzo8ykmiQZMkrwZ9Z78toR49etf",
+	"PyjaTTno9brFlBenrW1C3DEe30gss6Ugviq/rb73NIZ2W0qVoq4widDxjZYifONgwiKcaGVnRqRmG72+",
+	"1u8//m6NGWSqkJEIIhkPmBD7WnlojzVKD1mALaIVXCyeF2DZE/l6CppdeBDeDRhdw4YS/vWrdOkg3cQQ",
+	"ii0tYA0F3jkMAKrvu16/566+4Cm77+3RHRKH+XbYRfnyv2DTFEsyJAmRczQjcIfYSIv3mmqRwx5ENIxG",
+	"BPhTlAlAZXCf9I58aFd86B4zlYXMQxtdC+ulYNSz63RgBN3Rhlctly3tXT5Yq5bNfBXBvWYxkc9n0F2M",
+	"iqQ9el80tVbA/O8A4uJIMl7yf7XjJG63H6qM43WWJGjEOBJzIWF6evHyEpnVCaUpYKXsoZSTGY7mg5SD",
+	"UMo2HSt1FozmEOAY0QTTMcQvlL4h6qqi/h0peVYgRpP5U0RhBhwNYcQ4nJo5tbVNM6ScRquwqkGnRJn9",
+	"nrGJXZrP7dK6sOwpSBxjiZsPd6nDrq55J8aiRBn1tG+zWQ2Mk14A0VgUZZx3E1q476lbeOj6oGOliQvJ",
+	"sV6QQgPtfhbojsgJyyTCFP3y9u2VsxSodXqbf1hH3qXXpzNVrYjINbRz473VE3WmLVG7aSZSpooPKth8",
+	"jBKi2KyGWMg/HmDPlswrKysdp39OVcLxMDBf3WI25NwoHVhRTl0txayc4wVuQgqfZeEvr5LGEnyoAlAv",
+	"J7zduqi3dQuFE3jXERdjItIEzy9zEawCpYePH21Y6PxEjAHaIbS779XFRpzYFJSQZsDVEtfYb4gg9HpC",
+	"gChNWIK2r8I0YUNhsTsXIuOYRiFnIo+BQ1wNksHui8KiO5wj7LsmxhxTbUCfqHtLPxWgH51oK4wTS+8U",
+	"UBSkEi2PcUbH+T8+Tkc4COgLnACNMX9OZXc8xhLGzHyWH3E2TEj0C0tIrC/BUvxNcAV7N77V+a5Z/Usy",
+	"5Fi7VKeYZjgJrr6D6a6CkQsMajlgF/LdC82t39xRp/OsJujqu0DxbkubywzAn4mQhI7z9zXjvWv7+Wvv",
+	"1SpEqispDxwEAZumCUjQKsOvmoQNXa0IChZXceaH0r39g9JZpASuKPp///bwu0ePv//nDz+e/3Tx7PmL",
+	"n3/5179fvb76/69v3r779T///b/+Bw+jGEbjye+fpjT9gwuZze4+z//88OWHr/8VNEM79byFUl4BHVid",
+	"Se9gEaQuc631mwfRxvCyBNz2SFmQpQB5wWI4QnyXEF8N2qtuoN+T7BNUderHDx6Wjuq7h1UI93s6huIN",
+	"TeZWkaiAwgzbAQaEPqecJckU6IowwL6C3+623TOSarvR6/qN//2jMvjLizgf/A8e/Hk2+PFD8c+Tj4MP",
+	"/29wDiWx+pe8J8z6Mkb5wL8vz6jm+vJ9/8HDwDaWYoIfV2wJo9i3WV8YMeiI8GkgirYrWvBoQmbwmsmA",
+	"envWQnVIJ3NBIpw8s/EV1zACDlZaLikij5dry2RMIX6GzVqqklc33aB5XUF4an2g5KFeDZ4dBN8mYXYZ",
+	"kDYvnC6CiEbPFWFRjjBrb5DJ7dM10+JzFz1lzcXOI8HudLKCsayihOG4iJv3gpHWc5hUjEMV6JbM3NWt",
+	"N0O4FGq9ojDBQWu9OHlmA4KW8fjSpBf1z7WNsZwT0O7KMAEtYh2LRogsllrawpheSVooFtcPwazlGanh",
+	"VjunEip3tmVtEDLNO/Xj71eVM3huMHmF05TQsVhk7F7mgA3ZYb4G1h8lJPfRdLx2zKc3Opup8vmjsx+/",
+	"X/x9/YbPbVGvVzmvfu4Rf/LFPRsylgCm2loiRGaMfDl1ZZyUxZWw0+B3Ip8vGlkk2Vj7yDzRxklS5r+D",
+	"D18e9L8PiTlVLNNjleGQL907qgro+14wgLfafhinFiCxn+ZwvMYLiKwOi06Bd/buM/D/taNLut9zodAB",
+	"mfRhO5nUc7i2d0PcSDwaESNHO28tTTMNxSn+bF1+RhMo/gg47rnsAK4q4bjP+w7sld00gbf57Lv5yyuh",
+	"qxIlgIVEjIJ2LyrQo4hRiSOJpiAnLEZ/v9Wa/S1iHN2mE0bh9h+IiNz2fdKrYdSGJDAbg7Ain03wyp9O",
+	"seQkykzGw+tsOqz5XSpK6oNWmhSjsO4wFXwq4OPttxlXrlmyJ9nGT698Ze0OeWJTjzL5Md9W30stLv18",
+	"hzk1V/IwYdEn9c8PmxKjdNSGdd78zHEXxnJV/rBlUEHK2YgkcDnFY7jOT9QDij2GwEWepcBnRDD+DIvJ",
+	"kGHe6sPwLVPbdTPy3FxcvrpglEIkGV/1qlkgoKx4bpVs0Y1EBWj73fOluk6re7yWzVoIQZVpgqA37pV3",
+	"wnCg7gbBljFmOlCo2S26ohQfQwJjtdurbRFXhbW0izd8Wf9CM31PC2yPR2Vdm1EJn2UYqwpaW2X/l3Fb",
+	"zqIFghYDi0CIoMOafJjyspuRpAq/RYcfPLMQ9j9PyNgGqKqrq2uYypqe53AxhXCSRYvVvySd+WW3QJsq",
+	"tGq00jpcxoyUWNly6wt/RSiZ4sSh5OrLdnJnzq2dT6oaMVO7RYz75Yqs6GH9S/gy2jgu8jzbFZyltTTm",
+	"YQJoiqMJoTDggGP9g06oReqbSjihpteKdcOZNj42wNRm4zYvOBQ4f4NHgIRNnYNY60vwWfaRyKIJwi5p",
+	"rkiVM2sWwTDNKQgRLGSgZ5lkU0yLvQsTunbSxh5UiuVcHHW5mMlZt5VbqD9yEAOqsSZNZXDAvohMnaET",
+	"9JZjKlLGJYohYrGuTpQIhoCOGI9AIIwenD18NBjOZZ58OjCwtpm9/eXU8UN3c98vgBM5KUSLDqgtavkw",
+	"7JO+tou84w8tbAZN9+O/GKFr2X42H/4eWuYBuDEj62nfWe7OChks+ovAJfLw7MFy7bWLm3a5qcKWours",
+	"2QtUXGqKu7bFB7qGpyusa2lzDC5mTS90P0DSKdDY8I4cy3pWTRcQBxPeliTmeKhQ33X9eLxMHh+uZaxf",
+	"hCMloPRL1NaSnrcuI4Z4yOqS4sugztg5G8c33NQNGjY0cntEpFP0pY0VWcEP33qiqZXQ1jPMlSSS9Y00",
+	"CucXrYqyjzqwWUwg/uilu5tT6fV7LJM6uXU5fU6NCGRm7FcPv3bSjSezTHYKHcj2CymMRhBJMoN1rkYt",
+	"qF6DySJcwYrX6WqNRy9I0iluIUeEdfYoJvjh4++rPtSzwY94MPrw5ftH4TC3+n0RczzS/NgtquUFkTP5",
+	"MrB9gOSLLB9rGQDL0iMCWLhT9u7d1auyd6Wprmii7hQ6m64cgN8QPJsuChd9hUmieco4MzWDOu5tiAW8",
+	"44l3W7WMShhxNj2PYw5CBD9Wz53gWmcNzBxCXcq0e3VbappdqYSWpZi6P98/fvzd48XV72xOc2zM5o7y",
+	"xFSmwatJJuJV5Y7TrlqZKHoz/08ZheDHK1SHyARw2gSwNbO8C/9CDgJ7CBaUxXa9hQSPo3zy3jn3c1zy",
+	"K8ksrh7zqmZf32723UoBbsVXq0b3rB8h16lEBBbyBoDuPCJP4ZyuabXWjdrKXVNCnL0XZQnHHlbwxrus",
+	"/ajEAmSlk1utGlPQ8dTVq78ZGtk3FTSw0jWODxZ6ZZfF1/pKiU6Of2sTQoaExj+Z4uzBq6Q08Pb9LiWO",
+	"vLfk7NIyrrxSJCthc/dNuxygspX62pVnZzSZo+EcmeGRJlCdBUxjpL9FnJnsvKeISBRhSplEQ0AcJCcw",
+	"gxgpdZBXrPaPvitxWPUnBxwXludlALXbXQrRek0mrPWCHMvjgjMtR0pXKGHbl/d64UabcP0uuf72ff0U",
+	"ANrA9aFOdbfsRuNRKfTSd2N1VfjKHuSObKMxmlsb3kOBYp0s+9XEpcLM688c2tXrcl5jV9/WwzbOrTeX",
+	"zy5eJOzuRqk7K9RdY5z8qZmfVSwrYeuLWVhtgBAU1ApfEvppT5nyS/LdG1fMxoReeTro6hhZF5ttKH/n",
+	"IP1Wi906H6iDZ3VLj5/Q8hfIZFmpCM3WclU6XLIHmteyt2u8dQZNl5SZ1QQBn4R2QvubIHsT9LCbKtNd",
+	"3u9EE5VEmEqUjK1wn9EEhPAyXdEEC8RSoB9jPBcnJuyyXlqtjZg89VritHfK1brpNIa75m1oOhdj7IBR",
+	"ZjU6vcfL7WmoutkpeaetgapYwt7rBbvOPqFEo1KQgJdxtBLTqOHALsqpdZLTu11PlUD7+j3D/E5O24oB",
+	"2kQ8lkaFQF+pen3S+v3jQ2GZm9CigCtGtpoFslRqrENNwVKFslBZeJZRyecX9RIn5fjYh0GeL3mXOtLl",
+	"cmzBDAU6zvAYAqt5EKxulg1jYqxgoQ204eyKiP6nnm/WIqY9/7IMxPqqKvsq4NavnuoC7DFZjp1r2NEI",
+	"kgTiC5fhkrsCz0KuwO12lxhlSWKun9YL6lRR1mOyLYdvXUaPAsRCL73lyIqt3OT5Z1dM6CML1Ot9yyRO",
+	"UEZHRJ0TSt2bCEecCYHUPuNMN7XJh0P+vfQUSY4JBUAzrM6bgOmZBJ+jJLN9ZhavtVODjk4XvUHa4rqX",
+	"arP2mVgOxMNrBpJLBuWdhHC7jjTNWNGvUmoIm9eSP8xJbF9rKTGrtdWWEv4EAoOETVUvxQjlYZlhI329",
+	"E+O/K4VcC0JTB22Ia9FQN5ZEdwHZ0K2Z5ldDt6NZ+eazE7rq4d5QC86ypnd0lH+EibxtyX+L9qRiqcZo",
+	"u2nlX9g+DtJx0qJHVqliekfNr35uYJPHTEtIsQnNttXiiiuzuqJVyh+3AEOV1jx0Ko4z3K/zLNivs6n2",
+	"cXnUfgVpFiNnhcXk967PnINcoFSX8VKIDLaegOz63QWWbSJ2F9T0ha7Z2v2eAJml1m1RbyKrvkIcElPc",
+	"Xr+L3l2/LNp2a7+wZAhTj5T8oviMo7sJUDTFJHGNFKM8uOqkc8k7P5KkyNOtAM3bVggxrmqNWfzoaQHS",
+	"hjfPTOaBAC+kOogleW7vZgtKrB0uXE6cDhGXv4IgqCqp56uH1rS/Dht42KK+FJ0D6ctRBl9zrrSJhP/U",
+	"h3rH1HYRsbQUgQkKre8mwHXMPZ2/qiSYC9sYo3Aoi+WR1KUVukn7leMKwGQxhlyWS+YDSxM4UYA+EZCM",
+	"tM2l+AknSfGLEXmLv43YW/nM/lj6UHdTgcrQpcI1te8bntpSJB91L9XwAoKvlJZTfoPDlM0WD2JfMYNY",
+	"dib0Lvy/c/Dkv+T7zn8xLpLSO6YXgP+TTl7+qMOs7fr9p86jfuI4YPV3zQqDT0BnjrutNj6v7NMb2IdU",
+	"4/Pq54Q2Tlw8CnzUNF3xKPhRZfO6qdOJEUNcjyd3dOYPI7vpehExke5ZIdsFf/joi7f+Q/VrlpZ+yiev",
+	"yotFJYqPhqjzyao/5+/71Sjcy6Xfmt40zXeDn0Qm96doKvYR8grPxXiFTvYxdsV83HCFuH7CSBydJIR+",
+	"cgcXfGZOrvooo4s+tE/Np/qXYm0RmfowJYn7q0EQ6B5644mI7a6xSpvAegFZp1u4DkS3Jc5y+xTpCmdT",
+	"wFQpHkS4krJK86AM2bfDHapWsCIeRCG0rvHkmy2a1kX3u228y8onR5nrrN8/hKJsehjJSjnX1WBSHA+0",
+	"wpDAGEdz5Lo0IdsfTYNEd8FGlk0he13aFucc0gRHIBCRofIPi9e7JLC0XI2sPb5e+V+FfcCNVc5KxmKe",
+	"gVGVMJ0jp92ia5bkHXYEwmWAeMU0PCfdnkyrwTJ8qzVSNXx06025mmrt9HupnXpJdhUeww35ExbYOILf",
+	"aQNz6XAIld8/6nWzjVj7XGqupnwtbvggXAldIyvwWN/HgbHKKDpoxOyOJgzH1uLiLfsUp+R09uDUcP/T",
+	"cM/ubgm/9QZRUilrFCcfI5zKjFsFcvQxS9Wi8pZ99s8PyytvuoRb1y/V318QdLrL1mqRS9sMQ9pZVIwk",
+	"MikdiXoDKWBsJKsyxJjNlEvCYRZ7mkrHtnVPUxlJVvc0XRm/0fqVd9pUB1hitvRGCC31GkxMdQRvIvev",
+	"rqyloZhLMIbIuid9RCyMMAs74fV7SqtLSCQbm+J1K2eDRc36+TAYBLtm2WkLjhAV+BBZfDpXHGYE7joe",
+	"DcvPtEPz7BBGLKMFf6JWG1m5WvpbYuQA7wb7+29nDz7o2/f/PPztbPDdh388+e1s8Nj89F9rBphoO+h/",
+	"AD6JkrT1+OEyYUt8Iul5LcAqEEL9iaRXPuY3vafwZyO77xSbcQfwKTZXZllvuLx5g+zDp+gVozGeIyLQ",
+	"A6sgGcj8czGUKljk5mqMk7AA6OeIUDqfICyDBxFG0SmbHUBzyBVSXq6NeqpUtsIqLjbWV6hla4Gd1vBu",
+	"dCzkVW7bdAmyINpAF7y1O1EGl9e97O6Bp3uGKtEfTMH5StN7xtEUCwm8b4yVxFrMDEEiV94N4TRNXHNi",
+	"rwmxANk6emKzVexbV60PvKi7pf8bSln0Bgq9Dy1w4ZDycou99EP8IQi9AIaGobeafUkR9HMnkReH/nyG",
+	"k2yVmkK+P3WrZc0562YBUO//ut7B2inLY/UrW14JyFvXI5cf8+q6pb7kt22gDFcw31VJCjW7czLtvuj8",
+	"stZSPocs3xhXHIS6GbSrYcS4sZpL01PRfIcUMvtN6Fvz1k7F76+ZrHXWY5+AHlALxNXlzLXL2yyI7Kqu",
+	"qnUvQwPxm4vLV2sAepswWR0Goe2W2tHsIhF0Q5nQ96/NzfJkI4Nva5cD26/o1r5RT23Hq+UwlDB46xJB",
+	"mV5Wv/1L42hOs0pw8BAwB/P5Btqva8NswQk6gKHW68A96ZeW2ASIVdpdmJ4TIemlftObRZfOuE591Szn",
+	"iExdlaaKq3KBJ8f3Ij5wtrsvrZqB2kV6HhW7xSaoKVy/BpEyKrrizTUYf1sZJot6d9RWUMsOUKNcAb+q",
+	"Or7DWWUrHYnEXF7SGD4v96xrF/Y1iCyRS3PJGk+iNEhp/sp++x5Em47rFUi82gXbno8nWMhXLCYj0ukr",
+	"FuEmo1HA3WI26mjDyb/vmorxeXdLt0Si0kz5jdCr7NJb/mKVXZ9BlkjyK04WMVqD7xX1nBOnxNTFFlnn",
+	"Et+FEqJnbt5qG6UubWTMIE37c7EVHXBshKckWbWwjcEvi6JLSwmMyQzo6w205y4G6vvrb4LKFZbR5E0K",
+	"K1V7Zmmp5l9sMom0mV7/a8pm4VDOFKu91IsTNeJFzRWXLt7RaqpJDoduMk8FhpWSc3673wehu7QFt/fG",
+	"WzhcI7f2dtYEt2uIGI1IQvR7F84NvVqjrWVSgdeTqjVX3YxOEm495c1RLK4dpK7BVQ/vVl/AjQINrT3y",
+	"Ri8Nj835dMPUhjMOxei5Iqk4sRHRXSyjEvMxyM4fVs/GB1LDkupz+bDxwdj2NFdhHIcArZbgaQLDDfC8",
+	"OG4M3JRo76pyZcmnru3LslSRTxjNq+wsfze0iWiC6Rh8l/RelgESj/c2+YgksnOVwin+7CkDAX1kpeX1",
+	"/XFDa03Vrbk3SK2mZHVn9JtacePNbsDYN7SXY0CNHOziLX42MYG8CXSrS9Z98R9OJPS+9rfmxZha9XDZ",
+	"YrQaudrhBiso5kDWC6gD7YMHto1bHNpA/mhsWMHYUKBs94ZsswZpTYe3dDs/T98uSfgPzgIFLz6bOo5t",
+	"Srq2bsaxbIFab3QJTCbbans77K4GVUfIBPBQ5b6lRW8rWJePk5vt7cEH8QnPoFLMZmX3I5ZdOICd7cLE",
+	"FZeA893334dQyDi8TBmb7s43rc3jpPsKr82HLZZofBndZ3hnkq2XTVD3BgYA0s9PoliPt/kgDpSPYstp",
+	"F5WKrt0rsq5UAvXG1ovyCtJc0jSTZaA/9I0TD9evjlpvU1wLLi/tZtHpODTclbOarFVcs5V7uoz+28W7",
+	"XQDir43dpKmobqWWbivUyDX+9eK8Vz91Wm4ssegrvwdFFSj+MC233nSWHXdeLzG2+fI6h1IJrKEIWBUG",
+	"QXDnYaOBGqKdDMetqtN1rfgdrL9njYRNlc1uwnHE3SJWCeuANF5ly4b6j3587irjXrO70KBar+owzFvz",
+	"fhisoldeZT78YiCvVJ93A63bQn1zg2UxPwTrJ9fRvqt6WymZakurBQdeDEF1uKvUhMxpdRWMqpJ7ALsm",
+	"WFSTueuac1Lpk76tftsL8GBz7ZbsaVY3Htplv34Ii0/5bU6rXaoKePPayuvLmaz/0RsH0eWs2duxuLBu",
+	"lxYGqDJf62IeKvGa8PT9IAQathiCvz3zWhj0S3YHPMIC0PWLC/Tj4+8fIvUqsliJ/onGQIGrcdFwrnNq",
+	"vBSak17f61KTmdYKgY7fP3wd5P9+9HXwz/yP774OfvvhRzz8UPrF/ftBQycaoymU0gR9ubCV0ddoucEx",
+	"vva/bEh+bFDVm+W+D/nudAkOnYO2a5E3yWdeLUXO+76dqGs2XGvZvdq+vc7dJa3r0Q9dQ5VXh2ClCXgp",
+	"aCgUGeA3BV8aSuKahC990e+4XiF6wDNAME2lLsvKQWJCNW2DzXBFQCM+TxXV5/X1KtVVzh4+ahNuulpL",
+	"8vW6jHstw5dAqbEheIcu4O16f3chBC8fYzUiWK1b8R6zPFYM9q9q2cGOxV3TJQKnoMZa9STWy9ddw3Kx",
+	"SYD6qZrtYei3MFsNfPex86D+9AYiDlU+/ejsx+8Xfx/ioFvsS7iGNXRLXQqXSEyb7gO4AHf9bgkrF0Bp",
+	"Xbhko2T+uEVmZPuyImGeECr60YEzFNbAFaT2ytcHIa+bMoFtEaUsj51LlAAWEjEKyHjr0IhAEqNpJnSD",
+	"9NRmq2IaI4wiRiWOJJqCnDD7EoepEuLwSAK/w0Zca6h6sXaJ1TUk4zWKs26+4OoBFETtjHEO365Zexf9",
+	"ithWR6H9STOHU4tk03U8VsaAUn7eqjfUVoSDg0ncDV9dC9JX20P/V1Or/HleqnwDtgucJOwO4learbc3",
+	"ZtullOVbM0hLB94OWnBsSw6lRBKcXOclTzaMMgVqlGeq98GoHF47XPI2XKn+nUoyJUKSaBAxauvxzZ1Z",
+	"tmR3rZUFDlpU7Ey7NSauwNscMse2DouJluysdUdEVCpX4tgUVK/fEA1+Ftu0YFMlBNqVgn1ZcbBkdS9l",
+	"vrlKn2Kz1kUwDTEIvxlLYdAqFzUuYLKY6x3ZXTt2t3GmtY+CEGtwxsLlubjsQw3bVmIGuHsmk/2k3vqr",
+	"2LRtnBNmHTj2Wn2tzIAInRGpsdsv5VNp9DbCxK5iqfSd4OF1loCrNbkp1Nuc2xl7+V7lIwgCI7QjH/at",
+	"UCr31d8HxmUjBF7abbc/Pzu1+zCn6Qbtfq3yRDVyr67an6LdGWXD1Vrn4UxONnxKzVnLDReBs7rkkATr",
+	"Gl1Kr3sylmyq0Ytp0lB9b/UeDHrIl63bSyxfoKfJ/4QFfP+odEzDuYRqQ4kz/b/STO2coN5UL0gCdJX8",
+	"jlzKuzANs3KRq6w5vLJGHDU1wqYMqm2s9TeB4HOakIhIZMdCkiGgErh+L53MBYlwMhBkTLHMOKA7xj+N",
+	"EnYX6iJTa/QQ7O3i8N3gVb9ElJUzNVgTPJoGIIaBsoCrVFng1mv893uTbIrpNcxIU42UjXWlCkXmlWfv",
+	"L2kyoJu9RhknUicCTW1Uq+CjXwDHoT5VGt/gM45kMkdTwjnj6HaKPwEXKY7go/r2Fv2dcaQHBpRyFmeR",
+	"rsB7+/HjL0zIQfX1fyBGUUYFHpnmy5YRQ4zyTnJaJOg96U3MspzRqfffg4ub6xcDU4yq4NAp+TfMjSm4",
+	"WmcxrHwrdEAsxX9k4PpMDYxgi0y5K1QUG0Q4ikAHSzCKdI1zJEDfV4Py6pkrX6EN+YT+bspNDucIK3oV",
+	"6g9q2ugah9YJupSIqiGLtlaKUDMB3M2xABTWiT0wu20GiojI9Ce9q6Li2AuH2wYIvX5D59+B9chBjPKa",
+	"YEhXfUNCMu7a/2KBMIrJGIS2K2vM1czETJsvaiJlaloO681dMPaJQOiI9MnohmB8IEgMDhxm7hP0Rs9q",
+	"p0RE2NU8NXWh9bDq11+kTNWrJ+imhp6ZsOAO4Kmd7RYpYOdHYMYtjqD+QR38X7WoP2L1Tf7y9u2VdvZw",
+	"HEldpJRRhY1uTBRDmrC5bpSI3qRAz68uXeVryTEVKeMSmTzS95SNFI7JydO8CXOBijHT3iNCZ5gTTKVw",
+	"/qQhjj4BVXSnU4LJkCSmJ+J7+p7mdOLuWuNHECiGhAx11GAyR7EJKcqImCA54QBIKJlbPEGYImZ0ovfU",
+	"8lndliCjeIaJGZFxlFGTBB730a2a6RZFCWAu1DMO1llRtLrrv6fGTUYZHehWePpnNbBzbKBLilLMpfYJ",
+	"8b7iVzUH0S0i4j2160MjzqYOCCC6N+XT8HrejjUkglmOYmZgFszv6W2YpG99XhRDlGBFdkNQ13aOF46t",
+	"v6d+Ig6KMKVMMXAFG6GPxJ2qgIjR2B/b9YrU50Ho+D2VEyAcWYlA9xwkdNxHgumVG/JEYGopg20kafgU",
+	"IjSGFKgaO5kjNtKDuS52cU7O6iwVS/fWobAvb1n0pPeqIIgLxgGdX116RoYnvbOTBydn2sGQAsUp6T3p",
+	"fXdydvKdCVad6Bvu1HW/PP2Sa6FfDUW6+N9qn0Lbbe+20m/3Vq8Y6Ihxx62VMDSwpoOBKSJckNqJ6cxq",
+	"Dl9p0b1nepzzvG+5vfN+YvHcpJhQaeOfvVDc099thxwjE7S06uQu9LLo4AqJO3xXoz08e1SHgl1kHxXd",
+	"Uvvu5EQf6Xa4hiGLvoYLZwkgr3ktMkCLT9T5PDo7a1p3vpTTn3BcOP57j84eLP/kHS3azpuPvlv+0QvG",
+	"hySOgZovHi3/4jWTL1hG7RQ/Lv/AL1z0uM3eL21e4Y2mK1NS0xfZtB3AF9Z++1C7SX/7oLR+4Up269bc",
+	"mBoiNIeh+/Sbg0V3E6JbS0pMFGUjIl0jWF2TZyyUnGmxQPQ+fO33xibsaSm16C6zdeT/OU/569UQ8Gxj",
+	"6O+m0HgfRGlkKnOKbw0xN4dnS/DqZzARBjg/zSC6pJjjKUhdk6HBiFW8clrUf9KhN0Gufep6mutarauO",
+	"3u+lNtB6Od83822A8ZuBDo/z74Tw7O7jorX08UrYz5VgT8K/B/Tdrat46yvAXfFhqm6kTEMKOyNMM93t",
+	"U7MRrVY7H6cv1RKRS511mjQBpH9RkrTRs0eKtBT56OHDNhtJOYtAaBp6rqTi+V6p2RyiR8wdibbwvIlN",
+	"UW6ZxHRVfPdiPtkB0dqDjc1eal5nugEEyK4AAorY1FogtHBB5ETp01Pt9DX2D5lxqh4LhJW8pW1ySHdo",
+	"JkJyLBk37fQFyCxF765fKh5nVHC9vQscTWBwwajkrDHjz75/+prdSMbtoo+c4J5xghugGmkEHkEy19o5",
+	"jf1bnvjU14VH6JzPQe7rXItHZO0udz3lRz3liQkjuX1q7EsxA4Eok0iQxOi1xn5oXFxaef2byIPozQi1",
+	"e9/lGOvZXvoprdvgSk05v4cjCpgVHkWBe80AbO9Zj+T/JgwBIE1O1ow3IsYj04EB+MnGu6D+PCtZgLx9",
+	"alUTUeQvOwXFKi6FGTK3YSdsPFZvGjt1xCGgkNfrT22J/psLXR0OB3CGMQXABerUkTPcR85wXgiMZAZG",
+	"XPQlAy82eBW2MNAkuDPFP+cOetrbE/RW+3xjQDbyzOTJWVewiWCG+D01jCIhI9BS9N+/O0NTQjMJAg3n",
+	"KIYRzhL5D+O8N17OGXCIkTTuLjfte2rdIfMT9J8JUKQ5rPrCmrj6GrQ5JpfFdcQhAjJTi3xPc4k+F9+1",
+	"H9hOPUdywlk2nnjxA0rWoZAYF1mzolXSRP7CupYLY7CXhEaSstKVH/NRcbrPRk2t/IRVZP8mGxR40JXX",
+	"KQ0oj1ndHa8j9MRMe4KT5BbdKYaD41jJNleXr61gh2n8npY/MrzRvG+Ci9QnmBZClPrc5BhrDvqelvmU",
+	"i0uy3IpxFE0YczEzqfMrqmGWciNCi3DfvzA3UhA3nD6a4CQBpbUeTUBHOW/bJqACbQIY2JEPcpaAOP1i",
+	"WsJ3jaHRH5+YAJHbp8j6TG3dchMalXtYzUOD2oo0Qt5WnqnxarxHV9F2zEc3UP+LeXZKypzNwkIG+Ee3",
+	"696sMwopETZBUjricJnTZo34if7Sl21CXxezTIl8T9BrRh0h4kgyrmh2bsO/TFiw/uA9vZswYUQGk+ej",
+	"1U+i7jORDdW/2QiZUEN2R1Eewu59IUzE73uKkT+jP6GSShxbYAmEZBJTDfbIF4584YD4gkFKxxcka+fK",
+	"zWIiBzBzBZ2XheWp121MHjpXfyjJH8dYYivna38JocKPw+3nsZ2MoyGMGIdTY1m5urxEguJUTJgM3L8v",
+	"iZB6lucz2w6gGx97SaZEtuFhFxkXuon7FxOg/0dmMkdtfD6OrLOrIJylDYzDI1U6GW9svMu4NFq7LKDG",
+	"zTLu91TczLAs0gme8QvOpqVB2+WOLh70Les+5Idtss4caXWfrhAHRSkeg7qwNE0hQ4KI8VibCincgZBI",
+	"58odOEvdWaio4gYo5WSGo/lAlzExVlEPfj6jUz/nXE5OTrUuPJgBJyN3qJFXtzscdOJKa2t366/et1u6",
+	"8RvnWzcEXw+IzO6tjcC3HVCRTfdsulxDT370sMUl/ZaxV5i6coBik6hbQlN9anOEUcIi7DymxntqfGKF",
+	"Fl01H5aSyZfgLi9K9ISNgNqZkR8xEZ6FyNzBSMxpNOGMskwUrgIlTksJ01SG4hwt9N7c0TBFlNDwYX1R",
+	"/geNxqttmNL/8tKl+rbFfmxj5HdFbt2mTOqz0tGzGLSLSvvWTOUHL9igRjqtqMQLQezA2rceS1ifaF1m",
+	"Xor8M6y7b1mM4/D9wukuQJqsKtfhKHfXWivYfWX7W2Hf7rSU+lQglIafDg+ZALKVjILe7kbk1MjczK3f",
+	"UCSySO2xr+bRKZYu6ThPcrT5yCZvVYBSYCQgpY7p2N2Lm+sX76l5Saln/lLQCJMkU0pcJkBn3OiOHSTK",
+	"01URhzHmsc5YZaP39G4C2oegC/5r3NIeHxEyiOiQtC2Rjx57XYq5cRDUlYGNowoNObsTvm+qnkyqYSk2",
+	"QiC6T92gKVP9pmlqpPvKpgmg4nObG2vsZENArgxrAdCqsnPgXphDkt9uJOY6qEUj/anHRvPM/DbEzjLZ",
+	"fPe8NM+7YK6JXTMCEi6TtkUVk+++IXa+GFuf6/iYuJlgNom190yL7WzO1+lSvhzUBdNMhaCg2e6qsHob",
+	"rLG3vq6rgDDXwSwsmbm6BcX0Oh1fvxbMvLWNpXRL9i0aUfxpAhaUCyc1lgokZAL4ftWGndlDrrVH3zTb",
+	"KsEg5YRGJMWJUfMtnDwnSEvM0sWXThmJo9MvLlSt5qutxMPThNBPb+7om8tnF5f2m7rdVtvyUiwnhSmv",
+	"mKBXveE7myA/tBKi7YQo02vOiwsc/RDrMTSDAiZCyIzuyj7M86hqITmmsYurtmoIOq95KxQWhXDSVo2z",
+	"/sZqKiZnSfLmjl5tTSQ1U1ytL5YWoVPIBGfZC55pyTuPTrd3/8H71v4aeZLqnGxRIZ0mETZhFEfbittq",
+	"LhvhJBni6JN3pYdtFoouLtzLYe5a8ZRYU2MzY+3UgKjRISNst89W8zx+8LA0TaDrXY2VfxeyKmoVUR2J",
+	"4jyKqzjrT1UWfsmivB5is9hZlX23oFbtSzwtW6pxQnRfD4VOyCGfEfz6iDIaQR9d/fvieR+ZDkp9lFd8",
+	"7Gu/C+hXdLT83NiYijh5dH5xvYCVa4RPbX8F0YjxL4mQ6lN9xFf561sUO2uzqSUsSns3Zsp8KydbOy/t",
+	"AHOXpT6zfFJUlEIbKTqw9piFwP/ivr5JsvHXU0U7zRqr1oo1aNRrbQQ6f/SFHMGv9YoHf54Nfvxg/zv4",
+	"8OVB//tge1fDGDZ/tbst7inmRk3/ImF3GtxBv3GpKF89SLcb59qRdede5kD6OpXx3OlaPdozkRuFtFlY",
+	"G4xs2dJc1LVXUUci1GM1MsOCCC19HwYVLrueryEmHCKZJ0DZNe3kct5T4auwSVEz7TIJX2hPWMLuDI6p",
+	"6xbdPHz8/QLEKbfsDSviJkpUaUHbTUmtzbO2SuRIS0dzO4NnkgS0oYNnfH+RbHEdjxzQggo2Gdb7A9GJ",
+	"Vf2oIabYhBHYFKLcwGVn6yPOpK0jWjOq9r0aVaKiZ9eNnRe6IsT2qag2z8aoyNbEtf5LGzWtDcAGSLvw",
+	"FlybmXbjLThcH9c9pO2LoiJKE223sm6U0yaDwRn14CVTHZwIv256Mke2B73rTDBk8dylWpsQZG2ViZFO",
+	"Z0TnV5dOSg6bUnaR4Ryca4MXpdmxDbP2Q0JqdS7s3dl3gmsCh+9MNLmneVHu/fKK+0j2les6Bpj6UYiV",
+	"nGbpyv+vStWDyHZeXRx3VSKGi8I8uRPiU/NtgQBtXQBHfzroqokGj1FXoairtABqxHRAqgmapXkuc+ug",
+	"2Qp6Lg2YPU/u8FzYRGkjPAo8heL6cdvrI0KjJNNy7Eh3HvhE2Z02QBNaDbITfkjrPA/Dagyt3cV9FJqq",
+	"EzU8DCcJqfs4h5aT+WMiooQJXTXAyg5+aZI8zGBftLAlLmuhsaxiRDP2Enpa1IkoiUzLdX5Cex3dj762",
+	"vdD7eJia8wFqv619gP1lF+UOql4E59qEd9vGcFvn9tPAdXgHOhJpHx7uHZpnDirEsYhxLld0KPhNuKzD",
+	"QmZVC3AOhAj/h8jJ9sIyrmyTuLXblfjRVE+b9RLMdcGtrahIB2LmOMDAXJSwuwEWIuOYRmAYzIDiKZya",
+	"oiStYicngBM5OVUySKO35WeQL8kMKIit+pt/0UvJu3jXPH5vjcdEsRRdgz6jlNDxyRZFF90PTE6wyXY4",
+	"v7oMzO8B2GygDFgO2BB2E2SvAcfkEECrthdhaqJevcaBm0m22sk2zot2WK5XVlTtkHbS5sxdykd9OMfu",
+	"zLk2nH3idaV36tbiyA6/j33OP7aIEIH5mqI7rsA4KkxQiw0nKuPHN5lgrdXeLAU+I4LxotcrzIhCBFsJ",
+	"07ZQRX9kkPkigg/gRVhh49bDokKRZOoPV2rdulscCUb/OEE2tYjiDNIcMmEl2U1Whmu5rNdwV1uRS3o6",
+	"KnCheE7b6jiZWziZ0M5MlJW6K1cQPtD82FmWViCDL0n9WC/jr6eWyLqXh3wZGm9BVw1LVSHs2pam2Tjh",
+	"jmOtWlLURZX5nxzrE+7dL2mQqJxTzkYI5+SpI1WVBMOizNpN2hKn0IJWObOqJr9WLicrnO0IW5tFQZcU",
+	"pSUWohUks51vUmBRSkSYS7/EQ6QbuNvtFxEoJAZbGU50wAnbJra9NPur+2BHKGHna5Jm7WM0IUIyPv92",
+	"xVcfJm63WobP0ohNtbyWDR28F2BA432pZYQA5BuiMevd1n/JppgOvFb7rXIldFGwdikZ9SlfkAQGr/G0",
+	"dWbGw8ePl83WOv46jUdllM6rcw0JxTp5pGbi2mXJ5dBZhvpOcjyqitIHG2v04LuANf7ZCwSfI4BYoIeP",
+	"0Svy08m9vf/zzBUTxsI4IIxifUIlBnD17MUKTL4slVuc0LXbDSo3Wgu9r8zMHVj/amRS1UlxJA2DExNT",
+	"9tsA5erZi2++ltLO7plfCdxp0LI7mjArgYABPSczhZYL8a6/hkqXI6PtbNwRfw1mrKdV+ktouiWvzETh",
+	"a3Irrp/6hAegVS64Tq5yIrWndsw+38jNcDmdZhIPk7ljg/nFMGJchxHlVaFdXdDm20EXgHEZjXluShP7",
+	"f4VJclF6eYtoVp8sgGTqJVRa/7erBt5xIkFX+R8IPAIkOabCFO7FiWmtFFUOx528ApOfaxBq8Rg+3G21",
+	"eKzNtidm1grLXM/H6V6x7a/VmrGM3Tev3l4tw27DzygeQzyIYUYiGCh5crFF45X54Jl+/61+favYVpmt",
+	"yZrxrFg/irDECRt/uxaN8qEhaU+hOF79GBmYiKWmixqQt2XnD8+2p75K9V03ohUyaHU/FP2/hrXf+OVw",
+	"iBQWUkITzzv9EueIsKSg1TP9+66IZpWGH4EANh+RzcbiY1+OfWGvwSClemQ0E1pO6obF/QUaRwgtd3U7",
+	"L2GhB63Q7uwK/xnkCoyrq4nomcfOjFkGy2jSrMvshps1zLY3XaajCGD7Gh07Vd9HmcHg3kZkhg4q0g5a",
+	"FH3YFYk0KV8OZBY437zi5Ta6KZ1rd/rWIehauoiaAnWDy8oyXJ125lJRqOm1bLLZGc/rtA+Jjmv8lvMt",
+	"jhpgKw3Q0qSt+yAyQEQKhzA06szhT79MfaTtrhPeC33wqAoeiCqYF/Mvo/MmtMCdaYDLRYOjAlhTANsd",
+	"dDcJ8lWZc3VU/3an+h2C2rdAAjlqe/df26voeq417frSwKlh2N0DZ4LE2ZD0pGY4VKFih/R4be/G0iVy",
+	"FFZ2TlNXwKdYTZTMrbzS7R5rR1im2tQ26UoXHywb/2yFq62U1mmY7hCorYMubkta6VIQR3X8eD+vG7bC",
+	"ZNgaW6k1F+YiHVsF7KxLwLIGAVellgDfpI3Ua/dQaUiQJ1xBxKGUa2XLWS82mfrw3arF1J9oTwbT0l4X",
+	"4NG9SOS+v/mkCo3zIu1pgXuBMuxljnT6Rf3tTskaD7vJMz4KtNHhd0Ae9Yn22BOjFXmUVfjjfb93fbxE",
+	"SeUA1aeI2Y7vUUJMfXZ1T5iqNbZoeQPtpUAHMZ4PcIRjmJJoMOSAP4kFFWcNo0+BPsPzc/vVT+qjrd4s",
+	"pZn2dLWUdxuqHWRfQBqIe7lh7rNDiiJcAqCPsilQ9AzPxRK8Pf2C/UNq5XvaIS5vyAVVwbOyK+poqtlU",
+	"iGErbOzqYTgv42cL6WR36GkmXJ3Vnu2N1R6llUOLFVuFmZty3yQhcj7gLFkSLGYJ43nx0bX+ZotoWZmr",
+	"sZlh8RrS+/iG47oIJVOcmG2iTORdE90hI+9Q2+BACpywuNXJX9lXt6ku+TM11oMhQhept0s3RfaFxKOR",
+	"rs2sAUa+ZSTIz9pBYGYhYnvURThJytp/+QJdrmiYA9iu7cqfaV/Gq9JuGwunGDDfl7Sqex0jZ9LdKwje",
+	"gY+dfjH/sJpIYwW0GprvgqGFS7Vq3IpBYpKIY9hRHnZEW2JBV4WgdCIdFIKtssTATPsyWC5DWJcxbw7l",
+	"GHJ0j5WG2L/dAgFHHZjtKebRxBak3wA9BiWUczPFLuhxv2FGq9HgkaD2R1AWNRH2CpitI7ucRjgBGmM+",
+	"0Aj1WbYQZi7sJxf2i+0jaHXGUE1X+wqy+zgKOE7AmbCExHhuWqyVbTfC1HvattyzDAfds1bGgV2YBW6i",
+	"CcRZAgvkaGFfOeJZzVogdFfZHQjTy80LuzAs7NekEELRXJ+5L/VZjld9s6mCUcgpa8U7Xj8bMT5wtstt",
+	"Cs/qzdLbLxi/cfMeheijEL1/ynrLMRVEt0PAZd1UMqSIRYtFokDaVYhu5TKy7UnNlkc96qlHEjs0ErvK",
+	"68rm/rK11FTTb3og2UDT6zap6lpPVXr/LdP+mSNtHWnrIMqbKgStk5a6vWKLp+vR2C7kxCCZHQXFI6Ud",
+	"kvuCFvXRLY2ZvD9NgEQqiltTTHR2pA2RWqg29w3OfRm5YWs79BWYab+0tsiQpxZbs+MdbST3yx0i2ZRE",
+	"OEnmSGDjFimbZ1EMycquRjfIKQfTOy2CQcphRuBuq2qdmSI3L7q5t5WMnU9gJ94TydbWEa574F5C9iS+",
+	"OcK9l+qeOQtkCEWJpIUzwOW4pkr4Mt2A5QSmbWhS360Di4JTvY8v3l+KRk0UagKDFFiaQPvA4gSuzBfh",
+	"lnR/ZKDbSdn2cAIwjya9pk5wZ2cNvd+2Gq+stsBFcz9D9xYysDm6qhSq3uiTzOObHf7YrpiIxKDIiZRK",
+	"WW7Ac3Xto23FJypOvzDzVpe8psNOZcp9UN9kEtO9ZNI2Acp3KKERZ9OKEbwR75eEhezAL7/Q2XmMbK0E",
+	"frTwHK7IzDpEs+4ijnW/OuYiS46D9VG7vMfRq4qOnCoYd/HFl+71UywEGVMtxa6sPS4OW9UTFHqm2Fr/",
+	"tcBM+42COc9hG8wpzZ/upzjMkbhCpptYieBCcl04LZkjQx+6+2RZJl+H0k6nsEigfgmFxbLXKkO/QCUO",
+	"UzY7dFS6n/4tBViTYKiNPdIiwt8EKo52OxJNyH7+L0bodqUZb4YjHz3y0W581LDNOrXoYCYlujgvsWc5",
+	"W4ulfin+WGKvMJRcx60jpz3QO9hAWhd52CKj7bd9+dxDtEU2s9MI0wiS7YjVF3rswzO67USRNZtP6qrs",
+	"keXvMTJcHwrC3bTSmoOk6lnT6CbQrfUWcMDxCU6S26cIRxHLqEQxlhgRkVelc66dW/uC0B/dnvT6Ae9L",
+	"k7tlCYle4TG0YRnqvRvyp3m3isQCBoQK0FG/M0DGm4PYDDhKgdvdUDw1dZ0VUeFIohGBJBZqN/fAJWQu",
+	"fQOtgOiGUjwGxEZlX9ChGqR2m7hkQKKDvjMBHGHvWiypnxaF/domS4jIyMm3T9EUS06iLNFDIkLTTCIc",
+	"x8Q0J9dXb+VTU/rqpPRhgLRMmshWzT3+FHvST+z+wvl4StjNFZJSnfWXzMwWOqnEVGw/v7pE765fKtLQ",
+	"MrQZR3urGT0pkfex6dkBF3RJq7ainFiLy08H9whFOBW1ZQkVmxdvT9ClQRIzCppgYeqh6cuvj3AiWE7H",
+	"72lxK+bfn2cxUfrMCHQMi1ACNyYUUUYHV5eX1vs8IsBNum7MEGXyPU05zJQmNME8Nh5VwujJe1rjBsbH",
+	"t1VusCEHsaVbvUtIgaqdI4XzCgJmYUbeSL0WG8fmbAfU7yQu/MnNxNdfIm0qcrK4OEygLHwKSEa3iPG6",
+	"SGqkNr3S+o34M0iPALYqbi24kKw7uo9GJJHAIdbyhRYpBwnMIPH2IL41hN65n3sRAnbUN+wNUfZwd8Ne",
+	"K7rV8Nf+rjD4PfVQGN2A7hKDbkvS3utsOgR+G5YT39PFgiJ6Y9Uao8UgzKEoGv4U0SxJ1JrfU/tcaP4r",
+	"0K16cqtfjxLAHOLQPWNco1u9Z/wp9mQYaSZyL1VDi4lH9/69du93FB5PrWTX3eBY5i5LdMhcfrRa5Al6",
+	"DXdO3DQUHRMNTZOXMsEzQJShFAtxx3iMMipJguCzwn+iruyiE81iRfLc7m+7lf/1HHur+W92GCxBbaxd",
+	"m1Yp7cHdb53yyEmWNDowuKPIUal2iQsonhellsqcxmKbaOQ1KWcjksCATPEYlkcHWzug+ehSf3PYeqBZ",
+	"KdLbux+uvnujrdlICoxSH8gL1bQGVaqGTwslLj3N6e8pjMvoNGJ8imXvSW9IKNa29Br7qzLj1+qTRJ0u",
+	"+tfV85/LO9lIV8WvRz1KYQqONZ6QmeJktIB6C9RZRwTKgnVNwljXIk8HPqcQSYgtc+pVWVK/G3NTcLQT",
+	"GbwpZvrvwQvFlV+rvxbN4vuEHj/u96aEur8f1PG/eTYLi4EGxuCGZVxnBBYTxTDCWSK1ZyoZfczShOG4",
+	"1+8BzabqwKTSNylOPkY4lRnXH5de1G4P9+eHBu9Vm3uERRLkQEgOeLo2A1BU30dXr3/uK036PzC8QsO5",
+	"BHGC3k4ACeC6R+YMOBkRp5FHMsMJiiFisbG7TLEWu3aoOfqYu0h/LN1+rjTuUZ988F1dUtDARPA5AogF",
+	"+gG9Ij+d3FuR8VecEIUC/YLX9v2mwm0ubSMv5kbEFq5907REO+mfoox+ouyOenbIsv+BA6IwA66EWkil",
+	"tWCqIcpd6prc/cXC1iS0wv51xdVEOjvvyQgnAvq91PvpS49ImJb/scS+Y9eocMGyIsy5joXx2cVvdryC",
+	"K7Lh7xDJcIrymAhj8fUOBxGKhNRWwgLIiPEY+Mk37Fgv9s8LsAznSE6IQN6pKwYuqs72AoEsrmfDhEQt",
+	"y8XqClTRLorGlmZqbHOsXyrqEjCamFCqTZ1IHfraU2mmzZPkRFEAJIdz+ZUmYOeVok9IJBZViS4D3tVl",
+	"Xn4AEj7LfJIl7c1rNPfiAj1+/Ogxivwy0JhQXR2pAnrtVdwu/G+yoVreMO+UUz0HkterHkGph2fDaVS7",
+	"ZrVg8GG27FppdZPZX5IpkW2isC4yLhRsthnppLawPM7J7891DHOqtCHnFgsc1hmsaBPXZMBqOtTfPkVY",
+	"hy5MseLsSu5mHE3xHI05plLTWOkOkBOYuyj1ZI4mLGm0Q6sVbdX8rCbYk+1Z7y3ExbRotWGrszqwYxjT",
+	"vQljyiVrJSlyVrqpHZXmF8IpjEYQqdMfrKwHnKDnM5xkRgrLhFWhhY6FLUXjDLAQGcc0gvdUKSqGB8SD",
+	"GLQGzrMEBMICWZJF7uCNjmDc0drHbT54O0/hMr59TzmkHARojxZFGbXjIvNayPlsF6xJuKxmtLAQlTd1",
+	"7va0sqXovGG8wpZTWYC//V7bWd69u3w2++eWQ4gVPJ87jCoAW+BHY6EZ91GJ2yttUemP8+rNc4x2WdlK",
+	"K1gyAwtVBcq/iRrIMZrMUyYnoHAyyckxyru1NLOTL+o/rYMjS6LACXpmwxKtD8fwEbtGL31MGzk8kwNn",
+	"d+KpftdKEcbAgCllEg2hCPkLhzpuUU7YkINL3+rHwMUD6f7d6oLtr6Vm/Qwyx8otcupGCbJcCOfIZVeN",
+	"KWxEjm6687Xmqa3CCass9W0jV+SgpIkYqSs2JkH+aFwMW+SPxQT7qhjZQAXOufItyhp/qdA8jfSBfpHN",
+	"kkvVH7I6qWayA6G+q7tSLp8ZFwqH37VH+gSde7aS9zRoLMFIZEOh+I9W4glHEBKtfc7wnloZK/gmwskd",
+	"ngsUsSnYYm+e0T1isc141IzlPR2CZSdoAjyoe10b91Rd9dpOadrQZAfGbfSdq1vDW9dd/C1H9v9VWiw4",
+	"J2xNXCxrXA1MSURkehoxSkFR+WJH1c3F5auL4tUtYnBppiZdvljKt+uXVIBAxfHkeexDwBz4QLJPQJGA",
+	"iIP0T1h/dl5ODvZt5iE7dgnmWzVol2bak2W7tIa3CoyXQmSwEM/0BWQgjzTk719U31/KQl0mHn16RAo0",
+	"IlxovWkgyRQGMRFpgudQPtqlxBRgnqdf1A85uljzVMjSm2I58eozlL9a2cDrm16D4YpGWN0FoQdm2pMw",
+	"VN7tAh0sP8dj3ZhD0apqJOyuP50cSOhY0/MG6fXUjLWwUNiMfYL67fFNlltaSjsXpZNBXAMndpfj0Ry8",
+	"EQFfwdQ4yh20/yYQNgp0pyurv6+7KNxWjcnqFbFNSiqm07Mcvtj5Gu7uq5R5vNMWEzJLLI80MqnCAIQR",
+	"hbvNSaUcIkYjkpA8GKepuaF5T1PGdpNp1QzXpWXt8VqrLiRlvMHIME21QxSVIXofbredA6v8nrZIKZIV",
+	"TxFlJpjVVnU4+Rb6uDmEcMY3tdXBiAOglLMZEToPwEiwLlGbUMl03XAdYE/EBGJUEN1KpH2achglZDyR",
+	"zUR+5V6pH+aR1r0+i5JnkdTBP+48EaY4mQsijiV9N05JCrJ/2vQhRy4DyQYB4qgw31wPnLKYjOZKEaz4",
+	"3ZaQ0Ozh6TUInZn4dp7CcrN3+e1O+Kom/P+6I60OgbezBJE1SxUe64vJrK2Eo5tdjDvx2iou6QwnxDOe",
+	"5LpfzdodkelPWpRxqOCfVeVwbszcS4/FvXdYB2K/+oaOw+SuXik6jYFfaE/ToswafTbBj3ZxUuGZQ0em",
+	"uIRLzI1wiock0R31vp2jeyeghVfPvNUqKtkUiWsqJvz4wcPmVPFqWWKJubykMXwOZ4c/0CnoZJpN/QR0",
+	"QiWMgTcP66Sp0IhnZ321Wjum/svNcBaY4cMusFXBfhlvyU0GAxGxFGKkD8z32O8YSw0W3G8yWe4OVVBu",
+	"LSCvcfz/4UTC+qaoNVYQTAR1YpnFtz2imzf9YSDbMh170yupMQAvNdvpKhu5KoxPRP2zVYfXEpUsiy9/",
+	"hdNUy+qQFqj11DWB4SAxoeWKSgdxzo92uBIFS0SZRCOl2+0B0Z4VZ6OO6o5lSYxmhCWVsmEOzRChM8wJ",
+	"pu3Qzw9zzycqOzfQ1KKJU/JMFWnTjLveaC1n5otk0TCKnu2Olx4kA9srYq9yXbfyXhnetRnHVbht7JX6",
+	"eVfygZ5sY8azTYsIanH7Fw/0OR3Ja5/3xuVm5JGGwCUb5XqgMvkOCe7aBW4fBfIjwW1MAchS4DMiGB/E",
+	"WEyGDPN4oXUvf/9Z/vo2XTiB6YLqKpnhaD7QFh1dEDLfzDcZH34+HnMYK7E8BkHGVAcxFkcp+khNnRBM",
+	"I+iXS7QJU8BNV0xKgRMWe3nPyFb59VClGNRijJLblTKKY1eVrNH36Eog/Go+Oc+/2CLGVOe6BpEl4Qra",
+	"7hUUQ0TEzh379yUK7XlRmd3evKccMgGuyUOM0slc6DR+nYfCp8ZRp6tLWwxAObYg/QThVKmAEKNXppDG",
+	"M11vwkM8e47oOeUsSXSLzzL+Qf7gtFTobxH3soMWY16Uvtw+WjbNHDb7+NULv0Eupsv5Wv1fKrhAjNzp",
+	"ujqw5SKOy/BjYex7i8PfVjD84qn3FB7RHSW9cPn9oOYxvHBhIuBGaamZ1+oKLY2X/k8wJrSGW62MxMXr",
+	"+vK4uLl+gSK9Z9FQcWy1gNh+7wbkwEHzyzaqju2pbEQJLfRJoOLs7NULVDdj6W/2Dk7wcKCra52k8ajT",
+	"HfwSD6/Vh1fPXnS7ge1EaxXufv4ZR7LoSf/sxTrs7BAOvbhU7Z5e4iHS8FW704Z1YtEgx4t61aUuJy8k",
+	"ltDpxG/0F7u82syMofMvoKD38U0cv3e0U5ATFpt6VnWMyHOqFHMldKxj7XgsVsWEbFgqaxG8H27USzJ0",
+	"QYRs/PUWA8UnA3VBDPzEkaXNDXSMitfc4OHZGh0E1sXJHFq7zkSpLaVZSXbHb6/fp7mMAZ8lIkL9U2TT",
+	"+3MvH2iu9YMWU1zhecJw/Jaxl5jrdvMHIa02hcgbjNE1qiyrQJlwrtwhjj4BjQdezcXrciGrMN/RU6ul",
+	"GBZRCenDUxgwTpTU4xeQOb+67PV7GU96T3qnOCWnswc9zxz6xfGWXwAnchJozf9cVzKsFBrlLJOAHKgU",
+	"LYDtZanzIW9LJPAEUTYQCstv+4jQKMl0J01QANW9++0SynU69VLsE9tPwfsl78lVeqso+uH9bKp+eD9Y",
+	"iQ8Zka/0SHd/9n8oqnz7E1UrgH/98PX/BgAA//9MRS7ul3sCAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

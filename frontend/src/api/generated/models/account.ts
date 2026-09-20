@@ -21,7 +21,9 @@ the required session and CSRF credentials.
 import type { UUIDv7 } from './uUIDv7';
 import type { AccountStatus } from './accountStatus';
 import type { PasswordStatus } from './passwordStatus';
-import type { Email } from './email';
+import type { AccountLoginEmail } from './accountLoginEmail';
+import type { AccountProvisioningSource } from './accountProvisioningSource';
+import type { AuthIdentitySummary } from './authIdentitySummary';
 import type { RoleSummary } from './roleSummary';
 import type { Version } from './version';
 
@@ -30,7 +32,15 @@ export interface Account {
   personId: UUIDv7;
   status: AccountStatus;
   passwordStatus: PasswordStatus;
-  loginEmail: Email;
+  /**
+   * @deprecated
+   * @nullable
+   */
+  loginEmail: AccountLoginEmail;
+  provisioningSource: AccountProvisioningSource;
+  /** @nullable */
+  firstAuthenticatedAt: string | null;
+  authIdentities: AuthIdentitySummary[];
   roles: RoleSummary[];
   createdAt: string;
   updatedAt: string;

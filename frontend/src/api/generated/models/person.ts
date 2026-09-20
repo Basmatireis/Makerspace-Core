@@ -20,6 +20,7 @@ the required session and CSRF credentials.
  */
 import type { UUIDv7 } from './uUIDv7';
 import type { PersonEmail } from './personEmail';
+import type { PersonProfileImage } from './personProfileImage';
 import type { PersonAccount } from './personAccount';
 import type { Version } from './version';
 
@@ -51,12 +52,16 @@ export interface Person {
    */
   matriculationNumber?: string | null;
   /**
-   * Reserved response-only reference; photo upload/storage is not implemented in v1.
+   * Read-only legacy metadata preserved until a managed profile image replaces it.
    * @minLength 1
    * @maxLength 500
    * @nullable
    */
   readonly photoReference?: string | null;
+  /** @nullable */
+  profileImage?: PersonProfileImage;
+  /** True when any assigned Role requires a profile image. */
+  profileImageRequired?: boolean;
   /**
    * Omitted without `accounts.read`; null means this person has no account.
    * @nullable

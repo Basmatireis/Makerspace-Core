@@ -13,22 +13,50 @@ import (
 
 type Querier interface {
 	BumpAccountVersionAfterCredentialChange(ctx context.Context, accountID uuid.UUID) error
+	ClearPINThrottle(ctx context.Context, arg ClearPINThrottleParams) error
+	ConsumeAuthRateLimit(ctx context.Context, arg ConsumeAuthRateLimitParams) (*bool, error)
+	CountUsableIdentitiesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
+	CreateOIDCSession(ctx context.Context, arg CreateOIDCSessionParams) (Session, error)
+	CreatePINIdentity(ctx context.Context, arg CreatePINIdentityParams) (AuthIdentity, error)
+	CreatePINSession(ctx context.Context, arg CreatePINSessionParams) (Session, error)
 	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
+	DeleteExpiredAuthSecurityState(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeleteExpiredPasswordResetTokens(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeleteExpiredSessions(ctx context.Context, beforeTime time.Time) (int64, error)
+	DeletePINIdentity(ctx context.Context, id uuid.UUID) error
+	DeletePasswordIdentity(ctx context.Context, id uuid.UUID) error
 	DeletePasswordResetToken(ctx context.Context, id uuid.UUID) error
+	EnableInvitedAccount(ctx context.Context, accountID uuid.UUID) error
 	FindLoginAccountByEmail(ctx context.Context, identifierNormalized string) (uuid.UUID, error)
+	FindPINLogin(ctx context.Context, identifierNormalized string) (FindPINLoginRow, error)
+	FindPasswordChallengeTarget(ctx context.Context, identifierNormalized string) (FindPasswordChallengeTargetRow, error)
+	FindPasswordIdentityTarget(ctx context.Context, identifierNormalized string) (FindPasswordIdentityTargetRow, error)
 	FindPasswordResetAccountByDigest(ctx context.Context, tokenDigest []byte) (uuid.UUID, error)
 	GetAccountForAuthentication(ctx context.Context, id uuid.UUID) (GetAccountForAuthenticationRow, error)
+	GetActiveAuthChallengeForUpdate(ctx context.Context, arg GetActiveAuthChallengeForUpdateParams) (AuthChallenge, error)
 	GetLoginByEmail(ctx context.Context, identifierNormalized string) (GetLoginByEmailRow, error)
+	GetPINIdentityForAccount(ctx context.Context, accountID uuid.UUID) (AuthIdentity, error)
 	GetPasswordCredentialForAccount(ctx context.Context, accountID uuid.UUID) (PasswordCredential, error)
+	GetPasswordIdentityTargetForAccount(ctx context.Context, accountID uuid.UUID) (GetPasswordIdentityTargetForAccountRow, error)
 	GetPasswordResetByDigest(ctx context.Context, tokenDigest []byte) (GetPasswordResetByDigestRow, error)
 	GetSessionPrincipal(ctx context.Context, tokenDigest []byte) (GetSessionPrincipalRow, error)
+	IncrementAuthChallengeFailure(ctx context.Context, id uuid.UUID) error
+	MarkAuthenticationSucceeded(ctx context.Context, arg MarkAuthenticationSucceededParams) error
+	OIDCIdentityUsable(ctx context.Context, arg OIDCIdentityUsableParams) (bool, error)
+	PINThrottleBlocked(ctx context.Context, arg PINThrottleBlockedParams) (bool, error)
+	RecordPINFailure(ctx context.Context, arg RecordPINFailureParams) error
+	RevokeOtherSessionsForAccount(ctx context.Context, arg RevokeOtherSessionsForAccountParams) error
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) error
 	RevokeSessionsForAccount(ctx context.Context, arg RevokeSessionsForAccountParams) error
+	SetAuthChallengeDelivery(ctx context.Context, arg SetAuthChallengeDeliveryParams) error
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
+	UpdatePINIdentity(ctx context.Context, arg UpdatePINIdentityParams) (AuthIdentity, error)
+	UpsertAuthChallenge(ctx context.Context, arg UpsertAuthChallengeParams) (AuthChallenge, error)
+	UpsertPINCredential(ctx context.Context, arg UpsertPINCredentialParams) error
 	UpsertPasswordCredential(ctx context.Context, arg UpsertPasswordCredentialParams) error
+	UseAuthChallenge(ctx context.Context, id uuid.UUID) error
+	VerifyPasswordIdentity(ctx context.Context, id uuid.UUID) error
 }
 
 var _ Querier = (*Queries)(nil)

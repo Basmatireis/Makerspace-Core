@@ -18,12 +18,15 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { UUIDv7 } from './uUIDv7';
 import type { PermissionId } from './permissionId';
 import type { PermissionGrantScope } from './permissionGrantScope';
-import type { UUIDv7 } from './uUIDv7';
+import type { AuthenticationAssurance } from './authenticationAssurance';
 
 export interface PermissionGrant {
+  readonly id?: UUIDv7;
   permissionId: PermissionId;
   scope: PermissionGrantScope;
   deviceTypeIds: UUIDv7[];
+  minimumAssurance: AuthenticationAssurance;
 }

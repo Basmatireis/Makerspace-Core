@@ -27,5 +27,5 @@ export interface ManagedDeviceProvisioning {
    * @minLength 43
    * @maxLength 43
    */
-  readonly token: string;
+  readonly token?: string;
 }

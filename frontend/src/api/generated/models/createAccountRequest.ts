@@ -18,11 +18,12 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { Email } from './email';
+import type { CreateAccountRequestLoginEmail } from './createAccountRequestLoginEmail';
 import type { Version } from './version';
 
 export interface CreateAccountRequest {
-  loginEmail: Email;
+  /** @nullable */
+  loginEmail: CreateAccountRequestLoginEmail;
   /** Expected version of the owning person loaded by the caller. */
   expectedVersion: Version;
 }

@@ -16,7 +16,10 @@ type Querier interface {
 	DeletePerson(ctx context.Context, arg DeletePersonParams) (uuid.UUID, error)
 	GetPerson(ctx context.Context, id uuid.UUID) (Person, error)
 	GetPersonForDeletion(ctx context.Context, id uuid.UUID) (Person, error)
+	GetProfileImage(ctx context.Context, id uuid.UUID) (GetProfileImageRow, error)
 	ListPeople(ctx context.Context, arg ListPeopleParams) ([]Person, error)
+	PersonRequiresProfileImage(ctx context.Context, personID uuid.UUID) (bool, error)
+	SetProfileImage(ctx context.Context, arg SetProfileImageParams) (Person, error)
 	UpdatePerson(ctx context.Context, arg UpdatePersonParams) (Person, error)
 }
 

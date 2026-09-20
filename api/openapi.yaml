@@ -108,6 +108,85 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
 
+  /auth/pin/login:
+    post:
+      tags: [Authentication]
+      operationId: loginWithPin
+      summary: Start a low-assurance login-name/PIN session
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PinLoginRequest"
+      responses:
+        "204":
+          description: Authenticated; session and CSRF cookies are set.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+            Set-Cookie:
+              schema: {type: string}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/methods/pin:
+    put:
+      tags: [Authentication]
+      operationId: enrollOwnPin
+      summary: Enroll or replace the current account's PIN method
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/EnrollPinRequest"}
+      responses:
+        "204": {description: PIN method enrolled and other sessions revoked.}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/pin/enrollment/complete:
+    post:
+      tags: [Authentication]
+      operationId: completePinEnrollment
+      summary: Complete a one-time PIN enrollment challenge
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CompletePinEnrollmentRequest"}
+      responses:
+        "204": {description: PIN login enrolled; existing sessions were revoked.}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Authentication]
+      operationId: removeOwnPin
+      summary: Remove the current account's PIN method
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      responses:
+        "204": {description: PIN method removed and other sessions revoked.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /auth/logout:
     post:
       tags: [Authentication]
@@ -191,6 +270,72 @@ paths:
           $ref: "#/components/responses/UnprocessableEntity"
         "500":
           $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [Authentication]
+      operationId: removeOwnPassword
+      summary: Remove the current account password without stranding the account
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RemoveOwnPasswordRequest"}
+      responses:
+        "204": {description: Password removed and all sessions revoked., headers: {Set-Cookie: {schema: {type: string}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/password-reset/request:
+    post:
+      tags: [Authentication]
+      operationId: requestPasswordReset
+      summary: Request a password-reset code
+      description: Always returns the same accepted response, including for unknown or ineligible accounts and delivery failures.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestPasswordResetRequest"
+      responses:
+        "202":
+          description: Request accepted without disclosing account or delivery state.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/password-reset/complete-code:
+    post:
+      tags: [Authentication]
+      operationId: completePasswordResetCode
+      summary: Complete password recovery with an emailed code
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompletePasswordResetCodeRequest"
+      responses:
+        "204":
+          description: Password replaced, code consumed, and existing sessions revoked.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
 
   /auth/password-reset/complete:
     post:
@@ -223,6 +368,75 @@ paths:
           $ref: "#/components/responses/UnprocessableEntity"
         "500":
           $ref: "#/components/responses/InternalServerError"
+
+  /auth/invitations/complete:
+    post:
+      tags: [Authentication]
+      operationId: completeInvitation
+      summary: Complete an invitation and set the initial password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteInvitationRequest"
+      responses:
+        "204":
+          description: Invitation consumed, email verified, password set, and eligible account enabled.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/email-verification/request:
+    post:
+      tags: [Authentication]
+      operationId: requestOwnEmailVerification
+      summary: Send a verification code for the current account's local login email
+      description: The challenge is committed before synchronous delivery is attempted.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      responses:
+        "202":
+          description: Verification challenge committed and delivered.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "503": {$ref: "#/components/responses/ServiceUnavailable"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/email-verification/complete:
+    post:
+      tags: [Authentication]
+      operationId: completeEmailVerification
+      summary: Verify a local login email with a one-time code
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/CompleteEmailVerificationRequest"}
+      responses:
+        "204":
+          description: Email verified and challenge consumed.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
 
   /people:
     get:
@@ -437,6 +651,73 @@ paths:
           $ref: "#/components/responses/UnprocessableEntity"
         "500":
           $ref: "#/components/responses/InternalServerError"
+
+  /people/{personId}/profile-image:
+    parameters:
+      - $ref: "#/components/parameters/PersonId"
+    get:
+      tags: [People]
+      operationId: getPersonProfileImage
+      summary: Read a private normalized profile image
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Normalized JPEG profile image.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+          content:
+            image/jpeg:
+              schema: {type: string, format: binary}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [People]
+      operationId: putPersonProfileImage
+      summary: Validate, normalize, and replace a profile image
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters:
+        - name: expectedVersion
+          in: query
+          required: true
+          schema: {$ref: "#/components/schemas/Version"}
+        - name: X-File-Name
+          in: header
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 255}
+        - name: X-Profile-Image-Source
+          in: header
+          required: false
+          schema: {type: string, enum: [terminal_capture, self_upload, admin_upload], default: self_upload}
+      requestBody:
+        required: true
+        description: JPEG, PNG, or WebP bytes. The service verifies the actual decoded format.
+        content:
+          application/octet-stream: {schema: {type: string, format: binary}}
+      responses:
+        "200": {description: Updated profile image metadata., content: {application/json: {schema: {$ref: "#/components/schemas/ProfileImage"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "413": {description: Image exceeds 8 MiB.}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [People]
+      operationId: deletePersonProfileImage
+      summary: Remove a profile image
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Profile image removed.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
 
   /accounts/{accountId}:
     parameters:
@@ -655,12 +936,12 @@ paths:
     post:
       tags: [Accounts]
       operationId: issueAccountPasswordReset
-      summary: Issue a one-time administrative password-reset link
+      summary: Send a one-time administrative password-reset code
       description: |
-        Requires `accounts.password.reset`. The link expires after the configured
-        reset lifetime (30 minutes by default), uses a URL fragment so the token
-        is not sent in HTTP request URLs, and is returned only once. Issuance
-        invalidates the password for login and revokes existing sessions.
+        Requires `accounts.password.reset`. The code expires after the configured
+        reset lifetime (30 minutes by default) and is delivered to the password
+        identity. When mail is disabled, an authorized administrator receives a
+        one-time setup URL for delivery through a trusted channel.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -672,7 +953,7 @@ paths:
               $ref: "#/components/schemas/VersionRequest"
       responses:
         "201":
-          description: One-time reset link issued.
+          description: One-time reset code committed and delivered.
           headers:
             Cache-Control:
               $ref: "#/components/headers/NoStore"
@@ -692,6 +973,82 @@ paths:
           $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalServerError"
+
+  /accounts/{accountId}/invitations:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+    post:
+      tags: [Accounts]
+      operationId: issueAccountInvitation
+      summary: Send or safely resend an account invitation
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VersionRequest"
+      responses:
+        "201":
+          description: Invitation committed and either emailed or returned as a one-time administrator-only setup URL.
+          headers:
+            Cache-Control:
+              $ref: "#/components/headers/NoStore"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasswordResetIssue"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /accounts/{accountId}/pin-enrollment:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+    post:
+      tags: [Accounts]
+      operationId: issueAccountPinEnrollment
+      summary: Send or safely resend a one-time PIN setup challenge
+      description: |
+        Requires `accounts.pin.enroll.all` when adding PIN login and
+        `accounts.pin.reset` when replacing an existing PIN method. The
+        administrator never receives or chooses the permanent PIN.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/VersionRequest"}
+      responses:
+        "201":
+          description: PIN setup challenge committed and either emailed or returned as a one-time administrator-only setup URL.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PasswordResetIssue"}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
 
   /accounts/{accountId}/roles/{roleId}:
     parameters:
@@ -886,7 +1243,7 @@ paths:
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateManagedDeviceRequest"}}}}
       responses:
-        "201": {description: Device and one-time token., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceProvisioning"}}}}
+        "201": {description: Device and one-time native token or browser binding., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Set-Cookie: {schema: {type: string}}}, content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceProvisioning"}}}}
         "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
@@ -963,7 +1320,7 @@ paths:
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RotateManagedDeviceTokenRequest"}}}}
       responses:
-        "200": {description: Device and replacement token., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceProvisioning"}}}}
+        "200": {description: Device and replacement native token or browser binding., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Set-Cookie: {schema: {type: string}}}, content: {application/json: {schema: {$ref: "#/components/schemas/ManagedDeviceProvisioning"}}}}
         "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
@@ -1034,6 +1391,46 @@ paths:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /roles/effective-permissions:
+    get:
+      tags: [Roles]
+      operationId: evaluateRolePermissions
+      summary: Resolve every role's permissions for a hypothetical request context
+      description: |
+        Requires `roles.read`. Evaluation uses the same authentication-assurance
+        and managed-device rules as request authorization. Omitting `deviceTypeId`
+        represents an unmanaged device.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: authenticationAssurance
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/AuthenticationAssurance"
+        - name: deviceTypeId
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/UUIDv7"
+      responses:
+        "200":
+          description: Effective permissions for every configured role.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleEffectivePermissionEvaluationList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -1675,6 +2072,558 @@ paths:
           content: {text/calendar: {schema: {type: string}}}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /laborordnung/status/me:
+    get:
+      tags: [Laborordnung]
+      operationId: getOwnLaborordnungStatus
+      summary: Read the current Person's Lab Rules status without side effects
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Current compliance status., content: {application/json: {schema: {$ref: "#/components/schemas/LaborordnungStatus"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /laborordnung/requests/me:
+    post:
+      tags: [Laborordnung]
+      operationId: requestOwnLaborordnungConfirmation
+      summary: Explicitly create or reuse the current Person's physical-signature request
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Existing pending request reused., content: {application/json: {schema: {$ref: "#/components/schemas/LaborordnungRequest"}}}}
+        "201": {description: New pending request created., content: {application/json: {schema: {$ref: "#/components/schemas/LaborordnungRequest"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /laborordnung/versions:
+    get:
+      tags: [Laborordnung]
+      operationId: listLaborordnungVersions
+      summary: List Laborordnung history and upcoming publications
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Version history., content: {application/json: {schema: {$ref: "#/components/schemas/LaborordnungVersionList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Laborordnung]
+      operationId: createLaborordnungVersion
+      summary: Validate and store a draft Laborordnung PDF
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters:
+        - {name: X-Human-Revision, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 100}}
+        - {name: X-File-Name, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 255}}
+      requestBody:
+        required: true
+        content: {application/pdf: {schema: {type: string, format: binary}}}
+      responses:
+        "201": {description: Draft created., content: {application/json: {schema: {$ref: "#/components/schemas/LaborordnungVersion"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "413": {description: PDF exceeds 25 MiB.}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /laborordnung/versions/{laborordnungVersionId}/publish:
+    parameters: [{$ref: "#/components/parameters/LaborordnungVersionId"}]
+    post:
+      tags: [Laborordnung]
+      operationId: publishLaborordnungVersion
+      summary: Immutably publish a draft for an effective time
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PublishLaborordnungRequest"}}}}
+      responses:
+        "200": {description: Published version., content: {application/json: {schema: {$ref: "#/components/schemas/LaborordnungVersion"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /laborordnung/versions/{laborordnungVersionId}/pdf:
+    parameters: [{$ref: "#/components/parameters/LaborordnungVersionId"}]
+    get:
+      tags: [Laborordnung]
+      operationId: getLaborordnungPDF
+      summary: View or download the exact private PDF
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Exact published or draft PDF., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/pdf: {schema: {type: string, format: binary}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /laborordnung/requests:
+    get:
+      tags: [Laborordnung]
+      operationId: listLaborordnungRequests
+      summary: List the supervisor physical-evidence confirmation queue
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Pending and completed requests., content: {application/json: {schema: {$ref: "#/components/schemas/LaborordnungRequestList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /laborordnung/requests/{laborordnungRequestId}/confirm:
+    parameters: [{$ref: "#/components/parameters/LaborordnungRequestId"}]
+    post:
+      tags: [Laborordnung]
+      operationId: confirmLaborordnungRequest
+      summary: Confirm verification of a physical signed document
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ConfirmLaborordnungRequest"}}}}
+      responses:
+        "200": {description: Completed request., content: {application/json: {schema: {$ref: "#/components/schemas/LaborordnungRequest"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /supervisor-dashboard:
+    get:
+      tags: [Supervisors]
+      operationId: getSupervisorDashboard
+      summary: Aggregate designated supervisors, compliance, profile images, and open-period assignment counts
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Privacy-minimized dashboard., content: {application/json: {schema: {$ref: "#/components/schemas/SupervisorDashboard"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/oidc/providers:
+    get:
+      tags: [OIDC]
+      operationId: listOIDCLoginProviders
+      summary: List enabled OIDC providers available for login
+      security: []
+      responses:
+        "200": {description: Enabled login providers., content: {application/json: {schema: {$ref: "#/components/schemas/OIDCLoginProviderList"}}}}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /oidc/providers:
+    get:
+      tags: [OIDC]
+      operationId: listOIDCProviders
+      summary: List configured OIDC providers without secrets
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Providers., content: {application/json: {schema: {$ref: "#/components/schemas/OIDCProviderList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [OIDC]
+      operationId: createOIDCProvider
+      summary: Configure an OIDC provider
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateOIDCProviderRequest"}}}}
+      responses:
+        "201": {description: Provider created., content: {application/json: {schema: {$ref: "#/components/schemas/OIDCProvider"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /oidc/providers/{oidcProviderId}:
+    parameters: [{$ref: "#/components/parameters/OIDCProviderId"}]
+    patch:
+      tags: [OIDC]
+      operationId: updateOIDCProvider
+      summary: Update OIDC provider configuration; omitted client secret is unchanged
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateOIDCProviderRequest"}}}}
+      responses:
+        "200": {description: Provider updated., content: {application/json: {schema: {$ref: "#/components/schemas/OIDCProvider"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/oidc/{providerSlug}/start:
+    get:
+      tags: [OIDC]
+      operationId: startOIDCLogin
+      summary: Start an OIDC Authorization Code flow with PKCE S256
+      security: []
+      parameters: [{name: providerSlug, in: path, required: true, schema: {type: string, pattern: "^[a-z0-9][a-z0-9-]{1,62}$"}}]
+      responses:
+        "302": {description: Redirect to the provider., headers: {Location: {schema: {type: string}}, Set-Cookie: {schema: {type: string}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/oidc/callback:
+    get:
+      tags: [OIDC]
+      operationId: completeOIDCCallback
+      summary: Validate OIDC callback state, nonce, PKCE, issuer, signature, audience, expiry, and configured ACR
+      security: []
+      parameters:
+        - {name: code, in: query, required: true, schema: {type: string, minLength: 1, maxLength: 4096}}
+        - {name: state, in: query, required: true, schema: {type: string, minLength: 20, maxLength: 512}}
+      responses:
+        "302": {description: Login or linking completed., headers: {Location: {schema: {type: string}}, Set-Cookie: {schema: {type: string}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/oidc/{providerSlug}/link:
+    post:
+      tags: [OIDC]
+      operationId: startOIDCLink
+      summary: Reauthenticate with the local password and start secure identity linking
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters: [{name: providerSlug, in: path, required: true, schema: {type: string, pattern: "^[a-z0-9][a-z0-9-]{1,62}$"}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/OIDCLinkRequest"}}}}
+      responses:
+        "200": {description: Authorization URL., content: {application/json: {schema: {$ref: "#/components/schemas/OIDCFlowStart"}}}, headers: {Set-Cookie: {schema: {type: string}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/methods/oidc/{identityId}:
+    delete:
+      tags: [OIDC]
+      operationId: unlinkOwnOIDCIdentity
+      summary: Unlink an external identity without stranding the enabled Account
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters: [{name: identityId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+      responses:
+        "204": {description: Identity unlinked.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /visitor-enrollment/configuration:
+    get:
+      tags: [Visitor Enrollment]
+      operationId: getVisitorEnrollmentConfiguration
+      summary: Read the controlled visitor-terminal configuration
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Configuration., content: {application/json: {schema: {$ref: "#/components/schemas/VisitorEnrollmentConfiguration"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Visitor Enrollment]
+      operationId: updateVisitorEnrollmentConfiguration
+      summary: Replace the controlled visitor-terminal configuration
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateVisitorEnrollmentConfigurationRequest"}}}}
+      responses:
+        "200": {description: Updated configuration., content: {application/json: {schema: {$ref: "#/components/schemas/VisitorEnrollmentConfiguration"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /mail/configuration:
+    get:
+      tags: [Mail]
+      operationId: getMailConfiguration
+      summary: Read write-only-safe transactional mail configuration
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Mail configuration., content: {application/json: {schema: {$ref: "#/components/schemas/MailConfiguration"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Mail]
+      operationId: updateMailConfiguration
+      summary: Replace transactional SMTP configuration
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateMailConfigurationRequest"}}}}
+      responses:
+        "200": {description: Updated mail configuration., content: {application/json: {schema: {$ref: "#/components/schemas/MailConfiguration"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /visitor-enrollment/context:
+    post:
+      tags: [Visitor Enrollment]
+      operationId: beginVisitorEnrollment
+      summary: Begin enrollment on an enabled, approved ManagedDevice
+      security: []
+      responses:
+        "204": {description: Enrollment and CSRF cookies created., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Set-Cookie: {schema: {type: string}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /visitor-enrollment/state:
+    get:
+      tags: [Visitor Enrollment]
+      operationId: getVisitorEnrollmentState
+      summary: Read enrollment methods and current Lab Rules without creating records
+      security: []
+      responses:
+        "200": {description: Enrollment state., content: {application/json: {schema: {$ref: "#/components/schemas/VisitorEnrollmentState"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /visitor-enrollment/lab-rules.pdf:
+    get:
+      tags: [Visitor Enrollment]
+      operationId: getVisitorEnrollmentLabRulesPDF
+      summary: Read the current Lab Rules PDF within an enrollment context
+      security: []
+      responses:
+        "200": {description: Exact current PDF., content: {application/pdf: {schema: {type: string, format: binary}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /visitor-enrollment/submissions:
+    post:
+      tags: [Visitor Enrollment]
+      operationId: submitVisitorEnrollment
+      summary: Atomically create one visitor using the backend-configured Role
+      security: []
+      parameters:
+        - {name: X-Enrollment-CSRF-Token, in: header, required: true, schema: {type: string, minLength: 20, maxLength: 512}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VisitorEnrollmentSubmission"}}}}
+      responses:
+        "201": {description: Visitor created; the context is consumed., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Set-Cookie: {schema: {type: string}}}, content: {application/json: {schema: {$ref: "#/components/schemas/VisitorEnrollmentResult"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "413": {$ref: "#/components/responses/PayloadTooLarge"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /visitor-admission:
+    post:
+      tags: [Visitor Enrollment]
+      operationId: evaluateVisitorAdmission
+      summary: Explicitly request/reuse required physical confirmation and evaluate admission on an approved ManagedDevice
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Admission decision., content: {application/json: {schema: {$ref: "#/components/schemas/VisitorAdmissionResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /scim/connectors:
+    get:
+      tags: [SCIM Administration]
+      operationId: listSCIMConnectors
+      summary: List SCIM connectors without bearer-token secrets
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Connectors., content: {application/json: {schema: {$ref: "#/components/schemas/SCIMConnectorList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [SCIM Administration]
+      operationId: createSCIMConnector
+      summary: Create a SCIM connector and its first one-time-displayed bearer token
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateSCIMConnectorRequest"}}}}
+      responses:
+        "201": {description: Connector and bearer token., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/SCIMConnectorTokenIssue"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /scim/connectors/{scimConnectorId}:
+    parameters: [{name: scimConnectorId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    put:
+      tags: [SCIM Administration]
+      operationId: updateSCIMConnector
+      summary: Update a SCIM connector without changing its token
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSCIMConnectorRequest"}}}}
+      responses:
+        "200": {description: Updated connector., content: {application/json: {schema: {$ref: "#/components/schemas/SCIMConnector"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /scim/connectors/{scimConnectorId}/token:
+    parameters: [{name: scimConnectorId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    post:
+      tags: [SCIM Administration]
+      operationId: rotateSCIMConnectorToken
+      summary: Revoke the old token and issue a new one-time-displayed bearer token
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RotateSCIMTokenRequest"}}}}
+      responses:
+        "201": {description: New token., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/SCIMConnectorTokenIssue"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [SCIM Administration]
+      operationId: revokeSCIMConnectorToken
+      summary: Revoke the connector's active bearer token
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Connector with revoked token., content: {application/json: {schema: {$ref: "#/components/schemas/SCIMConnector"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /scim/reconciliation/preflight:
+    post:
+      tags: [SCIM Administration]
+      operationId: preflightSCIMReconciliation
+      summary: Analyze a provisional-to-established Account reconciliation without modifying data
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SCIMReconciliationRequest"}}}}
+      responses:
+        "200": {description: Structured conflict analysis., content: {application/json: {schema: {$ref: "#/components/schemas/SCIMReconciliationReport"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /scim/reconciliation:
+    post:
+      tags: [SCIM Administration]
+      operationId: reconcileSCIMAccount
+      summary: Atomically reconcile a conflict-free provisional SCIM Account into an established Account
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SCIMReconciliationRequest"}}}}
+      responses:
+        "200": {description: Completed reconciliation., content: {application/json: {schema: {$ref: "#/components/schemas/SCIMReconciliationReport"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {description: Reconciliation conflicts; no data changed., content: {application/json: {schema: {$ref: "#/components/schemas/SCIMReconciliationReport"}}}}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /scim/v2/ServiceProviderConfig:
+    get:
+      tags: [SCIM]
+      operationId: getSCIMServiceProviderConfig
+      security: [{scimBearer: []}]
+      responses:
+        "200": {description: SCIM service capabilities., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMServiceProviderConfig"}}}}
+        "401": {description: Invalid connector token., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+
+  /scim/v2/ResourceTypes:
+    get:
+      tags: [SCIM]
+      operationId: listSCIMResourceTypes
+      security: [{scimBearer: []}]
+      responses:
+        "200": {description: Supported resources., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMListResponse"}}}}
+        "401": {description: Invalid connector token., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+
+  /scim/v2/Schemas:
+    get:
+      tags: [SCIM]
+      operationId: listSCIMSchemas
+      security: [{scimBearer: []}]
+      responses:
+        "200": {description: Supported schemas., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMListResponse"}}}}
+        "401": {description: Invalid connector token., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+
+  /scim/v2/Users:
+    get:
+      tags: [SCIM]
+      operationId: listSCIMUsers
+      security: [{scimBearer: []}]
+      parameters:
+        - {name: filter, in: query, schema: {type: string, maxLength: 512}}
+        - {name: startIndex, in: query, schema: {type: integer, minimum: 1, default: 1}}
+        - {name: count, in: query, schema: {type: integer, minimum: 0, maximum: 100, default: 100}}
+      responses:
+        "200": {description: Connector-scoped Users., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMUserListResponse"}}}}
+        "400": {description: Invalid filter., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+        "401": {description: Invalid connector token., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+    post:
+      tags: [SCIM]
+      operationId: createSCIMUser
+      security: [{scimBearer: []}]
+      requestBody: {required: true, content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMUserWrite"}}}}
+      responses:
+        "201": {description: Provisioned User., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMUser"}}}}
+        "400": {description: Invalid User., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+        "401": {description: Invalid connector token., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+        "409": {description: Connector-scoped identifier conflict., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+
+  /scim/v2/Users/{scimUserId}:
+    parameters: [{name: scimUserId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    get:
+      tags: [SCIM]
+      operationId: getSCIMUser
+      security: [{scimBearer: []}]
+      responses:
+        "200": {description: User., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMUser"}}}}
+        "401": {description: Invalid connector token., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+        "404": {description: User not found., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+    put:
+      tags: [SCIM]
+      operationId: replaceSCIMUser
+      security: [{scimBearer: []}]
+      requestBody: {required: true, content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMUserWrite"}}}}
+      responses:
+        "200": {description: Replaced User., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMUser"}}}}
+        "400": {description: Invalid User., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+        "401": {description: Invalid connector token., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+        "404": {description: User not found., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+        "409": {description: Identifier conflict., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+    patch:
+      tags: [SCIM]
+      operationId: patchSCIMUser
+      security: [{scimBearer: []}]
+      requestBody: {required: true, content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMPatchRequest"}}}}
+      responses:
+        "200": {description: Patched User., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMUser"}}}}
+        "400": {description: Invalid patch., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+        "401": {description: Invalid connector token., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+        "404": {description: User not found., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+        "409": {description: Identifier conflict., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+    delete:
+      tags: [SCIM]
+      operationId: deleteSCIMUser
+      summary: Deprovision the connector mapping without deleting the Person
+      security: [{scimBearer: []}]
+      responses:
+        "204": {description: Mapping deprovisioned; Person retained.}
+        "401": {description: Invalid connector token., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+        "404": {description: User not found., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+        "409": {description: Deprovisioning would violate an account security invariant., content: {application/scim+json: {schema: {$ref: "#/components/schemas/SCIMError"}}}}
+
 components:
   headers:
     NoStore:
@@ -1699,6 +2648,11 @@ components:
       in: header
       name: X-Managed-Device-Token
       description: Optional opaque managed-device bearer credential accepted on every session-authenticated operation and injected by a trusted native client. It never replaces the user session.
+    scimBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: One-time-displayed connector token stored only as a digest.
 
   parameters:
     PersonId:
@@ -1751,6 +2705,21 @@ components:
       schema: {$ref: "#/components/schemas/UUIDv7"}
     AcademicBreakId:
       name: academicBreakId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
+    LaborordnungVersionId:
+      name: laborordnungVersionId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
+    LaborordnungRequestId:
+      name: laborordnungRequestId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
+    OIDCProviderId:
+      name: oidcProviderId
       in: path
       required: true
       schema: {$ref: "#/components/schemas/UUIDv7"}
@@ -1825,6 +2794,12 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+    PayloadTooLarge:
+      description: The submitted image or document exceeds its route-specific limit.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
     TooManyRequests:
       description: Security-sensitive request rate exceeded.
       headers:
@@ -1833,6 +2808,12 @@ components:
           schema:
             type: integer
             minimum: 1
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    ServiceUnavailable:
+      description: A required optional integration is unavailable or delivery failed safely.
       content:
         application/json:
           schema:
@@ -1888,6 +2869,10 @@ components:
         - people.delete
         - people.read.matriculation
         - people.update.matriculation
+        - people.profile_image.update.self
+        - people.profile_image.update.all
+        - people.profile_image.remove.self
+        - people.profile_image.remove.all
         - accounts.read
         - accounts.create
         - accounts.delete
@@ -1896,6 +2881,15 @@ components:
         - accounts.login_email.update
         - accounts.password.set
         - accounts.password.reset
+        - accounts.password.enroll.self
+        - accounts.password.enroll.all
+        - accounts.password.remove.self
+        - accounts.password.remove.all
+        - accounts.pin.enroll.self
+        - accounts.pin.enroll.all
+        - accounts.pin.remove.self
+        - accounts.pin.remove.all
+        - accounts.pin.reset
         - accounts.roles.assign
         - roles.read
         - roles.manage
@@ -1907,6 +2901,19 @@ components:
         - open_days.manage
         - managed_devices.read
         - managed_devices.manage
+        - laborordnung.read
+        - laborordnung.manage
+        - laborordnung.requests.read
+        - laborordnung.confirm
+        - visitor_enrollment.manage
+        - supervisor_dashboard.read
+        - identities.oidc.link.self
+        - identities.oidc.link.all
+        - identities.oidc.unlink.self
+        - identities.oidc.unlink.all
+        - oidc.manage
+        - scim.manage
+        - mail.manage
 
     HealthStatus:
       type: object
@@ -1950,6 +2957,66 @@ components:
         password:
           $ref: "#/components/schemas/ExistingPassword"
 
+    PinLoginRequest:
+      type: object
+      additionalProperties: false
+      required: [loginName, pin]
+      properties:
+        loginName:
+          type: string
+          minLength: 3
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        pin:
+          type: string
+          format: password
+          minLength: 6
+          maxLength: 12
+          pattern: "^[0-9]{6,12}$"
+          writeOnly: true
+
+    EnrollPinRequest:
+      type: object
+      additionalProperties: false
+      required: [loginName, pin]
+      properties:
+        loginName:
+          type: string
+          minLength: 3
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        pin:
+          type: string
+          format: password
+          minLength: 6
+          maxLength: 12
+          pattern: "^[0-9]{6,12}$"
+          writeOnly: true
+
+    CompletePinEnrollmentRequest:
+      type: object
+      additionalProperties: false
+      required: [accountId, code, loginName, pin]
+      properties:
+        accountId: {$ref: "#/components/schemas/UUIDv7"}
+        code:
+          type: string
+          minLength: 8
+          maxLength: 8
+          pattern: "^[23456789ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz]{8}$"
+        loginName:
+          type: string
+          minLength: 3
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        pin:
+          type: string
+          format: password
+          minLength: 6
+          maxLength: 12
+          pattern: "^[0-9]{6,12}$"
+          writeOnly: true
+
     ChangeOwnPasswordRequest:
       type: object
       additionalProperties: false
@@ -1959,6 +3026,13 @@ components:
           $ref: "#/components/schemas/ExistingPassword"
         newPassword:
           $ref: "#/components/schemas/NewPassword"
+
+    RemoveOwnPasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [currentPassword]
+      properties:
+        currentPassword: {$ref: "#/components/schemas/ExistingPassword"}
 
     CompletePasswordResetRequest:
       type: object
@@ -1973,10 +3047,61 @@ components:
         newPassword:
           $ref: "#/components/schemas/NewPassword"
 
+    RequestPasswordResetRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          $ref: "#/components/schemas/Email"
+
+    CompletePasswordResetCodeRequest:
+      type: object
+      additionalProperties: false
+      required: [email, code, newPassword]
+      properties:
+        email:
+          $ref: "#/components/schemas/Email"
+        code:
+          type: string
+          minLength: 8
+          maxLength: 8
+          pattern: "^[23456789ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz]{8}$"
+        newPassword:
+          $ref: "#/components/schemas/NewPassword"
+
+    CompleteInvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [email, code, newPassword]
+      properties:
+        email:
+          $ref: "#/components/schemas/Email"
+        code:
+          type: string
+          minLength: 8
+          maxLength: 8
+          pattern: "^[23456789ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz]{8}$"
+        newPassword:
+          $ref: "#/components/schemas/NewPassword"
+
+    CompleteEmailVerificationRequest:
+      type: object
+      additionalProperties: false
+      required: [email, code]
+      properties:
+        email:
+          $ref: "#/components/schemas/Email"
+        code:
+          type: string
+          minLength: 8
+          maxLength: 8
+          pattern: "^[23456789ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz]{8}$"
+
     CurrentUser:
       type: object
       additionalProperties: false
-      required: [account, person, permissions, managedDevice, delegablePermissionGrants]
+      required: [account, person, permissions, authenticationAssurance, managedDevice, delegablePermissionGrants, laborordnungStatus]
       properties:
         account:
           $ref: "#/components/schemas/Account"
@@ -1987,12 +3112,16 @@ components:
           uniqueItems: true
           items:
             $ref: "#/components/schemas/PermissionId"
+        authenticationAssurance:
+          $ref: "#/components/schemas/AuthenticationAssurance"
         managedDevice:
           allOf: [{$ref: "#/components/schemas/ManagedDeviceContext"}]
           nullable: true
         delegablePermissionGrants:
           type: array
           items: {$ref: "#/components/schemas/PermissionGrant"}
+        laborordnungStatus:
+          $ref: "#/components/schemas/LaborordnungStatus"
 
     ManagedDeviceContext:
       type: object
@@ -2041,7 +3170,13 @@ components:
           maxLength: 500
           nullable: true
           readOnly: true
-          description: Reserved response-only reference; photo upload/storage is not implemented in v1.
+          description: Read-only legacy metadata preserved until a managed profile image replaces it.
+        profileImage:
+          allOf: [{$ref: "#/components/schemas/ProfileImage"}]
+          nullable: true
+        profileImageRequired:
+          type: boolean
+          description: True when any assigned Role requires a profile image.
         account:
           allOf:
             - $ref: "#/components/schemas/AccountSummary"
@@ -2084,6 +3219,195 @@ components:
           minLength: 1
           maxLength: 64
           nullable: true
+
+    ProfileImage:
+      type: object
+      additionalProperties: false
+      required: [fileId, source, downloadUrl]
+      properties:
+        fileId: {$ref: "#/components/schemas/UUIDv7"}
+        source: {type: string, enum: [terminal_capture, self_upload, admin_upload]}
+        downloadUrl: {type: string, pattern: "^/api/v1/people/"}
+
+    LaborordnungVersion:
+      type: object
+      additionalProperties: false
+      required: [id, status, humanRevision, pdfFileId, sha256, effectiveAt, publishedAt, createdAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        status: {type: string, enum: [draft, published]}
+        humanRevision: {type: string, minLength: 1, maxLength: 100}
+        pdfFileId: {$ref: "#/components/schemas/UUIDv7"}
+        sha256: {type: string, pattern: "^[0-9a-f]{64}$"}
+        effectiveAt: {type: string, format: date-time, nullable: true}
+        publishedAt: {type: string, format: date-time, nullable: true}
+        createdAt: {type: string, format: date-time}
+    LaborordnungVersionList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/LaborordnungVersion"}}}
+    PublishLaborordnungRequest:
+      type: object
+      additionalProperties: false
+      required: [effectiveAt]
+      properties: {effectiveAt: {type: string, format: date-time}}
+    LaborordnungStatus:
+      type: object
+      additionalProperties: false
+      required: [mode, state, actionRequired, currentVersion, latestConfirmedVersion, requestId]
+      properties:
+        mode: {type: string, enum: [not_required, warning, blocking]}
+        state: {type: string, enum: [not_required, no_published_version, current, outdated]}
+        actionRequired: {type: boolean}
+        currentVersion: {allOf: [{$ref: "#/components/schemas/LaborordnungVersion"}], nullable: true}
+        latestConfirmedVersion: {allOf: [{$ref: "#/components/schemas/LaborordnungVersion"}], nullable: true}
+        requestId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+    LaborordnungRequest:
+      type: object
+      additionalProperties: false
+      required: [id, personId, personName, requiredVersion, previousVersion, status, requestedAt, completedAt, physicalDocumentReference, signedDate, archiveNote]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+        personName: {type: string, minLength: 1, maxLength: 201}
+        requiredVersion: {$ref: "#/components/schemas/LaborordnungVersion"}
+        previousVersion: {allOf: [{$ref: "#/components/schemas/LaborordnungVersion"}], nullable: true}
+        status: {type: string, enum: [pending, completed, superseded]}
+        requestedAt: {type: string, format: date-time}
+        completedAt: {type: string, format: date-time, nullable: true}
+        physicalDocumentReference: {type: string, maxLength: 255, nullable: true}
+        signedDate: {type: string, format: date, nullable: true}
+        archiveNote: {type: string, maxLength: 1000, nullable: true}
+    LaborordnungRequestList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/LaborordnungRequest"}}}
+    ConfirmLaborordnungRequest:
+      type: object
+      additionalProperties: false
+      required: [physicalDocumentReference]
+      properties:
+        physicalDocumentReference: {type: string, minLength: 1, maxLength: 255}
+        signedDate: {type: string, format: date, nullable: true}
+        archiveNote: {type: string, maxLength: 1000, nullable: true}
+
+    SupervisorDashboard:
+      type: object
+      additionalProperties: false
+      required: [periods, supervisors, totals]
+      properties:
+        periods: {type: array, items: {$ref: "#/components/schemas/SupervisorPeriod"}}
+        supervisors: {type: array, items: {$ref: "#/components/schemas/SupervisorRow"}}
+        totals: {$ref: "#/components/schemas/SupervisorTotals"}
+    SupervisorPeriod:
+      type: object
+      additionalProperties: false
+      required: [id, name, status, supervisorAssignments]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        status: {type: string, enum: [staffing, published]}
+        supervisorAssignments: {type: integer, minimum: 0}
+    SupervisorAssignmentCount:
+      type: object
+      additionalProperties: false
+      required: [periodId, count]
+      properties:
+        periodId: {$ref: "#/components/schemas/UUIDv7"}
+        count: {type: integer, minimum: 0}
+    SupervisorRow:
+      type: object
+      additionalProperties: false
+      required: [personId, name, hasProfileImage, laborordnungState, assignmentCounts]
+      properties:
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        hasProfileImage: {type: boolean}
+        laborordnungState: {type: string, enum: [not_required, no_published_version, current, outdated]}
+        assignmentCounts: {type: array, items: {$ref: "#/components/schemas/SupervisorAssignmentCount"}}
+    SupervisorTotals:
+      type: object
+      additionalProperties: false
+      required: [supervisors, profileImagesComplete, laborordnungCurrent, laborordnungOutdated]
+      properties:
+        supervisors: {type: integer, minimum: 0}
+        profileImagesComplete: {type: integer, minimum: 0}
+        laborordnungCurrent: {type: integer, minimum: 0}
+        laborordnungOutdated: {type: integer, minimum: 0}
+
+    OIDCProvider:
+      type: object
+      additionalProperties: false
+      required: [id, slug, displayName, issuer, clientId, enabled, jitEnabled, acrAssuranceMappings, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        slug: {type: string, pattern: "^[a-z0-9][a-z0-9-]{1,62}$"}
+        displayName: {type: string, minLength: 1, maxLength: 100}
+        issuer: {type: string, format: uri, maxLength: 500}
+        clientId: {type: string, minLength: 1, maxLength: 255}
+        enabled: {type: boolean}
+        jitEnabled: {type: boolean}
+        acrAssuranceMappings:
+          type: object
+          additionalProperties: {$ref: "#/components/schemas/AuthenticationAssurance"}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    OIDCProviderList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/OIDCProvider"}}}
+    OIDCLoginProvider:
+      type: object
+      additionalProperties: false
+      required: [slug, displayName]
+      properties:
+        slug: {type: string}
+        displayName: {type: string}
+    OIDCLoginProviderList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/OIDCLoginProvider"}}}
+    CreateOIDCProviderRequest:
+      type: object
+      additionalProperties: false
+      required: [slug, displayName, issuer, clientId, clientSecret, enabled, jitEnabled, acrAssuranceMappings]
+      properties:
+        slug: {type: string, pattern: "^[a-z0-9][a-z0-9-]{1,62}$"}
+        displayName: {type: string, minLength: 1, maxLength: 100}
+        issuer: {type: string, format: uri, maxLength: 500}
+        clientId: {type: string, minLength: 1, maxLength: 255}
+        clientSecret: {type: string, minLength: 1, maxLength: 4096, writeOnly: true}
+        enabled: {type: boolean}
+        jitEnabled: {type: boolean}
+        acrAssuranceMappings: {type: object, additionalProperties: {$ref: "#/components/schemas/AuthenticationAssurance"}}
+    UpdateOIDCProviderRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, displayName, issuer, clientId, enabled, jitEnabled, acrAssuranceMappings]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        displayName: {type: string, minLength: 1, maxLength: 100}
+        issuer: {type: string, format: uri, maxLength: 500}
+        clientId: {type: string, minLength: 1, maxLength: 255}
+        clientSecret: {type: string, minLength: 1, maxLength: 4096, writeOnly: true}
+        enabled: {type: boolean}
+        jitEnabled: {type: boolean}
+        acrAssuranceMappings: {type: object, additionalProperties: {$ref: "#/components/schemas/AuthenticationAssurance"}}
+    OIDCLinkRequest:
+      type: object
+      additionalProperties: false
+      required: [currentPassword]
+      properties: {currentPassword: {$ref: "#/components/schemas/ExistingPassword"}}
+    OIDCFlowStart:
+      type: object
+      additionalProperties: false
+      required: [authorizationUrl]
+      properties: {authorizationUrl: {type: string, format: uri}}
 
     UpdatePersonRequest:
       type: object
@@ -2148,7 +3472,7 @@ components:
     AccountSummary:
       type: object
       additionalProperties: false
-      required: [id, personId, status, passwordStatus, loginEmail, roles, version]
+      required: [id, personId, status, provisioningSource, firstAuthenticatedAt, passwordStatus, loginEmail, authIdentities, roles, version]
       properties:
         id:
           $ref: "#/components/schemas/UUIDv7"
@@ -2159,7 +3483,20 @@ components:
         passwordStatus:
           $ref: "#/components/schemas/PasswordStatus"
         loginEmail:
-          $ref: "#/components/schemas/Email"
+          allOf: [{$ref: "#/components/schemas/Email"}]
+          nullable: true
+          deprecated: true
+          description: Compatibility view of the local password identifier; use authIdentities.
+        provisioningSource:
+          type: string
+          enum: [local, invitation, oidc_jit, scim, visitor]
+        firstAuthenticatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        authIdentities:
+          type: array
+          items: {$ref: "#/components/schemas/AuthIdentitySummary"}
         roles:
           type: array
           items:
@@ -2170,7 +3507,7 @@ components:
     Account:
       type: object
       additionalProperties: false
-      required: [id, personId, status, passwordStatus, loginEmail, roles, createdAt, updatedAt, version]
+      required: [id, personId, status, provisioningSource, firstAuthenticatedAt, passwordStatus, loginEmail, authIdentities, roles, createdAt, updatedAt, version]
       properties:
         id:
           $ref: "#/components/schemas/UUIDv7"
@@ -2181,7 +3518,19 @@ components:
         passwordStatus:
           $ref: "#/components/schemas/PasswordStatus"
         loginEmail:
-          $ref: "#/components/schemas/Email"
+          allOf: [{$ref: "#/components/schemas/Email"}]
+          nullable: true
+          deprecated: true
+        provisioningSource:
+          type: string
+          enum: [local, invitation, oidc_jit, scim, visitor]
+        firstAuthenticatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        authIdentities:
+          type: array
+          items: {$ref: "#/components/schemas/AuthIdentitySummary"}
         roles:
           type: array
           items:
@@ -2201,11 +3550,24 @@ components:
       required: [loginEmail, expectedVersion]
       properties:
         loginEmail:
-          $ref: "#/components/schemas/Email"
+          allOf: [{$ref: "#/components/schemas/Email"}]
+          nullable: true
         expectedVersion:
           allOf:
             - $ref: "#/components/schemas/Version"
           description: Expected version of the owning person loaded by the caller.
+
+    AuthIdentitySummary:
+      type: object
+      additionalProperties: false
+      required: [id, kind, displayIdentifier, verifiedAt, disabledAt, createdAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        kind: {type: string, enum: [password, pin, oidc]}
+        displayIdentifier: {type: string, nullable: true, maxLength: 254}
+        verifiedAt: {type: string, format: date-time, nullable: true}
+        disabledAt: {type: string, format: date-time, nullable: true}
+        createdAt: {type: string, format: date-time}
 
     UpdateLoginEmailRequest:
       type: object
@@ -2230,18 +3592,54 @@ components:
     PasswordResetIssue:
       type: object
       additionalProperties: false
-      required: [resetUrl, expiresAt, account]
+      required: [expiresAt, account, deliveryStatus, setupUrl]
       properties:
-        resetUrl:
-          type: string
-          format: uri
-          readOnly: true
-          description: One-time frontend URL containing the token in its fragment. Treat as a secret.
         expiresAt:
           type: string
           format: date-time
         account:
           $ref: "#/components/schemas/Account"
+        deliveryStatus:
+          type: string
+          enum: [sent, manual]
+        setupUrl:
+          type: string
+          nullable: true
+          description: One-time relative setup URL returned only to an authorized administrator when mail is not configured.
+
+    MailConfiguration:
+      type: object
+      additionalProperties: false
+      required: [enabled, provider, host, port, tlsMode, username, passwordConfigured, fromAddress, fromName, baseUrl, version, updatedAt]
+      properties:
+        enabled: {type: boolean}
+        provider: {type: string, enum: [smtp]}
+        host: {type: string}
+        port: {type: integer, minimum: 1, maximum: 65535}
+        tlsMode: {type: string, enum: [starttls, tls, none]}
+        username: {type: string}
+        passwordConfigured: {type: boolean}
+        fromAddress: {type: string}
+        fromName: {type: string}
+        baseUrl: {type: string}
+        version: {$ref: "#/components/schemas/Version"}
+        updatedAt: {type: string, format: date-time}
+
+    UpdateMailConfigurationRequest:
+      type: object
+      additionalProperties: false
+      required: [enabled, host, port, tlsMode, username, password, fromAddress, fromName, baseUrl, expectedVersion]
+      properties:
+        enabled: {type: boolean}
+        host: {type: string, maxLength: 255}
+        port: {type: integer, minimum: 1, maximum: 65535}
+        tlsMode: {type: string, enum: [starttls, tls, none]}
+        username: {type: string, maxLength: 255}
+        password: {type: string, maxLength: 1024, writeOnly: true, description: Leave empty to retain the existing encrypted password.}
+        fromAddress: {type: string, maxLength: 320}
+        fromName: {type: string, maxLength: 255}
+        baseUrl: {type: string, maxLength: 2048}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
 
     VersionRequest:
       type: object
@@ -2327,11 +3725,12 @@ components:
     CreateManagedDeviceRequest:
       type: object
       additionalProperties: false
-      required: [name, deviceTypeId, expiresAt]
+      required: [name, deviceTypeId, expiresAt, credentialDelivery]
       properties:
         name: {type: string, minLength: 1, maxLength: 100}
         deviceTypeId: {$ref: "#/components/schemas/UUIDv7"}
         expiresAt: {type: string, format: date-time, nullable: true}
+        credentialDelivery: {$ref: "#/components/schemas/ManagedDeviceCredentialDelivery"}
     UpdateManagedDeviceRequest:
       type: object
       additionalProperties: false
@@ -2344,14 +3743,18 @@ components:
     RotateManagedDeviceTokenRequest:
       type: object
       additionalProperties: false
-      required: [expiresAt, expectedVersion]
+      required: [expiresAt, expectedVersion, credentialDelivery]
       properties:
         expiresAt: {type: string, format: date-time, nullable: true}
         expectedVersion: {$ref: "#/components/schemas/Version"}
+        credentialDelivery: {$ref: "#/components/schemas/ManagedDeviceCredentialDelivery"}
+    ManagedDeviceCredentialDelivery:
+      type: string
+      enum: [nativeToken, bindBrowser]
     ManagedDeviceProvisioning:
       type: object
       additionalProperties: false
-      required: [device, token]
+      required: [device]
       properties:
         device: {$ref: "#/components/schemas/ManagedDevice"}
         token:
@@ -2381,7 +3784,7 @@ components:
     Role:
       type: object
       additionalProperties: false
-      required: [id, name, description, systemKey, permissionGrants, createdAt, updatedAt, version]
+      required: [id, name, description, systemKey, permissionGrants, profileImageRequired, laborordnungMode, supervisorDashboard, createdAt, updatedAt, version]
       properties:
         id:
           $ref: "#/components/schemas/UUIDv7"
@@ -2403,6 +3806,13 @@ components:
           items:
             $ref: "#/components/schemas/PermissionGrant"
           description: For master, this is the current complete application permission set.
+        profileImageRequired:
+          type: boolean
+        laborordnungMode:
+          type: string
+          enum: [not_required, warning, blocking]
+        supervisorDashboard:
+          type: boolean
         createdAt:
           type: string
           format: date-time
@@ -2430,6 +3840,16 @@ components:
           uniqueItems: true
           items:
             $ref: "#/components/schemas/PermissionGrant"
+        profileImageRequired:
+          type: boolean
+          default: false
+        laborordnungMode:
+          type: string
+          enum: [not_required, warning, blocking]
+          default: not_required
+        supervisorDashboard:
+          type: boolean
+          default: false
 
     UpdateRoleRequest:
       type: object
@@ -2437,6 +3857,13 @@ components:
       required: [expectedVersion]
       description: At least one update field must be present.
       properties:
+        profileImageRequired:
+          type: boolean
+        laborordnungMode:
+          type: string
+          enum: [not_required, warning, blocking]
+        supervisorDashboard:
+          type: boolean
         expectedVersion:
           $ref: "#/components/schemas/Version"
         name:
@@ -2464,8 +3891,11 @@ components:
     PermissionGrant:
       type: object
       additionalProperties: false
-      required: [permissionId, scope, deviceTypeIds]
+      required: [permissionId, scope, deviceTypeIds, minimumAssurance]
       properties:
+        id:
+          allOf: [{$ref: "#/components/schemas/UUIDv7"}]
+          readOnly: true
         permissionId: {$ref: "#/components/schemas/PermissionId"}
         scope:
           type: string
@@ -2474,6 +3904,38 @@ components:
           type: array
           uniqueItems: true
           items: {$ref: "#/components/schemas/UUIDv7"}
+        minimumAssurance:
+          $ref: "#/components/schemas/AuthenticationAssurance"
+
+    AuthenticationAssurance:
+      type: string
+      enum: [low, normal, strong, strong_mfa]
+      description: Ordered authentication assurance required by a permission grant or held by a session.
+
+    RoleEffectivePermissionEvaluation:
+      type: object
+      additionalProperties: false
+      required: [roleId, roleVersion, permissionIds]
+      properties:
+        roleId:
+          $ref: "#/components/schemas/UUIDv7"
+        roleVersion:
+          $ref: "#/components/schemas/Version"
+        permissionIds:
+          type: array
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/PermissionId"
+
+    RoleEffectivePermissionEvaluationList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleEffectivePermissionEvaluation"
 
     RolePage:
       type: object
@@ -2909,3 +4371,286 @@ components:
       required: [items]
       properties:
         items: {type: array, items: {$ref: "#/components/schemas/PublicOpenDay"}}
+
+    VisitorAuthenticationMethod:
+      type: string
+      enum: [password, pin]
+
+    VisitorEnrollmentConfiguration:
+      type: object
+      additionalProperties: false
+      required: [enabled, initialRoleId, deviceTypeIds, allowedMethods, version, updatedAt]
+      properties:
+        enabled: {type: boolean}
+        initialRoleId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        deviceTypeIds: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}}
+        allowedMethods: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
+        version: {$ref: "#/components/schemas/Version"}
+        updatedAt: {type: string, format: date-time}
+
+    UpdateVisitorEnrollmentConfigurationRequest:
+      type: object
+      additionalProperties: false
+      required: [enabled, initialRoleId, deviceTypeIds, allowedMethods, expectedVersion]
+      properties:
+        enabled: {type: boolean}
+        initialRoleId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        deviceTypeIds: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/UUIDv7"}}
+        allowedMethods: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    VisitorLabRulesVersion:
+      type: object
+      additionalProperties: false
+      required: [id, humanRevision, effectiveAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        humanRevision: {type: string, minLength: 1, maxLength: 100}
+        effectiveAt: {type: string, format: date-time}
+
+    VisitorEnrollmentState:
+      type: object
+      additionalProperties: false
+      required: [allowedMethods, currentLabRules, expiresAt]
+      properties:
+        allowedMethods: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
+        currentLabRules: {allOf: [{$ref: "#/components/schemas/VisitorLabRulesVersion"}], nullable: true}
+        expiresAt: {type: string, format: date-time}
+
+    VisitorEnrollmentSubmission:
+      type: object
+      additionalProperties: false
+      required: [firstName, lastName, email, phone, authMethods, pinLoginName, pin, profileImageBase64, profileImageFilename, requestConfirmation]
+      properties:
+        firstName: {type: string, minLength: 1, maxLength: 100}
+        lastName: {type: string, minLength: 1, maxLength: 100}
+        email: {type: string, format: email, nullable: true}
+        phone: {type: string, minLength: 1, maxLength: 64, nullable: true}
+        authMethods: {type: array, minItems: 1, uniqueItems: true, items: {$ref: "#/components/schemas/VisitorAuthenticationMethod"}}
+        pinLoginName: {type: string, minLength: 3, maxLength: 64, nullable: true}
+        pin: {type: string, pattern: "^[0-9]{6,12}$", writeOnly: true, nullable: true}
+        profileImageBase64: {type: string, format: byte, minLength: 4, maxLength: 12000000, writeOnly: true}
+        profileImageFilename: {type: string, minLength: 1, maxLength: 255}
+        requestConfirmation: {type: boolean, description: Must be true as the visitor's explicit request to enter the physical-signature workflow.}
+
+    VisitorEnrollmentResult:
+      type: object
+      additionalProperties: false
+      required: [personId, accountId, accountStatus, invitationDelivery, labRulesRequestId, admission]
+      properties:
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+        accountId: {$ref: "#/components/schemas/UUIDv7"}
+        accountStatus: {type: string, enum: [enabled, disabled]}
+        invitationDelivery: {type: string, enum: [sent, failed], nullable: true}
+        labRulesRequestId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        admission: {type: string, enum: [admitted, warning, blocked]}
+
+    VisitorAdmissionResult:
+      type: object
+      additionalProperties: false
+      required: [decision, status, requestId]
+      properties:
+        decision: {type: string, enum: [admitted, warning, blocked]}
+        status: {$ref: "#/components/schemas/LaborordnungStatus"}
+        requestId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+
+    SCIMConnector:
+      type: object
+      additionalProperties: false
+      required: [id, name, oidcProviderId, enabled, tokenExpiresAt, tokenRevokedAt, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        oidcProviderId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        enabled: {type: boolean}
+        tokenExpiresAt: {type: string, format: date-time, nullable: true}
+        tokenRevokedAt: {type: string, format: date-time, nullable: true}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+
+    SCIMConnectorList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/SCIMConnector"}}
+
+    CreateSCIMConnectorRequest:
+      type: object
+      additionalProperties: false
+      required: [name, oidcProviderId, enabled, tokenExpiresAt]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        oidcProviderId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        enabled: {type: boolean}
+        tokenExpiresAt: {type: string, format: date-time}
+
+    UpdateSCIMConnectorRequest:
+      type: object
+      additionalProperties: false
+      required: [name, oidcProviderId, enabled, expectedVersion]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        oidcProviderId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        enabled: {type: boolean}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    RotateSCIMTokenRequest:
+      type: object
+      additionalProperties: false
+      required: [expiresAt, expectedVersion]
+      properties:
+        expiresAt: {type: string, format: date-time}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    SCIMConnectorTokenIssue:
+      type: object
+      additionalProperties: false
+      required: [connector, bearerToken]
+      properties:
+        connector: {$ref: "#/components/schemas/SCIMConnector"}
+        bearerToken: {type: string, minLength: 32, maxLength: 512, writeOnly: true}
+
+    SCIMReconciliationRequest:
+      type: object
+      additionalProperties: false
+      required: [provisionalAccountId, targetAccountId]
+      properties:
+        provisionalAccountId: {$ref: "#/components/schemas/UUIDv7"}
+        targetAccountId: {$ref: "#/components/schemas/UUIDv7"}
+
+    SCIMReconciliationConflict:
+      type: object
+      additionalProperties: false
+      required: [code, resourceId, message]
+      properties:
+        code: {type: string, maxLength: 64}
+        resourceId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        message: {type: string, maxLength: 500}
+
+    SCIMReconciliationReport:
+      type: object
+      additionalProperties: false
+      required: [canReconcile, provisionalAccountId, targetAccountId, conflicts, completed]
+      properties:
+        canReconcile: {type: boolean}
+        provisionalAccountId: {$ref: "#/components/schemas/UUIDv7"}
+        targetAccountId: {$ref: "#/components/schemas/UUIDv7"}
+        conflicts: {type: array, items: {$ref: "#/components/schemas/SCIMReconciliationConflict"}}
+        completed: {type: boolean}
+
+    SCIMName:
+      type: object
+      additionalProperties: false
+      required: [givenName, familyName]
+      properties:
+        givenName: {type: string, minLength: 1, maxLength: 100}
+        familyName: {type: string, minLength: 1, maxLength: 100}
+        formatted: {type: string, maxLength: 201}
+
+    SCIMMultiValue:
+      type: object
+      additionalProperties: true
+      required: [value]
+      properties:
+        value: {type: string, minLength: 1, maxLength: 254}
+        type: {type: string, maxLength: 32}
+        primary: {type: boolean}
+
+    SCIMMeta:
+      type: object
+      additionalProperties: false
+      required: [resourceType, created, lastModified, location, version]
+      properties:
+        resourceType: {type: string, enum: [User]}
+        created: {type: string, format: date-time}
+        lastModified: {type: string, format: date-time}
+        location: {type: string, maxLength: 500}
+        version: {type: string, maxLength: 100}
+
+    SCIMUserWrite:
+      type: object
+      additionalProperties: false
+      required: [userName, name, active]
+      properties:
+        schemas: {type: array, items: {type: string}, maxItems: 5}
+        userName: {type: string, minLength: 1, maxLength: 255}
+        externalId: {type: string, minLength: 1, maxLength: 255, nullable: true}
+        active: {type: boolean}
+        name: {$ref: "#/components/schemas/SCIMName"}
+        emails: {type: array, maxItems: 10, items: {$ref: "#/components/schemas/SCIMMultiValue"}}
+        phoneNumbers: {type: array, maxItems: 10, items: {$ref: "#/components/schemas/SCIMMultiValue"}}
+
+    SCIMUser:
+      allOf:
+        - $ref: "#/components/schemas/SCIMUserWrite"
+        - type: object
+          additionalProperties: false
+          required: [id, schemas, meta]
+          properties:
+            id: {$ref: "#/components/schemas/UUIDv7"}
+            schemas: {type: array, items: {type: string}}
+            meta: {$ref: "#/components/schemas/SCIMMeta"}
+
+    SCIMUserListResponse:
+      type: object
+      additionalProperties: false
+      required: [schemas, totalResults, startIndex, itemsPerPage, Resources]
+      properties:
+        schemas: {type: array, items: {type: string}}
+        totalResults: {type: integer, minimum: 0}
+        startIndex: {type: integer, minimum: 1}
+        itemsPerPage: {type: integer, minimum: 0}
+        Resources: {type: array, items: {$ref: "#/components/schemas/SCIMUser"}}
+
+    SCIMPatchOperation:
+      type: object
+      additionalProperties: false
+      required: [op]
+      properties:
+        op: {type: string, enum: [add, replace, remove]}
+        path: {type: string, maxLength: 255}
+        value: {}
+
+    SCIMPatchRequest:
+      type: object
+      additionalProperties: false
+      required: [schemas, Operations]
+      properties:
+        schemas: {type: array, minItems: 1, maxItems: 5, items: {type: string}}
+        Operations: {type: array, minItems: 1, maxItems: 50, items: {$ref: "#/components/schemas/SCIMPatchOperation"}}
+
+    SCIMError:
+      type: object
+      additionalProperties: false
+      required: [schemas, status, detail]
+      properties:
+        schemas: {type: array, items: {type: string}}
+        status: {type: string, pattern: "^[1-5][0-9]{2}$"}
+        scimType: {type: string, maxLength: 64}
+        detail: {type: string, maxLength: 500}
+
+    SCIMServiceProviderConfig:
+      type: object
+      additionalProperties: false
+      required: [schemas, patch, bulk, filter, changePassword, sort, etag]
+      properties:
+        schemas: {type: array, items: {type: string}}
+        patch: {type: object, additionalProperties: false, required: [supported], properties: {supported: {type: boolean}}}
+        bulk: {type: object, additionalProperties: false, required: [supported], properties: {supported: {type: boolean}}}
+        filter: {type: object, additionalProperties: false, required: [supported, maxResults], properties: {supported: {type: boolean}, maxResults: {type: integer}}}
+        changePassword: {type: object, additionalProperties: false, required: [supported], properties: {supported: {type: boolean}}}
+        sort: {type: object, additionalProperties: false, required: [supported], properties: {supported: {type: boolean}}}
+        etag: {type: object, additionalProperties: false, required: [supported], properties: {supported: {type: boolean}}}
+
+    SCIMListResponse:
+      type: object
+      additionalProperties: false
+      required: [schemas, totalResults, startIndex, itemsPerPage, Resources]
+      properties:
+        schemas: {type: array, items: {type: string}}
+        totalResults: {type: integer, minimum: 0}
+        startIndex: {type: integer, minimum: 1}
+        itemsPerPage: {type: integer, minimum: 0}
+        Resources: {type: array, items: {type: object, additionalProperties: true}}

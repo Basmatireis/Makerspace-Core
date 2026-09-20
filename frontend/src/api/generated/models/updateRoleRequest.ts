@@ -18,12 +18,16 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { UpdateRoleRequestLaborordnungMode } from './updateRoleRequestLaborordnungMode';
 import type { Version } from './version';
 
 /**
  * At least one update field must be present.
  */
 export interface UpdateRoleRequest {
+  profileImageRequired?: boolean;
+  laborordnungMode?: UpdateRoleRequestLaborordnungMode;
+  supervisorDashboard?: boolean;
   expectedVersion: Version;
   /**
    * @minLength 1

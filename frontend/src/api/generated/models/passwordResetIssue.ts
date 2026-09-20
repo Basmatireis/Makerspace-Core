@@ -19,10 +19,15 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { Account } from './account';
+import type { PasswordResetIssueDeliveryStatus } from './passwordResetIssueDeliveryStatus';
 
 export interface PasswordResetIssue {
-  /** One-time frontend URL containing the token in its fragment. Treat as a secret. */
-  readonly resetUrl: string;
   expiresAt: string;
   account: Account;
+  deliveryStatus: PasswordResetIssueDeliveryStatus;
+  /**
+   * One-time relative setup URL returned only to an authorized administrator when mail is not configured.
+   * @nullable
+   */
+  setupUrl: string | null;
 }

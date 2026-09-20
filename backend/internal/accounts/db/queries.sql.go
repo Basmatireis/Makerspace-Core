@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const acquireMasterInvariantLock = `-- name: AcquireMasterInvariantLock :exec
@@ -43,7 +44,7 @@ func (q *Queries) AssignAccountRole(ctx context.Context, arg AssignAccountRolePa
 
 const bumpAccountVersion = `-- name: BumpAccountVersion :one
 UPDATE accounts SET version = version + 1, updated_at = now()
-WHERE id = $1 AND version = $2 RETURNING id, person_id, status, version, created_at, updated_at
+WHERE id = $1 AND version = $2 RETURNING id, person_id, status, version, created_at, updated_at, provisioning_source, first_authenticated_at, administratively_disabled_at
 `
 
 type BumpAccountVersionParams struct {
@@ -61,8 +62,21 @@ func (q *Queries) BumpAccountVersion(ctx context.Context, arg BumpAccountVersion
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProvisioningSource,
+		&i.FirstAuthenticatedAt,
+		&i.AdministrativelyDisabledAt,
 	)
 	return i, err
+}
+
+const bumpAccountVersionForAdministrativeReset = `-- name: BumpAccountVersionForAdministrativeReset :exec
+UPDATE accounts SET version = version + 1, updated_at = now()
+WHERE id = $1
+`
+
+func (q *Queries) BumpAccountVersionForAdministrativeReset(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, bumpAccountVersionForAdministrativeReset, id)
+	return err
 }
 
 const countEnabledMasters = `-- name: CountEnabledMasters :one
@@ -89,9 +103,27 @@ func (q *Queries) CountMasterAssignments(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const countUsableAuthIdentities = `-- name: CountUsableAuthIdentities :one
+SELECT count(*) FROM auth_identities i
+WHERE i.account_id = $1 AND i.disabled_at IS NULL
+  AND (
+    (i.kind = 'password' AND i.verified_at IS NOT NULL AND EXISTS (
+      SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required
+    ))
+    OR i.kind IN ('pin', 'oidc')
+  )
+`
+
+func (q *Queries) CountUsableAuthIdentities(ctx context.Context, accountID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countUsableAuthIdentities, accountID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createAccount = `-- name: CreateAccount :one
 INSERT INTO accounts (id, person_id, status)
-VALUES ($1, $2, $3) RETURNING id, person_id, status, version, created_at, updated_at
+VALUES ($1, $2, $3) RETURNING id, person_id, status, version, created_at, updated_at, provisioning_source, first_authenticated_at, administratively_disabled_at
 `
 
 type CreateAccountParams struct {
@@ -110,14 +142,17 @@ func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (A
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProvisioningSource,
+		&i.FirstAuthenticatedAt,
+		&i.AdministrativelyDisabledAt,
 	)
 	return i, err
 }
 
 const createAuthIdentity = `-- name: CreateAuthIdentity :one
 INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifier_normalized)
-VALUES ($1, $2, 'email_password', $3, $4)
-RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at
+VALUES ($1, $2, 'password', $3::text, $4::text)
+RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at
 `
 
 type CreateAuthIdentityParams struct {
@@ -143,6 +178,12 @@ func (q *Queries) CreateAuthIdentity(ctx context.Context, arg CreateAuthIdentity
 		&i.IdentifierNormalized,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProviderID,
+		&i.Issuer,
+		&i.Subject,
+		&i.VerifiedAt,
+		&i.DisabledAt,
+		&i.LastUsedAt,
 	)
 	return i, err
 }
@@ -183,6 +224,45 @@ func (q *Queries) CreatePasswordResetToken(ctx context.Context, arg CreatePasswo
 	return i, err
 }
 
+const createVerifiedPasswordIdentity = `-- name: CreateVerifiedPasswordIdentity :one
+INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifier_normalized, verified_at)
+VALUES ($1, $2, 'password', $3, $4, now())
+RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at
+`
+
+type CreateVerifiedPasswordIdentityParams struct {
+	ID                   uuid.UUID
+	AccountID            uuid.UUID
+	IdentifierDisplay    *string
+	IdentifierNormalized *string
+}
+
+func (q *Queries) CreateVerifiedPasswordIdentity(ctx context.Context, arg CreateVerifiedPasswordIdentityParams) (AuthIdentity, error) {
+	row := q.db.QueryRow(ctx, createVerifiedPasswordIdentity,
+		arg.ID,
+		arg.AccountID,
+		arg.IdentifierDisplay,
+		arg.IdentifierNormalized,
+	)
+	var i AuthIdentity
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Kind,
+		&i.IdentifierDisplay,
+		&i.IdentifierNormalized,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProviderID,
+		&i.Issuer,
+		&i.Subject,
+		&i.VerifiedAt,
+		&i.DisabledAt,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
 const deleteAccount = `-- name: DeleteAccount :one
 DELETE FROM accounts WHERE id = $1 AND version = $2 RETURNING id
 `
@@ -199,6 +279,17 @@ func (q *Queries) DeleteAccount(ctx context.Context, arg DeleteAccountParams) (u
 	return id, err
 }
 
+const deletePasswordChallengesForAccount = `-- name: DeletePasswordChallengesForAccount :exec
+DELETE FROM auth_challenges
+WHERE account_id = $1
+  AND kind IN ('invitation', 'email_verification', 'password_reset')
+`
+
+func (q *Queries) DeletePasswordChallengesForAccount(ctx context.Context, accountID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePasswordChallengesForAccount, accountID)
+	return err
+}
+
 const deletePasswordResetForAccount = `-- name: DeletePasswordResetForAccount :exec
 DELETE FROM password_reset_tokens WHERE account_id = $1
 `
@@ -208,8 +299,39 @@ func (q *Queries) DeletePasswordResetForAccount(ctx context.Context, accountID u
 	return err
 }
 
+const findAccountsByAdministrativeIdentifier = `-- name: FindAccountsByAdministrativeIdentifier :many
+SELECT DISTINCT a.id
+FROM accounts a
+JOIN people p ON p.id = a.person_id
+LEFT JOIN auth_identities i ON i.account_id = a.id AND i.kind IN ('password', 'pin')
+WHERE lower(btrim(COALESCE(i.identifier_normalized, ''))) = lower(btrim($1::text))
+   OR lower(btrim(COALESCE(i.identifier_display, ''))) = lower(btrim($1::text))
+   OR lower(btrim(COALESCE(p.email, ''))) = lower(btrim($1::text))
+ORDER BY a.id
+`
+
+func (q *Queries) FindAccountsByAdministrativeIdentifier(ctx context.Context, identifier string) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, findAccountsByAdministrativeIdentifier, identifier)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAccountByPerson = `-- name: GetAccountByPerson :one
-SELECT id, person_id, status, version, created_at, updated_at FROM accounts WHERE person_id = $1
+SELECT id, person_id, status, version, created_at, updated_at, provisioning_source, first_authenticated_at, administratively_disabled_at FROM accounts WHERE person_id = $1
 `
 
 func (q *Queries) GetAccountByPerson(ctx context.Context, personID uuid.UUID) (Account, error) {
@@ -222,12 +344,15 @@ func (q *Queries) GetAccountByPerson(ctx context.Context, personID uuid.UUID) (A
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProvisioningSource,
+		&i.FirstAuthenticatedAt,
+		&i.AdministrativelyDisabledAt,
 	)
 	return i, err
 }
 
 const getAccountByPersonForMutation = `-- name: GetAccountByPersonForMutation :one
-SELECT id, person_id, status, version, created_at, updated_at FROM accounts WHERE person_id = $1 FOR UPDATE
+SELECT id, person_id, status, version, created_at, updated_at, provisioning_source, first_authenticated_at, administratively_disabled_at FROM accounts WHERE person_id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetAccountByPersonForMutation(ctx context.Context, personID uuid.UUID) (Account, error) {
@@ -240,12 +365,15 @@ func (q *Queries) GetAccountByPersonForMutation(ctx context.Context, personID uu
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProvisioningSource,
+		&i.FirstAuthenticatedAt,
+		&i.AdministrativelyDisabledAt,
 	)
 	return i, err
 }
 
 const getAccountForMutation = `-- name: GetAccountForMutation :one
-SELECT id, person_id, status, version, created_at, updated_at FROM accounts WHERE id = $1 FOR UPDATE
+SELECT id, person_id, status, version, created_at, updated_at, provisioning_source, first_authenticated_at, administratively_disabled_at FROM accounts WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetAccountForMutation(ctx context.Context, id uuid.UUID) (Account, error) {
@@ -258,24 +386,30 @@ func (q *Queries) GetAccountForMutation(ctx context.Context, id uuid.UUID) (Acco
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProvisioningSource,
+		&i.FirstAuthenticatedAt,
+		&i.AdministrativelyDisabledAt,
 	)
 	return i, err
 }
 
 const getAccountIdentityByLoginEmail = `-- name: GetAccountIdentityByLoginEmail :one
-SELECT a.id, a.person_id, a.status, a.version, a.created_at, a.updated_at, i.id AS auth_identity_id FROM accounts a
-JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'email_password'
-WHERE i.identifier_normalized = $1
+SELECT a.id, a.person_id, a.status, a.version, a.created_at, a.updated_at, a.provisioning_source, a.first_authenticated_at, a.administratively_disabled_at, i.id AS auth_identity_id FROM accounts a
+JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'password'
+WHERE i.identifier_normalized = $1::text
 `
 
 type GetAccountIdentityByLoginEmailRow struct {
-	ID             uuid.UUID
-	PersonID       uuid.UUID
-	Status         string
-	Version        int64
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	AuthIdentityID uuid.UUID
+	ID                         uuid.UUID
+	PersonID                   uuid.UUID
+	Status                     string
+	Version                    int64
+	CreatedAt                  time.Time
+	UpdatedAt                  time.Time
+	ProvisioningSource         string
+	FirstAuthenticatedAt       pgtype.Timestamptz
+	AdministrativelyDisabledAt pgtype.Timestamptz
+	AuthIdentityID             uuid.UUID
 }
 
 func (q *Queries) GetAccountIdentityByLoginEmail(ctx context.Context, identifierNormalized string) (GetAccountIdentityByLoginEmailRow, error) {
@@ -288,33 +422,39 @@ func (q *Queries) GetAccountIdentityByLoginEmail(ctx context.Context, identifier
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProvisioningSource,
+		&i.FirstAuthenticatedAt,
+		&i.AdministrativelyDisabledAt,
 		&i.AuthIdentityID,
 	)
 	return i, err
 }
 
 const getAccountView = `-- name: GetAccountView :one
-SELECT a.id, a.person_id, a.status, a.version, a.created_at, a.updated_at,
+SELECT a.id, a.person_id, a.status, a.provisioning_source, a.first_authenticated_at,
+       a.version, a.created_at, a.updated_at,
        i.id AS auth_identity_id, i.identifier_display AS login_email,
        CASE WHEN prt.id IS NOT NULL OR pc.reset_required THEN 'reset_required'
             WHEN pc.auth_identity_id IS NULL THEN 'not_set' ELSE 'active' END AS password_status
 FROM accounts a
-JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'email_password'
+LEFT JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'password'
 LEFT JOIN password_credentials pc ON pc.auth_identity_id = i.id
 LEFT JOIN password_reset_tokens prt ON prt.account_id = a.id AND prt.expires_at > now()
 WHERE a.id = $1
 `
 
 type GetAccountViewRow struct {
-	ID             uuid.UUID
-	PersonID       uuid.UUID
-	Status         string
-	Version        int64
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-	AuthIdentityID uuid.UUID
-	LoginEmail     string
-	PasswordStatus string
+	ID                   uuid.UUID
+	PersonID             uuid.UUID
+	Status               string
+	ProvisioningSource   string
+	FirstAuthenticatedAt pgtype.Timestamptz
+	Version              int64
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	AuthIdentityID       *uuid.UUID
+	LoginEmail           *string
+	PasswordStatus       string
 }
 
 func (q *Queries) GetAccountView(ctx context.Context, id uuid.UUID) (GetAccountViewRow, error) {
@@ -324,6 +464,8 @@ func (q *Queries) GetAccountView(ctx context.Context, id uuid.UUID) (GetAccountV
 		&i.ID,
 		&i.PersonID,
 		&i.Status,
+		&i.ProvisioningSource,
+		&i.FirstAuthenticatedAt,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -335,7 +477,7 @@ func (q *Queries) GetAccountView(ctx context.Context, id uuid.UUID) (GetAccountV
 }
 
 const getIdentityByAccount = `-- name: GetIdentityByAccount :one
-SELECT id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at FROM auth_identities WHERE account_id = $1 AND kind = 'email_password'
+SELECT id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at FROM auth_identities WHERE account_id = $1 AND kind = 'password'
 `
 
 func (q *Queries) GetIdentityByAccount(ctx context.Context, accountID uuid.UUID) (AuthIdentity, error) {
@@ -349,12 +491,18 @@ func (q *Queries) GetIdentityByAccount(ctx context.Context, accountID uuid.UUID)
 		&i.IdentifierNormalized,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProviderID,
+		&i.Issuer,
+		&i.Subject,
+		&i.VerifiedAt,
+		&i.DisabledAt,
+		&i.LastUsedAt,
 	)
 	return i, err
 }
 
 const getMasterRole = `-- name: GetMasterRole :one
-SELECT id, name, description, system_key, version, created_at, updated_at FROM roles WHERE system_key = 'master'
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, supervisor_dashboard FROM roles WHERE system_key = 'master'
 `
 
 func (q *Queries) GetMasterRole(ctx context.Context) (Role, error) {
@@ -368,8 +516,50 @@ func (q *Queries) GetMasterRole(ctx context.Context) (Role, error) {
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProfileImageRequired,
+		&i.LaborordnungMode,
+		&i.SupervisorDashboard,
 	)
 	return i, err
+}
+
+const getPasswordIdentityForAccountForUpdate = `-- name: GetPasswordIdentityForAccountForUpdate :one
+SELECT id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at FROM auth_identities
+WHERE account_id = $1 AND kind = 'password'
+FOR UPDATE
+`
+
+func (q *Queries) GetPasswordIdentityForAccountForUpdate(ctx context.Context, accountID uuid.UUID) (AuthIdentity, error) {
+	row := q.db.QueryRow(ctx, getPasswordIdentityForAccountForUpdate, accountID)
+	var i AuthIdentity
+	err := row.Scan(
+		&i.ID,
+		&i.AccountID,
+		&i.Kind,
+		&i.IdentifierDisplay,
+		&i.IdentifierNormalized,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProviderID,
+		&i.Issuer,
+		&i.Subject,
+		&i.VerifiedAt,
+		&i.DisabledAt,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
+const getPersonEmailForAccount = `-- name: GetPersonEmailForAccount :one
+SELECT p.email FROM people p JOIN accounts a ON a.person_id = p.id
+WHERE a.id = $1
+`
+
+func (q *Queries) GetPersonEmailForAccount(ctx context.Context, accountID uuid.UUID) (*string, error) {
+	row := q.db.QueryRow(ctx, getPersonEmailForAccount, accountID)
+	var email *string
+	err := row.Scan(&email)
+	return email, err
 }
 
 const getPersonVersionForAccountCreation = `-- name: GetPersonVersionForAccountCreation :one
@@ -384,7 +574,7 @@ func (q *Queries) GetPersonVersionForAccountCreation(ctx context.Context, person
 }
 
 const getRoleForAssignment = `-- name: GetRoleForAssignment :one
-SELECT id, name, description, system_key, version, created_at, updated_at FROM roles WHERE id = $1 FOR SHARE
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, supervisor_dashboard FROM roles WHERE id = $1 FOR SHARE
 `
 
 func (q *Queries) GetRoleForAssignment(ctx context.Context, id uuid.UUID) (Role, error) {
@@ -398,22 +588,26 @@ func (q *Queries) GetRoleForAssignment(ctx context.Context, id uuid.UUID) (Role,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProfileImageRequired,
+		&i.LaborordnungMode,
+		&i.SupervisorDashboard,
 	)
 	return i, err
 }
 
 const getRolePermissionGrantsForAssignment = `-- name: GetRolePermissionGrantsForAssignment :many
-SELECT rp.permission_id, rp.scope, rpdt.device_type_id
-FROM role_permissions rp LEFT JOIN role_permission_device_types rpdt
-  ON rpdt.role_id = rp.role_id AND rpdt.permission_id = rp.permission_id
-WHERE rp.role_id = $1
-ORDER BY rp.permission_id, rpdt.device_type_id
+SELECT g.id, g.permission_id, g.scope, g.minimum_assurance, gdt.device_type_id
+FROM role_permission_grants g LEFT JOIN role_permission_grant_device_types gdt ON gdt.grant_id = g.id
+WHERE g.role_id = $1
+ORDER BY g.permission_id, g.id, gdt.device_type_id
 `
 
 type GetRolePermissionGrantsForAssignmentRow struct {
-	PermissionID string
-	Scope        string
-	DeviceTypeID *uuid.UUID
+	ID               uuid.UUID
+	PermissionID     string
+	Scope            string
+	MinimumAssurance string
+	DeviceTypeID     *uuid.UUID
 }
 
 func (q *Queries) GetRolePermissionGrantsForAssignment(ctx context.Context, roleID uuid.UUID) ([]GetRolePermissionGrantsForAssignmentRow, error) {
@@ -425,7 +619,13 @@ func (q *Queries) GetRolePermissionGrantsForAssignment(ctx context.Context, role
 	items := []GetRolePermissionGrantsForAssignmentRow{}
 	for rows.Next() {
 		var i GetRolePermissionGrantsForAssignmentRow
-		if err := rows.Scan(&i.PermissionID, &i.Scope, &i.DeviceTypeID); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.PermissionID,
+			&i.Scope,
+			&i.MinimumAssurance,
+			&i.DeviceTypeID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -465,7 +665,7 @@ func (q *Queries) IsAccountRoleAssigned(ctx context.Context, arg IsAccountRoleAs
 }
 
 const listAccountRoles = `-- name: ListAccountRoles :many
-SELECT r.id, r.name, r.description, r.system_key, r.version, r.created_at, r.updated_at FROM roles r JOIN account_roles ar ON ar.role_id = r.id
+SELECT r.id, r.name, r.description, r.system_key, r.version, r.created_at, r.updated_at, r.profile_image_required, r.laborordnung_mode, r.supervisor_dashboard FROM roles r JOIN account_roles ar ON ar.role_id = r.id
 WHERE ar.account_id = $1
 ORDER BY r.system_key DESC NULLS LAST, lower(r.name), r.id
 `
@@ -487,6 +687,69 @@ func (q *Queries) ListAccountRoles(ctx context.Context, accountID uuid.UUID) ([]
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ProfileImageRequired,
+			&i.LaborordnungMode,
+			&i.SupervisorDashboard,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAuthIdentitiesByAccount = `-- name: ListAuthIdentitiesByAccount :many
+SELECT i.id, i.account_id, i.kind, i.identifier_display, i.identifier_normalized, i.created_at, i.updated_at, i.provider_id, i.issuer, i.subject, i.verified_at, i.disabled_at, i.last_used_at, COALESCE(i.identifier_display, p.display_name) AS display_identifier
+FROM auth_identities i
+LEFT JOIN oidc_providers p ON p.id = i.provider_id
+WHERE i.account_id = $1
+ORDER BY i.kind, i.created_at, i.id
+`
+
+type ListAuthIdentitiesByAccountRow struct {
+	ID                   uuid.UUID
+	AccountID            uuid.UUID
+	Kind                 string
+	IdentifierDisplay    *string
+	IdentifierNormalized *string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	ProviderID           *uuid.UUID
+	Issuer               *string
+	Subject              *string
+	VerifiedAt           pgtype.Timestamptz
+	DisabledAt           pgtype.Timestamptz
+	LastUsedAt           pgtype.Timestamptz
+	DisplayIdentifier    string
+}
+
+func (q *Queries) ListAuthIdentitiesByAccount(ctx context.Context, accountID uuid.UUID) ([]ListAuthIdentitiesByAccountRow, error) {
+	rows, err := q.db.Query(ctx, listAuthIdentitiesByAccount, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAuthIdentitiesByAccountRow{}
+	for rows.Next() {
+		var i ListAuthIdentitiesByAccountRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AccountID,
+			&i.Kind,
+			&i.IdentifierDisplay,
+			&i.IdentifierNormalized,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProviderID,
+			&i.Issuer,
+			&i.Subject,
+			&i.VerifiedAt,
+			&i.DisabledAt,
+			&i.LastUsedAt,
+			&i.DisplayIdentifier,
 		); err != nil {
 			return nil, err
 		}
@@ -509,6 +772,16 @@ func (q *Queries) LockMasterRole(ctx context.Context) (uuid.UUID, error) {
 	return id, err
 }
 
+const markInvitationProvisioning = `-- name: MarkInvitationProvisioning :exec
+UPDATE accounts SET provisioning_source = 'invitation'
+WHERE id = $1 AND first_authenticated_at IS NULL AND provisioning_source = 'local'
+`
+
+func (q *Queries) MarkInvitationProvisioning(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markInvitationProvisioning, id)
+	return err
+}
+
 const markPasswordResetRequired = `-- name: MarkPasswordResetRequired :exec
 UPDATE password_credentials SET reset_required = true, changed_at = now()
 WHERE auth_identity_id = $1
@@ -521,7 +794,7 @@ func (q *Queries) MarkPasswordResetRequired(ctx context.Context, authIdentityID 
 
 const recoverAccount = `-- name: RecoverAccount :one
 UPDATE accounts SET status = 'enabled', version = version + 1, updated_at = now()
-WHERE id = $1 RETURNING id, person_id, status, version, created_at, updated_at
+WHERE id = $1 RETURNING id, person_id, status, version, created_at, updated_at, provisioning_source, first_authenticated_at, administratively_disabled_at
 `
 
 func (q *Queries) RecoverAccount(ctx context.Context, id uuid.UUID) (Account, error) {
@@ -534,6 +807,9 @@ func (q *Queries) RecoverAccount(ctx context.Context, id uuid.UUID) (Account, er
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProvisioningSource,
+		&i.FirstAuthenticatedAt,
+		&i.AdministrativelyDisabledAt,
 	)
 	return i, err
 }
@@ -555,6 +831,17 @@ func (q *Queries) RemoveAccountRole(ctx context.Context, arg RemoveAccountRolePa
 	return result.RowsAffected(), nil
 }
 
+const restorePasswordIdentity = `-- name: RestorePasswordIdentity :exec
+UPDATE auth_identities
+SET disabled_at = NULL, verified_at = COALESCE(verified_at, now()), updated_at = now()
+WHERE id = $1 AND kind = 'password'
+`
+
+func (q *Queries) RestorePasswordIdentity(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, restorePasswordIdentity, id)
+	return err
+}
+
 const revokeSessionsForAccount = `-- name: RevokeSessionsForAccount :exec
 UPDATE sessions
 SET revoked_at = COALESCE(revoked_at, now()), revocation_reason = COALESCE(revocation_reason, $1)
@@ -571,9 +858,28 @@ func (q *Queries) RevokeSessionsForAccount(ctx context.Context, arg RevokeSessio
 	return err
 }
 
+const setAuthChallengeDelivery = `-- name: SetAuthChallengeDelivery :exec
+UPDATE auth_challenges
+SET delivery_status = $1, delivery_attempted_at = now(), delivery_failure_code = $2
+WHERE id = $3 AND delivery_status = 'pending'
+`
+
+type SetAuthChallengeDeliveryParams struct {
+	DeliveryStatus      string
+	DeliveryFailureCode *string
+	ID                  uuid.UUID
+}
+
+func (q *Queries) SetAuthChallengeDelivery(ctx context.Context, arg SetAuthChallengeDeliveryParams) error {
+	_, err := q.db.Exec(ctx, setAuthChallengeDelivery, arg.DeliveryStatus, arg.DeliveryFailureCode, arg.ID)
+	return err
+}
+
 const updateAccountStatus = `-- name: UpdateAccountStatus :one
-UPDATE accounts SET status = $1, version = version + 1, updated_at = now()
-WHERE id = $2 AND version = $3 RETURNING id, person_id, status, version, created_at, updated_at
+UPDATE accounts SET status = $1,
+    administratively_disabled_at = CASE WHEN $1::text = 'disabled' THEN now() ELSE NULL END,
+    version = version + 1, updated_at = now()
+WHERE id = $2 AND version = $3 RETURNING id, person_id, status, version, created_at, updated_at, provisioning_source, first_authenticated_at, administratively_disabled_at
 `
 
 type UpdateAccountStatusParams struct {
@@ -592,14 +898,19 @@ func (q *Queries) UpdateAccountStatus(ctx context.Context, arg UpdateAccountStat
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProvisioningSource,
+		&i.FirstAuthenticatedAt,
+		&i.AdministrativelyDisabledAt,
 	)
 	return i, err
 }
 
 const updateLoginEmail = `-- name: UpdateLoginEmail :one
-UPDATE auth_identities SET identifier_display = $1,
-    identifier_normalized = $2, updated_at = now()
-WHERE account_id = $3 AND kind = 'email_password' RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at
+UPDATE auth_identities SET identifier_display = $1::text,
+    identifier_normalized = $2::text,
+    verified_at = CASE WHEN identifier_normalized = $2::text THEN verified_at ELSE NULL END,
+    updated_at = now()
+WHERE account_id = $3 AND kind = 'password' RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at
 `
 
 type UpdateLoginEmailParams struct {
@@ -619,6 +930,73 @@ func (q *Queries) UpdateLoginEmail(ctx context.Context, arg UpdateLoginEmailPara
 		&i.IdentifierNormalized,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProviderID,
+		&i.Issuer,
+		&i.Subject,
+		&i.VerifiedAt,
+		&i.DisabledAt,
+		&i.LastUsedAt,
+	)
+	return i, err
+}
+
+const upsertAuthChallenge = `-- name: UpsertAuthChallenge :one
+INSERT INTO auth_challenges (
+    id, kind, account_id, auth_identity_id, code_digest, delivery_address,
+    created_by_account_id, expires_at
+) VALUES (
+    $1, $2, $3, $4,
+    $5, $6, $7, $8
+)
+ON CONFLICT (account_id, kind) DO UPDATE SET
+    id = EXCLUDED.id, auth_identity_id = EXCLUDED.auth_identity_id,
+    code_digest = EXCLUDED.code_digest, delivery_address = EXCLUDED.delivery_address,
+    attempt_count = 0, created_by_account_id = EXCLUDED.created_by_account_id,
+    expires_at = EXCLUDED.expires_at, used_at = NULL, cancelled_at = NULL,
+    delivery_status = 'pending', delivery_attempted_at = NULL,
+    delivery_failure_code = NULL, created_at = now()
+RETURNING id, kind, account_id, auth_identity_id, code_digest, delivery_address, attempt_count, created_by_account_id, expires_at, used_at, cancelled_at, delivery_status, delivery_attempted_at, delivery_failure_code, created_at
+`
+
+type UpsertAuthChallengeParams struct {
+	ID                 uuid.UUID
+	Kind               string
+	AccountID          uuid.UUID
+	AuthIdentityID     *uuid.UUID
+	CodeDigest         []byte
+	DeliveryAddress    string
+	CreatedByAccountID *uuid.UUID
+	ExpiresAt          time.Time
+}
+
+func (q *Queries) UpsertAuthChallenge(ctx context.Context, arg UpsertAuthChallengeParams) (AuthChallenge, error) {
+	row := q.db.QueryRow(ctx, upsertAuthChallenge,
+		arg.ID,
+		arg.Kind,
+		arg.AccountID,
+		arg.AuthIdentityID,
+		arg.CodeDigest,
+		arg.DeliveryAddress,
+		arg.CreatedByAccountID,
+		arg.ExpiresAt,
+	)
+	var i AuthChallenge
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.AccountID,
+		&i.AuthIdentityID,
+		&i.CodeDigest,
+		&i.DeliveryAddress,
+		&i.AttemptCount,
+		&i.CreatedByAccountID,
+		&i.ExpiresAt,
+		&i.UsedAt,
+		&i.CancelledAt,
+		&i.DeliveryStatus,
+		&i.DeliveryAttemptedAt,
+		&i.DeliveryFailureCode,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -637,5 +1015,16 @@ type UpsertPasswordCredentialParams struct {
 
 func (q *Queries) UpsertPasswordCredential(ctx context.Context, arg UpsertPasswordCredentialParams) error {
 	_, err := q.db.Exec(ctx, upsertPasswordCredential, arg.AuthIdentityID, arg.PasswordHash)
+	return err
+}
+
+const verifyPasswordIdentity = `-- name: VerifyPasswordIdentity :exec
+UPDATE auth_identities
+SET verified_at = COALESCE(verified_at, now()), disabled_at = NULL, updated_at = now()
+WHERE id = $1 AND kind = 'password'
+`
+
+func (q *Queries) VerifyPasswordIdentity(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, verifyPasswordIdentity, id)
 	return err
 }

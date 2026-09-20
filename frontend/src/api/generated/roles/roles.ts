@@ -20,9 +20,11 @@ the required session and CSRF credentials.
  */
 import type {
   CreateRoleRequest,
+  EvaluateRolePermissionsParams,
   ListRolesParams,
   ReplaceRolePermissionsRequest,
   Role,
+  RoleEffectivePermissionEvaluationList,
   RolePage,
   UpdateRoleRequest,
   VersionRequest
@@ -82,6 +84,40 @@ export const createRole = async (createRoleRequest: CreateRoleRequest, options?:
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       createRoleRequest,)
+  }
+);}
+
+
+/**
+ * Requires `roles.read`. Evaluation uses the same authentication-assurance
+and managed-device rules as request authorization. Omitting `deviceTypeId`
+represents an unmanaged device.
+
+ * @summary Resolve every role's permissions for a hypothetical request context
+ */
+export const getEvaluateRolePermissionsUrl = (params: EvaluateRolePermissionsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/roles/effective-permissions?${stringifiedParams}` : `/api/v1/roles/effective-permissions`
+}
+
+export const evaluateRolePermissions = async (params: EvaluateRolePermissionsParams, options?: RequestInit): Promise<RoleEffectivePermissionEvaluationList> => {
+  
+  return apiFetch<RoleEffectivePermissionEvaluationList>(getEvaluateRolePermissionsUrl(params),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
   }
 );}
 

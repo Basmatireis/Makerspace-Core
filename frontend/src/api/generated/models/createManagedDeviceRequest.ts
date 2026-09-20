@@ -19,6 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
+import type { ManagedDeviceCredentialDelivery } from './managedDeviceCredentialDelivery';
 
 export interface CreateManagedDeviceRequest {
   /**
@@ -29,4 +30,5 @@ export interface CreateManagedDeviceRequest {
   deviceTypeId: UUIDv7;
   /** @nullable */
   expiresAt: string | null;
+  credentialDelivery: ManagedDeviceCredentialDelivery;
 }

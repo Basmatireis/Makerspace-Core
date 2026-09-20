@@ -21,6 +21,7 @@ the required session and CSRF credentials.
 import type { UUIDv7 } from './uUIDv7';
 import type { RoleSystemKey } from './roleSystemKey';
 import type { PermissionGrant } from './permissionGrant';
+import type { RoleLaborordnungMode } from './roleLaborordnungMode';
 import type { Version } from './version';
 
 export interface Role {
@@ -39,6 +40,9 @@ export interface Role {
   systemKey: RoleSystemKey;
   /** For master, this is the current complete application permission set. */
   permissionGrants: PermissionGrant[];
+  profileImageRequired: boolean;
+  laborordnungMode: RoleLaborordnungMode;
+  supervisorDashboard: boolean;
   createdAt: string;
   updatedAt: string;
   version: Version;

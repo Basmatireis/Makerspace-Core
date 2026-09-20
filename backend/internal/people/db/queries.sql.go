@@ -36,7 +36,7 @@ func (q *Queries) CountPeople(ctx context.Context, arg CountPeopleParams) (int64
 const createPerson = `-- name: CreatePerson :one
 INSERT INTO people (id, first_name, last_name, email, phone, matriculation_number, photo_reference)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at
+RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source
 `
 
 type CreatePersonParams struct {
@@ -71,6 +71,8 @@ func (q *Queries) CreatePerson(ctx context.Context, arg CreatePersonParams) (Per
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProfileImageFileID,
+		&i.ProfileImageSource,
 	)
 	return i, err
 }
@@ -93,7 +95,7 @@ func (q *Queries) DeletePerson(ctx context.Context, arg DeletePersonParams) (uui
 }
 
 const getPerson = `-- name: GetPerson :one
-SELECT id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at FROM people WHERE id = $1
+SELECT id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source FROM people WHERE id = $1
 `
 
 func (q *Queries) GetPerson(ctx context.Context, id uuid.UUID) (Person, error) {
@@ -110,12 +112,14 @@ func (q *Queries) GetPerson(ctx context.Context, id uuid.UUID) (Person, error) {
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProfileImageFileID,
+		&i.ProfileImageSource,
 	)
 	return i, err
 }
 
 const getPersonForDeletion = `-- name: GetPersonForDeletion :one
-SELECT id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at FROM people WHERE id = $1 FOR UPDATE
+SELECT id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source FROM people WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetPersonForDeletion(ctx context.Context, id uuid.UUID) (Person, error) {
@@ -132,12 +136,32 @@ func (q *Queries) GetPersonForDeletion(ctx context.Context, id uuid.UUID) (Perso
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProfileImageFileID,
+		&i.ProfileImageSource,
 	)
 	return i, err
 }
 
+const getProfileImage = `-- name: GetProfileImage :one
+SELECT profile_image_file_id, profile_image_source
+FROM people
+WHERE id = $1
+`
+
+type GetProfileImageRow struct {
+	ProfileImageFileID *uuid.UUID
+	ProfileImageSource *string
+}
+
+func (q *Queries) GetProfileImage(ctx context.Context, id uuid.UUID) (GetProfileImageRow, error) {
+	row := q.db.QueryRow(ctx, getProfileImage, id)
+	var i GetProfileImageRow
+	err := row.Scan(&i.ProfileImageFileID, &i.ProfileImageSource)
+	return i, err
+}
+
 const listPeople = `-- name: ListPeople :many
-SELECT id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at FROM people
+SELECT id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source FROM people
 WHERE $1::text = ''
    OR first_name ILIKE '%' || $1::text || '%'
    OR last_name ILIKE '%' || $1::text || '%'
@@ -180,6 +204,8 @@ func (q *Queries) ListPeople(ctx context.Context, arg ListPeopleParams) ([]Perso
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ProfileImageFileID,
+			&i.ProfileImageSource,
 		); err != nil {
 			return nil, err
 		}
@@ -191,6 +217,63 @@ func (q *Queries) ListPeople(ctx context.Context, arg ListPeopleParams) ([]Perso
 	return items, nil
 }
 
+const personRequiresProfileImage = `-- name: PersonRequiresProfileImage :one
+SELECT COALESCE(bool_or(r.profile_image_required), false)::boolean
+FROM accounts a
+LEFT JOIN account_roles ar ON ar.account_id = a.id
+LEFT JOIN roles r ON r.id = ar.role_id
+WHERE a.person_id = $1
+`
+
+func (q *Queries) PersonRequiresProfileImage(ctx context.Context, personID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, personRequiresProfileImage, personID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const setProfileImage = `-- name: SetProfileImage :one
+UPDATE people
+SET profile_image_file_id = $1,
+    profile_image_source = $2,
+    version = version + 1,
+    updated_at = now()
+WHERE id = $3 AND version = $4
+RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source
+`
+
+type SetProfileImageParams struct {
+	ProfileImageFileID *uuid.UUID
+	ProfileImageSource *string
+	ID                 uuid.UUID
+	ExpectedVersion    int64
+}
+
+func (q *Queries) SetProfileImage(ctx context.Context, arg SetProfileImageParams) (Person, error) {
+	row := q.db.QueryRow(ctx, setProfileImage,
+		arg.ProfileImageFileID,
+		arg.ProfileImageSource,
+		arg.ID,
+		arg.ExpectedVersion,
+	)
+	var i Person
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+		&i.Phone,
+		&i.MatriculationNumber,
+		&i.PhotoReference,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProfileImageFileID,
+		&i.ProfileImageSource,
+	)
+	return i, err
+}
+
 const updatePerson = `-- name: UpdatePerson :one
 UPDATE people
 SET first_name = $1, last_name = $2,
@@ -198,7 +281,7 @@ SET first_name = $1, last_name = $2,
     matriculation_number = $5, photo_reference = $6,
     version = version + 1, updated_at = now()
 WHERE id = $7 AND version = $8
-RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at
+RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source
 `
 
 type UpdatePersonParams struct {
@@ -235,6 +318,8 @@ func (q *Queries) UpdatePerson(ctx context.Context, arg UpdatePersonParams) (Per
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProfileImageFileID,
+		&i.ProfileImageSource,
 	)
 	return i, err
 }

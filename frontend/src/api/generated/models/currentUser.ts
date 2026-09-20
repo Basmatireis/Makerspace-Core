@@ -21,14 +21,18 @@ the required session and CSRF credentials.
 import type { Account } from './account';
 import type { Person } from './person';
 import type { PermissionId } from './permissionId';
+import type { AuthenticationAssurance } from './authenticationAssurance';
 import type { CurrentUserManagedDevice } from './currentUserManagedDevice';
 import type { PermissionGrant } from './permissionGrant';
+import type { LaborordnungStatus } from './laborordnungStatus';
 
 export interface CurrentUser {
   account: Account;
   person: Person;
   permissions: PermissionId[];
+  authenticationAssurance: AuthenticationAssurance;
   /** @nullable */
   managedDevice: CurrentUserManagedDevice;
   delegablePermissionGrants: PermissionGrant[];
+  laborordnungStatus: LaborordnungStatus;
 }

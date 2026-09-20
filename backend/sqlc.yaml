@@ -118,3 +118,94 @@ sql:
         emit_empty_slices: true
         emit_pointers_for_null_types: true
         overrides: *overrides
+  - engine: "postgresql"
+    schema: "migrations"
+    queries: "internal/files/db/queries.sql"
+    gen:
+      go:
+        package: "filesdb"
+        out: "internal/files/db"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_json_tags: false
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+        overrides: *overrides
+  - engine: "postgresql"
+    schema: "migrations"
+    queries: "internal/laborordnung/db/queries.sql"
+    gen:
+      go:
+        package: "laborordnungdb"
+        out: "internal/laborordnung/db"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_json_tags: false
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+        overrides: *overrides
+  - engine: "postgresql"
+    schema: "migrations"
+    queries: "internal/supervisors/db/queries.sql"
+    gen:
+      go:
+        package: "supervisorsdb"
+        out: "internal/supervisors/db"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_json_tags: false
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+        overrides: *overrides
+  - engine: "postgresql"
+    schema: "migrations"
+    queries: "internal/oidc/db/queries.sql"
+    gen:
+      go:
+        package: "oidcdb"
+        out: "internal/oidc/db"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_json_tags: false
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+        overrides: *overrides
+  - engine: "postgresql"
+    schema: "migrations"
+    queries: "internal/scim/db/queries.sql"
+    gen:
+      go:
+        package: "scimdb"
+        out: "internal/scim/db"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_json_tags: false
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+        overrides: *overrides
+  - engine: "postgresql"
+    schema: "migrations"
+    queries: "internal/visitor/db/queries.sql"
+    gen:
+      go:
+        package: "visitordb"
+        out: "internal/visitor/db"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_json_tags: false
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+        overrides: *overrides
+  - engine: "postgresql"
+    schema: "migrations"
+    queries: "internal/mail/db/queries.sql"
+    gen:
+      go:
+        package: "maildb"
+        out: "internal/mail/db"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_json_tags: false
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+        overrides: *overrides

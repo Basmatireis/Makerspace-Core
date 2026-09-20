@@ -12,40 +12,47 @@ import (
 )
 
 const addRolePermission = `-- name: AddRolePermission :exec
-INSERT INTO role_permissions (role_id, permission_id, scope)
-VALUES ($1, $2, $3)
+INSERT INTO role_permission_grants (id, role_id, permission_id, scope, minimum_assurance)
+VALUES ($1, $2, $3, $4, $5)
 `
 
 type AddRolePermissionParams struct {
-	RoleID       uuid.UUID
-	PermissionID string
-	Scope        string
+	ID               uuid.UUID
+	RoleID           uuid.UUID
+	PermissionID     string
+	Scope            string
+	MinimumAssurance string
 }
 
 func (q *Queries) AddRolePermission(ctx context.Context, arg AddRolePermissionParams) error {
-	_, err := q.db.Exec(ctx, addRolePermission, arg.RoleID, arg.PermissionID, arg.Scope)
+	_, err := q.db.Exec(ctx, addRolePermission,
+		arg.ID,
+		arg.RoleID,
+		arg.PermissionID,
+		arg.Scope,
+		arg.MinimumAssurance,
+	)
 	return err
 }
 
 const addRolePermissionDeviceType = `-- name: AddRolePermissionDeviceType :exec
-INSERT INTO role_permission_device_types (role_id, permission_id, device_type_id)
-VALUES ($1, $2, $3)
+INSERT INTO role_permission_grant_device_types (grant_id, device_type_id)
+VALUES ($1, $2)
 `
 
 type AddRolePermissionDeviceTypeParams struct {
-	RoleID       uuid.UUID
-	PermissionID string
+	GrantID      uuid.UUID
 	DeviceTypeID uuid.UUID
 }
 
 func (q *Queries) AddRolePermissionDeviceType(ctx context.Context, arg AddRolePermissionDeviceTypeParams) error {
-	_, err := q.db.Exec(ctx, addRolePermissionDeviceType, arg.RoleID, arg.PermissionID, arg.DeviceTypeID)
+	_, err := q.db.Exec(ctx, addRolePermissionDeviceType, arg.GrantID, arg.DeviceTypeID)
 	return err
 }
 
 const bumpRoleVersion = `-- name: BumpRoleVersion :one
 UPDATE roles SET version = version + 1, updated_at = now()
-WHERE id = $1 AND version = $2 AND system_key IS NULL RETURNING id, name, description, system_key, version, created_at, updated_at
+WHERE id = $1 AND version = $2 AND system_key IS NULL RETURNING id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, supervisor_dashboard
 `
 
 type BumpRoleVersionParams struct {
@@ -64,22 +71,36 @@ func (q *Queries) BumpRoleVersion(ctx context.Context, arg BumpRoleVersionParams
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProfileImageRequired,
+		&i.LaborordnungMode,
+		&i.SupervisorDashboard,
 	)
 	return i, err
 }
 
 const createRole = `-- name: CreateRole :one
-INSERT INTO roles (id, name, description) VALUES ($1, $2, $3) RETURNING id, name, description, system_key, version, created_at, updated_at
+INSERT INTO roles (id, name, description, profile_image_required, laborordnung_mode, supervisor_dashboard)
+VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, supervisor_dashboard
 `
 
 type CreateRoleParams struct {
-	ID          uuid.UUID
-	Name        string
-	Description *string
+	ID                   uuid.UUID
+	Name                 string
+	Description          *string
+	ProfileImageRequired bool
+	LaborordnungMode     string
+	SupervisorDashboard  bool
 }
 
 func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error) {
-	row := q.db.QueryRow(ctx, createRole, arg.ID, arg.Name, arg.Description)
+	row := q.db.QueryRow(ctx, createRole,
+		arg.ID,
+		arg.Name,
+		arg.Description,
+		arg.ProfileImageRequired,
+		arg.LaborordnungMode,
+		arg.SupervisorDashboard,
+	)
 	var i Role
 	err := row.Scan(
 		&i.ID,
@@ -89,6 +110,9 @@ func (q *Queries) CreateRole(ctx context.Context, arg CreateRoleParams) (Role, e
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProfileImageRequired,
+		&i.LaborordnungMode,
+		&i.SupervisorDashboard,
 	)
 	return i, err
 }
@@ -110,7 +134,7 @@ func (q *Queries) DeleteRole(ctx context.Context, arg DeleteRoleParams) (uuid.UU
 }
 
 const deleteRolePermissions = `-- name: DeleteRolePermissions :exec
-DELETE FROM role_permissions WHERE role_id = $1
+DELETE FROM role_permission_grants WHERE role_id = $1
 `
 
 func (q *Queries) DeleteRolePermissions(ctx context.Context, roleID uuid.UUID) error {
@@ -119,7 +143,7 @@ func (q *Queries) DeleteRolePermissions(ctx context.Context, roleID uuid.UUID) e
 }
 
 const getRole = `-- name: GetRole :one
-SELECT id, name, description, system_key, version, created_at, updated_at FROM roles WHERE id = $1
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, supervisor_dashboard FROM roles WHERE id = $1
 `
 
 func (q *Queries) GetRole(ctx context.Context, id uuid.UUID) (Role, error) {
@@ -133,12 +157,15 @@ func (q *Queries) GetRole(ctx context.Context, id uuid.UUID) (Role, error) {
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProfileImageRequired,
+		&i.LaborordnungMode,
+		&i.SupervisorDashboard,
 	)
 	return i, err
 }
 
 const getRoleForMutation = `-- name: GetRoleForMutation :one
-SELECT id, name, description, system_key, version, created_at, updated_at FROM roles WHERE id = $1 FOR UPDATE
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, supervisor_dashboard FROM roles WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetRoleForMutation(ctx context.Context, id uuid.UUID) (Role, error) {
@@ -152,22 +179,26 @@ func (q *Queries) GetRoleForMutation(ctx context.Context, id uuid.UUID) (Role, e
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProfileImageRequired,
+		&i.LaborordnungMode,
+		&i.SupervisorDashboard,
 	)
 	return i, err
 }
 
 const getRolePermissionGrants = `-- name: GetRolePermissionGrants :many
-SELECT rp.permission_id, rp.scope, rpdt.device_type_id
-FROM role_permissions rp LEFT JOIN role_permission_device_types rpdt
-  ON rpdt.role_id = rp.role_id AND rpdt.permission_id = rp.permission_id
-WHERE rp.role_id = $1
-ORDER BY rp.permission_id, rpdt.device_type_id
+SELECT g.id, g.permission_id, g.scope, g.minimum_assurance, gdt.device_type_id
+FROM role_permission_grants g LEFT JOIN role_permission_grant_device_types gdt ON gdt.grant_id = g.id
+WHERE g.role_id = $1
+ORDER BY g.permission_id, g.id, gdt.device_type_id
 `
 
 type GetRolePermissionGrantsRow struct {
-	PermissionID string
-	Scope        string
-	DeviceTypeID *uuid.UUID
+	ID               uuid.UUID
+	PermissionID     string
+	Scope            string
+	MinimumAssurance string
+	DeviceTypeID     *uuid.UUID
 }
 
 func (q *Queries) GetRolePermissionGrants(ctx context.Context, roleID uuid.UUID) ([]GetRolePermissionGrantsRow, error) {
@@ -179,7 +210,13 @@ func (q *Queries) GetRolePermissionGrants(ctx context.Context, roleID uuid.UUID)
 	items := []GetRolePermissionGrantsRow{}
 	for rows.Next() {
 		var i GetRolePermissionGrantsRow
-		if err := rows.Scan(&i.PermissionID, &i.Scope, &i.DeviceTypeID); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.PermissionID,
+			&i.Scope,
+			&i.MinimumAssurance,
+			&i.DeviceTypeID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -191,7 +228,7 @@ func (q *Queries) GetRolePermissionGrants(ctx context.Context, roleID uuid.UUID)
 }
 
 const listRoles = `-- name: ListRoles :many
-SELECT id, name, description, system_key, version, created_at, updated_at FROM roles ORDER BY system_key DESC NULLS LAST, lower(name), id
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, supervisor_dashboard FROM roles ORDER BY system_key DESC NULLS LAST, lower(name), id
 `
 
 func (q *Queries) ListRoles(ctx context.Context) ([]Role, error) {
@@ -211,6 +248,9 @@ func (q *Queries) ListRoles(ctx context.Context) ([]Role, error) {
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ProfileImageRequired,
+			&i.LaborordnungMode,
+			&i.SupervisorDashboard,
 		); err != nil {
 			return nil, err
 		}
@@ -234,21 +274,30 @@ func (q *Queries) RoleAssignmentCount(ctx context.Context, roleID uuid.UUID) (in
 }
 
 const updateRole = `-- name: UpdateRole :one
-UPDATE roles SET name = $1, description = $2, version = version + 1, updated_at = now()
-WHERE id = $3 AND version = $4 AND system_key IS NULL RETURNING id, name, description, system_key, version, created_at, updated_at
+UPDATE roles SET name = $1, description = $2,
+    profile_image_required = $3,
+    laborordnung_mode = $4, supervisor_dashboard = $5,
+    version = version + 1, updated_at = now()
+WHERE id = $6 AND version = $7 AND system_key IS NULL RETURNING id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, supervisor_dashboard
 `
 
 type UpdateRoleParams struct {
-	Name            string
-	Description     *string
-	ID              uuid.UUID
-	ExpectedVersion int64
+	Name                 string
+	Description          *string
+	ProfileImageRequired bool
+	LaborordnungMode     string
+	SupervisorDashboard  bool
+	ID                   uuid.UUID
+	ExpectedVersion      int64
 }
 
 func (q *Queries) UpdateRole(ctx context.Context, arg UpdateRoleParams) (Role, error) {
 	row := q.db.QueryRow(ctx, updateRole,
 		arg.Name,
 		arg.Description,
+		arg.ProfileImageRequired,
+		arg.LaborordnungMode,
+		arg.SupervisorDashboard,
 		arg.ID,
 		arg.ExpectedVersion,
 	)
@@ -261,6 +310,9 @@ func (q *Queries) UpdateRole(ctx context.Context, arg UpdateRoleParams) (Role, e
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ProfileImageRequired,
+		&i.LaborordnungMode,
+		&i.SupervisorDashboard,
 	)
 	return i, err
 }

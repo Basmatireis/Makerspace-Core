@@ -19,6 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { PermissionGrant } from './permissionGrant';
+import type { CreateRoleRequestLaborordnungMode } from './createRoleRequestLaborordnungMode';
 
 export interface CreateRoleRequest {
   /**
@@ -32,4 +33,7 @@ export interface CreateRoleRequest {
    */
   description?: string | null;
   permissionGrants: PermissionGrant[];
+  profileImageRequired?: boolean;
+  laborordnungMode?: CreateRoleRequestLaborordnungMode;
+  supervisorDashboard?: boolean;
 }

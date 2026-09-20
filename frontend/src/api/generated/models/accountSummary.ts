@@ -21,7 +21,9 @@ the required session and CSRF credentials.
 import type { UUIDv7 } from './uUIDv7';
 import type { AccountStatus } from './accountStatus';
 import type { PasswordStatus } from './passwordStatus';
-import type { Email } from './email';
+import type { AccountSummaryLoginEmail } from './accountSummaryLoginEmail';
+import type { AccountSummaryProvisioningSource } from './accountSummaryProvisioningSource';
+import type { AuthIdentitySummary } from './authIdentitySummary';
 import type { RoleSummary } from './roleSummary';
 import type { Version } from './version';
 
@@ -30,7 +32,16 @@ export interface AccountSummary {
   personId: UUIDv7;
   status: AccountStatus;
   passwordStatus: PasswordStatus;
-  loginEmail: Email;
+  /**
+   * Compatibility view of the local password identifier; use authIdentities.
+   * @deprecated
+   * @nullable
+   */
+  loginEmail: AccountSummaryLoginEmail;
+  provisioningSource: AccountSummaryProvisioningSource;
+  /** @nullable */
+  firstAuthenticatedAt: string | null;
+  authIdentities: AuthIdentitySummary[];
   roles: RoleSummary[];
   version: Version;
 }

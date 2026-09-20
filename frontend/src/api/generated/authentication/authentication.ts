@@ -20,9 +20,17 @@ the required session and CSRF credentials.
  */
 import type {
   ChangeOwnPasswordRequest,
+  CompleteEmailVerificationRequest,
+  CompleteInvitationRequest,
+  CompletePasswordResetCodeRequest,
   CompletePasswordResetRequest,
+  CompletePinEnrollmentRequest,
   CurrentUser,
-  LoginRequest
+  EnrollPinRequest,
+  LoginRequest,
+  PinLoginRequest,
+  RemoveOwnPasswordRequest,
+  RequestPasswordResetRequest
 } from '.././models';
 
 import { apiFetch } from '../../http-client';
@@ -51,6 +59,101 @@ export const login = async (loginRequest: LoginRequest, options?: RequestInit): 
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       loginRequest,)
+  }
+);}
+
+
+/**
+ * @summary Start a low-assurance login-name/PIN session
+ */
+export const getLoginWithPinUrl = () => {
+
+
+  
+
+  return `/api/v1/auth/pin/login`
+}
+
+export const loginWithPin = async (pinLoginRequest: PinLoginRequest, options?: RequestInit): Promise<void> => {
+  
+  return apiFetch<void>(getLoginWithPinUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      pinLoginRequest,)
+  }
+);}
+
+
+/**
+ * @summary Enroll or replace the current account's PIN method
+ */
+export const getEnrollOwnPinUrl = () => {
+
+
+  
+
+  return `/api/v1/auth/methods/pin`
+}
+
+export const enrollOwnPin = async (enrollPinRequest: EnrollPinRequest, options?: RequestInit): Promise<void> => {
+  
+  return apiFetch<void>(getEnrollOwnPinUrl(),
+  {      
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      enrollPinRequest,)
+  }
+);}
+
+
+/**
+ * @summary Complete a one-time PIN enrollment challenge
+ */
+export const getCompletePinEnrollmentUrl = () => {
+
+
+  
+
+  return `/api/v1/auth/pin/enrollment/complete`
+}
+
+export const completePinEnrollment = async (completePinEnrollmentRequest: CompletePinEnrollmentRequest, options?: RequestInit): Promise<void> => {
+  
+  return apiFetch<void>(getCompletePinEnrollmentUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      completePinEnrollmentRequest,)
+  }
+);}
+
+
+/**
+ * @summary Remove the current account's PIN method
+ */
+export const getRemoveOwnPinUrl = () => {
+
+
+  
+
+  return `/api/v1/auth/pin/enrollment/complete`
+}
+
+export const removeOwnPin = async ( options?: RequestInit): Promise<void> => {
+  
+  return apiFetch<void>(getRemoveOwnPinUrl(),
+  {      
+    ...options,
+    method: 'DELETE'
+    
+    
   }
 );}
 
@@ -128,6 +231,79 @@ export const changeOwnPassword = async (changeOwnPasswordRequest: ChangeOwnPassw
 
 
 /**
+ * @summary Remove the current account password without stranding the account
+ */
+export const getRemoveOwnPasswordUrl = () => {
+
+
+  
+
+  return `/api/v1/auth/password`
+}
+
+export const removeOwnPassword = async (removeOwnPasswordRequest: RemoveOwnPasswordRequest, options?: RequestInit): Promise<void> => {
+  
+  return apiFetch<void>(getRemoveOwnPasswordUrl(),
+  {      
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      removeOwnPasswordRequest,)
+  }
+);}
+
+
+/**
+ * Always returns the same accepted response, including for unknown or ineligible accounts and delivery failures.
+ * @summary Request a password-reset code
+ */
+export const getRequestPasswordResetUrl = () => {
+
+
+  
+
+  return `/api/v1/auth/password-reset/request`
+}
+
+export const requestPasswordReset = async (requestPasswordResetRequest: RequestPasswordResetRequest, options?: RequestInit): Promise<void> => {
+  
+  return apiFetch<void>(getRequestPasswordResetUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      requestPasswordResetRequest,)
+  }
+);}
+
+
+/**
+ * @summary Complete password recovery with an emailed code
+ */
+export const getCompletePasswordResetCodeUrl = () => {
+
+
+  
+
+  return `/api/v1/auth/password-reset/complete-code`
+}
+
+export const completePasswordResetCode = async (completePasswordResetCodeRequest: CompletePasswordResetCodeRequest, options?: RequestInit): Promise<void> => {
+  
+  return apiFetch<void>(getCompletePasswordResetCodeUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      completePasswordResetCodeRequest,)
+  }
+);}
+
+
+/**
  * The token is accepted only in the request body and is never placed in an API URL.
  * @summary Redeem a one-time password-reset token
  */
@@ -148,6 +324,78 @@ export const completePasswordReset = async (completePasswordResetRequest: Comple
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       completePasswordResetRequest,)
+  }
+);}
+
+
+/**
+ * @summary Complete an invitation and set the initial password
+ */
+export const getCompleteInvitationUrl = () => {
+
+
+  
+
+  return `/api/v1/auth/invitations/complete`
+}
+
+export const completeInvitation = async (completeInvitationRequest: CompleteInvitationRequest, options?: RequestInit): Promise<void> => {
+  
+  return apiFetch<void>(getCompleteInvitationUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      completeInvitationRequest,)
+  }
+);}
+
+
+/**
+ * The challenge is committed before synchronous delivery is attempted.
+ * @summary Send a verification code for the current account's local login email
+ */
+export const getRequestOwnEmailVerificationUrl = () => {
+
+
+  
+
+  return `/api/v1/auth/email-verification/request`
+}
+
+export const requestOwnEmailVerification = async ( options?: RequestInit): Promise<void> => {
+  
+  return apiFetch<void>(getRequestOwnEmailVerificationUrl(),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
+  }
+);}
+
+
+/**
+ * @summary Verify a local login email with a one-time code
+ */
+export const getCompleteEmailVerificationUrl = () => {
+
+
+  
+
+  return `/api/v1/auth/email-verification/complete`
+}
+
+export const completeEmailVerification = async (completeEmailVerificationRequest: CompleteEmailVerificationRequest, options?: RequestInit): Promise<void> => {
+  
+  return apiFetch<void>(getCompleteEmailVerificationUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      completeEmailVerificationRequest,)
   }
 );}
 

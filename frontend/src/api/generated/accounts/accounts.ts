@@ -210,12 +210,12 @@ export const setAccountPassword = async (accountId: string,
 
 
 /**
- * Requires `accounts.password.reset`. The link expires after the configured
-reset lifetime (30 minutes by default), uses a URL fragment so the token
-is not sent in HTTP request URLs, and is returned only once. Issuance
-invalidates the password for login and revokes existing sessions.
+ * Requires `accounts.password.reset`. The code expires after the configured
+reset lifetime (30 minutes by default) and is delivered to the password
+identity. When mail is disabled, an authorized administrator receives a
+one-time setup URL for delivery through a trusted channel.
 
- * @summary Issue a one-time administrative password-reset link
+ * @summary Send a one-time administrative password-reset code
  */
 export const getIssueAccountPasswordResetUrl = (accountId: string,) => {
 
@@ -229,6 +229,60 @@ export const issueAccountPasswordReset = async (accountId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<PasswordResetIssue> => {
   
   return apiFetch<PasswordResetIssue>(getIssueAccountPasswordResetUrl(accountId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      versionRequest,)
+  }
+);}
+
+
+/**
+ * @summary Send or safely resend an account invitation
+ */
+export const getIssueAccountInvitationUrl = (accountId: string,) => {
+
+
+  
+
+  return `/api/v1/accounts/${accountId}/invitations`
+}
+
+export const issueAccountInvitation = async (accountId: string,
+    versionRequest: VersionRequest, options?: RequestInit): Promise<PasswordResetIssue> => {
+  
+  return apiFetch<PasswordResetIssue>(getIssueAccountInvitationUrl(accountId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      versionRequest,)
+  }
+);}
+
+
+/**
+ * Requires `accounts.pin.enroll.all` when adding PIN login and
+`accounts.pin.reset` when replacing an existing PIN method. The
+administrator never receives or chooses the permanent PIN.
+
+ * @summary Send or safely resend a one-time PIN setup challenge
+ */
+export const getIssueAccountPinEnrollmentUrl = (accountId: string,) => {
+
+
+  
+
+  return `/api/v1/accounts/${accountId}/pin-enrollment`
+}
+
+export const issueAccountPinEnrollment = async (accountId: string,
+    versionRequest: VersionRequest, options?: RequestInit): Promise<PasswordResetIssue> => {
+  
+  return apiFetch<PasswordResetIssue>(getIssueAccountPinEnrollmentUrl(accountId),
   {      
     ...options,
     method: 'POST',

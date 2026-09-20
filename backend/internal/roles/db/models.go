@@ -12,12 +12,15 @@ import (
 )
 
 type Account struct {
-	ID        uuid.UUID
-	PersonID  uuid.UUID
-	Status    string
-	Version   int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID                         uuid.UUID
+	PersonID                   uuid.UUID
+	Status                     string
+	Version                    int64
+	CreatedAt                  time.Time
+	UpdatedAt                  time.Time
+	ProvisioningSource         string
+	FirstAuthenticatedAt       pgtype.Timestamptz
+	AdministrativelyDisabledAt pgtype.Timestamptz
 }
 
 type AccountRole struct {
@@ -40,14 +43,47 @@ type AuditEvent struct {
 	Source         string
 }
 
+type AuthChallenge struct {
+	ID                  uuid.UUID
+	Kind                string
+	AccountID           uuid.UUID
+	AuthIdentityID      *uuid.UUID
+	CodeDigest          []byte
+	DeliveryAddress     string
+	AttemptCount        int16
+	CreatedByAccountID  *uuid.UUID
+	ExpiresAt           time.Time
+	UsedAt              pgtype.Timestamptz
+	CancelledAt         pgtype.Timestamptz
+	DeliveryStatus      string
+	DeliveryAttemptedAt pgtype.Timestamptz
+	DeliveryFailureCode *string
+	CreatedAt           time.Time
+}
+
 type AuthIdentity struct {
 	ID                   uuid.UUID
 	AccountID            uuid.UUID
 	Kind                 string
-	IdentifierDisplay    string
-	IdentifierNormalized string
+	IdentifierDisplay    *string
+	IdentifierNormalized *string
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
+	ProviderID           *uuid.UUID
+	Issuer               *string
+	Subject              *string
+	VerifiedAt           pgtype.Timestamptz
+	DisabledAt           pgtype.Timestamptz
+	LastUsedAt           pgtype.Timestamptz
+}
+
+type AuthRateLimit struct {
+	Action          string
+	KeyDigest       []byte
+	WindowStartedAt time.Time
+	AttemptCount    int32
+	BlockedUntil    pgtype.Timestamptz
+	UpdatedAt       time.Time
 }
 
 type DeviceType struct {
@@ -57,6 +93,65 @@ type DeviceType struct {
 	Version     int64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+}
+
+type File struct {
+	ID                 uuid.UUID
+	StorageKey         string
+	OriginalFilename   string
+	ContentType        string
+	SizeBytes          int64
+	Sha256             []byte
+	CreatedByAccountID *uuid.UUID
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type LaborordnungRequest struct {
+	ID                        uuid.UUID
+	PersonID                  uuid.UUID
+	RequiredVersionID         uuid.UUID
+	PreviousVersionID         *uuid.UUID
+	Status                    string
+	RequestedAt               time.Time
+	CompletedAt               pgtype.Timestamptz
+	SupersededAt              pgtype.Timestamptz
+	ConfirmedByAccountID      *uuid.UUID
+	PhysicalDocumentReference *string
+	SignedDate                pgtype.Date
+	ArchiveNote               *string
+	CreatedAt                 time.Time
+	UpdatedAt                 time.Time
+}
+
+type LaborordnungVersion struct {
+	ID                 uuid.UUID
+	Status             string
+	HumanRevision      string
+	PdfFileID          uuid.UUID
+	PdfSha256          []byte
+	EffectiveAt        pgtype.Timestamptz
+	PublishedAt        pgtype.Timestamptz
+	CreatedByAccountID *uuid.UUID
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type MailConfiguration struct {
+	Singleton             bool
+	Enabled               bool
+	Provider              string
+	SmtpHost              string
+	SmtpPort              int32
+	SmtpTlsMode           string
+	SmtpUsername          string
+	EncryptedSmtpPassword []byte
+	FromAddress           string
+	FromName              string
+	BaseUrl               string
+	Version               int64
+	UpdatedByAccountID    *uuid.UUID
+	UpdatedAt             time.Time
 }
 
 type ManagedDevice struct {
@@ -70,6 +165,35 @@ type ManagedDevice struct {
 	Version      int64
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+}
+
+type OidcFlow struct {
+	ID                    uuid.UUID
+	ProviderID            uuid.UUID
+	Kind                  string
+	AccountID             *uuid.UUID
+	StateDigest           []byte
+	BrowserTokenDigest    []byte
+	EncryptedNonce        []byte
+	EncryptedPkceVerifier []byte
+	ExpiresAt             time.Time
+	UsedAt                pgtype.Timestamptz
+	CreatedAt             time.Time
+}
+
+type OidcProvider struct {
+	ID                    uuid.UUID
+	Slug                  string
+	DisplayName           string
+	Issuer                string
+	ClientID              string
+	EncryptedClientSecret []byte
+	Enabled               bool
+	JitEnabled            bool
+	AcrAssuranceMappings  []byte
+	Version               int64
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
 type OpenDay struct {
@@ -153,41 +277,124 @@ type Person struct {
 	Version             int64
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+	ProfileImageFileID  *uuid.UUID
+	ProfileImageSource  *string
+}
+
+type PinCredential struct {
+	AuthIdentityID uuid.UUID
+	PinHash        string
+	ChangedAt      time.Time
+}
+
+type PinLoginThrottle struct {
+	Dimension    string
+	KeyDigest    []byte
+	FailureCount int32
+	BlockedUntil pgtype.Timestamptz
+	UpdatedAt    time.Time
 }
 
 type Role struct {
-	ID          uuid.UUID
-	Name        string
-	Description *string
-	SystemKey   *string
-	Version     int64
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	ID                   uuid.UUID
+	Name                 string
+	Description          *string
+	SystemKey            *string
+	Version              int64
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	ProfileImageRequired bool
+	LaborordnungMode     string
+	SupervisorDashboard  bool
 }
 
-type RolePermission struct {
-	RoleID       uuid.UUID
-	PermissionID string
-	Scope        string
+type RolePermissionGrant struct {
+	ID               uuid.UUID
+	RoleID           uuid.UUID
+	PermissionID     string
+	Scope            string
+	MinimumAssurance string
 }
 
-type RolePermissionDeviceType struct {
-	RoleID       uuid.UUID
-	PermissionID string
+type RolePermissionGrantDeviceType struct {
+	GrantID      uuid.UUID
 	DeviceTypeID uuid.UUID
 }
 
+type ScimConnector struct {
+	ID             uuid.UUID
+	Name           string
+	OidcProviderID *uuid.UUID
+	Enabled        bool
+	Version        int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type ScimConnectorToken struct {
+	ID                 uuid.UUID
+	ConnectorID        uuid.UUID
+	TokenDigest        []byte
+	ExpiresAt          time.Time
+	RevokedAt          pgtype.Timestamptz
+	LastUsedAt         pgtype.Timestamptz
+	CreatedByAccountID *uuid.UUID
+	CreatedAt          time.Time
+}
+
+type ScimUser struct {
+	ID               uuid.UUID
+	ConnectorID      uuid.UUID
+	PersonID         uuid.UUID
+	AccountID        uuid.UUID
+	ExternalID       *string
+	UserName         string
+	ProvisioningData []byte
+	Version          int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
 type Session struct {
-	ID                uuid.UUID
-	AccountID         uuid.UUID
-	AuthIdentityID    uuid.UUID
-	TokenDigest       []byte
-	CsrfDigest        []byte
-	AuthMethod        string
-	CreatedAt         time.Time
-	LastSeenAt        time.Time
-	IdleExpiresAt     time.Time
-	AbsoluteExpiresAt time.Time
-	RevokedAt         pgtype.Timestamptz
-	RevocationReason  *string
+	ID                 uuid.UUID
+	AccountID          uuid.UUID
+	AuthIdentityID     uuid.UUID
+	TokenDigest        []byte
+	CsrfDigest         []byte
+	AuthMethod         string
+	CreatedAt          time.Time
+	LastSeenAt         time.Time
+	IdleExpiresAt      time.Time
+	AbsoluteExpiresAt  time.Time
+	RevokedAt          pgtype.Timestamptz
+	RevocationReason   *string
+	BaseAssurance      string
+	CurrentAssurance   string
+	AuthenticatedAt    time.Time
+	AssuranceExpiresAt pgtype.Timestamptz
+}
+
+type VisitorEnrollmentConfiguration struct {
+	Singleton          bool
+	Enabled            bool
+	InitialRoleID      *uuid.UUID
+	AllowedMethods     []string
+	Version            int64
+	UpdatedByAccountID *uuid.UUID
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type VisitorEnrollmentContext struct {
+	ID              uuid.UUID
+	ManagedDeviceID uuid.UUID
+	TokenDigest     []byte
+	CsrfDigest      []byte
+	ExpiresAt       time.Time
+	UsedAt          pgtype.Timestamptz
+	CreatedAt       time.Time
+}
+
+type VisitorEnrollmentDeviceType struct {
+	DeviceTypeID uuid.UUID
 }
