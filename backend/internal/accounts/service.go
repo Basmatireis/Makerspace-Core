@@ -31,6 +31,7 @@ type AuthIdentity struct {
 	ID                uuid.UUID
 	Kind              string
 	DisplayIdentifier *string
+	ProviderSlug      *string
 	VerifiedAt        *time.Time
 	DisabledAt        *time.Time
 	CreatedAt         time.Time
@@ -680,46 +681,9 @@ func (s *Service) ChangeRole(ctx context.Context, principal authorization.Princi
 	if account.Version != expectedVersion {
 		return Account{}, apperror.StaleWrite
 	}
-	role, err := queries.GetRoleForAssignment(ctx, roleID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return Account{}, apperror.NotFound
-	}
+	role, err := authorizeRoleAssignment(ctx, queries, principal, roleID)
 	if err != nil {
 		return Account{}, err
-	}
-	permissions, err := queries.GetRolePermissionGrantsForAssignment(ctx, roleID)
-	if err != nil {
-		return Account{}, err
-	}
-	if role.SystemKey != nil && *role.SystemKey == "master" {
-		if !principal.Master {
-			return Account{}, apperror.PermissionDenied
-		}
-	} else {
-		grants := map[uuid.UUID]authorization.PermissionGrant{}
-		for _, permission := range permissions {
-			permissionID := authorization.Permission(permission.PermissionID)
-			if !authorization.Known(permissionID) {
-				slog.WarnContext(ctx, "unknown stored permission blocked role assignment", "role_id", roleID, "permission_id", permission.PermissionID)
-				if !principal.Master {
-					return Account{}, apperror.PermissionDenied
-				}
-				continue
-			}
-			grant, exists := grants[permission.ID]
-			if !exists {
-				grant = authorization.PermissionGrant{ID: permission.ID, PermissionID: permissionID, Scope: authorization.GrantScope(permission.Scope), MinimumAssurance: authorization.Assurance(permission.MinimumAssurance)}
-			}
-			if permission.DeviceTypeID != nil {
-				grant.DeviceTypeIDs = append(grant.DeviceTypeIDs, *permission.DeviceTypeID)
-			}
-			grants[permission.ID] = grant
-		}
-		for _, grant := range grants {
-			if !principal.Master && !principal.CanDelegate(grant) {
-				return Account{}, apperror.PermissionDenied
-			}
-		}
 	}
 	present, err := queries.IsAccountRoleAssigned(ctx, accountsdb.IsAccountRoleAssignedParams{AccountID: accountID, RoleID: roleID})
 	if err != nil {
@@ -792,7 +756,7 @@ func loadAccount(ctx context.Context, queries *accountsdb.Queries, id uuid.UUID)
 	for _, identity := range identityRows {
 		displayIdentifier := identity.DisplayIdentifier
 		identities = append(identities, AuthIdentity{
-			ID: identity.ID, Kind: identity.Kind, DisplayIdentifier: &displayIdentifier,
+			ID: identity.ID, Kind: identity.Kind, DisplayIdentifier: &displayIdentifier, ProviderSlug: identity.ProviderSlug,
 			VerifiedAt: timeFromPG(identity.VerifiedAt), DisabledAt: timeFromPG(identity.DisabledAt), CreatedAt: identity.CreatedAt,
 		})
 	}
@@ -855,3 +819,52 @@ func validation(reason string) *apperror.Error {
 }
 
 func ptr(value string) *string { return &value }
+
+// authorizeRoleAssignment is shared by ordinary assignment and provisioning.
+func authorizeRoleAssignment(ctx context.Context, queries *accountsdb.Queries, principal authorization.Principal, roleID uuid.UUID) (accountsdb.Role, error) {
+	if !principal.Has(authorization.AccountsRolesAssign) {
+		return accountsdb.Role{}, apperror.PermissionDenied
+	}
+	role, err := queries.GetRoleForAssignment(ctx, roleID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return accountsdb.Role{}, apperror.NotFound
+	}
+	if err != nil {
+		return accountsdb.Role{}, err
+	}
+	permissions, err := queries.GetRolePermissionGrantsForAssignment(ctx, roleID)
+	if err != nil {
+		return accountsdb.Role{}, err
+	}
+	if role.SystemKey != nil && *role.SystemKey == "master" {
+		if !principal.Master {
+			return accountsdb.Role{}, apperror.PermissionDenied
+		}
+	} else {
+		grants := map[uuid.UUID]authorization.PermissionGrant{}
+		for _, permission := range permissions {
+			permissionID := authorization.Permission(permission.PermissionID)
+			if !authorization.Known(permissionID) {
+				slog.WarnContext(ctx, "unknown stored permission blocked role assignment", "role_id", roleID, "permission_id", permission.PermissionID)
+				if !principal.Master {
+					return accountsdb.Role{}, apperror.PermissionDenied
+				}
+				continue
+			}
+			grant, exists := grants[permission.ID]
+			if !exists {
+				grant = authorization.PermissionGrant{ID: permission.ID, PermissionID: permissionID, Scope: authorization.GrantScope(permission.Scope), MinimumAssurance: authorization.Assurance(permission.MinimumAssurance)}
+			}
+			if permission.DeviceTypeID != nil {
+				grant.DeviceTypeIDs = append(grant.DeviceTypeIDs, *permission.DeviceTypeID)
+			}
+			grants[permission.ID] = grant
+		}
+		for _, grant := range grants {
+			if !principal.Master && !principal.CanDelegate(grant) {
+				return accountsdb.Role{}, apperror.PermissionDenied
+			}
+		}
+	}
+	return role, nil
+}

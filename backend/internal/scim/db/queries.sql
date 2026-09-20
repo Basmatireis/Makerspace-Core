@@ -111,10 +111,6 @@ UPDATE scim_users SET external_id=sqlc.narg(external_id), user_name=sqlc.arg(use
 WHERE connector_id=sqlc.arg(connector_id) AND id=sqlc.arg(id)
 RETURNING *;
 
--- name: UpdateBoundOIDCSubject :exec
-UPDATE auth_identities SET subject=sqlc.arg(subject), updated_at=now()
-WHERE account_id=sqlc.arg(account_id) AND kind='oidc' AND provider_id=sqlc.arg(provider_id);
-
 -- name: UpdateProvisionedPerson :exec
 UPDATE people SET first_name=sqlc.arg(first_name), last_name=sqlc.arg(last_name),
     email=sqlc.narg(email), phone=sqlc.narg(phone), version=version+1, updated_at=now()
@@ -147,7 +143,7 @@ WHERE i.account_id=sqlc.arg(account_id) AND i.disabled_at IS NULL
   AND (sqlc.narg(excluded_provider_id)::uuid IS NULL OR i.provider_id IS DISTINCT FROM sqlc.narg(excluded_provider_id)::uuid)
   AND ((i.kind='password' AND EXISTS (SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id=i.id AND NOT pc.reset_required))
     OR (i.kind='pin' AND EXISTS (SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id=i.id))
-    OR i.kind='oidc');
+    OR (i.kind='oidc' AND EXISTS (SELECT 1 FROM oidc_providers op WHERE op.id=i.provider_id AND op.enabled)));
 
 -- name: RevokeSessionsForAccount :exec
 UPDATE sessions SET revoked_at=COALESCE(revoked_at, now()), revocation_reason=COALESCE(revocation_reason, sqlc.arg(reason))
@@ -229,7 +225,7 @@ WHERE account_id=sqlc.arg(source_account_id) AND kind='oidc';
 
 -- name: TransferAccountRoles :exec
 INSERT INTO account_roles (account_id, role_id, assigned_by_account_id, assigned_at)
-SELECT sqlc.arg(target_account_id), source.role_id, source.assigned_by_account_id, source.assigned_at
+SELECT sqlc.arg(target_account_id), source.role_id, sqlc.narg(assigned_by_account_id), now()
 FROM account_roles source WHERE source.account_id=sqlc.arg(source_account_id)
 ON CONFLICT (account_id, role_id) DO NOTHING;
 
@@ -247,3 +243,6 @@ DELETE FROM accounts WHERE id=sqlc.arg(id);
 
 -- name: DeleteReconciledPerson :exec
 DELETE FROM people WHERE id=sqlc.arg(id);
+
+-- name: BumpReconciledAccountVersion :exec
+UPDATE accounts SET version=version+1, updated_at=now() WHERE id=sqlc.arg(id);

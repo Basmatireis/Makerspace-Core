@@ -102,7 +102,7 @@ func TestSCIMReconciliationPreservesAnEnabledMaster(t *testing.T) {
 		t.Fatal(err)
 	}
 	report, err := service.Reconcile(ctx, principal, sourceID, target.accountID, nil)
-	if err != nil || report.CanReconcile || report.Completed || len(report.Conflicts) != 1 || report.Conflicts[0].Code != "last_master" {
+	if err != nil || report.CanReconcile || report.Completed || len(report.Conflicts) != 1 || report.Conflicts[0].Code != "master_role_transfer" {
 		t.Fatalf("last-master reconciliation = %#v, %v", report, err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1`, 1, sourceID)
@@ -111,11 +111,11 @@ func TestSCIMReconciliationPreservesAnEnabledMaster(t *testing.T) {
 		t.Fatal(err)
 	}
 	report, err = service.Reconcile(ctx, principal, sourceID, target.accountID, nil)
-	if err != nil || !report.Completed {
-		t.Fatalf("reconciliation = %#v, %v", report, err)
+	if err != nil || report.Completed || report.CanReconcile {
+		t.Fatalf("master transfer accepted: %#v, %v", report, err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1`, 0, sourceID)
-	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id=$1 AND role_id=$2`, 1, target.accountID, masterRoleID)
+	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1`, 1, sourceID)
+	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id=$1 AND role_id=$2`, 0, target.accountID, masterRoleID)
 }
 
 func TestSCIMProvisioningAuthenticationAndDeprovisioning(t *testing.T) {

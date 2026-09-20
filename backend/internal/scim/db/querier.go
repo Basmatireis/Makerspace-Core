@@ -13,6 +13,7 @@ import (
 type Querier interface {
 	AuthenticateConnector(ctx context.Context, tokenDigest []byte) (AuthenticateConnectorRow, error)
 	BumpConnectorVersion(ctx context.Context, arg BumpConnectorVersionParams) (ScimConnector, error)
+	BumpReconciledAccountVersion(ctx context.Context, id uuid.UUID) error
 	CountConnectorUsers(ctx context.Context, connectorID uuid.UUID) (int64, error)
 	CountIndependentUsableIdentities(ctx context.Context, arg CountIndependentUsableIdentitiesParams) (int64, error)
 	CountLocalIdentitiesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
@@ -54,7 +55,6 @@ type Querier interface {
 	TransferExternalIdentities(ctx context.Context, arg TransferExternalIdentitiesParams) error
 	TransferProfileImage(ctx context.Context, arg TransferProfileImageParams) error
 	TransferSCIMMappings(ctx context.Context, arg TransferSCIMMappingsParams) error
-	UpdateBoundOIDCSubject(ctx context.Context, arg UpdateBoundOIDCSubjectParams) error
 	UpdateConnector(ctx context.Context, arg UpdateConnectorParams) (ScimConnector, error)
 	UpdateProvisionedPerson(ctx context.Context, arg UpdateProvisionedPersonParams) error
 	UpdateSCIMMapping(ctx context.Context, arg UpdateSCIMMappingParams) (ScimUser, error)

@@ -67,6 +67,15 @@ func (q *Queries) BumpConnectorVersion(ctx context.Context, arg BumpConnectorVer
 	return i, err
 }
 
+const bumpReconciledAccountVersion = `-- name: BumpReconciledAccountVersion :exec
+UPDATE accounts SET version=version+1, updated_at=now() WHERE id=$1
+`
+
+func (q *Queries) BumpReconciledAccountVersion(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, bumpReconciledAccountVersion, id)
+	return err
+}
+
 const countConnectorUsers = `-- name: CountConnectorUsers :one
 SELECT count(*) FROM scim_users WHERE connector_id=$1
 `
@@ -84,7 +93,7 @@ WHERE i.account_id=$1 AND i.disabled_at IS NULL
   AND ($2::uuid IS NULL OR i.provider_id IS DISTINCT FROM $2::uuid)
   AND ((i.kind='password' AND EXISTS (SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id=i.id AND NOT pc.reset_required))
     OR (i.kind='pin' AND EXISTS (SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id=i.id))
-    OR i.kind='oidc')
+    OR (i.kind='oidc' AND EXISTS (SELECT 1 FROM oidc_providers op WHERE op.id=i.provider_id AND op.enabled)))
 `
 
 type CountIndependentUsableIdentitiesParams struct {
@@ -968,18 +977,19 @@ func (q *Queries) TouchConnectorToken(ctx context.Context, tokenDigest []byte) e
 
 const transferAccountRoles = `-- name: TransferAccountRoles :exec
 INSERT INTO account_roles (account_id, role_id, assigned_by_account_id, assigned_at)
-SELECT $1, source.role_id, source.assigned_by_account_id, source.assigned_at
-FROM account_roles source WHERE source.account_id=$2
+SELECT $1, source.role_id, $2, now()
+FROM account_roles source WHERE source.account_id=$3
 ON CONFLICT (account_id, role_id) DO NOTHING
 `
 
 type TransferAccountRolesParams struct {
-	TargetAccountID uuid.UUID
-	SourceAccountID uuid.UUID
+	TargetAccountID     uuid.UUID
+	AssignedByAccountID *uuid.UUID
+	SourceAccountID     uuid.UUID
 }
 
 func (q *Queries) TransferAccountRoles(ctx context.Context, arg TransferAccountRolesParams) error {
-	_, err := q.db.Exec(ctx, transferAccountRoles, arg.TargetAccountID, arg.SourceAccountID)
+	_, err := q.db.Exec(ctx, transferAccountRoles, arg.TargetAccountID, arg.AssignedByAccountID, arg.SourceAccountID)
 	return err
 }
 
@@ -1030,22 +1040,6 @@ type TransferSCIMMappingsParams struct {
 
 func (q *Queries) TransferSCIMMappings(ctx context.Context, arg TransferSCIMMappingsParams) error {
 	_, err := q.db.Exec(ctx, transferSCIMMappings, arg.TargetAccountID, arg.TargetPersonID, arg.SourceAccountID)
-	return err
-}
-
-const updateBoundOIDCSubject = `-- name: UpdateBoundOIDCSubject :exec
-UPDATE auth_identities SET subject=$1, updated_at=now()
-WHERE account_id=$2 AND kind='oidc' AND provider_id=$3
-`
-
-type UpdateBoundOIDCSubjectParams struct {
-	Subject    *string
-	AccountID  uuid.UUID
-	ProviderID *uuid.UUID
-}
-
-func (q *Queries) UpdateBoundOIDCSubject(ctx context.Context, arg UpdateBoundOIDCSubjectParams) error {
-	_, err := q.db.Exec(ctx, updateBoundOIDCSubject, arg.Subject, arg.AccountID, arg.ProviderID)
 	return err
 }
 

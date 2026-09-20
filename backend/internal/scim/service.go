@@ -399,14 +399,12 @@ func (s *Service) ReplaceUser(ctx context.Context, connector ConnectorContext, i
 	if err != nil {
 		return User{}, err
 	}
+	if connector.OIDCProviderID != nil && (current.ExternalID == nil || input.ExternalID == nil || *current.ExternalID != *input.ExternalID) {
+		return User{}, &ProtocolError{Status: 409, SCIMType: "mutability", Detail: "externalId is the immutable subject of the linked OIDC identity"}
+	}
 	if current.ProvisioningSource == "scim" && !current.FirstAuthenticatedAt.Valid {
 		if err := queries.UpdateProvisionedPerson(ctx, scimdb.UpdateProvisionedPersonParams{FirstName: input.GivenName, LastName: input.FamilyName, Email: email, Phone: phone, ID: current.PersonID}); err != nil {
 			return User{}, err
-		}
-	}
-	if connector.OIDCProviderID != nil {
-		if err := queries.UpdateBoundOIDCSubject(ctx, scimdb.UpdateBoundOIDCSubjectParams{Subject: input.ExternalID, AccountID: current.AccountID, ProviderID: connector.OIDCProviderID}); err != nil {
-			return User{}, protocolDatabaseError(err)
 		}
 	}
 	if err := s.applyActiveState(ctx, tx, connector, current.AccountID, input.Active); err != nil {
@@ -524,7 +522,7 @@ func (s *Service) PreflightReconciliation(ctx context.Context, principal authori
 		return ReconciliationReport{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	return analyzeReconciliation(ctx, tx, provisionalID, targetID)
+	return analyzeReconciliation(ctx, tx, principal, provisionalID, targetID)
 }
 
 func (s *Service) Reconcile(ctx context.Context, principal authorization.Principal, provisionalID, targetID uuid.UUID, requestID *uuid.UUID) (ReconciliationReport, error) {
@@ -537,7 +535,7 @@ func (s *Service) Reconcile(ctx context.Context, principal authorization.Princip
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := scimdb.New(tx)
-	report, err := analyzeReconciliation(ctx, tx, provisionalID, targetID)
+	report, err := analyzeReconciliation(ctx, tx, principal, provisionalID, targetID)
 	if err != nil || !report.CanReconcile {
 		return report, err
 	}
@@ -567,7 +565,7 @@ func (s *Service) Reconcile(ctx context.Context, principal authorization.Princip
 	if err := queries.TransferExternalIdentities(ctx, scimdb.TransferExternalIdentitiesParams{TargetAccountID: targetID, SourceAccountID: provisionalID}); err != nil {
 		return report, err
 	}
-	if err := queries.TransferAccountRoles(ctx, scimdb.TransferAccountRolesParams{TargetAccountID: targetID, SourceAccountID: provisionalID}); err != nil {
+	if err := queries.TransferAccountRoles(ctx, scimdb.TransferAccountRolesParams{TargetAccountID: targetID, SourceAccountID: provisionalID, AssignedByAccountID: &principal.AccountID}); err != nil {
 		return report, err
 	}
 	if err := accounts.ProtectProvisionedAccountDeactivation(ctx, tx, provisionalID); err != nil {
@@ -576,6 +574,9 @@ func (s *Service) Reconcile(ctx context.Context, principal authorization.Princip
 			report.Conflicts = append(report.Conflicts, Conflict{Code: "last_master", Message: "Reconciliation must retain an enabled master Account."})
 			return report, nil
 		}
+		return report, err
+	}
+	if err := queries.BumpReconciledAccountVersion(ctx, targetID); err != nil {
 		return report, err
 	}
 	if err := queries.TransferSCIMMappings(ctx, scimdb.TransferSCIMMappingsParams{TargetAccountID: targetID, TargetPersonID: target.PersonID, SourceAccountID: provisionalID}); err != nil {
@@ -601,7 +602,7 @@ func (s *Service) Reconcile(ctx context.Context, principal authorization.Princip
 	return report, nil
 }
 
-func analyzeReconciliation(ctx context.Context, tx pgx.Tx, provisionalID, targetID uuid.UUID) (ReconciliationReport, error) {
+func analyzeReconciliation(ctx context.Context, tx pgx.Tx, principal authorization.Principal, provisionalID, targetID uuid.UUID) (ReconciliationReport, error) {
 	report := ReconciliationReport{ProvisionalAccountID: provisionalID, TargetAccountID: targetID, Conflicts: []Conflict{}}
 	if provisionalID == targetID {
 		return report, apperror.Validation
@@ -632,8 +633,17 @@ func analyzeReconciliation(ctx context.Context, tx pgx.Tx, provisionalID, target
 	if err != nil {
 		return report, err
 	}
-	if source.ProvisioningSource != "scim" {
-		report.Conflicts = append(report.Conflicts, Conflict{Code: "source_not_provisional", Message: "The source Account was not provisioned by SCIM."})
+	if source.ProvisioningSource != "scim" || source.FirstAuthenticatedAt.Valid {
+		report.Conflicts = append(report.Conflicts, Conflict{Code: "source_not_provisional", Message: "Only a SCIM Account that has never authenticated can be reconciled."})
+	}
+	if err := accounts.ValidateProvisionedRoleTransfer(ctx, tx, principal, provisionalID); err != nil {
+		if apperror.IsCode(err, "master_role_transfer") {
+			report.Conflicts = append(report.Conflicts, Conflict{Code: "master_role_transfer", Message: "The master role must never be transferred by SCIM reconciliation."})
+		} else if apperror.IsCode(err, "permission_denied") {
+			report.Conflicts = append(report.Conflicts, Conflict{Code: "role_transfer_forbidden", Message: "Role transfer requires accounts.roles.assign and authority to delegate every source role."})
+		} else {
+			return report, err
+		}
 	}
 	mappings, err := queries.CountSCIMMappingsForAccount(ctx, provisionalID)
 	if err != nil {
