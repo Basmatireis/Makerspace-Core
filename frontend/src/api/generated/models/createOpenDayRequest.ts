@@ -22,6 +22,7 @@ import type { StaffingRequirementInput } from './staffingRequirementInput';
 import type { Version } from './version';
 
 export interface CreateOpenDayRequest {
+  /** Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone. */
   startsAt: string;
   endsAt: string;
   /**

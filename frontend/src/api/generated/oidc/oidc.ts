@@ -181,7 +181,8 @@ export const completeOIDCCallback = async (params: CompleteOIDCCallbackParams, o
 
 
 /**
- * @summary Reauthenticate with the local password and start secure identity linking
+ * Requires identities.oidc.link.self and authentication within five minutes. An optional currentPassword refreshes that assurance. Otherwise reauthenticate through an already linked enabled OIDC provider. Low-assurance PIN alone is insufficient. The callback remains bound to the same active session and recent grant.
+ * @summary Start identity linking with recent normal-or-higher authentication
  */
 export const getStartOIDCLinkUrl = (providerSlug: string,) => {
 
@@ -201,6 +202,30 @@ export const startOIDCLink = async (providerSlug: string,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       oIDCLinkRequest,)
+  }
+);}
+
+
+/**
+ * Uses max_age=0, verified auth_time, and the existing issuer/subject binding. Grants five minutes of recent authentication to the same active session. It cannot provision or link an identity or change the account.
+ * @summary Reauthenticate through an already linked enabled OIDC provider
+ */
+export const getStartOIDCReauthenticationUrl = (providerSlug: string,) => {
+
+
+  
+
+  return `/api/v1/auth/oidc/${providerSlug}/reauthenticate`
+}
+
+export const startOIDCReauthentication = async (providerSlug: string, options?: RequestInit): Promise<OIDCFlowStart> => {
+  
+  return apiFetch<OIDCFlowStart>(getStartOIDCReauthenticationUrl(providerSlug),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
   }
 );}
 

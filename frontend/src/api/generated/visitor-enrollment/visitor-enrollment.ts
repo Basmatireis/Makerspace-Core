@@ -100,7 +100,7 @@ export const beginVisitorEnrollment = async ( options?: RequestInit): Promise<vo
 
 
 /**
- * @summary Read enrollment methods and current Lab Rules without creating records
+ * @summary Read enrollment methods and the pinned Lab Rules without creating records
  */
 export const getGetVisitorEnrollmentStateUrl = () => {
 
@@ -123,7 +123,7 @@ export const getVisitorEnrollmentState = async ( options?: RequestInit): Promise
 
 
 /**
- * @summary Read the current Lab Rules PDF within an enrollment context
+ * @summary Read the exact Lab Rules PDF pinned when the enrollment context was created
  */
 export const getGetVisitorEnrollmentLabRulesPDFUrl = () => {
 
@@ -146,6 +146,7 @@ export const getVisitorEnrollmentLabRulesPDF = async ( options?: RequestInit): P
 
 
 /**
+ * Confirmation requests refer to the immutable Lab Rules version pinned by the enrollment context. Current device, method, and initial-role configuration is still enforced.
  * @summary Atomically create one visitor using the backend-configured Role
  */
 export const getSubmitVisitorEnrollmentUrl = () => {

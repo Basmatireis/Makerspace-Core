@@ -21,5 +21,5 @@ the required session and CSRF credentials.
 import type { ExistingPassword } from './existingPassword';
 
 export interface OIDCLinkRequest {
-  currentPassword: ExistingPassword;
+  currentPassword?: ExistingPassword;
 }

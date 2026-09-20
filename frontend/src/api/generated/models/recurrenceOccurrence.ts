@@ -22,6 +22,7 @@ import type { RecurrenceOccurrenceDisposition } from './recurrenceOccurrenceDisp
 
 export interface RecurrenceOccurrence {
   date: string;
+  /** Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone. */
   startsAt: string;
   endsAt: string;
   disposition: RecurrenceOccurrenceDisposition;

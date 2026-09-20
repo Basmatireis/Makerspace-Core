@@ -30,6 +30,7 @@ export interface SCIMUserWrite {
    */
   userName: string;
   /**
+   * Immutable OIDC subject for a provider-bound connector. Attempts to change it return SCIM 409 mutability; ordinary attributes remain editable.
    * @minLength 1
    * @maxLength 255
    * @nullable

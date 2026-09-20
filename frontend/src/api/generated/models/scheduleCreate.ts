@@ -21,6 +21,7 @@ the required session and CSRF credentials.
 import type { StaffingRequirementInput } from './staffingRequirementInput';
 
 export interface ScheduleCreate {
+  /** Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone. */
   startsAt: string;
   endsAt: string;
   /**

@@ -28,7 +28,10 @@ export interface RecurrencePreviewRequest {
   weekday: number;
   startsOn: string;
   endsOn: string;
-  /** @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$ */
+  /**
+   * Local wall time; daylight-saving gaps and overlaps return validation errors.
+   * @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$
+   */
   startTime: string;
   /** @pattern ^([01][0-9]|2[0-3]):[0-5][0-9]$ */
   endTime: string;

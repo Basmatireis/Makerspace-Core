@@ -179,6 +179,7 @@ type OidcFlow struct {
 	ExpiresAt             time.Time
 	UsedAt                pgtype.Timestamptz
 	CreatedAt             time.Time
+	SessionID             *uuid.UUID
 }
 
 type OidcProvider struct {
@@ -386,13 +387,14 @@ type VisitorEnrollmentConfiguration struct {
 }
 
 type VisitorEnrollmentContext struct {
-	ID              uuid.UUID
-	ManagedDeviceID uuid.UUID
-	TokenDigest     []byte
-	CsrfDigest      []byte
-	ExpiresAt       time.Time
-	UsedAt          pgtype.Timestamptz
-	CreatedAt       time.Time
+	ID                uuid.UUID
+	ManagedDeviceID   uuid.UUID
+	TokenDigest       []byte
+	CsrfDigest        []byte
+	ExpiresAt         time.Time
+	UsedAt            pgtype.Timestamptz
+	CreatedAt         time.Time
+	LabRulesVersionID *uuid.UUID
 }
 
 type VisitorEnrollmentDeviceType struct {

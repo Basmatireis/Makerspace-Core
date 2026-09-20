@@ -293,7 +293,7 @@ paths:
       tags: [Authentication]
       operationId: requestPasswordReset
       summary: Request a password-reset code
-      description: Always returns the same accepted response, including for unknown or ineligible accounts and delivery failures.
+      description: Returns the same accepted response for known, unknown, ineligible, rate-limited accounts and delivery failures. Synchronous delivery can affect latency; timing equality is not guaranteed. Malformed requests and infrastructure errors use the documented error responses.
       security: []
       requestBody:
         required: true
@@ -2276,6 +2276,8 @@ paths:
       responses:
         "302": {description: Login or linking completed., headers: {Location: {schema: {type: string}}, Set-Cookie: {schema: {type: string}}}}
         "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "409": {$ref: "#/components/responses/Conflict"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
@@ -2283,7 +2285,8 @@ paths:
     post:
       tags: [OIDC]
       operationId: startOIDCLink
-      summary: Reauthenticate with the local password and start secure identity linking
+      summary: Start identity linking with recent normal-or-higher authentication
+      description: Requires identities.oidc.link.self and authentication within five minutes. An optional currentPassword refreshes that assurance. Otherwise reauthenticate through an already linked enabled OIDC provider. Low-assurance PIN alone is insufficient. The callback remains bound to the same active session and recent grant.
       security: [{sessionCookie: [], csrfHeader: []}]
       parameters: [{name: providerSlug, in: path, required: true, schema: {type: string, pattern: "^[a-z0-9][a-z0-9-]{1,62}$"}}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/OIDCLinkRequest"}}}}
@@ -2291,7 +2294,24 @@ paths:
         "200": {description: Authorization URL., content: {application/json: {schema: {$ref: "#/components/schemas/OIDCFlowStart"}}}, headers: {Set-Cookie: {schema: {type: string}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /auth/oidc/{providerSlug}/reauthenticate:
+    post:
+      tags: [OIDC]
+      operationId: startOIDCReauthentication
+      summary: Reauthenticate through an already linked enabled OIDC provider
+      description: Uses max_age=0, verified auth_time, and the existing issuer/subject binding. Grants five minutes of recent authentication to the same active session. It cannot provision or link an identity or change the account.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters: [{name: providerSlug, in: path, required: true, schema: {type: string, pattern: "^[a-z0-9][a-z0-9-]{1,62}$"}}]
+      responses:
+        "200": {description: Reauthentication authorization URL., content: {application/json: {schema: {$ref: "#/components/schemas/OIDCFlowStart"}}}, headers: {Set-Cookie: {schema: {type: string}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /auth/methods/oidc/{identityId}:
@@ -2375,7 +2395,7 @@ paths:
     get:
       tags: [Visitor Enrollment]
       operationId: getVisitorEnrollmentState
-      summary: Read enrollment methods and current Lab Rules without creating records
+      summary: Read enrollment methods and the pinned Lab Rules without creating records
       security: []
       responses:
         "200": {description: Enrollment state., content: {application/json: {schema: {$ref: "#/components/schemas/VisitorEnrollmentState"}}}}
@@ -2387,10 +2407,10 @@ paths:
     get:
       tags: [Visitor Enrollment]
       operationId: getVisitorEnrollmentLabRulesPDF
-      summary: Read the current Lab Rules PDF within an enrollment context
+      summary: Read the exact Lab Rules PDF pinned when the enrollment context was created
       security: []
       responses:
-        "200": {description: Exact current PDF., content: {application/pdf: {schema: {type: string, format: binary}}}}
+        "200": {description: Exact pinned PDF; later publications never replace this context's document., content: {application/pdf: {schema: {type: string, format: binary}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
@@ -2400,6 +2420,7 @@ paths:
       tags: [Visitor Enrollment]
       operationId: submitVisitorEnrollment
       summary: Atomically create one visitor using the backend-configured Role
+      description: Confirmation requests refer to the immutable Lab Rules version pinned by the enrollment context. Current device, method, and initial-role configuration is still enforced.
       security: []
       parameters:
         - {name: X-Enrollment-CSRF-Token, in: header, required: true, schema: {type: string, minLength: 20, maxLength: 512}}
@@ -2504,6 +2525,7 @@ paths:
       tags: [SCIM Administration]
       operationId: preflightSCIMReconciliation
       summary: Analyze a provisional-to-established Account reconciliation without modifying data
+      description: The source must be SCIM-provisioned and never authenticated. Every role transfer requires accounts.roles.assign and ordinary privilege-subset delegation. Master roles cannot be transferred. Conflicts are reported without changing either account.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SCIMReconciliationRequest"}}}}
       responses:
@@ -2519,6 +2541,7 @@ paths:
       tags: [SCIM Administration]
       operationId: reconcileSCIMAccount
       summary: Atomically reconcile a conflict-free provisional SCIM Account into an established Account
+      description: Applies the same lifecycle and role-delegation checks as preflight under transaction locks. scim.manage alone cannot transfer roles, and master roles are never transferred.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SCIMReconciliationRequest"}}}}
       responses:
@@ -3401,7 +3424,6 @@ components:
     OIDCLinkRequest:
       type: object
       additionalProperties: false
-      required: [currentPassword]
       properties: {currentPassword: {$ref: "#/components/schemas/ExistingPassword"}}
     OIDCFlowStart:
       type: object
@@ -3564,6 +3586,7 @@ components:
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         kind: {type: string, enum: [password, pin, oidc]}
+        providerSlug: {type: string, description: OIDC provider used for self-service reauthentication; omitted for local identities.}
         displayIdentifier: {type: string, nullable: true, maxLength: 254}
         verifiedAt: {type: string, format: date-time, nullable: true}
         disabledAt: {type: string, format: date-time, nullable: true}
@@ -4093,7 +4116,7 @@ components:
       additionalProperties: false
       required: [startsAt, endsAt, requirements, expectedPeriodVersion]
       properties:
-        startsAt: {type: string, format: date-time}
+        startsAt: {type: string, format: date-time, description: Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone.}
         endsAt: {type: string, format: date-time}
         internalNote: {type: string, maxLength: 2000, nullable: true}
         requirements:
@@ -4157,7 +4180,7 @@ components:
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         periodId: {$ref: "#/components/schemas/UUIDv7"}
-        startsAt: {type: string, format: date-time}
+        startsAt: {type: string, format: date-time, description: Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone.}
         endsAt: {type: string, format: date-time}
         internalNote:
           type: string
@@ -4187,7 +4210,7 @@ components:
       additionalProperties: false
       required: [startsAt, endsAt, requirements]
       properties:
-        startsAt: {type: string, format: date-time}
+        startsAt: {type: string, format: date-time, description: Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone.}
         endsAt: {type: string, format: date-time}
         internalNote: {type: string, maxLength: 2000, nullable: true}
         requirements:
@@ -4202,7 +4225,7 @@ components:
       required: [id, startsAt, endsAt, requirements, expectedVersion]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
-        startsAt: {type: string, format: date-time}
+        startsAt: {type: string, format: date-time, description: Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone.}
         endsAt: {type: string, format: date-time}
         internalNote: {type: string, maxLength: 2000, nullable: true}
         requirements:
@@ -4238,7 +4261,7 @@ components:
         weekday: {type: integer, minimum: 1, maximum: 7, description: "ISO weekday; Monday is 1."}
         startsOn: {type: string, format: date}
         endsOn: {type: string, format: date}
-        startTime: {type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
+        startTime: {type: string, description: Local wall time; daylight-saving gaps and overlaps return validation errors., pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
         endTime: {type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
         everyWeeks: {type: integer, minimum: 1, maximum: 52}
         skipPublicHolidays: {type: boolean}
@@ -4250,7 +4273,7 @@ components:
       required: [date, startsAt, endsAt, disposition]
       properties:
         date: {type: string, format: date}
-        startsAt: {type: string, format: date-time}
+        startsAt: {type: string, format: date-time, description: Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone.}
         endsAt: {type: string, format: date-time}
         disposition: {type: string, enum: [create, publicHoliday, academicBreak, conflict]}
         reason: {type: string, maxLength: 200}
@@ -4360,7 +4383,7 @@ components:
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         title: {type: string, enum: [Open Day]}
-        startsAt: {type: string, format: date-time}
+        startsAt: {type: string, format: date-time, description: Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone.}
         endsAt: {type: string, format: date-time}
         status: {$ref: "#/components/schemas/OpenDayStatus"}
         updatedAt: {type: string, format: date-time}
@@ -4576,7 +4599,7 @@ components:
       properties:
         schemas: {type: array, items: {type: string}, maxItems: 5}
         userName: {type: string, minLength: 1, maxLength: 255}
-        externalId: {type: string, minLength: 1, maxLength: 255, nullable: true}
+        externalId: {type: string, minLength: 1, maxLength: 255, nullable: true, description: Immutable OIDC subject for a provider-bound connector. Attempts to change it return SCIM 409 mutability; ordinary attributes remain editable.}
         active: {type: boolean}
         name: {$ref: "#/components/schemas/SCIMName"}
         emails: {type: array, maxItems: 10, items: {$ref: "#/components/schemas/SCIMMultiValue"}}

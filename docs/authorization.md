@@ -43,10 +43,10 @@ Authorization is based on application-registered permission identifiers. Backend
 | `laborordnung.requests.read`, `laborordnung.confirm` | Read the confirmation queue or record verification of physical evidence. |
 | `visitor_enrollment.manage` | Configure approved terminal types, methods, and a delegable initial Role. |
 | `supervisor_dashboard.read` | Read the purpose-limited supervisor dashboard. |
-| `identities.oidc.link.self`, `identities.oidc.link.all` | Registered identity-link capabilities; the current browser linking flow implements self-linking. |
+| `identities.oidc.link.self`, `identities.oidc.link.all` | Self-linking requires recent normal-or-higher authentication. `link.all` is reserved/unimplemented; it cannot attach arbitrary subjects. |
 | `identities.oidc.unlink.self`, `identities.oidc.unlink.all` | Unlink external identities with remaining-method protection. |
 | `oidc.manage` | Configure OIDC providers and trusted assurance mappings. |
-| `scim.manage` | Configure SCIM connectors and reconcile provisioned Accounts. |
+| `scim.manage` | Configure SCIM connectors and reconcile never-authenticated provisional Accounts. Role transfer separately requires `accounts.roles.assign` and ordinary delegation authority; master transfer is forbidden. |
 | `mail.manage` | Configure encrypted transactional SMTP settings. |
 
 ## Device-scoped grants
@@ -94,3 +94,7 @@ Bootstrap and recovery are deliberate local administrative CLI operations, never
 Handlers parse authenticated identity and transport input, but services make the final permission decision inside the business operation. Missing permission returns HTTP 403 with the standard error envelope. Not-found behavior may conceal resource existence where disclosure would be unsafe. Account status, current Roles, and master semantics are loaded from PostgreSQL for each authenticated request, making revocation effective immediately at this system's small expected scale.
 
 Every authorization-sensitive mutation and security-relevant denial path has focused tests. Important successful mutations write a privacy-minimized AuditEvent atomically with their domain changes.
+
+SCIM reconciliation does not confer internal privileges. A source must have `provisioning_source='scim'`, no `first_authenticated_at`, a SCIM mapping, and no local authentication identities. Preflight and execution reject any role that the operator cannot assign through the ordinary role-assignment checks, including permission, device scope, and minimum-assurance subset constraints. A source with a master Role is always rejected, even for a master operator. Conflicts preserve both Accounts and all related records transactionally.
+
+For an OIDC-bound SCIM connector, `externalId` is the immutable subject assigned at provisioning. PUT and the existing supported PATCH dialect reject changes with SCIM 409 `mutability`. Unrelated attributes remain editable; no identity migration or broader PATCH dialect is implied.

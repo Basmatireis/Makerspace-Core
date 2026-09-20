@@ -178,3 +178,9 @@ Do not add `--volumes` unless deliberate, irreversible database deletion is inte
 Application rollback is safe only while its binary remains compatible with the migrated schema. Prefer forward fixes for data-bearing migrations. For production, restore `compose.yaml` from the previous immutable release bundle and run `docker compose up -d`; backend startup only applies missing forward migrations and never silently downgrades the schema. Revert a production migration only after reviewing its Down section and confirming that losing new schema/data is acceptable. `make migrate-down` remains the development-stack helper for deliberate manual work from a repository checkout.
 
 Account disablement, password set/reset, and Role changes take effect through database-backed authorization on the next request. If access is lost, use the recovery CLI rather than direct table edits. Never extract or manually alter password hashes or session/reset token digests.
+
+## Identity and visitor semantic migrations
+
+Migration 00016 adds the pinned Lab Rules version to enrollment contexts. Existing unfinished contexts cannot prove the displayed version and are invalidated; terminals must start a new enrollment. Migration 00017 binds sensitive OIDC flows to a session and adds reauthentication flows. Pending old linking flows are discarded. Existing OIDC sessions retain login validity, but their previous callback timestamp no longer serves as recent-authentication proof: reauthenticate before linking or other freshness-gated operations. Session cookies, credentials, Roles, and existing confirmation evidence are preserved.
+
+Both Down paths invalidate incompatible transient flows before removing their new fields. Production still applies migrations through the existing entrypoint; no database reset or automatic provider-wide session revocation is introduced.

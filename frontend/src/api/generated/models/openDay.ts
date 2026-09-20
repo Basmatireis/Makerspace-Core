@@ -27,6 +27,7 @@ import type { Version } from './version';
 export interface OpenDay {
   id: UUIDv7;
   periodId: UUIDv7;
+  /** Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone. */
   startsAt: string;
   endsAt: string;
   /**

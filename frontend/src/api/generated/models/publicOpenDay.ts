@@ -25,6 +25,7 @@ import type { OpenDayStatus } from './openDayStatus';
 export interface PublicOpenDay {
   id: UUIDv7;
   title: PublicOpenDayTitle;
+  /** Unambiguous instant. Scheduling rejects ambiguous local endpoints; send UTC or the correct offset for the configured makerspace timezone. */
   startsAt: string;
   endsAt: string;
   status: OpenDayStatus;

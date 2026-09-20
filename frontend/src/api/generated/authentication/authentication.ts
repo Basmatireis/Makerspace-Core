@@ -255,7 +255,7 @@ export const removeOwnPassword = async (removeOwnPasswordRequest: RemoveOwnPassw
 
 
 /**
- * Always returns the same accepted response, including for unknown or ineligible accounts and delivery failures.
+ * Returns the same accepted response for known, unknown, ineligible, rate-limited accounts and delivery failures. Synchronous delivery can affect latency; timing equality is not guaranteed. Malformed requests and infrastructure errors use the documented error responses.
  * @summary Request a password-reset code
  */
 export const getRequestPasswordResetUrl = () => {

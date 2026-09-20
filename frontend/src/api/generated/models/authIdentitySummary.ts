@@ -24,6 +24,8 @@ import type { AuthIdentitySummaryKind } from './authIdentitySummaryKind';
 export interface AuthIdentitySummary {
   id: UUIDv7;
   kind: AuthIdentitySummaryKind;
+  /** OIDC provider used for self-service reauthentication; omitted for local identities. */
+  providerSlug?: string;
   /**
    * @maxLength 254
    * @nullable
