@@ -18,13 +18,22 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { BillingPartyReference } from './billingPartyReference';
+import type { UUIDv7 } from './uUIDv7';
+import type { MachineJobOutcome } from './machineJobOutcome';
+import type { ConfirmMachineJobRequestPricingGroupId } from './confirmMachineJobRequestPricingGroupId';
+import type { Version } from './version';
 
-export type PasswordStatus = typeof PasswordStatus[keyof typeof PasswordStatus];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const PasswordStatus = {
-  PasswordStatusNotSet: 'not_set',
-  PasswordStatusActive: 'active',
-  PasswordStatusResetRequired: 'reset_required',
-} as const;
+export interface ConfirmMachineJobRequest {
+  customer: BillingPartyReference;
+  operatorPersonId: UUIDv7;
+  outcome: MachineJobOutcome;
+  /**
+   * @maxLength 2000
+   * @nullable
+   */
+  notes?: string | null;
+  /** @nullable */
+  pricingGroupId?: ConfirmMachineJobRequestPricingGroupId;
+  expectedVersion: Version;
+}

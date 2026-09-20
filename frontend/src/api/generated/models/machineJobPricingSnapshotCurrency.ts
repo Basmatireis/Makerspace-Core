@@ -19,12 +19,10 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 
-export type PasswordStatus = typeof PasswordStatus[keyof typeof PasswordStatus];
+export type MachineJobPricingSnapshotCurrency = typeof MachineJobPricingSnapshotCurrency[keyof typeof MachineJobPricingSnapshotCurrency];
 
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const PasswordStatus = {
-  PasswordStatusNotSet: 'not_set',
-  PasswordStatusActive: 'active',
-  PasswordStatusResetRequired: 'reset_required',
+export const MachineJobPricingSnapshotCurrency = {
+  EUR: 'EUR',
 } as const;

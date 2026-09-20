@@ -18,13 +18,13 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { OrganizationKind } from './organizationKind';
 
-export type PasswordStatus = typeof PasswordStatus[keyof typeof PasswordStatus];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const PasswordStatus = {
-  PasswordStatusNotSet: 'not_set',
-  PasswordStatusActive: 'active',
-  PasswordStatusResetRequired: 'reset_required',
-} as const;
+export interface CreateOrganizationRequest {
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  name: string;
+  kind: OrganizationKind;
+}

@@ -19,12 +19,13 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 
-export type PasswordStatus = typeof PasswordStatus[keyof typeof PasswordStatus];
+export type OrganizationKind = typeof OrganizationKind[keyof typeof OrganizationKind];
 
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const PasswordStatus = {
-  PasswordStatusNotSet: 'not_set',
-  PasswordStatusActive: 'active',
-  PasswordStatusResetRequired: 'reset_required',
+export const OrganizationKind = {
+  company: 'company',
+  institute: 'institute',
+  association: 'association',
+  other: 'other',
 } as const;

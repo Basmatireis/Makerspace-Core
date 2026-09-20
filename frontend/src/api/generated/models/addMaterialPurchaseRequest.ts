@@ -18,13 +18,23 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { Decimal } from './decimal';
+import type { Money } from './money';
+import type { Version } from './version';
 
-export type PasswordStatus = typeof PasswordStatus[keyof typeof PasswordStatus];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const PasswordStatus = {
-  PasswordStatusNotSet: 'not_set',
-  PasswordStatusActive: 'active',
-  PasswordStatusResetRequired: 'reset_required',
-} as const;
+export interface AddMaterialPurchaseRequest {
+  quantity: Decimal;
+  totalPrice: Money;
+  occurredAt: string;
+  /**
+   * @maxLength 200
+   * @nullable
+   */
+  supplier?: string | null;
+  /**
+   * @maxLength 1000
+   * @nullable
+   */
+  note?: string | null;
+  expectedInventoryVersion: Version;
+}

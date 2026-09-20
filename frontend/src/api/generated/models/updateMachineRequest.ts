@@ -18,13 +18,7 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateMachineRequest } from './createMachineRequest';
+import type { UpdateMachineRequestAllOf } from './updateMachineRequestAllOf';
 
-export type PasswordStatus = typeof PasswordStatus[keyof typeof PasswordStatus];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const PasswordStatus = {
-  PasswordStatusNotSet: 'not_set',
-  PasswordStatusActive: 'active',
-  PasswordStatusResetRequired: 'reset_required',
-} as const;
+export type UpdateMachineRequest = CreateMachineRequest & UpdateMachineRequestAllOf;

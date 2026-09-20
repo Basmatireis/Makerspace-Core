@@ -19,12 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 
-export type PasswordStatus = typeof PasswordStatus[keyof typeof PasswordStatus];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const PasswordStatus = {
-  PasswordStatusNotSet: 'not_set',
-  PasswordStatusActive: 'active',
-  PasswordStatusResetRequired: 'reset_required',
-} as const;
+/**
+ * @pattern ^-?(0|[1-9][0-9]*)(\.[0-9]{1,6})?$
+ */
+export type Decimal = string;

@@ -18,13 +18,14 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { MachineJob } from './machineJob';
 
-export type PasswordStatus = typeof PasswordStatus[keyof typeof PasswordStatus];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const PasswordStatus = {
-  PasswordStatusNotSet: 'not_set',
-  PasswordStatusActive: 'active',
-  PasswordStatusResetRequired: 'reset_required',
-} as const;
+export interface MachineJobPage {
+  items: MachineJob[];
+  /** @minimum 1 */
+  page: number;
+  /** @minimum 1 */
+  pageSize: number;
+  /** @minimum 0 */
+  total: number;
+}

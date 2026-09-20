@@ -18,13 +18,24 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { UUIDv7 } from './uUIDv7';
+import type { PricingRuleKind } from './pricingRuleKind';
+import type { PricingRuleMachineTypeId } from './pricingRuleMachineTypeId';
+import type { PricingRuleMaterialUnit } from './pricingRuleMaterialUnit';
+import type { Decimal } from './decimal';
+import type { Version } from './version';
 
-export type PasswordStatus = typeof PasswordStatus[keyof typeof PasswordStatus];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const PasswordStatus = {
-  PasswordStatusNotSet: 'not_set',
-  PasswordStatusActive: 'active',
-  PasswordStatusResetRequired: 'reset_required',
-} as const;
+export interface PricingRule {
+  id: UUIDv7;
+  pricingGroupId: UUIDv7;
+  kind: PricingRuleKind;
+  /** @nullable */
+  machineTypeId?: PricingRuleMachineTypeId;
+  /** @nullable */
+  materialCategory?: string | null;
+  /** @nullable */
+  materialUnit?: PricingRuleMaterialUnit;
+  rate: Decimal;
+  active: boolean;
+  version: Version;
+}

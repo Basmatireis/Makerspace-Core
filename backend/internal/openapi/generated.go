@@ -77,6 +77,19 @@ const (
 	StrongMfa AuthenticationAssurance = "strong_mfa"
 )
 
+// Defines values for BillingPartyKind.
+const (
+	BillingPartyKindOrganization BillingPartyKind = "organization"
+	BillingPartyKindPerson       BillingPartyKind = "person"
+)
+
+// Defines values for BillingStatus.
+const (
+	Billed   BillingStatus = "billed"
+	Unbilled BillingStatus = "unbilled"
+	Waived   BillingStatus = "waived"
+)
+
 // Defines values for CalendarEntryCategory.
 const (
 	CalendarEntryCategoryAcademicBreak CalendarEntryCategory = "academicBreak"
@@ -102,11 +115,31 @@ const (
 	Unavailable HealthStatusStatus = "unavailable"
 )
 
+// Defines values for InventoryAdjustmentReason.
+const (
+	InventoryAdjustmentReasonDamaged               InventoryAdjustmentReason = "damaged"
+	InventoryAdjustmentReasonDisposed              InventoryAdjustmentReason = "disposed"
+	InventoryAdjustmentReasonInventoryCount        InventoryAdjustmentReason = "inventory_count"
+	InventoryAdjustmentReasonJobCorrected          InventoryAdjustmentReason = "job_corrected"
+	InventoryAdjustmentReasonMarkEmpty             InventoryAdjustmentReason = "mark_empty"
+	InventoryAdjustmentReasonOther                 InventoryAdjustmentReason = "other"
+	InventoryAdjustmentReasonUnrecordedConsumption InventoryAdjustmentReason = "unrecorded_consumption"
+)
+
+// Defines values for InventoryTransactionKind.
+const (
+	Adjustment            InventoryTransactionKind = "adjustment"
+	Disposal              InventoryTransactionKind = "disposal"
+	MachineJobConsumption InventoryTransactionKind = "machine_job_consumption"
+	ManualConsumption     InventoryTransactionKind = "manual_consumption"
+	Purchase              InventoryTransactionKind = "purchase"
+)
+
 // Defines values for LaborordnungRequestStatus.
 const (
-	Completed  LaborordnungRequestStatus = "completed"
-	Pending    LaborordnungRequestStatus = "pending"
-	Superseded LaborordnungRequestStatus = "superseded"
+	LaborordnungRequestStatusCompleted  LaborordnungRequestStatus = "completed"
+	LaborordnungRequestStatusPending    LaborordnungRequestStatus = "pending"
+	LaborordnungRequestStatusSuperseded LaborordnungRequestStatus = "superseded"
 )
 
 // Defines values for LaborordnungStatusMode.
@@ -128,6 +161,47 @@ const (
 const (
 	LaborordnungVersionStatusDraft     LaborordnungVersionStatus = "draft"
 	LaborordnungVersionStatusPublished LaborordnungVersionStatus = "published"
+)
+
+// Defines values for MachineJobOutcome.
+const (
+	MachineJobOutcomeCancelled      MachineJobOutcome = "cancelled"
+	MachineJobOutcomeFailed         MachineJobOutcome = "failed"
+	MachineJobOutcomePartialFailure MachineJobOutcome = "partial_failure"
+	MachineJobOutcomeSuccessful     MachineJobOutcome = "successful"
+	MachineJobOutcomeUnknown        MachineJobOutcome = "unknown"
+)
+
+// Defines values for MachineJobPricingSnapshotCurrency.
+const (
+	EUR MachineJobPricingSnapshotCurrency = "EUR"
+)
+
+// Defines values for MachineJobPricingSnapshotReason.
+const (
+	CustomerChanged MachineJobPricingSnapshotReason = "customer_changed"
+	Initial         MachineJobPricingSnapshotReason = "initial"
+	MachineChanged  MachineJobPricingSnapshotReason = "machine_changed"
+	ManualReprice   MachineJobPricingSnapshotReason = "manual_reprice"
+)
+
+// Defines values for MachineJobReviewState.
+const (
+	Confirmed   MachineJobReviewState = "confirmed"
+	NeedsReview MachineJobReviewState = "needs_review"
+)
+
+// Defines values for MachineJobSource.
+const (
+	MachineJobSourceAutomatic MachineJobSource = "automatic"
+	MachineJobSourceManual    MachineJobSource = "manual"
+)
+
+// Defines values for MachineStatus.
+const (
+	MachineStatusActive      MachineStatus = "active"
+	MachineStatusMaintenance MachineStatus = "maintenance"
+	MachineStatusRetired     MachineStatus = "retired"
 )
 
 // Defines values for MailConfigurationProvider.
@@ -155,6 +229,15 @@ const (
 	ManagedDeviceStatusRevoked ManagedDeviceStatus = "revoked"
 )
 
+// Defines values for MaterialUnit.
+const (
+	G     MaterialUnit = "g"
+	M     MaterialUnit = "m"
+	M2    MaterialUnit = "m2"
+	Ml    MaterialUnit = "ml"
+	Piece MaterialUnit = "piece"
+)
+
 // Defines values for OpenDayPeriodStatus.
 const (
 	OpenDayPeriodStatusArchived  OpenDayPeriodStatus = "archived"
@@ -171,8 +254,16 @@ const (
 
 // Defines values for OpenDayStatus.
 const (
-	Cancelled OpenDayStatus = "cancelled"
-	Scheduled OpenDayStatus = "scheduled"
+	OpenDayStatusCancelled OpenDayStatus = "cancelled"
+	OpenDayStatusScheduled OpenDayStatus = "scheduled"
+)
+
+// Defines values for OrganizationKind.
+const (
+	OrganizationKindAssociation OrganizationKind = "association"
+	OrganizationKindCompany     OrganizationKind = "company"
+	OrganizationKindInstitute   OrganizationKind = "institute"
+	OrganizationKindOther       OrganizationKind = "other"
 )
 
 // Defines values for PasswordResetIssueDeliveryStatus.
@@ -220,10 +311,19 @@ const (
 	IdentitiesOidcLinkSelf       PermissionId = "identities.oidc.link.self"
 	IdentitiesOidcUnlinkAll      PermissionId = "identities.oidc.unlink.all"
 	IdentitiesOidcUnlinkSelf     PermissionId = "identities.oidc.unlink.self"
+	InventoryManage              PermissionId = "inventory.manage"
+	InventoryRead                PermissionId = "inventory.read"
 	LaborordnungConfirm          PermissionId = "laborordnung.confirm"
 	LaborordnungManage           PermissionId = "laborordnung.manage"
 	LaborordnungRead             PermissionId = "laborordnung.read"
 	LaborordnungRequestsRead     PermissionId = "laborordnung.requests.read"
+	MachineJobsCreate            PermissionId = "machine_jobs.create"
+	MachineJobsEdit              PermissionId = "machine_jobs.edit"
+	MachineJobsOverridePrice     PermissionId = "machine_jobs.override_price"
+	MachineJobsRead              PermissionId = "machine_jobs.read"
+	MachineJobsReview            PermissionId = "machine_jobs.review"
+	MachinesManage               PermissionId = "machines.manage"
+	MachinesRead                 PermissionId = "machines.read"
 	MailManage                   PermissionId = "mail.manage"
 	ManagedDevicesManage         PermissionId = "managed_devices.manage"
 	ManagedDevicesRead           PermissionId = "managed_devices.read"
@@ -233,6 +333,8 @@ const (
 	OpenDaysRead                 PermissionId = "open_days.read"
 	OpenDaysReadAssignments      PermissionId = "open_days.read_assignments"
 	OpenDaysSignup               PermissionId = "open_days.signup"
+	OrganizationsManage          PermissionId = "organizations.manage"
+	OrganizationsRead            PermissionId = "organizations.read"
 	PeopleCreate                 PermissionId = "people.create"
 	PeopleDelete                 PermissionId = "people.delete"
 	PeopleProfileImageRemoveAll  PermissionId = "people.profile_image.remove.all"
@@ -245,11 +347,27 @@ const (
 	PeopleUpdateAll              PermissionId = "people.update.all"
 	PeopleUpdateMatriculation    PermissionId = "people.update.matriculation"
 	PeopleUpdateSelf             PermissionId = "people.update.self"
+	PricingManage                PermissionId = "pricing.manage"
+	PricingRead                  PermissionId = "pricing.read"
 	RolesManage                  PermissionId = "roles.manage"
 	RolesRead                    PermissionId = "roles.read"
 	ScimManage                   PermissionId = "scim.manage"
+	StatisticsRead               PermissionId = "statistics.read"
 	SupervisorDashboardRead      PermissionId = "supervisor_dashboard.read"
 	VisitorEnrollmentManage      PermissionId = "visitor_enrollment.manage"
+)
+
+// Defines values for PricingRuleKind.
+const (
+	PricingRuleKindMachineRuntime PricingRuleKind = "machine_runtime"
+	PricingRuleKindMaterial       PricingRuleKind = "material"
+)
+
+// Defines values for PricingStatus.
+const (
+	PricingStatusComplete   PricingStatus = "complete"
+	PricingStatusIncomplete PricingStatus = "incomplete"
+	PricingStatusPending    PricingStatus = "pending"
 )
 
 // Defines values for ProfileImageSource.
@@ -299,6 +417,13 @@ const (
 	Add     SCIMPatchOperationOp = "add"
 	Remove  SCIMPatchOperationOp = "remove"
 	Replace SCIMPatchOperationOp = "replace"
+)
+
+// Defines values for StockState.
+const (
+	Empty    StockState = "empty"
+	InStock  StockState = "in_stock"
+	LowStock StockState = "low_stock"
 )
 
 // Defines values for SupervisorPeriodStatus.
@@ -357,8 +482,8 @@ const (
 
 // Defines values for VisitorEnrollmentResultInvitationDelivery.
 const (
-	Failed VisitorEnrollmentResultInvitationDelivery = "failed"
-	Sent   VisitorEnrollmentResultInvitationDelivery = "sent"
+	VisitorEnrollmentResultInvitationDeliveryFailed VisitorEnrollmentResultInvitationDelivery = "failed"
+	VisitorEnrollmentResultInvitationDeliverySent   VisitorEnrollmentResultInvitationDelivery = "sent"
 )
 
 // Defines values for PutPersonProfileImageParamsXProfileImageSource.
@@ -438,6 +563,17 @@ type AccountSummary struct {
 // AccountSummaryProvisioningSource defines model for AccountSummary.ProvisioningSource.
 type AccountSummaryProvisioningSource string
 
+// AddMaterialPurchaseRequest defines model for AddMaterialPurchaseRequest.
+type AddMaterialPurchaseRequest struct {
+	// ExpectedInventoryVersion Optimistic-concurrency version.
+	ExpectedInventoryVersion Version                   `json:"expectedInventoryVersion"`
+	Note                     nullable.Nullable[string] `json:"note,omitempty"`
+	OccurredAt               time.Time                 `json:"occurredAt"`
+	Quantity                 Decimal                   `json:"quantity"`
+	Supplier                 nullable.Nullable[string] `json:"supplier,omitempty"`
+	TotalPrice               Money                     `json:"totalPrice"`
+}
+
 // AssignOpenDayPersonRequest defines model for AssignOpenDayPersonRequest.
 type AssignOpenDayPersonRequest struct {
 	// PersonId Lowercase RFC 9562 UUID version 7 generated by the application.
@@ -500,6 +636,36 @@ type AuthIdentitySummaryKind string
 
 // AuthenticationAssurance Ordered authentication assurance required by a permission grant or held by a session.
 type AuthenticationAssurance string
+
+// BillingParty defines model for BillingParty.
+type BillingParty struct {
+	DisplayName string `json:"displayName"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id                            UUIDv7                                 `json:"id"`
+	Kind                          BillingPartyKind                       `json:"kind"`
+	OrganizationKind              *OrganizationKind                      `json:"organizationKind,omitempty"`
+	PricingGroup                  nullable.Nullable[PricingGroupSummary] `json:"pricingGroup,omitempty"`
+	PricingGroupAssignmentVersion int64                                  `json:"pricingGroupAssignmentVersion"`
+}
+
+// BillingPartyKind defines model for BillingPartyKind.
+type BillingPartyKind string
+
+// BillingPartyList defines model for BillingPartyList.
+type BillingPartyList struct {
+	Items []BillingParty `json:"items"`
+}
+
+// BillingPartyReference defines model for BillingPartyReference.
+type BillingPartyReference struct {
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id   UUIDv7           `json:"id"`
+	Kind BillingPartyKind `json:"kind"`
+}
+
+// BillingStatus defines model for BillingStatus.
+type BillingStatus string
 
 // CalendarEntry defines model for CalendarEntry.
 type CalendarEntry struct {
@@ -568,6 +734,32 @@ type ConfirmLaborordnungRequest struct {
 	SignedDate                nullable.Nullable[openapi_types.Date] `json:"signedDate,omitempty"`
 }
 
+// ConfirmMachineJobRequest defines model for ConfirmMachineJobRequest.
+type ConfirmMachineJobRequest struct {
+	Customer BillingPartyReference `json:"customer"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version                   `json:"expectedVersion"`
+	Notes           nullable.Nullable[string] `json:"notes,omitempty"`
+
+	// OperatorPersonId Lowercase RFC 9562 UUID version 7 generated by the application.
+	OperatorPersonId UUIDv7                    `json:"operatorPersonId"`
+	Outcome          MachineJobOutcome         `json:"outcome"`
+	PricingGroupId   nullable.Nullable[UUIDv7] `json:"pricingGroupId,omitempty"`
+}
+
+// CorrectMaterialStockRequest defines model for CorrectMaterialStockRequest.
+type CorrectMaterialStockRequest struct {
+	AcquisitionUnitCost nullable.Nullable[Decimal] `json:"acquisitionUnitCost,omitempty"`
+
+	// ExpectedInventoryVersion Optimistic-concurrency version.
+	ExpectedInventoryVersion Version                   `json:"expectedInventoryVersion"`
+	Note                     nullable.Nullable[string] `json:"note,omitempty"`
+	OccurredAt               time.Time                 `json:"occurredAt"`
+	PhysicalQuantity         Decimal                   `json:"physicalQuantity"`
+	Reason                   InventoryAdjustmentReason `json:"reason"`
+}
+
 // CreateAcademicBreakRequest defines model for CreateAcademicBreakRequest.
 type CreateAcademicBreakRequest struct {
 	EndsOn   openapi_types.Date `json:"endsOn"`
@@ -580,6 +772,39 @@ type CreateAccountRequest struct {
 	// ExpectedVersion Expected version of the owning person loaded by the caller.
 	ExpectedVersion Version                  `json:"expectedVersion"`
 	LoginEmail      nullable.Nullable[Email] `json:"loginEmail"`
+}
+
+// CreateMachineJobRequest defines model for CreateMachineJobRequest.
+type CreateMachineJobRequest struct {
+	Customer BillingPartyReference `json:"customer"`
+	EndsAt   time.Time             `json:"endsAt"`
+
+	// MachineId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MachineId UUIDv7                    `json:"machineId"`
+	Notes     nullable.Nullable[string] `json:"notes,omitempty"`
+
+	// OperatorPersonId Lowercase RFC 9562 UUID version 7 generated by the application.
+	OperatorPersonId UUIDv7                    `json:"operatorPersonId"`
+	Outcome          MachineJobOutcome         `json:"outcome"`
+	PricingGroupId   nullable.Nullable[UUIDv7] `json:"pricingGroupId,omitempty"`
+	StartsAt         time.Time                 `json:"startsAt"`
+	Usages           []MachineJobUsageInput    `json:"usages"`
+}
+
+// CreateMachineRequest defines model for CreateMachineRequest.
+type CreateMachineRequest struct {
+	AutomaticCollectionEnabled bool                      `json:"automaticCollectionEnabled"`
+	ExternalIdentifier         nullable.Nullable[string] `json:"externalIdentifier,omitempty"`
+
+	// MachineTypeId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MachineTypeId UUIDv7        `json:"machineTypeId"`
+	Name          string        `json:"name"`
+	Status        MachineStatus `json:"status"`
+}
+
+// CreateMachineTypeRequest defines model for CreateMachineTypeRequest.
+type CreateMachineTypeRequest struct {
+	Name string `json:"name"`
 }
 
 // CreateManagedDeviceRequest defines model for CreateManagedDeviceRequest.
@@ -596,6 +821,15 @@ type CreateManagedDeviceRequest struct {
 type CreateManagedDeviceTypeRequest struct {
 	Description nullable.Nullable[string] `json:"description,omitempty"`
 	Name        string                    `json:"name"`
+}
+
+// CreateMaterialRequest defines model for CreateMaterialRequest.
+type CreateMaterialRequest struct {
+	Category          string                     `json:"category"`
+	Color             nullable.Nullable[string]  `json:"color,omitempty"`
+	LowStockThreshold nullable.Nullable[Decimal] `json:"lowStockThreshold,omitempty"`
+	Name              string                     `json:"name"`
+	Unit              MaterialUnit               `json:"unit"`
 }
 
 // CreateOIDCProviderRequest defines model for CreateOIDCProviderRequest.
@@ -630,6 +864,12 @@ type CreateOpenDayRequest struct {
 	StartsAt time.Time `json:"startsAt"`
 }
 
+// CreateOrganizationRequest defines model for CreateOrganizationRequest.
+type CreateOrganizationRequest struct {
+	Kind OrganizationKind `json:"kind"`
+	Name string           `json:"name"`
+}
+
 // CreatePersonRequest At least one non-null contact method (`email` or `phone`) is required.
 type CreatePersonRequest struct {
 	Email               nullable.Nullable[Email]  `json:"email,omitempty"`
@@ -637,6 +877,22 @@ type CreatePersonRequest struct {
 	LastName            string                    `json:"lastName"`
 	MatriculationNumber nullable.Nullable[string] `json:"matriculationNumber,omitempty"`
 	Phone               nullable.Nullable[string] `json:"phone,omitempty"`
+}
+
+// CreatePricingGroupRequest defines model for CreatePricingGroupRequest.
+type CreatePricingGroupRequest struct {
+	Description nullable.Nullable[string] `json:"description,omitempty"`
+	IsDefault   bool                      `json:"isDefault"`
+	Name        string                    `json:"name"`
+}
+
+// CreatePricingRuleRequest defines model for CreatePricingRuleRequest.
+type CreatePricingRuleRequest struct {
+	Kind             PricingRuleKind                 `json:"kind"`
+	MachineTypeId    nullable.Nullable[UUIDv7]       `json:"machineTypeId,omitempty"`
+	MaterialCategory nullable.Nullable[string]       `json:"materialCategory,omitempty"`
+	MaterialUnit     nullable.Nullable[MaterialUnit] `json:"materialUnit,omitempty"`
+	Rate             Decimal                         `json:"rate"`
 }
 
 // CreateRoleRequest defines model for CreateRoleRequest.
@@ -672,6 +928,15 @@ type CurrentUser struct {
 	Permissions               []PermissionId                          `json:"permissions"`
 	Person                    Person                                  `json:"person"`
 }
+
+// DailyJobActivity defines model for DailyJobActivity.
+type DailyJobActivity struct {
+	Count int64              `json:"count"`
+	Date  openapi_types.Date `json:"date"`
+}
+
+// Decimal defines model for Decimal.
+type Decimal = string
 
 // EligibilityRole defines model for EligibilityRole.
 type EligibilityRole struct {
@@ -722,6 +987,60 @@ type HealthStatus struct {
 
 // HealthStatusStatus defines model for HealthStatus.Status.
 type HealthStatusStatus string
+
+// IngestAutomaticMachineJobRequest defines model for IngestAutomaticMachineJobRequest.
+type IngestAutomaticMachineJobRequest struct {
+	EndsAt           time.Time               `json:"endsAt"`
+	ExternalId       string                  `json:"externalId"`
+	ExternalMetadata *map[string]interface{} `json:"externalMetadata,omitempty"`
+
+	// MachineId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MachineId UUIDv7                 `json:"machineId"`
+	StartsAt  time.Time              `json:"startsAt"`
+	Usages    []MachineJobUsageInput `json:"usages"`
+}
+
+// InventoryAdjustmentReason defines model for InventoryAdjustmentReason.
+type InventoryAdjustmentReason string
+
+// InventoryMutationResult defines model for InventoryMutationResult.
+type InventoryMutationResult struct {
+	Material    Material             `json:"material"`
+	Transaction InventoryTransaction `json:"transaction"`
+}
+
+// InventoryTransaction defines model for InventoryTransaction.
+type InventoryTransaction struct {
+	AdjustmentReason nullable.Nullable[InventoryAdjustmentReason] `json:"adjustmentReason,omitempty"`
+	CreatedAt        time.Time                                    `json:"createdAt"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id                  UUIDv7                    `json:"id"`
+	InventoryValueDelta Decimal                   `json:"inventoryValueDelta"`
+	Kind                InventoryTransactionKind  `json:"kind"`
+	MachineJobDisplayId nullable.Nullable[string] `json:"machineJobDisplayId,omitempty"`
+	MachineJobId        nullable.Nullable[UUIDv7] `json:"machineJobId,omitempty"`
+
+	// MaterialId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MaterialId          UUIDv7                    `json:"materialId"`
+	Note                nullable.Nullable[string] `json:"note,omitempty"`
+	OccurredAt          time.Time                 `json:"occurredAt"`
+	QuantityDelta       Decimal                   `json:"quantityDelta"`
+	Supplier            nullable.Nullable[string] `json:"supplier,omitempty"`
+	TotalPurchasePrice  nullable.Nullable[Money]  `json:"totalPurchasePrice,omitempty"`
+	UnitAcquisitionCost Decimal                   `json:"unitAcquisitionCost"`
+}
+
+// InventoryTransactionKind defines model for InventoryTransactionKind.
+type InventoryTransactionKind string
+
+// InventoryTransactionPage defines model for InventoryTransactionPage.
+type InventoryTransactionPage struct {
+	Items    []InventoryTransaction `json:"items"`
+	Page     int                    `json:"page"`
+	PageSize int                    `json:"pageSize"`
+	Total    int64                  `json:"total"`
+}
 
 // JoinOpenDayRequest defines model for JoinOpenDayRequest.
 type JoinOpenDayRequest struct {
@@ -802,6 +1121,180 @@ type LoginRequest struct {
 
 	// Password Opaque existing secret. Transport decoding also enforces a 1024-byte request-field limit.
 	Password *ExistingPassword `json:"password,omitempty"`
+}
+
+// Machine defines model for Machine.
+type Machine struct {
+	AutomaticCollectionEnabled bool                      `json:"automaticCollectionEnabled"`
+	CreatedAt                  time.Time                 `json:"createdAt"`
+	ExternalIdentifier         nullable.Nullable[string] `json:"externalIdentifier,omitempty"`
+	FailureRate                Decimal                   `json:"failureRate"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id             UUIDv7                       `json:"id"`
+	JobCount       int64                        `json:"jobCount"`
+	LastIngestedAt nullable.Nullable[time.Time] `json:"lastIngestedAt,omitempty"`
+	MachineType    MachineType                  `json:"machineType"`
+	Name           string                       `json:"name"`
+	RuntimeSeconds int64                        `json:"runtimeSeconds"`
+	Status         MachineStatus                `json:"status"`
+	UpdatedAt      time.Time                    `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// MachineJob defines model for MachineJob.
+type MachineJob struct {
+	BillingReference nullable.Nullable[string]       `json:"billingReference,omitempty"`
+	BillingStatus    BillingStatus                   `json:"billingStatus"`
+	CalculatedPrice  nullable.Nullable[Money]        `json:"calculatedPrice,omitempty"`
+	CreatedAt        time.Time                       `json:"createdAt"`
+	Customer         nullable.Nullable[BillingParty] `json:"customer,omitempty"`
+	DisplayId        string                          `json:"displayId"`
+	DurationSeconds  int64                           `json:"durationSeconds"`
+	EffectivePrice   nullable.Nullable[Money]        `json:"effectivePrice,omitempty"`
+	EndsAt           time.Time                       `json:"endsAt"`
+	ExternalId       nullable.Nullable[string]       `json:"externalId,omitempty"`
+	FinalPrice       nullable.Nullable[Money]        `json:"finalPrice,omitempty"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id                  UUIDv7                                       `json:"id"`
+	Machine             Machine                                      `json:"machine"`
+	Notes               nullable.Nullable[string]                    `json:"notes,omitempty"`
+	Operator            nullable.Nullable[Operator]                  `json:"operator,omitempty"`
+	Outcome             MachineJobOutcome                            `json:"outcome"`
+	PriceOverriddenAt   nullable.Nullable[time.Time]                 `json:"priceOverriddenAt,omitempty"`
+	PriceOverrideReason nullable.Nullable[string]                    `json:"priceOverrideReason,omitempty"`
+	PricingSnapshot     nullable.Nullable[MachineJobPricingSnapshot] `json:"pricingSnapshot,omitempty"`
+	PricingStatus       PricingStatus                                `json:"pricingStatus"`
+	ReviewState         MachineJobReviewState                        `json:"reviewState"`
+	Source              MachineJobSource                             `json:"source"`
+	StartsAt            time.Time                                    `json:"startsAt"`
+	UpdatedAt           time.Time                                    `json:"updatedAt"`
+	Usages              []MachineJobUsage                            `json:"usages"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// MachineJobList defines model for MachineJobList.
+type MachineJobList struct {
+	Items []MachineJob `json:"items"`
+}
+
+// MachineJobOutcome defines model for MachineJobOutcome.
+type MachineJobOutcome string
+
+// MachineJobPage defines model for MachineJobPage.
+type MachineJobPage struct {
+	Items    []MachineJob `json:"items"`
+	Page     int          `json:"page"`
+	PageSize int          `json:"pageSize"`
+	Total    int64        `json:"total"`
+}
+
+// MachineJobPricingSnapshot defines model for MachineJobPricingSnapshot.
+type MachineJobPricingSnapshot struct {
+	CalculatedAmount nullable.Nullable[Money]          `json:"calculatedAmount,omitempty"`
+	CapturedAt       time.Time                         `json:"capturedAt"`
+	Complete         bool                              `json:"complete"`
+	Currency         MachineJobPricingSnapshotCurrency `json:"currency"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id               UUIDv7                          `json:"id"`
+	PricingGroupName string                          `json:"pricingGroupName"`
+	Reason           MachineJobPricingSnapshotReason `json:"reason"`
+	Revision         int                             `json:"revision"`
+	Rules            []PricingSnapshotRule           `json:"rules"`
+}
+
+// MachineJobPricingSnapshotCurrency defines model for MachineJobPricingSnapshot.Currency.
+type MachineJobPricingSnapshotCurrency string
+
+// MachineJobPricingSnapshotReason defines model for MachineJobPricingSnapshot.Reason.
+type MachineJobPricingSnapshotReason string
+
+// MachineJobReviewState defines model for MachineJobReviewState.
+type MachineJobReviewState string
+
+// MachineJobSource defines model for MachineJobSource.
+type MachineJobSource string
+
+// MachineJobUsage defines model for MachineJobUsage.
+type MachineJobUsage struct {
+	Category string `json:"category"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id UUIDv7 `json:"id"`
+
+	// MaterialId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MaterialId   UUIDv7       `json:"materialId"`
+	MaterialName string       `json:"materialName"`
+	Quantity     Decimal      `json:"quantity"`
+	Unit         MaterialUnit `json:"unit"`
+}
+
+// MachineJobUsageInput defines model for MachineJobUsageInput.
+type MachineJobUsageInput struct {
+	// MaterialId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MaterialId UUIDv7  `json:"materialId"`
+	Quantity   Decimal `json:"quantity"`
+}
+
+// MachineLogbookOverview defines model for MachineLogbookOverview.
+type MachineLogbookOverview struct {
+	Activity                []DailyJobActivity `json:"activity"`
+	FailedOrPartialThisWeek int64              `json:"failedOrPartialThisWeek"`
+	JobsThisWeek            int64              `json:"jobsThisWeek"`
+	JobsToday               int64              `json:"jobsToday"`
+	LowStockItems           int64              `json:"lowStockItems"`
+	LowStockMaterials       []Material         `json:"lowStockMaterials"`
+	NeedsReview             int64              `json:"needsReview"`
+	RecentJobs              []MachineJob       `json:"recentJobs"`
+	UnbilledAmount          Money              `json:"unbilledAmount"`
+	UnbilledJobs            int64              `json:"unbilledJobs"`
+}
+
+// MachineLogbookStatistics defines model for MachineLogbookStatistics.
+type MachineLogbookStatistics struct {
+	AcquisitionCost         []StatisticPoint `json:"acquisitionCost"`
+	AdjustmentLoss          []StatisticPoint `json:"adjustmentLoss"`
+	CustomerCharges         []StatisticPoint `json:"customerCharges"`
+	MachineFailureRates     []StatisticPoint `json:"machineFailureRates"`
+	MachineJobCounts        []StatisticPoint `json:"machineJobCounts"`
+	MachineRuntimeHours     []StatisticPoint `json:"machineRuntimeHours"`
+	MaterialUsageByCategory []StatisticPoint `json:"materialUsageByCategory"`
+}
+
+// MachinePage defines model for MachinePage.
+type MachinePage struct {
+	Items    []Machine `json:"items"`
+	Page     int       `json:"page"`
+	PageSize int       `json:"pageSize"`
+	Total    int64     `json:"total"`
+}
+
+// MachineStatus defines model for MachineStatus.
+type MachineStatus string
+
+// MachineType defines model for MachineType.
+type MachineType struct {
+	Active    bool      `json:"active"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id        UUIDv7    `json:"id"`
+	Name      string    `json:"name"`
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// MachineTypeList defines model for MachineTypeList.
+type MachineTypeList struct {
+	Items []MachineType `json:"items"`
 }
 
 // MailConfiguration defines model for MailConfiguration.
@@ -900,6 +1393,52 @@ type ManagedDeviceTypeList struct {
 	Items []ManagedDeviceType `json:"items"`
 }
 
+// MarkMaterialEmptyRequest defines model for MarkMaterialEmptyRequest.
+type MarkMaterialEmptyRequest struct {
+	// ExpectedInventoryVersion Optimistic-concurrency version.
+	ExpectedInventoryVersion Version                   `json:"expectedInventoryVersion"`
+	Note                     nullable.Nullable[string] `json:"note,omitempty"`
+	OccurredAt               time.Time                 `json:"occurredAt"`
+}
+
+// Material defines model for Material.
+type Material struct {
+	Active          bool                      `json:"active"`
+	AverageUnitCost Decimal                   `json:"averageUnitCost"`
+	Category        string                    `json:"category"`
+	Color           nullable.Nullable[string] `json:"color,omitempty"`
+	CreatedAt       time.Time                 `json:"createdAt"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id             UUIDv7  `json:"id"`
+	InventoryValue Decimal `json:"inventoryValue"`
+
+	// InventoryVersion Optimistic-concurrency version.
+	InventoryVersion  Version                    `json:"inventoryVersion"`
+	LowStockThreshold nullable.Nullable[Decimal] `json:"lowStockThreshold,omitempty"`
+	Name              string                     `json:"name"`
+	Quantity          Decimal                    `json:"quantity"`
+	RecentConsumption Decimal                    `json:"recentConsumption"`
+	StockState        StockState                 `json:"stockState"`
+	Unit              MaterialUnit               `json:"unit"`
+	UpdatedAt         time.Time                  `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// MaterialPage defines model for MaterialPage.
+type MaterialPage struct {
+	Items               []Material `json:"items"`
+	Page                int        `json:"page"`
+	PageSize            int        `json:"pageSize"`
+	Total               int64      `json:"total"`
+	TotalInventoryValue Decimal    `json:"totalInventoryValue"`
+}
+
+// MaterialUnit defines model for MaterialUnit.
+type MaterialUnit string
+
 // MinimalPerson defines model for MinimalPerson.
 type MinimalPerson struct {
 	DisplayName string `json:"displayName"`
@@ -907,6 +1446,9 @@ type MinimalPerson struct {
 	// PersonId Lowercase RFC 9562 UUID version 7 generated by the application.
 	PersonId UUIDv7 `json:"personId"`
 }
+
+// Money defines model for Money.
+type Money = string
 
 // NewPassword defines model for NewPassword.
 type NewPassword = string
@@ -1072,6 +1614,55 @@ type OpenDayStaffRequirement struct {
 // OpenDayStatus defines model for OpenDayStatus.
 type OpenDayStatus string
 
+// Operator defines model for Operator.
+type Operator struct {
+	DisplayName string `json:"displayName"`
+
+	// PersonId Lowercase RFC 9562 UUID version 7 generated by the application.
+	PersonId UUIDv7 `json:"personId"`
+}
+
+// OperatorList defines model for OperatorList.
+type OperatorList struct {
+	Items []Operator `json:"items"`
+}
+
+// Organization defines model for Organization.
+type Organization struct {
+	Active    bool      `json:"active"`
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id                            UUIDv7                                 `json:"id"`
+	Kind                          OrganizationKind                       `json:"kind"`
+	Name                          string                                 `json:"name"`
+	PricingGroup                  nullable.Nullable[PricingGroupSummary] `json:"pricingGroup,omitempty"`
+	PricingGroupAssignmentVersion int64                                  `json:"pricingGroupAssignmentVersion"`
+	UpdatedAt                     time.Time                              `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// OrganizationKind defines model for OrganizationKind.
+type OrganizationKind string
+
+// OrganizationPage defines model for OrganizationPage.
+type OrganizationPage struct {
+	Items    []Organization `json:"items"`
+	Page     int            `json:"page"`
+	PageSize int            `json:"pageSize"`
+	Total    int64          `json:"total"`
+}
+
+// OverrideMachineJobPriceRequest defines model for OverrideMachineJobPriceRequest.
+type OverrideMachineJobPriceRequest struct {
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version `json:"expectedVersion"`
+	FinalPrice      Money   `json:"finalPrice"`
+	Reason          string  `json:"reason"`
+}
+
 // PasswordResetIssue defines model for PasswordResetIssue.
 type PasswordResetIssue struct {
 	Account        Account                          `json:"account"`
@@ -1153,6 +1744,71 @@ type PinLoginRequest struct {
 	Pin       *string `json:"pin,omitempty"`
 }
 
+// PricingGroup defines model for PricingGroup.
+type PricingGroup struct {
+	Active      bool                      `json:"active"`
+	CreatedAt   time.Time                 `json:"createdAt"`
+	Description nullable.Nullable[string] `json:"description,omitempty"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id        UUIDv7        `json:"id"`
+	IsDefault bool          `json:"isDefault"`
+	Name      string        `json:"name"`
+	Rules     []PricingRule `json:"rules"`
+	UpdatedAt time.Time     `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// PricingGroupList defines model for PricingGroupList.
+type PricingGroupList struct {
+	Items []PricingGroup `json:"items"`
+}
+
+// PricingGroupSummary defines model for PricingGroupSummary.
+type PricingGroupSummary struct {
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id   UUIDv7 `json:"id"`
+	Name string `json:"name"`
+}
+
+// PricingRule defines model for PricingRule.
+type PricingRule struct {
+	Active bool `json:"active"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id               UUIDv7                          `json:"id"`
+	Kind             PricingRuleKind                 `json:"kind"`
+	MachineTypeId    nullable.Nullable[UUIDv7]       `json:"machineTypeId,omitempty"`
+	MaterialCategory nullable.Nullable[string]       `json:"materialCategory,omitempty"`
+	MaterialUnit     nullable.Nullable[MaterialUnit] `json:"materialUnit,omitempty"`
+
+	// PricingGroupId Lowercase RFC 9562 UUID version 7 generated by the application.
+	PricingGroupId UUIDv7  `json:"pricingGroupId"`
+	Rate           Decimal `json:"rate"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// PricingRuleKind defines model for PricingRuleKind.
+type PricingRuleKind string
+
+// PricingSnapshotRule defines model for PricingSnapshotRule.
+type PricingSnapshotRule struct {
+	Kind         PricingRuleKind            `json:"kind"`
+	Label        string                     `json:"label"`
+	Missing      bool                       `json:"missing"`
+	Rate         nullable.Nullable[Decimal] `json:"rate,omitempty"`
+	Selector     string                     `json:"selector"`
+	SourceRuleId nullable.Nullable[UUIDv7]  `json:"sourceRuleId,omitempty"`
+	Unit         string                     `json:"unit"`
+}
+
+// PricingStatus defines model for PricingStatus.
+type PricingStatus string
+
 // ProfileImage defines model for ProfileImage.
 type ProfileImage struct {
 	DownloadUrl string `json:"downloadUrl"`
@@ -1190,6 +1846,18 @@ type PublicOpenDayList struct {
 // PublishLaborordnungRequest defines model for PublishLaborordnungRequest.
 type PublishLaborordnungRequest struct {
 	EffectiveAt time.Time `json:"effectiveAt"`
+}
+
+// RecordMaterialConsumptionRequest defines model for RecordMaterialConsumptionRequest.
+type RecordMaterialConsumptionRequest struct {
+	Disposal bool `json:"disposal"`
+
+	// ExpectedInventoryVersion Optimistic-concurrency version.
+	ExpectedInventoryVersion Version                                      `json:"expectedInventoryVersion"`
+	Note                     nullable.Nullable[string]                    `json:"note,omitempty"`
+	OccurredAt               time.Time                                    `json:"occurredAt"`
+	Quantity                 Decimal                                      `json:"quantity"`
+	Reason                   nullable.Nullable[InventoryAdjustmentReason] `json:"reason,omitempty"`
 }
 
 // RecurrenceOccurrence defines model for RecurrenceOccurrence.
@@ -1231,6 +1899,13 @@ type RecurrencePreviewRequest struct {
 type RemoveOwnPasswordRequest struct {
 	// CurrentPassword Opaque existing secret. Transport decoding also enforces a 1024-byte request-field limit.
 	CurrentPassword *ExistingPassword `json:"currentPassword,omitempty"`
+}
+
+// ReplaceMachineJobUsagesRequest defines model for ReplaceMachineJobUsagesRequest.
+type ReplaceMachineJobUsagesRequest struct {
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version                `json:"expectedVersion"`
+	Usages          []MachineJobUsageInput `json:"usages"`
 }
 
 // ReplaceRolePermissionsRequest defines model for ReplaceRolePermissionsRequest.
@@ -1555,12 +2230,29 @@ type SetAccountPasswordRequest struct {
 	NewPassword     *NewPassword `json:"newPassword,omitempty"`
 }
 
+// SetBillingPartyPricingGroupRequest defines model for SetBillingPartyPricingGroupRequest.
+type SetBillingPartyPricingGroupRequest struct {
+	ExpectedVersion int64                     `json:"expectedVersion"`
+	Party           BillingPartyReference     `json:"party"`
+	PricingGroupId  nullable.Nullable[UUIDv7] `json:"pricingGroupId,omitempty"`
+}
+
 // StaffingRequirementInput defines model for StaffingRequirementInput.
 type StaffingRequirementInput struct {
 	EligibleRoleIds []UUIDv7               `json:"eligibleRoleIds"`
 	Kind            OpenDayRequirementKind `json:"kind"`
 	RequiredCount   int                    `json:"requiredCount"`
 }
+
+// StatisticPoint defines model for StatisticPoint.
+type StatisticPoint struct {
+	Key   string  `json:"key"`
+	Label string  `json:"label"`
+	Value Decimal `json:"value"`
+}
+
+// StockState defines model for StockState.
+type StockState string
 
 // SupervisorAssignmentCount defines model for SupervisorAssignmentCount.
 type SupervisorAssignmentCount struct {
@@ -1631,6 +2323,58 @@ type UpdateLoginEmailRequest struct {
 	LoginEmail      Email   `json:"loginEmail"`
 }
 
+// UpdateMachineJobBillingRequest defines model for UpdateMachineJobBillingRequest.
+type UpdateMachineJobBillingRequest struct {
+	BillingReference nullable.Nullable[string] `json:"billingReference,omitempty"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version                   `json:"expectedVersion"`
+	Status          BillingStatus             `json:"status"`
+	WaiverReason    nullable.Nullable[string] `json:"waiverReason,omitempty"`
+}
+
+// UpdateMachineJobRequest defines model for UpdateMachineJobRequest.
+type UpdateMachineJobRequest struct {
+	Customer BillingPartyReference `json:"customer"`
+	EndsAt   time.Time             `json:"endsAt"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version `json:"expectedVersion"`
+
+	// MachineId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MachineId UUIDv7                    `json:"machineId"`
+	Notes     nullable.Nullable[string] `json:"notes,omitempty"`
+
+	// OperatorPersonId Lowercase RFC 9562 UUID version 7 generated by the application.
+	OperatorPersonId UUIDv7                    `json:"operatorPersonId"`
+	Outcome          MachineJobOutcome         `json:"outcome"`
+	PricingGroupId   nullable.Nullable[UUIDv7] `json:"pricingGroupId,omitempty"`
+	StartsAt         time.Time                 `json:"startsAt"`
+}
+
+// UpdateMachineRequest defines model for UpdateMachineRequest.
+type UpdateMachineRequest struct {
+	AutomaticCollectionEnabled bool `json:"automaticCollectionEnabled"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion    Version                   `json:"expectedVersion"`
+	ExternalIdentifier nullable.Nullable[string] `json:"externalIdentifier,omitempty"`
+
+	// MachineTypeId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MachineTypeId UUIDv7        `json:"machineTypeId"`
+	Name          string        `json:"name"`
+	Status        MachineStatus `json:"status"`
+}
+
+// UpdateMachineTypeRequest defines model for UpdateMachineTypeRequest.
+type UpdateMachineTypeRequest struct {
+	Active *bool `json:"active,omitempty"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version `json:"expectedVersion"`
+	Name            *string `json:"name,omitempty"`
+}
+
 // UpdateMailConfigurationRequest defines model for UpdateMailConfigurationRequest.
 type UpdateMailConfigurationRequest struct {
 	BaseUrl string `json:"baseUrl"`
@@ -1670,6 +2414,19 @@ type UpdateManagedDeviceTypeRequest struct {
 	// ExpectedVersion Optimistic-concurrency version.
 	ExpectedVersion Version `json:"expectedVersion"`
 	Name            string  `json:"name"`
+}
+
+// UpdateMaterialRequest defines model for UpdateMaterialRequest.
+type UpdateMaterialRequest struct {
+	Active   bool                      `json:"active"`
+	Category string                    `json:"category"`
+	Color    nullable.Nullable[string] `json:"color,omitempty"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion   Version                    `json:"expectedVersion"`
+	LowStockThreshold nullable.Nullable[Decimal] `json:"lowStockThreshold,omitempty"`
+	Name              string                     `json:"name"`
+	Unit              MaterialUnit               `json:"unit"`
 }
 
 // UpdateOIDCProviderRequest defines model for UpdateOIDCProviderRequest.
@@ -1712,6 +2469,16 @@ type UpdateOpenDayRequest struct {
 	StartsAt time.Time `json:"startsAt"`
 }
 
+// UpdateOrganizationRequest defines model for UpdateOrganizationRequest.
+type UpdateOrganizationRequest struct {
+	Active bool `json:"active"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version          `json:"expectedVersion"`
+	Kind            OrganizationKind `json:"kind"`
+	Name            string           `json:"name"`
+}
+
 // UpdatePersonRequest At least one update field must be present and a contact method must remain afterward.
 type UpdatePersonRequest struct {
 	Email nullable.Nullable[Email] `json:"email,omitempty"`
@@ -1722,6 +2489,30 @@ type UpdatePersonRequest struct {
 	LastName            *string                   `json:"lastName,omitempty"`
 	MatriculationNumber nullable.Nullable[string] `json:"matriculationNumber,omitempty"`
 	Phone               nullable.Nullable[string] `json:"phone,omitempty"`
+}
+
+// UpdatePricingGroupRequest defines model for UpdatePricingGroupRequest.
+type UpdatePricingGroupRequest struct {
+	Active      bool                      `json:"active"`
+	Description nullable.Nullable[string] `json:"description,omitempty"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version `json:"expectedVersion"`
+	IsDefault       bool    `json:"isDefault"`
+	Name            string  `json:"name"`
+}
+
+// UpdatePricingRuleRequest defines model for UpdatePricingRuleRequest.
+type UpdatePricingRuleRequest struct {
+	Active bool `json:"active"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion  Version                         `json:"expectedVersion"`
+	Kind             PricingRuleKind                 `json:"kind"`
+	MachineTypeId    nullable.Nullable[UUIDv7]       `json:"machineTypeId,omitempty"`
+	MaterialCategory nullable.Nullable[string]       `json:"materialCategory,omitempty"`
+	MaterialUnit     nullable.Nullable[MaterialUnit] `json:"materialUnit,omitempty"`
+	Rate             Decimal                         `json:"rate"`
 }
 
 // UpdateRoleRequest At least one update field must be present.
@@ -1950,10 +2741,55 @@ type CompleteOIDCCallbackParams struct {
 	State string `form:"state" json:"state"`
 }
 
+// SearchBillingPartiesParams defines parameters for SearchBillingParties.
+type SearchBillingPartiesParams struct {
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // CreateLaborordnungVersionParams defines parameters for CreateLaborordnungVersion.
 type CreateLaborordnungVersionParams struct {
 	XHumanRevision string `json:"X-Human-Revision"`
 	XFileName      string `json:"X-File-Name"`
+}
+
+// SearchMachineJobOperatorsParams defines parameters for SearchMachineJobOperators.
+type SearchMachineJobOperatorsParams struct {
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListMachineJobsParams defines parameters for ListMachineJobs.
+type ListMachineJobsParams struct {
+	Search    *string `form:"search,omitempty" json:"search,omitempty"`
+	MachineId *UUIDv7 `form:"machineId,omitempty" json:"machineId,omitempty"`
+
+	// CustomerId Person or Organization identifier.
+	CustomerId       *UUIDv7                `form:"customerId,omitempty" json:"customerId,omitempty"`
+	OperatorPersonId *UUIDv7                `form:"operatorPersonId,omitempty" json:"operatorPersonId,omitempty"`
+	MaterialId       *UUIDv7                `form:"materialId,omitempty" json:"materialId,omitempty"`
+	Outcome          *MachineJobOutcome     `form:"outcome,omitempty" json:"outcome,omitempty"`
+	BillingStatus    *BillingStatus         `form:"billingStatus,omitempty" json:"billingStatus,omitempty"`
+	Source           *MachineJobSource      `form:"source,omitempty" json:"source,omitempty"`
+	ReviewState      *MachineJobReviewState `form:"reviewState,omitempty" json:"reviewState,omitempty"`
+	From             *time.Time             `form:"from,omitempty" json:"from,omitempty"`
+	To               *time.Time             `form:"to,omitempty" json:"to,omitempty"`
+	Page             *int                   `form:"page,omitempty" json:"page,omitempty"`
+	PageSize         *int                   `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// GetMachineLogbookStatisticsParams defines parameters for GetMachineLogbookStatistics.
+type GetMachineLogbookStatisticsParams struct {
+	From openapi_types.Date `form:"from" json:"from"`
+	To   openapi_types.Date `form:"to" json:"to"`
+}
+
+// ListMachinesParams defines parameters for ListMachines.
+type ListMachinesParams struct {
+	Search   *string        `form:"search,omitempty" json:"search,omitempty"`
+	Status   *MachineStatus `form:"status,omitempty" json:"status,omitempty"`
+	Page     *int           `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int           `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
 
 // ListManagedDevicesParams defines parameters for ListManagedDevices.
@@ -1965,9 +2801,32 @@ type ListManagedDevicesParams struct {
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
+// ListMaterialsParams defines parameters for ListMaterials.
+type ListMaterialsParams struct {
+	Search     *string     `form:"search,omitempty" json:"search,omitempty"`
+	Category   *string     `form:"category,omitempty" json:"category,omitempty"`
+	StockState *StockState `form:"stockState,omitempty" json:"stockState,omitempty"`
+	Page       *int        `form:"page,omitempty" json:"page,omitempty"`
+	PageSize   *int        `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// ListMaterialTransactionsParams defines parameters for ListMaterialTransactions.
+type ListMaterialTransactionsParams struct {
+	Page     *int `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
 // ListOpenDayEligiblePeopleParams defines parameters for ListOpenDayEligiblePeople.
 type ListOpenDayEligiblePeopleParams struct {
 	Search *string `form:"search,omitempty" json:"search,omitempty"`
+}
+
+// ListOrganizationsParams defines parameters for ListOrganizations.
+type ListOrganizationsParams struct {
+	Search   *string `form:"search,omitempty" json:"search,omitempty"`
+	Active   *bool   `form:"active,omitempty" json:"active,omitempty"`
+	Page     *int    `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int    `form:"pageSize,omitempty" json:"pageSize,omitempty"`
 }
 
 // ListPeopleParams defines parameters for ListPeople.
@@ -2085,11 +2944,50 @@ type CompletePinEnrollmentJSONRequestBody = CompletePinEnrollmentRequest
 // LoginWithPinJSONRequestBody defines body for LoginWithPin for application/json ContentType.
 type LoginWithPinJSONRequestBody = PinLoginRequest
 
+// SetBillingPartyPricingGroupJSONRequestBody defines body for SetBillingPartyPricingGroup for application/json ContentType.
+type SetBillingPartyPricingGroupJSONRequestBody = SetBillingPartyPricingGroupRequest
+
 // ConfirmLaborordnungRequestJSONRequestBody defines body for ConfirmLaborordnungRequest for application/json ContentType.
 type ConfirmLaborordnungRequestJSONRequestBody = ConfirmLaborordnungRequest
 
 // PublishLaborordnungVersionJSONRequestBody defines body for PublishLaborordnungVersion for application/json ContentType.
 type PublishLaborordnungVersionJSONRequestBody = PublishLaborordnungRequest
+
+// CreateMachineJobJSONRequestBody defines body for CreateMachineJob for application/json ContentType.
+type CreateMachineJobJSONRequestBody = CreateMachineJobRequest
+
+// IngestAutomaticMachineJobJSONRequestBody defines body for IngestAutomaticMachineJob for application/json ContentType.
+type IngestAutomaticMachineJobJSONRequestBody = IngestAutomaticMachineJobRequest
+
+// UpdateMachineJobJSONRequestBody defines body for UpdateMachineJob for application/json ContentType.
+type UpdateMachineJobJSONRequestBody = UpdateMachineJobRequest
+
+// UpdateMachineJobBillingJSONRequestBody defines body for UpdateMachineJobBilling for application/json ContentType.
+type UpdateMachineJobBillingJSONRequestBody = UpdateMachineJobBillingRequest
+
+// ConfirmMachineJobJSONRequestBody defines body for ConfirmMachineJob for application/json ContentType.
+type ConfirmMachineJobJSONRequestBody = ConfirmMachineJobRequest
+
+// ClearMachineJobPriceOverrideJSONRequestBody defines body for ClearMachineJobPriceOverride for application/json ContentType.
+type ClearMachineJobPriceOverrideJSONRequestBody = VersionRequest
+
+// OverrideMachineJobPriceJSONRequestBody defines body for OverrideMachineJobPrice for application/json ContentType.
+type OverrideMachineJobPriceJSONRequestBody = OverrideMachineJobPriceRequest
+
+// ReplaceMachineJobUsagesJSONRequestBody defines body for ReplaceMachineJobUsages for application/json ContentType.
+type ReplaceMachineJobUsagesJSONRequestBody = ReplaceMachineJobUsagesRequest
+
+// CreateMachineTypeJSONRequestBody defines body for CreateMachineType for application/json ContentType.
+type CreateMachineTypeJSONRequestBody = CreateMachineTypeRequest
+
+// UpdateMachineTypeJSONRequestBody defines body for UpdateMachineType for application/json ContentType.
+type UpdateMachineTypeJSONRequestBody = UpdateMachineTypeRequest
+
+// CreateMachineJSONRequestBody defines body for CreateMachine for application/json ContentType.
+type CreateMachineJSONRequestBody = CreateMachineRequest
+
+// UpdateMachineJSONRequestBody defines body for UpdateMachine for application/json ContentType.
+type UpdateMachineJSONRequestBody = UpdateMachineRequest
 
 // UpdateMailConfigurationJSONRequestBody defines body for UpdateMailConfiguration for application/json ContentType.
 type UpdateMailConfigurationJSONRequestBody = UpdateMailConfigurationRequest
@@ -2117,6 +3015,24 @@ type RevokeManagedDeviceJSONRequestBody = VersionRequest
 
 // RotateManagedDeviceTokenJSONRequestBody defines body for RotateManagedDeviceToken for application/json ContentType.
 type RotateManagedDeviceTokenJSONRequestBody = RotateManagedDeviceTokenRequest
+
+// CreateMaterialJSONRequestBody defines body for CreateMaterial for application/json ContentType.
+type CreateMaterialJSONRequestBody = CreateMaterialRequest
+
+// UpdateMaterialJSONRequestBody defines body for UpdateMaterial for application/json ContentType.
+type UpdateMaterialJSONRequestBody = UpdateMaterialRequest
+
+// RecordMaterialConsumptionJSONRequestBody defines body for RecordMaterialConsumption for application/json ContentType.
+type RecordMaterialConsumptionJSONRequestBody = RecordMaterialConsumptionRequest
+
+// CorrectMaterialStockJSONRequestBody defines body for CorrectMaterialStock for application/json ContentType.
+type CorrectMaterialStockJSONRequestBody = CorrectMaterialStockRequest
+
+// MarkMaterialEmptyJSONRequestBody defines body for MarkMaterialEmpty for application/json ContentType.
+type MarkMaterialEmptyJSONRequestBody = MarkMaterialEmptyRequest
+
+// AddMaterialPurchaseJSONRequestBody defines body for AddMaterialPurchase for application/json ContentType.
+type AddMaterialPurchaseJSONRequestBody = AddMaterialPurchaseRequest
 
 // CreateOIDCProviderJSONRequestBody defines body for CreateOIDCProvider for application/json ContentType.
 type CreateOIDCProviderJSONRequestBody = CreateOIDCProviderRequest
@@ -2178,6 +3094,12 @@ type JoinOpenDayJSONRequestBody = JoinOpenDayRequest
 // CancelOpenDayJSONRequestBody defines body for CancelOpenDay for application/json ContentType.
 type CancelOpenDayJSONRequestBody = VersionRequest
 
+// CreateOrganizationJSONRequestBody defines body for CreateOrganization for application/json ContentType.
+type CreateOrganizationJSONRequestBody = CreateOrganizationRequest
+
+// UpdateOrganizationJSONRequestBody defines body for UpdateOrganization for application/json ContentType.
+type UpdateOrganizationJSONRequestBody = UpdateOrganizationRequest
+
 // CreatePersonJSONRequestBody defines body for CreatePerson for application/json ContentType.
 type CreatePersonJSONRequestBody = CreatePersonRequest
 
@@ -2192,6 +3114,18 @@ type CreatePersonAccountJSONRequestBody = CreateAccountRequest
 
 // DeletePersonProfileImageJSONRequestBody defines body for DeletePersonProfileImage for application/json ContentType.
 type DeletePersonProfileImageJSONRequestBody = VersionRequest
+
+// CreatePricingGroupJSONRequestBody defines body for CreatePricingGroup for application/json ContentType.
+type CreatePricingGroupJSONRequestBody = CreatePricingGroupRequest
+
+// UpdatePricingGroupJSONRequestBody defines body for UpdatePricingGroup for application/json ContentType.
+type UpdatePricingGroupJSONRequestBody = UpdatePricingGroupRequest
+
+// CreatePricingRuleJSONRequestBody defines body for CreatePricingRule for application/json ContentType.
+type CreatePricingRuleJSONRequestBody = CreatePricingRuleRequest
+
+// UpdatePricingRuleJSONRequestBody defines body for UpdatePricingRule for application/json ContentType.
+type UpdatePricingRuleJSONRequestBody = UpdatePricingRuleRequest
 
 // CreateRoleJSONRequestBody defines body for CreateRole for application/json ContentType.
 type CreateRoleJSONRequestBody = CreateRoleRequest
@@ -2435,6 +3369,12 @@ type ServerInterface interface {
 	// Start a low-assurance login-name/PIN session
 	// (POST /auth/pin/login)
 	LoginWithPin(w http.ResponseWriter, r *http.Request)
+	// Search minimal people and organizations usable as customers
+	// (GET /billing-parties)
+	SearchBillingParties(w http.ResponseWriter, r *http.Request, params SearchBillingPartiesParams)
+	// Set or clear a billing party default pricing group
+	// (PUT /billing-party-pricing-group)
+	SetBillingPartyPricingGroup(w http.ResponseWriter, r *http.Request)
 	// Report that the API process is running
 	// (GET /health/live)
 	GetLiveness(w http.ResponseWriter, r *http.Request)
@@ -2465,6 +3405,69 @@ type ServerInterface interface {
 	// Immutably publish a draft for an effective time
 	// (POST /laborordnung/versions/{laborordnungVersionId}/publish)
 	PublishLaborordnungVersion(w http.ResponseWriter, r *http.Request, laborordnungVersionId LaborordnungVersionId)
+	// Search enabled people usable as machine operators
+	// (GET /machine-job-operators)
+	SearchMachineJobOperators(w http.ResponseWriter, r *http.Request, params SearchMachineJobOperatorsParams)
+	// List and filter machine jobs
+	// (GET /machine-jobs)
+	ListMachineJobs(w http.ResponseWriter, r *http.Request, params ListMachineJobsParams)
+	// Create and confirm a manual machine job
+	// (POST /machine-jobs)
+	CreateMachineJob(w http.ResponseWriter, r *http.Request)
+	// Ingest an automatically detected job idempotently
+	// (POST /machine-jobs/automatic)
+	IngestAutomaticMachineJob(w http.ResponseWriter, r *http.Request)
+	// List jobs needing review
+	// (GET /machine-jobs/review-queue)
+	ListMachineJobReviewQueue(w http.ResponseWriter, r *http.Request)
+	// Get machine job detail
+	// (GET /machine-jobs/{machineJobId})
+	GetMachineJob(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7)
+	// Correct confirmed machine job facts
+	// (PATCH /machine-jobs/{machineJobId})
+	UpdateMachineJob(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7)
+	// Update the minimal billing state
+	// (PUT /machine-jobs/{machineJobId}/billing)
+	UpdateMachineJobBilling(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7)
+	// Confirm an automatically detected job
+	// (POST /machine-jobs/{machineJobId}/confirm)
+	ConfirmMachineJob(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7)
+	// Clear the current final-price override
+	// (DELETE /machine-jobs/{machineJobId}/price-override)
+	ClearMachineJobPriceOverride(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7)
+	// Set a final job price without replacing the calculation
+	// (PUT /machine-jobs/{machineJobId}/price-override)
+	OverrideMachineJobPrice(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7)
+	// Replace job usages using compensating inventory transactions
+	// (PUT /machine-jobs/{machineJobId}/usages)
+	ReplaceMachineJobUsages(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7)
+	// Get operational machine-logbook summary
+	// (GET /machine-logbook/overview)
+	GetMachineLogbookOverview(w http.ResponseWriter, r *http.Request)
+	// Get date-filtered operational statistics
+	// (GET /machine-logbook/statistics)
+	GetMachineLogbookStatistics(w http.ResponseWriter, r *http.Request, params GetMachineLogbookStatisticsParams)
+	// List machine types
+	// (GET /machine-types)
+	ListMachineTypes(w http.ResponseWriter, r *http.Request)
+	// Create a machine type
+	// (POST /machine-types)
+	CreateMachineType(w http.ResponseWriter, r *http.Request)
+	// Update a machine type
+	// (PATCH /machine-types/{machineTypeId})
+	UpdateMachineType(w http.ResponseWriter, r *http.Request, machineTypeId UUIDv7)
+	// List machines and operational metrics
+	// (GET /machines)
+	ListMachines(w http.ResponseWriter, r *http.Request, params ListMachinesParams)
+	// Create a machine
+	// (POST /machines)
+	CreateMachine(w http.ResponseWriter, r *http.Request)
+	// Get a machine
+	// (GET /machines/{machineId})
+	GetMachine(w http.ResponseWriter, r *http.Request, machineId UUIDv7)
+	// Update a machine
+	// (PATCH /machines/{machineId})
+	UpdateMachine(w http.ResponseWriter, r *http.Request, machineId UUIDv7)
 	// Read write-only-safe transactional mail configuration
 	// (GET /mail/configuration)
 	GetMailConfiguration(w http.ResponseWriter, r *http.Request)
@@ -2507,6 +3510,33 @@ type ServerInterface interface {
 	// Rotate a managed-device token
 	// (POST /managed-devices/{managedDeviceId}/token)
 	RotateManagedDeviceToken(w http.ResponseWriter, r *http.Request, managedDeviceId ManagedDeviceId)
+	// List inventory materials and balances
+	// (GET /materials)
+	ListMaterials(w http.ResponseWriter, r *http.Request, params ListMaterialsParams)
+	// Create an inventory material
+	// (POST /materials)
+	CreateMaterial(w http.ResponseWriter, r *http.Request)
+	// Get material detail
+	// (GET /materials/{materialId})
+	GetMaterial(w http.ResponseWriter, r *http.Request, materialId UUIDv7)
+	// Update material metadata
+	// (PATCH /materials/{materialId})
+	UpdateMaterial(w http.ResponseWriter, r *http.Request, materialId UUIDv7)
+	// Record manual consumption or disposal
+	// (POST /materials/{materialId}/consumptions)
+	RecordMaterialConsumption(w http.ResponseWriter, r *http.Request, materialId UUIDv7)
+	// Correct stock to a physical count
+	// (POST /materials/{materialId}/corrections)
+	CorrectMaterialStock(w http.ResponseWriter, r *http.Request, materialId UUIDv7)
+	// Mark material empty using an adjustment transaction
+	// (POST /materials/{materialId}/mark-empty)
+	MarkMaterialEmpty(w http.ResponseWriter, r *http.Request, materialId UUIDv7)
+	// Add purchased stock and acquisition cost
+	// (POST /materials/{materialId}/purchases)
+	AddMaterialPurchase(w http.ResponseWriter, r *http.Request, materialId UUIDv7)
+	// List immutable material transactions
+	// (GET /materials/{materialId}/transactions)
+	ListMaterialTransactions(w http.ResponseWriter, r *http.Request, materialId UUIDv7, params ListMaterialTransactionsParams)
 	// List configured OIDC providers without secrets
 	// (GET /oidc/providers)
 	ListOIDCProviders(w http.ResponseWriter, r *http.Request)
@@ -2597,6 +3627,15 @@ type ServerInterface interface {
 	// Cancel a scheduled Open Day
 	// (POST /open-days/{openDayId}/cancel)
 	CancelOpenDay(w http.ResponseWriter, r *http.Request, openDayId OpenDayId)
+	// List customer organizations
+	// (GET /organizations)
+	ListOrganizations(w http.ResponseWriter, r *http.Request, params ListOrganizationsParams)
+	// Create a customer organization
+	// (POST /organizations)
+	CreateOrganization(w http.ResponseWriter, r *http.Request)
+	// Update a customer organization
+	// (PATCH /organizations/{organizationId})
+	UpdateOrganization(w http.ResponseWriter, r *http.Request, organizationId UUIDv7)
 	// List people for user administration
 	// (GET /people)
 	ListPeople(w http.ResponseWriter, r *http.Request, params ListPeopleParams)
@@ -2627,6 +3666,21 @@ type ServerInterface interface {
 	// List permissions registered by this application version
 	// (GET /permissions)
 	ListPermissions(w http.ResponseWriter, r *http.Request)
+	// List pricing groups and rules
+	// (GET /pricing-groups)
+	ListPricingGroups(w http.ResponseWriter, r *http.Request)
+	// Create a pricing group
+	// (POST /pricing-groups)
+	CreatePricingGroup(w http.ResponseWriter, r *http.Request)
+	// Update a pricing group
+	// (PATCH /pricing-groups/{pricingGroupId})
+	UpdatePricingGroup(w http.ResponseWriter, r *http.Request, pricingGroupId UUIDv7)
+	// Add a pricing rule
+	// (POST /pricing-groups/{pricingGroupId}/rules)
+	CreatePricingRule(w http.ResponseWriter, r *http.Request, pricingGroupId UUIDv7)
+	// Update a pricing rule
+	// (PATCH /pricing-rules/{pricingRuleId})
+	UpdatePricingRule(w http.ResponseWriter, r *http.Request, pricingRuleId UUIDv7)
 	// List the public Open Day schedule
 	// (GET /public/open-days)
 	ListPublicOpenDays(w http.ResponseWriter, r *http.Request)
@@ -2930,6 +3984,18 @@ func (_ Unimplemented) LoginWithPin(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Search minimal people and organizations usable as customers
+// (GET /billing-parties)
+func (_ Unimplemented) SearchBillingParties(w http.ResponseWriter, r *http.Request, params SearchBillingPartiesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Set or clear a billing party default pricing group
+// (PUT /billing-party-pricing-group)
+func (_ Unimplemented) SetBillingPartyPricingGroup(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Report that the API process is running
 // (GET /health/live)
 func (_ Unimplemented) GetLiveness(w http.ResponseWriter, r *http.Request) {
@@ -2987,6 +4053,132 @@ func (_ Unimplemented) GetLaborordnungPDF(w http.ResponseWriter, r *http.Request
 // Immutably publish a draft for an effective time
 // (POST /laborordnung/versions/{laborordnungVersionId}/publish)
 func (_ Unimplemented) PublishLaborordnungVersion(w http.ResponseWriter, r *http.Request, laborordnungVersionId LaborordnungVersionId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Search enabled people usable as machine operators
+// (GET /machine-job-operators)
+func (_ Unimplemented) SearchMachineJobOperators(w http.ResponseWriter, r *http.Request, params SearchMachineJobOperatorsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List and filter machine jobs
+// (GET /machine-jobs)
+func (_ Unimplemented) ListMachineJobs(w http.ResponseWriter, r *http.Request, params ListMachineJobsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create and confirm a manual machine job
+// (POST /machine-jobs)
+func (_ Unimplemented) CreateMachineJob(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Ingest an automatically detected job idempotently
+// (POST /machine-jobs/automatic)
+func (_ Unimplemented) IngestAutomaticMachineJob(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List jobs needing review
+// (GET /machine-jobs/review-queue)
+func (_ Unimplemented) ListMachineJobReviewQueue(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get machine job detail
+// (GET /machine-jobs/{machineJobId})
+func (_ Unimplemented) GetMachineJob(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Correct confirmed machine job facts
+// (PATCH /machine-jobs/{machineJobId})
+func (_ Unimplemented) UpdateMachineJob(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update the minimal billing state
+// (PUT /machine-jobs/{machineJobId}/billing)
+func (_ Unimplemented) UpdateMachineJobBilling(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Confirm an automatically detected job
+// (POST /machine-jobs/{machineJobId}/confirm)
+func (_ Unimplemented) ConfirmMachineJob(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Clear the current final-price override
+// (DELETE /machine-jobs/{machineJobId}/price-override)
+func (_ Unimplemented) ClearMachineJobPriceOverride(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Set a final job price without replacing the calculation
+// (PUT /machine-jobs/{machineJobId}/price-override)
+func (_ Unimplemented) OverrideMachineJobPrice(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace job usages using compensating inventory transactions
+// (PUT /machine-jobs/{machineJobId}/usages)
+func (_ Unimplemented) ReplaceMachineJobUsages(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get operational machine-logbook summary
+// (GET /machine-logbook/overview)
+func (_ Unimplemented) GetMachineLogbookOverview(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get date-filtered operational statistics
+// (GET /machine-logbook/statistics)
+func (_ Unimplemented) GetMachineLogbookStatistics(w http.ResponseWriter, r *http.Request, params GetMachineLogbookStatisticsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List machine types
+// (GET /machine-types)
+func (_ Unimplemented) ListMachineTypes(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a machine type
+// (POST /machine-types)
+func (_ Unimplemented) CreateMachineType(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update a machine type
+// (PATCH /machine-types/{machineTypeId})
+func (_ Unimplemented) UpdateMachineType(w http.ResponseWriter, r *http.Request, machineTypeId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List machines and operational metrics
+// (GET /machines)
+func (_ Unimplemented) ListMachines(w http.ResponseWriter, r *http.Request, params ListMachinesParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a machine
+// (POST /machines)
+func (_ Unimplemented) CreateMachine(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get a machine
+// (GET /machines/{machineId})
+func (_ Unimplemented) GetMachine(w http.ResponseWriter, r *http.Request, machineId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update a machine
+// (PATCH /machines/{machineId})
+func (_ Unimplemented) UpdateMachine(w http.ResponseWriter, r *http.Request, machineId UUIDv7) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3071,6 +4263,60 @@ func (_ Unimplemented) RevokeManagedDevice(w http.ResponseWriter, r *http.Reques
 // Rotate a managed-device token
 // (POST /managed-devices/{managedDeviceId}/token)
 func (_ Unimplemented) RotateManagedDeviceToken(w http.ResponseWriter, r *http.Request, managedDeviceId ManagedDeviceId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List inventory materials and balances
+// (GET /materials)
+func (_ Unimplemented) ListMaterials(w http.ResponseWriter, r *http.Request, params ListMaterialsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create an inventory material
+// (POST /materials)
+func (_ Unimplemented) CreateMaterial(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Get material detail
+// (GET /materials/{materialId})
+func (_ Unimplemented) GetMaterial(w http.ResponseWriter, r *http.Request, materialId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update material metadata
+// (PATCH /materials/{materialId})
+func (_ Unimplemented) UpdateMaterial(w http.ResponseWriter, r *http.Request, materialId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Record manual consumption or disposal
+// (POST /materials/{materialId}/consumptions)
+func (_ Unimplemented) RecordMaterialConsumption(w http.ResponseWriter, r *http.Request, materialId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Correct stock to a physical count
+// (POST /materials/{materialId}/corrections)
+func (_ Unimplemented) CorrectMaterialStock(w http.ResponseWriter, r *http.Request, materialId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Mark material empty using an adjustment transaction
+// (POST /materials/{materialId}/mark-empty)
+func (_ Unimplemented) MarkMaterialEmpty(w http.ResponseWriter, r *http.Request, materialId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Add purchased stock and acquisition cost
+// (POST /materials/{materialId}/purchases)
+func (_ Unimplemented) AddMaterialPurchase(w http.ResponseWriter, r *http.Request, materialId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List immutable material transactions
+// (GET /materials/{materialId}/transactions)
+func (_ Unimplemented) ListMaterialTransactions(w http.ResponseWriter, r *http.Request, materialId UUIDv7, params ListMaterialTransactionsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -3254,6 +4500,24 @@ func (_ Unimplemented) CancelOpenDay(w http.ResponseWriter, r *http.Request, ope
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// List customer organizations
+// (GET /organizations)
+func (_ Unimplemented) ListOrganizations(w http.ResponseWriter, r *http.Request, params ListOrganizationsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a customer organization
+// (POST /organizations)
+func (_ Unimplemented) CreateOrganization(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update a customer organization
+// (PATCH /organizations/{organizationId})
+func (_ Unimplemented) UpdateOrganization(w http.ResponseWriter, r *http.Request, organizationId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // List people for user administration
 // (GET /people)
 func (_ Unimplemented) ListPeople(w http.ResponseWriter, r *http.Request, params ListPeopleParams) {
@@ -3311,6 +4575,36 @@ func (_ Unimplemented) PutPersonProfileImage(w http.ResponseWriter, r *http.Requ
 // List permissions registered by this application version
 // (GET /permissions)
 func (_ Unimplemented) ListPermissions(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List pricing groups and rules
+// (GET /pricing-groups)
+func (_ Unimplemented) ListPricingGroups(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a pricing group
+// (POST /pricing-groups)
+func (_ Unimplemented) CreatePricingGroup(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update a pricing group
+// (PATCH /pricing-groups/{pricingGroupId})
+func (_ Unimplemented) UpdatePricingGroup(w http.ResponseWriter, r *http.Request, pricingGroupId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Add a pricing rule
+// (POST /pricing-groups/{pricingGroupId}/rules)
+func (_ Unimplemented) CreatePricingRule(w http.ResponseWriter, r *http.Request, pricingGroupId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update a pricing rule
+// (PATCH /pricing-rules/{pricingRuleId})
+func (_ Unimplemented) UpdatePricingRule(w http.ResponseWriter, r *http.Request, pricingRuleId UUIDv7) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -4432,6 +5726,69 @@ func (siw *ServerInterfaceWrapper) LoginWithPin(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// SearchBillingParties operation middleware
+func (siw *ServerInterfaceWrapper) SearchBillingParties(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SearchBillingPartiesParams
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "search", r.URL.Query(), &params.Search)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SearchBillingParties(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SetBillingPartyPricingGroup operation middleware
+func (siw *ServerInterfaceWrapper) SetBillingPartyPricingGroup(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SetBillingPartyPricingGroup(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetLiveness operation middleware
 func (siw *ServerInterfaceWrapper) GetLiveness(w http.ResponseWriter, r *http.Request) {
 
@@ -4705,6 +6062,762 @@ func (siw *ServerInterfaceWrapper) PublishLaborordnungVersion(w http.ResponseWri
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.PublishLaborordnungVersion(w, r, laborordnungVersionId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// SearchMachineJobOperators operation middleware
+func (siw *ServerInterfaceWrapper) SearchMachineJobOperators(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params SearchMachineJobOperatorsParams
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "search", r.URL.Query(), &params.Search)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "limit" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "limit", r.URL.Query(), &params.Limit)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "limit", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.SearchMachineJobOperators(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListMachineJobs operation middleware
+func (siw *ServerInterfaceWrapper) ListMachineJobs(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListMachineJobsParams
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "search", r.URL.Query(), &params.Search)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "machineId" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "machineId", r.URL.Query(), &params.MachineId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "machineId", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "customerId" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "customerId", r.URL.Query(), &params.CustomerId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "customerId", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "operatorPersonId" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "operatorPersonId", r.URL.Query(), &params.OperatorPersonId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "operatorPersonId", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "materialId" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "materialId", r.URL.Query(), &params.MaterialId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "materialId", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "outcome" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "outcome", r.URL.Query(), &params.Outcome)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "outcome", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "billingStatus" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "billingStatus", r.URL.Query(), &params.BillingStatus)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "billingStatus", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "source" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "source", r.URL.Query(), &params.Source)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "source", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "reviewState" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "reviewState", r.URL.Query(), &params.ReviewState)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "reviewState", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "from" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "from", r.URL.Query(), &params.From)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "to" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "to", r.URL.Query(), &params.To)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", r.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "pageSize", r.URL.Query(), &params.PageSize)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMachineJobs(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateMachineJob operation middleware
+func (siw *ServerInterfaceWrapper) CreateMachineJob(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateMachineJob(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// IngestAutomaticMachineJob operation middleware
+func (siw *ServerInterfaceWrapper) IngestAutomaticMachineJob(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.IngestAutomaticMachineJob(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListMachineJobReviewQueue operation middleware
+func (siw *ServerInterfaceWrapper) ListMachineJobReviewQueue(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMachineJobReviewQueue(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMachineJob operation middleware
+func (siw *ServerInterfaceWrapper) GetMachineJob(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "machineJobId" -------------
+	var machineJobId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "machineJobId", chi.URLParam(r, "machineJobId"), &machineJobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "machineJobId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMachineJob(w, r, machineJobId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateMachineJob operation middleware
+func (siw *ServerInterfaceWrapper) UpdateMachineJob(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "machineJobId" -------------
+	var machineJobId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "machineJobId", chi.URLParam(r, "machineJobId"), &machineJobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "machineJobId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateMachineJob(w, r, machineJobId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateMachineJobBilling operation middleware
+func (siw *ServerInterfaceWrapper) UpdateMachineJobBilling(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "machineJobId" -------------
+	var machineJobId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "machineJobId", chi.URLParam(r, "machineJobId"), &machineJobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "machineJobId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateMachineJobBilling(w, r, machineJobId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConfirmMachineJob operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmMachineJob(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "machineJobId" -------------
+	var machineJobId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "machineJobId", chi.URLParam(r, "machineJobId"), &machineJobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "machineJobId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConfirmMachineJob(w, r, machineJobId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ClearMachineJobPriceOverride operation middleware
+func (siw *ServerInterfaceWrapper) ClearMachineJobPriceOverride(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "machineJobId" -------------
+	var machineJobId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "machineJobId", chi.URLParam(r, "machineJobId"), &machineJobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "machineJobId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ClearMachineJobPriceOverride(w, r, machineJobId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// OverrideMachineJobPrice operation middleware
+func (siw *ServerInterfaceWrapper) OverrideMachineJobPrice(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "machineJobId" -------------
+	var machineJobId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "machineJobId", chi.URLParam(r, "machineJobId"), &machineJobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "machineJobId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.OverrideMachineJobPrice(w, r, machineJobId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReplaceMachineJobUsages operation middleware
+func (siw *ServerInterfaceWrapper) ReplaceMachineJobUsages(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "machineJobId" -------------
+	var machineJobId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "machineJobId", chi.URLParam(r, "machineJobId"), &machineJobId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "machineJobId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReplaceMachineJobUsages(w, r, machineJobId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMachineLogbookOverview operation middleware
+func (siw *ServerInterfaceWrapper) GetMachineLogbookOverview(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMachineLogbookOverview(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMachineLogbookStatistics operation middleware
+func (siw *ServerInterfaceWrapper) GetMachineLogbookStatistics(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetMachineLogbookStatisticsParams
+
+	// ------------- Required query parameter "from" -------------
+
+	if paramValue := r.URL.Query().Get("from"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "from", r.URL.Query(), &params.From)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "to" -------------
+
+	if paramValue := r.URL.Query().Get("to"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "to", r.URL.Query(), &params.To)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMachineLogbookStatistics(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListMachineTypes operation middleware
+func (siw *ServerInterfaceWrapper) ListMachineTypes(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMachineTypes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateMachineType operation middleware
+func (siw *ServerInterfaceWrapper) CreateMachineType(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateMachineType(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateMachineType operation middleware
+func (siw *ServerInterfaceWrapper) UpdateMachineType(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "machineTypeId" -------------
+	var machineTypeId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "machineTypeId", chi.URLParam(r, "machineTypeId"), &machineTypeId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "machineTypeId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateMachineType(w, r, machineTypeId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListMachines operation middleware
+func (siw *ServerInterfaceWrapper) ListMachines(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListMachinesParams
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "search", r.URL.Query(), &params.Search)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "status" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "status", r.URL.Query(), &params.Status)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "status", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", r.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "pageSize", r.URL.Query(), &params.PageSize)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMachines(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateMachine operation middleware
+func (siw *ServerInterfaceWrapper) CreateMachine(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateMachine(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMachine operation middleware
+func (siw *ServerInterfaceWrapper) GetMachine(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "machineId" -------------
+	var machineId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "machineId", chi.URLParam(r, "machineId"), &machineId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "machineId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMachine(w, r, machineId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateMachine operation middleware
+func (siw *ServerInterfaceWrapper) UpdateMachine(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "machineId" -------------
+	var machineId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "machineId", chi.URLParam(r, "machineId"), &machineId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "machineId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateMachine(w, r, machineId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -5112,6 +7225,339 @@ func (siw *ServerInterfaceWrapper) RotateManagedDeviceToken(w http.ResponseWrite
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.RotateManagedDeviceToken(w, r, managedDeviceId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListMaterials operation middleware
+func (siw *ServerInterfaceWrapper) ListMaterials(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListMaterialsParams
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "search", r.URL.Query(), &params.Search)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "category" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "category", r.URL.Query(), &params.Category)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "category", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "stockState" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "stockState", r.URL.Query(), &params.StockState)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "stockState", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", r.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "pageSize", r.URL.Query(), &params.PageSize)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMaterials(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateMaterial operation middleware
+func (siw *ServerInterfaceWrapper) CreateMaterial(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateMaterial(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetMaterial operation middleware
+func (siw *ServerInterfaceWrapper) GetMaterial(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "materialId" -------------
+	var materialId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "materialId", chi.URLParam(r, "materialId"), &materialId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "materialId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetMaterial(w, r, materialId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateMaterial operation middleware
+func (siw *ServerInterfaceWrapper) UpdateMaterial(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "materialId" -------------
+	var materialId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "materialId", chi.URLParam(r, "materialId"), &materialId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "materialId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateMaterial(w, r, materialId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RecordMaterialConsumption operation middleware
+func (siw *ServerInterfaceWrapper) RecordMaterialConsumption(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "materialId" -------------
+	var materialId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "materialId", chi.URLParam(r, "materialId"), &materialId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "materialId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RecordMaterialConsumption(w, r, materialId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CorrectMaterialStock operation middleware
+func (siw *ServerInterfaceWrapper) CorrectMaterialStock(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "materialId" -------------
+	var materialId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "materialId", chi.URLParam(r, "materialId"), &materialId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "materialId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CorrectMaterialStock(w, r, materialId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// MarkMaterialEmpty operation middleware
+func (siw *ServerInterfaceWrapper) MarkMaterialEmpty(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "materialId" -------------
+	var materialId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "materialId", chi.URLParam(r, "materialId"), &materialId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "materialId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.MarkMaterialEmpty(w, r, materialId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddMaterialPurchase operation middleware
+func (siw *ServerInterfaceWrapper) AddMaterialPurchase(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "materialId" -------------
+	var materialId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "materialId", chi.URLParam(r, "materialId"), &materialId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "materialId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddMaterialPurchase(w, r, materialId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListMaterialTransactions operation middleware
+func (siw *ServerInterfaceWrapper) ListMaterialTransactions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "materialId" -------------
+	var materialId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "materialId", chi.URLParam(r, "materialId"), &materialId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "materialId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListMaterialTransactionsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", r.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "pageSize", r.URL.Query(), &params.PageSize)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListMaterialTransactions(w, r, materialId, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -6049,6 +8495,118 @@ func (siw *ServerInterfaceWrapper) CancelOpenDay(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// ListOrganizations operation middleware
+func (siw *ServerInterfaceWrapper) ListOrganizations(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListOrganizationsParams
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "search", r.URL.Query(), &params.Search)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "active" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "active", r.URL.Query(), &params.Active)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "active", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", r.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "pageSize", r.URL.Query(), &params.PageSize)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListOrganizations(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateOrganization operation middleware
+func (siw *ServerInterfaceWrapper) CreateOrganization(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateOrganization(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateOrganization operation middleware
+func (siw *ServerInterfaceWrapper) UpdateOrganization(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "organizationId" -------------
+	var organizationId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "organizationId", chi.URLParam(r, "organizationId"), &organizationId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "organizationId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateOrganization(w, r, organizationId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ListPeople operation middleware
 func (siw *ServerInterfaceWrapper) ListPeople(w http.ResponseWriter, r *http.Request) {
 
@@ -6420,6 +8978,147 @@ func (siw *ServerInterfaceWrapper) ListPermissions(w http.ResponseWriter, r *htt
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListPermissions(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListPricingGroups operation middleware
+func (siw *ServerInterfaceWrapper) ListPricingGroups(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPricingGroups(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreatePricingGroup operation middleware
+func (siw *ServerInterfaceWrapper) CreatePricingGroup(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreatePricingGroup(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdatePricingGroup operation middleware
+func (siw *ServerInterfaceWrapper) UpdatePricingGroup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "pricingGroupId" -------------
+	var pricingGroupId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "pricingGroupId", chi.URLParam(r, "pricingGroupId"), &pricingGroupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pricingGroupId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdatePricingGroup(w, r, pricingGroupId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreatePricingRule operation middleware
+func (siw *ServerInterfaceWrapper) CreatePricingRule(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "pricingGroupId" -------------
+	var pricingGroupId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "pricingGroupId", chi.URLParam(r, "pricingGroupId"), &pricingGroupId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pricingGroupId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreatePricingRule(w, r, pricingGroupId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdatePricingRule operation middleware
+func (siw *ServerInterfaceWrapper) UpdatePricingRule(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "pricingRuleId" -------------
+	var pricingRuleId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "pricingRuleId", chi.URLParam(r, "pricingRuleId"), &pricingRuleId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pricingRuleId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdatePricingRule(w, r, pricingRuleId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -7519,6 +10218,12 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/auth/pin/login", wrapper.LoginWithPin)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/billing-parties", wrapper.SearchBillingParties)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/billing-party-pricing-group", wrapper.SetBillingPartyPricingGroup)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/health/live", wrapper.GetLiveness)
 	})
 	r.Group(func(r chi.Router) {
@@ -7547,6 +10252,69 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/laborordnung/versions/{laborordnungVersionId}/publish", wrapper.PublishLaborordnungVersion)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/machine-job-operators", wrapper.SearchMachineJobOperators)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/machine-jobs", wrapper.ListMachineJobs)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/machine-jobs", wrapper.CreateMachineJob)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/machine-jobs/automatic", wrapper.IngestAutomaticMachineJob)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/machine-jobs/review-queue", wrapper.ListMachineJobReviewQueue)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/machine-jobs/{machineJobId}", wrapper.GetMachineJob)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/machine-jobs/{machineJobId}", wrapper.UpdateMachineJob)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/machine-jobs/{machineJobId}/billing", wrapper.UpdateMachineJobBilling)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/machine-jobs/{machineJobId}/confirm", wrapper.ConfirmMachineJob)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/machine-jobs/{machineJobId}/price-override", wrapper.ClearMachineJobPriceOverride)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/machine-jobs/{machineJobId}/price-override", wrapper.OverrideMachineJobPrice)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/machine-jobs/{machineJobId}/usages", wrapper.ReplaceMachineJobUsages)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/machine-logbook/overview", wrapper.GetMachineLogbookOverview)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/machine-logbook/statistics", wrapper.GetMachineLogbookStatistics)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/machine-types", wrapper.ListMachineTypes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/machine-types", wrapper.CreateMachineType)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/machine-types/{machineTypeId}", wrapper.UpdateMachineType)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/machines", wrapper.ListMachines)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/machines", wrapper.CreateMachine)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/machines/{machineId}", wrapper.GetMachine)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/machines/{machineId}", wrapper.UpdateMachine)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/mail/configuration", wrapper.GetMailConfiguration)
@@ -7589,6 +10357,33 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/managed-devices/{managedDeviceId}/token", wrapper.RotateManagedDeviceToken)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/materials", wrapper.ListMaterials)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/materials", wrapper.CreateMaterial)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/materials/{materialId}", wrapper.GetMaterial)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/materials/{materialId}", wrapper.UpdateMaterial)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/materials/{materialId}/consumptions", wrapper.RecordMaterialConsumption)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/materials/{materialId}/corrections", wrapper.CorrectMaterialStock)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/materials/{materialId}/mark-empty", wrapper.MarkMaterialEmpty)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/materials/{materialId}/purchases", wrapper.AddMaterialPurchase)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/materials/{materialId}/transactions", wrapper.ListMaterialTransactions)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/oidc/providers", wrapper.ListOIDCProviders)
@@ -7681,6 +10476,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/open-days/{openDayId}/cancel", wrapper.CancelOpenDay)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/organizations", wrapper.ListOrganizations)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/organizations", wrapper.CreateOrganization)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/organizations/{organizationId}", wrapper.UpdateOrganization)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/people", wrapper.ListPeople)
 	})
 	r.Group(func(r chi.Router) {
@@ -7709,6 +10513,21 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/permissions", wrapper.ListPermissions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/pricing-groups", wrapper.ListPricingGroups)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/pricing-groups", wrapper.CreatePricingGroup)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/pricing-groups/{pricingGroupId}", wrapper.UpdatePricingGroup)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/pricing-groups/{pricingGroupId}/rules", wrapper.CreatePricingRule)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/pricing-rules/{pricingRuleId}", wrapper.UpdatePricingRule)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/public/open-days", wrapper.ListPublicOpenDays)
@@ -10061,6 +12880,135 @@ func (response LoginWithPin500JSONResponse) VisitLoginWithPinResponse(w http.Res
 	return json.NewEncoder(w).Encode(response)
 }
 
+type SearchBillingPartiesRequestObject struct {
+	Params SearchBillingPartiesParams
+}
+
+type SearchBillingPartiesResponseObject interface {
+	VisitSearchBillingPartiesResponse(w http.ResponseWriter) error
+}
+
+type SearchBillingParties200JSONResponse BillingPartyList
+
+func (response SearchBillingParties200JSONResponse) VisitSearchBillingPartiesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SearchBillingParties400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response SearchBillingParties400JSONResponse) VisitSearchBillingPartiesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SearchBillingParties401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response SearchBillingParties401JSONResponse) VisitSearchBillingPartiesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SearchBillingParties403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SearchBillingParties403JSONResponse) VisitSearchBillingPartiesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SearchBillingParties500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response SearchBillingParties500JSONResponse) VisitSearchBillingPartiesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SetBillingPartyPricingGroupRequestObject struct {
+	Body *SetBillingPartyPricingGroupJSONRequestBody
+}
+
+type SetBillingPartyPricingGroupResponseObject interface {
+	VisitSetBillingPartyPricingGroupResponse(w http.ResponseWriter) error
+}
+
+type SetBillingPartyPricingGroup204Response struct {
+}
+
+func (response SetBillingPartyPricingGroup204Response) VisitSetBillingPartyPricingGroupResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type SetBillingPartyPricingGroup401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response SetBillingPartyPricingGroup401JSONResponse) VisitSetBillingPartyPricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SetBillingPartyPricingGroup403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SetBillingPartyPricingGroup403JSONResponse) VisitSetBillingPartyPricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SetBillingPartyPricingGroup404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response SetBillingPartyPricingGroup404JSONResponse) VisitSetBillingPartyPricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SetBillingPartyPricingGroup409JSONResponse struct{ ConflictJSONResponse }
+
+func (response SetBillingPartyPricingGroup409JSONResponse) VisitSetBillingPartyPricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SetBillingPartyPricingGroup422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response SetBillingPartyPricingGroup422JSONResponse) VisitSetBillingPartyPricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SetBillingPartyPricingGroup500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response SetBillingPartyPricingGroup500JSONResponse) VisitSetBillingPartyPricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetLivenessRequestObject struct {
 }
 
@@ -10603,6 +13551,1370 @@ type PublishLaborordnungVersion500JSONResponse struct {
 }
 
 func (response PublishLaborordnungVersion500JSONResponse) VisitPublishLaborordnungVersionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SearchMachineJobOperatorsRequestObject struct {
+	Params SearchMachineJobOperatorsParams
+}
+
+type SearchMachineJobOperatorsResponseObject interface {
+	VisitSearchMachineJobOperatorsResponse(w http.ResponseWriter) error
+}
+
+type SearchMachineJobOperators200JSONResponse OperatorList
+
+func (response SearchMachineJobOperators200JSONResponse) VisitSearchMachineJobOperatorsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SearchMachineJobOperators400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response SearchMachineJobOperators400JSONResponse) VisitSearchMachineJobOperatorsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SearchMachineJobOperators401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response SearchMachineJobOperators401JSONResponse) VisitSearchMachineJobOperatorsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SearchMachineJobOperators403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response SearchMachineJobOperators403JSONResponse) VisitSearchMachineJobOperatorsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type SearchMachineJobOperators500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response SearchMachineJobOperators500JSONResponse) VisitSearchMachineJobOperatorsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMachineJobsRequestObject struct {
+	Params ListMachineJobsParams
+}
+
+type ListMachineJobsResponseObject interface {
+	VisitListMachineJobsResponse(w http.ResponseWriter) error
+}
+
+type ListMachineJobs200JSONResponse MachineJobPage
+
+func (response ListMachineJobs200JSONResponse) VisitListMachineJobsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMachineJobs400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListMachineJobs400JSONResponse) VisitListMachineJobsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMachineJobs401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListMachineJobs401JSONResponse) VisitListMachineJobsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMachineJobs403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListMachineJobs403JSONResponse) VisitListMachineJobsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMachineJobs500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListMachineJobs500JSONResponse) VisitListMachineJobsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachineJobRequestObject struct {
+	Body *CreateMachineJobJSONRequestBody
+}
+
+type CreateMachineJobResponseObject interface {
+	VisitCreateMachineJobResponse(w http.ResponseWriter) error
+}
+
+type CreateMachineJob201JSONResponse MachineJob
+
+func (response CreateMachineJob201JSONResponse) VisitCreateMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachineJob401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateMachineJob401JSONResponse) VisitCreateMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachineJob403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateMachineJob403JSONResponse) VisitCreateMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachineJob404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateMachineJob404JSONResponse) VisitCreateMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachineJob409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateMachineJob409JSONResponse) VisitCreateMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachineJob422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateMachineJob422JSONResponse) VisitCreateMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachineJob500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateMachineJob500JSONResponse) VisitCreateMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IngestAutomaticMachineJobRequestObject struct {
+	Body *IngestAutomaticMachineJobJSONRequestBody
+}
+
+type IngestAutomaticMachineJobResponseObject interface {
+	VisitIngestAutomaticMachineJobResponse(w http.ResponseWriter) error
+}
+
+type IngestAutomaticMachineJob200JSONResponse MachineJob
+
+func (response IngestAutomaticMachineJob200JSONResponse) VisitIngestAutomaticMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IngestAutomaticMachineJob201JSONResponse MachineJob
+
+func (response IngestAutomaticMachineJob201JSONResponse) VisitIngestAutomaticMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IngestAutomaticMachineJob401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response IngestAutomaticMachineJob401JSONResponse) VisitIngestAutomaticMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IngestAutomaticMachineJob403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response IngestAutomaticMachineJob403JSONResponse) VisitIngestAutomaticMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IngestAutomaticMachineJob404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response IngestAutomaticMachineJob404JSONResponse) VisitIngestAutomaticMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IngestAutomaticMachineJob409JSONResponse struct{ ConflictJSONResponse }
+
+func (response IngestAutomaticMachineJob409JSONResponse) VisitIngestAutomaticMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IngestAutomaticMachineJob422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response IngestAutomaticMachineJob422JSONResponse) VisitIngestAutomaticMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IngestAutomaticMachineJob500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response IngestAutomaticMachineJob500JSONResponse) VisitIngestAutomaticMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMachineJobReviewQueueRequestObject struct {
+}
+
+type ListMachineJobReviewQueueResponseObject interface {
+	VisitListMachineJobReviewQueueResponse(w http.ResponseWriter) error
+}
+
+type ListMachineJobReviewQueue200JSONResponse MachineJobList
+
+func (response ListMachineJobReviewQueue200JSONResponse) VisitListMachineJobReviewQueueResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMachineJobReviewQueue401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListMachineJobReviewQueue401JSONResponse) VisitListMachineJobReviewQueueResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMachineJobReviewQueue403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListMachineJobReviewQueue403JSONResponse) VisitListMachineJobReviewQueueResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMachineJobReviewQueue500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListMachineJobReviewQueue500JSONResponse) VisitListMachineJobReviewQueueResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachineJobRequestObject struct {
+	MachineJobId UUIDv7 `json:"machineJobId"`
+}
+
+type GetMachineJobResponseObject interface {
+	VisitGetMachineJobResponse(w http.ResponseWriter) error
+}
+
+type GetMachineJob200JSONResponse MachineJob
+
+func (response GetMachineJob200JSONResponse) VisitGetMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachineJob401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetMachineJob401JSONResponse) VisitGetMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachineJob403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetMachineJob403JSONResponse) VisitGetMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachineJob404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetMachineJob404JSONResponse) VisitGetMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachineJob500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetMachineJob500JSONResponse) VisitGetMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineJobRequestObject struct {
+	MachineJobId UUIDv7 `json:"machineJobId"`
+	Body         *UpdateMachineJobJSONRequestBody
+}
+
+type UpdateMachineJobResponseObject interface {
+	VisitUpdateMachineJobResponse(w http.ResponseWriter) error
+}
+
+type UpdateMachineJob200JSONResponse MachineJob
+
+func (response UpdateMachineJob200JSONResponse) VisitUpdateMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineJob401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateMachineJob401JSONResponse) VisitUpdateMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineJob403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateMachineJob403JSONResponse) VisitUpdateMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineJob404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateMachineJob404JSONResponse) VisitUpdateMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineJob409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateMachineJob409JSONResponse) VisitUpdateMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineJob422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateMachineJob422JSONResponse) VisitUpdateMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineJob500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateMachineJob500JSONResponse) VisitUpdateMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineJobBillingRequestObject struct {
+	MachineJobId UUIDv7 `json:"machineJobId"`
+	Body         *UpdateMachineJobBillingJSONRequestBody
+}
+
+type UpdateMachineJobBillingResponseObject interface {
+	VisitUpdateMachineJobBillingResponse(w http.ResponseWriter) error
+}
+
+type UpdateMachineJobBilling200JSONResponse MachineJob
+
+func (response UpdateMachineJobBilling200JSONResponse) VisitUpdateMachineJobBillingResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineJobBilling401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateMachineJobBilling401JSONResponse) VisitUpdateMachineJobBillingResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineJobBilling403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateMachineJobBilling403JSONResponse) VisitUpdateMachineJobBillingResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineJobBilling404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateMachineJobBilling404JSONResponse) VisitUpdateMachineJobBillingResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineJobBilling409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateMachineJobBilling409JSONResponse) VisitUpdateMachineJobBillingResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineJobBilling422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateMachineJobBilling422JSONResponse) VisitUpdateMachineJobBillingResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineJobBilling500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateMachineJobBilling500JSONResponse) VisitUpdateMachineJobBillingResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmMachineJobRequestObject struct {
+	MachineJobId UUIDv7 `json:"machineJobId"`
+	Body         *ConfirmMachineJobJSONRequestBody
+}
+
+type ConfirmMachineJobResponseObject interface {
+	VisitConfirmMachineJobResponse(w http.ResponseWriter) error
+}
+
+type ConfirmMachineJob200JSONResponse MachineJob
+
+func (response ConfirmMachineJob200JSONResponse) VisitConfirmMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmMachineJob401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ConfirmMachineJob401JSONResponse) VisitConfirmMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmMachineJob403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ConfirmMachineJob403JSONResponse) VisitConfirmMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmMachineJob404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ConfirmMachineJob404JSONResponse) VisitConfirmMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmMachineJob409JSONResponse struct{ ConflictJSONResponse }
+
+func (response ConfirmMachineJob409JSONResponse) VisitConfirmMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmMachineJob422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response ConfirmMachineJob422JSONResponse) VisitConfirmMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmMachineJob500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ConfirmMachineJob500JSONResponse) VisitConfirmMachineJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClearMachineJobPriceOverrideRequestObject struct {
+	MachineJobId UUIDv7 `json:"machineJobId"`
+	Body         *ClearMachineJobPriceOverrideJSONRequestBody
+}
+
+type ClearMachineJobPriceOverrideResponseObject interface {
+	VisitClearMachineJobPriceOverrideResponse(w http.ResponseWriter) error
+}
+
+type ClearMachineJobPriceOverride200JSONResponse MachineJob
+
+func (response ClearMachineJobPriceOverride200JSONResponse) VisitClearMachineJobPriceOverrideResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClearMachineJobPriceOverride401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ClearMachineJobPriceOverride401JSONResponse) VisitClearMachineJobPriceOverrideResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClearMachineJobPriceOverride403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ClearMachineJobPriceOverride403JSONResponse) VisitClearMachineJobPriceOverrideResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClearMachineJobPriceOverride404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ClearMachineJobPriceOverride404JSONResponse) VisitClearMachineJobPriceOverrideResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClearMachineJobPriceOverride409JSONResponse struct{ ConflictJSONResponse }
+
+func (response ClearMachineJobPriceOverride409JSONResponse) VisitClearMachineJobPriceOverrideResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ClearMachineJobPriceOverride500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ClearMachineJobPriceOverride500JSONResponse) VisitClearMachineJobPriceOverrideResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type OverrideMachineJobPriceRequestObject struct {
+	MachineJobId UUIDv7 `json:"machineJobId"`
+	Body         *OverrideMachineJobPriceJSONRequestBody
+}
+
+type OverrideMachineJobPriceResponseObject interface {
+	VisitOverrideMachineJobPriceResponse(w http.ResponseWriter) error
+}
+
+type OverrideMachineJobPrice200JSONResponse MachineJob
+
+func (response OverrideMachineJobPrice200JSONResponse) VisitOverrideMachineJobPriceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type OverrideMachineJobPrice401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response OverrideMachineJobPrice401JSONResponse) VisitOverrideMachineJobPriceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type OverrideMachineJobPrice403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response OverrideMachineJobPrice403JSONResponse) VisitOverrideMachineJobPriceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type OverrideMachineJobPrice404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response OverrideMachineJobPrice404JSONResponse) VisitOverrideMachineJobPriceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type OverrideMachineJobPrice409JSONResponse struct{ ConflictJSONResponse }
+
+func (response OverrideMachineJobPrice409JSONResponse) VisitOverrideMachineJobPriceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type OverrideMachineJobPrice422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response OverrideMachineJobPrice422JSONResponse) VisitOverrideMachineJobPriceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type OverrideMachineJobPrice500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response OverrideMachineJobPrice500JSONResponse) VisitOverrideMachineJobPriceResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceMachineJobUsagesRequestObject struct {
+	MachineJobId UUIDv7 `json:"machineJobId"`
+	Body         *ReplaceMachineJobUsagesJSONRequestBody
+}
+
+type ReplaceMachineJobUsagesResponseObject interface {
+	VisitReplaceMachineJobUsagesResponse(w http.ResponseWriter) error
+}
+
+type ReplaceMachineJobUsages200JSONResponse MachineJob
+
+func (response ReplaceMachineJobUsages200JSONResponse) VisitReplaceMachineJobUsagesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceMachineJobUsages401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ReplaceMachineJobUsages401JSONResponse) VisitReplaceMachineJobUsagesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceMachineJobUsages403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ReplaceMachineJobUsages403JSONResponse) VisitReplaceMachineJobUsagesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceMachineJobUsages404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ReplaceMachineJobUsages404JSONResponse) VisitReplaceMachineJobUsagesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceMachineJobUsages409JSONResponse struct{ ConflictJSONResponse }
+
+func (response ReplaceMachineJobUsages409JSONResponse) VisitReplaceMachineJobUsagesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceMachineJobUsages422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response ReplaceMachineJobUsages422JSONResponse) VisitReplaceMachineJobUsagesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReplaceMachineJobUsages500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ReplaceMachineJobUsages500JSONResponse) VisitReplaceMachineJobUsagesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachineLogbookOverviewRequestObject struct {
+}
+
+type GetMachineLogbookOverviewResponseObject interface {
+	VisitGetMachineLogbookOverviewResponse(w http.ResponseWriter) error
+}
+
+type GetMachineLogbookOverview200JSONResponse MachineLogbookOverview
+
+func (response GetMachineLogbookOverview200JSONResponse) VisitGetMachineLogbookOverviewResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachineLogbookOverview401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetMachineLogbookOverview401JSONResponse) VisitGetMachineLogbookOverviewResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachineLogbookOverview403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetMachineLogbookOverview403JSONResponse) VisitGetMachineLogbookOverviewResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachineLogbookOverview500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetMachineLogbookOverview500JSONResponse) VisitGetMachineLogbookOverviewResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachineLogbookStatisticsRequestObject struct {
+	Params GetMachineLogbookStatisticsParams
+}
+
+type GetMachineLogbookStatisticsResponseObject interface {
+	VisitGetMachineLogbookStatisticsResponse(w http.ResponseWriter) error
+}
+
+type GetMachineLogbookStatistics200JSONResponse MachineLogbookStatistics
+
+func (response GetMachineLogbookStatistics200JSONResponse) VisitGetMachineLogbookStatisticsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachineLogbookStatistics400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response GetMachineLogbookStatistics400JSONResponse) VisitGetMachineLogbookStatisticsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachineLogbookStatistics401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetMachineLogbookStatistics401JSONResponse) VisitGetMachineLogbookStatisticsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachineLogbookStatistics403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetMachineLogbookStatistics403JSONResponse) VisitGetMachineLogbookStatisticsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachineLogbookStatistics422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response GetMachineLogbookStatistics422JSONResponse) VisitGetMachineLogbookStatisticsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachineLogbookStatistics500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetMachineLogbookStatistics500JSONResponse) VisitGetMachineLogbookStatisticsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMachineTypesRequestObject struct {
+}
+
+type ListMachineTypesResponseObject interface {
+	VisitListMachineTypesResponse(w http.ResponseWriter) error
+}
+
+type ListMachineTypes200JSONResponse MachineTypeList
+
+func (response ListMachineTypes200JSONResponse) VisitListMachineTypesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMachineTypes401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListMachineTypes401JSONResponse) VisitListMachineTypesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMachineTypes403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListMachineTypes403JSONResponse) VisitListMachineTypesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMachineTypes500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListMachineTypes500JSONResponse) VisitListMachineTypesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachineTypeRequestObject struct {
+	Body *CreateMachineTypeJSONRequestBody
+}
+
+type CreateMachineTypeResponseObject interface {
+	VisitCreateMachineTypeResponse(w http.ResponseWriter) error
+}
+
+type CreateMachineType201JSONResponse MachineType
+
+func (response CreateMachineType201JSONResponse) VisitCreateMachineTypeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachineType401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateMachineType401JSONResponse) VisitCreateMachineTypeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachineType403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateMachineType403JSONResponse) VisitCreateMachineTypeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachineType409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateMachineType409JSONResponse) VisitCreateMachineTypeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachineType422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateMachineType422JSONResponse) VisitCreateMachineTypeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachineType500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateMachineType500JSONResponse) VisitCreateMachineTypeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineTypeRequestObject struct {
+	MachineTypeId UUIDv7 `json:"machineTypeId"`
+	Body          *UpdateMachineTypeJSONRequestBody
+}
+
+type UpdateMachineTypeResponseObject interface {
+	VisitUpdateMachineTypeResponse(w http.ResponseWriter) error
+}
+
+type UpdateMachineType200JSONResponse MachineType
+
+func (response UpdateMachineType200JSONResponse) VisitUpdateMachineTypeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineType401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateMachineType401JSONResponse) VisitUpdateMachineTypeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineType403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateMachineType403JSONResponse) VisitUpdateMachineTypeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineType404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateMachineType404JSONResponse) VisitUpdateMachineTypeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineType409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateMachineType409JSONResponse) VisitUpdateMachineTypeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineType422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateMachineType422JSONResponse) VisitUpdateMachineTypeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineType500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateMachineType500JSONResponse) VisitUpdateMachineTypeResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMachinesRequestObject struct {
+	Params ListMachinesParams
+}
+
+type ListMachinesResponseObject interface {
+	VisitListMachinesResponse(w http.ResponseWriter) error
+}
+
+type ListMachines200JSONResponse MachinePage
+
+func (response ListMachines200JSONResponse) VisitListMachinesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMachines400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListMachines400JSONResponse) VisitListMachinesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMachines401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListMachines401JSONResponse) VisitListMachinesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMachines403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListMachines403JSONResponse) VisitListMachinesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMachines500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListMachines500JSONResponse) VisitListMachinesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachineRequestObject struct {
+	Body *CreateMachineJSONRequestBody
+}
+
+type CreateMachineResponseObject interface {
+	VisitCreateMachineResponse(w http.ResponseWriter) error
+}
+
+type CreateMachine201JSONResponse Machine
+
+func (response CreateMachine201JSONResponse) VisitCreateMachineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachine401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateMachine401JSONResponse) VisitCreateMachineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachine403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateMachine403JSONResponse) VisitCreateMachineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachine409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateMachine409JSONResponse) VisitCreateMachineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachine422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateMachine422JSONResponse) VisitCreateMachineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMachine500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateMachine500JSONResponse) VisitCreateMachineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachineRequestObject struct {
+	MachineId UUIDv7 `json:"machineId"`
+}
+
+type GetMachineResponseObject interface {
+	VisitGetMachineResponse(w http.ResponseWriter) error
+}
+
+type GetMachine200JSONResponse Machine
+
+func (response GetMachine200JSONResponse) VisitGetMachineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachine401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetMachine401JSONResponse) VisitGetMachineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachine403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetMachine403JSONResponse) VisitGetMachineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachine404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetMachine404JSONResponse) VisitGetMachineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMachine500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetMachine500JSONResponse) VisitGetMachineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachineRequestObject struct {
+	MachineId UUIDv7 `json:"machineId"`
+	Body      *UpdateMachineJSONRequestBody
+}
+
+type UpdateMachineResponseObject interface {
+	VisitUpdateMachineResponse(w http.ResponseWriter) error
+}
+
+type UpdateMachine200JSONResponse Machine
+
+func (response UpdateMachine200JSONResponse) VisitUpdateMachineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachine401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateMachine401JSONResponse) VisitUpdateMachineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachine403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateMachine403JSONResponse) VisitUpdateMachineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachine404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateMachine404JSONResponse) VisitUpdateMachineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachine409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateMachine409JSONResponse) VisitUpdateMachineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachine422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateMachine422JSONResponse) VisitUpdateMachineResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMachine500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateMachine500JSONResponse) VisitUpdateMachineResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -11560,6 +15872,627 @@ type RotateManagedDeviceToken500JSONResponse struct {
 }
 
 func (response RotateManagedDeviceToken500JSONResponse) VisitRotateManagedDeviceTokenResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMaterialsRequestObject struct {
+	Params ListMaterialsParams
+}
+
+type ListMaterialsResponseObject interface {
+	VisitListMaterialsResponse(w http.ResponseWriter) error
+}
+
+type ListMaterials200JSONResponse MaterialPage
+
+func (response ListMaterials200JSONResponse) VisitListMaterialsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMaterials400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListMaterials400JSONResponse) VisitListMaterialsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMaterials401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListMaterials401JSONResponse) VisitListMaterialsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMaterials403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListMaterials403JSONResponse) VisitListMaterialsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMaterials500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListMaterials500JSONResponse) VisitListMaterialsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMaterialRequestObject struct {
+	Body *CreateMaterialJSONRequestBody
+}
+
+type CreateMaterialResponseObject interface {
+	VisitCreateMaterialResponse(w http.ResponseWriter) error
+}
+
+type CreateMaterial201JSONResponse Material
+
+func (response CreateMaterial201JSONResponse) VisitCreateMaterialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMaterial401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateMaterial401JSONResponse) VisitCreateMaterialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMaterial403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateMaterial403JSONResponse) VisitCreateMaterialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMaterial409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateMaterial409JSONResponse) VisitCreateMaterialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMaterial422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateMaterial422JSONResponse) VisitCreateMaterialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateMaterial500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateMaterial500JSONResponse) VisitCreateMaterialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMaterialRequestObject struct {
+	MaterialId UUIDv7 `json:"materialId"`
+}
+
+type GetMaterialResponseObject interface {
+	VisitGetMaterialResponse(w http.ResponseWriter) error
+}
+
+type GetMaterial200JSONResponse Material
+
+func (response GetMaterial200JSONResponse) VisitGetMaterialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMaterial401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetMaterial401JSONResponse) VisitGetMaterialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMaterial403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetMaterial403JSONResponse) VisitGetMaterialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMaterial404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetMaterial404JSONResponse) VisitGetMaterialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetMaterial500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetMaterial500JSONResponse) VisitGetMaterialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMaterialRequestObject struct {
+	MaterialId UUIDv7 `json:"materialId"`
+	Body       *UpdateMaterialJSONRequestBody
+}
+
+type UpdateMaterialResponseObject interface {
+	VisitUpdateMaterialResponse(w http.ResponseWriter) error
+}
+
+type UpdateMaterial200JSONResponse Material
+
+func (response UpdateMaterial200JSONResponse) VisitUpdateMaterialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMaterial401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateMaterial401JSONResponse) VisitUpdateMaterialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMaterial403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateMaterial403JSONResponse) VisitUpdateMaterialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMaterial404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateMaterial404JSONResponse) VisitUpdateMaterialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMaterial409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateMaterial409JSONResponse) VisitUpdateMaterialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMaterial422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateMaterial422JSONResponse) VisitUpdateMaterialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateMaterial500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateMaterial500JSONResponse) VisitUpdateMaterialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RecordMaterialConsumptionRequestObject struct {
+	MaterialId UUIDv7 `json:"materialId"`
+	Body       *RecordMaterialConsumptionJSONRequestBody
+}
+
+type RecordMaterialConsumptionResponseObject interface {
+	VisitRecordMaterialConsumptionResponse(w http.ResponseWriter) error
+}
+
+type RecordMaterialConsumption201JSONResponse InventoryMutationResult
+
+func (response RecordMaterialConsumption201JSONResponse) VisitRecordMaterialConsumptionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RecordMaterialConsumption401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RecordMaterialConsumption401JSONResponse) VisitRecordMaterialConsumptionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RecordMaterialConsumption403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RecordMaterialConsumption403JSONResponse) VisitRecordMaterialConsumptionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RecordMaterialConsumption404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RecordMaterialConsumption404JSONResponse) VisitRecordMaterialConsumptionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RecordMaterialConsumption409JSONResponse struct{ ConflictJSONResponse }
+
+func (response RecordMaterialConsumption409JSONResponse) VisitRecordMaterialConsumptionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RecordMaterialConsumption422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response RecordMaterialConsumption422JSONResponse) VisitRecordMaterialConsumptionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RecordMaterialConsumption500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response RecordMaterialConsumption500JSONResponse) VisitRecordMaterialConsumptionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CorrectMaterialStockRequestObject struct {
+	MaterialId UUIDv7 `json:"materialId"`
+	Body       *CorrectMaterialStockJSONRequestBody
+}
+
+type CorrectMaterialStockResponseObject interface {
+	VisitCorrectMaterialStockResponse(w http.ResponseWriter) error
+}
+
+type CorrectMaterialStock201JSONResponse InventoryMutationResult
+
+func (response CorrectMaterialStock201JSONResponse) VisitCorrectMaterialStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CorrectMaterialStock401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CorrectMaterialStock401JSONResponse) VisitCorrectMaterialStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CorrectMaterialStock403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CorrectMaterialStock403JSONResponse) VisitCorrectMaterialStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CorrectMaterialStock404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CorrectMaterialStock404JSONResponse) VisitCorrectMaterialStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CorrectMaterialStock409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CorrectMaterialStock409JSONResponse) VisitCorrectMaterialStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CorrectMaterialStock422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CorrectMaterialStock422JSONResponse) VisitCorrectMaterialStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CorrectMaterialStock500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CorrectMaterialStock500JSONResponse) VisitCorrectMaterialStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MarkMaterialEmptyRequestObject struct {
+	MaterialId UUIDv7 `json:"materialId"`
+	Body       *MarkMaterialEmptyJSONRequestBody
+}
+
+type MarkMaterialEmptyResponseObject interface {
+	VisitMarkMaterialEmptyResponse(w http.ResponseWriter) error
+}
+
+type MarkMaterialEmpty201JSONResponse InventoryMutationResult
+
+func (response MarkMaterialEmpty201JSONResponse) VisitMarkMaterialEmptyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MarkMaterialEmpty401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response MarkMaterialEmpty401JSONResponse) VisitMarkMaterialEmptyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MarkMaterialEmpty403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response MarkMaterialEmpty403JSONResponse) VisitMarkMaterialEmptyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MarkMaterialEmpty404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response MarkMaterialEmpty404JSONResponse) VisitMarkMaterialEmptyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MarkMaterialEmpty409JSONResponse struct{ ConflictJSONResponse }
+
+func (response MarkMaterialEmpty409JSONResponse) VisitMarkMaterialEmptyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MarkMaterialEmpty422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response MarkMaterialEmpty422JSONResponse) VisitMarkMaterialEmptyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MarkMaterialEmpty500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response MarkMaterialEmpty500JSONResponse) VisitMarkMaterialEmptyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AddMaterialPurchaseRequestObject struct {
+	MaterialId UUIDv7 `json:"materialId"`
+	Body       *AddMaterialPurchaseJSONRequestBody
+}
+
+type AddMaterialPurchaseResponseObject interface {
+	VisitAddMaterialPurchaseResponse(w http.ResponseWriter) error
+}
+
+type AddMaterialPurchase201JSONResponse InventoryMutationResult
+
+func (response AddMaterialPurchase201JSONResponse) VisitAddMaterialPurchaseResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AddMaterialPurchase401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response AddMaterialPurchase401JSONResponse) VisitAddMaterialPurchaseResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AddMaterialPurchase403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response AddMaterialPurchase403JSONResponse) VisitAddMaterialPurchaseResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AddMaterialPurchase404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response AddMaterialPurchase404JSONResponse) VisitAddMaterialPurchaseResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AddMaterialPurchase409JSONResponse struct{ ConflictJSONResponse }
+
+func (response AddMaterialPurchase409JSONResponse) VisitAddMaterialPurchaseResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AddMaterialPurchase422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response AddMaterialPurchase422JSONResponse) VisitAddMaterialPurchaseResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AddMaterialPurchase500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response AddMaterialPurchase500JSONResponse) VisitAddMaterialPurchaseResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMaterialTransactionsRequestObject struct {
+	MaterialId UUIDv7 `json:"materialId"`
+	Params     ListMaterialTransactionsParams
+}
+
+type ListMaterialTransactionsResponseObject interface {
+	VisitListMaterialTransactionsResponse(w http.ResponseWriter) error
+}
+
+type ListMaterialTransactions200JSONResponse InventoryTransactionPage
+
+func (response ListMaterialTransactions200JSONResponse) VisitListMaterialTransactionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMaterialTransactions400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListMaterialTransactions400JSONResponse) VisitListMaterialTransactionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMaterialTransactions401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListMaterialTransactions401JSONResponse) VisitListMaterialTransactionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMaterialTransactions403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListMaterialTransactions403JSONResponse) VisitListMaterialTransactionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMaterialTransactions404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListMaterialTransactions404JSONResponse) VisitListMaterialTransactionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListMaterialTransactions500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListMaterialTransactions500JSONResponse) VisitListMaterialTransactionsResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -13612,6 +18545,203 @@ func (response CancelOpenDay500JSONResponse) VisitCancelOpenDayResponse(w http.R
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ListOrganizationsRequestObject struct {
+	Params ListOrganizationsParams
+}
+
+type ListOrganizationsResponseObject interface {
+	VisitListOrganizationsResponse(w http.ResponseWriter) error
+}
+
+type ListOrganizations200JSONResponse OrganizationPage
+
+func (response ListOrganizations200JSONResponse) VisitListOrganizationsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListOrganizations400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response ListOrganizations400JSONResponse) VisitListOrganizationsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListOrganizations401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListOrganizations401JSONResponse) VisitListOrganizationsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListOrganizations403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListOrganizations403JSONResponse) VisitListOrganizationsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListOrganizations500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListOrganizations500JSONResponse) VisitListOrganizationsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateOrganizationRequestObject struct {
+	Body *CreateOrganizationJSONRequestBody
+}
+
+type CreateOrganizationResponseObject interface {
+	VisitCreateOrganizationResponse(w http.ResponseWriter) error
+}
+
+type CreateOrganization201JSONResponse Organization
+
+func (response CreateOrganization201JSONResponse) VisitCreateOrganizationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateOrganization401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateOrganization401JSONResponse) VisitCreateOrganizationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateOrganization403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateOrganization403JSONResponse) VisitCreateOrganizationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateOrganization409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateOrganization409JSONResponse) VisitCreateOrganizationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateOrganization422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateOrganization422JSONResponse) VisitCreateOrganizationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateOrganization500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateOrganization500JSONResponse) VisitCreateOrganizationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOrganizationRequestObject struct {
+	OrganizationId UUIDv7 `json:"organizationId"`
+	Body           *UpdateOrganizationJSONRequestBody
+}
+
+type UpdateOrganizationResponseObject interface {
+	VisitUpdateOrganizationResponse(w http.ResponseWriter) error
+}
+
+type UpdateOrganization200JSONResponse Organization
+
+func (response UpdateOrganization200JSONResponse) VisitUpdateOrganizationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOrganization401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateOrganization401JSONResponse) VisitUpdateOrganizationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOrganization403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateOrganization403JSONResponse) VisitUpdateOrganizationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOrganization404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateOrganization404JSONResponse) VisitUpdateOrganizationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOrganization409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateOrganization409JSONResponse) VisitUpdateOrganizationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOrganization422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateOrganization422JSONResponse) VisitUpdateOrganizationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOrganization500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateOrganization500JSONResponse) VisitUpdateOrganizationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type ListPeopleRequestObject struct {
 	Params ListPeopleParams
 }
@@ -14335,6 +19465,345 @@ type ListPermissions500JSONResponse struct {
 }
 
 func (response ListPermissions500JSONResponse) VisitListPermissionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPricingGroupsRequestObject struct {
+}
+
+type ListPricingGroupsResponseObject interface {
+	VisitListPricingGroupsResponse(w http.ResponseWriter) error
+}
+
+type ListPricingGroups200JSONResponse PricingGroupList
+
+func (response ListPricingGroups200JSONResponse) VisitListPricingGroupsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPricingGroups401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListPricingGroups401JSONResponse) VisitListPricingGroupsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPricingGroups403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListPricingGroups403JSONResponse) VisitListPricingGroupsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPricingGroups500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListPricingGroups500JSONResponse) VisitListPricingGroupsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePricingGroupRequestObject struct {
+	Body *CreatePricingGroupJSONRequestBody
+}
+
+type CreatePricingGroupResponseObject interface {
+	VisitCreatePricingGroupResponse(w http.ResponseWriter) error
+}
+
+type CreatePricingGroup201JSONResponse PricingGroup
+
+func (response CreatePricingGroup201JSONResponse) VisitCreatePricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePricingGroup401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreatePricingGroup401JSONResponse) VisitCreatePricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePricingGroup403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreatePricingGroup403JSONResponse) VisitCreatePricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePricingGroup409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreatePricingGroup409JSONResponse) VisitCreatePricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePricingGroup422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreatePricingGroup422JSONResponse) VisitCreatePricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePricingGroup500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreatePricingGroup500JSONResponse) VisitCreatePricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePricingGroupRequestObject struct {
+	PricingGroupId UUIDv7 `json:"pricingGroupId"`
+	Body           *UpdatePricingGroupJSONRequestBody
+}
+
+type UpdatePricingGroupResponseObject interface {
+	VisitUpdatePricingGroupResponse(w http.ResponseWriter) error
+}
+
+type UpdatePricingGroup200JSONResponse PricingGroup
+
+func (response UpdatePricingGroup200JSONResponse) VisitUpdatePricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePricingGroup401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdatePricingGroup401JSONResponse) VisitUpdatePricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePricingGroup403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdatePricingGroup403JSONResponse) VisitUpdatePricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePricingGroup404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdatePricingGroup404JSONResponse) VisitUpdatePricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePricingGroup409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdatePricingGroup409JSONResponse) VisitUpdatePricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePricingGroup422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdatePricingGroup422JSONResponse) VisitUpdatePricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePricingGroup500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdatePricingGroup500JSONResponse) VisitUpdatePricingGroupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePricingRuleRequestObject struct {
+	PricingGroupId UUIDv7 `json:"pricingGroupId"`
+	Body           *CreatePricingRuleJSONRequestBody
+}
+
+type CreatePricingRuleResponseObject interface {
+	VisitCreatePricingRuleResponse(w http.ResponseWriter) error
+}
+
+type CreatePricingRule201JSONResponse PricingRule
+
+func (response CreatePricingRule201JSONResponse) VisitCreatePricingRuleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePricingRule401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreatePricingRule401JSONResponse) VisitCreatePricingRuleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePricingRule403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreatePricingRule403JSONResponse) VisitCreatePricingRuleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePricingRule404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreatePricingRule404JSONResponse) VisitCreatePricingRuleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePricingRule409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreatePricingRule409JSONResponse) VisitCreatePricingRuleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePricingRule422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreatePricingRule422JSONResponse) VisitCreatePricingRuleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePricingRule500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreatePricingRule500JSONResponse) VisitCreatePricingRuleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePricingRuleRequestObject struct {
+	PricingRuleId UUIDv7 `json:"pricingRuleId"`
+	Body          *UpdatePricingRuleJSONRequestBody
+}
+
+type UpdatePricingRuleResponseObject interface {
+	VisitUpdatePricingRuleResponse(w http.ResponseWriter) error
+}
+
+type UpdatePricingRule200JSONResponse PricingRule
+
+func (response UpdatePricingRule200JSONResponse) VisitUpdatePricingRuleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePricingRule401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdatePricingRule401JSONResponse) VisitUpdatePricingRuleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePricingRule403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdatePricingRule403JSONResponse) VisitUpdatePricingRuleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePricingRule404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdatePricingRule404JSONResponse) VisitUpdatePricingRuleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePricingRule409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdatePricingRule409JSONResponse) VisitUpdatePricingRuleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePricingRule422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdatePricingRule422JSONResponse) VisitUpdatePricingRuleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePricingRule500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdatePricingRule500JSONResponse) VisitUpdatePricingRuleResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -16306,6 +21775,12 @@ type StrictServerInterface interface {
 	// Start a low-assurance login-name/PIN session
 	// (POST /auth/pin/login)
 	LoginWithPin(ctx context.Context, request LoginWithPinRequestObject) (LoginWithPinResponseObject, error)
+	// Search minimal people and organizations usable as customers
+	// (GET /billing-parties)
+	SearchBillingParties(ctx context.Context, request SearchBillingPartiesRequestObject) (SearchBillingPartiesResponseObject, error)
+	// Set or clear a billing party default pricing group
+	// (PUT /billing-party-pricing-group)
+	SetBillingPartyPricingGroup(ctx context.Context, request SetBillingPartyPricingGroupRequestObject) (SetBillingPartyPricingGroupResponseObject, error)
 	// Report that the API process is running
 	// (GET /health/live)
 	GetLiveness(ctx context.Context, request GetLivenessRequestObject) (GetLivenessResponseObject, error)
@@ -16336,6 +21811,69 @@ type StrictServerInterface interface {
 	// Immutably publish a draft for an effective time
 	// (POST /laborordnung/versions/{laborordnungVersionId}/publish)
 	PublishLaborordnungVersion(ctx context.Context, request PublishLaborordnungVersionRequestObject) (PublishLaborordnungVersionResponseObject, error)
+	// Search enabled people usable as machine operators
+	// (GET /machine-job-operators)
+	SearchMachineJobOperators(ctx context.Context, request SearchMachineJobOperatorsRequestObject) (SearchMachineJobOperatorsResponseObject, error)
+	// List and filter machine jobs
+	// (GET /machine-jobs)
+	ListMachineJobs(ctx context.Context, request ListMachineJobsRequestObject) (ListMachineJobsResponseObject, error)
+	// Create and confirm a manual machine job
+	// (POST /machine-jobs)
+	CreateMachineJob(ctx context.Context, request CreateMachineJobRequestObject) (CreateMachineJobResponseObject, error)
+	// Ingest an automatically detected job idempotently
+	// (POST /machine-jobs/automatic)
+	IngestAutomaticMachineJob(ctx context.Context, request IngestAutomaticMachineJobRequestObject) (IngestAutomaticMachineJobResponseObject, error)
+	// List jobs needing review
+	// (GET /machine-jobs/review-queue)
+	ListMachineJobReviewQueue(ctx context.Context, request ListMachineJobReviewQueueRequestObject) (ListMachineJobReviewQueueResponseObject, error)
+	// Get machine job detail
+	// (GET /machine-jobs/{machineJobId})
+	GetMachineJob(ctx context.Context, request GetMachineJobRequestObject) (GetMachineJobResponseObject, error)
+	// Correct confirmed machine job facts
+	// (PATCH /machine-jobs/{machineJobId})
+	UpdateMachineJob(ctx context.Context, request UpdateMachineJobRequestObject) (UpdateMachineJobResponseObject, error)
+	// Update the minimal billing state
+	// (PUT /machine-jobs/{machineJobId}/billing)
+	UpdateMachineJobBilling(ctx context.Context, request UpdateMachineJobBillingRequestObject) (UpdateMachineJobBillingResponseObject, error)
+	// Confirm an automatically detected job
+	// (POST /machine-jobs/{machineJobId}/confirm)
+	ConfirmMachineJob(ctx context.Context, request ConfirmMachineJobRequestObject) (ConfirmMachineJobResponseObject, error)
+	// Clear the current final-price override
+	// (DELETE /machine-jobs/{machineJobId}/price-override)
+	ClearMachineJobPriceOverride(ctx context.Context, request ClearMachineJobPriceOverrideRequestObject) (ClearMachineJobPriceOverrideResponseObject, error)
+	// Set a final job price without replacing the calculation
+	// (PUT /machine-jobs/{machineJobId}/price-override)
+	OverrideMachineJobPrice(ctx context.Context, request OverrideMachineJobPriceRequestObject) (OverrideMachineJobPriceResponseObject, error)
+	// Replace job usages using compensating inventory transactions
+	// (PUT /machine-jobs/{machineJobId}/usages)
+	ReplaceMachineJobUsages(ctx context.Context, request ReplaceMachineJobUsagesRequestObject) (ReplaceMachineJobUsagesResponseObject, error)
+	// Get operational machine-logbook summary
+	// (GET /machine-logbook/overview)
+	GetMachineLogbookOverview(ctx context.Context, request GetMachineLogbookOverviewRequestObject) (GetMachineLogbookOverviewResponseObject, error)
+	// Get date-filtered operational statistics
+	// (GET /machine-logbook/statistics)
+	GetMachineLogbookStatistics(ctx context.Context, request GetMachineLogbookStatisticsRequestObject) (GetMachineLogbookStatisticsResponseObject, error)
+	// List machine types
+	// (GET /machine-types)
+	ListMachineTypes(ctx context.Context, request ListMachineTypesRequestObject) (ListMachineTypesResponseObject, error)
+	// Create a machine type
+	// (POST /machine-types)
+	CreateMachineType(ctx context.Context, request CreateMachineTypeRequestObject) (CreateMachineTypeResponseObject, error)
+	// Update a machine type
+	// (PATCH /machine-types/{machineTypeId})
+	UpdateMachineType(ctx context.Context, request UpdateMachineTypeRequestObject) (UpdateMachineTypeResponseObject, error)
+	// List machines and operational metrics
+	// (GET /machines)
+	ListMachines(ctx context.Context, request ListMachinesRequestObject) (ListMachinesResponseObject, error)
+	// Create a machine
+	// (POST /machines)
+	CreateMachine(ctx context.Context, request CreateMachineRequestObject) (CreateMachineResponseObject, error)
+	// Get a machine
+	// (GET /machines/{machineId})
+	GetMachine(ctx context.Context, request GetMachineRequestObject) (GetMachineResponseObject, error)
+	// Update a machine
+	// (PATCH /machines/{machineId})
+	UpdateMachine(ctx context.Context, request UpdateMachineRequestObject) (UpdateMachineResponseObject, error)
 	// Read write-only-safe transactional mail configuration
 	// (GET /mail/configuration)
 	GetMailConfiguration(ctx context.Context, request GetMailConfigurationRequestObject) (GetMailConfigurationResponseObject, error)
@@ -16378,6 +21916,33 @@ type StrictServerInterface interface {
 	// Rotate a managed-device token
 	// (POST /managed-devices/{managedDeviceId}/token)
 	RotateManagedDeviceToken(ctx context.Context, request RotateManagedDeviceTokenRequestObject) (RotateManagedDeviceTokenResponseObject, error)
+	// List inventory materials and balances
+	// (GET /materials)
+	ListMaterials(ctx context.Context, request ListMaterialsRequestObject) (ListMaterialsResponseObject, error)
+	// Create an inventory material
+	// (POST /materials)
+	CreateMaterial(ctx context.Context, request CreateMaterialRequestObject) (CreateMaterialResponseObject, error)
+	// Get material detail
+	// (GET /materials/{materialId})
+	GetMaterial(ctx context.Context, request GetMaterialRequestObject) (GetMaterialResponseObject, error)
+	// Update material metadata
+	// (PATCH /materials/{materialId})
+	UpdateMaterial(ctx context.Context, request UpdateMaterialRequestObject) (UpdateMaterialResponseObject, error)
+	// Record manual consumption or disposal
+	// (POST /materials/{materialId}/consumptions)
+	RecordMaterialConsumption(ctx context.Context, request RecordMaterialConsumptionRequestObject) (RecordMaterialConsumptionResponseObject, error)
+	// Correct stock to a physical count
+	// (POST /materials/{materialId}/corrections)
+	CorrectMaterialStock(ctx context.Context, request CorrectMaterialStockRequestObject) (CorrectMaterialStockResponseObject, error)
+	// Mark material empty using an adjustment transaction
+	// (POST /materials/{materialId}/mark-empty)
+	MarkMaterialEmpty(ctx context.Context, request MarkMaterialEmptyRequestObject) (MarkMaterialEmptyResponseObject, error)
+	// Add purchased stock and acquisition cost
+	// (POST /materials/{materialId}/purchases)
+	AddMaterialPurchase(ctx context.Context, request AddMaterialPurchaseRequestObject) (AddMaterialPurchaseResponseObject, error)
+	// List immutable material transactions
+	// (GET /materials/{materialId}/transactions)
+	ListMaterialTransactions(ctx context.Context, request ListMaterialTransactionsRequestObject) (ListMaterialTransactionsResponseObject, error)
 	// List configured OIDC providers without secrets
 	// (GET /oidc/providers)
 	ListOIDCProviders(ctx context.Context, request ListOIDCProvidersRequestObject) (ListOIDCProvidersResponseObject, error)
@@ -16468,6 +22033,15 @@ type StrictServerInterface interface {
 	// Cancel a scheduled Open Day
 	// (POST /open-days/{openDayId}/cancel)
 	CancelOpenDay(ctx context.Context, request CancelOpenDayRequestObject) (CancelOpenDayResponseObject, error)
+	// List customer organizations
+	// (GET /organizations)
+	ListOrganizations(ctx context.Context, request ListOrganizationsRequestObject) (ListOrganizationsResponseObject, error)
+	// Create a customer organization
+	// (POST /organizations)
+	CreateOrganization(ctx context.Context, request CreateOrganizationRequestObject) (CreateOrganizationResponseObject, error)
+	// Update a customer organization
+	// (PATCH /organizations/{organizationId})
+	UpdateOrganization(ctx context.Context, request UpdateOrganizationRequestObject) (UpdateOrganizationResponseObject, error)
 	// List people for user administration
 	// (GET /people)
 	ListPeople(ctx context.Context, request ListPeopleRequestObject) (ListPeopleResponseObject, error)
@@ -16498,6 +22072,21 @@ type StrictServerInterface interface {
 	// List permissions registered by this application version
 	// (GET /permissions)
 	ListPermissions(ctx context.Context, request ListPermissionsRequestObject) (ListPermissionsResponseObject, error)
+	// List pricing groups and rules
+	// (GET /pricing-groups)
+	ListPricingGroups(ctx context.Context, request ListPricingGroupsRequestObject) (ListPricingGroupsResponseObject, error)
+	// Create a pricing group
+	// (POST /pricing-groups)
+	CreatePricingGroup(ctx context.Context, request CreatePricingGroupRequestObject) (CreatePricingGroupResponseObject, error)
+	// Update a pricing group
+	// (PATCH /pricing-groups/{pricingGroupId})
+	UpdatePricingGroup(ctx context.Context, request UpdatePricingGroupRequestObject) (UpdatePricingGroupResponseObject, error)
+	// Add a pricing rule
+	// (POST /pricing-groups/{pricingGroupId}/rules)
+	CreatePricingRule(ctx context.Context, request CreatePricingRuleRequestObject) (CreatePricingRuleResponseObject, error)
+	// Update a pricing rule
+	// (PATCH /pricing-rules/{pricingRuleId})
+	UpdatePricingRule(ctx context.Context, request UpdatePricingRuleRequestObject) (UpdatePricingRuleResponseObject, error)
 	// List the public Open Day schedule
 	// (GET /public/open-days)
 	ListPublicOpenDays(ctx context.Context, request ListPublicOpenDaysRequestObject) (ListPublicOpenDaysResponseObject, error)
@@ -17610,6 +23199,63 @@ func (sh *strictHandler) LoginWithPin(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// SearchBillingParties operation middleware
+func (sh *strictHandler) SearchBillingParties(w http.ResponseWriter, r *http.Request, params SearchBillingPartiesParams) {
+	var request SearchBillingPartiesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SearchBillingParties(ctx, request.(SearchBillingPartiesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SearchBillingParties")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SearchBillingPartiesResponseObject); ok {
+		if err := validResponse.VisitSearchBillingPartiesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SetBillingPartyPricingGroup operation middleware
+func (sh *strictHandler) SetBillingPartyPricingGroup(w http.ResponseWriter, r *http.Request) {
+	var request SetBillingPartyPricingGroupRequestObject
+
+	var body SetBillingPartyPricingGroupJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SetBillingPartyPricingGroup(ctx, request.(SetBillingPartyPricingGroupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SetBillingPartyPricingGroup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SetBillingPartyPricingGroupResponseObject); ok {
+		if err := validResponse.VisitSetBillingPartyPricingGroupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetLiveness operation middleware
 func (sh *strictHandler) GetLiveness(w http.ResponseWriter, r *http.Request) {
 	var request GetLivenessRequestObject
@@ -17867,6 +23513,622 @@ func (sh *strictHandler) PublishLaborordnungVersion(w http.ResponseWriter, r *ht
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(PublishLaborordnungVersionResponseObject); ok {
 		if err := validResponse.VisitPublishLaborordnungVersionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// SearchMachineJobOperators operation middleware
+func (sh *strictHandler) SearchMachineJobOperators(w http.ResponseWriter, r *http.Request, params SearchMachineJobOperatorsParams) {
+	var request SearchMachineJobOperatorsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.SearchMachineJobOperators(ctx, request.(SearchMachineJobOperatorsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "SearchMachineJobOperators")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(SearchMachineJobOperatorsResponseObject); ok {
+		if err := validResponse.VisitSearchMachineJobOperatorsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListMachineJobs operation middleware
+func (sh *strictHandler) ListMachineJobs(w http.ResponseWriter, r *http.Request, params ListMachineJobsParams) {
+	var request ListMachineJobsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListMachineJobs(ctx, request.(ListMachineJobsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListMachineJobs")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListMachineJobsResponseObject); ok {
+		if err := validResponse.VisitListMachineJobsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateMachineJob operation middleware
+func (sh *strictHandler) CreateMachineJob(w http.ResponseWriter, r *http.Request) {
+	var request CreateMachineJobRequestObject
+
+	var body CreateMachineJobJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateMachineJob(ctx, request.(CreateMachineJobRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateMachineJob")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateMachineJobResponseObject); ok {
+		if err := validResponse.VisitCreateMachineJobResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// IngestAutomaticMachineJob operation middleware
+func (sh *strictHandler) IngestAutomaticMachineJob(w http.ResponseWriter, r *http.Request) {
+	var request IngestAutomaticMachineJobRequestObject
+
+	var body IngestAutomaticMachineJobJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.IngestAutomaticMachineJob(ctx, request.(IngestAutomaticMachineJobRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "IngestAutomaticMachineJob")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(IngestAutomaticMachineJobResponseObject); ok {
+		if err := validResponse.VisitIngestAutomaticMachineJobResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListMachineJobReviewQueue operation middleware
+func (sh *strictHandler) ListMachineJobReviewQueue(w http.ResponseWriter, r *http.Request) {
+	var request ListMachineJobReviewQueueRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListMachineJobReviewQueue(ctx, request.(ListMachineJobReviewQueueRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListMachineJobReviewQueue")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListMachineJobReviewQueueResponseObject); ok {
+		if err := validResponse.VisitListMachineJobReviewQueueResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMachineJob operation middleware
+func (sh *strictHandler) GetMachineJob(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7) {
+	var request GetMachineJobRequestObject
+
+	request.MachineJobId = machineJobId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMachineJob(ctx, request.(GetMachineJobRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMachineJob")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMachineJobResponseObject); ok {
+		if err := validResponse.VisitGetMachineJobResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateMachineJob operation middleware
+func (sh *strictHandler) UpdateMachineJob(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7) {
+	var request UpdateMachineJobRequestObject
+
+	request.MachineJobId = machineJobId
+
+	var body UpdateMachineJobJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateMachineJob(ctx, request.(UpdateMachineJobRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateMachineJob")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateMachineJobResponseObject); ok {
+		if err := validResponse.VisitUpdateMachineJobResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateMachineJobBilling operation middleware
+func (sh *strictHandler) UpdateMachineJobBilling(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7) {
+	var request UpdateMachineJobBillingRequestObject
+
+	request.MachineJobId = machineJobId
+
+	var body UpdateMachineJobBillingJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateMachineJobBilling(ctx, request.(UpdateMachineJobBillingRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateMachineJobBilling")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateMachineJobBillingResponseObject); ok {
+		if err := validResponse.VisitUpdateMachineJobBillingResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConfirmMachineJob operation middleware
+func (sh *strictHandler) ConfirmMachineJob(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7) {
+	var request ConfirmMachineJobRequestObject
+
+	request.MachineJobId = machineJobId
+
+	var body ConfirmMachineJobJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ConfirmMachineJob(ctx, request.(ConfirmMachineJobRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConfirmMachineJob")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ConfirmMachineJobResponseObject); ok {
+		if err := validResponse.VisitConfirmMachineJobResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ClearMachineJobPriceOverride operation middleware
+func (sh *strictHandler) ClearMachineJobPriceOverride(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7) {
+	var request ClearMachineJobPriceOverrideRequestObject
+
+	request.MachineJobId = machineJobId
+
+	var body ClearMachineJobPriceOverrideJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ClearMachineJobPriceOverride(ctx, request.(ClearMachineJobPriceOverrideRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ClearMachineJobPriceOverride")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ClearMachineJobPriceOverrideResponseObject); ok {
+		if err := validResponse.VisitClearMachineJobPriceOverrideResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// OverrideMachineJobPrice operation middleware
+func (sh *strictHandler) OverrideMachineJobPrice(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7) {
+	var request OverrideMachineJobPriceRequestObject
+
+	request.MachineJobId = machineJobId
+
+	var body OverrideMachineJobPriceJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.OverrideMachineJobPrice(ctx, request.(OverrideMachineJobPriceRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "OverrideMachineJobPrice")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(OverrideMachineJobPriceResponseObject); ok {
+		if err := validResponse.VisitOverrideMachineJobPriceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReplaceMachineJobUsages operation middleware
+func (sh *strictHandler) ReplaceMachineJobUsages(w http.ResponseWriter, r *http.Request, machineJobId UUIDv7) {
+	var request ReplaceMachineJobUsagesRequestObject
+
+	request.MachineJobId = machineJobId
+
+	var body ReplaceMachineJobUsagesJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReplaceMachineJobUsages(ctx, request.(ReplaceMachineJobUsagesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReplaceMachineJobUsages")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReplaceMachineJobUsagesResponseObject); ok {
+		if err := validResponse.VisitReplaceMachineJobUsagesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMachineLogbookOverview operation middleware
+func (sh *strictHandler) GetMachineLogbookOverview(w http.ResponseWriter, r *http.Request) {
+	var request GetMachineLogbookOverviewRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMachineLogbookOverview(ctx, request.(GetMachineLogbookOverviewRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMachineLogbookOverview")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMachineLogbookOverviewResponseObject); ok {
+		if err := validResponse.VisitGetMachineLogbookOverviewResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMachineLogbookStatistics operation middleware
+func (sh *strictHandler) GetMachineLogbookStatistics(w http.ResponseWriter, r *http.Request, params GetMachineLogbookStatisticsParams) {
+	var request GetMachineLogbookStatisticsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMachineLogbookStatistics(ctx, request.(GetMachineLogbookStatisticsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMachineLogbookStatistics")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMachineLogbookStatisticsResponseObject); ok {
+		if err := validResponse.VisitGetMachineLogbookStatisticsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListMachineTypes operation middleware
+func (sh *strictHandler) ListMachineTypes(w http.ResponseWriter, r *http.Request) {
+	var request ListMachineTypesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListMachineTypes(ctx, request.(ListMachineTypesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListMachineTypes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListMachineTypesResponseObject); ok {
+		if err := validResponse.VisitListMachineTypesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateMachineType operation middleware
+func (sh *strictHandler) CreateMachineType(w http.ResponseWriter, r *http.Request) {
+	var request CreateMachineTypeRequestObject
+
+	var body CreateMachineTypeJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateMachineType(ctx, request.(CreateMachineTypeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateMachineType")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateMachineTypeResponseObject); ok {
+		if err := validResponse.VisitCreateMachineTypeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateMachineType operation middleware
+func (sh *strictHandler) UpdateMachineType(w http.ResponseWriter, r *http.Request, machineTypeId UUIDv7) {
+	var request UpdateMachineTypeRequestObject
+
+	request.MachineTypeId = machineTypeId
+
+	var body UpdateMachineTypeJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateMachineType(ctx, request.(UpdateMachineTypeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateMachineType")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateMachineTypeResponseObject); ok {
+		if err := validResponse.VisitUpdateMachineTypeResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListMachines operation middleware
+func (sh *strictHandler) ListMachines(w http.ResponseWriter, r *http.Request, params ListMachinesParams) {
+	var request ListMachinesRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListMachines(ctx, request.(ListMachinesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListMachines")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListMachinesResponseObject); ok {
+		if err := validResponse.VisitListMachinesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateMachine operation middleware
+func (sh *strictHandler) CreateMachine(w http.ResponseWriter, r *http.Request) {
+	var request CreateMachineRequestObject
+
+	var body CreateMachineJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateMachine(ctx, request.(CreateMachineRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateMachine")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateMachineResponseObject); ok {
+		if err := validResponse.VisitCreateMachineResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMachine operation middleware
+func (sh *strictHandler) GetMachine(w http.ResponseWriter, r *http.Request, machineId UUIDv7) {
+	var request GetMachineRequestObject
+
+	request.MachineId = machineId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMachine(ctx, request.(GetMachineRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMachine")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMachineResponseObject); ok {
+		if err := validResponse.VisitGetMachineResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateMachine operation middleware
+func (sh *strictHandler) UpdateMachine(w http.ResponseWriter, r *http.Request, machineId UUIDv7) {
+	var request UpdateMachineRequestObject
+
+	request.MachineId = machineId
+
+	var body UpdateMachineJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateMachine(ctx, request.(UpdateMachineRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateMachine")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateMachineResponseObject); ok {
+		if err := validResponse.VisitUpdateMachineResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -18284,6 +24546,281 @@ func (sh *strictHandler) RotateManagedDeviceToken(w http.ResponseWriter, r *http
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(RotateManagedDeviceTokenResponseObject); ok {
 		if err := validResponse.VisitRotateManagedDeviceTokenResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListMaterials operation middleware
+func (sh *strictHandler) ListMaterials(w http.ResponseWriter, r *http.Request, params ListMaterialsParams) {
+	var request ListMaterialsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListMaterials(ctx, request.(ListMaterialsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListMaterials")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListMaterialsResponseObject); ok {
+		if err := validResponse.VisitListMaterialsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateMaterial operation middleware
+func (sh *strictHandler) CreateMaterial(w http.ResponseWriter, r *http.Request) {
+	var request CreateMaterialRequestObject
+
+	var body CreateMaterialJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateMaterial(ctx, request.(CreateMaterialRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateMaterial")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateMaterialResponseObject); ok {
+		if err := validResponse.VisitCreateMaterialResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetMaterial operation middleware
+func (sh *strictHandler) GetMaterial(w http.ResponseWriter, r *http.Request, materialId UUIDv7) {
+	var request GetMaterialRequestObject
+
+	request.MaterialId = materialId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetMaterial(ctx, request.(GetMaterialRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetMaterial")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetMaterialResponseObject); ok {
+		if err := validResponse.VisitGetMaterialResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateMaterial operation middleware
+func (sh *strictHandler) UpdateMaterial(w http.ResponseWriter, r *http.Request, materialId UUIDv7) {
+	var request UpdateMaterialRequestObject
+
+	request.MaterialId = materialId
+
+	var body UpdateMaterialJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateMaterial(ctx, request.(UpdateMaterialRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateMaterial")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateMaterialResponseObject); ok {
+		if err := validResponse.VisitUpdateMaterialResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RecordMaterialConsumption operation middleware
+func (sh *strictHandler) RecordMaterialConsumption(w http.ResponseWriter, r *http.Request, materialId UUIDv7) {
+	var request RecordMaterialConsumptionRequestObject
+
+	request.MaterialId = materialId
+
+	var body RecordMaterialConsumptionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RecordMaterialConsumption(ctx, request.(RecordMaterialConsumptionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RecordMaterialConsumption")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RecordMaterialConsumptionResponseObject); ok {
+		if err := validResponse.VisitRecordMaterialConsumptionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CorrectMaterialStock operation middleware
+func (sh *strictHandler) CorrectMaterialStock(w http.ResponseWriter, r *http.Request, materialId UUIDv7) {
+	var request CorrectMaterialStockRequestObject
+
+	request.MaterialId = materialId
+
+	var body CorrectMaterialStockJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CorrectMaterialStock(ctx, request.(CorrectMaterialStockRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CorrectMaterialStock")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CorrectMaterialStockResponseObject); ok {
+		if err := validResponse.VisitCorrectMaterialStockResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// MarkMaterialEmpty operation middleware
+func (sh *strictHandler) MarkMaterialEmpty(w http.ResponseWriter, r *http.Request, materialId UUIDv7) {
+	var request MarkMaterialEmptyRequestObject
+
+	request.MaterialId = materialId
+
+	var body MarkMaterialEmptyJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.MarkMaterialEmpty(ctx, request.(MarkMaterialEmptyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "MarkMaterialEmpty")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(MarkMaterialEmptyResponseObject); ok {
+		if err := validResponse.VisitMarkMaterialEmptyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AddMaterialPurchase operation middleware
+func (sh *strictHandler) AddMaterialPurchase(w http.ResponseWriter, r *http.Request, materialId UUIDv7) {
+	var request AddMaterialPurchaseRequestObject
+
+	request.MaterialId = materialId
+
+	var body AddMaterialPurchaseJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AddMaterialPurchase(ctx, request.(AddMaterialPurchaseRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AddMaterialPurchase")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AddMaterialPurchaseResponseObject); ok {
+		if err := validResponse.VisitAddMaterialPurchaseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListMaterialTransactions operation middleware
+func (sh *strictHandler) ListMaterialTransactions(w http.ResponseWriter, r *http.Request, materialId UUIDv7, params ListMaterialTransactionsParams) {
+	var request ListMaterialTransactionsRequestObject
+
+	request.MaterialId = materialId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListMaterialTransactions(ctx, request.(ListMaterialTransactionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListMaterialTransactions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListMaterialTransactionsResponseObject); ok {
+		if err := validResponse.VisitListMaterialTransactionsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -19201,6 +25738,96 @@ func (sh *strictHandler) CancelOpenDay(w http.ResponseWriter, r *http.Request, o
 	}
 }
 
+// ListOrganizations operation middleware
+func (sh *strictHandler) ListOrganizations(w http.ResponseWriter, r *http.Request, params ListOrganizationsParams) {
+	var request ListOrganizationsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListOrganizations(ctx, request.(ListOrganizationsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListOrganizations")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListOrganizationsResponseObject); ok {
+		if err := validResponse.VisitListOrganizationsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateOrganization operation middleware
+func (sh *strictHandler) CreateOrganization(w http.ResponseWriter, r *http.Request) {
+	var request CreateOrganizationRequestObject
+
+	var body CreateOrganizationJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateOrganization(ctx, request.(CreateOrganizationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateOrganization")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateOrganizationResponseObject); ok {
+		if err := validResponse.VisitCreateOrganizationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateOrganization operation middleware
+func (sh *strictHandler) UpdateOrganization(w http.ResponseWriter, r *http.Request, organizationId UUIDv7) {
+	var request UpdateOrganizationRequestObject
+
+	request.OrganizationId = organizationId
+
+	var body UpdateOrganizationJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateOrganization(ctx, request.(UpdateOrganizationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateOrganization")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateOrganizationResponseObject); ok {
+		if err := validResponse.VisitUpdateOrganizationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ListPeople operation middleware
 func (sh *strictHandler) ListPeople(w http.ResponseWriter, r *http.Request, params ListPeopleParams) {
 	var request ListPeopleRequestObject
@@ -19488,6 +26115,160 @@ func (sh *strictHandler) ListPermissions(w http.ResponseWriter, r *http.Request)
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListPermissionsResponseObject); ok {
 		if err := validResponse.VisitListPermissionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListPricingGroups operation middleware
+func (sh *strictHandler) ListPricingGroups(w http.ResponseWriter, r *http.Request) {
+	var request ListPricingGroupsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListPricingGroups(ctx, request.(ListPricingGroupsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListPricingGroups")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListPricingGroupsResponseObject); ok {
+		if err := validResponse.VisitListPricingGroupsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreatePricingGroup operation middleware
+func (sh *strictHandler) CreatePricingGroup(w http.ResponseWriter, r *http.Request) {
+	var request CreatePricingGroupRequestObject
+
+	var body CreatePricingGroupJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreatePricingGroup(ctx, request.(CreatePricingGroupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreatePricingGroup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreatePricingGroupResponseObject); ok {
+		if err := validResponse.VisitCreatePricingGroupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdatePricingGroup operation middleware
+func (sh *strictHandler) UpdatePricingGroup(w http.ResponseWriter, r *http.Request, pricingGroupId UUIDv7) {
+	var request UpdatePricingGroupRequestObject
+
+	request.PricingGroupId = pricingGroupId
+
+	var body UpdatePricingGroupJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdatePricingGroup(ctx, request.(UpdatePricingGroupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdatePricingGroup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdatePricingGroupResponseObject); ok {
+		if err := validResponse.VisitUpdatePricingGroupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreatePricingRule operation middleware
+func (sh *strictHandler) CreatePricingRule(w http.ResponseWriter, r *http.Request, pricingGroupId UUIDv7) {
+	var request CreatePricingRuleRequestObject
+
+	request.PricingGroupId = pricingGroupId
+
+	var body CreatePricingRuleJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreatePricingRule(ctx, request.(CreatePricingRuleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreatePricingRule")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreatePricingRuleResponseObject); ok {
+		if err := validResponse.VisitCreatePricingRuleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdatePricingRule operation middleware
+func (sh *strictHandler) UpdatePricingRule(w http.ResponseWriter, r *http.Request, pricingRuleId UUIDv7) {
+	var request UpdatePricingRuleRequestObject
+
+	request.PricingRuleId = pricingRuleId
+
+	var body UpdatePricingRuleJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdatePricingRule(ctx, request.(UpdatePricingRuleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdatePricingRule")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdatePricingRuleResponseObject); ok {
+		if err := validResponse.VisitUpdatePricingRuleResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -20425,330 +27206,421 @@ func (sh *strictHandler) SubmitVisitorEnrollment(w http.ResponseWriter, r *http.
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"Zf/1w9f/EwAA///brPlNE4oCAA==",
+	"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",
+	"m44Zuxt8/fj1/w8AAP//JOIoXK9vAwA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

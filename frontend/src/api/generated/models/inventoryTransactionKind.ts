@@ -19,12 +19,14 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 
-export type PasswordStatus = typeof PasswordStatus[keyof typeof PasswordStatus];
+export type InventoryTransactionKind = typeof InventoryTransactionKind[keyof typeof InventoryTransactionKind];
 
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const PasswordStatus = {
-  PasswordStatusNotSet: 'not_set',
-  PasswordStatusActive: 'active',
-  PasswordStatusResetRequired: 'reset_required',
+export const InventoryTransactionKind = {
+  purchase: 'purchase',
+  machine_job_consumption: 'machine_job_consumption',
+  manual_consumption: 'manual_consumption',
+  adjustment: 'adjustment',
+  disposal: 'disposal',
 } as const;

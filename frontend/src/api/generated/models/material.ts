@@ -18,13 +18,30 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { UUIDv7 } from './uUIDv7';
+import type { MaterialUnit } from './materialUnit';
+import type { MaterialLowStockThreshold } from './materialLowStockThreshold';
+import type { Decimal } from './decimal';
+import type { StockState } from './stockState';
+import type { Version } from './version';
 
-export type PasswordStatus = typeof PasswordStatus[keyof typeof PasswordStatus];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const PasswordStatus = {
-  PasswordStatusNotSet: 'not_set',
-  PasswordStatusActive: 'active',
-  PasswordStatusResetRequired: 'reset_required',
-} as const;
+export interface Material {
+  id: UUIDv7;
+  name: string;
+  category: string;
+  /** @nullable */
+  color?: string | null;
+  unit: MaterialUnit;
+  active: boolean;
+  /** @nullable */
+  lowStockThreshold?: MaterialLowStockThreshold;
+  quantity: Decimal;
+  averageUnitCost: Decimal;
+  inventoryValue: Decimal;
+  stockState: StockState;
+  inventoryVersion: Version;
+  recentConsumption: Decimal;
+  version: Version;
+  createdAt: string;
+  updatedAt: string;
+}

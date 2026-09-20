@@ -18,13 +18,17 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { BillingPartyKind } from './billingPartyKind';
+import type { UUIDv7 } from './uUIDv7';
+import type { OrganizationKind } from './organizationKind';
+import type { PricingGroupSummary } from './pricingGroupSummary';
 
-export type PasswordStatus = typeof PasswordStatus[keyof typeof PasswordStatus];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const PasswordStatus = {
-  PasswordStatusNotSet: 'not_set',
-  PasswordStatusActive: 'active',
-  PasswordStatusResetRequired: 'reset_required',
-} as const;
+export interface BillingParty {
+  kind: BillingPartyKind;
+  id: UUIDv7;
+  displayName: string;
+  organizationKind?: OrganizationKind;
+  pricingGroup?: PricingGroupSummary;
+  /** @minimum 0 */
+  pricingGroupAssignmentVersion: number;
+}

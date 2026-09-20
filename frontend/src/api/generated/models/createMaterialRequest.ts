@@ -18,13 +18,26 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { MaterialUnit } from './materialUnit';
+import type { CreateMaterialRequestLowStockThreshold } from './createMaterialRequestLowStockThreshold';
 
-export type PasswordStatus = typeof PasswordStatus[keyof typeof PasswordStatus];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const PasswordStatus = {
-  PasswordStatusNotSet: 'not_set',
-  PasswordStatusActive: 'active',
-  PasswordStatusResetRequired: 'reset_required',
-} as const;
+export interface CreateMaterialRequest {
+  /**
+   * @minLength 1
+   * @maxLength 150
+   */
+  name: string;
+  /**
+   * @minLength 1
+   * @maxLength 100
+   */
+  category: string;
+  /**
+   * @maxLength 80
+   * @nullable
+   */
+  color?: string | null;
+  unit: MaterialUnit;
+  /** @nullable */
+  lowStockThreshold?: CreateMaterialRequestLowStockThreshold;
+}

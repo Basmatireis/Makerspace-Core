@@ -18,13 +18,20 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { UUIDv7 } from './uUIDv7';
+import type { OrganizationKind } from './organizationKind';
+import type { PricingGroupSummary } from './pricingGroupSummary';
+import type { Version } from './version';
 
-export type PasswordStatus = typeof PasswordStatus[keyof typeof PasswordStatus];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const PasswordStatus = {
-  PasswordStatusNotSet: 'not_set',
-  PasswordStatusActive: 'active',
-  PasswordStatusResetRequired: 'reset_required',
-} as const;
+export interface Organization {
+  id: UUIDv7;
+  name: string;
+  kind: OrganizationKind;
+  active: boolean;
+  pricingGroup?: PricingGroupSummary;
+  /** @minimum 0 */
+  pricingGroupAssignmentVersion: number;
+  version: Version;
+  createdAt: string;
+  updatedAt: string;
+}

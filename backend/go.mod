@@ -56,6 +56,7 @@ require (
 	github.com/oasdiff/yaml3 v0.0.14 // indirect
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
+	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/teambition/rrule-go v1.8.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.46.0 // indirect

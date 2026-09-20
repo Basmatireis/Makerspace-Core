@@ -18,13 +18,15 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { UUIDv7 } from './uUIDv7';
+import type { MaterialUnit } from './materialUnit';
+import type { Decimal } from './decimal';
 
-export type PasswordStatus = typeof PasswordStatus[keyof typeof PasswordStatus];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const PasswordStatus = {
-  PasswordStatusNotSet: 'not_set',
-  PasswordStatusActive: 'active',
-  PasswordStatusResetRequired: 'reset_required',
-} as const;
+export interface MachineJobUsage {
+  id: UUIDv7;
+  materialId: UUIDv7;
+  materialName: string;
+  category: string;
+  unit: MaterialUnit;
+  quantity: Decimal;
+}

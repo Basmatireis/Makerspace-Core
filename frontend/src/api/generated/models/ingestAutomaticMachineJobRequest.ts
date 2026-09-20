@@ -18,13 +18,20 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { UUIDv7 } from './uUIDv7';
+import type { MachineJobUsageInput } from './machineJobUsageInput';
+import type { IngestAutomaticMachineJobRequestExternalMetadata } from './ingestAutomaticMachineJobRequestExternalMetadata';
 
-export type PasswordStatus = typeof PasswordStatus[keyof typeof PasswordStatus];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const PasswordStatus = {
-  PasswordStatusNotSet: 'not_set',
-  PasswordStatusActive: 'active',
-  PasswordStatusResetRequired: 'reset_required',
-} as const;
+export interface IngestAutomaticMachineJobRequest {
+  machineId: UUIDv7;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   */
+  externalId: string;
+  startsAt: string;
+  endsAt: string;
+  /** @maxItems 50 */
+  usages: MachineJobUsageInput[];
+  externalMetadata?: IngestAutomaticMachineJobRequestExternalMetadata;
+}

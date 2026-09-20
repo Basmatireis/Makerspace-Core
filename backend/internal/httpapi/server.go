@@ -11,6 +11,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	mailservice "github.com/Basmatireis/Makerspace-Core/backend/internal/mail"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifications"
@@ -49,6 +50,7 @@ type Server struct {
 	mail           *mailservice.Service
 	files          *files.Service
 	laborordnung   *laborordnung.Service
+	machineLogbook *machinelogbook.Service
 	supervisors    *supervisors.Service
 	oidc           *oidcservice.Service
 	scim           *scimservice.Service
@@ -96,6 +98,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		mail:           mailer,
 		files:          fileService,
 		laborordnung:   labRulesService,
+		machineLogbook: machinelogbook.NewService(pool),
 		supervisors:    supervisors.NewService(pool),
 		oidc:           oidcService,
 		scim:           scimservice.NewService(pool),

@@ -18,13 +18,25 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { UUIDv7 } from './uUIDv7';
+import type { MachineJobPricingSnapshotCurrency } from './machineJobPricingSnapshotCurrency';
+import type { MachineJobPricingSnapshotReason } from './machineJobPricingSnapshotReason';
+import type { MachineJobPricingSnapshotCalculatedAmount } from './machineJobPricingSnapshotCalculatedAmount';
+import type { PricingSnapshotRule } from './pricingSnapshotRule';
 
-export type PasswordStatus = typeof PasswordStatus[keyof typeof PasswordStatus];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const PasswordStatus = {
-  PasswordStatusNotSet: 'not_set',
-  PasswordStatusActive: 'active',
-  PasswordStatusResetRequired: 'reset_required',
-} as const;
+/**
+ * @nullable
+ */
+export type MachineJobPricingSnapshot = {
+  id: UUIDv7;
+  /** @minimum 1 */
+  revision: number;
+  pricingGroupName: string;
+  currency: MachineJobPricingSnapshotCurrency;
+  reason: MachineJobPricingSnapshotReason;
+  complete: boolean;
+  /** @nullable */
+  calculatedAmount?: MachineJobPricingSnapshotCalculatedAmount;
+  rules: PricingSnapshotRule[];
+  capturedAt: string;
+} | null;

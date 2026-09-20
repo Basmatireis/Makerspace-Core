@@ -18,13 +18,26 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { Money } from './money';
+import type { MachineJob } from './machineJob';
+import type { Material } from './material';
+import type { DailyJobActivity } from './dailyJobActivity';
 
-export type PasswordStatus = typeof PasswordStatus[keyof typeof PasswordStatus];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const PasswordStatus = {
-  PasswordStatusNotSet: 'not_set',
-  PasswordStatusActive: 'active',
-  PasswordStatusResetRequired: 'reset_required',
-} as const;
+export interface MachineLogbookOverview {
+  /** @minimum 0 */
+  jobsToday: number;
+  /** @minimum 0 */
+  jobsThisWeek: number;
+  /** @minimum 0 */
+  unbilledJobs: number;
+  unbilledAmount: Money;
+  /** @minimum 0 */
+  needsReview: number;
+  /** @minimum 0 */
+  failedOrPartialThisWeek: number;
+  /** @minimum 0 */
+  lowStockItems: number;
+  recentJobs: MachineJob[];
+  lowStockMaterials: Material[];
+  activity: DailyJobActivity[];
+}
