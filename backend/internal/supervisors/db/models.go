@@ -107,6 +107,23 @@ type File struct {
 	UpdatedAt          time.Time
 }
 
+type InventoryTransaction struct {
+	ID                  uuid.UUID
+	MaterialID          uuid.UUID
+	Kind                string
+	QuantityDelta       pgtype.Numeric
+	UnitAcquisitionCost pgtype.Numeric
+	InventoryValueDelta pgtype.Numeric
+	TotalPurchasePrice  pgtype.Numeric
+	OccurredAt          time.Time
+	Supplier            *string
+	Note                *string
+	AdjustmentReason    *string
+	MachineJobUsageID   *uuid.UUID
+	ActorAccountID      *uuid.UUID
+	CreatedAt           time.Time
+}
+
 type LaborordnungRequest struct {
 	ID                        uuid.UUID
 	PersonID                  uuid.UUID
@@ -137,6 +154,93 @@ type LaborordnungVersion struct {
 	UpdatedAt          time.Time
 }
 
+type Machine struct {
+	ID                         uuid.UUID
+	MachineTypeID              uuid.UUID
+	Name                       string
+	Status                     string
+	ExternalIdentifier         *string
+	AutomaticCollectionEnabled bool
+	LastIngestedAt             pgtype.Timestamptz
+	Version                    int64
+	CreatedAt                  time.Time
+	UpdatedAt                  time.Time
+}
+
+type MachineJob struct {
+	ID                         uuid.UUID
+	DisplayID                  string
+	MachineID                  uuid.UUID
+	StartsAt                   time.Time
+	EndsAt                     time.Time
+	Source                     string
+	ExternalID                 *string
+	ExternalMetadata           []byte
+	ReviewState                string
+	CustomerPersonID           *uuid.UUID
+	CustomerOrganizationID     *uuid.UUID
+	OperatorPersonID           *uuid.UUID
+	Outcome                    string
+	Notes                      *string
+	PricingStatus              string
+	CalculatedPrice            pgtype.Numeric
+	FinalPrice                 pgtype.Numeric
+	PriceOverrideReason        *string
+	PriceOverriddenByAccountID *uuid.UUID
+	PriceOverriddenAt          pgtype.Timestamptz
+	BillingStatus              string
+	BillingReference           *string
+	ActivePricingSnapshotID    *uuid.UUID
+	Version                    int64
+	CreatedAt                  time.Time
+	UpdatedAt                  time.Time
+}
+
+type MachineJobMaterialUsage struct {
+	ID           uuid.UUID
+	MachineJobID uuid.UUID
+	MaterialID   uuid.UUID
+	Quantity     pgtype.Numeric
+	Active       bool
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type MachineJobPricingSnapshot struct {
+	ID                  uuid.UUID
+	MachineJobID        uuid.UUID
+	Revision            int32
+	PricingGroupID      *uuid.UUID
+	PricingGroupName    string
+	Currency            string
+	Reason              string
+	Complete            bool
+	CalculatedAmount    pgtype.Numeric
+	CapturedByAccountID *uuid.UUID
+	CapturedAt          time.Time
+}
+
+type MachineJobPricingSnapshotRule struct {
+	ID           uuid.UUID
+	SnapshotID   uuid.UUID
+	SourceRuleID *uuid.UUID
+	Kind         string
+	Label        string
+	Selector     string
+	Unit         string
+	Rate         pgtype.Numeric
+	Missing      bool
+}
+
+type MachineType struct {
+	ID        uuid.UUID
+	Name      string
+	Active    bool
+	Version   int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type MailConfiguration struct {
 	Singleton             bool
 	Enabled               bool
@@ -165,6 +269,28 @@ type ManagedDevice struct {
 	Version      int64
 	CreatedAt    time.Time
 	UpdatedAt    time.Time
+}
+
+type Material struct {
+	ID                uuid.UUID
+	Name              string
+	Category          string
+	Color             *string
+	Unit              string
+	Active            bool
+	LowStockThreshold pgtype.Numeric
+	Version           int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type MaterialBalance struct {
+	MaterialID      uuid.UUID
+	Quantity        pgtype.Numeric
+	InventoryValue  pgtype.Numeric
+	AverageUnitCost pgtype.Numeric
+	Version         int64
+	UpdatedAt       time.Time
 }
 
 type OidcFlow struct {
@@ -251,6 +377,25 @@ type OpenDayStaffRequirementRole struct {
 	RoleID        uuid.UUID
 }
 
+type Organization struct {
+	ID        uuid.UUID
+	Name      string
+	Kind      string
+	Active    bool
+	Version   int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type OrganizationPricingGroupAssignment struct {
+	OrganizationID      uuid.UUID
+	PricingGroupID      uuid.UUID
+	AssignedByAccountID *uuid.UUID
+	Version             int64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
 type PasswordCredential struct {
 	AuthIdentityID uuid.UUID
 	PasswordHash   string
@@ -282,6 +427,15 @@ type Person struct {
 	ProfileImageSource  *string
 }
 
+type PersonPricingGroupAssignment struct {
+	PersonID            uuid.UUID
+	PricingGroupID      uuid.UUID
+	AssignedByAccountID *uuid.UUID
+	Version             int64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
 type PinCredential struct {
 	AuthIdentityID uuid.UUID
 	PinHash        string
@@ -294,6 +448,31 @@ type PinLoginThrottle struct {
 	FailureCount int32
 	BlockedUntil pgtype.Timestamptz
 	UpdatedAt    time.Time
+}
+
+type PricingGroup struct {
+	ID          uuid.UUID
+	Name        string
+	Description *string
+	Active      bool
+	IsDefault   bool
+	Version     int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type PricingRule struct {
+	ID               uuid.UUID
+	PricingGroupID   uuid.UUID
+	Kind             string
+	MachineTypeID    *uuid.UUID
+	MaterialCategory *string
+	MaterialUnit     *string
+	Rate             pgtype.Numeric
+	Active           bool
+	Version          int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 type Role struct {
