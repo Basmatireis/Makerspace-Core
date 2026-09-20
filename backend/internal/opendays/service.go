@@ -697,6 +697,12 @@ func (s *Service) validateSlot(period opendaysdb.OpenDayPeriod, start, end time.
 	if start.IsZero() || end.IsZero() || !end.After(start) {
 		return validation("endsAt must be after startsAt")
 	}
+	if err := s.validateSlotInstant(start); err != nil {
+		return err
+	}
+	if err := s.validateSlotInstant(end); err != nil {
+		return err
+	}
 	if !dateWithin(start.In(s.location), period.StartsOn.Time, period.EndsOn.Time) || !dateWithin(end.Add(-time.Nanosecond).In(s.location), period.StartsOn.Time, period.EndsOn.Time) {
 		return validation("Open Day must be within the period in the makerspace timezone")
 	}

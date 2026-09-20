@@ -12,6 +12,8 @@ Self-signup and administrative assignment are available only for scheduled Open 
 
 Period bounds, holidays, and academic breaks use inclusive PostgreSQL `date` values. User-entered schedule times are interpreted in the configured makerspace timezone and stored as UTC `timestamptz`. Defaults are `Europe/Vienna`, `AT`, `AT-6`, and German holiday labels. Configure them with `MAKERSPACE_TIME_ZONE`, `OPEN_DAYS_HOLIDAY_COUNTRY`, `OPEN_DAYS_HOLIDAY_SUBDIVISION`, and `OPEN_DAYS_HOLIDAY_LANGUAGE`. Invalid timezones or unsupported offline GoHoliday jurisdictions fail API startup clearly.
 
+The service rejects local times in spring-forward gaps and autumn overlaps with HTTP 422 `validation_failed` and a useful `details.reason`. It never silently normalizes a gap or chooses an overlap occurrence. Recurrence validates both endpoints on their actual calendar dates, including overnight endings. Explicit schedule instants whose local endpoints are ambiguous are also rejected. API callers should send UTC or the matching configured-zone offset; a stale local offset across a transition is rejected. The editor reports these errors without changing the working copy. Normal overnight slots and exclusive-midnight period bounds remain supported.
+
 Academic breaks are versioned database records managed by `open_days.manage`. Public holidays are calculated offline by the pinned GoHoliday dependency behind a small provider seam. Recurrence preview identifies each date as `create`, `holiday`, `academic_break`, or `conflict`; skipped occurrences remain selectable in the editor for a deliberate local override.
 
 ## Public privacy

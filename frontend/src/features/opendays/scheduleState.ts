@@ -1,5 +1,5 @@
 import type { OpenDay, StaffingRequirementInput } from '../../api/generated/models';
-import { timeInTimeZone, zonedDateTimeToISO } from './dateTime';
+import { timeInTimeZone, validateLocalInstant, zonedDateTimeToISO } from './dateTime';
 
 export type WorkingSlot = {
   id: string;
@@ -12,6 +12,7 @@ export type WorkingSlot = {
 };
 
 export type EditorState = {
+  error?: string;
   slots: WorkingSlot[];
   previous: { slots: WorkingSlot[]; dirty: boolean } | null;
   dirty: boolean;
@@ -35,16 +36,16 @@ export function scheduleEditorReducer(state: EditorState, action: ScheduleEditor
   const slot = state.slots.find((item) => item.id === action.id);
   if (!slot) return state;
   const duration = new Date(slot.endsAt).getTime() - new Date(slot.startsAt).getTime();
-  const moved = new Date(
-    zonedDateTimeToISO(
-      action.date,
-      timeInTimeZone(slot.startsAt, action.timeZone),
-      action.timeZone,
-    ),
-  );
-  return {
-    slots: state.slots.map((item) => item.id === action.id ? { ...item, startsAt: moved.toISOString(), endsAt: new Date(moved.getTime() + duration).toISOString() } : item),
-    previous,
-    dirty: true,
-  };
+  try {
+    const moved = new Date(zonedDateTimeToISO(action.date, timeInTimeZone(slot.startsAt, action.timeZone), action.timeZone));
+    const end = new Date(moved.getTime() + duration).toISOString();
+    validateLocalInstant(end, action.timeZone);
+    return {
+      slots: state.slots.map((item) => item.id === action.id ? { ...item, startsAt: moved.toISOString(), endsAt: end } : item),
+      previous,
+      dirty: true,
+    };
+  } catch (error) {
+    return { ...state, error: error instanceof Error ? error.message : 'Choose a valid local time.' };
+  }
 }

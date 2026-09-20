@@ -29,20 +29,29 @@ export function zonedDateTimeToISO(date: string, clock: string, timeZone: string
   const [year, month, day] = date.split('-').map(Number);
   const [hour, minute] = clock.split(':').map(Number);
   const wallTimestamp = Date.UTC(year, month - 1, day, hour, minute);
-  let candidate = wallTimestamp;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const parts = wallParts(new Date(candidate), timeZone);
-    const representedWallTime = Date.UTC(
-      Number(parts.year),
-      Number(parts.month) - 1,
-      Number(parts.day),
-      Number(parts.hour),
-      Number(parts.minute),
-      Number(parts.second),
-    );
-    const correction = wallTimestamp - representedWallTime;
-    candidate += correction;
-    if (correction === 0) break;
+  const offsets = new Set<number>();
+  for (const hours of [-48, -24, 0, 24, 48]) {
+    const sample = wallTimestamp + hours * 3600000;
+    const parts = wallParts(new Date(sample), timeZone);
+    offsets.add(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second)) - sample);
   }
-  return new Date(candidate).toISOString();
+  const candidates = [...offsets].map((offset) => wallTimestamp - offset).filter((instant) => {
+    const parts = wallParts(new Date(instant), timeZone);
+    return `${parts.year}-${parts.month}-${parts.day}` === date && `${parts.hour}:${parts.minute}` === clock;
+  });
+  if (candidates.length !== 1) {
+    const reason = candidates.length > 1 ? 'is ambiguous' : 'does not exist';
+    throw new Error(`Local time ${date} ${clock} ${reason} in ${timeZone}. Choose a different time.`);
+  }
+  return new Date(candidates[0]).toISOString();
+}
+
+export function nextCalendarDate(date: string) {
+  const next = new Date(`${date}T12:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  return next.toISOString().slice(0, 10);
+}
+
+export function validateLocalInstant(instant: string, timeZone: string) {
+  zonedDateTimeToISO(dateInTimeZone(instant, timeZone), timeInTimeZone(instant, timeZone), timeZone);
 }

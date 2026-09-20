@@ -84,3 +84,45 @@ func TestOpenDayAssignmentReturnsNameBeyondEligibilityPage(t *testing.T) {
 		t.Fatalf("assignment name = %q", assignment.DisplayName)
 	}
 }
+
+func TestOpenDayRecurrenceRejectsDSTGapsAndOverlaps(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	actor := seedAccount(t, pool, "dst-manager", true)
+	principal := authorization.Principal{AccountID: actor.accountID, PersonID: actor.personID, Master: true}
+	service, err := opendays.NewService(pool, config.Config{MakerspaceTimeZone: "Europe/Vienna"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	date := func(value string) time.Time { parsed, _ := time.Parse("2006-01-02", value); return parsed }
+	period, err := service.CreatePeriod(ctx, principal, "DST", date("2026-01-01"), date("2026-12-31"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		date, start, end string
+		valid            bool
+	}{
+		{"2026-02-15", "12:00", "14:00", true},
+		{"2026-03-29", "02:30", "04:00", false},
+		{"2026-10-25", "02:30", "04:00", false},
+		{"2026-02-15", "23:00", "01:00", true},
+		{"2026-03-28", "23:00", "02:30", false},
+		{"2026-10-24", "23:00", "02:30", false},
+	} {
+		day := date(test.date)
+		weekday := int(day.Weekday())
+		if weekday == 0 {
+			weekday = 7
+		}
+		occurrences, err := service.PreviewRecurrence(ctx, principal, period.ID, opendays.RecurrenceInput{Weekday: weekday, StartsOn: day, EndsOn: day, StartTime: test.start, EndTime: test.end, EveryWeeks: 1})
+		if test.valid {
+			if err != nil || len(occurrences) != 1 || !occurrences[0].EndsAt.After(occurrences[0].StartsAt) {
+				t.Fatalf("valid recurrence: %#v %v", occurrences, err)
+			}
+		} else {
+			expectAppCode(t, err, "validation_failed")
+		}
+	}
+	assertCount(t, pool, `SELECT count(*) FROM open_days`, 0)
+}

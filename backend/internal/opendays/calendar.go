@@ -329,10 +329,17 @@ func (s *Service) PreviewRecurrence(ctx context.Context, p authorization.Princip
 	}
 	items := []RecurrenceOccurrence{}
 	for !date.After(dateOnly(input.EndsOn)) {
-		start := time.Date(date.Year(), date.Month(), date.Day(), startClock.Hour(), startClock.Minute(), 0, 0, s.location)
-		end := time.Date(date.Year(), date.Month(), date.Day(), endClock.Hour(), endClock.Minute(), 0, 0, s.location)
-		if !end.After(start) {
-			end = end.AddDate(0, 0, 1)
+		start, err := s.resolveWallTime(time.Date(date.Year(), date.Month(), date.Day(), startClock.Hour(), startClock.Minute(), 0, 0, time.UTC))
+		if err != nil {
+			return nil, err
+		}
+		endDate := date
+		if !endClock.After(startClock) {
+			endDate = endDate.AddDate(0, 0, 1)
+		}
+		end, err := s.resolveWallTime(time.Date(endDate.Year(), endDate.Month(), endDate.Day(), endClock.Hour(), endClock.Minute(), 0, 0, time.UTC))
+		if err != nil {
+			return nil, err
 		}
 		item := RecurrenceOccurrence{Date: date, StartsAt: start.UTC(), EndsAt: end.UTC(), Disposition: "create"}
 		if name, ok := holidayDates[dateKey(date)]; ok && input.SkipPublicHolidays {

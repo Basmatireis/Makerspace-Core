@@ -403,3 +403,25 @@ test('manages draft metadata and inclusive academic-break context', async ({
   await expectAccessible(page);
   await capture(page, testInfo, 'open-days-management.png');
 });
+
+test('rejects ambiguous local schedule times without adding a slot', async ({ page }) => {
+  const draft = { ...period('draft'), startsOn: '2026-10-25', endsOn: '2026-10-25' };
+  const errors: Error[] = [];
+  page.on('pageerror', (error) => errors.push(error));
+  await page.route('**/api/v1/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/auth/me')) return json(route, currentUser(['open_days.manage']));
+    if (path.endsWith('/open-days')) return json(route, { period: draft, items: [], timeZone: 'Europe/Vienna' });
+    if (path.endsWith('/open-day-eligibility-roles')) return json(route, { items: [{ id: roleId, name: 'Team' }] });
+    if (path.endsWith('/calendar-context')) return json(route, { timeZone: 'Europe/Vienna', entries: [], academicBreaks: [] });
+    return json(route, { items: [] });
+  });
+  await page.goto(`/open-days/${periodId}/schedule`);
+  await expect(page.getByRole('heading', { name: 'Edit Winter Semester 2026/27' })).toBeVisible();
+  await page.locator('#default-start').fill('02:30');
+  await page.locator('#default-end').fill('04:00');
+  await page.getByRole('button', { name: /Add Open Day.*25|Add.*2026-10-25/ }).click();
+  await expect(page.getByText(/Local time 2026-10-25 02:30 is ambiguous/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save & close' })).toBeDisabled();
+  expect(errors).toEqual([]);
+});

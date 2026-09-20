@@ -57,3 +57,19 @@ describe('schedule editor working copy', () => {
     expect(moved.slots[0].internalNote).toBe(configured.internalNote);
   });
 });
+
+it.each([
+  ['2026-03-29', '02:30', 'does not exist'],
+  ['2026-10-25', '02:30', 'is ambiguous'],
+])('rejects DST wall time %s %s', (date, clock, reason) => {
+  expect(() => zonedDateTimeToISO(date, clock, 'Europe/Vienna')).toThrow(reason);
+});
+
+it('preserves the working copy when dragging into a DST overlap', () => {
+  const original = { ...slot('overlap'), startsAt: '2026-10-24T00:30:00Z', endsAt: '2026-10-24T02:30:00Z' };
+  const initial: EditorState = { slots: [original], previous: null, dirty: false };
+  const result = scheduleEditorReducer(initial, { type: 'move', id: original.id, date: '2026-10-25', timeZone: 'Europe/Vienna' });
+  expect(result.slots).toEqual(initial.slots);
+  expect(result.dirty).toBe(false);
+  expect(result.error).toContain('ambiguous');
+});
