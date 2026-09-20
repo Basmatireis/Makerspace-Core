@@ -1,0 +1,15 @@
+import { DataTable, InlineNotification, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, Tag, Tile } from '@carbon/react';
+import { useQuery } from '@tanstack/react-query';
+import { getSupervisorDashboard } from '../../api/generated/supervisors/supervisors';
+import { PageHeader } from '../../app/PageHeader';
+import { ErrorState, FullPageLoading } from '../../app/PageState';
+
+export function SupervisorDashboardPage() {
+  const query = useQuery({ queryKey: ['supervisor-dashboard'], queryFn: () => getSupervisorDashboard() });
+  if (query.isPending) return <FullPageLoading label="Loading supervisor dashboard" />;
+  if (query.isError || !query.data) return <ErrorState title="Unable to load supervisor dashboard" message="Try again." onRetry={() => void query.refetch()} />;
+  const dashboard = query.data;
+  const headers = [{ key: 'name', header: 'Supervisor' }, { key: 'photo', header: 'Photo' }, { key: 'laborordnung', header: 'Lab Rules' }, ...dashboard.periods.map((period, index) => ({ key: `period${index}`, header: period.name }))];
+  const rows = dashboard.supervisors.map((supervisor) => ({ id: supervisor.personId, name: supervisor.name, photo: supervisor.hasProfileImage ? 'Complete' : 'Missing', laborordnung: supervisor.laborordnungState, ...Object.fromEntries(dashboard.periods.map((period, index) => [`period${index}`, supervisor.assignmentCounts.find((count) => count.periodId === period.id)?.count ?? 0])) }));
+  return <Stack gap={7}><PageHeader title="Supervisors" description="Profile, Lab Rules, and supervisor staffing across every open period." /><div className="summary-grid"><Tile><strong>{dashboard.totals.supervisors}</strong><p>Supervisors</p></Tile><Tile><strong>{dashboard.totals.profileImagesComplete}</strong><p>Photos complete</p></Tile><Tile><strong>{dashboard.totals.laborordnungCurrent}</strong><p>Lab Rules current</p></Tile><Tile><strong>{dashboard.totals.laborordnungOutdated}</strong><p>Lab Rules outdated</p></Tile></div>{dashboard.periods.length === 0 && <InlineNotification kind="info" lowContrast hideCloseButton title="No open periods" subtitle="Supervisor rows are shown without assignment columns." />}<DataTable rows={rows} headers={headers}>{({ rows: tableRows, headers: tableHeaders, getTableProps, getHeaderProps, getRowProps }) => <TableContainer title="Supervisor management"><Table {...getTableProps()}><TableHead><TableRow>{tableHeaders.map((header) => <TableHeader {...getHeaderProps({ header })} key={header.key}>{header.header}</TableHeader>)}</TableRow></TableHead><TableBody>{tableRows.map((row) => <TableRow {...getRowProps({ row })} key={row.id}>{row.cells.map((cell) => <TableCell key={cell.id}>{cell.info.header === 'photo' ? <Tag type={cell.value === 'Complete' ? 'green' : 'red'}>{String(cell.value)}</Tag> : cell.info.header === 'laborordnung' ? <Tag type={cell.value === 'current' || cell.value === 'not_required' ? 'green' : 'red'}>{String(cell.value).replaceAll('_', ' ')}</Tag> : String(cell.value)}</TableCell>)}</TableRow>)}</TableBody></Table></TableContainer>}</DataTable></Stack>;
+}

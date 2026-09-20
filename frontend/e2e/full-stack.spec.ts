@@ -43,30 +43,44 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await expect(page.getByText('Welcome, E2E.')).toBeVisible();
   });
 
-  await test.step('create and edit a custom supervisor role', async () => {
+  await test.step('create, configure, and edit a custom supervisor role', async () => {
     await page.goto('/settings/roles/new');
     await expect(page.getByRole('heading', { name: 'Create role' })).toBeVisible();
-    await page.getByLabel('Role name').fill('E2E workshop supervisors');
-    await page
+    const createRoleDialog = page.getByRole('dialog');
+    await createRoleDialog.getByLabel('Role name').fill('E2E workshop supervisors');
+    await createRoleDialog
       .getByLabel('Description')
       .fill('Browser-tested limited administration role.');
-    await page.getByLabel('people · read · all').check({ force: true });
-    await page.getByLabel('people · update · self').check({ force: true });
-    await page.getByRole('button', { name: 'Create role' }).click();
+    await createRoleDialog.getByRole('button', { name: 'Create role' }).click();
+    await expect(page).toHaveURL(/\/settings\/roles$/);
+
+    await page.getByRole('button', { name: /Edit View all people for E2E workshop supervisors/ }).click();
+    await page.getByLabel('Permission enabled').click({ force: true });
+    await page.getByLabel('Minimum authentication assurance').selectOption('normal');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByRole('button', { name: /Edit View all people for E2E workshop supervisors: Normal assurance/ })).toBeVisible();
+
+    await page.getByRole('button', { name: /Edit Edit own profile for E2E workshop supervisors/ }).click();
+    await page.getByLabel('Permission enabled').click({ force: true });
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+
+    await page.getByRole('tab', { name: 'Effective permissions' }).click();
+    await page.getByLabel('Authentication assurance').selectOption('low');
+    await expect(page.getByRole('button', { name: /View View all people for E2E workshop supervisors: Not granted in this context/ })).toBeVisible();
+    await page.getByLabel('Authentication assurance').selectOption('normal');
+    await expect(page.getByRole('button', { name: /View View all people for E2E workshop supervisors: Granted in this context/ })).toBeVisible();
+    await page.getByRole('tab', { name: 'Configuration' }).click();
+
+    await page.getByRole('button', { name: 'Actions for E2E workshop supervisors' }).click();
+    await page.getByRole('menuitem', { name: 'Edit role' }).click();
     await expect(page).toHaveURL(/\/settings\/roles\/[0-9a-f-]+$/);
     rolePath = new URL(page.url()).pathname;
-    await expect(
-      page.getByRole('heading', { name: 'E2E workshop supervisors' }),
-    ).toBeVisible();
-
-    await page.getByRole('button', { name: 'Edit', exact: true }).first().click();
-    await page
+    const editRoleDialog = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: 'Edit role' }) });
+    await editRoleDialog
       .getByLabel('Description')
       .fill('Browser-tested supervisor role with redacted sensitive fields.');
-    await page.getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(
-      page.getByText('Browser-tested supervisor role with redacted sensitive fields.'),
-    ).toBeVisible();
+    await editRoleDialog.getByRole('button', { name: 'Save role' }).click();
+    await expect(page).toHaveURL(/\/settings\/roles$/);
   });
 
   await test.step('create a Person and provision, enable, and assign its Account', async () => {
@@ -96,14 +110,23 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
       page.getByRole('paragraph').filter({ hasText: memberLogin }),
     ).toBeVisible();
 
-    await page.getByRole('button', { name: 'Actions' }).click();
-    await page.getByRole('menuitem', { name: 'Set password' }).click();
-    const passwordDialog = page.getByRole('dialog');
-    await passwordDialog.getByLabel('New password').fill(memberPassword);
-    await passwordDialog.getByLabel('Confirm password').fill(memberPassword);
-    await passwordDialog.getByRole('button', { name: 'Set password' }).click();
-    await expect(passwordDialog).toBeHidden();
-    await expect(page.getByText('active', { exact: true })).toBeVisible();
+    // Direct administrator password setting is an emergency API operation and
+    // intentionally no longer appears in normal UI workflows. Exercise it
+    // explicitly here so this fixture can continue through member sign-in.
+    const origin = new URL(page.url()).origin;
+    const createdPersonId = personPath.split('/').at(-1)!;
+    const personResponse = await page.request.get(`${origin}/api/v1/people/${createdPersonId}`);
+    expect(personResponse.ok()).toBeTruthy();
+    const person = await personResponse.json() as { account: { id: string; version: number } };
+    const csrfCookie = (await page.context().cookies()).find((cookie) => cookie.name.includes('csrf'));
+    expect(csrfCookie).toBeDefined();
+    const passwordResponse = await page.request.put(`${origin}/api/v1/accounts/${person.account.id}/password`, {
+      headers: { Origin: origin, 'X-CSRF-Token': csrfCookie!.value },
+      data: { newPassword: memberPassword, expectedVersion: person.account.version },
+    });
+    expect(passwordResponse.ok()).toBeTruthy();
+    await page.reload();
+    await expect(page.getByText('Enabled', { exact: true }).last()).toBeVisible();
 
     await page.getByRole('button', { name: 'Enable', exact: true }).click();
     await expect(page.getByText('enabled', { exact: true })).toBeVisible();
@@ -157,9 +180,11 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await expect(page.getByText('Katherine Johnson')).toHaveCount(0);
 
     await page.goto(rolePath);
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await page.getByRole('button', { name: 'Actions for E2E workshop supervisors' }).click();
+    await page.getByRole('menuitem', { name: 'Delete role' }).click();
+    await expect(page.getByRole('heading', { name: 'Delete role?' })).toBeVisible();
     await page.getByRole('button', { name: 'Delete role' }).click();
-    await expect(page.getByText('Delete this role?')).toBeVisible();
-    await page.getByRole('button', { name: 'Delete role' }).last().click();
     await expect(page).toHaveURL(/\/settings\/roles$/);
     await expect(page.getByText('E2E workshop supervisors')).toHaveCount(0);
   });

@@ -66,6 +66,7 @@ describe('Managed devices administration', () => {
       name: 'Lobby terminal',
       deviceTypeId: typeId,
       expiresAt: null,
+      credentialDelivery: 'nativeToken',
     }));
     expect(await screen.findByDisplayValue('a'.repeat(43))).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Dismiss permanently' }));
@@ -107,7 +108,7 @@ describe('Managed devices administration', () => {
     expect(within(dialog).getByText('Rotate token for Front desk?')).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Rotate token' }));
 
-    await waitFor(() => expect(submitted).toEqual({ expiresAt: null, expectedVersion: 1 }));
+    await waitFor(() => expect(submitted).toEqual({ expiresAt: null, expectedVersion: 1, credentialDelivery: 'nativeToken' }));
     expect(await screen.findByDisplayValue('b'.repeat(43))).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Dismiss permanently' }));
     expect(screen.queryByDisplayValue('b'.repeat(43))).not.toBeInTheDocument();

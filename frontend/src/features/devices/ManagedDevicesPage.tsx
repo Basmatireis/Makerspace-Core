@@ -13,7 +13,7 @@ import {
   revokeManagedDevice, rotateManagedDeviceToken, updateManagedDevice,
   updateManagedDeviceType,
 } from '../../api/generated/managed-devices/managed-devices';
-import type { ManagedDevice, ManagedDeviceProvisioning, ManagedDeviceType } from '../../api/generated/models';
+import type { ManagedDevice, ManagedDeviceCredentialDelivery, ManagedDeviceProvisioning, ManagedDeviceType } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
 import { PageHeader } from '../../app/PageHeader';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
@@ -64,13 +64,14 @@ export function ManagedDevicesPage() {
     }),
     onSuccess: async () => { setEditingDevice(null); await refresh(); },
   });
-  const rotate = async (device: ManagedDevice, expiresAt: string | null) => {
+  const rotate = async (device: ManagedDevice, expiresAt: string | null, credentialDelivery: ManagedDeviceCredentialDelivery) => {
     setRotatePending(true);
     setRotateError(null);
     try {
       const provisioning = await rotateManagedDeviceToken(device.id, {
         expiresAt,
         expectedVersion: device.version,
+        credentialDelivery,
       });
       setRotatingDevice(null);
       setSecret(provisioning);
@@ -157,7 +158,7 @@ export function ManagedDevicesPage() {
           pending={rotatePending}
           error={rotateError}
           onClose={() => { setRotatingDevice(null); setRotateError(null); }}
-          onSubmit={(expiresAt) => void rotate(rotatingDevice, expiresAt)}
+          onSubmit={(expiresAt, credentialDelivery) => void rotate(rotatingDevice, expiresAt, credentialDelivery)}
         />
       )}
       {editingType && (
@@ -256,6 +257,7 @@ function CreateDeviceForm({ types, onCreated }: {
   const [deviceTypeId, setDeviceTypeId] = useState('');
   const [noExpiration, setNoExpiration] = useState(true);
   const [expiration, setExpiration] = useState('');
+  const [credentialDelivery, setCredentialDelivery] = useState<ManagedDeviceCredentialDelivery>('nativeToken');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const submit = async () => {
@@ -265,6 +267,7 @@ function CreateDeviceForm({ types, onCreated }: {
       const value = await createManagedDevice({
         name: name.trim(), deviceTypeId,
         expiresAt: noExpiration ? null : localDateTimeToISO(expiration),
+        credentialDelivery,
       });
       setName(''); setDeviceTypeId(''); setNoExpiration(true); setExpiration('');
       await onCreated(value);
@@ -284,6 +287,10 @@ function CreateDeviceForm({ types, onCreated }: {
         {types.map((type) => <SelectItem key={type.id} value={type.id} text={type.name} />)}
       </Select>
       <ExpirationFields noExpiration={noExpiration} expiration={expiration} setNoExpiration={setNoExpiration} setExpiration={setExpiration} id="create" />
+      <Select id="new-device-delivery" labelText="Credential delivery" value={credentialDelivery} onChange={(event) => setCredentialDelivery(event.target.value as ManagedDeviceCredentialDelivery)}>
+        <SelectItem value="nativeToken" text="Native token (show once)" />
+        <SelectItem value="bindBrowser" text="Bind this browser securely" />
+      </Select>
       <Button type="submit" disabled={!name.trim() || !deviceTypeId || (!noExpiration && !expiration) || pending}>Create device</Button>
     </Stack></Form></Tile>
   );
@@ -320,10 +327,11 @@ function DeviceFormModal({ device, types, pending, error, onClose, onSubmit }: {
 
 function ExpirationModal({ device, pending, error, onClose, onSubmit }: {
   device: ManagedDevice; pending: boolean; error: Error | null; onClose: () => void;
-  onSubmit: (expiresAt: string | null) => void;
+  onSubmit: (expiresAt: string | null, credentialDelivery: ManagedDeviceCredentialDelivery) => void;
 }) {
   const [noExpiration, setNoExpiration] = useState(device.expiresAt === null);
   const [expiration, setExpiration] = useState(toLocalDateTime(device.expiresAt));
+  const [credentialDelivery, setCredentialDelivery] = useState<ManagedDeviceCredentialDelivery>('nativeToken');
   return (
     <ComposedModal open onClose={onClose}>
       <ModalHeader title={`Rotate token for ${device.name}?`} />
@@ -331,8 +339,12 @@ function ExpirationModal({ device, pending, error, onClose, onSubmit }: {
         <p>The current token stops working immediately. The replacement is shown only once.</p>
         {error && <MutationError title="Token not rotated" error={error} />}
         <ExpirationFields noExpiration={noExpiration} expiration={expiration} setNoExpiration={setNoExpiration} setExpiration={setExpiration} id="rotate" />
+        <Select id="rotate-device-delivery" labelText="Credential delivery" value={credentialDelivery} onChange={(event) => setCredentialDelivery(event.target.value as ManagedDeviceCredentialDelivery)}>
+          <SelectItem value="nativeToken" text="Native token (show once)" />
+          <SelectItem value="bindBrowser" text="Bind this browser securely" />
+        </Select>
       </Stack></ModalBody>
-      <ModalFooter><Button kind="secondary" onClick={onClose}>Cancel</Button><Button disabled={pending || (!noExpiration && !expiration)} onClick={() => onSubmit(noExpiration ? null : localDateTimeToISO(expiration))}>Rotate token</Button></ModalFooter>
+      <ModalFooter><Button kind="secondary" onClick={onClose}>Cancel</Button><Button disabled={pending || (!noExpiration && !expiration)} onClick={() => onSubmit(noExpiration ? null : localDateTimeToISO(expiration), credentialDelivery)}>Rotate token</Button></ModalFooter>
     </ComposedModal>
   );
 }
@@ -351,9 +363,14 @@ function OneTimeToken({ provisioning, onDismiss }: { provisioning: ManagedDevice
   const [copied, setCopied] = useState(false);
   return (
     <Tile className="secret-tile"><Stack gap={4}>
-      <InlineNotification kind="warning" lowContrast hideCloseButton title="Copy this device token now" subtitle="It is shown only once and cannot be retrieved later." />
-      <TextInput id="device-token" labelText={`One-time token for ${provisioning.device.name}`} readOnly value={provisioning.token} />
-      <div className="form-actions"><Button kind="secondary" renderIcon={Copy} onClick={async () => { await navigator.clipboard.writeText(provisioning.token); setCopied(true); }}>{copied ? 'Copied' : 'Copy token'}</Button><Button kind="ghost" onClick={onDismiss}>Dismiss permanently</Button></div>
+      {provisioning.token ? <>
+        <InlineNotification kind="warning" lowContrast hideCloseButton title="Copy this device token now" subtitle="It is shown only once and cannot be retrieved later." />
+        <TextInput id="device-token" labelText={`One-time token for ${provisioning.device.name}`} readOnly value={provisioning.token} />
+        <div className="form-actions"><Button kind="secondary" renderIcon={Copy} onClick={async () => { await navigator.clipboard.writeText(provisioning.token!); setCopied(true); }}>{copied ? 'Copied' : 'Copy token'}</Button><Button kind="ghost" onClick={onDismiss}>Dismiss permanently</Button></div>
+      </> : <>
+        <InlineNotification kind="success" lowContrast hideCloseButton title="Browser bound" subtitle="The managed-device credential is stored in a secure HttpOnly cookie and is unavailable to JavaScript." />
+        <Button kind="ghost" onClick={onDismiss}>Dismiss</Button>
+      </>}
     </Stack></Tile>
   );
 }

@@ -10,6 +10,7 @@ const traineeRequirementId = '0192f6f8-743e-7c77-a349-cd07c3e8b006';
 const roleId = '0192f6f8-743e-7c77-a349-cd07c3e8b007';
 const assignmentId = '0192f6f8-743e-7c77-a349-cd07c3e8b008';
 const timestamp = '2026-09-14T10:00:00Z';
+const passwordIdentityId = '0192f6f8-743e-7c77-a349-cd07c3e8b009';
 
 function currentUser(permissions: string[]) {
   return {
@@ -23,6 +24,9 @@ function currentUser(permissions: string[]) {
         id: accountId,
         personId,
         loginEmail: 'ada.login@example.test',
+        provisioningSource: 'local',
+        firstAuthenticatedAt: timestamp,
+        authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: timestamp, disabledAt: null, createdAt: timestamp }],
         status: 'enabled',
         passwordStatus: 'active',
         roles: [],
@@ -36,6 +40,9 @@ function currentUser(permissions: string[]) {
       id: accountId,
       personId,
       loginEmail: 'ada.login@example.test',
+      provisioningSource: 'local',
+      firstAuthenticatedAt: timestamp,
+      authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: timestamp, disabledAt: null, createdAt: timestamp }],
       status: 'enabled',
       passwordStatus: 'active',
       roles: [],
@@ -44,6 +51,10 @@ function currentUser(permissions: string[]) {
       version: 1,
     },
     permissions,
+    authenticationAssurance: 'normal',
+    managedDevice: null,
+    delegablePermissionGrants: permissions.map((permissionId) => ({ permissionId, scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' })),
+    laborordnungStatus: { mode: 'not_required', state: 'not_required', actionRequired: false, currentVersion: null, latestConfirmedVersion: null, requestId: null },
   };
 }
 
@@ -127,6 +138,9 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
 
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.route('**/api/v1/auth/oidc/providers', async (route) => {
+    await json(route, { items: [] });
+  });
 });
 
 test('keeps other identities and management fields private while staff sign up', async ({
@@ -136,6 +150,10 @@ test('keeps other identities and management fields private while staff sign up',
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/auth/oidc/providers') {
+      await json(route, { items: [] });
+      return;
+    }
     if (path === '/api/v1/auth/me') {
       await json(route, currentUser(['open_days.read', 'open_days.signup']));
       return;
@@ -194,6 +212,10 @@ test('creates and atomically saves a manager schedule working copy', async ({
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/auth/oidc/providers') {
+      await json(route, { items: [] });
+      return;
+    }
     if (path === '/api/v1/auth/me') {
       await json(route, currentUser(['open_days.manage']));
       return;
@@ -293,7 +315,8 @@ test('creates and atomically saves a manager schedule working copy', async ({
   expect(new Date(created.endsAt).getTime() - new Date(created.startsAt).getTime()).toBe(
     3 * 60 * 60 * 1000,
   );
-  await expect(page.getByRole('button', { name: 'Save & close' })).toBeDisabled();
+  await expect(page).toHaveURL(new RegExp(`/open-days/${periodId}$`));
+  await expect(page.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeVisible();
 });
 
 test('manages draft metadata and inclusive academic-break context', async ({
@@ -304,6 +327,10 @@ test('manages draft metadata and inclusive academic-break context', async ({
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/auth/oidc/providers') {
+      await json(route, { items: [] });
+      return;
+    }
     if (path === '/api/v1/auth/me') {
       await json(route, currentUser(['open_days.manage']));
       return;

@@ -9,6 +9,71 @@ import { renderRoute } from '../test/render';
 import { App } from './App';
 
 describe('protected application routing', () => {
+  it.each([
+    [PermissionId.oidcmanage, 'OpenID Connect'],
+    [PermissionId.mailmanage, 'Email delivery'],
+  ])('allows settings navigation with only %s', async (permission, title) => {
+    server.use(http.get('*/api/v1/auth/me', () =>
+      HttpResponse.json(currentUserFixture([permission])),
+    ));
+    renderRoute(<App />, '/settings');
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Members' })).not.toBeInTheDocument();
+  });
+
+  it.each(['/settings/oidc', '/settings/mail'])('denies %s without its permission', async (path) => {
+    server.use(http.get('*/api/v1/auth/me', () =>
+      HttpResponse.json(currentUserFixture([PermissionId.rolesread])),
+    ));
+    renderRoute(<App />, path);
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+  });
+
+	it('shows a nonblocking Lab Rules warning and creates a request only on explicit action', async () => {
+		const currentUser = currentUserFixture();
+		currentUser.laborordnungStatus = {
+			mode: 'warning',
+			state: 'outdated',
+			actionRequired: true,
+			currentVersion: {
+				id: '0192f6f8-743e-7c77-a349-cd07c3e8a930',
+				status: 'published',
+				humanRevision: '2026-09',
+				pdfFileId: '0192f6f8-743e-7c77-a349-cd07c3e8a931',
+				sha256: 'a'.repeat(64),
+				effectiveAt: '2026-09-01T00:00:00Z',
+				publishedAt: '2026-08-20T00:00:00Z',
+				createdAt: '2026-08-20T00:00:00Z',
+			},
+			latestConfirmedVersion: null,
+			requestId: null,
+		};
+		let requestCount = 0;
+		server.use(
+			http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUser)),
+			http.post('*/api/v1/laborordnung/requests/me', () => {
+				requestCount += 1;
+				return HttpResponse.json({ id: '0192f6f8-743e-7c77-a349-cd07c3e8a932' }, { status: 201 });
+			}),
+		);
+		const user = userEvent.setup();
+		renderRoute(<App />, '/dashboard');
+
+		expect(await screen.findByText('Your Lab Rules confirmation is outdated')).toBeInTheDocument();
+		expect(screen.getByText(/Normal application access remains available/)).toBeInTheDocument();
+		expect(screen.getByRole('link', { name: 'View current Lab Rules PDF' })).toHaveAttribute(
+			'href',
+			'/api/v1/laborordnung/versions/0192f6f8-743e-7c77-a349-cd07c3e8a930/pdf',
+		);
+		expect(requestCount).toBe(0);
+
+		await user.click(screen.getByRole('button', { name: 'Request signature confirmation' }));
+		expect(requestCount).toBe(1);
+		expect(screen.queryByText(/Laborordnung/i)).not.toBeInTheDocument();
+	});
+
   it('redirects an anonymous visitor to sign in', async () => {
     renderRoute(<App />, '/settings');
     expect(await screen.findByRole('heading', { name: 'Makerspace' })).toBeInTheDocument();
@@ -96,17 +161,13 @@ describe('role protection UX', () => {
     );
     server.use(
       http.get('*/api/v1/auth/me', () => HttpResponse.json(actor)),
-      http.get('*/api/v1/roles/:roleId', () =>
-        HttpResponse.json({
-          id: '0192f6f8-743e-7c77-a349-cd07c3e8a903',
-          name: 'Master',
-          description: 'Protected master role',
-          systemKey: 'master',
-          permissionGrants: [PermissionId.rolesread, PermissionId.rolesmanage].map((permissionId) => ({permissionId, scope:'everywhere', deviceTypeIds:[]})),
-          createdAt: '2026-01-01T00:00:00Z',
-          updatedAt: '2026-01-01T00:00:00Z',
-          version: 2,
-        }),
+      http.get('*/api/v1/roles', () =>
+        HttpResponse.json({ items: [{
+          id: '0192f6f8-743e-7c77-a349-cd07c3e8a903', name: 'Master', description: 'Protected master role', systemKey: 'master',
+          permissionGrants: [PermissionId.rolesread, PermissionId.rolesmanage].map((permissionId) => ({ permissionId, scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' })),
+          profileImageRequired: false, laborordnungMode: 'not_required', supervisorDashboard: false,
+          createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-01T00:00:00Z', version: 2,
+        }], nextCursor: null }),
       ),
       http.get('*/api/v1/permissions', () =>
         HttpResponse.json({
@@ -118,9 +179,10 @@ describe('role protection UX', () => {
       ),
     );
     renderRoute(<App />, '/settings/roles/0192f6f8-743e-7c77-a349-cd07c3e8a903');
-    expect(await screen.findByRole('heading', { name: 'Master' })).toBeInTheDocument();
-    expect(screen.getByText('Protected system role with every application permission.')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Roles & Permissions' })).toBeInTheDocument();
+    expect(screen.getAllByText('Master').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('Protected system role')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /delete role/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Actions for Master/ })).not.toBeInTheDocument();
   });
 });

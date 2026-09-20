@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   Button,
   Column,
+	FileUploaderDropContainer,
   Form,
   Grid,
   InlineNotification,
@@ -12,15 +13,20 @@ import {
   StructuredListRow,
   StructuredListWrapper,
   Tag,
+  TextInput,
   Tile,
 } from '@carbon/react';
 import { Edit } from '@carbon/icons-react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
+import { Link } from 'react-router-dom';
 import { PageHeader } from '../../app/PageHeader';
-import { changeOwnPassword } from '../../api/generated/authentication/authentication';
+import { changeOwnPassword, enrollOwnPin, removeOwnPassword, removeOwnPin, requestOwnEmailVerification } from '../../api/generated/authentication/authentication';
 import { updatePerson } from '../../api/generated/people/people';
-import type { UpdatePersonRequest } from '../../api/generated/models';
+import { deletePersonProfileImage, getPutPersonProfileImageUrl } from '../../api/generated/people/people';
+import type { ProfileImage, UpdatePersonRequest } from '../../api/generated/models';
+import { apiFetch } from '../../api/http-client';
+import { listOIDCLoginProviders, startOIDCLink, unlinkOwnOIDCIdentity } from '../../api/generated/oidc/oidc';
 import { useSecretMutation } from '../../api/use-secret-mutation';
 import { authQueryKey, useCurrentUser } from '../auth/auth';
 import { validatePasswordLength } from '../auth/password-validation';
@@ -36,6 +42,8 @@ type PasswordFormValues = {
   newPassword: string;
   confirmPassword: string;
 };
+type PINFormValues = { loginName: string; pin: string; confirmPIN: string };
+type OIDCLinkFormValues = { currentPassword: string };
 
 export function ProfilePage() {
   const currentUser = useCurrentUser();
@@ -57,6 +65,9 @@ export function ProfilePage() {
       confirmPassword: '',
     },
   });
+  const pinForm = useForm<PINFormValues>({ defaultValues: { loginName: '', pin: '', confirmPIN: '' } });
+  const oidcLinkForm = useForm<OIDCLinkFormValues>({ defaultValues: { currentPassword: '' } });
+  const oidcProviders = useQuery({ queryKey: ['oidc', 'login-providers'], queryFn: ({ signal }) => listOIDCLoginProviders({ signal }) });
 
   const updateProfileMutation = useMutation({
     mutationFn: (request: UpdatePersonRequest) =>
@@ -71,6 +82,38 @@ export function ProfilePage() {
       changeOwnPassword(request),
     { onSuccess: () => passwordForm.reset() },
   );
+  const removePasswordMutation = useSecretMutation(
+    (currentPassword: string) => removeOwnPassword({ currentPassword }),
+    { onSuccess: () => window.location.assign('/login') },
+  );
+  const pinMutation = useSecretMutation(
+    ({ loginName, pin }: PINFormValues) => enrollOwnPin({ loginName, pin }),
+    { onSuccess: async () => { pinForm.reset(); await queryClient.invalidateQueries({ queryKey: authQueryKey }); } },
+  );
+  const removePINMutation = useMutation({
+    mutationFn: () => removeOwnPin(),
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: authQueryKey }),
+  });
+	const emailVerificationMutation = useMutation({ mutationFn: () => requestOwnEmailVerification() });
+  const linkOIDCMutation = useSecretMutation(
+    ({ slug, currentPassword }: { slug: string; currentPassword: string }) => startOIDCLink(slug, { currentPassword }),
+    { onSuccess: (flow) => window.location.assign(flow.authorizationUrl) },
+  );
+  const unlinkOIDCMutation = useMutation({
+    mutationFn: (identityId: string) => unlinkOwnOIDCIdentity(identityId),
+    onSuccess: async () => queryClient.invalidateQueries({ queryKey: authQueryKey }),
+  });
+	const profileImageMutation = useMutation({
+		mutationFn: (file: File) => apiFetch<ProfileImage>(
+			getPutPersonProfileImageUrl(currentUser.person.id, { expectedVersion: currentUser.person.version }),
+			{ method: 'PUT', headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': file.name, 'X-Profile-Image-Source': 'self_upload' }, body: file },
+		),
+		onSuccess: async () => queryClient.invalidateQueries({ queryKey: authQueryKey }),
+	});
+	const removeProfileImageMutation = useMutation({
+		mutationFn: () => deletePersonProfileImage(currentUser.person.id, { expectedVersion: currentUser.person.version }),
+		onSuccess: async () => queryClient.invalidateQueries({ queryKey: authQueryKey }),
+	});
 
   const mayEdit = canUpdatePerson(currentUser, currentUser.person.id);
   const mayReadMatriculation = hasPermission(
@@ -80,6 +123,17 @@ export function ProfilePage() {
   const mayEditMatriculation =
     mayReadMatriculation &&
     hasPermission(currentUser, PermissionId.peopleupdatematriculation);
+  const mayEnrollPIN = hasPermission(currentUser, PermissionId.accountspinenrollself);
+  const mayRemovePIN = hasPermission(currentUser, PermissionId.accountspinremoveself);
+	const mayRemovePassword = hasPermission(currentUser, PermissionId.accountspasswordremoveself);
+	const mayLinkOIDC = hasPermission(currentUser, PermissionId.identitiesoidclinkself);
+	const mayUnlinkOIDC = hasPermission(currentUser, PermissionId.identitiesoidcunlinkself);
+	const mayUpdateProfileImage = hasPermission(currentUser, PermissionId.peopleprofile_imageupdateself);
+	const mayRemoveProfileImage = hasPermission(currentUser, PermissionId.peopleprofile_imageremoveself);
+  const pinIdentity = currentUser.account.authIdentities.find((identity) => identity.kind === 'pin' && !identity.disabledAt);
+	const passwordIdentity = currentUser.account.authIdentities.find((identity) => identity.kind === 'password' && !identity.disabledAt);
+  const oidcIdentities = currentUser.account.authIdentities.filter((identity) => identity.kind === 'oidc' && !identity.disabledAt);
+  const freshEnoughForMethods = currentUser.authenticationAssurance !== 'low';
 
   const submitProfile = personForm.handleSubmit(async (values) => {
     const patch = toPersonPatch(
@@ -103,6 +157,9 @@ export function ProfilePage() {
       }
     },
   );
+  const submitPIN = pinForm.handleSubmit(async (values) => {
+    try { await pinMutation.mutateAsync(values); } catch { /* rendered below */ }
+  });
 
   return (
     <Stack gap={8}>
@@ -120,7 +177,17 @@ export function ProfilePage() {
 
       <Grid condensed>
         <Column sm={4} md={8} lg={8}>
-          <Tile>
+          <Stack gap={6}>
+			<Tile>
+				<Stack gap={5}>
+					<div><h2>Profile image</h2><p className="section-description">Images are normalized to a private JPEG and metadata is removed.</p></div>
+					{currentUser.person.profileImage ? <img className="profile-image-preview" src={currentUser.person.profileImage.downloadUrl} alt={`${currentUser.person.firstName} ${currentUser.person.lastName}`} /> : <p>{currentUser.person.profileImageRequired ? 'A profile image is required by an assigned role.' : 'No profile image.'}</p>}
+					{profileImageMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Image not updated" subtitle="Use a JPEG, PNG, or WebP image up to 8 MiB and 4096×4096 pixels." />}
+					{mayUpdateProfileImage && <FileUploaderDropContainer id="profile-image-upload" accept={['image/jpeg', 'image/png', 'image/webp']} maxFileSize={8 << 20} multiple={false} disabled={profileImageMutation.isPending} labelText={profileImageMutation.isPending ? 'Uploading…' : 'Drag an image here or click to upload'} onAddFiles={(_, { addedFiles }) => { const file = addedFiles[0]; if (file) profileImageMutation.mutate(file); }} />}
+					{currentUser.person.profileImage && mayRemoveProfileImage && <Button kind="danger--tertiary" disabled={removeProfileImageMutation.isPending} onClick={() => removeProfileImageMutation.mutate()}>Remove image</Button>}
+				</Stack>
+			</Tile>
+			<Tile>
             <Stack gap={6}>
               <h2>Personal information</h2>
               {updateProfileMutation.isError && (
@@ -140,15 +207,15 @@ export function ProfilePage() {
                       showMatriculation={mayReadMatriculation}
                       editMatriculation={mayEditMatriculation}
                     />
-                    <div className="form-actions">
-                      <Button
+                  <div className="form-actions">
+                    <Button
                         type="button"
                         kind="secondary"
                         onClick={() => {
                           personForm.reset();
                           setEditingProfile(false);
                         }}
-                      >
+                    >
                         Cancel
                       </Button>
                       <Button
@@ -159,8 +226,8 @@ export function ProfilePage() {
                         }
                       >
                         {updateProfileMutation.isPending ? 'Saving…' : 'Save'}
-                      </Button>
-                    </div>
+                    </Button>
+                  </div>
                   </Stack>
                 </Form>
               ) : (
@@ -196,7 +263,8 @@ export function ProfilePage() {
                 </StructuredListWrapper>
               )}
             </Stack>
-          </Tile>
+			</Tile>
+		  </Stack>
         </Column>
 
         <Column sm={4} md={8} lg={8}>
@@ -207,7 +275,7 @@ export function ProfilePage() {
                 <div className="account-summary">
                   <div>
                     <span className="label">Login email</span>
-                    <span>{currentUser.account.loginEmail}</span>
+                    <span>{currentUser.account.loginEmail ?? 'Not configured'}</span>
                   </div>
                   <Tag
                     type={
@@ -225,6 +293,61 @@ export function ProfilePage() {
                       </Tag>
                     ))}
                   </div>
+                )}
+              </Stack>
+            </Tile>
+
+            <Tile>
+              <Stack gap={6}>
+                <div>
+                  <h2>Authentication methods</h2>
+				  <Stack gap={3}>
+					<div className="account-summary"><span>Local password</span><Tag type={currentUser.account.passwordStatus === 'active' ? (passwordIdentity?.verifiedAt ? 'green' : 'warm-gray') : 'gray'}>{currentUser.account.passwordStatus === 'active' ? `Enabled — ${passwordIdentity?.verifiedAt ? 'email verified' : 'email verification required'}` : 'Not configured'}</Tag></div>
+					<div className="account-summary"><span>PIN</span><Tag type={pinIdentity ? 'green' : 'gray'}>{pinIdentity ? `Enabled — username: ${pinIdentity.displayIdentifier ?? 'configured'}` : 'Not configured'}</Tag></div>
+					<div className="account-summary"><span>OIDC / authentication provider</span><Tag type={oidcIdentities.length > 0 ? 'green' : 'gray'}>{oidcIdentities.length > 0 ? `Connected (${oidcIdentities.length})` : 'Not connected'}</Tag></div>
+				  </Stack>
+                </div>
+				{passwordIdentity && !passwordIdentity.verifiedAt && <Stack gap={3}>
+					{emailVerificationMutation.isSuccess && <InlineNotification kind="success" lowContrast hideCloseButton title="Verification code sent" subtitle="Check your login email and enter the code on the verification page." />}
+					{emailVerificationMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Verification email not sent" subtitle="Email delivery may be unavailable. Try again later." />}
+					<div className="button-cluster">
+						<Button kind="tertiary" size="sm" disabled={emailVerificationMutation.isPending} onClick={() => emailVerificationMutation.mutate()}>{emailVerificationMutation.isPending ? 'Sending…' : 'Send verification code'}</Button>
+						<Button as={Link} kind="ghost" size="sm" to={`/verify-email?email=${encodeURIComponent(passwordIdentity.displayIdentifier ?? '')}`}>Enter verification code</Button>
+					</div>
+				</Stack>}
+                {!freshEnoughForMethods && <InlineNotification kind="info" lowContrast hideCloseButton title="Password sign-in required" subtitle="Sign in with your password before changing authentication methods." />}
+                {pinMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="PIN not changed" subtitle="The login name may be unavailable or the session is not fresh enough." />}
+                {pinMutation.isSuccess && <InlineNotification kind="success" lowContrast hideCloseButton title="PIN method updated" subtitle="Other sessions were signed out." />}
+                {mayEnrollPIN && (
+                  <Form onSubmit={submitPIN}>
+                    <Stack gap={5}>
+                      <TextInput id="profile-pin-login-name" labelText="PIN login name" autoComplete="username" invalid={Boolean(pinForm.formState.errors.loginName)} invalidText={pinForm.formState.errors.loginName?.message} {...pinForm.register('loginName', { required: 'Enter a login name.' })} />
+                      <PasswordInput id="profile-pin" labelText="PIN" autoComplete="new-password" helperText="Use 6 to 12 digits." invalid={Boolean(pinForm.formState.errors.pin)} invalidText={pinForm.formState.errors.pin?.message} {...pinForm.register('pin', { required: 'Enter a PIN.', pattern: { value: /^[0-9]{6,12}$/, message: 'Use 6 to 12 digits.' } })} />
+                      <PasswordInput id="profile-pin-confirm" labelText="Confirm PIN" autoComplete="new-password" invalid={Boolean(pinForm.formState.errors.confirmPIN)} invalidText={pinForm.formState.errors.confirmPIN?.message} {...pinForm.register('confirmPIN', { required: 'Confirm the PIN.', validate: (value) => value === pinForm.watch('pin') || 'The PINs do not match.' })} />
+                      <div className="form-actions">
+                        <Button type="submit" disabled={!freshEnoughForMethods || pinMutation.isPending}>{pinIdentity ? 'Replace PIN' : 'Enroll PIN'}</Button>
+                        {pinIdentity && mayRemovePIN && <Button type="button" kind="danger--tertiary" disabled={!freshEnoughForMethods || removePINMutation.isPending} onClick={() => removePINMutation.mutate()}>Remove PIN</Button>}
+                      </div>
+                    </Stack>
+                  </Form>
+                )}
+                {oidcIdentities.map((identity) => (
+                  <div className="account-summary" key={identity.id}>
+                    <div><span className="label">External identity</span><span>{identity.displayIdentifier ?? 'OIDC provider'}</span></div>
+                    {mayUnlinkOIDC && <Button type="button" kind="danger--tertiary" size="sm" disabled={unlinkOIDCMutation.isPending} onClick={() => unlinkOIDCMutation.mutate(identity.id)}>Unlink</Button>}
+                  </div>
+                ))}
+                {mayLinkOIDC && oidcProviders.data && oidcProviders.data.items.length > 0 && (
+                  <Form onSubmit={(event) => event.preventDefault()}>
+                    <Stack gap={4}>
+                      <PasswordInput id="oidc-link-password" labelText="Current local password" autoComplete="current-password" {...oidcLinkForm.register('currentPassword', { required: true })} />
+                      <div className="button-cluster">
+                        {oidcProviders.data.items.map((provider) => <Button key={provider.slug} type="button" kind="tertiary" disabled={linkOIDCMutation.isPending} onClick={oidcLinkForm.handleSubmit(({ currentPassword }) => void linkOIDCMutation.mutateAsync({ slug: provider.slug, currentPassword }))}>Link {provider.displayName}</Button>)}
+                      </div>
+                      {linkOIDCMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="External identity not linked" subtitle="Check your current password and try again." />}
+                      {unlinkOIDCMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="External identity not removed" subtitle="An enabled account must retain at least one usable sign-in method." />}
+                    </Stack>
+                  </Form>
                 )}
               </Stack>
             </Tile>
@@ -298,6 +421,9 @@ export function ProfilePage() {
                   <Button type="submit" disabled={passwordMutation.isPending}>
                     {passwordMutation.isPending ? 'Changing…' : 'Change password'}
                   </Button>
+                  {mayRemovePassword && currentUser.account.authIdentities.filter((identity) => !identity.disabledAt).length > 1 && (
+                    <Button type="button" kind="danger--tertiary" disabled={removePasswordMutation.isPending} onClick={async () => { if (await passwordForm.trigger('currentPassword')) void removePasswordMutation.mutateAsync(passwordForm.getValues('currentPassword')); }}>Remove password</Button>
+                  )}
                 </Stack>
               </Form>
             </Tile>

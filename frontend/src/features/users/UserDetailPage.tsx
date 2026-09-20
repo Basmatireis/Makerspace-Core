@@ -24,7 +24,7 @@ import {
   TextInput,
   Tile,
 } from '@carbon/react';
-import { Copy, TrashCan } from '@carbon/icons-react';
+import { TrashCan } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -35,6 +35,8 @@ import {
   disableAccount,
   enableAccount,
   getAccount,
+  issueAccountInvitation,
+  issueAccountPinEnrollment,
   issueAccountPasswordReset,
   removeAccountRole,
   setAccountPassword,
@@ -67,7 +69,7 @@ import {
 } from './PersonForm';
 import { peopleKeys, personOptions, refreshPersonData } from './queries';
 
-type ConfirmKind = 'delete-person' | 'delete-account' | 'disable-account' | 'reset-password' | null;
+type ConfirmKind = 'delete-person' | 'delete-account' | 'disable-account' | 'reset-password' | 'invite' | 'pin-setup' | null;
 type AccountEmailForm = { loginEmail: string };
 type AccountPasswordForm = { newPassword: string; confirmPassword: string };
 
@@ -111,18 +113,16 @@ function UserDetailContent({ person }: { person: Person }) {
   const [createAccountOpen, setCreateAccountOpen] = useState(false);
   const [confirmKind, setConfirmKind] = useState<ConfirmKind>(null);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
-  const [secretResetUrl, setSecretResetUrl] = useState<string | null>(null);
+  const [resetSent, setResetSent] = useState(false);
   const [resetExpiresAt, setResetExpiresAt] = useState<string | null>(null);
+  const [manualSetupUrl, setManualSetupUrl] = useState<string | null>(null);
   const [resetPending, setResetPending] = useState(false);
   const [resetFailed, setResetFailed] = useState(false);
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => () => setSecretResetUrl(null), []);
 
   const clearResetIssue = () => {
-    setSecretResetUrl(null);
+    setResetSent(false);
     setResetExpiresAt(null);
-    setCopied(false);
+    setManualSetupUrl(null);
   };
 
   const canEditPerson = canUpdatePerson(currentUser, person.id);
@@ -150,16 +150,24 @@ function UserDetailContent({ person }: { person: Person }) {
     PermissionId.accountsdelete,
   );
   const canAssignRole = Boolean(account) && canAssignRoles && canReadRoles;
-  const canSetPassword = Boolean(account) && hasPermission(
-    currentUser,
-    PermissionId.accountspasswordset,
-  );
-  const canIssuePasswordReset = Boolean(account) && hasPermission(
+  // Emergency administrator password setting remains an API-only compatibility
+  // operation; routine UI workflows use recipient-owned invitations and resets.
+  const canSetPassword = false;
+  const canIssuePasswordReset = Boolean(account) && account?.passwordStatus === 'active' && hasPermission(
     currentUser,
     PermissionId.accountspasswordreset,
   );
+  const canInvite = Boolean(account) && account?.passwordStatus !== 'active' && hasPermission(
+    currentUser,
+    PermissionId.accountspasswordenrollall,
+  );
+	const activePINIdentity = account?.authIdentities.find((identity) => identity.kind === 'pin' && !identity.disabledAt);
+	const activeOIDCIdentities = account?.authIdentities.filter((identity) => identity.kind === 'oidc' && !identity.disabledAt) ?? [];
+	const canIssuePINSetup = Boolean(account) && (activePINIdentity
+		? hasPermission(currentUser, PermissionId.accountspinreset)
+		: hasPermission(currentUser, PermissionId.accountspinenrollall));
   const hasAccountActions = canEditAccount || canCreateAccount || canAssignRole;
-  const hasCredentialActions = canSetPassword || canIssuePasswordReset;
+  const hasCredentialActions = canSetPassword || canIssuePasswordReset || canInvite || canIssuePINSetup;
 
   const personForm = useForm<PersonFormValues>({
     defaultValues: {
@@ -281,14 +289,37 @@ function UserDetailContent({ person }: { person: Person }) {
         setResetPending(true);
         setResetFailed(false);
         const issue = await issueAccountPasswordReset(account.id, { expectedVersion: account.version });
-        setSecretResetUrl(issue.resetUrl);
+        setResetSent(true);
         setResetExpiresAt(issue.expiresAt);
+        setManualSetupUrl(issue.setupUrl ?? null);
         queryClient.setQueryData(['accounts', 'detail', issue.account.id], issue.account);
         await refresh(issue.account);
         setConfirmKind(null);
       }
+      if (confirmKind === 'invite' && account) {
+        setResetPending(true);
+        setResetFailed(false);
+        const issue = await issueAccountInvitation(account.id, { expectedVersion: account.version });
+        setResetSent(true);
+        setResetExpiresAt(issue.expiresAt);
+        setManualSetupUrl(issue.setupUrl ?? null);
+        queryClient.setQueryData(['accounts', 'detail', issue.account.id], issue.account);
+        await refresh(issue.account);
+        setConfirmKind(null);
+      }
+	  if (confirmKind === 'pin-setup' && account) {
+		setResetPending(true);
+		setResetFailed(false);
+		const issue = await issueAccountPinEnrollment(account.id, { expectedVersion: account.version });
+		setResetSent(true);
+		setResetExpiresAt(issue.expiresAt);
+		setManualSetupUrl(issue.setupUrl ?? null);
+		queryClient.setQueryData(['accounts', 'detail', issue.account.id], issue.account);
+		await refresh(issue.account);
+		setConfirmKind(null);
+	  }
     } catch {
-      if (confirmKind === 'reset-password') setResetFailed(true);
+      if (confirmKind === 'reset-password' || confirmKind === 'invite' || confirmKind === 'pin-setup') setResetFailed(true);
     } finally {
       setResetPending(false);
     }
@@ -298,7 +329,9 @@ function UserDetailContent({ person }: { person: Person }) {
     'delete-person': ['Delete member permanently?', 'This permanently deletes the member and, if present, their account. This cannot be undone.', 'Delete member'],
     'delete-account': ['Delete account permanently?', 'The member record remains, but the login account is permanently removed.', 'Delete account'],
     'disable-account': ['Disable this account?', 'The user will be signed out and will not be able to sign in.', 'Disable account'],
-    'reset-password': ['Issue a password reset link?', 'The current password and sessions will be invalidated. The link is shown only once.', 'Issue reset link'],
+    'reset-password': ['Send a password reset code?', 'A one-time code will be emailed. The current password remains active until the recipient completes the reset.', 'Send reset code'],
+    invite: ['Send an account invitation?', 'A one-time setup code will be emailed. Completing it verifies the email, sets the password, and enables an account that was not explicitly disabled.', 'Send invitation'],
+	'pin-setup': [activePINIdentity ? 'Send a PIN reset code?' : 'Add PIN login?', 'A one-time setup code will be emailed. The recipient—not the administrator—chooses the permanent username and PIN.', activePINIdentity ? 'Send PIN reset code' : 'Send PIN setup code'],
   } as const;
   const selectedConfirmation = confirmKind ? confirmation[confirmKind] : null;
   const mutationError = personMutation.isError || createAccountMutation.isError || emailMutation.isError || passwordMutation.isError || enableMutation.isError || disableMutation.isError || deleteAccountMutation.isError || deletePersonMutation.isError || roleMutation.isError || resetFailed;
@@ -319,7 +352,9 @@ function UserDetailContent({ person }: { person: Person }) {
           canCreateAccount ||
           canAssignRole ||
           canSetPassword ||
-          canIssuePasswordReset ? (
+          canIssuePasswordReset ||
+          canInvite ||
+		  canIssuePINSetup ? (
             <MenuButton label="Actions" kind="tertiary" menuAlignment="bottom-end" size="md">
               {canEditPerson && !editingPerson && (
                 <MenuItem label="Edit member" onClick={() => setEditingPerson(true)} />
@@ -341,8 +376,14 @@ function UserDetailContent({ person }: { person: Person }) {
                 <MenuItem label="Set password" onClick={() => setPasswordModalOpen(true)} />
               )}
               {canIssuePasswordReset && (
-                <MenuItem label="Issue reset link" onClick={() => setConfirmKind('reset-password')} />
+                <MenuItem label="Send reset code" onClick={() => setConfirmKind('reset-password')} />
               )}
+              {canInvite && (
+                <MenuItem label="Send invitation" onClick={() => setConfirmKind('invite')} />
+              )}
+			  {canIssuePINSetup && (
+				<MenuItem label={activePINIdentity ? 'Reset PIN login' : 'Add PIN login'} onClick={() => setConfirmKind('pin-setup')} />
+			  )}
             </MenuButton>
           ) : undefined
         }
@@ -395,7 +436,6 @@ function UserDetailContent({ person }: { person: Person }) {
                 <Stack gap={6}>
                   <div className="account-summary">
                     <div><span className="label">Status</span><Tag type={account.status === 'enabled' ? 'green' : 'gray'}>{account.status}</Tag></div>
-                    <div><span className="label">Password</span><Tag type={account.passwordStatus === 'active' ? 'green' : 'warm-gray'}>{account.passwordStatus.replace('_', ' ')}</Tag></div>
                   </div>
                   {editingEmail ? (
                     <Form onSubmit={submitEmail}>
@@ -405,8 +445,16 @@ function UserDetailContent({ person }: { person: Person }) {
                       </Stack>
                     </Form>
                   ) : (
-                    <div><span className="label">Login email</span><p>{account.loginEmail}</p></div>
+                    <div><span className="label">Login email</span><p>{account.loginEmail ?? 'Not configured'}</p></div>
                   )}
+				  <div>
+					<span className="label">Authentication</span>
+					<Stack gap={3}>
+						<div className="account-summary"><span>Local password</span><Tag type={account.passwordStatus === 'active' ? 'green' : 'gray'}>{account.passwordStatus === 'active' ? 'Enabled' : 'Not configured'}</Tag></div>
+						<div className="account-summary"><span>PIN</span><Tag type={activePINIdentity ? 'green' : 'gray'}>{activePINIdentity ? `Enabled — username: ${activePINIdentity.displayIdentifier ?? 'configured'}` : 'Not configured'}</Tag></div>
+						<div className="account-summary"><span>OIDC / authentication provider</span><Tag type={activeOIDCIdentities.length > 0 ? 'green' : 'gray'}>{activeOIDCIdentities.length > 0 ? `Connected (${activeOIDCIdentities.length})` : 'Not connected'}</Tag></div>
+					</Stack>
+				  </div>
                   <div className="tag-list" aria-label="Assigned roles">
                     {account.roles.length === 0 && <span>No roles assigned</span>}
                     {account.roles.map((role) => {
@@ -442,15 +490,14 @@ function UserDetailContent({ person }: { person: Person }) {
         </Column>
       </Grid>
 
-      {secretResetUrl && (
+      {resetSent && (
         <Tile className="secret-tile">
           <Stack gap={5}>
-            <InlineNotification kind="warning" lowContrast hideCloseButton title="Copy this reset link now" subtitle="It is shown only once. Treat it like a password." />
-            <TextInput id="issued-reset-url" labelText="One-time reset URL" readOnly value={secretResetUrl} />
+            <InlineNotification kind="success" lowContrast hideCloseButton title={manualSetupUrl ? 'Manual setup link created' : 'Message sent'} subtitle={manualSetupUrl ? 'Mail is not configured. Copy this one-time link and deliver it to the intended recipient through a trusted channel.' : 'The one-time link was sent by email.'} />
+            {manualSetupUrl && <><TextInput id="manual-setup-url" labelText="One-time setup link" readOnly value={`${window.location.origin}${manualSetupUrl}`} /><Button kind="secondary" onClick={() => void navigator.clipboard.writeText(`${window.location.origin}${manualSetupUrl}`)}>Copy link</Button></>}
             {resetExpiresAt && <p className="section-description">Expires {new Date(resetExpiresAt).toLocaleString()}.</p>}
             <div className="form-actions">
-              <Button kind="secondary" renderIcon={Copy} onClick={async () => { await navigator.clipboard.writeText(secretResetUrl); setCopied(true); }}>{copied ? 'Copied' : 'Copy link'}</Button>
-              <Button kind="ghost" onClick={clearResetIssue}>Dismiss permanently</Button>
+              <Button kind="ghost" onClick={clearResetIssue}>Dismiss</Button>
             </div>
           </Stack>
         </Tile>
@@ -534,7 +581,7 @@ function UserDetailContent({ person }: { person: Person }) {
       </ComposedModal>
 
       <ComposedModal open={passwordModalOpen} onClose={() => { accountPasswordForm.reset(); passwordMutation.reset(); setPasswordModalOpen(false); }}>
-        <ModalHeader title="Set account password" label={account?.loginEmail} />
+        <ModalHeader title="Set account password" label={account?.loginEmail ?? undefined} />
         <ModalBody>
           <Form id="set-account-password-form" onSubmit={submitPassword}>
             <Stack gap={5}>
@@ -550,7 +597,7 @@ function UserDetailContent({ person }: { person: Person }) {
 
       <ComposedModal open={Boolean(selectedConfirmation)} danger onClose={() => setConfirmKind(null)}>
         <ModalHeader title={selectedConfirmation?.[0] ?? ''} />
-        <ModalBody><p>{selectedConfirmation?.[1]}</p>{resetFailed && confirmKind === 'reset-password' && <InlineNotification kind="error" lowContrast hideCloseButton title="Reset link not issued" subtitle="Reload the account and try again." />}</ModalBody>
+        <ModalBody><p>{selectedConfirmation?.[1]}</p>{resetFailed && (confirmKind === 'reset-password' || confirmKind === 'invite' || confirmKind === 'pin-setup') && <InlineNotification kind="error" lowContrast hideCloseButton title="Message not sent" subtitle="Reload the account and try again." />}</ModalBody>
         <ModalFooter><Button kind="secondary" onClick={() => setConfirmKind(null)}>Cancel</Button><Button kind="danger" disabled={resetPending || deletePersonMutation.isPending || deleteAccountMutation.isPending || disableMutation.isPending} onClick={() => void confirmAction()}>{selectedConfirmation?.[2] ?? 'Confirm'}</Button></ModalFooter>
       </ComposedModal>
     </Stack>

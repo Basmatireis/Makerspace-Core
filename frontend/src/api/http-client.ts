@@ -1,5 +1,7 @@
 const CSRF_COOKIE_NAMES = ['__Host-makerspace_csrf', 'makerspace_csrf'] as const;
 const CSRF_HEADER_NAME = 'X-CSRF-Token';
+const ENROLLMENT_CSRF_COOKIE_NAMES = ['__Host-makerspace_enrollment_csrf', 'makerspace_enrollment_csrf'] as const;
+const ENROLLMENT_CSRF_HEADER_NAME = 'X-Enrollment-CSRF-Token';
 
 type ErrorEnvelope = {
   code?: string;
@@ -45,9 +47,12 @@ async function readResponse(response: Response): Promise<unknown> {
     return undefined;
   }
 
-  const contentType = response.headers.get('content-type') ?? '';
-  if (contentType.includes('application/json')) {
+  const contentType = (response.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+  if (contentType === 'application/json' || contentType.endsWith('+json')) {
     return response.json();
+  }
+  if (contentType.startsWith('image/') || contentType === 'application/pdf') {
+    return response.blob();
   }
 
   return response.text();
@@ -60,6 +65,7 @@ export async function apiFetch<T>(
   const headers = new Headers(options.headers);
   const method = (options.method ?? 'GET').toUpperCase();
   const csrfToken = CSRF_COOKIE_NAMES.map(readCookie).find(Boolean);
+  const enrollmentCSRFToken = ENROLLMENT_CSRF_COOKIE_NAMES.map(readCookie).find(Boolean);
 
   headers.set('Accept', 'application/json');
   if (options.body && !headers.has('Content-Type')) {
@@ -67,6 +73,9 @@ export async function apiFetch<T>(
   }
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && csrfToken) {
     headers.set(CSRF_HEADER_NAME, csrfToken);
+  }
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method) && url.includes('/visitor-enrollment/') && enrollmentCSRFToken) {
+    headers.set(ENROLLMENT_CSRF_HEADER_NAME, enrollmentCSRFToken);
   }
 
   const response = await fetch(url, {
@@ -78,11 +87,13 @@ export async function apiFetch<T>(
   const data = await readResponse(response);
 
   if (!response.ok) {
+    const pathname = new URL(url, window.location.origin).pathname;
     const isPublicAuthenticationRequest =
-      url.endsWith('/auth/login') || url.endsWith('/auth/password-reset/complete');
+      pathname.endsWith('/auth/login') || pathname.endsWith('/auth/pin/login') ||
+      pathname.endsWith('/auth/password-reset/complete') || pathname.includes('/visitor-enrollment/');
     const isCurrentUserProbe =
       method === 'GET' &&
-      new URL(url, window.location.origin).pathname.endsWith('/auth/me');
+      pathname.endsWith('/auth/me');
     if (
       response.status === 401 &&
       !isPublicAuthenticationRequest &&

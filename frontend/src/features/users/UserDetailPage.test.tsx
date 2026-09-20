@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest';
 import type {
   Account,
   CreateAccountRequest,
-  SetAccountPasswordRequest,
 } from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
@@ -43,11 +42,11 @@ describe('User detail page', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
   });
 
-  it('creates an Account and provisions its password through the security forms', async () => {
+  it('creates an Account and sends a recipient-owned invitation', async () => {
     let person = personFixture({ account: null });
     let account: Account | undefined;
     let accountRequest: CreateAccountRequest | undefined;
-    let passwordRequest: SetAccountPasswordRequest | undefined;
+    let invitationRequested = false;
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(
@@ -55,7 +54,7 @@ describe('User detail page', () => {
             PermissionId.peoplereadall,
             PermissionId.accountsread,
             PermissionId.accountscreate,
-            PermissionId.accountspasswordset,
+            PermissionId.accountspasswordenrollall,
           ]),
         ),
       ),
@@ -80,13 +79,13 @@ describe('User detail page', () => {
           ? HttpResponse.json(account)
           : HttpResponse.json({ code: 'not_found', message: 'Missing' }, { status: 404 }),
       ),
-      http.put(
-        '*/api/v1/accounts/:accountId/password',
-        async ({ request }) => {
-          passwordRequest = (await request.json()) as SetAccountPasswordRequest;
-          account = { ...account!, passwordStatus: 'active', version: 2 };
+      http.post(
+        '*/api/v1/accounts/:accountId/invitations',
+        async () => {
+          invitationRequested = true;
+          account = { ...account!, provisioningSource: 'invitation', version: 2 };
           person = { ...person, account };
-          return HttpResponse.json(account);
+          return HttpResponse.json({ account, expiresAt: '2026-01-01T00:30:00Z' }, { status: 201 });
         },
       ),
     );
@@ -114,26 +113,11 @@ describe('User detail page', () => {
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Actions' }));
-    await user.click(await screen.findByRole('menuitem', { name: 'Set password' }));
-    const passwordDialog = screen.getByRole('dialog');
-    await user.type(
-      within(passwordDialog).getByLabelText('New password'),
-      'Long workshop password 42',
-    );
-    await user.type(
-      within(passwordDialog).getByLabelText('Confirm password'),
-      'Long workshop password 42',
-    );
-    await user.click(
-      within(passwordDialog).getByRole('button', { name: 'Set password' }),
-    );
+    await user.click(await screen.findByRole('menuitem', { name: 'Send invitation' }));
+    const invitationDialog = screen.getByRole('dialog');
+    await user.click(within(invitationDialog).getByRole('button', { name: 'Send invitation' }));
 
-    await waitFor(() =>
-      expect(passwordRequest).toEqual({
-        newPassword: 'Long workshop password 42',
-        expectedVersion: 1,
-      }),
-    );
-    expect(await screen.findByText('active', { exact: true })).toBeInTheDocument();
+    await waitFor(() => expect(invitationRequested).toBe(true));
+    expect(await screen.findByText('Message sent')).toBeInTheDocument();
   });
 });

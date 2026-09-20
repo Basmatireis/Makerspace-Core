@@ -14,11 +14,13 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import type {
   CurrentUser,
   LoginRequest,
+  PinLoginRequest,
   PermissionId,
 } from '../../api/generated/models';
 import {
   getCurrentUser,
   login,
+  loginWithPin,
   logout,
 } from '../../api/generated/authentication/authentication';
 import { ApiError } from '../../api/http-client';
@@ -54,6 +56,15 @@ export function useCurrentUser(): CurrentUser {
 export function useLogin() {
   const queryClient = useQueryClient();
   return useSecretMutation((request: LoginRequest) => login(request), {
+    onSuccess: async () => {
+      await queryClient.fetchQuery(currentUserQueryOptions());
+    },
+  });
+}
+
+export function usePINLogin() {
+  const queryClient = useQueryClient();
+  return useSecretMutation((request: PinLoginRequest) => loginWithPin(request), {
     onSuccess: async () => {
       await queryClient.fetchQuery(currentUserQueryOptions());
     },
@@ -134,7 +145,7 @@ export function SessionEventHandler() {
   useEffect(() => {
     const handleSessionExpired = () => {
       clearPrivateQueryData();
-      if (!['/login', '/reset-password'].includes(location.pathname)) {
+      if (!['/login', '/reset-password', '/complete-invitation', '/complete-pin-setup', '/verify-email'].includes(location.pathname)) {
         navigate('/login', {
           replace: true,
           state: { from: `${location.pathname}${location.search}` },

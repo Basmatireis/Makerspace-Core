@@ -12,6 +12,7 @@ const personId = '0192f6f8-743e-7c77-a349-cd07c3e8a901';
 const accountId = '0192f6f8-743e-7c77-a349-cd07c3e8a902';
 const roleId = '0192f6f8-743e-7c77-a349-cd07c3e8a903';
 const pageErrors = new WeakMap<Page, Error[]>();
+const passwordIdentityId = '0192f6f8-743e-7c77-a349-cd07c3e8a904';
 
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -36,6 +37,9 @@ function currentUser(permissions: string[] = []) {
         id: accountId,
         personId,
         loginEmail: 'ada.login@example.test',
+        provisioningSource: 'local',
+        firstAuthenticatedAt: '2026-01-01T00:00:00Z',
+        authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, createdAt: '2026-01-01T00:00:00Z' }],
         status: 'enabled',
         passwordStatus: 'active',
         roles: [],
@@ -49,6 +53,9 @@ function currentUser(permissions: string[] = []) {
       id: accountId,
       personId,
       loginEmail: 'ada.login@example.test',
+      provisioningSource: 'local',
+      firstAuthenticatedAt: '2026-01-01T00:00:00Z',
+      authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, createdAt: '2026-01-01T00:00:00Z' }],
       status: 'enabled',
       passwordStatus: 'active',
       roles: [],
@@ -57,12 +64,15 @@ function currentUser(permissions: string[] = []) {
       version: 1,
     },
     permissions,
+    authenticationAssurance: 'normal',
     managedDevice: null,
     delegablePermissionGrants: permissions.map((permissionId) => ({
       permissionId,
       scope: 'everywhere',
       deviceTypeIds: [],
+      minimumAssurance: 'low',
     })),
+    laborordnungStatus: { mode: 'not_required', state: 'not_required', actionRequired: false, currentVersion: null, latestConfirmedVersion: null, requestId: null },
   };
 }
 
@@ -76,7 +86,11 @@ function customRole() {
       permissionId,
       scope: 'everywhere',
       deviceTypeIds: [],
+      minimumAssurance: 'low',
     })),
+    profileImageRequired: false,
+    laborordnungMode: 'not_required',
+    supervisorDashboard: false,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
     version: 1,
@@ -95,6 +109,11 @@ async function installApi(page: Page, state: ApiState) {
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+
+    if (path === '/api/v1/auth/oidc/providers' && request.method() === 'GET') {
+      await json(route, { items: [] });
+      return;
+    }
 
     if (path === '/api/v1/auth/me' && request.method() === 'GET') {
       if (!state.authenticated) {
@@ -127,6 +146,22 @@ async function installApi(page: Page, state: ApiState) {
 
     if (path === `/api/v1/roles/${roleId}` && request.method() === 'GET' && state.role) {
       await json(route, state.role);
+      return;
+    }
+
+    if (path === '/api/v1/roles' && request.method() === 'GET' && state.role) {
+      await json(route, { items: [state.role], nextCursor: null });
+      return;
+    }
+
+    if (path === '/api/v1/roles/effective-permissions' && request.method() === 'GET' && state.role) {
+      await json(route, {
+        items: [{
+          roleId: state.role.id,
+          roleVersion: state.role.version,
+          permissionIds: state.role.permissionGrants.map((grant) => grant.permissionId),
+        }],
+      });
       return;
     }
 
@@ -214,7 +249,7 @@ test('shows only authorized settings tools and exposes self-service profile acce
   await page.getByRole('button', { name: 'View profile' }).click();
 
   await expect(page).toHaveURL(/\/profile$/);
-  await expect(page.getByRole('heading', { name: 'Profile' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Profile', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Edit profile' })).toBeVisible();
   await expect(page.getByText('Matriculation number')).toHaveCount(0);
   await expectNoSeriousAccessibilityViolations(page);
@@ -241,20 +276,22 @@ test('shows an accessible destructive confirmation before deleting a custom role
     user: currentUser(role.permissionGrants.map((grant) => grant.permissionId)),
   });
 
-  await page.goto(`/settings/roles/${roleId}`);
-  await expect(page.getByRole('heading', { name: role.name })).toBeVisible();
-  const deleteRoleButton = page.getByRole('button', { name: 'Delete role' });
-  await deleteRoleButton.click();
+  await page.goto('/settings/roles');
+  await expect(page.getByRole('heading', { name: 'Roles & Permissions' })).toBeVisible();
+  await page.getByRole('tab', { name: 'Effective permissions' }).click();
+  await expect(page.getByRole('button', { name: /View View all people for Workshop supervisors: Granted in this context/ })).toBeVisible();
+  await page.getByRole('tab', { name: 'Configuration' }).click();
+  await page.getByRole('button', { name: `Actions for ${role.name}` }).click();
+  await page.getByRole('menuitem', { name: 'Delete role' }).click();
 
-  await expect(page.getByText('Delete this role?')).toBeVisible();
-  await expect(page.getByText('This cannot be undone.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Delete role?' })).toBeVisible();
+  await expect(page.getByText(/This cannot be undone/)).toBeVisible();
   await expect(page.getByRole('dialog').locator(':focus')).toHaveCount(1);
   await expectNoSeriousAccessibilityViolations(page);
 
   await page.getByRole('button', { name: 'Cancel' }).click();
-  await expect(page.getByText('Delete this role?')).toBeHidden();
-  await expect(deleteRoleButton).toBeFocused();
-  await expect(page).toHaveURL(new RegExp(`/settings/roles/${roleId}$`));
+  await expect(page.getByRole('heading', { name: 'Delete role?' })).toBeHidden();
+  await expect(page).toHaveURL(/\/settings\/roles$/);
 });
 
 test('redirects to sign in when an authenticated request reports session expiry', async ({ page }) => {

@@ -1,7 +1,7 @@
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
-import type { Role } from '../../api/generated/models';
+import type { AuthenticationAssurance, Role } from '../../api/generated/models';
 import { listPermissions } from '../../api/generated/permissions/permissions';
-import { getRole, listRoles } from '../../api/generated/roles/roles';
+import { evaluateRolePermissions, getRole, listRoles } from '../../api/generated/roles/roles';
 import { listManagedDeviceTypes } from '../../api/generated/managed-devices/managed-devices';
 
 export const roleKeys = {
@@ -11,6 +11,9 @@ export const roleKeys = {
   detail: (roleId: string) => [...roleKeys.details(), roleId] as const,
   permissions: ['permissions'] as const,
   deviceTypes: ['managed-device-types'] as const,
+  evaluations: () => [...roleKeys.all, 'effective-permissions'] as const,
+  evaluation: (assurance: AuthenticationAssurance, deviceTypeId?: string) =>
+    [...roleKeys.evaluations(), assurance, deviceTypeId ?? 'unmanaged'] as const,
 };
 
 export const fullRoleCatalogOptions = queryOptions({
@@ -52,6 +55,16 @@ export const permissionListOptions = queryOptions({
   staleTime: 5 * 60 * 1000,
 });
 export const deviceTypeListOptions = queryOptions({queryKey:roleKeys.deviceTypes,queryFn:({signal})=>listManagedDeviceTypes({signal}),staleTime:5*60*1000});
+
+export function effectivePermissionOptions(assurance: AuthenticationAssurance, deviceTypeId?: string) {
+  return queryOptions({
+    queryKey: roleKeys.evaluation(assurance, deviceTypeId),
+    queryFn: ({ signal }) => evaluateRolePermissions({
+      authenticationAssurance: assurance,
+      ...(deviceTypeId ? { deviceTypeId } : {}),
+    }, { signal }),
+  });
+}
 
 export async function refreshRoleData(queryClient: QueryClient, roleId: string) {
   await Promise.all([
