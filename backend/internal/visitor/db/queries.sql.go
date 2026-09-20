@@ -57,9 +57,10 @@ func (q *Queries) ConsumeEnrollmentContext(ctx context.Context, id uuid.UUID) (i
 }
 
 const createEnrollmentContext = `-- name: CreateEnrollmentContext :one
-INSERT INTO visitor_enrollment_contexts (id, managed_device_id, token_digest, csrf_digest, expires_at)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, managed_device_id, token_digest, csrf_digest, expires_at, used_at, created_at
+INSERT INTO visitor_enrollment_contexts (id, managed_device_id, token_digest, csrf_digest, expires_at, lab_rules_version_id)
+VALUES ($1, $2, $3, $4, $5,
+    (SELECT id FROM laborordnung_versions WHERE status='published' AND effective_at <= now() ORDER BY effective_at DESC, id DESC LIMIT 1))
+RETURNING id, managed_device_id, token_digest, csrf_digest, expires_at, used_at, created_at, lab_rules_version_id
 `
 
 type CreateEnrollmentContextParams struct {
@@ -87,6 +88,7 @@ func (q *Queries) CreateEnrollmentContext(ctx context.Context, arg CreateEnrollm
 		&i.ExpiresAt,
 		&i.UsedAt,
 		&i.CreatedAt,
+		&i.LabRulesVersionID,
 	)
 	return i, err
 }
@@ -406,32 +408,8 @@ func (q *Queries) GetConfigurationForUpdate(ctx context.Context) (VisitorEnrollm
 	return i, err
 }
 
-const getCurrentLabRulesVersion = `-- name: GetCurrentLabRulesVersion :one
-SELECT id, status, human_revision, pdf_file_id, pdf_sha256, effective_at, published_at, created_by_account_id, created_at, updated_at FROM laborordnung_versions
-WHERE status='published' AND effective_at <= now()
-ORDER BY effective_at DESC, id DESC LIMIT 1
-`
-
-func (q *Queries) GetCurrentLabRulesVersion(ctx context.Context) (LaborordnungVersion, error) {
-	row := q.db.QueryRow(ctx, getCurrentLabRulesVersion)
-	var i LaborordnungVersion
-	err := row.Scan(
-		&i.ID,
-		&i.Status,
-		&i.HumanRevision,
-		&i.PdfFileID,
-		&i.PdfSha256,
-		&i.EffectiveAt,
-		&i.PublishedAt,
-		&i.CreatedByAccountID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const getEnrollmentContext = `-- name: GetEnrollmentContext :one
-SELECT ec.id, ec.managed_device_id, ec.token_digest, ec.csrf_digest, ec.expires_at, ec.used_at, ec.created_at FROM visitor_enrollment_contexts ec
+SELECT ec.id, ec.managed_device_id, ec.token_digest, ec.csrf_digest, ec.expires_at, ec.used_at, ec.created_at, ec.lab_rules_version_id FROM visitor_enrollment_contexts ec
 JOIN managed_devices md ON md.id=ec.managed_device_id
 JOIN visitor_enrollment_configuration c ON c.singleton=true
 WHERE ec.token_digest=$1 AND ec.used_at IS NULL AND ec.expires_at > now()
@@ -451,12 +429,13 @@ func (q *Queries) GetEnrollmentContext(ctx context.Context, tokenDigest []byte) 
 		&i.ExpiresAt,
 		&i.UsedAt,
 		&i.CreatedAt,
+		&i.LabRulesVersionID,
 	)
 	return i, err
 }
 
 const getEnrollmentContextForUpdate = `-- name: GetEnrollmentContextForUpdate :one
-SELECT ec.id, ec.managed_device_id, ec.token_digest, ec.csrf_digest, ec.expires_at, ec.used_at, ec.created_at FROM visitor_enrollment_contexts ec
+SELECT ec.id, ec.managed_device_id, ec.token_digest, ec.csrf_digest, ec.expires_at, ec.used_at, ec.created_at, ec.lab_rules_version_id FROM visitor_enrollment_contexts ec
 JOIN managed_devices md ON md.id=ec.managed_device_id
 JOIN visitor_enrollment_configuration c ON c.singleton=true
 WHERE ec.id=$1 AND ec.used_at IS NULL AND ec.expires_at > now()
@@ -477,6 +456,31 @@ func (q *Queries) GetEnrollmentContextForUpdate(ctx context.Context, id uuid.UUI
 		&i.ExpiresAt,
 		&i.UsedAt,
 		&i.CreatedAt,
+		&i.LabRulesVersionID,
+	)
+	return i, err
+}
+
+const getPinnedLabRulesVersion = `-- name: GetPinnedLabRulesVersion :one
+SELECT v.id, v.status, v.human_revision, v.pdf_file_id, v.pdf_sha256, v.effective_at, v.published_at, v.created_by_account_id, v.created_at, v.updated_at FROM laborordnung_versions v
+JOIN visitor_enrollment_contexts ec ON ec.lab_rules_version_id=v.id
+WHERE ec.id=$1
+`
+
+func (q *Queries) GetPinnedLabRulesVersion(ctx context.Context, contextID uuid.UUID) (LaborordnungVersion, error) {
+	row := q.db.QueryRow(ctx, getPinnedLabRulesVersion, contextID)
+	var i LaborordnungVersion
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
+		&i.HumanRevision,
+		&i.PdfFileID,
+		&i.PdfSha256,
+		&i.EffectiveAt,
+		&i.PublishedAt,
+		&i.CreatedByAccountID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }

@@ -242,15 +242,15 @@ func (s *Service) State(ctx context.Context, enrollment Context) (EnrollmentStat
 	if err != nil {
 		return EnrollmentState{}, err
 	}
-	version, err := s.currentLabRules(ctx, visitordb.New(s.pool))
+	version, err := s.pinnedLabRules(ctx, visitordb.New(s.pool), enrollment.ID)
 	if err != nil {
 		return EnrollmentState{}, err
 	}
 	return EnrollmentState{AllowedMethods: configuration.AllowedMethods, CurrentLabRules: version, ExpiresAt: enrollment.ExpiresAt}, nil
 }
 
-func (s *Service) OpenLabRules(ctx context.Context) (files.File, io.ReadCloser, error) {
-	version, err := visitordb.New(s.pool).GetCurrentLabRulesVersion(ctx)
+func (s *Service) OpenLabRules(ctx context.Context, enrollment Context) (files.File, io.ReadCloser, error) {
+	version, err := visitordb.New(s.pool).GetPinnedLabRulesVersion(ctx, enrollment.ID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return files.File{}, nil, apperror.NotFound
 	}
@@ -357,9 +357,9 @@ func (s *Service) Submit(ctx context.Context, enrollment Context, input Submissi
 	}
 	result := SubmissionResult{PersonID: personID, AccountID: accountID, AccountStatus: status, Admission: "admitted"}
 	if role.LaborordnungMode != "not_required" {
-		current, err := queries.GetCurrentLabRulesVersion(ctx)
+		current, err := queries.GetPinnedLabRulesVersion(ctx, enrollment.ID)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return SubmissionResult{}, apperror.New(409, "lab_rules_unavailable", "No effective Lab Rules version is available")
+			return SubmissionResult{}, apperror.New(409, "lab_rules_unavailable", "No Lab Rules version was presented; restart visitor enrollment")
 		}
 		if err != nil {
 			return SubmissionResult{}, err
@@ -505,8 +505,8 @@ func (s *Service) loadConfiguration(ctx context.Context, queries *visitordb.Quer
 	return Configuration{Enabled: row.Enabled, InitialRoleID: row.InitialRoleID, DeviceTypeIDs: deviceTypes, AllowedMethods: row.AllowedMethods, Version: row.Version, UpdatedAt: row.UpdatedAt}, nil
 }
 
-func (s *Service) currentLabRules(ctx context.Context, queries *visitordb.Queries) (*LabRulesVersion, error) {
-	row, err := queries.GetCurrentLabRulesVersion(ctx)
+func (s *Service) pinnedLabRules(ctx context.Context, queries *visitordb.Queries, contextID uuid.UUID) (*LabRulesVersion, error) {
+	row, err := queries.GetPinnedLabRulesVersion(ctx, contextID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}

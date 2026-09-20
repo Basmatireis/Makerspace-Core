@@ -43,8 +43,9 @@ JOIN managed_devices md ON md.id=sqlc.arg(managed_device_id)
 WHERE c.singleton=true;
 
 -- name: CreateEnrollmentContext :one
-INSERT INTO visitor_enrollment_contexts (id, managed_device_id, token_digest, csrf_digest, expires_at)
-VALUES (sqlc.arg(id), sqlc.arg(managed_device_id), sqlc.arg(token_digest), sqlc.arg(csrf_digest), sqlc.arg(expires_at))
+INSERT INTO visitor_enrollment_contexts (id, managed_device_id, token_digest, csrf_digest, expires_at, lab_rules_version_id)
+VALUES (sqlc.arg(id), sqlc.arg(managed_device_id), sqlc.arg(token_digest), sqlc.arg(csrf_digest), sqlc.arg(expires_at),
+    (SELECT id FROM laborordnung_versions WHERE status='published' AND effective_at <= now() ORDER BY effective_at DESC, id DESC LIMIT 1))
 RETURNING *;
 
 -- name: GetEnrollmentContext :one
@@ -69,10 +70,10 @@ FOR UPDATE OF ec;
 -- name: ConsumeEnrollmentContext :execrows
 UPDATE visitor_enrollment_contexts SET used_at=now() WHERE id=sqlc.arg(id) AND used_at IS NULL;
 
--- name: GetCurrentLabRulesVersion :one
-SELECT * FROM laborordnung_versions
-WHERE status='published' AND effective_at <= now()
-ORDER BY effective_at DESC, id DESC LIMIT 1;
+-- name: GetPinnedLabRulesVersion :one
+SELECT v.* FROM laborordnung_versions v
+JOIN visitor_enrollment_contexts ec ON ec.lab_rules_version_id=v.id
+WHERE ec.id=sqlc.arg(context_id);
 
 -- name: CreateVisitorPerson :one
 INSERT INTO people (id, first_name, last_name, email, phone, profile_image_file_id, profile_image_source)

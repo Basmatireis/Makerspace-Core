@@ -88,7 +88,11 @@ func (s *Server) GetVisitorEnrollmentState(ctx context.Context, _ openapi.GetVis
 }
 
 func (s *Server) GetVisitorEnrollmentLabRulesPDF(ctx context.Context, _ openapi.GetVisitorEnrollmentLabRulesPDFRequestObject) (openapi.GetVisitorEnrollmentLabRulesPDFResponseObject, error) {
-	file, reader, err := s.visitor.OpenLabRules(ctx)
+	enrollment, ok := ctx.Value(visitorEnrollmentContextKey).(visitor.Context)
+	if !ok {
+		return nil, invalidRequest("enrollment context is required")
+	}
+	file, reader, err := s.visitor.OpenLabRules(ctx, enrollment)
 	if err != nil {
 		return nil, err
 	}

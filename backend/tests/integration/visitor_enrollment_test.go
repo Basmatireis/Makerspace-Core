@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"image/jpeg"
+	"io"
 	"testing"
 	"time"
 
@@ -262,4 +263,86 @@ func visitorTestJPEG(t *testing.T) []byte {
 		t.Fatal(err)
 	}
 	return encoded.Bytes()
+}
+
+func TestVisitorEnrollmentPinsPresentedLabRules(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	actor := seedAccount(t, pool, "pinned-rules-admin", true)
+	master := authorization.Principal{AccountID: actor.accountID, PersonID: actor.personID, Master: true}
+	local, err := storage.NewLocal(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileService := files.NewService(pool, local)
+	labRules := laborordnung.NewService(pool, fileService)
+	service := visitor.NewService(pool, integrationConfig(t), fileService, labRules, nil)
+	publish := func(revision string) uuid.UUID {
+		stored, err := fileService.StoreSystemBytes(ctx, revision+".pdf", "application/pdf", []byte(revision), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id := uuid.Must(uuid.NewV7())
+		if _, err := pool.Exec(ctx, `INSERT INTO laborordnung_versions(id,human_revision,pdf_file_id,pdf_sha256) VALUES($1,$2,$3,$4)`, id, revision, stored.ID, stored.SHA256[:]); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := labRules.Publish(ctx, master, id, time.Now().Add(-time.Second), nil); err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	original := publish("original")
+	roleID := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(ctx, `INSERT INTO roles(id,name,laborordnung_mode) VALUES($1,'Pinned visitor','blocking')`, roleID); err != nil {
+		t.Fatal(err)
+	}
+	devices := manageddevices.NewService(pool)
+	deviceType, err := devices.CreateType(ctx, master, "Pinned terminal", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	device, err := devices.Create(ctx, master, "Pinned terminal", deviceType.ID, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.UpdateConfiguration(ctx, master, visitor.ConfigurationInput{Enabled: true, InitialRoleID: &roleID, DeviceTypeIDs: []uuid.UUID{deviceType.ID}, AllowedMethods: []string{"pin"}, ExpectedVersion: 1}, nil); err != nil {
+		t.Fatal(err)
+	}
+	issue, err := service.Begin(ctx, manageddevices.DeviceContext{ID: device.Device.ID, DeviceTypeID: deviceType.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	enrollment, err := service.AuthenticateContext(ctx, issue.ContextToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertCount(t, pool, `SELECT count(*) FROM visitor_enrollment_contexts WHERE id=$1 AND lab_rules_version_id=$2`, 1, enrollment.ID, original)
+	newer := publish("newer")
+	state, err := service.State(ctx, enrollment)
+	if err != nil || state.CurrentLabRules == nil || state.CurrentLabRules.ID != original {
+		t.Fatalf("pinned state: %#v %v", state, err)
+	}
+	_, reader, err := service.OpenLabRules(ctx, enrollment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := io.ReadAll(reader)
+	reader.Close()
+	if err != nil || string(data) != "original" {
+		t.Fatalf("PDF switched version: %q %v", data, err)
+	}
+	email, login, pin := "pinned@example.test", "pinned.visitor", "654321"
+	result, err := service.Submit(ctx, enrollment, visitor.SubmissionInput{FirstName: "Pinned", LastName: "Visitor", Email: &email, AuthMethods: []string{"pin"}, PINLoginName: &login, PIN: &pin, ProfileImage: visitorTestJPEG(t), RequestConfirmation: true}, nil)
+	if err != nil || result.LabRulesRequestID == nil {
+		t.Fatalf("submission: %#v %v", result, err)
+	}
+	assertCount(t, pool, `SELECT count(*) FROM laborordnung_requests WHERE id=$1 AND required_version_id=$2`, 1, *result.LabRulesRequestID, original)
+	if _, err := labRules.Confirm(ctx, master, *result.LabRulesRequestID, "signed-original", nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	status, err := labRules.Evaluate(ctx, result.PersonID)
+	if err != nil || !status.ActionRequired || status.CurrentVersion == nil || status.CurrentVersion.ID != newer || status.LatestConfirmedVersion == nil || status.LatestConfirmedVersion.ID != original {
+		t.Fatalf("new policy status: %#v %v", status, err)
+	}
+	assertCount(t, pool, `SELECT count(*) FROM laborordnung_requests WHERE id=$1 AND status='completed' AND required_version_id=$2 AND physical_document_reference='signed-original'`, 1, *result.LabRulesRequestID, original)
 }
