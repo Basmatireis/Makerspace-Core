@@ -83,6 +83,10 @@ export function UsersPage() {
   );
   const showAccounts = hasPermission(currentUser, PermissionId.accountsread);
   const mayReadRoles = hasPermission(currentUser, PermissionId.rolesread);
+  const mayViewSupervisorStaffing = hasPermission(
+    currentUser,
+    PermissionId.supervisor_dashboardread,
+  );
 
   useEffect(() => setSearchValue(search), [search]);
   useEffect(() => {
@@ -115,6 +119,10 @@ export function UsersPage() {
     hasPermission(currentUser, PermissionId.rolesread);
   const canBatchManage = mayCreateAccounts || mayAssignRoles;
   const rolesQuery = useQuery({ ...fullRoleCatalogOptions, enabled: showAccounts && mayReadRoles });
+  const supervisorRoleIds = useMemo(
+    () => new Set((rolesQuery.data ?? []).filter((role) => role.supervisorDashboard).map((role) => role.id)),
+    [rolesQuery.data],
+  );
   const assignableRoles = useMemo(
     () =>
       (rolesQuery.data ?? []).filter((role) =>
@@ -204,6 +212,7 @@ export function UsersPage() {
       ? [
           { key: 'account', header: 'Account' },
           { key: 'roles', header: 'Roles' },
+          ...(mayReadRoles ? [{ key: 'supervisor', header: 'Supervisor' }] : []),
         ]
       : []),
   ];
@@ -229,6 +238,14 @@ export function UsersPage() {
               : person.account === null || person.account.roles.length === 0
                 ? '—'
                 : person.account.roles.map((role) => role.name).join(', '),
+          ...(mayReadRoles
+            ? {
+                supervisor:
+                  person.account && person.account.roles.some((role) => supervisorRoleIds.has(role.id))
+                    ? 'Yes'
+                    : '—',
+              }
+            : {}),
         }
       : {}),
   }));
@@ -260,6 +277,11 @@ export function UsersPage() {
         title="People"
         breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'People' }]}
         description="Manage people, login accounts, roles, and access."
+        actions={mayViewSupervisorStaffing ? (
+          <Button kind="tertiary" onClick={() => navigate('/settings/users/staffing')}>
+            Supervisor staffing
+          </Button>
+        ) : undefined}
       />
 
       {peopleQuery.isPending && <InlineLoadingState label="Loading people" />}
@@ -407,6 +429,8 @@ export function UsersPage() {
                               <Tag type={cell.value === 'enabled' ? 'green' : 'gray'}>
                                 {String(cell.value)}
                               </Tag>
+                            ) : cell.info.header === 'supervisor' && cell.value === 'Yes' ? (
+                              <Tag type="blue">Supervisor</Tag>
                             ) : (
                               String(cell.value)
                             )}

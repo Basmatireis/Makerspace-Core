@@ -379,6 +379,49 @@ h2 {
   overflow-x: auto;
 }
 
+.supervisor-staffing-page {
+  inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.supervisor-staffing-page .page-header {
+  max-inline-size: none;
+}
+
+.supervisor-staffing-table {
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  overflow: hidden;
+}
+
+.supervisor-staffing-table .cds--data-table-content {
+  inline-size: 100%;
+  max-inline-size: 100%;
+  overflow-x: auto;
+}
+
+.supervisor-staffing-table .cds--data-table {
+  min-inline-size: 48rem;
+}
+
+.supervisor-period-header {
+  display: grid;
+  min-inline-size: 9rem;
+  gap: $spacing-02;
+}
+
+.supervisor-period-header .cds--tag {
+  margin: 0;
+  text-transform: capitalize;
+}
+
+.supervisor-period-header__count {
+  color: var(--cds-text-secondary);
+  font-weight: normal;
+  @include type-style('label-01');
+}
+
 .people-role-filter {
   min-inline-size: 15rem;
 }
@@ -1119,6 +1162,10 @@ h2 {
 
   .people-table-container .cds--batch-actions {
     overflow-x: auto;
+  }
+
+  .supervisor-staffing-page .summary-grid {
+    grid-template-columns: 1fr;
   }
 
   .page-header__row,

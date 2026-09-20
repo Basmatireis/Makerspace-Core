@@ -18,7 +18,7 @@ import { OpenDayDetailPage } from '../features/opendays/OpenDayDetailPage';
 import { ScheduleEditorPage } from '../features/opendays/ScheduleEditorPage';
 import { OpenDayManagementPage } from '../features/opendays/OpenDayManagementPage';
 import { LaborordnungPage } from '../features/laborordnung/LaborordnungPage';
-import { SupervisorDashboardPage } from '../features/supervisors/SupervisorDashboardPage';
+import { SupervisorStaffingPage } from '../features/users/SupervisorStaffingPage';
 import { OIDCProvidersPage } from '../features/oidc/OIDCProvidersPage';
 import { SCIMConnectorsPage } from '../features/scim/SCIMConnectorsPage';
 import { VisitorEnrollmentPage } from '../features/visitor/VisitorEnrollmentPage';
@@ -65,7 +65,7 @@ export function App() {
 		<Route path="machine-logbook/inventory/:materialId" element={<PermissionRoute allOf={[PermissionId.inventoryread]}><MaterialDetailPage /></PermissionRoute>} />
 		<Route path="machine-logbook/machines" element={<PermissionRoute allOf={[PermissionId.machinesread]}><MachinesPage /></PermissionRoute>} />
 		<Route path="machine-logbook/statistics" element={<PermissionRoute allOf={[PermissionId.statisticsread]}><StatisticsPage /></PermissionRoute>} />
-		<Route path="supervisors" element={<PermissionRoute allOf={[PermissionId.supervisor_dashboardread]}><SupervisorDashboardPage /></PermissionRoute>} />
+		<Route path="supervisors" element={<PermissionRoute allOf={[PermissionId.supervisor_dashboardread]}><Navigate to="/settings/users/staffing" replace /></PermissionRoute>} />
         <Route
           path="open-days"
           element={<PermissionRoute anyOf={[PermissionId.open_daysread, PermissionId.open_daysmanage]}><OpenDaysPage /></PermissionRoute>}
@@ -111,6 +111,10 @@ export function App() {
         <Route
           path="settings/users"
           element={<PermissionRoute allOf={[PermissionId.peoplereadall]}><UsersPage /></PermissionRoute>}
+        />
+        <Route
+          path="settings/users/staffing"
+          element={<PermissionRoute allOf={[PermissionId.supervisor_dashboardread]}><SupervisorStaffingPage /></PermissionRoute>}
         />
         <Route
           path="settings/users/new"

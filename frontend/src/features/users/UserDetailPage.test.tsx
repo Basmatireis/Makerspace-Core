@@ -13,6 +13,7 @@ import {
   currentUserFixture,
   otherPersonId,
   personFixture,
+  roleFixture,
 } from '../../test/fixtures';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
@@ -165,10 +166,18 @@ describe('User detail page', () => {
             PermissionId.peoplereadall,
             PermissionId.peoplereadmatriculation,
             PermissionId.accountsread,
+            PermissionId.rolesread,
             PermissionId.open_daysread_assignments,
             PermissionId.laborordnungrequestsread,
+            PermissionId.supervisor_dashboardread,
           ]),
         ),
+      ),
+      http.get('*/api/v1/roles', () =>
+        HttpResponse.json({
+          items: [roleFixture({ supervisorDashboard: true })],
+          nextCursor: null,
+        }),
       ),
       http.get(`*/api/v1/people/${otherPersonId}`, () =>
         HttpResponse.json(personFixture({ account })),
@@ -233,6 +242,8 @@ describe('User detail page', () => {
     expect(screen.getByText('2026-09')).toBeInTheDocument();
     expect(screen.getByText('2025-09')).toBeInTheDocument();
     expect(screen.getByText('Autumn Open Days')).toBeInTheDocument();
-    expect(screen.getByText('Supervisor')).toBeInTheDocument();
+    expect(screen.getAllByText('Supervisor').length).toBeGreaterThan(0);
+    expect(await screen.findByText('Included in supervisor staffing through Workshop supervisors.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Supervisor staffing' })).toBeInTheDocument();
   });
 });

@@ -67,7 +67,7 @@ const presentation: Partial<Record<PermissionId, PermissionPresentation>> = {
   'laborordnung.requests.read': { group: 'Lab Rules', label: 'View confirmation requests' },
   'laborordnung.confirm': { group: 'Lab Rules', label: 'Confirm Lab Rules evidence' },
   'visitor_enrollment.manage': { group: 'Visitor enrollment', label: 'Manage visitor enrollment' },
-  'supervisor_dashboard.read': { group: 'Supervisor tools', label: 'View supervisor dashboard' },
+  'supervisor_dashboard.read': { group: 'People', label: 'View supervisor staffing overview' },
   'identities.oidc.link.self': { group: 'Identity providers', label: 'Link own OIDC identity' },
   'identities.oidc.link.all': { group: 'Identity providers', label: 'Link account OIDC identities' },
   'identities.oidc.unlink.self': { group: 'Identity providers', label: 'Unlink own OIDC identity' },

@@ -134,6 +134,10 @@ function UserDetailContent({ person }: { person: Person }) {
   const canReadAccounts = hasPermission(currentUser, PermissionId.accountsread);
   const canAssignRoles = hasPermission(currentUser, PermissionId.accountsrolesassign);
   const canReadRoles = hasPermission(currentUser, PermissionId.rolesread);
+  const canViewSupervisorStaffing = hasPermission(
+    currentUser,
+    PermissionId.supervisor_dashboardread,
+  );
   const canReadMakerspaceStatus = hasPermission(currentUser, PermissionId.open_daysread_assignments) ||
     hasPermission(currentUser, PermissionId.laborordnungrequestsread);
   const makerspaceStatusQuery = useQuery({
@@ -291,10 +295,16 @@ function UserDetailContent({ person }: { person: Person }) {
     },
   });
 
-  const rolesQuery = useQuery({ ...fullRoleCatalogOptions, enabled: Boolean(account && canAssignRoles && canReadRoles) });
+  const rolesQuery = useQuery({ ...fullRoleCatalogOptions, enabled: Boolean(account && canReadRoles) });
   const rolesById = useMemo(
     () => new Map((rolesQuery.data ?? []).map((role) => [role.id, role])),
     [rolesQuery.data],
+  );
+  const supervisorRoleNames = useMemo(
+    () => (account?.roles ?? [])
+      .filter((role) => rolesById.get(role.id)?.supervisorDashboard)
+      .map((role) => role.name),
+    [account?.roles, rolesById],
   );
   const assignableRoles = useMemo(() => {
     const assigned = new Set(account?.roles.map((role) => role.id) ?? []);
@@ -375,6 +385,9 @@ function UserDetailContent({ person }: { person: Person }) {
   } as const;
   const selectedConfirmation = confirmKind ? confirmation[confirmKind] : null;
   const mutationError = personMutation.isError || createAccountMutation.isError || emailMutation.isError || passwordMutation.isError || enableMutation.isError || disableMutation.isError || deleteAccountMutation.isError || deletePersonMutation.isError || roleMutation.isError || resetFailed;
+  const hasPersonActions = canEditPerson || canEditAccount || canCreateAccount ||
+    canAssignRole || canSetPassword || canIssuePasswordReset || canInvite ||
+    canIssuePINSetup;
 
   return (
     <Stack gap={7} className="person-detail-page">
@@ -386,15 +399,14 @@ function UserDetailContent({ person }: { person: Person }) {
           { label: `${person.firstName} ${person.lastName}` },
         ]}
         description="Personal details, account access, and Makerspace status."
-        actions={
-          canEditPerson ||
-          canEditAccount ||
-          canCreateAccount ||
-          canAssignRole ||
-          canSetPassword ||
-          canIssuePasswordReset ||
-          canInvite ||
-		  canIssuePINSetup ? (
+        actions={canViewSupervisorStaffing || hasPersonActions ? (
+          <div className="button-cluster">
+            {canViewSupervisorStaffing && (
+              <Button kind="tertiary" onClick={() => navigate('/settings/users/staffing')}>
+                Supervisor staffing
+              </Button>
+            )}
+            {hasPersonActions && (
             <MenuButton label="Actions" kind="tertiary" menuAlignment="bottom-end" size="md">
               {canEditPerson && !editingPerson && (
                 <MenuItem label="Edit person" onClick={() => setEditingPerson(true)} />
@@ -425,8 +437,9 @@ function UserDetailContent({ person }: { person: Person }) {
 				<MenuItem label={activePINIdentity ? 'Reset PIN login' : 'Add PIN login'} onClick={() => setConfirmKind('pin-setup')} />
 			  )}
             </MenuButton>
-          ) : undefined
-        }
+            )}
+          </div>
+        ) : undefined}
       />
       {mutationError && (
         <InlineNotification kind="error" lowContrast hideCloseButton title="Change not completed" subtitle="The record may have changed. Reload it and try again." />
@@ -565,7 +578,13 @@ function UserDetailContent({ person }: { person: Person }) {
               {account && (
                 <Tile className="person-detail-card">
                   <Stack gap={5}>
-                    <div className="section-heading"><h2>Roles</h2><span className="section-description">{account.roles.length} assigned</span></div>
+                    <div className="section-heading">
+                      <h2>Roles</h2>
+                      <div className="tag-list">
+                        <span className="section-description">{account.roles.length} assigned</span>
+                        {supervisorRoleNames.length > 0 && <Tag type="blue">Supervisor</Tag>}
+                      </div>
+                    </div>
                     <div className="tag-list" aria-label="Assigned roles">
                       {account.roles.length === 0 && <span>No roles assigned</span>}
                       {account.roles.map((role) => {
@@ -577,6 +596,11 @@ function UserDetailContent({ person }: { person: Person }) {
                         return <Tag key={role.id} type={role.systemKey === 'master' ? 'purple' : 'blue'}>{role.name}</Tag>;
                       })}
                     </div>
+                    {supervisorRoleNames.length > 0 && (
+                      <p className="section-description">
+                        Included in supervisor staffing through {supervisorRoleNames.join(', ')}.
+                      </p>
+                    )}
                   </Stack>
                 </Tile>
               )}

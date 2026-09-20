@@ -20,6 +20,7 @@ function peoplePage(items: ReturnType<typeof personFixture>[]) {
 
 describe('People page', () => {
   it('renders permitted table columns and actions', async () => {
+    const supervisorRole = roleFixture({ supervisorDashboard: true });
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(
@@ -28,15 +29,20 @@ describe('People page', () => {
             PermissionId.peoplecreate,
             PermissionId.peoplereadmatriculation,
             PermissionId.accountsread,
+            PermissionId.rolesread,
+            PermissionId.supervisor_dashboardread,
           ]),
         ),
+      ),
+      http.get('*/api/v1/roles', () =>
+        HttpResponse.json({ items: [supervisorRole], nextCursor: null }),
       ),
       http.get('*/api/v1/people', () =>
         HttpResponse.json(
           peoplePage([
             personFixture({
               matriculationNumber: 'M-0042',
-              account: accountFixture({ roles: [roleFixture()] }),
+              account: accountFixture({ roles: [supervisorRole] }),
               profileImage: {
                 fileId: '0192f6f8-743e-7c77-a349-cd07c3e8a920',
                 source: 'admin_upload',
@@ -66,9 +72,12 @@ describe('People page', () => {
       screen.getByRole('columnheader', { name: /Account/ }),
     ).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /Roles/ })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Supervisor/ })).toBeInTheDocument();
     expect(screen.getByText('M-0042')).toBeInTheDocument();
     expect(screen.getByText('enabled')).toBeInTheDocument();
     expect(screen.getByText('Workshop supervisors')).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /Grace Hopper/ })).getByText('Supervisor')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Supervisor staffing' })).toBeInTheDocument();
     expect(document.querySelector('.people-table__avatar-cell img')).toHaveAttribute(
       'src',
       `/api/v1/people/${otherPersonId}/profile-image`,

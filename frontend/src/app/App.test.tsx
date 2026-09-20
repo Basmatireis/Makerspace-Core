@@ -122,6 +122,20 @@ describe('protected application routing', () => {
     expect(screen.queryByRole('heading', { name: 'Roles' })).not.toBeInTheDocument();
   });
 
+  it('places supervisor-only access inside the People settings area', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(currentUserFixture([PermissionId.supervisor_dashboardread])),
+      ),
+    );
+    renderRoute(<App />, '/settings');
+
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    const peopleTile = screen.getByRole('link', { name: /People/ });
+    expect(peopleTile).toHaveAttribute('href', '/settings/users/staffing');
+    expect(screen.queryByRole('link', { name: 'Supervisors' })).not.toBeInTheDocument();
+  });
+
   it('shows the managed-devices settings tile only with inventory access', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>

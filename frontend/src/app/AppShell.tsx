@@ -24,7 +24,6 @@ import {
   Logout,
   Settings as SettingsIcon,
   UserAvatar,
-	UserMultiple,
 	DataBase,
 } from '@carbon/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -212,7 +211,6 @@ export function AppShell() {
                   Open Days
                 </SideNavLink>
               )}
-			  {hasPermission(currentUser, PermissionId.supervisor_dashboardread) && <SideNavLink as={Link} to="/supervisors" renderIcon={UserMultiple} isActive={location.pathname.startsWith('/supervisors')}>Supervisors</SideNavLink>}
               {canAccessMachineLogbook(currentUser) && <SideNavMenu title="Machine logbook" renderIcon={DataBase} defaultExpanded={machineLogbookActive} isActive={machineLogbookActive}>
                 {(hasPermission(currentUser, PermissionId.machine_jobsread) || hasPermission(currentUser, PermissionId.statisticsread)) && <SideNavMenuItem as={Link} to="/machine-logbook" isActive={location.pathname === '/machine-logbook'}>Overview</SideNavMenuItem>}
                 {hasPermission(currentUser, PermissionId.machine_jobsread) && <SideNavMenuItem as={Link} to="/machine-logbook/jobs" isActive={location.pathname.startsWith('/machine-logbook/jobs')}>Jobs</SideNavMenuItem>}

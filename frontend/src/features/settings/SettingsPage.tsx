@@ -6,9 +6,9 @@ import { hasAnyPermission, hasPermission, PermissionId } from '../auth/permissio
 
 export function SettingsPage() {
   const currentUser = useCurrentUser();
-  const canUseUsers = hasAnyPermission(currentUser, [
-    PermissionId.peoplereadall,
-  ]);
+  const canUsePeopleDirectory = hasPermission(currentUser, PermissionId.peoplereadall);
+  const canUseSupervisorStaffing = hasPermission(currentUser, PermissionId.supervisor_dashboardread);
+  const canUsePeople = canUsePeopleDirectory || canUseSupervisorStaffing;
   const canUseRoles = hasAnyPermission(currentUser, [PermissionId.rolesread]);
   const canUseDevices = hasAnyPermission(currentUser, [PermissionId.managed_devicesread]);
 	const canUseLaborordnung = hasAnyPermission(currentUser, [PermissionId.laborordnungread, PermissionId.laborordnungmanage, PermissionId.laborordnungrequestsread]);
@@ -25,14 +25,14 @@ export function SettingsPage() {
         description="Administration tools available to your account."
       />
       <Grid condensed className="settings-grid">
-        {canUseUsers && (
+        {canUsePeople && (
           <Column sm={4} md={4} lg={5}>
-            <ClickableTile href="/settings/users" className="settings-tile">
+            <ClickableTile href={canUsePeopleDirectory ? '/settings/users' : '/settings/users/staffing'} className="settings-tile">
               <Stack gap={5}>
                 <UserMultiple size={32} />
                 <div>
                   <h2>People</h2>
-                  <p>Manage people, login accounts, roles, and security.</p>
+                  <p>Manage the people directory, account access, and supervisor staffing.</p>
                 </div>
               </Stack>
             </ClickableTile>
