@@ -73,6 +73,10 @@ export const settingsPermissions: readonly PermissionIdType[] = [
   PermissionId.scimmanage,
   PermissionId.oidcmanage,
   PermissionId.mailmanage,
+	PermissionId.organizationsread,
+	PermissionId.organizationsmanage,
+	PermissionId.pricingread,
+	PermissionId.pricingmanage,
 ];
 
 export function canAccessSettings(currentUser: CurrentUser): boolean {
@@ -84,6 +88,18 @@ export function canAccessOpenDays(currentUser: CurrentUser): boolean {
     PermissionId.open_daysread,
     PermissionId.open_daysmanage,
   ]);
+}
+
+export const machineLogbookPermissions: readonly PermissionIdType[] = [
+  PermissionId.machinesread,
+  PermissionId.machine_jobsread,
+  PermissionId.machine_jobsreview,
+  PermissionId.inventoryread,
+  PermissionId.statisticsread,
+];
+
+export function canAccessMachineLogbook(currentUser: CurrentUser): boolean {
+  return hasAnyPermission(currentUser, machineLogbookPermissions);
 }
 
 export function canManageRoleMembership(

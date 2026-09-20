@@ -10,6 +10,7 @@ export const permissionGroupOrder = [
   'Accounts & authentication',
   'Roles & audit',
   'Open Days',
+  'Machine logbook',
   'Managed devices',
   'Lab Rules',
   'Visitor enrollment',
@@ -74,6 +75,20 @@ const presentation: Partial<Record<PermissionId, PermissionPresentation>> = {
   'oidc.manage': { group: 'Identity providers', label: 'Manage OIDC providers' },
   'scim.manage': { group: 'Provisioning', label: 'Manage SCIM provisioning' },
   'mail.manage': { group: 'Mail', label: 'Manage email delivery' },
+  'machines.read': { group: 'Machine logbook', label: 'View machines' },
+  'machines.manage': { group: 'Machine logbook', label: 'Manage machines and types' },
+  'machine_jobs.read': { group: 'Machine logbook', label: 'View machine jobs' },
+  'machine_jobs.create': { group: 'Machine logbook', label: 'Create and ingest jobs' },
+  'machine_jobs.edit': { group: 'Machine logbook', label: 'Edit jobs and billing' },
+  'machine_jobs.review': { group: 'Machine logbook', label: 'Review detected jobs' },
+  'machine_jobs.override_price': { group: 'Machine logbook', label: 'Override job prices' },
+  'inventory.read': { group: 'Machine logbook', label: 'View inventory' },
+  'inventory.manage': { group: 'Machine logbook', label: 'Manage inventory transactions' },
+  'organizations.read': { group: 'Machine logbook', label: 'View billing organizations' },
+  'organizations.manage': { group: 'Machine logbook', label: 'Manage billing organizations' },
+  'pricing.read': { group: 'Machine logbook', label: 'View pricing' },
+  'pricing.manage': { group: 'Machine logbook', label: 'Manage pricing' },
+  'statistics.read': { group: 'Machine logbook', label: 'View statistics' },
 };
 
 export function presentPermission(permission: Pick<Permission, 'id'>): PermissionPresentation {

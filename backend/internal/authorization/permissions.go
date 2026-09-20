@@ -67,6 +67,20 @@ const (
 	OIDCManage                   Permission = Permission(openapi.OidcManage)
 	SCIMManage                   Permission = Permission(openapi.ScimManage)
 	MailManage                   Permission = Permission(openapi.MailManage)
+	MachinesRead                 Permission = Permission(openapi.MachinesRead)
+	MachinesManage               Permission = Permission(openapi.MachinesManage)
+	MachineJobsRead              Permission = Permission(openapi.MachineJobsRead)
+	MachineJobsCreate            Permission = Permission(openapi.MachineJobsCreate)
+	MachineJobsEdit              Permission = Permission(openapi.MachineJobsEdit)
+	MachineJobsReview            Permission = Permission(openapi.MachineJobsReview)
+	MachineJobsOverridePrice     Permission = Permission(openapi.MachineJobsOverridePrice)
+	InventoryRead                Permission = Permission(openapi.InventoryRead)
+	InventoryManage              Permission = Permission(openapi.InventoryManage)
+	OrganizationsRead            Permission = Permission(openapi.OrganizationsRead)
+	OrganizationsManage          Permission = Permission(openapi.OrganizationsManage)
+	PricingRead                  Permission = Permission(openapi.PricingRead)
+	PricingManage                Permission = Permission(openapi.PricingManage)
+	StatisticsRead               Permission = Permission(openapi.StatisticsRead)
 )
 
 type Definition struct {
@@ -89,6 +103,9 @@ var registry = []Permission{
 	LaborordnungRead, LaborordnungManage, LaborordnungRequestsRead, LaborordnungConfirm,
 	VisitorEnrollmentManage, SupervisorDashboardRead,
 	OIDCLinkSelf, OIDCLinkAll, OIDCUnlinkSelf, OIDCUnlinkAll, OIDCManage, SCIMManage, MailManage,
+	MachinesRead, MachinesManage,
+	MachineJobsRead, MachineJobsCreate, MachineJobsEdit, MachineJobsReview, MachineJobsOverridePrice,
+	InventoryRead, InventoryManage, OrganizationsRead, OrganizationsManage, PricingRead, PricingManage, StatisticsRead,
 }
 
 var known = func() map[Permission]struct{} {
@@ -153,6 +170,20 @@ var descriptions = map[Permission]string{
 	OIDCManage:                   "Manage OIDC providers and trusted ACR mappings.",
 	SCIMManage:                   "Manage SCIM connectors and one-time bearer tokens.",
 	MailManage:                   "Configure transactional SMTP delivery and sender identity.",
+	MachinesRead:                 "Read machine types, machines, and their operational metrics.",
+	MachinesManage:               "Create and update machine types and machines.",
+	MachineJobsRead:              "Read machine jobs and their pricing and usage details.",
+	MachineJobsCreate:            "Create manual jobs and ingest automatically detected jobs.",
+	MachineJobsEdit:              "Correct confirmed machine-job facts and material usage.",
+	MachineJobsReview:            "Review and confirm automatically detected machine jobs.",
+	MachineJobsOverridePrice:     "Set and clear final machine-job price overrides.",
+	InventoryRead:                "Read materials, balances, valuation, and inventory history.",
+	InventoryManage:              "Create materials and record purchases, consumption, corrections, and disposal.",
+	OrganizationsRead:            "Read organizations usable as billing parties.",
+	OrganizationsManage:          "Create and update organizations.",
+	PricingRead:                  "Read pricing groups, rules, and billing-party defaults.",
+	PricingManage:                "Create and update pricing groups, rules, and billing-party defaults.",
+	StatisticsRead:               "Read machine-logbook operational and financial statistics.",
 }
 
 type GrantScope string
