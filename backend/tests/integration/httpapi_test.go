@@ -349,3 +349,34 @@ func hasCookie(client *http.Client, rawURL, name string) bool {
 	}
 	return false
 }
+
+func TestAnonymousRecoveryResponsesRemainUniform(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	seedAccount(t, pool, "recovery-enabled", false)
+	disabled := seedAccount(t, pool, "recovery-disabled", false)
+	if _, err := pool.Exec(ctx, `UPDATE accounts SET status='disabled' WHERE id=$1`, disabled.accountID); err != nil {
+		t.Fatal(err)
+	}
+	cfg := integrationConfig(t)
+	handler, err := httpapi.NewHandler(pool, cfg, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(handler)
+	defer server.Close()
+	// Repeated requests also exercise both identifier and source rate limits.
+	for attempt := 0; attempt < 12; attempt++ {
+		for _, email := range []string{"recovery-enabled@example.test", "recovery-disabled@example.test", "unknown@example.test"} {
+			response := doJSON(t, server.Client(), http.MethodPost, server.URL+"/api/v1/auth/password-reset/request", cfg.PublicBaseURL.String(), "", map[string]string{"email": email})
+			body, err := io.ReadAll(response.Body)
+			response.Body.Close()
+			if err != nil || response.StatusCode != http.StatusAccepted || len(body) != 0 {
+				t.Fatalf("nonuniform recovery response: %d %q %v", response.StatusCode, body, err)
+			}
+			if response.Header.Get("Cache-Control") != "no-store" {
+				t.Fatal("recovery response can be cached")
+			}
+		}
+	}
+}
