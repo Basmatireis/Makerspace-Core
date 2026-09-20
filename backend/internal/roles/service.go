@@ -20,14 +20,17 @@ import (
 )
 
 type Role struct {
-	ID               uuid.UUID
-	Name             string
-	Description      *string
-	SystemKey        *string
-	PermissionGrants []authorization.PermissionGrant
-	Version          int64
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID                   uuid.UUID
+	Name                 string
+	Description          *string
+	SystemKey            *string
+	PermissionGrants     []authorization.PermissionGrant
+	ProfileImageRequired bool
+	LaborordnungMode     string
+	SupervisorDashboard  bool
+	Version              int64
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 type Page struct {
@@ -35,11 +38,21 @@ type Page struct {
 	NextCursor *string
 }
 
+type EffectivePermissionEvaluation struct {
+	RoleID        uuid.UUID
+	RoleVersion   int64
+	PermissionIDs []authorization.Permission
+}
+
 type Service struct{ pool *pgxpool.Pool }
 
 func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
 
 func (s *Service) Create(ctx context.Context, principal authorization.Principal, name string, description *string, grants []authorization.PermissionGrant, requestID *uuid.UUID) (Role, error) {
+	return s.CreateWithBehaviors(ctx, principal, name, description, grants, false, "not_required", false, requestID)
+}
+
+func (s *Service) CreateWithBehaviors(ctx context.Context, principal authorization.Principal, name string, description *string, grants []authorization.PermissionGrant, profileImageRequired bool, laborordnungMode string, supervisorDashboard bool, requestID *uuid.UUID) (Role, error) {
 	if !principal.Has(authorization.RolesManage) {
 		return Role{}, apperror.PermissionDenied
 	}
@@ -50,6 +63,9 @@ func (s *Service) Create(ctx context.Context, principal authorization.Principal,
 	}
 	if description != nil && len([]rune(*description)) > 500 {
 		return Role{}, validation("description is too long")
+	}
+	if laborordnungMode != "not_required" && laborordnungMode != "warning" && laborordnungMode != "blocking" {
+		return Role{}, validation("Lab Rules mode is invalid")
 	}
 	grants, err := validateGrants(principal, grants)
 	if err != nil {
@@ -62,7 +78,7 @@ func (s *Service) Create(ctx context.Context, principal authorization.Principal,
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := rolesdb.New(tx)
 	id := uuid.Must(uuid.NewV7())
-	row, err := q.CreateRole(ctx, rolesdb.CreateRoleParams{ID: id, Name: name, Description: description})
+	row, err := q.CreateRole(ctx, rolesdb.CreateRoleParams{ID: id, Name: name, Description: description, ProfileImageRequired: profileImageRequired, LaborordnungMode: laborordnungMode, SupervisorDashboard: supervisorDashboard})
 	if err != nil {
 		return Role{}, databaseError(err)
 	}
@@ -70,7 +86,7 @@ func (s *Service) Create(ctx context.Context, principal authorization.Principal,
 		return Role{}, err
 	}
 	actor := principal.AccountID
-	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "role.created", ResourceType: "role", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"name", "description", "permissionGrants"}}); err != nil {
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "role.created", ResourceType: "role", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"name", "description", "permissionGrants", "profileImageRequired"}}); err != nil {
 		return Role{}, err
 	}
 	result, err := fromRow(ctx, q, row)
@@ -145,11 +161,12 @@ func (s *Service) ReplacePermissions(ctx context.Context, principal authorizatio
 
 func insertGrants(ctx context.Context, q *rolesdb.Queries, roleID uuid.UUID, grants []authorization.PermissionGrant) error {
 	for _, g := range grants {
-		if err := q.AddRolePermission(ctx, rolesdb.AddRolePermissionParams{RoleID: roleID, PermissionID: string(g.PermissionID), Scope: string(g.Scope)}); err != nil {
+		grantID := uuid.Must(uuid.NewV7())
+		if err := q.AddRolePermission(ctx, rolesdb.AddRolePermissionParams{ID: grantID, RoleID: roleID, PermissionID: string(g.PermissionID), Scope: string(g.Scope), MinimumAssurance: string(g.MinimumAssurance)}); err != nil {
 			return err
 		}
 		for _, typeID := range g.DeviceTypeIDs {
-			if err := q.AddRolePermissionDeviceType(ctx, rolesdb.AddRolePermissionDeviceTypeParams{RoleID: roleID, PermissionID: string(g.PermissionID), DeviceTypeID: typeID}); err != nil {
+			if err := q.AddRolePermissionDeviceType(ctx, rolesdb.AddRolePermissionDeviceTypeParams{GrantID: grantID, DeviceTypeID: typeID}); err != nil {
 				return databaseError(err)
 			}
 		}
@@ -157,16 +174,20 @@ func insertGrants(ctx context.Context, q *rolesdb.Queries, roleID uuid.UUID, gra
 	return nil
 }
 func validateGrants(principal authorization.Principal, grants []authorization.PermissionGrant) ([]authorization.PermissionGrant, error) {
-	seen := map[authorization.Permission]struct{}{}
+	seen := map[string]struct{}{}
 	result := append([]authorization.PermissionGrant(nil), grants...)
 	for i, g := range result {
 		if !authorization.Known(g.PermissionID) {
 			return nil, validation("unknown permission: " + string(g.PermissionID))
 		}
-		if _, ok := seen[g.PermissionID]; ok {
-			return nil, validation("permission grants must be unique")
+		if g.MinimumAssurance == "" {
+			g.MinimumAssurance = authorization.AssuranceLow
 		}
-		seen[g.PermissionID] = struct{}{}
+		key := string(g.PermissionID) + "\x00" + string(g.Scope) + "\x00" + string(g.MinimumAssurance)
+		if _, ok := seen[key]; ok {
+			return nil, validation("duplicate permission grant")
+		}
+		seen[key] = struct{}{}
 		types := map[uuid.UUID]struct{}{}
 		for _, id := range g.DeviceTypeIDs {
 			if _, ok := types[id]; ok {
@@ -194,7 +215,7 @@ func validateGrants(principal authorization.Principal, grants []authorization.Pe
 }
 
 func (s *Service) List(ctx context.Context, principal authorization.Principal, limit int, cursor string) (Page, error) {
-	if !principal.Has(authorization.RolesRead) {
+	if !principal.Has(authorization.RolesRead) && !principal.Has(authorization.VisitorEnrollmentManage) {
 		return Page{}, apperror.PermissionDenied
 	}
 	if limit < 1 || limit > 100 {
@@ -264,11 +285,44 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal, id
 	return fromRow(ctx, queries, row)
 }
 
+func (s *Service) EvaluatePermissions(ctx context.Context, principal authorization.Principal, evaluation authorization.EvaluationContext) ([]EffectivePermissionEvaluation, error) {
+	if !principal.Has(authorization.RolesRead) {
+		return nil, apperror.PermissionDenied
+	}
+	if !authorization.ValidAssurance(evaluation.Assurance) {
+		return nil, invalidRequest("authenticationAssurance is invalid")
+	}
+	queries := rolesdb.New(s.pool)
+	rows, err := queries.ListRoles(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]EffectivePermissionEvaluation, 0, len(rows))
+	for _, row := range rows {
+		role, err := fromRow(ctx, queries, row)
+		if err != nil {
+			return nil, err
+		}
+		permissions := authorization.EffectivePermissions(role.PermissionGrants, evaluation)
+		if role.SystemKey != nil && *role.SystemKey == "master" {
+			permissions = authorization.Registry()
+		}
+		result = append(result, EffectivePermissionEvaluation{
+			RoleID: role.ID, RoleVersion: role.Version, PermissionIDs: permissions,
+		})
+	}
+	return result, nil
+}
+
 func (s *Service) Update(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, name *string, descriptionSet bool, description *string, requestID *uuid.UUID) (Role, error) {
+	return s.UpdateWithBehaviors(ctx, principal, id, expectedVersion, name, descriptionSet, description, nil, nil, nil, requestID)
+}
+
+func (s *Service) UpdateWithBehaviors(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, name *string, descriptionSet bool, description *string, profileImageRequired *bool, laborordnungMode *string, supervisorDashboard *bool, requestID *uuid.UUID) (Role, error) {
 	if !principal.Has(authorization.RolesManage) {
 		return Role{}, apperror.PermissionDenied
 	}
-	if expectedVersion < 1 || (name == nil && !descriptionSet) {
+	if expectedVersion < 1 || (name == nil && !descriptionSet && profileImageRequired == nil && laborordnungMode == nil && supervisorDashboard == nil) {
 		return Role{}, validation("at least one field and a positive expectedVersion are required")
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -291,7 +345,10 @@ func (s *Service) Update(ctx context.Context, principal authorization.Principal,
 		return Role{}, err
 	}
 	newName, newDescription := current.Name, current.Description
-	changed := make([]string, 0, 2)
+	newProfileImageRequired := current.ProfileImageRequired
+	newLaborordnungMode := current.LaborordnungMode
+	newSupervisorDashboard := current.SupervisorDashboard
+	changed := make([]string, 0, 5)
 	if name != nil {
 		newName = strings.TrimSpace(*name)
 		changed = append(changed, "name")
@@ -300,13 +357,28 @@ func (s *Service) Update(ctx context.Context, principal authorization.Principal,
 		newDescription = cleanOptional(description)
 		changed = append(changed, "description")
 	}
+	if profileImageRequired != nil {
+		newProfileImageRequired = *profileImageRequired
+		changed = append(changed, "profileImageRequired")
+	}
+	if laborordnungMode != nil {
+		newLaborordnungMode = *laborordnungMode
+		changed = append(changed, "laborordnungMode")
+	}
+	if supervisorDashboard != nil {
+		newSupervisorDashboard = *supervisorDashboard
+		changed = append(changed, "supervisorDashboard")
+	}
+	if newLaborordnungMode != "not_required" && newLaborordnungMode != "warning" && newLaborordnungMode != "blocking" {
+		return Role{}, validation("Lab Rules mode is invalid")
+	}
 	if newName == "" || len([]rune(newName)) > 100 || strings.EqualFold(newName, "master") {
 		return Role{}, validation("role name is invalid or reserved")
 	}
 	if newDescription != nil && len([]rune(*newDescription)) > 500 {
 		return Role{}, validation("description is too long")
 	}
-	row, err := queries.UpdateRole(ctx, rolesdb.UpdateRoleParams{ID: id, ExpectedVersion: expectedVersion, Name: newName, Description: newDescription})
+	row, err := queries.UpdateRole(ctx, rolesdb.UpdateRoleParams{ID: id, ExpectedVersion: expectedVersion, Name: newName, Description: newDescription, ProfileImageRequired: newProfileImageRequired, LaborordnungMode: newLaborordnungMode, SupervisorDashboard: newSupervisorDashboard})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Role{}, apperror.StaleWrite
 	}
@@ -369,36 +441,38 @@ func fromRow(ctx context.Context, queries *rolesdb.Queries, row rolesdb.Role) (R
 	grants := make([]authorization.PermissionGrant, 0)
 	if row.SystemKey != nil && *row.SystemKey == "master" {
 		for _, permission := range authorization.Registry() {
-			grants = append(grants, authorization.PermissionGrant{PermissionID: permission, Scope: authorization.GrantEverywhere})
+			grants = append(grants, authorization.PermissionGrant{PermissionID: permission, Scope: authorization.GrantEverywhere, MinimumAssurance: authorization.AssuranceLow})
 		}
 	} else {
 		stored, err := queries.GetRolePermissionGrants(ctx, row.ID)
 		if err != nil {
 			return Role{}, err
 		}
-		byPermission := map[authorization.Permission]authorization.PermissionGrant{}
+		byID := map[uuid.UUID]authorization.PermissionGrant{}
+		order := make([]uuid.UUID, 0)
 		for _, value := range stored {
 			permission := authorization.Permission(value.PermissionID)
 			if !authorization.Known(permission) {
 				slog.WarnContext(ctx, "ignored unknown stored permission", "role_id", row.ID, "permission_id", value)
 				continue
 			}
-			grant := byPermission[permission]
-			if grant.PermissionID == "" {
-				grant = authorization.PermissionGrant{PermissionID: permission, Scope: authorization.GrantScope(value.Scope)}
+			grant, exists := byID[value.ID]
+			if !exists {
+				grant = authorization.PermissionGrant{ID: value.ID, PermissionID: permission, Scope: authorization.GrantScope(value.Scope), MinimumAssurance: authorization.Assurance(value.MinimumAssurance)}
+				order = append(order, value.ID)
 			}
 			if value.DeviceTypeID != nil {
 				grant.DeviceTypeIDs = append(grant.DeviceTypeIDs, *value.DeviceTypeID)
 			}
-			byPermission[permission] = grant
+			byID[value.ID] = grant
 		}
-		grants = make([]authorization.PermissionGrant, 0, len(byPermission))
-		for _, grant := range byPermission {
-			grants = append(grants, grant)
+		grants = make([]authorization.PermissionGrant, 0, len(byID))
+		for _, id := range order {
+			grants = append(grants, byID[id])
 		}
 	}
 	sort.Slice(grants, func(i, j int) bool { return grants[i].PermissionID < grants[j].PermissionID })
-	return Role{ID: row.ID, Name: row.Name, Description: row.Description, SystemKey: row.SystemKey, PermissionGrants: grants, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, nil
+	return Role{ID: row.ID, Name: row.Name, Description: row.Description, SystemKey: row.SystemKey, PermissionGrants: grants, ProfileImageRequired: row.ProfileImageRequired, LaborordnungMode: row.LaborordnungMode, SupervisorDashboard: row.SupervisorDashboard, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, nil
 }
 
 func ensureExistingSubset(ctx context.Context, queries *rolesdb.Queries, principal authorization.Principal, roleID uuid.UUID) error {
@@ -406,7 +480,7 @@ func ensureExistingSubset(ctx context.Context, queries *rolesdb.Queries, princip
 	if err != nil {
 		return err
 	}
-	seen := map[authorization.Permission]authorization.PermissionGrant{}
+	seen := map[uuid.UUID]authorization.PermissionGrant{}
 	for _, value := range permissions {
 		permission := authorization.Permission(value.PermissionID)
 		if !authorization.Known(permission) {
@@ -416,14 +490,16 @@ func ensureExistingSubset(ctx context.Context, queries *rolesdb.Queries, princip
 			}
 			continue
 		}
-		grant := seen[permission]
-		if grant.PermissionID == "" {
-			grant = authorization.PermissionGrant{PermissionID: permission, Scope: authorization.GrantScope(value.Scope)}
+		grant, exists := seen[value.ID]
+		if !exists {
+			grant = authorization.PermissionGrant{ID: value.ID, PermissionID: permission, Scope: authorization.GrantScope(value.Scope), MinimumAssurance: authorization.Assurance(value.MinimumAssurance)}
 		}
 		if value.DeviceTypeID != nil {
 			grant.DeviceTypeIDs = append(grant.DeviceTypeIDs, *value.DeviceTypeID)
 		}
-		seen[permission] = grant
+		seen[value.ID] = grant
+	}
+	for _, grant := range seen {
 		if !principal.Master && !principal.CanDelegate(grant) {
 			return apperror.PermissionDenied
 		}

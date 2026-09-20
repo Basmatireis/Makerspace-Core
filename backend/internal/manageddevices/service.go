@@ -92,7 +92,7 @@ func (s *Service) Authenticate(ctx context.Context, raw string) (*DeviceContext,
 }
 
 func (s *Service) ListTypes(ctx context.Context, principal authorization.Principal) ([]DeviceType, error) {
-	if !principal.Has(authorization.RolesRead) && !principal.Has(authorization.ManagedDevicesRead) {
+	if !principal.Has(authorization.RolesRead) && !principal.Has(authorization.ManagedDevicesRead) && !principal.Has(authorization.VisitorEnrollmentManage) {
 		return nil, apperror.PermissionDenied
 	}
 	rows, err := manageddevicesdb.New(s.pool).ListDeviceTypes(ctx)
@@ -107,7 +107,7 @@ func (s *Service) ListTypes(ctx context.Context, principal authorization.Princip
 }
 
 func (s *Service) GetType(ctx context.Context, principal authorization.Principal, id uuid.UUID) (DeviceType, error) {
-	if !principal.Has(authorization.RolesRead) && !principal.Has(authorization.ManagedDevicesRead) {
+	if !principal.Has(authorization.RolesRead) && !principal.Has(authorization.ManagedDevicesRead) && !principal.Has(authorization.VisitorEnrollmentManage) {
 		return DeviceType{}, apperror.PermissionDenied
 	}
 	row, err := manageddevicesdb.New(s.pool).GetDeviceType(ctx, id)

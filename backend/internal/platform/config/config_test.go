@@ -1,7 +1,9 @@
 package config
 
 import (
+	"encoding/base64"
 	"net/netip"
+	"strings"
 	"testing"
 	"time"
 )
@@ -20,6 +22,33 @@ func setValidEnvironment(t *testing.T) {
 	t.Setenv("OPEN_DAYS_HOLIDAY_SUBDIVISION", "")
 	t.Setenv("OPEN_DAYS_HOLIDAY_LANGUAGE", "")
 	t.Setenv("HTTP_TRUSTED_PROXIES", "")
+	for _, name := range []string{"AUTH_CHALLENGE_HMAC_KEY", "PIN_PEPPER", "APP_ENCRYPTION_KEYS", "STORAGE_BACKEND", "LOCAL_STORAGE_ROOT", "S3_ENDPOINT", "S3_REGION", "S3_BUCKET", "S3_ACCESS_KEY_ID", "S3_SECRET_ACCESS_KEY", "S3_USE_PATH_STYLE", "S3_DISABLE_TLS"} {
+		t.Setenv(name, "")
+	}
+}
+
+func TestProductionS3EndpointCannotBypassTLSRequirement(t *testing.T) {
+	for _, endpoint := range []string{"http://storage.example.test", "https://storage.example.test", "storage.example.test:9000"} {
+		t.Run(endpoint, func(t *testing.T) {
+			setValidEnvironment(t)
+			t.Setenv("APP_ENV", "production")
+			t.Setenv("PUBLIC_BASE_URL", "https://makerspace.example.test")
+			t.Setenv("AUTH_CHALLENGE_HMAC_KEY", base64.StdEncoding.EncodeToString([]byte(strings.Repeat("a", 32))))
+			t.Setenv("PIN_PEPPER", base64.StdEncoding.EncodeToString([]byte(strings.Repeat("b", 32))))
+			t.Setenv("STORAGE_BACKEND", "s3")
+			t.Setenv("S3_REGION", "test-region")
+			t.Setenv("S3_BUCKET", "test-bucket")
+			t.Setenv("S3_ENDPOINT", endpoint)
+			_, err := Load()
+			if strings.HasPrefix(endpoint, "http://") {
+				if err == nil {
+					t.Fatal("plaintext production endpoint was accepted")
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }
 
 func TestLoadParsesHTTPTrustedProxyCIDRs(t *testing.T) {

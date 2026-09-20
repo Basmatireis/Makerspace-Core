@@ -21,6 +21,69 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+type notificationRecorder struct {
+	mu    sync.Mutex
+	codes map[string]string
+}
+
+func newNotificationRecorder() *notificationRecorder {
+	return &notificationRecorder{codes: make(map[string]string)}
+}
+
+func (n *notificationRecorder) SendPasswordReset(_ context.Context, to, code string, _ time.Time) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.codes[strings.ToLower(to)] = code
+	return nil
+}
+
+func (n *notificationRecorder) SendInvitation(_ context.Context, to, code string, _ time.Time) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.codes["invite:"+strings.ToLower(to)] = code
+	return nil
+}
+func (n *notificationRecorder) SendPINEnrollment(_ context.Context, to string, _ uuid.UUID, code string, _ time.Time) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.codes["pin:"+strings.ToLower(to)] = code
+	return nil
+}
+
+func (n *notificationRecorder) SendEmailVerification(_ context.Context, to, code string, _ time.Time) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	n.codes["verify:"+strings.ToLower(to)] = code
+	return nil
+}
+func (n *notificationRecorder) SendSecurityNotice(context.Context, string, string, string) error {
+	return nil
+}
+
+func (n *notificationRecorder) code(to string) string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.codes[strings.ToLower(to)]
+}
+
+func (n *notificationRecorder) pinCode(to string) string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.codes["pin:"+strings.ToLower(to)]
+}
+
+func (n *notificationRecorder) verificationCode(to string) string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.codes["verify:"+strings.ToLower(to)]
+}
+
+func (n *notificationRecorder) invitationCode(to string) string {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.codes["invite:"+strings.ToLower(to)]
+}
+
 const (
 	bootstrapPassword = "Soldering fox battery 74"
 	resetPassword     = "Workshop comet orbit 93"
@@ -31,6 +94,7 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
 	serviceConfig := integrationConfig(t)
+	notifier := newNotificationRecorder()
 
 	contactEmail := "Contact.Person@Example.test"
 	loginEmail := "Login.Admin+makerspace@Example.test"
@@ -66,7 +130,7 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 		       )
 		FROM accounts a
 		JOIN people p ON p.id = a.person_id
-		JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'email_password'
+		JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'password'
 		JOIN password_credentials pc ON pc.auth_identity_id = i.id
 		WHERE a.id = $1`, accountID).Scan(
 		&storedContact, &storedLogin, &storedNormalized, &accountStatus, &passwordHash, &isMaster,
@@ -94,7 +158,7 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	assertCount(t, pool, `SELECT count(*) FROM accounts`, 1)
 	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'system.master_bootstrapped'`, 1)
 
-	authService, err := auth.NewService(pool, serviceConfig)
+	authService, err := auth.NewService(pool, serviceConfig, notifier)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +211,7 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	accountService := accounts.NewService(pool, serviceConfig)
+	accountService := accounts.NewService(pool, serviceConfig, notifier)
 	current, err := accountService.GetCurrent(ctx, activeAuth.Principal)
 	if err != nil {
 		t.Fatal(err)
@@ -156,26 +220,26 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("issue password reset: %v", err)
 	}
-	rawResetToken := resetTokenFromURL(t, issue.URL)
-	assertResetTokenStoredAsDigest(t, pool, accountID, rawResetToken)
+	resetCode := notifier.code(loginEmail)
+	assertChallengeStoredAsDigest(t, pool, serviceConfig, accountID, "password_reset", resetCode)
 
-	if _, err := authService.Authenticate(ctx, activeSession.Token); !apperror.IsCode(err, "unauthenticated") {
-		t.Fatalf("session was not revoked by reset issuance: %v", err)
+	if _, err := authService.Authenticate(ctx, activeSession.Token); err != nil {
+		t.Fatalf("session was revoked before reset completion: %v", err)
 	}
-	if _, err := authService.Login(ctx, loginEmail, bootstrapPassword, "127.0.0.1", nil); !apperror.IsCode(err, "invalid_credentials") {
-		t.Fatalf("reset-required credential did not return generic login failure: %v", err)
+	if _, err := authService.Login(ctx, loginEmail, bootstrapPassword, "127.0.0.1", nil); err != nil {
+		t.Fatalf("password was invalidated before reset completion: %v", err)
 	}
 	if _, err := authService.Login(ctx, "absent@example.test", bootstrapPassword, "127.0.0.2", nil); !apperror.IsCode(err, "invalid_credentials") {
 		t.Fatalf("absent account did not return the same generic login failure: %v", err)
 	}
 
-	resetErrors := redeemConcurrently(authService, rawResetToken, resetPassword)
+	resetErrors := completeCodeConcurrently(authService, loginEmail, resetCode, resetPassword)
 	succeeded, rejected := 0, 0
 	for _, resetErr := range resetErrors {
 		switch {
 		case resetErr == nil:
 			succeeded++
-		case apperror.IsCode(resetErr, "password_reset_invalid"):
+		case apperror.IsCode(resetErr, "challenge_invalid"):
 			rejected++
 		default:
 			t.Fatalf("unexpected concurrent reset result: %v", resetErr)
@@ -184,7 +248,10 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	if succeeded != 1 || rejected != 1 {
 		t.Fatalf("concurrent reset results succeeded=%d rejected=%d, want 1/1", succeeded, rejected)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM password_reset_tokens WHERE account_id = $1`, 0, accountID)
+	assertCount(t, pool, `SELECT count(*) FROM auth_challenges WHERE account_id = $1 AND kind = 'password_reset' AND used_at IS NOT NULL`, 1, accountID)
+	if _, err := authService.Authenticate(ctx, activeSession.Token); !apperror.IsCode(err, "unauthenticated") {
+		t.Fatalf("session was not revoked by reset completion: %v", err)
+	}
 	var redeemedVersion int64
 	if err := pool.QueryRow(ctx, `SELECT version FROM accounts WHERE id = $1`, accountID).Scan(&redeemedVersion); err != nil {
 		t.Fatal(err)
@@ -228,13 +295,14 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 		t.Fatalf("pre-change password remained valid: %v", err)
 	}
 
-	assertAuditContainsNoPII(t, pool, contactEmail, loginEmail, bootstrapPassword, resetPassword, changedPassword, rawResetToken)
+	assertAuditContainsNoPII(t, pool, contactEmail, loginEmail, bootstrapPassword, resetPassword, changedPassword, resetCode)
 }
 
 func TestPasswordResetProvisioningKeepsDisabledAccountDisabled(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
 	serviceConfig := integrationConfig(t)
+	notifier := newNotificationRecorder()
 
 	masterLogin := "reset-provisioning-master@example.test"
 	if _, err := admin.NewService(pool).BootstrapMaster(ctx, admin.BootstrapInput{
@@ -243,7 +311,7 @@ func TestPasswordResetProvisioningKeepsDisabledAccountDisabled(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("bootstrap master: %v", err)
 	}
-	authService, err := auth.NewService(pool, serviceConfig)
+	authService, err := auth.NewService(pool, serviceConfig, notifier)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,7 +332,7 @@ func TestPasswordResetProvisioningKeepsDisabledAccountDisabled(t *testing.T) {
 		t.Fatalf("create person: %v", err)
 	}
 	loginEmail := "disabled-account-login@example.test"
-	accountService := accounts.NewService(pool, serviceConfig)
+	accountService := accounts.NewService(pool, serviceConfig, notifier)
 	account, err := accountService.Create(ctx, authenticated.Principal, person.ID, loginEmail, person.Version, nil)
 	if err != nil {
 		t.Fatalf("create disabled account: %v", err)
@@ -277,15 +345,15 @@ func TestPasswordResetProvisioningKeepsDisabledAccountDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("issue password setup token: %v", err)
 	}
-	expiredToken := resetTokenFromURL(t, expiredIssue.URL)
+	expiredCode := notifier.code(loginEmail)
 	if _, err := pool.Exec(ctx, `
-		UPDATE password_reset_tokens
+		UPDATE auth_challenges
 		SET created_at = now() - interval '2 minutes', expires_at = now() - interval '1 minute'
-		WHERE account_id = $1`, account.ID); err != nil {
+		WHERE account_id = $1 AND kind = 'password_reset'`, account.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := authService.RedeemPasswordReset(ctx, expiredToken, "Expired token password 46", nil); !apperror.IsCode(err, "password_reset_invalid") {
-		t.Fatalf("expired setup token returned %v, want password_reset_invalid", err)
+	if err := authService.CompletePasswordResetCode(ctx, loginEmail, expiredCode, "Expired token password 46", "127.0.0.1", nil); !apperror.IsCode(err, "challenge_invalid") {
+		t.Fatalf("expired setup code returned %v, want challenge_invalid", err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM password_credentials pc JOIN auth_identities i ON i.id = pc.auth_identity_id WHERE i.account_id = $1`, 0, account.ID)
 
@@ -293,13 +361,13 @@ func TestPasswordResetProvisioningKeepsDisabledAccountDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("replace expired password setup token: %v", err)
 	}
-	activeToken := resetTokenFromURL(t, activeIssue.URL)
+	activeCode := notifier.code(loginEmail)
 	provisionedPassword := "Provisioned disabled account 84"
-	if err := authService.RedeemPasswordReset(ctx, activeToken, provisionedPassword, nil); err != nil {
-		t.Fatalf("redeem active setup token: %v", err)
+	if err := authService.CompletePasswordResetCode(ctx, loginEmail, activeCode, provisionedPassword, "127.0.0.2", nil); err != nil {
+		t.Fatalf("redeem active setup code: %v", err)
 	}
-	if err := authService.RedeemPasswordReset(ctx, activeToken, "Second redemption password 25", nil); !apperror.IsCode(err, "password_reset_invalid") {
-		t.Fatalf("second setup-token redemption returned %v, want password_reset_invalid", err)
+	if err := authService.CompletePasswordResetCode(ctx, loginEmail, activeCode, "Second redemption password 25", "127.0.0.3", nil); !apperror.IsCode(err, "challenge_invalid") {
+		t.Fatalf("second setup-code redemption returned %v, want challenge_invalid", err)
 	}
 
 	var (
@@ -311,7 +379,7 @@ func TestPasswordResetProvisioningKeepsDisabledAccountDisabled(t *testing.T) {
 	if err := pool.QueryRow(ctx, `
 		SELECT a.status, a.version, pc.password_hash, pc.reset_required
 		FROM accounts a
-		JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'email_password'
+		JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'password'
 		JOIN password_credentials pc ON pc.auth_identity_id = i.id
 		WHERE a.id = $1`, account.ID).Scan(&status, &version, &passwordHash, &resetRequired); err != nil {
 		t.Fatal(err)
@@ -325,15 +393,15 @@ func TestPasswordResetProvisioningKeepsDisabledAccountDisabled(t *testing.T) {
 	if resetRequired || !strings.HasPrefix(passwordHash, "$argon2id$") {
 		t.Fatalf("credential resetRequired=%v hashPrefixValid=%v, want active Argon2id credential", resetRequired, strings.HasPrefix(passwordHash, "$argon2id$"))
 	}
-	assertCount(t, pool, `SELECT count(*) FROM password_reset_tokens WHERE account_id = $1`, 0, account.ID)
+	assertCount(t, pool, `SELECT count(*) FROM auth_challenges WHERE account_id = $1 AND kind = 'password_reset' AND used_at IS NOT NULL`, 1, account.ID)
 
 	if _, err := authService.Login(ctx, loginEmail, provisionedPassword, "127.0.0.4", nil); !apperror.IsCode(err, "invalid_credentials") {
 		t.Fatalf("disabled provisioned account login returned %v, want invalid_credentials", err)
 	}
-	assertAuditContainsNoPII(t, pool, contactEmail, loginEmail, expiredToken, activeToken, provisionedPassword)
+	assertAuditContainsNoPII(t, pool, contactEmail, loginEmail, expiredCode, activeCode, provisionedPassword)
 }
 
-func TestAdministrativeResetCannotBeBypassedByConcurrentLogin(t *testing.T) {
+func TestAdministrativeResetIssuanceDoesNotRevokeConcurrentLogin(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
 	cfg := integrationConfig(t)
@@ -393,7 +461,8 @@ func TestAdministrativeResetCannotBeBypassedByConcurrentLogin(t *testing.T) {
 	}()
 	waitForAdvisoryQuery(t, pool, "INSERT INTO sessions")
 
-	accountService := accounts.NewService(pool, cfg)
+	notifier := newNotificationRecorder()
+	accountService := accounts.NewService(pool, cfg, notifier)
 	resetDone := make(chan error, 1)
 	go func() {
 		_, resetErr := accountService.IssuePasswordReset(context.Background(), principal, accountID, 1, nil)
@@ -416,12 +485,12 @@ func TestAdministrativeResetCannotBeBypassedByConcurrentLogin(t *testing.T) {
 	if resetErr := <-resetDone; resetErr != nil {
 		t.Fatalf("issue reset: %v", resetErr)
 	}
-	if _, err := authService.Authenticate(ctx, login.session.Token); !apperror.IsCode(err, "unauthenticated") {
-		t.Fatalf("login session committed after reset remained usable: %v", err)
+	if _, err := authService.Authenticate(ctx, login.session.Token); err != nil {
+		t.Fatalf("issuing a reset challenge revoked a concurrent login before completion: %v", err)
 	}
 }
 
-func TestConcurrentResetBlocksOwnPasswordChangeFromCreatingFreshSession(t *testing.T) {
+func TestConcurrentResetIssuanceDoesNotBlockPasswordChangeButCompletionWins(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
 	cfg := integrationConfig(t)
@@ -445,7 +514,8 @@ func TestConcurrentResetBlocksOwnPasswordChangeFromCreatingFreshSession(t *testi
 	if err != nil {
 		t.Fatal(err)
 	}
-	accountService := accounts.NewService(pool, cfg)
+	notifier := newNotificationRecorder()
+	accountService := accounts.NewService(pool, cfg, notifier)
 	account, err := accountService.GetCurrent(ctx, authenticated.Principal)
 	if err != nil {
 		t.Fatal(err)
@@ -510,14 +580,27 @@ func TestConcurrentResetBlocksOwnPasswordChangeFromCreatingFreshSession(t *testi
 		t.Fatalf("issue reset: %v", resetErr)
 	}
 	change := <-changeDone
-	if !apperror.IsCode(change.err, "unauthenticated") || change.session.ID != uuid.Nil {
-		t.Fatalf("password change after reset returned session=%v error=%v", change.session.ID, change.err)
+	if change.err != nil || change.session.ID == uuid.Nil {
+		t.Fatalf("password change after reset issuance returned session=%v error=%v", change.session.ID, change.err)
 	}
-	if _, err := authService.Authenticate(ctx, initialSession.Token); !apperror.IsCode(err, "unauthenticated") {
-		t.Fatalf("original session remained usable after reset: %v", err)
+	if _, err := authService.Authenticate(ctx, change.session.Token); err != nil {
+		t.Fatalf("new password-change session was unusable before challenge completion: %v", err)
 	}
-	if _, err := authService.Login(ctx, loginEmail, changedPassword, "192.0.2.33", nil); !apperror.IsCode(err, "invalid_credentials") {
-		t.Fatalf("concurrent password change overrode reset-required state: %v", err)
+	resetCode := notifier.code(loginEmail)
+	if resetCode == "" {
+		t.Fatal("reset challenge was not delivered")
+	}
+	if err := authService.CompletePasswordResetCode(ctx, loginEmail, resetCode, resetPassword, "192.0.2.33", nil); err != nil {
+		t.Fatalf("complete reset challenge: %v", err)
+	}
+	if _, err := authService.Authenticate(ctx, change.session.Token); !apperror.IsCode(err, "unauthenticated") {
+		t.Fatalf("password-change session remained usable after reset completion: %v", err)
+	}
+	if _, err := authService.Login(ctx, loginEmail, changedPassword, "192.0.2.34", nil); !apperror.IsCode(err, "invalid_credentials") {
+		t.Fatalf("password set concurrently before reset completion remained usable: %v", err)
+	}
+	if _, err := authService.Login(ctx, loginEmail, resetPassword, "192.0.2.35", nil); err != nil {
+		t.Fatalf("completed reset password was unusable: %v", err)
 	}
 }
 
@@ -690,6 +773,8 @@ func integrationConfig(t *testing.T) config.Config {
 	}
 	return config.Config{
 		PublicBaseURL:      baseURL,
+		ChallengeHMACKey:   []byte("integration-test-challenge-key-32"),
+		PINPepper:          []byte("integration-test-pin-pepper-key-32"),
 		SessionIdleTTL:     6 * time.Hour,
 		SessionAbsoluteTTL: 72 * time.Hour,
 		PasswordResetTTL:   30 * time.Minute,
@@ -714,38 +799,18 @@ func assertSessionMaterial(t *testing.T, pool *pgxpool.Pool, session auth.Sessio
 	}
 }
 
-func resetTokenFromURL(t *testing.T, resetURL string) string {
-	t.Helper()
-	parsed, err := url.Parse(resetURL)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if parsed.Path != "/reset-password" || parsed.RawQuery != "" || !strings.HasPrefix(parsed.Fragment, "token=") {
-		t.Fatalf("reset URL must carry its secret only in the fragment: %q", resetURL)
-	}
-	values, err := url.ParseQuery(parsed.Fragment)
-	if err != nil {
-		t.Fatal(err)
-	}
-	token := values.Get("token")
-	if token == "" {
-		t.Fatalf("reset URL has no token: %q", resetURL)
-	}
-	return token
-}
-
-func assertResetTokenStoredAsDigest(t *testing.T, pool *pgxpool.Pool, accountID uuid.UUID, rawToken string) {
+func assertChallengeStoredAsDigest(t *testing.T, pool *pgxpool.Pool, cfg config.Config, accountID uuid.UUID, kind, code string) {
 	t.Helper()
 	var digest []byte
-	if err := pool.QueryRow(testContext(t), `SELECT token_digest FROM password_reset_tokens WHERE account_id = $1`, accountID).Scan(&digest); err != nil {
+	if err := pool.QueryRow(testContext(t), `SELECT code_digest FROM auth_challenges WHERE account_id = $1 AND kind = $2`, accountID, kind).Scan(&digest); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(digest, security.DigestToken(rawToken)) || bytes.Equal(digest, []byte(rawToken)) {
-		t.Fatal("password-reset token was not persisted exclusively as its SHA-256 digest")
+	if !bytes.Equal(digest, security.ChallengeDigest(cfg.ChallengeHMACKey, kind, accountID, code)) || bytes.Equal(digest, []byte(code)) {
+		t.Fatal("challenge code was not persisted exclusively as its keyed digest")
 	}
 }
 
-func redeemConcurrently(service *auth.Service, rawToken, password string) []error {
+func completeCodeConcurrently(service *auth.Service, email, code, password string) []error {
 	start := make(chan struct{})
 	results := make([]error, 2)
 	var wait sync.WaitGroup
@@ -756,7 +821,7 @@ func redeemConcurrently(service *auth.Service, rawToken, password string) []erro
 			<-start
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			results[index] = service.RedeemPasswordReset(ctx, rawToken, password, nil)
+			results[index] = service.CompletePasswordResetCode(ctx, email, code, password, "concurrent-source", nil)
 		}(index)
 	}
 	close(start)

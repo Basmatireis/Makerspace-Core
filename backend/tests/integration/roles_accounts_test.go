@@ -51,7 +51,7 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 	expectPostgresCode(t, err, "23514")
 	_, err = pool.Exec(ctx, `INSERT INTO roles (id, name, system_key) VALUES ($1, 'master', 'master')`, uuid.Must(uuid.NewV7()))
 	expectPostgresCode(t, err, "23514")
-	_, err = pool.Exec(ctx, `INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, 'people.read.all')`, masterRoleID)
+	_, err = pool.Exec(ctx, `INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, 'people.read.all')`, masterRoleID)
 	expectPostgresCode(t, err, "23514")
 
 	account := seedAccount(t, pool, "cascade", false)
@@ -59,7 +59,7 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO roles (id, name) VALUES ($1, 'cascade-role')`, roleID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, 'people.read.self')`, roleID); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, 'people.read.self')`, roleID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO account_roles (account_id, role_id) VALUES ($1, $2)`, account.accountID, roleID); err != nil {
@@ -93,7 +93,7 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 	assertCount(t, pool, `SELECT count(*) FROM sessions WHERE account_id = $1`, 0, account.accountID)
 	assertCount(t, pool, `SELECT count(*) FROM password_reset_tokens WHERE account_id = $1`, 0, account.accountID)
 	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id = $1`, 0, account.accountID)
-	assertCount(t, pool, `SELECT count(*) FROM role_permissions WHERE role_id = $1`, 1, roleID)
+	assertCount(t, pool, `SELECT count(*) FROM role_permission_grants WHERE role_id = $1`, 1, roleID)
 
 	var actorID, resourceID *uuid.UUID
 	if err := pool.QueryRow(ctx, `SELECT actor_account_id, resource_id FROM audit_events WHERE id = $1`, auditID).Scan(&actorID, &resourceID); err != nil {
@@ -110,7 +110,7 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 	if _, err := pool.Exec(ctx, `DELETE FROM roles WHERE id = $1`, roleID); err != nil {
 		t.Fatal(err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM role_permissions WHERE role_id = $1`, 0, roleID)
+	assertCount(t, pool, `SELECT count(*) FROM role_permission_grants WHERE role_id = $1`, 0, roleID)
 	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE role_id = $1`, 0, roleID)
 
 	personCascade := seedAccount(t, pool, "person-cascade", false)
@@ -210,7 +210,7 @@ func TestPersonDeletionSerializesConcurrentAccountCreation(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO roles (id, name) VALUES ($1, 'person-deleter')`, deleteRoleID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, 'people.delete')`, deleteRoleID); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, 'people.delete')`, deleteRoleID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO account_roles (account_id, role_id) VALUES ($1, $2)`, actorAccount.accountID, deleteRoleID); err != nil {
@@ -380,6 +380,70 @@ func TestNonMasterRolePrivilegeSubsetIsEnforced(t *testing.T) {
 	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id = $1 AND role_id = $2`, 1, targetAccount.accountID, subsetRole.ID)
 }
 
+func TestRoleEffectivePermissionEvaluationUsesConfiguredContext(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	masterAccount := seedAccount(t, pool, "evaluation-master", true)
+	master, err := authorization.LoadPermissionsFrom(ctx, pool, authorization.Principal{
+		AccountID: masterAccount.accountID,
+		PersonID:  masterAccount.personID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deviceTypeID := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(ctx, `INSERT INTO device_types (id, name) VALUES ($1, 'Evaluation terminal')`, deviceTypeID); err != nil {
+		t.Fatal(err)
+	}
+	roleService := roles.NewService(pool)
+	role, err := roleService.Create(ctx, master, "context-reader", nil, []authorization.PermissionGrant{
+		{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere, MinimumAssurance: authorization.AssuranceLow},
+		{PermissionID: authorization.PeopleReadAll, Scope: authorization.GrantSelectedDeviceTypes, DeviceTypeIDs: []uuid.UUID{deviceTypeID}, MinimumAssurance: authorization.AssuranceNormal},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	unmanaged, err := roleService.EvaluatePermissions(ctx, master, authorization.EvaluationContext{Assurance: authorization.AssuranceNormal})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertEvaluatedPermissions(t, unmanaged, role.ID, role.Version, []authorization.Permission{authorization.PeopleReadSelf})
+	managed, err := roleService.EvaluatePermissions(ctx, master, authorization.EvaluationContext{Assurance: authorization.AssuranceNormal, DeviceTypeID: &deviceTypeID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertEvaluatedPermissions(t, managed, role.ID, role.Version, []authorization.Permission{authorization.PeopleReadAll, authorization.PeopleReadSelf})
+	if _, err := roleService.EvaluatePermissions(ctx, authorization.Principal{}, authorization.EvaluationContext{Assurance: authorization.AssuranceNormal}); !apperror.IsCode(err, "permission_denied") {
+		t.Fatalf("unauthorized evaluation error = %v, want permission_denied", err)
+	}
+	if _, err := roleService.EvaluatePermissions(ctx, master, authorization.EvaluationContext{Assurance: authorization.Assurance("invalid")}); !apperror.IsCode(err, "invalid_request") {
+		t.Fatalf("invalid assurance error = %v, want invalid_request", err)
+	}
+}
+
+func assertEvaluatedPermissions(t *testing.T, evaluations []roles.EffectivePermissionEvaluation, roleID uuid.UUID, roleVersion int64, want []authorization.Permission) {
+	t.Helper()
+	for _, evaluation := range evaluations {
+		if evaluation.RoleID != roleID {
+			continue
+		}
+		if evaluation.RoleVersion != roleVersion {
+			t.Fatalf("evaluated role version = %d, want %d", evaluation.RoleVersion, roleVersion)
+		}
+		if len(evaluation.PermissionIDs) != len(want) {
+			t.Fatalf("evaluated permissions = %v, want %v", evaluation.PermissionIDs, want)
+		}
+		for index := range want {
+			if evaluation.PermissionIDs[index] != want[index] {
+				t.Fatalf("evaluated permissions = %v, want %v", evaluation.PermissionIDs, want)
+			}
+		}
+		return
+	}
+	t.Fatalf("role %s missing from evaluation", roleID)
+}
+
 func migratedPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	databaseURL := os.Getenv("TEST_DATABASE_URL")
@@ -457,7 +521,7 @@ func seedAccount(t *testing.T, pool *pgxpool.Pool, suffix string, master bool) s
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifier_normalized)
-		VALUES ($1, $2, 'email_password', $3, $3)`, identityID, accountID, email); err != nil {
+		VALUES ($1, $2, 'password', $3, $3)`, identityID, accountID, email); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO password_credentials (auth_identity_id, password_hash) VALUES ($1, 'integration-test-hash')`, identityID); err != nil {

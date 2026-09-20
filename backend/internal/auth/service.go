@@ -34,18 +34,35 @@ type Authenticated struct {
 }
 
 type Service struct {
-	pool      *pgxpool.Pool
-	config    config.Config
-	dummyHash string
-	limiter   *loginLimiter
+	pool         *pgxpool.Pool
+	config       config.Config
+	dummyHash    string
+	dummyPINHash string
+	limiter      *loginLimiter
+	notifier     NotificationService
 }
 
-func NewService(pool *pgxpool.Pool, cfg config.Config) (*Service, error) {
+type NotificationService interface {
+	SendPasswordReset(context.Context, string, string, time.Time) error
+	SendInvitation(context.Context, string, string, time.Time) error
+	SendEmailVerification(context.Context, string, string, time.Time) error
+	SendSecurityNotice(context.Context, string, string, string) error
+}
+
+func NewService(pool *pgxpool.Pool, cfg config.Config, notification ...NotificationService) (*Service, error) {
 	dummyHash, err := security.HashPassword("this is only a dummy password")
 	if err != nil {
 		return nil, err
 	}
-	return &Service{pool: pool, config: cfg, dummyHash: dummyHash, limiter: newLoginLimiter()}, nil
+	dummyPINHash, err := security.HashPIN(cfg.PINPepper, "000000")
+	if err != nil {
+		return nil, err
+	}
+	var notifier NotificationService
+	if len(notification) > 0 {
+		notifier = notification[0]
+	}
+	return &Service{pool: pool, config: cfg, dummyHash: dummyHash, dummyPINHash: dummyPINHash, limiter: newLoginLimiter(), notifier: notifier}, nil
 }
 
 func (s *Service) Login(ctx context.Context, email, password, sourceKey string, requestID *uuid.UUID) (Session, error) {
@@ -102,6 +119,12 @@ func (s *Service) Login(ctx context.Context, email, password, sourceKey string, 
 	if err != nil {
 		return Session{}, err
 	}
+	if err := queries.MarkAuthenticationSucceeded(ctx, authdb.MarkAuthenticationSucceededParams{
+		AuthIdentityID: login.AuthIdentityID,
+		AccountID:      login.AccountID,
+	}); err != nil {
+		return Session{}, err
+	}
 	actor := login.AccountID
 	if err := audit.Write(ctx, tx, audit.Event{
 		ActorAccountID: &actor, Action: "auth.login_succeeded", ResourceType: "account",
@@ -128,9 +151,14 @@ func (s *Service) Authenticate(ctx context.Context, sessionToken string) (Authen
 	if err != nil {
 		return Authenticated{}, err
 	}
+	assurance := authorization.Assurance(row.CurrentAssurance)
+	if row.AssuranceExpiresAt.Valid && !row.AssuranceExpiresAt.Time.After(time.Now().UTC()) {
+		assurance = authorization.Assurance(row.BaseAssurance)
+	}
 	principal, err := authorization.LoadPermissionsFrom(ctx, s.pool, authorization.Principal{
 		SessionID: row.SessionID, AccountID: row.AccountID, PersonID: row.PersonID,
 		FirstName: row.FirstName, LastName: row.LastName, LoginEmail: row.LoginEmail,
+		Assurance: assurance, AuthenticatedAt: row.AuthenticatedAt,
 	})
 	if err != nil {
 		return Authenticated{}, err
@@ -236,6 +264,53 @@ func (s *Service) ChangePassword(ctx context.Context, principal authorization.Pr
 	return session, nil
 }
 
+func (s *Service) RemovePassword(ctx context.Context, principal authorization.Principal, currentPassword string, requestID *uuid.UUID) error {
+	if !principal.Has(authorization.AccountsPasswordRemoveSelf) {
+		return apperror.PermissionDenied
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	queries := authdb.New(tx)
+	account, err := queries.GetAccountForAuthentication(ctx, principal.AccountID)
+	if err != nil || account.Status != "enabled" {
+		return apperror.Unauthenticated
+	}
+	credential, err := queries.GetPasswordCredentialForAccount(ctx, principal.AccountID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperror.New(422, "current_password_invalid", "Current password is invalid")
+	}
+	if err != nil {
+		return err
+	}
+	if !security.VerifyPassword(credential.PasswordHash, currentPassword) {
+		return apperror.New(422, "current_password_invalid", "Current password is invalid")
+	}
+	usable, err := queries.CountUsableIdentitiesForAccount(ctx, principal.AccountID)
+	if err != nil {
+		return err
+	}
+	if usable <= 1 {
+		return apperror.New(409, "last_authentication_method", "An enabled account must retain an authentication method")
+	}
+	if err := queries.DeletePasswordIdentity(ctx, credential.AuthIdentityID); err != nil {
+		return err
+	}
+	if err := queries.RevokeSessionsForAccount(ctx, authdb.RevokeSessionsForAccountParams{AccountID: principal.AccountID, Reason: ptr("password_removed")}); err != nil {
+		return err
+	}
+	if err := queries.BumpAccountVersionAfterCredentialChange(ctx, principal.AccountID); err != nil {
+		return err
+	}
+	actor := principal.AccountID
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.password_removed", ResourceType: "account", ResourceID: &actor, RequestID: requestID, ChangedFields: []string{"passwordIdentity"}}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 func (s *Service) RedeemPasswordReset(ctx context.Context, rawToken, newPassword string, requestID *uuid.UUID) error {
 	if err := security.ValidatePassword(newPassword); err != nil {
 		return validationError(err.Error())
@@ -309,6 +384,55 @@ func (s *Service) createSession(ctx context.Context, queries *authdb.Queries, ac
 		TokenDigest: tokenDigest, CsrfDigest: csrfDigest,
 		IdleExpiresAt: idle, AbsoluteExpiresAt: absolute,
 	}); err != nil {
+		return Session{}, err
+	}
+	return Session{ID: id, Token: token, CSRFToken: csrf, IdleExpiresAt: idle, AbsoluteExpiry: absolute}, nil
+}
+
+func (s *Service) CreateOIDCSession(ctx context.Context, db authdb.DBTX, accountID, identityID uuid.UUID, assurance authorization.Assurance) (Session, error) {
+	if assurance != authorization.AssuranceNormal && assurance != authorization.AssuranceStrong && assurance != authorization.AssuranceStrongMFA {
+		return Session{}, errors.New("invalid OIDC assurance")
+	}
+	queries := authdb.New(db)
+	account, err := queries.GetAccountForAuthentication(ctx, accountID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Session{}, apperror.Unauthenticated
+	}
+	if err != nil {
+		return Session{}, err
+	}
+	if account.Status != "enabled" {
+		return Session{}, apperror.Unauthenticated
+	}
+	usable, err := queries.OIDCIdentityUsable(ctx, authdb.OIDCIdentityUsableParams{ID: identityID, AccountID: accountID})
+	if err != nil {
+		return Session{}, err
+	}
+	if !usable {
+		return Session{}, apperror.Unauthenticated
+	}
+	token, tokenDigest, err := security.NewOpaqueToken()
+	if err != nil {
+		return Session{}, err
+	}
+	csrf, csrfDigest, err := security.NewOpaqueToken()
+	if err != nil {
+		return Session{}, err
+	}
+	now := time.Now().UTC()
+	absolute := now.Add(s.config.SessionAbsoluteTTL)
+	idle := now.Add(s.config.SessionIdleTTL)
+	if idle.After(absolute) {
+		idle = absolute
+	}
+	id := uuid.Must(uuid.NewV7())
+	if _, err := queries.CreateOIDCSession(ctx, authdb.CreateOIDCSessionParams{
+		ID: id, AccountID: accountID, AuthIdentityID: identityID, TokenDigest: tokenDigest,
+		CsrfDigest: csrfDigest, Assurance: string(assurance), IdleExpiresAt: idle, AbsoluteExpiresAt: absolute,
+	}); err != nil {
+		return Session{}, err
+	}
+	if err := queries.MarkAuthenticationSucceeded(ctx, authdb.MarkAuthenticationSucceededParams{AuthIdentityID: identityID, AccountID: accountID}); err != nil {
 		return Session{}, err
 	}
 	return Session{ID: id, Token: token, CSRFToken: csrf, IdleExpiresAt: idle, AbsoluteExpiry: absolute}, nil

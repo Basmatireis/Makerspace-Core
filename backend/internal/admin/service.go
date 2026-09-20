@@ -154,6 +154,9 @@ func (s *Service) RecoverMaster(ctx context.Context, email, password string) (uu
 	if err := queries.DeletePasswordResetForAccount(ctx, account.ID); err != nil {
 		return uuid.Nil, err
 	}
+	if err := queries.DeletePasswordChallengesForAccount(ctx, account.ID); err != nil {
+		return uuid.Nil, err
+	}
 	if err := queries.RevokeSessionsForAccount(ctx, accountsdb.RevokeSessionsForAccountParams{AccountID: account.ID, Reason: ptr("master_recovery")}); err != nil {
 		return uuid.Nil, err
 	}
@@ -164,6 +167,93 @@ func (s *Service) RecoverMaster(ctx context.Context, email, password string) (uu
 		return uuid.Nil, err
 	}
 	return account.ID, nil
+}
+
+// ResetPassword replaces or creates only the local-password method belonging
+// to one unambiguously identified existing Account. It deliberately has no
+// master-availability precondition and never changes Account status or Roles.
+func (s *Service) ResetPassword(ctx context.Context, identifier, password string) (uuid.UUID, error) {
+	identifier = strings.TrimSpace(identifier)
+	if identifier == "" || len(identifier) > 512 {
+		return uuid.Nil, errors.New("an existing account login email or identifier is required")
+	}
+	hash, err := security.HashPassword(password)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	queries := accountsdb.New(tx)
+	matches, err := queries.FindAccountsByAdministrativeIdentifier(ctx, identifier)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if len(matches) == 0 {
+		return uuid.Nil, errors.New("no existing account matches that login email or identifier")
+	}
+	if len(matches) != 1 {
+		return uuid.Nil, errors.New("identifier is ambiguous; no changes were made")
+	}
+	accountID := matches[0]
+	if _, err := queries.GetAccountForMutation(ctx, accountID); err != nil {
+		return uuid.Nil, err
+	}
+	lockedMatches, err := queries.FindAccountsByAdministrativeIdentifier(ctx, identifier)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	if len(lockedMatches) != 1 || lockedMatches[0] != accountID {
+		return uuid.Nil, errors.New("identifier changed or became ambiguous; no changes were made")
+	}
+	identity, err := queries.GetPasswordIdentityForAccountForUpdate(ctx, accountID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		contactEmail, emailErr := queries.GetPersonEmailForAccount(ctx, accountID)
+		if emailErr != nil {
+			return uuid.Nil, emailErr
+		}
+		if contactEmail == nil {
+			return uuid.Nil, errors.New("account has no local-password identity and its Person has no email; no changes were made")
+		}
+		display, normalized, normalizeErr := security.NormalizeEmail(*contactEmail)
+		if normalizeErr != nil {
+			return uuid.Nil, fmt.Errorf("Person contact email cannot be used for local login: %w", normalizeErr)
+		}
+		identity, err = queries.CreateVerifiedPasswordIdentity(ctx, accountsdb.CreateVerifiedPasswordIdentityParams{
+			ID: uuid.Must(uuid.NewV7()), AccountID: accountID, IdentifierDisplay: &display, IdentifierNormalized: &normalized,
+		})
+		if err != nil {
+			return uuid.Nil, fmt.Errorf("create local-password identity without guessing: %w", err)
+		}
+	} else if err != nil {
+		return uuid.Nil, err
+	} else if err := queries.RestorePasswordIdentity(ctx, identity.ID); err != nil {
+		return uuid.Nil, err
+	}
+	if err := queries.UpsertPasswordCredential(ctx, accountsdb.UpsertPasswordCredentialParams{AuthIdentityID: identity.ID, PasswordHash: hash}); err != nil {
+		return uuid.Nil, err
+	}
+	if err := queries.RevokeSessionsForAccount(ctx, accountsdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: ptr("admin_password_reset")}); err != nil {
+		return uuid.Nil, err
+	}
+	if err := queries.DeletePasswordResetForAccount(ctx, accountID); err != nil {
+		return uuid.Nil, err
+	}
+	if err := queries.DeletePasswordChallengesForAccount(ctx, accountID); err != nil {
+		return uuid.Nil, err
+	}
+	if err := queries.BumpAccountVersionForAdministrativeReset(ctx, accountID); err != nil {
+		return uuid.Nil, err
+	}
+	if err := audit.Write(ctx, tx, audit.Event{Action: "account.password_reset_by_admin_cli", ResourceType: "account", ResourceID: &accountID, ChangedFields: []string{"passwordCredential"}, Source: "admin_cli"}); err != nil {
+		return uuid.Nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return uuid.Nil, err
+	}
+	return accountID, nil
 }
 
 func (s *Service) Cleanup(ctx context.Context, sessionBefore, auditBefore time.Time) (sessions, resets, auditEvents int64, err error) {

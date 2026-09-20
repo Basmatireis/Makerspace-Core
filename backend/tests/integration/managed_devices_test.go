@@ -110,11 +110,11 @@ func TestExpiredDeviceAndGlobalGrantMigration(t *testing.T) {
 		t.Fatalf("expired token result=%v err=%v", device, err)
 	}
 	roleID := uuid.Must(uuid.NewV7())
-	if _, err = pool.Exec(ctx, `INSERT INTO roles(id,name) VALUES($1,'legacy'); INSERT INTO role_permissions(role_id,permission_id) VALUES($1,'people.read.all')`, roleID); err != nil {
+	if _, err = pool.Exec(ctx, `INSERT INTO roles(id,name) VALUES($1,'legacy'); INSERT INTO role_permission_grants(id,role_id,permission_id) VALUES(uuidv7(),$1,'people.read.all')`, roleID); err != nil {
 		t.Fatal(err)
 	}
 	var scope string
-	if err = pool.QueryRow(ctx, `SELECT scope FROM role_permissions WHERE role_id=$1`, roleID).Scan(&scope); err != nil || scope != "global" {
+	if err = pool.QueryRow(ctx, `SELECT scope FROM role_permission_grants WHERE role_id=$1`, roleID).Scan(&scope); err != nil || scope != "global" {
 		t.Fatalf("legacy scope=%q err=%v", scope, err)
 	}
 }

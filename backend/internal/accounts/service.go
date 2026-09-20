@@ -10,12 +10,14 @@ import (
 	accountsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/accounts/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	mailservice "github.com/Basmatireis/Makerspace-Core/backend/internal/mail"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -25,31 +27,58 @@ type RoleSummary struct {
 	SystemKey *string
 }
 
+type AuthIdentity struct {
+	ID                uuid.UUID
+	Kind              string
+	DisplayIdentifier *string
+	VerifiedAt        *time.Time
+	DisabledAt        *time.Time
+	CreatedAt         time.Time
+}
+
 type Account struct {
-	ID             uuid.UUID
-	PersonID       uuid.UUID
-	Status         string
-	PasswordStatus string
-	LoginEmail     string
-	Roles          []RoleSummary
-	Version        int64
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	ID                   uuid.UUID
+	PersonID             uuid.UUID
+	Status               string
+	ProvisioningSource   string
+	FirstAuthenticatedAt *time.Time
+	PasswordStatus       string
+	LoginEmail           string
+	AuthIdentities       []AuthIdentity
+	Roles                []RoleSummary
+	Version              int64
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 }
 
 type ResetIssue struct {
-	URL       string
-	ExpiresAt time.Time
-	Account   Account
+	ExpiresAt      time.Time
+	Account        Account
+	DeliveryStatus string
+	SetupURL       *string
+}
+
+type NotificationService interface {
+	SendPasswordReset(context.Context, string, string, time.Time) error
+	SendInvitation(context.Context, string, string, time.Time) error
+}
+
+type PINEnrollmentNotificationService interface {
+	SendPINEnrollment(context.Context, string, uuid.UUID, string, time.Time) error
 }
 
 type Service struct {
-	pool   *pgxpool.Pool
-	config config.Config
+	pool     *pgxpool.Pool
+	config   config.Config
+	notifier NotificationService
 }
 
-func NewService(pool *pgxpool.Pool, cfg config.Config) *Service {
-	return &Service{pool: pool, config: cfg}
+func NewService(pool *pgxpool.Pool, cfg config.Config, notification ...NotificationService) *Service {
+	var notifier NotificationService
+	if len(notification) > 0 {
+		notifier = notification[0]
+	}
+	return &Service{pool: pool, config: cfg, notifier: notifier}
 }
 
 func (s *Service) Get(ctx context.Context, principal authorization.Principal, id uuid.UUID) (Account, error) {
@@ -80,12 +109,24 @@ func (s *Service) GetForPerson(ctx context.Context, principal authorization.Prin
 }
 
 func (s *Service) Create(ctx context.Context, principal authorization.Principal, personID uuid.UUID, loginEmail string, expectedPersonVersion int64, requestID *uuid.UUID) (Account, error) {
+	return s.create(ctx, principal, personID, &loginEmail, expectedPersonVersion, requestID)
+}
+
+func (s *Service) CreateWithoutIdentity(ctx context.Context, principal authorization.Principal, personID uuid.UUID, expectedPersonVersion int64, requestID *uuid.UUID) (Account, error) {
+	return s.create(ctx, principal, personID, nil, expectedPersonVersion, requestID)
+}
+
+func (s *Service) create(ctx context.Context, principal authorization.Principal, personID uuid.UUID, loginEmail *string, expectedPersonVersion int64, requestID *uuid.UUID) (Account, error) {
 	if !principal.Has(authorization.AccountsCreate) {
 		return Account{}, apperror.PermissionDenied
 	}
-	display, normalized, err := security.NormalizeEmail(loginEmail)
+	var display, normalized string
+	var err error
+	if loginEmail != nil {
+		display, normalized, err = security.NormalizeEmail(*loginEmail)
+	}
 	if err != nil || expectedPersonVersion < 1 {
-		return Account{}, validation("valid loginEmail and expectedVersion are required")
+		return Account{}, validation("loginEmail must be valid when supplied and expectedVersion is required")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -107,8 +148,10 @@ func (s *Service) Create(ctx context.Context, principal authorization.Principal,
 	if _, err := queries.CreateAccount(ctx, accountsdb.CreateAccountParams{ID: accountID, PersonID: personID, Status: "disabled"}); err != nil {
 		return Account{}, databaseError(err)
 	}
-	if _, err := queries.CreateAuthIdentity(ctx, accountsdb.CreateAuthIdentityParams{ID: uuid.Must(uuid.NewV7()), AccountID: accountID, IdentifierDisplay: display, IdentifierNormalized: normalized}); err != nil {
-		return Account{}, databaseError(err)
+	if loginEmail != nil {
+		if _, err := queries.CreateAuthIdentity(ctx, accountsdb.CreateAuthIdentityParams{ID: uuid.Must(uuid.NewV7()), AccountID: accountID, IdentifierDisplay: display, IdentifierNormalized: normalized}); err != nil {
+			return Account{}, databaseError(err)
+		}
 	}
 	actor := principal.AccountID
 	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.created", ResourceType: "account", ResourceID: &accountID, RequestID: requestID}); err != nil {
@@ -153,8 +196,14 @@ func (s *Service) SetStatus(ctx context.Context, principal authorization.Princip
 	if current.Version != expectedVersion {
 		return Account{}, apperror.StaleWrite
 	}
-	if status == "enabled" && current.PasswordStatus != "active" {
-		return Account{}, validation("an active password is required before enabling the account")
+	if status == "enabled" {
+		usable, err := queries.CountUsableAuthIdentities(ctx, id)
+		if err != nil {
+			return Account{}, err
+		}
+		if usable == 0 {
+			return Account{}, validation("an active authentication identity is required before enabling the account")
+		}
 	}
 	if status == "disabled" {
 		if err := protectLastMaster(ctx, queries, current); err != nil {
@@ -253,6 +302,12 @@ func (s *Service) UpdateLoginEmail(ctx context.Context, principal authorization.
 	if _, err := queries.UpdateLoginEmail(ctx, accountsdb.UpdateLoginEmailParams{AccountID: id, IdentifierDisplay: display, IdentifierNormalized: normalized}); err != nil {
 		return Account{}, databaseError(err)
 	}
+	if err := queries.DeletePasswordResetForAccount(ctx, id); err != nil {
+		return Account{}, err
+	}
+	if err := queries.DeletePasswordChallengesForAccount(ctx, id); err != nil {
+		return Account{}, err
+	}
 	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(err, pgx.ErrNoRows) {
 		return Account{}, apperror.StaleWrite
 	} else if err != nil {
@@ -306,7 +361,13 @@ func (s *Service) SetPassword(ctx context.Context, principal authorization.Princ
 	if err := queries.UpsertPasswordCredential(ctx, accountsdb.UpsertPasswordCredentialParams{AuthIdentityID: identity.ID, PasswordHash: hash}); err != nil {
 		return Account{}, err
 	}
+	if err := queries.VerifyPasswordIdentity(ctx, identity.ID); err != nil {
+		return Account{}, err
+	}
 	if err := queries.DeletePasswordResetForAccount(ctx, id); err != nil {
+		return Account{}, err
+	}
+	if err := queries.DeletePasswordChallengesForAccount(ctx, id); err != nil {
 		return Account{}, err
 	}
 	if err := queries.RevokeSessionsForAccount(ctx, accountsdb.RevokeSessionsForAccountParams{AccountID: id, Reason: ptr("password_set_by_admin")}); err != nil {
@@ -355,22 +416,22 @@ func (s *Service) IssuePasswordReset(ctx context.Context, principal authorizatio
 	if err != nil {
 		return ResetIssue{}, err
 	}
-	rawToken, digest, err := security.NewOpaqueToken()
+	code, err := security.NewChallengeCode()
 	if err != nil {
 		return ResetIssue{}, err
 	}
 	expiresAt := time.Now().UTC().Add(s.config.PasswordResetTTL)
 	actor := principal.AccountID
-	if _, err := queries.CreatePasswordResetToken(ctx, accountsdb.CreatePasswordResetTokenParams{
-		ID: uuid.Must(uuid.NewV7()), AccountID: id, TokenDigest: digest,
-		CreatedByAccountID: &actor, ExpiresAt: expiresAt,
-	}); err != nil {
-		return ResetIssue{}, err
+	if identity.IdentifierDisplay == nil {
+		return ResetIssue{}, validation("the account has no password login email")
 	}
-	if err := queries.MarkPasswordResetRequired(ctx, identity.ID); err != nil {
-		return ResetIssue{}, err
-	}
-	if err := queries.RevokeSessionsForAccount(ctx, accountsdb.RevokeSessionsForAccountParams{AccountID: id, Reason: ptr("password_reset_issued")}); err != nil {
+	challenge, err := queries.UpsertAuthChallenge(ctx, accountsdb.UpsertAuthChallengeParams{
+		ID: uuid.Must(uuid.NewV7()), Kind: "password_reset", AccountID: id,
+		AuthIdentityID:  &identity.ID,
+		CodeDigest:      security.ChallengeDigest(s.config.ChallengeHMACKey, "password_reset", id, code),
+		DeliveryAddress: *identity.IdentifierDisplay, CreatedByAccountID: &actor, ExpiresAt: expiresAt,
+	})
+	if err != nil {
 		return ResetIssue{}, err
 	}
 	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(err, pgx.ErrNoRows) {
@@ -378,7 +439,7 @@ func (s *Service) IssuePasswordReset(ctx context.Context, principal authorizatio
 	} else if err != nil {
 		return ResetIssue{}, err
 	}
-	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.password_reset_issued", ResourceType: "account", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"passwordStatus"}}); err != nil {
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.password_reset_issued", ResourceType: "account", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"passwordChallenge"}}); err != nil {
 		return ResetIssue{}, err
 	}
 	result, err := loadAccount(ctx, queries, id)
@@ -388,11 +449,210 @@ func (s *Service) IssuePasswordReset(ctx context.Context, principal authorizatio
 	if err := tx.Commit(ctx); err != nil {
 		return ResetIssue{}, err
 	}
-	base := *s.config.PublicBaseURL
-	base.Path = "/reset-password"
-	base.RawQuery = ""
-	base.Fragment = "token=" + url.QueryEscape(rawToken)
-	return ResetIssue{URL: base.String(), ExpiresAt: expiresAt, Account: result}, nil
+	deliveryErr := error(mailservice.ErrDisabled)
+	if s.notifier != nil {
+		deliveryErr = s.notifier.SendPasswordReset(ctx, *identity.IdentifierDisplay, code, expiresAt)
+	}
+	status := "sent"
+	var failureCode *string
+	if errors.Is(deliveryErr, mailservice.ErrDisabled) {
+		status = "manual"
+	} else if deliveryErr != nil {
+		status = "failed"
+		code := "provider_error"
+		failureCode = &code
+	}
+	_ = accountsdb.New(s.pool).SetAuthChallengeDelivery(ctx, accountsdb.SetAuthChallengeDeliveryParams{ID: challenge.ID, DeliveryStatus: status, DeliveryFailureCode: failureCode})
+	if errors.Is(deliveryErr, mailservice.ErrDisabled) {
+		manual := "/reset-password#email=" + url.QueryEscape(*identity.IdentifierDisplay) + "&code=" + url.QueryEscape(code)
+		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "manual", SetupURL: &manual}, nil
+	}
+	if deliveryErr != nil {
+		return ResetIssue{}, apperror.New(503, "mail_delivery_failed", "Password recovery could not be delivered")
+	}
+	return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "sent"}, nil
+}
+
+func (s *Service) IssuePINEnrollment(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, requestID *uuid.UUID) (ResetIssue, error) {
+	if !principal.Has(authorization.AccountsPINEnrollAll) && !principal.Has(authorization.AccountsPINReset) {
+		return ResetIssue{}, apperror.PermissionDenied
+	}
+	if expectedVersion < 1 {
+		return ResetIssue{}, validation("expectedVersion must be positive")
+	}
+	notifier, notifierAvailable := s.notifier.(PINEnrollmentNotificationService)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return ResetIssue{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	queries := accountsdb.New(tx)
+	current, err := loadAccountForMutation(ctx, queries, id)
+	if err != nil {
+		return ResetIssue{}, err
+	}
+	if current.Version != expectedVersion {
+		return ResetIssue{}, apperror.StaleWrite
+	}
+	var pinIdentityID *uuid.UUID
+	for _, identity := range current.AuthIdentities {
+		if identity.Kind == "pin" {
+			value := identity.ID
+			pinIdentityID = &value
+			break
+		}
+	}
+	if pinIdentityID == nil && !principal.Has(authorization.AccountsPINEnrollAll) {
+		return ResetIssue{}, apperror.PermissionDenied
+	}
+	if pinIdentityID != nil && !principal.Has(authorization.AccountsPINReset) {
+		return ResetIssue{}, apperror.PermissionDenied
+	}
+	deliveryAddress, err := queries.GetPersonEmailForAccount(ctx, id)
+	if err != nil {
+		return ResetIssue{}, err
+	}
+	if deliveryAddress == nil {
+		return ResetIssue{}, apperror.New(422, "email_required", "The Person needs a contact email for PIN setup delivery")
+	}
+	code, err := security.NewChallengeCode()
+	if err != nil {
+		return ResetIssue{}, err
+	}
+	expiresAt := time.Now().UTC().Add(s.config.PasswordResetTTL)
+	actor := principal.AccountID
+	challenge, err := queries.UpsertAuthChallenge(ctx, accountsdb.UpsertAuthChallengeParams{
+		ID: uuid.Must(uuid.NewV7()), Kind: "pin_enrollment", AccountID: id,
+		AuthIdentityID: pinIdentityID, CodeDigest: security.ChallengeDigest(s.config.ChallengeHMACKey, "pin_enrollment", id, code),
+		DeliveryAddress: *deliveryAddress, CreatedByAccountID: &actor, ExpiresAt: expiresAt,
+	})
+	if err != nil {
+		return ResetIssue{}, err
+	}
+	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(err, pgx.ErrNoRows) {
+		return ResetIssue{}, apperror.StaleWrite
+	} else if err != nil {
+		return ResetIssue{}, err
+	}
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.pin_enrollment_issued", ResourceType: "account", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"pinEnrollmentChallenge"}}); err != nil {
+		return ResetIssue{}, err
+	}
+	result, err := loadAccount(ctx, queries, id)
+	if err != nil {
+		return ResetIssue{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ResetIssue{}, err
+	}
+	deliveryErr := error(mailservice.ErrDisabled)
+	if notifierAvailable {
+		deliveryErr = notifier.SendPINEnrollment(ctx, *deliveryAddress, id, code, expiresAt)
+	}
+	status := "sent"
+	var failureCode *string
+	if errors.Is(deliveryErr, mailservice.ErrDisabled) {
+		status = "manual"
+	} else if deliveryErr != nil {
+		status = "failed"
+		value := "provider_error"
+		failureCode = &value
+	}
+	_ = accountsdb.New(s.pool).SetAuthChallengeDelivery(ctx, accountsdb.SetAuthChallengeDeliveryParams{ID: challenge.ID, DeliveryStatus: status, DeliveryFailureCode: failureCode})
+	if errors.Is(deliveryErr, mailservice.ErrDisabled) {
+		manual := "/complete-pin-setup#account=" + id.String() + "&code=" + url.QueryEscape(code)
+		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "manual", SetupURL: &manual}, nil
+	}
+	if deliveryErr != nil {
+		return ResetIssue{}, apperror.New(503, "mail_delivery_failed", "PIN setup could not be delivered")
+	}
+	return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "sent"}, nil
+}
+
+func (s *Service) IssueInvitation(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, requestID *uuid.UUID) (ResetIssue, error) {
+	if !principal.Has(authorization.AccountsPasswordEnrollAll) {
+		return ResetIssue{}, apperror.PermissionDenied
+	}
+	if expectedVersion < 1 {
+		return ResetIssue{}, validation("expectedVersion must be positive")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return ResetIssue{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	queries := accountsdb.New(tx)
+	current, err := loadAccountForMutation(ctx, queries, id)
+	if err != nil {
+		return ResetIssue{}, err
+	}
+	if current.Version != expectedVersion {
+		return ResetIssue{}, apperror.StaleWrite
+	}
+	if current.PasswordStatus == "active" {
+		return ResetIssue{}, apperror.New(409, "password_already_enrolled", "Use password reset for an account that already has a password")
+	}
+	identity, err := queries.GetIdentityByAccount(ctx, id)
+	if err != nil {
+		return ResetIssue{}, err
+	}
+	if identity.IdentifierDisplay == nil {
+		return ResetIssue{}, validation("the account has no password login email")
+	}
+	code, err := security.NewChallengeCode()
+	if err != nil {
+		return ResetIssue{}, err
+	}
+	expiresAt := time.Now().UTC().Add(s.config.PasswordResetTTL)
+	actor := principal.AccountID
+	challenge, err := queries.UpsertAuthChallenge(ctx, accountsdb.UpsertAuthChallengeParams{
+		ID: uuid.Must(uuid.NewV7()), Kind: "invitation", AccountID: id,
+		AuthIdentityID:  &identity.ID,
+		CodeDigest:      security.ChallengeDigest(s.config.ChallengeHMACKey, "invitation", id, code),
+		DeliveryAddress: *identity.IdentifierDisplay, CreatedByAccountID: &actor, ExpiresAt: expiresAt,
+	})
+	if err != nil {
+		return ResetIssue{}, err
+	}
+	if err := queries.MarkInvitationProvisioning(ctx, id); err != nil {
+		return ResetIssue{}, err
+	}
+	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(err, pgx.ErrNoRows) {
+		return ResetIssue{}, apperror.StaleWrite
+	} else if err != nil {
+		return ResetIssue{}, err
+	}
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "account.invitation_issued", ResourceType: "account", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"invitation"}}); err != nil {
+		return ResetIssue{}, err
+	}
+	result, err := loadAccount(ctx, queries, id)
+	if err != nil {
+		return ResetIssue{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ResetIssue{}, err
+	}
+	deliveryErr := error(mailservice.ErrDisabled)
+	if s.notifier != nil {
+		deliveryErr = s.notifier.SendInvitation(ctx, *identity.IdentifierDisplay, code, expiresAt)
+	}
+	status := "sent"
+	var failureCode *string
+	if errors.Is(deliveryErr, mailservice.ErrDisabled) {
+		status = "manual"
+	} else if deliveryErr != nil {
+		status = "failed"
+		code := "provider_error"
+		failureCode = &code
+	}
+	_ = accountsdb.New(s.pool).SetAuthChallengeDelivery(ctx, accountsdb.SetAuthChallengeDeliveryParams{ID: challenge.ID, DeliveryStatus: status, DeliveryFailureCode: failureCode})
+	if errors.Is(deliveryErr, mailservice.ErrDisabled) {
+		manual := "/complete-invitation#email=" + url.QueryEscape(*identity.IdentifierDisplay) + "&code=" + url.QueryEscape(code)
+		return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "manual", SetupURL: &manual}, nil
+	}
+	if deliveryErr != nil {
+		return ResetIssue{}, apperror.New(503, "mail_delivery_failed", "Invitation could not be delivered")
+	}
+	return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "sent"}, nil
 }
 
 func (s *Service) ChangeRole(ctx context.Context, principal authorization.Principal, accountID, roleID uuid.UUID, expectedVersion int64, assign bool, requestID *uuid.UUID) (Account, error) {
@@ -436,7 +696,7 @@ func (s *Service) ChangeRole(ctx context.Context, principal authorization.Princi
 			return Account{}, apperror.PermissionDenied
 		}
 	} else {
-		grants := map[authorization.Permission]authorization.PermissionGrant{}
+		grants := map[uuid.UUID]authorization.PermissionGrant{}
 		for _, permission := range permissions {
 			permissionID := authorization.Permission(permission.PermissionID)
 			if !authorization.Known(permissionID) {
@@ -446,14 +706,16 @@ func (s *Service) ChangeRole(ctx context.Context, principal authorization.Princi
 				}
 				continue
 			}
-			grant := grants[permissionID]
-			if grant.PermissionID == "" {
-				grant = authorization.PermissionGrant{PermissionID: permissionID, Scope: authorization.GrantScope(permission.Scope)}
+			grant, exists := grants[permission.ID]
+			if !exists {
+				grant = authorization.PermissionGrant{ID: permission.ID, PermissionID: permissionID, Scope: authorization.GrantScope(permission.Scope), MinimumAssurance: authorization.Assurance(permission.MinimumAssurance)}
 			}
 			if permission.DeviceTypeID != nil {
 				grant.DeviceTypeIDs = append(grant.DeviceTypeIDs, *permission.DeviceTypeID)
 			}
-			grants[permissionID] = grant
+			grants[permission.ID] = grant
+		}
+		for _, grant := range grants {
 			if !principal.Master && !principal.CanDelegate(grant) {
 				return Account{}, apperror.PermissionDenied
 			}
@@ -522,8 +784,34 @@ func loadAccount(ctx context.Context, queries *accountsdb.Queries, id uuid.UUID)
 	for _, role := range roles {
 		summaries = append(summaries, RoleSummary{ID: role.ID, Name: role.Name, SystemKey: role.SystemKey})
 	}
-	return Account{ID: row.ID, PersonID: row.PersonID, Status: row.Status, PasswordStatus: row.PasswordStatus, LoginEmail: row.LoginEmail,
+	identityRows, err := queries.ListAuthIdentitiesByAccount(ctx, id)
+	if err != nil {
+		return Account{}, err
+	}
+	identities := make([]AuthIdentity, 0, len(identityRows))
+	for _, identity := range identityRows {
+		displayIdentifier := identity.DisplayIdentifier
+		identities = append(identities, AuthIdentity{
+			ID: identity.ID, Kind: identity.Kind, DisplayIdentifier: &displayIdentifier,
+			VerifiedAt: timeFromPG(identity.VerifiedAt), DisabledAt: timeFromPG(identity.DisabledAt), CreatedAt: identity.CreatedAt,
+		})
+	}
+	loginEmail := ""
+	if row.LoginEmail != nil {
+		loginEmail = *row.LoginEmail
+	}
+	return Account{ID: row.ID, PersonID: row.PersonID, Status: row.Status,
+		ProvisioningSource: row.ProvisioningSource, FirstAuthenticatedAt: timeFromPG(row.FirstAuthenticatedAt),
+		PasswordStatus: row.PasswordStatus, LoginEmail: loginEmail, AuthIdentities: identities,
 		Roles: summaries, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, nil
+}
+
+func timeFromPG(value pgtype.Timestamptz) *time.Time {
+	if !value.Valid {
+		return nil
+	}
+	result := value.Time
+	return &result
 }
 
 func loadAccountForMutation(ctx context.Context, queries *accountsdb.Queries, id uuid.UUID) (Account, error) {
