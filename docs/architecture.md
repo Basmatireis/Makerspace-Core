@@ -8,7 +8,7 @@ The browser calls relative `/api/v1` routes. In development Vite proxies `/api` 
 
 ## Backend boundaries
 
-Business features own their service, repository/query, domain model, and tests. The modules are people, accounts, auth, authorization, roles, audit, managed devices, and Open Days. A single thin `httpapi` adapter implements the generated strict interface and delegates business behavior to those feature services; it owns only transport mapping, cookies, and HTTP middleware. Shared platform code is limited to configuration, database setup, HTTP/error plumbing, logging, and optional telemetry integration.
+Business features own their service, repository/query, domain model, and tests. The modules include people, accounts, auth, authorization, roles, audit, managed devices, files/storage, Lab Rules, OIDC, SCIM, visitor enrollment, supervisors, and Open Days. A single thin `httpapi` adapter implements the generated strict interface and delegates business behavior to those feature services; it owns only transport mapping, cookies, and HTTP middleware. Shared platform code is limited to configuration, database setup, HTTP/error plumbing, logging, and optional telemetry integration.
 
 Within a feature:
 
@@ -20,19 +20,25 @@ Within a feature:
 
 OpenAPI-generated types, domain types, and sqlc rows remain separate. Feature modules must not import each other's persistence packages. Cross-feature orchestration belongs in a service with narrow, concrete collaborators; cyclic package dependencies are not allowed.
 
-## Initial domain model
+## Current domain model
 
 ```text
-Person 1 ─── 0..1 Account 1 ─── 1 AuthIdentity(email_password)
-                     │                    │
-                     │                    └── 0..1 PasswordCredential
-                     ├── * AccountRole * ─── 1 Role
-                     │                           └── * RolePermission
-                     ├── * Session
-                     └── 0..1 active PasswordResetToken
+Person 1 ─── 0..1 Account 1 ─── * AuthIdentity(password | pin | oidc)
+   │                 │                    ├── 0..1 PasswordCredential
+   │                 │                    └── 0..1 PINCredential
+   │                 ├── * AccountRole * ─── 1 Role
+   │                 │                           └── * RolePermissionGrant
+   │                 ├── * Session
+   │                 └── * AuthChallenge
+   ├── 0..1 private profile-image File
+   └── * LabRulesRequest ─── 1 immutable published LabRulesVersion ─── 1 PDF File
 
 DeviceType 1 ─── * ManagedDevice
-     └── * RolePermissionDeviceType * ─── 1 RolePermission
+     ├── * RolePermissionGrantDeviceType * ─── 1 RolePermissionGrant
+     └── * VisitorEnrollmentContext
+
+SCIMConnector 1 ─── * SCIMUserMapping ─── 1 Person/Account
+OIDCProvider 1 ─── * OIDC AuthIdentity
 
 AuditEvent references an actor account and resource by nullable/minimal identifiers.
 
@@ -43,13 +49,13 @@ OpenDayPeriod 1 ─── * OpenDay 1 ─── 2 StaffRequirement
 AcademicBreak provides independently versioned calendar context.
 ```
 
-- **Person** is the human/business record. It has a UUIDv7, required first and last names, optional contact email, phone, matriculation number, and a reserved photo reference. At least one of email or phone must remain non-null. Photo storage and arbitrary photo-reference writes are not part of v1.
+- **Person** is the human/business record. It has a UUIDv7, required first and last names, optional contact email, phone, matriculation number, and a private normalized profile-image File. At least one of email or phone must remain non-null. The old `photo_reference` field is preserved as read-only legacy metadata.
 - **Account** is the optional ability for one Person to access the application. It has an enabled/disabled status and optimistic-concurrency version; disabling it revokes active sessions.
-- **AuthIdentity** keeps the normalized email login identifier separate from the Person contact email. Updating either value never silently changes the other.
+- **AuthIdentity** represents a password email, case-insensitive PIN username, or exact OIDC issuer/subject pair. Password login identifiers remain separate from Person contact email, and updating either value never silently changes the other.
 - **PasswordCredential** contains only the dedicated password hash and reset-required state. Its absence means no password has been set.
-- **Session** stores digests of opaque session and CSRF tokens, the account/identity, password authentication method, idle and absolute expiry, and revocation state.
-- **PasswordResetToken** stores only a token digest, expiry, target account, and nullable issuing account. Only one active reset token exists per account.
-- **Role** is operator-configurable. Each permission grant is global, valid on any authenticated managed device, or restricted to selected device types. `master` is the sole protected system role; its permissions are computed from the application registry as global rather than copied into role-permission rows.
+- **Session** stores digests of opaque session and CSRF tokens, the account/identity, authentication method, ordered assurance, idle and absolute expiry, optional elevation expiry, and revocation state.
+- **AuthChallenge** stores only a keyed code digest, expiry, attempts, single-use state, target account/identity, and non-secret delivery outcome for invitations, email verification, password reset, and PIN setup.
+- **Role** is operator-configurable. Each independently identified permission grant is global, valid on any authenticated managed device, or restricted to selected device types, and specifies minimum assurance. `master` is the sole protected system role; its permissions are computed from the application registry as global at minimum low assurance rather than copied into grant rows.
 - **DeviceType** is administrator-maintained classification data used by scoped role grants; authorization never hard-codes names such as Reception or Laser Terminal.
 - **ManagedDevice** stores a reusable device identity, its type, token digest, expiration/revocation state, throttled last-seen time, and optimistic version. It never authenticates a user.
 - **AuditEvent** contains an action, resource type/ID, nullable actor account, time, nullable HTTP request ID, changed field names, source, and selected non-sensitive metadata.
@@ -73,4 +79,4 @@ The contract uses lower-camel JSON properties. Optional nullable PATCH propertie
 
 ## Deliberate non-goals
 
-The schema and code contain no Machines, Orders, Events, Trainings, Rental, Documentation, Terminals, PIN authentication, document signing, Visits, Analytics, or Feedback placeholders. Events remain deliberately outside the Open Days module. The Person/Account/AuthIdentity separation and recorded session authentication method provide an ordinary extension seam when a future requirement is accepted; they do not justify implementing those features now.
+The schema and code contain no Machines, Orders, general Events, Trainings, Rental, general-purpose document signing, Visits, Analytics, or Feedback placeholders. Events remain deliberately outside the Open Days module. Lab Rules evidence records verification of a physical document; it does not store a drawn signature or treat a checkbox, PIN, or session as a legal signature. SCIM supports Users only—Groups, Roles, and entitlements are deliberately unsupported. Visitor enrollment is available only on explicitly approved managed-device types and never creates a generic public registration route.

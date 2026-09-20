@@ -37,7 +37,7 @@ docker compose restart backend
 
 ## Database migrations and SQL
 
-Migrations live under `backend/migrations/` and use goose SQL `Up`/`Down` sections. Application startup never runs them.
+Migrations live under `backend/migrations/` and use goose SQL `Up`/`Down` sections. Development runs them explicitly. Production Compose deliberately selects the migration-first container entrypoint; the API binary itself never runs them.
 
 ```sh
 make migrate-status
@@ -72,7 +72,7 @@ Generated files are committed and never hand-edited. Inspect generated diffs as 
 make check-generated
 ```
 
-That target snapshots the generated Go, TypeScript, and sqlc directories, regenerates every binding, and compares the result with the snapshot. It therefore works before the initial commit as well as in later clean checkouts; stale regenerated output is left in the workspace for review.
+That target snapshots the generated Go, TypeScript, and every sqlc output directory declared in `backend/sqlc.yaml`, regenerates every binding, and compares the result with the snapshot. Unexpected sqlc output-path syntax fails the check instead of silently omitting a module. It therefore works before the initial commit as well as in later clean checkouts; stale regenerated output is left in the workspace for review.
 
 OpenAPI changes must preserve stable lower-camel operation IDs and the `{code,message,details,requestId}` error envelope. Optional nullable PATCH fields intentionally distinguish omitted from explicit `null`; validate generated Go wrappers before accepting generator/config upgrades.
 
@@ -81,6 +81,7 @@ OpenAPI changes must preserve stable lower-camel operation IDs and the `{code,me
 ```sh
 make test               # Go and frontend unit tests
 make test-integration   # runs Go tests with a real Compose PostgreSQL URL
+make test-migrations    # fresh Up/Down/Up in its own disposable Compose database
 make test-production-compose # builds and smoke-tests the isolated production topology
 make check              # generation freshness, vet, tests, lint, typecheck, and frontend build
 make build              # build final backend and frontend stages
@@ -90,11 +91,13 @@ make build              # build final backend and frontend stages
 
 Tests must not depend on an existing developer database or bootstrap account. Use isolated records/transactions and UUIDv7 IDs. Never put real credentials or PII in fixtures, snapshots, or failure output. Running `go test ./...` without `TEST_DATABASE_URL` deliberately skips the real-PostgreSQL integration package; use `make test-integration` for the required database pass.
 
+`make test-migrations` runs the complete goose chain up, down to zero, and up again in a separate Compose project, then deletes only that project's volumes. Never run this rollback sequence against developer or deployment data. PL/pgSQL `DO` blocks need goose `StatementBegin`/`StatementEnd` delimiters. The empty-database round trip supplements the data-preservation and guarded-downgrade tests; it does not prove that every populated database can be downgraded.
+
 ## Browser end-to-end checks
 
 The browser suite uses the exact `@playwright/test` 1.63.0 and `@axe-core/playwright` 4.13.0 versions in the frontend lockfile. Its fast UI scenarios start Vite on `http://127.0.0.1:4173` and intercept API calls with deterministic, non-PII fixtures. They cover login to Dashboard, permission-gated Settings/profile behavior, keyboard dismissal, responsive SideNav behavior, session-expiry handling, a custom-Role destructive confirmation, and automated WCAG A/AA scans.
 
-The required vertical-slice scenario runs separately against real Go and PostgreSQL services. `make test-e2e` creates a uniquely named Compose project and fresh database volume, applies migrations, invokes the real bootstrap service through a test-only development command, starts the API and Vite proxy, and drives the UI through Person creation, Account provisioning and enablement, Role assignment, supervisor redaction, self-profile editing, Person/Account cascade deletion, and custom-Role management. The faster mocked browser suite additionally covers Open Days staff privacy/signup and manager schedule creation with accessibility scans and captured full-page visuals. Cleanup removes isolated containers, networks, volumes, and browser artifacts without using the ordinary development database volume.
+The required vertical-slice scenario runs separately against real Go and PostgreSQL services. `make test-e2e` creates a uniquely named Compose project and fresh database volume, applies migrations, invokes the real bootstrap service through a test-only development command, starts the API and Vite proxy, and drives the UI through Person creation, Account provisioning and enablement, Role assignment, supervisor redaction, self-profile editing, Person/Account cascade deletion, and custom-Role management. The mocked browser scenarios also cover Open Days staff privacy/signup, manager schedule creation, and visitor-terminal reset with accessibility scans and captured visuals. Cleanup removes isolated containers, networks, and volumes without using the ordinary development database volume. Screenshots and failure traces remain under `frontend/test-results/` for inspection.
 
 The Alpine frontend container does not contain a browser, so run this suite on the host with Node 24 and pnpm 11:
 

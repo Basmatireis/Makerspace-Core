@@ -11,7 +11,7 @@
 
 - `api/openapi.yaml` is the source of truth for the HTTP API. Generated files are committed and must never be edited manually.
 - Use PostgreSQL through pgx and sqlc. Do not add an ORM.
-- Use goose SQL migrations. Migrations run explicitly, never automatically when the API starts.
+- Use goose SQL migrations. Run migrations explicitly in development. Production Compose runs goose in its container entrypoint before starting the API, and migration failure must prevent startup. The API binary itself never runs migrations.
 - Generate UUIDv7 identifiers in application code and use UTC `timestamptz` values.
 - Mutations and their audit event must commit in the same database transaction.
 

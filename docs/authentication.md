@@ -1,47 +1,35 @@
 # Authentication and sessions
 
-## Email/password identity
+## Identities and assurance
 
-Version 1 has exactly one authentication method: an `email_password` AuthIdentity linked to an Account. The normalized login email is independent of the Person's optional contact email; changing one never silently changes the other. Failed login returns the same `invalid_credentials` behavior for an unknown email, wrong password, disabled account, unset password, or reset-required credential.
+An Account can have password, PIN, and OIDC identities. Password login uses a normalized email independent of the Person's optional contact email. Changing either never silently changes the other. A changed normalized login email loses its previous verification and outstanding password challenges. Failed password login returns the same `invalid_credentials` behavior for unknown email, wrong password, disabled account, unset password, and reset-required credential.
 
-Login attempts are bounded by a process-local 15-minute window keyed by a SHA-256 digest of the source address and normalized login email. The in-memory limiter permits ten attempts per key, has a fixed 4,096-key bound, and clears a key after successful login. It is deliberately a single-process defense for the initial deployment shape, not a distributed rate-limit service; neither email nor source address is used as a log or metric label.
+New passwords contain 12–128 Unicode characters, at most 1,024 encoded bytes, and cannot appear in the [attributed bundled common-password list](../backend/internal/security/COMMON_PASSWORDS_LICENSE.md). Existing-password inputs remain opaque so policy changes do not lock out older valid credentials. Argon2id uses a random 16-byte salt, 64 MiB memory, three iterations, one lane, and a 32-byte result. Successful login upgrades valid older hash parameters. The process-local password limiter allows ten attempts per hashed source/email key in fifteen minutes and has a 4,096-key bound.
 
-New passwords contain 12–128 Unicode characters, at most 1,024 encoded bytes, and are rejected when present in the [attributed bundled common-password list](../backend/internal/security/COMMON_PASSWORDS_LICENSE.md). Existing-password fields remain opaque and accept older valid credentials so future policy changes cannot lock users out. Passwords are hashed with Argon2id using a random 16-byte salt, 64 MiB memory, three iterations, one lane, and a 32-byte result. Only the encoded hash is stored; a successful login replaces a valid older Argon2id encoding when its parameters no longer match these values.
+PIN login uses a case-insensitive username and a 6–12 digit PIN. PIN hashes use Argon2id plus a deployment pepper; database throttles track keyed username and source digests with increasing delays. PIN sessions have `low` assurance and password sessions `normal`. Self PIN enrollment/removal requires the dedicated permission and authentication within ten minutes at least at `normal` assurance. Method removal must leave an enabled Account with a usable authentication method.
 
-No password, hash, reset token, session token, cookie, Authorization header, or request body may enter structured logs or audit metadata.
+OIDC uses authorization code flow, S256 PKCE, nonce, and a ten-minute single-use database flow bound to a separate browser cookie. State and browser tokens are digested; nonce, PKCE verifier, and client secrets are encrypted. The OIDC library validates signature, issuer, audience, and expiry; the service verifies nonce. Identity is the exact issuer/subject pair, never an email/name match. Optional JIT creates a new Person and enabled Account with no Roles, requiring contact information. Only exact configured ACR values raise assurance to `strong` or `strong_mfa`; unknown values remain `normal`. Self-linking requires its permission and current local password. Unlinking checks self/all permission and remaining methods.
 
-## Server-side sessions
+Assurance and managed-device scope are independent grant requirements. A terminal does not raise the user's authentication assurance. See [authorization](authorization.md) and [managed devices](managed-devices.md).
 
-Successful `POST /api/v1/auth/login` creates random session and CSRF tokens. PostgreSQL stores SHA-256 digests, not usable raw tokens. Session rows record the account, identity, `password` authentication method, creation/last-seen times, idle and absolute expiry, and revocation state. Login locks the target Account for the credential check and session insert. Disablement, identity changes, administrative password operations, reset redemption, and own-password changes use the same serialization point, so a concurrently created session cannot survive a committed revocation and a password change cannot bypass a committed reset requirement.
+## Server-side sessions and browser protection
 
-Default limits are a sliding six-hour idle lifetime and a fixed 72-hour absolute lifetime. The server evaluates current account status, credential reset state, and effective permissions on every request, so disablement and role changes take effect without waiting for a cached claim or JWT to expire.
+Successful password, PIN, and OIDC login generates random session and CSRF tokens. PostgreSQL holds SHA-256 digests, never usable tokens. Sessions record Account/identity, authentication method, base/current assurance, authentication/last-seen times, idle/absolute expiry, and revocation. Defaults are a sliding six-hour idle lifetime and fixed 72-hour absolute lifetime. Current Account status, identity disablement, password reset state, and permissions are evaluated on requests rather than cached in a JWT.
 
-Requests may independently carry the optional `X-Managed-Device-Token` bearer
-credential. It answers which trusted terminal is making the request and never
-answers who the user is. It is not merged into the session cookie. Unknown,
-malformed, expired, and revoked device credentials are treated as absent, so
-global permissions on a valid user session keep working while device-scoped
-permissions disappear immediately. See [managed devices](managed-devices.md).
+Password/PIN login and security-sensitive Account mutations lock the Account. Password challenge completion also locks the Account before the challenge and revalidates its identity after waiting. OIDC session creation rechecks Account status and identity ownership/disablement under that same lock. Administrative password changes, login-email changes, and recovery invalidate password reset/invitation/verification challenges and revoke sessions. An already-issued self-service recovery challenge intentionally remains redeemable after a self password change, matching the existing concurrency test.
 
-Development uses:
+Development cookies are `makerspace_session` (HttpOnly) and `makerspace_csrf` (readable by the frontend), both SameSite=Lax and Path=/. Production requires HTTPS and secure cookies with corresponding `__Host-` names, Path=/ and no Domain. OIDC flows and visitor contexts use separate cookies. A managed-device header or HttpOnly device cookie identifies a terminal, not a user; invalid/expired/revoked device credentials are treated as absent.
 
-- `makerspace_session`: HttpOnly, SameSite=Lax, Path=/
-- `makerspace_csrf`: readable by the same-origin frontend, SameSite=Lax, Path=/
+Unsafe browser requests require an Origin matching `PUBLIC_BASE_URL`. Unsafe session-authenticated requests additionally mirror the CSRF cookie in `X-CSRF-Token`; the server compares cookie/header in constant time and checks the stored digest. Visitor enrollment has its own CSRF cookie/header and device-bound context. SCIM uses connector bearer authentication instead of browser cookies/CSRF. Browser access is same-origin, without permissive CORS.
 
-TLS deployments set `SESSION_COOKIE_SECURE=true`; production startup refuses a false value. Secure deployments use the corresponding `__Host-` cookie names and require HTTPS, Path=/, and no Domain attribute.
+Own password change verifies the current password, revokes other sessions, and rotates the current session/cookies. Logout revokes the current session and expires cookies. Disabled/deleted Accounts, disabled identities, and expired/revoked sessions cannot authenticate. Reset-required password credentials block that password method.
 
-Every unsafe request must carry an `Origin` exactly matching `PUBLIC_BASE_URL`. Every unsafe authenticated request must also mirror the readable CSRF cookie in `X-CSRF-Token`; the server constant-time compares the cookie and header, then verifies their digest against the current session. Permissive CORS is not enabled; the supported browser topology is same-origin.
+## Challenges and administrative recovery
 
-`PUT /auth/password` verifies the current password, sets a new hash, revokes other sessions, and rotates the current session/cookies. Logout revokes the current session and expires both cookies. Disabled/deleted accounts, expired/revoked sessions, and reset-required credentials cannot authenticate.
+Invitations, email verification, password recovery, and PIN setup store keyed code digests with expiry, attempt count, used/cancelled state, and delivery outcome. Codes permit at most five failed attempts. Issuance and completion also have database-backed rate limits. `PASSWORD_RESET_TTL` defaults to thirty minutes and is used by setup/recovery challenges. Successful redemption is single-use and transactional with the credential/verification change and audit.
 
-## Administrative password actions
+Anonymous recovery responses do not expose Account existence, codes, or links. Configured SMTP delivers challenges; delivery failure is recorded without storing provider messages or secrets. When mail is disabled, an authorized administrator issuing an invitation/reset/PIN setup can receive its one-time URL for trusted out-of-band delivery. Anonymous requests never get that fallback. Challenge and one-time-secret responses use `Cache-Control: no-store`.
 
-Administrative set and reset are separate capabilities:
+The older opaque-token reset completion endpoint remains supported alongside email/code recovery. Its token digest and expiry are checked transactionally. Administrative password set/reset permissions remain distinct; administrative reset requires subsequent credential setup and revokes sessions. The CLI `reset-password` repairs only one unambiguously identified existing Account's local credential; `recover-master` is reserved for installations without an enabled master. See [operations](operations.md).
 
-- `PUT /accounts/{accountId}/password` requires `accounts.password.set`, replaces the credential, revokes sessions/reset tokens, and never returns or logs the password.
-- `POST /accounts/{accountId}/password-reset` requires `accounts.password.reset`, invalidates password login, revokes sessions, and returns one reset link exactly once. Only a digest is persisted.
-- `POST /auth/password-reset/complete` accepts the raw token and new password in its JSON body. It consumes the 30-minute token and revokes stale sessions.
-
-The frontend reset link stores the token in the URL fragment, not the query string, so browsers do not send it in HTTP request targets or referrers. The operator must deliver the one-time link through an approved out-of-band channel; v1 does not add an email delivery service. Authentication and reset responses use `Cache-Control: no-store`.
-
-All password administration writes an atomic, secret-free audit event. See [authorization](authorization.md) for permission rules and [operations](operations.md) for bootstrap/recovery procedures.
+No passwords, hashes, codes, tokens, cookies, authorization headers, or request bodies belong in logs or audit metadata. Mutations write minimal audit events in the same PostgreSQL transaction. OIDC and SMTP secrets use the ordered application keyring; production also requires stable challenge-HMAC and PIN-pepper keys. Retention gaps and remaining identity-lifecycle questions are documented in the [repository review](repository-review.md).

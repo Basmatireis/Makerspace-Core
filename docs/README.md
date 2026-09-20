@@ -8,5 +8,6 @@
 - [Managed devices](managed-devices.md)
 - [Development and generation workflow](development.md)
 - [Observability](observability.md)
+- [Repository review and validation](repository-review.md)
 
-These documents describe the implemented first vertical slice. Future makerspace modules belong here only when their implementation is accepted; they must not appear as empty tables, APIs, modules, or UI routes.
+These documents describe the current implemented modules. Future makerspace modules belong here only when their implementation is accepted; they must not appear as empty tables, APIs, modules, or UI routes.

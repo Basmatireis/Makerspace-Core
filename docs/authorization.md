@@ -17,7 +17,7 @@ Authorization is based on application-registered permission identifiers. Backend
 | `accounts.read` | Read account status, login identity, and role assignments in administration APIs. |
 | `accounts.create` | Create an Account for an existing Person. |
 | `accounts.delete` | Hard-delete an Account and its authentication data. |
-| `accounts.enable` | Enable an Account with an active password credential. |
+| `accounts.enable` | Enable an Account with a usable authentication method. |
 | `accounts.disable` | Disable an Account and revoke its sessions. |
 | `accounts.login_email.update` | Change an account login email independently of Person contact email. |
 | `accounts.password.set` | Directly set another account's password. |
@@ -33,6 +33,21 @@ Authorization is based on application-registered permission identifiers. Backend
 | `open_days.manage` | Manage periods, schedules, eligibility, academic breaks, and lifecycle state. |
 | `managed_devices.read` | Read managed devices and device-type catalog entries. |
 | `managed_devices.manage` | Administer managed devices, their tokens, and device types. |
+| `people.profile_image.update.self`, `people.profile_image.update.all` | Replace the current Person's or any Person's private profile image. |
+| `people.profile_image.remove.self`, `people.profile_image.remove.all` | Remove the current Person's or any Person's private profile image. |
+| `accounts.password.enroll.self`, `accounts.password.enroll.all` | Enroll a local password method, subject to service safeguards. |
+| `accounts.password.remove.self`, `accounts.password.remove.all` | Remove a local password method while preserving Account safety. |
+| `accounts.pin.enroll.self`, `accounts.pin.enroll.all` | Enroll a PIN method for self or another Account. |
+| `accounts.pin.remove.self`, `accounts.pin.remove.all`, `accounts.pin.reset` | Remove/reset PIN methods subject to Account safety and fresh-authentication requirements. |
+| `laborordnung.read`, `laborordnung.manage` | Read Lab Rules documents or upload/publish immutable versions. |
+| `laborordnung.requests.read`, `laborordnung.confirm` | Read the confirmation queue or record verification of physical evidence. |
+| `visitor_enrollment.manage` | Configure approved terminal types, methods, and a delegable initial Role. |
+| `supervisor_dashboard.read` | Read the purpose-limited supervisor dashboard. |
+| `identities.oidc.link.self`, `identities.oidc.link.all` | Registered identity-link capabilities; the current browser linking flow implements self-linking. |
+| `identities.oidc.unlink.self`, `identities.oidc.unlink.all` | Unlink external identities with remaining-method protection. |
+| `oidc.manage` | Configure OIDC providers and trusted assurance mappings. |
+| `scim.manage` | Configure SCIM connectors and reconcile provisioned Accounts. |
+| `mail.manage` | Configure encrypted transactional SMTP settings. |
 
 ## Device-scoped grants
 
@@ -41,6 +56,8 @@ device, or restricted to selected administrator-managed device types. Device
 scope is evaluated server-side alongside the ordinary user session; resource
 scope such as `people.read.self` remains independent. The `master` role retains
 its existing global bypass.
+
+Each grant also has minimum assurance (`low`, `normal`, `strong`, `strong_mfa`). Multiple grants for a permission are alternatives. Delegation checks the full scope/assurance envelope, including selected device types, so a scoped or higher-assurance grant cannot be expanded into a global or lower-assurance grant. A PIN session is low assurance and cannot acquire permissions requiring stronger authentication merely by using a managed terminal.
 
 The registry in application code is authoritative. Database RolePermission rows may reference only identifiers in this registry; unknown values from stale data or client requests never become effective. Additions require coordinated backend registry, OpenAPI enum, documentation, and authorization tests.
 
