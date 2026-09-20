@@ -30,7 +30,10 @@ FROM alpine:3.24.1 AS final
 
 RUN apk add --no-cache ca-certificates tzdata \
     && addgroup -S makerspace \
-    && adduser -S -G makerspace makerspace
+    && adduser -S -G makerspace makerspace \
+    && mkdir -p /var/lib/makerspace/files \
+    && chown makerspace:makerspace /var/lib/makerspace/files \
+    && chmod 0700 /var/lib/makerspace/files
 
 WORKDIR /app
 COPY --from=build /out/api /app/api

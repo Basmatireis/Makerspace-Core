@@ -73,6 +73,8 @@ jobs:
         uses: actions/checkout@v7
       - name: Run PostgreSQL integration tests
         run: make test-integration
+      - name: Verify goose migration round trip
+        run: make test-migrations
       - name: Stop integration services
         if: always()
         run: docker compose down --volumes --remove-orphans

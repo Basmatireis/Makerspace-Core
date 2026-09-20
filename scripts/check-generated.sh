@@ -8,15 +8,22 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-generated_paths='backend/internal/openapi
-backend/internal/accounts/db
-backend/internal/audit/db
-backend/internal/auth/db
-backend/internal/authorization/db
-backend/internal/people/db
-backend/internal/roles/db
-backend/internal/opendays/db
-frontend/src/api/generated'
+# sqlc.yaml uses one scalar output path per line. Fail closed if that shape
+# changes rather than silently leaving a new feature out of freshness checks.
+sqlc_paths=$(awk '
+    /^[[:space:]]+out:/ {
+        path = $2
+        gsub(/"/, "", path)
+        if (NF != 2 || path !~ /^internal\/[a-z0-9_]+\/db$/) exit 1
+        print "backend/" path
+        count++
+    }
+    END { if (count == 0) exit 1 }
+' backend/sqlc.yaml)
+
+generated_paths="backend/internal/openapi
+$sqlc_paths
+frontend/src/api/generated"
 
 for path in $generated_paths; do
 	mkdir -p "$snapshot/$(dirname "$path")"

@@ -25,7 +25,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
       target: development
-    environment:
+    environment: &backend-environment
       APP_ENV: ${APP_ENV:-development}
       DATABASE_URL: postgres://${POSTGRES_USER:-makerspace}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-makerspace}?sslmode=disable
       HTTP_ADDR: ${HTTP_ADDR:-:8080}
@@ -35,6 +35,18 @@ services:
       SESSION_IDLE_TTL: ${SESSION_IDLE_TTL:-6h}
       SESSION_ABSOLUTE_TTL: ${SESSION_ABSOLUTE_TTL:-72h}
       PASSWORD_RESET_TTL: ${PASSWORD_RESET_TTL:-30m}
+      AUTH_CHALLENGE_HMAC_KEY: ${AUTH_CHALLENGE_HMAC_KEY:-}
+      PIN_PEPPER: ${PIN_PEPPER:-}
+      APP_ENCRYPTION_KEYS: ${APP_ENCRYPTION_KEYS:-}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      LOCAL_STORAGE_ROOT: ${LOCAL_STORAGE_ROOT:-/var/lib/makerspace/files}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_USE_PATH_STYLE: ${S3_USE_PATH_STYLE:-false}
+      S3_DISABLE_TLS: ${S3_DISABLE_TLS:-false}
       AUDIT_RETENTION: ${AUDIT_RETENTION:-8760h}
       MAKERSPACE_TIME_ZONE: ${MAKERSPACE_TIME_ZONE:-Europe/Vienna}
       OPEN_DAYS_HOLIDAY_COUNTRY: ${OPEN_DAYS_HOLIDAY_COUNTRY:-AT}
@@ -49,6 +61,7 @@ services:
     volumes:
       - ./backend:/workspace/backend
       - ./api:/workspace/api:ro
+      - file_storage:/var/lib/makerspace/files
       - backend_go_build:/root/.cache/go-build
       - backend_go_mod:/go/pkg/mod
     depends_on:
@@ -101,19 +114,9 @@ services:
       context: .
       dockerfile: backend/Dockerfile
       target: final
-    environment:
-      APP_ENV: ${APP_ENV:-development}
-      DATABASE_URL: postgres://${POSTGRES_USER:-makerspace}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-makerspace}?sslmode=disable
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:5173}
-      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
-      SESSION_IDLE_TTL: ${SESSION_IDLE_TTL:-6h}
-      SESSION_ABSOLUTE_TTL: ${SESSION_ABSOLUTE_TTL:-72h}
-      PASSWORD_RESET_TTL: ${PASSWORD_RESET_TTL:-30m}
-      AUDIT_RETENTION: ${AUDIT_RETENTION:-8760h}
-      MAKERSPACE_TIME_ZONE: ${MAKERSPACE_TIME_ZONE:-Europe/Vienna}
-      OPEN_DAYS_HOLIDAY_COUNTRY: ${OPEN_DAYS_HOLIDAY_COUNTRY:-AT}
-      OPEN_DAYS_HOLIDAY_SUBDIVISION: ${OPEN_DAYS_HOLIDAY_SUBDIVISION:-AT-6}
-      OPEN_DAYS_HOLIDAY_LANGUAGE: ${OPEN_DAYS_HOLIDAY_LANGUAGE:-de}
+    environment: *backend-environment
+    volumes:
+      - file_storage:/var/lib/makerspace/files
     entrypoint: ["/app/admin"]
     depends_on:
       db:
@@ -121,6 +124,7 @@ services:
 
 volumes:
   postgres_data:
+  file_storage:
   backend_go_build:
   backend_go_mod:
   frontend_node_modules:

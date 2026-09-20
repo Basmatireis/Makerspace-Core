@@ -35,6 +35,18 @@ services:
       SESSION_IDLE_TTL: ${SESSION_IDLE_TTL:-6h}
       SESSION_ABSOLUTE_TTL: ${SESSION_ABSOLUTE_TTL:-72h}
       PASSWORD_RESET_TTL: ${PASSWORD_RESET_TTL:-30m}
+      AUTH_CHALLENGE_HMAC_KEY: ${AUTH_CHALLENGE_HMAC_KEY:?Set AUTH_CHALLENGE_HMAC_KEY in .env}
+      PIN_PEPPER: ${PIN_PEPPER:?Set PIN_PEPPER in .env}
+      APP_ENCRYPTION_KEYS: ${APP_ENCRYPTION_KEYS:-}
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      LOCAL_STORAGE_ROOT: ${LOCAL_STORAGE_ROOT:-/var/lib/makerspace/files}
+      S3_ENDPOINT: ${S3_ENDPOINT:-}
+      S3_REGION: ${S3_REGION:-}
+      S3_BUCKET: ${S3_BUCKET:-}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}
+      S3_USE_PATH_STYLE: ${S3_USE_PATH_STYLE:-false}
+      S3_DISABLE_TLS: ${S3_DISABLE_TLS:-false}
       AUDIT_RETENTION: ${AUDIT_RETENTION:-8760h}
       MAKERSPACE_TIME_ZONE: ${MAKERSPACE_TIME_ZONE:-Europe/Vienna}
       OPEN_DAYS_HOLIDAY_COUNTRY: ${OPEN_DAYS_HOLIDAY_COUNTRY:-AT}
@@ -56,6 +68,8 @@ services:
     stop_grace_period: 15s
     restart: unless-stopped
     init: true
+    volumes:
+      - file_storage:/var/lib/makerspace/files
 
   frontend:
     image: ${MAKERSPACE_IMAGE_PREFIX:-ghcr.io/basmatireis/makerspace-core}-frontend:__MAKERSPACE_VERSION__
@@ -76,3 +90,4 @@ services:
 
 volumes:
   postgres_data:
+  file_storage:

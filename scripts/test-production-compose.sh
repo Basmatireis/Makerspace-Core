@@ -20,6 +20,10 @@ export POSTGRES_DB=makerspace
 export POSTGRES_USER=makerspace
 export POSTGRES_PASSWORD=production-smoke-password
 export OTEL_SDK_DISABLED=true
+# Deterministic fixtures for this disposable stack, never deployment secrets.
+export AUTH_CHALLENGE_HMAC_KEY=$(printf '%032d' 1 | base64 | tr -d '\n')
+export PIN_PEPPER=$(printf '%032d' 2 | base64 | tr -d '\n')
+export APP_ENCRYPTION_KEYS=$(printf '%032d' 3 | base64 | tr -d '\n')
 
 compose() {
     (cd "$deployment_directory" && docker compose "$@")
@@ -104,6 +108,18 @@ frontend_url="http://$frontend_binding"
 wait_for_url "$frontend_url/"
 ready_response=$(curl --fail --silent --show-error "$frontend_url/api/v1/health/ready")
 test "$ready_response" = '{"status":"ok"}'
+
+# A legitimate upload envelope larger than nginx's 1 MiB default must reach
+# the API, where anonymous requests are rejected by authentication.
+dd if=/dev/zero of="$temporary_directory/upload-body" bs=1048576 count=2 2>/dev/null
+upload_status=$(curl --silent --show-error --output "$temporary_directory/upload-response" --write-out '%{http_code}' \
+    --header "Origin: $PUBLIC_BASE_URL" --header 'Content-Type: application/pdf' \
+    --header 'X-Human-Revision: smoke-test' --header 'X-File-Name: smoke.pdf' \
+    --data-binary "@$temporary_directory/upload-body" "$frontend_url/api/v1/laborordnung/versions")
+test "$upload_status" = 401
+
+# The runtime account must be able to write the persistent private-file volume.
+compose exec -T backend sh -c 'test "$(id -u)" != 0 && touch /var/lib/makerspace/files/.smoke-write && rm /var/lib/makerspace/files/.smoke-write'
 
 # Starting the already-migrated deployment again must remain safe.
 compose up -d

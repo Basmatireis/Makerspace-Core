@@ -6,7 +6,7 @@ SHELL := /bin/sh
 	migrate-up migrate-down migrate-status \
 	generate generate-openapi-go generate-openapi-ts generate-sqlc \
 	test test-backend test-frontend test-integration test-e2e test-production-compose \
-	check check-generated check-backend check-frontend build admin bootstrap-master
+	check check-generated check-backend check-frontend build admin bootstrap-master reset-password
 
 help: ## Show available targets.
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "%-24s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -66,6 +66,10 @@ test-production-compose: ## Smoke-test the standalone production Compose release
 test-integration: migrate-up ## Run Go tests against the Compose PostgreSQL instance.
 	docker compose run --rm -e APP_ENV=test backend sh -c 'TEST_DATABASE_URL="$$DATABASE_URL" go test -count=1 ./...'
 
+.PHONY: test-migrations
+test-migrations: ## Verify goose Up/Down/Up against an isolated empty database.
+	sh ./scripts/test-migrations.sh
+
 check: check-generated check-backend check-frontend ## Regenerate, verify freshness, and run all static/unit checks.
 
 check-generated: ## Regenerate committed bindings and fail when generated files are stale.
@@ -91,3 +95,6 @@ admin: db-up ## Run the administrative CLI; pass non-secret arguments with ARGS=
 
 bootstrap-master: db-up ## Interactively create the first master account.
 	docker compose --profile tools run --rm --build admin bootstrap-master
+
+reset-password: db-up ## Interactively reset one existing Account's local password without changing Roles or status.
+	docker compose --profile tools run --rm --build admin reset-password
