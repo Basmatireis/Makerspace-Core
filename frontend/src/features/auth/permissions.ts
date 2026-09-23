@@ -155,8 +155,11 @@ function assuranceRank(value: PermissionGrant['minimumAssurance']) {
 
 export function permissionGrantsValid(grants: readonly PermissionGrant[]) {
   return grants.length === new Set(grants.map((grant) => JSON.stringify([
-    grant.permissionId, grant.scope, [...permissionGrantDeviceTypeIds(grant)].sort(), grant.minimumAssurance,
+    grant.permissionId, grant.scope, grant.minimumAssurance,
   ]))).size && grants.every((grant) =>
-    grant.scope !== 'selectedDeviceTypes' || permissionGrantDeviceTypeIds(grant).length > 0,
+    permissionGrantDeviceTypeIds(grant).length === new Set(permissionGrantDeviceTypeIds(grant)).size &&
+    (grant.scope === 'selectedDeviceTypes'
+      ? permissionGrantDeviceTypeIds(grant).length > 0
+      : permissionGrantDeviceTypeIds(grant).length === 0),
   );
 }

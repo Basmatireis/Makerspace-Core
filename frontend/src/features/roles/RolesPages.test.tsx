@@ -25,7 +25,7 @@ function matrixHandlers(role = roleFixture()) {
 }
 
 describe('Roles and permissions matrix', () => {
-  it('renders grouped permission states and saves one cell without dropping other grants', async () => {
+  it('stages and reviews a permission change without dropping other grants', async () => {
     const actor = currentUserFixture([
       PermissionId.rolesread,
       PermissionId.rolesmanage,
@@ -52,7 +52,14 @@ describe('Roles and permissions matrix', () => {
     await user.click(screen.getByRole('button', { name: /Edit View all people for Workshop supervisors/ }));
     expect(screen.getByRole('heading', { name: 'View all people' })).toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText('Minimum authentication assurance'), 'strong');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(screen.getByText('1 modified permission')).toBeInTheDocument();
+    expect(submitted).toBeUndefined();
+
+    await user.click(screen.getByRole('button', { name: 'Review and save' }));
+    const review = screen.getByRole('dialog', { name: 'Review permission changes for Workshop supervisors' });
+    expect(within(review).getByText('changed')).toBeInTheDocument();
+    expect(within(review).getByText('View all people')).toBeInTheDocument();
+    await user.click(within(review).getByRole('button', { name: 'Save role permissions' }));
 
     await waitFor(() => expect(submitted).toEqual({
       expectedVersion: 1,
@@ -81,6 +88,72 @@ describe('Roles and permissions matrix', () => {
     expect(screen.getByText('View audit events')).toBeInTheDocument();
     expect(screen.queryByText('View all people')).not.toBeInTheDocument();
   });
+
+  it('keeps direct filters visible and makes an active search easy to reset', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.rolesread]))),
+      ...matrixHandlers(roleFixture()),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/settings/roles');
+
+    expect(await screen.findByText('All permission groups')).toBeInTheDocument();
+    expect(screen.getByText('All grant states')).toBeInTheDocument();
+    expect(screen.getByText('Roles shown')).toBeInTheDocument();
+    expect(screen.getByText('0 active filters')).toBeInTheDocument();
+
+    await user.type(screen.getByRole('searchbox', { name: 'Search permissions' }), 'audit');
+    expect(screen.getByText('1 active filter')).toBeInTheDocument();
+    expect(screen.getByText('View audit events')).toBeInTheDocument();
+    expect(screen.queryByText('View all people')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Reset filters' }));
+    expect(screen.getByText('0 active filters')).toBeInTheDocument();
+    expect(screen.getByText('View all people')).toBeInTheDocument();
+  });
+
+  it('saves multiple staged permission changes in one atomic request', async () => {
+    const actor = currentUserFixture([
+      PermissionId.rolesread,
+      PermissionId.rolesmanage,
+      PermissionId.peoplereadall,
+    ]);
+    const role = roleFixture({ permissionGrants: [
+      { permissionId: PermissionId.peoplereadall, scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' },
+    ] });
+    let submitted: ReplaceRolePermissionsRequest | undefined;
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(actor)),
+      ...matrixHandlers(role),
+      http.put('*/api/v1/roles/:roleId/permissions', async ({ request }) => {
+        submitted = await request.json() as ReplaceRolePermissionsRequest;
+        return HttpResponse.json({ ...role, version: 2, permissionGrants: submitted.permissionGrants });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/settings/roles');
+
+    await user.click(await screen.findByRole('button', { name: /Edit View all people for Workshop supervisors/ }));
+    await user.selectOptions(screen.getByLabelText('Minimum authentication assurance'), 'normal');
+    await user.click(screen.getByRole('button', { name: 'Done' }));
+    await user.click(screen.getByRole('button', { name: /Edit Manage roles for Workshop supervisors/ }));
+    await user.click(screen.getByRole('switch', { name: 'Permission enabled' }));
+    expect(screen.getByText('2 modified permissions')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Review and save' }));
+    const review = screen.getByRole('dialog', { name: 'Review permission changes for Workshop supervisors' });
+    expect(within(review).getByText('View all people')).toBeInTheDocument();
+    expect(within(review).getByText('Manage roles')).toBeInTheDocument();
+    await user.click(within(review).getByRole('button', { name: 'Save role permissions' }));
+
+    await waitFor(() => expect(submitted).toEqual({
+      expectedVersion: role.version,
+      permissionGrants: expect.arrayContaining([
+        expect.objectContaining({ permissionId: PermissionId.peoplereadall, minimumAssurance: 'normal' }),
+        expect.objectContaining({ permissionId: PermissionId.rolesmanage }),
+      ]),
+    }));
+  }, 10_000);
 
   it('creates a role from copied permissions through the legacy new-role URL', async () => {
     const actor = currentUserFixture([
@@ -118,7 +191,7 @@ describe('Roles and permissions matrix', () => {
     }));
   });
 
-  it('keeps a stale cell editor open and offers an explicit reload', async () => {
+  it('keeps a stale role draft and offers an explicit discard-and-reload action', async () => {
     const actor = currentUserFixture([
       PermissionId.rolesread,
       PermissionId.rolesmanage,
@@ -137,10 +210,38 @@ describe('Roles and permissions matrix', () => {
 
     await user.click(await screen.findByRole('button', { name: /Edit View all people for Workshop supervisors/ }));
     await user.selectOptions(screen.getByLabelText('Minimum authentication assurance'), 'normal');
-    await user.click(screen.getByRole('button', { name: 'Save' }));
-    expect(await screen.findByText('Role changed')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Reload latest' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Review and save' }));
+    await user.click(screen.getByRole('button', { name: 'Save role permissions' }));
+    expect(await screen.findByText('Role changed before this draft was saved')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Discard draft and reload' })).toBeInTheDocument();
+    expect(screen.getByText('1 modified permission')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'View all people' })).toBeInTheDocument();
+  });
+
+  it('blocks route navigation while a permission draft has unsaved changes', async () => {
+    const actor = currentUserFixture([
+      PermissionId.rolesread,
+      PermissionId.rolesmanage,
+      PermissionId.peoplereadall,
+    ]);
+    const role = roleFixture({ permissionGrants: [
+      { permissionId: PermissionId.peoplereadall, scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' },
+    ] });
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(actor)),
+      ...matrixHandlers(role),
+    );
+    const user = userEvent.setup();
+    const { router } = renderRoute(<App />, '/settings/roles');
+
+    await user.click(await screen.findByRole('button', { name: /Edit View all people for Workshop supervisors/ }));
+    await user.selectOptions(screen.getByLabelText('Minimum authentication assurance'), 'normal');
+    void router.navigate('/dashboard');
+
+    const leaveDialog = await screen.findByRole('dialog', { name: 'Leave without saving role changes?' });
+    await user.click(within(leaveDialog).getByRole('button', { name: 'Stay on this page' }));
+    expect(screen.getByRole('heading', { name: 'Roles & Permissions' })).toBeInTheDocument();
+    expect(screen.getByText('1 modified permission')).toBeInTheDocument();
   });
 
   it('uses the backend evaluator for the read-only effective matrix', async () => {

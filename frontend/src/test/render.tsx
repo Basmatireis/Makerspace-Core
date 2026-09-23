@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 
 export function testQueryClient() {
   return new QueryClient({
@@ -14,11 +14,16 @@ export function testQueryClient() {
 
 export function renderRoute(ui: ReactElement, route = '/') {
   const queryClient = testQueryClient();
+  const router = createMemoryRouter(
+    [{ path: '*', element: ui }],
+    { initialEntries: [route] },
+  );
   return {
     queryClient,
+    router,
     ...render(
       <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
+        <RouterProvider router={router} />
       </QueryClientProvider>,
     ),
   };

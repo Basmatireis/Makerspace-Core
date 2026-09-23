@@ -20,13 +20,30 @@ const scopedRole = (permissionGrants: PermissionGrant[]) => ({
 });
 
 describe('role membership authorization UX', () => {
-	it('handles legacy null device lists without crashing while preserving scope rules', () => {
-		const legacyEverywhere = { permissionId: PermissionId.peoplereadall, scope: 'everywhere', deviceTypeIds: null, minimumAssurance: 'normal' } as unknown as PermissionGrant;
-		const legacyManaged = { permissionId: PermissionId.peopleupdateall, scope: 'anyManagedDevice', deviceTypeIds: null, minimumAssurance: 'strong' } as unknown as PermissionGrant;
-		const invalidSelected = { permissionId: PermissionId.rolesread, scope: 'selectedDeviceTypes', deviceTypeIds: null, minimumAssurance: 'low' } as unknown as PermissionGrant;
-		expect(permissionGrantsValid([legacyEverywhere, legacyManaged])).toBe(true);
-		expect(permissionGrantsValid([invalidSelected])).toBe(false);
-	});
+  it('handles legacy null device lists without crashing while preserving scope rules', () => {
+    const legacyEverywhere = { permissionId: PermissionId.peoplereadall, scope: 'everywhere', deviceTypeIds: null, minimumAssurance: 'normal' } as unknown as PermissionGrant;
+    const legacyManaged = { permissionId: PermissionId.peopleupdateall, scope: 'anyManagedDevice', deviceTypeIds: null, minimumAssurance: 'strong' } as unknown as PermissionGrant;
+    const invalidSelected = { permissionId: PermissionId.rolesread, scope: 'selectedDeviceTypes', deviceTypeIds: null, minimumAssurance: 'low' } as unknown as PermissionGrant;
+    expect(permissionGrantsValid([legacyEverywhere, legacyManaged])).toBe(true);
+    expect(permissionGrantsValid([invalidSelected])).toBe(false);
+  });
+
+  it('matches backend validation for duplicate rules and selected device types', () => {
+    const reception = '0192f6f8-743e-7c77-a349-cd07c3e8a920';
+    const workshop = '0192f6f8-743e-7c77-a349-cd07c3e8a921';
+    const base: PermissionGrant = {
+      permissionId: PermissionId.peoplereadall,
+      scope: 'selectedDeviceTypes',
+      deviceTypeIds: [reception],
+      minimumAssurance: 'normal',
+    };
+
+    expect(permissionGrantsValid([base, { ...base, deviceTypeIds: [workshop] }])).toBe(false);
+    expect(permissionGrantsValid([{ ...base, deviceTypeIds: [reception, reception] }])).toBe(false);
+    expect(permissionGrantsValid([{ ...base, deviceTypeIds: [] }])).toBe(false);
+    expect(permissionGrantsValid([{ ...base, scope: 'everywhere', deviceTypeIds: [reception] }])).toBe(false);
+    expect(permissionGrantsValid([base, { ...base, minimumAssurance: 'strong', deviceTypeIds: [workshop] }])).toBe(true);
+  });
   it('requires the role-assignment permission', () => {
     const currentUser = currentUserFixture([PermissionId.peoplereadall]);
 

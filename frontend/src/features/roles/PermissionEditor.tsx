@@ -1,4 +1,3 @@
-import { useMemo, useState } from 'react';
 import {
   Button,
   InlineNotification,
@@ -6,6 +5,7 @@ import {
   Select,
   SelectItem,
   Stack,
+  Tag,
   Toggle,
 } from '@carbon/react';
 import { Add, Close, TrashCan } from '@carbon/icons-react';
@@ -27,13 +27,13 @@ import { presentPermission } from './permissionPresentation';
 type Props = {
   role: Role;
   permission: Permission;
+  rules: PermissionGrant[];
+  modified: boolean;
   allowed: readonly PermissionGrant[];
   deviceTypes: ManagedDeviceType[];
   isSaving: boolean;
-  error?: Error | null;
-  stale: boolean;
-  onSave: (rules: PermissionGrant[]) => void;
-  onReload: () => void;
+  onChange: (rules: PermissionGrant[]) => void;
+  onRevert: () => void;
   onClose: () => void;
 };
 
@@ -47,23 +47,19 @@ const assuranceOptions: { value: AuthenticationAssurance; label: string }[] = [
 export function PermissionEditor({
   role,
   permission,
+  rules,
+  modified,
   allowed,
   deviceTypes,
   isSaving,
-  error,
-  stale,
-  onSave,
-  onReload,
+  onChange,
+  onRevert,
   onClose,
 }: Props) {
-  const initialRules = useMemo(() => role.permissionGrants
-    .filter((grant) => grant.permissionId === permission.id)
-    .map(copyGrant), [permission.id, role.permissionGrants]);
-  const [rules, setRules] = useState<PermissionGrant[]>(initialRules);
   const enabled = rules.length > 0;
   const presentation = presentPermission(permission);
   const permissionEnvelopes = allowed.filter((grant) => grant.permissionId === permission.id);
-  const dirty = JSON.stringify(rules) !== JSON.stringify(initialRules);
+  const valid = permissionGrantsValid(rules);
 
   return (
     <aside className="permission-editor" aria-labelledby="permission-editor-title">
@@ -72,21 +68,23 @@ export function PermissionEditor({
           <p className="permission-editor__eyebrow">{role.name}</p>
           <h2 id="permission-editor-title">{presentation.label}</h2>
           <p className="section-description">{permission.description}</p>
+          <Tag type={modified ? 'blue' : 'gray'} size="sm">
+            {modified ? 'Modified in draft' : 'No draft changes'}
+          </Tag>
         </div>
         <Button kind="ghost" size="sm" hasIconOnly renderIcon={Close} iconDescription="Close permission editor" onClick={onClose} />
       </div>
       <div className="permission-editor__body">
         <Stack gap={6}>
-          {error && <>
+          {enabled && !valid && (
             <InlineNotification
               kind="error"
               lowContrast
               hideCloseButton
-              title={stale ? 'Role changed' : 'Permission not saved'}
-              subtitle={stale ? 'Reload the latest role before applying this change again.' : error.message}
+              title="Access rules need attention"
+              subtitle="Choose at least one device type where required and remove duplicate rules before saving the role."
             />
-            {stale && <Button kind="tertiary" size="sm" onClick={onReload}>Reload latest</Button>}
-          </>}
+          )}
           <Toggle
             id={`permission-enabled-${role.id}-${permission.id}`}
             labelText="Permission enabled"
@@ -94,7 +92,7 @@ export function PermissionEditor({
             labelB="Enabled"
             toggled={enabled}
             disabled={isSaving || permissionEnvelopes.length === 0}
-            onToggle={(next) => setRules(next ? [initialGrant(permission.id, permissionEnvelopes[0])] : [])}
+            onToggle={(next) => onChange(next ? [initialGrant(permission.id, permissionEnvelopes[0])] : [])}
           />
           {enabled && (
             <div>
@@ -110,8 +108,8 @@ export function PermissionEditor({
               envelopes={permissionEnvelopes}
               deviceTypes={deviceTypes}
               disabled={isSaving}
-              onChange={(next) => setRules((current) => current.map((item, itemIndex) => itemIndex === index ? next : item))}
-              onRemove={() => setRules((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+              onChange={(next) => onChange(rules.map((item, itemIndex) => itemIndex === index ? next : item))}
+              onRemove={() => onChange(rules.filter((_, itemIndex) => itemIndex !== index))}
             />
           ))}
           {enabled && (
@@ -120,7 +118,7 @@ export function PermissionEditor({
               size="sm"
               renderIcon={Add}
               disabled={isSaving || permissionEnvelopes.length === 0}
-              onClick={() => setRules((current) => [...current, initialGrant(permission.id, permissionEnvelopes[0])])}
+              onClick={() => onChange([...rules, initialGrant(permission.id, permissionEnvelopes[0])])}
             >
               Add access rule
             </Button>
@@ -128,10 +126,8 @@ export function PermissionEditor({
         </Stack>
       </div>
       <div className="permission-editor__footer">
-        <Button kind="secondary" disabled={isSaving} onClick={onClose}>Cancel</Button>
-        <Button disabled={isSaving || !dirty || !permissionGrantsValid(rules)} onClick={() => onSave(rules)}>
-          {isSaving ? 'Saving…' : 'Save'}
-        </Button>
+        <Button kind="secondary" disabled={isSaving || !modified} onClick={onRevert}>Revert permission</Button>
+        <Button disabled={isSaving || !valid} onClick={onClose}>Done</Button>
       </div>
     </aside>
   );
@@ -220,15 +216,6 @@ function RuleEditor({
       </Stack>
     </section>
   );
-}
-
-function copyGrant(grant: PermissionGrant): PermissionGrant {
-  return {
-    permissionId: grant.permissionId,
-    scope: grant.scope,
-    deviceTypeIds: [...permissionGrantDeviceTypeIds(grant)],
-    minimumAssurance: grant.minimumAssurance,
-  };
 }
 
 function initialGrant(permissionId: Permission['id'], envelope?: PermissionGrant): PermissionGrant {
