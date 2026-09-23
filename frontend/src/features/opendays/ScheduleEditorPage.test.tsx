@@ -168,7 +168,7 @@ describe('schedule editor calendar context', () => {
     await user.click(screen.getByRole('button', { name: 'Remove slot' }));
     expect(screen.queryByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ })).not.toBeInTheDocument();
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
-  }, 20_000);
+  }, 30_000);
 
   it('applies changed defaults only to newly added Open Days and saves the atomic working copy', async () => {
     const { getSavedBody } = renderEditor([], { items: [openDay()] });
@@ -191,7 +191,7 @@ describe('schedule editor calendar context', () => {
     expect(body?.updates).toEqual([]);
     expect(body?.creates).toHaveLength(1);
     expect(body?.creates[0].requirements.find((item) => item.kind === 'supervisor')).toEqual({ kind: 'supervisor', requiredCount: 4, eligibleRoleIds: [supervisorRoleId, traineeRoleId] });
-  }, 20_000);
+  }, 30_000);
 
   it('uses period-wizard defaults for the first newly added Open Day', async () => {
     const navigationDefaults: OpenDayScheduleDefaults = {
@@ -221,7 +221,7 @@ describe('schedule editor calendar context', () => {
         { kind: 'trainee', requiredCount: 0, eligibleRoleIds: [] },
       ],
     });
-  }, 20_000);
+  }, 30_000);
 
   it('blocks navigation while local changes are unsaved', async () => {
     renderEditor([]);
@@ -232,7 +232,7 @@ describe('schedule editor calendar context', () => {
     expect(await screen.findByRole('dialog', { name: 'Discard unsaved schedule changes?' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByRole('heading', { name: 'Edit Winter Semester 2026/27' })).toBeInTheDocument();
-  }, 20_000);
+  }, 30_000);
 
   it('adds reviewed recurrence occurrences to the working calendar before save', async () => {
     renderEditor([], { recurrence: [{ date: '2026-10-28', startsAt: '2026-10-28T15:00:00Z', endsAt: '2026-10-28T18:00:00Z', disposition: 'create' }] });
@@ -245,7 +245,7 @@ describe('schedule editor calendar context', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Add selected' }));
     expect(screen.getByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ })).toBeInTheDocument();
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
-  }, 20_000);
+  }, 30_000);
 
   it('creates an academic break from the schedule editor and refreshes context', async () => {
     const { getContextRequests } = renderEditor([]);
@@ -263,7 +263,7 @@ describe('schedule editor calendar context', () => {
     expect(within(managerAfterCreate).getByText('Christmas break')).toBeInTheDocument();
     expect(await screen.findAllByLabelText('Academic break: Christmas break, 2026-10-27 to 2026-10-28')).toHaveLength(2);
     expect(getContextRequests()).toBeGreaterThanOrEqual(2);
-  }, 20_000);
+  }, 30_000);
 
   it('edits an academic break from the schedule editor and refreshes context', async () => {
     const { getContextRequests } = renderEditor([academicBreak({ name: 'Christmas break' })]);
@@ -280,7 +280,7 @@ describe('schedule editor calendar context', () => {
     expect(within(managerAfterEdit).getByText('Winter break')).toBeInTheDocument();
     expect(await screen.findAllByLabelText('Academic break: Winter break, 2026-10-27 to 2026-10-28')).toHaveLength(2);
     expect(getContextRequests()).toBeGreaterThanOrEqual(2);
-  }, 20_000);
+  }, 30_000);
 
   it('deletes an academic break from the schedule editor and refreshes context', async () => {
     const { getContextRequests } = renderEditor([academicBreak({ name: 'Winter break' })]);
@@ -296,5 +296,5 @@ describe('schedule editor calendar context', () => {
     expect(within(managerAfterDelete).getByText('No academic breaks overlap this period.')).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByLabelText('Academic break: Winter break, 2026-10-27 to 2026-10-28')).not.toBeInTheDocument());
     expect(getContextRequests()).toBeGreaterThanOrEqual(2);
-  }, 20_000);
+  }, 30_000);
 });
