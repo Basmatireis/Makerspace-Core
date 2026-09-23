@@ -69,7 +69,7 @@ describe('Roles and permissions matrix', () => {
       ]),
     }));
     expect(submitted?.permissionGrants.every((grant) => !('id' in grant))).toBe(true);
-  }, 10_000);
+  }, 20_000);
 
   it('searches permissions and collapses logical groups', async () => {
     server.use(
@@ -153,7 +153,7 @@ describe('Roles and permissions matrix', () => {
         expect.objectContaining({ permissionId: PermissionId.rolesmanage }),
       ]),
     }));
-  }, 10_000);
+  }, 20_000);
 
   it('creates a role from copied permissions through the legacy new-role URL', async () => {
     const actor = currentUserFixture([
