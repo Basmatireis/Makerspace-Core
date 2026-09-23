@@ -57,12 +57,23 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await page.getByRole('button', { name: /Edit View all people for E2E workshop supervisors/ }).click();
     await page.getByLabel('Permission enabled').click({ force: true });
     await page.getByLabel('Minimum authentication assurance').selectOption('normal');
-    await page.getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(page.getByRole('button', { name: /Edit View all people for E2E workshop supervisors: Normal assurance/ })).toBeVisible();
+    await page.getByRole('button', { name: 'Done', exact: true }).click();
 
     await page.getByRole('button', { name: /Edit Edit own profile for E2E workshop supervisors/ }).click();
     await page.getByLabel('Permission enabled').click({ force: true });
-    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByRole('button', { name: 'Done', exact: true }).click();
+
+    await page.getByRole('button', { name: 'Review and save' }).click();
+    const permissionReview = page.getByRole('dialog', {
+      name: 'Review permission changes for E2E workshop supervisors',
+    });
+    await permissionReview
+      .getByRole('button', { name: 'Save role permissions' })
+      .click();
+    await expect(
+      page.getByRole('region', { name: 'Permission draft' }),
+    ).toBeHidden();
+    await expect(page.getByRole('button', { name: /Edit View all people for E2E workshop supervisors: Normal assurance/ })).toBeVisible();
 
     await page.getByRole('tab', { name: 'Effective permissions' }).click();
     await page.getByLabel('Authentication assurance').selectOption('low');
@@ -107,7 +118,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
       .click();
     await expect(createAccountDialog).toBeHidden();
     await expect(
-      page.getByRole('paragraph').filter({ hasText: memberLogin }),
+      page.getByRole('row', { name: `Login email ${memberLogin}` }),
     ).toBeVisible();
 
     // Direct administrator password setting is an emergency API operation and
@@ -126,10 +137,13 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     });
     expect(passwordResponse.ok()).toBeTruthy();
     await page.reload();
-    await expect(page.getByText('Enabled', { exact: true }).last()).toBeVisible();
-
-    await page.getByRole('button', { name: 'Enable', exact: true }).click();
-    await expect(page.getByText('enabled', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Enable account' }),
+    ).toBeEnabled();
+    await page.getByRole('button', { name: 'Enable account' }).click();
+    await expect(
+      page.getByRole('button', { name: 'Disable account' }),
+    ).toBeVisible();
 
     await page.getByRole('button', { name: 'Actions' }).click();
     await page.getByRole('menuitem', { name: 'Assign role' }).click();
