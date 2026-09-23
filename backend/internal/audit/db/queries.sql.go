@@ -26,13 +26,14 @@ func (q *Queries) DeleteAuditEventsBefore(ctx context.Context, beforeTime time.T
 }
 
 const insertAuditEvent = `-- name: InsertAuditEvent :one
-INSERT INTO audit_events (id, actor_account_id, action, resource_type, resource_id, request_id, changed_fields, metadata, source)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8::text::jsonb, $9)
-RETURNING id, actor_account_id, action, resource_type, resource_id, occurred_at, request_id, changed_fields, metadata, source
+INSERT INTO audit_events (id, actor_type, actor_account_id, action, resource_type, resource_id, request_id, changed_fields, metadata, source)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::text::jsonb, $10)
+RETURNING id, actor_account_id, action, resource_type, resource_id, occurred_at, request_id, changed_fields, metadata, source, actor_type
 `
 
 type InsertAuditEventParams struct {
 	ID             uuid.UUID
+	ActorType      string
 	ActorAccountID *uuid.UUID
 	Action         string
 	ResourceType   string
@@ -46,6 +47,7 @@ type InsertAuditEventParams struct {
 func (q *Queries) InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) (AuditEvent, error) {
 	row := q.db.QueryRow(ctx, insertAuditEvent,
 		arg.ID,
+		arg.ActorType,
 		arg.ActorAccountID,
 		arg.Action,
 		arg.ResourceType,
@@ -67,26 +69,75 @@ func (q *Queries) InsertAuditEvent(ctx context.Context, arg InsertAuditEventPara
 		&i.ChangedFields,
 		&i.Metadata,
 		&i.Source,
+		&i.ActorType,
 	)
 	return i, err
 }
 
 const listAuditEvents = `-- name: ListAuditEvents :many
-SELECT ae.id, ae.actor_account_id, ae.action, ae.resource_type, ae.resource_id, ae.occurred_at, ae.request_id, ae.changed_fields, ae.metadata, ae.source FROM audit_events ae
-WHERE ($1::timestamptz IS NULL OR (occurred_at, id) < ($1::timestamptz, $2::uuid))
+SELECT ae.id, ae.actor_account_id, ae.action, ae.resource_type, ae.resource_id, ae.occurred_at, ae.request_id, ae.changed_fields, ae.metadata, ae.source, ae.actor_type,
+       COALESCE(NULLIF(btrim(actor_person.first_name || ' ' || actor_person.last_name), ''), '')::text AS actor_display_name,
+       COALESCE(CASE ae.resource_type
+           WHEN 'person' THEN (SELECT NULLIF(btrim(p.first_name || ' ' || p.last_name), '') FROM people p WHERE p.id = ae.resource_id)
+           WHEN 'account' THEN (SELECT NULLIF(btrim(p.first_name || ' ' || p.last_name), '') FROM accounts a JOIN people p ON p.id = a.person_id WHERE a.id = ae.resource_id)
+           WHEN 'role' THEN (SELECT r.name FROM roles r WHERE r.id = ae.resource_id)
+           WHEN 'managed_device' THEN (SELECT md.name FROM managed_devices md WHERE md.id = ae.resource_id)
+           WHEN 'device_type' THEN (SELECT dt.name FROM device_types dt WHERE dt.id = ae.resource_id)
+           WHEN 'open_day_period' THEN (SELECT odp.name FROM open_day_periods odp WHERE odp.id = ae.resource_id)
+           WHEN 'open_day' THEN (SELECT od.starts_at::text FROM open_days od WHERE od.id = ae.resource_id)
+           WHEN 'open_day_assignment' THEN (
+               SELECT NULLIF(btrim(p.first_name || ' ' || p.last_name), '')
+               FROM open_day_assignments oda JOIN people p ON p.id = oda.person_id
+               WHERE oda.id = ae.resource_id
+           )
+           WHEN 'open_day_academic_break' THEN (SELECT odab.name FROM open_day_academic_breaks odab WHERE odab.id = ae.resource_id)
+           WHEN 'laborordnung_version' THEN (SELECT lv.human_revision FROM laborordnung_versions lv WHERE lv.id = ae.resource_id)
+           WHEN 'laborordnung_request' THEN (
+               SELECT NULLIF(btrim(p.first_name || ' ' || p.last_name), '')
+               FROM laborordnung_requests lr JOIN people p ON p.id = lr.person_id
+               WHERE lr.id = ae.resource_id
+           )
+           WHEN 'oidc_provider' THEN (SELECT op.display_name FROM oidc_providers op WHERE op.id = ae.resource_id)
+           WHEN 'scim_connector' THEN (SELECT sc.name FROM scim_connectors sc WHERE sc.id = ae.resource_id)
+           WHEN 'scim_user' THEN (
+               SELECT NULLIF(btrim(p.first_name || ' ' || p.last_name), '')
+               FROM scim_users su JOIN people p ON p.id = su.person_id
+               WHERE su.id = ae.resource_id
+           )
+           WHEN 'machine_type' THEN (SELECT mt.name FROM machine_types mt WHERE mt.id = ae.resource_id)
+           WHEN 'machine' THEN (SELECT m.name FROM machines m WHERE m.id = ae.resource_id)
+           WHEN 'organization' THEN (SELECT o.name FROM organizations o WHERE o.id = ae.resource_id)
+           WHEN 'pricing_group' THEN (SELECT pg.name FROM pricing_groups pg WHERE pg.id = ae.resource_id)
+           WHEN 'material' THEN (SELECT m.name FROM materials m WHERE m.id = ae.resource_id)
+           WHEN 'machine_job' THEN (SELECT mj.display_id FROM machine_jobs mj WHERE mj.id = ae.resource_id)
+           ELSE NULL
+       END, '')::text AS resource_display_name,
+       jsonb_strip_nulls(jsonb_build_object(
+           'roleId', (SELECT r.name FROM roles r WHERE r.id::text = ae.metadata ->> 'roleId'),
+           'personId', (SELECT NULLIF(btrim(p.first_name || ' ' || p.last_name), '') FROM people p WHERE p.id::text = ae.metadata ->> 'personId'),
+           'openDayId', (SELECT od.starts_at::text FROM open_days od WHERE od.id::text = ae.metadata ->> 'openDayId')
+       )) AS resolved_metadata
+FROM audit_events ae
+LEFT JOIN accounts actor_account ON actor_account.id = ae.actor_account_id
+LEFT JOIN people actor_person ON actor_person.id = actor_account.person_id
+WHERE ($1::timestamptz IS NULL OR (ae.occurred_at, ae.id) < ($1::timestamptz, $2::uuid))
   AND ($3::uuid IS NULL OR ae.actor_account_id = $3::uuid)
-  AND ($4::text IS NULL OR ae.action = $4::text)
-  AND ($5::text IS NULL OR ae.resource_type = $5::text)
-  AND ($6::uuid IS NULL OR ae.resource_id = $6::uuid)
-  AND ($7::timestamptz IS NULL OR ae.occurred_at >= $7::timestamptz)
-  AND ($8::timestamptz IS NULL OR ae.occurred_at <= $8::timestamptz)
-ORDER BY ae.occurred_at DESC, ae.id DESC LIMIT $9
+  AND ($4::text IS NULL OR ae.actor_type = $4::text)
+  AND ($5::text = '' OR lower(actor_person.first_name || ' ' || actor_person.last_name) LIKE '%' || lower($5::text) || '%')
+  AND ($6::text IS NULL OR ae.action = $6::text)
+  AND ($7::text IS NULL OR ae.resource_type = $7::text)
+  AND ($8::uuid IS NULL OR ae.resource_id = $8::uuid)
+  AND ($9::timestamptz IS NULL OR ae.occurred_at >= $9::timestamptz)
+  AND ($10::timestamptz IS NULL OR ae.occurred_at <= $10::timestamptz)
+ORDER BY ae.occurred_at DESC, ae.id DESC LIMIT $11
 `
 
 type ListAuditEventsParams struct {
 	BeforeTime     pgtype.Timestamptz
 	BeforeID       *uuid.UUID
 	ActorAccountID *uuid.UUID
+	ActorType      *string
+	ActorSearch    string
 	Action         *string
 	ResourceType   *string
 	ResourceID     *uuid.UUID
@@ -95,11 +146,30 @@ type ListAuditEventsParams struct {
 	PageLimit      int32
 }
 
-func (q *Queries) ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]AuditEvent, error) {
+type ListAuditEventsRow struct {
+	ID                  uuid.UUID
+	ActorAccountID      *uuid.UUID
+	Action              string
+	ResourceType        string
+	ResourceID          *uuid.UUID
+	OccurredAt          time.Time
+	RequestID           *uuid.UUID
+	ChangedFields       []string
+	Metadata            []byte
+	Source              string
+	ActorType           string
+	ActorDisplayName    string
+	ResourceDisplayName string
+	ResolvedMetadata    []byte
+}
+
+func (q *Queries) ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]ListAuditEventsRow, error) {
 	rows, err := q.db.Query(ctx, listAuditEvents,
 		arg.BeforeTime,
 		arg.BeforeID,
 		arg.ActorAccountID,
+		arg.ActorType,
+		arg.ActorSearch,
 		arg.Action,
 		arg.ResourceType,
 		arg.ResourceID,
@@ -111,9 +181,9 @@ func (q *Queries) ListAuditEvents(ctx context.Context, arg ListAuditEventsParams
 		return nil, err
 	}
 	defer rows.Close()
-	items := []AuditEvent{}
+	items := []ListAuditEventsRow{}
 	for rows.Next() {
-		var i AuditEvent
+		var i ListAuditEventsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ActorAccountID,
@@ -125,6 +195,10 @@ func (q *Queries) ListAuditEvents(ctx context.Context, arg ListAuditEventsParams
 			&i.ChangedFields,
 			&i.Metadata,
 			&i.Source,
+			&i.ActorType,
+			&i.ActorDisplayName,
+			&i.ResourceDisplayName,
+			&i.ResolvedMetadata,
 		); err != nil {
 			return nil, err
 		}

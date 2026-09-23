@@ -19,6 +19,8 @@ import (
 type Filter struct {
 	Limit          int
 	Cursor         string
+	ActorType      *string
+	ActorSearch    string
 	Action         *string
 	ResourceType   *string
 	ResourceID     *uuid.UUID
@@ -28,16 +30,20 @@ type Filter struct {
 }
 
 type AuditEvent struct {
-	ID             uuid.UUID
-	ActorAccountID *uuid.UUID
-	Action         string
-	ResourceType   string
-	ResourceID     *uuid.UUID
-	OccurredAt     time.Time
-	RequestID      *string
-	ChangedFields  []string
-	Metadata       map[string]string
-	Source         string
+	ID                  uuid.UUID
+	ActorType           string
+	ActorAccountID      *uuid.UUID
+	ActorDisplayName    *string
+	Action              string
+	ResourceType        string
+	ResourceID          *uuid.UUID
+	OccurredAt          time.Time
+	RequestID           *string
+	ChangedFields       []string
+	Metadata            map[string]string
+	ResolvedMetadata    map[string]string
+	ResourceDisplayName *string
+	Source              string
 }
 
 type Page struct {
@@ -65,6 +71,13 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal, f
 	if filter.ResourceType != nil && len([]rune(*filter.ResourceType)) > 64 {
 		return Page{}, invalidRequest("resourceType is limited to 64 characters")
 	}
+	if filter.ActorType != nil && *filter.ActorType != "user" && *filter.ActorType != "system" && *filter.ActorType != "unknown" {
+		return Page{}, invalidRequest("actorType is invalid")
+	}
+	filter.ActorSearch = strings.TrimSpace(filter.ActorSearch)
+	if len([]rune(filter.ActorSearch)) > 100 {
+		return Page{}, invalidRequest("actorSearch is limited to 100 characters")
+	}
 	if filter.OccurredFrom != nil && filter.OccurredTo != nil && filter.OccurredFrom.After(*filter.OccurredTo) {
 		return Page{}, invalidRequest("occurredFrom must not be after occurredTo")
 	}
@@ -91,6 +104,7 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal, f
 	}
 	rows, err := auditdb.New(s.pool).ListAuditEvents(ctx, auditdb.ListAuditEventsParams{
 		BeforeTime: nullableTime(beforeTime), BeforeID: beforeID, ActorAccountID: filter.ActorAccountID,
+		ActorType: filter.ActorType, ActorSearch: filter.ActorSearch,
 		Action: filter.Action, ResourceType: filter.ResourceType, ResourceID: filter.ResourceID,
 		OccurredFrom: nullableTime(filter.OccurredFrom), OccurredTo: nullableTime(filter.OccurredTo), PageLimit: int32(filter.Limit + 1),
 	})
@@ -107,14 +121,19 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal, f
 		if err := json.Unmarshal(row.Metadata, &metadata); err != nil {
 			return Page{}, fmt.Errorf("decode audit metadata: %w", err)
 		}
+		resolvedMetadata := map[string]string{}
+		if err := json.Unmarshal(row.ResolvedMetadata, &resolvedMetadata); err != nil {
+			return Page{}, fmt.Errorf("decode resolved audit metadata: %w", err)
+		}
 		var requestID *string
 		if row.RequestID != nil {
 			value := row.RequestID.String()
 			requestID = &value
 		}
-		items = append(items, AuditEvent{ID: row.ID, ActorAccountID: row.ActorAccountID,
+		items = append(items, AuditEvent{ID: row.ID, ActorType: row.ActorType, ActorAccountID: row.ActorAccountID,
+			ActorDisplayName: nonEmptyPointer(row.ActorDisplayName), ResourceDisplayName: nonEmptyPointer(row.ResourceDisplayName),
 			Action: row.Action, ResourceType: row.ResourceType, ResourceID: row.ResourceID, OccurredAt: row.OccurredAt,
-			RequestID: requestID, ChangedFields: row.ChangedFields, Metadata: metadata, Source: row.Source})
+			RequestID: requestID, ChangedFields: row.ChangedFields, Metadata: metadata, ResolvedMetadata: resolvedMetadata, Source: row.Source})
 	}
 	var next *string
 	if hasMore && len(items) > 0 {
@@ -123,6 +142,13 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal, f
 		next = &value
 	}
 	return Page{Items: items, NextCursor: next}, nil
+}
+
+func nonEmptyPointer(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 func nullableTime(value *time.Time) pgtype.Timestamptz {

@@ -793,6 +793,10 @@ func databaseError(err error) error {
 	return err
 }
 func writeAudit(ctx context.Context, tx pgx.Tx, p authorization.Principal, action, resource string, id uuid.UUID, requestID *uuid.UUID, fields []string) error {
+	return writeAuditWithMetadata(ctx, tx, p, action, resource, id, requestID, fields, nil)
+}
+
+func writeAuditWithMetadata(ctx context.Context, tx pgx.Tx, p authorization.Principal, action, resource string, id uuid.UUID, requestID *uuid.UUID, fields []string, metadata map[string]any) error {
 	actor := p.AccountID
-	return audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: action, ResourceType: resource, ResourceID: &id, RequestID: requestID, ChangedFields: fields})
+	return audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: action, ResourceType: resource, ResourceID: &id, RequestID: requestID, ChangedFields: fields, Metadata: metadata})
 }

@@ -90,7 +90,9 @@ func (s *Service) assign(ctx context.Context, p authorization.Principal, openDay
 	if err != nil {
 		return Assignment{}, databaseError(err)
 	}
-	if err := writeAudit(ctx, tx, p, action, "open_day_assignment", id, requestID, []string{"requirementId", "personId"}); err != nil {
+	if err := writeAuditWithMetadata(ctx, tx, p, action, "open_day_assignment", id, requestID, []string{"requirementId", "personId"}, map[string]any{
+		"personId": personID.String(), "openDayId": openDayID.String(),
+	}); err != nil {
 		return Assignment{}, err
 	}
 	person, err := q.GetAssignmentPersonName(ctx, personID)
@@ -165,7 +167,9 @@ func (s *Service) removeAssignment(ctx context.Context, p authorization.Principa
 	if self {
 		action = "open_day.self_left"
 	}
-	if err := writeAudit(ctx, tx, p, action, "open_day_assignment", assignmentID, requestID, nil); err != nil {
+	if err := writeAuditWithMetadata(ctx, tx, p, action, "open_day_assignment", assignmentID, requestID, nil, map[string]any{
+		"personId": assignment.PersonID.String(), "openDayId": openDayID.String(),
+	}); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

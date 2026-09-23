@@ -79,8 +79,8 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 	}
 	auditID := uuid.Must(uuid.NewV7())
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO audit_events (id, actor_account_id, action, resource_type, resource_id)
-		VALUES ($1, $2, 'account.deleted', 'account', $2)`, auditID, account.accountID); err != nil {
+		INSERT INTO audit_events (id, actor_type, actor_account_id, action, resource_type, resource_id)
+		VALUES ($1, 'user', $2, 'account.deleted', 'account', $2)`, auditID, account.accountID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -96,11 +96,12 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 	assertCount(t, pool, `SELECT count(*) FROM role_permission_grants WHERE role_id = $1`, 1, roleID)
 
 	var actorID, resourceID *uuid.UUID
-	if err := pool.QueryRow(ctx, `SELECT actor_account_id, resource_id FROM audit_events WHERE id = $1`, auditID).Scan(&actorID, &resourceID); err != nil {
+	var actorType string
+	if err := pool.QueryRow(ctx, `SELECT actor_type, actor_account_id, resource_id FROM audit_events WHERE id = $1`, auditID).Scan(&actorType, &actorID, &resourceID); err != nil {
 		t.Fatal(err)
 	}
-	if actorID != nil || resourceID == nil || *resourceID != account.accountID {
-		t.Fatalf("minimized audit reference mismatch: actor=%v resource=%v", actorID, resourceID)
+	if actorType != "user" || actorID != nil || resourceID == nil || *resourceID != account.accountID {
+		t.Fatalf("minimized audit reference mismatch: actor_type=%q actor=%v resource=%v", actorType, actorID, resourceID)
 	}
 
 	remaining := seedAccount(t, pool, "role-cascade", false)

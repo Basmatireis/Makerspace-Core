@@ -35,6 +35,7 @@ import { StatisticsPage } from '../features/machinelogbook/StatisticsPage';
 import { ConfigurationPage } from '../features/machinelogbook/ConfigurationPage';
 import { AppShell } from './AppShell';
 import { NotFoundPage } from './NotFoundPage';
+import { ActivityPage } from '../features/audit/ActivityPage';
 
 function ProtectedApp() {
   return (
@@ -107,7 +108,8 @@ export function App() {
         <Route path="settings/scim" element={<PermissionRoute allOf={[PermissionId.scimmanage]}><SCIMConnectorsPage /></PermissionRoute>} />
         <Route path="settings/visitor-enrollment" element={<PermissionRoute allOf={[PermissionId.visitor_enrollmentmanage]}><VisitorEnrollmentSettingsPage /></PermissionRoute>} />
         <Route path="settings/mail" element={<PermissionRoute allOf={[PermissionId.mailmanage]}><MailSettingsPage /></PermissionRoute>} />
-		<Route path="settings/machine-logbook" element={<PermissionRoute allOf={[PermissionId.organizationsread, PermissionId.pricingread, PermissionId.machinesread]}><ConfigurationPage /></PermissionRoute>} />
+        <Route path="settings/activity" element={<PermissionRoute allOf={[PermissionId.auditread]}><ActivityPage /></PermissionRoute>} />
+        <Route path="settings/machine-logbook" element={<PermissionRoute allOf={[PermissionId.organizationsread, PermissionId.pricingread, PermissionId.machinesread]}><ConfigurationPage /></PermissionRoute>} />
         <Route
           path="settings/users"
           element={<PermissionRoute allOf={[PermissionId.peoplereadall]}><UsersPage /></PermissionRoute>}

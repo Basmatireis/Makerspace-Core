@@ -12,7 +12,7 @@ import (
 type Querier interface {
 	DeleteAuditEventsBefore(ctx context.Context, beforeTime time.Time) (int64, error)
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) (AuditEvent, error)
-	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]AuditEvent, error)
+	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]ListAuditEventsRow, error)
 }
 
 var _ Querier = (*Queries)(nil)

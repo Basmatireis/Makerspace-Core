@@ -292,6 +292,13 @@ func (s *Server) ListAuditEvents(ctx context.Context, request openapi.ListAuditE
 		ResourceID: request.Params.ResourceId, ActorAccountID: request.Params.ActorAccountId,
 		OccurredFrom: request.Params.OccurredFrom, OccurredTo: request.Params.OccurredTo,
 	}
+	if request.Params.ActorType != nil {
+		actorType := string(*request.Params.ActorType)
+		filter.ActorType = &actorType
+	}
+	if request.Params.ActorSearch != nil {
+		filter.ActorSearch = *request.Params.ActorSearch
+	}
 	if request.Params.Cursor != nil {
 		filter.Cursor = *request.Params.Cursor
 	}
@@ -1052,10 +1059,13 @@ func auditPageDTO(page audit.Page) openapi.AuditEventPage {
 		response := openapi.AuditEvent{
 			Id: event.ID, Action: event.Action, ResourceType: event.ResourceType,
 			OccurredAt: event.OccurredAt, ChangedFields: event.ChangedFields,
-			Metadata: event.Metadata, Source: openapi.AuditEventSource(event.Source),
-			ActorAccountId: nullablePointer[openapi.UUIDv7](event.ActorAccountID, func(value uuid.UUID) openapi.UUIDv7 { return value }),
-			ResourceId:     nullablePointer[openapi.UUIDv7](event.ResourceID, func(value uuid.UUID) openapi.UUIDv7 { return value }),
-			RequestId:      nullablePointer[string](event.RequestID, func(value string) string { return value }),
+			Metadata: event.Metadata, ResolvedMetadata: &event.ResolvedMetadata, Source: openapi.AuditEventSource(event.Source),
+			ActorType:           openapi.AuditActorType(event.ActorType),
+			ActorAccountId:      nullablePointer[openapi.UUIDv7](event.ActorAccountID, func(value uuid.UUID) openapi.UUIDv7 { return value }),
+			ResourceId:          nullablePointer[openapi.UUIDv7](event.ResourceID, func(value uuid.UUID) openapi.UUIDv7 { return value }),
+			RequestId:           nullablePointer[string](event.RequestID, func(value string) string { return value }),
+			ActorDisplayName:    nullablePointer[string](event.ActorDisplayName, func(value string) string { return value }),
+			ResourceDisplayName: nullablePointer[string](event.ResourceDisplayName, func(value string) string { return value }),
 		}
 		items = append(items, response)
 	}

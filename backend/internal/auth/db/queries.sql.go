@@ -753,7 +753,7 @@ func (q *Queries) GetSessionForReauthentication(ctx context.Context, arg GetSess
 const getSessionPrincipal = `-- name: GetSessionPrincipal :one
 SELECT s.id AS session_id, s.account_id, s.auth_identity_id, s.csrf_digest,
        s.idle_expires_at, s.absolute_expires_at, s.last_seen_at,
-       s.base_assurance, s.current_assurance, s.authenticated_at, s.assurance_expires_at,
+       s.auth_method, s.base_assurance, s.current_assurance, s.authenticated_at, s.assurance_expires_at,
        a.person_id, p.first_name, p.last_name, COALESCE(i.identifier_display, '')::text AS login_email
 FROM sessions s JOIN accounts a ON a.id = s.account_id JOIN people p ON p.id = a.person_id
 JOIN auth_identities i ON i.id = s.auth_identity_id
@@ -770,6 +770,7 @@ type GetSessionPrincipalRow struct {
 	IdleExpiresAt      time.Time
 	AbsoluteExpiresAt  time.Time
 	LastSeenAt         time.Time
+	AuthMethod         string
 	BaseAssurance      string
 	CurrentAssurance   string
 	AuthenticatedAt    time.Time
@@ -791,6 +792,7 @@ func (q *Queries) GetSessionPrincipal(ctx context.Context, tokenDigest []byte) (
 		&i.IdleExpiresAt,
 		&i.AbsoluteExpiresAt,
 		&i.LastSeenAt,
+		&i.AuthMethod,
 		&i.BaseAssurance,
 		&i.CurrentAssurance,
 		&i.AuthenticatedAt,

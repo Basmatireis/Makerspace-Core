@@ -41,6 +41,7 @@ type AuditEvent struct {
 	ChangedFields  []string
 	Metadata       []byte
 	Source         string
+	ActorType      string
 }
 
 type AuthChallenge struct {

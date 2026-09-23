@@ -40,7 +40,7 @@ DeviceType 1 ─── * ManagedDevice
 SCIMConnector 1 ─── * SCIMUserMapping ─── 1 Person/Account
 OIDCProvider 1 ─── * OIDC AuthIdentity
 
-AuditEvent references an actor account and resource by nullable/minimal identifiers.
+AuditEvent records an actor type and references an actor account and resource by nullable/minimal identifiers.
 
 OpenDayPeriod 1 ─── * OpenDay 1 ─── 2 StaffRequirement
                               │              ├── * eligible Role
@@ -66,7 +66,7 @@ PricingGroup 1 ─── * explicit PricingRule
 - **Role** is operator-configurable. Each independently identified permission grant is global, valid on any authenticated managed device, or restricted to selected device types, and specifies minimum assurance. `master` is the sole protected system role; its permissions are computed from the application registry as global at minimum low assurance rather than copied into grant rows.
 - **DeviceType** is administrator-maintained classification data used by scoped role grants; authorization never hard-codes names such as Reception or Laser Terminal.
 - **ManagedDevice** stores a reusable device identity, its type, token digest, expiration/revocation state, throttled last-seen time, and optimistic version. It never authenticates a user.
-- **AuditEvent** contains an action, resource type/ID, nullable actor account, time, nullable HTTP request ID, changed field names, source, and selected non-sensitive metadata.
+- **AuditEvent** contains a durable actor type (`user`, `system`, or historical `unknown`), an action, resource type/ID, nullable actor account, time, nullable HTTP request ID, changed field names, source, and selected non-sensitive metadata. Actions remain stable lowercase dot-separated domain/entity/action identifiers.
 - **OpenDayPeriod** owns an inclusive local-date range and follows `draft ↔ staffing ↔ published → archived`. Backward transitions retain schedules and assignments; archive remains final and read-only. Its version serializes schedule edits and lifecycle changes.
 - **OpenDay** stores UTC instants, a scheduled/cancelled state, an optimistic version, and a manager-only note. Each Open Day has stable supervisor and trainee requirements. Person assignments remain as history if eligibility Roles later change.
 - **AcademicBreak** is operator-maintained inclusive date context. Public holidays are computed offline from pinned country/subdivision configuration.
@@ -80,7 +80,7 @@ UUIDv7 values are generated in application code. Timestamps use UTC `timestamptz
 
 Person and Account records have genuine hard-delete paths. Deleting a Person cascades its Account, identity, credential, sessions, reset token, and assignments. Deleting only an Account retains the Person. A Person with an Account requires both `people.delete` and `accounts.delete` to delete.
 
-Audit rows do not hold before/after PII snapshots. Foreign keys to deleted actor accounts become null, while resource IDs remain context-only UUIDs without retaining the deleted record. Passwords, hashes, session/reset tokens, cookies, authorization headers, and request bodies are never written to logs or audit metadata.
+Audit rows do not hold actor names, target names, before/after PII snapshots, or arbitrary metadata. A user actor retains `actor_type=user` when deletion sets its Account foreign key to null; system activity has no Account ID, and `unknown` is reserved for ambiguous migrated history. Resource IDs remain context-only UUIDs without retaining the deleted record. The audit read projection may resolve current names for a small allowlist of resource relationships. Those labels change when current records are renamed and disappear after deletion; the UI then presents the resource type and shortened opaque ID. Passwords, hashes, session/reset tokens, cookies, authorization headers, and request bodies are never written to logs or audit metadata.
 
 ## API contract and generated code
 

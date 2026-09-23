@@ -34,7 +34,6 @@ const (
 	maxJSONRequestBodyBytes  = 64 << 10
 	maxImageRequestBodyBytes = 9 << 20
 	maxPDFRequestBodyBytes   = 26 << 20
-	maxLogPathBytes          = 1024
 	maxUserAgentBytes        = 512
 	csrfHeaderName           = "X-CSRF-Token"
 	requestIDHeaderName      = "X-Request-ID"
@@ -55,7 +54,11 @@ const (
 	visitorEnrollmentContextKey
 )
 
-type operationState struct{ name string }
+type operationState struct {
+	name       string
+	userID     *uuid.UUID
+	authMethod string
+}
 
 func NewHandler(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (http.Handler, error) {
 	server, err := NewServer(pool, cfg)
@@ -125,8 +128,8 @@ func NewHandler(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (htt
 	handler = noStoreMiddleware(handler)
 	handler = recoveryMiddleware(handler, logger)
 	handler = traceMiddleware(handler)
-	handler = accessLogMiddleware(handler, logger, cfg.HTTPTrustedProxies)
-	handler = requestMetadataMiddleware(handler, router)
+	handler = accessLogMiddleware(handler, logger)
+	handler = requestMetadataMiddleware(handler, router, cfg.HTTPTrustedProxies)
 	return handler, nil
 }
 
@@ -262,6 +265,11 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 			}
 		}
 		ctx := context.WithValue(r.Context(), authenticatedContextKey, authenticated)
+		if state, ok := ctx.Value(operationStateContextKey).(*operationState); ok {
+			userID := authenticated.Principal.AccountID
+			state.userID = &userID
+			state.authMethod = authenticated.AuthMethod
+		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -281,12 +289,12 @@ func (s *Server) originMiddleware(next http.Handler, logger *slog.Logger) http.H
 	})
 }
 
-func requestMetadataMiddleware(next http.Handler, routes chi.Routes) http.Handler {
+func requestMetadataMiddleware(next http.Handler, routes chi.Routes, trustedProxies []netip.Prefix) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestID := uuid.Must(uuid.NewV7())
 		w.Header().Set(requestIDHeaderName, requestID.String())
 		ctx := context.WithValue(r.Context(), requestIDContextKey, requestID)
-		ctx = context.WithValue(ctx, sourceAddressContextKey, remoteHost(r.RemoteAddr))
+		ctx = context.WithValue(ctx, sourceAddressContextKey, requestClientIP(r, trustedProxies))
 		ctx = context.WithValue(ctx, operationStateContextKey, &operationState{})
 		ctx = context.WithValue(ctx, normalizedRouteContextKey, matchedRoutePattern(routes, r.Method, r.URL.Path))
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -359,7 +367,7 @@ func (r *responseRecorder) Write(body []byte) (int, error) {
 
 func (r *responseRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
 
-func accessLogMiddleware(next http.Handler, logger *slog.Logger, trustedProxies []netip.Prefix) http.Handler {
+func accessLogMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		started := time.Now()
 		recorder := &responseRecorder{ResponseWriter: w}
@@ -380,18 +388,27 @@ func accessLogMiddleware(next http.Handler, logger *slog.Logger, trustedProxies 
 			"method", r.Method,
 			"route", route,
 		}
-		if route == "unmatched" {
-			attributes = append(attributes, "path", boundedLogValue(r.URL.Path, maxLogPathBytes))
+		if state, ok := r.Context().Value(operationStateContextKey).(*operationState); ok && state.userID != nil {
+			attributes = append(attributes, "user_id", state.userID.String(), "auth_method", state.authMethod)
 		}
 		attributes = append(attributes,
-			"client_ip", requestClientIP(r, trustedProxies),
+			"client_ip", sourceAddress(r.Context()),
 			"user_agent", boundedLogValue(r.UserAgent(), maxUserAgentBytes),
 			"status", status,
 			"response_bytes", recorder.bytes,
 			"duration_ms", time.Since(started).Milliseconds(),
 		)
-		logger.InfoContext(r.Context(), "http request", attributes...)
+		level := slog.LevelInfo
+		if status < http.StatusBadRequest && isRoutineProbe(route) {
+			level = slog.LevelDebug
+		}
+		logger.Log(r.Context(), level, "http request", attributes...)
 	})
+}
+
+func isRoutineProbe(route string) bool {
+	return route == "GetLiveness" || route == "GetReadiness" ||
+		route == apiBasePath+"/health/live" || route == apiBasePath+"/health/ready"
 }
 
 func traceMiddleware(next http.Handler) http.Handler {
@@ -599,14 +616,6 @@ func requestIDString(ctx context.Context) string {
 func sourceAddress(ctx context.Context) string {
 	value, _ := ctx.Value(sourceAddressContextKey).(string)
 	return value
-}
-
-func remoteHost(remoteAddress string) string {
-	host, _, err := net.SplitHostPort(remoteAddress)
-	if err == nil {
-		return host
-	}
-	return remoteAddress
 }
 
 func isPublicPath(path string) bool {

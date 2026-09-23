@@ -1631,12 +1631,12 @@ paths:
           in: query
           schema:
             type: string
-            maxLength: 100
+            maxLength: 128
         - name: resourceType
           in: query
           schema:
             type: string
-            maxLength: 100
+            maxLength: 64
         - name: resourceId
           in: query
           schema:
@@ -1645,6 +1645,16 @@ paths:
           in: query
           schema:
             $ref: "#/components/schemas/UUIDv7"
+        - name: actorType
+          in: query
+          schema:
+            $ref: "#/components/schemas/AuditActorType"
+        - name: actorSearch
+          in: query
+          description: Case-insensitive search over the current display name of user actors.
+          schema:
+            type: string
+            maxLength: 100
         - name: occurredFrom
           in: query
           schema:
@@ -4710,7 +4720,7 @@ components:
     AuditEvent:
       type: object
       additionalProperties: false
-      required: [id, action, resourceType, occurredAt, requestId, changedFields, metadata, source]
+      required: [id, actorType, action, resourceType, occurredAt, requestId, changedFields, metadata, resolvedMetadata, source]
       properties:
         id:
           $ref: "#/components/schemas/UUIDv7"
@@ -4719,18 +4729,30 @@ components:
             - $ref: "#/components/schemas/UUIDv7"
           nullable: true
           description: Null for system/CLI actions or after privacy-preserving deletion.
+        actorType:
+          $ref: "#/components/schemas/AuditActorType"
+        actorDisplayName:
+          type: string
+          maxLength: 300
+          nullable: true
+          description: Current minimal display name; never a retained historical snapshot.
         action:
           type: string
           minLength: 1
-          maxLength: 100
+          maxLength: 128
         resourceType:
           type: string
           minLength: 1
-          maxLength: 100
+          maxLength: 64
         resourceId:
           allOf:
             - $ref: "#/components/schemas/UUIDv7"
           nullable: true
+        resourceDisplayName:
+          type: string
+          maxLength: 300
+          nullable: true
+          description: Current minimal resource label; null after deletion or when no safe label exists.
         occurredAt:
           type: string
           format: date-time
@@ -4753,9 +4775,20 @@ components:
             type: string
             maxLength: 500
           description: Selected non-sensitive values only.
+        resolvedMetadata:
+          type: object
+          readOnly: true
+          additionalProperties:
+            type: string
+            maxLength: 500
+          description: Current display labels for allowlisted opaque metadata identifiers; never stored snapshots.
         source:
           type: string
           enum: [http, admin_cli, system]
+
+    AuditActorType:
+      type: string
+      enum: [user, system, unknown]
 
     AuditEventPage:
       type: object

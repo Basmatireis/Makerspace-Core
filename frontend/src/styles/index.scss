@@ -1336,12 +1336,16 @@ h2 {
 .configuration-list { display: grid; gap: $spacing-04; }
 .configuration-table { inline-size: 100%; border-collapse: collapse; }
 .configuration-table th, .configuration-table td { padding: $spacing-03; text-align: start; border-block-end: 1px solid var(--cds-border-subtle); }
+.activity-filters { display: grid; grid-template-columns: minmax(16rem, 1.5fr) repeat(3, minmax(12rem, 1fr)); align-items: end; gap: $spacing-03; }
+.activity-empty { display: grid; gap: $spacing-03; }
+.activity-empty p { color: var(--cds-text-secondary); }
 
 @media (max-width: 82rem) {
   .semester-calendar { grid-template-columns: 1fr; }
   .metric-grid { grid-template-columns: repeat(3, 1fr); }
   .filter-bar { grid-template-columns: repeat(2, 1fr); }
   .material-layout { grid-template-columns: 1fr; }
+  .activity-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 65.98rem) {
@@ -1426,4 +1430,5 @@ h2 {
   .metric-grid, .metric-grid--three, .detail-grid, .review-form, .review-machine-data, .filter-bar, .machine-logbook-page .form-grid, .usage-row { grid-template-columns: 1fr; }
   .review-detail { padding: $spacing-05; }
   .date-filter { align-items: stretch; flex-direction: column; }
+  .activity-filters { grid-template-columns: 1fr; }
 }

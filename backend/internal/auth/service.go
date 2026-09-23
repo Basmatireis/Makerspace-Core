@@ -31,6 +31,7 @@ type Session struct {
 type Authenticated struct {
 	Principal  authorization.Principal
 	CSRFDigest []byte
+	AuthMethod string
 }
 
 type Service struct {
@@ -166,7 +167,7 @@ func (s *Service) Authenticate(ctx context.Context, sessionToken string) (Authen
 	_ = queries.TouchSession(ctx, authdb.TouchSessionParams{
 		ID: row.SessionID, IdleExpiresAt: time.Now().UTC().Add(s.config.SessionIdleTTL),
 	})
-	return Authenticated{Principal: principal, CSRFDigest: row.CsrfDigest}, nil
+	return Authenticated{Principal: principal, CSRFDigest: row.CsrfDigest, AuthMethod: row.AuthMethod}, nil
 }
 
 func (s *Service) WithDevice(ctx context.Context, authenticated Authenticated, device *authorization.ManagedDevice) (Authenticated, error) {

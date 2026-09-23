@@ -12,6 +12,7 @@ import (
 )
 
 type Event struct {
+	ActorType      string
 	ActorAccountID *uuid.UUID
 	Action         string
 	ResourceType   string
@@ -27,6 +28,26 @@ func Write(ctx context.Context, db auditdb.DBTX, event Event) error {
 }
 
 func write(ctx context.Context, queries auditdb.Querier, event Event) error {
+	actorType := event.ActorType
+	if actorType == "" {
+		if event.ActorAccountID != nil {
+			actorType = "user"
+		} else {
+			actorType = "system"
+		}
+	}
+	switch actorType {
+	case "user":
+		if event.ActorAccountID == nil {
+			return fmt.Errorf("user audit actor requires an account ID")
+		}
+	case "system":
+		if event.ActorAccountID != nil {
+			return fmt.Errorf("system audit actor cannot have an account ID")
+		}
+	default:
+		return fmt.Errorf("invalid audit actor type")
+	}
 	if strings.TrimSpace(event.Action) == "" || utf8.RuneCountInString(event.Action) > 128 {
 		return fmt.Errorf("invalid audit action")
 	}
@@ -58,17 +79,15 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 		metadata = map[string]any{}
 	}
 	for key, value := range metadata {
-		if key != "roleId" {
+		if key != "roleId" && key != "personId" && key != "openDayId" {
 			return fmt.Errorf("audit metadata key %q is not allowlisted", key)
 		}
 		text, ok := value.(string)
 		if !ok || utf8.RuneCountInString(text) > 500 {
 			return fmt.Errorf("invalid audit metadata value for %q", key)
 		}
-		if key == "roleId" {
-			if _, err := uuid.Parse(text); err != nil {
-				return fmt.Errorf("invalid audit roleId metadata")
-			}
+		if _, err := uuid.Parse(text); err != nil {
+			return fmt.Errorf("invalid audit %s metadata", key)
 		}
 	}
 	encoded, err := json.Marshal(metadata)
@@ -77,6 +96,7 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 	}
 	_, err = queries.InsertAuditEvent(ctx, auditdb.InsertAuditEventParams{
 		ID:             uuid.Must(uuid.NewV7()),
+		ActorType:      actorType,
 		ActorAccountID: event.ActorAccountID,
 		Action:         event.Action,
 		ResourceType:   event.ResourceType,

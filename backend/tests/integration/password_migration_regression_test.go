@@ -106,7 +106,7 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 		t.Fatalf("pre-migration session cookie after migration: %v", err)
 	}
 	if preMigrationAuthentication.Principal.AccountID != accountID || preMigrationAuthentication.Principal.PersonID != personID ||
-		!preMigrationAuthentication.Principal.Master || preMigrationAuthentication.Principal.Assurance != "normal" {
+		!preMigrationAuthentication.Principal.Master || preMigrationAuthentication.Principal.Assurance != "normal" || preMigrationAuthentication.AuthMethod != "password" {
 		t.Fatalf("migrated session principal = %#v", preMigrationAuthentication.Principal)
 	}
 	var migratedSessionMethod, migratedSessionBase, migratedSessionCurrent string
@@ -132,6 +132,41 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 	}
 	if method != "password" || baseAssurance != "normal" || currentAssurance != "normal" || authenticatedAt.IsZero() {
 		t.Fatalf("migrated login session = method %q assurance %q/%q authenticatedAt=%v", method, baseAssurance, currentAssurance, authenticatedAt)
+	}
+}
+
+func TestAuditActorTypeMigrationBackfillsHistoricalSemantics(t *testing.T) {
+	pool := emptySchemaPool(t)
+	ctx := testContext(t)
+	migrations := orderedMigrationFiles(t)
+	applyMigrationFiles(t, pool, migrations[:19])
+
+	personID, accountID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(ctx, `INSERT INTO people (id, first_name, last_name, email) VALUES ($1, 'Historical', 'Actor', 'historical@example.test')`, personID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
+		t.Fatal(err)
+	}
+	userEvent, adminEvent, systemEvent, unknownEvent := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO audit_events (id, actor_account_id, action, resource_type, source) VALUES
+		($1, $5, 'person.updated', 'person', 'http'),
+		($2, NULL, 'system.master_bootstrapped', 'account', 'admin_cli'),
+		($3, NULL, 'maintenance.cleanup', 'system', 'system'),
+		($4, NULL, 'historical.ambiguous', 'account', 'http')`, userEvent, adminEvent, systemEvent, unknownEvent, accountID); err != nil {
+		t.Fatal(err)
+	}
+
+	applyMigrationFiles(t, pool, migrations[19:])
+	for id, want := range map[uuid.UUID]string{userEvent: "user", adminEvent: "system", systemEvent: "system", unknownEvent: "unknown"} {
+		var got string
+		if err := pool.QueryRow(ctx, `SELECT actor_type FROM audit_events WHERE id=$1`, id).Scan(&got); err != nil {
+			t.Fatal(err)
+		}
+		if got != want {
+			t.Fatalf("actor type for %s = %q, want %q", id, got, want)
+		}
 	}
 }
 
@@ -296,8 +331,8 @@ func orderedMigrationFiles(t *testing.T) []string {
 		t.Fatal("cannot locate migration test")
 	}
 	paths, err := filepath.Glob(filepath.Join(filepath.Dir(filename), "..", "..", "migrations", "*.sql"))
-	if err != nil || len(paths) != 19 {
-		t.Fatalf("locate 19 migrations: count=%d err=%v", len(paths), err)
+	if err != nil || len(paths) != 20 {
+		t.Fatalf("locate 20 migrations: count=%d err=%v", len(paths), err)
 	}
 	return paths
 }

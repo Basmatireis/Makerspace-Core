@@ -20,6 +20,8 @@ func TestListRejectsInvalidFiltersBeforeQuery(t *testing.T) {
 		{name: "oversized cursor", filter: Filter{Limit: 25, Cursor: strings.Repeat("a", 501)}},
 		{name: "oversized action", filter: Filter{Limit: 25, Action: stringPointer(strings.Repeat("a", 129))}},
 		{name: "oversized resource type", filter: Filter{Limit: 25, ResourceType: stringPointer(strings.Repeat("a", 65))}},
+		{name: "invalid actor type", filter: Filter{Limit: 25, ActorType: stringPointer("robot")}},
+		{name: "oversized actor search", filter: Filter{Limit: 25, ActorSearch: strings.Repeat("ü", 101)}},
 	}
 	service := NewService(nil)
 	principal := authorization.Principal{Master: true}

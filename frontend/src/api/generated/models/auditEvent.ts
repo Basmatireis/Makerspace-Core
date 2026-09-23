@@ -20,8 +20,10 @@ the required session and CSRF credentials.
  */
 import type { UUIDv7 } from './uUIDv7';
 import type { AuditEventActorAccountId } from './auditEventActorAccountId';
+import type { AuditActorType } from './auditActorType';
 import type { AuditEventResourceId } from './auditEventResourceId';
 import type { AuditEventMetadata } from './auditEventMetadata';
+import type { AuditEventResolvedMetadata } from './auditEventResolvedMetadata';
 import type { AuditEventSource } from './auditEventSource';
 
 export interface AuditEvent {
@@ -31,18 +33,31 @@ export interface AuditEvent {
    * @nullable
    */
   actorAccountId?: AuditEventActorAccountId;
+  actorType: AuditActorType;
+  /**
+   * Current minimal display name; never a retained historical snapshot.
+   * @maxLength 300
+   * @nullable
+   */
+  actorDisplayName?: string | null;
   /**
    * @minLength 1
-   * @maxLength 100
+   * @maxLength 128
    */
   action: string;
   /**
    * @minLength 1
-   * @maxLength 100
+   * @maxLength 64
    */
   resourceType: string;
   /** @nullable */
   resourceId?: AuditEventResourceId;
+  /**
+   * Current minimal resource label; null after deletion or when no safe label exists.
+   * @maxLength 300
+   * @nullable
+   */
+  resourceDisplayName?: string | null;
   occurredAt: string;
   /**
    * Null for system or administrative CLI events without an HTTP request.
@@ -55,5 +70,7 @@ export interface AuditEvent {
   changedFields: string[];
   /** Selected non-sensitive values only. */
   metadata: AuditEventMetadata;
+  /** Current display labels for allowlisted opaque metadata identifiers; never stored snapshots. */
+  readonly resolvedMetadata: AuditEventResolvedMetadata;
   source: AuditEventSource;
 }

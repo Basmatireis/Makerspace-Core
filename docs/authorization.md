@@ -25,7 +25,7 @@ Authorization is based on application-registered permission identifiers. Backend
 | `accounts.roles.assign` | Assign or remove allowed Roles from Accounts. |
 | `roles.read` | List registered permissions and read configured Roles. |
 | `roles.manage` | Create, edit, delete, and replace permissions on configurable Roles. |
-| `audit.read` | Read privacy-minimized audit events. |
+| `audit.read` | Read privacy-minimized audit events and their allowlisted current display labels. |
 | `open_days.read` | Read visible Open Day periods, schedules, staffing counts, and the caller's own assignment. |
 | `open_days.read_assignments` | Read the minimal names and IDs of other assigned people. |
 | `open_days.signup` | Join and leave an eligible Open Day requirement as the current Person. |
@@ -78,6 +78,8 @@ Matriculation access is an additional field gate, not a substitute for record ac
 Account data nested in Person responses is omitted without `accounts.read`. `/auth/me` inherently returns the current principal's Account, minimal Person identity, and sorted effective permissions. Contact fields require the applicable self/all Person-read permission, and matriculation still requires its dedicated read permission.
 
 Open Day readers always receive requirement totals and their own assignment. Other identities are omitted unless `open_days.read_assignments` is effective, and internal notes are emitted only with `open_days.manage`. The assignment search endpoint returns only enabled, role-eligible Person IDs and display names; it does not inherit or require `roles.read` or a broader people permission. All assignment and schedule rules are enforced again in the backend service.
+
+`audit.read` independently authorizes the minimal current display names selected by the audit projection, including actor Person names and safe target labels. It does not grant access to the underlying Person or Account endpoints, contact/login email, phone, matriculation number, profile image, notes, or credentials. Deleted names are not retained, so deleted actors cannot be searched by their former name and deleted resources fall back to an opaque identifier. No ordinary user receives Activity access unless an assigned Role explicitly grants `audit.read`; the `master` system role receives it through the registry like every other registered permission.
 
 ## Dynamic roles and privilege boundaries
 

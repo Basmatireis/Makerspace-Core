@@ -22,7 +22,7 @@ func (q *recordingAuditQueries) InsertAuditEvent(_ context.Context, params audit
 	return auditdb.AuditEvent{}, nil
 }
 
-func (q *recordingAuditQueries) ListAuditEvents(context.Context, auditdb.ListAuditEventsParams) ([]auditdb.AuditEvent, error) {
+func (q *recordingAuditQueries) ListAuditEvents(context.Context, auditdb.ListAuditEventsParams) ([]auditdb.ListAuditEventsRow, error) {
 	return nil, nil
 }
 
@@ -55,7 +55,44 @@ func TestWriteAcceptsOpaqueRoleIDAndDefaultsHTTPSource(t *testing.T) {
 	if queries.inserted == nil || queries.inserted.Source != "http" {
 		t.Fatal("valid audit event was not inserted with the default source")
 	}
+	if queries.inserted.ActorType != "system" {
+		t.Fatalf("actor type = %q, want system", queries.inserted.ActorType)
+	}
 	if queries.inserted.ChangedFields == nil {
 		t.Fatal("nil changed fields would violate the database not-null constraint")
+	}
+}
+
+func TestWriteDerivesUserActorType(t *testing.T) {
+	queries := &recordingAuditQueries{}
+	actorID := uuid.Must(uuid.NewV7())
+	if err := write(context.Background(), queries, Event{
+		ActorAccountID: &actorID,
+		Action:         "person.updated",
+		ResourceType:   "person",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if queries.inserted == nil || queries.inserted.ActorType != "user" {
+		t.Fatalf("inserted actor type = %#v, want user", queries.inserted)
+	}
+}
+
+func TestWriteRejectsInconsistentActorTypeAndNonUUIDMetadata(t *testing.T) {
+	actorID := uuid.Must(uuid.NewV7())
+	tests := []Event{
+		{ActorType: "user", Action: "person.updated", ResourceType: "person"},
+		{ActorType: "system", ActorAccountID: &actorID, Action: "person.updated", ResourceType: "person"},
+		{ActorType: "unknown", Action: "person.updated", ResourceType: "person"},
+		{Action: "open_day.assignment.created", ResourceType: "open_day_assignment", Metadata: map[string]any{"personId": "not-a-uuid"}},
+	}
+	for _, event := range tests {
+		queries := &recordingAuditQueries{}
+		if err := write(context.Background(), queries, event); err == nil {
+			t.Fatalf("invalid event was accepted: %#v", event)
+		}
+		if queries.inserted != nil {
+			t.Fatal("invalid audit event reached persistence")
+		}
 	}
 }

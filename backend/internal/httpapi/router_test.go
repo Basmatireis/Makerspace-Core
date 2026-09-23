@@ -192,7 +192,7 @@ func TestRequestMetadataAlwaysGeneratesUUIDv7(t *testing.T) {
 		gotID = *requestIDPointer(r.Context())
 		gotSource = sourceAddress(r.Context())
 		w.WriteHeader(http.StatusNoContent)
-	}), nil)
+	}), nil, nil)
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
 	request.RemoteAddr = "192.0.2.8:45123"
 	request.Header.Set(requestIDHeaderName, supplied.String())
@@ -215,7 +215,7 @@ func TestOriginMiddlewareRequiresExactOriginForUnsafeRequests(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
 	handler := requestMetadataMiddleware(server.originMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
-	}), logger), nil)
+	}), logger), nil, nil)
 
 	for _, origin := range []string{"", "https://example.test", "http://localhost:5173.evil.test"} {
 		request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", nil)
@@ -307,7 +307,7 @@ func TestHandlerValidatesContractAndProtectsRoutes(t *testing.T) {
 	}
 }
 
-func TestAccessLogIncludesPathOnlyForUnmatchedRequests(t *testing.T) {
+func TestAccessLogNeverIncludesRequestPathsOrQueryValues(t *testing.T) {
 	identifier := "0192f6f8-743e-7c77-a349-cd07c3e8a921"
 
 	matched, matchedRaw := recordedAPIRequestLog(t, http.MethodGet, "/api/v1/people/"+identifier)
@@ -323,18 +323,21 @@ func TestAccessLogIncludesPathOnlyForUnmatchedRequests(t *testing.T) {
 
 	const querySecret = "must-not-appear-in-request-log"
 	unmatched, unmatchedRaw := recordedAPIRequestLog(t, http.MethodGet, "/wp-login.php?probe="+querySecret)
-	if unmatched["route"] != "unmatched" || unmatched["path"] != "/wp-login.php" {
+	if unmatched["route"] != "unmatched" {
 		t.Fatalf("unexpected unmatched request log: %#v", unmatched)
 	}
-	if strings.Contains(unmatchedRaw, querySecret) || strings.Contains(unmatchedRaw, "probe=") {
-		t.Fatalf("unmatched request log exposed query string: %s", unmatchedRaw)
+	if _, exists := unmatched["path"]; exists {
+		t.Fatalf("unmatched request exposed a path: %#v", unmatched)
+	}
+	if strings.Contains(unmatchedRaw, querySecret) || strings.Contains(unmatchedRaw, "probe=") || strings.Contains(unmatchedRaw, "wp-login") {
+		t.Fatalf("unmatched request log exposed path or query string: %s", unmatchedRaw)
 	}
 }
 
 func TestAccessLogUsesOpenAPIOperationForMatchedRequest(t *testing.T) {
 	cfg := testConfig(t)
 	var output bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&output, nil))
+	logger := slog.New(slog.NewJSONHandler(&output, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	handler, err := NewHandler(nil, cfg, logger)
 	if err != nil {
 		t.Fatal(err)
@@ -350,6 +353,61 @@ func TestAccessLogUsesOpenAPIOperationForMatchedRequest(t *testing.T) {
 	}
 	if _, exists := entry["path"]; exists {
 		t.Fatalf("matched request exposed a path: %#v", entry)
+	}
+	if entry["level"] != "DEBUG" {
+		t.Fatalf("successful probe level = %q, want DEBUG", entry["level"])
+	}
+}
+
+func TestSuccessfulProbeIsQuietAtInfoAndFailedProbeRemainsVisible(t *testing.T) {
+	cfg := testConfig(t)
+	var output bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&output, nil))
+	handler, err := NewHandler(nil, cfg, logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/v1/health/live", nil))
+	if output.Len() != 0 {
+		t.Fatalf("successful probe appeared at INFO: %s", output.String())
+	}
+
+	router := chi.NewRouter()
+	router.Get("/api/v1/health/ready", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	})
+	entry, _ := recordedRequestLog(t, router, http.MethodGet, "/api/v1/health/ready", "192.0.2.8:45123", nil, nil)
+	if entry["level"] != "INFO" || entry["status"] != float64(http.StatusServiceUnavailable) {
+		t.Fatalf("failed probe log = %#v", entry)
+	}
+}
+
+func TestAccessLogIncludesAuthenticatedAccountAndMethodOnlyWhenPresent(t *testing.T) {
+	for _, authMethod := range []string{"password", "pin", "oidc"} {
+		t.Run(authMethod, func(t *testing.T) {
+			accountID := uuid.Must(uuid.NewV7())
+			router := chi.NewRouter()
+			router.Get("/known", func(w http.ResponseWriter, r *http.Request) {
+				state := r.Context().Value(operationStateContextKey).(*operationState)
+				state.userID = &accountID
+				state.authMethod = authMethod
+				w.WriteHeader(http.StatusNoContent)
+			})
+			entry, _ := recordedRequestLog(t, router, http.MethodGet, "/known", "192.0.2.8:45123", nil, nil)
+			if entry["user_id"] != accountID.String() || entry["auth_method"] != authMethod {
+				t.Fatalf("authentication fields = %#v", entry)
+			}
+		})
+	}
+
+	router := chi.NewRouter()
+	router.Get("/anonymous", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	entry, _ := recordedRequestLog(t, router, http.MethodGet, "/anonymous", "192.0.2.8:45123", nil, nil)
+	if _, ok := entry["user_id"]; ok {
+		t.Fatalf("anonymous log included user_id: %#v", entry)
+	}
+	if _, ok := entry["auth_method"]; ok {
+		t.Fatalf("anonymous log included auth_method: %#v", entry)
 	}
 }
 
@@ -418,27 +476,43 @@ func TestAccessLogResolvesClientIP(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			router := chi.NewRouter()
-			router.Get("/known", func(w http.ResponseWriter, _ *http.Request) {
+			var throttlingSource string
+			router.Get("/known", func(w http.ResponseWriter, r *http.Request) {
+				throttlingSource = sourceAddress(r.Context())
 				w.WriteHeader(http.StatusNoContent)
 			})
 			entry, _ := recordedRequestLog(t, router, http.MethodGet, "/known", test.remoteAddress, test.headers, test.trustedProxies)
 			if entry["client_ip"] != test.want {
 				t.Fatalf("client_ip = %q, want %q", entry["client_ip"], test.want)
 			}
+			if throttlingSource != test.want {
+				t.Fatalf("authentication source = %q, want %q", throttlingSource, test.want)
+			}
 		})
 	}
 }
 
-func TestAccessLogBoundsPathAndUserAgent(t *testing.T) {
+func TestAccessLogBoundsUserAgentAndOmitsSensitiveInputs(t *testing.T) {
 	router := chi.NewRouter()
-	longPath := "/" + strings.Repeat("p", maxLogPathBytes*2)
+	router.Post("/known", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	secret := "must-not-appear"
+	longPath := "/" + strings.Repeat("p", 2048) + "?token=" + secret
 	longUserAgent := strings.Repeat("u", maxUserAgentBytes*2)
-	headers := http.Header{"User-Agent": {longUserAgent}}
+	headers := http.Header{
+		"User-Agent":    {longUserAgent},
+		"Authorization": {"Bearer " + secret},
+		"Cookie":        {"session=" + secret},
+	}
 
-	entry, _ := recordedRequestLog(t, router, http.MethodGet, longPath, "192.0.2.8:45123", headers, nil)
-	path, ok := entry["path"].(string)
-	if !ok || len(path) > maxLogPathBytes || !strings.HasSuffix(path, "…") {
-		t.Fatalf("path was not bounded correctly: length=%d value=%q", len(path), path)
+	body := `{"email":"private@example.test","name":"Private Person","password":"super-secret-password","token":"one-time-token"}`
+	entry, raw := recordedRequestLogWithBody(t, router, http.MethodPost, longPath, body, "192.0.2.8:45123", headers, nil)
+	for _, forbidden := range []string{secret, "Authorization", "Cookie", "private@example.test", "Private Person", "super-secret-password", "one-time-token"} {
+		if strings.Contains(raw, forbidden) {
+			t.Fatalf("request log exposed %q: %s", forbidden, raw)
+		}
+	}
+	if _, exists := entry["path"]; exists {
+		t.Fatalf("request log exposed sensitive input: %s", raw)
 	}
 	userAgent, ok := entry["user_agent"].(string)
 	if !ok || len(userAgent) > maxUserAgentBytes || !strings.HasSuffix(userAgent, "…") {
@@ -462,14 +536,18 @@ func recordedAPIRequestLog(t *testing.T, method, target string) (map[string]any,
 }
 
 func recordedRequestLog(t *testing.T, router *chi.Mux, method, target, remoteAddress string, headers http.Header, trustedProxies []netip.Prefix) (map[string]any, string) {
+	return recordedRequestLogWithBody(t, router, method, target, "", remoteAddress, headers, trustedProxies)
+}
+
+func recordedRequestLogWithBody(t *testing.T, router *chi.Mux, method, target, body, remoteAddress string, headers http.Header, trustedProxies []netip.Prefix) (map[string]any, string) {
 	t.Helper()
 	var output bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&output, nil))
 	var handler http.Handler = router
-	handler = accessLogMiddleware(handler, logger, trustedProxies)
-	handler = requestMetadataMiddleware(handler, router)
+	handler = accessLogMiddleware(handler, logger)
+	handler = requestMetadataMiddleware(handler, router, trustedProxies)
 
-	request := httptest.NewRequest(method, target, nil)
+	request := httptest.NewRequest(method, target, strings.NewReader(body))
 	request.RemoteAddr = remoteAddress
 	request.Header = headers.Clone()
 	recorder := httptest.NewRecorder()

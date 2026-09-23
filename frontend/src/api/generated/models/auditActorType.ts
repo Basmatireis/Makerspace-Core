@@ -18,39 +18,13 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { LimitParameter } from './limitParameter';
-import type { CursorParameter } from './cursorParameter';
-import type { UUIDv7 } from './uUIDv7';
-import type { AuditActorType } from './auditActorType';
 
-export type ListAuditEventsParams = {
-/**
- * Maximum records to return.
- * @minimum 1
- * @maximum 100
- */
-limit?: LimitParameter;
-/**
- * Opaque cursor returned by the previous page.
- * @maxLength 500
- */
-cursor?: CursorParameter;
-/**
- * @maxLength 128
- */
-action?: string;
-/**
- * @maxLength 64
- */
-resourceType?: string;
-resourceId?: UUIDv7;
-actorAccountId?: UUIDv7;
-actorType?: AuditActorType;
-/**
- * Case-insensitive search over the current display name of user actors.
- * @maxLength 100
- */
-actorSearch?: string;
-occurredFrom?: string;
-occurredTo?: string;
-};
+export type AuditActorType = typeof AuditActorType[keyof typeof AuditActorType];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const AuditActorType = {
+  user: 'user',
+  system: 'system',
+  unknown: 'unknown',
+} as const;
