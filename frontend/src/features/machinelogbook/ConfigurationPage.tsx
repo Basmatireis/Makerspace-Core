@@ -152,11 +152,11 @@ export function ConfigurationPage() {
     setRuleOpen(true);
   };
 
-  if (organizations.isPending || pricing.isPending || machineTypes.isPending) return <FullPageLoading label="Loading machine logbook configuration" />;
+  if (organizations.isPending || pricing.isPending || machineTypes.isPending) return <FullPageLoading label="Loading machines configuration" />;
   if (organizations.isError || pricing.isError || machineTypes.isError) return <ErrorState message="Configuration could not be loaded." onRetry={() => { organizations.refetch(); pricing.refetch(); machineTypes.refetch(); }} />;
 
   return <Stack gap={7} className="machine-logbook-page">
-    <PageHeader title="Machine logbook configuration" description="Organizations, pricing groups, and explicit rates." breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Machine logbook' }]} />
+    <PageHeader title="Machines configuration" description="Organizations, pricing groups, and explicit rates." breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Machines' }]} />
     <Tabs>
       <TabList aria-label="Configuration sections"><Tab>Organizations</Tab><Tab>Pricing groups</Tab></TabList>
       <TabPanels>

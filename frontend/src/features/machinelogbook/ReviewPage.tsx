@@ -30,12 +30,12 @@ export function ReviewPage() {
   }, onSuccess: async () => { await client.invalidateQueries({ queryKey: machineLogbookKeys.all }); setSelected((current) => Math.min(current, Math.max((queue.data?.items.length ?? 1) - 2, 0))); }, onError: async () => { await client.invalidateQueries({ queryKey: machineLogbookKeys.review() }); } });
   if (queue.isPending) return <FullPageLoading label="Loading review queue" />;
   if (queue.isError) return <ErrorState message="The review queue could not be loaded." onRetry={() => queue.refetch()} />;
-  if (queue.data.items.length === 0) return <Stack gap={7}><PageHeader title="Review queue" breadcrumbs={[{ label: 'Machine logbook', to: '/machine-logbook' }, { label: 'Review' }]} /><Tile><EmptyState title="Review queue is clear" description="Automatically detected jobs that need assignment will appear here." /></Tile></Stack>;
+  if (queue.data.items.length === 0) return <Stack gap={7}><PageHeader title="Review queue" breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Review' }]} /><Tile><EmptyState title="Review queue is clear" description="Automatically detected jobs that need assignment will appear here." /></Tile></Stack>;
 
   const customerItems = parties.data?.items ?? [];
   const operatorItems = operators.data?.items ?? [];
   return <Stack gap={6} className="machine-logbook-page review-page">
-    <PageHeader title="Review queue" description={`${queue.data.items.length} remaining`} breadcrumbs={[{ label: 'Machine logbook', to: '/machine-logbook' }, { label: 'Review' }]} />
+    <PageHeader title="Review queue" description={`${queue.data.items.length} remaining`} breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Review' }]} />
     <div className="review-layout">
       <aside className="review-list" aria-label="Jobs awaiting review">{queue.data.items.map((item, index) => <button type="button" key={item.id} className={index === selected ? 'review-list__item review-list__item--active' : 'review-list__item'} onClick={() => setSelected(index)}><strong>{item.machine.name}</strong><span>{formatDateTime(item.startsAt)}</span><span>{item.usages.map((u) => `${u.quantity} ${u.unit} ${u.materialName}`).join(', ') || 'No material usage'}</span></button>)}</aside>
       <section className="review-detail">

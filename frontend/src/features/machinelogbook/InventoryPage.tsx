@@ -107,7 +107,7 @@ export function InventoryPage() {
     <PageHeader
       title="Inventory"
       description={`Total inventory value: ${formatMoney(query.data.totalInventoryValue)}`}
-      breadcrumbs={[{ label: 'Machine logbook', to: '/machine-logbook' }, { label: 'Inventory' }]}
+      breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Inventory' }]}
       actions={hasPermission(currentUser, PermissionId.inventorymanage)
         ? <Button renderIcon={Add} onClick={() => setCreateOpen(true)}>Add material</Button>
         : undefined}

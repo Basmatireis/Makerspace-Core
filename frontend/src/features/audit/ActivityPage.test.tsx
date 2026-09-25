@@ -30,15 +30,28 @@ function authorizeActivity() {
   server.use(http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.auditread]))));
 }
 
-describe('Activity log', () => {
-  it('shows the Settings tile and guards the route with audit.read', async () => {
+describe('Audit Log', () => {
+  it('redirects the legacy route and preserves filters', async () => {
     authorizeActivity();
     server.use(http.get('*/api/v1/audit-events', () => HttpResponse.json({ items: [] })));
-    renderRoute(<App />, '/settings');
-    expect(await screen.findByRole('heading', { name: 'Activity log' })).toBeInTheDocument();
+
+    const { router } = renderRoute(<App />, '/settings/activity?actorType=system');
+
+    expect(await screen.findByRole('heading', { name: 'Audit Log' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/audit-log');
+    expect(router.state.location.search).toBe('?actorType=system');
+  });
+
+  it('shows top-level navigation and guards the route with audit.read', async () => {
+    authorizeActivity();
+    server.use(http.get('*/api/v1/audit-events', () => HttpResponse.json({ items: [] })));
+    renderRoute(<App />, '/audit-log');
+    expect(await screen.findByRole('heading', { name: 'Audit Log' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Audit Log' })).toHaveAttribute('href', '/audit-log');
+    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
 
     server.use(http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture())));
-    renderRoute(<App />, '/settings/activity');
+    renderRoute(<App />, '/audit-log');
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
   });
 
@@ -52,9 +65,9 @@ describe('Activity log', () => {
       return HttpResponse.json({ items: [baseEvent], nextCursor: 'next-page' });
     }));
     const user = userEvent.setup();
-    renderRoute(<App />, '/settings/activity');
+    renderRoute(<App />, '/audit-log');
 
-    const table = await screen.findByRole('table', { name: 'Activity log' });
+    const table = await screen.findByRole('table', { name: 'Audit Log' });
     expect(within(table).getByText('Ada Lovelace')).toBeInTheDocument();
     expect(within(table).getByText('Updated person')).toBeInTheDocument();
     expect(within(table).getByText('Grace Hopper')).toBeInTheDocument();
@@ -71,7 +84,7 @@ describe('Activity log', () => {
       return HttpResponse.json({ items: [], nextCursor: null });
     }));
     const user = userEvent.setup();
-    const { router } = renderRoute(<App />, '/settings/activity');
+    const { router } = renderRoute(<App />, '/audit-log');
     await screen.findByText('No activity found');
 
     await user.selectOptions(screen.getByLabelText('Actor type'), 'system');
@@ -93,12 +106,12 @@ describe('Activity log', () => {
   it('shows empty and error states', async () => {
     authorizeActivity();
     server.use(http.get('*/api/v1/audit-events', () => HttpResponse.json({ items: [] })));
-    const first = renderRoute(<App />, '/settings/activity');
+    const first = renderRoute(<App />, '/audit-log');
     expect(await screen.findByText('No activity found')).toBeInTheDocument();
     first.unmount();
 
     server.use(http.get('*/api/v1/audit-events', () => HttpResponse.json({ code: 'failed', message: 'failed', requestId: 'request' }, { status: 500 })));
-    renderRoute(<App />, '/settings/activity');
+    renderRoute(<App />, '/audit-log');
     expect(await screen.findByText('Unable to load activity')).toBeInTheDocument();
   });
 });

@@ -30,8 +30,8 @@ import type {
 import { apiFetch } from '../../http-client';
 
 /**
- * Requires `accounts.create`. New accounts are disabled and have no password until explicitly configured.
- * @summary Create an account and email identity for a person
+ * Requires `accounts.create`. New accounts are disabled. If `loginEmail` is supplied, a password authentication identity is created without a password.
+ * @summary Create an account for a person
  */
 export const getCreatePersonAccountUrl = (personId: string,) => {
 

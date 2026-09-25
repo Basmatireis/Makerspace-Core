@@ -63,8 +63,6 @@ export function canUpdatePerson(currentUser: CurrentUser, personId: string): boo
 }
 
 export const settingsPermissions: readonly PermissionIdType[] = [
-	PermissionId.auditread,
-  PermissionId.peoplereadall,
   PermissionId.rolesread,
   PermissionId.managed_devicesread,
   PermissionId.laborordnungread,
@@ -74,15 +72,14 @@ export const settingsPermissions: readonly PermissionIdType[] = [
   PermissionId.scimmanage,
   PermissionId.oidcmanage,
   PermissionId.mailmanage,
-	PermissionId.supervisor_dashboardread,
-	PermissionId.organizationsread,
-	PermissionId.organizationsmanage,
-	PermissionId.pricingread,
-	PermissionId.pricingmanage,
 ];
 
 export function canAccessSettings(currentUser: CurrentUser): boolean {
-  return hasAnyPermission(currentUser, settingsPermissions);
+  return hasAnyPermission(currentUser, settingsPermissions) || [
+    PermissionId.organizationsread,
+    PermissionId.pricingread,
+    PermissionId.machinesread,
+  ].every((permission) => hasPermission(currentUser, permission));
 }
 
 export function canAccessOpenDays(currentUser: CurrentUser): boolean {

@@ -21,6 +21,7 @@ the required session and CSRF credentials.
 import type { Email } from './email';
 
 /**
+ * Optional login email. Omit or send null to create the Account without a password authentication identity.
  * @nullable
  */
 export type CreateAccountRequestLoginEmail = Email | null;

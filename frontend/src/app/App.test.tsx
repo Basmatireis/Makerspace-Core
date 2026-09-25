@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { PermissionId } from '../api/generated/models';
@@ -110,30 +110,72 @@ describe('protected application routing', () => {
     expect(screen.queryByRole('heading', { name: 'Settings' })).not.toBeInTheDocument();
   });
 
-  it('shows settings and its permitted tool only', async () => {
+  it('promotes People without granting access to Settings', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(currentUserFixture([PermissionId.peoplereadall])),
       ),
+      http.get('*/api/v1/people', () =>
+        HttpResponse.json({ items: [], page: 1, pageSize: 25, total: 0 }),
+      ),
     );
-    renderRoute(<App />, '/settings');
-    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'People' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Roles' })).not.toBeInTheDocument();
+    renderRoute(<App />, '/people');
+    expect(await screen.findByRole('heading', { name: 'People' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'People' })).toHaveAttribute('href', '/people');
+    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
   });
 
-  it('places supervisor-only access inside the People settings area', async () => {
+  it('links supervisor-only users directly to People staffing', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(currentUserFixture([PermissionId.supervisor_dashboardread])),
       ),
     );
-    renderRoute(<App />, '/settings');
+    renderRoute(<App />, '/dashboard');
 
-    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
-    const peopleTile = screen.getByRole('link', { name: /People/ });
-    expect(peopleTile).toHaveAttribute('href', '/settings/users/staffing');
-    expect(screen.queryByRole('link', { name: 'Supervisors' })).not.toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'People' })).toHaveAttribute('href', '/people/staffing');
+    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+  });
+
+  it('shows the complete permission-aware navigation hierarchy', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(currentUserFixture([
+          PermissionId.machine_jobsread,
+          PermissionId.machine_jobsreview,
+          PermissionId.inventoryread,
+          PermissionId.machinesread,
+          PermissionId.statisticsread,
+          PermissionId.peoplereadall,
+          PermissionId.oidcmanage,
+          PermissionId.auditread,
+        ])),
+      ),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/dashboard');
+
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Machines' }));
+    const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
+    for (const name of ['Overview', 'Jobs', 'Review', 'Inventory', 'Machines', 'Statistics']) {
+      expect(within(navigation).getByRole('link', { name })).toBeInTheDocument();
+    }
+    expect(within(navigation).getByText('Administration')).toBeInTheDocument();
+    expect(within(navigation).getByRole('link', { name: 'Settings' })).toBeInTheDocument();
+    expect(within(navigation).getByRole('link', { name: 'Audit Log' })).toBeInTheDocument();
+    expect(within(navigation).getByRole('link', { name: 'About' })).toBeInTheDocument();
+    expect(within(navigation).getByRole('link', { name: 'Legal & Privacy' })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['/about', 'About'],
+    ['/legal-and-privacy', 'Legal & Privacy'],
+  ])('renders the title-only information page at %s', async (path, title) => {
+    server.use(http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture())));
+    renderRoute(<App />, path);
+    expect(await screen.findByRole('heading', { name: title })).toBeInTheDocument();
   });
 
   it('shows the managed-devices settings tile only with inventory access', async () => {

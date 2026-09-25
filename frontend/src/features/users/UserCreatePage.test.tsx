@@ -42,7 +42,7 @@ describe('Create person page', () => {
       ),
     );
     const user = userEvent.setup();
-    renderRoute(<App />, '/settings/users/new');
+    renderRoute(<App />, '/people/new');
 
     await user.type(await screen.findByLabelText('First name'), '  Katherine  ');
     await user.type(screen.getByLabelText('Last name'), 'Johnson');

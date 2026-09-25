@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PermissionGrant, Role } from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { currentUserFixture } from '../../test/fixtures';
-import { canManageRoleMembership, permissionGrantsValid } from './permissions';
+import { canAccessSettings, canManageRoleMembership, permissionGrantsValid } from './permissions';
 
 const role = (permissionIds: PermissionId[], systemKey: Role['systemKey'] = null) => ({
   permissionGrants: permissionIds.map((permissionId) => ({
@@ -17,6 +17,26 @@ const role = (permissionIds: PermissionId[], systemKey: Role['systemKey'] = null
 const scopedRole = (permissionGrants: PermissionGrant[]) => ({
   permissionGrants,
   systemKey: null,
+});
+
+describe('settings navigation', () => {
+  it('excludes promoted People and Audit permissions', () => {
+    expect(canAccessSettings(currentUserFixture([PermissionId.peoplereadall]))).toBe(false);
+    expect(canAccessSettings(currentUserFixture([PermissionId.supervisor_dashboardread]))).toBe(false);
+    expect(canAccessSettings(currentUserFixture([PermissionId.auditread]))).toBe(false);
+  });
+
+  it('requires the complete Machines configuration permission set', () => {
+    expect(canAccessSettings(currentUserFixture([
+      PermissionId.organizationsread,
+      PermissionId.pricingread,
+    ]))).toBe(false);
+    expect(canAccessSettings(currentUserFixture([
+      PermissionId.organizationsread,
+      PermissionId.pricingread,
+      PermissionId.machinesread,
+    ]))).toBe(true);
+  });
 });
 
 describe('role membership authorization UX', () => {

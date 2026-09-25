@@ -29,11 +29,16 @@ import {
   TableToolbarSearch,
   Tag,
 } from '@carbon/react';
-import { Add, UserFollow, UserRole } from '@carbon/icons-react';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Add, TrashCan, UserFollow, UserRole } from '@carbon/icons-react';
+import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { assignAccountRole, createPersonAccount } from '../../api/generated/accounts/accounts';
-import type { Person, Role } from '../../api/generated/models';
+import {
+  assignAccountRole,
+  createPersonAccount,
+  deleteAccount,
+} from '../../api/generated/accounts/accounts';
+import type { LaborordnungStatus, Person, Role } from '../../api/generated/models';
+import { getPersonMakerspaceStatus } from '../../api/generated/people/people';
 import { PageHeader } from '../../app/PageHeader';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
@@ -45,11 +50,16 @@ import { PersonAvatar } from './PersonAvatar';
 const PAGE_SIZES = [10, 25, 50, 100];
 const EMPTY_PEOPLE: Person[] = [];
 
-type BatchAction = 'create-accounts' | 'assign-role' | null;
+type BatchAction = 'create-accounts' | 'assign-role' | 'delete-accounts' | null;
 type BatchResult = {
   kind: 'success' | 'warning';
   title: string;
   subtitle: string;
+};
+
+type LabRulesStatusPresentation = {
+  label: string;
+  type: 'gray' | 'green' | 'purple' | 'warm-gray';
 };
 
 function positiveInteger(value: string | null, fallback: number): number {
@@ -59,6 +69,36 @@ function positiveInteger(value: string | null, fallback: number): number {
 
 function peopleWithAccounts(people: Person[]): Person[] {
   return people.filter((person) => person.account && typeof person.account === 'object');
+}
+
+function formatLabRulesStatus(status?: LaborordnungStatus): LabRulesStatusPresentation {
+  if (!status) return { label: 'Unavailable', type: 'gray' };
+  if (status.requestId) return { label: 'Confirmation pending', type: 'purple' };
+  if (status.state === 'current') return { label: 'Current', type: 'green' };
+  if (status.state === 'outdated') {
+    return {
+      label: 'Acknowledgement outdated',
+      type: status.actionRequired ? 'warm-gray' : 'gray',
+    };
+  }
+  if (status.state === 'no_published_version') {
+    return { label: 'No published version', type: 'gray' };
+  }
+  return { label: 'Not required', type: 'gray' };
+}
+
+function LabRulesStatusTag({
+  status,
+  pending,
+  failed,
+}: {
+  status?: LaborordnungStatus;
+  pending: boolean;
+  failed: boolean;
+}) {
+  if (pending) return <span className="section-description">Loading…</span>;
+  const presentation = formatLabRulesStatus(failed ? undefined : status);
+  return <Tag type={presentation.type}>{presentation.label}</Tag>;
 }
 
 export function UsersPage() {
@@ -77,12 +117,12 @@ export function UsersPage() {
   const [batchResult, setBatchResult] = useState<BatchResult | null>(null);
   const [tableKey, setTableKey] = useState(0);
   const mayCreate = hasPermission(currentUser, PermissionId.peoplecreate);
-  const showMatriculation = hasPermission(
-    currentUser,
-    PermissionId.peoplereadmatriculation,
-  );
   const showAccounts = hasPermission(currentUser, PermissionId.accountsread);
   const mayReadRoles = hasPermission(currentUser, PermissionId.rolesread);
+  const mayReadLabRules = hasPermission(
+    currentUser,
+    PermissionId.laborordnungrequestsread,
+  );
   const mayViewSupervisorStaffing = hasPermission(
     currentUser,
     PermissionId.supervisor_dashboardread,
@@ -117,7 +157,9 @@ export function UsersPage() {
     showAccounts &&
     hasPermission(currentUser, PermissionId.accountsrolesassign) &&
     hasPermission(currentUser, PermissionId.rolesread);
-  const canBatchManage = mayCreateAccounts || mayAssignRoles;
+  const mayDeleteAccounts =
+    showAccounts && hasPermission(currentUser, PermissionId.accountsdelete);
+  const canBatchManage = mayCreateAccounts || mayAssignRoles || mayDeleteAccounts;
   const rolesQuery = useQuery({ ...fullRoleCatalogOptions, enabled: showAccounts && mayReadRoles });
   const supervisorRoleIds = useMemo(
     () => new Set((rolesQuery.data ?? []).filter((role) => role.supervisorDashboard).map((role) => role.id)),
@@ -195,8 +237,58 @@ export function UsersPage() {
       await refreshPeople();
     },
   });
+  const batchDeleteAccounts = useMutation({
+    mutationFn: async (members: Person[]) => {
+      const eligible = peopleWithAccounts(members);
+      const results = await Promise.allSettled(
+        eligible.map((person) =>
+          deleteAccount(person.account!.id, {
+            expectedVersion: person.account!.version,
+          }),
+        ),
+      );
+      return {
+        deletedAccountIds: results.flatMap((result, index) =>
+          result.status === 'fulfilled' ? [eligible[index].account!.id] : [],
+        ),
+        deleted: results.filter((result) => result.status === 'fulfilled').length,
+        failed: results.filter((result) => result.status === 'rejected').length,
+        skipped: members.length - eligible.length,
+      };
+    },
+    onSuccess: async ({ deletedAccountIds, deleted, failed, skipped }) => {
+      setBatchAction(null);
+      setBatchMembers([]);
+      for (const accountId of deletedAccountIds) {
+        queryClient.removeQueries({ queryKey: ['accounts', 'detail', accountId] });
+      }
+      setBatchResult({
+        kind: failed === 0 ? 'success' : 'warning',
+        title: failed === 0
+          ? 'Accounts deleted'
+          : deleted === 0
+            ? 'Accounts were not deleted'
+            : 'Some accounts were not deleted',
+        subtitle: `${deleted} deleted${skipped ? `; ${skipped} skipped because no visible account exists` : ''}${failed ? `; ${failed} could not be deleted` : ''}.`,
+      });
+      await refreshPeople();
+    },
+  });
 
   const people = peopleQuery.data?.items ?? EMPTY_PEOPLE;
+  const makerspaceStatusQueries = useQueries({
+    queries: mayReadLabRules
+      ? people.map((person) => ({
+          queryKey: [...peopleKeys.detail(person.id), 'makerspace-status'],
+          queryFn: ({ signal }: { signal: AbortSignal }) =>
+            getPersonMakerspaceStatus(person.id, { signal }),
+          staleTime: 30_000,
+        }))
+      : [],
+  });
+  const makerspaceStatusByPersonId = new Map(
+    people.map((person, index) => [person.id, makerspaceStatusQueries[index]]),
+  );
   const peopleById = useMemo(
     () => new Map(people.map((person) => [person.id, person])),
     [people],
@@ -205,53 +297,43 @@ export function UsersPage() {
     { key: 'avatar', header: 'Profile' },
     { key: 'name', header: 'Name' },
     { key: 'contact', header: 'Contact' },
-    ...(showMatriculation
-      ? [{ key: 'matriculationNumber', header: 'Matriculation number' }]
-      : []),
-    ...(showAccounts
-      ? [
-          { key: 'account', header: 'Account' },
-          { key: 'roles', header: 'Roles' },
-          ...(mayReadRoles ? [{ key: 'supervisor', header: 'Supervisor' }] : []),
-        ]
-      : []),
+    ...(showAccounts ? [{ key: 'roles', header: 'Roles' }] : []),
+    ...(mayReadLabRules ? [{ key: 'labRules', header: 'Lab Rules' }] : []),
+    ...(showAccounts ? [{ key: 'status', header: 'Status' }] : []),
   ];
   const rows = people.map((person) => ({
     id: person.id,
     avatar: person.id,
     name: `${person.firstName} ${person.lastName}`,
     contact: person.email ?? person.phone ?? 'Not provided',
-    ...(showMatriculation
-      ? { matriculationNumber: person.matriculationNumber ?? 'Not provided' }
+    ...(mayReadLabRules
+      ? {
+          labRules: formatLabRulesStatus(
+            makerspaceStatusByPersonId.get(person.id)?.data?.laborordnungStatus,
+          ).label,
+        }
       : {}),
     ...(showAccounts
       ? {
-          account:
-            person.account === undefined
-              ? 'Restricted'
-              : person.account === null
-                ? 'No account'
-                : person.account.status,
           roles:
             person.account === undefined
               ? 'Restricted'
               : person.account === null || person.account.roles.length === 0
                 ? '—'
                 : person.account.roles.map((role) => role.name).join(', '),
-          ...(mayReadRoles
-            ? {
-                supervisor:
-                  person.account && person.account.roles.some((role) => supervisorRoleIds.has(role.id))
-                    ? 'Yes'
-                    : '—',
-              }
-            : {}),
+          status:
+            person.account === undefined
+              ? 'Restricted'
+              : person.account === null
+                ? 'No account'
+                : person.account.status,
         }
       : {}),
   }));
   const membersEligibleForAccountCreation = batchMembers.filter(
     (member) => member.account === null && Boolean(member.email),
   );
+  const membersEligibleForAccountDeletion = peopleWithAccounts(batchMembers);
   const membersEligibleForRoleAssignment = batchRole
     ? peopleWithAccounts(batchMembers).filter(
         (member) =>
@@ -275,10 +357,9 @@ export function UsersPage() {
     <Stack gap={7}>
       <PageHeader
         title="People"
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'People' }]}
         description="Manage people, login accounts, roles, and access."
         actions={mayViewSupervisorStaffing ? (
-          <Button kind="tertiary" onClick={() => navigate('/settings/users/staffing')}>
+          <Button kind="tertiary" onClick={() => navigate('/people/staffing')}>
             Supervisor staffing
           </Button>
         ) : undefined}
@@ -320,6 +401,7 @@ export function UsersPage() {
               (member) => member.account === null && Boolean(member.email),
             );
             const selectedForRoleAssignment = peopleWithAccounts(selectedMembers);
+            const selectedForAccountDeletion = peopleWithAccounts(selectedMembers);
 
             return (
               <TableContainer className="people-table-container">
@@ -355,6 +437,19 @@ export function UsersPage() {
                           Assign role
                         </TableBatchAction>
                       )}
+                      {mayDeleteAccounts && (
+                        <TableBatchAction
+                          renderIcon={TrashCan}
+                          iconDescription="Delete login accounts"
+                          disabled={selectedForAccountDeletion.length === 0}
+                          onClick={() => {
+                            setBatchMembers(selectedMembers);
+                            setBatchAction('delete-accounts');
+                          }}
+                        >
+                          Delete accounts
+                        </TableBatchAction>
+                      )}
                     </TableBatchActions>
                   )}
                   <TableToolbarContent>
@@ -384,7 +479,7 @@ export function UsersPage() {
                       <Button
                         kind="primary"
                         renderIcon={Add}
-                        onClick={() => navigate('/settings/users/new')}
+                        onClick={() => navigate('/people/new')}
                       >
                         Add person
                       </Button>
@@ -396,7 +491,11 @@ export function UsersPage() {
                     <TableRow>
                       {canBatchManage && <TableSelectAll {...getSelectionProps()} />}
                       {tableHeaders.map((header) => (
-                        <TableHeader {...getHeaderProps({ header, isSortable: header.key !== 'avatar' })} key={header.key}>
+                        <TableHeader
+                          {...getHeaderProps({ header, isSortable: header.key !== 'avatar' && header.key !== 'status' })}
+                          key={header.key}
+                          className={header.key === 'status' ? 'people-table__status-column' : undefined}
+                        >
                           {header.header}
                         </TableHeader>
                       ))}
@@ -409,28 +508,61 @@ export function UsersPage() {
                           <TableSelectRow {...getSelectionProps({ row })} />
                         )}
                         {row.cells.map((cell) => (
-                          <TableCell key={cell.id} className={cell.info.header === 'avatar' ? 'people-table__avatar-cell' : undefined}>
+                          <TableCell
+                            key={cell.id}
+                            className={cell.info.header === 'avatar'
+                              ? 'people-table__avatar-cell'
+                              : cell.info.header === 'status'
+                                ? 'people-table__status-column'
+                                : undefined}
+                          >
                             {cell.info.header === 'avatar' ? (() => {
                               const person = peopleById.get(row.id);
                               return person ? <PersonAvatar firstName={person.firstName} lastName={person.lastName} profileImage={person.profileImage} size="sm" decorative /> : null;
                             })() : cell.info.header === 'name' ? (
                               <CarbonLink
-                                href={`/settings/users/${row.id}`}
+                                href={`/people/${row.id}`}
                                 onClick={(event) => {
                                   event.preventDefault();
-                                  navigate(`/settings/users/${row.id}`);
+                                  navigate(`/people/${row.id}`);
                                 }}
                               >
                                 {String(cell.value)}
                               </CarbonLink>
-                            ) : cell.info.header === 'account' &&
+                            ) : cell.info.header === 'status' &&
                               cell.value !== 'No account' &&
                               cell.value !== 'Restricted' ? (
                               <Tag type={cell.value === 'enabled' ? 'green' : 'gray'}>
                                 {String(cell.value)}
                               </Tag>
-                            ) : cell.info.header === 'supervisor' && cell.value === 'Yes' ? (
-                              <Tag type="blue">Supervisor</Tag>
+                            ) : cell.info.header === 'roles' ? (() => {
+                              const person = peopleById.get(row.id);
+                              if (!person?.account || person.account.roles.length === 0) {
+                                return String(cell.value);
+                              }
+                              return (
+                                <div className="people-table__roles" aria-label={`Roles for ${person.firstName} ${person.lastName}`}>
+                                  {person.account.roles.map((role) => {
+                                    const isSupervisorRole = supervisorRoleIds.has(role.id);
+                                    return (
+                                      <Tag
+                                        key={role.id}
+                                        type={isSupervisorRole ? 'blue' : 'gray'}
+                                        title={isSupervisorRole ? `${role.name} is a supervisor role` : role.name}
+                                        aria-label={isSupervisorRole ? `${role.name}, supervisor role` : role.name}
+                                      >
+                                        {role.name}
+                                      </Tag>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })() : cell.info.header === 'labRules' ? (
+                              <LabRulesStatusTag
+                                status={makerspaceStatusByPersonId.get(row.id)?.data?.laborordnungStatus}
+                                pending={makerspaceStatusByPersonId.get(row.id)?.isPending ?? false}
+                                failed={makerspaceStatusByPersonId.get(row.id)?.isError ?? false}
+                              />
                             ) : (
                               String(cell.value)
                             )}
@@ -550,6 +682,64 @@ export function UsersPage() {
             }
           >
             {batchAssignRole.isPending ? 'Assigning…' : 'Assign role'}
+          </Button>
+        </ModalFooter>
+      </ComposedModal>
+
+      <ComposedModal
+        aria-label="Delete accounts permanently?"
+        danger
+        open={batchAction === 'delete-accounts'}
+        onClose={() => {
+          if (!batchDeleteAccounts.isPending) setBatchAction(null);
+        }}
+      >
+        <ModalHeader title="Delete accounts permanently?" />
+        <ModalBody>
+          <Stack gap={5}>
+            <p>
+              This permanently deletes {membersEligibleForAccountDeletion.length}{' '}
+              selected {membersEligibleForAccountDeletion.length === 1 ? 'account' : 'accounts'},
+              including their authentication methods and role assignments. The people records
+              remain. This cannot be undone.
+            </p>
+            {batchMembers.some((member) => member.id === currentUser.person.id && member.account) && (
+              <InlineNotification
+                kind="warning"
+                lowContrast
+                hideCloseButton
+                title="Your own account is selected"
+                subtitle="Deleting it will end your access to the application."
+              />
+            )}
+            {batchMembers.length !== membersEligibleForAccountDeletion.length && (
+              <InlineNotification
+                kind="info"
+                lowContrast
+                hideCloseButton
+                title="Some people will be skipped"
+                subtitle="A visible account is required."
+              />
+            )}
+          </Stack>
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            kind="secondary"
+            disabled={batchDeleteAccounts.isPending}
+            onClick={() => setBatchAction(null)}
+          >
+            Cancel
+          </Button>
+          <Button
+            kind="danger"
+            disabled={
+              membersEligibleForAccountDeletion.length === 0 ||
+              batchDeleteAccounts.isPending
+            }
+            onClick={() => batchDeleteAccounts.mutate(batchMembers)}
+          >
+            {batchDeleteAccounts.isPending ? 'Deleting…' : 'Delete accounts'}
           </Button>
         </ModalFooter>
       </ComposedModal>

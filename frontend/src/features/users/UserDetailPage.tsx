@@ -3,6 +3,7 @@ import {
   Button,
   Column,
   ComposedModal,
+  CopyButton,
   DismissibleTag,
   Dropdown,
   Form,
@@ -14,20 +15,27 @@ import {
   ModalBody,
   ModalFooter,
   ModalHeader,
+  OverflowMenu,
+  OverflowMenuItem,
   PasswordInput,
   Stack,
   StructuredListBody,
   StructuredListCell,
   StructuredListRow,
   StructuredListWrapper,
+  Tab,
+  TabList,
+  TabPanel,
+  TabPanels,
+  Tabs,
   Tag,
   TextInput,
   Tile,
 } from '@carbon/react';
-import { TrashCan } from '@carbon/icons-react';
+import { Edit, TrashCan } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   assignAccountRole,
   createPersonAccount,
@@ -75,11 +83,26 @@ import {
   toPersonPatch,
 } from './PersonForm';
 import { peopleKeys, personOptions, refreshPersonData } from './queries';
+import { PersonAvatar } from './PersonAvatar';
 import { ProfilePictureEditor } from './ProfilePictureEditor';
 
 type ConfirmKind = 'delete-person' | 'delete-account' | 'disable-account' | 'reset-password' | 'invite' | 'pin-setup' | null;
 type AccountEmailForm = { loginEmail: string };
 type AccountPasswordForm = { newPassword: string; confirmPassword: string };
+type PersonDetailTab = 'overview' | 'personal-information' | 'account-access' | 'roles-permissions' | 'makerspace-status';
+
+type PersonDetailTabOption = {
+  key: PersonDetailTab;
+  label: string;
+};
+
+const personDetailTabs: readonly PersonDetailTabOption[] = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'personal-information', label: 'Personal information' },
+  { key: 'account-access', label: 'Account access' },
+  { key: 'roles-permissions', label: 'Roles & permissions' },
+  { key: 'makerspace-status', label: 'Makerspace status' },
+];
 
 function asAccount(value: Person['account']): AccountSummary | undefined {
   return value && typeof value === 'object' ? value : undefined;
@@ -106,6 +129,7 @@ export function UserDetailPage() {
 function UserDetailContent({ person }: { person: Person }) {
   const currentUser = useCurrentUser();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const accountSummary = asAccount(person.account);
   const account: AccountSummary | undefined = accountSummary;
@@ -134,10 +158,6 @@ function UserDetailContent({ person }: { person: Person }) {
   const canReadAccounts = hasPermission(currentUser, PermissionId.accountsread);
   const canAssignRoles = hasPermission(currentUser, PermissionId.accountsrolesassign);
   const canReadRoles = hasPermission(currentUser, PermissionId.rolesread);
-  const canViewSupervisorStaffing = hasPermission(
-    currentUser,
-    PermissionId.supervisor_dashboardread,
-  );
   const canReadMakerspaceStatus = hasPermission(currentUser, PermissionId.open_daysread_assignments) ||
     hasPermission(currentUser, PermissionId.laborordnungrequestsread);
   const makerspaceStatusQuery = useQuery({
@@ -149,6 +169,7 @@ function UserDetailContent({ person }: { person: Person }) {
     (currentUser.person.id === person.id && hasPermission(currentUser, PermissionId.peopleprofile_imageupdateself));
   const canRemoveProfileImage = hasPermission(currentUser, PermissionId.peopleprofile_imageremoveall) ||
     (currentUser.person.id === person.id && hasPermission(currentUser, PermissionId.peopleprofile_imageremoveself));
+  const canEditProfileImage = canUpdateProfileImage || Boolean(person.profileImage && canRemoveProfileImage);
   const canEditAccount = Boolean(account) && hasPermission(
     currentUser,
     PermissionId.accountslogin_emailupdate,
@@ -179,13 +200,25 @@ function UserDetailContent({ person }: { person: Person }) {
     currentUser,
     PermissionId.accountspasswordenrollall,
   );
-	const activePINIdentity = account?.authIdentities.find((identity) => identity.kind === 'pin' && !identity.disabledAt);
-	const activeOIDCIdentities = account?.authIdentities.filter((identity) => identity.kind === 'oidc' && !identity.disabledAt) ?? [];
-	const canIssuePINSetup = Boolean(account) && (activePINIdentity
-		? hasPermission(currentUser, PermissionId.accountspinreset)
-		: hasPermission(currentUser, PermissionId.accountspinenrollall));
+  const activePINIdentity = account?.authIdentities.find((identity) => identity.kind === 'pin' && !identity.disabledAt);
+  const activeOIDCIdentities = account?.authIdentities.filter((identity) => identity.kind === 'oidc' && !identity.disabledAt) ?? [];
+  const canIssuePINSetup = Boolean(account) && (activePINIdentity
+    ? hasPermission(currentUser, PermissionId.accountspinreset)
+    : hasPermission(currentUser, PermissionId.accountspinenrollall));
   const hasAccountActions = canEditAccount || canCreateAccount || canAssignRole;
   const hasCredentialActions = canSetPassword || canIssuePasswordReset || canInvite || canIssuePINSetup;
+  const availableTabs = useMemo(() => personDetailTabs.filter((tab) => {
+    if (tab.key === 'account-access') return canReadAccounts;
+    if (tab.key === 'roles-permissions') return canReadAccounts && Boolean(account);
+    if (tab.key === 'makerspace-status') return canReadMakerspaceStatus;
+    return true;
+  }), [account, canReadAccounts, canReadMakerspaceStatus]);
+  const requestedTab = searchParams.get('tab');
+  const selectedTabIndex = Math.max(
+    0,
+    availableTabs.findIndex((tab) => tab.key === requestedTab),
+  );
+  const selectedTab = availableTabs[selectedTabIndex]?.key ?? 'overview';
 
   const personForm = useForm<PersonFormValues>({
     defaultValues: {
@@ -196,13 +229,23 @@ function UserDetailContent({ person }: { person: Person }) {
       matriculationNumber: person.matriculationNumber ?? '',
     },
   });
-  const accountCreateForm = useForm<AccountEmailForm>({ defaultValues: { loginEmail: person.email ?? '' } });
+  const accountCreateForm = useForm<AccountEmailForm>({ defaultValues: { loginEmail: '' } });
   const accountEmailForm = useForm<AccountEmailForm>({ defaultValues: { loginEmail: account?.loginEmail ?? '' } });
   const accountPasswordForm = useForm<AccountPasswordForm>({ defaultValues: { newPassword: '', confirmPassword: '' } });
 
   useEffect(() => {
     accountEmailForm.reset({ loginEmail: account?.loginEmail ?? '' });
   }, [account?.loginEmail, accountEmailForm]);
+
+  useEffect(() => {
+    if (!requestedTab) return;
+    if (requestedTab !== 'overview' && availableTabs.some((tab) => tab.key === requestedTab)) return;
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('tab');
+      return next;
+    }, { replace: true });
+  }, [availableTabs, requestedTab, setSearchParams]);
 
   const refresh = async () => {
     await refreshPersonData(queryClient, person.id);
@@ -216,7 +259,13 @@ function UserDetailContent({ person }: { person: Person }) {
     },
   });
   const createAccountMutation = useMutation({
-    mutationFn: ({ loginEmail }: AccountEmailForm) => createPersonAccount(person.id, { loginEmail: loginEmail.trim(), expectedVersion: person.version }),
+    mutationFn: ({ loginEmail }: AccountEmailForm) => {
+      const normalizedLoginEmail = loginEmail.trim();
+      return createPersonAccount(person.id, {
+        loginEmail: normalizedLoginEmail || null,
+        expectedVersion: person.version,
+      });
+    },
     onSuccess: async () => {
       setCreateAccountOpen(false);
       accountCreateForm.reset({ loginEmail: '' });
@@ -249,7 +298,7 @@ function UserDetailContent({ person }: { person: Person }) {
     onSuccess: async () => {
       queryClient.removeQueries({ queryKey: peopleKeys.detail(person.id) });
       await queryClient.invalidateQueries({ queryKey: peopleKeys.lists() });
-      navigate('/settings/users', { replace: true });
+      navigate('/people', { replace: true });
     },
   });
   const roleMutation = useMutation({
@@ -299,12 +348,6 @@ function UserDetailContent({ person }: { person: Person }) {
   const rolesById = useMemo(
     () => new Map((rolesQuery.data ?? []).map((role) => [role.id, role])),
     [rolesQuery.data],
-  );
-  const supervisorRoleNames = useMemo(
-    () => (account?.roles ?? [])
-      .filter((role) => rolesById.get(role.id)?.supervisorDashboard)
-      .map((role) => role.name),
-    [account?.roles, rolesById],
   );
   const assignableRoles = useMemo(() => {
     const assigned = new Set(account?.roles.map((role) => role.id) ?? []);
@@ -357,17 +400,17 @@ function UserDetailContent({ person }: { person: Person }) {
         await refresh();
         setConfirmKind(null);
       }
-	  if (confirmKind === 'pin-setup' && account) {
-		setResetPending(true);
-		setResetFailed(false);
-		const issue = await issueAccountPinEnrollment(account.id, { expectedVersion: account.version });
-		setResetSent(true);
-		setResetExpiresAt(issue.expiresAt);
-		setManualSetupUrl(issue.setupUrl ?? null);
-		queryClient.setQueryData(['accounts', 'detail', issue.account.id], issue.account);
-		await refresh();
-		setConfirmKind(null);
-	  }
+      if (confirmKind === 'pin-setup' && account) {
+        setResetPending(true);
+        setResetFailed(false);
+        const issue = await issueAccountPinEnrollment(account.id, { expectedVersion: account.version });
+        setResetSent(true);
+        setResetExpiresAt(issue.expiresAt);
+        setManualSetupUrl(issue.setupUrl ?? null);
+        queryClient.setQueryData(['accounts', 'detail', issue.account.id], issue.account);
+        await refresh();
+        setConfirmKind(null);
+      }
     } catch {
       if (confirmKind === 'reset-password' || confirmKind === 'invite' || confirmKind === 'pin-setup') setResetFailed(true);
     } finally {
@@ -381,7 +424,7 @@ function UserDetailContent({ person }: { person: Person }) {
     'disable-account': ['Disable this account?', 'The user will be signed out and will not be able to sign in.', 'Disable account'],
     'reset-password': ['Send a password reset code?', 'A one-time code will be emailed. The current password remains active until the recipient completes the reset.', 'Send reset code'],
     invite: ['Send an account invitation?', 'A one-time setup code will be emailed. Completing it verifies the email, sets the password, and enables an account that was not explicitly disabled.', 'Send invitation'],
-	'pin-setup': [activePINIdentity ? 'Send a PIN reset code?' : 'Add PIN login?', 'A one-time setup code will be emailed. The recipient—not the administrator—chooses the permanent username and PIN.', activePINIdentity ? 'Send PIN reset code' : 'Send PIN setup code'],
+    'pin-setup': [activePINIdentity ? 'Send a PIN reset code?' : 'Add PIN login?', 'A one-time setup code will be emailed. The recipient—not the administrator—chooses the permanent username and PIN.', activePINIdentity ? 'Send PIN reset code' : 'Send PIN setup code'],
   } as const;
   const selectedConfirmation = confirmKind ? confirmation[confirmKind] : null;
   const mutationError = personMutation.isError || createAccountMutation.isError || emailMutation.isError || passwordMutation.isError || enableMutation.isError || disableMutation.isError || deleteAccountMutation.isError || deletePersonMutation.isError || roleMutation.isError || resetFailed;
@@ -389,259 +432,354 @@ function UserDetailContent({ person }: { person: Person }) {
     canAssignRole || canSetPassword || canIssuePasswordReset || canInvite ||
     canIssuePINSetup;
 
+  const selectTab = (tab: PersonDetailTab) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (tab === 'overview') next.delete('tab');
+      else next.set('tab', tab);
+      return next;
+    });
+  };
+
+  const startEditingPerson = () => {
+    setEditingPerson(true);
+    selectTab('personal-information');
+  };
+
+  const startEditingAccount = () => {
+    setEditingEmail(true);
+    selectTab('account-access');
+  };
+
+  const openRoleManager = () => {
+    setAssignRoleOpen(true);
+    selectTab('roles-permissions');
+  };
+
+  const renderProfileSection = () => (
+    <DetailSection
+      title="Profile picture"
+      className="person-profile-card"
+      headingContent={(
+        <div className="person-profile-card__identity">
+          <PersonAvatar
+            firstName={person.firstName}
+            lastName={person.lastName}
+            profileImage={person.profileImage}
+            size="lg"
+          />
+        </div>
+      )}
+      action={canEditProfileImage ? (
+        <ProfilePictureEditor
+          id="person-profile-image"
+          firstName={person.firstName}
+          lastName={person.lastName}
+          profileImage={person.profileImage}
+          canUpdate={canUpdateProfileImage}
+          canRemove={canRemoveProfileImage}
+          isUploading={profileImageMutation.isPending}
+          isRemoving={removeProfileImageMutation.isPending}
+          trigger="button"
+          onUpload={(file) => profileImageMutation.mutate(file)}
+          onRemove={() => removeProfileImageMutation.mutate()}
+        />
+      ) : undefined}
+    >
+      {person.profileImageRequired && !person.profileImage && (
+        <InlineNotification kind="warning" lowContrast hideCloseButton title="Profile picture required" subtitle="At least one assigned role requires a profile picture." />
+      )}
+      {profileImageMutation.isError && (
+        <InlineNotification kind="error" lowContrast hideCloseButton title="Picture not updated" subtitle="Use a JPEG, PNG, or WebP image up to 8 MiB and 4096×4096 pixels." />
+      )}
+    </DetailSection>
+  );
+
+  const renderPersonalInformationSection = () => (
+    <DetailSection
+      title="Personal information"
+      action={canEditPerson && !editingPerson ? (
+        <Button kind="ghost" size="sm" renderIcon={Edit} onClick={() => setEditingPerson(true)}>
+          Edit
+        </Button>
+      ) : undefined}
+    >
+      {editingPerson ? (
+        <Form onSubmit={submitPerson}>
+          <Stack gap={6}>
+            <PersonFields form={personForm} showMatriculation={canReadMatriculation} editMatriculation={canEditMatriculation} />
+            <div className="form-actions">
+              <Button kind="secondary" type="button" onClick={() => { personForm.reset(); setEditingPerson(false); }}>Cancel</Button>
+              <Button type="submit" disabled={!personForm.formState.isDirty || personMutation.isPending}>{personMutation.isPending ? 'Saving…' : 'Save'}</Button>
+            </div>
+          </Stack>
+        </Form>
+      ) : (
+        <StructuredListWrapper isCondensed>
+          <StructuredListBody>
+            <DetailRow label="First name" value={person.firstName} />
+            <DetailRow label="Last name" value={person.lastName} />
+            <DetailRow label="Contact email" value={person.email ?? 'Not provided'} />
+            <DetailRow label="Phone" value={person.phone ?? 'Not provided'} />
+            {canReadMatriculation && <DetailRow label="Matriculation number" value={person.matriculationNumber ?? 'Not provided'} />}
+          </StructuredListBody>
+        </StructuredListWrapper>
+      )}
+    </DetailSection>
+  );
+
+  const renderAccountAccessSection = () => (
+    <DetailSection
+      title="Account access"
+      meta={account && <Tag type={account.status === 'enabled' ? 'green' : 'gray'}>{account.status === 'enabled' ? 'Enabled' : 'Disabled'}</Tag>}
+    >
+      {!canReadAccounts || person.account === undefined ? (
+        <InlineNotification kind="info" lowContrast hideCloseButton title="Account details unavailable" subtitle="Your permissions do not include account access." />
+      ) : !account ? (
+        <Stack gap={5}>
+          <p>This person does not have an application account.</p>
+          {canCreateAccount && <Button size="sm" onClick={() => setCreateAccountOpen(true)}>Create account</Button>}
+        </Stack>
+      ) : (
+        <Stack gap={5}>
+          {editingEmail ? (
+            <Form onSubmit={submitEmail}>
+              <Stack gap={5}>
+                <TextInput id="account-login-email" type="email" labelText="Login email" invalid={Boolean(accountEmailForm.formState.errors.loginEmail)} invalidText={accountEmailForm.formState.errors.loginEmail?.message} {...accountEmailForm.register('loginEmail', { required: 'Enter a login email.' })} />
+                <div className="form-actions"><Button kind="secondary" type="button" onClick={() => setEditingEmail(false)}>Cancel</Button><Button type="submit" disabled={emailMutation.isPending}>Save</Button></div>
+              </Stack>
+            </Form>
+          ) : (
+            <StructuredListWrapper isCondensed>
+              <StructuredListBody>
+                <DetailRow label="Login email" value={account.loginEmail ?? 'Not configured'} />
+                <DetailRow label="Account source" value={formatProvisioningSource(account.provisioningSource)} />
+                <DetailRow label="First sign-in" value={account.firstAuthenticatedAt ? new Date(account.firstAuthenticatedAt).toLocaleString() : 'Not yet'} />
+                <DetailRow
+                  label="Account ID"
+                  value={account.id}
+                  monospace
+                  action={(
+                    <CopyButton
+                      size="sm"
+                      iconDescription="Copy account ID"
+                      feedback="Account ID copied"
+                      onClick={() => void navigator.clipboard.writeText(account.id)}
+                    />
+                  )}
+                />
+              </StructuredListBody>
+            </StructuredListWrapper>
+          )}
+          {account.status === 'disabled' && hasPermission(currentUser, PermissionId.accountsenable) && (
+            <div>
+              <Button size="sm" disabled={account.passwordStatus !== 'active' || enableMutation.isPending} onClick={() => enableMutation.mutate()}>Enable account</Button>
+              {account.passwordStatus !== 'active' && <p className="section-description">An active password is required before this account can be enabled.</p>}
+            </div>
+          )}
+        </Stack>
+      )}
+    </DetailSection>
+  );
+
+  const renderAuthenticationMethodsSection = () => account ? (
+    <DetailSection title="Authentication methods">
+      <div className="authentication-methods">
+        <AuthenticationMethod
+          label="Local password"
+          status={account.passwordStatus === 'active' ? 'Active' : account.passwordStatus === 'reset_required' ? 'Reset required' : 'Not configured'}
+          active={account.passwordStatus === 'active'}
+          warning={account.passwordStatus === 'reset_required'}
+          action={(canIssuePasswordReset || canInvite) ? (
+            <OverflowMenu iconDescription="Actions for Local password" size="sm" flipped>
+              {canIssuePasswordReset && <OverflowMenuItem itemText="Send reset code" onClick={() => setConfirmKind('reset-password')} />}
+              {canInvite && <OverflowMenuItem itemText="Send invitation" onClick={() => setConfirmKind('invite')} />}
+            </OverflowMenu>
+          ) : undefined}
+        />
+        <AuthenticationMethod
+          label="Username and PIN"
+          status={activePINIdentity ? 'Active' : 'Not configured'}
+          detail={activePINIdentity?.displayIdentifier ? `Username: ${activePINIdentity.displayIdentifier}` : undefined}
+          active={Boolean(activePINIdentity)}
+          action={canIssuePINSetup ? (
+            <OverflowMenu iconDescription="Actions for Username and PIN" size="sm" flipped>
+              <OverflowMenuItem itemText={activePINIdentity ? 'Reset PIN login' : 'Add PIN login'} onClick={() => setConfirmKind('pin-setup')} />
+            </OverflowMenu>
+          ) : undefined}
+        />
+        <AuthenticationMethod
+          label="OIDC / SSO"
+          status={activeOIDCIdentities.length ? `${activeOIDCIdentities.length} linked` : 'Not connected'}
+          active={activeOIDCIdentities.length > 0}
+        >
+          {activeOIDCIdentities.map((identity) => (
+            <div className="authentication-method__identity" key={identity.id}>
+              <span>{identity.displayIdentifier ?? 'OIDC provider'}</span>
+              {identity.providerSlug && <code>{identity.providerSlug}</code>}
+            </div>
+          ))}
+        </AuthenticationMethod>
+      </div>
+    </DetailSection>
+  ) : null;
+
+  const renderRolesSection = () => account ? (
+    <DetailSection
+      title="Roles"
+      meta={<span className="section-description">{account.roles.length} assigned</span>}
+      action={canAssignRole ? <Button kind="ghost" size="sm" onClick={() => setAssignRoleOpen(true)}>Manage roles</Button> : undefined}
+    >
+      <div className="tag-list" aria-label="Assigned roles">
+        {account.roles.length === 0 && <span>No roles assigned</span>}
+        {account.roles.map((role) => {
+          const roleDetails = rolesById.get(role.id);
+          const mayRemove = Boolean(roleDetails && canManageRoleMembership(currentUser, roleDetails));
+          if (mayRemove) {
+            return <DismissibleTag key={role.id} type={role.systemKey === 'master' ? 'purple' : 'blue'} text={role.name} title={`Remove ${role.name} role`} dismissTooltipLabel={`Remove ${role.name} role`} onClose={() => roleMutation.mutate({ roleId: role.id, remove: true })} />;
+          }
+          return <Tag key={role.id} type={role.systemKey === 'master' ? 'purple' : 'blue'}>{role.name}</Tag>;
+        })}
+      </div>
+    </DetailSection>
+  ) : null;
+
+  const renderMakerspaceStatusSection = () => canReadMakerspaceStatus ? (
+    <DetailSection
+      title="Makerspace status"
+      className="person-makerspace-card"
+      description="Upcoming participation and current Lab Rules acknowledgement."
+    >
+      {makerspaceStatusQuery.isPending && <InlineLoadingState label="Loading Makerspace status" />}
+      {makerspaceStatusQuery.isError && <InlineNotification kind="warning" lowContrast hideCloseButton title="Makerspace status unavailable" subtitle="Personal and account details are still available. Reload to try again." />}
+      {makerspaceStatusQuery.data?.laborordnungStatus && (
+        <LabRulesOverview status={makerspaceStatusQuery.data.laborordnungStatus} />
+      )}
+      {makerspaceStatusQuery.data?.upcomingOpenDayAssignments && (
+        <div className="person-open-days">
+          <div className="section-heading"><h3>Upcoming Open Days</h3><Tag type="cool-gray">{makerspaceStatusQuery.data.upcomingOpenDayAssignments.length}</Tag></div>
+          {makerspaceStatusQuery.data.upcomingOpenDayAssignments.length === 0 ? (
+            <p className="section-description">No upcoming Open Day assignments.</p>
+          ) : (
+            <StructuredListWrapper isCondensed aria-label="Upcoming Open Day assignments">
+              <StructuredListBody>
+                {makerspaceStatusQuery.data.upcomingOpenDayAssignments.map((assignment) => (
+                  <StructuredListRow key={assignment.assignmentId}>
+                    <StructuredListCell>
+                      <strong>{assignment.periodName}</strong>
+                      <span className="person-open-days__time">{formatDateTimeRange(assignment.startsAt, assignment.endsAt)}</span>
+                    </StructuredListCell>
+                    <StructuredListCell><Tag type={assignment.role === 'supervisor' ? 'blue' : 'teal'}>{capitalize(assignment.role)}</Tag></StructuredListCell>
+                  </StructuredListRow>
+                ))}
+              </StructuredListBody>
+            </StructuredListWrapper>
+          )}
+        </div>
+      )}
+    </DetailSection>
+  ) : null;
+
+  const renderTabContent = (tab: PersonDetailTab) => {
+    if (tab === 'personal-information') {
+      return (
+        <Grid condensed className="person-detail-grid person-detail-grid--focused">
+          <Column sm={4} md={3} lg={5}>{renderProfileSection()}</Column>
+          <Column sm={4} md={5} lg={11}>{renderPersonalInformationSection()}</Column>
+        </Grid>
+      );
+    }
+    if (tab === 'account-access') {
+      return <Stack gap={6}>{renderAccountAccessSection()}{renderAuthenticationMethodsSection()}</Stack>;
+    }
+    if (tab === 'roles-permissions') return renderRolesSection();
+    if (tab === 'makerspace-status') return renderMakerspaceStatusSection();
+
+    return (
+      <Grid className="person-detail-grid person-detail-grid--overview">
+        <Column sm={4} md={3} lg={6} className="person-detail-overview__cell">
+          {renderProfileSection()}
+        </Column>
+        <Column sm={4} md={5} lg={10} className="person-detail-overview__cell">
+          {renderAccountAccessSection()}
+        </Column>
+        <Column sm={4} md={3} lg={6} className="person-detail-overview__cell">
+          {renderPersonalInformationSection()}
+        </Column>
+        <Column sm={4} md={5} lg={10} className="person-detail-overview__stack">
+          <Stack gap={6}>{renderAuthenticationMethodsSection()}{renderRolesSection()}</Stack>
+        </Column>
+        {canReadMakerspaceStatus && (
+          <Column sm={4} md={8} lg={16}>{renderMakerspaceStatusSection()}</Column>
+        )}
+      </Grid>
+    );
+  };
+
   return (
     <Stack gap={7} className="person-detail-page">
       <PageHeader
         title={`${person.firstName} ${person.lastName}`}
         breadcrumbs={[
-          { label: 'Settings', to: '/settings' },
-          { label: 'People', to: '/settings/users' },
+          { label: 'People', to: '/people' },
           { label: `${person.firstName} ${person.lastName}` },
         ]}
         description="Personal details, account access, and Makerspace status."
-        actions={canViewSupervisorStaffing || hasPersonActions ? (
-          <div className="button-cluster">
-            {canViewSupervisorStaffing && (
-              <Button kind="tertiary" onClick={() => navigate('/settings/users/staffing')}>
-                Supervisor staffing
-              </Button>
+        actions={hasPersonActions ? (
+          <MenuButton label="Actions" kind="primary" menuAlignment="bottom-end" size="md">
+            {canEditPerson && !editingPerson && (
+              <MenuItem label="Edit person" onClick={startEditingPerson} />
             )}
-            {hasPersonActions && (
-            <MenuButton label="Actions" kind="tertiary" menuAlignment="bottom-end" size="md">
-              {canEditPerson && !editingPerson && (
-                <MenuItem label="Edit person" onClick={() => setEditingPerson(true)} />
-              )}
-              {canEditPerson && !editingPerson && (hasAccountActions || hasCredentialActions) && (
-                <MenuItemDivider />
-              )}
-              {canEditAccount && (
-                <MenuItem label="Edit account" onClick={() => setEditingEmail(true)} />
-              )}
-              {canCreateAccount && (
-                <MenuItem label="Create account" onClick={() => setCreateAccountOpen(true)} />
-              )}
-              {canAssignRole && (
-                <MenuItem label="Assign role" onClick={() => setAssignRoleOpen(true)} />
-              )}
-              {hasAccountActions && hasCredentialActions && <MenuItemDivider />}
-              {canSetPassword && (
-                <MenuItem label="Set password" onClick={() => setPasswordModalOpen(true)} />
-              )}
-              {canIssuePasswordReset && (
-                <MenuItem label="Send reset code" onClick={() => setConfirmKind('reset-password')} />
-              )}
-              {canInvite && (
-                <MenuItem label="Send invitation" onClick={() => setConfirmKind('invite')} />
-              )}
-			  {canIssuePINSetup && (
-				<MenuItem label={activePINIdentity ? 'Reset PIN login' : 'Add PIN login'} onClick={() => setConfirmKind('pin-setup')} />
-			  )}
-            </MenuButton>
+            {canEditPerson && !editingPerson && (hasAccountActions || hasCredentialActions) && (
+              <MenuItemDivider />
             )}
-          </div>
+            {canEditAccount && (
+              <MenuItem label="Edit account" onClick={startEditingAccount} />
+            )}
+            {canCreateAccount && (
+              <MenuItem label="Create account" onClick={() => { setCreateAccountOpen(true); selectTab('account-access'); }} />
+            )}
+            {canAssignRole && (
+              <MenuItem label="Manage roles" onClick={openRoleManager} />
+            )}
+            {hasAccountActions && hasCredentialActions && <MenuItemDivider />}
+            {canSetPassword && (
+              <MenuItem label="Set password" onClick={() => setPasswordModalOpen(true)} />
+            )}
+            {canIssuePasswordReset && (
+              <MenuItem label="Send reset code" onClick={() => setConfirmKind('reset-password')} />
+            )}
+            {canInvite && (
+              <MenuItem label="Send invitation" onClick={() => setConfirmKind('invite')} />
+            )}
+            {canIssuePINSetup && (
+              <MenuItem label={activePINIdentity ? 'Reset PIN login' : 'Add PIN login'} onClick={() => setConfirmKind('pin-setup')} />
+            )}
+          </MenuButton>
         ) : undefined}
       />
       {mutationError && (
         <InlineNotification kind="error" lowContrast hideCloseButton title="Change not completed" subtitle="The record may have changed. Reload it and try again." />
       )}
       <div className="person-detail-layout">
-        <Grid condensed className="person-detail-grid">
-          <Column sm={4} md={3} lg={4}>
-            <Stack gap={6}>
-              <Tile className="person-detail-card person-profile-card">
-                <Stack gap={5}>
-                  <h2>Profile picture</h2>
-                  <ProfilePictureEditor
-                    id="person-profile-image"
-                    firstName={person.firstName}
-                    lastName={person.lastName}
-                    profileImage={person.profileImage}
-                    canUpdate={canUpdateProfileImage}
-                    canRemove={canRemoveProfileImage}
-                    isUploading={profileImageMutation.isPending}
-                    isRemoving={removeProfileImageMutation.isPending}
-                    onUpload={(file) => profileImageMutation.mutate(file)}
-                    onRemove={() => removeProfileImageMutation.mutate()}
-                  />
-                  <p className="person-profile-card__name">{person.firstName} {person.lastName}</p>
-                  {person.profileImageRequired && !person.profileImage && (
-                    <InlineNotification kind="warning" lowContrast hideCloseButton title="Profile picture required" subtitle="At least one assigned role requires a profile picture." />
-                  )}
-                  {profileImageMutation.isError && (
-                    <InlineNotification kind="error" lowContrast hideCloseButton title="Picture not updated" subtitle="Use a JPEG, PNG, or WebP image up to 8 MiB and 4096×4096 pixels." />
-                  )}
-                </Stack>
-              </Tile>
-
-              <Tile className="person-detail-card">
-                <Stack gap={6}>
-                  <h2>Personal information</h2>
-                  {editingPerson ? (
-                    <Form onSubmit={submitPerson}>
-                      <Stack gap={6}>
-                        <PersonFields form={personForm} showMatriculation={canReadMatriculation} editMatriculation={canEditMatriculation} />
-                        <div className="form-actions">
-                          <Button kind="secondary" type="button" onClick={() => { personForm.reset(); setEditingPerson(false); }}>Cancel</Button>
-                          <Button type="submit" disabled={!personForm.formState.isDirty || personMutation.isPending}>{personMutation.isPending ? 'Saving…' : 'Save'}</Button>
-                        </div>
-                      </Stack>
-                    </Form>
-                  ) : (
-                    <StructuredListWrapper isCondensed>
-                      <StructuredListBody>
-                        <DetailRow label="First name" value={person.firstName} />
-                        <DetailRow label="Last name" value={person.lastName} />
-                        <DetailRow label="Contact email" value={person.email ?? 'Not provided'} />
-                        <DetailRow label="Phone" value={person.phone ?? 'Not provided'} />
-                        {canReadMatriculation && <DetailRow label="Matriculation number" value={person.matriculationNumber ?? 'Not provided'} />}
-                      </StructuredListBody>
-                    </StructuredListWrapper>
-                  )}
-                </Stack>
-              </Tile>
-            </Stack>
-          </Column>
-
-          <Column sm={4} md={5} lg={12}>
-            <Stack gap={6}>
-              <Tile className="person-detail-card">
-                <Stack gap={6}>
-                  <div className="section-heading"><h2>Account access</h2>{account && <Tag type={account.status === 'enabled' ? 'green' : 'gray'}>{account.status === 'enabled' ? 'Enabled' : 'Disabled'}</Tag>}</div>
-                  {!canReadAccounts || person.account === undefined ? (
-                    <InlineNotification kind="info" lowContrast hideCloseButton title="Account details unavailable" subtitle="Your permissions do not include account access." />
-                  ) : !account ? (
-                    <p>This person does not have a login account.</p>
-                  ) : (
-                    <Stack gap={5}>
-                      {editingEmail ? (
-                        <Form onSubmit={submitEmail}>
-                          <Stack gap={5}>
-                            <TextInput id="account-login-email" type="email" labelText="Login email" invalid={Boolean(accountEmailForm.formState.errors.loginEmail)} invalidText={accountEmailForm.formState.errors.loginEmail?.message} {...accountEmailForm.register('loginEmail', { required: 'Enter a login email.' })} />
-                            <div className="form-actions"><Button kind="secondary" type="button" onClick={() => setEditingEmail(false)}>Cancel</Button><Button type="submit" disabled={emailMutation.isPending}>Save</Button></div>
-                          </Stack>
-                        </Form>
-                      ) : (
-                        <StructuredListWrapper isCondensed>
-                          <StructuredListBody>
-                            <DetailRow label="Login email" value={account.loginEmail ?? 'Not configured'} />
-                            <DetailRow label="Account source" value={formatProvisioningSource(account.provisioningSource)} />
-                            <DetailRow label="First sign-in" value={account.firstAuthenticatedAt ? new Date(account.firstAuthenticatedAt).toLocaleString() : 'Not yet'} />
-                            <DetailRow label="Account ID" value={account.id} monospace />
-                          </StructuredListBody>
-                        </StructuredListWrapper>
-                      )}
-                      {account.status === 'disabled' && hasPermission(currentUser, PermissionId.accountsenable) && (
-                        <div>
-                          <Button size="sm" disabled={account.passwordStatus !== 'active' || enableMutation.isPending} onClick={() => enableMutation.mutate()}>Enable account</Button>
-                          {account.passwordStatus !== 'active' && <p className="section-description">An active password is required before this account can be enabled.</p>}
-                        </div>
-                      )}
-                    </Stack>
-                  )}
-                </Stack>
-              </Tile>
-
-              {account && (
-                <Tile className="person-detail-card">
-                  <Stack gap={6}>
-                    <h2>Authentication methods</h2>
-                    <div className="authentication-methods">
-                      <AuthenticationMethod
-                        label="Local password"
-                        status={account.passwordStatus === 'active' ? 'Active' : account.passwordStatus === 'reset_required' ? 'Reset required' : 'Not configured'}
-                        active={account.passwordStatus === 'active'}
-                        warning={account.passwordStatus === 'reset_required'}
-                      />
-                      <AuthenticationMethod
-                        label="Username and PIN"
-                        status={activePINIdentity ? 'Active' : 'Not configured'}
-                        detail={activePINIdentity?.displayIdentifier ? `Username: ${activePINIdentity.displayIdentifier}` : undefined}
-                        active={Boolean(activePINIdentity)}
-                      />
-                      <AuthenticationMethod
-                        label="OIDC / SSO"
-                        status={activeOIDCIdentities.length ? `${activeOIDCIdentities.length} linked` : 'Not connected'}
-                        active={activeOIDCIdentities.length > 0}
-                      >
-                        {activeOIDCIdentities.map((identity) => (
-                          <div className="authentication-method__identity" key={identity.id}>
-                            <span>{identity.displayIdentifier ?? 'OIDC provider'}</span>
-                            {identity.providerSlug && <code>{identity.providerSlug}</code>}
-                          </div>
-                        ))}
-                      </AuthenticationMethod>
-                    </div>
-                  </Stack>
-                </Tile>
-              )}
-
-              {account && (
-                <Tile className="person-detail-card">
-                  <Stack gap={5}>
-                    <div className="section-heading">
-                      <h2>Roles</h2>
-                      <div className="tag-list">
-                        <span className="section-description">{account.roles.length} assigned</span>
-                        {supervisorRoleNames.length > 0 && <Tag type="blue">Supervisor</Tag>}
-                      </div>
-                    </div>
-                    <div className="tag-list" aria-label="Assigned roles">
-                      {account.roles.length === 0 && <span>No roles assigned</span>}
-                      {account.roles.map((role) => {
-                        const roleDetails = rolesById.get(role.id);
-                        const mayRemove = Boolean(roleDetails && canManageRoleMembership(currentUser, roleDetails));
-                        if (mayRemove) {
-                          return <DismissibleTag key={role.id} type={role.systemKey === 'master' ? 'purple' : 'blue'} text={role.name} title={`Remove ${role.name} role`} dismissTooltipLabel={`Remove ${role.name} role`} onClose={() => roleMutation.mutate({ roleId: role.id, remove: true })} />;
-                        }
-                        return <Tag key={role.id} type={role.systemKey === 'master' ? 'purple' : 'blue'}>{role.name}</Tag>;
-                      })}
-                    </div>
-                    {supervisorRoleNames.length > 0 && (
-                      <p className="section-description">
-                        Included in supervisor staffing through {supervisorRoleNames.join(', ')}.
-                      </p>
-                    )}
-                  </Stack>
-                </Tile>
-              )}
-            </Stack>
-          </Column>
-        </Grid>
-
-        {canReadMakerspaceStatus && (
-          <Tile className="person-detail-card person-makerspace-card">
-            <Stack gap={6}>
-              <div><h2>Makerspace status</h2><p className="section-description">Upcoming participation and current Lab Rules acknowledgement.</p></div>
-              {makerspaceStatusQuery.isPending && <InlineLoadingState label="Loading Makerspace status" />}
-              {makerspaceStatusQuery.isError && <InlineNotification kind="warning" lowContrast hideCloseButton title="Makerspace status unavailable" subtitle="Personal and account details are still available. Reload to try again." />}
-              {makerspaceStatusQuery.data?.laborordnungStatus && (
-                <LabRulesOverview status={makerspaceStatusQuery.data.laborordnungStatus} />
-              )}
-              {makerspaceStatusQuery.data?.upcomingOpenDayAssignments && (
-                <div className="person-open-days">
-                  <div className="section-heading"><h3>Upcoming Open Days</h3><Tag type="cool-gray">{makerspaceStatusQuery.data.upcomingOpenDayAssignments.length}</Tag></div>
-                  {makerspaceStatusQuery.data.upcomingOpenDayAssignments.length === 0 ? (
-                    <p className="section-description">No upcoming Open Day assignments.</p>
-                  ) : (
-                    <StructuredListWrapper isCondensed aria-label="Upcoming Open Day assignments">
-                      <StructuredListBody>
-                        {makerspaceStatusQuery.data.upcomingOpenDayAssignments.map((assignment) => (
-                          <StructuredListRow key={assignment.assignmentId}>
-                            <StructuredListCell>
-                              <strong>{assignment.periodName}</strong>
-                              <span className="person-open-days__time">{formatDateTimeRange(assignment.startsAt, assignment.endsAt)}</span>
-                            </StructuredListCell>
-                            <StructuredListCell><Tag type={assignment.role === 'supervisor' ? 'blue' : 'teal'}>{capitalize(assignment.role)}</Tag></StructuredListCell>
-                          </StructuredListRow>
-                        ))}
-                      </StructuredListBody>
-                    </StructuredListWrapper>
-                  )}
-                </div>
-              )}
-            </Stack>
-          </Tile>
-        )}
+        <Tabs
+          selectedIndex={selectedTabIndex}
+          onChange={({ selectedIndex }) => {
+            const nextTab = availableTabs[selectedIndex];
+            if (nextTab) selectTab(nextTab.key);
+          }}
+        >
+          <TabList aria-label="Person detail sections">
+            {availableTabs.map((tab) => <Tab key={tab.key}>{tab.label}</Tab>)}
+          </TabList>
+          <TabPanels>
+            {availableTabs.map((tab) => (
+              <TabPanel key={tab.key} className="person-detail-tab-panel">
+                {tab.key === selectedTab ? renderTabContent(tab.key) : null}
+              </TabPanel>
+            ))}
+          </TabPanels>
+        </Tabs>
 
       {resetSent && (
         <Tile className="secret-tile">
@@ -688,13 +826,21 @@ function UserDetailContent({ person }: { person: Person }) {
       </div>
 
       <ComposedModal open={createAccountOpen} onClose={() => setCreateAccountOpen(false)}>
-        <ModalHeader title="Create login account" label={`${person.firstName} ${person.lastName}`} />
+        <ModalHeader title="Create account" label={`${person.firstName} ${person.lastName}`} />
         <ModalBody>
           <Form id="create-account-form" onSubmit={submitCreateAccount}>
             <Stack gap={5}>
+              <p>Create an application account for this person. Authentication methods can be configured afterwards.</p>
               {createAccountMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Account not created" subtitle="Check the email and try again." />}
-              <TextInput id="new-account-email" type="email" labelText="Login email" invalid={Boolean(accountCreateForm.formState.errors.loginEmail)} invalidText={accountCreateForm.formState.errors.loginEmail?.message} {...accountCreateForm.register('loginEmail', { required: 'Enter a login email.' })} />
-              <p className="section-description">New accounts are disabled until a password is set.</p>
+              <TextInput
+                id="new-account-email"
+                type="email"
+                labelText="Login email (optional)"
+                helperText="If provided, an email/password login can be configured for this account."
+                invalid={Boolean(accountCreateForm.formState.errors.loginEmail)}
+                invalidText={accountCreateForm.formState.errors.loginEmail?.message}
+                {...accountCreateForm.register('loginEmail')}
+              />
             </Stack>
           </Form>
         </ModalBody>
@@ -757,8 +903,59 @@ function UserDetailContent({ person }: { person: Person }) {
   );
 }
 
-function DetailRow({ label, value, monospace = false }: { label: string; value: string; monospace?: boolean }) {
-  return <StructuredListRow><StructuredListCell>{label}</StructuredListCell><StructuredListCell>{monospace ? <code>{value}</code> : value}</StructuredListCell></StructuredListRow>;
+function DetailSection({
+  title,
+  description,
+  headingContent,
+  meta,
+  action,
+  className,
+  children,
+}: {
+  title: string;
+  description?: string;
+  headingContent?: ReactNode;
+  meta?: ReactNode;
+  action?: ReactNode;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Tile className={`person-detail-card${className ? ` ${className}` : ''}`}>
+      <Stack gap={6} className="person-detail-card__content">
+        <div className="person-detail-card__heading">
+          <div>
+            <h2>{title}</h2>
+            {description && <p className="section-description">{description}</p>}
+          </div>
+          {headingContent && <div className="person-detail-card__heading-content">{headingContent}</div>}
+          {(meta || action) && <div className="person-detail-card__actions">{meta}{action}</div>}
+        </div>
+        {children}
+      </Stack>
+    </Tile>
+  );
+}
+
+function DetailRow({
+  label,
+  value,
+  monospace = false,
+  action,
+}: {
+  label: string;
+  value: string;
+  monospace?: boolean;
+  action?: ReactNode;
+}) {
+  return (
+    <StructuredListRow>
+      <StructuredListCell>{label}</StructuredListCell>
+      <StructuredListCell>
+        <span className="person-detail-row__value">{monospace ? <code>{value}</code> : value}{action}</span>
+      </StructuredListCell>
+    </StructuredListRow>
+  );
 }
 
 function AuthenticationMethod({
@@ -767,6 +964,7 @@ function AuthenticationMethod({
   detail,
   active,
   warning = false,
+  action,
   children,
 }: {
   label: string;
@@ -774,13 +972,17 @@ function AuthenticationMethod({
   detail?: string;
   active: boolean;
   warning?: boolean;
+  action?: ReactNode;
   children?: ReactNode;
 }) {
   return (
     <div className="authentication-method">
       <div className="authentication-method__header">
-        <div><strong>{label}</strong>{detail && <span>{detail}</span>}</div>
-        <Tag type={warning ? 'warm-gray' : active ? 'green' : 'gray'}>{status}</Tag>
+        <div className="authentication-method__summary"><strong>{label}</strong>{detail && <span>{detail}</span>}</div>
+        <div className="authentication-method__actions">
+          <Tag type={warning ? 'warm-gray' : active ? 'green' : 'gray'}>{status}</Tag>
+          {action}
+        </div>
       </div>
       {children}
     </div>

@@ -9,6 +9,7 @@ import {
   HeaderPanel,
   InlineNotification,
   SideNav,
+  SideNavDivider,
   SideNavItems,
   SideNavLink,
   SideNavMenu,
@@ -18,14 +19,7 @@ import {
   Tag,
   Theme,
 } from '@carbon/react';
-import {
-  Dashboard as DashboardIcon,
-  Calendar,
-  Logout,
-  Settings as SettingsIcon,
-  UserAvatar,
-	DataBase,
-} from '@carbon/icons-react';
+import { Logout, UserAvatar } from '@carbon/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { getGetLaborordnungPDFUrl, requestOwnLaborordnungConfirmation } from '../api/generated/laborordnung/laborordnung';
@@ -92,6 +86,12 @@ export function AppShell() {
 
   const settingsActive = location.pathname.startsWith('/settings');
   const machineLogbookActive = location.pathname.startsWith('/machine-logbook');
+  const peopleActive = location.pathname.startsWith('/people');
+  const canAccessPeopleDirectory = hasPermission(currentUser, PermissionId.peoplereadall);
+  const canAccessSupervisorStaffing = hasPermission(currentUser, PermissionId.supervisor_dashboardread);
+  const canAccessPeople = canAccessPeopleDirectory || canAccessSupervisorStaffing;
+  const canReadAuditLog = hasPermission(currentUser, PermissionId.auditread);
+  const showAdministration = canAccessSettings(currentUser) || canReadAuditLog;
 
   return (
     <div className="app-shell">
@@ -192,11 +192,10 @@ export function AppShell() {
             isPersistent={false}
             onOverlayClick={() => setSideNavExpanded(false)}
           >
-            <SideNavItems>
+            <SideNavItems className="app-side-nav__primary">
               <SideNavLink
                 as={Link}
                 to="/dashboard"
-                renderIcon={DashboardIcon}
                 isActive={location.pathname === '/dashboard'}
               >
                 Dashboard
@@ -205,13 +204,12 @@ export function AppShell() {
                 <SideNavLink
                   as={Link}
                   to="/open-days"
-                  renderIcon={Calendar}
                   isActive={location.pathname.startsWith('/open-days')}
                 >
                   Open Days
                 </SideNavLink>
               )}
-              {canAccessMachineLogbook(currentUser) && <SideNavMenu title="Machine logbook" renderIcon={DataBase} defaultExpanded={machineLogbookActive} isActive={machineLogbookActive}>
+              {canAccessMachineLogbook(currentUser) && <SideNavMenu title="Machines" defaultExpanded={machineLogbookActive} isActive={machineLogbookActive}>
                 {(hasPermission(currentUser, PermissionId.machine_jobsread) || hasPermission(currentUser, PermissionId.statisticsread)) && <SideNavMenuItem as={Link} to="/machine-logbook" isActive={location.pathname === '/machine-logbook'}>Overview</SideNavMenuItem>}
                 {hasPermission(currentUser, PermissionId.machine_jobsread) && <SideNavMenuItem as={Link} to="/machine-logbook/jobs" isActive={location.pathname.startsWith('/machine-logbook/jobs')}>Jobs</SideNavMenuItem>}
                 {hasPermission(currentUser, PermissionId.machine_jobsreview) && <SideNavMenuItem as={Link} to="/machine-logbook/review" isActive={location.pathname.startsWith('/machine-logbook/review')}>Review</SideNavMenuItem>}
@@ -219,22 +217,48 @@ export function AppShell() {
                 {hasPermission(currentUser, PermissionId.machinesread) && <SideNavMenuItem as={Link} to="/machine-logbook/machines" isActive={location.pathname.startsWith('/machine-logbook/machines')}>Machines</SideNavMenuItem>}
                 {hasPermission(currentUser, PermissionId.statisticsread) && <SideNavMenuItem as={Link} to="/machine-logbook/statistics" isActive={location.pathname.startsWith('/machine-logbook/statistics')}>Statistics</SideNavMenuItem>}
               </SideNavMenu>}
-              {canAccessSettings(currentUser) && (
-                <SideNavMenu
-                  title="Administration"
-                  renderIcon={SettingsIcon}
-                  defaultExpanded={settingsActive}
-                  isActive={settingsActive}
+              {canAccessPeople && (
+                <SideNavLink
+                  as={Link}
+                  to={canAccessPeopleDirectory ? '/people' : '/people/staffing'}
+                  isActive={peopleActive}
                 >
-                  <SideNavMenuItem
+                  People
+                </SideNavLink>
+              )}
+              {showAdministration && (
+                <>
+                  <SideNavDivider />
+                  <li className="app-side-nav__heading">Administration</li>
+                  {canAccessSettings(currentUser) && <SideNavLink
                     as={Link}
                     to="/settings"
                     isActive={settingsActive}
                   >
                     Settings
-                  </SideNavMenuItem>
-                </SideNavMenu>
+                  </SideNavLink>}
+                  {canReadAuditLog && <SideNavLink
+                    as={Link}
+                    to="/audit-log"
+                    isActive={location.pathname === '/audit-log'}
+                  >
+                    Audit Log
+                  </SideNavLink>}
+                </>
               )}
+            </SideNavItems>
+            <SideNavItems className="app-side-nav__secondary">
+              <SideNavDivider />
+              <SideNavLink as={Link} to="/about" isActive={location.pathname === '/about'}>
+                About
+              </SideNavLink>
+              <SideNavLink
+                as={Link}
+                to="/legal-and-privacy"
+                isActive={location.pathname === '/legal-and-privacy'}
+              >
+                Legal &amp; Privacy
+              </SideNavLink>
             </SideNavItems>
           </SideNav>
         </Header>

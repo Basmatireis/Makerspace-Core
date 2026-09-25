@@ -1,9 +1,9 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { PermissionId } from '../api/generated/models';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { LoginPage } from '../features/auth/LoginPage';
-import { PermissionRoute, ProtectedRoute } from '../features/auth/auth';
-import { settingsPermissions } from '../features/auth/permissions';
+import { PermissionRoute, ProtectedRoute, useCurrentUser } from '../features/auth/auth';
+import { canAccessSettings } from '../features/auth/permissions';
 import { EmailVerificationPage, InvitationPage, PINEnrollmentPage, ResetPasswordPage } from '../features/auth/ResetPasswordPage';
 import { ProfilePage } from '../features/profile/ProfilePage';
 import { RolesPage } from '../features/roles/RolesPage';
@@ -36,12 +36,30 @@ import { ConfigurationPage } from '../features/machinelogbook/ConfigurationPage'
 import { AppShell } from './AppShell';
 import { NotFoundPage } from './NotFoundPage';
 import { ActivityPage } from '../features/audit/ActivityPage';
+import { InformationPage } from './InformationPage';
 
 function ProtectedApp() {
   return (
     <ProtectedRoute>
       <AppShell />
     </ProtectedRoute>
+  );
+}
+
+function SettingsRoute() {
+  const currentUser = useCurrentUser();
+  return canAccessSettings(currentUser) ? <SettingsPage /> : <Navigate to="/dashboard" replace />;
+}
+
+function LegacyRedirect({ from, to }: { from: string; to: string }) {
+  const location = useLocation();
+  const suffix = location.pathname.slice(from.length);
+
+  return (
+    <Navigate
+      to={{ pathname: `${to}${suffix}`, search: location.search, hash: location.hash }}
+      replace
+    />
   );
 }
 
@@ -66,7 +84,7 @@ export function App() {
 		<Route path="machine-logbook/inventory/:materialId" element={<PermissionRoute allOf={[PermissionId.inventoryread]}><MaterialDetailPage /></PermissionRoute>} />
 		<Route path="machine-logbook/machines" element={<PermissionRoute allOf={[PermissionId.machinesread]}><MachinesPage /></PermissionRoute>} />
 		<Route path="machine-logbook/statistics" element={<PermissionRoute allOf={[PermissionId.statisticsread]}><StatisticsPage /></PermissionRoute>} />
-		<Route path="supervisors" element={<PermissionRoute allOf={[PermissionId.supervisor_dashboardread]}><Navigate to="/settings/users/staffing" replace /></PermissionRoute>} />
+		<Route path="supervisors" element={<LegacyRedirect from="/supervisors" to="/people/staffing" />} />
         <Route
           path="open-days"
           element={<PermissionRoute anyOf={[PermissionId.open_daysread, PermissionId.open_daysmanage]}><OpenDaysPage /></PermissionRoute>}
@@ -89,11 +107,7 @@ export function App() {
         />
         <Route
           path="settings"
-          element={
-            <PermissionRoute anyOf={settingsPermissions}>
-              <SettingsPage />
-            </PermissionRoute>
-          }
+          element={<SettingsRoute />}
         />
         <Route
           path="settings/managed-devices"
@@ -108,24 +122,28 @@ export function App() {
         <Route path="settings/scim" element={<PermissionRoute allOf={[PermissionId.scimmanage]}><SCIMConnectorsPage /></PermissionRoute>} />
         <Route path="settings/visitor-enrollment" element={<PermissionRoute allOf={[PermissionId.visitor_enrollmentmanage]}><VisitorEnrollmentSettingsPage /></PermissionRoute>} />
         <Route path="settings/mail" element={<PermissionRoute allOf={[PermissionId.mailmanage]}><MailSettingsPage /></PermissionRoute>} />
-        <Route path="settings/activity" element={<PermissionRoute allOf={[PermissionId.auditread]}><ActivityPage /></PermissionRoute>} />
         <Route path="settings/machine-logbook" element={<PermissionRoute allOf={[PermissionId.organizationsread, PermissionId.pricingread, PermissionId.machinesread]}><ConfigurationPage /></PermissionRoute>} />
         <Route
-          path="settings/users"
+          path="people"
           element={<PermissionRoute allOf={[PermissionId.peoplereadall]}><UsersPage /></PermissionRoute>}
         />
         <Route
-          path="settings/users/staffing"
+          path="people/staffing"
           element={<PermissionRoute allOf={[PermissionId.supervisor_dashboardread]}><SupervisorStaffingPage /></PermissionRoute>}
         />
         <Route
-          path="settings/users/new"
+          path="people/new"
           element={<PermissionRoute allOf={[PermissionId.peoplecreate]}><UserCreatePage /></PermissionRoute>}
         />
         <Route
-          path="settings/users/:personId"
+          path="people/:personId"
           element={<PermissionRoute allOf={[PermissionId.peoplereadall]}><UserDetailPage /></PermissionRoute>}
         />
+        <Route path="audit-log" element={<PermissionRoute allOf={[PermissionId.auditread]}><ActivityPage /></PermissionRoute>} />
+        <Route path="about" element={<InformationPage title="About" />} />
+        <Route path="legal-and-privacy" element={<InformationPage title="Legal & Privacy" />} />
+        <Route path="settings/users/*" element={<LegacyRedirect from="/settings/users" to="/people" />} />
+        <Route path="settings/activity" element={<LegacyRedirect from="/settings/activity" to="/audit-log" />} />
         <Route
           path="settings/roles"
           element={<PermissionRoute allOf={[PermissionId.rolesread]}><RolesPage /></PermissionRoute>}

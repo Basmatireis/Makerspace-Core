@@ -33,7 +33,7 @@ export function JobDetailPage() {
   if (query.isError) return <ErrorState message="This job could not be loaded." onRetry={() => query.refetch()} />;
   const job = query.data;
   return <Stack gap={7} className="machine-logbook-page detail-page">
-    <PageHeader title={job.displayId} description={`${job.machine.name} · ${formatDateTime(job.startsAt)}`} breadcrumbs={[{ label: 'Machine logbook', to: '/machine-logbook' }, { label: 'Jobs', to: '/machine-logbook/jobs' }, { label: job.displayId }]} actions={<><OutcomeTag outcome={job.outcome} /><BillingTag status={job.billingStatus} />{job.source === 'automatic' && <Tag type="gray">Automatic</Tag>}</>} />
+    <PageHeader title={job.displayId} description={`${job.machine.name} · ${formatDateTime(job.startsAt)}`} breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Jobs', to: '/machine-logbook/jobs' }, { label: job.displayId }]} actions={<><OutcomeTag outcome={job.outcome} /><BillingTag status={job.billingStatus} />{job.source === 'automatic' && <Tag type="gray">Automatic</Tag>}</>} />
     <div className="detail-grid">
       <DetailTile title="Machine & timing" rows={[['Machine', job.machine.name], ['Machine type', job.machine.machineType.name], ['Start', formatDateTime(job.startsAt)], ['End', formatDateTime(job.endsAt)], ['Duration', formatDuration(job.durationSeconds)], ['External ID', job.externalId ?? '—']]} />
       <DetailTile title="Customer & operator" rows={[['Customer', job.customer?.displayName ?? 'Deleted / unassigned'], ['Customer type', job.customer?.kind ?? '—'], ['Pricing group', job.pricingSnapshot?.pricingGroupName ?? '—'], ['Operator', job.operator?.displayName ?? 'Deleted / unassigned']]} />

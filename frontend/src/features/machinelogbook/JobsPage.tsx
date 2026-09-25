@@ -59,7 +59,7 @@ export function JobsPage() {
   const materialOptions = [...new Map(query.data.items.flatMap((job) => job.usages.map((usage) => [usage.materialId, usage.materialName] as const))).entries()];
 
   return <Stack gap={7} className="machine-logbook-page table-page">
-    <PageHeader title="Jobs" description={`${query.data.total} machine jobs`} breadcrumbs={[{ label: 'Machine logbook', to: '/machine-logbook' }, { label: 'Jobs' }]} actions={hasPermission(currentUser, PermissionId.machine_jobscreate) ? <Button renderIcon={Add} onClick={() => setCreateOpen(true)}>New job</Button> : undefined} />
+    <PageHeader title="Jobs" description={`${query.data.total} machine jobs`} breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Jobs' }]} actions={hasPermission(currentUser, PermissionId.machine_jobscreate) ? <Button renderIcon={Add} onClick={() => setCreateOpen(true)}>New job</Button> : undefined} />
     <div className="filter-bar jobs-filter-bar">
       <Search labelText="Search jobs, customers, machines, operators, or materials" value={filters.search ?? ''} onChange={(event) => update('search', event.currentTarget.value)} />
       <Select id="job-machine" labelText="Machine" value={params.get('machine') || ''} onChange={(e) => update('machine', e.target.value)}><SelectItem value="" text="All machines" />{machineOptions.map(([id, label]) => <SelectItem key={id} value={id} text={label} />)}</Select>

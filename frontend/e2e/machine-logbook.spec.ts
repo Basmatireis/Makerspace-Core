@@ -333,7 +333,7 @@ test('renders every machine-logbook page without browser errors and passes axe',
     if (message.type() === 'error') consoleErrors.push(`${new URL(page.url()).pathname}: ${message.text()}`);
   });
   const pages = [
-    ['/machine-logbook', 'Machine logbook'],
+    ['/machine-logbook', 'Machines'],
     ['/machine-logbook/jobs', 'Jobs'],
     [`/machine-logbook/jobs/${jobId}`, job.displayId],
     ['/machine-logbook/review', 'Review queue'],
@@ -341,7 +341,7 @@ test('renders every machine-logbook page without browser errors and passes axe',
     [`/machine-logbook/inventory/${materialId}`, material.name],
     ['/machine-logbook/machines', 'Machines'],
     ['/machine-logbook/statistics', 'Statistics'],
-    ['/settings/machine-logbook', 'Machine logbook configuration'],
+    ['/settings/machine-logbook', 'Machines configuration'],
   ] as const;
 
   for (const [path, heading] of pages) {

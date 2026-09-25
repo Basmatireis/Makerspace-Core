@@ -22,8 +22,11 @@ import type { CreateAccountRequestLoginEmail } from './createAccountRequestLogin
 import type { Version } from './version';
 
 export interface CreateAccountRequest {
-  /** @nullable */
-  loginEmail: CreateAccountRequestLoginEmail;
+  /**
+   * Optional login email. Omit or send null to create the Account without a password authentication identity.
+   * @nullable
+   */
+  loginEmail?: CreateAccountRequestLoginEmail;
   /** Expected version of the owning person loaded by the caller. */
   expectedVersion: Version;
 }

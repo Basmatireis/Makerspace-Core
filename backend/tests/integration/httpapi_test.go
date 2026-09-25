@@ -149,6 +149,47 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	if account.Status != openapi.AccountStatusDisabled || account.PasswordStatus != openapi.PasswordStatusNotSet {
 		t.Fatalf("new account state = %s/%s", account.Status, account.PasswordStatus)
 	}
+	createdLoginEmail, createdLoginEmailErr := account.LoginEmail.Get()
+	if createdLoginEmailErr != nil || createdLoginEmail != openapi.Email(memberLogin) {
+		t.Fatalf("new account login email = %#v, want %q", account.LoginEmail, memberLogin)
+	}
+	if len(account.AuthIdentities) != 1 || account.AuthIdentities[0].Kind != openapi.AuthIdentitySummaryKindPassword {
+		t.Fatalf("new account authentication identities = %#v, want one password identity", account.AuthIdentities)
+	}
+
+	for _, test := range []struct {
+		name          string
+		accountFields map[string]any
+	}{
+		{name: "omitted login email", accountFields: map[string]any{}},
+		{name: "null login email", accountFields: map[string]any{"loginEmail": nil}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/people", origin, adminCSRF, map[string]any{
+				"firstName": "No", "lastName": "Identity", "email": "independent-contact-" + uuid.NewString() + "@example.test",
+			})
+			assertStatus(t, response, http.StatusCreated)
+			var personWithoutIdentity openapi.Person
+			decodeResponse(t, response, &personWithoutIdentity)
+
+			requestBody := map[string]any{"expectedVersion": personWithoutIdentity.Version}
+			for key, value := range test.accountFields {
+				requestBody[key] = value
+			}
+			response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/people/"+personWithoutIdentity.Id.String()+"/account", origin, adminCSRF, requestBody)
+			assertStatus(t, response, http.StatusCreated)
+			var accountWithoutIdentity openapi.Account
+			decodeResponse(t, response, &accountWithoutIdentity)
+
+			if accountWithoutIdentity.Status != openapi.AccountStatusDisabled || accountWithoutIdentity.PasswordStatus != openapi.PasswordStatusNotSet {
+				t.Fatalf("identity-free account state = %s/%s", accountWithoutIdentity.Status, accountWithoutIdentity.PasswordStatus)
+			}
+			if !accountWithoutIdentity.LoginEmail.IsNull() || len(accountWithoutIdentity.AuthIdentities) != 0 {
+				t.Fatalf("identity-free account unexpectedly has authentication data: loginEmail=%#v identities=%#v", accountWithoutIdentity.LoginEmail, accountWithoutIdentity.AuthIdentities)
+			}
+			assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id = $1`, 0, accountWithoutIdentity.Id)
+		})
+	}
 
 	response = doJSON(t, adminClient, http.MethodPut, server.URL+"/api/v1/accounts/"+account.Id.String()+"/password", origin, adminCSRF, map[string]any{
 		"newPassword": memberPassword, "expectedVersion": account.Version,

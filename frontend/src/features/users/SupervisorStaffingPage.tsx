@@ -82,13 +82,12 @@ export function SupervisorStaffingPage() {
       <PageHeader
         title="Supervisor staffing"
         breadcrumbs={[
-          { label: 'Settings', to: '/settings' },
-          ...(canOpenPeople ? [{ label: 'People', to: '/settings/users' }] : [{ label: 'People' }]),
+          ...(canOpenPeople ? [{ label: 'People', to: '/people' }] : [{ label: 'People' }]),
           { label: 'Supervisor staffing' },
         ]}
         description="Profile-picture readiness, Lab Rules status, and staffing across active Open Day periods."
         actions={canOpenPeople ? (
-          <Button kind="tertiary" onClick={() => navigate('/settings/users')}>
+          <Button kind="tertiary" onClick={() => navigate('/people')}>
             People directory
           </Button>
         ) : undefined}
@@ -156,10 +155,10 @@ export function SupervisorStaffingPage() {
                       <TableCell key={cell.id}>
                         {cell.info.header === 'name' && canOpenPeople ? (
                           <CarbonLink
-                            href={`/settings/users/${row.id}`}
+                            href={`/people/${row.id}`}
                             onClick={(event) => {
                               event.preventDefault();
-                              navigate(`/settings/users/${row.id}`);
+                              navigate(`/people/${row.id}`);
                             }}
                           >
                             {String(cell.value)}

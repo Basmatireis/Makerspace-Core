@@ -9,6 +9,7 @@ import {
   Stack,
   Tag,
 } from '@carbon/react';
+import { Edit } from '@carbon/icons-react';
 import type { Person } from '../../api/generated/models';
 import { PersonAvatar } from './PersonAvatar';
 
@@ -21,6 +22,7 @@ type ProfilePictureEditorProps = {
   canRemove: boolean;
   isUploading: boolean;
   isRemoving: boolean;
+  trigger?: 'avatar' | 'button';
   onUpload: (file: File) => void;
   onRemove: () => void;
 };
@@ -34,6 +36,7 @@ export function ProfilePictureEditor({
   canRemove,
   isUploading,
   isRemoving,
+  trigger = 'avatar',
   onUpload,
   onRemove,
 }: ProfilePictureEditorProps) {
@@ -46,31 +49,45 @@ export function ProfilePictureEditor({
     <>
       <div className="profile-picture-editor">
         {canEdit ? (
-          <Button
-            kind="ghost"
-            className="profile-picture-editor__trigger"
-            aria-label={`Edit profile picture for ${fullName}`}
-            disabled={pending}
-            onClick={() => setOpen(true)}
-          >
+          trigger === 'button' ? (
+            <Button
+              kind="ghost"
+              size="sm"
+              renderIcon={Edit}
+              disabled={pending}
+              onClick={() => setOpen(true)}
+            >
+              Edit
+            </Button>
+          ) : (
+            <Button
+              kind="ghost"
+              className="profile-picture-editor__trigger"
+              aria-label={`Edit profile picture for ${fullName}`}
+              disabled={pending}
+              onClick={() => setOpen(true)}
+            >
+              <PersonAvatar
+                firstName={firstName}
+                lastName={lastName}
+                profileImage={profileImage}
+                size="lg"
+                decorative
+              />
+              <Tag type="cool-gray" size="sm" className="profile-picture-editor__badge">
+                Edit
+              </Tag>
+            </Button>
+          )
+        ) : (
+          trigger === 'avatar' ? (
             <PersonAvatar
               firstName={firstName}
               lastName={lastName}
               profileImage={profileImage}
               size="lg"
-              decorative
             />
-            <Tag type="cool-gray" size="sm" className="profile-picture-editor__badge">
-              Edit
-            </Tag>
-          </Button>
-        ) : (
-          <PersonAvatar
-            firstName={firstName}
-            lastName={lastName}
-            profileImage={profileImage}
-            size="lg"
-          />
+          ) : null
         )}
       </div>
 

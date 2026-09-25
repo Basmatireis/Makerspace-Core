@@ -35,7 +35,7 @@ export function UserCreatePage() {
       createPerson(request),
     onSuccess: async (person) => {
       await queryClient.invalidateQueries({ queryKey: peopleKeys.lists() });
-      navigate(`/settings/users/${person.id}`, { replace: true });
+      navigate(`/people/${person.id}`, { replace: true });
     },
   });
 
@@ -54,8 +54,7 @@ export function UserCreatePage() {
       <PageHeader
         title="Add person"
         breadcrumbs={[
-          { label: 'Settings', to: '/settings' },
-          { label: 'People', to: '/settings/users' },
+          { label: 'People', to: '/people' },
         ]}
         description="Create a person record. A login account can be added afterward."
       />
@@ -77,7 +76,7 @@ export function UserCreatePage() {
               editMatriculation={canWriteMatriculation}
             />
             <div className="form-actions">
-              <Button kind="secondary" type="button" onClick={() => navigate('/settings/users')}>
+              <Button kind="secondary" type="button" onClick={() => navigate('/people')}>
                 Cancel
               </Button>
               <Button type="submit" disabled={createMutation.isPending}>

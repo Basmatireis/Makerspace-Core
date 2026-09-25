@@ -633,8 +633,8 @@ paths:
     post:
       tags: [Accounts]
       operationId: createPersonAccount
-      summary: Create an account and email identity for a person
-      description: Requires `accounts.create`. New accounts are disabled and have no password until explicitly configured.
+      summary: Create an account for a person
+      description: Requires `accounts.create`. New accounts are disabled. If `loginEmail` is supplied, a password authentication identity is created without a password.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -4312,11 +4312,12 @@ components:
     CreateAccountRequest:
       type: object
       additionalProperties: false
-      required: [loginEmail, expectedVersion]
+      required: [expectedVersion]
       properties:
         loginEmail:
           allOf: [{$ref: "#/components/schemas/Email"}]
           nullable: true
+          description: Optional login email. Omit or send null to create the Account without a password authentication identity.
         expectedVersion:
           allOf:
             - $ref: "#/components/schemas/Version"

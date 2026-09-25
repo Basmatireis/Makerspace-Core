@@ -44,14 +44,14 @@ describe('Supervisor staffing inside People', () => {
       ),
     );
 
-    renderRoute(<App />, '/settings/users/staffing');
+    renderRoute(<App />, '/people/staffing');
 
     expect(await screen.findByRole('heading', { name: 'Supervisor staffing' })).toBeInTheDocument();
     expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Grace Hopper' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'People directory' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Supervisors' })).not.toBeInTheDocument();
-    expect(within(screen.getByLabelText('Breadcrumb')).getByRole('link', { name: 'Settings' })).toBeInTheDocument();
+    expect(within(screen.getByLabelText('Breadcrumb')).getByText('People')).toBeInTheDocument();
   });
 
   it('adds contextual links only when their original permissions are present', async () => {
@@ -68,11 +68,11 @@ describe('Supervisor staffing inside People', () => {
       ),
     );
 
-    renderRoute(<App />, '/settings/users/staffing');
+    renderRoute(<App />, '/people/staffing');
 
     expect(await screen.findByRole('link', { name: 'Grace Hopper' })).toHaveAttribute(
       'href',
-      `/settings/users/${otherPersonId}`,
+      `/people/${otherPersonId}`,
     );
     expect(screen.getByRole('link', { name: 'Autumn Open Days' })).toHaveAttribute(
       'href',

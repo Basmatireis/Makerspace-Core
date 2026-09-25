@@ -19,6 +19,23 @@ function peoplePage(items: ReturnType<typeof personFixture>[]) {
 }
 
 describe('People page', () => {
+  it('redirects the legacy directory URL and preserves its filters', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(currentUserFixture([PermissionId.peoplereadall])),
+      ),
+      http.get('*/api/v1/people', () =>
+        HttpResponse.json(peoplePage([])),
+      ),
+    );
+
+    const { router } = renderRoute(<App />, '/settings/users?search=Ada&page=2');
+
+    expect(await screen.findByRole('heading', { name: 'People' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/people');
+    expect(router.state.location.search).toBe('?search=Ada&page=2');
+  });
+
   it('renders permitted table columns and actions', async () => {
     const supervisorRole = roleFixture({ supervisorDashboard: true });
     server.use(
@@ -30,6 +47,7 @@ describe('People page', () => {
             PermissionId.peoplereadmatriculation,
             PermissionId.accountsread,
             PermissionId.rolesread,
+            PermissionId.laborordnungrequestsread,
             PermissionId.supervisor_dashboardread,
           ]),
         ),
@@ -52,31 +70,52 @@ describe('People page', () => {
           ]),
         ),
       ),
+      http.get(`*/api/v1/people/${otherPersonId}/makerspace-status`, () =>
+        HttpResponse.json({
+          laborordnungStatus: {
+            mode: 'warning',
+            state: 'current',
+            actionRequired: false,
+            currentVersion: null,
+            latestConfirmedVersion: null,
+            requestId: null,
+          },
+        }),
+      ),
     );
 
-    renderRoute(<App />, '/settings/users');
+    renderRoute(<App />, '/people');
 
     expect(await screen.findByText('Grace Hopper')).toBeInTheDocument();
-    const breadcrumbs = screen.getByLabelText('Breadcrumb');
-    expect(within(breadcrumbs).getByRole('link', { name: 'Settings' })).toBeInTheDocument();
-    expect(within(breadcrumbs).getByText('People')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'People' })).toHaveAttribute('href', '/people');
     const addPersonButton = screen.getByRole('button', { name: 'Add person' });
     expect(addPersonButton).toBeInTheDocument();
     expect(screen.getByLabelText('People table toolbar')).toContainElement(
       addPersonButton,
     );
-    expect(
-      screen.getByRole('columnheader', { name: /Matriculation number/ }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('columnheader', { name: /Account/ }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /Roles/ })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /Supervisor/ })).toBeInTheDocument();
-    expect(screen.getByText('M-0042')).toBeInTheDocument();
-    expect(screen.getByText('enabled')).toBeInTheDocument();
-    expect(screen.getByText('Workshop supervisors')).toBeInTheDocument();
-    expect(within(screen.getByRole('row', { name: /Grace Hopper/ })).getByText('Supervisor')).toBeInTheDocument();
+    const statusHeader = screen.getByRole('columnheader', { name: /Status/ });
+    const rolesHeader = screen.getByRole('columnheader', { name: /Roles/ });
+    const labRulesHeader = screen.getByRole('columnheader', { name: /Lab Rules/ });
+    expect(statusHeader).toHaveClass('people-table__status-column');
+    expect(rolesHeader).toBeInTheDocument();
+    expect(labRulesHeader).toBeInTheDocument();
+    expect(rolesHeader.compareDocumentPosition(labRulesHeader)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(labRulesHeader.compareDocumentPosition(statusHeader)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(screen.queryByRole('columnheader', { name: /Matriculation number/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Supervisor' })).not.toBeInTheDocument();
+    expect(screen.queryByText('M-0042')).not.toBeInTheDocument();
+    expect(screen.getByText('enabled').closest('td')).toHaveClass('people-table__status-column');
+    const supervisorRoleTag = screen.getByText('Workshop supervisors').closest('.cds--tag');
+    expect(supervisorRoleTag).toHaveClass('cds--tag--blue');
+    expect(supervisorRoleTag).toHaveAttribute('aria-label', 'Workshop supervisors, supervisor role');
+    expect((await screen.findByText('Current')).closest('.cds--tag')).toHaveClass(
+      'cds--tag--green',
+    );
+    expect(screen.getAllByRole('columnheader').at(-1)).toHaveTextContent('Status');
     expect(screen.getByRole('button', { name: 'Supervisor staffing' })).toBeInTheDocument();
     expect(document.querySelector('.people-table__avatar-cell img')).toHaveAttribute(
       'src',
@@ -111,7 +150,7 @@ describe('People page', () => {
 
     renderRoute(
       <App />,
-      `/settings/users?role=${roleFixture().id}&role=${secondRole.id}`,
+      `/people?role=${roleFixture().id}&role=${secondRole.id}`,
     );
 
     expect(
@@ -139,16 +178,17 @@ describe('People page', () => {
       ),
     );
 
-    renderRoute(<App />, '/settings/users');
+    renderRoute(<App />, '/people');
 
     expect(await screen.findByText('Grace Hopper')).toBeInTheDocument();
     expect(
       screen.queryByRole('columnheader', { name: /Matriculation number/ }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('columnheader', { name: /Account/ }),
+      screen.queryByRole('columnheader', { name: /Status/ }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Roles/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Lab Rules/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add person' })).not.toBeInTheDocument();
   });
 
@@ -174,7 +214,7 @@ describe('People page', () => {
     );
     const user = userEvent.setup();
 
-    renderRoute(<App />, '/settings/users');
+    renderRoute(<App />, '/people');
 
     await screen.findByText('Grace Hopper');
     await user.click(screen.getByRole('checkbox', { name: /select row/i }));
@@ -219,7 +259,7 @@ describe('People page', () => {
     );
     const user = userEvent.setup();
 
-    renderRoute(<App />, '/settings/users');
+    renderRoute(<App />, '/people');
 
     await screen.findByText('Grace Hopper');
     await user.click(screen.getByRole('checkbox', { name: /select row/i }));
@@ -235,6 +275,57 @@ describe('People page', () => {
     await waitFor(() => expect(roleRequest).toEqual({ expectedVersion: 1 }));
   });
 
+  it('permanently deletes selected accounts while retaining their people', async () => {
+    const account = accountFixture();
+    let accountDeleted = false;
+    let deleteRequest: unknown;
+    let deletedAccountId: string | undefined;
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.peoplereadall,
+            PermissionId.accountsread,
+            PermissionId.accountsdelete,
+          ]),
+        ),
+      ),
+      http.get('*/api/v1/people', () =>
+        HttpResponse.json(
+          peoplePage([
+            personFixture({ account: accountDeleted ? null : account }),
+          ]),
+        ),
+      ),
+      http.delete('*/api/v1/accounts/:accountId', async ({ params, request }) => {
+        deletedAccountId = String(params.accountId);
+        deleteRequest = await request.json();
+        accountDeleted = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+
+    renderRoute(<App />, '/people');
+
+    await screen.findByText('Grace Hopper');
+    await user.click(screen.getByRole('checkbox', { name: /select row/i }));
+    await user.click(screen.getByRole('button', { name: 'Delete accounts' }));
+    const dialog = screen.getByRole('dialog', {
+      name: 'Delete accounts permanently?',
+    });
+    expect(within(dialog).getByText(/people records remain/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/cannot be undone/i)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Delete accounts' }));
+
+    await waitFor(() => {
+      expect(deletedAccountId).toBe(account.id);
+      expect(deleteRequest).toEqual({ expectedVersion: account.version });
+    });
+    expect(await screen.findByText('Accounts deleted')).toBeInTheDocument();
+    expect(screen.getByText('No account')).toBeInTheDocument();
+  });
+
   it('moves from the loading state to the empty state', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
@@ -246,7 +337,7 @@ describe('People page', () => {
       }),
     );
 
-    renderRoute(<App />, '/settings/users');
+    renderRoute(<App />, '/people');
 
     expect(await screen.findByText('Loading people')).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'No people found' })).toBeInTheDocument();
@@ -266,7 +357,7 @@ describe('People page', () => {
       ),
     );
 
-    renderRoute(<App />, '/settings/users');
+    renderRoute(<App />, '/people');
 
     expect(await screen.findByText('Unable to load people')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();

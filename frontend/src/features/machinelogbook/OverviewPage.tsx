@@ -15,14 +15,14 @@ import { overviewQuery } from './queries';
 export function MachineLogbookOverviewPage() {
   const currentUser = useCurrentUser();
   const query = useQuery(overviewQuery());
-  if (query.isPending) return <FullPageLoading label="Loading machine logbook" />;
+  if (query.isPending) return <FullPageLoading label="Loading machines" />;
   if (query.isError) return <ErrorState message="The overview could not be loaded." onRetry={() => query.refetch()} />;
   const data = query.data;
   const chartData = data.activity.map((point) => ({ group: 'Jobs', key: point.date, value: point.count }));
   const chartOptions = { title: 'Job activity — last 7 days', axes: { left: { mapsTo: 'value', scaleType: ScaleTypes.LINEAR }, bottom: { mapsTo: 'key', scaleType: ScaleTypes.LABELS } }, height: '280px', legend: { enabled: false }, toolbar: { enabled: false }, accessibility: { svgAriaLabel: 'Bar chart of machine jobs per day' } };
 
   return <Stack gap={7} className="machine-logbook-page">
-    <PageHeader title="Machine logbook" description="Operational overview of machine use, billing, and stock." actions={<>
+    <PageHeader title="Machines" description="Operational overview of machine use, billing, and stock." actions={<>
       {hasPermission(currentUser, PermissionId.inventorymanage) && <Button as={Link} to="/machine-logbook/inventory" kind="secondary" renderIcon={InventoryManagement}>Add material</Button>}
       {hasPermission(currentUser, PermissionId.machine_jobscreate) && <Button as={Link} to="/machine-logbook/jobs?new=1" renderIcon={Add}>New job</Button>}
     </>} />

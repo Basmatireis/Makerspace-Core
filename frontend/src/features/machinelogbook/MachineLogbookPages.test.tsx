@@ -290,7 +290,7 @@ describe('Machine Logbook pages', () => {
     );
     const user = userEvent.setup();
     renderRoute(<App />, '/settings/machine-logbook');
-    expect(await screen.findByRole('heading', { name: 'Machine logbook configuration' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Machines configuration' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Edit' }));
     let dialog = await screen.findByRole('dialog');
     await user.clear(within(dialog).getByLabelText('Name'));

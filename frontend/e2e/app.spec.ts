@@ -4,6 +4,9 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 type ApiState = {
   authenticated: boolean;
   expirePasswordChange?: boolean;
+  person?: ReturnType<typeof managedPerson>;
+  people?: ReturnType<typeof managedPerson>[];
+  makerspaceStatus?: ReturnType<typeof personMakerspaceStatus>;
   role?: ReturnType<typeof customRole>;
   user?: ReturnType<typeof currentUser>;
 };
@@ -13,6 +16,8 @@ const accountId = '0192f6f8-743e-7c77-a349-cd07c3e8a902';
 const roleId = '0192f6f8-743e-7c77-a349-cd07c3e8a903';
 const pageErrors = new WeakMap<Page, Error[]>();
 const passwordIdentityId = '0192f6f8-743e-7c77-a349-cd07c3e8a904';
+const managedPersonId = '0192f6f8-743e-7c77-a349-cd07c3e8a905';
+const managedAccountId = '0192f6f8-743e-7c77-a349-cd07c3e8a906';
 
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -94,6 +99,54 @@ function customRole() {
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
     version: 1,
+  };
+}
+
+function managedPerson(role = customRole()) {
+  return {
+    id: managedPersonId,
+    firstName: 'Grace',
+    lastName: 'Hopper',
+    email: 'grace@example.test',
+    phone: null,
+    matriculationNumber: 'M-0042',
+    account: {
+      id: managedAccountId,
+      personId: managedPersonId,
+      loginEmail: 'grace.login@example.test',
+      provisioningSource: 'local',
+      firstAuthenticatedAt: '2026-01-01T00:00:00Z',
+      authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'grace.login@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, createdAt: '2026-01-01T00:00:00Z' }],
+      status: 'enabled',
+      passwordStatus: 'active',
+      roles: [{ id: role.id, name: role.name, systemKey: role.systemKey }],
+      version: 1,
+    },
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+    version: 1,
+  };
+}
+
+function personMakerspaceStatus() {
+  return {
+    laborordnungStatus: {
+      mode: 'warning',
+      state: 'outdated',
+      actionRequired: true,
+      currentVersion: { humanRevision: '2026-09' },
+      latestConfirmedVersion: { humanRevision: '2025-09' },
+      requestId: null,
+    },
+    upcomingOpenDayAssignments: [{
+      assignmentId: '0192f6f8-743e-7c77-a349-cd07c3e8a930',
+      openDayId: '0192f6f8-743e-7c77-a349-cd07c3e8a931',
+      periodId: '0192f6f8-743e-7c77-a349-cd07c3e8a932',
+      periodName: 'Autumn Open Days',
+      startsAt: '2026-10-10T08:00:00Z',
+      endsAt: '2026-10-10T12:00:00Z',
+      role: 'supervisor',
+    }],
   };
 }
 
@@ -180,6 +233,27 @@ async function installApi(page: Page, state: ApiState) {
       return;
     }
 
+    if (state.person && path === `/api/v1/people/${state.person.id}` && request.method() === 'GET') {
+      await json(route, state.person);
+      return;
+    }
+
+    const makerspaceStatusPersonId = path.match(/^\/api\/v1\/people\/([^/]+)\/makerspace-status$/)?.[1];
+    const mayReturnMakerspaceStatus = makerspaceStatusPersonId && (
+      state.person?.id === makerspaceStatusPersonId ||
+      state.people?.some((person) => person.id === makerspaceStatusPersonId)
+    );
+    if (state.makerspaceStatus && mayReturnMakerspaceStatus && request.method() === 'GET') {
+      await json(route, state.makerspaceStatus);
+      return;
+    }
+
+    if (path === '/api/v1/people' && request.method() === 'GET') {
+      const people = state.people ?? [];
+      await json(route, { items: people, page: 1, pageSize: 25, total: people.length });
+      return;
+    }
+
     throw new Error(`Unexpected API request: ${request.method()} ${path}`);
   });
 }
@@ -212,7 +286,8 @@ test('signs in, renders the protected shell, and passes an accessibility scan', 
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
   await expect(page.getByText('Welcome, Ada.')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Administration' })).toBeVisible();
+  await expect(page.getByText('Administration', { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Settings' })).toBeVisible();
   const skipLink = page.getByRole('link', { name: 'Skip to main content' });
   await expect(skipLink).toHaveAttribute('href', '#main-content');
   await skipLink.focus();
@@ -221,16 +296,16 @@ test('signs in, renders the protected shell, and passes an accessibility scan', 
   await expectNoSeriousAccessibilityViolations(page);
 });
 
-test('shows only authorized settings tools and exposes self-service profile access', async ({ page }) => {
+test('shows promoted People navigation and exposes self-service profile access', async ({ page }) => {
   await installApi(page, {
     authenticated: true,
     user: currentUser(['people.read.all', 'people.update.self']),
   });
 
-  await page.goto('/settings');
-  await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'People' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Roles' })).toHaveCount(0);
+  await page.goto('/people');
+  await expect(page.getByRole('heading', { name: 'People', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'People' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Settings' })).toHaveCount(0);
   await expectNoSeriousAccessibilityViolations(page);
 
   const profileMenuButton = page.getByRole('button', {
@@ -252,6 +327,149 @@ test('shows only authorized settings tools and exposes self-service profile acce
   await expect(page.getByRole('heading', { name: 'Profile', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Edit profile' })).toBeVisible();
   await expect(page.getByText('Matriculation number')).toHaveCount(0);
+  await expectNoSeriousAccessibilityViolations(page);
+});
+
+test('shows Lab Rules between roles and a centered Status column', async ({ page }) => {
+  const role = { ...customRole(), supervisorDashboard: true };
+  const person = managedPerson(role);
+  await installApi(page, {
+    authenticated: true,
+    people: [person],
+    makerspaceStatus: personMakerspaceStatus(),
+    role,
+    user: currentUser([
+      'people.read.all',
+      'accounts.read',
+      'roles.read',
+      'laborordnung.requests.read',
+    ]),
+  });
+
+  await page.goto('/people');
+  const rolesHeader = page.getByRole('columnheader', { name: 'Roles' });
+  const labRulesHeader = page.getByRole('columnheader', { name: 'Lab Rules' });
+  const statusHeader = page.getByRole('columnheader', { name: 'Status' });
+  const personRow = page.getByRole('row', { name: /Grace Hopper/ });
+  const statusTag = personRow.getByText('enabled', { exact: true });
+  const statusCell = statusTag.locator('xpath=ancestor::td[1]');
+  await expect(personRow.getByText('Acknowledgement outdated')).toBeVisible();
+  const [rolesBounds, labRulesBounds, headerBounds, cellBounds, tagBounds] = await Promise.all([
+    rolesHeader.boundingBox(),
+    labRulesHeader.boundingBox(),
+    statusHeader.boundingBox(),
+    statusCell.boundingBox(),
+    statusTag.boundingBox(),
+  ]);
+  if (!rolesBounds || !labRulesBounds || !headerBounds || !cellBounds || !tagBounds) {
+    throw new Error('Could not measure the People table column alignment.');
+  }
+  expect(rolesBounds.x).toBeLessThan(labRulesBounds.x);
+  expect(labRulesBounds.x).toBeLessThan(headerBounds.x);
+  expect(await statusHeader.evaluate((element) => getComputedStyle(element).textAlign)).toBe('center');
+  expect(Math.abs(
+    (cellBounds.x + (cellBounds.width / 2)) - (tagBounds.x + (tagBounds.width / 2)),
+  )).toBeLessThanOrEqual(1);
+  await expect(personRow.getByLabel(`${role.name}, supervisor role`)).toHaveClass(/cds--tag--blue/);
+});
+
+test('renders the responsive person detail hierarchy and functional tabs', async ({ page }) => {
+  const role = customRole();
+  const person = managedPerson(role);
+  await installApi(page, {
+    authenticated: true,
+    person,
+    makerspaceStatus: personMakerspaceStatus(),
+    role,
+    user: currentUser([
+      'people.read.all',
+      'people.read.matriculation',
+      'people.update.all',
+      'people.profile_image.update.all',
+      'accounts.read',
+      'accounts.password.reset',
+      'accounts.roles.assign',
+      'roles.read',
+      'open_days.read_assignments',
+      'laborordnung.requests.read',
+    ]),
+  });
+
+  await page.goto(`/people/${person.id}`);
+  await expect(page.getByRole('heading', { name: 'Grace Hopper' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('heading', { name: 'Profile picture', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Account access' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Makerspace status' })).toBeVisible();
+  await expect(page.getByText(/Included in supervisor staffing through/)).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Supervisor staffing' })).toHaveCount(0);
+
+  const cardBounds = async (heading: string) => {
+    const bounds = await page
+      .getByRole('heading', { name: heading, exact: true })
+      .locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " person-detail-card ")][1]')
+      .boundingBox();
+    if (!bounds) throw new Error(`Could not measure the ${heading} card.`);
+    return bounds;
+  };
+  const [profile, accountAccess, personalInformation, authenticationMethods, roles] = await Promise.all([
+    cardBounds('Profile picture'),
+    cardBounds('Account access'),
+    cardBounds('Personal information'),
+    cardBounds('Authentication methods'),
+    cardBounds('Roles'),
+  ]);
+  expect(Math.abs(profile.y - accountAccess.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs((profile.y + profile.height) - (accountAccess.y + accountAccess.height))).toBeLessThanOrEqual(1);
+  expect(profile.height).toBeLessThanOrEqual(260);
+  const actionsButton = await page.getByRole('button', { name: 'Actions', exact: true }).boundingBox();
+  if (!actionsButton) throw new Error('Could not measure the page Actions button.');
+  expect(Math.abs(
+    (actionsButton.x + actionsButton.width) - (accountAccess.x + accountAccess.width),
+  )).toBeLessThanOrEqual(1);
+  expect(accountAccess.x - (profile.x + profile.width)).toBeGreaterThanOrEqual(16);
+  expect(Math.abs(profile.x - personalInformation.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(accountAccess.x - authenticationMethods.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(personalInformation.y - authenticationMethods.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(
+    (personalInformation.y + personalInformation.height) - (roles.y + roles.height),
+  )).toBeLessThanOrEqual(1);
+
+  const profileCard = page
+    .getByRole('heading', { name: 'Profile picture', exact: true })
+    .locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " person-detail-card ")][1]');
+  const [profileHeading, profileAvatar, profileEdit, accountHeading] = await Promise.all([
+    profileCard.getByRole('heading', { name: 'Profile picture', exact: true }).boundingBox(),
+    profileCard.locator('.person-detail-card__heading-content .person-avatar').boundingBox(),
+    profileCard.getByRole('button', { name: 'Edit', exact: true }).boundingBox(),
+    page.getByRole('heading', { name: 'Account access', exact: true }).boundingBox(),
+  ]);
+  if (!profileHeading || !profileAvatar || !profileEdit || !accountHeading) {
+    throw new Error('Could not measure the compact Profile picture header.');
+  }
+  const profileHeadingCenter = profileHeading.x + (profileHeading.width / 2);
+  const profileAvatarCenter = profileAvatar.x + (profileAvatar.width / 2);
+  const profileAvatarMiddle = profileAvatar.y + (profileAvatar.height / 2);
+  const profileEditCenter = profileEdit.x + (profileEdit.width / 2);
+  expect(profileHeadingCenter).toBeLessThan(profileAvatarCenter);
+  expect(profileAvatarCenter).toBeLessThan(profileEditCenter);
+  expect(Math.abs(profileAvatarCenter - (profile.x + (profile.width / 2)))).toBeLessThanOrEqual(1);
+  expect(Math.abs(profileAvatarMiddle - (profile.y + (profile.height / 2)))).toBeLessThanOrEqual(1);
+  await expect(profileCard.getByText('Grace Hopper', { exact: true })).toHaveCount(0);
+  expect(Math.abs(profileHeading.y - accountHeading.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(
+    (profileEdit.y + (profileEdit.height / 2)) - (accountHeading.y + (accountHeading.height / 2)),
+  )).toBeLessThanOrEqual(8);
+
+  await page.getByRole('tab', { name: 'Account access' }).click();
+  await expect(page).toHaveURL(new RegExp(`/people/${person.id}\\?tab=account-access$`));
+  await page.getByRole('button', { name: 'Actions for Local password' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Send reset code' })).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  await page.getByRole('tab', { name: 'Makerspace status' }).click();
+  await expect(page.getByRole('heading', { name: 'Lab Rules' })).toBeVisible();
+  await expect(page.getByText('Autumn Open Days')).toBeVisible();
   await expectNoSeriousAccessibilityViolations(page);
 });
 

@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 
 const masterLogin = 'e2e-master@example.test';
@@ -95,24 +96,26 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
   });
 
   await test.step('create a Person and provision, enable, and assign its Account', async () => {
-    await page.goto('/settings/users/new');
+    await page.goto('/people/new');
     await page.getByLabel('First name').fill('Katherine');
     await page.getByLabel('Last name').fill('Johnson');
     await page.getByLabel('Contact email').fill('e2e-contact@example.test');
     await page.getByLabel('Matriculation number').fill('E2E-MAT-2042');
     await page.getByRole('button', { name: 'Create person' }).click();
-    await expect(page).toHaveURL(/\/settings\/users\/[0-9a-f-]+$/);
+    await expect(page).toHaveURL(/\/people\/[0-9a-f-]+$/);
     personPath = new URL(page.url()).pathname;
     await expect(
       page.getByRole('heading', { name: 'Katherine Johnson' }),
     ).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+    expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
 
-    await page.getByRole('button', { name: 'Actions' }).click();
+    await page.getByRole('button', { name: 'Actions', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Create account' }).click();
     const createAccountDialog = page.getByRole('dialog', {
       name: 'Katherine Johnson',
     });
-    await createAccountDialog.getByLabel('Login email').fill(memberLogin);
+    await createAccountDialog.getByLabel('Login email (optional)').fill(memberLogin);
     await createAccountDialog
       .getByRole('button', { name: 'Create account' })
       .click();
@@ -137,6 +140,9 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     });
     expect(passwordResponse.ok()).toBeTruthy();
     await page.reload();
+    await page.getByRole('button', { name: 'Actions for Local password' }).click();
+    await expect(page.getByRole('menuitem', { name: 'Send reset code' })).toBeVisible();
+    await page.keyboard.press('Escape');
     await expect(
       page.getByRole('button', { name: 'Enable account' }),
     ).toBeEnabled();
@@ -145,8 +151,8 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
       page.getByRole('button', { name: 'Disable account' }),
     ).toBeVisible();
 
-    await page.getByRole('button', { name: 'Actions' }).click();
-    await page.getByRole('menuitem', { name: 'Assign role' }).click();
+    await page.getByRole('button', { name: 'Actions', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Manage roles' }).click();
     const assignRoleDialog = page.getByRole('dialog');
     await assignRoleDialog.getByText('Choose a role').click();
     await page.getByRole('option', { name: 'E2E workshop supervisors' }).click();
@@ -162,13 +168,13 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await signOut(page);
     await signIn(page, memberLogin, memberPassword);
 
-    await page.goto('/settings/users');
+    await page.goto('/people');
     await expect(page.getByRole('heading', { name: 'People' })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Name' })).toBeVisible();
     await expect(
       page.getByRole('columnheader', { name: 'Matriculation number' }),
     ).toHaveCount(0);
-    await expect(page.getByRole('columnheader', { name: 'Account' })).toHaveCount(0);
+    await expect(page.getByRole('columnheader', { name: 'Status' })).toHaveCount(0);
     await expect(page.getByText('E2E-MAT-2042')).toHaveCount(0);
 
     await page.getByRole('link', { name: 'E2E Administrator' }).click();
@@ -190,7 +196,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await page.getByRole('button', { name: 'Delete person' }).click();
     await expect(page.getByText('Delete person permanently?')).toBeVisible();
     await page.getByRole('button', { name: 'Delete person' }).last().click();
-    await expect(page).toHaveURL(/\/settings\/users$/);
+    await expect(page).toHaveURL(/\/people$/);
     await expect(page.getByText('Katherine Johnson')).toHaveCount(0);
 
     await page.goto(rolePath);

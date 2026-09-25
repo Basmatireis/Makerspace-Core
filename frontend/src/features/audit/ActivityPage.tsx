@@ -57,8 +57,7 @@ export function ActivityPage() {
   return (
     <Stack gap={7} className="activity-page table-page">
       <PageHeader
-        title="Activity log"
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Activity log' }]}
+        title="Audit Log"
         description="Review privacy-minimized administrative and account activity. Names reflect current records and disappear after deletion."
       />
       <div className="activity-filters">
@@ -92,7 +91,7 @@ export function ActivityPage() {
           <DataTable rows={rows} headers={headers}>
             {({ rows: tableRows, headers: tableHeaders, getHeaderProps, getRowProps, getTableProps }) => (
               <TableContainer>
-                <Table {...getTableProps()} tabIndex={0} aria-label="Activity log">
+                <Table {...getTableProps()} tabIndex={0} aria-label="Audit Log">
                   <TableHead><TableRow>{tableHeaders.map((header) => <TableHeader {...getHeaderProps({ header })} key={header.key}>{header.header}</TableHeader>)}</TableRow></TableHead>
                   <TableBody>{tableRows.map((row) => <TableRow {...getRowProps({ row })} key={row.id}>{row.cells.map((cell) => <TableCell key={cell.id}>{String(cell.value)}</TableCell>)}</TableRow>)}</TableBody>
                 </Table>
