@@ -624,16 +624,9 @@ func (s *Service) Unlink(ctx context.Context, principal authorization.Principal,
 	} else if !principal.Has(authorization.OIDCUnlinkAll) {
 		return apperror.PermissionDenied
 	}
-	status, err := queries.GetAccountStatusForUpdate(ctx, identity.AccountID)
+	_, err = queries.GetAccountStatusForUpdate(ctx, identity.AccountID)
 	if err != nil {
 		return err
-	}
-	usable, err := queries.CountUsableIdentities(ctx, oidcdb.CountUsableIdentitiesParams{AccountID: identity.AccountID, ExcludedIdentityID: identityID})
-	if err != nil {
-		return err
-	}
-	if status == "enabled" && usable == 0 {
-		return apperror.New(409, "last_authentication_method", "An enabled account must retain an authentication method")
 	}
 	if err := queries.DeleteOIDCIdentity(ctx, identityID); err != nil {
 		return err

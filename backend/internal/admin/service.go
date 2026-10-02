@@ -169,13 +169,13 @@ func (s *Service) RecoverMaster(ctx context.Context, email, password string) (uu
 	return account.ID, nil
 }
 
-// ResetPassword replaces or creates only the local-password method belonging
-// to one unambiguously identified existing Account. It deliberately has no
-// master-availability precondition and never changes Account status or Roles.
-func (s *Service) ResetPassword(ctx context.Context, identifier, password string) (uuid.UUID, error) {
-	identifier = strings.TrimSpace(identifier)
-	if identifier == "" || len(identifier) > 512 {
-		return uuid.Nil, errors.New("an existing account login email or identifier is required")
+// ResetPassword replaces the credential for one existing password identity.
+// It deliberately has no master-availability precondition and never changes
+// Account status or Roles.
+func (s *Service) ResetPassword(ctx context.Context, loginEmail, password string) (uuid.UUID, error) {
+	_, normalizedLoginEmail, err := security.NormalizeEmail(loginEmail)
+	if err != nil {
+		return uuid.Nil, errors.New("an existing password login email is required")
 	}
 	hash, err := security.HashPassword(password)
 	if err != nil {
@@ -187,52 +187,31 @@ func (s *Service) ResetPassword(ctx context.Context, identifier, password string
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := accountsdb.New(tx)
-	matches, err := queries.FindAccountsByAdministrativeIdentifier(ctx, identifier)
+	target, err := queries.GetAccountIdentityByLoginEmail(ctx, normalizedLoginEmail)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, errors.New("no existing password identity has that login email")
+	}
 	if err != nil {
 		return uuid.Nil, err
 	}
-	if len(matches) == 0 {
-		return uuid.Nil, errors.New("no existing account matches that login email or identifier")
-	}
-	if len(matches) != 1 {
-		return uuid.Nil, errors.New("identifier is ambiguous; no changes were made")
-	}
-	accountID := matches[0]
+	accountID := target.ID
 	if _, err := queries.GetAccountForMutation(ctx, accountID); err != nil {
 		return uuid.Nil, err
 	}
-	lockedMatches, err := queries.FindAccountsByAdministrativeIdentifier(ctx, identifier)
+	lockedTarget, err := queries.GetAccountIdentityByLoginEmail(ctx, normalizedLoginEmail)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, errors.New("the password login email changed during reset; retry")
+	}
 	if err != nil {
 		return uuid.Nil, err
 	}
-	if len(lockedMatches) != 1 || lockedMatches[0] != accountID {
-		return uuid.Nil, errors.New("identifier changed or became ambiguous; no changes were made")
+	if lockedTarget.ID != target.ID || lockedTarget.AuthIdentityID != target.AuthIdentityID {
+		return uuid.Nil, errors.New("the password login email changed during reset; retry")
 	}
-	identity, err := queries.GetPasswordIdentityForAccountForUpdate(ctx, accountID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		contactEmail, emailErr := queries.GetPersonEmailForAccount(ctx, accountID)
-		if emailErr != nil {
-			return uuid.Nil, emailErr
-		}
-		if contactEmail == nil {
-			return uuid.Nil, errors.New("account has no local-password identity and its Person has no email; no changes were made")
-		}
-		display, normalized, normalizeErr := security.NormalizeEmail(*contactEmail)
-		if normalizeErr != nil {
-			return uuid.Nil, fmt.Errorf("Person contact email cannot be used for local login: %w", normalizeErr)
-		}
-		identity, err = queries.CreateVerifiedPasswordIdentity(ctx, accountsdb.CreateVerifiedPasswordIdentityParams{
-			ID: uuid.Must(uuid.NewV7()), AccountID: accountID, IdentifierDisplay: &display, IdentifierNormalized: &normalized,
-		})
-		if err != nil {
-			return uuid.Nil, fmt.Errorf("create local-password identity without guessing: %w", err)
-		}
-	} else if err != nil {
-		return uuid.Nil, err
-	} else if err := queries.RestorePasswordIdentity(ctx, identity.ID); err != nil {
+	if err := queries.RestorePasswordIdentity(ctx, target.AuthIdentityID); err != nil {
 		return uuid.Nil, err
 	}
-	if err := queries.UpsertPasswordCredential(ctx, accountsdb.UpsertPasswordCredentialParams{AuthIdentityID: identity.ID, PasswordHash: hash}); err != nil {
+	if err := queries.UpsertPasswordCredential(ctx, accountsdb.UpsertPasswordCredentialParams{AuthIdentityID: target.AuthIdentityID, PasswordHash: hash}); err != nil {
 		return uuid.Nil, err
 	}
 	if err := queries.RevokeSessionsForAccount(ctx, accountsdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: ptr("admin_password_reset")}); err != nil {

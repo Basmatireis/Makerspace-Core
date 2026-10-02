@@ -44,7 +44,7 @@ function currentUser(permissions: string[] = []) {
         loginEmail: 'ada.login@example.test',
         provisioningSource: 'local',
         firstAuthenticatedAt: '2026-01-01T00:00:00Z',
-        authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, createdAt: '2026-01-01T00:00:00Z' }],
+        authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, usable: true, createdAt: '2026-01-01T00:00:00Z' }],
         status: 'enabled',
         passwordStatus: 'active',
         roles: [],
@@ -60,7 +60,7 @@ function currentUser(permissions: string[] = []) {
       loginEmail: 'ada.login@example.test',
       provisioningSource: 'local',
       firstAuthenticatedAt: '2026-01-01T00:00:00Z',
-      authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, createdAt: '2026-01-01T00:00:00Z' }],
+      authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, usable: true, createdAt: '2026-01-01T00:00:00Z' }],
       status: 'enabled',
       passwordStatus: 'active',
       roles: [],
@@ -116,7 +116,7 @@ function managedPerson(role = customRole()) {
       loginEmail: 'grace.login@example.test',
       provisioningSource: 'local',
       firstAuthenticatedAt: '2026-01-01T00:00:00Z',
-      authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'grace.login@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, createdAt: '2026-01-01T00:00:00Z' }],
+      authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'grace.login@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, usable: true, createdAt: '2026-01-01T00:00:00Z' }],
       status: 'enabled',
       passwordStatus: 'active',
       roles: [{ id: role.id, name: role.name, systemKey: role.systemKey }],
@@ -315,7 +315,7 @@ test('shows promoted People navigation and exposes self-service profile access',
   await expect(
     page.getByRole('button', { name: 'Close profile menu for Ada Lovelace' }),
   ).toBeVisible();
-  await expect(page.getByText('ada.login@example.test')).toBeVisible();
+  await expect(page.getByText('ada@example.test')).toBeVisible();
   await page.getByRole('button', { name: 'View profile' }).focus();
   await page.keyboard.press('Escape');
   await expect(profileMenuButton).toBeFocused();
@@ -325,7 +325,34 @@ test('shows promoted People navigation and exposes self-service profile access',
 
   await expect(page).toHaveURL(/\/profile$/);
   await expect(page.getByRole('heading', { name: 'Profile', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Edit profile' })).toBeVisible();
+  const profileCard = page
+    .getByRole('heading', { name: 'Profile picture', exact: true })
+    .locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " person-detail-card ")][1]');
+  const personalInformationCard = page
+    .getByRole('heading', { name: 'Personal information', exact: true })
+    .locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " person-detail-card ")][1]');
+  await expect(profileCard.getByRole('button', { name: 'Edit', exact: true })).toHaveCount(0);
+  await expect(personalInformationCard.getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Authentication methods' })).toBeVisible();
+
+  const cardBounds = async (heading: string) => {
+    const bounds = await page
+      .getByRole('heading', { name: heading, exact: true })
+      .locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " person-detail-card ")][1]')
+      .boundingBox();
+    if (!bounds) throw new Error(`Could not measure the ${heading} profile card.`);
+    return bounds;
+  };
+  const [profile, accountAccess, personalInformation, authenticationMethods] = await Promise.all([
+    cardBounds('Profile picture'),
+    cardBounds('Account access'),
+    cardBounds('Personal information'),
+    cardBounds('Authentication methods'),
+  ]);
+  expect(Math.abs(profile.y - accountAccess.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs((profile.y + profile.height) - (accountAccess.y + accountAccess.height))).toBeLessThanOrEqual(1);
+  expect(Math.abs(profile.x - personalInformation.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(accountAccess.x - authenticationMethods.x)).toBeLessThanOrEqual(1);
   await expect(page.getByText('Matriculation number')).toHaveCount(0);
   await expectNoSeriousAccessibilityViolations(page);
 });
@@ -351,7 +378,7 @@ test('shows Lab Rules between roles and a centered Status column', async ({ page
   const labRulesHeader = page.getByRole('columnheader', { name: 'Lab Rules' });
   const statusHeader = page.getByRole('columnheader', { name: 'Status' });
   const personRow = page.getByRole('row', { name: /Grace Hopper/ });
-  const statusTag = personRow.getByText('enabled', { exact: true });
+  const statusTag = personRow.getByText('Active', { exact: true });
   const statusCell = statusTag.locator('xpath=ancestor::td[1]');
   await expect(personRow.getByText('Acknowledgement outdated')).toBeVisible();
   const [rolesBounds, labRulesBounds, headerBounds, cellBounds, tagBounds] = await Promise.all([
@@ -461,6 +488,23 @@ test('renders the responsive person detail hierarchy and functional tabs', async
     (profileEdit.y + (profileEdit.height / 2)) - (accountHeading.y + (accountHeading.height / 2)),
   )).toBeLessThanOrEqual(8);
 
+  await page.getByRole('tab', { name: 'Personal information' }).click();
+  await expect(page.getByRole('heading', { name: 'Profile picture', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Personal information', exact: true })).toBeVisible();
+  const [focusedProfile, focusedPersonalInformation] = await Promise.all([
+    cardBounds('Profile picture'),
+    cardBounds('Personal information'),
+  ]);
+  expect(Math.abs(focusedProfile.x - profile.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(focusedProfile.width - profile.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(focusedPersonalInformation.x - accountAccess.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(focusedPersonalInformation.width - accountAccess.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(focusedProfile.y - focusedPersonalInformation.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(
+    (focusedProfile.y + focusedProfile.height) -
+    (focusedPersonalInformation.y + focusedPersonalInformation.height),
+  )).toBeLessThanOrEqual(1);
+
   await page.getByRole('tab', { name: 'Account access' }).click();
   await expect(page).toHaveURL(new RegExp(`/people/${person.id}\\?tab=account-access$`));
   await page.getByRole('button', { name: 'Actions for Local password' }).click();
@@ -521,12 +565,16 @@ test('redirects to sign in when an authenticated request reports session expiry'
   await installApi(page, state);
 
   await page.goto('/profile');
-  await page.getByLabel('Current password').fill('old password value');
-  await page
+  await page.getByRole('button', { name: 'Actions for Local password' }).click();
+  await page.getByRole('menuitem', { name: 'Change password' }).click();
+  const passwordModal = page.getByRole('dialog', { name: 'Change password' });
+  await expect(passwordModal).toBeVisible();
+  await passwordModal.getByLabel('Current password').fill('old password value');
+  await passwordModal
     .getByLabel('New password', { exact: true })
     .fill('correct horse battery staple');
-  await page.getByLabel('Confirm new password').fill('correct horse battery staple');
-  await page.getByRole('button', { name: 'Change password' }).click();
+  await passwordModal.getByLabel('Confirm new password').fill('correct horse battery staple');
+  await passwordModal.getByRole('button', { name: 'Change password' }).click();
 
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();

@@ -39,7 +39,7 @@ export function accountFixture(overrides: Partial<Account> = {}): Account {
     authIdentities: [{
       id: '0192f6f8-743e-7c77-a349-cd07c3e8a906', kind: 'password',
       displayIdentifier: 'grace.login@example.test', verifiedAt: '2026-01-01T00:00:00Z',
-      disabledAt: null, createdAt: '2026-01-01T00:00:00Z',
+      disabledAt: null, usable: true, createdAt: '2026-01-01T00:00:00Z',
     }],
     status: 'enabled',
     passwordStatus: 'active',
@@ -87,7 +87,7 @@ export function currentUserFixture(
         loginEmail: 'ada@example.test',
         provisioningSource: 'local',
         firstAuthenticatedAt: '2026-01-01T00:00:00Z',
-        authIdentities: [{ id: '0192f6f8-743e-7c77-a349-cd07c3e8a907', kind: 'password', displayIdentifier: 'ada@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, createdAt: '2026-01-01T00:00:00Z' }],
+        authIdentities: [{ id: '0192f6f8-743e-7c77-a349-cd07c3e8a907', kind: 'password', displayIdentifier: 'ada@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, usable: true, createdAt: '2026-01-01T00:00:00Z' }],
         status: 'enabled',
         passwordStatus: 'active',
         roles: master
@@ -105,7 +105,7 @@ export function currentUserFixture(
       loginEmail: 'ada@example.test',
       provisioningSource: 'local',
       firstAuthenticatedAt: '2026-01-01T00:00:00Z',
-      authIdentities: [{ id: '0192f6f8-743e-7c77-a349-cd07c3e8a908', kind: 'password', displayIdentifier: 'ada@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, createdAt: '2026-01-01T00:00:00Z' }],
+      authIdentities: [{ id: '0192f6f8-743e-7c77-a349-cd07c3e8a908', kind: 'password', displayIdentifier: 'ada@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, usable: true, createdAt: '2026-01-01T00:00:00Z' }],
       status: 'enabled',
       passwordStatus: 'active',
       roles: master

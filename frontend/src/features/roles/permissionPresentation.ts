@@ -37,7 +37,7 @@ const presentation: Partial<Record<PermissionId, PermissionPresentation>> = {
   'accounts.read': { group: 'Accounts & authentication', label: 'View accounts' },
   'accounts.create': { group: 'Accounts & authentication', label: 'Create accounts' },
   'accounts.delete': { group: 'Accounts & authentication', label: 'Delete accounts' },
-  'accounts.enable': { group: 'Accounts & authentication', label: 'Enable accounts' },
+  'accounts.enable': { group: 'Accounts & authentication', label: 'Activate accounts' },
   'accounts.disable': { group: 'Accounts & authentication', label: 'Disable accounts' },
   'accounts.login_email.update': { group: 'Accounts & authentication', label: 'Change login email' },
   'accounts.password.set': { group: 'Accounts & authentication', label: 'Set passwords' },

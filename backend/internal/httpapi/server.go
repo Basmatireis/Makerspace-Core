@@ -192,6 +192,49 @@ func (s *Server) SetAccountPassword(ctx context.Context, request openapi.SetAcco
 	return openapi.SetAccountPassword200JSONResponse(accountDTO(account)), nil
 }
 
+func (s *Server) SetAccountPin(ctx context.Context, request openapi.SetAccountPinRequestObject) (openapi.SetAccountPinResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if request.Body == nil || request.Body.Pin == nil {
+		return nil, invalidRequest("pin is required")
+	}
+	if err := s.auth.SetAccountPIN(
+		ctx,
+		principal,
+		request.AccountId,
+		request.Body.LoginName,
+		*request.Body.Pin,
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
+		return nil, err
+	}
+	return openapi.SetAccountPin204Response{}, nil
+}
+
+func (s *Server) RemoveAccountAuthIdentity(ctx context.Context, request openapi.RemoveAccountAuthIdentityRequestObject) (openapi.RemoveAccountAuthIdentityResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if request.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	if err := s.accounts.RemoveAuthIdentity(
+		ctx,
+		principal,
+		request.AccountId,
+		request.IdentityId,
+		request.Body.ExpectedVersion,
+		requestIDPointer(ctx),
+	); err != nil {
+		return nil, err
+	}
+	return openapi.RemoveAccountAuthIdentity204Response{}, nil
+}
+
 func (s *Server) IssueAccountPasswordReset(ctx context.Context, request openapi.IssueAccountPasswordResetRequestObject) (openapi.IssueAccountPasswordResetResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
@@ -987,6 +1030,7 @@ func accountDTO(account accounts.Account) openapi.Account {
 			DisplayIdentifier: nullablePointer[string](identity.DisplayIdentifier, func(value string) string { return value }),
 			VerifiedAt:        nullablePointer[time.Time](identity.VerifiedAt, func(value time.Time) time.Time { return value }),
 			DisabledAt:        nullablePointer[time.Time](identity.DisabledAt, func(value time.Time) time.Time { return value }),
+			Usable:            identity.Usable,
 		})
 	}
 	return openapi.Account{

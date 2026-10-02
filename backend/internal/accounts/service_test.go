@@ -35,6 +35,9 @@ func TestMutationsRejectNonPositiveExpectedVersionBeforePersistence(t *testing.T
 			_, err := service.SetPassword(context.Background(), principal, accountID, "long enough passphrase", 0, nil)
 			return err
 		}},
+		{name: "remove authentication identity", run: func() error {
+			return service.RemoveAuthIdentity(context.Background(), principal, accountID, uuid.Must(uuid.NewV7()), 0, nil)
+		}},
 		{name: "password reset", run: func() error {
 			_, err := service.IssuePasswordReset(context.Background(), principal, accountID, 0, nil)
 			return err
@@ -51,5 +54,28 @@ func TestMutationsRejectNonPositiveExpectedVersionBeforePersistence(t *testing.T
 				t.Fatalf("error = %v, want validation_failed", err)
 			}
 		})
+	}
+}
+
+func TestAuthIdentityRemovalPoliciesUseMethodSpecificPermissions(t *testing.T) {
+	tests := []struct {
+		kind       string
+		permission authorization.Permission
+		action     string
+	}{
+		{kind: "password", permission: authorization.AccountsPasswordRemoveAll, action: "account.password_removed"},
+		{kind: "pin", permission: authorization.AccountsPINRemoveAll, action: "account.pin_removed"},
+		{kind: "oidc", permission: authorization.OIDCUnlinkAll, action: "auth.oidc_unlinked"},
+	}
+	for _, test := range tests {
+		t.Run(test.kind, func(t *testing.T) {
+			policy, ok := authIdentityRemovalPolicyFor(test.kind)
+			if !ok || policy.permission != test.permission || policy.auditAction != test.action {
+				t.Fatalf("policy = %#v, ok=%v", policy, ok)
+			}
+		})
+	}
+	if _, ok := authIdentityRemovalPolicyFor("unsupported"); ok {
+		t.Fatal("unsupported authentication identity kind has a removal policy")
 	}
 }

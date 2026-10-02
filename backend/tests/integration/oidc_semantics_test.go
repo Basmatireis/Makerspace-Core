@@ -18,10 +18,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/httpapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/oidc"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -292,12 +294,16 @@ func TestDisabledOIDCProviderKeepsSessionsButCannotAuthenticateOrRecover(t *test
 	if _, err := passwordFixture.service.StartLink(passwordFixture.ctx, passwordFixture.principal, "one", ""); err == nil {
 		t.Fatal("disabled provider started linking")
 	}
-	err = passwordFixture.auth.RemovePassword(passwordFixture.ctx, passwordFixture.principal, bootstrapPassword, nil)
-	expectAppCode(t, err, "last_authentication_method")
-	// Removing an unavailable identity is safe when a usable password remains.
+	if err := passwordFixture.auth.RemovePassword(passwordFixture.ctx, passwordFixture.principal, bootstrapPassword, nil); err != nil {
+		t.Fatalf("remove last usable password method: %v", err)
+	}
+	assertCount(t, passwordFixture.pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='password'`, 0, passwordFixture.principal.AccountID)
+	// The active Account remains valid with only an unavailable OIDC identity.
 	if err := passwordFixture.service.Unlink(passwordFixture.ctx, passwordFixture.principal, passwordFixture.identity, nil); err != nil {
 		t.Fatal(err)
 	}
+	assertCount(t, passwordFixture.pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1`, 0, passwordFixture.principal.AccountID)
+	assertCount(t, passwordFixture.pool, `SELECT count(*) FROM accounts WHERE id=$1 AND status='enabled'`, 1, passwordFixture.principal.AccountID)
 }
 
 func TestOIDCLinkAllDoesNotProvideAnAdministrativeSubjectAssignment(t *testing.T) {
@@ -319,7 +325,7 @@ func TestOIDCLinkAllDoesNotProvideAnAdministrativeSubjectAssignment(t *testing.T
 	assertCount(t, f.pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='oidc'`, 0, target.accountID)
 }
 
-func TestDisabledOIDCDoesNotCountWhenUnlinkingAnotherProvider(t *testing.T) {
+func TestOIDCUnlinkMayLeaveActiveAccountWithoutLoginMethods(t *testing.T) {
 	for _, disabled := range []string{"provider", "identity"} {
 		t.Run(disabled, func(t *testing.T) {
 			f := newOIDCSemanticsFixture(t, true)
@@ -328,24 +334,43 @@ func TestDisabledOIDCDoesNotCountWhenUnlinkingAnotherProvider(t *testing.T) {
 				t.Fatal(err)
 			}
 			disable := `UPDATE oidc_providers SET enabled=false WHERE id=$1`
-			enable := `UPDATE oidc_providers SET enabled=true WHERE id=$1`
 			if disabled == "identity" {
 				disable = `UPDATE auth_identities SET disabled_at=now() WHERE provider_id=$1`
-				enable = `UPDATE auth_identities SET disabled_at=NULL WHERE provider_id=$1`
 			}
 			if _, err := f.pool.Exec(f.ctx, disable, f.one.ID); err != nil {
-				t.Fatal(err)
-			}
-			err := f.service.Unlink(f.ctx, f.principal, other, nil)
-			expectAppCode(t, err, "last_authentication_method")
-			assertCount(t, f.pool, `SELECT count(*) FROM auth_identities WHERE id=$1`, 1, other)
-			if _, err := f.pool.Exec(f.ctx, enable, f.one.ID); err != nil {
 				t.Fatal(err)
 			}
 			if err := f.service.Unlink(f.ctx, f.principal, other, nil); err != nil {
 				t.Fatal(err)
 			}
+			assertCount(t, f.pool, `SELECT count(*) FROM auth_identities WHERE id=$1`, 0, other)
+			if err := f.service.Unlink(f.ctx, f.principal, f.identity, nil); err != nil {
+				t.Fatal(err)
+			}
+			assertCount(t, f.pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1`, 0, f.principal.AccountID)
+			assertCount(t, f.pool, `SELECT count(*) FROM accounts WHERE id=$1 AND status='enabled'`, 1, f.principal.AccountID)
 		})
+	}
+}
+
+func TestAdministrativeOIDCIdentityRemovalRevokesSessionsWithoutChangingAccountStatus(t *testing.T) {
+	f := newOIDCSemanticsFixture(t, true)
+	accountService := accounts.NewService(f.pool, integrationConfig(t))
+	account, err := accountService.Get(f.ctx, f.principal, f.principal.AccountID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(account.AuthIdentities) != 1 || account.AuthIdentities[0].ID != f.identity {
+		t.Fatalf("account before OIDC removal=%#v", account)
+	}
+	if err := accountService.RemoveAuthIdentity(f.ctx, f.principal, account.ID, f.identity, account.Version, nil); err != nil {
+		t.Fatal(err)
+	}
+	assertCount(t, f.pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1`, 0, account.ID)
+	assertCount(t, f.pool, `SELECT count(*) FROM accounts WHERE id=$1 AND status='enabled'`, 1, account.ID)
+	assertCount(t, f.pool, `SELECT count(*) FROM audit_events WHERE resource_id=$1 AND action='auth.oidc_unlinked'`, 1, f.identity)
+	if _, err := f.auth.Authenticate(f.ctx, f.session.Token); !apperror.IsCode(err, "unauthenticated") {
+		t.Fatalf("session after administrative OIDC removal error=%v", err)
 	}
 }
 

@@ -8,6 +8,7 @@ import { App } from '../../app/App';
 import { currentUserFixture } from '../../test/fixtures';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
+import { longDate, timeRange } from './format';
 
 vi.mock('./ScheduleEditorPage', async () => {
   const { useLocation } = await import('react-router-dom');
@@ -82,50 +83,35 @@ function mockPeriodPage(status: OpenDayPeriodStatus, permissions: Permission[] =
   );
 }
 
-describe('Open Day period lifecycle controls', () => {
-  it.each([
-    ['draft', ['Open for staffing'], ['Move back to Draft', 'Publish', 'Unpublish and return to staffing', 'Archive']],
-    ['staffing', ['Move back to Draft', 'Publish'], ['Open for staffing', 'Unpublish and return to staffing', 'Archive']],
-    ['published', ['Unpublish and return to staffing', 'Archive'], ['Open for staffing', 'Move back to Draft', 'Publish']],
-    ['archived', [], ['Open for staffing', 'Move back to Draft', 'Publish', 'Unpublish and return to staffing', 'Archive']],
-  ] as const)('shows only valid actions for %s periods', async (status, visible, hidden) => {
-    mockPeriodPage(status);
-    renderRoute(<App />, `/open-days/${periodId}`);
+describe('Open Day period editing entry point', () => {
+  it('replaces the view actions menu with one Edit button and opens editing on the same period route', async () => {
+    mockPeriodPage('staffing');
+    const { router } = renderRoute(<App />, `/open-days/${periodId}`);
     const user = userEvent.setup();
 
     expect(await screen.findByRole('heading', { name: 'Winter Semester 2026/27' })).toBeInTheDocument();
-    if (status === 'archived') {
-      expect(screen.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument();
-      return;
-    }
-    await user.click(screen.getByRole('button', { name: 'Actions' }));
-    expect(screen.getByRole('menuitem', { name: 'Create recurring' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'Edit schedule' })).toBeInTheDocument();
-    for (const label of visible) expect(screen.getByRole('menuitem', { name: label })).toBeInTheDocument();
-    for (const label of hidden) expect(screen.queryByRole('menuitem', { name: label })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+
+    expect(await screen.findByRole('heading', { name: 'Schedule planning' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(`/open-days/${periodId}`);
+    expect(router.state.location.search).toBe('?mode=edit');
   });
 
-  it.each([
-    ['staffing', 'Move back to Draft', 'This period will no longer be visible to staff. Existing assignments will be kept.'],
-    ['published', 'Unpublish and return to staffing', 'This period will no longer appear in the public calendar. Internal staffing will remain available.'],
-  ] as const)('explains the consequence of moving a %s period backwards', async (status, action, confirmation) => {
-    mockPeriodPage(status);
+  it('keeps archived periods read-only', async () => {
+    mockPeriodPage('archived');
     renderRoute(<App />, `/open-days/${periodId}`);
-    const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('button', { name: 'Actions' }));
-    await user.click(screen.getByRole('menuitem', { name: action }));
-
-    expect(screen.getByText(confirmation)).toBeInTheDocument();
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Winter Semester 2026/27' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
   });
 
-  it('hides management transitions from readers', async () => {
+  it('hides editing from readers', async () => {
     mockPeriodPage('staffing', [PermissionId.open_daysread]);
     renderRoute(<App />, `/open-days/${periodId}`);
 
     expect(await screen.findByRole('heading', { name: 'Winter Semester 2026/27' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
   });
 });
 
@@ -225,6 +211,9 @@ describe('Open Day period management entry points', () => {
     server.use(
       http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
       http.get('*/api/v1/open-day-periods', () => HttpResponse.json({ items: [period('draft')] })),
+      http.get('*/api/v1/open-day-periods/:periodId/open-days', () =>
+        HttpResponse.json({ period: period('draft'), items: [], timeZone: 'Europe/Vienna' }),
+      ),
       http.get('*/api/v1/open-day-periods/:periodId/calendar-context', () =>
         HttpResponse.json({
           timeZone: 'Europe/Vienna',
@@ -277,6 +266,8 @@ describe('Open Day table and calendar filters', () => {
     ],
   });
   const traineeVacancy = openDay('0192f6f8-743e-7c77-a349-cd07c3e8a922', '2026-10-02', {
+    startsAt: '2026-10-02T14:00:00Z',
+    endsAt: '2026-10-02T17:00:00Z',
     requirements: [
       requirement('0192f6f8-743e-7c77-a349-cd07c3e8a933', 'supervisor', 2, 2),
       requirement('0192f6f8-743e-7c77-a349-cd07c3e8a934', 'trainee', 0, 1),
@@ -474,6 +465,45 @@ describe('Open Day table and calendar filters', () => {
 
     await user.click(within(filterSwitcher!).getByText('All'));
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(5);
+  });
+
+  it('filters by multiple weekdays and start times and sorts by date or time', async () => {
+    mockFilteredPeriodPage();
+    renderRoute(<App />, `/open-days/${periodId}`);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Table view' }));
+    const weekday = screen.getByRole('combobox', { name: 'Filter by weekday' });
+    const startTime = screen.getByRole('combobox', { name: 'Filter by start time' });
+    const dateTimeFilters = screen.getByRole('group', { name: 'Filter by day and time' });
+
+    await user.click(weekday);
+    await user.click(within(dateTimeFilters).getByRole('option', { name: 'Thursday' }));
+    await waitFor(() => expect(within(dateTimeFilters).getByRole('option', { name: 'Thursday' })).toHaveAttribute('aria-checked', 'true'));
+    await user.click(within(dateTimeFilters).getByRole('option', { name: 'Friday' }));
+    await waitFor(() => expect(within(dateTimeFilters).getByRole('option', { name: 'Friday' })).toHaveAttribute('aria-checked', 'true'));
+    let table = screen.getByRole('table');
+    expect(within(table).getAllByRole('row')).toHaveLength(3);
+    expect(within(table).getByText(timeRange(traineeVacancy, 'UTC'))).toBeInTheDocument();
+
+    await user.click(startTime);
+    await user.click(within(dateTimeFilters).getByRole('option', { name: '08:00' }));
+    await waitFor(() => expect(within(dateTimeFilters).getByRole('option', { name: '08:00' })).toHaveAttribute('aria-checked', 'true'));
+    expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2);
+    await user.click(within(dateTimeFilters).getByRole('option', { name: '14:00' }));
+    await waitFor(() => expect(within(dateTimeFilters).getByRole('option', { name: '14:00' })).toHaveAttribute('aria-checked', 'true'));
+    expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(3);
+
+    table = screen.getByRole('table');
+    const dateHeader = within(table).getByRole('columnheader', { name: /Date/ });
+    await user.click(within(dateHeader).getByRole('button'));
+    await user.click(within(dateHeader).getByRole('button'));
+    expect(within(within(table).getAllByRole('row')[1]).getByText(longDate(traineeVacancy.startsAt, 'UTC'))).toBeInTheDocument();
+
+    const timeHeader = within(table).getByRole('columnheader', { name: /Time/ });
+    await user.click(within(timeHeader).getByRole('button'));
+    await user.click(within(timeHeader).getByRole('button'));
+    expect(within(within(table).getAllByRole('row')[1]).getByText(timeRange(traineeVacancy, 'UTC'))).toBeInTheDocument();
   });
 
   it('shows date details on hover and handles self-registration in a modal', async () => {

@@ -129,23 +129,23 @@ var descriptions = map[Permission]string{
 	PeopleProfileImageUpdateAll:  "Upload or replace any Person's profile image.",
 	PeopleProfileImageRemoveSelf: "Remove the current Person's profile image.",
 	PeopleProfileImageRemoveAll:  "Remove any Person's profile image.",
-	AccountsRead:                 "Read account status, login email, and role assignments.",
-	AccountsCreate:               "Create a disabled account for a person.",
+	AccountsRead:                 "Read account status, authentication identities, and role assignments.",
+	AccountsCreate:               "Create an active account for a person.",
 	AccountsDelete:               "Permanently delete accounts and authentication data.",
-	AccountsEnable:               "Enable accounts with active credentials.",
+	AccountsEnable:               "Activate accounts independently of their authentication methods.",
 	AccountsDisable:              "Disable accounts and revoke their sessions.",
 	AccountsLoginEmailUpdate:     "Change an account login email and revoke sessions.",
 	AccountsPasswordSet:          "Administratively set an account password.",
 	AccountsPasswordReset:        "Issue one-time account password reset links.",
 	AccountsPasswordEnrollSelf:   "Enroll a password method for the current account.",
 	AccountsPasswordEnrollAll:    "Invite or enroll password methods for any account.",
-	AccountsPasswordRemoveSelf:   "Remove the current account's password method when another usable method remains.",
-	AccountsPasswordRemoveAll:    "Remove another account's password method subject to account safety invariants.",
+	AccountsPasswordRemoveSelf:   "Remove the current account's password method.",
+	AccountsPasswordRemoveAll:    "Remove another account's password method and revoke its sessions.",
 	AccountsPINEnrollSelf:        "Enroll or replace the current account's PIN method.",
-	AccountsPINEnrollAll:         "Issue PIN enrollment for any account.",
-	AccountsPINRemoveSelf:        "Remove the current account's PIN method when another usable method remains.",
-	AccountsPINRemoveAll:         "Remove another account's PIN method subject to account safety invariants.",
-	AccountsPINReset:             "Issue a one-time PIN setup challenge for another account.",
+	AccountsPINEnrollAll:         "Configure or issue PIN enrollment for any account.",
+	AccountsPINRemoveSelf:        "Remove the current account's PIN method.",
+	AccountsPINRemoveAll:         "Remove another account's PIN method and revoke its sessions.",
+	AccountsPINReset:             "Replace or issue a one-time PIN setup challenge for another account.",
 	AccountsRolesAssign:          "Assign or remove permitted roles on accounts.",
 	RolesRead:                    "Read roles and the application permission registry.",
 	RolesManage:                  "Create, update, and delete permitted configurable roles.",
@@ -165,8 +165,8 @@ var descriptions = map[Permission]string{
 	SupervisorDashboardRead:      "Read the privacy-minimized supervisor dashboard.",
 	OIDCLinkSelf:                 "Link an OIDC identity to the current Account after recent password or OIDC reauthentication.",
 	OIDCLinkAll:                  "Reserved for a future administrative ownership-proof flow; no operation currently supports this permission.",
-	OIDCUnlinkSelf:               "Unlink an OIDC identity from the current Account without stranding it.",
-	OIDCUnlinkAll:                "Unlink an OIDC identity from another Account without stranding it.",
+	OIDCUnlinkSelf:               "Unlink an OIDC identity from the current Account.",
+	OIDCUnlinkAll:                "Unlink an OIDC identity from another Account.",
 	OIDCManage:                   "Manage OIDC providers and trusted ACR mappings.",
 	SCIMManage:                   "Manage SCIM connectors and one-time bearer tokens.",
 	MailManage:                   "Configure transactional SMTP delivery and sender identity.",
@@ -232,7 +232,6 @@ type Principal struct {
 	PersonID        uuid.UUID
 	FirstName       string
 	LastName        string
-	LoginEmail      string
 	Assurance       Assurance
 	AuthenticatedAt time.Time
 	Master          bool

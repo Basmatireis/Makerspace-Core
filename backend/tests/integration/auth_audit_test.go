@@ -298,7 +298,7 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	assertAuditContainsNoPII(t, pool, contactEmail, loginEmail, bootstrapPassword, resetPassword, changedPassword, resetCode)
 }
 
-func TestPasswordResetProvisioningKeepsDisabledAccountDisabled(t *testing.T) {
+func TestPasswordResetProvisioningKeepsExplicitlyDisabledAccountDisabled(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
 	serviceConfig := integrationConfig(t)
@@ -335,10 +335,14 @@ func TestPasswordResetProvisioningKeepsDisabledAccountDisabled(t *testing.T) {
 	accountService := accounts.NewService(pool, serviceConfig, notifier)
 	account, err := accountService.Create(ctx, authenticated.Principal, person.ID, loginEmail, person.Version, nil)
 	if err != nil {
-		t.Fatalf("create disabled account: %v", err)
+		t.Fatalf("create account: %v", err)
 	}
-	if account.Status != "disabled" || account.PasswordStatus != "not_set" {
-		t.Fatalf("new account status=%q passwordStatus=%q, want disabled/not_set", account.Status, account.PasswordStatus)
+	if account.Status != "enabled" || account.PasswordStatus != "not_set" {
+		t.Fatalf("new account status=%q passwordStatus=%q, want enabled/not_set", account.Status, account.PasswordStatus)
+	}
+	account, err = accountService.SetStatus(ctx, authenticated.Principal, account.ID, "disabled", account.Version, nil)
+	if err != nil {
+		t.Fatalf("explicitly disable account: %v", err)
 	}
 
 	expiredIssue, err := accountService.IssuePasswordReset(ctx, authenticated.Principal, account.ID, account.Version, nil)

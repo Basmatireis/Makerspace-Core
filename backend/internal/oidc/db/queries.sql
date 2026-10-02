@@ -70,13 +70,6 @@ SELECT * FROM auth_identities WHERE id = sqlc.arg(id) AND kind = 'oidc' FOR UPDA
 -- name: GetAccountStatusForUpdate :one
 SELECT status FROM accounts WHERE id = sqlc.arg(id) FOR UPDATE;
 
--- name: CountUsableIdentities :one
-SELECT count(*) FROM auth_identities i
-WHERE i.account_id = sqlc.arg(account_id) AND i.id <> sqlc.arg(excluded_identity_id) AND i.disabled_at IS NULL
-  AND ((i.kind = 'password' AND EXISTS (SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required))
-    OR (i.kind = 'pin' AND EXISTS (SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id = i.id))
-    OR (i.kind = 'oidc' AND EXISTS (SELECT 1 FROM oidc_providers op WHERE op.id=i.provider_id AND op.enabled)));
-
 -- name: DeleteOIDCIdentity :exec
 DELETE FROM auth_identities WHERE id = sqlc.arg(id) AND kind = 'oidc';
 

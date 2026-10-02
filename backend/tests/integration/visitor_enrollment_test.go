@@ -205,7 +205,7 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if passwordResult.AccountStatus != "disabled" || passwordResult.InvitationDelivery == nil || *passwordResult.InvitationDelivery != "sent" {
+	if passwordResult.AccountStatus != "enabled" || passwordResult.InvitationDelivery == nil || *passwordResult.InvitationDelivery != "sent" {
 		t.Fatalf("password-only visitor result=%#v", passwordResult)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM password_credentials pc JOIN auth_identities i ON i.id=pc.auth_identity_id WHERE i.account_id=$1`, 0, passwordResult.AccountID)

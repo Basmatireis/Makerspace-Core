@@ -214,7 +214,7 @@ func promptExistingAccountPasswordReset() (string, string, error) {
 		return "", "", errors.New("reset-password requires an interactive terminal; stdin pipes are refused")
 	}
 	reader := bufio.NewReader(os.Stdin)
-	identifier, err := promptLine(reader, "Existing account login email or identifier: ")
+	identifier, err := promptLine(reader, "Existing password login email: ")
 	if err != nil {
 		return "", "", err
 	}

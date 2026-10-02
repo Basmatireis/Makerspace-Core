@@ -103,25 +103,6 @@ func (q *Queries) CountMasterAssignments(ctx context.Context) (int64, error) {
 	return count, err
 }
 
-const countUsableAuthIdentities = `-- name: CountUsableAuthIdentities :one
-SELECT count(*) FROM auth_identities i
-WHERE i.account_id = $1 AND i.disabled_at IS NULL
-  AND (
-    (i.kind = 'password' AND i.verified_at IS NOT NULL AND EXISTS (
-      SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required
-    ))
-    OR (i.kind = 'pin' AND EXISTS (SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id=i.id))
-    OR (i.kind = 'oidc' AND EXISTS (SELECT 1 FROM oidc_providers op WHERE op.id=i.provider_id AND op.enabled))
-  )
-`
-
-func (q *Queries) CountUsableAuthIdentities(ctx context.Context, accountID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countUsableAuthIdentities, accountID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createAccount = `-- name: CreateAccount :one
 INSERT INTO accounts (id, person_id, status)
 VALUES ($1, $2, $3) RETURNING id, person_id, status, version, created_at, updated_at, provisioning_source, first_authenticated_at, administratively_disabled_at
@@ -225,45 +206,6 @@ func (q *Queries) CreatePasswordResetToken(ctx context.Context, arg CreatePasswo
 	return i, err
 }
 
-const createVerifiedPasswordIdentity = `-- name: CreateVerifiedPasswordIdentity :one
-INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifier_normalized, verified_at)
-VALUES ($1, $2, 'password', $3, $4, now())
-RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at
-`
-
-type CreateVerifiedPasswordIdentityParams struct {
-	ID                   uuid.UUID
-	AccountID            uuid.UUID
-	IdentifierDisplay    *string
-	IdentifierNormalized *string
-}
-
-func (q *Queries) CreateVerifiedPasswordIdentity(ctx context.Context, arg CreateVerifiedPasswordIdentityParams) (AuthIdentity, error) {
-	row := q.db.QueryRow(ctx, createVerifiedPasswordIdentity,
-		arg.ID,
-		arg.AccountID,
-		arg.IdentifierDisplay,
-		arg.IdentifierNormalized,
-	)
-	var i AuthIdentity
-	err := row.Scan(
-		&i.ID,
-		&i.AccountID,
-		&i.Kind,
-		&i.IdentifierDisplay,
-		&i.IdentifierNormalized,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ProviderID,
-		&i.Issuer,
-		&i.Subject,
-		&i.VerifiedAt,
-		&i.DisabledAt,
-		&i.LastUsedAt,
-	)
-	return i, err
-}
-
 const deleteAccount = `-- name: DeleteAccount :one
 DELETE FROM accounts WHERE id = $1 AND version = $2 RETURNING id
 `
@@ -278,6 +220,34 @@ func (q *Queries) DeleteAccount(ctx context.Context, arg DeleteAccountParams) (u
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
+}
+
+const deleteAuthIdentityForAccount = `-- name: DeleteAuthIdentityForAccount :execrows
+DELETE FROM auth_identities
+WHERE id = $1 AND account_id = $2
+`
+
+type DeleteAuthIdentityForAccountParams struct {
+	ID        uuid.UUID
+	AccountID uuid.UUID
+}
+
+func (q *Queries) DeleteAuthIdentityForAccount(ctx context.Context, arg DeleteAuthIdentityForAccountParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteAuthIdentityForAccount, arg.ID, arg.AccountID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deletePINEnrollmentChallengesForAccount = `-- name: DeletePINEnrollmentChallengesForAccount :exec
+DELETE FROM auth_challenges
+WHERE account_id = $1 AND kind = 'pin_enrollment'
+`
+
+func (q *Queries) DeletePINEnrollmentChallengesForAccount(ctx context.Context, accountID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePINEnrollmentChallengesForAccount, accountID)
+	return err
 }
 
 const deletePasswordChallengesForAccount = `-- name: DeletePasswordChallengesForAccount :exec
@@ -298,37 +268,6 @@ DELETE FROM password_reset_tokens WHERE account_id = $1
 func (q *Queries) DeletePasswordResetForAccount(ctx context.Context, accountID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deletePasswordResetForAccount, accountID)
 	return err
-}
-
-const findAccountsByAdministrativeIdentifier = `-- name: FindAccountsByAdministrativeIdentifier :many
-SELECT DISTINCT a.id
-FROM accounts a
-JOIN people p ON p.id = a.person_id
-LEFT JOIN auth_identities i ON i.account_id = a.id AND i.kind IN ('password', 'pin')
-WHERE lower(btrim(COALESCE(i.identifier_normalized, ''))) = lower(btrim($1::text))
-   OR lower(btrim(COALESCE(i.identifier_display, ''))) = lower(btrim($1::text))
-   OR lower(btrim(COALESCE(p.email, ''))) = lower(btrim($1::text))
-ORDER BY a.id
-`
-
-func (q *Queries) FindAccountsByAdministrativeIdentifier(ctx context.Context, identifier string) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, findAccountsByAdministrativeIdentifier, identifier)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []uuid.UUID{}
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getAccountByPerson = `-- name: GetAccountByPerson :one
@@ -817,7 +756,18 @@ func (q *Queries) ListAccountViewsByPeople(ctx context.Context, personIds []uuid
 }
 
 const listAuthIdentitiesByAccount = `-- name: ListAuthIdentitiesByAccount :many
-SELECT i.id, i.account_id, i.kind, i.identifier_display, i.identifier_normalized, i.created_at, i.updated_at, i.provider_id, i.issuer, i.subject, i.verified_at, i.disabled_at, i.last_used_at, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug
+SELECT i.id, i.account_id, i.kind, i.identifier_display, i.identifier_normalized, i.created_at, i.updated_at, i.provider_id, i.issuer, i.subject, i.verified_at, i.disabled_at, i.last_used_at, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug,
+       CASE
+         WHEN i.disabled_at IS NOT NULL THEN false
+         WHEN i.kind = 'password' THEN EXISTS (
+           SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required
+         )
+         WHEN i.kind = 'pin' THEN EXISTS (
+           SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id = i.id
+         )
+         WHEN i.kind = 'oidc' THEN COALESCE(p.enabled, false)
+         ELSE false
+       END AS usable
 FROM auth_identities i
 LEFT JOIN oidc_providers p ON p.id = i.provider_id
 WHERE i.account_id = $1
@@ -840,6 +790,7 @@ type ListAuthIdentitiesByAccountRow struct {
 	LastUsedAt           pgtype.Timestamptz
 	DisplayIdentifier    string
 	ProviderSlug         *string
+	Usable               bool
 }
 
 func (q *Queries) ListAuthIdentitiesByAccount(ctx context.Context, accountID uuid.UUID) ([]ListAuthIdentitiesByAccountRow, error) {
@@ -867,6 +818,7 @@ func (q *Queries) ListAuthIdentitiesByAccount(ctx context.Context, accountID uui
 			&i.LastUsedAt,
 			&i.DisplayIdentifier,
 			&i.ProviderSlug,
+			&i.Usable,
 		); err != nil {
 			return nil, err
 		}
@@ -879,7 +831,18 @@ func (q *Queries) ListAuthIdentitiesByAccount(ctx context.Context, accountID uui
 }
 
 const listAuthIdentitiesByAccounts = `-- name: ListAuthIdentitiesByAccounts :many
-SELECT i.id, i.account_id, i.kind, i.identifier_display, i.identifier_normalized, i.created_at, i.updated_at, i.provider_id, i.issuer, i.subject, i.verified_at, i.disabled_at, i.last_used_at, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug
+SELECT i.id, i.account_id, i.kind, i.identifier_display, i.identifier_normalized, i.created_at, i.updated_at, i.provider_id, i.issuer, i.subject, i.verified_at, i.disabled_at, i.last_used_at, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug,
+       CASE
+         WHEN i.disabled_at IS NOT NULL THEN false
+         WHEN i.kind = 'password' THEN EXISTS (
+           SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required
+         )
+         WHEN i.kind = 'pin' THEN EXISTS (
+           SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id = i.id
+         )
+         WHEN i.kind = 'oidc' THEN COALESCE(p.enabled, false)
+         ELSE false
+       END AS usable
 FROM auth_identities i
 LEFT JOIN oidc_providers p ON p.id = i.provider_id
 WHERE i.account_id = ANY($1::uuid[])
@@ -902,6 +865,7 @@ type ListAuthIdentitiesByAccountsRow struct {
 	LastUsedAt           pgtype.Timestamptz
 	DisplayIdentifier    string
 	ProviderSlug         *string
+	Usable               bool
 }
 
 func (q *Queries) ListAuthIdentitiesByAccounts(ctx context.Context, accountIds []uuid.UUID) ([]ListAuthIdentitiesByAccountsRow, error) {
@@ -929,6 +893,7 @@ func (q *Queries) ListAuthIdentitiesByAccounts(ctx context.Context, accountIds [
 			&i.LastUsedAt,
 			&i.DisplayIdentifier,
 			&i.ProviderSlug,
+			&i.Usable,
 		); err != nil {
 			return nil, err
 		}
@@ -1143,7 +1108,7 @@ type UpsertAuthChallengeParams struct {
 	AccountID          uuid.UUID
 	AuthIdentityID     *uuid.UUID
 	CodeDigest         []byte
-	DeliveryAddress    string
+	DeliveryAddress    *string
 	CreatedByAccountID *uuid.UUID
 	ExpiresAt          time.Time
 }

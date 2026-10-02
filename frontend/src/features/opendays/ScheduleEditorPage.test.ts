@@ -23,6 +23,18 @@ describe('schedule editor working copy', () => {
     expect(added.slots).toHaveLength(2);
     expect(scheduleEditorReducer(added, { type: 'undo' })).toMatchObject({ slots: initial.slots, dirty: false });
 
+    const addedMany = scheduleEditorReducer(initial, { type: 'addMany', slots: [slot('two'), slot('three')] });
+    expect(addedMany.slots).toHaveLength(3);
+    expect(scheduleEditorReducer(addedMany, { type: 'undo' })).toMatchObject({ slots: initial.slots, dirty: false });
+
+    const updatedMany = scheduleEditorReducer(addedMany, { type: 'updateMany', slots: [{ ...slot('one'), internalNote: 'Updated' }, { ...slot('two'), internalNote: 'Updated' }] });
+    expect(updatedMany.slots.map((item) => item.internalNote)).toEqual(['Updated', 'Updated', undefined]);
+    expect(scheduleEditorReducer(updatedMany, { type: 'undo' }).slots).toEqual(addedMany.slots);
+
+    const removedMany = scheduleEditorReducer(addedMany, { type: 'removeMany', ids: ['one', 'three'] });
+    expect(removedMany.slots.map((item) => item.id)).toEqual(['two']);
+    expect(scheduleEditorReducer(removedMany, { type: 'undo' }).slots).toEqual(addedMany.slots);
+
     const moved = scheduleEditorReducer(initial, { type: 'move', id: 'one', date: '2026-10-14', timeZone: 'Europe/Vienna' });
     expect(moved.slots[0].startsAt.startsWith('2026-10-14')).toBe(true);
     expect(scheduleEditorReducer(moved, { type: 'undo' }).slots).toEqual(initial.slots);

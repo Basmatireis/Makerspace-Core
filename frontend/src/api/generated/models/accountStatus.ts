@@ -19,6 +19,9 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Account lifecycle state. An enabled Account may have no usable authentication method; such an Account is active but cannot sign in.
+ */
 export type AccountStatus = typeof AccountStatus[keyof typeof AccountStatus];
 
 

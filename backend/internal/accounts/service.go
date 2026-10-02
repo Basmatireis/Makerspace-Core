@@ -34,6 +34,7 @@ type AuthIdentity struct {
 	ProviderSlug      *string
 	VerifiedAt        *time.Time
 	DisabledAt        *time.Time
+	Usable            bool
 	CreatedAt         time.Time
 }
 
@@ -154,7 +155,7 @@ func (s *Service) ListForPeople(ctx context.Context, principal authorization.Pri
 		displayIdentifier := row.DisplayIdentifier
 		account.AuthIdentities = append(account.AuthIdentities, AuthIdentity{
 			ID: row.ID, Kind: row.Kind, DisplayIdentifier: &displayIdentifier, ProviderSlug: row.ProviderSlug,
-			VerifiedAt: timeFromPG(row.VerifiedAt), DisabledAt: timeFromPG(row.DisabledAt), CreatedAt: row.CreatedAt,
+			VerifiedAt: timeFromPG(row.VerifiedAt), DisabledAt: timeFromPG(row.DisabledAt), Usable: row.Usable, CreatedAt: row.CreatedAt,
 		})
 		result[personID] = account
 	}
@@ -208,7 +209,7 @@ func (s *Service) create(ctx context.Context, principal authorization.Principal,
 		return Account{}, apperror.StaleWrite
 	}
 	accountID := uuid.Must(uuid.NewV7())
-	if _, err := queries.CreateAccount(ctx, accountsdb.CreateAccountParams{ID: accountID, PersonID: personID, Status: "disabled"}); err != nil {
+	if _, err := queries.CreateAccount(ctx, accountsdb.CreateAccountParams{ID: accountID, PersonID: personID, Status: "enabled"}); err != nil {
 		return Account{}, databaseError(err)
 	}
 	if loginEmail != nil {
@@ -258,15 +259,6 @@ func (s *Service) SetStatus(ctx context.Context, principal authorization.Princip
 	}
 	if current.Version != expectedVersion {
 		return Account{}, apperror.StaleWrite
-	}
-	if status == "enabled" {
-		usable, err := queries.CountUsableAuthIdentities(ctx, id)
-		if err != nil {
-			return Account{}, err
-		}
-		if usable == 0 {
-			return Account{}, validation("an active authentication identity is required before enabling the account")
-		}
 	}
 	if status == "disabled" {
 		if err := protectLastMaster(ctx, queries, current); err != nil {
@@ -362,7 +354,19 @@ func (s *Service) UpdateLoginEmail(ctx context.Context, principal authorization.
 	if current.Version != expectedVersion {
 		return Account{}, apperror.StaleWrite
 	}
-	if _, err := queries.UpdateLoginEmail(ctx, accountsdb.UpdateLoginEmailParams{AccountID: id, IdentifierDisplay: display, IdentifierNormalized: normalized}); err != nil {
+	_, identityErr := queries.GetPasswordIdentityForAccountForUpdate(ctx, id)
+	if errors.Is(identityErr, pgx.ErrNoRows) {
+		if _, err := queries.CreateAuthIdentity(ctx, accountsdb.CreateAuthIdentityParams{
+			ID: uuid.Must(uuid.NewV7()), AccountID: id,
+			IdentifierDisplay: display, IdentifierNormalized: normalized,
+		}); err != nil {
+			return Account{}, databaseError(err)
+		}
+	} else if identityErr != nil {
+		return Account{}, identityErr
+	} else if _, err := queries.UpdateLoginEmail(ctx, accountsdb.UpdateLoginEmailParams{
+		AccountID: id, IdentifierDisplay: display, IdentifierNormalized: normalized,
+	}); err != nil {
 		return Account{}, databaseError(err)
 	}
 	if err := queries.DeletePasswordResetForAccount(ctx, id); err != nil {
@@ -455,6 +459,120 @@ func (s *Service) SetPassword(ctx context.Context, principal authorization.Princ
 	return result, nil
 }
 
+func (s *Service) RemoveAuthIdentity(ctx context.Context, principal authorization.Principal, accountID, identityID uuid.UUID, expectedVersion int64, requestID *uuid.UUID) error {
+	if !principal.Has(authorization.AccountsPasswordRemoveAll) &&
+		!principal.Has(authorization.AccountsPINRemoveAll) &&
+		!principal.Has(authorization.OIDCUnlinkAll) {
+		return apperror.PermissionDenied
+	}
+	if expectedVersion < 1 {
+		return validation("expectedVersion must be positive")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	queries := accountsdb.New(tx)
+	account, err := loadAccountForMutation(ctx, queries, accountID)
+	if err != nil {
+		return err
+	}
+	if account.Version != expectedVersion {
+		return apperror.StaleWrite
+	}
+	var identity *AuthIdentity
+	for index := range account.AuthIdentities {
+		if account.AuthIdentities[index].ID == identityID {
+			identity = &account.AuthIdentities[index]
+			break
+		}
+	}
+	if identity == nil {
+		return apperror.NotFound
+	}
+	policy, ok := authIdentityRemovalPolicyFor(identity.Kind)
+	if !ok {
+		return apperror.NotFound
+	}
+	if !principal.Has(policy.permission) {
+		return apperror.PermissionDenied
+	}
+	if identity.Kind == "password" {
+		if err := queries.DeletePasswordResetForAccount(ctx, accountID); err != nil {
+			return err
+		}
+		if err := queries.DeletePasswordChallengesForAccount(ctx, accountID); err != nil {
+			return err
+		}
+	}
+	if identity.Kind == "pin" {
+		if err := queries.DeletePINEnrollmentChallengesForAccount(ctx, accountID); err != nil {
+			return err
+		}
+	}
+	deleted, err := queries.DeleteAuthIdentityForAccount(ctx, accountsdb.DeleteAuthIdentityForAccountParams{
+		ID: identityID, AccountID: accountID,
+	})
+	if err != nil {
+		return err
+	}
+	if deleted != 1 {
+		return apperror.NotFound
+	}
+	if err := queries.RevokeSessionsForAccount(ctx, accountsdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: ptr(policy.revocationReason)}); err != nil {
+		return err
+	}
+	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: accountID, ExpectedVersion: expectedVersion}); errors.Is(err, pgx.ErrNoRows) {
+		return apperror.StaleWrite
+	} else if err != nil {
+		return err
+	}
+	actor := principal.AccountID
+	resourceType := "account"
+	resourceID := accountID
+	if identity.Kind == "oidc" {
+		resourceType = "auth_identity"
+		resourceID = identityID
+	}
+	if err := audit.Write(ctx, tx, audit.Event{
+		ActorAccountID: &actor, Action: policy.auditAction, ResourceType: resourceType,
+		ResourceID: &resourceID, RequestID: requestID, ChangedFields: []string{policy.changedField},
+	}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+type authIdentityRemovalPolicy struct {
+	permission       authorization.Permission
+	auditAction      string
+	changedField     string
+	revocationReason string
+}
+
+func authIdentityRemovalPolicyFor(kind string) (authIdentityRemovalPolicy, bool) {
+	switch kind {
+	case "password":
+		return authIdentityRemovalPolicy{
+			permission: authorization.AccountsPasswordRemoveAll, auditAction: "account.password_removed",
+			changedField: "passwordIdentity", revocationReason: "password_removed",
+		}, true
+	case "pin":
+		return authIdentityRemovalPolicy{
+			permission: authorization.AccountsPINRemoveAll, auditAction: "account.pin_removed",
+			changedField: "pinMethod", revocationReason: "pin_removed",
+		}, true
+	case "oidc":
+		return authIdentityRemovalPolicy{
+			permission: authorization.OIDCUnlinkAll, auditAction: "auth.oidc_unlinked",
+			changedField: "identity", revocationReason: "identity_unlinked",
+		}, true
+	default:
+		return authIdentityRemovalPolicy{}, false
+	}
+}
+
 func (s *Service) IssuePasswordReset(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, requestID *uuid.UUID) (ResetIssue, error) {
 	if !principal.Has(authorization.AccountsPasswordReset) {
 		return ResetIssue{}, apperror.PermissionDenied
@@ -492,7 +610,7 @@ func (s *Service) IssuePasswordReset(ctx context.Context, principal authorizatio
 		ID: uuid.Must(uuid.NewV7()), Kind: "password_reset", AccountID: id,
 		AuthIdentityID:  &identity.ID,
 		CodeDigest:      security.ChallengeDigest(s.config.ChallengeHMACKey, "password_reset", id, code),
-		DeliveryAddress: *identity.IdentifierDisplay, CreatedByAccountID: &actor, ExpiresAt: expiresAt,
+		DeliveryAddress: identity.IdentifierDisplay, CreatedByAccountID: &actor, ExpiresAt: expiresAt,
 	})
 	if err != nil {
 		return ResetIssue{}, err
@@ -575,9 +693,6 @@ func (s *Service) IssuePINEnrollment(ctx context.Context, principal authorizatio
 	if err != nil {
 		return ResetIssue{}, err
 	}
-	if deliveryAddress == nil {
-		return ResetIssue{}, apperror.New(422, "email_required", "The Person needs a contact email for PIN setup delivery")
-	}
 	code, err := security.NewChallengeCode()
 	if err != nil {
 		return ResetIssue{}, err
@@ -587,7 +702,7 @@ func (s *Service) IssuePINEnrollment(ctx context.Context, principal authorizatio
 	challenge, err := queries.UpsertAuthChallenge(ctx, accountsdb.UpsertAuthChallengeParams{
 		ID: uuid.Must(uuid.NewV7()), Kind: "pin_enrollment", AccountID: id,
 		AuthIdentityID: pinIdentityID, CodeDigest: security.ChallengeDigest(s.config.ChallengeHMACKey, "pin_enrollment", id, code),
-		DeliveryAddress: *deliveryAddress, CreatedByAccountID: &actor, ExpiresAt: expiresAt,
+		DeliveryAddress: deliveryAddress, CreatedByAccountID: &actor, ExpiresAt: expiresAt,
 	})
 	if err != nil {
 		return ResetIssue{}, err
@@ -608,7 +723,7 @@ func (s *Service) IssuePINEnrollment(ctx context.Context, principal authorizatio
 		return ResetIssue{}, err
 	}
 	deliveryErr := error(mailservice.ErrDisabled)
-	if notifierAvailable {
+	if notifierAvailable && deliveryAddress != nil {
 		deliveryErr = notifier.SendPINEnrollment(ctx, *deliveryAddress, id, code, expiresAt)
 	}
 	status := "sent"
@@ -671,7 +786,7 @@ func (s *Service) IssueInvitation(ctx context.Context, principal authorization.P
 		ID: uuid.Must(uuid.NewV7()), Kind: "invitation", AccountID: id,
 		AuthIdentityID:  &identity.ID,
 		CodeDigest:      security.ChallengeDigest(s.config.ChallengeHMACKey, "invitation", id, code),
-		DeliveryAddress: *identity.IdentifierDisplay, CreatedByAccountID: &actor, ExpiresAt: expiresAt,
+		DeliveryAddress: identity.IdentifierDisplay, CreatedByAccountID: &actor, ExpiresAt: expiresAt,
 	})
 	if err != nil {
 		return ResetIssue{}, err
@@ -819,7 +934,7 @@ func loadAccount(ctx context.Context, queries *accountsdb.Queries, id uuid.UUID)
 		displayIdentifier := identity.DisplayIdentifier
 		identities = append(identities, AuthIdentity{
 			ID: identity.ID, Kind: identity.Kind, DisplayIdentifier: &displayIdentifier, ProviderSlug: identity.ProviderSlug,
-			VerifiedAt: timeFromPG(identity.VerifiedAt), DisabledAt: timeFromPG(identity.DisabledAt), CreatedAt: identity.CreatedAt,
+			VerifiedAt: timeFromPG(identity.VerifiedAt), DisabledAt: timeFromPG(identity.DisabledAt), Usable: identity.Usable, CreatedAt: identity.CreatedAt,
 		})
 	}
 	loginEmail := ""

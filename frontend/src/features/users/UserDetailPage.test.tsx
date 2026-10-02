@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type {
   Account,
   CreateAccountRequest,
+  SetAccountPinRequest,
 } from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
@@ -44,8 +45,8 @@ describe('User detail page', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
   });
 
-  it('creates an Account and sends a recipient-owned invitation', async () => {
-    let person = personFixture({ account: null });
+  it('shows a recipient-owned invitation link in a modal when contact email is missing', async () => {
+    let person = personFixture({ account: null, email: null });
     let account: Account | undefined;
     let accountRequest: CreateAccountRequest | undefined;
     let invitationRequested = false;
@@ -69,9 +70,17 @@ describe('User detail page', () => {
           accountRequest = (await request.json()) as CreateAccountRequest;
           account = accountFixture({
             loginEmail: accountRequest.loginEmail,
-            status: 'disabled',
+            status: 'enabled',
             passwordStatus: 'not_set',
-            authIdentities: [],
+            authIdentities: [{
+              id: '0192f6f8-743e-7c77-a349-cd07c3e8a909',
+              kind: 'password',
+              displayIdentifier: String(accountRequest.loginEmail),
+              verifiedAt: null,
+              disabledAt: null,
+              usable: false,
+              createdAt: '2026-01-01T00:00:00Z',
+            }],
           });
           person = { ...person, account };
           return HttpResponse.json(account, { status: 201 });
@@ -88,7 +97,12 @@ describe('User detail page', () => {
           invitationRequested = true;
           account = { ...account!, provisioningSource: 'invitation', version: 2 };
           person = { ...person, account };
-          return HttpResponse.json({ account, expiresAt: '2026-01-01T00:30:00Z' }, { status: 201 });
+          return HttpResponse.json({
+            account,
+            expiresAt: '2026-01-01T00:30:00Z',
+            deliveryStatus: 'manual',
+            setupUrl: '/complete-invitation#account=example&code=secret',
+          }, { status: 201 });
         },
       ),
     );
@@ -98,7 +112,7 @@ describe('User detail page', () => {
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Create account' }));
     const createDialog = screen.getByRole('dialog');
-    const loginEmail = within(createDialog).getByLabelText('Login email (optional)');
+    const loginEmail = within(createDialog).getByLabelText('Password login email (optional)');
     await user.clear(loginEmail);
     await user.type(loginEmail, '  member@example.test  ');
     await user.click(
@@ -114,7 +128,9 @@ describe('User detail page', () => {
     const accountSection = (await screen.findByRole('heading', { name: 'Account access' }))
       .closest('.person-detail-card');
     expect(accountSection).toBeInstanceOf(HTMLElement);
-    expect(within(accountSection as HTMLElement).getByText('member@example.test')).toBeInTheDocument();
+    expect(within(accountSection as HTMLElement).queryByText('member@example.test')).not.toBeInTheDocument();
+    const authenticationSection = screen.getByRole('heading', { name: 'Authentication methods' }).closest('.person-detail-card');
+    expect(within(authenticationSection as HTMLElement).getByText('member@example.test')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Actions' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Send invitation' }));
@@ -122,7 +138,12 @@ describe('User detail page', () => {
     await user.click(within(invitationDialog).getByRole('button', { name: 'Send invitation' }));
 
     await waitFor(() => expect(invitationRequested).toBe(true));
-    expect(await screen.findByText('Message sent')).toBeInTheDocument();
+    const manualLinkDialog = await screen.findByRole('dialog', { name: 'Manual setup link created' });
+    expect(within(manualLinkDialog).getByLabelText('One-time setup link')).toHaveValue(
+      `${window.location.origin}/complete-invitation#account=example&code=secret`,
+    );
+    await user.click(within(manualLinkDialog).getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.queryByLabelText('One-time setup link')).not.toBeInTheDocument());
   });
 
   it.each([
@@ -150,7 +171,7 @@ describe('User detail page', () => {
           accountRequest = (await request.json()) as CreateAccountRequest;
           const account = accountFixture({
             loginEmail: null,
-            status: 'disabled',
+            status: 'enabled',
             passwordStatus: 'not_set',
             authIdentities: [],
           });
@@ -165,8 +186,8 @@ describe('User detail page', () => {
     await user.click(await screen.findByRole('button', { name: 'Actions' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Create account' }));
     const createDialog = screen.getByRole('dialog');
-    expect(within(createDialog).getByText('Create an application account for this person. Authentication methods can be configured afterwards.')).toBeInTheDocument();
-    const loginEmail = within(createDialog).getByLabelText('Login email (optional)');
+    expect(within(createDialog).getByText('Create an active application account for this person. Authentication methods can be configured afterwards; without one, the person cannot sign in.')).toBeInTheDocument();
+    const loginEmail = within(createDialog).getByLabelText('Password login email (optional)');
     expect(loginEmail).toHaveValue('');
     if (input) await user.type(loginEmail, input);
     await user.click(within(createDialog).getByRole('button', { name: 'Create account' }));
@@ -175,6 +196,173 @@ describe('User detail page', () => {
       loginEmail: null,
       expectedVersion: 1,
     }));
+  });
+
+  it('activates an identity-free Account and shows missing login methods separately', async () => {
+    let account = accountFixture({
+      loginEmail: null,
+      status: 'disabled',
+      passwordStatus: 'not_set',
+      authIdentities: [],
+    });
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
+        PermissionId.peoplereadall,
+        PermissionId.accountsread,
+        PermissionId.accountsenable,
+      ]))),
+      http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(personFixture({ account }))),
+      http.post('*/api/v1/accounts/:accountId/enable', () => {
+        account = { ...account, status: 'enabled', version: account.version + 1 };
+        return HttpResponse.json(account);
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/people/${otherPersonId}?tab=account-access`);
+
+    const activateButton = await screen.findByRole('button', { name: 'Activate account' });
+    expect(activateButton).toBeEnabled();
+    expect(screen.getByText('No login methods')).toBeInTheDocument();
+    expect(screen.getAllByText('Inactive').length).toBeGreaterThan(0);
+    await user.click(activateButton);
+    await waitFor(() => expect(screen.getAllByText('Active').length).toBeGreaterThan(0));
+    expect(screen.queryByRole('button', { name: 'Activate account' })).not.toBeInTheDocument();
+    expect(screen.getByText('No login methods')).toBeInTheDocument();
+    expect(screen.queryByText(/local login email/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps activation available when a usable PIN method exists', async () => {
+    const account = accountFixture({
+      loginEmail: null,
+      status: 'disabled',
+      passwordStatus: 'not_set',
+      authIdentities: [{
+        id: '0192f6f8-743e-7c77-a349-cd07c3e8a920',
+        kind: 'pin',
+        displayIdentifier: 'phone.only',
+        verifiedAt: '2026-01-01T00:00:00Z',
+        disabledAt: null,
+        usable: true,
+        createdAt: '2026-01-01T00:00:00Z',
+      }],
+    });
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
+        PermissionId.peoplereadall,
+        PermissionId.accountsread,
+        PermissionId.accountsenable,
+      ]))),
+      http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(personFixture({ account }))),
+    );
+    renderRoute(<App />, `/people/${otherPersonId}?tab=account-access`);
+
+    expect(await screen.findByText('Username: phone.only')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Activate account' })).toBeEnabled();
+    expect(screen.queryByText('No login methods')).not.toBeInTheDocument();
+  });
+
+  it('removes an authentication method without changing the account lifecycle state', async () => {
+    let account = accountFixture();
+    let person = personFixture({ account });
+    let removedIdentityId: string | undefined;
+    let removalBody: unknown;
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
+        PermissionId.peoplereadall,
+        PermissionId.accountsread,
+        PermissionId.accountspasswordremoveall,
+      ]))),
+      http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(person)),
+      http.delete('*/api/v1/accounts/:accountId/auth-identities/:identityId', async ({ params, request }) => {
+        removedIdentityId = String(params.identityId);
+        removalBody = await request.json();
+        account = {
+          ...account,
+          loginEmail: null,
+          passwordStatus: 'not_set',
+          authIdentities: account.authIdentities.filter((identity) => identity.id !== removedIdentityId),
+          version: account.version + 1,
+        };
+        person = { ...person, account };
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/people/${otherPersonId}?tab=account-access`);
+
+    await user.click(await screen.findByRole('button', { name: 'Actions for Local password' }));
+    await user.click(await screen.findByText('Remove password method'));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('Remove local password?')).toBeInTheDocument();
+    expect(within(dialog).getByText(/account remains active or inactive independently/i)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Remove method' }));
+
+    await waitFor(() => expect(removedIdentityId).toBe('0192f6f8-743e-7c77-a349-cd07c3e8a906'));
+    expect(removalBody).toEqual({ expectedVersion: 1 });
+    await waitFor(() => expect(screen.queryByText('grace.login@example.test')).not.toBeInTheDocument());
+    expect(screen.getByText('No login methods')).toBeInTheDocument();
+    expect(screen.getAllByText('Active').length).toBeGreaterThan(0);
+  });
+
+  it('validates and submits direct PIN setup while preserving the setup-link alternative', async () => {
+    const account = accountFixture({
+      loginEmail: null,
+      status: 'disabled',
+      passwordStatus: 'not_set',
+      authIdentities: [],
+    });
+    let pinRequest: SetAccountPinRequest | undefined;
+    let setupLinkRequested = false;
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
+        PermissionId.peoplereadall,
+        PermissionId.accountsread,
+        PermissionId.accountspinenrollall,
+      ]))),
+      http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(personFixture({ account }))),
+      http.put('*/api/v1/accounts/:accountId/pin', async ({ request }) => {
+        pinRequest = (await request.json()) as SetAccountPinRequest;
+        return new HttpResponse(null, { status: 204 });
+      }),
+      http.post('*/api/v1/accounts/:accountId/pin-enrollment', () => {
+        setupLinkRequested = true;
+        return HttpResponse.json({
+          account: { ...account, version: 2 },
+          expiresAt: '2026-01-01T00:30:00Z',
+          deliveryStatus: 'manual',
+          setupUrl: '/complete-pin-setup#account=example&code=secret',
+        }, { status: 201 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/people/${otherPersonId}?tab=account-access`);
+
+    await user.click(await screen.findByRole('button', { name: 'Actions for Username and PIN' }));
+    const addPINOptions = await screen.findAllByText('Add username and PIN');
+    await user.click(addPINOptions.at(-1)!);
+    const pinDialog = screen.getByRole('dialog');
+    await user.type(within(pinDialog).getByLabelText('Username'), 'phone.only');
+    await user.type(within(pinDialog).getByLabelText('PIN'), '123456');
+    await user.type(within(pinDialog).getByLabelText('Confirm PIN'), '654321');
+    await user.click(within(pinDialog).getByRole('button', { name: 'Set PIN login' }));
+    expect(await within(pinDialog).findByText('The PINs do not match.')).toBeInTheDocument();
+    await user.clear(within(pinDialog).getByLabelText('Confirm PIN'));
+    await user.type(within(pinDialog).getByLabelText('Confirm PIN'), '123456');
+    await user.click(within(pinDialog).getByRole('button', { name: 'Set PIN login' }));
+    await waitFor(() => expect(pinRequest).toEqual({ loginName: 'phone.only', pin: '123456', expectedVersion: 1 }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Actions for Username and PIN' }));
+    await user.click(await screen.findByText('Create setup link instead'));
+    const setupDialog = screen.getByRole('dialog');
+    await user.click(within(setupDialog).getByRole('button', { name: 'Create PIN setup link' }));
+    await waitFor(() => expect(setupLinkRequested).toBe(true));
+    const manualLinkDialog = await screen.findByRole('dialog', { name: 'Manual setup link created' });
+    expect(within(manualLinkDialog).getByLabelText('One-time setup link')).toHaveValue(
+      `${window.location.origin}/complete-pin-setup#account=example&code=secret`,
+    );
+    await user.click(within(manualLinkDialog).getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(screen.queryByLabelText('One-time setup link')).not.toBeInTheDocument());
   });
 
   it('separates account, authentication, personal, role, and Makerspace information', async () => {
@@ -191,6 +379,7 @@ describe('User detail page', () => {
           displayIdentifier: 'grace.login@example.test',
           verifiedAt: '2026-01-01T00:00:00Z',
           disabledAt: null,
+          usable: true,
           createdAt: '2026-01-01T00:00:00Z',
         },
         {
@@ -199,6 +388,7 @@ describe('User detail page', () => {
           displayIdentifier: 'grace',
           verifiedAt: '2026-01-01T00:00:00Z',
           disabledAt: null,
+          usable: true,
           createdAt: '2026-01-01T00:00:00Z',
         },
         {
@@ -208,6 +398,7 @@ describe('User detail page', () => {
           displayIdentifier: 'Grace Hopper · TU Graz',
           verifiedAt: '2026-01-01T00:00:00Z',
           disabledAt: null,
+          usable: true,
           createdAt: '2026-01-01T00:00:00Z',
         },
       ],
@@ -294,8 +485,8 @@ describe('User detail page', () => {
     expect(screen.getByRole('heading', { name: 'Personal information' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Profile picture' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Roles' })).toBeInTheDocument();
-    expect(within(accountHeading.closest('.person-detail-card') as HTMLElement).getByText('grace.login@example.test')).toBeInTheDocument();
-    expect(within(authenticationHeading.closest('.person-detail-card') as HTMLElement).queryByText('grace.login@example.test')).not.toBeInTheDocument();
+    expect(within(accountHeading.closest('.person-detail-card') as HTMLElement).queryByText('grace.login@example.test')).not.toBeInTheDocument();
+    expect(within(authenticationHeading.closest('.person-detail-card') as HTMLElement).getByText('grace.login@example.test')).toBeInTheDocument();
     expect(screen.getByText('Username: grace')).toBeInTheDocument();
     expect(screen.getByText('Grace Hopper · TU Graz')).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Makerspace status' })).toBeInTheDocument();
@@ -382,6 +573,7 @@ describe('User detail page', () => {
           displayIdentifier: 'grace',
           verifiedAt: '2026-01-01T00:00:00Z',
           disabledAt: null,
+          usable: true,
           createdAt: '2026-01-01T00:00:00Z',
         },
         {
@@ -391,6 +583,7 @@ describe('User detail page', () => {
           displayIdentifier: 'Grace Hopper · TU Graz',
           verifiedAt: '2026-01-01T00:00:00Z',
           disabledAt: null,
+          usable: true,
           createdAt: '2026-01-01T00:00:00Z',
         },
       ],
@@ -400,7 +593,10 @@ describe('User detail page', () => {
         PermissionId.peoplereadall,
         PermissionId.accountsread,
         PermissionId.accountspasswordreset,
+        PermissionId.accountspasswordremoveall,
         PermissionId.accountspinreset,
+        PermissionId.accountspinremoveall,
+        PermissionId.identitiesoidcunlinkall,
       ]))),
       http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(personFixture({ account }))),
     );
@@ -413,6 +609,6 @@ describe('User detail page', () => {
 
     expect(screen.getByRole('button', { name: 'Actions for Local password' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Actions for Username and PIN' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Actions for OIDC / SSO' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Actions for Grace Hopper · TU Graz' })).toBeInTheDocument();
   });
 });

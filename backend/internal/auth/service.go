@@ -158,7 +158,7 @@ func (s *Service) Authenticate(ctx context.Context, sessionToken string) (Authen
 	}
 	principal, err := authorization.LoadPermissionsFrom(ctx, s.pool, authorization.Principal{
 		SessionID: row.SessionID, AccountID: row.AccountID, PersonID: row.PersonID,
-		FirstName: row.FirstName, LastName: row.LastName, LoginEmail: row.LoginEmail,
+		FirstName: row.FirstName, LastName: row.LastName,
 		Assurance: assurance, AuthenticatedAt: row.AuthenticatedAt,
 	})
 	if err != nil {
@@ -288,13 +288,6 @@ func (s *Service) RemovePassword(ctx context.Context, principal authorization.Pr
 	}
 	if !security.VerifyPassword(credential.PasswordHash, currentPassword) {
 		return apperror.New(422, "current_password_invalid", "Current password is invalid")
-	}
-	usable, err := queries.CountUsableIdentitiesForAccount(ctx, principal.AccountID)
-	if err != nil {
-		return err
-	}
-	if usable <= 1 {
-		return apperror.New(409, "last_authentication_method", "An enabled account must retain an authentication method")
 	}
 	if err := queries.DeletePasswordIdentity(ctx, credential.AuthIdentityID); err != nil {
 		return err

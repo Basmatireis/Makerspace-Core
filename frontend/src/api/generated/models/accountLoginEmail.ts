@@ -21,6 +21,7 @@ the required session and CSRF credentials.
 import type { Email } from './email';
 
 /**
+ * Compatibility view of the local password identifier; use authIdentities.
  * @deprecated
  * @nullable
  */

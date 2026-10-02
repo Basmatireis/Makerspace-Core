@@ -4,7 +4,7 @@ FROM auth_identities
 WHERE kind = 'password' AND disabled_at IS NULL AND identifier_normalized = sqlc.arg(identifier_normalized)::text;
 
 -- name: GetAccountForAuthentication :one
-SELECT id, status
+SELECT id, status, version
 FROM accounts
 WHERE id = sqlc.arg(id)
 FOR UPDATE;
@@ -64,9 +64,9 @@ WHERE accounts.id = sqlc.arg(account_id);
 
 -- name: GetSessionPrincipal :one
 SELECT s.id AS session_id, s.account_id, s.auth_identity_id, s.csrf_digest,
-       s.idle_expires_at, s.absolute_expires_at, s.last_seen_at,
-       s.auth_method, s.base_assurance, s.current_assurance, s.authenticated_at, s.assurance_expires_at,
-       a.person_id, p.first_name, p.last_name, COALESCE(i.identifier_display, '')::text AS login_email
+	       s.idle_expires_at, s.absolute_expires_at, s.last_seen_at,
+	       s.auth_method, s.base_assurance, s.current_assurance, s.authenticated_at, s.assurance_expires_at,
+	       a.person_id, p.first_name, p.last_name
 FROM sessions s JOIN accounts a ON a.id = s.account_id JOIN people p ON p.id = a.person_id
 JOIN auth_identities i ON i.id = s.auth_identity_id
 WHERE s.token_digest = sqlc.arg(token_digest) AND s.revoked_at IS NULL
@@ -264,7 +264,8 @@ RETURNING *;
 
 -- name: UpdatePINIdentity :one
 UPDATE auth_identities SET identifier_display = sqlc.arg(identifier_display),
-    identifier_normalized = sqlc.arg(identifier_normalized), disabled_at = NULL, updated_at = now()
+    identifier_normalized = sqlc.arg(identifier_normalized), verified_at = COALESCE(verified_at, now()),
+    disabled_at = NULL, updated_at = now()
 WHERE account_id = sqlc.arg(account_id) AND kind = 'pin'
 RETURNING *;
 
@@ -276,15 +277,12 @@ INSERT INTO pin_credentials (auth_identity_id, pin_hash, changed_at)
 VALUES (sqlc.arg(auth_identity_id), sqlc.arg(pin_hash), now())
 ON CONFLICT (auth_identity_id) DO UPDATE SET pin_hash = EXCLUDED.pin_hash, changed_at = now();
 
+-- name: DeletePINEnrollmentChallengeForAccount :exec
+DELETE FROM auth_challenges
+WHERE account_id = sqlc.arg(account_id) AND kind = 'pin_enrollment';
+
 -- name: DeletePINIdentity :exec
 DELETE FROM auth_identities WHERE id = sqlc.arg(id) AND kind = 'pin';
-
--- name: CountUsableIdentitiesForAccount :one
-SELECT count(*) FROM auth_identities i
-WHERE i.account_id = sqlc.arg(account_id) AND i.disabled_at IS NULL
-  AND ((i.kind = 'password' AND EXISTS (SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required))
-    OR (i.kind = 'pin' AND EXISTS (SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id = i.id))
-    OR (i.kind = 'oidc' AND EXISTS (SELECT 1 FROM oidc_providers op WHERE op.id=i.provider_id AND op.enabled)));
 
 -- name: DeletePasswordIdentity :exec
 DELETE FROM auth_identities WHERE id = sqlc.arg(id) AND kind = 'password';

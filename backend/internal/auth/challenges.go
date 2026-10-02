@@ -64,7 +64,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email, sourceKey str
 	challenge, err := queries.UpsertAuthChallenge(ctx, authdb.UpsertAuthChallengeParams{
 		ID: uuid.Must(uuid.NewV7()), Kind: "password_reset", AccountID: target.AccountID,
 		AuthIdentityID: &target.AuthIdentityID, CodeDigest: s.challengeDigest("password_reset", target.AccountID, code),
-		DeliveryAddress: *target.DeliveryAddress, ExpiresAt: expiresAt,
+		DeliveryAddress: target.DeliveryAddress, ExpiresAt: expiresAt,
 	})
 	if err != nil {
 		return err
@@ -293,7 +293,7 @@ func (s *Service) RequestOwnEmailVerification(ctx context.Context, principal aut
 	challenge, err := queries.UpsertAuthChallenge(ctx, authdb.UpsertAuthChallengeParams{
 		ID: uuid.Must(uuid.NewV7()), Kind: "email_verification", AccountID: principal.AccountID,
 		AuthIdentityID: &target.AuthIdentityID, CodeDigest: s.challengeDigest("email_verification", principal.AccountID, code),
-		DeliveryAddress: *target.DeliveryAddress, CreatedByAccountID: &principal.AccountID, ExpiresAt: expiresAt,
+		DeliveryAddress: target.DeliveryAddress, CreatedByAccountID: &principal.AccountID, ExpiresAt: expiresAt,
 	})
 	if err != nil {
 		return err

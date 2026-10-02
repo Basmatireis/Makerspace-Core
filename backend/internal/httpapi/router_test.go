@@ -281,6 +281,15 @@ func TestHandlerValidatesContractAndProtectsRoutes(t *testing.T) {
 		t.Fatalf("protected status=%d cache=%q", recorder.Code, recorder.Header().Get("Cache-Control"))
 	}
 
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/pin/enrollment/complete", bytes.NewBufferString(`{}`))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Origin", "http://localhost:5173")
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusBadRequest || recorder.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("public PIN enrollment completion status=%d cache=%q", recorder.Code, recorder.Header().Get("Cache-Control"))
+	}
+
 	for _, path := range []string{
 		"/api/v1/managed-devices",
 		"/api/v1/managed-devices/0192f6f8-743e-7c77-a349-cd07c3e8a921/token",
@@ -304,6 +313,16 @@ func TestHandlerValidatesContractAndProtectsRoutes(t *testing.T) {
 	handler.ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusNotFound {
 		t.Fatalf("unknown path status=%d", recorder.Code)
+	}
+}
+
+func TestPINEnrollmentCompletionAuthBoundary(t *testing.T) {
+	path := apiBasePath + "/auth/pin/enrollment/complete"
+	if !isPublicRequest(http.MethodPost, path) {
+		t.Fatal("PIN enrollment completion must be public")
+	}
+	if isPublicRequest(http.MethodDelete, path) {
+		t.Fatal("removing an enrolled PIN must remain authenticated")
 	}
 }
 

@@ -17,7 +17,7 @@ Authorization is based on application-registered permission identifiers. Backend
 | `accounts.read` | Read account status, login identity, and role assignments in administration APIs. |
 | `accounts.create` | Create an Account for an existing Person. |
 | `accounts.delete` | Hard-delete an Account and its authentication data. |
-| `accounts.enable` | Enable an Account with a usable authentication method. |
+| `accounts.enable` | Activate an Account independently of its authentication methods. |
 | `accounts.disable` | Disable an Account and revoke its sessions. |
 | `accounts.login_email.update` | Change an account login email independently of Person contact email. |
 | `accounts.password.set` | Directly set another account's password. |
@@ -36,15 +36,15 @@ Authorization is based on application-registered permission identifiers. Backend
 | `people.profile_image.update.self`, `people.profile_image.update.all` | Replace the current Person's or any Person's private profile image. |
 | `people.profile_image.remove.self`, `people.profile_image.remove.all` | Remove the current Person's or any Person's private profile image. |
 | `accounts.password.enroll.self`, `accounts.password.enroll.all` | Enroll a local password method, subject to service safeguards. |
-| `accounts.password.remove.self`, `accounts.password.remove.all` | Remove a local password method while preserving Account safety. |
+| `accounts.password.remove.self`, `accounts.password.remove.all` | Remove a local password method. |
 | `accounts.pin.enroll.self`, `accounts.pin.enroll.all` | Enroll a PIN method for self or another Account. |
-| `accounts.pin.remove.self`, `accounts.pin.remove.all`, `accounts.pin.reset` | Remove/reset PIN methods subject to Account safety and fresh-authentication requirements. |
+| `accounts.pin.remove.self`, `accounts.pin.remove.all`, `accounts.pin.reset` | Remove/reset PIN methods subject to fresh-authentication requirements. |
 | `laborordnung.read`, `laborordnung.manage` | Read Lab Rules documents or upload/publish immutable versions. |
 | `laborordnung.requests.read`, `laborordnung.confirm` | Read the confirmation queue or record verification of physical evidence. |
 | `visitor_enrollment.manage` | Configure approved terminal types, methods, and a delegable initial Role. |
 | `supervisor_dashboard.read` | Read the purpose-limited supervisor dashboard. |
 | `identities.oidc.link.self`, `identities.oidc.link.all` | Self-linking requires recent normal-or-higher authentication. `link.all` is reserved/unimplemented; it cannot attach arbitrary subjects. |
-| `identities.oidc.unlink.self`, `identities.oidc.unlink.all` | Unlink external identities with remaining-method protection. |
+| `identities.oidc.unlink.self`, `identities.oidc.unlink.all` | Unlink external identities. |
 | `oidc.manage` | Configure OIDC providers and trusted assurance mappings. |
 | `scim.manage` | Configure SCIM connectors and reconcile never-authenticated provisional Accounts. Role transfer separately requires `accounts.roles.assign` and ordinary delegation authority; master transfer is forbidden. |
 | `mail.manage` | Configure encrypted transactional SMTP settings. |

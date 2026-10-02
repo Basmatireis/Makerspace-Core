@@ -5,6 +5,9 @@ const masterLogin = 'e2e-master@example.test';
 const masterPassword = 'E2E master workshop passphrase 42';
 const memberLogin = 'e2e-supervisor@example.test';
 const memberPassword = 'E2E supervisor workshop passphrase 57';
+const phoneOnlyLogin = 'e2e.phone.only';
+const phoneOnlyPIN = '654321';
+const phoneOnlyResetPIN = '765432';
 
 test.skip(
   process.env.PLAYWRIGHT_FULL_STACK !== 'true',
@@ -36,6 +39,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
 }) => {
   test.setTimeout(120_000);
   let personPath = '';
+  let phoneOnlyPersonPath = '';
   let rolePath = '';
 
   await test.step('sign in with the CLI-bootstrap fixture and reach Dashboard', async () => {
@@ -95,7 +99,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await expect(page).toHaveURL(/\/settings\/roles$/);
   });
 
-  await test.step('create a Person and provision, enable, and assign its Account', async () => {
+  await test.step('create a Person and provision and assign its active Account', async () => {
     await page.goto('/people/new');
     await page.getByLabel('First name').fill('Katherine');
     await page.getByLabel('Last name').fill('Johnson');
@@ -115,13 +119,17 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     const createAccountDialog = page.getByRole('dialog', {
       name: 'Katherine Johnson',
     });
-    await createAccountDialog.getByLabel('Login email (optional)').fill(memberLogin);
+    await createAccountDialog.getByLabel('Password login email (optional)').fill(memberLogin);
     await createAccountDialog
       .getByRole('button', { name: 'Create account' })
       .click();
     await expect(createAccountDialog).toBeHidden();
+    await expect(page.getByText('Active', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('No login methods', { exact: true })).toBeVisible();
     await expect(
-      page.getByRole('row', { name: `Login email ${memberLogin}` }),
+      page
+        .getByRole('tabpanel', { name: 'Account access' })
+        .getByText(memberLogin, { exact: true }),
     ).toBeVisible();
 
     // Direct administrator password setting is an emergency API operation and
@@ -144,10 +152,6 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await expect(page.getByRole('menuitem', { name: 'Send reset code' })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(
-      page.getByRole('button', { name: 'Enable account' }),
-    ).toBeEnabled();
-    await page.getByRole('button', { name: 'Enable account' }).click();
-    await expect(
       page.getByRole('button', { name: 'Disable account' }),
     ).toBeVisible();
 
@@ -162,6 +166,73 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
         .getByLabel('Assigned roles')
         .getByText('E2E workshop supervisors', { exact: true }),
     ).toBeVisible();
+  });
+
+  await test.step('provision and sign in a phone-only PIN Account', async () => {
+    await page.goto('/people/new');
+    await page.getByLabel('First name').fill('Phone');
+    await page.getByLabel('Last name').fill('Only');
+    await page.getByLabel('Phone').fill('+43 660 204200');
+    await page.getByRole('button', { name: 'Create person' }).click();
+    await expect(page).toHaveURL(/\/people\/[0-9a-f-]+$/);
+    phoneOnlyPersonPath = new URL(page.url()).pathname;
+
+    await page.getByRole('button', { name: 'Actions', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Create account' }).click();
+    const createAccountDialog = page.getByRole('dialog', { name: 'Phone Only' });
+    await expect(createAccountDialog.getByLabel('Password login email (optional)')).toHaveValue('');
+    await createAccountDialog.getByRole('button', { name: 'Create account' }).click();
+    await expect(createAccountDialog).toBeHidden();
+    await expect(page.getByText('Active', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('No login methods', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Activate account' })).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Actions for Username and PIN' }).click();
+    await page.getByText('Add username and PIN', { exact: true }).last().click();
+    const pinDialog = page.getByRole('dialog', { name: 'Phone Only' });
+    await pinDialog.getByLabel('Username').fill(phoneOnlyLogin);
+    await pinDialog.getByLabel('PIN', { exact: true }).fill(phoneOnlyPIN);
+    await pinDialog.getByLabel('Confirm PIN').fill(phoneOnlyPIN);
+    await pinDialog.getByRole('button', { name: 'Set PIN login' }).click();
+    await expect(pinDialog).toBeHidden();
+    await expect(page.getByText(`Username: ${phoneOnlyLogin}`)).toBeVisible();
+    await expect(page.getByText('No login methods', { exact: true })).toHaveCount(0);
+
+    await signOut(page);
+    await page.getByRole('button', { name: 'PIN', exact: true }).click();
+    await page.getByLabel('Login name').fill(phoneOnlyLogin);
+    await page.getByLabel('PIN', { exact: true }).fill(phoneOnlyPIN);
+    await page.getByRole('button', { name: 'Sign in with PIN' }).click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+
+    await signOut(page);
+    await signIn(page, masterLogin, masterPassword);
+    await page.goto(phoneOnlyPersonPath);
+    await page.getByRole('button', { name: 'Actions for Username and PIN' }).click();
+    await page.getByText('Create setup link', { exact: true }).click();
+    const resetLinkDialog = page
+      .getByRole('dialog')
+      .filter({ hasText: 'Create a PIN reset link?' });
+    await resetLinkDialog.getByRole('button', { name: 'Create PIN reset link' }).click();
+    const manualLinkDialog = page
+      .getByRole('dialog')
+      .filter({ hasText: 'Manual setup link created' });
+    const setupURL = await manualLinkDialog.getByLabel('One-time setup link').inputValue();
+    await manualLinkDialog.getByRole('button', { name: 'Done' }).click();
+    await expect(manualLinkDialog).toBeHidden();
+    await signOut(page);
+    await page.goto(setupURL);
+    await page.getByLabel('Username').fill(phoneOnlyLogin);
+    await page.getByLabel('PIN', { exact: true }).fill(phoneOnlyResetPIN);
+    await page.getByLabel('Confirm PIN').fill(phoneOnlyResetPIN);
+    await page.getByRole('button', { name: 'Configure PIN login' }).click();
+    await expect(page.getByText('PIN login ready')).toBeVisible();
+    await page.getByRole('link', { name: 'Continue to sign in' }).click();
+    await page.getByRole('button', { name: 'PIN', exact: true }).click();
+    await page.getByLabel('Login name').fill(phoneOnlyLogin);
+    await page.getByLabel('PIN', { exact: true }).fill(phoneOnlyResetPIN);
+    await page.getByRole('button', { name: 'Sign in with PIN' }).click();
+    await expect(page).toHaveURL(/\/dashboard$/);
   });
 
   await test.step('verify supervisor redaction and self-only profile editing', async () => {
@@ -181,7 +252,10 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await expect(page.getByRole('button', { name: 'Edit', exact: true })).toHaveCount(0);
 
     await page.goto('/profile');
-    await page.getByRole('button', { name: 'Edit profile' }).click();
+    const personalInformationCard = page
+      .getByRole('heading', { name: 'Personal information', exact: true })
+      .locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " person-detail-card ")][1]');
+    await personalInformationCard.getByRole('button', { name: 'Edit', exact: true }).click();
     await page.getByLabel('Phone').fill('+43 316 555 2042');
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByText('+43 316 555 2042')).toBeVisible();
@@ -198,6 +272,20 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await page.getByRole('button', { name: 'Delete person' }).last().click();
     await expect(page).toHaveURL(/\/people$/);
     await expect(page.getByText('Katherine Johnson')).toHaveCount(0);
+
+    await page.goto(phoneOnlyPersonPath);
+    await page.getByRole('button', { name: 'Actions for Username and PIN' }).click();
+    await page.getByRole('menuitem', { name: 'Remove PIN method' }).click();
+    const removePINDialog = page.getByRole('dialog').filter({ hasText: 'Remove username and PIN?' });
+    await expect(removePINDialog.getByText(/account remains active or inactive independently/i)).toBeVisible();
+    await removePINDialog.getByRole('button', { name: 'Remove method' }).click();
+    await expect(page.getByText('No login methods', { exact: true })).toBeVisible();
+    await expect(page.getByText('Active', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText(`Username: ${phoneOnlyLogin}`)).toHaveCount(0);
+
+    await page.getByRole('button', { name: 'Delete person' }).click();
+    await page.getByRole('button', { name: 'Delete person' }).last().click();
+    await expect(page).toHaveURL(/\/people$/);
 
     await page.goto(rolePath);
     await page.getByRole('button', { name: 'Cancel' }).click();

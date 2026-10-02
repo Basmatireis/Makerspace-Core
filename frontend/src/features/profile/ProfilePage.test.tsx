@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { PermissionId, type UpdatePersonRequest } from '../../api/generated/models';
@@ -34,7 +34,9 @@ describe('Profile page', () => {
     const user = userEvent.setup();
     renderRoute(<App />, '/profile');
 
-    await user.click(await screen.findByRole('button', { name: 'Edit profile' }));
+    const personalInformationCard = (await screen.findByRole('heading', { name: 'Personal information' }))
+      .closest('.person-detail-card') as HTMLElement;
+    await user.click(within(personalInformationCard).getByRole('button', { name: 'Edit' }));
     const firstName = screen.getByLabelText('First name');
     await user.clear(firstName);
     await user.type(firstName, 'Augusta');
@@ -44,9 +46,11 @@ describe('Profile page', () => {
       expect(submitted).toEqual({ expectedVersion: 1, firstName: 'Augusta' }),
     );
     expect(
-      await screen.findByRole('cell', { name: 'Augusta Lovelace' }),
+      await screen.findByRole('cell', { name: 'Augusta' }),
     ).toBeInTheDocument();
     expect(screen.getByText('Matriculation number')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Account access' })).toBeInTheDocument();
+    expect(screen.queryByText('Login email')).not.toBeInTheDocument();
   });
 
   it('does not render the sensitive matriculation field without read permission', async () => {
@@ -63,7 +67,7 @@ describe('Profile page', () => {
     expect(screen.queryByText('SECRET-42')).not.toBeInTheDocument();
   });
 
-  it('opens profile-picture actions from the picture instead of showing a large uploader', async () => {
+  it('uses the same profile-picture card action as the People detail page', async () => {
     const currentUser = currentUserFixture([
       PermissionId.peopleprofile_imageupdateself,
       PermissionId.peopleprofile_imageremoveself,
@@ -74,16 +78,43 @@ describe('Profile page', () => {
     const user = userEvent.setup();
     renderRoute(<App />, '/profile');
 
-    await user.click(
-      await screen.findByRole('button', {
-        name: 'Edit profile picture for Ada Lovelace',
-      }),
-    );
+    const profilePictureCard = (await screen.findByRole('heading', { name: 'Profile picture' }))
+      .closest('.person-detail-card') as HTMLElement;
+    await user.click(within(profilePictureCard).getByRole('button', { name: 'Edit' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Edit profile picture' });
     expect(dialog).toBeInTheDocument();
-    expect(screen.getByText('Edit')).toBeInTheDocument();
     expect(screen.queryByText('Drag an image here or click to upload')).not.toBeInTheDocument();
+  });
+
+  it('shows an active account without login methods as a valid separate state', async () => {
+    const currentUser = currentUserFixture();
+    currentUser.account.authIdentities = [];
+    currentUser.account.loginEmail = null;
+    currentUser.account.passwordStatus = 'not_set';
+    currentUser.person.account = currentUser.account;
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUser)),
+    );
+
+    renderRoute(<App />, '/profile');
+
+    expect((await screen.findAllByText('Active')).length).toBeGreaterThan(0);
+    expect(screen.getByText('No login methods')).toBeInTheDocument();
+  });
+
+  it('allows the only password method to be removed', async () => {
+    const currentUser = currentUserFixture([PermissionId.accountspasswordremoveself]);
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUser)),
+    );
+
+    renderRoute(<App />, '/profile');
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Actions for Local password' }));
+    await user.click(await screen.findByText('Remove password method'));
+    expect(screen.getByRole('dialog', { name: 'Remove password method' })).toBeInTheDocument();
   });
 });
 
@@ -91,7 +122,7 @@ it('lets an OIDC-only account request reauthentication and link without a passwo
   const current = currentUserFixture([PermissionId.identitiesoidclinkself]);
   current.account.passwordStatus = 'not_set';
   current.account.loginEmail = null;
-  current.account.authIdentities = [{ id: current.account.id, kind: 'oidc', providerSlug: 'linked', displayIdentifier: 'Linked provider', verifiedAt: current.account.createdAt, disabledAt: null, createdAt: current.account.createdAt }];
+  current.account.authIdentities = [{ id: current.account.id, kind: 'oidc', providerSlug: 'linked', displayIdentifier: 'Linked provider', verifiedAt: current.account.createdAt, disabledAt: null, usable: true, createdAt: current.account.createdAt }];
   let reauthenticated = false;
   let linkBody: unknown;
   server.use(
@@ -108,11 +139,15 @@ it('lets an OIDC-only account request reauthentication and link without a passwo
   );
   const user = userEvent.setup();
   renderRoute(<App />, '/profile');
-  await user.click(await screen.findByRole('button', { name: 'Reauthenticate with Linked provider' }));
+  await user.click(await screen.findByRole('button', { name: 'Actions for Linked provider' }));
+  await user.click(await screen.findByText('Reauthenticate with Linked provider'));
   expect(await screen.findByText('Reauthentication failed')).toBeInTheDocument();
   expect(reauthenticated).toBe(true);
   expect(screen.queryByLabelText('Current local password (optional)')).not.toBeInTheDocument();
-  await user.click(screen.getByRole('button', { name: 'Link Another provider' }));
+  await user.click(screen.getByRole('button', { name: 'Actions for OIDC / SSO' }));
+  await user.click(await screen.findByText('Link Another provider'));
+  const linkDialog = screen.getByRole('dialog', { name: 'Link Another provider' });
+  await user.click(within(linkDialog).getByRole('button', { name: 'Link provider' }));
   await waitFor(() => expect(linkBody).toEqual({}));
   expect(await screen.findByText('Authenticate again before linking')).toBeInTheDocument();
 });

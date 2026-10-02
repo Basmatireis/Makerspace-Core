@@ -19,7 +19,18 @@ import {
   Tag,
   Theme,
 } from '@carbon/react';
-import { Logout, UserAvatar } from '@carbon/icons-react';
+import {
+  Dashboard,
+  DocumentSecurity,
+  Calendar,
+  Information,
+  Logout,
+  Policy,
+  Settings,
+  Tools,
+  UserAvatar,
+  UserMultiple,
+} from '@carbon/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { getGetLaborordnungPDFUrl, requestOwnLaborordnungConfirmation } from '../api/generated/laborordnung/laborordnung';
@@ -151,12 +162,14 @@ export function AppShell() {
             <Stack gap={5} className="profile-panel__content">
               <div>
                 <p className="profile-panel__name">{displayName}</p>
-                <p className="profile-panel__email">
-                  {currentUser.account.loginEmail ?? 'No local login email'}
-                </p>
+                {(currentUser.person.email || currentUser.person.phone) && (
+                  <p className="profile-panel__email">
+                    {currentUser.person.email ?? currentUser.person.phone}
+                  </p>
+                )}
               </div>
               <Tag type={currentUser.account.status === 'enabled' ? 'green' : 'gray'}>
-                {currentUser.account.status === 'enabled' ? 'Enabled' : 'Disabled'}
+                {currentUser.account.status === 'enabled' ? 'Active' : 'Inactive'}
               </Tag>
               <Button
                 kind="ghost"
@@ -197,6 +210,7 @@ export function AppShell() {
                 as={Link}
                 to="/dashboard"
                 isActive={location.pathname === '/dashboard'}
+                renderIcon={Dashboard}
               >
                 Dashboard
               </SideNavLink>
@@ -205,11 +219,12 @@ export function AppShell() {
                   as={Link}
                   to="/open-days"
                   isActive={location.pathname.startsWith('/open-days')}
+                  renderIcon={Calendar}
                 >
                   Open Days
                 </SideNavLink>
               )}
-              {canAccessMachineLogbook(currentUser) && <SideNavMenu title="Machines" defaultExpanded={machineLogbookActive} isActive={machineLogbookActive}>
+              {canAccessMachineLogbook(currentUser) && <SideNavMenu title="Machines" defaultExpanded={machineLogbookActive} isActive={machineLogbookActive} renderIcon={Tools}>
                 {(hasPermission(currentUser, PermissionId.machine_jobsread) || hasPermission(currentUser, PermissionId.statisticsread)) && <SideNavMenuItem as={Link} to="/machine-logbook" isActive={location.pathname === '/machine-logbook'}>Overview</SideNavMenuItem>}
                 {hasPermission(currentUser, PermissionId.machine_jobsread) && <SideNavMenuItem as={Link} to="/machine-logbook/jobs" isActive={location.pathname.startsWith('/machine-logbook/jobs')}>Jobs</SideNavMenuItem>}
                 {hasPermission(currentUser, PermissionId.machine_jobsreview) && <SideNavMenuItem as={Link} to="/machine-logbook/review" isActive={location.pathname.startsWith('/machine-logbook/review')}>Review</SideNavMenuItem>}
@@ -222,6 +237,7 @@ export function AppShell() {
                   as={Link}
                   to={canAccessPeopleDirectory ? '/people' : '/people/staffing'}
                   isActive={peopleActive}
+                  renderIcon={UserMultiple}
                 >
                   People
                 </SideNavLink>
@@ -234,6 +250,7 @@ export function AppShell() {
                     as={Link}
                     to="/settings"
                     isActive={settingsActive}
+                    renderIcon={Settings}
                   >
                     Settings
                   </SideNavLink>}
@@ -241,6 +258,7 @@ export function AppShell() {
                     as={Link}
                     to="/audit-log"
                     isActive={location.pathname === '/audit-log'}
+                    renderIcon={DocumentSecurity}
                   >
                     Audit Log
                   </SideNavLink>}
@@ -249,13 +267,14 @@ export function AppShell() {
             </SideNavItems>
             <SideNavItems className="app-side-nav__secondary">
               <SideNavDivider />
-              <SideNavLink as={Link} to="/about" isActive={location.pathname === '/about'}>
+              <SideNavLink as={Link} to="/about" isActive={location.pathname === '/about'} renderIcon={Information}>
                 About
               </SideNavLink>
               <SideNavLink
                 as={Link}
                 to="/legal-and-privacy"
                 isActive={location.pathname === '/legal-and-privacy'}
+                renderIcon={Policy}
               >
                 Legal &amp; Privacy
               </SideNavLink>

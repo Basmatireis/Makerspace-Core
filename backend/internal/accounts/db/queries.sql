@@ -70,29 +70,40 @@ WHERE account_id = sqlc.arg(account_id) AND kind = 'password' RETURNING *;
 SELECT * FROM auth_identities WHERE account_id = sqlc.arg(account_id) AND kind = 'password';
 
 -- name: ListAuthIdentitiesByAccount :many
-SELECT i.*, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug
+SELECT i.*, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug,
+       CASE
+         WHEN i.disabled_at IS NOT NULL THEN false
+         WHEN i.kind = 'password' THEN EXISTS (
+           SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required
+         )
+         WHEN i.kind = 'pin' THEN EXISTS (
+           SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id = i.id
+         )
+         WHEN i.kind = 'oidc' THEN COALESCE(p.enabled, false)
+         ELSE false
+       END AS usable
 FROM auth_identities i
 LEFT JOIN oidc_providers p ON p.id = i.provider_id
 WHERE i.account_id = sqlc.arg(account_id)
 ORDER BY i.kind, i.created_at, i.id;
 
 -- name: ListAuthIdentitiesByAccounts :many
-SELECT i.*, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug
+SELECT i.*, COALESCE(i.identifier_display, p.display_name) AS display_identifier, p.slug AS provider_slug,
+       CASE
+         WHEN i.disabled_at IS NOT NULL THEN false
+         WHEN i.kind = 'password' THEN EXISTS (
+           SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required
+         )
+         WHEN i.kind = 'pin' THEN EXISTS (
+           SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id = i.id
+         )
+         WHEN i.kind = 'oidc' THEN COALESCE(p.enabled, false)
+         ELSE false
+       END AS usable
 FROM auth_identities i
 LEFT JOIN oidc_providers p ON p.id = i.provider_id
 WHERE i.account_id = ANY(sqlc.arg(account_ids)::uuid[])
 ORDER BY i.account_id, i.kind, i.created_at, i.id;
-
--- name: CountUsableAuthIdentities :one
-SELECT count(*) FROM auth_identities i
-WHERE i.account_id = sqlc.arg(account_id) AND i.disabled_at IS NULL
-  AND (
-    (i.kind = 'password' AND i.verified_at IS NOT NULL AND EXISTS (
-      SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required
-    ))
-    OR (i.kind = 'pin' AND EXISTS (SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id=i.id))
-    OR (i.kind = 'oidc' AND EXISTS (SELECT 1 FROM oidc_providers op WHERE op.id=i.provider_id AND op.enabled))
-  );
 
 -- name: UpsertPasswordCredential :exec
 INSERT INTO password_credentials (auth_identity_id, password_hash, reset_required, changed_at)
@@ -176,16 +187,6 @@ SELECT a.*, i.id AS auth_identity_id FROM accounts a
 JOIN auth_identities i ON i.account_id = a.id AND i.kind = 'password'
 WHERE i.identifier_normalized = sqlc.arg(identifier_normalized)::text;
 
--- name: FindAccountsByAdministrativeIdentifier :many
-SELECT DISTINCT a.id
-FROM accounts a
-JOIN people p ON p.id = a.person_id
-LEFT JOIN auth_identities i ON i.account_id = a.id AND i.kind IN ('password', 'pin')
-WHERE lower(btrim(COALESCE(i.identifier_normalized, ''))) = lower(btrim(sqlc.arg(identifier)::text))
-   OR lower(btrim(COALESCE(i.identifier_display, ''))) = lower(btrim(sqlc.arg(identifier)::text))
-   OR lower(btrim(COALESCE(p.email, ''))) = lower(btrim(sqlc.arg(identifier)::text))
-ORDER BY a.id;
-
 -- name: GetPasswordIdentityForAccountForUpdate :one
 SELECT * FROM auth_identities
 WHERE account_id = sqlc.arg(account_id) AND kind = 'password'
@@ -194,11 +195,6 @@ FOR UPDATE;
 -- name: GetPersonEmailForAccount :one
 SELECT p.email FROM people p JOIN accounts a ON a.person_id = p.id
 WHERE a.id = sqlc.arg(account_id);
-
--- name: CreateVerifiedPasswordIdentity :one
-INSERT INTO auth_identities (id, account_id, kind, identifier_display, identifier_normalized, verified_at)
-VALUES (sqlc.arg(id), sqlc.arg(account_id), 'password', sqlc.arg(identifier_display), sqlc.arg(identifier_normalized), now())
-RETURNING *;
 
 -- name: RestorePasswordIdentity :exec
 UPDATE auth_identities
@@ -209,6 +205,14 @@ WHERE id = sqlc.arg(id) AND kind = 'password';
 DELETE FROM auth_challenges
 WHERE account_id = sqlc.arg(account_id)
   AND kind IN ('invitation', 'email_verification', 'password_reset');
+
+-- name: DeletePINEnrollmentChallengesForAccount :exec
+DELETE FROM auth_challenges
+WHERE account_id = sqlc.arg(account_id) AND kind = 'pin_enrollment';
+
+-- name: DeleteAuthIdentityForAccount :execrows
+DELETE FROM auth_identities
+WHERE id = sqlc.arg(id) AND account_id = sqlc.arg(account_id);
 
 -- name: BumpAccountVersionForAdministrativeReset :exec
 UPDATE accounts SET version = version + 1, updated_at = now()
@@ -228,7 +232,7 @@ INSERT INTO auth_challenges (
     created_by_account_id, expires_at
 ) VALUES (
     sqlc.arg(id), sqlc.arg(kind), sqlc.arg(account_id), sqlc.narg(auth_identity_id),
-    sqlc.arg(code_digest), sqlc.arg(delivery_address), sqlc.narg(created_by_account_id), sqlc.arg(expires_at)
+    sqlc.arg(code_digest), sqlc.narg(delivery_address), sqlc.narg(created_by_account_id), sqlc.arg(expires_at)
 )
 ON CONFLICT (account_id, kind) DO UPDATE SET
     id = EXCLUDED.id, auth_identity_id = EXCLUDED.auth_identity_id,

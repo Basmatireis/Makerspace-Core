@@ -26,7 +26,7 @@ function currentUser(permissions: string[]) {
         loginEmail: 'ada.login@example.test',
         provisioningSource: 'local',
         firstAuthenticatedAt: timestamp,
-        authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: timestamp, disabledAt: null, createdAt: timestamp }],
+        authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: timestamp, disabledAt: null, usable: true, createdAt: timestamp }],
         status: 'enabled',
         passwordStatus: 'active',
         roles: [],
@@ -42,7 +42,7 @@ function currentUser(permissions: string[]) {
       loginEmail: 'ada.login@example.test',
       provisioningSource: 'local',
       firstAuthenticatedAt: timestamp,
-      authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: timestamp, disabledAt: null, createdAt: timestamp }],
+      authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: timestamp, disabledAt: null, usable: true, createdAt: timestamp }],
       status: 'enabled',
       passwordStatus: 'active',
       roles: [],
@@ -294,6 +294,23 @@ test('creates and atomically saves a manager schedule working copy', async ({
   await expect(page.getByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save & close' })).toBeEnabled();
   await capture(page, testInfo, 'open-days-manager-working-copy.png');
+  await page.getByRole('button', { name: 'Table view' }).click();
+  const editableTable = page.getByRole('table', { name: 'Editable Open Days' });
+  await expect(editableTable).toBeVisible();
+  const dateHeader = editableTable.getByRole('columnheader', { name: /Date/ });
+  await expect(dateHeader).toBeVisible();
+  await expect(editableTable.getByRole('columnheader', { name: 'Staffing status' })).toBeVisible();
+  const dateTimeFilters = page.getByRole('group', { name: 'Filter by day and time' });
+  await dateTimeFilters.getByRole('combobox', { name: 'Filter by weekday' }).click();
+  await dateTimeFilters.getByRole('option', { name: 'Friday' }).click();
+  await dateTimeFilters.getByRole('combobox', { name: 'Filter by start time' }).click();
+  await dateTimeFilters.getByRole('option', { name: '16:00' }).click();
+  await dateHeader.getByRole('button', { name: 'Date' }).click();
+  await expect(dateHeader).toHaveAttribute('aria-sort', 'ascending');
+  await editableTable.getByRole('checkbox', { name: /select row/i }).check({ force: true });
+  await expect(page.getByRole('button', { name: 'Edit selected' })).toBeVisible();
+  await expectAccessible(page);
+  await capture(page, testInfo, 'open-days-manager-table-working-copy.png');
   await page.getByRole('button', { name: 'Save & close' }).click();
 
   await expect.poll(() => savedRequest).toBeDefined();

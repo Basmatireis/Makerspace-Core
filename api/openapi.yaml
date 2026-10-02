@@ -190,7 +190,6 @@ paths:
         "204": {description: PIN method removed and other sessions revoked.}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
-        "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /auth/logout:
@@ -279,7 +278,7 @@ paths:
     delete:
       tags: [Authentication]
       operationId: removeOwnPassword
-      summary: Remove the current account password without stranding the account
+      summary: Remove the current account password method
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody:
         required: true
@@ -290,7 +289,6 @@ paths:
         "204": {description: Password removed and all sessions revoked., headers: {Set-Cookie: {schema: {type: string}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
-        "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
@@ -634,7 +632,7 @@ paths:
       tags: [Accounts]
       operationId: createPersonAccount
       summary: Create an account for a person
-      description: Requires `accounts.create`. New accounts are disabled. If `loginEmail` is supplied, a password authentication identity is created without a password.
+      description: Requires `accounts.create`. New accounts are active by default. If `loginEmail` is supplied, a password authentication identity is created without a password.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -829,8 +827,8 @@ paths:
     post:
       tags: [Accounts]
       operationId: enableAccount
-      summary: Enable an account
-      description: Requires `accounts.enable`; an active password credential is required.
+      summary: Activate an account
+      description: Requires `accounts.enable`. Authentication methods are configured independently and are not required for activation.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -905,8 +903,8 @@ paths:
     put:
       tags: [Accounts]
       operationId: updateAccountLoginEmail
-      summary: Replace an account's email login identifier
-      description: Requires `accounts.login_email.update`; this does not silently change the person's contact email.
+      summary: Add or replace an account's password login identifier
+      description: Requires `accounts.login_email.update`; creates a missing password identity and never reads or changes the Person contact email.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -974,6 +972,86 @@ paths:
           $ref: "#/components/responses/Conflict"
         "422":
           $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /accounts/{accountId}/pin:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+    put:
+      tags: [Accounts]
+      operationId: setAccountPin
+      summary: Administratively configure an account's username and PIN
+      description: |
+        Requires `accounts.pin.enroll.all` when adding a PIN method and
+        `accounts.pin.reset` when replacing an existing PIN method. The PIN is
+        hashed before persistence, existing sessions are revoked, and this
+        operation does not enable the Account automatically.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetAccountPinRequest"
+      responses:
+        "204":
+          description: PIN authentication method configured and existing sessions revoked.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /accounts/{accountId}/auth-identities/{identityId}:
+    parameters:
+      - $ref: "#/components/parameters/AccountId"
+      - name: identityId
+        in: path
+        required: true
+        schema: {$ref: "#/components/schemas/UUIDv7"}
+    delete:
+      tags: [Accounts]
+      operationId: removeAccountAuthIdentity
+      summary: Remove an authentication method from an account
+      description: |
+        Requires the method-specific administrative permission:
+        `accounts.password.remove.all`, `accounts.pin.remove.all`, or
+        `identities.oidc.unlink.all`. The account lifecycle state is unchanged;
+        dependent credentials and challenges are deleted, and existing account
+        sessions are revoked.
+      security:
+        - sessionCookie: []
+          csrfHeader: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/VersionRequest"}
+      responses:
+        "204":
+          description: Authentication method removed and existing sessions revoked.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
         "500":
           $ref: "#/components/responses/InternalServerError"
 
@@ -1071,8 +1149,10 @@ paths:
       summary: Send or safely resend a one-time PIN setup challenge
       description: |
         Requires `accounts.pin.enroll.all` when adding PIN login and
-        `accounts.pin.reset` when replacing an existing PIN method. The
-        administrator never receives or chooses the permanent PIN.
+        `accounts.pin.reset` when replacing an existing PIN method. A Person
+        contact email is used only as an optional delivery channel. When email
+        delivery is unavailable, the authorized administrator receives a
+        one-time setup URL instead.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -1083,7 +1163,7 @@ paths:
             schema: {$ref: "#/components/schemas/VersionRequest"}
       responses:
         "201":
-          description: PIN setup challenge committed and either emailed or returned as a one-time administrator-only setup URL.
+          description: PIN setup challenge committed and either emailed to the Person contact address or returned as a one-time administrator-only setup URL.
           headers:
             Cache-Control: {$ref: "#/components/headers/NoStore"}
           content:
@@ -2375,7 +2455,7 @@ paths:
     delete:
       tags: [OIDC]
       operationId: unlinkOwnOIDCIdentity
-      summary: Unlink an external identity without stranding the enabled Account
+      summary: Unlink an external identity
       security: [{sessionCookie: [], csrfHeader: []}]
       parameters: [{name: identityId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
       responses:
@@ -2383,7 +2463,6 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /visitor-enrollment/configuration:
@@ -4228,6 +4307,7 @@ components:
     AccountStatus:
       type: string
       enum: [enabled, disabled]
+      description: Account lifecycle state. An enabled Account may have no usable authentication method; such an Account is active but cannot sign in.
 
     PasswordStatus:
       type: string
@@ -4286,6 +4366,7 @@ components:
           allOf: [{$ref: "#/components/schemas/Email"}]
           nullable: true
           deprecated: true
+          description: Compatibility view of the local password identifier; use authIdentities.
         provisioningSource:
           type: string
           enum: [local, invitation, oidc_jit, scim, visitor]
@@ -4326,7 +4407,7 @@ components:
     AuthIdentitySummary:
       type: object
       additionalProperties: false
-      required: [id, kind, displayIdentifier, verifiedAt, disabledAt, createdAt]
+      required: [id, kind, displayIdentifier, verifiedAt, disabledAt, usable, createdAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         kind: {type: string, enum: [password, pin, oidc]}
@@ -4334,6 +4415,9 @@ components:
         displayIdentifier: {type: string, nullable: true, maxLength: 254}
         verifiedAt: {type: string, format: date-time, nullable: true}
         disabledAt: {type: string, format: date-time, nullable: true}
+        usable:
+          type: boolean
+          description: Whether this identity can currently authenticate, including its credential and provider state.
         createdAt: {type: string, format: date-time}
 
     UpdateLoginEmailRequest:
@@ -4353,6 +4437,26 @@ components:
       properties:
         newPassword:
           $ref: "#/components/schemas/NewPassword"
+        expectedVersion:
+          $ref: "#/components/schemas/Version"
+
+    SetAccountPinRequest:
+      type: object
+      additionalProperties: false
+      required: [loginName, pin, expectedVersion]
+      properties:
+        loginName:
+          type: string
+          minLength: 3
+          maxLength: 64
+          pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        pin:
+          type: string
+          format: password
+          minLength: 6
+          maxLength: 12
+          pattern: "^[0-9]{6,12}$"
+          writeOnly: true
         expectedVersion:
           $ref: "#/components/schemas/Version"
 

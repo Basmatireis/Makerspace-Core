@@ -256,16 +256,17 @@ h2 {
   row-gap: $spacing-06;
 }
 
-.person-detail-grid--overview {
+.person-detail-grid--overview,
+.person-detail-grid--personal {
   align-items: stretch;
 }
 
-.person-detail-overview__cell {
+.person-detail-grid__stretch-cell {
   display: flex;
   align-self: stretch;
 }
 
-.person-detail-overview__cell > .person-detail-card {
+.person-detail-grid__stretch-cell > .person-detail-card {
   flex: 1 1 auto;
   block-size: 100%;
 }
@@ -435,7 +436,7 @@ h2 {
 }
 
 .authentication-method__summary,
-.authentication-method__identity {
+.authentication-method__identity-summary {
   display: grid;
   gap: $spacing-02;
 }
@@ -448,6 +449,10 @@ h2 {
 }
 
 .authentication-method__identity {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: $spacing-04;
   padding-inline-start: $spacing-05;
 }
 
@@ -1299,6 +1304,9 @@ h2 {
 .open-days-view-toolbar__filters,
 .open-days-view-toolbar__views { display: flex; align-items: stretch; }
 .open-days-view-toolbar__filters .cds--btn { min-block-size: 3rem; white-space: nowrap; }
+.open-days-date-time-filters { display: flex; align-items: flex-end; gap: 1px; }
+.open-days-date-time-filters > .cds--form-item { inline-size: 12rem; }
+.open-days-date-time-filters .cds--list-box { inline-size: 100%; }
 .open-days-view-toolbar__views { margin-inline-start: auto; }
 .open-days-view-toolbar__views .cds--btn { inline-size: 3rem; min-block-size: 3rem; padding: 0; }
 .open-days-view-content--calendar { background: var(--cds-layer); }
@@ -1401,9 +1409,18 @@ h2 {
 .assigned-person .cds--btn { margin-inline-start: auto; }
 .assigned-person__avatar { display: grid; inline-size: 2rem; block-size: 2rem; place-items: center; border-radius: 50%; color: var(--cds-text-on-color); background: var(--cds-link-primary); @include type-style('label-01'); }
 
-.schedule-toolbar { display: flex; align-items: flex-end; flex-wrap: wrap; gap: $spacing-05; padding: $spacing-05; background: var(--cds-layer); }
-.schedule-toolbar h2 { flex-basis: 100%; text-transform: uppercase; @include type-style('label-02'); }
-.schedule-toolbar .cds--number { inline-size: 9rem; }
+.schedule-toolbar { display: flex; align-items: center; justify-content: space-between; gap: $spacing-05; padding: $spacing-05; background: var(--cds-layer); }
+.schedule-toolbar__actions { display: flex; align-items: center; gap: $spacing-03; }
+.open-day-defaults__times,
+.open-day-defaults__requirements { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: $spacing-05; }
+.schedule-editor-view-container { inline-size: 100%; }
+.schedule-editor-view-container .open-days-view-toolbar__views { margin-inline-start: 0; }
+.schedule-editor-toolbar__actions { display: flex; align-items: stretch; margin-inline-start: auto; }
+.schedule-editor-toolbar__actions .cds--btn { min-block-size: 3rem; white-space: nowrap; }
+.schedule-editor-table tbody tr { cursor: default; }
+.schedule-editor-table .table-actions { justify-content: flex-end; }
+.bulk-slot-editor__times,
+.bulk-slot-editor__requirements { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: $spacing-05; }
 .semester-calendar--editor { --calendar-month-size: 48rem; }
 .calendar-cell--target { position: relative; z-index: 1; outline: 3px solid var(--cds-focus); outline-offset: -3px; background: var(--cds-highlight); }
 
@@ -1595,7 +1612,19 @@ h2 {
   .open-days-view-toolbar .cds--toolbar-content { align-items: stretch; flex-direction: column; block-size: auto; padding: $spacing-03; gap: $spacing-03; }
   .open-days-view-toolbar__filters { inline-size: 100%; }
   .open-days-view-toolbar__filters .cds--btn { flex: 1; justify-content: center; }
+  .open-days-date-time-filters { inline-size: 100%; }
+  .open-days-date-time-filters > .cds--form-item { flex: 1; inline-size: auto; }
   .open-days-view-toolbar__views { justify-content: flex-end; margin-inline-start: 0; }
+  .schedule-editor-view-container .open-days-view-toolbar__views { justify-content: flex-start; }
+  .schedule-editor-toolbar__actions { flex-wrap: wrap; margin-inline-start: 0; }
+
+  .bulk-slot-editor__times,
+  .bulk-slot-editor__requirements,
+  .open-day-defaults__times,
+  .open-day-defaults__requirements { grid-template-columns: 1fr; }
+
+  .schedule-toolbar { align-items: stretch; flex-direction: column; }
+  .schedule-toolbar__actions { align-items: stretch; flex-direction: column; }
 
   .managed-period { grid-template-columns: 1fr; }
   .management-section-heading { align-items: stretch; flex-direction: column; }

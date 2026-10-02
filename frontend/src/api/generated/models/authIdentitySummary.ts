@@ -35,5 +35,7 @@ export interface AuthIdentitySummary {
   verifiedAt: string | null;
   /** @nullable */
   disabledAt: string | null;
+  /** Whether this identity can currently authenticate, including its credential and provider state. */
+  usable: boolean;
   createdAt: string;
 }

@@ -146,7 +146,7 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	assertStatus(t, response, http.StatusCreated)
 	var account openapi.Account
 	decodeResponse(t, response, &account)
-	if account.Status != openapi.AccountStatusDisabled || account.PasswordStatus != openapi.PasswordStatusNotSet {
+	if account.Status != openapi.AccountStatusEnabled || account.PasswordStatus != openapi.PasswordStatusNotSet {
 		t.Fatalf("new account state = %s/%s", account.Status, account.PasswordStatus)
 	}
 	createdLoginEmail, createdLoginEmailErr := account.LoginEmail.Get()
@@ -181,13 +181,45 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 			var accountWithoutIdentity openapi.Account
 			decodeResponse(t, response, &accountWithoutIdentity)
 
-			if accountWithoutIdentity.Status != openapi.AccountStatusDisabled || accountWithoutIdentity.PasswordStatus != openapi.PasswordStatusNotSet {
+			if accountWithoutIdentity.Status != openapi.AccountStatusEnabled || accountWithoutIdentity.PasswordStatus != openapi.PasswordStatusNotSet {
 				t.Fatalf("identity-free account state = %s/%s", accountWithoutIdentity.Status, accountWithoutIdentity.PasswordStatus)
 			}
 			if !accountWithoutIdentity.LoginEmail.IsNull() || len(accountWithoutIdentity.AuthIdentities) != 0 {
 				t.Fatalf("identity-free account unexpectedly has authentication data: loginEmail=%#v identities=%#v", accountWithoutIdentity.LoginEmail, accountWithoutIdentity.AuthIdentities)
 			}
 			assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id = $1`, 0, accountWithoutIdentity.Id)
+
+			response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/accounts/"+accountWithoutIdentity.Id.String()+"/disable", origin, adminCSRF, map[string]any{
+				"expectedVersion": accountWithoutIdentity.Version,
+			})
+			assertStatus(t, response, http.StatusOK)
+			decodeResponse(t, response, &accountWithoutIdentity)
+			if accountWithoutIdentity.Status != openapi.AccountStatusDisabled || len(accountWithoutIdentity.AuthIdentities) != 0 {
+				t.Fatalf("disabled identity-free account = %#v", accountWithoutIdentity)
+			}
+			response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/accounts/"+accountWithoutIdentity.Id.String()+"/enable", origin, adminCSRF, map[string]any{
+				"expectedVersion": accountWithoutIdentity.Version,
+			})
+			assertStatus(t, response, http.StatusOK)
+			decodeResponse(t, response, &accountWithoutIdentity)
+			if accountWithoutIdentity.Status != openapi.AccountStatusEnabled || len(accountWithoutIdentity.AuthIdentities) != 0 {
+				t.Fatalf("reactivated identity-free account = %#v", accountWithoutIdentity)
+			}
+
+			passwordLogin := "added-password-" + uuid.NewString() + "@example.test"
+			response = doJSON(t, adminClient, http.MethodPut, server.URL+"/api/v1/accounts/"+accountWithoutIdentity.Id.String()+"/login-email", origin, adminCSRF, map[string]any{
+				"loginEmail": passwordLogin, "expectedVersion": accountWithoutIdentity.Version,
+			})
+			assertStatus(t, response, http.StatusOK)
+			decodeResponse(t, response, &accountWithoutIdentity)
+			if len(accountWithoutIdentity.AuthIdentities) != 1 || accountWithoutIdentity.AuthIdentities[0].Kind != openapi.AuthIdentitySummaryKindPassword {
+				t.Fatalf("password identity added after identity-free creation = %#v", accountWithoutIdentity.AuthIdentities)
+			}
+			identityLogin, identityLoginErr := accountWithoutIdentity.AuthIdentities[0].DisplayIdentifier.Get()
+			if identityLoginErr != nil || identityLogin != passwordLogin {
+				t.Fatalf("password identity added after identity-free creation = %#v", accountWithoutIdentity.AuthIdentities)
+			}
+			assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='password'`, 1, accountWithoutIdentity.Id)
 		})
 	}
 
@@ -280,14 +312,44 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	})
 	assertStatus(t, response, http.StatusNoContent)
 	response.Body.Close()
+	memberCSRF = cookieValue(t, memberClient, server.URL, cfg.CSRFCookieName)
+	passwordIdentityID := account.AuthIdentities[0].Id
+	removeIdentityURL := server.URL + "/api/v1/accounts/" + account.Id.String() + "/auth-identities/" + passwordIdentityID.String()
+	response = doJSON(t, memberClient, http.MethodDelete, removeIdentityURL, origin, memberCSRF, map[string]any{
+		"expectedVersion": account.Version,
+	})
+	assertStatus(t, response, http.StatusForbidden)
+	response.Body.Close()
+	response = doJSON(t, adminClient, http.MethodDelete, removeIdentityURL, origin, adminCSRF, map[string]any{
+		"expectedVersion": account.Version + 1,
+	})
+	assertStatus(t, response, http.StatusConflict)
+	var staleIdentityRemoval openapi.Error
+	decodeResponse(t, response, &staleIdentityRemoval)
+	if staleIdentityRemoval.Code != "stale_write" {
+		t.Fatalf("unexpected stale identity-removal response: %#v", staleIdentityRemoval)
+	}
+	response = doJSON(t, adminClient, http.MethodDelete, removeIdentityURL, origin, adminCSRF, map[string]any{
+		"expectedVersion": account.Version,
+	})
+	assertStatus(t, response, http.StatusNoContent)
+	response.Body.Close()
+	response = doJSON(t, adminClient, http.MethodGet, server.URL+"/api/v1/accounts/"+account.Id.String(), "", "", nil)
+	assertStatus(t, response, http.StatusOK)
+	decodeResponse(t, response, &account)
+	if account.Status != openapi.AccountStatusEnabled || len(account.AuthIdentities) != 0 || !account.LoginEmail.IsNull() {
+		t.Fatalf("account after password method removal = %#v", account)
+	}
+	assertCount(t, pool, `SELECT count(*) FROM password_credentials WHERE auth_identity_id=$1`, 0, passwordIdentityID)
+	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE resource_id=$1 AND action='account.password_removed'`, 1, account.Id)
+	response = doJSON(t, memberClient, http.MethodGet, server.URL+"/api/v1/auth/me", "", "", nil)
+	assertStatus(t, response, http.StatusUnauthorized)
+	response.Body.Close()
 	response = doJSON(t, adminClient, http.MethodPost, server.URL+"/api/v1/accounts/"+account.Id.String()+"/disable", origin, adminCSRF, map[string]any{
 		"expectedVersion": account.Version,
 	})
 	assertStatus(t, response, http.StatusOK)
 	decodeResponse(t, response, &account)
-	response = doJSON(t, memberClient, http.MethodGet, server.URL+"/api/v1/auth/me", "", "", nil)
-	assertStatus(t, response, http.StatusUnauthorized)
-	response.Body.Close()
 }
 
 func newCookieClient(t *testing.T) *http.Client {

@@ -251,7 +251,7 @@ func TestAdministrativeResetPasswordPreservesExistingAccountState(t *testing.T) 
 	}
 }
 
-func TestAdministrativeResetPasswordCreatesOnlyMissingLocalMethod(t *testing.T) {
+func TestAdministrativeResetPasswordRefusesPINAndContactOnlyMatches(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)
 	personID, accountID, pinIdentityID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
@@ -271,20 +271,16 @@ func TestAdministrativeResetPasswordCreatesOnlyMissingLocalMethod(t *testing.T) 
 	if _, err := pool.Exec(ctx, `INSERT INTO pin_credentials (auth_identity_id,pin_hash) VALUES ($1,$2)`, pinIdentityID, pinHash); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := admin.NewService(pool).ResetPassword(ctx, "PINONLY", "created local password 2026"); err != nil {
-		t.Fatal(err)
+	if _, err := admin.NewService(pool).ResetPassword(ctx, "PINONLY", "created local password 2026"); err == nil {
+		t.Fatal("reset-password matched a PIN identifier")
+	}
+	if _, err := admin.NewService(pool).ResetPassword(ctx, "pin-contact@example.test", "created local password 2026"); err == nil {
+		t.Fatal("reset-password matched a Person contact email")
 	}
 	assertCount(t, pool, `SELECT count(*) FROM people WHERE id=$1`, 1, personID)
 	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1 AND person_id=$2 AND status='enabled'`, 1, accountID, personID)
 	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE id=$1 AND account_id=$2 AND kind='pin'`, 1, pinIdentityID, accountID)
-	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='password' AND identifier_normalized='pin-contact@example.test' AND verified_at IS NOT NULL`, 1, accountID)
-	service, err := auth.NewService(pool, integrationConfig(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := service.Login(ctx, "PIN-CONTACT@EXAMPLE.TEST", "created local password 2026", "created-method", nil); err != nil {
-		t.Fatalf("login with administratively created local method: %v", err)
-	}
+	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='password'`, 0, accountID)
 }
 
 func emptySchemaPool(t *testing.T) *pgxpool.Pool {
@@ -331,8 +327,8 @@ func orderedMigrationFiles(t *testing.T) []string {
 		t.Fatal("cannot locate migration test")
 	}
 	paths, err := filepath.Glob(filepath.Join(filepath.Dir(filename), "..", "..", "migrations", "*.sql"))
-	if err != nil || len(paths) != 20 {
-		t.Fatalf("locate 20 migrations: count=%d err=%v", len(paths), err)
+	if err != nil || len(paths) != 22 {
+		t.Fatalf("locate 22 migrations: count=%d err=%v", len(paths), err)
 	}
 	return paths
 }

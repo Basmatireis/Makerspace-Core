@@ -231,7 +231,7 @@ export const startOIDCReauthentication = async (providerSlug: string, options?: 
 
 
 /**
- * @summary Unlink an external identity without stranding the enabled Account
+ * @summary Unlink an external identity
  */
 export const getUnlinkOwnOIDCIdentityUrl = (identityId: UUIDv7,) => {
 

@@ -179,13 +179,10 @@ export function UsersPage() {
   };
   const batchCreateAccounts = useMutation({
     mutationFn: async (members: Person[]) => {
-      const eligible = members.filter(
-        (member) => member.account === null && Boolean(member.email),
-      );
+      const eligible = members.filter((member) => member.account === null);
       const results = await Promise.allSettled(
         eligible.map((person) =>
           createPersonAccount(person.id, {
-            loginEmail: person.email!,
             expectedVersion: person.version,
           }),
         ),
@@ -202,7 +199,7 @@ export function UsersPage() {
       setBatchResult({
         kind: failed === 0 ? 'success' : 'warning',
         title: failed === 0 ? 'Accounts created' : 'Some accounts were not created',
-        subtitle: `${created} created${skipped ? `; ${skipped} skipped because an account or email is missing` : ''}${failed ? `; ${failed} could not be created` : ''}.`,
+        subtitle: `${created} created${skipped ? `; ${skipped} skipped because an account already exists` : ''}${failed ? `; ${failed} could not be created` : ''}.`,
       });
       await refreshPeople();
     },
@@ -326,13 +323,11 @@ export function UsersPage() {
               ? 'Restricted'
               : person.account === null
                 ? 'No account'
-                : person.account.status,
+                : person.account.status === 'enabled' ? 'Active' : 'Inactive',
         }
       : {}),
   }));
-  const membersEligibleForAccountCreation = batchMembers.filter(
-    (member) => member.account === null && Boolean(member.email),
-  );
+  const membersEligibleForAccountCreation = batchMembers.filter((member) => member.account === null);
   const membersEligibleForAccountDeletion = peopleWithAccounts(batchMembers);
   const membersEligibleForRoleAssignment = batchRole
     ? peopleWithAccounts(batchMembers).filter(
@@ -397,9 +392,7 @@ export function UsersPage() {
             const selectedMembers = selectedRows
               .map((row) => peopleById.get(row.id))
               .filter((person): person is Person => Boolean(person));
-            const selectedForAccountCreation = selectedMembers.filter(
-              (member) => member.account === null && Boolean(member.email),
-            );
+            const selectedForAccountCreation = selectedMembers.filter((member) => member.account === null);
             const selectedForRoleAssignment = peopleWithAccounts(selectedMembers);
             const selectedForAccountDeletion = peopleWithAccounts(selectedMembers);
 
@@ -532,7 +525,7 @@ export function UsersPage() {
                             ) : cell.info.header === 'status' &&
                               cell.value !== 'No account' &&
                               cell.value !== 'Restricted' ? (
-                              <Tag type={cell.value === 'enabled' ? 'green' : 'gray'}>
+                              <Tag type={cell.value === 'Active' ? 'green' : 'gray'}>
                                 {String(cell.value)}
                               </Tag>
                             ) : cell.info.header === 'roles' ? (() => {
@@ -604,9 +597,9 @@ export function UsersPage() {
         <ModalBody>
           <Stack gap={5}>
             <p>
-              This creates disabled login accounts for {membersEligibleForAccountCreation.length}{' '}
+              This creates active accounts for {membersEligibleForAccountCreation.length}{' '}
               selected {membersEligibleForAccountCreation.length === 1 ? 'person' : 'people'}.
-              Each account uses the person’s existing email address as its login email.
+              Authentication methods can be configured separately afterwards; without one, the person cannot sign in.
             </p>
             {batchMembers.length !== membersEligibleForAccountCreation.length && (
               <InlineNotification
@@ -614,7 +607,7 @@ export function UsersPage() {
                 lowContrast
                 hideCloseButton
                 title="Some people will be skipped"
-                subtitle="An existing account or an email address is required."
+                subtitle="People who already have an account are not changed."
               />
             )}
           </Stack>

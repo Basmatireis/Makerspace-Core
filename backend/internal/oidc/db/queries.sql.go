@@ -21,26 +21,6 @@ func (q *Queries) BumpAccountVersion(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-const countUsableIdentities = `-- name: CountUsableIdentities :one
-SELECT count(*) FROM auth_identities i
-WHERE i.account_id = $1 AND i.id <> $2 AND i.disabled_at IS NULL
-  AND ((i.kind = 'password' AND EXISTS (SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required))
-    OR (i.kind = 'pin' AND EXISTS (SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id = i.id))
-    OR (i.kind = 'oidc' AND EXISTS (SELECT 1 FROM oidc_providers op WHERE op.id=i.provider_id AND op.enabled)))
-`
-
-type CountUsableIdentitiesParams struct {
-	AccountID          uuid.UUID
-	ExcludedIdentityID uuid.UUID
-}
-
-func (q *Queries) CountUsableIdentities(ctx context.Context, arg CountUsableIdentitiesParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countUsableIdentities, arg.AccountID, arg.ExcludedIdentityID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createFlow = `-- name: CreateFlow :one
 INSERT INTO oidc_flows (id, provider_id, kind, account_id, session_id, state_digest, browser_token_digest, encrypted_nonce, encrypted_pkce_verifier, expires_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)

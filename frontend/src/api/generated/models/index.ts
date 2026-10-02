@@ -306,6 +306,7 @@ export * from './searchBillingPartiesParams';
 export * from './searchMachineJobOperatorsParams';
 export * from './serviceUnavailableResponse';
 export * from './setAccountPasswordRequest';
+export * from './setAccountPinRequest';
 export * from './setBillingPartyPricingGroupRequest';
 export * from './setBillingPartyPricingGroupRequestPricingGroupId';
 export * from './staffingRequirementInput';

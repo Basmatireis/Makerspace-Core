@@ -15,7 +15,6 @@ type Querier interface {
 	BumpAccountVersionAfterCredentialChange(ctx context.Context, accountID uuid.UUID) error
 	ClearPINThrottle(ctx context.Context, arg ClearPINThrottleParams) error
 	ConsumeAuthRateLimit(ctx context.Context, arg ConsumeAuthRateLimitParams) (*bool, error)
-	CountUsableIdentitiesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
 	CreateOIDCSession(ctx context.Context, arg CreateOIDCSessionParams) (Session, error)
 	CreatePINIdentity(ctx context.Context, arg CreatePINIdentityParams) (AuthIdentity, error)
 	CreatePINSession(ctx context.Context, arg CreatePINSessionParams) (Session, error)
@@ -24,6 +23,7 @@ type Querier interface {
 	DeleteExpiredAuthSecurityState(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeleteExpiredPasswordResetTokens(ctx context.Context, beforeTime time.Time) (int64, error)
 	DeleteExpiredSessions(ctx context.Context, beforeTime time.Time) (int64, error)
+	DeletePINEnrollmentChallengeForAccount(ctx context.Context, accountID uuid.UUID) error
 	DeletePINIdentity(ctx context.Context, id uuid.UUID) error
 	DeletePasswordIdentity(ctx context.Context, id uuid.UUID) error
 	DeletePasswordResetToken(ctx context.Context, id uuid.UUID) error

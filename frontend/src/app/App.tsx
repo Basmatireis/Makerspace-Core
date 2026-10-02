@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { PermissionId } from '../api/generated/models';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { LoginPage } from '../features/auth/LoginPage';
@@ -15,7 +15,6 @@ import { UsersPage } from '../features/users/UsersPage';
 import { OpenDaysPage } from '../features/opendays/OpenDaysPage';
 import { OpenDayPeriodPage } from '../features/opendays/OpenDayPeriodPage';
 import { OpenDayDetailPage } from '../features/opendays/OpenDayDetailPage';
-import { ScheduleEditorPage } from '../features/opendays/ScheduleEditorPage';
 import { OpenDayManagementPage } from '../features/opendays/OpenDayManagementPage';
 import { LaborordnungPage } from '../features/laborordnung/LaborordnungPage';
 import { SupervisorStaffingPage } from '../features/users/SupervisorStaffingPage';
@@ -63,6 +62,15 @@ function LegacyRedirect({ from, to }: { from: string; to: string }) {
   );
 }
 
+function OpenDayScheduleRedirect() {
+  const { periodId = '' } = useParams();
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  params.set('mode', 'edit');
+
+  return <Navigate to={{ pathname: `/open-days/${periodId}`, search: `?${params.toString()}`, hash: location.hash }} state={location.state} replace />;
+}
+
 export function App() {
   return (
     <Routes>
@@ -99,7 +107,7 @@ export function App() {
         />
         <Route
           path="open-days/:periodId/schedule"
-          element={<PermissionRoute allOf={[PermissionId.open_daysmanage]}><ScheduleEditorPage /></PermissionRoute>}
+          element={<PermissionRoute allOf={[PermissionId.open_daysmanage]}><OpenDayScheduleRedirect /></PermissionRoute>}
         />
         <Route
           path="open-days/manage"

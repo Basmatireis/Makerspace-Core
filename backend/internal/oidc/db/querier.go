@@ -13,7 +13,6 @@ import (
 
 type Querier interface {
 	BumpAccountVersion(ctx context.Context, id uuid.UUID) error
-	CountUsableIdentities(ctx context.Context, arg CountUsableIdentitiesParams) (int64, error)
 	CreateFlow(ctx context.Context, arg CreateFlowParams) (OidcFlow, error)
 	CreateJITAccount(ctx context.Context, arg CreateJITAccountParams) (Account, error)
 	CreateJITPerson(ctx context.Context, arg CreateJITPersonParams) (Person, error)

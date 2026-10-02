@@ -323,10 +323,7 @@ func (s *Service) Submit(ctx context.Context, enrollment Context, input Submissi
 	if _, err := queries.CreateVisitorPerson(ctx, visitordb.CreateVisitorPersonParams{ID: personID, FirstName: clean.FirstName, LastName: clean.LastName, Email: clean.Email, Phone: clean.Phone, ProfileImageFileID: &stored.ID}); err != nil {
 		return SubmissionResult{}, databaseError(err)
 	}
-	status := "disabled"
-	if contains(clean.AuthMethods, "pin") {
-		status = "enabled"
-	}
+	status := "enabled"
 	if _, err := queries.CreateVisitorAccount(ctx, visitordb.CreateVisitorAccountParams{ID: accountID, PersonID: personID, Status: status}); err != nil {
 		return SubmissionResult{}, databaseError(err)
 	}
@@ -338,7 +335,7 @@ func (s *Service) Submit(ctx context.Context, enrollment Context, input Submissi
 			return SubmissionResult{}, databaseError(err)
 		}
 		id := uuid.Must(uuid.NewV7())
-		if _, err := queries.CreateVisitorInvitation(ctx, visitordb.CreateVisitorInvitationParams{ID: id, AccountID: accountID, AuthIdentityID: &identity.ID, CodeDigest: security.ChallengeDigest(s.config.ChallengeHMACKey, "invitation", accountID, invitationCode), DeliveryAddress: display, ExpiresAt: invitationExpiresAt}); err != nil {
+		if _, err := queries.CreateVisitorInvitation(ctx, visitordb.CreateVisitorInvitationParams{ID: id, AccountID: accountID, AuthIdentityID: &identity.ID, CodeDigest: security.ChallengeDigest(s.config.ChallengeHMACKey, "invitation", accountID, invitationCode), DeliveryAddress: &display, ExpiresAt: invitationExpiresAt}); err != nil {
 			return SubmissionResult{}, err
 		}
 		challengeID = &id

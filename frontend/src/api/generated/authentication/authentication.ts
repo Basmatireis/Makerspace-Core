@@ -231,7 +231,7 @@ export const changeOwnPassword = async (changeOwnPasswordRequest: ChangeOwnPassw
 
 
 /**
- * @summary Remove the current account password without stranding the account
+ * @summary Remove the current account password method
  */
 export const getRemoveOwnPasswordUrl = () => {
 

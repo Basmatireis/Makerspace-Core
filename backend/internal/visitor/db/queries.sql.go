@@ -167,7 +167,7 @@ type CreateVisitorInvitationParams struct {
 	AccountID       uuid.UUID
 	AuthIdentityID  *uuid.UUID
 	CodeDigest      []byte
-	DeliveryAddress string
+	DeliveryAddress *string
 	ExpiresAt       time.Time
 }
 

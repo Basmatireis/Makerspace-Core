@@ -108,7 +108,8 @@ describe('People page', () => {
     expect(screen.queryByRole('columnheader', { name: /Matriculation number/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Supervisor' })).not.toBeInTheDocument();
     expect(screen.queryByText('M-0042')).not.toBeInTheDocument();
-    expect(screen.getByText('enabled').closest('td')).toHaveClass('people-table__status-column');
+    const personRow = screen.getByRole('row', { name: /Grace Hopper/ });
+    expect(within(personRow).getByText('Active').closest('td')).toHaveClass('people-table__status-column');
     const supervisorRoleTag = screen.getByText('Workshop supervisors').closest('.cds--tag');
     expect(supervisorRoleTag).toHaveClass('cds--tag--blue');
     expect(supervisorRoleTag).toHaveAttribute('aria-label', 'Workshop supervisors, supervisor role');
@@ -192,7 +193,7 @@ describe('People page', () => {
     expect(screen.queryByRole('button', { name: 'Add person' })).not.toBeInTheDocument();
   });
 
-  it('creates selected member accounts using their existing email addresses', async () => {
+  it('creates selected email-less member accounts without a password identity', async () => {
     let accountRequest: unknown;
     server.use(
       http.get('*/api/v1/auth/me', () =>
@@ -205,7 +206,7 @@ describe('People page', () => {
         ),
       ),
       http.get('*/api/v1/people', () =>
-        HttpResponse.json(peoplePage([personFixture({ account: null })])),
+        HttpResponse.json(peoplePage([personFixture({ account: null, email: null, phone: '+43 660 123456' })])),
       ),
       http.post('*/api/v1/people/:personId/account', async ({ request }) => {
         accountRequest = await request.json();
@@ -220,12 +221,12 @@ describe('People page', () => {
     await user.click(screen.getByRole('checkbox', { name: /select row/i }));
     await user.click(screen.getByRole('button', { name: 'Create accounts' }));
     const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByText(/existing email address/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/This creates active accounts/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/without one, the person cannot sign in/i)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Create accounts' }));
 
     await waitFor(() =>
       expect(accountRequest).toEqual({
-        loginEmail: 'grace@example.test',
         expectedVersion: 1,
       }),
     );

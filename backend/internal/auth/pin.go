@@ -150,6 +150,85 @@ func (s *Service) EnrollOwnPIN(ctx context.Context, principal authorization.Prin
 	return tx.Commit(ctx)
 }
 
+func (s *Service) SetAccountPIN(ctx context.Context, principal authorization.Principal, accountID uuid.UUID, loginName, pin string, expectedVersion int64, requestID *uuid.UUID) error {
+	if !principal.Has(authorization.AccountsPINEnrollAll) && !principal.Has(authorization.AccountsPINReset) {
+		return apperror.PermissionDenied
+	}
+	if expectedVersion < 1 {
+		return validationError("expectedVersion must be positive")
+	}
+	display, normalized, err := normalizeLoginName(loginName)
+	if err != nil {
+		return validationError(err.Error())
+	}
+	hash, err := security.HashPIN(s.config.PINPepper, pin)
+	if err != nil {
+		return validationError(err.Error())
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	queries := authdb.New(tx)
+	account, err := queries.GetAccountForAuthentication(ctx, accountID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperror.NotFound
+	}
+	if err != nil {
+		return err
+	}
+	if account.Version != expectedVersion {
+		return apperror.StaleWrite
+	}
+	identity, identityErr := queries.GetPINIdentityForAccount(ctx, accountID)
+	if errors.Is(identityErr, pgx.ErrNoRows) {
+		if !principal.Has(authorization.AccountsPINEnrollAll) {
+			return apperror.PermissionDenied
+		}
+		identity, err = queries.CreatePINIdentity(ctx, authdb.CreatePINIdentityParams{
+			ID: uuid.Must(uuid.NewV7()), AccountID: accountID,
+			IdentifierDisplay: &display, IdentifierNormalized: &normalized,
+		})
+	} else if identityErr != nil {
+		return identityErr
+	} else {
+		if !principal.Has(authorization.AccountsPINReset) {
+			return apperror.PermissionDenied
+		}
+		identity, err = queries.UpdatePINIdentity(ctx, authdb.UpdatePINIdentityParams{
+			AccountID: accountID, IdentifierDisplay: &display, IdentifierNormalized: &normalized,
+		})
+	}
+	if err != nil {
+		var postgresError *pgconn.PgError
+		if errors.As(err, &postgresError) && postgresError.Code == "23505" {
+			return apperror.New(409, "login_name_unavailable", "Login name is unavailable")
+		}
+		return err
+	}
+	if err := queries.UpsertPINCredential(ctx, authdb.UpsertPINCredentialParams{AuthIdentityID: identity.ID, PinHash: hash}); err != nil {
+		return err
+	}
+	if err := queries.DeletePINEnrollmentChallengeForAccount(ctx, accountID); err != nil {
+		return err
+	}
+	if err := queries.RevokeSessionsForAccount(ctx, authdb.RevokeSessionsForAccountParams{AccountID: accountID, Reason: ptr("pin_set_by_admin")}); err != nil {
+		return err
+	}
+	if err := queries.BumpAccountVersionAfterCredentialChange(ctx, accountID); err != nil {
+		return err
+	}
+	actor := principal.AccountID
+	if err := audit.Write(ctx, tx, audit.Event{
+		ActorAccountID: &actor, Action: "account.pin_set", ResourceType: "account", ResourceID: &accountID,
+		RequestID: requestID, ChangedFields: []string{"pinMethod"},
+	}); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 func (s *Service) CompletePINEnrollment(ctx context.Context, accountID uuid.UUID, code, loginName, pin, sourceKey string, requestID *uuid.UUID) error {
 	display, normalized, normalizeErr := normalizeLoginName(loginName)
 	hash, hashErr := security.HashPIN(s.config.PINPepper, pin)
@@ -240,8 +319,8 @@ func (s *Service) CompletePINEnrollment(ctx context.Context, accountID uuid.UUID
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	if s.notifier != nil {
-		_ = s.notifier.SendSecurityNotice(ctx, challenge.DeliveryAddress, "Makerspace PIN login configured", "Your Makerspace username and PIN were configured. If this was not you, contact an administrator immediately.")
+	if s.notifier != nil && challenge.DeliveryAddress != nil {
+		_ = s.notifier.SendSecurityNotice(ctx, *challenge.DeliveryAddress, "Makerspace PIN login configured", "Your Makerspace username and PIN were configured. If this was not you, contact an administrator immediately.")
 	}
 	return nil
 }
@@ -268,13 +347,6 @@ func (s *Service) RemoveOwnPIN(ctx context.Context, principal authorization.Prin
 	}
 	if err != nil {
 		return err
-	}
-	count, err := queries.CountUsableIdentitiesForAccount(ctx, principal.AccountID)
-	if err != nil {
-		return err
-	}
-	if count <= 1 {
-		return apperror.New(409, "last_authentication_method", "The last usable authentication method cannot be removed")
 	}
 	if err := queries.DeletePINIdentity(ctx, identity.ID); err != nil {
 		return err

@@ -50,7 +50,7 @@ type AuthChallenge struct {
 	AccountID           uuid.UUID
 	AuthIdentityID      *uuid.UUID
 	CodeDigest          []byte
-	DeliveryAddress     string
+	DeliveryAddress     *string
 	AttemptCount        int16
 	CreatedByAccountID  *uuid.UUID
 	ExpiresAt           time.Time

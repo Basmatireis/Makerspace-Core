@@ -10,6 +10,7 @@ import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { longDate, staffingLabel, statusTagType, timeRange } from './format';
+import { openDaySchedulePath } from './paths';
 import { openDayKeys, openDayQueryOptions } from './queries';
 
 export function OpenDayDetailPage() {
@@ -129,7 +130,7 @@ function OpenDayDetails({ periodId, periodStatus, openDayId, presentation, onReq
         <div className="open-day-registration-modal__summary">
           <p>{timeRange(day, timeZone)}</p>
           {canEditOpenDay && <div className="open-day-registration-modal__actions">
-            <Button kind="ghost" size="sm" renderIcon={Edit} onClick={() => navigate(`/open-days/${periodId}/schedule?edit=${openDayId}`)}>Edit Open Day</Button>
+            <Button kind="ghost" size="sm" renderIcon={Edit} onClick={() => navigate(openDaySchedulePath(periodId, { editOpenDayId: openDayId }))}>Edit Open Day</Button>
             {canRemoveOpenDay && <Button kind="danger--ghost" size="sm" renderIcon={removesDraft ? TrashCan : Misuse} onClick={() => setRemoveOpen(true)}>{removesDraft ? 'Delete Open Day' : 'Cancel Open Day'}</Button>}
           </div>}
         </div>
@@ -139,7 +140,7 @@ function OpenDayDetails({ periodId, periodStatus, openDayId, presentation, onReq
   }
 
   return <Stack gap={6}>
-    <PageHeader title={heading} breadcrumbs={[{ label: 'Open Days', to: '/open-days' }, { label: 'Period', to: `/open-days/${periodId}` }]} description={timeRange(day, timeZone)} actions={canManage ? <Button renderIcon={Edit} onClick={() => navigate(`/open-days/${periodId}/schedule?edit=${openDayId}`)}>Edit</Button> : undefined} />
+    <PageHeader title={heading} breadcrumbs={[{ label: 'Open Days', to: '/open-days' }, { label: 'Period', to: `/open-days/${periodId}` }]} description={timeRange(day, timeZone)} actions={canManage ? <Button renderIcon={Edit} onClick={() => navigate(openDaySchedulePath(periodId, { editOpenDayId: openDayId }))}>Edit</Button> : undefined} />
     {detailContent}
   </Stack>;
 }

@@ -18,32 +18,20 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { UUIDv7 } from './uUIDv7';
-import type { AccountStatus } from './accountStatus';
-import type { PasswordStatus } from './passwordStatus';
-import type { AccountLoginEmail } from './accountLoginEmail';
-import type { AccountProvisioningSource } from './accountProvisioningSource';
-import type { AuthIdentitySummary } from './authIdentitySummary';
-import type { RoleSummary } from './roleSummary';
 import type { Version } from './version';
 
-export interface Account {
-  id: UUIDv7;
-  personId: UUIDv7;
-  status: AccountStatus;
-  passwordStatus: PasswordStatus;
+export interface SetAccountPinRequest {
   /**
-   * Compatibility view of the local password identifier; use authIdentities.
-   * @deprecated
-   * @nullable
+   * @minLength 3
+   * @maxLength 64
+   * @pattern ^[A-Za-z0-9][A-Za-z0-9._-]*$
    */
-  loginEmail: AccountLoginEmail;
-  provisioningSource: AccountProvisioningSource;
-  /** @nullable */
-  firstAuthenticatedAt: string | null;
-  authIdentities: AuthIdentitySummary[];
-  roles: RoleSummary[];
-  createdAt: string;
-  updatedAt: string;
-  version: Version;
+  loginName: string;
+  /**
+   * @minLength 6
+   * @maxLength 12
+   * @pattern ^[0-9]{6,12}$
+   */
+  pin: string;
+  expectedVersion: Version;
 }

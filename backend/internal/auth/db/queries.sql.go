@@ -68,21 +68,6 @@ func (q *Queries) ConsumeAuthRateLimit(ctx context.Context, arg ConsumeAuthRateL
 	return allowed, err
 }
 
-const countUsableIdentitiesForAccount = `-- name: CountUsableIdentitiesForAccount :one
-SELECT count(*) FROM auth_identities i
-WHERE i.account_id = $1 AND i.disabled_at IS NULL
-  AND ((i.kind = 'password' AND EXISTS (SELECT 1 FROM password_credentials pc WHERE pc.auth_identity_id = i.id AND NOT pc.reset_required))
-    OR (i.kind = 'pin' AND EXISTS (SELECT 1 FROM pin_credentials pc WHERE pc.auth_identity_id = i.id))
-    OR (i.kind = 'oidc' AND EXISTS (SELECT 1 FROM oidc_providers op WHERE op.id=i.provider_id AND op.enabled)))
-`
-
-func (q *Queries) CountUsableIdentitiesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countUsableIdentitiesForAccount, accountID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const createOIDCSession = `-- name: CreateOIDCSession :one
 INSERT INTO sessions (
     id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method,
@@ -362,6 +347,16 @@ func (q *Queries) DeleteExpiredSessions(ctx context.Context, beforeTime time.Tim
 	return result.RowsAffected(), nil
 }
 
+const deletePINEnrollmentChallengeForAccount = `-- name: DeletePINEnrollmentChallengeForAccount :exec
+DELETE FROM auth_challenges
+WHERE account_id = $1 AND kind = 'pin_enrollment'
+`
+
+func (q *Queries) DeletePINEnrollmentChallengeForAccount(ctx context.Context, accountID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deletePINEnrollmentChallengeForAccount, accountID)
+	return err
+}
+
 const deletePINIdentity = `-- name: DeletePINIdentity :exec
 DELETE FROM auth_identities WHERE id = $1 AND kind = 'pin'
 `
@@ -517,21 +512,22 @@ func (q *Queries) FindPasswordResetAccountByDigest(ctx context.Context, tokenDig
 }
 
 const getAccountForAuthentication = `-- name: GetAccountForAuthentication :one
-SELECT id, status
+SELECT id, status, version
 FROM accounts
 WHERE id = $1
 FOR UPDATE
 `
 
 type GetAccountForAuthenticationRow struct {
-	ID     uuid.UUID
-	Status string
+	ID      uuid.UUID
+	Status  string
+	Version int64
 }
 
 func (q *Queries) GetAccountForAuthentication(ctx context.Context, id uuid.UUID) (GetAccountForAuthenticationRow, error) {
 	row := q.db.QueryRow(ctx, getAccountForAuthentication, id)
 	var i GetAccountForAuthenticationRow
-	err := row.Scan(&i.ID, &i.Status)
+	err := row.Scan(&i.ID, &i.Status, &i.Version)
 	return i, err
 }
 
@@ -752,9 +748,9 @@ func (q *Queries) GetSessionForReauthentication(ctx context.Context, arg GetSess
 
 const getSessionPrincipal = `-- name: GetSessionPrincipal :one
 SELECT s.id AS session_id, s.account_id, s.auth_identity_id, s.csrf_digest,
-       s.idle_expires_at, s.absolute_expires_at, s.last_seen_at,
-       s.auth_method, s.base_assurance, s.current_assurance, s.authenticated_at, s.assurance_expires_at,
-       a.person_id, p.first_name, p.last_name, COALESCE(i.identifier_display, '')::text AS login_email
+	       s.idle_expires_at, s.absolute_expires_at, s.last_seen_at,
+	       s.auth_method, s.base_assurance, s.current_assurance, s.authenticated_at, s.assurance_expires_at,
+	       a.person_id, p.first_name, p.last_name
 FROM sessions s JOIN accounts a ON a.id = s.account_id JOIN people p ON p.id = a.person_id
 JOIN auth_identities i ON i.id = s.auth_identity_id
 WHERE s.token_digest = $1 AND s.revoked_at IS NULL
@@ -778,7 +774,6 @@ type GetSessionPrincipalRow struct {
 	PersonID           uuid.UUID
 	FirstName          string
 	LastName           string
-	LoginEmail         string
 }
 
 func (q *Queries) GetSessionPrincipal(ctx context.Context, tokenDigest []byte) (GetSessionPrincipalRow, error) {
@@ -800,7 +795,6 @@ func (q *Queries) GetSessionPrincipal(ctx context.Context, tokenDigest []byte) (
 		&i.PersonID,
 		&i.FirstName,
 		&i.LastName,
-		&i.LoginEmail,
 	)
 	return i, err
 }
@@ -998,7 +992,8 @@ func (q *Queries) TouchSession(ctx context.Context, arg TouchSessionParams) erro
 
 const updatePINIdentity = `-- name: UpdatePINIdentity :one
 UPDATE auth_identities SET identifier_display = $1,
-    identifier_normalized = $2, disabled_at = NULL, updated_at = now()
+    identifier_normalized = $2, verified_at = COALESCE(verified_at, now()),
+    disabled_at = NULL, updated_at = now()
 WHERE account_id = $3 AND kind = 'pin'
 RETURNING id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at
 `
@@ -1061,7 +1056,7 @@ type UpsertAuthChallengeParams struct {
 	AccountID          uuid.UUID
 	AuthIdentityID     *uuid.UUID
 	CodeDigest         []byte
-	DeliveryAddress    string
+	DeliveryAddress    *string
 	CreatedByAccountID *uuid.UUID
 	ExpiresAt          time.Time
 }

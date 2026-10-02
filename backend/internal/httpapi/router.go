@@ -205,7 +205,7 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 		}
 		callback := r.URL.Path == apiBasePath+"/auth/oidc/callback"
 		_, sessionCookieErr := r.Cookie(s.config.SessionCookieName)
-		if isPublicPath(r.URL.Path) && (!callback || sessionCookieErr != nil) {
+		if isPublicRequest(r.Method, r.URL.Path) && (!callback || sessionCookieErr != nil) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -639,6 +639,13 @@ func isPublicPath(path string) bool {
 	default:
 		return false
 	}
+}
+
+func isPublicRequest(method, path string) bool {
+	if method == http.MethodPost && path == apiBasePath+"/auth/pin/enrollment/complete" {
+		return true
+	}
+	return isPublicPath(path)
 }
 
 func isVisitorEnrollmentPublicPath(path string) bool {

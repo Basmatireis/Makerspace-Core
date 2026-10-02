@@ -17,15 +17,14 @@ type Querier interface {
 	BumpAccountVersionForAdministrativeReset(ctx context.Context, id uuid.UUID) error
 	CountEnabledMasters(ctx context.Context) (int64, error)
 	CountMasterAssignments(ctx context.Context) (int64, error)
-	CountUsableAuthIdentities(ctx context.Context, accountID uuid.UUID) (int64, error)
 	CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error)
 	CreateAuthIdentity(ctx context.Context, arg CreateAuthIdentityParams) (AuthIdentity, error)
 	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
-	CreateVerifiedPasswordIdentity(ctx context.Context, arg CreateVerifiedPasswordIdentityParams) (AuthIdentity, error)
 	DeleteAccount(ctx context.Context, arg DeleteAccountParams) (uuid.UUID, error)
+	DeleteAuthIdentityForAccount(ctx context.Context, arg DeleteAuthIdentityForAccountParams) (int64, error)
+	DeletePINEnrollmentChallengesForAccount(ctx context.Context, accountID uuid.UUID) error
 	DeletePasswordChallengesForAccount(ctx context.Context, accountID uuid.UUID) error
 	DeletePasswordResetForAccount(ctx context.Context, accountID uuid.UUID) error
-	FindAccountsByAdministrativeIdentifier(ctx context.Context, identifier string) ([]uuid.UUID, error)
 	GetAccountByPerson(ctx context.Context, personID uuid.UUID) (Account, error)
 	GetAccountByPersonForMutation(ctx context.Context, personID uuid.UUID) (Account, error)
 	GetAccountForMutation(ctx context.Context, id uuid.UUID) (Account, error)

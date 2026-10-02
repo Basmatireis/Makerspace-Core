@@ -148,6 +148,7 @@ describe('protected application routing', () => {
           PermissionId.machinesread,
           PermissionId.statisticsread,
           PermissionId.peoplereadall,
+          PermissionId.open_daysread,
           PermissionId.oidcmanage,
           PermissionId.auditread,
         ])),
@@ -167,6 +168,19 @@ describe('protected application routing', () => {
     expect(within(navigation).getByRole('link', { name: 'Audit Log' })).toBeInTheDocument();
     expect(within(navigation).getByRole('link', { name: 'About' })).toBeInTheDocument();
     expect(within(navigation).getByRole('link', { name: 'Legal & Privacy' })).toBeInTheDocument();
+
+    for (const name of [
+      'Dashboard',
+      'Open Days',
+      'People',
+      'Settings',
+      'Audit Log',
+      'About',
+      'Legal & Privacy',
+    ]) {
+      expect(within(navigation).getByRole('link', { name }).querySelector('svg')).toBeInTheDocument();
+    }
+    expect(within(navigation).getByRole('button', { name: 'Machines' }).querySelectorAll('svg')).toHaveLength(2);
   });
 
   it.each([

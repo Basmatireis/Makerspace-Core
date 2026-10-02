@@ -58,7 +58,7 @@ PricingGroup 1 ─── * explicit PricingRule
 ```
 
 - **Person** is the human/business record. It has a UUIDv7, required first and last names, optional contact email, phone, matriculation number, and a private normalized profile-image File. At least one of email or phone must remain non-null. The old `photo_reference` field is preserved as read-only legacy metadata.
-- **Account** is the optional ability for one Person to access the application. It has an enabled/disabled status and optimistic-concurrency version; disabling it revokes active sessions.
+- **Account** is the optional application-access record for one Person. Its active/inactive lifecycle is independent of authentication methods: an active Account without a usable method is valid but cannot sign in. It has an enabled/disabled wire status and optimistic-concurrency version; disabling it revokes active sessions.
 - **AuthIdentity** represents a password email, case-insensitive PIN username, or exact OIDC issuer/subject pair. Password login identifiers remain separate from Person contact email, and updating either value never silently changes the other.
 - **PasswordCredential** contains only the dedicated password hash and reset-required state. Its absence means no password has been set.
 - **Session** stores digests of opaque session and CSRF tokens, the account/identity, authentication method, ordered assurance, idle and absolute expiry, optional elevation expiry, and revocation state.

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Button,
   Column,
@@ -45,12 +45,15 @@ import {
   issueAccountInvitation,
   issueAccountPinEnrollment,
   issueAccountPasswordReset,
+  removeAccountAuthIdentity,
   removeAccountRole,
+  setAccountPin,
   setAccountPassword,
   updateAccountLoginEmail,
 } from '../../api/generated/accounts/accounts';
 import type {
   AccountSummary,
+  AuthIdentitySummary,
   LaborordnungStatus,
   Person,
   ProfileImage,
@@ -84,11 +87,17 @@ import {
 } from './PersonForm';
 import { peopleKeys, personOptions, refreshPersonData } from './queries';
 import { PersonAvatar } from './PersonAvatar';
+import {
+  AuthenticationMethod,
+  DetailRow,
+  DetailSection,
+} from './PersonDetailComponents';
 import { ProfilePictureEditor } from './ProfilePictureEditor';
 
-type ConfirmKind = 'delete-person' | 'delete-account' | 'disable-account' | 'reset-password' | 'invite' | 'pin-setup' | null;
+type ConfirmKind = 'delete-person' | 'delete-account' | 'disable-account' | 'reset-password' | 'invite' | 'pin-setup' | 'remove-auth-method' | null;
 type AccountEmailForm = { loginEmail: string };
 type AccountPasswordForm = { newPassword: string; confirmPassword: string };
+type AccountPINForm = { loginName: string; pin: string; confirmPIN: string };
 type PersonDetailTab = 'overview' | 'personal-information' | 'account-access' | 'roles-permissions' | 'makerspace-status';
 
 type PersonDetailTabOption = {
@@ -134,11 +143,13 @@ function UserDetailContent({ person }: { person: Person }) {
   const accountSummary = asAccount(person.account);
   const account: AccountSummary | undefined = accountSummary;
   const [editingPerson, setEditingPerson] = useState(false);
-  const [editingEmail, setEditingEmail] = useState(false);
+  const [loginEmailModalOpen, setLoginEmailModalOpen] = useState(false);
   const [assignRoleOpen, setAssignRoleOpen] = useState(false);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [pinModalOpen, setPINModalOpen] = useState(false);
   const [createAccountOpen, setCreateAccountOpen] = useState(false);
   const [confirmKind, setConfirmKind] = useState<ConfirmKind>(null);
+  const [authIdentityToRemove, setAuthIdentityToRemove] = useState<AuthIdentitySummary | null>(null);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [resetSent, setResetSent] = useState(false);
   const [resetExpiresAt, setResetExpiresAt] = useState<string | null>(null);
@@ -170,7 +181,7 @@ function UserDetailContent({ person }: { person: Person }) {
   const canRemoveProfileImage = hasPermission(currentUser, PermissionId.peopleprofile_imageremoveall) ||
     (currentUser.person.id === person.id && hasPermission(currentUser, PermissionId.peopleprofile_imageremoveself));
   const canEditProfileImage = canUpdateProfileImage || Boolean(person.profileImage && canRemoveProfileImage);
-  const canEditAccount = Boolean(account) && hasPermission(
+  const canEditLoginEmail = Boolean(account) && hasPermission(
     currentUser,
     PermissionId.accountslogin_emailupdate,
   );
@@ -192,21 +203,32 @@ function UserDetailContent({ person }: { person: Person }) {
   // Emergency administrator password setting remains an API-only compatibility
   // operation; routine UI workflows use recipient-owned invitations and resets.
   const canSetPassword = false;
-  const canIssuePasswordReset = Boolean(account) && account?.passwordStatus === 'active' && hasPermission(
+  const passwordIdentity = account?.authIdentities.find((identity) => identity.kind === 'password');
+  const pinIdentity = account?.authIdentities.find((identity) => identity.kind === 'pin');
+  const oidcIdentities = account?.authIdentities.filter((identity) => identity.kind === 'oidc') ?? [];
+  const hasUsableAuthenticationMethod = account?.authIdentities.some((identity) => identity.usable) ?? false;
+  const canIssuePasswordReset = Boolean(passwordIdentity) && account?.passwordStatus === 'active' && hasPermission(
     currentUser,
     PermissionId.accountspasswordreset,
   );
-  const canInvite = Boolean(account) && account?.passwordStatus !== 'active' && hasPermission(
+  const canInvite = Boolean(passwordIdentity) && account?.passwordStatus !== 'active' && hasPermission(
     currentUser,
     PermissionId.accountspasswordenrollall,
   );
-  const activePINIdentity = account?.authIdentities.find((identity) => identity.kind === 'pin' && !identity.disabledAt);
-  const activeOIDCIdentities = account?.authIdentities.filter((identity) => identity.kind === 'oidc' && !identity.disabledAt) ?? [];
-  const canIssuePINSetup = Boolean(account) && (activePINIdentity
+  const canConfigurePIN = Boolean(account) && (pinIdentity
     ? hasPermission(currentUser, PermissionId.accountspinreset)
     : hasPermission(currentUser, PermissionId.accountspinenrollall));
-  const hasAccountActions = canEditAccount || canCreateAccount || canAssignRole;
-  const hasCredentialActions = canSetPassword || canIssuePasswordReset || canInvite || canIssuePINSetup;
+  const canRemovePasswordIdentity = Boolean(passwordIdentity) && hasPermission(
+    currentUser,
+    PermissionId.accountspasswordremoveall,
+  );
+  const canRemovePINIdentity = Boolean(pinIdentity) && hasPermission(
+    currentUser,
+    PermissionId.accountspinremoveall,
+  );
+  const canRemoveOIDCIdentity = hasPermission(currentUser, PermissionId.identitiesoidcunlinkall);
+  const hasAccountActions = canEditLoginEmail || canCreateAccount || canAssignRole;
+  const hasCredentialActions = canSetPassword || canIssuePasswordReset || canInvite || canConfigurePIN;
   const availableTabs = useMemo(() => personDetailTabs.filter((tab) => {
     if (tab.key === 'account-access') return canReadAccounts;
     if (tab.key === 'roles-permissions') return canReadAccounts && Boolean(account);
@@ -230,12 +252,17 @@ function UserDetailContent({ person }: { person: Person }) {
     },
   });
   const accountCreateForm = useForm<AccountEmailForm>({ defaultValues: { loginEmail: '' } });
-  const accountEmailForm = useForm<AccountEmailForm>({ defaultValues: { loginEmail: account?.loginEmail ?? '' } });
+  const accountEmailForm = useForm<AccountEmailForm>({ defaultValues: { loginEmail: passwordIdentity?.displayIdentifier ?? '' } });
   const accountPasswordForm = useForm<AccountPasswordForm>({ defaultValues: { newPassword: '', confirmPassword: '' } });
+  const accountPINForm = useForm<AccountPINForm>({ defaultValues: { loginName: pinIdentity?.displayIdentifier ?? '', pin: '', confirmPIN: '' } });
 
   useEffect(() => {
-    accountEmailForm.reset({ loginEmail: account?.loginEmail ?? '' });
-  }, [account?.loginEmail, accountEmailForm]);
+    accountEmailForm.reset({ loginEmail: passwordIdentity?.displayIdentifier ?? '' });
+  }, [passwordIdentity?.displayIdentifier, accountEmailForm]);
+
+  useEffect(() => {
+    accountPINForm.reset({ loginName: pinIdentity?.displayIdentifier ?? '', pin: '', confirmPIN: '' });
+  }, [pinIdentity?.displayIdentifier, accountPINForm]);
 
   useEffect(() => {
     if (!requestedTab) return;
@@ -275,10 +302,20 @@ function UserDetailContent({ person }: { person: Person }) {
   const emailMutation = useMutation({
     mutationFn: ({ loginEmail }: AccountEmailForm) => updateAccountLoginEmail(account!.id, { loginEmail: loginEmail.trim(), expectedVersion: account!.version }),
     onSuccess: async () => {
-      setEditingEmail(false);
+      setLoginEmailModalOpen(false);
       await refresh();
     },
   });
+  const pinMutation = useSecretMutation(
+    ({ loginName, pin }: AccountPINForm) => setAccountPin(account!.id, { loginName: loginName.trim(), pin, expectedVersion: account!.version }),
+    {
+      onSuccess: async () => {
+        accountPINForm.reset({ loginName: '', pin: '', confirmPIN: '' });
+        setPINModalOpen(false);
+        await refresh();
+      },
+    },
+  );
   const passwordMutation = useSecretMutation(
     ({ newPassword }: AccountPasswordForm) => setAccountPassword(account!.id, { newPassword, expectedVersion: account!.version }),
     {
@@ -293,6 +330,21 @@ function UserDetailContent({ person }: { person: Person }) {
   const enableMutation = useMutation({ mutationFn: () => enableAccount(account!.id, { expectedVersion: account!.version }), onSuccess: refresh });
   const disableMutation = useMutation({ mutationFn: () => disableAccount(account!.id, { expectedVersion: account!.version }), onSuccess: async () => { setConfirmKind(null); await refresh(); } });
   const deleteAccountMutation = useMutation({ mutationFn: () => deleteAccount(account!.id, { expectedVersion: account!.version }), onSuccess: async () => { setConfirmKind(null); clearResetIssue(); queryClient.removeQueries({ queryKey: ['accounts', 'detail', account!.id] }); await refresh(); } });
+  const removeAuthIdentityMutation = useMutation({
+    mutationFn: (identity: AuthIdentitySummary) => removeAccountAuthIdentity(
+      account!.id,
+      identity.id,
+      { expectedVersion: account!.version },
+    ),
+    onSuccess: async () => {
+      setConfirmKind(null);
+      setAuthIdentityToRemove(null);
+      await refresh();
+      if (account?.id === currentUser.account.id) {
+        await queryClient.invalidateQueries({ queryKey: authQueryKey });
+      }
+    },
+  });
   const deletePersonMutation = useMutation({
     mutationFn: () => deletePerson(person.id, { expectedVersion: person.version }),
     onSuccess: async () => {
@@ -372,44 +424,50 @@ function UserDetailContent({ person }: { person: Person }) {
   const submitPassword = accountPasswordForm.handleSubmit(async (values) => {
     try { await passwordMutation.mutateAsync(values); } catch { /* rendered in modal */ }
   });
+  const submitPIN = accountPINForm.handleSubmit(async (values) => {
+    try { await pinMutation.mutateAsync(values); } catch { /* rendered in modal */ }
+  });
 
   const confirmAction = async () => {
     try {
       if (confirmKind === 'delete-person') await deletePersonMutation.mutateAsync();
       if (confirmKind === 'delete-account') await deleteAccountMutation.mutateAsync();
       if (confirmKind === 'disable-account') await disableMutation.mutateAsync();
+      if (confirmKind === 'remove-auth-method' && authIdentityToRemove) {
+        await removeAuthIdentityMutation.mutateAsync(authIdentityToRemove);
+      }
       if (confirmKind === 'reset-password' && account) {
         setResetPending(true);
         setResetFailed(false);
         const issue = await issueAccountPasswordReset(account.id, { expectedVersion: account.version });
+        setConfirmKind(null);
         setResetSent(true);
         setResetExpiresAt(issue.expiresAt);
         setManualSetupUrl(issue.setupUrl ?? null);
         queryClient.setQueryData(['accounts', 'detail', issue.account.id], issue.account);
         await refresh();
-        setConfirmKind(null);
       }
       if (confirmKind === 'invite' && account) {
         setResetPending(true);
         setResetFailed(false);
         const issue = await issueAccountInvitation(account.id, { expectedVersion: account.version });
+        setConfirmKind(null);
         setResetSent(true);
         setResetExpiresAt(issue.expiresAt);
         setManualSetupUrl(issue.setupUrl ?? null);
         queryClient.setQueryData(['accounts', 'detail', issue.account.id], issue.account);
         await refresh();
-        setConfirmKind(null);
       }
       if (confirmKind === 'pin-setup' && account) {
         setResetPending(true);
         setResetFailed(false);
         const issue = await issueAccountPinEnrollment(account.id, { expectedVersion: account.version });
+        setConfirmKind(null);
         setResetSent(true);
         setResetExpiresAt(issue.expiresAt);
         setManualSetupUrl(issue.setupUrl ?? null);
         queryClient.setQueryData(['accounts', 'detail', issue.account.id], issue.account);
         await refresh();
-        setConfirmKind(null);
       }
     } catch {
       if (confirmKind === 'reset-password' || confirmKind === 'invite' || confirmKind === 'pin-setup') setResetFailed(true);
@@ -424,13 +482,21 @@ function UserDetailContent({ person }: { person: Person }) {
     'disable-account': ['Disable this account?', 'The user will be signed out and will not be able to sign in.', 'Disable account'],
     'reset-password': ['Send a password reset code?', 'A one-time code will be emailed. The current password remains active until the recipient completes the reset.', 'Send reset code'],
     invite: ['Send an account invitation?', 'A one-time setup code will be emailed. Completing it verifies the email, sets the password, and enables an account that was not explicitly disabled.', 'Send invitation'],
-    'pin-setup': [activePINIdentity ? 'Send a PIN reset code?' : 'Add PIN login?', 'A one-time setup code will be emailed. The recipient—not the administrator—chooses the permanent username and PIN.', activePINIdentity ? 'Send PIN reset code' : 'Send PIN setup code'],
+    'pin-setup': [pinIdentity ? 'Create a PIN reset link?' : 'Create a PIN setup link?', 'A one-time setup link will be emailed when a contact address and mail delivery are available. Otherwise, copy the returned link and deliver it through a trusted channel.', pinIdentity ? 'Create PIN reset link' : 'Create PIN setup link'],
   } as const;
-  const selectedConfirmation = confirmKind ? confirmation[confirmKind] : null;
-  const mutationError = personMutation.isError || createAccountMutation.isError || emailMutation.isError || passwordMutation.isError || enableMutation.isError || disableMutation.isError || deleteAccountMutation.isError || deletePersonMutation.isError || roleMutation.isError || resetFailed;
-  const hasPersonActions = canEditPerson || canEditAccount || canCreateAccount ||
+  const selectedConfirmation = confirmKind === 'remove-auth-method'
+    ? authIdentityToRemove
+      ? [
+          `Remove ${authenticationMethodName(authIdentityToRemove.kind)}?`,
+          'This removes the login method and signs out existing account sessions. The account remains active or inactive independently.',
+          'Remove method',
+        ] as const
+      : null
+    : confirmKind ? confirmation[confirmKind] : null;
+  const mutationError = personMutation.isError || createAccountMutation.isError || emailMutation.isError || passwordMutation.isError || pinMutation.isError || enableMutation.isError || disableMutation.isError || deleteAccountMutation.isError || removeAuthIdentityMutation.isError || deletePersonMutation.isError || roleMutation.isError || resetFailed;
+  const hasPersonActions = canEditPerson || canEditLoginEmail || canCreateAccount ||
     canAssignRole || canSetPassword || canIssuePasswordReset || canInvite ||
-    canIssuePINSetup;
+    canConfigurePIN;
 
   const selectTab = (tab: PersonDetailTab) => {
     setSearchParams((current) => {
@@ -447,7 +513,7 @@ function UserDetailContent({ person }: { person: Person }) {
   };
 
   const startEditingAccount = () => {
-    setEditingEmail(true);
+    setLoginEmailModalOpen(true);
     selectTab('account-access');
   };
 
@@ -531,7 +597,7 @@ function UserDetailContent({ person }: { person: Person }) {
   const renderAccountAccessSection = () => (
     <DetailSection
       title="Account access"
-      meta={account && <Tag type={account.status === 'enabled' ? 'green' : 'gray'}>{account.status === 'enabled' ? 'Enabled' : 'Disabled'}</Tag>}
+      meta={account && <Tag type={account.status === 'enabled' ? 'green' : 'gray'}>{account.status === 'enabled' ? 'Active' : 'Inactive'}</Tag>}
     >
       {!canReadAccounts || person.account === undefined ? (
         <InlineNotification kind="info" lowContrast hideCloseButton title="Account details unavailable" subtitle="Your permissions do not include account access." />
@@ -542,39 +608,29 @@ function UserDetailContent({ person }: { person: Person }) {
         </Stack>
       ) : (
         <Stack gap={5}>
-          {editingEmail ? (
-            <Form onSubmit={submitEmail}>
-              <Stack gap={5}>
-                <TextInput id="account-login-email" type="email" labelText="Login email" invalid={Boolean(accountEmailForm.formState.errors.loginEmail)} invalidText={accountEmailForm.formState.errors.loginEmail?.message} {...accountEmailForm.register('loginEmail', { required: 'Enter a login email.' })} />
-                <div className="form-actions"><Button kind="secondary" type="button" onClick={() => setEditingEmail(false)}>Cancel</Button><Button type="submit" disabled={emailMutation.isPending}>Save</Button></div>
-              </Stack>
-            </Form>
-          ) : (
-            <StructuredListWrapper isCondensed>
-              <StructuredListBody>
-                <DetailRow label="Login email" value={account.loginEmail ?? 'Not configured'} />
-                <DetailRow label="Account source" value={formatProvisioningSource(account.provisioningSource)} />
-                <DetailRow label="First sign-in" value={account.firstAuthenticatedAt ? new Date(account.firstAuthenticatedAt).toLocaleString() : 'Not yet'} />
-                <DetailRow
-                  label="Account ID"
-                  value={account.id}
-                  monospace
-                  action={(
-                    <CopyButton
-                      size="sm"
-                      iconDescription="Copy account ID"
-                      feedback="Account ID copied"
-                      onClick={() => void navigator.clipboard.writeText(account.id)}
-                    />
-                  )}
-                />
-              </StructuredListBody>
-            </StructuredListWrapper>
-          )}
+          <StructuredListWrapper isCondensed>
+            <StructuredListBody>
+              <DetailRow label="Account status" value={account.status === 'enabled' ? 'Active' : 'Inactive'} />
+              <DetailRow label="Provisioning source" value={formatProvisioningSource(account.provisioningSource)} />
+              <DetailRow label="First sign-in" value={account.firstAuthenticatedAt ? new Date(account.firstAuthenticatedAt).toLocaleString() : 'Not yet'} />
+              <DetailRow
+                label="Account ID"
+                value={account.id}
+                monospace
+                action={(
+                  <CopyButton
+                    size="sm"
+                    iconDescription="Copy account ID"
+                    feedback="Account ID copied"
+                    onClick={() => void navigator.clipboard.writeText(account.id)}
+                  />
+                )}
+              />
+            </StructuredListBody>
+          </StructuredListWrapper>
           {account.status === 'disabled' && hasPermission(currentUser, PermissionId.accountsenable) && (
             <div>
-              <Button size="sm" disabled={account.passwordStatus !== 'active' || enableMutation.isPending} onClick={() => enableMutation.mutate()}>Enable account</Button>
-              {account.passwordStatus !== 'active' && <p className="section-description">An active password is required before this account can be enabled.</p>}
+              <Button size="sm" disabled={enableMutation.isPending} onClick={() => enableMutation.mutate()}>Activate account</Button>
             </div>
           )}
         </Stack>
@@ -583,40 +639,56 @@ function UserDetailContent({ person }: { person: Person }) {
   );
 
   const renderAuthenticationMethodsSection = () => account ? (
-    <DetailSection title="Authentication methods">
+    <DetailSection
+      title="Authentication methods"
+      meta={!hasUsableAuthenticationMethod ? <Tag type="gray">No login methods</Tag> : undefined}
+    >
       <div className="authentication-methods">
         <AuthenticationMethod
           label="Local password"
-          status={account.passwordStatus === 'active' ? 'Active' : account.passwordStatus === 'reset_required' ? 'Reset required' : 'Not configured'}
-          active={account.passwordStatus === 'active'}
+          status={!passwordIdentity ? 'Not configured' : passwordIdentity.disabledAt ? 'Disabled' : passwordIdentity.usable ? 'Active' : account.passwordStatus === 'reset_required' ? 'Reset required' : 'Not configured'}
+          detail={passwordIdentity?.displayIdentifier ?? undefined}
+          active={passwordIdentity?.usable ?? false}
           warning={account.passwordStatus === 'reset_required'}
-          action={(canIssuePasswordReset || canInvite) ? (
+          action={(canEditLoginEmail || canIssuePasswordReset || canInvite || canRemovePasswordIdentity) ? (
             <OverflowMenu iconDescription="Actions for Local password" size="sm" flipped>
+              {canEditLoginEmail && <OverflowMenuItem itemText={passwordIdentity ? 'Change login email' : 'Add password login'} onClick={() => setLoginEmailModalOpen(true)} />}
               {canIssuePasswordReset && <OverflowMenuItem itemText="Send reset code" onClick={() => setConfirmKind('reset-password')} />}
               {canInvite && <OverflowMenuItem itemText="Send invitation" onClick={() => setConfirmKind('invite')} />}
+              {canRemovePasswordIdentity && <OverflowMenuItem isDelete hasDivider={canEditLoginEmail || canIssuePasswordReset || canInvite} itemText="Remove password method" onClick={() => { setAuthIdentityToRemove(passwordIdentity ?? null); setConfirmKind('remove-auth-method'); }} />}
             </OverflowMenu>
           ) : undefined}
         />
         <AuthenticationMethod
           label="Username and PIN"
-          status={activePINIdentity ? 'Active' : 'Not configured'}
-          detail={activePINIdentity?.displayIdentifier ? `Username: ${activePINIdentity.displayIdentifier}` : undefined}
-          active={Boolean(activePINIdentity)}
-          action={canIssuePINSetup ? (
+          status={!pinIdentity ? 'Not configured' : pinIdentity.disabledAt ? 'Disabled' : pinIdentity.usable ? 'Active' : 'Not configured'}
+          detail={pinIdentity?.displayIdentifier ? `Username: ${pinIdentity.displayIdentifier}` : undefined}
+          active={pinIdentity?.usable ?? false}
+          action={(canConfigurePIN || canRemovePINIdentity) ? (
             <OverflowMenu iconDescription="Actions for Username and PIN" size="sm" flipped>
-              <OverflowMenuItem itemText={activePINIdentity ? 'Reset PIN login' : 'Add PIN login'} onClick={() => setConfirmKind('pin-setup')} />
+              {canConfigurePIN && <OverflowMenuItem itemText={pinIdentity ? 'Set new username and PIN' : 'Add username and PIN'} onClick={() => setPINModalOpen(true)} />}
+              {canConfigurePIN && <OverflowMenuItem itemText={pinIdentity ? 'Create setup link' : 'Create setup link instead'} onClick={() => setConfirmKind('pin-setup')} />}
+              {canRemovePINIdentity && <OverflowMenuItem isDelete hasDivider={canConfigurePIN} itemText="Remove PIN method" onClick={() => { setAuthIdentityToRemove(pinIdentity ?? null); setConfirmKind('remove-auth-method'); }} />}
             </OverflowMenu>
           ) : undefined}
         />
         <AuthenticationMethod
           label="OIDC / SSO"
-          status={activeOIDCIdentities.length ? `${activeOIDCIdentities.length} linked` : 'Not connected'}
-          active={activeOIDCIdentities.length > 0}
+          status={oidcIdentities.length ? `${oidcIdentities.filter((identity) => identity.usable).length} active` : 'Not connected'}
+          active={oidcIdentities.some((identity) => identity.usable)}
         >
-          {activeOIDCIdentities.map((identity) => (
+          {oidcIdentities.map((identity) => (
             <div className="authentication-method__identity" key={identity.id}>
-              <span>{identity.displayIdentifier ?? 'OIDC provider'}</span>
-              {identity.providerSlug && <code>{identity.providerSlug}</code>}
+              <div className="authentication-method__identity-summary">
+                <span>{identity.displayIdentifier ?? 'OIDC provider'}</span>
+                <span>{identity.disabledAt ? 'Disabled' : identity.usable ? 'Active' : 'Provider unavailable'}</span>
+                {identity.providerSlug && <code>{identity.providerSlug}</code>}
+              </div>
+              {canRemoveOIDCIdentity && (
+                <OverflowMenu iconDescription={`Actions for ${identity.displayIdentifier ?? 'OIDC identity'}`} size="sm" flipped>
+                  <OverflowMenuItem isDelete itemText="Unlink identity" onClick={() => { setAuthIdentityToRemove(identity); setConfirmKind('remove-auth-method'); }} />
+                </OverflowMenu>
+              )}
             </div>
           ))}
         </AuthenticationMethod>
@@ -683,9 +755,13 @@ function UserDetailContent({ person }: { person: Person }) {
   const renderTabContent = (tab: PersonDetailTab) => {
     if (tab === 'personal-information') {
       return (
-        <Grid condensed className="person-detail-grid person-detail-grid--focused">
-          <Column sm={4} md={3} lg={5}>{renderProfileSection()}</Column>
-          <Column sm={4} md={5} lg={11}>{renderPersonalInformationSection()}</Column>
+        <Grid className="person-detail-grid person-detail-grid--personal">
+          <Column sm={4} md={3} lg={6} className="person-detail-grid__stretch-cell">
+            {renderProfileSection()}
+          </Column>
+          <Column sm={4} md={5} lg={10} className="person-detail-grid__stretch-cell">
+            {renderPersonalInformationSection()}
+          </Column>
         </Grid>
       );
     }
@@ -697,13 +773,13 @@ function UserDetailContent({ person }: { person: Person }) {
 
     return (
       <Grid className="person-detail-grid person-detail-grid--overview">
-        <Column sm={4} md={3} lg={6} className="person-detail-overview__cell">
+        <Column sm={4} md={3} lg={6} className="person-detail-grid__stretch-cell">
           {renderProfileSection()}
         </Column>
-        <Column sm={4} md={5} lg={10} className="person-detail-overview__cell">
+        <Column sm={4} md={5} lg={10} className="person-detail-grid__stretch-cell">
           {renderAccountAccessSection()}
         </Column>
-        <Column sm={4} md={3} lg={6} className="person-detail-overview__cell">
+        <Column sm={4} md={3} lg={6} className="person-detail-grid__stretch-cell">
           {renderPersonalInformationSection()}
         </Column>
         <Column sm={4} md={5} lg={10} className="person-detail-overview__stack">
@@ -733,8 +809,8 @@ function UserDetailContent({ person }: { person: Person }) {
             {canEditPerson && !editingPerson && (hasAccountActions || hasCredentialActions) && (
               <MenuItemDivider />
             )}
-            {canEditAccount && (
-              <MenuItem label="Edit account" onClick={startEditingAccount} />
+            {canEditLoginEmail && (
+              <MenuItem label={passwordIdentity ? 'Change password login email' : 'Add password login'} onClick={startEditingAccount} />
             )}
             {canCreateAccount && (
               <MenuItem label="Create account" onClick={() => { setCreateAccountOpen(true); selectTab('account-access'); }} />
@@ -752,8 +828,8 @@ function UserDetailContent({ person }: { person: Person }) {
             {canInvite && (
               <MenuItem label="Send invitation" onClick={() => setConfirmKind('invite')} />
             )}
-            {canIssuePINSetup && (
-              <MenuItem label={activePINIdentity ? 'Reset PIN login' : 'Add PIN login'} onClick={() => setConfirmKind('pin-setup')} />
+            {canConfigurePIN && (
+              <MenuItem label={pinIdentity ? 'Set new username and PIN' : 'Add username and PIN'} onClick={() => setPINModalOpen(true)} />
             )}
           </MenuButton>
         ) : undefined}
@@ -781,11 +857,10 @@ function UserDetailContent({ person }: { person: Person }) {
           </TabPanels>
         </Tabs>
 
-      {resetSent && (
+      {resetSent && !manualSetupUrl && (
         <Tile className="secret-tile">
           <Stack gap={5}>
-            <InlineNotification kind="success" lowContrast hideCloseButton title={manualSetupUrl ? 'Manual setup link created' : 'Message sent'} subtitle={manualSetupUrl ? 'Mail is not configured. Copy this one-time link and deliver it to the intended recipient through a trusted channel.' : 'The one-time link was sent by email.'} />
-            {manualSetupUrl && <><TextInput id="manual-setup-url" labelText="One-time setup link" readOnly value={`${window.location.origin}${manualSetupUrl}`} /><Button kind="secondary" onClick={() => void navigator.clipboard.writeText(`${window.location.origin}${manualSetupUrl}`)}>Copy link</Button></>}
+            <InlineNotification kind="success" lowContrast hideCloseButton title="Message sent" subtitle="The one-time link was sent by email." />
             {resetExpiresAt && <p className="section-description">Expires {new Date(resetExpiresAt).toLocaleString()}.</p>}
             <div className="form-actions">
               <Button kind="ghost" onClick={clearResetIssue}>Dismiss</Button>
@@ -830,13 +905,13 @@ function UserDetailContent({ person }: { person: Person }) {
         <ModalBody>
           <Form id="create-account-form" onSubmit={submitCreateAccount}>
             <Stack gap={5}>
-              <p>Create an application account for this person. Authentication methods can be configured afterwards.</p>
+              <p>Create an active application account for this person. Authentication methods can be configured afterwards; without one, the person cannot sign in.</p>
               {createAccountMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Account not created" subtitle="Check the email and try again." />}
               <TextInput
                 id="new-account-email"
                 type="email"
-                labelText="Login email (optional)"
-                helperText="If provided, an email/password login can be configured for this account."
+                labelText="Password login email (optional)"
+                helperText="This creates a password identity for convenience. It is independent of the person's contact email."
                 invalid={Boolean(accountCreateForm.formState.errors.loginEmail)}
                 invalidText={accountCreateForm.formState.errors.loginEmail?.message}
                 {...accountCreateForm.register('loginEmail')}
@@ -845,6 +920,42 @@ function UserDetailContent({ person }: { person: Person }) {
           </Form>
         </ModalBody>
         <ModalFooter><Button kind="secondary" onClick={() => setCreateAccountOpen(false)}>Cancel</Button><Button type="submit" form="create-account-form" disabled={createAccountMutation.isPending}>Create account</Button></ModalFooter>
+      </ComposedModal>
+
+      <ComposedModal open={loginEmailModalOpen} onClose={() => { accountEmailForm.reset({ loginEmail: passwordIdentity?.displayIdentifier ?? '' }); emailMutation.reset(); setLoginEmailModalOpen(false); }}>
+        <ModalHeader title={passwordIdentity ? 'Change password login email' : 'Add password login'} label={`${person.firstName} ${person.lastName}`} />
+        <ModalBody>
+          <Form id="account-login-email-form" onSubmit={submitEmail}>
+            <Stack gap={5}>
+              <p>This identifier is used only for local password authentication. It does not change the person's contact email.</p>
+              {emailMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Password login not updated" subtitle="The email may already be in use or the account may have changed." />}
+              <TextInput id="account-login-email" type="email" labelText="Password login email" invalid={Boolean(accountEmailForm.formState.errors.loginEmail)} invalidText={accountEmailForm.formState.errors.loginEmail?.message} {...accountEmailForm.register('loginEmail', { required: 'Enter a password login email.' })} />
+            </Stack>
+          </Form>
+        </ModalBody>
+        <ModalFooter>
+          <Button kind="secondary" onClick={() => { accountEmailForm.reset({ loginEmail: passwordIdentity?.displayIdentifier ?? '' }); emailMutation.reset(); setLoginEmailModalOpen(false); }}>Cancel</Button>
+          <Button type="submit" form="account-login-email-form" disabled={emailMutation.isPending}>{emailMutation.isPending ? 'Saving…' : 'Save'}</Button>
+        </ModalFooter>
+      </ComposedModal>
+
+      <ComposedModal open={pinModalOpen} onClose={() => { accountPINForm.reset({ loginName: pinIdentity?.displayIdentifier ?? '', pin: '', confirmPIN: '' }); pinMutation.reset(); setPINModalOpen(false); }}>
+        <ModalHeader title={pinIdentity ? 'Set new username and PIN' : 'Add username and PIN'} label={`${person.firstName} ${person.lastName}`} />
+        <ModalBody>
+          <Form id="set-account-pin-form" onSubmit={submitPIN}>
+            <Stack gap={5}>
+              <p>Configure this method directly. Existing account sessions will be signed out.</p>
+              {pinMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="PIN login not configured" subtitle="The username may be unavailable or the account may have changed." />}
+              <TextInput id="admin-pin-login-name" labelText="Username" autoComplete="username" helperText="3–64 letters, numbers, dots, underscores, or hyphens; start with a letter or number." invalid={Boolean(accountPINForm.formState.errors.loginName)} invalidText={accountPINForm.formState.errors.loginName?.message} {...accountPINForm.register('loginName', { required: 'Enter a username.', pattern: { value: /^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$/, message: 'Use 3 to 64 supported characters and start with a letter or number.' } })} />
+              <PasswordInput id="admin-pin" labelText="PIN" autoComplete="new-password" helperText="Use 6 to 12 digits." invalid={Boolean(accountPINForm.formState.errors.pin)} invalidText={accountPINForm.formState.errors.pin?.message} {...accountPINForm.register('pin', { required: 'Enter a PIN.', pattern: { value: /^[0-9]{6,12}$/, message: 'Use 6 to 12 digits.' } })} />
+              <PasswordInput id="admin-confirm-pin" labelText="Confirm PIN" autoComplete="new-password" invalid={Boolean(accountPINForm.formState.errors.confirmPIN)} invalidText={accountPINForm.formState.errors.confirmPIN?.message} {...accountPINForm.register('confirmPIN', { required: 'Confirm the PIN.', validate: (value) => value === accountPINForm.watch('pin') || 'The PINs do not match.' })} />
+            </Stack>
+          </Form>
+        </ModalBody>
+        <ModalFooter>
+          <Button kind="secondary" onClick={() => { accountPINForm.reset({ loginName: pinIdentity?.displayIdentifier ?? '', pin: '', confirmPIN: '' }); pinMutation.reset(); setPINModalOpen(false); }}>Cancel</Button>
+          <Button type="submit" form="set-account-pin-form" disabled={pinMutation.isPending}>{pinMutation.isPending ? 'Saving…' : 'Set PIN login'}</Button>
+        </ModalFooter>
       </ComposedModal>
 
       <ComposedModal open={assignRoleOpen} onClose={() => { setSelectedRole(null); setAssignRoleOpen(false); }}>
@@ -880,7 +991,7 @@ function UserDetailContent({ person }: { person: Person }) {
       </ComposedModal>
 
       <ComposedModal open={passwordModalOpen} onClose={() => { accountPasswordForm.reset(); passwordMutation.reset(); setPasswordModalOpen(false); }}>
-        <ModalHeader title="Set account password" label={account?.loginEmail ?? undefined} />
+        <ModalHeader title="Set account password" label={passwordIdentity?.displayIdentifier ?? undefined} />
         <ModalBody>
           <Form id="set-account-password-form" onSubmit={submitPassword}>
             <Stack gap={5}>
@@ -894,99 +1005,45 @@ function UserDetailContent({ person }: { person: Person }) {
         <ModalFooter><Button kind="secondary" onClick={() => { accountPasswordForm.reset(); passwordMutation.reset(); setPasswordModalOpen(false); }}>Cancel</Button><Button type="submit" form="set-account-password-form" disabled={passwordMutation.isPending}>Set password</Button></ModalFooter>
       </ComposedModal>
 
-      <ComposedModal open={Boolean(selectedConfirmation)} danger onClose={() => setConfirmKind(null)}>
+      <ComposedModal aria-label="Manual setup link created" open={Boolean(manualSetupUrl)} onClose={clearResetIssue}>
+        <ModalHeader title="Manual setup link created" label={`${person.firstName} ${person.lastName}`} />
+        <ModalBody>
+          <Stack gap={5}>
+            <p>Copy this one-time link and deliver it to the intended recipient through a trusted channel.</p>
+            {manualSetupUrl && (
+              <TextInput
+                id="manual-setup-url"
+                labelText="One-time setup link"
+                readOnly
+                value={`${window.location.origin}${manualSetupUrl}`}
+              />
+            )}
+            {resetExpiresAt && <p className="section-description">Expires {new Date(resetExpiresAt).toLocaleString()}.</p>}
+          </Stack>
+        </ModalBody>
+        <ModalFooter>
+          <Button kind="secondary" onClick={clearResetIssue}>Done</Button>
+          <Button onClick={() => manualSetupUrl && void navigator.clipboard.writeText(`${window.location.origin}${manualSetupUrl}`)}>Copy link</Button>
+        </ModalFooter>
+      </ComposedModal>
+
+      <ComposedModal open={Boolean(selectedConfirmation)} danger onClose={() => { setConfirmKind(null); setAuthIdentityToRemove(null); removeAuthIdentityMutation.reset(); }}>
         <ModalHeader title={selectedConfirmation?.[0] ?? ''} />
-        <ModalBody><p>{selectedConfirmation?.[1]}</p>{resetFailed && (confirmKind === 'reset-password' || confirmKind === 'invite' || confirmKind === 'pin-setup') && <InlineNotification kind="error" lowContrast hideCloseButton title="Message not sent" subtitle="Reload the account and try again." />}</ModalBody>
-        <ModalFooter><Button kind="secondary" onClick={() => setConfirmKind(null)}>Cancel</Button><Button kind="danger" disabled={resetPending || deletePersonMutation.isPending || deleteAccountMutation.isPending || disableMutation.isPending} onClick={() => void confirmAction()}>{selectedConfirmation?.[2] ?? 'Confirm'}</Button></ModalFooter>
+        <ModalBody><p>{selectedConfirmation?.[1]}</p>{resetFailed && (confirmKind === 'reset-password' || confirmKind === 'invite' || confirmKind === 'pin-setup') && <InlineNotification kind="error" lowContrast hideCloseButton title="Message not sent" subtitle="Reload the account and try again." />}{confirmKind === 'remove-auth-method' && removeAuthIdentityMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Authentication method not removed" subtitle="The account may have changed. Reload it and try again." />}</ModalBody>
+        <ModalFooter><Button kind="secondary" onClick={() => { setConfirmKind(null); setAuthIdentityToRemove(null); removeAuthIdentityMutation.reset(); }}>Cancel</Button><Button kind="danger" disabled={resetPending || deletePersonMutation.isPending || deleteAccountMutation.isPending || disableMutation.isPending || removeAuthIdentityMutation.isPending} onClick={() => void confirmAction()}>{selectedConfirmation?.[2] ?? 'Confirm'}</Button></ModalFooter>
       </ComposedModal>
     </Stack>
   );
 }
 
-function DetailSection({
-  title,
-  description,
-  headingContent,
-  meta,
-  action,
-  className,
-  children,
-}: {
-  title: string;
-  description?: string;
-  headingContent?: ReactNode;
-  meta?: ReactNode;
-  action?: ReactNode;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <Tile className={`person-detail-card${className ? ` ${className}` : ''}`}>
-      <Stack gap={6} className="person-detail-card__content">
-        <div className="person-detail-card__heading">
-          <div>
-            <h2>{title}</h2>
-            {description && <p className="section-description">{description}</p>}
-          </div>
-          {headingContent && <div className="person-detail-card__heading-content">{headingContent}</div>}
-          {(meta || action) && <div className="person-detail-card__actions">{meta}{action}</div>}
-        </div>
-        {children}
-      </Stack>
-    </Tile>
-  );
+function authenticationMethodName(kind: AuthIdentitySummary['kind']) {
+  if (kind === 'password') return 'local password';
+  if (kind === 'pin') return 'username and PIN';
+  return 'OIDC identity';
 }
 
-function DetailRow({
-  label,
-  value,
-  monospace = false,
-  action,
-}: {
-  label: string;
-  value: string;
-  monospace?: boolean;
-  action?: ReactNode;
-}) {
-  return (
-    <StructuredListRow>
-      <StructuredListCell>{label}</StructuredListCell>
-      <StructuredListCell>
-        <span className="person-detail-row__value">{monospace ? <code>{value}</code> : value}{action}</span>
-      </StructuredListCell>
-    </StructuredListRow>
-  );
-}
-
-function AuthenticationMethod({
-  label,
-  status,
-  detail,
-  active,
-  warning = false,
-  action,
-  children,
-}: {
-  label: string;
-  status: string;
-  detail?: string;
-  active: boolean;
-  warning?: boolean;
-  action?: ReactNode;
-  children?: ReactNode;
-}) {
-  return (
-    <div className="authentication-method">
-      <div className="authentication-method__header">
-        <div className="authentication-method__summary"><strong>{label}</strong>{detail && <span>{detail}</span>}</div>
-        <div className="authentication-method__actions">
-          <Tag type={warning ? 'warm-gray' : active ? 'green' : 'gray'}>{status}</Tag>
-          {action}
-        </div>
-      </div>
-      {children}
-    </div>
-  );
+function formatProvisioningSource(source: string): string {
+  return source.replaceAll('_', ' ').replace(/^./, (value) => value.toUpperCase());
 }
 
 function LabRulesOverview({ status }: { status: LaborordnungStatus }) {
@@ -1017,10 +1074,6 @@ function LabRulesOverview({ status }: { status: LaborordnungStatus }) {
       </div>
     </section>
   );
-}
-
-function formatProvisioningSource(source: string): string {
-  return source.replaceAll('_', ' ').replace(/^./, (value) => value.toUpperCase());
 }
 
 function formatDateTimeRange(startsAt: string, endsAt: string): string {

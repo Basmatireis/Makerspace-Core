@@ -23,6 +23,8 @@ import type {
   CreateAccountRequest,
   PasswordResetIssue,
   SetAccountPasswordRequest,
+  SetAccountPinRequest,
+  UUIDv7,
   UpdateLoginEmailRequest,
   VersionRequest
 } from '.././models';
@@ -30,7 +32,7 @@ import type {
 import { apiFetch } from '../../http-client';
 
 /**
- * Requires `accounts.create`. New accounts are disabled. If `loginEmail` is supplied, a password authentication identity is created without a password.
+ * Requires `accounts.create`. New accounts are active by default. If `loginEmail` is supplied, a password authentication identity is created without a password.
  * @summary Create an account for a person
  */
 export const getCreatePersonAccountUrl = (personId: string,) => {
@@ -106,8 +108,8 @@ export const deleteAccount = async (accountId: string,
 
 
 /**
- * Requires `accounts.enable`; an active password credential is required.
- * @summary Enable an account
+ * Requires `accounts.enable`. Authentication methods are configured independently and are not required for activation.
+ * @summary Activate an account
  */
 export const getEnableAccountUrl = (accountId: string,) => {
 
@@ -158,8 +160,8 @@ export const disableAccount = async (accountId: string,
 
 
 /**
- * Requires `accounts.login_email.update`; this does not silently change the person's contact email.
- * @summary Replace an account's email login identifier
+ * Requires `accounts.login_email.update`; creates a missing password identity and never reads or changes the Person contact email.
+ * @summary Add or replace an account's password login identifier
  */
 export const getUpdateAccountLoginEmailUrl = (accountId: string,) => {
 
@@ -205,6 +207,69 @@ export const setAccountPassword = async (accountId: string,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       setAccountPasswordRequest,)
+  }
+);}
+
+
+/**
+ * Requires `accounts.pin.enroll.all` when adding a PIN method and
+`accounts.pin.reset` when replacing an existing PIN method. The PIN is
+hashed before persistence, existing sessions are revoked, and this
+operation does not enable the Account automatically.
+
+ * @summary Administratively configure an account's username and PIN
+ */
+export const getSetAccountPinUrl = (accountId: string,) => {
+
+
+  
+
+  return `/api/v1/accounts/${accountId}/pin`
+}
+
+export const setAccountPin = async (accountId: string,
+    setAccountPinRequest: SetAccountPinRequest, options?: RequestInit): Promise<void> => {
+  
+  return apiFetch<void>(getSetAccountPinUrl(accountId),
+  {      
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      setAccountPinRequest,)
+  }
+);}
+
+
+/**
+ * Requires the method-specific administrative permission:
+`accounts.password.remove.all`, `accounts.pin.remove.all`, or
+`identities.oidc.unlink.all`. The account lifecycle state is unchanged;
+dependent credentials and challenges are deleted, and existing account
+sessions are revoked.
+
+ * @summary Remove an authentication method from an account
+ */
+export const getRemoveAccountAuthIdentityUrl = (accountId: string,
+    identityId: UUIDv7,) => {
+
+
+  
+
+  return `/api/v1/accounts/${accountId}/auth-identities/${identityId}`
+}
+
+export const removeAccountAuthIdentity = async (accountId: string,
+    identityId: UUIDv7,
+    versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
+  
+  return apiFetch<void>(getRemoveAccountAuthIdentityUrl(accountId,identityId),
+  {      
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      versionRequest,)
   }
 );}
 
@@ -266,8 +331,10 @@ export const issueAccountInvitation = async (accountId: string,
 
 /**
  * Requires `accounts.pin.enroll.all` when adding PIN login and
-`accounts.pin.reset` when replacing an existing PIN method. The
-administrator never receives or chooses the permanent PIN.
+`accounts.pin.reset` when replacing an existing PIN method. A Person
+contact email is used only as an optional delivery channel. When email
+delivery is unavailable, the authorized administrator receives a
+one-time setup URL instead.
 
  * @summary Send or safely resend a one-time PIN setup challenge
  */
