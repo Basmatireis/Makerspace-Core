@@ -105,7 +105,8 @@ describe('Machine Logbook pages', () => {
     const user = userEvent.setup();
     renderRoute(<App />, '/machine-logbook/jobs');
 
-    expect(await screen.findByRole('heading', { name: 'Jobs' })).toBeInTheDocument();
+    const jobsHeading = await screen.findByRole('heading', { name: 'Jobs' });
+    expect(jobsHeading.closest('[data-page-shell]')).toHaveAttribute('data-page-width', 'wide');
     expect(screen.getByText('183 g PLA Black, 12 g Support White')).toBeInTheDocument();
     expect(screen.getAllByText('Needs review').some((element) => element.closest('.cds--tag'))).toBe(true);
     expect(screen.getByRole('link', { name: 'Jobs' })).toBeInTheDocument();
@@ -290,7 +291,12 @@ describe('Machine Logbook pages', () => {
     );
     const user = userEvent.setup();
     renderRoute(<App />, '/settings/machine-logbook');
-    expect(await screen.findByRole('heading', { name: 'Machines configuration' })).toBeInTheDocument();
+    const heading = await screen.findByRole('heading', { name: 'Machines configuration' });
+    const shell = heading.closest('[data-page-shell]');
+    expect(shell).toHaveAttribute('data-page-width', 'wide');
+    expect(shell?.querySelector('.page-header__tabs')).toContainElement(
+      screen.getByRole('tablist', { name: 'Configuration sections' }),
+    );
     await user.click(screen.getByRole('button', { name: 'Edit' }));
     let dialog = await screen.findByRole('dialog');
     await user.clear(within(dialog).getByLabelText('Name'));

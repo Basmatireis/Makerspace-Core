@@ -307,6 +307,8 @@ func maxBodyMiddleware(next http.Handler) http.Handler {
 			limit := int64(maxJSONRequestBodyBytes)
 			if strings.HasSuffix(r.URL.Path, "/profile-image") {
 				limit = maxImageRequestBodyBytes
+			} else if strings.HasPrefix(r.URL.Path, apiBasePath+"/branding/assets/") {
+				limit = maxImageRequestBodyBytes
 			} else if r.URL.Path == apiBasePath+"/laborordnung/versions" {
 				limit = maxPDFRequestBodyBytes
 			} else if r.URL.Path == apiBasePath+"/visitor-enrollment/submissions" {
@@ -325,6 +327,8 @@ func noStoreMiddleware(next http.Handler) http.Handler {
 			strings.HasSuffix(r.URL.Path, "/invitations") || strings.HasSuffix(r.URL.Path, "/pin-enrollment") ||
 			(r.Method == http.MethodPost && (r.URL.Path == apiBasePath+"/managed-devices" || r.URL.Path == apiBasePath+"/scim/connectors")) || strings.HasSuffix(r.URL.Path, "/token") {
 			w.Header().Set("Cache-Control", "no-store")
+		} else if r.URL.Path == apiBasePath+"/public/config" || strings.HasPrefix(r.URL.Path, apiBasePath+"/public/legal/") {
+			w.Header().Set("Cache-Control", "no-cache")
 		}
 		next.ServeHTTP(w, r)
 	})
@@ -627,6 +631,9 @@ func isPublicPath(path string) bool {
 	}
 	if path == apiBasePath+"/auth/oidc/callback" || path == apiBasePath+"/auth/oidc/providers" ||
 		(strings.HasPrefix(path, apiBasePath+"/auth/oidc/") && strings.HasSuffix(path, "/start")) {
+		return true
+	}
+	if path == apiBasePath+"/public/config" || strings.HasPrefix(path, apiBasePath+"/public/legal/") || strings.HasPrefix(path, apiBasePath+"/public/branding/assets/") {
 		return true
 	}
 	switch path {

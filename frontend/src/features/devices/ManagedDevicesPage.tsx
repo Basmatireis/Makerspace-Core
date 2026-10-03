@@ -15,8 +15,10 @@ import {
 } from '../../api/generated/managed-devices/managed-devices';
 import type { ManagedDevice, ManagedDeviceCredentialDelivery, ManagedDeviceProvisioning, ManagedDeviceType } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
+import { DateTimeInput } from '../../app/DateInput';
+import { formatDateTime, instantToZonedDateTimeValue, isZonedDateTimeValue, zonedDateTimeValueToISO } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 
@@ -107,12 +109,11 @@ export function ManagedDevicesPage() {
   });
 
   return (
-    <Stack gap={7}>
-      <PageHeader
-        title="Managed devices"
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
-        description="Register trusted local computers and control device-scoped access."
-      />
+    <PageShell
+      title="Managed devices"
+      breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
+      description="Register trusted local computers and control device-scoped access."
+    >
       {secret && <OneTimeToken provisioning={secret} onDismiss={() => setSecret(null)} />}
       {devicesQuery.isPending && <InlineLoadingState label="Loading managed devices" />}
       {devicesQuery.isError && (
@@ -177,7 +178,7 @@ export function ManagedDevicesPage() {
         onClose={() => setConfirmation(null)}
         onConfirm={() => confirmation && lifecycleMutation.mutate(confirmation)}
       />
-    </Stack>
+    </PageShell>
   );
 }
 
@@ -198,8 +199,8 @@ function DeviceTable({ devices, canManage, onEdit, onRotate, onConfirm }: {
     name: device.name,
     type: device.deviceTypeName,
     status: device.status,
-    lastSeen: formatDate(device.lastSeenAt, 'Never'),
-    expires: formatDate(device.expiresAt, 'No expiration'),
+    lastSeen: device.lastSeenAt ? formatDateTime(device.lastSeenAt) : 'Never',
+    expires: device.expiresAt ? formatDateTime(device.expiresAt) : 'No expiration',
     actions: device,
   }));
   return (
@@ -266,7 +267,7 @@ function CreateDeviceForm({ types, onCreated }: {
     try {
       const value = await createManagedDevice({
         name: name.trim(), deviceTypeId,
-        expiresAt: noExpiration ? null : localDateTimeToISO(expiration),
+        expiresAt: noExpiration ? null : zonedDateTimeValueToISO(expiration),
         credentialDelivery,
       });
       setName(''); setDeviceTypeId(''); setNoExpiration(true); setExpiration('');
@@ -291,7 +292,7 @@ function CreateDeviceForm({ types, onCreated }: {
         <SelectItem value="nativeToken" text="Native token (show once)" />
         <SelectItem value="bindBrowser" text="Bind this browser securely" />
       </Select>
-      <Button type="submit" disabled={!name.trim() || !deviceTypeId || (!noExpiration && !expiration) || pending}>Create device</Button>
+      <Button type="submit" disabled={!name.trim() || !deviceTypeId || (!noExpiration && !isZonedDateTimeValue(expiration)) || pending}>Create device</Button>
     </Stack></Form></Tile>
   );
 }
@@ -304,7 +305,7 @@ function DeviceFormModal({ device, types, pending, error, onClose, onSubmit }: {
   const [name, setName] = useState(device.name);
   const [deviceTypeId, setDeviceTypeId] = useState(device.deviceTypeId);
   const [noExpiration, setNoExpiration] = useState(device.expiresAt === null);
-  const [expiration, setExpiration] = useState(toLocalDateTime(device.expiresAt));
+  const [expiration, setExpiration] = useState(device.expiresAt ? instantToZonedDateTimeValue(device.expiresAt) : '');
   return (
     <ComposedModal open onClose={onClose}>
       <ModalHeader title="Edit managed device" />
@@ -320,7 +321,7 @@ function DeviceFormModal({ device, types, pending, error, onClose, onSubmit }: {
           <ExpirationFields noExpiration={noExpiration} expiration={expiration} setNoExpiration={setNoExpiration} setExpiration={setExpiration} id="edit" />
         )}
       </Stack></ModalBody>
-      <ModalFooter><Button kind="secondary" onClick={onClose}>Cancel</Button><Button disabled={pending || !name.trim() || (device.status !== 'expired' && !noExpiration && !expiration)} onClick={() => onSubmit({ name: name.trim(), deviceTypeId, expiresAt: device.status === 'expired' ? device.expiresAt : noExpiration ? null : localDateTimeToISO(expiration) })}>Save</Button></ModalFooter>
+      <ModalFooter><Button kind="secondary" onClick={onClose}>Cancel</Button><Button disabled={pending || !name.trim() || (device.status !== 'expired' && !noExpiration && !isZonedDateTimeValue(expiration))} onClick={() => onSubmit({ name: name.trim(), deviceTypeId, expiresAt: device.status === 'expired' ? device.expiresAt : noExpiration ? null : zonedDateTimeValueToISO(expiration) })}>Save</Button></ModalFooter>
     </ComposedModal>
   );
 }
@@ -330,7 +331,7 @@ function ExpirationModal({ device, pending, error, onClose, onSubmit }: {
   onSubmit: (expiresAt: string | null, credentialDelivery: ManagedDeviceCredentialDelivery) => void;
 }) {
   const [noExpiration, setNoExpiration] = useState(device.expiresAt === null);
-  const [expiration, setExpiration] = useState(toLocalDateTime(device.expiresAt));
+  const [expiration, setExpiration] = useState(device.expiresAt ? instantToZonedDateTimeValue(device.expiresAt) : '');
   const [credentialDelivery, setCredentialDelivery] = useState<ManagedDeviceCredentialDelivery>('nativeToken');
   return (
     <ComposedModal open onClose={onClose}>
@@ -344,7 +345,7 @@ function ExpirationModal({ device, pending, error, onClose, onSubmit }: {
           <SelectItem value="bindBrowser" text="Bind this browser securely" />
         </Select>
       </Stack></ModalBody>
-      <ModalFooter><Button kind="secondary" onClick={onClose}>Cancel</Button><Button disabled={pending || (!noExpiration && !expiration)} onClick={() => onSubmit(noExpiration ? null : localDateTimeToISO(expiration), credentialDelivery)}>Rotate token</Button></ModalFooter>
+      <ModalFooter><Button kind="secondary" onClick={onClose}>Cancel</Button><Button disabled={pending || (!noExpiration && !isZonedDateTimeValue(expiration))} onClick={() => onSubmit(noExpiration ? null : zonedDateTimeValueToISO(expiration), credentialDelivery)}>Rotate token</Button></ModalFooter>
     </ComposedModal>
   );
 }
@@ -355,7 +356,7 @@ function ExpirationFields({ noExpiration, expiration, setNoExpiration, setExpira
 }) {
   return <>
     <Checkbox id={`${id}-no-expiration`} labelText="No expiration" checked={noExpiration} onChange={(_, data) => setNoExpiration(data.checked)} />
-    {!noExpiration && <TextInput id={`${id}-expiration`} type="datetime-local" labelText="Expires at" required value={expiration} onChange={(event) => setExpiration(event.target.value)} />}
+    {!noExpiration && <DateTimeInput id={`${id}-expiration`} labelText="Expires at" required value={expiration} onChange={setExpiration} />}
   </>;
 }
 
@@ -443,18 +444,4 @@ function ConfirmationModal({ value, pending, error, onClose, onConfirm }: {
 function MutationError({ title, error, conflictMessage }: { title: string; error: Error; conflictMessage?: string }) {
   const message = conflictMessage && error instanceof ApiError && error.status === 409 ? conflictMessage : error.message;
   return <InlineNotification kind="error" lowContrast hideCloseButton title={title} subtitle={message} />;
-}
-
-function formatDate(value: string | null, fallback: string) {
-  return value ? new Date(value).toLocaleString() : fallback;
-}
-
-function toLocalDateTime(value: string | null) {
-  if (!value) return '';
-  const date = new Date(value);
-  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-}
-
-function localDateTimeToISO(value: string) {
-  return new Date(value).toISOString();
 }

@@ -17,6 +17,7 @@ export function OpenDayDateTimeFilters({ idPrefix, items, timeZone, value, onCha
 
   return <div className="open-days-date-time-filters" role="group" aria-label="Filter by day and time">
     <MultiSelect
+      className="open-days-weekday-filter"
       id={`${idPrefix}-weekday`}
       titleText="Filter by weekday"
       hideLabel

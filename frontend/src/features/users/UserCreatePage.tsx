@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { createPerson } from '../../api/generated/people/people';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import {
@@ -50,14 +50,13 @@ export function UserCreatePage() {
   });
 
   return (
-    <Stack gap={7}>
-      <PageHeader
-        title="Add person"
-        breadcrumbs={[
-          { label: 'People', to: '/people' },
-        ]}
-        description="Create a person record. A login account can be added afterward."
-      />
+    <PageShell
+      title="Add person"
+      breadcrumbs={[
+        { label: 'People', to: '/people' },
+      ]}
+      description="Create a person record. A login account can be added afterward."
+    >
       <Tile className="form-tile">
         <Form onSubmit={onSubmit}>
           <Stack gap={7}>
@@ -86,6 +85,6 @@ export function UserCreatePage() {
           </Stack>
         </Form>
       </Tile>
-    </Stack>
+    </PageShell>
   );
 }

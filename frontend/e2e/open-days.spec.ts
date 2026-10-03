@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page, type Route, type TestInfo } from '@playwright/test';
+import { defaultPublicBrandingConfiguration } from './branding-fixtures';
 
 const personId = '0192f6f8-743e-7c77-a349-cd07c3e8b001';
 const accountId = '0192f6f8-743e-7c77-a349-cd07c3e8b002';
@@ -154,6 +155,10 @@ test('keeps other identities and management fields private while staff sign up',
       await json(route, { items: [] });
       return;
     }
+    if (path === '/api/v1/public/config') {
+      await json(route, defaultPublicBrandingConfiguration());
+      return;
+    }
     if (path === '/api/v1/auth/me') {
       await json(route, currentUser(['open_days.read', 'open_days.signup']));
       return;
@@ -190,7 +195,7 @@ test('keeps other identities and management fields private while staff sign up',
 
   await page.goto(`/open-days/${periodId}/days/${openDayId}`);
   await expect(
-    page.getByRole('heading', { name: /Friday, (October 2|2 October)/ }),
+    page.getByRole('heading', { name: /Friday, 02\.10\.2026/ }),
   ).toBeVisible();
   await expect(page.getByText('1 position filled')).toBeVisible();
   await expect(page.getByText('Internal note:')).toHaveCount(0);
@@ -214,6 +219,10 @@ test('creates and atomically saves a manager schedule working copy', async ({
     const path = new URL(request.url()).pathname;
     if (path === '/api/v1/auth/oidc/providers') {
       await json(route, { items: [] });
+      return;
+    }
+    if (path === '/api/v1/public/config') {
+      await json(route, defaultPublicBrandingConfiguration());
       return;
     }
     if (path === '/api/v1/auth/me') {
@@ -285,12 +294,12 @@ test('creates and atomically saves a manager schedule working copy', async ({
   });
 
   await page.goto(`/open-days/${periodId}/schedule`);
-  await expect(page.getByRole('heading', { name: 'Edit Winter Semester 2026/27' })).toBeVisible();
-  await expect(page.getByText('Calendar planning · Europe/Vienna')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeVisible();
+  await expect(page.getByText('1 October 2026 – 3 October 2026')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save & close' })).toBeDisabled();
   await expectAccessible(page);
 
-  await page.getByRole('button', { name: 'Add Open Day on 2026-10-02' }).click();
+  await page.getByRole('button', { name: 'Add Open Day on 02.10.2026' }).click();
   await expect(page.getByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save & close' })).toBeEnabled();
   await capture(page, testInfo, 'open-days-manager-working-copy.png');
@@ -299,9 +308,22 @@ test('creates and atomically saves a manager schedule working copy', async ({
   await expect(editableTable).toBeVisible();
   const dateHeader = editableTable.getByRole('columnheader', { name: /Date/ });
   await expect(dateHeader).toBeVisible();
-  await expect(editableTable.getByRole('columnheader', { name: 'Staffing status' })).toBeVisible();
+  await expect(editableTable.getByRole('columnheader', { name: 'Staffing status' })).toHaveCount(0);
   const dateTimeFilters = page.getByRole('group', { name: 'Filter by day and time' });
   await dateTimeFilters.getByRole('combobox', { name: 'Filter by weekday' }).click();
+  const clippedWeekdayLabels = await dateTimeFilters
+    .locator('.open-days-weekday-filter .cds--list-box__menu-item')
+    .evaluateAll((options) => options.flatMap((option) => {
+      const label = option.querySelector<HTMLElement>('.cds--checkbox-label-text');
+      if (!label) return [option.getAttribute('aria-label') ?? 'missing label'];
+      const labelBounds = label.getBoundingClientRect();
+      const optionBounds = option.getBoundingClientRect();
+      return getComputedStyle(label).textOverflow === 'ellipsis' || labelBounds.right > optionBounds.right
+        ? [option.getAttribute('aria-label') ?? label.textContent ?? 'unknown']
+        : [];
+    }));
+  expect(clippedWeekdayLabels).toEqual([]);
+  await capture(page, testInfo, 'open-days-weekday-filter.png');
   await dateTimeFilters.getByRole('option', { name: 'Friday' }).click();
   await dateTimeFilters.getByRole('combobox', { name: 'Filter by start time' }).click();
   await dateTimeFilters.getByRole('option', { name: '16:00' }).click();
@@ -347,6 +369,10 @@ test('manages draft metadata and inclusive academic-break context', async ({
     const path = new URL(request.url()).pathname;
     if (path === '/api/v1/auth/oidc/providers') {
       await json(route, { items: [] });
+      return;
+    }
+    if (path === '/api/v1/public/config') {
+      await json(route, defaultPublicBrandingConfiguration());
       return;
     }
     if (path === '/api/v1/auth/me') {
@@ -404,7 +430,7 @@ test('manages draft metadata and inclusive academic-break context', async ({
   await page.goto('/open-days/manage');
   await expect(page.getByRole('heading', { name: 'Manage Open Days' })).toBeVisible();
   await expect(page.getByRole('cell', { name: 'Autumn break', exact: true })).toBeVisible();
-  await expect(page.getByText('2026-10-03')).toBeVisible();
+  await expect(page.getByRole('cell', { name: '03.10.2026', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Edit metadata' }).click();
   await page.getByLabel('Name', { exact: true }).fill('Winter Workshops 2026/27');
   await page.getByRole('button', { name: 'Save period' }).click();
@@ -428,6 +454,9 @@ test('rejects ambiguous local schedule times without adding a slot', async ({ pa
   page.on('pageerror', (error) => errors.push(error));
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/public/config')) {
+      return json(route, defaultPublicBrandingConfiguration());
+    }
     if (path.endsWith('/auth/me')) return json(route, currentUser(['open_days.manage']));
     if (path.endsWith('/open-days')) return json(route, { period: draft, items: [], timeZone: 'Europe/Vienna' });
     if (path.endsWith('/open-day-eligibility-roles')) return json(route, { items: [{ id: roleId, name: 'Team' }] });
@@ -435,14 +464,21 @@ test('rejects ambiguous local schedule times without adding a slot', async ({ pa
     return json(route, { items: [] });
   });
   await page.goto(`/open-days/${periodId}/schedule`);
-  await expect(page.getByRole('heading', { name: 'Edit Winter Semester 2026/27' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeVisible();
   await page.getByRole('button', { name: 'Open Day defaults' }).click();
   const defaultsDialog = page.getByRole('dialog', { name: 'Open Day defaults' });
+  const visibleModal = page.locator('.cds--modal.is-visible');
+  const [dialogBox, viewport] = await Promise.all([defaultsDialog.boundingBox(), page.viewportSize()]);
+  expect(dialogBox).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  expect(Math.abs(dialogBox!.x + dialogBox!.width / 2 - viewport!.width / 2)).toBeLessThan(2);
+  expect(await page.evaluate(() => Boolean(document.elementFromPoint(100, 200)?.closest('.cds--modal')))).toBe(true);
+  await expect(visibleModal).toHaveCSS('position', 'fixed');
   await defaultsDialog.locator('#default-start').fill('02:30');
   await defaultsDialog.locator('#default-end').fill('04:00');
   await defaultsDialog.getByRole('button', { name: 'Apply defaults' }).click();
-  await page.getByRole('button', { name: /Add Open Day.*25|Add.*2026-10-25/ }).click();
-  await expect(page.getByText(/Local time 2026-10-25 02:30 is ambiguous/)).toBeVisible();
+  await page.getByRole('button', { name: /Add Open Day.*25|Add.*25\.10\.2026/ }).click();
+  await expect(page.getByText(/Local time 25\.10\.2026 02:30 is ambiguous/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save & close' })).toBeDisabled();
   expect(errors).toEqual([]);
 });

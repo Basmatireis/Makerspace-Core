@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { assignOpenDayPerson, cancelOpenDay, deleteOpenDay, getOpenDayCalendarContext, joinOpenDay, leaveOpenDay, listOpenDayEligiblePeople, removeOpenDayAssignment } from '../../api/generated/open-days/open-days';
 import type { OpenDayPeriodStatus, OpenDayStaffRequirement } from '../../api/generated/models';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
@@ -139,8 +139,7 @@ function OpenDayDetails({ periodId, periodStatus, openDayId, presentation, onReq
     </Modal>;
   }
 
-  return <Stack gap={6}>
-    <PageHeader title={heading} breadcrumbs={[{ label: 'Open Days', to: '/open-days' }, { label: 'Period', to: `/open-days/${periodId}` }]} description={timeRange(day, timeZone)} actions={canManage ? <Button renderIcon={Edit} onClick={() => navigate(openDaySchedulePath(periodId, { editOpenDayId: openDayId }))}>Edit</Button> : undefined} />
+  return <PageShell title={heading} breadcrumbs={[{ label: 'Open Days', to: '/open-days' }, { label: 'Period', to: `/open-days/${periodId}` }]} description={timeRange(day, timeZone)} actions={canManage ? <Button renderIcon={Edit} onClick={() => navigate(openDaySchedulePath(periodId, { editOpenDayId: openDayId }))}>Edit</Button> : undefined}>
     {detailContent}
-  </Stack>;
+  </PageShell>;
 }

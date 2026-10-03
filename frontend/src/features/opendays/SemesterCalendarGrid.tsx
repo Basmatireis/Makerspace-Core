@@ -2,6 +2,7 @@ import { Add } from '@carbon/icons-react';
 import { Button, Tooltip } from '@carbon/react';
 import { forwardRef, type ReactNode } from 'react';
 import type { CalendarEntry } from '../../api/generated/models';
+import { formatDate, formatLongDate, formatMonthYear } from '../../app/dateTime';
 import { CalendarContextMarker } from './CalendarContextMarker';
 
 export type CalendarGridDay = {
@@ -21,28 +22,28 @@ type GridProps = {
 };
 
 export function SemesterCalendarGrid({ startsOn, endsOn, entries = [], renderDay, className = '', ariaLabel = 'Semester calendar' }: GridProps) {
-  const start = new Date(`${startsOn}T00:00:00`);
-  const end = new Date(`${endsOn}T00:00:00`);
+  const start = new Date(`${startsOn}T00:00:00Z`);
+  const end = new Date(`${endsOn}T00:00:00Z`);
   const months: Date[] = [];
-  for (let cursor = new Date(start.getFullYear(), start.getMonth(), 1); cursor <= end; cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)) {
+  for (let cursor = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1, 12)); cursor <= end; cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1, 12))) {
     months.push(cursor);
   }
 
   return (
     <div className={`semester-calendar${className ? ` ${className}` : ''}`} aria-label={ariaLabel}>
       {months.map((month) => {
-        const count = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-        const sundayOffset = new Date(month.getFullYear(), month.getMonth(), 1).getDay();
+        const count = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 0)).getUTCDate();
+        const sundayOffset = new Date(Date.UTC(month.getUTCFullYear(), month.getUTCMonth(), 1)).getUTCDay();
         const weekCount = Math.ceil((sundayOffset + count) / 7);
         const trailingCount = weekCount * 7 - sundayOffset - count;
         return (
-          <section className="calendar-month" key={month.toISOString()} aria-labelledby={`month-${month.getFullYear()}-${month.getMonth()}`}>
-            <h3 id={`month-${month.getFullYear()}-${month.getMonth()}`}>{month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</h3>
+          <section className="calendar-month" key={month.toISOString()} aria-labelledby={`month-${month.getUTCFullYear()}-${month.getUTCMonth()}`}>
+            <h3 id={`month-${month.getUTCFullYear()}-${month.getUTCMonth()}`}>{formatMonthYear(month)}</h3>
             <div className="calendar-weekdays" aria-hidden="true">{['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => <span key={day}>{day}</span>)}</div>
             <div className="calendar-days" style={{ gridTemplateRows: `repeat(${weekCount}, minmax(5rem, auto))` }}>
               {Array.from({ length: sundayOffset }, (_, index) => <span className="calendar-cell calendar-cell--empty" key={`empty-${index}`} />)}
               {Array.from({ length: count }, (_, index) => {
-                const date = dateKey(month.getFullYear(), month.getMonth(), index + 1);
+                const date = dateKey(month.getUTCFullYear(), month.getUTCMonth(), index + 1);
                 return renderDay({
                   date,
                   dayNumber: index + 1,
@@ -68,7 +69,7 @@ type CellProps = {
 };
 
 export const CalendarDayCell = forwardRef<HTMLDivElement, CellProps>(function CalendarDayCell({ day, children, className = '', onSelectDate, tooltipDescription }, ref) {
-  const fullDate = new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, { dateStyle: 'full' });
+  const fullDate = formatLongDate(day.date);
   const contextDescription = day.entries.map((entry) => `${entry.category === 'academicBreak' ? 'Academic break' : 'Public holiday'}: ${entry.name}`);
   const description = tooltipDescription ?? [fullDate, ...contextDescription].join('. ');
 
@@ -84,7 +85,7 @@ export const CalendarDayCell = forwardRef<HTMLDivElement, CellProps>(function Ca
       <div className="calendar-cell__tooltip-target" aria-label={fullDate}>
         <div className="calendar-cell__header">
           {onSelectDate ? (
-            <Button kind="ghost" size="sm" renderIcon={Add} className="calendar-cell__date-action" onClick={onSelectDate} aria-label={`Add Open Day on ${day.date}`}>
+            <Button kind="ghost" size="sm" renderIcon={Add} className="calendar-cell__date-action" onClick={onSelectDate} aria-label={`Add Open Day on ${formatDate(day.date)}`}>
               {day.dayNumber}
             </Button>
           ) : <span className="calendar-cell__date">{day.dayNumber}</span>}

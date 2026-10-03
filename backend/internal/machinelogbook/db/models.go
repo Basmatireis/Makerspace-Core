@@ -87,6 +87,35 @@ type AuthRateLimit struct {
 	UpdatedAt       time.Time
 }
 
+type BrandingAssetOverride struct {
+	Slot               string
+	Mode               string
+	FileID             *uuid.UUID
+	UpdatedByAccountID *uuid.UUID
+	UpdatedAt          time.Time
+}
+
+type BrandingConfiguration struct {
+	Singleton             bool
+	LegalOrganizationName string
+	DisplayName           string
+	ApplicationName       string
+	Tagline               *string
+	PrimaryColor          string
+	SecondaryColor        string
+	AccentColor           string
+	BackgroundColor       string
+	ImprintMode           string
+	ImprintMarkdown       string
+	ImprintExternalUrl    string
+	PrivacyMode           string
+	PrivacyMarkdown       string
+	PrivacyExternalUrl    string
+	Version               int64
+	UpdatedByAccountID    *uuid.UUID
+	UpdatedAt             time.Time
+}
+
 type DeviceType struct {
 	ID          uuid.UUID
 	Name        string

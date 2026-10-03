@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form';
 import { getMailConfiguration, updateMailConfiguration } from '../../api/generated/mail/mail';
 import type { UpdateMailConfigurationRequest } from '../../api/generated/models';
 import { useSecretMutation } from '../../api/use-secret-mutation';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 
 type FormValues = Omit<UpdateMailConfigurationRequest, 'expectedVersion'>;
@@ -20,8 +20,7 @@ export function MailSettingsPage() {
   }, [configuration.data, form]);
   const mutation = useSecretMutation((values: FormValues) => updateMailConfiguration({ ...values, port: Number(values.port), expectedVersion: configuration.data!.version }), { onSuccess: async (updated) => { form.reset({ enabled: updated.enabled, host: updated.host, port: updated.port, tlsMode: updated.tlsMode, username: updated.username, password: '', fromAddress: updated.fromAddress, fromName: updated.fromName, baseUrl: updated.baseUrl }); await client.invalidateQueries({ queryKey: ['mail', 'configuration'] }); } });
   const submit = form.handleSubmit(async (values) => { try { await mutation.mutateAsync(values); } catch { /* rendered below */ } });
-  return <Stack gap={7}>
-    <PageHeader title="Email delivery" breadcrumbs={[{ label: 'Settings', to: '/settings' }]} description="Configure transactional SMTP delivery. Passwords are encrypted and never returned by the API." />
+  return <PageShell title="Email delivery" breadcrumbs={[{ label: 'Settings', to: '/settings' }]} description="Configure transactional SMTP delivery. Passwords are encrypted and never returned by the API.">
     {configuration.isPending && <InlineLoadingState label="Loading email configuration" />}
     {configuration.isError && <ErrorState title="Unable to load email configuration" message="Check your permission and connection." onRetry={() => void configuration.refetch()} />}
     {configuration.data && <Tile><Form onSubmit={submit}><Stack gap={5}>
@@ -40,5 +39,5 @@ export function MailSettingsPage() {
       {!form.watch('enabled') && <InlineNotification kind="info" lowContrast hideCloseButton title="Manual-link mode" subtitle="Authorized administrators can generate one-time invitation, password-reset, and PIN-setup links from a person’s authentication actions." />}
       <Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Saving…' : 'Save email configuration'}</Button>
     </Stack></Form></Tile>}
-  </Stack>;
+  </PageShell>;
 }

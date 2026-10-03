@@ -141,6 +141,16 @@ Mail settings are applied dynamically; changing them does not require restarting
 
 When mail is disabled, an authorized administrator can still issue an invitation, password reset, or PIN setup from a member's Authentication actions. The UI displays the one-time setup link exactly in that response so it can be copied to the intended recipient through a trusted channel. Anonymous forgot-password requests remain enumeration-safe and never return a code or link. A configured provider that fails delivery reports an error instead of silently exposing the secret.
 
+## Branding and legal configuration
+
+An administrator holding `branding.manage` configures the installation-wide identity under **Settings → Branding & legal**. The initial row preserves the bundled HTU Graz Makerspace names, four brand colors, symbol, and blueprint backgrounds. Imprint and privacy default independently to empty internal pages that display a neutral not-configured notice; the application does not invent legal text. Existing configurable Roles do not receive this permission during migration, while `master` receives it through the registry.
+
+Identity, colors, inactive legal drafts, and the active internal/external modes are stored in PostgreSQL and protected by optimistic version checks. External legal URLs are rendered as links and are never fetched by the API. Transactional email reads the current application name at send time, so an identity change applies without an API restart or frontend rebuild.
+
+Custom logo, compact-logo, favicon, application-background, and authentication-background files use the configured local or S3 file store. Each slot distinguishes the bundled default, a custom file, and an intentional removal. The API validates the actual bytes, dimensions, and size rather than trusting extensions or request MIME types; accepted SVGs are reduced to a strict passive allowlist. Back up these files together with the database. A configuration relink and its privacy-minimized audit event commit together; replaced custom objects are hard-deleted after the new link succeeds.
+
+Public configuration and legal JSON use `Cache-Control: no-cache` so browsers revalidate them. Active custom assets have SHA-256 versioned URLs, a one-year immutable cache policy, ETags, and `nosniff`; SVG responses additionally receive a restrictive CSP. A former digest stops resolving as soon as the corresponding slot no longer links it. When an external proxy or CDN is used, preserve these response headers and do not rewrite content-addressed asset paths.
+
 ### TLS reverse proxy and health
 
 The frontend defaults to `127.0.0.1:8080` for a reverse proxy on the Docker host. Configure that proxy to terminate HTTPS and forward the complete site—not a separate API origin—to the frontend port. Preserve the public `Host`, append the client address to `X-Forwarded-For`, and send `X-Forwarded-Proto: https`. Keep port 8080 loopback-only or protected by a firewall; never publish the backend or PostgreSQL ports.

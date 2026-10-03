@@ -9,6 +9,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/branding"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
@@ -55,6 +56,7 @@ type Server struct {
 	oidc           *oidcservice.Service
 	scim           *scimservice.Service
 	visitor        *visitor.Service
+	branding       *branding.Service
 }
 
 func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
@@ -62,7 +64,13 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("initialize mail service: %w", err)
 	}
-	notifier := notifications.NewService(mailer)
+	fileStore, err := storage.NewFromConfig(context.Background(), cfg)
+	if err != nil {
+		return nil, err
+	}
+	fileService := files.NewService(pool, fileStore)
+	brandingService := branding.NewService(pool, fileService)
+	notifier := notifications.NewService(mailer, brandingService)
 	authService, err := auth.NewService(pool, cfg, notifier)
 	if err != nil {
 		return nil, fmt.Errorf("initialize authentication: %w", err)
@@ -71,11 +79,6 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("initialize Open Days: %w", err)
 	}
-	fileStore, err := storage.NewFromConfig(context.Background(), cfg)
-	if err != nil {
-		return nil, err
-	}
-	fileService := files.NewService(pool, fileStore)
 	oidcService, err := oidcservice.NewService(pool, cfg, authService)
 	if err != nil {
 		return nil, fmt.Errorf("initialize OIDC: %w", err)
@@ -103,6 +106,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		oidc:           oidcService,
 		scim:           scimservice.NewService(pool),
 		visitor:        visitor.NewService(pool, cfg, fileService, labRulesService, notifier),
+		branding:       brandingService,
 	}, nil
 }
 

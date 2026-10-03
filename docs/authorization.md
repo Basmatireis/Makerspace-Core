@@ -48,6 +48,7 @@ Authorization is based on application-registered permission identifiers. Backend
 | `oidc.manage` | Configure OIDC providers and trusted assurance mappings. |
 | `scim.manage` | Configure SCIM connectors and reconcile never-authenticated provisional Accounts. Role transfer separately requires `accounts.roles.assign` and ordinary delegation authority; master transfer is forbidden. |
 | `mail.manage` | Configure encrypted transactional SMTP settings. |
+| `branding.manage` | Configure the installation-wide organization identity, brand colors and assets, and imprint/privacy delivery. |
 | `machines.read`, `machines.manage` | Read machine catalog/metrics or create and update machine types and machines. |
 | `machine_jobs.read`, `machine_jobs.create` | Read/filter jobs or create confirmed manual jobs and session-authenticated automatic ingests. |
 | `machine_jobs.edit`, `machine_jobs.review` | Correct confirmed unbilled jobs or confirm the automatic review queue. |
@@ -68,6 +69,8 @@ its existing global bypass.
 Each grant also has minimum assurance (`low`, `normal`, `strong`, `strong_mfa`). Multiple grants for a permission are alternatives. Delegation checks the full scope/assurance envelope, including selected device types, so a scoped or higher-assurance grant cannot be expanded into a global or lower-assurance grant. A PIN session is low assurance and cannot acquire permissions requiring stronger authentication merely by using a managed terminal.
 
 The registry in application code is authoritative. Database RolePermission rows may reference only identifiers in this registry; unknown values from stale data or client requests never become effective. Additions require coordinated backend registry, OpenAPI enum, documentation, and authorization tests.
+
+`branding.manage` is not granted to existing configurable Roles during migration. The `master` system Role receives it automatically through the permission registry. Public branding and the active legal representations remain intentionally unauthenticated; administrative drafts, filenames, and updater metadata require `branding.manage` and are never included in public responses.
 
 ## Resource and field scope
 

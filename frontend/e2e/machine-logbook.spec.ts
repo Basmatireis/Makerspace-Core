@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { defaultPublicBrandingConfiguration } from './branding-fixtures';
 
 const machineTypeId = '0192f6f8-743e-7c77-a349-cd07c3e8a910';
 const machineId = '0192f6f8-743e-7c77-a349-cd07c3e8a911';
@@ -241,6 +242,9 @@ async function installMachineLogbookApi(page: Page) {
     }
     if (path === '/api/v1/auth/me') return json(route, currentUser());
     if (path === '/api/v1/auth/oidc/providers') return json(route, { items: [] });
+    if (path === '/api/v1/public/config') {
+      return json(route, defaultPublicBrandingConfiguration());
+    }
     if (path === '/api/v1/machine-logbook/overview') {
       return json(route, {
         jobsToday: 4,

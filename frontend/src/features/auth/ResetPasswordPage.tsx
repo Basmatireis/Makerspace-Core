@@ -7,6 +7,8 @@ import { completeEmailVerification, completeInvitation, completePasswordResetCod
 import { BrandMark } from '../../app/BrandMark';
 import { useSecretMutation } from '../../api/use-secret-mutation';
 import { validatePasswordLength } from './password-validation';
+import { useBranding, usePageTitle } from '../branding/branding';
+import { LegalLinks } from '../branding/LegalLinks';
 
 type FormValues = { email: string; code: string; newPassword: string; confirmPassword: string };
 type PINSetupValues = { code: string; loginName: string; pin: string; confirmPIN: string };
@@ -22,6 +24,11 @@ function useChallengeParameters() {
   };
 }
 
+function AuthenticationBrand() {
+	const branding = useBranding();
+	return <div className="auth-card__brand"><BrandMark kind="logo" className="auth-card__logo" /><p className="auth-card__eyebrow">{branding.identity.applicationName}</p></div>;
+}
+
 export function ResetPasswordPage() {
   return <PasswordChallengePage invitation={false} />;
 }
@@ -31,6 +38,7 @@ export function InvitationPage() {
 }
 
 export function PINEnrollmentPage() {
+	usePageTitle('Set up PIN login');
 	const params = useChallengeParameters();
 	const accountId = params.get('account') ?? '';
 	const mutation = useSecretMutation((values: Omit<PINSetupValues, 'confirmPIN'>) => completePinEnrollment({ accountId, ...values }));
@@ -39,7 +47,7 @@ export function PINEnrollmentPage() {
 		try { await mutation.mutateAsync({ code: code.toUpperCase(), loginName, pin }); } catch { /* safe error below */ }
 	});
 	return <main className="auth-page"><section className="auth-card" aria-labelledby="pin-setup-title"><Stack gap={7}>
-		<div className="auth-card__heading"><div className="auth-card__brand"><BrandMark className="auth-card__logo" /><p className="auth-card__eyebrow">HTU Graz Makerspace</p></div><h1 id="pin-setup-title" className="auth-card__title">Set up PIN login</h1><p className="auth-card__subtitle">Choose a unique username and a 6–12 digit PIN. The setup code is single-use.</p></div>
+		<div className="auth-card__heading"><AuthenticationBrand /><h1 id="pin-setup-title" className="auth-card__title">Set up PIN login</h1><p className="auth-card__subtitle">Choose a unique username and a 6–12 digit PIN. The setup code is single-use.</p></div>
 		{!accountId && <InlineNotification kind="error" lowContrast hideCloseButton title="Invalid setup link" subtitle="Use the link from your PIN setup email." />}
 		{mutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="PIN login not configured" subtitle="The code may be invalid or expired, or the username may be unavailable." />}
 		{mutation.isSuccess ? <Stack gap={6}><InlineNotification kind="success" lowContrast hideCloseButton title="PIN login ready" subtitle="You can now sign in with your username and PIN." /><Button as={Link} to="/login" renderIcon={Checkmark}>Continue to sign in</Button></Stack> : <Form onSubmit={submit}><Stack gap={6}>
@@ -50,10 +58,12 @@ export function PINEnrollmentPage() {
 			<Button type="submit" disabled={!accountId || mutation.isPending}>{mutation.isPending ? 'Configuring…' : 'Configure PIN login'}</Button>
 		</Stack></Form>}
 		<CarbonLink as={Link} to="/login" renderIcon={ArrowLeft}>Back to sign in</CarbonLink>
+		<LegalLinks className="auth-card__legal" />
 	</Stack></section></main>;
 }
 
 export function EmailVerificationPage() {
+	usePageTitle('Verify email');
 	const [params] = useSearchParams();
 	const form = useForm<EmailVerificationValues>({ defaultValues: { email: params.get('email') ?? '', code: '' } });
 	const mutation = useSecretMutation((values: EmailVerificationValues) => completeEmailVerification({ ...values, code: values.code.toUpperCase() }));
@@ -61,7 +71,7 @@ export function EmailVerificationPage() {
 		try { await mutation.mutateAsync(values); } catch { /* safe error below */ }
 	});
 	return <main className="auth-page"><section className="auth-card" aria-labelledby="email-verification-title"><Stack gap={7}>
-		<div className="auth-card__heading"><div className="auth-card__brand"><BrandMark className="auth-card__logo" /><p className="auth-card__eyebrow">HTU Graz Makerspace</p></div><h1 id="email-verification-title" className="auth-card__title">Verify your login email</h1><p className="auth-card__subtitle">Enter the single-use code sent to your local login email.</p></div>
+		<div className="auth-card__heading"><AuthenticationBrand /><h1 id="email-verification-title" className="auth-card__title">Verify your login email</h1><p className="auth-card__subtitle">Enter the single-use code sent to your local login email.</p></div>
 		{mutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Email not verified" subtitle="The code is invalid, expired, or has too many failed attempts." />}
 		{mutation.isSuccess ? <Stack gap={6}><InlineNotification kind="success" lowContrast hideCloseButton title="Email verified" subtitle="Your local login email is now verified." /><Button as={Link} to="/profile" renderIcon={Checkmark}>Return to profile</Button></Stack> : <Form onSubmit={submit}><Stack gap={6}>
 			<TextInput id="verification-email" type="email" autoComplete="email" labelText="Login email" invalid={Boolean(form.formState.errors.email)} invalidText={form.formState.errors.email?.message} {...form.register('email', { required: 'Enter your login email.' })} />
@@ -69,10 +79,12 @@ export function EmailVerificationPage() {
 			<Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Verifying…' : 'Verify email'}</Button>
 		</Stack></Form>}
 		<CarbonLink as={Link} to="/login" renderIcon={ArrowLeft}>Back to sign in</CarbonLink>
+		<LegalLinks className="auth-card__legal" />
 	</Stack></section></main>;
 }
 
 function PasswordChallengePage({ invitation }: { invitation: boolean }) {
+  usePageTitle(invitation ? 'Complete invitation' : 'Reset password');
   const params = useChallengeParameters();
   const linkedCode = params.get('code') ?? '';
   const [requestAccepted, setRequestAccepted] = useState(invitation || Boolean(linkedCode));
@@ -103,10 +115,7 @@ function PasswordChallengePage({ invitation }: { invitation: boolean }) {
       <section className="auth-card" aria-labelledby="reset-title">
         <Stack gap={7}>
           <div className="auth-card__heading">
-            <div className="auth-card__brand">
-              <BrandMark className="auth-card__logo" />
-              <p className="auth-card__eyebrow">HTU Graz Makerspace</p>
-            </div>
+            <AuthenticationBrand />
             <h1 id="reset-title" className="auth-card__title">{invitation ? 'Complete your invitation' : 'Reset your password'}</h1>
             <p className="auth-card__subtitle">Codes are single-use, expire after a short time, and allow five attempts.</p>
           </div>
@@ -139,6 +148,7 @@ function PasswordChallengePage({ invitation }: { invitation: boolean }) {
             </Form>
           )}
           <CarbonLink as={Link} to="/login" renderIcon={ArrowLeft}>Back to sign in</CarbonLink>
+          <LegalLinks className="auth-card__legal" />
         </Stack>
       </section>
     </main>

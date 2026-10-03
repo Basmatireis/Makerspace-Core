@@ -1,5 +1,6 @@
 import { CheckmarkFilled, InformationFilled, Misuse, UserAvatarFilledAlt, WarningFilled } from '@carbon/icons-react';
 import type { CalendarEntry, OpenDay } from '../../api/generated/models';
+import { formatLongDate } from '../../app/dateTime';
 import { timeRange, isFullyStaffed, registeredPeopleCount } from './format';
 import { dateInTimeZone } from './dateTime';
 import { hasOpenSupervisorPosition } from './openDayFilters';
@@ -51,7 +52,7 @@ function slotPresentation(day: OpenDay) {
 }
 
 function dateTooltipContent(date: string, days: OpenDay[], entries: CalendarEntry[], timeZone: string) {
-  const fullDate = new Date(`${date}T00:00:00`).toLocaleDateString(undefined, { dateStyle: 'full' });
+  const fullDate = formatLongDate(date);
   return (
     <div className="calendar-cell__tooltip-content">
       <strong>{fullDate}</strong>

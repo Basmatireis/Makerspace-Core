@@ -5,6 +5,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { queryClient } from './api/query-client';
 import { App } from './app/App';
 import { SessionEventHandler } from './features/auth/auth';
+import { BrandingProvider } from './features/branding/branding';
 import '@carbon/charts-react/styles.css';
 import './styles/index.scss';
 
@@ -15,7 +16,9 @@ const router = createBrowserRouter([
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <BrandingProvider>
+        <RouterProvider router={router} />
+      </BrandingProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

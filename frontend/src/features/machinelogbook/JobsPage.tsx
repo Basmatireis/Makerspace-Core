@@ -1,10 +1,12 @@
-import { Button, DataTable, Pagination, Search, Select, SelectItem, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, Tag, TextInput } from '@carbon/react';
+import { Button, DataTable, Pagination, Search, Select, SelectItem, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, Tag } from '@carbon/react';
 import { Add } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
+import { DateInput } from '../../app/DateInput';
+import { addCalendarDays, zonedDateTimeToISO } from '../../app/dateTime';
 import { PermissionId, hasPermission } from '../auth/permissions';
 import { useCurrentUser } from '../auth/auth';
 import type { BillingStatus, MachineJobOutcome, MachineJobReviewState, MachineJobSource } from '../../api/generated/models';
@@ -21,9 +23,7 @@ const headers = [
 
 function dateBoundary(value: string | null, end: boolean) {
   if (!value) return undefined;
-  const date = new Date(`${value}T00:00:00`);
-  if (end) date.setDate(date.getDate() + 1);
-  return date.toISOString();
+  return zonedDateTimeToISO(end ? addCalendarDays(value, 1) : value, '00:00');
 }
 
 export function JobsPage() {
@@ -58,8 +58,7 @@ export function JobsPage() {
   const operatorOptions = [...new Map(query.data.items.filter((job) => job.operator).map((job) => [job.operator!.personId, job.operator!.displayName])).entries()];
   const materialOptions = [...new Map(query.data.items.flatMap((job) => job.usages.map((usage) => [usage.materialId, usage.materialName] as const))).entries()];
 
-  return <Stack gap={7} className="machine-logbook-page table-page">
-    <PageHeader title="Jobs" description={`${query.data.total} machine jobs`} breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Jobs' }]} actions={hasPermission(currentUser, PermissionId.machine_jobscreate) ? <Button renderIcon={Add} onClick={() => setCreateOpen(true)}>New job</Button> : undefined} />
+  return <PageShell title="Jobs" description={`${query.data.total} machine jobs`} breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Jobs' }]} actions={hasPermission(currentUser, PermissionId.machine_jobscreate) ? <Button renderIcon={Add} onClick={() => setCreateOpen(true)}>New job</Button> : undefined} width="wide" className="machine-logbook-page table-page">
     <div className="filter-bar jobs-filter-bar">
       <Search labelText="Search jobs, customers, machines, operators, or materials" value={filters.search ?? ''} onChange={(event) => update('search', event.currentTarget.value)} />
       <Select id="job-machine" labelText="Machine" value={params.get('machine') || ''} onChange={(e) => update('machine', e.target.value)}><SelectItem value="" text="All machines" />{machineOptions.map(([id, label]) => <SelectItem key={id} value={id} text={label} />)}</Select>
@@ -70,11 +69,11 @@ export function JobsPage() {
       <Select id="job-billing" labelText="Billing" hideLabel value={filters.billingStatus ?? ''} onChange={(e) => update('billing', e.target.value)}><SelectItem value="" text="All billing" /><SelectItem value="unbilled" text="Unbilled" /><SelectItem value="billed" text="Billed" /><SelectItem value="waived" text="Waived" /></Select>
       <Select id="job-source" labelText="Source" hideLabel value={filters.source ?? ''} onChange={(e) => update('source', e.target.value)}><SelectItem value="" text="All sources" /><SelectItem value="manual" text="Manual" /><SelectItem value="automatic" text="Automatic" /></Select>
       <Select id="job-review" labelText="Review" hideLabel value={filters.reviewState ?? ''} onChange={(e) => update('review', e.target.value)}><SelectItem value="" text="All review states" /><SelectItem value="needs_review" text="Needs review" /><SelectItem value="confirmed" text="Confirmed" /></Select>
-      <TextInput id="job-from" type="date" labelText="From" value={params.get('from') || ''} onChange={(e) => update('from', e.currentTarget.value)} />
-      <TextInput id="job-to" type="date" labelText="Through" value={params.get('to') || ''} onChange={(e) => update('to', e.currentTarget.value)} />
+      <DateInput id="job-from" labelText="From" value={params.get('from') || ''} onChange={(value) => update('from', value)} />
+      <DateInput id="job-to" labelText="Through" value={params.get('to') || ''} onChange={(value) => update('to', value)} />
     </div>
     <DataTable rows={rows} headers={headers}>{({ rows: tableRows, headers: tableHeaders, getHeaderProps, getRowProps, getTableProps }) => <TableContainer><Table {...getTableProps()} tabIndex={0} aria-label="Machine jobs"><TableHead><TableRow>{tableHeaders.map((header) => <TableHeader {...getHeaderProps({ header })} key={header.key}>{header.header}</TableHeader>)}</TableRow></TableHead><TableBody>{tableRows.map((row) => { const raw = rows.find((item) => item.id === row.id)!; return <TableRow {...getRowProps({ row })} key={row.id} className="clickable-row" onClick={() => navigate(`/machine-logbook/jobs/${row.id}`)}>{row.cells.map((cell) => <TableCell key={cell.id}>{cell.info.header === 'outcome' ? <OutcomeTag outcome={raw.outcome} /> : cell.info.header === 'billing' ? <BillingTag status={raw.billing} /> : cell.info.header === 'displayId' ? <span className="job-id-cell">{cell.value as string}<ReviewTag state={raw.review} /></span> : cell.info.header === 'customer' && raw.customer === 'Unassigned' ? <Tag type="red">Unassigned</Tag> : cell.value as string}</TableCell>)}</TableRow>;})}</TableBody></Table></TableContainer>}</DataTable>
     <Pagination page={page} pageSize={pageSize} pageSizes={[10,25,50,100]} totalItems={query.data.total} onChange={({ page: nextPage, pageSize: nextSize }) => { const next = new URLSearchParams(params); next.set('page', String(nextPage)); next.set('pageSize', String(nextSize)); setParams(next); }} />
     {createOpen && <CreateJobModal open onClose={closeCreate} />}
-  </Stack>;
+  </PageShell>;
 }

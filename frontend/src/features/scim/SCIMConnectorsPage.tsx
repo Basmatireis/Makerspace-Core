@@ -24,16 +24,18 @@ import type {
   SCIMConnectorTokenIssue,
   SCIMReconciliationReport,
 } from '../../api/generated/models';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
+import { DateTimeInput } from '../../app/DateInput';
+import { formatDateTime, instantToZonedDateTimeValue, isZonedDateTimeValue, zonedDateTimeValueToISO } from '../../app/dateTime';
 
 const defaultExpiry = () => {
   const value = new Date();
   value.setUTCDate(value.getUTCDate() + 90);
-  return value.toISOString().slice(0, 16);
+  return instantToZonedDateTimeValue(value);
 };
 
-const toISO = (value: string) => new Date(value).toISOString();
+const toISO = zonedDateTimeValueToISO;
 
 export function SCIMConnectorsPage() {
   const queryClient = useQueryClient();
@@ -46,13 +48,12 @@ export function SCIMConnectorsPage() {
   const refresh = async () => queryClient.invalidateQueries({ queryKey: ['scim'] });
 
   return (
-    <Stack gap={7}>
-      <PageHeader
-        title="SCIM provisioning"
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
-        description="Manage connector credentials and safely reconcile provisional SCIM Accounts. Groups, Roles, and entitlements are not supported."
-        actions={<Button onClick={() => setCreating(true)}>Add connector</Button>}
-      />
+    <PageShell
+      title="SCIM provisioning"
+      breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
+      description="Manage connector credentials and safely reconcile provisional SCIM Accounts. Groups, Roles, and entitlements are not supported."
+      actions={<Button onClick={() => setCreating(true)}>Add connector</Button>}
+    >
       {issuedToken && (
         <Tile>
           <Stack gap={4}>
@@ -90,7 +91,7 @@ export function SCIMConnectorsPage() {
         />
       ))}
       <ReconciliationPanel />
-    </Stack>
+    </PageShell>
   );
 }
 
@@ -121,9 +122,9 @@ function CreateConnectorForm({ onCancel, onCreated }: { onCancel: () => void; on
           {mutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Connector not created" subtitle="Review the values and try again." />}
           <TextInput id="scim-name-new" labelText="Connector name" value={name} required onChange={(event) => setName(event.target.value)} />
           <TextInput id="scim-provider-new" labelText="Bound OIDC provider ID (optional)" helperText="When set, externalId is interpreted only as this provider's OIDC subject." value={providerId} onChange={(event) => setProviderId(event.target.value)} />
-          <TextInput id="scim-expiry-new" type="datetime-local" labelText="Bearer token expires" value={expiresAt} required onChange={(event) => setExpiresAt(event.target.value)} />
+          <DateTimeInput id="scim-expiry-new" labelText="Bearer token expires" value={expiresAt} required onChange={setExpiresAt} />
           <Checkbox id="scim-enabled-new" labelText="Enable connector" checked={enabled} onChange={(_, data) => setEnabled(data.checked)} />
-          <div className="form-actions"><Button type="button" kind="secondary" onClick={onCancel}>Cancel</Button><Button type="submit" disabled={mutation.isPending || !name.trim() || !expiresAt}>{mutation.isPending ? 'Creating…' : 'Create connector'}</Button></div>
+          <div className="form-actions"><Button type="button" kind="secondary" onClick={onCancel}>Cancel</Button><Button type="submit" disabled={mutation.isPending || !name.trim() || !isZonedDateTimeValue(expiresAt)}>{mutation.isPending ? 'Creating…' : 'Create connector'}</Button></div>
         </Stack>
       </Form>
     </Tile>
@@ -157,10 +158,10 @@ function ConnectorEditor({ connector, onChanged, onTokenIssued }: { connector: S
         <TextInput id={`scim-name-${connector.id}`} labelText="Connector name" value={name} onChange={(event) => setName(event.target.value)} />
         <TextInput id={`scim-provider-${connector.id}`} labelText="Bound OIDC provider ID (optional)" value={providerId} onChange={(event) => setProviderId(event.target.value)} />
         <Checkbox id={`scim-enabled-${connector.id}`} labelText="Enable connector" checked={enabled} onChange={(_, data) => setEnabled(data.checked)} />
-        <p>Active token: {connector.tokenExpiresAt ? `expires ${new Date(connector.tokenExpiresAt).toLocaleString()}` : 'none'}</p>
+        <p>Active token: {connector.tokenExpiresAt ? `expires ${formatDateTime(connector.tokenExpiresAt)}` : 'none'}</p>
         <div className="form-actions"><Button kind="tertiary" disabled={save.isPending || !name.trim()} onClick={() => save.mutate()}>Save settings</Button><Button kind="danger--tertiary" disabled={revoke.isPending || !connector.tokenExpiresAt} onClick={() => revoke.mutate()}>Revoke token</Button></div>
-        <TextInput id={`scim-expiry-${connector.id}`} type="datetime-local" labelText="New token expires" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} />
-        <div><Button kind="secondary" disabled={rotate.isPending || !expiresAt} onClick={() => rotate.mutate()}>Rotate token</Button></div>
+        <DateTimeInput id={`scim-expiry-${connector.id}`} labelText="New token expires" value={expiresAt} onChange={setExpiresAt} />
+        <div><Button kind="secondary" disabled={rotate.isPending || !isZonedDateTimeValue(expiresAt)} onClick={() => rotate.mutate()}>Rotate token</Button></div>
       </Stack>
     </Tile>
   );

@@ -1,4 +1,5 @@
 import type { AuditEvent } from '../../api/generated/models';
+import { formatDateTime } from '../../app/dateTime';
 
 export const actionLabels: Record<string, string> = {
   'account.created': 'Created account',
@@ -190,5 +191,5 @@ function shortID(value: string): string {
 
 function formatOpenDayLabel(value: string): string {
   const date = new Date(value);
-  return Number.isNaN(date.valueOf()) ? value : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  return Number.isNaN(date.valueOf()) ? value : formatDateTime(date);
 }

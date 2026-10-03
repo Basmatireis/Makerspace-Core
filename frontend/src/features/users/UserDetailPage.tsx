@@ -36,6 +36,7 @@ import { Edit, TrashCan } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { formatDateTime, formatDateTimeRange } from '../../app/dateTime';
 import {
   assignAccountRole,
   createPersonAccount,
@@ -69,7 +70,7 @@ import {
 } from '../../api/generated/people/people';
 import { apiFetch } from '../../api/http-client';
 import { useSecretMutation } from '../../api/use-secret-mutation';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading, InlineLoadingState } from '../../app/PageState';
 import { authQueryKey, useCurrentUser } from '../auth/auth';
 import {
@@ -79,6 +80,7 @@ import {
   PermissionId,
 } from '../auth/permissions';
 import { validatePasswordLength } from '../auth/password-validation';
+import { useBranding } from '../branding/branding';
 import { fullRoleCatalogOptions } from '../roles/queries';
 import {
   PersonFields,
@@ -137,6 +139,8 @@ export function UserDetailPage() {
 
 function UserDetailContent({ person }: { person: Person }) {
   const currentUser = useCurrentUser();
+  const branding = useBranding();
+  const statusLabel = `${branding.identity.displayName} status`;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -234,7 +238,7 @@ function UserDetailContent({ person }: { person: Person }) {
     if (tab.key === 'roles-permissions') return canReadAccounts && Boolean(account);
     if (tab.key === 'makerspace-status') return canReadMakerspaceStatus;
     return true;
-  }), [account, canReadAccounts, canReadMakerspaceStatus]);
+  }).map((tab) => tab.key === 'makerspace-status' ? { ...tab, label: statusLabel } : tab), [account, canReadAccounts, canReadMakerspaceStatus, statusLabel]);
   const requestedTab = searchParams.get('tab');
   const selectedTabIndex = Math.max(
     0,
@@ -612,7 +616,7 @@ function UserDetailContent({ person }: { person: Person }) {
             <StructuredListBody>
               <DetailRow label="Account status" value={account.status === 'enabled' ? 'Active' : 'Inactive'} />
               <DetailRow label="Provisioning source" value={formatProvisioningSource(account.provisioningSource)} />
-              <DetailRow label="First sign-in" value={account.firstAuthenticatedAt ? new Date(account.firstAuthenticatedAt).toLocaleString() : 'Not yet'} />
+              <DetailRow label="First sign-in" value={account.firstAuthenticatedAt ? formatDateTime(account.firstAuthenticatedAt) : 'Not yet'} />
               <DetailRow
                 label="Account ID"
                 value={account.id}
@@ -718,12 +722,12 @@ function UserDetailContent({ person }: { person: Person }) {
 
   const renderMakerspaceStatusSection = () => canReadMakerspaceStatus ? (
     <DetailSection
-      title="Makerspace status"
+      title={statusLabel}
       className="person-makerspace-card"
       description="Upcoming participation and current Lab Rules acknowledgement."
     >
-      {makerspaceStatusQuery.isPending && <InlineLoadingState label="Loading Makerspace status" />}
-      {makerspaceStatusQuery.isError && <InlineNotification kind="warning" lowContrast hideCloseButton title="Makerspace status unavailable" subtitle="Personal and account details are still available. Reload to try again." />}
+      {makerspaceStatusQuery.isPending && <InlineLoadingState label={`Loading ${statusLabel}`} />}
+      {makerspaceStatusQuery.isError && <InlineNotification kind="warning" lowContrast hideCloseButton title={`${statusLabel} unavailable`} subtitle="Personal and account details are still available. Reload to try again." />}
       {makerspaceStatusQuery.data?.laborordnungStatus && (
         <LabRulesOverview status={makerspaceStatusQuery.data.laborordnungStatus} />
       )}
@@ -793,14 +797,20 @@ function UserDetailContent({ person }: { person: Person }) {
   };
 
   return (
-    <Stack gap={7} className="person-detail-page">
-      <PageHeader
+    <Tabs
+      selectedIndex={selectedTabIndex}
+      onChange={({ selectedIndex }) => {
+        const nextTab = availableTabs[selectedIndex];
+        if (nextTab) selectTab(nextTab.key);
+      }}
+    >
+      <PageShell
         title={`${person.firstName} ${person.lastName}`}
         breadcrumbs={[
           { label: 'People', to: '/people' },
           { label: `${person.firstName} ${person.lastName}` },
         ]}
-        description="Personal details, account access, and Makerspace status."
+        description={`Personal details, account access, and ${statusLabel.toLowerCase()}.`}
         actions={hasPersonActions ? (
           <MenuButton label="Actions" kind="primary" menuAlignment="bottom-end" size="md">
             {canEditPerson && !editingPerson && (
@@ -833,35 +843,30 @@ function UserDetailContent({ person }: { person: Person }) {
             )}
           </MenuButton>
         ) : undefined}
-      />
+        tabs={(
+          <TabList aria-label="Person detail sections">
+            {availableTabs.map((tab) => <Tab key={tab.key}>{tab.label}</Tab>)}
+          </TabList>
+        )}
+        className="person-detail-page"
+      >
       {mutationError && (
         <InlineNotification kind="error" lowContrast hideCloseButton title="Change not completed" subtitle="The record may have changed. Reload it and try again." />
       )}
       <div className="person-detail-layout">
-        <Tabs
-          selectedIndex={selectedTabIndex}
-          onChange={({ selectedIndex }) => {
-            const nextTab = availableTabs[selectedIndex];
-            if (nextTab) selectTab(nextTab.key);
-          }}
-        >
-          <TabList aria-label="Person detail sections">
-            {availableTabs.map((tab) => <Tab key={tab.key}>{tab.label}</Tab>)}
-          </TabList>
-          <TabPanels>
-            {availableTabs.map((tab) => (
-              <TabPanel key={tab.key} className="person-detail-tab-panel">
-                {tab.key === selectedTab ? renderTabContent(tab.key) : null}
-              </TabPanel>
-            ))}
-          </TabPanels>
-        </Tabs>
+        <TabPanels>
+          {availableTabs.map((tab) => (
+            <TabPanel key={tab.key} className="person-detail-tab-panel">
+              {tab.key === selectedTab ? renderTabContent(tab.key) : null}
+            </TabPanel>
+          ))}
+        </TabPanels>
 
       {resetSent && !manualSetupUrl && (
         <Tile className="secret-tile">
           <Stack gap={5}>
             <InlineNotification kind="success" lowContrast hideCloseButton title="Message sent" subtitle="The one-time link was sent by email." />
-            {resetExpiresAt && <p className="section-description">Expires {new Date(resetExpiresAt).toLocaleString()}.</p>}
+            {resetExpiresAt && <p className="section-description">Expires {formatDateTime(resetExpiresAt)}.</p>}
             <div className="form-actions">
               <Button kind="ghost" onClick={clearResetIssue}>Dismiss</Button>
             </div>
@@ -1018,7 +1023,7 @@ function UserDetailContent({ person }: { person: Person }) {
                 value={`${window.location.origin}${manualSetupUrl}`}
               />
             )}
-            {resetExpiresAt && <p className="section-description">Expires {new Date(resetExpiresAt).toLocaleString()}.</p>}
+            {resetExpiresAt && <p className="section-description">Expires {formatDateTime(resetExpiresAt)}.</p>}
           </Stack>
         </ModalBody>
         <ModalFooter>
@@ -1032,7 +1037,8 @@ function UserDetailContent({ person }: { person: Person }) {
         <ModalBody><p>{selectedConfirmation?.[1]}</p>{resetFailed && (confirmKind === 'reset-password' || confirmKind === 'invite' || confirmKind === 'pin-setup') && <InlineNotification kind="error" lowContrast hideCloseButton title="Message not sent" subtitle="Reload the account and try again." />}{confirmKind === 'remove-auth-method' && removeAuthIdentityMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Authentication method not removed" subtitle="The account may have changed. Reload it and try again." />}</ModalBody>
         <ModalFooter><Button kind="secondary" onClick={() => { setConfirmKind(null); setAuthIdentityToRemove(null); removeAuthIdentityMutation.reset(); }}>Cancel</Button><Button kind="danger" disabled={resetPending || deletePersonMutation.isPending || deleteAccountMutation.isPending || disableMutation.isPending || removeAuthIdentityMutation.isPending} onClick={() => void confirmAction()}>{selectedConfirmation?.[2] ?? 'Confirm'}</Button></ModalFooter>
       </ComposedModal>
-    </Stack>
+      </PageShell>
+    </Tabs>
   );
 }
 
@@ -1076,13 +1082,6 @@ function LabRulesOverview({ status }: { status: LaborordnungStatus }) {
   );
 }
 
-function formatDateTimeRange(startsAt: string, endsAt: string): string {
-  const start = new Date(startsAt);
-  const end = new Date(endsAt);
-  const date = new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(start);
-  const time = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' });
-  return `${date}, ${time.format(start)}–${time.format(end)}`;
-}
 
 function capitalize(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1);

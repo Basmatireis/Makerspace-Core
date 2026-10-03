@@ -33,7 +33,11 @@ describe('SCIM connector administration', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Add connector' }));
     await user.type(screen.getByLabelText('Connector name'), 'Authentik');
-    await user.click(screen.getByRole('button', { name: 'Create connector' }));
+    expect(screen.getByLabelText('Bearer token expires date')).toBeValid();
+    expect(screen.getByLabelText('Bearer token expires time (24-hour)')).toBeValid();
+    const create = screen.getByRole('button', { name: 'Create connector' });
+    expect(create).toBeEnabled();
+    await user.click(create);
 
     expect(await screen.findByText('Copy this bearer token now')).toBeInTheDocument();
     expect(screen.getByText('scim_secret_shown_once')).toBeInTheDocument();

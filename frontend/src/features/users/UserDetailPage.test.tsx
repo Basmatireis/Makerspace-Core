@@ -38,7 +38,13 @@ describe('User detail page', () => {
 
     const { router } = renderRoute(<App />, `/people/${otherPersonId}`);
 
-    await user.click(await screen.findByRole('button', { name: 'Actions' }));
+    const actions = await screen.findByRole('button', { name: 'Actions' });
+    const shell = actions.closest('[data-page-shell]');
+    expect(shell).toHaveAttribute('data-page-width', 'standard');
+    expect(shell?.querySelector('.page-header__tabs')).toContainElement(
+      screen.getByRole('tablist', { name: 'Person detail sections' }),
+    );
+    await user.click(actions);
     await user.click(await screen.findByRole('menuitem', { name: 'Edit person' }));
     expect(within(screen.getByLabelText('Breadcrumb')).getByText('Grace Hopper')).toBeInTheDocument();
     expect(router.state.location.search).toBe('?tab=personal-information');

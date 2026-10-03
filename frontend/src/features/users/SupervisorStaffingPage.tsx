@@ -3,7 +3,6 @@ import {
   DataTable,
   InlineNotification,
   Link as CarbonLink,
-  Stack,
   Table,
   TableBody,
   TableCell,
@@ -17,7 +16,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { getSupervisorDashboard } from '../../api/generated/supervisors/supervisors';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { canAccessOpenDays, hasPermission, PermissionId } from '../auth/permissions';
@@ -78,20 +77,21 @@ export function SupervisorStaffingPage() {
   }));
 
   return (
-    <Stack gap={7} className="supervisor-staffing-page">
-      <PageHeader
-        title="Supervisor staffing"
-        breadcrumbs={[
-          ...(canOpenPeople ? [{ label: 'People', to: '/people' }] : [{ label: 'People' }]),
-          { label: 'Supervisor staffing' },
-        ]}
-        description="Profile-picture readiness, Lab Rules status, and staffing across active Open Day periods."
-        actions={canOpenPeople ? (
-          <Button kind="tertiary" onClick={() => navigate('/people')}>
-            People directory
-          </Button>
-        ) : undefined}
-      />
+    <PageShell
+      title="Supervisor staffing"
+      breadcrumbs={[
+        ...(canOpenPeople ? [{ label: 'People', to: '/people' }] : [{ label: 'People' }]),
+        { label: 'Supervisor staffing' },
+      ]}
+      description="Profile-picture readiness, Lab Rules status, and staffing across active Open Day periods."
+      actions={canOpenPeople ? (
+        <Button kind="tertiary" onClick={() => navigate('/people')}>
+          People directory
+        </Button>
+      ) : undefined}
+      width="wide"
+      className="supervisor-staffing-page"
+    >
 
       <div className="summary-grid" aria-label="Supervisor staffing summary">
         <Tile><strong>{dashboard.totals.supervisors}</strong><p>Designated supervisors</p></Tile>
@@ -187,6 +187,6 @@ export function SupervisorStaffingPage() {
           </TableContainer>
         )}
       </DataTable>
-    </Stack>
+    </PageShell>
   );
 }

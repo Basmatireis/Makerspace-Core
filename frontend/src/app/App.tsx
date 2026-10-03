@@ -36,6 +36,8 @@ import { AppShell } from './AppShell';
 import { NotFoundPage } from './NotFoundPage';
 import { ActivityPage } from '../features/audit/ActivityPage';
 import { InformationPage } from './InformationPage';
+import { LegalPage } from '../features/branding/LegalPage';
+import { BrandingLegalSettingsPage } from '../features/branding/BrandingLegalSettingsPage';
 
 function ProtectedApp() {
   return (
@@ -80,6 +82,9 @@ export function App() {
 	  <Route path="/complete-pin-setup" element={<PINEnrollmentPage />} />
 	  <Route path="/verify-email" element={<EmailVerificationPage />} />
       <Route path="/visitor-enrollment" element={<VisitorEnrollmentPage />} />
+      <Route path="/legal/imprint" element={<LegalPage kind="imprint" />} />
+      <Route path="/legal/privacy" element={<LegalPage kind="privacy" />} />
+      <Route path="/legal-and-privacy" element={<Navigate to="/legal/imprint" replace />} />
       <Route element={<ProtectedApp />}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
@@ -130,6 +135,7 @@ export function App() {
         <Route path="settings/scim" element={<PermissionRoute allOf={[PermissionId.scimmanage]}><SCIMConnectorsPage /></PermissionRoute>} />
         <Route path="settings/visitor-enrollment" element={<PermissionRoute allOf={[PermissionId.visitor_enrollmentmanage]}><VisitorEnrollmentSettingsPage /></PermissionRoute>} />
         <Route path="settings/mail" element={<PermissionRoute allOf={[PermissionId.mailmanage]}><MailSettingsPage /></PermissionRoute>} />
+        <Route path="settings/branding-legal" element={<PermissionRoute allOf={[PermissionId.brandingmanage]}><BrandingLegalSettingsPage /></PermissionRoute>} />
         <Route path="settings/machine-logbook" element={<PermissionRoute allOf={[PermissionId.organizationsread, PermissionId.pricingread, PermissionId.machinesread]}><ConfigurationPage /></PermissionRoute>} />
         <Route
           path="people"
@@ -149,7 +155,6 @@ export function App() {
         />
         <Route path="audit-log" element={<PermissionRoute allOf={[PermissionId.auditread]}><ActivityPage /></PermissionRoute>} />
         <Route path="about" element={<InformationPage title="About" />} />
-        <Route path="legal-and-privacy" element={<InformationPage title="Legal & Privacy" />} />
         <Route path="settings/users/*" element={<LegacyRedirect from="/settings/users" to="/people" />} />
         <Route path="settings/activity" element={<LegacyRedirect from="/settings/activity" to="/audit-log" />} />
         <Route

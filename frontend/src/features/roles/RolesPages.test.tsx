@@ -47,7 +47,8 @@ describe('Roles and permissions matrix', () => {
     const user = userEvent.setup();
     renderRoute(<App />, '/settings/roles');
 
-    expect(await screen.findByRole('heading', { name: 'Roles & Permissions' })).toBeInTheDocument();
+    const heading = await screen.findByRole('heading', { name: 'Roles & Permissions' });
+    expect(heading.closest('[data-page-shell]')).toHaveAttribute('data-page-width', 'fluid');
     expect(screen.getByRole('button', { name: /Edit View all people for Workshop supervisors: Normal assurance · Any managed device/ })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /Edit View all people for Workshop supervisors/ }));
     expect(screen.getByRole('heading', { name: 'View all people' })).toBeInTheDocument();

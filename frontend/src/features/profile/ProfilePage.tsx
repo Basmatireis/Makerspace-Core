@@ -23,7 +23,8 @@ import { Edit } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
+import { formatDateTime } from '../../app/dateTime';
 import { changeOwnPassword, enrollOwnPin, removeOwnPassword, removeOwnPin, requestOwnEmailVerification } from '../../api/generated/authentication/authentication';
 import { updatePerson } from '../../api/generated/people/people';
 import { deletePersonProfileImage, getPutPersonProfileImageUrl } from '../../api/generated/people/people';
@@ -214,11 +215,11 @@ export function ProfilePage() {
   };
 
   return (
-    <Stack gap={7} className="person-detail-page">
-      <PageHeader
-        title="Profile"
-        description="Review your personal information and account security."
-      />
+    <PageShell
+      title="Profile"
+      description="Review your personal information and account security."
+      className="person-detail-page"
+    >
 
       <div className="person-detail-layout">
         <Grid className="person-detail-grid person-detail-grid--overview">
@@ -270,7 +271,7 @@ export function ProfilePage() {
                 <StructuredListBody>
                   <DetailRow label="Account status" value={currentUser.account.status === 'enabled' ? 'Active' : 'Inactive'} />
                   <DetailRow label="Provisioning source" value={formatProvisioningSource(currentUser.account.provisioningSource)} />
-                  <DetailRow label="First sign-in" value={currentUser.account.firstAuthenticatedAt ? new Date(currentUser.account.firstAuthenticatedAt).toLocaleString() : 'Not yet'} />
+                  <DetailRow label="First sign-in" value={currentUser.account.firstAuthenticatedAt ? formatDateTime(currentUser.account.firstAuthenticatedAt) : 'Not yet'} />
                   <DetailRow
                     label="Account ID"
                     value={currentUser.account.id}
@@ -522,7 +523,7 @@ export function ProfilePage() {
           <Button type="submit" form="link-oidc-provider-form" disabled={linkOIDCMutation.isPending}>Link provider</Button>
         </ModalFooter>
       </ComposedModal>
-    </Stack>
+    </PageShell>
   );
 }
 

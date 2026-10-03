@@ -34,7 +34,7 @@ import {
   updatePricingGroup,
   updatePricingRule,
 } from '../../api/generated/pricing/pricing';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { PermissionId, hasPermission } from '../auth/permissions';
 import { useCurrentUser } from '../auth/auth';
@@ -155,10 +155,8 @@ export function ConfigurationPage() {
   if (organizations.isPending || pricing.isPending || machineTypes.isPending) return <FullPageLoading label="Loading machines configuration" />;
   if (organizations.isError || pricing.isError || machineTypes.isError) return <ErrorState message="Configuration could not be loaded." onRetry={() => { organizations.refetch(); pricing.refetch(); machineTypes.refetch(); }} />;
 
-  return <Stack gap={7} className="machine-logbook-page">
-    <PageHeader title="Machines configuration" description="Organizations, pricing groups, and explicit rates." breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Machines' }]} />
-    <Tabs>
-      <TabList aria-label="Configuration sections"><Tab>Organizations</Tab><Tab>Pricing groups</Tab></TabList>
+  return <Tabs>
+    <PageShell title="Machines configuration" description="Organizations, pricing groups, and explicit rates." breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Machines' }]} tabs={<TabList aria-label="Configuration sections"><Tab>Organizations</Tab><Tab>Pricing groups</Tab></TabList>} width="wide" className="machine-logbook-page">
       <TabPanels>
         <TabPanel>
           <Stack gap={5}>
@@ -217,7 +215,6 @@ export function ConfigurationPage() {
           </Stack>
         </TabPanel>
       </TabPanels>
-    </Tabs>
 
     {organizationOpen && <Modal
       open
@@ -288,5 +285,6 @@ export function ConfigurationPage() {
         {ruleMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Pricing rule not saved" subtitle="It may have changed. Reload and retry with the latest version." />}
       </Stack>
     </Modal>}
-  </Stack>;
+    </PageShell>
+  </Tabs>;
 }

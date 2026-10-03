@@ -23,6 +23,8 @@ import {
 } from '../../api/generated/open-days/open-days';
 import type { AcademicBreak } from '../../api/generated/models';
 import { openDayKeys } from './queries';
+import { DateInput } from '../../app/DateInput';
+import { formatDate } from '../../app/dateTime';
 
 type BreakDraft = Pick<AcademicBreak, 'id' | 'name' | 'startsOn' | 'endsOn' | 'version'>;
 
@@ -131,8 +133,8 @@ export function AcademicBreakManager({ periodId, periodStartsOn, academicBreaks,
                   {academicBreaks.map((item) => (
                     <TableRow key={item.id}>
                       <TableCell>{item.name}</TableCell>
-                      <TableCell>{item.startsOn}</TableCell>
-                      <TableCell>{item.endsOn}</TableCell>
+                      <TableCell>{formatDate(item.startsOn)}</TableCell>
+                      <TableCell>{formatDate(item.endsOn)}</TableCell>
                       <TableCell>
                         <div className="table-actions">
                           <Button
@@ -193,8 +195,8 @@ export function AcademicBreakManager({ periodId, periodStartsOn, academicBreaks,
               />
             )}
             <TextInput id="schedule-break-name" labelText="Name" value={breakDraft.name} onChange={(event) => setBreakDraft({ ...breakDraft, name: event.target.value })} />
-            <TextInput id="schedule-break-start" type="date" labelText="Start date" value={breakDraft.startsOn} onChange={(event) => setBreakDraft({ ...breakDraft, startsOn: event.target.value })} />
-            <TextInput id="schedule-break-end" type="date" labelText="End date" value={breakDraft.endsOn} invalid={invalidRange} invalidText="End date must be on or after the start date." onChange={(event) => setBreakDraft({ ...breakDraft, endsOn: event.target.value })} />
+            <DateInput id="schedule-break-start" labelText="Start date" value={breakDraft.startsOn} onChange={(startsOn) => setBreakDraft({ ...breakDraft, startsOn })} />
+            <DateInput id="schedule-break-end" labelText="End date" value={breakDraft.endsOn} invalid={invalidRange} invalidText="End date must be on or after the start date." onChange={(endsOn) => setBreakDraft({ ...breakDraft, endsOn })} />
           </Stack>
         )}
       </Modal>

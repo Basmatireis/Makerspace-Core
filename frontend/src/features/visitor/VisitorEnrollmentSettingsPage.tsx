@@ -5,7 +5,7 @@ import { listManagedDeviceTypes } from '../../api/generated/managed-devices/mana
 import { listRoles } from '../../api/generated/roles/roles';
 import { getVisitorEnrollmentConfiguration, updateVisitorEnrollmentConfiguration } from '../../api/generated/visitor-enrollment/visitor-enrollment';
 import type { VisitorAuthenticationMethod } from '../../api/generated/models';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 
 export function VisitorEnrollmentSettingsPage() {
@@ -36,8 +36,7 @@ export function VisitorEnrollmentSettingsPage() {
   });
   const toggle = <T extends string>(values: T[], value: T, checked: boolean) => checked ? [...new Set([...values, value])] : values.filter((item) => item !== value);
 
-  return <Stack gap={7}>
-    <PageHeader title="Visitor enrollment" breadcrumbs={[{ label: 'Settings', to: '/settings' }]} description="Allow only approved ManagedDevice types to create visitors with one backend-selected initial Role." />
+  return <PageShell title="Visitor enrollment" breadcrumbs={[{ label: 'Settings', to: '/settings' }]} description="Allow only approved ManagedDevice types to create visitors with one backend-selected initial Role.">
     {(configuration.isPending || roles.isPending || deviceTypes.isPending) && <InlineLoadingState label="Loading visitor enrollment configuration" />}
     {(configuration.isError || roles.isError || deviceTypes.isError) && <ErrorState title="Unable to load visitor enrollment settings" message="Check the connection and your permissions, then try again." onRetry={() => { void configuration.refetch(); void roles.refetch(); void deviceTypes.refetch(); }} />}
     {configuration.data && roles.data && deviceTypes.data && <Tile><Stack gap={5}>
@@ -53,5 +52,5 @@ export function VisitorEnrollmentSettingsPage() {
       <InlineNotification kind="info" lowContrast hideCloseButton title="Admission remains separate" subtitle="Visitor submission explicitly creates the physical Lab Rules confirmation request. Blocking Roles remain inadmissible until a supervisor confirms the physical document." />
       <div><Button disabled={mutation.isPending || (enabled && (!roleId || selectedTypes.length === 0 || methods.length === 0))} onClick={() => mutation.mutate()}>{mutation.isPending ? 'Saving…' : 'Save configuration'}</Button></div>
     </Stack></Tile>}
-  </Stack>;
+  </PageShell>;
 }

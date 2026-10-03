@@ -39,7 +39,7 @@ import {
 } from '../../api/generated/accounts/accounts';
 import type { LaborordnungStatus, Person, Role } from '../../api/generated/models';
 import { getPersonMakerspaceStatus } from '../../api/generated/people/people';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { canManageRoleMembership, hasPermission, PermissionId } from '../auth/permissions';
@@ -349,16 +349,16 @@ export function UsersPage() {
   };
 
   return (
-    <Stack gap={7}>
-      <PageHeader
-        title="People"
-        description="Manage people, login accounts, roles, and access."
-        actions={mayViewSupervisorStaffing ? (
-          <Button kind="tertiary" onClick={() => navigate('/people/staffing')}>
-            Supervisor staffing
-          </Button>
-        ) : undefined}
-      />
+    <PageShell
+      title="People"
+      description="Manage people, login accounts, roles, and access."
+      width="wide"
+      actions={mayViewSupervisorStaffing ? (
+        <Button kind="tertiary" onClick={() => navigate('/people/staffing')}>
+          Supervisor staffing
+        </Button>
+      ) : undefined}
+    >
 
       {peopleQuery.isPending && <InlineLoadingState label="Loading people" />}
       {peopleQuery.isError && (
@@ -736,6 +736,6 @@ export function UsersPage() {
           </Button>
         </ModalFooter>
       </ComposedModal>
-    </Stack>
+    </PageShell>
   );
 }

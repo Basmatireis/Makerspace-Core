@@ -1,6 +1,7 @@
 package opendays
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -26,6 +27,9 @@ func TestLocalTimeMustResolveToExactlyOneInstant(t *testing.T) {
 			if test.want == "" {
 				if err == nil {
 					t.Fatal("invalid local time accepted")
+				}
+				if wall.Format("2006-01-02") == "2026-10-25" && !strings.Contains(err.Error(), "25.10.2026 02:30") {
+					t.Fatalf("error does not use the application date format: %v", err)
 				}
 				return
 			}

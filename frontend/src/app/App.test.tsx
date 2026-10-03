@@ -22,7 +22,8 @@ describe('protected application routing', () => {
 
     renderRoute(<App />, '/dashboard');
 
-    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+    const dashboardHeading = await screen.findByRole('heading', { name: 'Dashboard' });
+    expect(dashboardHeading.closest('[data-page-shell]')).toHaveAttribute('data-page-width', 'standard');
     expect(document.querySelector('.app-header__logo')).toHaveAttribute(
       'src',
       '/brand/htumkr-symbol.png',
@@ -37,18 +38,20 @@ describe('protected application routing', () => {
   it.each([
     [PermissionId.oidcmanage, 'OpenID Connect'],
     [PermissionId.mailmanage, 'Email delivery'],
+    [PermissionId.brandingmanage, 'Branding & legal'],
   ])('allows settings navigation with only %s', async (permission, title) => {
     server.use(http.get('*/api/v1/auth/me', () =>
       HttpResponse.json(currentUserFixture([permission])),
     ));
     renderRoute(<App />, '/settings');
-    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    const settingsHeading = await screen.findByRole('heading', { name: 'Settings' });
+    expect(settingsHeading.closest('[data-page-shell]')).toHaveAttribute('data-page-width', 'standard');
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'People' })).not.toBeInTheDocument();
   });
 
-  it.each(['/settings/oidc', '/settings/mail'])('denies %s without its permission', async (path) => {
+  it.each(['/settings/oidc', '/settings/mail', '/settings/branding-legal'])('denies %s without its permission', async (path) => {
     server.use(http.get('*/api/v1/auth/me', () =>
       HttpResponse.json(currentUserFixture([PermissionId.rolesread])),
     ));
@@ -180,7 +183,8 @@ describe('protected application routing', () => {
     expect(within(navigation).getByRole('link', { name: 'Settings' })).toBeInTheDocument();
     expect(within(navigation).getByRole('link', { name: 'Audit Log' })).toBeInTheDocument();
     expect(within(navigation).getByRole('link', { name: 'About' })).toBeInTheDocument();
-    expect(within(navigation).getByRole('link', { name: 'Legal & Privacy' })).toBeInTheDocument();
+    expect(within(navigation).getByRole('link', { name: 'Imprint' })).toBeInTheDocument();
+    expect(within(navigation).getByRole('link', { name: 'Privacy policy' })).toBeInTheDocument();
 
     for (const name of [
       'Dashboard',
@@ -189,20 +193,25 @@ describe('protected application routing', () => {
       'Settings',
       'Audit Log',
       'About',
-      'Legal & Privacy',
+      'Imprint',
+      'Privacy policy',
     ]) {
       expect(within(navigation).getByRole('link', { name }).querySelector('svg')).toBeInTheDocument();
     }
     expect(within(navigation).getByRole('button', { name: 'Machines' }).querySelectorAll('svg')).toHaveLength(2);
   });
 
-  it.each([
-    ['/about', 'About'],
-    ['/legal-and-privacy', 'Legal & Privacy'],
-  ])('renders the title-only information page at %s', async (path, title) => {
+  it('renders the About information page', async () => {
     server.use(http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture())));
-    renderRoute(<App />, path);
-    expect(await screen.findByRole('heading', { name: title })).toBeInTheDocument();
+    renderRoute(<App />, '/about');
+    expect(await screen.findByRole('heading', { name: 'About' })).toBeInTheDocument();
+  });
+
+  it('redirects the legacy legal route to the public imprint', async () => {
+    server.use(http.get('*/api/v1/public/legal/imprint', () => HttpResponse.json({ kind: 'imprint', title: 'Imprint', mode: 'internal', markdown: '', externalUrl: null })));
+    const { router } = renderRoute(<App />, '/legal-and-privacy');
+    expect(await screen.findByRole('heading', { name: 'Imprint' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/legal/imprint');
   });
 
   it('shows the managed-devices settings tile only with inventory access', async () => {
@@ -226,9 +235,21 @@ describe('protected application routing', () => {
       http.get('*/api/v1/open-day-periods', () => HttpResponse.json({ items: [] })),
     );
     renderRoute(<App />, '/open-days');
-    expect(await screen.findByRole('heading', { name: 'Open Days' })).toBeInTheDocument();
+    const openDaysHeading = await screen.findByRole('heading', { name: 'Open Days' });
+    expect(openDaysHeading.closest('[data-page-shell]')).toHaveAttribute('data-page-width', 'standard');
     expect(screen.getByRole('link', { name: 'Open Days' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'New period' })).not.toBeInTheDocument();
+  });
+
+  it('renders the authenticated not-found route in the canonical shell', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture())),
+    );
+    renderRoute(<App />, '/missing-page');
+
+    const heading = await screen.findByRole('heading', { name: 'Page not found' });
+    expect(heading.closest('[data-page-shell]')).toHaveAttribute('data-page-width', 'standard');
+    expect(document.querySelector('#main-content main')).not.toBeInTheDocument();
   });
 
   it('keeps the authenticated state when server-side logout fails', async () => {

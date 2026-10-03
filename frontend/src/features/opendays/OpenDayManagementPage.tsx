@@ -26,8 +26,10 @@ import {
   updateOpenDayPeriod,
 } from '../../api/generated/open-days/open-days';
 import type { AcademicBreak, OpenDayPeriod } from '../../api/generated/models';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
+import { DateInput } from '../../app/DateInput';
+import { formatDate } from '../../app/dateTime';
 import { periodRange, statusTagType } from './format';
 import { openDaySchedulePath } from './paths';
 import { calendarContextQueryOptions, openDayKeys, periodsQueryOptions } from './queries';
@@ -120,12 +122,12 @@ export function OpenDayManagementPage() {
     periodMutation.isError || breakMutation.isError || deleteMutation.isError;
 
   return (
-    <Stack gap={7} className="open-day-management-page">
-      <PageHeader
-        title="Manage Open Days"
-        breadcrumbs={[{ label: 'Open Days', to: '/open-days' }]}
-        description="Edit draft period metadata and maintain academic breaks used by schedule planning."
-      />
+    <PageShell
+      title="Manage Open Days"
+      breadcrumbs={[{ label: 'Open Days', to: '/open-days' }]}
+      description="Edit draft period metadata and maintain academic breaks used by schedule planning."
+      className="open-day-management-page"
+    >
       {mutationFailed && (
         <InlineNotification
           kind="error"
@@ -217,8 +219,8 @@ export function OpenDayManagementPage() {
                 {contextQuery.data.academicBreaks.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell>{item.name}</TableCell>
-                    <TableCell>{item.startsOn}</TableCell>
-                    <TableCell>{item.endsOn}</TableCell>
+                    <TableCell>{formatDate(item.startsOn)}</TableCell>
+                    <TableCell>{formatDate(item.endsOn)}</TableCell>
                     <TableCell>
                       <div className="table-actions">
                         <Button
@@ -263,8 +265,8 @@ export function OpenDayManagementPage() {
         {periodDraft && (
           <Stack gap={5}>
             <TextInput id="managed-period-name" labelText="Name" value={periodDraft.name} onChange={(event) => setPeriodDraft({ ...periodDraft, name: event.target.value })} />
-            <TextInput id="managed-period-start" type="date" labelText="Start date" value={periodDraft.startsOn} onChange={(event) => setPeriodDraft({ ...periodDraft, startsOn: event.target.value })} />
-            <TextInput id="managed-period-end" type="date" labelText="End date" value={periodDraft.endsOn} onChange={(event) => setPeriodDraft({ ...periodDraft, endsOn: event.target.value })} />
+            <DateInput id="managed-period-start" labelText="Start date" value={periodDraft.startsOn} onChange={(startsOn) => setPeriodDraft({ ...periodDraft, startsOn })} />
+            <DateInput id="managed-period-end" labelText="End date" value={periodDraft.endsOn} onChange={(endsOn) => setPeriodDraft({ ...periodDraft, endsOn })} />
           </Stack>
         )}
       </Modal>
@@ -280,8 +282,8 @@ export function OpenDayManagementPage() {
         {breakDraft && (
           <Stack gap={5}>
             <TextInput id="academic-break-name" labelText="Name" value={breakDraft.name} onChange={(event) => setBreakDraft({ ...breakDraft, name: event.target.value })} />
-            <TextInput id="academic-break-start" type="date" labelText="Start date" value={breakDraft.startsOn} onChange={(event) => setBreakDraft({ ...breakDraft, startsOn: event.target.value })} />
-            <TextInput id="academic-break-end" type="date" labelText="End date" value={breakDraft.endsOn} onChange={(event) => setBreakDraft({ ...breakDraft, endsOn: event.target.value })} />
+            <DateInput id="academic-break-start" labelText="Start date" value={breakDraft.startsOn} onChange={(startsOn) => setBreakDraft({ ...breakDraft, startsOn })} />
+            <DateInput id="academic-break-end" labelText="End date" value={breakDraft.endsOn} onChange={(endsOn) => setBreakDraft({ ...breakDraft, endsOn })} />
           </Stack>
         )}
       </Modal>
@@ -297,6 +299,6 @@ export function OpenDayManagementPage() {
       >
         <p>{deleteBreak?.name} will no longer appear as calendar context. Existing Open Days are unchanged.</p>
       </Modal>
-    </Stack>
+    </PageShell>
   );
 }

@@ -4,7 +4,7 @@ import { SimpleBarChart } from '@carbon/charts-react';
 import { ScaleTypes } from '@carbon/charts';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { PermissionId, hasPermission } from '../auth/permissions';
 import { useCurrentUser } from '../auth/auth';
@@ -21,11 +21,10 @@ export function MachineLogbookOverviewPage() {
   const chartData = data.activity.map((point) => ({ group: 'Jobs', key: point.date, value: point.count }));
   const chartOptions = { title: 'Job activity — last 7 days', axes: { left: { mapsTo: 'value', scaleType: ScaleTypes.LINEAR }, bottom: { mapsTo: 'key', scaleType: ScaleTypes.LABELS } }, height: '280px', legend: { enabled: false }, toolbar: { enabled: false }, accessibility: { svgAriaLabel: 'Bar chart of machine jobs per day' } };
 
-  return <Stack gap={7} className="machine-logbook-page">
-    <PageHeader title="Machines" description="Operational overview of machine use, billing, and stock." actions={<>
+  return <PageShell title="Machines" description="Operational overview of machine use, billing, and stock." actions={<>
       {hasPermission(currentUser, PermissionId.inventorymanage) && <Button as={Link} to="/machine-logbook/inventory" kind="secondary" renderIcon={InventoryManagement}>Add material</Button>}
       {hasPermission(currentUser, PermissionId.machine_jobscreate) && <Button as={Link} to="/machine-logbook/jobs?new=1" renderIcon={Add}>New job</Button>}
-    </>} />
+    </>} width="wide" className="machine-logbook-page">
     {data.needsReview > 0 && <Tile className="review-callout"><div><strong>{data.needsReview} machine {data.needsReview === 1 ? 'job requires' : 'jobs require'} review</strong><p>Automatically detected jobs await customer and operator assignment.</p></div><CarbonLink as={Link} to="/machine-logbook/review">Review now →</CarbonLink></Tile>}
     <div className="metric-grid">
       <Tile><span>Jobs today</span><strong>{data.jobsToday}</strong><small>{data.jobsThisWeek} this week</small></Tile>
@@ -41,5 +40,5 @@ export function MachineLogbookOverviewPage() {
         <Tile><h2>Recent jobs</h2>{data.recentJobs.length === 0 ? <EmptyState title="No jobs yet" description="Confirmed and detected jobs appear here." /> : <ul className="summary-list">{data.recentJobs.map((job) => <li key={job.id}><Link to={`/machine-logbook/jobs/${job.id}`}><span><strong>{job.machine.name}</strong><small>{formatDateTime(job.startsAt)} · {job.usages.map((u) => `${formatDecimal(u.quantity)} ${u.unit} ${u.materialName}`).join(', ') || 'No material usage'}</small></span><OutcomeTag outcome={job.outcome} /></Link></li>)}</ul>}</Tile>
       </Stack></Column>
     </Grid>
-  </Stack>;
+  </PageShell>;
 }

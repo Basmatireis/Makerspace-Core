@@ -19,6 +19,8 @@ import { ApiError } from '../../api/http-client';
 import { BrandMark } from '../../app/BrandMark';
 import { FullPageLoading } from '../../app/PageState';
 import { useCurrentUserQuery, useLogin, usePINLogin } from './auth';
+import { useBranding, usePageTitle } from '../branding/branding';
+import { LegalLinks } from '../branding/LegalLinks';
 
 type LocationState = { from?: string } | null;
 
@@ -28,6 +30,8 @@ function safeReturnPath(state: LocationState): string {
 }
 
 export function LoginPage() {
+  const branding = useBranding();
+  usePageTitle('Sign in');
   const navigate = useNavigate();
   const location = useLocation();
   const currentUser = useCurrentUserQuery();
@@ -86,10 +90,10 @@ export function LoginPage() {
         <Stack gap={6}>
           <div className="auth-card__heading">
             <div className="auth-card__brand">
-              <BrandMark className="auth-card__logo" />
+              <BrandMark kind="logo" className="auth-card__logo" />
               <div className="auth-card__wordmark">
-                <span>HTU Graz</span>
-                <h1 id="login-title">Makerspace</h1>
+                <span>{branding.identity.legalOrganizationName}</span>
+                <h1 id="login-title">{branding.identity.displayName}</h1>
               </div>
             </div>
             <p className="auth-card__subtitle">Sign in to continue.</p>
@@ -169,13 +173,14 @@ export function LoginPage() {
           <Tile className="auth-card__support">
             <p className="auth-card__support-title">Need access?</p>
             <p className="auth-card__help">
-              Accounts are provided by the Makerspace team. If you already have
+              Accounts are provided by the {branding.identity.displayName} team. If you already have
               one but cannot sign in, request a one-time reset code.
             </p>
             <CarbonLink as={Link} to="/reset-password">
               Reset password
             </CarbonLink>
           </Tile>
+          <LegalLinks className="auth-card__legal" />
         </Stack>
       </section>
     </main>

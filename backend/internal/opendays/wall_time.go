@@ -37,7 +37,7 @@ func (s *Service) resolveWallTime(wall time.Time) (time.Time, error) {
 	if len(matches) > 1 {
 		reason = "is ambiguous"
 	}
-	return time.Time{}, validation(fmt.Sprintf("Local time %s %s in %s because of a clock change; choose a different time", naive.Format("2006-01-02 15:04"), reason, s.location))
+	return time.Time{}, validation(fmt.Sprintf("Local time %s %s in %s because of a clock change; choose a different time", naive.Format("02.01.2006 15:04"), reason, s.location))
 }
 
 func (s *Service) validateSlotInstant(instant time.Time) error {

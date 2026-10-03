@@ -14,6 +14,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Controller, useFieldArray, useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
+import { DateTimeInput } from '../../app/DateInput';
+import { instantToZonedDateTimeValue, isZonedDateTimeValue, zonedDateTimeValueToISO } from '../../app/dateTime';
 import { createMachineJob } from '../../api/generated/machine-jobs/machine-jobs';
 import type { BillingParty, MachineJobOutcome, Operator } from '../../api/generated/models';
 import {
@@ -37,11 +39,6 @@ type CreateJobFields = {
   usages: Array<{ materialId: string; quantity: string }>;
 };
 
-function localDateTime(date: Date) {
-  const shifted = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-  return shifted.toISOString().slice(0, 16);
-}
-
 export function CreateJobModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
   const client = useQueryClient();
@@ -50,8 +47,8 @@ export function CreateJobModal({ open, onClose }: { open: boolean; onClose: () =
   const form = useForm<CreateJobFields>({
     defaultValues: {
       machineId: '',
-      startsAt: localDateTime(oneHourAgo),
-      endsAt: localDateTime(now),
+      startsAt: instantToZonedDateTimeValue(oneHourAgo),
+      endsAt: instantToZonedDateTimeValue(now),
       customer: null,
       operator: null,
       outcome: 'successful',
@@ -73,8 +70,8 @@ export function CreateJobModal({ open, onClose }: { open: boolean; onClose: () =
       if (!values.customer || !values.operator) throw new Error('Customer and operator are required');
       return createMachineJob({
         machineId: values.machineId,
-        startsAt: new Date(values.startsAt).toISOString(),
-        endsAt: new Date(values.endsAt).toISOString(),
+        startsAt: zonedDateTimeValueToISO(values.startsAt),
+        endsAt: zonedDateTimeValueToISO(values.endsAt),
         customer: { kind: values.customer.kind, id: values.customer.id },
         operatorPersonId: values.operator.personId,
         outcome: values.outcome,
@@ -110,8 +107,8 @@ export function CreateJobModal({ open, onClose }: { open: boolean; onClose: () =
         {(machines.data?.items ?? []).filter((machine) => machine.status !== 'retired').map((machine) => <SelectItem key={machine.id} value={machine.id} text={machine.name} />)}
       </Select>
       <div className="form-grid">
-        <TextInput id="new-job-start" type="datetime-local" labelText="Start" {...form.register('startsAt', { required: true })} />
-        <TextInput id="new-job-end" type="datetime-local" labelText="End" {...form.register('endsAt', { required: true })} />
+        <Controller control={form.control} name="startsAt" rules={{ validate: isZonedDateTimeValue }} render={({ field }) => <DateTimeInput id="new-job-start" labelText="Start" value={field.value} onChange={field.onChange} required />} />
+        <Controller control={form.control} name="endsAt" rules={{ validate: isZonedDateTimeValue }} render={({ field }) => <DateTimeInput id="new-job-end" labelText="End" value={field.value} onChange={field.onChange} required />} />
       </div>
       <div className="form-grid">
         <Controller

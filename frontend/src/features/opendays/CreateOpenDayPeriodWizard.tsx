@@ -28,6 +28,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { createOpenDayAcademicBreak, createOpenDayPeriod } from '../../api/generated/open-days/open-days';
 import type { EligibilityRole, OpenDayPeriod } from '../../api/generated/models';
+import { DateInput } from '../../app/DateInput';
+import { APP_DATE_PLACEHOLDER, dateOnlyToPickerDate, formatDate, parseDisplayDate, pickerDateToDateOnly } from '../../app/dateTime';
 import { eligibilityRolesQueryOptions, openDayKeys } from './queries';
 import { RoleMultiSelect } from './RoleMultiSelect';
 import { standardOpenDayScheduleDefaults, type OpenDayScheduleDefaults } from './scheduleDefaults';
@@ -192,32 +194,36 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated }: Props) {
               <input type="hidden" {...register('endsOn', { required: true })} />
               <DatePicker
                 datePickerType="range"
-                dateFormat="Y-m-d"
+                dateFormat="d.m.Y"
+                locale="en"
+                value={period.startsOn && period.endsOn ? [dateOnlyToPickerDate(period.startsOn)!, dateOnlyToPickerDate(period.endsOn)!] : []}
                 onChange={(dates) => {
-                  setValue('startsOn', dateValue(dates[0]), { shouldDirty: true, shouldValidate: attemptedStep === 0 });
-                  setValue('endsOn', dateValue(dates[1]), { shouldDirty: true, shouldValidate: attemptedStep === 0 });
+                  setValue('startsOn', dates[0] ? pickerDateToDateOnly(dates[0]) : '', { shouldDirty: true, shouldValidate: attemptedStep === 0 });
+                  setValue('endsOn', dates[1] ? pickerDateToDateOnly(dates[1]) : '', { shouldDirty: true, shouldValidate: attemptedStep === 0 });
                   clearError();
                 }}
               >
                 <DatePickerInput
                   id="period-start"
                   labelText="Start date"
-                  placeholder="yyyy-mm-dd"
+                  placeholder={APP_DATE_PLACEHOLDER}
+                  pattern="\d{2}\.\d{2}\.\d{4}"
                   invalid={attemptedStep === 0 && Boolean(errors.startsOn)}
                   invalidText="Choose a start date."
                   onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                    setValue('startsOn', event.target.value, { shouldDirty: true, shouldValidate: attemptedStep === 0 });
+                    setValue('startsOn', parseDisplayDate(event.target.value) ?? '', { shouldDirty: true, shouldValidate: attemptedStep === 0 });
                     clearError();
                   }}
                 />
                 <DatePickerInput
                   id="period-end"
                   labelText="End date"
-                  placeholder="yyyy-mm-dd"
+                  placeholder={APP_DATE_PLACEHOLDER}
+                  pattern="\d{2}\.\d{2}\.\d{4}"
                   invalid={attemptedStep === 0 && Boolean(errors.endsOn)}
                   invalidText={errors.endsOn?.message ?? 'Choose an end date.'}
                   onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                    setValue('endsOn', event.target.value, { shouldDirty: true, shouldValidate: attemptedStep === 0 });
+                    setValue('endsOn', parseDisplayDate(event.target.value) ?? '', { shouldDirty: true, shouldValidate: attemptedStep === 0 });
                     clearError();
                   }}
                 />
@@ -233,8 +239,8 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated }: Props) {
                 <Stack gap={4} className="period-wizard__break-editor">
                   <TextInput id="wizard-break-name" labelText="Name" value={breakDraft.name} onChange={(event) => { setBreakDraft({ ...breakDraft, name: event.target.value }); clearError(); }} />
                   <div className="period-wizard__break-dates">
-                    <TextInput id="wizard-break-start" type="date" labelText="Start date" value={breakDraft.startsOn} onChange={(event) => { setBreakDraft({ ...breakDraft, startsOn: event.target.value }); clearError(); }} />
-                    <TextInput id="wizard-break-end" type="date" labelText="End date" value={breakDraft.endsOn} onChange={(event) => { setBreakDraft({ ...breakDraft, endsOn: event.target.value }); clearError(); }} />
+                    <DateInput id="wizard-break-start" labelText="Start date" value={breakDraft.startsOn} onChange={(startsOn) => { setBreakDraft({ ...breakDraft, startsOn }); clearError(); }} />
+                    <DateInput id="wizard-break-end" labelText="End date" value={breakDraft.endsOn} onChange={(endsOn) => { setBreakDraft({ ...breakDraft, endsOn }); clearError(); }} />
                   </div>
                   <div className="period-wizard__inline-actions"><Button kind="secondary" onClick={() => { setBreakDraft(null); clearError(); }}>Cancel</Button><Button onClick={saveBreak}>{breaks.some((item) => item.clientId === breakDraft.clientId) ? 'Update break' : 'Add break'}</Button></div>
                 </Stack>
@@ -245,7 +251,7 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated }: Props) {
                   <TableBody>
                     {breaks.map((item) => (
                       <TableRow key={item.clientId}>
-                        <TableCell>{item.name}</TableCell><TableCell>{item.startsOn}</TableCell><TableCell>{item.endsOn}</TableCell>
+                        <TableCell>{item.name}</TableCell><TableCell>{formatDate(item.startsOn)}</TableCell><TableCell>{formatDate(item.endsOn)}</TableCell>
                         <TableCell><div className="table-actions"><Button hasIconOnly kind="ghost" size="sm" renderIcon={Edit} iconDescription={`Edit ${item.name}`} onClick={() => setBreakDraft(item)} /><Button hasIconOnly kind="danger--ghost" size="sm" renderIcon={TrashCan} iconDescription={`Remove ${item.name}`} onClick={() => setBreaks((current) => current.filter((candidate) => candidate.clientId !== item.clientId))} /></div></TableCell>
                       </TableRow>
                     ))}
@@ -276,8 +282,8 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated }: Props) {
               <div><h3>Summary</h3><p>Review the setup. The period will be created as a draft.</p></div>
               <dl className="period-wizard__summary">
                 <SummaryItem label="Period" value={period.name} />
-                <SummaryItem label="Date range" value={`${period.startsOn} – ${period.endsOn}`} />
-                <SummaryItem label="Academic breaks" value={breaks.length ? breaks.map((item) => `${item.name} (${item.startsOn} – ${item.endsOn})`).join(', ') : 'None'} />
+                <SummaryItem label="Date range" value={`${formatDate(period.startsOn)} – ${formatDate(period.endsOn)}`} />
+                <SummaryItem label="Academic breaks" value={breaks.length ? breaks.map((item) => `${item.name} (${formatDate(item.startsOn)} – ${formatDate(item.endsOn)})`).join(', ') : 'None'} />
                 <SummaryItem label="Standard time" value={`${defaults.startTime}–${defaults.endTime}`} />
                 <SummaryItem label="Supervisors" value={requirementSummary(defaults.supervisors, defaults.supervisorRoleIds, roles)} />
                 <SummaryItem label="Trainees" value={requirementSummary(defaults.trainees, defaults.traineeRoleIds, roles)} />
@@ -313,9 +319,4 @@ function requirementSummary(count: number, roleIds: string[], roles: Eligibility
 
 function SummaryItem({ label, value }: { label: string; value: string }) {
   return <div><dt>{label}</dt><dd>{value}</dd></div>;
-}
-
-function dateValue(date?: Date) {
-  if (!date) return '';
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }

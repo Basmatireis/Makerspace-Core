@@ -145,7 +145,8 @@ export function SessionEventHandler() {
   useEffect(() => {
     const handleSessionExpired = () => {
       clearPrivateQueryData();
-      if (!['/login', '/reset-password', '/complete-invitation', '/complete-pin-setup', '/verify-email'].includes(location.pathname)) {
+      const publicPath = ['/login', '/reset-password', '/complete-invitation', '/complete-pin-setup', '/verify-email', '/visitor-enrollment'].includes(location.pathname) || location.pathname.startsWith('/legal/');
+      if (!publicPath) {
         navigate('/login', {
           replace: true,
           state: { from: `${location.pathname}${location.search}` },

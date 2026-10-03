@@ -1,11 +1,14 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page, type Route } from '@playwright/test';
+import { defaultPublicBrandingConfiguration } from './branding-fixtures';
 
 type ApiState = {
   authenticated: boolean;
   expirePasswordChange?: boolean;
+  openDayPeriods?: unknown[];
   person?: ReturnType<typeof managedPerson>;
   people?: ReturnType<typeof managedPerson>[];
+  publicBranding?: ReturnType<typeof defaultPublicBrandingConfiguration>;
   makerspaceStatus?: ReturnType<typeof personMakerspaceStatus>;
   role?: ReturnType<typeof customRole>;
   user?: ReturnType<typeof currentUser>;
@@ -168,6 +171,11 @@ async function installApi(page: Page, state: ApiState) {
       return;
     }
 
+    if (path === '/api/v1/public/config' && request.method() === 'GET') {
+      await json(route, state.publicBranding ?? defaultPublicBrandingConfiguration());
+      return;
+    }
+
     if (path === '/api/v1/auth/me' && request.method() === 'GET') {
       if (!state.authenticated) {
         await json(route, { code: 'invalid_session', message: 'Sign in required.' }, 401);
@@ -254,6 +262,11 @@ async function installApi(page: Page, state: ApiState) {
       return;
     }
 
+    if (path === '/api/v1/open-day-periods' && request.method() === 'GET' && state.openDayPeriods) {
+      await json(route, { items: state.openDayPeriods });
+      return;
+    }
+
     throw new Error(`Unexpected API request: ${request.method()} ${path}`);
   });
 }
@@ -263,6 +276,27 @@ async function expectNoSeriousAccessibilityViolations(page: Page) {
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze();
   expect(results.violations).toEqual([]);
+}
+
+async function expectNoHorizontalPageOverflow(page: Page) {
+  const dimensions = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+}
+
+async function expectShellHeaderAndContentAligned(page: Page) {
+  const shell = page.locator('[data-page-shell]');
+  const header = shell.locator(':scope > .page-header');
+  const content = shell.locator(':scope > .page-shell__content');
+  const [headerBounds, contentBounds] = await Promise.all([
+    header.boundingBox(),
+    content.boundingBox(),
+  ]);
+  if (!headerBounds || !contentBounds) throw new Error('Could not measure the page shell.');
+  expect(Math.abs(headerBounds.x - contentBounds.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(headerBounds.width - contentBounds.width)).toBeLessThanOrEqual(1);
 }
 
 test('signs in, renders the protected shell, and passes an accessibility scan', async ({ page }) => {
@@ -284,6 +318,9 @@ test('signs in, renders the protected shell, and passes an accessibility scan', 
 
   await expect(page).toHaveURL(/\/dashboard$/);
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect(page.locator('[data-page-shell]')).toHaveAttribute('data-page-width', 'standard');
+  await expectShellHeaderAndContentAligned(page);
+  await expectNoHorizontalPageOverflow(page);
   await expect(page.getByText('Welcome, Ada.')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible();
   await expect(page.getByText('Administration', { exact: true })).toBeVisible();
@@ -424,7 +461,13 @@ test('renders the responsive person detail hierarchy and functional tabs', async
 
   await page.goto(`/people/${person.id}`);
   await expect(page.getByRole('heading', { name: 'Grace Hopper' })).toBeVisible();
+  await expect(page.locator('.page-header__tabs').getByRole('tablist', { name: 'Person detail sections' })).toBeVisible();
+  await expect(page.locator('.page-shell__content').locator('.cds--tab-content')).toHaveCount(5);
   await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: 'Overview' }).focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('tab', { name: 'Personal information' })).toHaveAttribute('aria-selected', 'true');
+  await page.getByRole('tab', { name: 'Overview' }).click();
   await expect(page.getByRole('heading', { name: 'Profile picture', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Account access' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Makerspace status' })).toBeVisible();
@@ -517,7 +560,108 @@ test('renders the responsive person detail hierarchy and functional tabs', async
   await page.getByRole('tab', { name: 'Makerspace status' }).click();
   await expect(page.getByRole('heading', { name: 'Lab Rules' })).toBeVisible();
   await expect(page.getByText('Autumn Open Days')).toBeVisible();
+  await expectNoHorizontalPageOverflow(page);
   await expectNoSeriousAccessibilityViolations(page);
+});
+
+test('keeps multiple page actions aligned without desktop overflow', async ({ page }) => {
+  await installApi(page, {
+    authenticated: true,
+    openDayPeriods: [],
+    user: currentUser(['open_days.read', 'open_days.manage']),
+  });
+
+  await page.goto('/open-days');
+  const actions = page.locator('.page-header__actions');
+  await expect(actions.getByRole('button', { name: 'Manage periods' })).toBeVisible();
+  await expect(actions.getByRole('button', { name: 'New period' })).toBeVisible();
+  await expect(actions.getByRole('button')).toHaveCount(2);
+  await expectShellHeaderAndContentAligned(page);
+  await expectNoHorizontalPageOverflow(page);
+});
+
+test('wraps a long breadcrumb title and action menu at 390px without page overflow', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const person = {
+    ...managedPerson(),
+    firstName: 'Grace Alexandra Extremely-Long',
+    lastName: 'Hopper-Murray-Researcher',
+  };
+  await installApi(page, {
+    authenticated: true,
+    person,
+    user: currentUser(['people.read.all', 'people.update.all']),
+  });
+
+  await page.goto(`/people/${person.id}`);
+  const title = page.locator('.page-header__title');
+  const actions = page.locator('.page-header__actions');
+  const [titleBounds, actionsBounds] = await Promise.all([
+    title.boundingBox(),
+    actions.boundingBox(),
+  ]);
+  if (!titleBounds || !actionsBounds) throw new Error('Could not measure the mobile page header.');
+  expect(actionsBounds.y).toBeGreaterThanOrEqual(titleBounds.y + titleBounds.height);
+  await expect(page.getByLabel('Breadcrumb').getByText(/Grace Alexandra/)).toBeVisible();
+  await expect(actions.getByRole('button', { name: 'Actions' })).toBeVisible();
+  await expectNoHorizontalPageOverflow(page);
+});
+
+test('keeps the page header readable over light, dark, and detailed backgrounds', async ({ page }) => {
+  const state: ApiState = { authenticated: true, user: currentUser() };
+  await installApi(page, state);
+  const base = defaultPublicBrandingConfiguration();
+  const backgrounds = [
+    {
+      name: 'light',
+      color: '#f4f4f4',
+      image: '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="#f4f4f4"/></svg>',
+    },
+    {
+      name: 'dark',
+      color: '#080808',
+      image: '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="#080808"/></svg>',
+    },
+    {
+      name: 'detailed',
+      color: '#111621',
+      image: '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80"><rect width="80" height="80" fill="#111621"/><path d="M0 0L80 80M80 0L0 80M40 0V80M0 40H80" stroke="#ffbf3d" stroke-width="5"/><circle cx="40" cy="40" r="18" fill="#57569f"/></svg>',
+    },
+  ];
+
+  for (const [index, background] of backgrounds.entries()) {
+    const imageUrl = `data:image/svg+xml;base64,${Buffer.from(background.image).toString('base64')}`;
+    state.publicBranding = {
+      ...base,
+      colors: { ...base.colors, background: background.color },
+      assets: { ...base.assets, applicationBackgroundUrl: imageUrl },
+      version: index + 10,
+    };
+
+    await page.goto(`/dashboard?background=${background.name}`);
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+    await expect.poll(() => page.evaluate(() =>
+      document.documentElement.style.getPropertyValue('--app-background-image'),
+    )).toContain('data:image/svg+xml');
+
+    const header = page.locator('.page-shell > .page-header');
+    const main = page.locator('#main-content');
+    const [headerBounds, mainBounds, headerBackground] = await Promise.all([
+      header.boundingBox(),
+      main.boundingBox(),
+      header.evaluate((element) => getComputedStyle(element).backgroundColor),
+    ]);
+    if (!headerBounds || !mainBounds) throw new Error('Could not measure the branded page frame.');
+    expect(headerBackground).toBe('rgba(255, 255, 255, 0.94)');
+    expect(headerBounds.x).toBeGreaterThan(mainBounds.x);
+    expect(headerBounds.width).toBeLessThan(mainBounds.width);
+
+    const contrast = await new AxeBuilder({ page })
+      .include('.page-header')
+      .withRules(['color-contrast'])
+      .analyze();
+    expect(contrast.violations).toEqual([]);
+  }
 });
 
 test('collapses and opens the SideNav at the responsive breakpoint', async ({ page }) => {

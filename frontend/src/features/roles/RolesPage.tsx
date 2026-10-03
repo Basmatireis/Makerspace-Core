@@ -34,7 +34,7 @@ import {
   updateRole,
 } from '../../api/generated/roles/roles';
 import { ApiError } from '../../api/http-client';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { authQueryKey, useCurrentUser } from '../auth/auth';
 import {
@@ -283,15 +283,16 @@ export function RolesPage() {
   const reviewChanges = draft ? describePermissionChanges(draft.baseRole.permissionGrants, draft.permissionGrants, permissions) : [];
 
   return (
-    <Stack gap={6} className="roles-page">
-      <PageHeader
-        title="Roles & Permissions"
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
-        description="Compare role access, stage permission rules, and evaluate authentication and device constraints."
-        actions={hasPermission(currentUser, PermissionId.rolesmanage)
-          ? <Button kind="tertiary" renderIcon={Add} onClick={() => navigate('/settings/roles/new')}>Create role</Button>
-          : undefined}
-      />
+    <PageShell
+      title="Roles & Permissions"
+      breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
+      description="Compare role access, stage permission rules, and evaluate authentication and device constraints."
+      actions={hasPermission(currentUser, PermissionId.rolesmanage)
+        ? <Button kind="tertiary" renderIcon={Add} onClick={() => navigate('/settings/roles/new')}>Create role</Button>
+        : undefined}
+      width="fluid"
+      className="roles-page"
+    >
       {routeRoleId && !settingsRole && rolesQuery.data && (
         <InlineNotification kind="error" lowContrast hideCloseButton title="Role not found" subtitle="The role may have been deleted." />
       )}
@@ -527,7 +528,7 @@ export function RolesPage() {
       >
         <p>Reloading fetches the current server version and permanently discards these local changes.</p>
       </Modal>}
-    </Stack>
+    </PageShell>
   );
 }
 

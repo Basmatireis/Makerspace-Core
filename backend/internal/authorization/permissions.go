@@ -67,6 +67,7 @@ const (
 	OIDCManage                   Permission = Permission(openapi.OidcManage)
 	SCIMManage                   Permission = Permission(openapi.ScimManage)
 	MailManage                   Permission = Permission(openapi.MailManage)
+	BrandingManage               Permission = Permission(openapi.BrandingManage)
 	MachinesRead                 Permission = Permission(openapi.MachinesRead)
 	MachinesManage               Permission = Permission(openapi.MachinesManage)
 	MachineJobsRead              Permission = Permission(openapi.MachineJobsRead)
@@ -102,7 +103,7 @@ var registry = []Permission{
 	ManagedDevicesRead, ManagedDevicesManage,
 	LaborordnungRead, LaborordnungManage, LaborordnungRequestsRead, LaborordnungConfirm,
 	VisitorEnrollmentManage, SupervisorDashboardRead,
-	OIDCLinkSelf, OIDCLinkAll, OIDCUnlinkSelf, OIDCUnlinkAll, OIDCManage, SCIMManage, MailManage,
+	OIDCLinkSelf, OIDCLinkAll, OIDCUnlinkSelf, OIDCUnlinkAll, OIDCManage, SCIMManage, MailManage, BrandingManage,
 	MachinesRead, MachinesManage,
 	MachineJobsRead, MachineJobsCreate, MachineJobsEdit, MachineJobsReview, MachineJobsOverridePrice,
 	InventoryRead, InventoryManage, OrganizationsRead, OrganizationsManage, PricingRead, PricingManage, StatisticsRead,
@@ -170,6 +171,7 @@ var descriptions = map[Permission]string{
 	OIDCManage:                   "Manage OIDC providers and trusted ACR mappings.",
 	SCIMManage:                   "Manage SCIM connectors and one-time bearer tokens.",
 	MailManage:                   "Configure transactional SMTP delivery and sender identity.",
+	BrandingManage:               "Manage public organization identity, branding, and legal notices.",
 	MachinesRead:                 "Read machine types, machines, and their operational metrics.",
 	MachinesManage:               "Create and update machine types and machines.",
 	MachineJobsRead:              "Read machine jobs and their pricing and usage details.",

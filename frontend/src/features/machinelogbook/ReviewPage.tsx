@@ -1,11 +1,11 @@
-import { Button, ComboBox, InlineNotification, Select, SelectItem, Stack, TextArea, Tile } from '@carbon/react';
+import { Button, ComboBox, InlineNotification, Select, SelectItem, TextArea, Tile } from '@carbon/react';
 import { ArrowLeft, ArrowRight } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { confirmMachineJob } from '../../api/generated/machine-jobs/machine-jobs';
 import type { BillingParty, MachineJobOutcome, Operator } from '../../api/generated/models';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { EmptyState } from './components';
 import { formatDateTime, formatDuration } from './formatting';
@@ -30,12 +30,11 @@ export function ReviewPage() {
   }, onSuccess: async () => { await client.invalidateQueries({ queryKey: machineLogbookKeys.all }); setSelected((current) => Math.min(current, Math.max((queue.data?.items.length ?? 1) - 2, 0))); }, onError: async () => { await client.invalidateQueries({ queryKey: machineLogbookKeys.review() }); } });
   if (queue.isPending) return <FullPageLoading label="Loading review queue" />;
   if (queue.isError) return <ErrorState message="The review queue could not be loaded." onRetry={() => queue.refetch()} />;
-  if (queue.data.items.length === 0) return <Stack gap={7}><PageHeader title="Review queue" breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Review' }]} /><Tile><EmptyState title="Review queue is clear" description="Automatically detected jobs that need assignment will appear here." /></Tile></Stack>;
+  if (queue.data.items.length === 0) return <PageShell title="Review queue" breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Review' }]} width="wide"><Tile><EmptyState title="Review queue is clear" description="Automatically detected jobs that need assignment will appear here." /></Tile></PageShell>;
 
   const customerItems = parties.data?.items ?? [];
   const operatorItems = operators.data?.items ?? [];
-  return <Stack gap={6} className="machine-logbook-page review-page">
-    <PageHeader title="Review queue" description={`${queue.data.items.length} remaining`} breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Review' }]} />
+  return <PageShell title="Review queue" description={`${queue.data.items.length} remaining`} breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Review' }]} width="wide" className="machine-logbook-page review-page">
     <div className="review-layout">
       <aside className="review-list" aria-label="Jobs awaiting review">{queue.data.items.map((item, index) => <button type="button" key={item.id} className={index === selected ? 'review-list__item review-list__item--active' : 'review-list__item'} onClick={() => setSelected(index)}><strong>{item.machine.name}</strong><span>{formatDateTime(item.startsAt)}</span><span>{item.usages.map((u) => `${u.quantity} ${u.unit} ${u.materialName}`).join(', ') || 'No material usage'}</span></button>)}</aside>
       <section className="review-detail">
@@ -51,5 +50,5 @@ export function ReviewPage() {
         </form>
       </section>
     </div>
-  </Stack>;
+  </PageShell>;
 }

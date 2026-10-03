@@ -37,6 +37,7 @@ tags:
   - name: Machine Jobs
   - name: Inventory
   - name: Machine Logbook
+  - name: Branding
 
 paths:
   /health/live:
@@ -2515,6 +2516,147 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/config:
+    get:
+      tags: [Branding]
+      operationId: getPublicConfiguration
+      summary: Read safe public organization, branding, and legal-link configuration
+      security: []
+      responses:
+        "200":
+          description: Public configuration with built-in fallbacks resolved.
+          content: {application/json: {schema: {$ref: "#/components/schemas/PublicConfiguration"}}}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/legal/{document}:
+    get:
+      tags: [Branding]
+      operationId: getPublicLegalDocument
+      summary: Read one active public legal-document configuration
+      security: []
+      parameters:
+        - name: document
+          in: path
+          required: true
+          schema: {type: string, enum: [imprint, privacy]}
+      responses:
+        "200": {description: Active public legal document., content: {application/json: {schema: {$ref: "#/components/schemas/PublicLegalDocument"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/branding/assets/{slot}/{sha256}:
+    get:
+      tags: [Branding]
+      operationId: getPublicBrandingAsset
+      summary: Read a content-addressed active custom branding asset
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/BrandingAssetSlot"
+        - name: sha256
+          in: path
+          required: true
+          schema: {type: string, pattern: "^[0-9a-f]{64}$"}
+      responses:
+        "200":
+          description: Validated active image asset.
+          headers:
+            Cache-Control: {schema: {type: string}}
+            ETag: {schema: {type: string}}
+            X-Content-Type-Options: {schema: {type: string}}
+            Content-Security-Policy: {schema: {type: string}}
+          content:
+            image/png: {schema: {type: string, format: binary}}
+            image/webp: {schema: {type: string, format: binary}}
+            image/jpeg: {schema: {type: string, format: binary}}
+            image/svg+xml: {schema: {type: string, format: binary}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /branding/configuration:
+    get:
+      tags: [Branding]
+      operationId: getBrandingConfiguration
+      summary: Read the complete branding and legal configuration
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Administrative branding configuration., content: {application/json: {schema: {$ref: "#/components/schemas/BrandingConfiguration"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Branding]
+      operationId: updateBrandingConfiguration
+      summary: Replace organization identity, colors, and legal configuration
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateBrandingConfigurationRequest"}}}}
+      responses:
+        "200": {description: Updated branding configuration., content: {application/json: {schema: {$ref: "#/components/schemas/BrandingConfiguration"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /branding/assets/{slot}:
+    parameters:
+      - $ref: "#/components/parameters/BrandingAssetSlot"
+    put:
+      tags: [Branding]
+      operationId: putBrandingAsset
+      summary: Validate, store, and select a custom branding asset
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters:
+        - name: expectedVersion
+          in: query
+          required: true
+          schema: {$ref: "#/components/schemas/Version"}
+        - name: X-File-Name
+          in: header
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 255}
+      requestBody:
+        required: true
+        description: PNG, WebP, or safe SVG bytes; backgrounds also accept JPEG.
+        content: {application/octet-stream: {schema: {type: string, format: binary}}}
+      responses:
+        "200": {description: Updated branding configuration., content: {application/json: {schema: {$ref: "#/components/schemas/BrandingConfiguration"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "413": {description: Asset exceeds its slot limit.}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Branding]
+      operationId: removeBrandingAsset
+      summary: Remove an asset without selecting the built-in default
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Updated branding configuration., content: {application/json: {schema: {$ref: "#/components/schemas/BrandingConfiguration"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /branding/assets/{slot}/restore-default:
+    post:
+      tags: [Branding]
+      operationId: restoreDefaultBrandingAsset
+      summary: Restore the bundled default for one branding asset slot
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters:
+        - $ref: "#/components/parameters/BrandingAssetSlot"
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Updated branding configuration., content: {application/json: {schema: {$ref: "#/components/schemas/BrandingConfiguration"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /visitor-enrollment/context:
     post:
       tags: [Visitor Enrollment]
@@ -3458,6 +3600,11 @@ components:
       description: One-time-displayed connector token stored only as a digest.
 
   parameters:
+    BrandingAssetSlot:
+      name: slot
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/BrandingAssetSlot"}
     PersonId:
       name: personId
       in: path
@@ -3717,6 +3864,7 @@ components:
         - oidc.manage
         - scim.manage
         - mail.manage
+        - branding.manage
         - machines.read
         - machines.manage
         - machine_jobs.read
@@ -4496,6 +4644,132 @@ components:
         version: {$ref: "#/components/schemas/Version"}
         updatedAt: {type: string, format: date-time}
 
+    BrandingIdentity:
+      type: object
+      additionalProperties: false
+      required: [legalOrganizationName, displayName, applicationName, tagline]
+      properties:
+        legalOrganizationName: {type: string, minLength: 1, maxLength: 200}
+        displayName: {type: string, minLength: 1, maxLength: 100}
+        applicationName: {type: string, minLength: 1, maxLength: 150}
+        tagline: {type: string, maxLength: 240, nullable: true}
+
+    BrandingColors:
+      type: object
+      additionalProperties: false
+      required: [primary, secondary, accent, background]
+      properties:
+        primary: {type: string, pattern: "^#[0-9a-fA-F]{6}$"}
+        secondary: {type: string, pattern: "^#[0-9a-fA-F]{6}$"}
+        accent: {type: string, pattern: "^#[0-9a-fA-F]{6}$"}
+        background: {type: string, pattern: "^#[0-9a-fA-F]{6}$"}
+
+    LegalConfiguration:
+      type: object
+      additionalProperties: false
+      required: [mode, markdown, externalUrl]
+      properties:
+        mode: {type: string, enum: [internal, external]}
+        markdown: {type: string, maxLength: 102400}
+        externalUrl: {type: string, maxLength: 2048}
+
+    BrandingAsset:
+      type: object
+      additionalProperties: false
+      required: [slot, mode, url, originalFilename, contentType, sizeBytes, updatedAt]
+      properties:
+        slot: {$ref: "#/components/schemas/BrandingAssetSlot"}
+        mode: {type: string, enum: [default, custom, none]}
+        url: {type: string, nullable: true}
+        originalFilename: {type: string, nullable: true}
+        contentType: {type: string, nullable: true}
+        sizeBytes: {type: integer, format: int64, nullable: true}
+        updatedAt: {type: string, format: date-time, nullable: true}
+
+    BrandingAssets:
+      type: object
+      additionalProperties: false
+      required: [logo, compactLogo, favicon, applicationBackground, authenticationBackground]
+      properties:
+        logo: {$ref: "#/components/schemas/BrandingAsset"}
+        compactLogo: {$ref: "#/components/schemas/BrandingAsset"}
+        favicon: {$ref: "#/components/schemas/BrandingAsset"}
+        applicationBackground: {$ref: "#/components/schemas/BrandingAsset"}
+        authenticationBackground: {$ref: "#/components/schemas/BrandingAsset"}
+
+    BrandingConfiguration:
+      type: object
+      additionalProperties: false
+      required: [identity, colors, assets, imprint, privacy, version, updatedAt]
+      properties:
+        identity: {$ref: "#/components/schemas/BrandingIdentity"}
+        colors: {$ref: "#/components/schemas/BrandingColors"}
+        assets: {$ref: "#/components/schemas/BrandingAssets"}
+        imprint: {$ref: "#/components/schemas/LegalConfiguration"}
+        privacy: {$ref: "#/components/schemas/LegalConfiguration"}
+        version: {$ref: "#/components/schemas/Version"}
+        updatedAt: {type: string, format: date-time}
+
+    UpdateBrandingConfigurationRequest:
+      type: object
+      additionalProperties: false
+      required: [identity, colors, imprint, privacy, expectedVersion]
+      properties:
+        identity: {$ref: "#/components/schemas/BrandingIdentity"}
+        colors: {$ref: "#/components/schemas/BrandingColors"}
+        imprint: {$ref: "#/components/schemas/LegalConfiguration"}
+        privacy: {$ref: "#/components/schemas/LegalConfiguration"}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    PublicBrandingAssets:
+      type: object
+      additionalProperties: false
+      required: [logoUrl, compactLogoUrl, faviconUrl, applicationBackgroundUrl, authenticationBackgroundUrl]
+      properties:
+        logoUrl: {type: string, nullable: true}
+        compactLogoUrl: {type: string, nullable: true}
+        faviconUrl: {type: string, nullable: true}
+        applicationBackgroundUrl: {type: string, nullable: true}
+        authenticationBackgroundUrl: {type: string, nullable: true}
+
+    PublicLegalLink:
+      type: object
+      additionalProperties: false
+      required: [mode, href]
+      properties:
+        mode: {type: string, enum: [internal, external]}
+        href: {type: string}
+
+    PublicLegalLinks:
+      type: object
+      additionalProperties: false
+      required: [imprint, privacy]
+      properties:
+        imprint: {$ref: "#/components/schemas/PublicLegalLink"}
+        privacy: {$ref: "#/components/schemas/PublicLegalLink"}
+
+    PublicConfiguration:
+      type: object
+      additionalProperties: false
+      required: [identity, colors, assets, legal, version]
+      properties:
+        identity: {$ref: "#/components/schemas/BrandingIdentity"}
+        colors: {$ref: "#/components/schemas/BrandingColors"}
+        assets: {$ref: "#/components/schemas/PublicBrandingAssets"}
+        legal: {$ref: "#/components/schemas/PublicLegalLinks"}
+        version: {$ref: "#/components/schemas/Version"}
+
+    PublicLegalDocument:
+      type: object
+      additionalProperties: false
+      required: [kind, title, mode, markdown, externalUrl]
+      properties:
+        kind: {type: string, enum: [imprint, privacy]}
+        title: {type: string}
+        mode: {type: string, enum: [internal, external]}
+        markdown: {type: string, nullable: true}
+        externalUrl: {type: string, nullable: true}
+
     UpdateMailConfigurationRequest:
       type: object
       additionalProperties: false
@@ -4519,6 +4793,10 @@ components:
       properties:
         expectedVersion:
           $ref: "#/components/schemas/Version"
+
+    BrandingAssetSlot:
+      type: string
+      enum: [logo, compact_logo, favicon, application_background, authentication_background]
 
     Permission:
       type: object

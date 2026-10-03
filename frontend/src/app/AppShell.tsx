@@ -39,6 +39,7 @@ import { authQueryKey, useCurrentUser, useLogout } from '../features/auth/auth';
 import { canAccessMachineLogbook, canAccessOpenDays, canAccessSettings, hasPermission, PermissionId } from '../features/auth/permissions';
 import { PersonAvatar } from '../features/users/PersonAvatar';
 import { BrandMark } from './BrandMark';
+import { useBranding } from '../features/branding/branding';
 
 const NARROW_SHELL_QUERY = '(max-width: 65.98rem)';
 
@@ -50,6 +51,7 @@ function currentNarrowState(): boolean {
 
 export function AppShell() {
   const currentUser = useCurrentUser();
+	const branding = useBranding();
 	const queryClient = useQueryClient();
   const logoutMutation = useLogout();
   const location = useLocation();
@@ -108,7 +110,7 @@ export function AppShell() {
   return (
     <div className="app-shell">
       <Theme theme="g100">
-        <Header aria-label="HTU Graz Makerspace">
+        <Header aria-label={branding.identity.applicationName}>
           <SkipToContent
             onClick={(event) => {
               event.preventDefault();
@@ -127,10 +129,10 @@ export function AppShell() {
             prefix=""
             className="app-header__brand"
           >
-            <BrandMark className="app-header__logo" />
+            <BrandMark kind="compact" className="app-header__logo" />
             <span className="app-header__wordmark">
-              <span>HTU Graz</span>
-              <strong>Makerspace</strong>
+              <span>{branding.identity.legalOrganizationName}</span>
+              <strong>{branding.identity.displayName}</strong>
             </span>
           </HeaderName>
           <HeaderGlobalBar>
@@ -279,14 +281,8 @@ export function AppShell() {
               <SideNavLink as={Link} to="/about" isActive={location.pathname === '/about'} renderIcon={Information}>
                 About
               </SideNavLink>
-              <SideNavLink
-                as={Link}
-                to="/legal-and-privacy"
-                isActive={location.pathname === '/legal-and-privacy'}
-                renderIcon={Policy}
-              >
-                Legal &amp; Privacy
-              </SideNavLink>
+              {branding.legal.imprint.mode === 'external' ? <SideNavLink href={branding.legal.imprint.href} renderIcon={Policy}>Imprint</SideNavLink> : <SideNavLink as={Link} to={branding.legal.imprint.href} isActive={location.pathname === '/legal/imprint'} renderIcon={Policy}>Imprint</SideNavLink>}
+              {branding.legal.privacy.mode === 'external' ? <SideNavLink href={branding.legal.privacy.href} renderIcon={DocumentSecurity}>Privacy policy</SideNavLink> : <SideNavLink as={Link} to={branding.legal.privacy.href} isActive={location.pathname === '/legal/privacy'} renderIcon={DocumentSecurity}>Privacy policy</SideNavLink>}
             </SideNavItems>
           </SideNav>
         </Header>

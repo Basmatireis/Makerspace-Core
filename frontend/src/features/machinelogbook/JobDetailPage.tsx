@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useParams } from 'react-router-dom';
 import { clearMachineJobPriceOverride, overrideMachineJobPrice, updateMachineJobBilling } from '../../api/generated/machine-jobs/machine-jobs';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { PermissionId, hasPermission } from '../auth/permissions';
 import { useCurrentUser } from '../auth/auth';
@@ -32,8 +32,7 @@ export function JobDetailPage() {
   if (query.isPending) return <FullPageLoading label="Loading job" />;
   if (query.isError) return <ErrorState message="This job could not be loaded." onRetry={() => query.refetch()} />;
   const job = query.data;
-  return <Stack gap={7} className="machine-logbook-page detail-page">
-    <PageHeader title={job.displayId} description={`${job.machine.name} · ${formatDateTime(job.startsAt)}`} breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Jobs', to: '/machine-logbook/jobs' }, { label: job.displayId }]} actions={<><OutcomeTag outcome={job.outcome} /><BillingTag status={job.billingStatus} />{job.source === 'automatic' && <Tag type="gray">Automatic</Tag>}</>} />
+  return <PageShell title={job.displayId} description={`${job.machine.name} · ${formatDateTime(job.startsAt)}`} breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Jobs', to: '/machine-logbook/jobs' }, { label: job.displayId }]} actions={<><OutcomeTag outcome={job.outcome} /><BillingTag status={job.billingStatus} />{job.source === 'automatic' && <Tag type="gray">Automatic</Tag>}</>} width="wide" className="machine-logbook-page detail-page">
     <div className="detail-grid">
       <DetailTile title="Machine & timing" rows={[['Machine', job.machine.name], ['Machine type', job.machine.machineType.name], ['Start', formatDateTime(job.startsAt)], ['End', formatDateTime(job.endsAt)], ['Duration', formatDuration(job.durationSeconds)], ['External ID', job.externalId ?? '—']]} />
       <DetailTile title="Customer & operator" rows={[['Customer', job.customer?.displayName ?? 'Deleted / unassigned'], ['Customer type', job.customer?.kind ?? '—'], ['Pricing group', job.pricingSnapshot?.pricingGroupName ?? '—'], ['Operator', job.operator?.displayName ?? 'Deleted / unassigned']]} />
@@ -47,7 +46,7 @@ export function JobDetailPage() {
     </div>
     <Modal open={overrideOpen} modalHeading="Override final price" primaryButtonText={overrideMutation.isPending ? 'Saving…' : 'Save override'} secondaryButtonText="Cancel" primaryButtonDisabled={overrideMutation.isPending} onRequestClose={() => setOverrideOpen(false)} onRequestSubmit={overrideForm.handleSubmit((values) => overrideMutation.mutate(values))}><Stack gap={5}><TextInput id="override-amount" labelText="Final price (€)" {...overrideForm.register('amount', { required: true })} /><TextInput id="override-reason" labelText="Reason" {...overrideForm.register('reason', { required: true })} />{overrideMutation.isError && <p className="form-error">The override could not be saved. Reload if the job changed.</p>}</Stack></Modal>
     <Modal open={billingOpen} modalHeading="Update billing status" primaryButtonText={billingMutation.isPending ? 'Saving…' : 'Save status'} secondaryButtonText="Cancel" primaryButtonDisabled={billingMutation.isPending} onRequestClose={() => setBillingOpen(false)} onRequestSubmit={billingForm.handleSubmit((values) => billingMutation.mutate(values))}><Stack gap={5}><Select id="billing-status" labelText="Status" {...billingForm.register('status')}><SelectItem value="unbilled" text="Unbilled" /><SelectItem value="billed" text="Billed" /><SelectItem value="waived" text="Waived" /></Select><TextInput id="billing-reference" labelText="External billing reference" {...billingForm.register('reference')} /><TextInput id="waiver-reason" labelText="Waiver reason" {...billingForm.register('waiverReason')} />{billingMutation.isError && <p className="form-error">Billing status could not be saved. Reload if the job changed.</p>}</Stack></Modal>
-  </Stack>;
+  </PageShell>;
 }
 
 function DetailTile({ title, rows }: { title: string; rows: Array<[string, string]> }) {

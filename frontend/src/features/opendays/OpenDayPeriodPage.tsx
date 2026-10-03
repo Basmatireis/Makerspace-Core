@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import { Calendar as CalendarIcon, Edit, List } from '@carbon/icons-react';
-import { Button, DataTable, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, Tag } from '@carbon/react';
+import { Button, DataTable, Dropdown, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, Tag } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { dateInTimeZone, timeInTimeZone } from './dateTime';
-import { longDate, staffingLabel, statusTagType, timeRange } from './format';
+import { longDate, periodRange, statusTagType, timeRange } from './format';
 import { OpenDayDateTimeFilters } from './OpenDayDateTimeFilters';
+import { OpenDayPeriodSummary } from './OpenDayPeriodSummary';
 import { allOpenDayDateTimeFilters, filterOpenDaysByDateTime, type OpenDayDateTimeFilter } from './openDayDateTimeFilter';
 import { filterOpenDays, openDayFilterOptions, type OpenDayFilter } from './openDayFilters';
 import { openDaySchedulePath } from './paths';
@@ -37,12 +38,11 @@ export function OpenDayPeriodPage() {
   if (params.get('mode') === 'edit' && canManage && period.status !== 'archived') return <ScheduleEditorPage />;
   const visibleItems = filterOpenDaysByDateTime(filterOpenDays(items, filter), dateTimeFilter, scheduleQuery.data.timeZone);
   const visibleItemsById = new Map(visibleItems.map((day) => [day.id, day]));
-  const rows = visibleItems.map((day) => ({ id: day.id, date: dateInTimeZone(day.startsAt, scheduleQuery.data.timeZone), time: timeInTimeZone(day.startsAt, scheduleQuery.data.timeZone), supervisors: requirementCount(day, 'supervisor'), trainees: requirementCount(day, 'trainee'), status: staffingLabel(day), assignment: day.myAssignment ? (day.requirements.find((item) => item.id === day.myAssignment?.requirementId)?.kind ?? 'Assigned') : '—' }));
-  const headers = [{ key: 'date', header: 'Date' }, { key: 'time', header: 'Time' }, { key: 'supervisors', header: 'Supervisors' }, { key: 'trainees', header: 'Trainees' }, { key: 'status', header: 'Staffing status' }, { key: 'assignment', header: 'My assignment' }];
+  const rows = visibleItems.map((day) => ({ id: day.id, date: dateInTimeZone(day.startsAt, scheduleQuery.data.timeZone), time: timeInTimeZone(day.startsAt, scheduleQuery.data.timeZone), supervisors: requirementCount(day, 'supervisor'), trainees: requirementCount(day, 'trainee'), assignment: day.myAssignment ? (day.requirements.find((item) => item.id === day.myAssignment?.requirementId)?.kind ?? 'Assigned') : '—' }));
+  const headers = [{ key: 'date', header: 'Date' }, { key: 'time', header: 'Time' }, { key: 'supervisors', header: 'Supervisors' }, { key: 'trainees', header: 'Trainees' }, { key: 'assignment', header: 'My assignment' }];
 
-  return <Stack gap={6} className="open-day-period-page">
-    <PageHeader title={period.name} breadcrumbs={[{ label: 'Open Days', to: '/open-days' }]} description={`${period.startsOn} – ${period.endsOn}`} actions={canManage && period.status !== 'archived' ? <Button renderIcon={Edit} onClick={() => navigate(openDaySchedulePath(period.id))}>Edit</Button> : undefined} />
-    <div className="period-summary-bar"><div><span>Period</span><strong>{period.name}</strong><Tag type={statusTagType(period.status)}>{period.status}</Tag></div><div className="period-summary-bar__stats"><span><strong>{period.totalOpenDays}</strong>Total</span><span><strong className="status-good">{period.fullyStaffedCount}</strong>Fully staffed</span><span><strong className="status-bad">{period.needsStaffCount}</strong>Needs staff</span></div></div>
+  return <PageShell title={period.name} titleAdornment={<Tag type={statusTagType(period.status)}>{period.status}</Tag>} breadcrumbs={[{ label: 'Open Days', to: '/open-days' }, { label: period.name }]} description={periodRange(period)} actions={canManage && period.status !== 'archived' ? <Button renderIcon={Edit} onClick={() => navigate(openDaySchedulePath(period.id))}>Edit</Button> : undefined} width="wide" className="open-day-period-page">
+    <OpenDayPeriodSummary period={period} />
     <DataTable rows={rows} headers={headers} isSortable>
       {({ rows: tableRows, headers: tableHeaders, getHeaderProps, getRowProps, getTableProps }) => (
         <TableContainer className="open-days-view-container">
@@ -57,7 +57,7 @@ export function OpenDayPeriodPage() {
                 <TableHead><TableRow>{tableHeaders.map((header) => <TableHeader {...getHeaderProps({ header, isSortable: header.key === 'date' || header.key === 'time' })} key={header.key}>{header.header}</TableHeader>)}</TableRow></TableHead>
                 <TableBody>{tableRows.map((row) => {
                   const day = visibleItemsById.get(row.id);
-                  return <TableRow {...getRowProps({ row })} key={row.id} onClick={() => setSelectedOpenDayId(row.id)}>{row.cells.map((cell) => <TableCell key={cell.id}>{cell.info.header === 'status' ? <Tag type={statusTagType(String(cell.value))}>{String(cell.value)}</Tag> : cell.info.header === 'date' && day ? longDate(day.startsAt, scheduleQuery.data.timeZone) : cell.info.header === 'time' && day ? timeRange(day, scheduleQuery.data.timeZone) : String(cell.value)}</TableCell>)}</TableRow>;
+                  return <TableRow {...getRowProps({ row })} key={row.id} onClick={() => setSelectedOpenDayId(row.id)}>{row.cells.map((cell) => <TableCell key={cell.id}>{cell.info.header === 'date' && day ? longDate(day.startsAt, scheduleQuery.data.timeZone) : cell.info.header === 'time' && day ? timeRange(day, scheduleQuery.data.timeZone) : String(cell.value)}</TableCell>)}</TableRow>;
                 })}</TableBody>
               </Table>
             </div>
@@ -66,21 +66,32 @@ export function OpenDayPeriodPage() {
       )}
     </DataTable>
     {selectedOpenDayId && <OpenDayRegistrationModal periodId={period.id} periodStatus={period.status} openDayId={selectedOpenDayId} onRequestClose={() => setSelectedOpenDayId(null)} />}
-  </Stack>;
+  </PageShell>;
 }
 
 function OpenDayViewToolbar({ filter, dateTimeFilter, items, timeZone, view, onFilter, onDateTimeFilter, onView }: { filter: OpenDayFilter; dateTimeFilter: OpenDayDateTimeFilter; items: Array<{ startsAt: string }>; timeZone: string; view: 'table' | 'calendar'; onFilter: (filter: OpenDayFilter) => void; onDateTimeFilter: (filter: OpenDayDateTimeFilter) => void; onView: (view: 'table' | 'calendar') => void }) {
   return (
     <TableToolbar aria-label="Open Days tools" className="open-days-view-toolbar">
       <TableToolbarContent>
-        <div className="open-days-view-toolbar__filters" role="group" aria-label="Filter Open Days">
-          {openDayFilterOptions.map((option) => <Button key={option.value} kind={filter === option.value ? 'secondary' : 'ghost'} size="md" aria-pressed={filter === option.value} onClick={() => onFilter(option.value)}>{option.label}</Button>)}
+        <div className="open-days-view-toolbar__primary">
+          <div className="open-days-view-toolbar__views" role="group" aria-label="Open Days view">
+            <Button hasIconOnly kind={view === 'table' ? 'primary' : 'ghost'} size="md" renderIcon={List} iconDescription="Table view" aria-pressed={view === 'table'} onClick={() => onView('table')} />
+            <Button hasIconOnly kind={view === 'calendar' ? 'primary' : 'ghost'} size="md" renderIcon={CalendarIcon} iconDescription="Calendar view" aria-pressed={view === 'calendar'} onClick={() => onView('calendar')} />
+          </div>
+          <OpenDayDateTimeFilters idPrefix="open-days" items={items} timeZone={timeZone} value={dateTimeFilter} onChange={onDateTimeFilter} />
         </div>
-        <OpenDayDateTimeFilters idPrefix="open-days" items={items} timeZone={timeZone} value={dateTimeFilter} onChange={onDateTimeFilter} />
-        <div className="open-days-view-toolbar__views" role="group" aria-label="Open Days view">
-          <Button hasIconOnly kind={view === 'table' ? 'primary' : 'ghost'} size="md" renderIcon={List} iconDescription="Table view" aria-pressed={view === 'table'} onClick={() => onView('table')} />
-          <Button hasIconOnly kind={view === 'calendar' ? 'primary' : 'ghost'} size="md" renderIcon={CalendarIcon} iconDescription="Calendar view" aria-pressed={view === 'calendar'} onClick={() => onView('calendar')} />
-        </div>
+        <Dropdown
+          id="open-days-availability-filter"
+          className="open-days-view-toolbar__status-filter"
+          titleText="Filter Open Days"
+          hideLabel
+          size="md"
+          label="Choose Open Days"
+          items={openDayFilterOptions}
+          itemToString={(option) => option?.label ?? ''}
+          selectedItem={openDayFilterOptions.find((option) => option.value === filter)}
+          onChange={({ selectedItem }) => onFilter(selectedItem?.value ?? 'all')}
+        />
       </TableToolbarContent>
     </TableToolbar>
   );

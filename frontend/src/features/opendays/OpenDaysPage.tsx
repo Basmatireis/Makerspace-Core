@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Add, ArrowRight, Edit, SettingsAdjust } from '@carbon/icons-react';
-import { Button, ClickableTile, Stack, Tag, Tile } from '@carbon/react';
+import { Button, ClickableTile, Tag, Tile } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
@@ -20,12 +20,12 @@ export function OpenDaysPage() {
   const canManage = hasPermission(currentUser, PermissionId.open_daysmanage);
 
   return (
-    <Stack gap={7} className="open-days-page">
-      <PageHeader
-        title="Open Days"
-        description="Plan schedules, coordinate staffing, and see your assignments."
-        actions={canManage ? <><Button kind="secondary" renderIcon={SettingsAdjust} onClick={() => navigate('/open-days/manage')}>Manage periods</Button><Button renderIcon={Add} onClick={() => setCreateOpen(true)}>New period</Button></> : undefined}
-      />
+    <PageShell
+      title="Open Days"
+      description="Plan schedules, coordinate staffing, and see your assignments."
+      actions={canManage ? <><Button kind="secondary" renderIcon={SettingsAdjust} onClick={() => navigate('/open-days/manage')}>Manage periods</Button><Button renderIcon={Add} onClick={() => setCreateOpen(true)}>New period</Button></> : undefined}
+      className="open-days-page"
+    >
       {periodsQuery.isPending && <InlineLoadingState label="Loading Open Day periods" />}
       {periodsQuery.isError && <ErrorState title="Unable to load Open Days" message="Check the connection and try again." onRetry={() => void periodsQuery.refetch()} />}
       {periodsQuery.data && (
@@ -60,6 +60,6 @@ export function OpenDaysPage() {
           navigate(openDaySchedulePath(periodId), { state: { openDayDefaults: defaults } });
         }}
       />}
-    </Stack>
+    </PageShell>
   );
 }

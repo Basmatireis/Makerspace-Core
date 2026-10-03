@@ -24,7 +24,7 @@ import { useForm } from 'react-hook-form';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { createMaterial } from '../../api/generated/inventory/inventory';
 import type { MaterialUnit, StockState } from '../../api/generated/models';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { PermissionId, hasPermission } from '../auth/permissions';
 import { useCurrentUser } from '../auth/auth';
@@ -103,15 +103,16 @@ export function InventoryPage() {
     status: item.stockState,
   }));
 
-  return <Stack gap={7} className="machine-logbook-page table-page">
-    <PageHeader
-      title="Inventory"
-      description={`Total inventory value: ${formatMoney(query.data.totalInventoryValue)}`}
-      breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Inventory' }]}
-      actions={hasPermission(currentUser, PermissionId.inventorymanage)
-        ? <Button renderIcon={Add} onClick={() => setCreateOpen(true)}>Add material</Button>
-        : undefined}
-    />
+  return <PageShell
+    title="Inventory"
+    description={`Total inventory value: ${formatMoney(query.data.totalInventoryValue)}`}
+    breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Inventory' }]}
+    actions={hasPermission(currentUser, PermissionId.inventorymanage)
+      ? <Button renderIcon={Add} onClick={() => setCreateOpen(true)}>Add material</Button>
+      : undefined}
+    width="wide"
+    className="machine-logbook-page table-page"
+  >
     <div className="filter-bar">
       <Search labelText="Search materials" value={params.get('search') || ''} onChange={(event) => update('search', event.currentTarget.value)} />
       <Select id="stock-filter" labelText="Stock state" hideLabel value={params.get('stock') || ''} onChange={(event) => update('stock', event.target.value)}>
@@ -164,5 +165,5 @@ export function InventoryPage() {
         {mutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Material not created" subtitle="Check the values and make sure the name is unique." />}
       </Stack>
     </Modal>}
-  </Stack>;
+  </PageShell>;
 }

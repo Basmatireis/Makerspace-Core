@@ -1,23 +1,29 @@
 import type { OpenDay, OpenDayPeriod } from '../../api/generated/models';
+import { APP_LOCALE, formatLongDate, formatTime } from '../../app/dateTime';
+
+function periodDate(value: string) {
+  const date = new Date(`${value}T12:00:00Z`);
+  if (Number.isNaN(date.valueOf())) return value;
+  return new Intl.DateTimeFormat(APP_LOCALE, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(date);
+}
 
 export function periodRange(period: Pick<OpenDayPeriod, 'startsOn' | 'endsOn'>) {
-  const formatter = new Intl.DateTimeFormat(undefined, {
-    day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
-  });
-  return `${formatter.format(new Date(`${period.startsOn}T00:00:00Z`))} – ${formatter.format(new Date(`${period.endsOn}T00:00:00Z`))}`;
+  return `${periodDate(period.startsOn)} – ${periodDate(period.endsOn)}`;
 }
 
-export function longDate(instant: string, timeZone: string) {
-  return new Intl.DateTimeFormat(undefined, {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone,
-  }).format(new Date(instant));
+export function longDate(instant: string, _timeZone: string) {
+  void _timeZone;
+  return formatLongDate(instant);
 }
 
-export function timeRange(day: Pick<OpenDay, 'startsAt' | 'endsAt'>, timeZone: string) {
-  const formatter = new Intl.DateTimeFormat(undefined, {
-    hour: '2-digit', minute: '2-digit', timeZone,
-  });
-  return `${formatter.format(new Date(day.startsAt))}–${formatter.format(new Date(day.endsAt))}`;
+export function timeRange(day: Pick<OpenDay, 'startsAt' | 'endsAt'>, _timeZone: string) {
+  void _timeZone;
+  return `${formatTime(day.startsAt)}–${formatTime(day.endsAt)}`;
 }
 
 export function isFullyStaffed(day: OpenDay) {

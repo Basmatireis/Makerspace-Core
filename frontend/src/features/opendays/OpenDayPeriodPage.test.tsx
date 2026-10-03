@@ -31,8 +31,8 @@ function openDay(id: string, startsOn: string, overrides: Partial<OpenDay> = {})
   return {
     id,
     periodId,
-    startsAt: `${startsOn}T08:00:00Z`,
-    endsAt: `${startsOn}T11:00:00Z`,
+    startsAt: `${startsOn}T06:00:00Z`,
+    endsAt: `${startsOn}T09:00:00Z`,
     status: 'scheduled',
     requirements: [
       requirement(`${id.slice(0, -1)}1`, 'supervisor', 2, 2),
@@ -90,6 +90,10 @@ describe('Open Day period editing entry point', () => {
     const user = userEvent.setup();
 
     expect(await screen.findByRole('heading', { name: 'Winter Semester 2026/27' })).toBeInTheDocument();
+    expect(within(screen.getByRole('navigation', { name: 'Breadcrumb' })).getByText('Winter Semester 2026/27')).toHaveAttribute('aria-current', 'true');
+    expect(screen.getByText('staffing')).toBeInTheDocument();
+    expect(screen.getByText('1 October 2026 – 1 October 2026')).toBeInTheDocument();
+    expect(within(screen.getByLabelText('Period summary')).getByText('Open supervisor positions')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Edit' }));
 
@@ -178,8 +182,8 @@ describe('Open Day period creation', () => {
 
     await user.click((await screen.findAllByRole('button', { name: 'New period' }))[0]);
     await user.type(screen.getByLabelText('Name'), created.name);
-    await user.type(screen.getByLabelText('Start date'), created.startsOn);
-    await user.type(screen.getByLabelText('End date'), created.endsOn);
+    await user.type(screen.getByLabelText('Start date'), '01.10.2026');
+    await user.type(screen.getByLabelText('End date'), '01.10.2026');
     await user.click(screen.getByRole('button', { name: 'Next' }));
 
     expect(screen.getByRole('heading', { name: 'Academic breaks' })).toBeInTheDocument();
@@ -266,8 +270,8 @@ describe('Open Day table and calendar filters', () => {
     ],
   });
   const traineeVacancy = openDay('0192f6f8-743e-7c77-a349-cd07c3e8a922', '2026-10-02', {
-    startsAt: '2026-10-02T14:00:00Z',
-    endsAt: '2026-10-02T17:00:00Z',
+    startsAt: '2026-10-02T12:00:00Z',
+    endsAt: '2026-10-02T15:00:00Z',
     requirements: [
       requirement('0192f6f8-743e-7c77-a349-cd07c3e8a933', 'supervisor', 2, 2),
       requirement('0192f6f8-743e-7c77-a349-cd07c3e8a934', 'trainee', 0, 1),
@@ -342,7 +346,7 @@ describe('Open Day table and calendar filters', () => {
         HttpResponse.json({
           period: { ...period(status), endsOn: '2026-10-04', totalOpenDays: 4 },
           items: visibleOpenDays,
-          timeZone: 'UTC',
+          timeZone: 'Europe/Vienna',
         }),
       ),
       http.get('*/api/v1/open-days/:openDayId', ({ params }) => {
@@ -352,7 +356,7 @@ describe('Open Day table and calendar filters', () => {
       }),
       http.get('*/api/v1/open-day-periods/:periodId/calendar-context', () =>
         HttpResponse.json({
-          timeZone: 'UTC',
+          timeZone: 'Europe/Vienna',
           countryCode: 'AT',
           subdivisionCode: 'AT-6',
           languageCode: 'de',
@@ -391,7 +395,7 @@ describe('Open Day table and calendar filters', () => {
     const breakLabels = within(calendar).getAllByText('Autumn break').filter((item) => item.closest('.calendar-marker--academicBreak.calendar-marker--label'));
     expect(holidayLabel).toBeInTheDocument();
     expect(breakLabels).toHaveLength(3);
-    expect(within(calendar).getAllByLabelText('Academic break: Autumn break, 2026-10-02 to 2026-10-04')).toHaveLength(3);
+    expect(within(calendar).getAllByLabelText('Academic break: Autumn break, 02.10.2026 to 04.10.2026')).toHaveLength(3);
 
     const staffedEvent = within(calendar).getByTitle('Fully staffed').closest('.calendar-slot');
     const cancelledEvent = within(calendar).getByTitle('Cancelled').closest('.calendar-slot');
@@ -432,20 +436,20 @@ describe('Open Day table and calendar filters', () => {
     await screen.findByLabelText('Semester calendar');
 
     const viewSwitcher = container.querySelector<HTMLElement>('[aria-label="Open Days view"]');
-    const filterSwitcher = container.querySelector<HTMLElement>('[aria-label="Filter Open Days"]');
+    const openDayFilter = screen.getByRole('combobox', { name: 'Filter Open Days' });
     const sharedToolbar = screen.getByLabelText('Open Days tools');
     expect(viewSwitcher).not.toBeNull();
-    expect(filterSwitcher).not.toBeNull();
-    expect(within(filterSwitcher!).getAllByRole('button')).toHaveLength(3);
-    expect(within(filterSwitcher!).getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'true');
+    expect(openDayFilter).toHaveTextContent('All');
     expect(within(viewSwitcher!).getByRole('button', { name: 'Calendar view' })).toHaveAttribute('aria-pressed', 'true');
 
     await user.click(within(viewSwitcher!).getByRole('button', { name: 'Table view' }));
     expect(screen.getByLabelText('Open Days tools')).toBe(sharedToolbar);
     expect(within(viewSwitcher!).getByRole('button', { name: 'Table view' })).toHaveAttribute('aria-pressed', 'true');
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(5);
+    expect(within(screen.getByRole('table')).queryByRole('columnheader', { name: 'Staffing status' })).not.toBeInTheDocument();
 
-    await user.click(within(filterSwitcher!).getByText('Needs staff'));
+    await user.click(openDayFilter);
+    await user.click(screen.getByRole('option', { name: 'Open position' }));
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2);
     expect(screen.getByText('1 / 2')).toBeInTheDocument();
 
@@ -457,13 +461,15 @@ describe('Open Day table and calendar filters', () => {
     expect(within(filteredCalendar).queryByTitle('Fully staffed')).not.toBeInTheDocument();
     expect(within(filteredCalendar).queryByTitle('Cancelled')).not.toBeInTheDocument();
 
-    await user.click(within(filterSwitcher!).getByText('My Open Days'));
+    await user.click(openDayFilter);
+    await user.click(screen.getByRole('option', { name: 'My Open Days' }));
     expect(within(screen.getByLabelText('Semester calendar')).getAllByTitle('Your assignment')).toHaveLength(2);
 
     await user.click(within(viewSwitcher!).getByRole('button', { name: 'Table view' }));
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(3);
 
-    await user.click(within(filterSwitcher!).getByText('All'));
+    await user.click(openDayFilter);
+    await user.click(screen.getByRole('option', { name: 'All' }));
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(5);
   });
 
@@ -484,7 +490,7 @@ describe('Open Day table and calendar filters', () => {
     await waitFor(() => expect(within(dateTimeFilters).getByRole('option', { name: 'Friday' })).toHaveAttribute('aria-checked', 'true'));
     let table = screen.getByRole('table');
     expect(within(table).getAllByRole('row')).toHaveLength(3);
-    expect(within(table).getByText(timeRange(traineeVacancy, 'UTC'))).toBeInTheDocument();
+    expect(within(table).getByText(timeRange(traineeVacancy, 'Europe/Vienna'))).toBeInTheDocument();
 
     await user.click(startTime);
     await user.click(within(dateTimeFilters).getByRole('option', { name: '08:00' }));
@@ -498,12 +504,12 @@ describe('Open Day table and calendar filters', () => {
     const dateHeader = within(table).getByRole('columnheader', { name: /Date/ });
     await user.click(within(dateHeader).getByRole('button'));
     await user.click(within(dateHeader).getByRole('button'));
-    expect(within(within(table).getAllByRole('row')[1]).getByText(longDate(traineeVacancy.startsAt, 'UTC'))).toBeInTheDocument();
+    expect(within(within(table).getAllByRole('row')[1]).getByText(longDate(traineeVacancy.startsAt, 'Europe/Vienna'))).toBeInTheDocument();
 
     const timeHeader = within(table).getByRole('columnheader', { name: /Time/ });
     await user.click(within(timeHeader).getByRole('button'));
     await user.click(within(timeHeader).getByRole('button'));
-    expect(within(within(table).getAllByRole('row')[1]).getByText(timeRange(traineeVacancy, 'UTC'))).toBeInTheDocument();
+    expect(within(within(table).getAllByRole('row')[1]).getByText(timeRange(traineeVacancy, 'Europe/Vienna'))).toBeInTheDocument();
   });
 
   it('shows date details on hover and handles self-registration in a modal', async () => {
@@ -554,7 +560,7 @@ describe('Open Day table and calendar filters', () => {
     await user.unhover(ownHoverSurface!);
 
     await user.click(openDayButton);
-    const registration = await screen.findByRole('dialog', { name: /Thursday, October 1, 2026/ });
+    const registration = await screen.findByRole('dialog', { name: /Thursday, 01\.10\.2026/ });
     expect(within(registration).getByText(/08:00.*11:00/)).toBeInTheDocument();
     expect(within(registration).queryByRole('button', { name: 'Cancel Open Day' })).not.toBeInTheDocument();
     expect(within(registration).queryByRole('button', { name: 'Delete Open Day' })).not.toBeInTheDocument();
@@ -603,7 +609,7 @@ describe('Open Day table and calendar filters', () => {
 
     const calendar = await screen.findByLabelText('Semester calendar');
     await user.click(within(calendar).getByRole('button', { name: /Supervisor position open/ }));
-    const registration = await screen.findByRole('dialog', { name: /Thursday, October 1, 2026/ });
+    const registration = await screen.findByRole('dialog', { name: /Thursday, 01\.10\.2026/ });
     await user.click(within(registration).getByRole('button', { name: 'Cancel Open Day' }));
 
     const confirmation = await screen.findByRole('dialog', { name: 'Cancel Open Day?' });
@@ -611,7 +617,7 @@ describe('Open Day table and calendar filters', () => {
     await user.click(within(confirmation).getByRole('button', { name: 'Cancel Open Day' }));
 
     await waitFor(() => expect(submittedVersion).toEqual({ expectedVersion: supervisorVacancy.version }));
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Thursday, October 1, 2026/ })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Thursday, 01\.10\.2026/ })).not.toBeInTheDocument());
   });
 
   it('lets managers permanently delete a draft Open Day from the registration modal', async () => {
@@ -628,7 +634,7 @@ describe('Open Day table and calendar filters', () => {
 
     const calendar = await screen.findByLabelText('Semester calendar');
     await user.click(within(calendar).getByRole('button', { name: /Supervisor position open/ }));
-    const registration = await screen.findByRole('dialog', { name: /Thursday, October 1, 2026/ });
+    const registration = await screen.findByRole('dialog', { name: /Thursday, 01\.10\.2026/ });
     await user.click(within(registration).getByRole('button', { name: 'Delete Open Day' }));
 
     const confirmation = await screen.findByRole('dialog', { name: 'Delete Open Day?' });
@@ -636,7 +642,7 @@ describe('Open Day table and calendar filters', () => {
     await user.click(within(confirmation).getByRole('button', { name: 'Delete Open Day' }));
 
     await waitFor(() => expect(submittedVersion).toEqual({ expectedVersion: supervisorVacancy.version }));
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Thursday, October 1, 2026/ })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Thursday, 01\.10\.2026/ })).not.toBeInTheDocument());
   });
 
   it('keeps archived Open Days read-only in the registration modal', async () => {
@@ -646,7 +652,7 @@ describe('Open Day table and calendar filters', () => {
 
     const calendar = await screen.findByLabelText('Semester calendar');
     await user.click(within(calendar).getByRole('button', { name: /Supervisor position open/ }));
-    const registration = await screen.findByRole('dialog', { name: /Thursday, October 1, 2026/ });
+    const registration = await screen.findByRole('dialog', { name: /Thursday, 01\.10\.2026/ });
 
     expect(within(registration).queryByRole('button', { name: 'Edit Open Day' })).not.toBeInTheDocument();
     expect(within(registration).queryByRole('button', { name: 'Cancel Open Day' })).not.toBeInTheDocument();

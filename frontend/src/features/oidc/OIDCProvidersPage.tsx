@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { createOIDCProvider, listOIDCProviders, updateOIDCProvider } from '../../api/generated/oidc/oidc';
 import type { AuthenticationAssurance, OIDCProvider } from '../../api/generated/models';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useSecretMutation } from '../../api/use-secret-mutation';
 
@@ -26,14 +26,13 @@ export function OIDCProvidersPage() {
   const [creating, setCreating] = useState(false);
   const refresh = async () => queryClient.invalidateQueries({ queryKey: ['oidc'] });
 
-  return <Stack gap={7}>
-    <PageHeader title="OpenID Connect" breadcrumbs={[{ label: 'Settings', to: '/settings' }]} description="Configure external sign-in, trusted assurance mappings, and optional just-in-time provisioning. Client secrets are never returned." actions={<Button onClick={() => setCreating(true)}>Add provider</Button>} />
+  return <PageShell title="OpenID Connect" breadcrumbs={[{ label: 'Settings', to: '/settings' }]} description="Configure external sign-in, trusted assurance mappings, and optional just-in-time provisioning. Client secrets are never returned." actions={<Button onClick={() => setCreating(true)}>Add provider</Button>}>
     {query.isPending && <InlineLoadingState label="Loading identity providers" />}
     {query.isError && <ErrorState title="Unable to load identity providers" message="Check the connection and try again." onRetry={() => void query.refetch()} />}
     {creating && <ProviderForm title="Add provider" initial={blank} onCancel={() => setCreating(false)} onSaved={async () => { setCreating(false); await refresh(); }} />}
     {query.data?.items.length === 0 && !creating && <Tile><p>No OIDC providers are configured. Local password and PIN authentication remain available.</p></Tile>}
     {query.data?.items.map((provider) => <ProviderEditor key={provider.id} provider={provider} onSaved={refresh} />)}
-  </Stack>;
+  </PageShell>;
 }
 
 function ProviderEditor({ provider, onSaved }: { provider: OIDCProvider; onSaved: () => Promise<unknown> }) {

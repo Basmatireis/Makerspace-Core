@@ -1,5 +1,6 @@
 import { Calendar, Education } from '@carbon/icons-react';
 import type { CalendarEntry } from '../../api/generated/models';
+import { formatDate } from '../../app/dateTime';
 
 type Props = {
   entry: CalendarEntry;
@@ -11,7 +12,7 @@ export function CalendarContextMarker({ entry, mode = 'full' }: Props) {
   const Icon = academicBreak ? Education : Calendar;
   const category = academicBreak ? 'Academic break' : 'Public holiday';
   const description = academicBreak
-    ? `${category}: ${entry.name}, ${entry.startsOn} to ${entry.endsOn}`
+    ? `${category}: ${entry.name}, ${formatDate(entry.startsOn)} to ${formatDate(entry.endsOn)}`
     : `${category}: ${entry.name}`;
   const visibleLabel = mode === 'icon' ? '' : entry.name;
 

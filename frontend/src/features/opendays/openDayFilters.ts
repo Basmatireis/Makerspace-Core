@@ -4,7 +4,7 @@ export type OpenDayFilter = 'all' | 'needs-staff' | 'mine';
 
 export const openDayFilterOptions: Array<{ value: OpenDayFilter; label: string }> = [
   { value: 'all', label: 'All' },
-  { value: 'needs-staff', label: 'Needs staff' },
+  { value: 'needs-staff', label: 'Open position' },
   { value: 'mine', label: 'My Open Days' },
 ];
 

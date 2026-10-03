@@ -91,12 +91,14 @@ export async function apiFetch<T>(
     const isPublicAuthenticationRequest =
       pathname.endsWith('/auth/login') || pathname.endsWith('/auth/pin/login') ||
       pathname.endsWith('/auth/password-reset/complete') || pathname.includes('/visitor-enrollment/');
+    const isPublicBrandingRequest = pathname.includes('/public/config') || pathname.includes('/public/legal/') || pathname.includes('/public/branding/assets/');
     const isCurrentUserProbe =
       method === 'GET' &&
       pathname.endsWith('/auth/me');
     if (
       response.status === 401 &&
       !isPublicAuthenticationRequest &&
+      !isPublicBrandingRequest &&
       !isCurrentUserProbe
     ) {
       window.dispatchEvent(new CustomEvent('makerspace:session-expired'));

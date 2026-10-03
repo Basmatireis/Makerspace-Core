@@ -17,8 +17,9 @@ import {
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import type { AuditActorType } from '../../api/generated/models';
-import { PageHeader } from '../../app/PageHeader';
+import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
+import { formatDateTime } from '../../app/dateTime';
 import { actionLabels, presentAction, presentActor, presentTarget, resourceLabels } from './presentation';
 import { activityQuery, type ActivityFilters } from './queries';
 
@@ -48,18 +49,19 @@ export function ActivityPage() {
   const events = query.data?.pages.flatMap((page) => page.items) ?? [];
   const rows = events.map((event) => ({
     id: event.id,
-    time: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(event.occurredAt)),
+    time: formatDateTime(event.occurredAt),
     actor: presentActor(event),
     action: presentAction(event),
     target: presentTarget(event),
   }));
 
   return (
-    <Stack gap={7} className="activity-page table-page">
-      <PageHeader
-        title="Audit Log"
-        description="Review privacy-minimized administrative and account activity. Names reflect current records and disappear after deletion."
-      />
+    <PageShell
+      title="Audit Log"
+      description="Review privacy-minimized administrative and account activity. Names reflect current records and disappear after deletion."
+      width="wide"
+      className="activity-page table-page"
+    >
       <div className="activity-filters">
         <Search
           id="activity-actor-search"
@@ -101,6 +103,6 @@ export function ActivityPage() {
           {query.hasNextPage && <Button kind="tertiary" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()}>{query.isFetchingNextPage ? 'Loading more…' : 'Load more activity'}</Button>}
         </Stack>
       )}
-    </Stack>
+    </PageShell>
   );
 }
