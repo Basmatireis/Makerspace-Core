@@ -432,10 +432,13 @@ test('renders the responsive person detail hierarchy and functional tabs', async
   await expect(page.getByRole('button', { name: 'Supervisor staffing' })).toHaveCount(0);
 
   const cardBounds = async (heading: string) => {
-    const bounds = await page
-      .getByRole('heading', { name: heading, exact: true })
-      .locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " person-detail-card ")][1]')
-      .boundingBox();
+    const headingLocator = page.getByRole('heading', { name: heading, exact: true });
+    await expect(headingLocator).toBeVisible();
+    const card = headingLocator.locator(
+      'xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " person-detail-card ")][1]',
+    );
+    await expect(card).toBeVisible();
+    const bounds = await card.boundingBox();
     if (!bounds) throw new Error(`Could not measure the ${heading} card.`);
     return bounds;
   };

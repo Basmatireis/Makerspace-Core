@@ -311,6 +311,7 @@ test('creates and atomically saves a manager schedule working copy', async ({
   await expect(page.getByRole('button', { name: 'Edit selected' })).toBeVisible();
   await expectAccessible(page);
   await capture(page, testInfo, 'open-days-manager-table-working-copy.png');
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.getByRole('button', { name: 'Save & close' }).click();
 
   await expect.poll(() => savedRequest).toBeDefined();
@@ -435,8 +436,11 @@ test('rejects ambiguous local schedule times without adding a slot', async ({ pa
   });
   await page.goto(`/open-days/${periodId}/schedule`);
   await expect(page.getByRole('heading', { name: 'Edit Winter Semester 2026/27' })).toBeVisible();
-  await page.locator('#default-start').fill('02:30');
-  await page.locator('#default-end').fill('04:00');
+  await page.getByRole('button', { name: 'Open Day defaults' }).click();
+  const defaultsDialog = page.getByRole('dialog', { name: 'Open Day defaults' });
+  await defaultsDialog.locator('#default-start').fill('02:30');
+  await defaultsDialog.locator('#default-end').fill('04:00');
+  await defaultsDialog.getByRole('button', { name: 'Apply defaults' }).click();
   await page.getByRole('button', { name: /Add Open Day.*25|Add.*2026-10-25/ }).click();
   await expect(page.getByText(/Local time 2026-10-25 02:30 is ambiguous/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save & close' })).toBeDisabled();
