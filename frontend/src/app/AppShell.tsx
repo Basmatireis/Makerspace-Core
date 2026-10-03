@@ -38,6 +38,7 @@ import { evaluateVisitorAdmission } from '../api/generated/visitor-enrollment/vi
 import { authQueryKey, useCurrentUser, useLogout } from '../features/auth/auth';
 import { canAccessMachineLogbook, canAccessOpenDays, canAccessSettings, hasPermission, PermissionId } from '../features/auth/permissions';
 import { PersonAvatar } from '../features/users/PersonAvatar';
+import { BrandMark } from './BrandMark';
 
 const NARROW_SHELL_QUERY = '(max-width: 65.98rem)';
 
@@ -120,8 +121,17 @@ export function AppShell() {
             isCollapsible
             onClick={() => setSideNavExpanded((expanded) => !expanded)}
           />
-          <HeaderName as={Link} to="/dashboard" prefix="HTU Graz">
-            Makerspace
+          <HeaderName
+            as={Link}
+            to="/dashboard"
+            prefix=""
+            className="app-header__brand"
+          >
+            <BrandMark className="app-header__logo" />
+            <span className="app-header__wordmark">
+              <span>HTU Graz</span>
+              <strong>Makerspace</strong>
+            </span>
           </HeaderName>
           <HeaderGlobalBar>
             <span className="header-account__name">{displayName}</span>
@@ -266,7 +276,6 @@ export function AppShell() {
               )}
             </SideNavItems>
             <SideNavItems className="app-side-nav__secondary">
-              <SideNavDivider />
               <SideNavLink as={Link} to="/about" isActive={location.pathname === '/about'} renderIcon={Information}>
                 About
               </SideNavLink>

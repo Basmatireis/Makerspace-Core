@@ -7,6 +7,7 @@ import {
   PasswordInput,
   Stack,
   TextInput,
+  Tile,
 } from '@carbon/react';
 import { Login } from '@carbon/icons-react';
 import { useForm } from 'react-hook-form';
@@ -15,6 +16,7 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { getStartOIDCLoginUrl, listOIDCLoginProviders } from '../../api/generated/oidc/oidc';
 import type { LoginRequest, PinLoginRequest } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
+import { BrandMark } from '../../app/BrandMark';
 import { FullPageLoading } from '../../app/PageState';
 import { useCurrentUserQuery, useLogin, usePINLogin } from './auth';
 
@@ -79,14 +81,17 @@ export function LoginPage() {
   const loginError = loginMutation.isError || pinLoginMutation.isError;
 
   return (
-    <main className="auth-page">
+    <main className="auth-page auth-page--login">
       <section className="auth-card" aria-labelledby="login-title">
-        <Stack gap={7}>
-          <div>
-            <p className="auth-card__eyebrow">HTU Graz</p>
-            <h1 id="login-title" className="auth-card__title">
-              Makerspace
-            </h1>
+        <Stack gap={6}>
+          <div className="auth-card__heading">
+            <div className="auth-card__brand">
+              <BrandMark className="auth-card__logo" />
+              <div className="auth-card__wordmark">
+                <span>HTU Graz</span>
+                <h1 id="login-title">Makerspace</h1>
+              </div>
+            </div>
             <p className="auth-card__subtitle">Sign in to continue.</p>
           </div>
 
@@ -161,12 +166,16 @@ export function LoginPage() {
             </Stack>
           )}
 
-          <p className="auth-card__help">
-            Forgot your password? Request a one-time reset code.
-          </p>
-          <CarbonLink as={Link} to="/reset-password">
-            Reset password
-          </CarbonLink>
+          <Tile className="auth-card__support">
+            <p className="auth-card__support-title">Need access?</p>
+            <p className="auth-card__help">
+              Accounts are provided by the Makerspace team. If you already have
+              one but cannot sign in, request a one-time reset code.
+            </p>
+            <CarbonLink as={Link} to="/reset-password">
+              Reset password
+            </CarbonLink>
+          </Tile>
         </Stack>
       </section>
     </main>

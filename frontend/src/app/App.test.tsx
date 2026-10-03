@@ -23,6 +23,10 @@ describe('protected application routing', () => {
     renderRoute(<App />, '/dashboard');
 
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(document.querySelector('.app-header__logo')).toHaveAttribute(
+      'src',
+      '/brand/htumkr-symbol.png',
+    );
     expect(document.querySelector('.header-account__name')).toHaveTextContent('Ada Lovelace');
     expect(document.querySelector('.cds--header__action img.person-avatar')).toHaveAttribute(
       'src',
@@ -98,7 +102,16 @@ describe('protected application routing', () => {
   it('redirects an anonymous visitor to sign in', async () => {
     renderRoute(<App />, '/settings');
     expect(await screen.findByRole('heading', { name: 'Makerspace' })).toBeInTheDocument();
+    expect(document.querySelector('.auth-card__logo')).toHaveAttribute(
+      'src',
+      '/brand/htumkr-symbol.png',
+    );
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
+    expect(screen.getByText('Need access?')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Reset password' })).toHaveAttribute(
+      'href',
+      '/reset-password',
+    );
   });
 
   it('redirects an authenticated user away from settings they cannot access', async () => {

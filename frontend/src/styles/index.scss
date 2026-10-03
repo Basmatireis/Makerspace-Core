@@ -4,6 +4,17 @@
 
 :root {
   color-scheme: light;
+  --brand-violet: #57569f;
+  --brand-violet-dark: #292551;
+  --brand-gold: #ffbf3d;
+  --brand-orange: #e76f12;
+  --brand-accent: linear-gradient(
+    90deg,
+    var(--brand-violet) 0 45%,
+    var(--brand-violet-dark) 45% 50%,
+    var(--brand-gold) 50% 72%,
+    var(--brand-orange) 72% 100%
+  );
 }
 
 html,
@@ -32,11 +43,80 @@ h2 {
   min-height: 100vh;
 }
 
+.cds--header {
+  background-color: #111621;
+  border-block-end: 1px solid rgb(87 86 159 / 32%);
+}
+
+.cds--header__menu-toggle {
+  background-color: #14162e;
+}
+
+.brand-mark {
+  display: block;
+  flex: none;
+  object-fit: contain;
+}
+
+.app-header__brand.cds--header__name {
+  padding-inline: $spacing-04 $spacing-05;
+}
+
+.app-header__brand.cds--header__name > span {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+}
+
+.app-header__logo {
+  inline-size: 1.5rem;
+  block-size: 1.75rem;
+}
+
+.app-header__wordmark {
+  display: grid;
+  line-height: 1;
+}
+
+.app-header__wordmark > span {
+  color: var(--cds-text-secondary);
+  font-size: 0.625rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-header__wordmark > strong {
+  margin-block-start: 0.1875rem;
+  color: var(--cds-text-primary);
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
 .app-main {
+  position: relative;
+  isolation: isolate;
   min-height: calc(100vh - 3rem);
   padding: $spacing-07 $spacing-05 $spacing-09;
   margin-top: 3rem;
   transition: margin-inline-start 110ms cubic-bezier(0.2, 0, 1, 0.9);
+}
+
+.app-main::before {
+  position: absolute;
+  z-index: 0;
+  background:
+    linear-gradient(rgb(255 255 255 / 76%), rgb(255 255 255 / 88%)),
+    url('/brand/blueprint-workshop.jpg') center / cover no-repeat;
+  content: '';
+  inset: 0;
+  pointer-events: none;
+}
+
+.app-main > * {
+  position: relative;
+  z-index: 1;
 }
 
 .app-main--nav-expanded {
@@ -44,13 +124,38 @@ h2 {
 }
 
 .cds--side-nav {
+  isolation: isolate;
   top: 3rem;
   height: calc(100vh - 3rem);
+  background: linear-gradient(180deg, #111621 0%, #151a2a 62%, #2b2230 100%);
+}
+
+.cds--side-nav::after {
+  position: absolute;
+  z-index: 0;
+  block-size: min(22rem, 46%);
+  background: linear-gradient(
+    165deg,
+    transparent 0 31%,
+    rgb(231 111 18 / 4%) 41%,
+    rgb(231 111 18 / 12%) 53%,
+    rgb(231 111 18 / 24%) 69%,
+    rgb(231 111 18 / 32%) 100%
+  );
+  content: '';
+  inset-block-end: 0;
+  inset-inline: 0;
+  pointer-events: none;
 }
 
 .cds--side-nav__navigation {
   display: flex;
   flex-direction: column;
+}
+
+.cds--side-nav__items {
+  position: relative;
+  z-index: 1;
 }
 
 .app-side-nav__primary {
@@ -70,6 +175,11 @@ h2 {
   list-style: none;
   text-transform: uppercase;
   @include type-style('label-01');
+}
+
+.cds--side-nav a.cds--side-nav__link--current::before,
+.cds--side-nav a.cds--side-nav__link[aria-current='page']::before {
+  background-color: var(--brand-violet);
 }
 
 .profile-panel.cds--header-panel--expanded {
@@ -195,9 +305,27 @@ h2 {
 }
 
 .public-page {
+	position: relative;
+	isolation: isolate;
 	max-width: 64rem;
 	margin: 0 auto;
 	padding: $spacing-07 $spacing-05 $spacing-09;
+}
+
+.public-page::before {
+	position: fixed;
+	z-index: 0;
+	background:
+		linear-gradient(rgb(255 255 255 / 78%), rgb(255 255 255 / 86%)),
+		url('/brand/blueprint-details.jpg') center / cover no-repeat;
+	content: '';
+	inset: 0;
+	pointer-events: none;
+}
+
+.public-page > * {
+	position: relative;
+	z-index: 1;
 }
 
 .summary-grid {
@@ -1157,19 +1285,125 @@ h2 {
   min-height: 100vh;
   place-items: center;
   padding: $spacing-05;
-  background: var(--cds-layer-01);
+  background:
+    linear-gradient(rgb(255 255 255 / 72%), rgb(255 255 255 / 86%)),
+    url('/brand/blueprint-details.jpg') center / cover no-repeat,
+    var(--cds-layer);
+}
+
+.auth-page--login {
+  --login-card-width: 28rem;
+  --login-panel-gutter: 9.25rem;
+  --login-panel-width: calc(
+    var(--login-card-width) + var(--login-panel-gutter) + var(--login-panel-gutter)
+  );
+
+  position: relative;
+  isolation: isolate;
+  grid-template-columns: min(var(--login-panel-width), 100%) minmax(0, 1fr);
+  gap: 0;
+  padding-block: clamp(1.25rem, 2vh, 1.75rem);
+  padding-inline: 0;
+  overflow: hidden;
+  background:
+    linear-gradient(rgb(255 255 255 / 66%), rgb(255 255 255 / 82%)),
+    url('/brand/blueprint-details.jpg') center / cover no-repeat,
+    var(--cds-layer);
+}
+
+.auth-page--login::before,
+.auth-page--login::after {
+  position: absolute;
+  z-index: -1;
+  inline-size: min(var(--login-panel-width), 100%);
+  content: '';
+  inset-block: 0;
+  inset-inline-start: 0;
+  pointer-events: none;
+}
+
+.auth-page--login::before {
+  background: linear-gradient(180deg, #111621 0%, #151a2a 62%, #2b2230 100%);
+  box-shadow: 1px 0 0 rgb(0 0 0 / 12%);
+}
+
+.auth-page--login::after {
+  background: linear-gradient(
+    165deg,
+    transparent 0 55%,
+    rgb(231 111 18 / 4%) 63%,
+    rgb(231 111 18 / 12%) 72%,
+    rgb(231 111 18 / 24%) 84%,
+    rgb(231 111 18 / 32%) 100%
+  );
+}
+
+.auth-page--login .auth-card {
+  grid-column: 1;
+  inline-size: var(--login-card-width);
+  justify-self: center;
+  padding: clamp(1.375rem, 1.5vw, 1.625rem);
 }
 
 .auth-card {
+  position: relative;
   width: min(100%, 28rem);
   padding: $spacing-08;
-  background: var(--cds-background);
+  overflow: hidden;
+  background: #fff;
   box-shadow: 0 2px 6px rgb(0 0 0 / 20%);
+}
+
+.auth-card::before {
+  position: absolute;
+  block-size: 4px;
+  background: var(--brand-accent);
+  content: '';
+  inset-block-start: 0;
+  inset-inline: 0;
+}
+
+.auth-card__heading {
+  display: grid;
+}
+
+.auth-card__brand {
+  display: flex;
+  align-items: center;
+  gap: $spacing-03;
+  margin-block-end: $spacing-04;
+}
+
+.auth-card__logo {
+  inline-size: 2.25rem;
+  block-size: 2.5rem;
+}
+
+.auth-card__wordmark {
+  display: grid;
+  line-height: 1;
+}
+
+.auth-card__wordmark > span {
+  color: var(--cds-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.auth-card__wordmark > h1 {
+  margin-block-start: $spacing-02;
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
 }
 
 .auth-card__eyebrow {
   @include type-style('label-02');
-  margin-bottom: $spacing-03;
+  color: var(--brand-violet-dark);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .auth-card__title {
@@ -1178,6 +1412,17 @@ h2 {
 
 .auth-card__subtitle {
   margin-top: $spacing-03;
+}
+
+.auth-card__support {
+  display: grid;
+  gap: $spacing-03;
+  padding: $spacing-05;
+}
+
+.auth-card__support-title {
+  font-weight: 600;
+  @include type-style('heading-compact-01');
 }
 
 .page-state {
@@ -1517,6 +1762,26 @@ h2 {
 
   .people-role-filter { min-inline-size: 12rem; }
 
+}
+
+@media (max-width: 62rem) {
+  .auth-page--login {
+    grid-template-columns: minmax(0, 1fr);
+    padding-block: clamp(1rem, 4vh, 1.5rem);
+    padding-inline: clamp(1rem, 5vw, 1.5rem);
+    background: #111621;
+  }
+
+  .auth-page--login::before,
+  .auth-page--login::after {
+    display: block;
+    inline-size: 100%;
+  }
+
+  .auth-page--login .auth-card {
+    grid-column: 1;
+    inline-size: min(100%, 28rem);
+  }
 }
 
 @media (max-width: 41.98rem) {

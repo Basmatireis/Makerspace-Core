@@ -4,6 +4,7 @@ import { ArrowLeft, Checkmark } from '@carbon/icons-react';
 import { useForm } from 'react-hook-form';
 import { Link, useSearchParams } from 'react-router-dom';
 import { completeEmailVerification, completeInvitation, completePasswordResetCode, completePinEnrollment, requestPasswordReset } from '../../api/generated/authentication/authentication';
+import { BrandMark } from '../../app/BrandMark';
 import { useSecretMutation } from '../../api/use-secret-mutation';
 import { validatePasswordLength } from './password-validation';
 
@@ -38,7 +39,7 @@ export function PINEnrollmentPage() {
 		try { await mutation.mutateAsync({ code: code.toUpperCase(), loginName, pin }); } catch { /* safe error below */ }
 	});
 	return <main className="auth-page"><section className="auth-card" aria-labelledby="pin-setup-title"><Stack gap={7}>
-		<div><p className="auth-card__eyebrow">HTU Graz Makerspace</p><h1 id="pin-setup-title" className="auth-card__title">Set up PIN login</h1><p className="auth-card__subtitle">Choose a unique username and a 6–12 digit PIN. The setup code is single-use.</p></div>
+		<div className="auth-card__heading"><div className="auth-card__brand"><BrandMark className="auth-card__logo" /><p className="auth-card__eyebrow">HTU Graz Makerspace</p></div><h1 id="pin-setup-title" className="auth-card__title">Set up PIN login</h1><p className="auth-card__subtitle">Choose a unique username and a 6–12 digit PIN. The setup code is single-use.</p></div>
 		{!accountId && <InlineNotification kind="error" lowContrast hideCloseButton title="Invalid setup link" subtitle="Use the link from your PIN setup email." />}
 		{mutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="PIN login not configured" subtitle="The code may be invalid or expired, or the username may be unavailable." />}
 		{mutation.isSuccess ? <Stack gap={6}><InlineNotification kind="success" lowContrast hideCloseButton title="PIN login ready" subtitle="You can now sign in with your username and PIN." /><Button as={Link} to="/login" renderIcon={Checkmark}>Continue to sign in</Button></Stack> : <Form onSubmit={submit}><Stack gap={6}>
@@ -60,7 +61,7 @@ export function EmailVerificationPage() {
 		try { await mutation.mutateAsync(values); } catch { /* safe error below */ }
 	});
 	return <main className="auth-page"><section className="auth-card" aria-labelledby="email-verification-title"><Stack gap={7}>
-		<div><p className="auth-card__eyebrow">HTU Graz Makerspace</p><h1 id="email-verification-title" className="auth-card__title">Verify your login email</h1><p className="auth-card__subtitle">Enter the single-use code sent to your local login email.</p></div>
+		<div className="auth-card__heading"><div className="auth-card__brand"><BrandMark className="auth-card__logo" /><p className="auth-card__eyebrow">HTU Graz Makerspace</p></div><h1 id="email-verification-title" className="auth-card__title">Verify your login email</h1><p className="auth-card__subtitle">Enter the single-use code sent to your local login email.</p></div>
 		{mutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Email not verified" subtitle="The code is invalid, expired, or has too many failed attempts." />}
 		{mutation.isSuccess ? <Stack gap={6}><InlineNotification kind="success" lowContrast hideCloseButton title="Email verified" subtitle="Your local login email is now verified." /><Button as={Link} to="/profile" renderIcon={Checkmark}>Return to profile</Button></Stack> : <Form onSubmit={submit}><Stack gap={6}>
 			<TextInput id="verification-email" type="email" autoComplete="email" labelText="Login email" invalid={Boolean(form.formState.errors.email)} invalidText={form.formState.errors.email?.message} {...form.register('email', { required: 'Enter your login email.' })} />
@@ -101,8 +102,11 @@ function PasswordChallengePage({ invitation }: { invitation: boolean }) {
     <main className="auth-page">
       <section className="auth-card" aria-labelledby="reset-title">
         <Stack gap={7}>
-          <div>
-            <p className="auth-card__eyebrow">HTU Graz Makerspace</p>
+          <div className="auth-card__heading">
+            <div className="auth-card__brand">
+              <BrandMark className="auth-card__logo" />
+              <p className="auth-card__eyebrow">HTU Graz Makerspace</p>
+            </div>
             <h1 id="reset-title" className="auth-card__title">{invitation ? 'Complete your invitation' : 'Reset your password'}</h1>
             <p className="auth-card__subtitle">Codes are single-use, expire after a short time, and allow five attempts.</p>
           </div>
