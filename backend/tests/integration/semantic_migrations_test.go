@@ -51,6 +51,8 @@ func TestSemanticMigrationsPreserveSessionsAndInvalidateUnprovenFlows(t *testing
 	applyMigrationFiles(t, pool, paths[15:17])
 	assertCount(t, pool, `SELECT count(*) FROM visitor_enrollment_contexts WHERE id=$1 AND used_at IS NOT NULL AND lab_rules_version_id IS NULL`, 1, contextID)
 	assertCount(t, pool, `SELECT count(*) FROM oidc_flows WHERE id=$1`, 0, flowID)
+	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id=$1 AND role_id=$2`, 1, actor.accountID, masterRoleID)
+	applyMigrationFiles(t, pool, paths[len(paths)-1:])
 	authenticated, err := service.Authenticate(ctx, session.Token)
 	if err != nil {
 		t.Fatalf("migration revoked login: %v", err)
@@ -59,7 +61,7 @@ func TestSemanticMigrationsPreserveSessionsAndInvalidateUnprovenFlows(t *testing
 		t.Fatal("unverified old OIDC timestamp retained sensitive capability")
 	}
 	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE id=$1 AND subject='preserved-subject'`, 1, identity)
-	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id=$1 AND role_id=$2`, 1, actor.accountID, masterRoleID)
+	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`, 1, actor.personID, masterRoleID)
 	var stored []byte
 	if err := pool.QueryRow(ctx, `SELECT token_digest FROM sessions WHERE id=$1`, session.ID).Scan(&stored); err != nil {
 		t.Fatal(err)

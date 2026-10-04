@@ -14,6 +14,7 @@ type Querier interface {
 	AuthenticateConnector(ctx context.Context, tokenDigest []byte) (AuthenticateConnectorRow, error)
 	BumpConnectorVersion(ctx context.Context, arg BumpConnectorVersionParams) (ScimConnector, error)
 	BumpReconciledAccountVersion(ctx context.Context, id uuid.UUID) error
+	BumpReconciledPersonVersion(ctx context.Context, id uuid.UUID) error
 	CountConnectorUsers(ctx context.Context, connectorID uuid.UUID) (int64, error)
 	CountIndependentUsableIdentities(ctx context.Context, arg CountIndependentUsableIdentitiesParams) (int64, error)
 	CountLocalIdentitiesForAccount(ctx context.Context, accountID uuid.UUID) (int64, error)
@@ -51,8 +52,8 @@ type Querier interface {
 	RevokeSessionsForIdentity(ctx context.Context, authIdentityID uuid.UUID) error
 	SetProvisionedAccountStatus(ctx context.Context, arg SetProvisionedAccountStatusParams) error
 	TouchConnectorToken(ctx context.Context, tokenDigest []byte) error
-	TransferAccountRoles(ctx context.Context, arg TransferAccountRolesParams) error
 	TransferExternalIdentities(ctx context.Context, arg TransferExternalIdentitiesParams) error
+	TransferPersonRoles(ctx context.Context, arg TransferPersonRolesParams) error
 	TransferProfileImage(ctx context.Context, arg TransferProfileImageParams) error
 	TransferSCIMMappings(ctx context.Context, arg TransferSCIMMappingsParams) error
 	UpdateConnector(ctx context.Context, arg UpdateConnectorParams) (ScimConnector, error)

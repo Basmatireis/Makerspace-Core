@@ -76,6 +76,15 @@ func (q *Queries) BumpReconciledAccountVersion(ctx context.Context, id uuid.UUID
 	return err
 }
 
+const bumpReconciledPersonVersion = `-- name: BumpReconciledPersonVersion :exec
+UPDATE people SET version=version+1, updated_at=now() WHERE id=$1
+`
+
+func (q *Queries) BumpReconciledPersonVersion(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, bumpReconciledPersonVersion, id)
+	return err
+}
+
 const countConnectorUsers = `-- name: CountConnectorUsers :one
 SELECT count(*) FROM scim_users WHERE connector_id=$1
 `
@@ -975,24 +984,6 @@ func (q *Queries) TouchConnectorToken(ctx context.Context, tokenDigest []byte) e
 	return err
 }
 
-const transferAccountRoles = `-- name: TransferAccountRoles :exec
-INSERT INTO account_roles (account_id, role_id, assigned_by_account_id, assigned_at)
-SELECT $1, source.role_id, $2, now()
-FROM account_roles source WHERE source.account_id=$3
-ON CONFLICT (account_id, role_id) DO NOTHING
-`
-
-type TransferAccountRolesParams struct {
-	TargetAccountID     uuid.UUID
-	AssignedByAccountID *uuid.UUID
-	SourceAccountID     uuid.UUID
-}
-
-func (q *Queries) TransferAccountRoles(ctx context.Context, arg TransferAccountRolesParams) error {
-	_, err := q.db.Exec(ctx, transferAccountRoles, arg.TargetAccountID, arg.AssignedByAccountID, arg.SourceAccountID)
-	return err
-}
-
 const transferExternalIdentities = `-- name: TransferExternalIdentities :exec
 UPDATE auth_identities SET account_id=$1, updated_at=now()
 WHERE account_id=$2 AND kind='oidc'
@@ -1008,9 +999,27 @@ func (q *Queries) TransferExternalIdentities(ctx context.Context, arg TransferEx
 	return err
 }
 
+const transferPersonRoles = `-- name: TransferPersonRoles :exec
+INSERT INTO person_roles (person_id, role_id, assigned_by_account_id, assigned_at)
+SELECT $1, source.role_id, $2, now()
+FROM person_roles source WHERE source.person_id=$3
+ON CONFLICT (person_id, role_id) DO NOTHING
+`
+
+type TransferPersonRolesParams struct {
+	TargetPersonID      uuid.UUID
+	AssignedByAccountID *uuid.UUID
+	SourcePersonID      uuid.UUID
+}
+
+func (q *Queries) TransferPersonRoles(ctx context.Context, arg TransferPersonRolesParams) error {
+	_, err := q.db.Exec(ctx, transferPersonRoles, arg.TargetPersonID, arg.AssignedByAccountID, arg.SourcePersonID)
+	return err
+}
+
 const transferProfileImage = `-- name: TransferProfileImage :exec
 UPDATE people target SET profile_image_file_id=source.profile_image_file_id,
-    profile_image_source=source.profile_image_source, version=target.version+1, updated_at=now()
+    profile_image_source=source.profile_image_source, updated_at=now()
 FROM people source
 WHERE target.id=$1 AND source.id=$2
   AND target.profile_image_file_id IS NULL AND source.profile_image_file_id IS NOT NULL

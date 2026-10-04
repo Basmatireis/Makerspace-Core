@@ -25,7 +25,7 @@ function event(overrides: Partial<AuditEvent> = {}): AuditEvent {
 describe('activity presentation', () => {
   it('renders current labels for people, roles, Open Days, devices, Lab Rules, authentication, and system events', () => {
     expect(presentAction(event())).toBe('Updated person');
-    expect(presentAction(event({ action: 'account.role_assigned', resolvedMetadata: { roleId: 'Supervisors' } }))).toBe('Assigned role: Supervisors');
+    expect(presentAction(event({ action: 'person.role_assigned', resolvedMetadata: { roleId: 'Supervisors' } }))).toBe('Assigned role: Supervisors');
     expect(presentAction(event({ action: 'open_day_period.published' }))).toBe('Published Open Day period');
     expect(presentAction(event({ action: 'managed_device.revoked' }))).toBe('Revoked managed device');
     expect(presentAction(event({ action: 'laborordnung.version.published' }))).toBe('Published Lab Rules version');

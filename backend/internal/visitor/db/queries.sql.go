@@ -22,16 +22,16 @@ func (q *Queries) AddAllowedDeviceType(ctx context.Context, deviceTypeID uuid.UU
 }
 
 const assignVisitorRole = `-- name: AssignVisitorRole :exec
-INSERT INTO account_roles (account_id, role_id) VALUES ($1, $2)
+INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)
 `
 
 type AssignVisitorRoleParams struct {
-	AccountID uuid.UUID
-	RoleID    uuid.UUID
+	PersonID uuid.UUID
+	RoleID   uuid.UUID
 }
 
 func (q *Queries) AssignVisitorRole(ctx context.Context, arg AssignVisitorRoleParams) error {
-	_, err := q.db.Exec(ctx, assignVisitorRole, arg.AccountID, arg.RoleID)
+	_, err := q.db.Exec(ctx, assignVisitorRole, arg.PersonID, arg.RoleID)
 	return err
 }
 

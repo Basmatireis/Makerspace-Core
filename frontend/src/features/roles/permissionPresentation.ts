@@ -51,7 +51,7 @@ const presentation: Partial<Record<PermissionId, PermissionPresentation>> = {
   'accounts.pin.remove.self': { group: 'Accounts & authentication', label: 'Remove own PIN' },
   'accounts.pin.remove.all': { group: 'Accounts & authentication', label: 'Remove account PINs' },
   'accounts.pin.reset': { group: 'Accounts & authentication', label: 'Reset PINs' },
-  'accounts.roles.assign': { group: 'Roles & audit', label: 'Assign roles' },
+  'people.roles.assign': { group: 'Roles & audit', label: 'Assign roles' },
   'roles.read': { group: 'Roles & audit', label: 'View roles' },
   'roles.manage': { group: 'Roles & audit', label: 'Manage roles' },
   'audit.read': { group: 'Roles & audit', label: 'View audit events' },

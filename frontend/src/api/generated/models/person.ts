@@ -21,6 +21,7 @@ the required session and CSRF credentials.
 import type { UUIDv7 } from './uUIDv7';
 import type { PersonEmail } from './personEmail';
 import type { PersonProfileImage } from './personProfileImage';
+import type { RoleSummary } from './roleSummary';
 import type { PersonAccount } from './personAccount';
 import type { Version } from './version';
 
@@ -62,6 +63,7 @@ export interface Person {
   profileImage?: PersonProfileImage;
   /** True when any assigned Role requires a profile image. */
   profileImageRequired?: boolean;
+  roles: RoleSummary[];
   /**
    * Omitted without `accounts.read`; null means this person has no account.
    * @nullable

@@ -52,8 +52,8 @@ func TestOpenDayAssignmentReturnsNameBeyondEligibilityPage(t *testing.T) {
 	if _, err := pool.Exec(ctx, `WITH people_insert AS (
 		INSERT INTO people(id,first_name,last_name,phone) SELECT uuidv7(),'Earlier','AAA','+43123456789' FROM generate_series(1,201) RETURNING id
 	), accounts_insert AS (
-		INSERT INTO accounts(id,person_id,status) SELECT uuidv7(),id,'enabled' FROM people_insert RETURNING id
-	) INSERT INTO account_roles(account_id,role_id) SELECT id,$1 FROM accounts_insert`, masterRoleID); err != nil {
+		INSERT INTO accounts(id,person_id,status) SELECT uuidv7(),id,'enabled' FROM people_insert RETURNING person_id
+	) INSERT INTO person_roles(person_id,role_id) SELECT person_id,$1 FROM accounts_insert`, masterRoleID); err != nil {
 		t.Fatal(err)
 	}
 	service, err := opendays.NewService(pool, config.Config{})

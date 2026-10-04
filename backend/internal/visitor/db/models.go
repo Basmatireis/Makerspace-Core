@@ -23,13 +23,6 @@ type Account struct {
 	AdministrativelyDisabledAt pgtype.Timestamptz
 }
 
-type AccountRole struct {
-	AccountID           uuid.UUID
-	RoleID              uuid.UUID
-	AssignedByAccountID *uuid.UUID
-	AssignedAt          time.Time
-}
-
 type AuditEvent struct {
 	ID             uuid.UUID
 	ActorAccountID *uuid.UUID
@@ -464,6 +457,13 @@ type PersonPricingGroupAssignment struct {
 	Version             int64
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+}
+
+type PersonRole struct {
+	PersonID            uuid.UUID
+	RoleID              uuid.UUID
+	AssignedByAccountID *uuid.UUID
+	AssignedAt          time.Time
 }
 
 type PinCredential struct {

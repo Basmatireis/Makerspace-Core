@@ -3,7 +3,6 @@ package accounts
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"net/url"
 	"time"
 
@@ -20,12 +19,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type RoleSummary struct {
-	ID        uuid.UUID
-	Name      string
-	SystemKey *string
-}
 
 type AuthIdentity struct {
 	ID                uuid.UUID
@@ -47,7 +40,6 @@ type Account struct {
 	PasswordStatus       string
 	LoginEmail           string
 	AuthIdentities       []AuthIdentity
-	Roles                []RoleSummary
 	Version              int64
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
@@ -111,7 +103,7 @@ func (s *Service) GetForPerson(ctx context.Context, principal authorization.Prin
 }
 
 // ListForPeople returns account administration summaries in a fixed number of
-// queries so the people table does not hydrate accounts, identities, and roles
+// queries so the people table does not hydrate accounts and identities
 // one person at a time.
 func (s *Service) ListForPeople(ctx context.Context, principal authorization.Principal, personIDs []uuid.UUID) (map[uuid.UUID]Account, error) {
 	if !principal.Has(authorization.AccountsRead) {
@@ -137,7 +129,7 @@ func (s *Service) ListForPeople(ctx context.Context, principal authorization.Pri
 			ID: row.ID, PersonID: row.PersonID, Status: row.Status,
 			ProvisioningSource: row.ProvisioningSource, FirstAuthenticatedAt: timeFromPG(row.FirstAuthenticatedAt),
 			PasswordStatus: row.PasswordStatus, LoginEmail: loginEmail, AuthIdentities: []AuthIdentity{},
-			Roles: []RoleSummary{}, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+			Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 		}
 		accountIDs = append(accountIDs, row.ID)
 		personByAccount[row.ID] = row.PersonID
@@ -157,16 +149,6 @@ func (s *Service) ListForPeople(ctx context.Context, principal authorization.Pri
 			ID: row.ID, Kind: row.Kind, DisplayIdentifier: &displayIdentifier, ProviderSlug: row.ProviderSlug,
 			VerifiedAt: timeFromPG(row.VerifiedAt), DisabledAt: timeFromPG(row.DisabledAt), Usable: row.Usable, CreatedAt: row.CreatedAt,
 		})
-		result[personID] = account
-	}
-	roleRows, err := queries.ListAccountRolesByAccounts(ctx, accountIDs)
-	if err != nil {
-		return nil, err
-	}
-	for _, row := range roleRows {
-		personID := personByAccount[row.AccountID]
-		account := result[personID]
-		account.Roles = append(account.Roles, RoleSummary{ID: row.ID, Name: row.Name, SystemKey: row.SystemKey})
 		result[personID] = account
 	}
 	return result, nil
@@ -249,6 +231,11 @@ func (s *Service) SetStatus(ctx context.Context, principal authorization.Princip
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := accountsdb.New(tx)
 	if status == "disabled" {
+		if _, err := queries.LockPersonForAccountMutation(ctx, id); errors.Is(err, pgx.ErrNoRows) {
+			return Account{}, apperror.NotFound
+		} else if err != nil {
+			return Account{}, err
+		}
 		if err := queries.AcquireMasterInvariantLock(ctx); err != nil {
 			return Account{}, err
 		}
@@ -305,6 +292,11 @@ func (s *Service) Delete(ctx context.Context, principal authorization.Principal,
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := accountsdb.New(tx)
+	if _, err := queries.LockPersonForAccountMutation(ctx, id); errors.Is(err, pgx.ErrNoRows) {
+		return apperror.NotFound
+	} else if err != nil {
+		return err
+	}
 	if err := queries.AcquireMasterInvariantLock(ctx); err != nil {
 		return err
 	}
@@ -833,82 +825,6 @@ func (s *Service) IssueInvitation(ctx context.Context, principal authorization.P
 	return ResetIssue{ExpiresAt: expiresAt, Account: result, DeliveryStatus: "sent"}, nil
 }
 
-func (s *Service) ChangeRole(ctx context.Context, principal authorization.Principal, accountID, roleID uuid.UUID, expectedVersion int64, assign bool, requestID *uuid.UUID) (Account, error) {
-	if !principal.Has(authorization.AccountsRolesAssign) {
-		return Account{}, apperror.PermissionDenied
-	}
-	if expectedVersion < 1 {
-		return Account{}, validation("expectedVersion must be positive")
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Account{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	queries := accountsdb.New(tx)
-	if !assign {
-		if err := queries.AcquireMasterInvariantLock(ctx); err != nil {
-			return Account{}, err
-		}
-	}
-	account, err := loadAccountForMutation(ctx, queries, accountID)
-	if err != nil {
-		return Account{}, err
-	}
-	if account.Version != expectedVersion {
-		return Account{}, apperror.StaleWrite
-	}
-	role, err := authorizeRoleAssignment(ctx, queries, principal, roleID)
-	if err != nil {
-		return Account{}, err
-	}
-	present, err := queries.IsAccountRoleAssigned(ctx, accountsdb.IsAccountRoleAssignedParams{AccountID: accountID, RoleID: roleID})
-	if err != nil {
-		return Account{}, err
-	}
-	if present == assign {
-		return account, tx.Commit(ctx)
-	}
-	if !assign && role.SystemKey != nil && *role.SystemKey == "master" && account.Status == "enabled" {
-		if err := protectLastMaster(ctx, queries, account); err != nil {
-			return Account{}, err
-		}
-	}
-	if _, err := queries.BumpAccountVersion(ctx, accountsdb.BumpAccountVersionParams{ID: accountID, ExpectedVersion: expectedVersion}); errors.Is(err, pgx.ErrNoRows) {
-		return Account{}, apperror.StaleWrite
-	} else if err != nil {
-		return Account{}, err
-	}
-	var rows int64
-	if assign {
-		rows, err = queries.AssignAccountRole(ctx, accountsdb.AssignAccountRoleParams{AccountID: accountID, RoleID: roleID, AssignedByAccountID: &principal.AccountID})
-	} else {
-		rows, err = queries.RemoveAccountRole(ctx, accountsdb.RemoveAccountRoleParams{AccountID: accountID, RoleID: roleID})
-	}
-	if err != nil {
-		return Account{}, err
-	}
-	if rows != 1 {
-		return Account{}, apperror.StaleWrite
-	}
-	action := "account.role_removed"
-	if assign {
-		action = "account.role_assigned"
-	}
-	actor := principal.AccountID
-	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: action, ResourceType: "account", ResourceID: &accountID, RequestID: requestID, Metadata: map[string]any{"roleId": roleID.String()}}); err != nil {
-		return Account{}, err
-	}
-	result, err := loadAccount(ctx, queries, accountID)
-	if err != nil {
-		return Account{}, err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return Account{}, err
-	}
-	return result, nil
-}
-
 func loadAccount(ctx context.Context, queries *accountsdb.Queries, id uuid.UUID) (Account, error) {
 	row, err := queries.GetAccountView(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -916,14 +832,6 @@ func loadAccount(ctx context.Context, queries *accountsdb.Queries, id uuid.UUID)
 	}
 	if err != nil {
 		return Account{}, err
-	}
-	roles, err := queries.ListAccountRoles(ctx, id)
-	if err != nil {
-		return Account{}, err
-	}
-	summaries := make([]RoleSummary, 0, len(roles))
-	for _, role := range roles {
-		summaries = append(summaries, RoleSummary{ID: role.ID, Name: role.Name, SystemKey: role.SystemKey})
 	}
 	identityRows, err := queries.ListAuthIdentitiesByAccount(ctx, id)
 	if err != nil {
@@ -944,7 +852,7 @@ func loadAccount(ctx context.Context, queries *accountsdb.Queries, id uuid.UUID)
 	return Account{ID: row.ID, PersonID: row.PersonID, Status: row.Status,
 		ProvisioningSource: row.ProvisioningSource, FirstAuthenticatedAt: timeFromPG(row.FirstAuthenticatedAt),
 		PasswordStatus: row.PasswordStatus, LoginEmail: loginEmail, AuthIdentities: identities,
-		Roles: summaries, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, nil
+		Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, nil
 }
 
 func timeFromPG(value pgtype.Timestamptz) *time.Time {
@@ -996,52 +904,3 @@ func validation(reason string) *apperror.Error {
 }
 
 func ptr(value string) *string { return &value }
-
-// authorizeRoleAssignment is shared by ordinary assignment and provisioning.
-func authorizeRoleAssignment(ctx context.Context, queries *accountsdb.Queries, principal authorization.Principal, roleID uuid.UUID) (accountsdb.Role, error) {
-	if !principal.Has(authorization.AccountsRolesAssign) {
-		return accountsdb.Role{}, apperror.PermissionDenied
-	}
-	role, err := queries.GetRoleForAssignment(ctx, roleID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return accountsdb.Role{}, apperror.NotFound
-	}
-	if err != nil {
-		return accountsdb.Role{}, err
-	}
-	permissions, err := queries.GetRolePermissionGrantsForAssignment(ctx, roleID)
-	if err != nil {
-		return accountsdb.Role{}, err
-	}
-	if role.SystemKey != nil && *role.SystemKey == "master" {
-		if !principal.Master {
-			return accountsdb.Role{}, apperror.PermissionDenied
-		}
-	} else {
-		grants := map[uuid.UUID]authorization.PermissionGrant{}
-		for _, permission := range permissions {
-			permissionID := authorization.Permission(permission.PermissionID)
-			if !authorization.Known(permissionID) {
-				slog.WarnContext(ctx, "unknown stored permission blocked role assignment", "role_id", roleID, "permission_id", permission.PermissionID)
-				if !principal.Master {
-					return accountsdb.Role{}, apperror.PermissionDenied
-				}
-				continue
-			}
-			grant, exists := grants[permission.ID]
-			if !exists {
-				grant = authorization.PermissionGrant{ID: permission.ID, PermissionID: permissionID, Scope: authorization.GrantScope(permission.Scope), MinimumAssurance: authorization.Assurance(permission.MinimumAssurance)}
-			}
-			if permission.DeviceTypeID != nil {
-				grant.DeviceTypeIDs = append(grant.DeviceTypeIDs, *permission.DeviceTypeID)
-			}
-			grants[permission.ID] = grant
-		}
-		for _, grant := range grants {
-			if !principal.Master && !principal.CanDelegate(grant) {
-				return accountsdb.Role{}, apperror.PermissionDenied
-			}
-		}
-	}
-	return role, nil
-}

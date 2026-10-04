@@ -90,6 +90,8 @@ export const actionLabels: Record<string, string> = {
   'open_day_period.updated': 'Updated Open Day period',
   'organization.created': 'Created organization',
   'organization.updated': 'Updated organization',
+  'person.role_assigned': 'Assigned role',
+  'person.role_removed': 'Removed role',
   'person.created': 'Created person',
   'person.deleted': 'Deleted person',
   'person.profile_image.removed': 'Removed profile image',
@@ -154,7 +156,7 @@ export const resourceLabels: Record<string, string> = {
 export function presentAction(event: AuditEvent): string {
   const label = actionLabels[event.action] ?? humanizeIdentifier(event.action);
   const role = event.resolvedMetadata.roleId;
-  if ((event.action === 'account.role_assigned' || event.action === 'role.assigned') && role) {
+  if ((event.action === 'person.role_assigned' || event.action === 'account.role_assigned' || event.action === 'role.assigned') && role) {
     return `${label}: ${role}`;
   }
   return label;

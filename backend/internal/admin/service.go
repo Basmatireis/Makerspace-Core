@@ -52,10 +52,11 @@ func (s *Service) BootstrapMaster(ctx context.Context, input BootstrapInput) (uu
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	accountQueries := accountsdb.New(tx)
+	peopleQueries := peopledb.New(tx)
 	if err := accountQueries.AcquireMasterInvariantLock(ctx); err != nil {
 		return uuid.Nil, err
 	}
-	count, err := accountQueries.CountMasterAssignments(ctx)
+	count, err := peopleQueries.CountMasterAssignments(ctx)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -63,7 +64,7 @@ func (s *Service) BootstrapMaster(ctx context.Context, input BootstrapInput) (uu
 		return uuid.Nil, errors.New("a master account already exists; bootstrap made no changes")
 	}
 	personID := uuid.Must(uuid.NewV7())
-	if _, err := peopledb.New(tx).CreatePerson(ctx, peopledb.CreatePersonParams{ID: personID, FirstName: firstName, LastName: lastName, Email: &contactDisplay}); err != nil {
+	if _, err := peopleQueries.CreatePerson(ctx, peopledb.CreatePersonParams{ID: personID, FirstName: firstName, LastName: lastName, Email: &contactDisplay}); err != nil {
 		return uuid.Nil, err
 	}
 	accountID := uuid.Must(uuid.NewV7())
@@ -77,11 +78,11 @@ func (s *Service) BootstrapMaster(ctx context.Context, input BootstrapInput) (uu
 	if err := accountQueries.UpsertPasswordCredential(ctx, accountsdb.UpsertPasswordCredentialParams{AuthIdentityID: identity.ID, PasswordHash: hash}); err != nil {
 		return uuid.Nil, err
 	}
-	master, err := accountQueries.GetMasterRole(ctx)
+	master, err := peopleQueries.GetMasterRole(ctx)
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("master role migration missing: %w", err)
 	}
-	if _, err := accountQueries.AssignAccountRole(ctx, accountsdb.AssignAccountRoleParams{AccountID: accountID, RoleID: master.ID}); err != nil {
+	if _, err := peopleQueries.AssignPersonRole(ctx, peopledb.AssignPersonRoleParams{PersonID: personID, RoleID: master.ID}); err != nil {
 		return uuid.Nil, err
 	}
 	if err := audit.Write(ctx, tx, audit.Event{Action: "system.master_bootstrapped", ResourceType: "account", ResourceID: &accountID, Source: "admin_cli"}); err != nil {
@@ -108,6 +109,18 @@ func (s *Service) RecoverMaster(ctx context.Context, email, password string) (uu
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	queries := accountsdb.New(tx)
+	account, err := queries.GetAccountIdentityByLoginEmail(ctx, normalized)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, errors.New("no account has that login email")
+	}
+	if err != nil {
+		return uuid.Nil, err
+	}
+	peopleQueries := peopledb.New(tx)
+	person, err := peopleQueries.GetPersonForDeletion(ctx, account.PersonID)
+	if err != nil {
+		return uuid.Nil, err
+	}
 	if err := queries.AcquireMasterInvariantLock(ctx); err != nil {
 		return uuid.Nil, err
 	}
@@ -117,13 +130,6 @@ func (s *Service) RecoverMaster(ctx context.Context, email, password string) (uu
 	}
 	if enabled != 0 {
 		return uuid.Nil, errors.New("an enabled master already exists; recovery made no changes")
-	}
-	account, err := queries.GetAccountIdentityByLoginEmail(ctx, normalized)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return uuid.Nil, errors.New("no account has that login email")
-	}
-	if err != nil {
-		return uuid.Nil, err
 	}
 	if _, err := queries.GetAccountForMutation(ctx, account.ID); err != nil {
 		return uuid.Nil, err
@@ -138,15 +144,24 @@ func (s *Service) RecoverMaster(ctx context.Context, email, password string) (uu
 	if current.ID != account.ID || current.AuthIdentityID != account.AuthIdentityID {
 		return uuid.Nil, errors.New("the account login email changed during recovery; retry")
 	}
-	master, err := queries.GetMasterRole(ctx)
+	master, err := peopleQueries.GetMasterRole(ctx)
 	if err != nil {
 		return uuid.Nil, err
 	}
 	if err := queries.UpsertPasswordCredential(ctx, accountsdb.UpsertPasswordCredentialParams{AuthIdentityID: account.AuthIdentityID, PasswordHash: hash}); err != nil {
 		return uuid.Nil, err
 	}
-	if _, err := queries.AssignAccountRole(ctx, accountsdb.AssignAccountRoleParams{AccountID: account.ID, RoleID: master.ID}); err != nil {
+	present, err := peopleQueries.IsPersonRoleAssigned(ctx, peopledb.IsPersonRoleAssignedParams{PersonID: account.PersonID, RoleID: master.ID})
+	if err != nil {
 		return uuid.Nil, err
+	}
+	if !present {
+		if _, err := peopleQueries.AssignPersonRole(ctx, peopledb.AssignPersonRoleParams{PersonID: account.PersonID, RoleID: master.ID}); err != nil {
+			return uuid.Nil, err
+		}
+		if _, err := peopleQueries.BumpPersonVersion(ctx, peopledb.BumpPersonVersionParams{ID: account.PersonID, ExpectedVersion: person.Version}); err != nil {
+			return uuid.Nil, err
+		}
 	}
 	if _, err := queries.RecoverAccount(ctx, account.ID); err != nil {
 		return uuid.Nil, err

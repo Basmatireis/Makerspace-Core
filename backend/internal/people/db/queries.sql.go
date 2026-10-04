@@ -7,9 +7,97 @@ package peopledb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+const acquireMasterInvariantLock = `-- name: AcquireMasterInvariantLock :exec
+SELECT pg_advisory_xact_lock(5577006791947779410)
+`
+
+func (q *Queries) AcquireMasterInvariantLock(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, acquireMasterInvariantLock)
+	return err
+}
+
+const assignPersonRole = `-- name: AssignPersonRole :execrows
+INSERT INTO person_roles (person_id, role_id, assigned_by_account_id)
+VALUES ($1, $2, $3)
+ON CONFLICT (person_id, role_id) DO NOTHING
+`
+
+type AssignPersonRoleParams struct {
+	PersonID            uuid.UUID
+	RoleID              uuid.UUID
+	AssignedByAccountID *uuid.UUID
+}
+
+func (q *Queries) AssignPersonRole(ctx context.Context, arg AssignPersonRoleParams) (int64, error) {
+	result, err := q.db.Exec(ctx, assignPersonRole, arg.PersonID, arg.RoleID, arg.AssignedByAccountID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const bumpPersonVersion = `-- name: BumpPersonVersion :one
+UPDATE people SET version = version + 1, updated_at = now()
+WHERE id = $1 AND version = $2
+RETURNING id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source
+`
+
+type BumpPersonVersionParams struct {
+	ID              uuid.UUID
+	ExpectedVersion int64
+}
+
+func (q *Queries) BumpPersonVersion(ctx context.Context, arg BumpPersonVersionParams) (Person, error) {
+	row := q.db.QueryRow(ctx, bumpPersonVersion, arg.ID, arg.ExpectedVersion)
+	var i Person
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+		&i.Phone,
+		&i.MatriculationNumber,
+		&i.PhotoReference,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProfileImageFileID,
+		&i.ProfileImageSource,
+	)
+	return i, err
+}
+
+const countEnabledMasters = `-- name: CountEnabledMasters :one
+SELECT count(*) FROM accounts a
+JOIN person_roles pr ON pr.person_id = a.person_id
+JOIN roles r ON r.id = pr.role_id
+WHERE a.status = 'enabled' AND r.system_key = 'master'
+`
+
+func (q *Queries) CountEnabledMasters(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countEnabledMasters)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countMasterAssignments = `-- name: CountMasterAssignments :one
+SELECT count(*) FROM person_roles pr
+JOIN roles r ON r.id = pr.role_id
+WHERE r.system_key = 'master'
+`
+
+func (q *Queries) CountMasterAssignments(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countMasterAssignments)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
 
 const countPeople = `-- name: CountPeople :one
 WITH current_laborordnung_version AS (
@@ -26,9 +114,9 @@ LEFT JOIN current_laborordnung_version current_laborordnung ON true
 LEFT JOIN LATERAL (
     SELECT CASE COALESCE(max(CASE r.laborordnung_mode WHEN 'blocking' THEN 2 WHEN 'warning' THEN 1 ELSE 0 END), 0)
         WHEN 2 THEN 'blocking' WHEN 1 THEN 'warning' ELSE 'not_required' END::text AS mode
-    FROM account_roles ar
-    JOIN roles r ON r.id = ar.role_id
-    WHERE ar.account_id = a.id
+    FROM person_roles pr
+    JOIN roles r ON r.id = pr.role_id
+    WHERE pr.person_id = p.id
 ) laborordnung_mode ON true
 LEFT JOIN LATERAL (
     SELECT required_version_id
@@ -52,12 +140,11 @@ WHERE (
        OR ($2::boolean AND COALESCE(p.matriculation_number, '') ILIKE '%' || $1::text || '%')
    )
   AND (
-       COALESCE(cardinality($3::uuid[]), 0) = 0
+       COALESCE(cardinality($3::text[]), 0) = 0
        OR EXISTS (
            SELECT 1
-           FROM accounts a
-           JOIN account_roles ar ON ar.account_id = a.id
-           WHERE a.person_id = p.id AND ar.role_id = ANY($3::uuid[])
+           FROM person_roles pr
+           WHERE pr.person_id = p.id AND pr.role_id = ANY(($3::text[])::uuid[])
        )
    )
   AND (
@@ -79,7 +166,7 @@ WHERE (
 type CountPeopleParams struct {
 	Search               string
 	IncludeMatriculation bool
-	RoleIds              []uuid.UUID
+	RoleIds              []string
 	AccountStatuses      []string
 	LaborordnungStatuses []string
 }
@@ -158,6 +245,49 @@ func (q *Queries) DeletePerson(ctx context.Context, arg DeletePersonParams) (uui
 	return id, err
 }
 
+const getAccountByPersonForMutation = `-- name: GetAccountByPersonForMutation :one
+SELECT id, person_id, status, version, created_at, updated_at, provisioning_source, first_authenticated_at, administratively_disabled_at FROM accounts WHERE person_id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetAccountByPersonForMutation(ctx context.Context, personID uuid.UUID) (Account, error) {
+	row := q.db.QueryRow(ctx, getAccountByPersonForMutation, personID)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.PersonID,
+		&i.Status,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProvisioningSource,
+		&i.FirstAuthenticatedAt,
+		&i.AdministrativelyDisabledAt,
+	)
+	return i, err
+}
+
+const getMasterRole = `-- name: GetMasterRole :one
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, supervisor_dashboard FROM roles WHERE system_key = 'master'
+`
+
+func (q *Queries) GetMasterRole(ctx context.Context) (Role, error) {
+	row := q.db.QueryRow(ctx, getMasterRole)
+	var i Role
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.SystemKey,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProfileImageRequired,
+		&i.LaborordnungMode,
+		&i.SupervisorDashboard,
+	)
+	return i, err
+}
+
 const getPerson = `-- name: GetPerson :one
 SELECT id, first_name, last_name, email, phone, matriculation_number, photo_reference, version, created_at, updated_at, profile_image_file_id, profile_image_source FROM people WHERE id = $1
 `
@@ -224,6 +354,89 @@ func (q *Queries) GetProfileImage(ctx context.Context, id uuid.UUID) (GetProfile
 	return i, err
 }
 
+const getRoleForAssignment = `-- name: GetRoleForAssignment :one
+SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, supervisor_dashboard FROM roles WHERE id = $1 FOR SHARE
+`
+
+func (q *Queries) GetRoleForAssignment(ctx context.Context, id uuid.UUID) (Role, error) {
+	row := q.db.QueryRow(ctx, getRoleForAssignment, id)
+	var i Role
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.SystemKey,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ProfileImageRequired,
+		&i.LaborordnungMode,
+		&i.SupervisorDashboard,
+	)
+	return i, err
+}
+
+const getRolePermissionGrantsForAssignment = `-- name: GetRolePermissionGrantsForAssignment :many
+SELECT g.id, g.permission_id, g.scope, g.minimum_assurance, gdt.device_type_id
+FROM role_permission_grants g
+LEFT JOIN role_permission_grant_device_types gdt ON gdt.grant_id = g.id
+WHERE g.role_id = $1
+ORDER BY g.permission_id, g.id, gdt.device_type_id
+`
+
+type GetRolePermissionGrantsForAssignmentRow struct {
+	ID               uuid.UUID
+	PermissionID     string
+	Scope            string
+	MinimumAssurance string
+	DeviceTypeID     *uuid.UUID
+}
+
+func (q *Queries) GetRolePermissionGrantsForAssignment(ctx context.Context, roleID uuid.UUID) ([]GetRolePermissionGrantsForAssignmentRow, error) {
+	rows, err := q.db.Query(ctx, getRolePermissionGrantsForAssignment, roleID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetRolePermissionGrantsForAssignmentRow{}
+	for rows.Next() {
+		var i GetRolePermissionGrantsForAssignmentRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.PermissionID,
+			&i.Scope,
+			&i.MinimumAssurance,
+			&i.DeviceTypeID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const isPersonRoleAssigned = `-- name: IsPersonRoleAssigned :one
+SELECT EXISTS (
+    SELECT 1 FROM person_roles
+    WHERE person_id = $1 AND role_id = $2
+)
+`
+
+type IsPersonRoleAssignedParams struct {
+	PersonID uuid.UUID
+	RoleID   uuid.UUID
+}
+
+func (q *Queries) IsPersonRoleAssigned(ctx context.Context, arg IsPersonRoleAssignedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isPersonRoleAssigned, arg.PersonID, arg.RoleID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const listPeople = `-- name: ListPeople :many
 WITH current_laborordnung_version AS (
     SELECT id
@@ -239,9 +452,9 @@ LEFT JOIN current_laborordnung_version current_laborordnung ON true
 LEFT JOIN LATERAL (
     SELECT CASE COALESCE(max(CASE r.laborordnung_mode WHEN 'blocking' THEN 2 WHEN 'warning' THEN 1 ELSE 0 END), 0)
         WHEN 2 THEN 'blocking' WHEN 1 THEN 'warning' ELSE 'not_required' END::text AS mode
-    FROM account_roles ar
-    JOIN roles r ON r.id = ar.role_id
-    WHERE ar.account_id = a.id
+    FROM person_roles pr
+    JOIN roles r ON r.id = pr.role_id
+    WHERE pr.person_id = p.id
 ) laborordnung_mode ON true
 LEFT JOIN LATERAL (
     SELECT required_version_id
@@ -265,12 +478,11 @@ WHERE (
        OR ($2::boolean AND COALESCE(p.matriculation_number, '') ILIKE '%' || $1::text || '%')
    )
   AND (
-       COALESCE(cardinality($3::uuid[]), 0) = 0
+       COALESCE(cardinality($3::text[]), 0) = 0
        OR EXISTS (
            SELECT 1
-           FROM accounts a
-           JOIN account_roles ar ON ar.account_id = a.id
-           WHERE a.person_id = p.id AND ar.role_id = ANY($3::uuid[])
+           FROM person_roles pr
+           WHERE pr.person_id = p.id AND pr.role_id = ANY(($3::text[])::uuid[])
        )
    )
   AND (
@@ -294,7 +506,7 @@ LIMIT $7 OFFSET $6
 type ListPeopleParams struct {
 	Search               string
 	IncludeMatriculation bool
-	RoleIds              []uuid.UUID
+	RoleIds              []string
 	AccountStatuses      []string
 	LaborordnungStatuses []string
 	PageOffset           int32
@@ -342,13 +554,103 @@ func (q *Queries) ListPeople(ctx context.Context, arg ListPeopleParams) ([]Perso
 	return items, nil
 }
 
+const listPersonRoles = `-- name: ListPersonRoles :many
+SELECT r.id, r.name, r.description, r.system_key, r.version, r.created_at, r.updated_at, r.profile_image_required, r.laborordnung_mode, r.supervisor_dashboard FROM roles r
+JOIN person_roles pr ON pr.role_id = r.id
+WHERE pr.person_id = $1
+ORDER BY r.system_key DESC NULLS LAST, lower(r.name), r.id
+`
+
+func (q *Queries) ListPersonRoles(ctx context.Context, personID uuid.UUID) ([]Role, error) {
+	rows, err := q.db.Query(ctx, listPersonRoles, personID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Role{}
+	for rows.Next() {
+		var i Role
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.SystemKey,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProfileImageRequired,
+			&i.LaborordnungMode,
+			&i.SupervisorDashboard,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPersonRolesByPeople = `-- name: ListPersonRolesByPeople :many
+SELECT pr.person_id, r.id, r.name, r.description, r.system_key, r.version, r.created_at, r.updated_at, r.profile_image_required, r.laborordnung_mode, r.supervisor_dashboard FROM roles r
+JOIN person_roles pr ON pr.role_id = r.id
+WHERE pr.person_id = ANY(($1::text[])::uuid[])
+ORDER BY pr.person_id, r.system_key DESC NULLS LAST, lower(r.name), r.id
+`
+
+type ListPersonRolesByPeopleRow struct {
+	PersonID             uuid.UUID
+	ID                   uuid.UUID
+	Name                 string
+	Description          *string
+	SystemKey            *string
+	Version              int64
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	ProfileImageRequired bool
+	LaborordnungMode     string
+	SupervisorDashboard  bool
+}
+
+func (q *Queries) ListPersonRolesByPeople(ctx context.Context, personIds []string) ([]ListPersonRolesByPeopleRow, error) {
+	rows, err := q.db.Query(ctx, listPersonRolesByPeople, personIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPersonRolesByPeopleRow{}
+	for rows.Next() {
+		var i ListPersonRolesByPeopleRow
+		if err := rows.Scan(
+			&i.PersonID,
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.SystemKey,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ProfileImageRequired,
+			&i.LaborordnungMode,
+			&i.SupervisorDashboard,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProfileImageRequirements = `-- name: ListProfileImageRequirements :many
 SELECT p.id AS person_id, COALESCE(bool_or(r.profile_image_required), false)::boolean AS required
 FROM people p
-LEFT JOIN accounts a ON a.person_id = p.id
-LEFT JOIN account_roles ar ON ar.account_id = a.id
-LEFT JOIN roles r ON r.id = ar.role_id
-WHERE p.id = ANY($1::uuid[])
+LEFT JOIN person_roles pr ON pr.person_id = p.id
+LEFT JOIN roles r ON r.id = pr.role_id
+WHERE p.id = ANY(($1::text[])::uuid[])
 GROUP BY p.id
 `
 
@@ -357,7 +659,7 @@ type ListProfileImageRequirementsRow struct {
 	Required bool
 }
 
-func (q *Queries) ListProfileImageRequirements(ctx context.Context, personIds []uuid.UUID) ([]ListProfileImageRequirementsRow, error) {
+func (q *Queries) ListProfileImageRequirements(ctx context.Context, personIds []string) ([]ListProfileImageRequirementsRow, error) {
 	rows, err := q.db.Query(ctx, listProfileImageRequirements, personIds)
 	if err != nil {
 		return nil, err
@@ -379,10 +681,9 @@ func (q *Queries) ListProfileImageRequirements(ctx context.Context, personIds []
 
 const personRequiresProfileImage = `-- name: PersonRequiresProfileImage :one
 SELECT COALESCE(bool_or(r.profile_image_required), false)::boolean
-FROM accounts a
-LEFT JOIN account_roles ar ON ar.account_id = a.id
-LEFT JOIN roles r ON r.id = ar.role_id
-WHERE a.person_id = $1
+FROM person_roles pr
+JOIN roles r ON r.id = pr.role_id
+WHERE pr.person_id = $1
 `
 
 func (q *Queries) PersonRequiresProfileImage(ctx context.Context, personID uuid.UUID) (bool, error) {
@@ -390,6 +691,24 @@ func (q *Queries) PersonRequiresProfileImage(ctx context.Context, personID uuid.
 	var column_1 bool
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const removePersonRole = `-- name: RemovePersonRole :execrows
+DELETE FROM person_roles
+WHERE person_id = $1 AND role_id = $2
+`
+
+type RemovePersonRoleParams struct {
+	PersonID uuid.UUID
+	RoleID   uuid.UUID
+}
+
+func (q *Queries) RemovePersonRole(ctx context.Context, arg RemovePersonRoleParams) (int64, error) {
+	result, err := q.db.Exec(ctx, removePersonRole, arg.PersonID, arg.RoleID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setProfileImage = `-- name: SetProfileImage :one

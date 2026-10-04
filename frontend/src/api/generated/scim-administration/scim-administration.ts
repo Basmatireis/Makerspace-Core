@@ -156,7 +156,7 @@ export const revokeSCIMConnectorToken = async (scimConnectorId: UUIDv7,
 
 
 /**
- * The source must be SCIM-provisioned and never authenticated. Every role transfer requires accounts.roles.assign and ordinary privilege-subset delegation. Master roles cannot be transferred. Conflicts are reported without changing either account.
+ * The source must be SCIM-provisioned and never authenticated. Every Person role transfer requires people.roles.assign and ordinary privilege-subset delegation. Master roles cannot be transferred. Conflicts are reported without changing either account.
  * @summary Analyze a provisional-to-established Account reconciliation without modifying data
  */
 export const getPreflightSCIMReconciliationUrl = () => {

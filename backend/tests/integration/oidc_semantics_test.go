@@ -309,10 +309,10 @@ func TestDisabledOIDCProviderKeepsSessionsButCannotAuthenticateOrRecover(t *test
 func TestOIDCLinkAllDoesNotProvideAnAdministrativeSubjectAssignment(t *testing.T) {
 	f := newOIDCSemanticsFixture(t, false)
 	role := uuid.Must(uuid.NewV7())
-	if _, err := f.pool.Exec(f.ctx, `DELETE FROM account_roles WHERE account_id=$1`, f.principal.AccountID); err != nil {
+	if _, err := f.pool.Exec(f.ctx, `DELETE FROM person_roles WHERE person_id=$1`, f.principal.PersonID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.pool.Exec(f.ctx, `INSERT INTO roles(id,name) VALUES($1,'Reserved linker'); INSERT INTO role_permission_grants(id,role_id,permission_id,scope) VALUES(uuidv7(),$1,'identities.oidc.link.all','global'); INSERT INTO account_roles(account_id,role_id) VALUES($2,$1)`, role, f.principal.AccountID); err != nil {
+	if _, err := f.pool.Exec(f.ctx, `INSERT INTO roles(id,name) VALUES($1,'Reserved linker'); INSERT INTO role_permission_grants(id,role_id,permission_id,scope) VALUES(uuidv7(),$1,'identities.oidc.link.all','global'); INSERT INTO person_roles(person_id,role_id) VALUES($2,$1)`, role, f.principal.PersonID); err != nil {
 		t.Fatal(err)
 	}
 	_, err := f.service.StartLink(f.ctx, f.principal, "two", "")

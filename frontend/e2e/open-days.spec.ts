@@ -21,6 +21,7 @@ function currentUser(permissions: string[]) {
       lastName: 'Lovelace',
       email: 'ada@example.test',
       phone: null,
+      roles: [],
       account: {
         id: accountId,
         personId,
@@ -30,7 +31,6 @@ function currentUser(permissions: string[]) {
         authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: timestamp, disabledAt: null, usable: true, createdAt: timestamp }],
         status: 'enabled',
         passwordStatus: 'active',
-        roles: [],
         version: 1,
       },
       createdAt: timestamp,
@@ -46,7 +46,6 @@ function currentUser(permissions: string[]) {
       authIdentities: [{ id: passwordIdentityId, kind: 'password', displayIdentifier: 'ada.login@example.test', verifiedAt: timestamp, disabledAt: null, usable: true, createdAt: timestamp }],
       status: 'enabled',
       passwordStatus: 'active',
-      roles: [],
       createdAt: timestamp,
       updatedAt: timestamp,
       version: 1,

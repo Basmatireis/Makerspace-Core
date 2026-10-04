@@ -42,8 +42,8 @@ func TestPeopleListFiltersAccountAndLabRulesStatuses(t *testing.T) {
 	pending := seedAccount(t, pool, "directory-filter-lab-pending", false)
 	outdated := seedAccount(t, pool, "directory-filter-lab-outdated", false)
 	notRequired := seedAccount(t, pool, "directory-filter-lab-not-required", false)
-	for _, accountID := range []uuid.UUID{current.accountID, pending.accountID, outdated.accountID} {
-		if _, err := pool.Exec(ctx, `INSERT INTO account_roles(account_id,role_id) VALUES($1,$2)`, accountID, warningRoleID); err != nil {
+	for _, personID := range []uuid.UUID{current.personID, pending.personID, outdated.personID} {
+		if _, err := pool.Exec(ctx, `INSERT INTO person_roles(person_id,role_id) VALUES($1,$2)`, personID, warningRoleID); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -92,7 +92,7 @@ func TestPeopleListFiltersMissingPublishedLabRulesVersion(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO roles(id,name,laborordnung_mode) VALUES($1,'No published version warning','warning')`, roleID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO account_roles(account_id,role_id) VALUES($1,$2)`, subject.accountID, roleID); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO person_roles(person_id,role_id) VALUES($1,$2)`, subject.personID, roleID); err != nil {
 		t.Fatal(err)
 	}
 

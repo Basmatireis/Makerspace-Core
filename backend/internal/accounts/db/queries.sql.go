@@ -22,26 +22,6 @@ func (q *Queries) AcquireMasterInvariantLock(ctx context.Context) error {
 	return err
 }
 
-const assignAccountRole = `-- name: AssignAccountRole :execrows
-INSERT INTO account_roles (account_id, role_id, assigned_by_account_id)
-VALUES ($1, $2, $3)
-ON CONFLICT (account_id, role_id) DO NOTHING
-`
-
-type AssignAccountRoleParams struct {
-	AccountID           uuid.UUID
-	RoleID              uuid.UUID
-	AssignedByAccountID *uuid.UUID
-}
-
-func (q *Queries) AssignAccountRole(ctx context.Context, arg AssignAccountRoleParams) (int64, error) {
-	result, err := q.db.Exec(ctx, assignAccountRole, arg.AccountID, arg.RoleID, arg.AssignedByAccountID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const bumpAccountVersion = `-- name: BumpAccountVersion :one
 UPDATE accounts SET version = version + 1, updated_at = now()
 WHERE id = $1 AND version = $2 RETURNING id, person_id, status, version, created_at, updated_at, provisioning_source, first_authenticated_at, administratively_disabled_at
@@ -81,23 +61,13 @@ func (q *Queries) BumpAccountVersionForAdministrativeReset(ctx context.Context, 
 
 const countEnabledMasters = `-- name: CountEnabledMasters :one
 SELECT count(*) FROM accounts a
-JOIN account_roles ar ON ar.account_id = a.id JOIN roles r ON r.id = ar.role_id
+JOIN person_roles pr ON pr.person_id = a.person_id
+JOIN roles r ON r.id = pr.role_id
 WHERE a.status = 'enabled' AND r.system_key = 'master'
 `
 
 func (q *Queries) CountEnabledMasters(ctx context.Context) (int64, error) {
 	row := q.db.QueryRow(ctx, countEnabledMasters)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
-const countMasterAssignments = `-- name: CountMasterAssignments :one
-SELECT count(*) FROM account_roles ar JOIN roles r ON r.id = ar.role_id WHERE r.system_key = 'master'
-`
-
-func (q *Queries) CountMasterAssignments(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countMasterAssignments)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -441,28 +411,6 @@ func (q *Queries) GetIdentityByAccount(ctx context.Context, accountID uuid.UUID)
 	return i, err
 }
 
-const getMasterRole = `-- name: GetMasterRole :one
-SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, supervisor_dashboard FROM roles WHERE system_key = 'master'
-`
-
-func (q *Queries) GetMasterRole(ctx context.Context) (Role, error) {
-	row := q.db.QueryRow(ctx, getMasterRole)
-	var i Role
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Description,
-		&i.SystemKey,
-		&i.Version,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ProfileImageRequired,
-		&i.LaborordnungMode,
-		&i.SupervisorDashboard,
-	)
-	return i, err
-}
-
 const getPasswordIdentityForAccountForUpdate = `-- name: GetPasswordIdentityForAccountForUpdate :one
 SELECT id, account_id, kind, identifier_display, identifier_normalized, created_at, updated_at, provider_id, issuer, subject, verified_at, disabled_at, last_used_at FROM auth_identities
 WHERE account_id = $1 AND kind = 'password'
@@ -513,72 +461,13 @@ func (q *Queries) GetPersonVersionForAccountCreation(ctx context.Context, person
 	return version, err
 }
 
-const getRoleForAssignment = `-- name: GetRoleForAssignment :one
-SELECT id, name, description, system_key, version, created_at, updated_at, profile_image_required, laborordnung_mode, supervisor_dashboard FROM roles WHERE id = $1 FOR SHARE
-`
-
-func (q *Queries) GetRoleForAssignment(ctx context.Context, id uuid.UUID) (Role, error) {
-	row := q.db.QueryRow(ctx, getRoleForAssignment, id)
-	var i Role
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Description,
-		&i.SystemKey,
-		&i.Version,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ProfileImageRequired,
-		&i.LaborordnungMode,
-		&i.SupervisorDashboard,
-	)
-	return i, err
-}
-
-const getRolePermissionGrantsForAssignment = `-- name: GetRolePermissionGrantsForAssignment :many
-SELECT g.id, g.permission_id, g.scope, g.minimum_assurance, gdt.device_type_id
-FROM role_permission_grants g LEFT JOIN role_permission_grant_device_types gdt ON gdt.grant_id = g.id
-WHERE g.role_id = $1
-ORDER BY g.permission_id, g.id, gdt.device_type_id
-`
-
-type GetRolePermissionGrantsForAssignmentRow struct {
-	ID               uuid.UUID
-	PermissionID     string
-	Scope            string
-	MinimumAssurance string
-	DeviceTypeID     *uuid.UUID
-}
-
-func (q *Queries) GetRolePermissionGrantsForAssignment(ctx context.Context, roleID uuid.UUID) ([]GetRolePermissionGrantsForAssignmentRow, error) {
-	rows, err := q.db.Query(ctx, getRolePermissionGrantsForAssignment, roleID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GetRolePermissionGrantsForAssignmentRow{}
-	for rows.Next() {
-		var i GetRolePermissionGrantsForAssignmentRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.PermissionID,
-			&i.Scope,
-			&i.MinimumAssurance,
-			&i.DeviceTypeID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const isAccountMaster = `-- name: IsAccountMaster :one
-SELECT EXISTS (SELECT 1 FROM account_roles ar JOIN roles r ON r.id = ar.role_id
-WHERE ar.account_id = $1 AND r.system_key = 'master')
+SELECT EXISTS (
+    SELECT 1 FROM accounts a
+    JOIN person_roles pr ON pr.person_id = a.person_id
+    JOIN roles r ON r.id = pr.role_id
+    WHERE a.id = $1 AND r.system_key = 'master'
+)
 `
 
 func (q *Queries) IsAccountMaster(ctx context.Context, accountID uuid.UUID) (bool, error) {
@@ -586,111 +475,6 @@ func (q *Queries) IsAccountMaster(ctx context.Context, accountID uuid.UUID) (boo
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
-}
-
-const isAccountRoleAssigned = `-- name: IsAccountRoleAssigned :one
-SELECT EXISTS (SELECT 1 FROM account_roles WHERE account_id = $1 AND role_id = $2)
-`
-
-type IsAccountRoleAssignedParams struct {
-	AccountID uuid.UUID
-	RoleID    uuid.UUID
-}
-
-func (q *Queries) IsAccountRoleAssigned(ctx context.Context, arg IsAccountRoleAssignedParams) (bool, error) {
-	row := q.db.QueryRow(ctx, isAccountRoleAssigned, arg.AccountID, arg.RoleID)
-	var exists bool
-	err := row.Scan(&exists)
-	return exists, err
-}
-
-const listAccountRoles = `-- name: ListAccountRoles :many
-SELECT r.id, r.name, r.description, r.system_key, r.version, r.created_at, r.updated_at, r.profile_image_required, r.laborordnung_mode, r.supervisor_dashboard FROM roles r JOIN account_roles ar ON ar.role_id = r.id
-WHERE ar.account_id = $1
-ORDER BY r.system_key DESC NULLS LAST, lower(r.name), r.id
-`
-
-func (q *Queries) ListAccountRoles(ctx context.Context, accountID uuid.UUID) ([]Role, error) {
-	rows, err := q.db.Query(ctx, listAccountRoles, accountID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Role{}
-	for rows.Next() {
-		var i Role
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.Description,
-			&i.SystemKey,
-			&i.Version,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ProfileImageRequired,
-			&i.LaborordnungMode,
-			&i.SupervisorDashboard,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listAccountRolesByAccounts = `-- name: ListAccountRolesByAccounts :many
-SELECT ar.account_id, r.id, r.name, r.description, r.system_key, r.version, r.created_at, r.updated_at, r.profile_image_required, r.laborordnung_mode, r.supervisor_dashboard FROM roles r JOIN account_roles ar ON ar.role_id = r.id
-WHERE ar.account_id = ANY($1::uuid[])
-ORDER BY ar.account_id, r.system_key DESC NULLS LAST, lower(r.name), r.id
-`
-
-type ListAccountRolesByAccountsRow struct {
-	AccountID            uuid.UUID
-	ID                   uuid.UUID
-	Name                 string
-	Description          *string
-	SystemKey            *string
-	Version              int64
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-	ProfileImageRequired bool
-	LaborordnungMode     string
-	SupervisorDashboard  bool
-}
-
-func (q *Queries) ListAccountRolesByAccounts(ctx context.Context, accountIds []uuid.UUID) ([]ListAccountRolesByAccountsRow, error) {
-	rows, err := q.db.Query(ctx, listAccountRolesByAccounts, accountIds)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ListAccountRolesByAccountsRow{}
-	for rows.Next() {
-		var i ListAccountRolesByAccountsRow
-		if err := rows.Scan(
-			&i.AccountID,
-			&i.ID,
-			&i.Name,
-			&i.Description,
-			&i.SystemKey,
-			&i.Version,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ProfileImageRequired,
-			&i.LaborordnungMode,
-			&i.SupervisorDashboard,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const listAccountViewsByPeople = `-- name: ListAccountViewsByPeople :many
@@ -905,12 +689,16 @@ func (q *Queries) ListAuthIdentitiesByAccounts(ctx context.Context, accountIds [
 	return items, nil
 }
 
-const lockMasterRole = `-- name: LockMasterRole :one
-SELECT id FROM roles WHERE system_key = 'master' FOR UPDATE
+const lockPersonForAccountMutation = `-- name: LockPersonForAccountMutation :one
+SELECT p.id
+FROM people p
+JOIN accounts a ON a.person_id = p.id
+WHERE a.id = $1
+FOR UPDATE OF p
 `
 
-func (q *Queries) LockMasterRole(ctx context.Context) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, lockMasterRole)
+func (q *Queries) LockPersonForAccountMutation(ctx context.Context, accountID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockPersonForAccountMutation, accountID)
 	var id uuid.UUID
 	err := row.Scan(&id)
 	return id, err
@@ -956,23 +744,6 @@ func (q *Queries) RecoverAccount(ctx context.Context, id uuid.UUID) (Account, er
 		&i.AdministrativelyDisabledAt,
 	)
 	return i, err
-}
-
-const removeAccountRole = `-- name: RemoveAccountRole :execrows
-DELETE FROM account_roles WHERE account_id = $1 AND role_id = $2
-`
-
-type RemoveAccountRoleParams struct {
-	AccountID uuid.UUID
-	RoleID    uuid.UUID
-}
-
-func (q *Queries) RemoveAccountRole(ctx context.Context, arg RemoveAccountRoleParams) (int64, error) {
-	result, err := q.db.Exec(ctx, removeAccountRole, arg.AccountID, arg.RoleID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
 }
 
 const restorePasswordIdentity = `-- name: RestorePasswordIdentity :exec

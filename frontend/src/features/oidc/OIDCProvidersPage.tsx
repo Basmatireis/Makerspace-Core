@@ -79,7 +79,7 @@ function ProviderForm({ title, initial, provider, onCancel, onSaved }: { title: 
     <PasswordInput id={`oidc-secret-${provider?.id ?? 'new'}`} labelText={provider ? 'New client secret (leave blank to retain)' : 'Client secret'} value={values.clientSecret} required={!provider} autoComplete="new-password" onChange={(event) => setValues({ ...values, clientSecret: event.target.value })} />
     <TextArea id={`oidc-acr-${provider?.id ?? 'new'}`} labelText="Trusted ACR mappings" helperText="One exact mapping per line, for example: urn:example:mfa=strong_mfa" value={values.mappings} invalid={Boolean(mappingError)} invalidText={mappingError} onChange={(event) => setValues({ ...values, mappings: event.target.value })} />
     <Checkbox id={`oidc-enabled-${provider?.id ?? 'new'}`} labelText="Enable provider for login" checked={values.enabled} onChange={(_, data) => setValues({ ...values, enabled: data.checked })} />
-    <Checkbox id={`oidc-jit-${provider?.id ?? 'new'}`} labelText="Allow JIT Accounts with no Roles" checked={values.jitEnabled} onChange={(_, data) => setValues({ ...values, jitEnabled: data.checked })} />
+    <Checkbox id={`oidc-jit-${provider?.id ?? 'new'}`} labelText="Allow JIT People with no Roles" checked={values.jitEnabled} onChange={(_, data) => setValues({ ...values, jitEnabled: data.checked })} />
     <div className="form-actions"><Button type="button" kind="secondary" onClick={onCancel}>Cancel</Button><Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Saving…' : 'Save provider'}</Button></div>
   </Stack></Form></Tile>;
 }

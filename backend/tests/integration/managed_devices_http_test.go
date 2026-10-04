@@ -56,8 +56,8 @@ func TestHTTPManagedDeviceContextAndScopedAuthorization(t *testing.T) {
 		VALUES ($4, $1, 'roles.read', 'device_type'), ($5, $1, 'managed_devices.manage', 'device_type');
 		INSERT INTO role_permission_grant_device_types(grant_id, device_type_id)
 		VALUES ($4, $2), ($5, $2);
-		INSERT INTO account_roles(account_id, role_id) VALUES($3, $1)`,
-		roleID, reception.ID, actor.accountID, rolesReadGrantID, manageGrantID,
+		INSERT INTO person_roles(person_id, role_id) VALUES($3, $1)`,
+		roleID, reception.ID, actor.personID, rolesReadGrantID, manageGrantID,
 	); err != nil {
 		t.Fatal(err)
 	}

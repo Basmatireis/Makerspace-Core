@@ -24,7 +24,6 @@ import type { PasswordStatus } from './passwordStatus';
 import type { AccountSummaryLoginEmail } from './accountSummaryLoginEmail';
 import type { AccountSummaryProvisioningSource } from './accountSummaryProvisioningSource';
 import type { AuthIdentitySummary } from './authIdentitySummary';
-import type { RoleSummary } from './roleSummary';
 import type { Version } from './version';
 
 export interface AccountSummary {
@@ -42,6 +41,5 @@ export interface AccountSummary {
   /** @nullable */
   firstAuthenticatedAt: string | null;
   authIdentities: AuthIdentitySummary[];
-  roles: RoleSummary[];
   version: Version;
 }

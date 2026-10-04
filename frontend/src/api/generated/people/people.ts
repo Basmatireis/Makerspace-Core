@@ -289,3 +289,62 @@ export const getPersonMakerspaceStatus = async (personId: string, options?: Requ
 );}
 
 
+/**
+ * Requires `people.roles.assign`. Non-master actors may assign only roles
+whose permission set is a subset of their own effective permissions. Only
+a master actor may assign the master role.
+
+ * @summary Assign a role to a person
+ */
+export const getAssignPersonRoleUrl = (personId: string,
+    roleId: string,) => {
+
+
+  
+
+  return `/api/v1/people/${personId}/roles/${roleId}`
+}
+
+export const assignPersonRole = async (personId: string,
+    roleId: string,
+    versionRequest: VersionRequest, options?: RequestInit): Promise<Person> => {
+  
+  return apiFetch<Person>(getAssignPersonRoleUrl(personId,roleId),
+  {      
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      versionRequest,)
+  }
+);}
+
+
+/**
+ * Requires `people.roles.assign`; master removal also enforces master-only and last-enabled-master rules.
+ * @summary Remove a role from a person
+ */
+export const getRemovePersonRoleUrl = (personId: string,
+    roleId: string,) => {
+
+
+  
+
+  return `/api/v1/people/${personId}/roles/${roleId}`
+}
+
+export const removePersonRole = async (personId: string,
+    roleId: string,
+    versionRequest: VersionRequest, options?: RequestInit): Promise<Person> => {
+  
+  return apiFetch<Person>(getRemovePersonRoleUrl(personId,roleId),
+  {      
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      versionRequest,)
+  }
+);}
+
+

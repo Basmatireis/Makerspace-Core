@@ -214,7 +214,7 @@ UPDATE laborordnung_requests SET person_id=sqlc.arg(target_person_id) WHERE pers
 
 -- name: TransferProfileImage :exec
 UPDATE people target SET profile_image_file_id=source.profile_image_file_id,
-    profile_image_source=source.profile_image_source, version=target.version+1, updated_at=now()
+    profile_image_source=source.profile_image_source, updated_at=now()
 FROM people source
 WHERE target.id=sqlc.arg(target_person_id) AND source.id=sqlc.arg(source_person_id)
   AND target.profile_image_file_id IS NULL AND source.profile_image_file_id IS NOT NULL;
@@ -223,11 +223,14 @@ WHERE target.id=sqlc.arg(target_person_id) AND source.id=sqlc.arg(source_person_
 UPDATE auth_identities SET account_id=sqlc.arg(target_account_id), updated_at=now()
 WHERE account_id=sqlc.arg(source_account_id) AND kind='oidc';
 
--- name: TransferAccountRoles :exec
-INSERT INTO account_roles (account_id, role_id, assigned_by_account_id, assigned_at)
-SELECT sqlc.arg(target_account_id), source.role_id, sqlc.narg(assigned_by_account_id), now()
-FROM account_roles source WHERE source.account_id=sqlc.arg(source_account_id)
-ON CONFLICT (account_id, role_id) DO NOTHING;
+-- name: TransferPersonRoles :exec
+INSERT INTO person_roles (person_id, role_id, assigned_by_account_id, assigned_at)
+SELECT sqlc.arg(target_person_id), source.role_id, sqlc.narg(assigned_by_account_id), now()
+FROM person_roles source WHERE source.person_id=sqlc.arg(source_person_id)
+ON CONFLICT (person_id, role_id) DO NOTHING;
+
+-- name: BumpReconciledPersonVersion :exec
+UPDATE people SET version=version+1, updated_at=now() WHERE id=sqlc.arg(id);
 
 -- name: TransferSCIMMappings :exec
 UPDATE scim_users SET account_id=sqlc.arg(target_account_id), person_id=sqlc.arg(target_person_id),

@@ -61,7 +61,7 @@ describe('Directory page', () => {
           peoplePage([
             personFixture({
               matriculationNumber: 'M-0042',
-              account: accountFixture({ roles: [supervisorRole] }),
+              account: accountFixture(), roles: [supervisorRole],
               profileImage: {
                 fileId: '0192f6f8-743e-7c77-a349-cd07c3e8a920',
                 source: 'admin_upload',
@@ -188,7 +188,7 @@ describe('Directory page', () => {
     await waitFor(() => expect(router.state.location.search).toBe('?page=1'));
   });
 
-  it('omits sensitive and account columns when the actor lacks permission', async () => {
+  it('keeps Person roles visible while omitting sensitive and Account columns', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(currentUserFixture([PermissionId.peoplereadall])),
@@ -214,7 +214,7 @@ describe('Directory page', () => {
     expect(
       screen.queryByRole('columnheader', { name: /Status/ }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: /Roles/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Roles/ })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Lab Rules/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add person' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Filters' })).not.toBeInTheDocument();
@@ -259,30 +259,30 @@ describe('Directory page', () => {
     );
   });
 
-  it('assigns an allowed role to selected member accounts', async () => {
+  it('assigns an allowed role to selected people', async () => {
     let roleRequest: unknown;
     const role = roleFixture();
-    const account = accountFixture({ roles: [] });
+    const account = accountFixture();
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(
           currentUserFixture([
             PermissionId.peoplereadall,
             PermissionId.accountsread,
-            PermissionId.accountsrolesassign,
+            PermissionId.peoplerolesassign,
             PermissionId.rolesread,
           ]),
         ),
       ),
       http.get('*/api/v1/people', () =>
-        HttpResponse.json(peoplePage([personFixture({ account })])),
+        HttpResponse.json(peoplePage([personFixture({ account, roles: [] })])),
       ),
       http.get('*/api/v1/roles', () =>
         HttpResponse.json({ items: [role], nextCursor: null }),
       ),
-      http.put('*/api/v1/accounts/:accountId/roles/:roleId', async ({ request }) => {
+      http.put('*/api/v1/people/:personId/roles/:roleId', async ({ request }) => {
         roleRequest = await request.json();
-        return HttpResponse.json({ ...account, roles: [role] });
+        return HttpResponse.json(personFixture({ account, roles: [role] }));
       }),
     );
     const user = userEvent.setup();

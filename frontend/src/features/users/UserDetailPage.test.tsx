@@ -373,11 +373,6 @@ describe('User detail page', () => {
 
   it('separates account, authentication, personal, role, and Makerspace information', async () => {
     const account = accountFixture({
-      roles: [{
-        id: '0192f6f8-743e-7c77-a349-cd07c3e8a903',
-        name: 'Workshop supervisors',
-        systemKey: null,
-      }],
       authIdentities: [
         {
           id: '0192f6f8-743e-7c77-a349-cd07c3e8a906',
@@ -416,7 +411,7 @@ describe('User detail page', () => {
             PermissionId.peoplereadall,
             PermissionId.peoplereadmatriculation,
             PermissionId.accountsread,
-            PermissionId.accountsrolesassign,
+            PermissionId.peoplerolesassign,
             PermissionId.rolesread,
             PermissionId.open_daysread_assignments,
             PermissionId.laborordnungrequestsread,
@@ -431,7 +426,10 @@ describe('User detail page', () => {
         }),
       ),
       http.get(`*/api/v1/people/${otherPersonId}`, () =>
-        HttpResponse.json(personFixture({ account })),
+        HttpResponse.json(personFixture({
+          account,
+          roles: [{ id: '0192f6f8-743e-7c77-a349-cd07c3e8a903', name: 'Workshop supervisors', systemKey: null }],
+        })),
       ),
       http.get(`*/api/v1/people/${otherPersonId}/makerspace-status`, () =>
         HttpResponse.json({
@@ -548,7 +546,7 @@ describe('User detail page', () => {
     expect(screen.getByRole('heading', { name: 'Account access' })).toBeInTheDocument();
   });
 
-  it('hides inaccessible focused tabs and normalizes an unauthorized deep link', async () => {
+  it('keeps Person roles visible while hiding Account-only tabs and normalizes an unauthorized deep link', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
         PermissionId.peoplereadall,
@@ -563,7 +561,7 @@ describe('User detail page', () => {
     expect(await screen.findByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Personal information' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Account access' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('tab', { name: 'Roles & permissions' })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Roles & permissions' })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: 'Makerspace status' })).not.toBeInTheDocument();
     expect(await screen.findByText('Account details unavailable')).toBeInTheDocument();
     await waitFor(() => expect(router.state.location.search).toBe('?keep=1'));

@@ -349,7 +349,7 @@ func (s *Service) Submit(ctx context.Context, enrollment Context, input Submissi
 			return SubmissionResult{}, err
 		}
 	}
-	if err := queries.AssignVisitorRole(ctx, visitordb.AssignVisitorRoleParams{AccountID: accountID, RoleID: role.ID}); err != nil {
+	if err := queries.AssignVisitorRole(ctx, visitordb.AssignVisitorRoleParams{PersonID: personID, RoleID: role.ID}); err != nil {
 		return SubmissionResult{}, err
 	}
 	result := SubmissionResult{PersonID: personID, AccountID: accountID, AccountStatus: status, Admission: "admitted"}
@@ -376,8 +376,8 @@ func (s *Service) Submit(ctx context.Context, enrollment Context, input Submissi
 		return SubmissionResult{}, apperror.Conflict
 	}
 	for _, event := range []audit.Event{
-		{Action: "visitor_enrollment.person_created", ResourceType: "person", ResourceID: &personID, RequestID: requestID},
-		{Action: "visitor_enrollment.account_created", ResourceType: "account", ResourceID: &accountID, RequestID: requestID, ChangedFields: []string{"authMethods", "role", "profileImage"}},
+		{Action: "visitor_enrollment.person_created", ResourceType: "person", ResourceID: &personID, RequestID: requestID, ChangedFields: []string{"role", "profileImage"}},
+		{Action: "visitor_enrollment.account_created", ResourceType: "account", ResourceID: &accountID, RequestID: requestID, ChangedFields: []string{"authMethods"}},
 	} {
 		if err := audit.Write(ctx, tx, event); err != nil {
 			return SubmissionResult{}, err

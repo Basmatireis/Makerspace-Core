@@ -30,7 +30,7 @@ func TestAuditReadAuthorizationFiltersPaginationAndCurrentLabels(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, 'audit.read')`, readerRoleID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO account_roles (account_id, role_id) VALUES ($1, $2)`, reader.accountID, readerRoleID); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`, reader.personID, readerRoleID); err != nil {
 		t.Fatal(err)
 	}
 	principal, err := authorization.LoadPermissionsFrom(ctx, pool, authorization.Principal{AccountID: reader.accountID})
@@ -45,7 +45,7 @@ func TestAuditReadAuthorizationFiltersPaginationAndCurrentLabels(t *testing.T) {
 	requestID := uuid.Must(uuid.NewV7())
 	if err := audit.Write(ctx, pool, audit.Event{
 		ActorAccountID: &actor.accountID,
-		Action:         "account.role_assigned",
+		Action:         "person.role_assigned",
 		ResourceType:   "person",
 		ResourceID:     &actor.personID,
 		RequestID:      &requestID,
@@ -73,7 +73,7 @@ func TestAuditReadAuthorizationFiltersPaginationAndCurrentLabels(t *testing.T) {
 	}
 
 	actorType := "user"
-	action := "account.role_assigned"
+	action := "person.role_assigned"
 	filtered, err := service.List(ctx, principal, audit.Filter{Limit: 25, ActorType: &actorType, ActorSearch: "test person", Action: &action})
 	if err != nil {
 		t.Fatal(err)

@@ -263,7 +263,7 @@ func (q *Queries) ListRoles(ctx context.Context) ([]Role, error) {
 }
 
 const roleAssignmentCount = `-- name: RoleAssignmentCount :one
-SELECT count(*) FROM account_roles WHERE role_id = $1
+SELECT count(*) FROM person_roles WHERE role_id = $1
 `
 
 func (q *Queries) RoleAssignmentCount(ctx context.Context, roleID uuid.UUID) (int64, error) {

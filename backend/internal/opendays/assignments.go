@@ -75,7 +75,7 @@ func (s *Service) assign(ctx context.Context, p authorization.Principal, openDay
 		return Assignment{}, err
 	}
 	if !eligible {
-		return Assignment{}, conflict("person_not_eligible", "The person is not enabled and eligible for this requirement")
+		return Assignment{}, conflict("person_not_eligible", "The person is not eligible for this requirement")
 	}
 	count, err := q.CountRequirementAssignments(ctx, requirementID)
 	if err != nil {

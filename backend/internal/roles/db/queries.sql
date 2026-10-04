@@ -43,4 +43,4 @@ UPDATE roles SET version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND system_key IS NULL RETURNING *;
 
 -- name: RoleAssignmentCount :one
-SELECT count(*) FROM account_roles WHERE role_id = sqlc.arg(role_id);
+SELECT count(*) FROM person_roles WHERE role_id = sqlc.arg(role_id);

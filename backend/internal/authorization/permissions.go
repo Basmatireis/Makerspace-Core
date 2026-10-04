@@ -43,7 +43,7 @@ const (
 	AccountsPINRemoveSelf        Permission = Permission(openapi.AccountsPinRemoveSelf)
 	AccountsPINRemoveAll         Permission = Permission(openapi.AccountsPinRemoveAll)
 	AccountsPINReset             Permission = Permission(openapi.AccountsPinReset)
-	AccountsRolesAssign          Permission = Permission(openapi.AccountsRolesAssign)
+	PeopleRolesAssign            Permission = Permission(openapi.PeopleRolesAssign)
 	RolesRead                    Permission = Permission(openapi.RolesRead)
 	RolesManage                  Permission = Permission(openapi.RolesManage)
 	AuditRead                    Permission = Permission(openapi.AuditRead)
@@ -97,7 +97,7 @@ var registry = []Permission{
 	AccountsLoginEmailUpdate, AccountsPasswordSet, AccountsPasswordReset,
 	AccountsPasswordEnrollSelf, AccountsPasswordEnrollAll, AccountsPasswordRemoveSelf, AccountsPasswordRemoveAll,
 	AccountsPINEnrollSelf, AccountsPINEnrollAll, AccountsPINRemoveSelf, AccountsPINRemoveAll, AccountsPINReset,
-	AccountsRolesAssign,
+	PeopleRolesAssign,
 	RolesRead, RolesManage, AuditRead,
 	OpenDaysRead, OpenDaysReadAssignments, OpenDaysSignup, OpenDaysAssign, OpenDaysManage,
 	ManagedDevicesRead, ManagedDevicesManage,
@@ -130,7 +130,7 @@ var descriptions = map[Permission]string{
 	PeopleProfileImageUpdateAll:  "Upload or replace any Person's profile image.",
 	PeopleProfileImageRemoveSelf: "Remove the current Person's profile image.",
 	PeopleProfileImageRemoveAll:  "Remove any Person's profile image.",
-	AccountsRead:                 "Read account status, authentication identities, and role assignments.",
+	AccountsRead:                 "Read account status and authentication identities.",
 	AccountsCreate:               "Create an active account for a person.",
 	AccountsDelete:               "Permanently delete accounts and authentication data.",
 	AccountsEnable:               "Activate accounts independently of their authentication methods.",
@@ -147,7 +147,7 @@ var descriptions = map[Permission]string{
 	AccountsPINRemoveSelf:        "Remove the current account's PIN method.",
 	AccountsPINRemoveAll:         "Remove another account's PIN method and revoke its sessions.",
 	AccountsPINReset:             "Replace or issue a one-time PIN setup challenge for another account.",
-	AccountsRolesAssign:          "Assign or remove permitted roles on accounts.",
+	PeopleRolesAssign:            "Assign or remove permitted roles on people.",
 	RolesRead:                    "Read roles and the application permission registry.",
 	RolesManage:                  "Create, update, and delete permitted configurable roles.",
 	AuditRead:                    "Read privacy-minimized audit events.",

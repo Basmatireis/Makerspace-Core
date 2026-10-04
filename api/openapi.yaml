@@ -463,8 +463,8 @@ paths:
         - name: roleIds
           in: query
           description: |
-            Return people assigned to at least one of these roles. Supplying this
-            filter requires `accounts.read` because role membership is account data.
+            Return people assigned to at least one of these roles. Role membership
+            is Person data and is available with `people.read.all`.
           style: form
           explode: true
           schema:
@@ -835,7 +835,7 @@ paths:
               $ref: "#/components/schemas/VersionRequest"
       responses:
         "204":
-          description: Account, identities, sessions, reset tokens, and role assignments deleted.
+          description: Account, identities, sessions, and reset tokens deleted. The Person and their role assignments remain.
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1205,16 +1205,16 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /accounts/{accountId}/roles/{roleId}:
+  /people/{personId}/roles/{roleId}:
     parameters:
-      - $ref: "#/components/parameters/AccountId"
+      - $ref: "#/components/parameters/PersonId"
       - $ref: "#/components/parameters/RoleId"
     put:
-      tags: [Accounts]
-      operationId: assignAccountRole
-      summary: Assign a role to an account
+      tags: [People]
+      operationId: assignPersonRole
+      summary: Assign a role to a person
       description: |
-        Requires `accounts.roles.assign`. Non-master actors may assign only roles
+        Requires `people.roles.assign`. Non-master actors may assign only roles
         whose permission set is a subset of their own effective permissions. Only
         a master actor may assign the master role.
       security:
@@ -1228,11 +1228,11 @@ paths:
               $ref: "#/components/schemas/VersionRequest"
       responses:
         "200":
-          description: Account with updated roles.
+          description: Person with updated roles.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Account"
+                $ref: "#/components/schemas/Person"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -1246,10 +1246,10 @@ paths:
         "500":
           $ref: "#/components/responses/InternalServerError"
     delete:
-      tags: [Accounts]
-      operationId: removeAccountRole
-      summary: Remove a role from an account
-      description: Requires `accounts.roles.assign`; master removal also enforces master-only and last-enabled-master rules.
+      tags: [People]
+      operationId: removePersonRole
+      summary: Remove a role from a person
+      description: Requires `people.roles.assign`; master removal also enforces master-only and last-enabled-master rules.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -1261,11 +1261,11 @@ paths:
               $ref: "#/components/schemas/VersionRequest"
       responses:
         "200":
-          description: Account with updated roles.
+          description: Person with updated roles.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Account"
+                $ref: "#/components/schemas/Person"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -2830,7 +2830,7 @@ paths:
       tags: [SCIM Administration]
       operationId: preflightSCIMReconciliation
       summary: Analyze a provisional-to-established Account reconciliation without modifying data
-      description: The source must be SCIM-provisioned and never authenticated. Every role transfer requires accounts.roles.assign and ordinary privilege-subset delegation. Master roles cannot be transferred. Conflicts are reported without changing either account.
+      description: The source must be SCIM-provisioned and never authenticated. Every Person role transfer requires people.roles.assign and ordinary privilege-subset delegation. Master roles cannot be transferred. Conflicts are reported without changing either account.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SCIMReconciliationRequest"}}}}
       responses:
@@ -3867,7 +3867,7 @@ components:
         - accounts.pin.remove.self
         - accounts.pin.remove.all
         - accounts.pin.reset
-        - accounts.roles.assign
+        - people.roles.assign
         - roles.read
         - roles.manage
         - audit.read
@@ -4129,7 +4129,7 @@ components:
     Person:
       type: object
       additionalProperties: false
-      required: [id, firstName, lastName, createdAt, updatedAt, version]
+      required: [id, firstName, lastName, roles, createdAt, updatedAt, version]
       properties:
         id:
           $ref: "#/components/schemas/UUIDv7"
@@ -4169,6 +4169,10 @@ components:
         profileImageRequired:
           type: boolean
           description: True when any assigned Role requires a profile image.
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleSummary"
         account:
           allOf:
             - $ref: "#/components/schemas/AccountSummary"
@@ -4500,7 +4504,7 @@ components:
     AccountSummary:
       type: object
       additionalProperties: false
-      required: [id, personId, status, provisioningSource, firstAuthenticatedAt, passwordStatus, loginEmail, authIdentities, roles, version]
+      required: [id, personId, status, provisioningSource, firstAuthenticatedAt, passwordStatus, loginEmail, authIdentities, version]
       properties:
         id:
           $ref: "#/components/schemas/UUIDv7"
@@ -4525,17 +4529,13 @@ components:
         authIdentities:
           type: array
           items: {$ref: "#/components/schemas/AuthIdentitySummary"}
-        roles:
-          type: array
-          items:
-            $ref: "#/components/schemas/RoleSummary"
         version:
           $ref: "#/components/schemas/Version"
 
     Account:
       type: object
       additionalProperties: false
-      required: [id, personId, status, provisioningSource, firstAuthenticatedAt, passwordStatus, loginEmail, authIdentities, roles, createdAt, updatedAt, version]
+      required: [id, personId, status, provisioningSource, firstAuthenticatedAt, passwordStatus, loginEmail, authIdentities, createdAt, updatedAt, version]
       properties:
         id:
           $ref: "#/components/schemas/UUIDv7"
@@ -4560,10 +4560,6 @@ components:
         authIdentities:
           type: array
           items: {$ref: "#/components/schemas/AuthIdentitySummary"}
-        roles:
-          type: array
-          items:
-            $ref: "#/components/schemas/RoleSummary"
         createdAt:
           type: string
           format: date-time

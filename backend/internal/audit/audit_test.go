@@ -45,8 +45,8 @@ func TestWriteAcceptsOpaqueRoleIDAndDefaultsHTTPSource(t *testing.T) {
 	queries := &recordingAuditQueries{}
 	roleID := uuid.Must(uuid.NewV7())
 	err := write(context.Background(), queries, Event{
-		Action:       "account.role_assigned",
-		ResourceType: "account",
+		Action:       "person.role_assigned",
+		ResourceType: "person",
 		Metadata:     map[string]any{"roleId": roleID.String()},
 	})
 	if err != nil {

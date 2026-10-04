@@ -97,7 +97,7 @@ export function RolesPage() {
   const createOpen = location.pathname.endsWith('/new');
   const settingsRole = roles.find((role) => role.id === routeRoleId);
   const deletingRole = roles.find((role) => role.id === deleteRoleId);
-  const isMasterActor = currentUser.account.roles.some((role) => role.systemKey === 'master');
+  const isMasterActor = currentUser.person.roles.some((role) => role.systemKey === 'master');
   const canManageRole = (role: Role) => hasPermission(currentUser, PermissionId.rolesmanage) &&
     role.systemKey !== 'master' &&
     (isMasterActor || role.permissionGrants.every((grant) =>

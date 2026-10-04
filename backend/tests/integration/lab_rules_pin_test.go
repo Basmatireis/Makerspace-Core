@@ -36,7 +36,7 @@ func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO roles (id,name,laborordnung_mode) VALUES ($1,'Lab warning','warning')`, warningRoleID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO account_roles (account_id,role_id) VALUES ($1,$2)`, accountID, warningRoleID); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id,role_id) VALUES ($1,$2)`, personID, warningRoleID); err != nil {
 		t.Fatal(err)
 	}
 	versionID := insertPublishedLabRulesVersion(t, pool, accountID, "2026.1")
@@ -89,7 +89,7 @@ func TestLabRulesStatusIsReadOnlyAndExplicitRequestIsIdempotent(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO roles (id,name,laborordnung_mode) VALUES ($1,'Admission block','blocking')`, blockingRoleID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO account_roles (account_id,role_id) VALUES ($1,$2)`, accountID, blockingRoleID); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id,role_id) VALUES ($1,$2)`, personID, blockingRoleID); err != nil {
 		t.Fatal(err)
 	}
 	status, err = service.Evaluate(ctx, personID)

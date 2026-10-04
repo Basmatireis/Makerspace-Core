@@ -138,7 +138,7 @@ func TestControlledVisitorEnrollmentAndAdmission(t *testing.T) {
 	}
 	assertCount(t, pool, `SELECT count(*) FROM people WHERE id=$1 AND profile_image_file_id IS NOT NULL AND profile_image_source='terminal_capture'`, 1, result.PersonID)
 	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1 AND person_id=$2 AND status='enabled' AND provisioning_source='visitor'`, 1, result.AccountID, result.PersonID)
-	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id=$1 AND role_id=$2`, 1, result.AccountID, roleID)
+	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`, 1, result.PersonID, roleID)
 	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='pin' AND identifier_display=$2 AND identifier_normalized='visitor.one'`, 1, result.AccountID, loginName)
 	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind IN ('password','oidc')`, 0, result.AccountID)
 	assertCount(t, pool, `SELECT count(*) FROM laborordnung_requests WHERE person_id=$1 AND status='pending'`, 1, result.PersonID)

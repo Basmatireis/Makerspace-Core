@@ -99,7 +99,7 @@ RETURNING *;
 INSERT INTO pin_credentials (auth_identity_id, pin_hash) VALUES (sqlc.arg(auth_identity_id), sqlc.arg(pin_hash));
 
 -- name: AssignVisitorRole :exec
-INSERT INTO account_roles (account_id, role_id) VALUES (sqlc.arg(account_id), sqlc.arg(role_id));
+INSERT INTO person_roles (person_id, role_id) VALUES (sqlc.arg(person_id), sqlc.arg(role_id));
 
 -- name: CreateVisitorInvitation :one
 INSERT INTO auth_challenges (id, kind, account_id, auth_identity_id, code_digest, delivery_address, expires_at)

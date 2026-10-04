@@ -14,7 +14,7 @@ Authorization is based on application-registered permission identifiers. Backend
 | `people.delete` | Hard-delete a Person; an attached Account also requires `accounts.delete`. |
 | `people.read.matriculation` | Receive matriculation numbers in authorized Person responses. |
 | `people.update.matriculation` | Set or clear a matriculation number in an otherwise authorized create/update operation. |
-| `accounts.read` | Read account status, login identity, and role assignments in administration APIs. |
+| `accounts.read` | Read account status and login identities in administration APIs. |
 | `accounts.create` | Create an Account for an existing Person. |
 | `accounts.delete` | Hard-delete an Account and its authentication data. |
 | `accounts.enable` | Activate an Account independently of its authentication methods. |
@@ -22,7 +22,7 @@ Authorization is based on application-registered permission identifiers. Backend
 | `accounts.login_email.update` | Change an account login email independently of Person contact email. |
 | `accounts.password.set` | Directly set another account's password. |
 | `accounts.password.reset` | Issue a one-time reset link for another account. |
-| `accounts.roles.assign` | Assign or remove allowed Roles from Accounts. |
+| `people.roles.assign` | Assign or remove allowed Roles from People. |
 | `roles.read` | List registered permissions and read configured Roles. |
 | `roles.manage` | Create, edit, delete, and replace permissions on configurable Roles. |
 | `audit.read` | Read privacy-minimized audit events and their allowlisted current display labels. |
@@ -46,7 +46,7 @@ Authorization is based on application-registered permission identifiers. Backend
 | `identities.oidc.link.self`, `identities.oidc.link.all` | Self-linking requires recent normal-or-higher authentication. `link.all` is reserved/unimplemented; it cannot attach arbitrary subjects. |
 | `identities.oidc.unlink.self`, `identities.oidc.unlink.all` | Unlink external identities. |
 | `oidc.manage` | Configure OIDC providers and trusted assurance mappings. |
-| `scim.manage` | Configure SCIM connectors and reconcile never-authenticated provisional Accounts. Role transfer separately requires `accounts.roles.assign` and ordinary delegation authority; master transfer is forbidden. |
+| `scim.manage` | Configure SCIM connectors and reconcile never-authenticated provisional Accounts. Person-role transfer separately requires `people.roles.assign` and ordinary delegation authority; master transfer is forbidden. |
 | `mail.manage` | Configure encrypted transactional SMTP settings. |
 | `branding.manage` | Configure the installation-wide organization identity, brand colors and assets, and imprint/privacy delivery. |
 | `machines.read`, `machines.manage` | Read machine catalog/metrics or create and update machine types and machines. |
@@ -80,13 +80,13 @@ Matriculation access is an additional field gate, not a substitute for record ac
 
 Account data nested in Person responses is omitted without `accounts.read`. `/auth/me` inherently returns the current principal's Account, minimal Person identity, and sorted effective permissions. Contact fields require the applicable self/all Person-read permission, and matriculation still requires its dedicated read permission.
 
-Open Day readers always receive requirement totals and their own assignment. Other identities are omitted unless `open_days.read_assignments` is effective, and internal notes are emitted only with `open_days.manage`. The assignment search endpoint returns only enabled, role-eligible Person IDs and display names; it does not inherit or require `roles.read` or a broader people permission. All assignment and schedule rules are enforced again in the backend service.
+Open Day readers always receive requirement totals and their own assignment. Other identities are omitted unless `open_days.read_assignments` is effective, and internal notes are emitted only with `open_days.manage`. The administrative assignment search returns role-eligible Person IDs and display names even when no Account exists; it does not inherit or require `roles.read` or a broader people permission. Self-signup still requires an authenticated Account. All assignment and schedule rules are enforced again in the backend service.
 
 `audit.read` independently authorizes the minimal current display names selected by the audit projection, including actor Person names and safe target labels. It does not grant access to the underlying Person or Account endpoints, contact/login email, phone, matriculation number, profile image, notes, or credentials. Deleted names are not retained, so deleted actors cannot be searched by their former name and deleted resources fall back to an opaque identifier. No ordinary user receives Activity access unless an assigned Role explicitly grants `audit.read`; the `master` system role receives it through the registry like every other registered permission.
 
 ## Dynamic roles and privilege boundaries
 
-Operators may create arbitrary business Roles and assign registered permissions. Business logic never checks names such as “admin” or “supervisor.” A non-master actor with `roles.manage` may create or update only a permission set that is a subset of their own effective permissions. A non-master actor with `accounts.roles.assign` may assign only Roles whose effective permissions are a subset of their own. These checks prevent privilege escalation through indirection.
+Operators may create arbitrary business Roles and assign registered permissions. Business logic never checks names such as “admin” or “supervisor.” A non-master actor with `roles.manage` may create or update only a permission set that is a subset of their own effective permissions. A non-master actor with `people.roles.assign` may assign only Roles whose effective permissions are a subset of their own. These checks prevent privilege escalation through indirection.
 
 Deleting a configurable Role removes its account assignments and permission rows in the same transaction. Role/account writes use `expectedVersion`; concurrent changes return HTTP 409 with `stale_write` rather than silently overwriting a newer policy.
 
@@ -104,7 +104,7 @@ Bootstrap and recovery are deliberate local administrative CLI operations, never
 
 ## Enforcement and failures
 
-Handlers parse authenticated identity and transport input, but services make the final permission decision inside the business operation. Missing permission returns HTTP 403 with the standard error envelope. Not-found behavior may conceal resource existence where disclosure would be unsafe. Account status, current Roles, and master semantics are loaded from PostgreSQL for each authenticated request, making revocation effective immediately at this system's small expected scale.
+Handlers parse authenticated identity and transport input, but services make the final permission decision inside the business operation. Missing permission returns HTTP 403 with the standard error envelope. Not-found behavior may conceal resource existence where disclosure would be unsafe. Each authenticated request resolves `session → Account → Person → Person Roles → permission grants` from PostgreSQL, making revocation effective immediately at this system's small expected scale.
 
 Every authorization-sensitive mutation and security-relevant denial path has focused tests. Important successful mutations write a privacy-minimized AuditEvent atomically with their domain changes.
 

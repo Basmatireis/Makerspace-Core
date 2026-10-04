@@ -95,7 +95,7 @@ func TestPreRefactorMasterPasswordSurvivesActualMigrationChain(t *testing.T) {
 		gotVerifiedAt.IsZero() || gotDisabledAt != nil || gotHash != hash || !security.VerifyPassword(gotHash, password) {
 		t.Fatalf("migrated identity changed: person=%s account=%s identity=%s kind=%q hashPreserved=%v", gotPersonID, gotAccountID, gotIdentityID, gotKind, gotHash == hash)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id = $1 AND role_id = $2`, 1, accountID, masterRoleID)
+	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id = $1 AND role_id = $2`, 1, personID, masterRoleID)
 
 	service, err := auth.NewService(pool, integrationConfig(t))
 	if err != nil {
@@ -234,7 +234,7 @@ func TestAdministrativeResetPasswordPreservesExistingAccountState(t *testing.T) 
 	if gotPersonID != personID || status != "enabled" {
 		t.Fatalf("account identity/status changed: person=%s status=%s", gotPersonID, status)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id=$1 AND role_id=$2`, 1, accountID, masterRoleID)
+	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`, 1, personID, masterRoleID)
 	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND id IN ($2,$3,$4)`, 3, accountID, passwordIdentityID, pinIdentityID, oidcIdentityID)
 	assertCount(t, pool, `SELECT count(*) FROM sessions WHERE id=$1 AND revoked_at IS NOT NULL`, 1, oldSession.ID)
 	assertCount(t, pool, `SELECT count(*) FROM password_reset_tokens WHERE account_id=$1`, 0, accountID)
@@ -327,8 +327,8 @@ func orderedMigrationFiles(t *testing.T) []string {
 		t.Fatal("cannot locate migration test")
 	}
 	paths, err := filepath.Glob(filepath.Join(filepath.Dir(filename), "..", "..", "migrations", "*.sql"))
-	if err != nil || len(paths) != 23 {
-		t.Fatalf("locate 23 migrations: count=%d err=%v", len(paths), err)
+	if err != nil || len(paths) != 24 {
+		t.Fatalf("locate 24 migrations: count=%d err=%v", len(paths), err)
 	}
 	return paths
 }

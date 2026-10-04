@@ -39,7 +39,7 @@ func TestSCIMReconciliationRequiresProvisionalLifecycleAndDelegation(t *testing.
 			}
 			grants := []authorization.PermissionGrant{{PermissionID: authorization.SCIMManage, Scope: authorization.GrantEverywhere}}
 			if scenario == "permitted_roles" || scenario == "forbidden_subset" {
-				grants = append(grants, authorization.PermissionGrant{PermissionID: authorization.AccountsRolesAssign, Scope: authorization.GrantEverywhere})
+				grants = append(grants, authorization.PermissionGrant{PermissionID: authorization.PeopleRolesAssign, Scope: authorization.GrantEverywhere})
 			}
 			if scenario == "permitted_roles" {
 				grants = append(grants, authorization.PermissionGrant{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere})
@@ -49,7 +49,7 @@ func TestSCIMReconciliationRequiresProvisionalLifecycleAndDelegation(t *testing.
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := pool.Exec(ctx, `INSERT INTO account_roles(account_id,role_id) VALUES ($1,$2)`, actor.accountID, actorRole.ID); err != nil {
+			if _, err := pool.Exec(ctx, `INSERT INTO person_roles(person_id,role_id) VALUES ($1,$2)`, actor.personID, actorRole.ID); err != nil {
 				t.Fatal(err)
 			}
 			var sourceRole uuid.UUID
@@ -59,7 +59,7 @@ func TestSCIMReconciliationRequiresProvisionalLifecycleAndDelegation(t *testing.
 					t.Fatal(err)
 				}
 				sourceRole = role.ID
-				if _, err := pool.Exec(ctx, `INSERT INTO account_roles(account_id,role_id) VALUES ($1,$2)`, source, sourceRole); err != nil {
+				if _, err := pool.Exec(ctx, `INSERT INTO person_roles(person_id,role_id) VALUES ($1,$2)`, sourcePerson, sourceRole); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -88,7 +88,7 @@ func TestSCIMReconciliationRequiresProvisionalLifecycleAndDelegation(t *testing.
 				assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1`, 0, source)
 				assertCount(t, pool, `SELECT count(*) FROM scim_users WHERE id=$1 AND account_id=$2`, 1, user.ID, target.accountID)
 				if sourceRole != uuid.Nil {
-					assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id=$1 AND role_id=$2 AND assigned_by_account_id=$3`, 1, target.accountID, sourceRole, actor.accountID)
+					assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2 AND assigned_by_account_id=$3`, 1, target.personID, sourceRole, actor.accountID)
 				}
 			} else {
 				want := "role_transfer_forbidden"
@@ -102,7 +102,7 @@ func TestSCIMReconciliationRequiresProvisionalLifecycleAndDelegation(t *testing.
 				assertCount(t, pool, `SELECT count(*) FROM people WHERE id=$1`, 1, sourcePerson)
 				assertCount(t, pool, `SELECT count(*) FROM scim_users WHERE id=$1 AND account_id=$2`, 1, user.ID, source)
 				assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND subject='source-subject'`, 1, source)
-				assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id=$1`, 0, target.accountID)
+				assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1`, 0, target.personID)
 				assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='scim.account_reconciled'`, 0)
 			}
 		})

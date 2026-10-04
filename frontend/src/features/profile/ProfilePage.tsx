@@ -425,11 +425,11 @@ export function ProfilePage() {
 
               <DetailSection
                 title="Roles"
-                meta={<span className="section-description">{currentUser.account.roles.length} assigned</span>}
+                meta={<span className="section-description">{currentUser.person.roles.length} assigned</span>}
               >
                 <div className="tag-list" aria-label="Assigned roles">
-                  {currentUser.account.roles.length === 0 && <span>No roles assigned</span>}
-                  {currentUser.account.roles.map((role) => (
+                  {currentUser.person.roles.length === 0 && <span>No roles assigned</span>}
+                  {currentUser.person.roles.map((role) => (
                     <Tag key={role.id} type={role.systemKey === 'master' ? 'purple' : 'blue'}>{role.name}</Tag>
                   ))}
                 </div>

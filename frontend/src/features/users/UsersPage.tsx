@@ -33,7 +33,6 @@ import { Add, Filter, TrashCan, UserFollow, UserRole } from '@carbon/icons-react
 import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  assignAccountRole,
   createPersonAccount,
   deleteAccount,
 } from '../../api/generated/accounts/accounts';
@@ -44,7 +43,7 @@ import type {
   Person,
   Role,
 } from '../../api/generated/models';
-import { getPersonMakerspaceStatus } from '../../api/generated/people/people';
+import { assignPersonRole, getPersonMakerspaceStatus } from '../../api/generated/people/people';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
@@ -179,7 +178,7 @@ export function UsersPage() {
       page,
       pageSize,
       ...(search ? { search } : {}),
-      ...(showAccounts && mayReadRoles && selectedRoleIds.length ? { roleIds: selectedRoleIds } : {}),
+      ...(mayReadRoles && selectedRoleIds.length ? { roleIds: selectedRoleIds } : {}),
       ...(showAccounts && selectedAccountStatusOptions.length
         ? { accountStatuses: selectedAccountStatusOptions.map((option) => option.value) }
         : {}),
@@ -192,13 +191,12 @@ export function UsersPage() {
   const mayCreateAccounts =
     showAccounts && hasPermission(currentUser, PermissionId.accountscreate);
   const mayAssignRoles =
-    showAccounts &&
-    hasPermission(currentUser, PermissionId.accountsrolesassign) &&
+    hasPermission(currentUser, PermissionId.peoplerolesassign) &&
     hasPermission(currentUser, PermissionId.rolesread);
   const mayDeleteAccounts =
     showAccounts && hasPermission(currentUser, PermissionId.accountsdelete);
   const canBatchManage = mayCreateAccounts || mayAssignRoles || mayDeleteAccounts;
-  const rolesQuery = useQuery({ ...fullRoleCatalogOptions, enabled: showAccounts && mayReadRoles });
+  const rolesQuery = useQuery({ ...fullRoleCatalogOptions, enabled: mayReadRoles });
   const supervisorRoleIds = useMemo(
     () => new Set((rolesQuery.data ?? []).filter((role) => role.supervisorDashboard).map((role) => role.id)),
     [rolesQuery.data],
@@ -244,13 +242,13 @@ export function UsersPage() {
   });
   const batchAssignRole = useMutation({
     mutationFn: async ({ members, role }: { members: Person[]; role: Role }) => {
-      const eligible = peopleWithAccounts(members).filter(
-        (person) => !person.account!.roles.some((assigned) => assigned.id === role.id),
+      const eligible = members.filter(
+        (person) => !person.roles.some((assigned) => assigned.id === role.id),
       );
       const results = await Promise.allSettled(
         eligible.map((person) =>
-          assignAccountRole(person.account!.id, role.id, {
-            expectedVersion: person.account!.version,
+          assignPersonRole(person.id, role.id, {
+            expectedVersion: person.version,
           }),
         ),
       );
@@ -267,7 +265,7 @@ export function UsersPage() {
       setBatchResult({
         kind: failed === 0 ? 'success' : 'warning',
         title: failed === 0 ? 'Roles assigned' : 'Some roles were not assigned',
-        subtitle: `${assigned} assigned${skipped ? `; ${skipped} skipped because no account exists or the role is already assigned` : ''}${failed ? `; ${failed} could not be assigned` : ''}.`,
+        subtitle: `${assigned} assigned${skipped ? `; ${skipped} skipped because the role is already assigned` : ''}${failed ? `; ${failed} could not be assigned` : ''}.`,
       });
       await refreshPeople();
     },
@@ -332,7 +330,7 @@ export function UsersPage() {
     { key: 'avatar', header: 'Profile' },
     { key: 'name', header: 'Name' },
     { key: 'contact', header: 'Contact' },
-    ...(showAccounts ? [{ key: 'roles', header: 'Roles' }] : []),
+    { key: 'roles', header: 'Roles' },
     ...(mayReadLabRules ? [{ key: 'labRules', header: 'Lab Rules' }] : []),
     ...(showAccounts ? [{ key: 'status', header: 'Status' }] : []),
   ];
@@ -348,14 +346,9 @@ export function UsersPage() {
           ).label,
         }
       : {}),
+    roles: person.roles.length === 0 ? '—' : person.roles.map((role) => role.name).join(', '),
     ...(showAccounts
       ? {
-          roles:
-            person.account === undefined
-              ? 'Restricted'
-              : person.account === null || person.account.roles.length === 0
-                ? '—'
-                : person.account.roles.map((role) => role.name).join(', '),
           status:
             person.account === undefined
               ? 'Restricted'
@@ -368,17 +361,16 @@ export function UsersPage() {
   const membersEligibleForAccountCreation = batchMembers.filter((member) => member.account === null);
   const membersEligibleForAccountDeletion = peopleWithAccounts(batchMembers);
   const membersEligibleForRoleAssignment = batchRole
-    ? peopleWithAccounts(batchMembers).filter(
-        (member) =>
-          !member.account!.roles.some((assigned) => assigned.id === batchRole.id),
+    ? batchMembers.filter(
+        (member) => !member.roles.some((assigned) => assigned.id === batchRole.id),
       )
-    : peopleWithAccounts(batchMembers);
+    : batchMembers;
 
   const selectedRoles = (rolesQuery.data ?? []).filter((role) =>
     selectedRoleIds.includes(role.id),
   );
-  const canFilter = showAccounts || mayReadLabRules;
-  const hasActiveFilters = (showAccounts && mayReadRoles && selectedRoleIds.length > 0)
+  const canFilter = showAccounts || mayReadRoles || mayReadLabRules;
+  const hasActiveFilters = (mayReadRoles && selectedRoleIds.length > 0)
     || (showAccounts && selectedAccountStatusOptions.length > 0)
     || (mayReadLabRules && selectedLabRulesStatusOptions.length > 0);
 
@@ -439,7 +431,7 @@ export function UsersPage() {
               .map((row) => peopleById.get(row.id))
               .filter((person): person is Person => Boolean(person));
             const selectedForAccountCreation = selectedMembers.filter((member) => member.account === null);
-            const selectedForRoleAssignment = peopleWithAccounts(selectedMembers);
+            const selectedForRoleAssignment = selectedMembers;
             const selectedForAccountDeletion = peopleWithAccounts(selectedMembers);
 
             return (
@@ -535,7 +527,7 @@ export function UsersPage() {
                 {filtersOpen && (
                   <div id="people-filters" className="people-filter-panel" role="region" aria-label="Directory filters">
                     <div className="people-filter-panel__fields">
-                      {showAccounts && mayReadRoles && (
+                      {mayReadRoles && (
                         <MultiSelect
                           id="people-role-filter"
                           className="people-filter-panel__field"
@@ -629,12 +621,12 @@ export function UsersPage() {
                               </Tag>
                             ) : cell.info.header === 'roles' ? (() => {
                               const person = peopleById.get(row.id);
-                              if (!person?.account || person.account.roles.length === 0) {
+                              if (!person || person.roles.length === 0) {
                                 return String(cell.value);
                               }
                               return (
                                 <div className="people-table__roles" aria-label={`Roles for ${person.firstName} ${person.lastName}`}>
-                                  {person.account.roles.map((role) => {
+                                  {person.roles.map((role) => {
                                     const isSupervisorRole = supervisorRoleIds.has(role.id);
                                     return (
                                       <Tag
@@ -745,7 +737,7 @@ export function UsersPage() {
               />
               <p>
                 The selected role will be assigned to {membersEligibleForRoleAssignment.length}{' '}
-                {membersEligibleForRoleAssignment.length === 1 ? 'account' : 'accounts'}.
+                {membersEligibleForRoleAssignment.length === 1 ? 'person' : 'people'}.
               </p>
               {batchMembers.length !== membersEligibleForRoleAssignment.length && (
                 <InlineNotification
@@ -753,7 +745,7 @@ export function UsersPage() {
                   lowContrast
                   hideCloseButton
                   title="Some people will be skipped"
-                  subtitle="An account is required, and people who already have the role are not changed."
+                  subtitle="People who already have the role are not changed."
                 />
               )}
             </Stack>

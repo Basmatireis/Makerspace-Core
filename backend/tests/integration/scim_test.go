@@ -37,11 +37,11 @@ func TestSCIMCannotDeprovisionLastEnabledMaster(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			var accountID uuid.UUID
-			if err := pool.QueryRow(ctx, `SELECT account_id FROM scim_users WHERE id=$1`, user.ID).Scan(&accountID); err != nil {
+			var accountID, personID uuid.UUID
+			if err := pool.QueryRow(ctx, `SELECT account_id,person_id FROM scim_users WHERE id=$1`, user.ID).Scan(&accountID, &personID); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := pool.Exec(ctx, `INSERT INTO account_roles(account_id,role_id) VALUES ($1,$2)`, accountID, masterRoleID); err != nil {
+			if _, err := pool.Exec(ctx, `INSERT INTO person_roles(person_id,role_id) VALUES ($1,$2)`, personID, masterRoleID); err != nil {
 				t.Fatal(err)
 			}
 			deprovision := func() error {
@@ -91,11 +91,11 @@ func TestSCIMReconciliationPreservesAnEnabledMaster(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var sourceID uuid.UUID
-	if err := pool.QueryRow(ctx, `SELECT account_id FROM scim_users WHERE id=$1`, user.ID).Scan(&sourceID); err != nil {
+	var sourceID, sourcePersonID uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT account_id,person_id FROM scim_users WHERE id=$1`, user.ID).Scan(&sourceID, &sourcePersonID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO account_roles(account_id,role_id) VALUES ($1,$2)`, sourceID, masterRoleID); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO person_roles(person_id,role_id) VALUES ($1,$2)`, sourcePersonID, masterRoleID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `UPDATE accounts SET status='disabled' WHERE id=$1`, target.accountID); err != nil {
@@ -106,7 +106,7 @@ func TestSCIMReconciliationPreservesAnEnabledMaster(t *testing.T) {
 		t.Fatalf("last-master reconciliation = %#v, %v", report, err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1`, 1, sourceID)
-	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id=$1`, 0, target.accountID)
+	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1`, 0, target.personID)
 	if _, err := pool.Exec(ctx, `UPDATE accounts SET status='enabled' WHERE id=$1`, target.accountID); err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestSCIMReconciliationPreservesAnEnabledMaster(t *testing.T) {
 		t.Fatalf("master transfer accepted: %#v, %v", report, err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1`, 1, sourceID)
-	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id=$1 AND role_id=$2`, 0, target.accountID, masterRoleID)
+	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`, 0, target.personID, masterRoleID)
 }
 
 func TestSCIMProvisioningAuthenticationAndDeprovisioning(t *testing.T) {
@@ -166,7 +166,7 @@ func TestSCIMProvisioningAuthenticationAndDeprovisioning(t *testing.T) {
 	if source != "scim" || status != "enabled" || firstAuthenticated {
 		t.Fatalf("provisioned state source=%q status=%q firstAuthenticated=%v", source, status, firstAuthenticated)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id=$1`, 0, accountID)
+	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1`, 0, personID)
 	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE account_id=$1 AND kind='oidc' AND provider_id=$2 AND subject='authentik-subject-42'`, 1, accountID, providerID)
 	page, err := service.ListUsers(ctx, connector, `externalId eq "authentik-subject-42"`, 1, 100)
 	if err != nil || page.Total != 1 || len(page.Items) != 1 || page.Items[0].ID != user.ID {

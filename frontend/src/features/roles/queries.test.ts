@@ -18,7 +18,7 @@ function role(id: string, name: string) {
 }
 
 describe('full role catalog query', () => {
-  it('loads every cursor page for account role management', async () => {
+  it('loads every cursor page for person role management', async () => {
     const requests: string[] = [];
     server.use(
       http.get('*/api/v1/roles', ({ request }) => {

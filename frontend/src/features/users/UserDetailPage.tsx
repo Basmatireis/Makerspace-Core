@@ -38,7 +38,6 @@ import { useForm } from 'react-hook-form';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { formatDateTime, formatDateTimeRange } from '../../app/dateTime';
 import {
-  assignAccountRole,
   createPersonAccount,
   deleteAccount,
   disableAccount,
@@ -47,7 +46,6 @@ import {
   issueAccountPinEnrollment,
   issueAccountPasswordReset,
   removeAccountAuthIdentity,
-  removeAccountRole,
   setAccountPin,
   setAccountPassword,
   updateAccountLoginEmail,
@@ -62,10 +60,12 @@ import type {
   UpdatePersonRequest,
 } from '../../api/generated/models';
 import {
+  assignPersonRole,
   deletePerson,
   deletePersonProfileImage,
   getPersonMakerspaceStatus,
   getPutPersonProfileImageUrl,
+  removePersonRole,
   updatePerson,
 } from '../../api/generated/people/people';
 import { apiFetch } from '../../api/http-client';
@@ -171,7 +171,7 @@ function UserDetailContent({ person }: { person: Person }) {
   const canReadMatriculation = hasPermission(currentUser, PermissionId.peoplereadmatriculation);
   const canEditMatriculation = canReadMatriculation && hasPermission(currentUser, PermissionId.peopleupdatematriculation);
   const canReadAccounts = hasPermission(currentUser, PermissionId.accountsread);
-  const canAssignRoles = hasPermission(currentUser, PermissionId.accountsrolesassign);
+  const canAssignRoles = hasPermission(currentUser, PermissionId.peoplerolesassign);
   const canReadRoles = hasPermission(currentUser, PermissionId.rolesread);
   const canReadMakerspaceStatus = hasPermission(currentUser, PermissionId.open_daysread_assignments) ||
     hasPermission(currentUser, PermissionId.laborordnungrequestsread);
@@ -203,7 +203,7 @@ function UserDetailContent({ person }: { person: Person }) {
     currentUser,
     PermissionId.accountsdelete,
   );
-  const canAssignRole = Boolean(account) && canAssignRoles && canReadRoles;
+  const canAssignRole = canAssignRoles && canReadRoles;
   // Emergency administrator password setting remains an API-only compatibility
   // operation; routine UI workflows use recipient-owned invitations and resets.
   const canSetPassword = false;
@@ -235,10 +235,10 @@ function UserDetailContent({ person }: { person: Person }) {
   const hasCredentialActions = canSetPassword || canIssuePasswordReset || canInvite || canConfigurePIN;
   const availableTabs = useMemo(() => personDetailTabs.filter((tab) => {
     if (tab.key === 'account-access') return canReadAccounts;
-    if (tab.key === 'roles-permissions') return canReadAccounts && Boolean(account);
+    if (tab.key === 'roles-permissions') return true;
     if (tab.key === 'makerspace-status') return canReadMakerspaceStatus;
     return true;
-  }).map((tab) => tab.key === 'makerspace-status' ? { ...tab, label: statusLabel } : tab), [account, canReadAccounts, canReadMakerspaceStatus, statusLabel]);
+  }).map((tab) => tab.key === 'makerspace-status' ? { ...tab, label: statusLabel } : tab), [canReadAccounts, canReadMakerspaceStatus, statusLabel]);
   const requestedTab = searchParams.get('tab');
   const selectedTabIndex = Math.max(
     0,
@@ -359,8 +359,8 @@ function UserDetailContent({ person }: { person: Person }) {
   });
   const roleMutation = useMutation({
     mutationFn: ({ roleId, remove }: { roleId: string; remove: boolean }) => remove
-      ? removeAccountRole(account!.id, roleId, { expectedVersion: account!.version })
-      : assignAccountRole(account!.id, roleId, { expectedVersion: account!.version }),
+      ? removePersonRole(person.id, roleId, { expectedVersion: person.version })
+      : assignPersonRole(person.id, roleId, { expectedVersion: person.version }),
     onSuccess: async () => {
       setSelectedRole(null);
       setAssignRoleOpen(false);
@@ -400,19 +400,19 @@ function UserDetailContent({ person }: { person: Person }) {
     },
   });
 
-  const rolesQuery = useQuery({ ...fullRoleCatalogOptions, enabled: Boolean(account && canReadRoles) });
+  const rolesQuery = useQuery({ ...fullRoleCatalogOptions, enabled: canReadRoles });
   const rolesById = useMemo(
     () => new Map((rolesQuery.data ?? []).map((role) => [role.id, role])),
     [rolesQuery.data],
   );
   const assignableRoles = useMemo(() => {
-    const assigned = new Set(account?.roles.map((role) => role.id) ?? []);
+    const assigned = new Set(person.roles.map((role) => role.id));
     return (rolesQuery.data ?? []).filter(
       (role) =>
         !assigned.has(role.id) &&
         canManageRoleMembership(currentUser, role),
     );
-  }, [account?.roles, currentUser, rolesQuery.data]);
+  }, [currentUser, person.roles, rolesQuery.data]);
 
   const submitPerson = personForm.handleSubmit(async (values) => {
     try {
@@ -482,7 +482,7 @@ function UserDetailContent({ person }: { person: Person }) {
 
   const confirmation = {
     'delete-person': ['Delete person permanently?', 'This permanently deletes the person and, if present, their account. This cannot be undone.', 'Delete person'],
-    'delete-account': ['Delete account permanently?', 'The person record remains, but the login account is permanently removed.', 'Delete account'],
+    'delete-account': ['Delete account permanently?', 'The person record and assigned roles remain, but the login account is permanently removed.', 'Delete account'],
     'disable-account': ['Disable this account?', 'The user will be signed out and will not be able to sign in.', 'Disable account'],
     'reset-password': ['Send a password reset code?', 'A one-time code will be emailed. The current password remains active until the recipient completes the reset.', 'Send reset code'],
     invite: ['Send an account invitation?', 'A one-time setup code will be emailed. Completing it verifies the email, sets the password, and enables an account that was not explicitly disabled.', 'Send invitation'],
@@ -700,15 +700,15 @@ function UserDetailContent({ person }: { person: Person }) {
     </DetailSection>
   ) : null;
 
-  const renderRolesSection = () => account ? (
+  const renderRolesSection = () => (
     <DetailSection
       title="Roles"
-      meta={<span className="section-description">{account.roles.length} assigned</span>}
+      meta={<span className="section-description">{person.roles.length} assigned</span>}
       action={canAssignRole ? <Button kind="ghost" size="sm" onClick={() => setAssignRoleOpen(true)}>Manage roles</Button> : undefined}
     >
       <div className="tag-list" aria-label="Assigned roles">
-        {account.roles.length === 0 && <span>No roles assigned</span>}
-        {account.roles.map((role) => {
+        {person.roles.length === 0 && <span>No roles assigned</span>}
+        {person.roles.map((role) => {
           const roleDetails = rolesById.get(role.id);
           const mayRemove = Boolean(roleDetails && canManageRoleMembership(currentUser, roleDetails));
           if (mayRemove) {
@@ -718,7 +718,7 @@ function UserDetailContent({ person }: { person: Person }) {
         })}
       </div>
     </DetailSection>
-  ) : null;
+  );
 
   const renderMakerspaceStatusSection = () => canReadMakerspaceStatus ? (
     <DetailSection

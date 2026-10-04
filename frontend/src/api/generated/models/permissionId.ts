@@ -53,7 +53,7 @@ export const PermissionId = {
   accountspinremoveself: 'accounts.pin.remove.self',
   accountspinremoveall: 'accounts.pin.remove.all',
   accountspinreset: 'accounts.pin.reset',
-  accountsrolesassign: 'accounts.roles.assign',
+  peoplerolesassign: 'people.roles.assign',
   rolesread: 'roles.read',
   rolesmanage: 'roles.manage',
   auditread: 'audit.read',

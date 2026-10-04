@@ -13,6 +13,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	scimdb "github.com/Basmatireis/Makerspace-Core/backend/internal/scim/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
@@ -565,7 +566,10 @@ func (s *Service) Reconcile(ctx context.Context, principal authorization.Princip
 	if err := queries.TransferExternalIdentities(ctx, scimdb.TransferExternalIdentitiesParams{TargetAccountID: targetID, SourceAccountID: provisionalID}); err != nil {
 		return report, err
 	}
-	if err := queries.TransferAccountRoles(ctx, scimdb.TransferAccountRolesParams{TargetAccountID: targetID, SourceAccountID: provisionalID, AssignedByAccountID: &principal.AccountID}); err != nil {
+	if err := queries.TransferPersonRoles(ctx, scimdb.TransferPersonRolesParams{TargetPersonID: target.PersonID, SourcePersonID: source.PersonID, AssignedByAccountID: &principal.AccountID}); err != nil {
+		return report, err
+	}
+	if err := queries.BumpReconciledPersonVersion(ctx, target.PersonID); err != nil {
 		return report, err
 	}
 	if err := accounts.ProtectProvisionedAccountDeactivation(ctx, tx, provisionalID); err != nil {
@@ -636,11 +640,11 @@ func analyzeReconciliation(ctx context.Context, tx pgx.Tx, principal authorizati
 	if source.ProvisioningSource != "scim" || source.FirstAuthenticatedAt.Valid {
 		report.Conflicts = append(report.Conflicts, Conflict{Code: "source_not_provisional", Message: "Only a SCIM Account that has never authenticated can be reconciled."})
 	}
-	if err := accounts.ValidateProvisionedRoleTransfer(ctx, tx, principal, provisionalID); err != nil {
+	if err := people.ValidateProvisionedRoleTransfer(ctx, tx, principal, source.PersonID); err != nil {
 		if apperror.IsCode(err, "master_role_transfer") {
 			report.Conflicts = append(report.Conflicts, Conflict{Code: "master_role_transfer", Message: "The master role must never be transferred by SCIM reconciliation."})
 		} else if apperror.IsCode(err, "permission_denied") {
-			report.Conflicts = append(report.Conflicts, Conflict{Code: "role_transfer_forbidden", Message: "Role transfer requires accounts.roles.assign and authority to delegate every source role."})
+			report.Conflicts = append(report.Conflicts, Conflict{Code: "role_transfer_forbidden", Message: "Role transfer requires people.roles.assign and authority to delegate every source role."})
 		} else {
 			return report, err
 		}

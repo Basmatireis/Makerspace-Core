@@ -15,6 +15,7 @@ import (
 	accountsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/accounts/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
+	peopledb "github.com/Basmatireis/Makerspace-Core/backend/internal/people/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
@@ -62,7 +63,7 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, 'people.read.self')`, roleID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO account_roles (account_id, role_id) VALUES ($1, $2)`, account.accountID, roleID); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`, account.personID, roleID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
@@ -92,7 +93,7 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 	assertCount(t, pool, `SELECT count(*) FROM password_credentials WHERE auth_identity_id = $1`, 0, account.identity)
 	assertCount(t, pool, `SELECT count(*) FROM sessions WHERE account_id = $1`, 0, account.accountID)
 	assertCount(t, pool, `SELECT count(*) FROM password_reset_tokens WHERE account_id = $1`, 0, account.accountID)
-	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id = $1`, 0, account.accountID)
+	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id = $1`, 1, account.personID)
 	assertCount(t, pool, `SELECT count(*) FROM role_permission_grants WHERE role_id = $1`, 1, roleID)
 
 	var actorID, resourceID *uuid.UUID
@@ -105,14 +106,14 @@ func TestInitialMigrationProtectsMasterAndDeletionPrivacy(t *testing.T) {
 	}
 
 	remaining := seedAccount(t, pool, "role-cascade", false)
-	if _, err := pool.Exec(ctx, `INSERT INTO account_roles (account_id, role_id) VALUES ($1, $2)`, remaining.accountID, roleID); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`, remaining.personID, roleID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `DELETE FROM roles WHERE id = $1`, roleID); err != nil {
 		t.Fatal(err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM role_permission_grants WHERE role_id = $1`, 0, roleID)
-	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE role_id = $1`, 0, roleID)
+	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE role_id = $1`, 0, roleID)
 
 	personCascade := seedAccount(t, pool, "person-cascade", false)
 	if _, err := pool.Exec(ctx, `DELETE FROM people WHERE id = $1`, personCascade.personID); err != nil {
@@ -157,9 +158,95 @@ func TestConcurrentMutationsCannotRemoveEveryEnabledMaster(t *testing.T) {
 	}
 	assertCount(t, pool, `
 		SELECT count(*) FROM accounts a
-		JOIN account_roles ar ON ar.account_id = a.id
-		JOIN roles r ON r.id = ar.role_id
+		JOIN person_roles pr ON pr.person_id = a.person_id
+		JOIN roles r ON r.id = pr.role_id
 		WHERE a.status = 'enabled' AND r.system_key = 'master'`, 1)
+}
+
+func TestConcurrentMasterDestructiveOperationsPreserveEnabledMaster(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		left  string
+		right string
+	}{
+		{name: "role removal and Person deletion", left: "role", right: "person"},
+		{name: "Account disablement and Account deletion", left: "disable", right: "account"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			pool := migratedPool(t)
+			actor := seedAccount(t, pool, "destructive-actor-"+test.left, false)
+			first := seedAccount(t, pool, "destructive-first-"+test.left, true)
+			second := seedAccount(t, pool, "destructive-second-"+test.right, true)
+			principal := authorization.Principal{AccountID: actor.accountID, PersonID: actor.personID, Master: true}
+			accountService := accounts.NewService(pool, config.Config{})
+			peopleService := people.NewService(pool)
+			masterID := uuid.MustParse(masterRoleID)
+
+			run := func(kind string, subject seededAccount) error {
+				switch kind {
+				case "role":
+					_, err := peopleService.ChangeRole(context.Background(), principal, subject.personID, masterID, 1, false, nil)
+					return err
+				case "person":
+					return peopleService.Delete(context.Background(), principal, subject.personID, 1, nil)
+				case "disable":
+					_, err := accountService.SetStatus(context.Background(), principal, subject.accountID, "disabled", 1, nil)
+					return err
+				case "account":
+					return accountService.Delete(context.Background(), principal, subject.accountID, 1, nil)
+				default:
+					return errors.New("unknown destructive operation")
+				}
+			}
+
+			start := make(chan struct{})
+			results := make(chan error, 2)
+			go func() { <-start; results <- run(test.left, first) }()
+			go func() { <-start; results <- run(test.right, second) }()
+			close(start)
+
+			succeeded, blocked := 0, 0
+			for range 2 {
+				err := <-results
+				switch {
+				case err == nil:
+					succeeded++
+				case apperror.IsCode(err, "last_master_required"):
+					blocked++
+				default:
+					t.Fatalf("unexpected concurrent result: %v", err)
+				}
+			}
+			if succeeded != 1 || blocked != 1 {
+				t.Fatalf("concurrent results succeeded=%d blocked=%d, want 1/1", succeeded, blocked)
+			}
+			assertCount(t, pool, `
+				SELECT count(*) FROM accounts a
+				JOIN person_roles pr ON pr.person_id = a.person_id
+				JOIN roles r ON r.id = pr.role_id
+				WHERE a.status = 'enabled' AND r.system_key = 'master'`, 1)
+		})
+	}
+}
+
+func TestAccountServiceDeletionPreservesPersonRoles(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	actor := seedAccount(t, pool, "account-delete-role-actor", true)
+	target := seedAccount(t, pool, "account-delete-role-target", false)
+	roleID := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO roles(id,name) VALUES($1,'Surviving Account deletion');
+		INSERT INTO person_roles(person_id,role_id) VALUES($2,$1)`, roleID, target.personID); err != nil {
+		t.Fatal(err)
+	}
+	principal := authorization.Principal{AccountID: actor.accountID, PersonID: actor.personID, Master: true}
+	if err := accounts.NewService(pool, config.Config{}).Delete(ctx, principal, target.accountID, 1, nil); err != nil {
+		t.Fatal(err)
+	}
+	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1`, 0, target.accountID)
+	assertCount(t, pool, `SELECT count(*) FROM people WHERE id=$1`, 1, target.personID)
+	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`, 1, target.personID, roleID)
 }
 
 func TestRoleAssignmentReadLockSerializesPermissionMutation(t *testing.T) {
@@ -175,7 +262,7 @@ func TestRoleAssignmentReadLockSerializesPermissionMutation(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = assignmentTx.Rollback(context.Background()) }()
-	if _, err := accountsdb.New(assignmentTx).GetRoleForAssignment(ctx, roleID); err != nil {
+	if _, err := peopledb.New(assignmentTx).GetRoleForAssignment(ctx, roleID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -214,7 +301,7 @@ func TestPersonDeletionSerializesConcurrentAccountCreation(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, 'people.delete')`, deleteRoleID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO account_roles (account_id, role_id) VALUES ($1, $2)`, actorAccount.accountID, deleteRoleID); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`, actorAccount.personID, deleteRoleID); err != nil {
 		t.Fatal(err)
 	}
 	principal, err := authorization.LoadPermissionsFrom(ctx, pool, authorization.Principal{
@@ -296,21 +383,21 @@ func TestNonMasterRolePrivilegeSubsetIsEnforced(t *testing.T) {
 	}
 
 	roleService := roles.NewService(pool)
-	accountService := accounts.NewService(pool, config.Config{})
+	peopleService := people.NewService(pool)
 	capabilityRole, err := roleService.Create(ctx, master, "subset-manager", nil, []authorization.PermissionGrant{
-		{PermissionID: authorization.AccountsRolesAssign, Scope: authorization.GrantEverywhere},
+		{PermissionID: authorization.PeopleRolesAssign, Scope: authorization.GrantEverywhere},
 		{PermissionID: authorization.PeopleReadSelf, Scope: authorization.GrantEverywhere},
 		{PermissionID: authorization.RolesManage, Scope: authorization.GrantEverywhere},
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	actorView, err := accountService.ChangeRole(ctx, master, actorAccount.accountID, capabilityRole.ID, 1, true, nil)
+	actorView, err := peopleService.ChangeRole(ctx, master, actorAccount.personID, capabilityRole.ID, 1, true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if actorView.Version != 2 {
-		t.Fatalf("actor account version = %d, want 2 after capability assignment", actorView.Version)
+		t.Fatalf("actor person version = %d, want 2 after capability assignment", actorView.Version)
 	}
 
 	actor, err := authorization.LoadPermissionsFrom(ctx, pool, authorization.Principal{
@@ -320,7 +407,7 @@ func TestNonMasterRolePrivilegeSubsetIsEnforced(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if actor.Master || !actor.Has(authorization.RolesManage) || !actor.Has(authorization.AccountsRolesAssign) || !actor.Has(authorization.PeopleReadSelf) {
+	if actor.Master || !actor.Has(authorization.RolesManage) || !actor.Has(authorization.PeopleRolesAssign) || !actor.Has(authorization.PeopleReadSelf) {
 		t.Fatalf("unexpected non-master permissions: master=%v permissions=%v", actor.Master, actor.PermissionIDs())
 	}
 	if actor.Has(authorization.PeopleDelete) {
@@ -361,24 +448,104 @@ func TestNonMasterRolePrivilegeSubsetIsEnforced(t *testing.T) {
 	expectAppCode(t, err, "stale_write")
 	assertRoleVersion(t, pool, subsetRole.ID, 2)
 
-	_, err = accountService.ChangeRole(ctx, actor, targetAccount.accountID, elevatedRole.ID, 1, true, nil)
+	_, err = peopleService.ChangeRole(ctx, actor, targetAccount.personID, elevatedRole.ID, 1, true, nil)
 	expectAppCode(t, err, "permission_denied")
-	assertAccountVersion(t, pool, targetAccount.accountID, 1)
-	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id = $1 AND role_id = $2`, 0, targetAccount.accountID, elevatedRole.ID)
+	assertPersonVersion(t, pool, targetAccount.personID, 1)
+	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id = $1 AND role_id = $2`, 0, targetAccount.personID, elevatedRole.ID)
 
-	targetView, err := accountService.ChangeRole(ctx, actor, targetAccount.accountID, subsetRole.ID, 1, true, nil)
+	targetView, err := peopleService.ChangeRole(ctx, actor, targetAccount.personID, subsetRole.ID, 1, true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if targetView.Version != 2 {
-		t.Fatalf("target account version = %d, want 2 after subset assignment", targetView.Version)
+		t.Fatalf("target person version = %d, want 2 after subset assignment", targetView.Version)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id = $1 AND role_id = $2`, 1, targetAccount.accountID, subsetRole.ID)
+	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id = $1 AND role_id = $2`, 1, targetAccount.personID, subsetRole.ID)
 
-	_, err = accountService.ChangeRole(ctx, actor, targetAccount.accountID, subsetRole.ID, 1, false, nil)
+	_, err = peopleService.ChangeRole(ctx, actor, targetAccount.personID, subsetRole.ID, 1, false, nil)
 	expectAppCode(t, err, "stale_write")
-	assertAccountVersion(t, pool, targetAccount.accountID, 2)
-	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id = $1 AND role_id = $2`, 1, targetAccount.accountID, subsetRole.ID)
+	assertPersonVersion(t, pool, targetAccount.personID, 2)
+	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id = $1 AND role_id = $2`, 1, targetAccount.personID, subsetRole.ID)
+}
+
+func TestAccountlessPersonRoleMembershipUsesPersonVersionAndAudits(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	actor := seedAccount(t, pool, "person-role-actor", true)
+	principal := authorization.Principal{AccountID: actor.accountID, PersonID: actor.personID, Master: true}
+	personID := uuid.Must(uuid.NewV7())
+	roleID := uuid.Must(uuid.NewV7())
+	pricingGroupID := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO people(id,first_name,last_name,email) VALUES($1,'Accountless','Member','accountless-role@example.test');
+		INSERT INTO roles(id,name,profile_image_required,laborordnung_mode) VALUES($2,'Accountless policy',true,'warning');
+		INSERT INTO pricing_groups(id,name) VALUES($3,'Independent pricing');
+		INSERT INTO person_pricing_group_assignments(person_id,pricing_group_id,assigned_by_account_id) VALUES($1,$3,$4)`, personID, roleID, pricingGroupID, actor.accountID); err != nil {
+		t.Fatal(err)
+	}
+
+	service := people.NewService(pool)
+	assigned, err := service.ChangeRole(ctx, principal, personID, roleID, 1, true, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if assigned.Version != 2 || len(assigned.Roles) != 1 || assigned.Roles[0].ID != roleID {
+		t.Fatalf("assigned Person = %#v", assigned)
+	}
+	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE person_id=$1`, 0, personID)
+	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2 AND assigned_by_account_id=$3`, 1, personID, roleID, actor.accountID)
+	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='person.role_assigned' AND resource_type='person' AND resource_id=$1`, 1, personID)
+	required, err := service.RequiresProfileImage(ctx, personID)
+	if err != nil || !required {
+		t.Fatalf("accountless profile-image requirement = %v, %v", required, err)
+	}
+	reader := seedAccount(t, pool, "person-role-reader", false)
+	readerRoleID := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO roles(id,name) VALUES($1,'Person role reader');
+		INSERT INTO role_permission_grants(id,role_id,permission_id) VALUES(uuidv7(),$1,'people.read.all');
+		INSERT INTO person_roles(person_id,role_id) VALUES($2,$1)`, readerRoleID, reader.personID); err != nil {
+		t.Fatal(err)
+	}
+	readerPrincipal, err := authorization.LoadPermissionsFrom(ctx, pool, authorization.Principal{AccountID: reader.accountID, PersonID: reader.personID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if readerPrincipal.Has(authorization.AccountsRead) {
+		t.Fatal("role-filter reader unexpectedly has accounts.read")
+	}
+	page, err := service.List(ctx, readerPrincipal, 1, 25, people.ListFilters{RoleIDs: []uuid.UUID{roleID}})
+	if err != nil || page.Total != 1 || len(page.Items) != 1 || page.Items[0].ID != personID {
+		t.Fatalf("accountless role filter = %#v, %v", page, err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM person_roles WHERE person_id=$1 AND role_id=$2`, reader.personID, readerRoleID); err != nil {
+		t.Fatal(err)
+	}
+	reloadedReader, err := authorization.LoadPermissionsFrom(ctx, pool, authorization.Principal{AccountID: reader.accountID, PersonID: reader.personID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloadedReader.Has(authorization.PeopleReadAll) {
+		t.Fatal("revoked Person role remained effective on the next authorization load")
+	}
+
+	idempotent, err := service.ChangeRole(ctx, principal, personID, roleID, 2, true, nil)
+	if err != nil || idempotent.Version != 2 {
+		t.Fatalf("idempotent assignment = %#v, %v", idempotent, err)
+	}
+	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='person.role_assigned' AND resource_id=$1`, 1, personID)
+	if _, err := service.ChangeRole(ctx, principal, personID, roleID, 1, false, nil); !apperror.IsCode(err, "stale_write") {
+		t.Fatalf("stale removal error = %v", err)
+	}
+	removed, err := service.ChangeRole(ctx, principal, personID, roleID, 2, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if removed.Version != 3 || len(removed.Roles) != 0 {
+		t.Fatalf("removed Person = %#v", removed)
+	}
+	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='person.role_removed' AND resource_type='person' AND resource_id=$1`, 1, personID)
+	assertCount(t, pool, `SELECT count(*) FROM person_pricing_group_assignments WHERE person_id=$1 AND pricing_group_id=$2 AND version=1`, 1, personID, pricingGroupID)
 }
 
 func TestRoleEffectivePermissionEvaluationUsesConfiguredContext(t *testing.T) {
@@ -529,8 +696,18 @@ func seedAccount(t *testing.T, pool *pgxpool.Pool, suffix string, master bool) s
 		t.Fatal(err)
 	}
 	if master {
-		if _, err := pool.Exec(ctx, `INSERT INTO account_roles (account_id, role_id) VALUES ($1, $2)`, accountID, masterRoleID); err != nil {
+		var personRolesAvailable bool
+		if err := pool.QueryRow(ctx, `SELECT to_regclass('person_roles') IS NOT NULL`).Scan(&personRolesAvailable); err != nil {
 			t.Fatal(err)
+		}
+		var insertErr error
+		if personRolesAvailable {
+			_, insertErr = pool.Exec(ctx, `INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`, personID, masterRoleID)
+		} else {
+			_, insertErr = pool.Exec(ctx, `INSERT INTO account_roles (account_id, role_id) VALUES ($1, $2)`, accountID, masterRoleID)
+		}
+		if insertErr != nil {
+			t.Fatal(insertErr)
 		}
 	}
 	return seededAccount{accountID: accountID, personID: personID, identity: identityID}
@@ -555,6 +732,17 @@ func assertAccountVersion(t *testing.T, pool *pgxpool.Pool, accountID uuid.UUID,
 	}
 	if got != want {
 		t.Fatalf("account version = %d, want %d", got, want)
+	}
+}
+
+func assertPersonVersion(t *testing.T, pool *pgxpool.Pool, personID uuid.UUID, want int64) {
+	t.Helper()
+	var got int64
+	if err := pool.QueryRow(testContext(t), `SELECT version FROM people WHERE id = $1`, personID).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("person version = %d, want %d", got, want)
 	}
 }
 

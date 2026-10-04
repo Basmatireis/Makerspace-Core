@@ -99,7 +99,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await expect(page).toHaveURL(/\/settings\/roles$/);
   });
 
-  await test.step('create a Person and provision and assign its active Account', async () => {
+  await test.step('assign a Person role before provisioning its active Account', async () => {
     await page.goto('/people/new');
     await page.getByLabel('First name').fill('Katherine');
     await page.getByLabel('Last name').fill('Johnson');
@@ -113,6 +113,18 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     ).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+
+    await page.getByRole('button', { name: 'Actions', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Manage roles' }).click();
+    const assignRoleDialog = page.getByRole('dialog');
+    await assignRoleDialog.getByText('Choose a role').click();
+    await page.getByRole('option', { name: 'E2E workshop supervisors' }).click();
+    await assignRoleDialog.getByRole('button', { name: 'Assign role' }).click();
+    await expect(
+      page
+        .getByLabel('Assigned roles')
+        .getByText('E2E workshop supervisors', { exact: true }),
+    ).toBeVisible();
 
     await page.getByRole('button', { name: 'Actions', exact: true }).click();
     await page.getByRole('menuitem', { name: 'Create account' }).click();
@@ -131,6 +143,13 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
         .getByRole('tabpanel', { name: 'Account access' })
         .getByText(memberLogin, { exact: true }),
     ).toBeVisible();
+    await page.getByRole('tab', { name: 'Roles & permissions' }).click();
+    await expect(
+      page
+        .getByLabel('Assigned roles')
+        .getByText('E2E workshop supervisors', { exact: true }),
+    ).toBeVisible();
+    await page.getByRole('tab', { name: 'Account access' }).click();
 
     // Direct administrator password setting is an emergency API operation and
     // intentionally no longer appears in normal UI workflows. Exercise it
@@ -155,17 +174,6 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
       page.getByRole('button', { name: 'Disable account' }),
     ).toBeVisible();
 
-    await page.getByRole('button', { name: 'Actions', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Manage roles' }).click();
-    const assignRoleDialog = page.getByRole('dialog');
-    await assignRoleDialog.getByText('Choose a role').click();
-    await page.getByRole('option', { name: 'E2E workshop supervisors' }).click();
-    await assignRoleDialog.getByRole('button', { name: 'Assign role' }).click();
-    await expect(
-      page
-        .getByLabel('Assigned roles')
-        .getByText('E2E workshop supervisors', { exact: true }),
-    ).toBeVisible();
   });
 
   await test.step('provision and sign in a phone-only PIN Account', async () => {

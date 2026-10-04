@@ -97,18 +97,16 @@ SELECT count(*) FROM open_day_assignments WHERE requirement_id = sqlc.arg(requir
 -- name: PersonEligibleForRequirement :one
 SELECT EXISTS (
     SELECT 1 FROM people p
-    JOIN accounts a ON a.person_id = p.id AND a.status = 'enabled'
-    JOIN account_roles ar ON ar.account_id = a.id
-    JOIN open_day_staff_requirement_roles rr ON rr.role_id = ar.role_id
+    JOIN person_roles pr ON pr.person_id = p.id
+    JOIN open_day_staff_requirement_roles rr ON rr.role_id = pr.role_id
     WHERE p.id = sqlc.arg(person_id) AND rr.requirement_id = sqlc.arg(requirement_id)
 );
 
 -- name: ListEligiblePeople :many
 SELECT DISTINCT p.id, p.first_name, p.last_name
 FROM people p
-JOIN accounts a ON a.person_id = p.id AND a.status = 'enabled'
-JOIN account_roles ar ON ar.account_id = a.id
-JOIN open_day_staff_requirement_roles rr ON rr.role_id = ar.role_id
+JOIN person_roles pr ON pr.person_id = p.id
+JOIN open_day_staff_requirement_roles rr ON rr.role_id = pr.role_id
 WHERE rr.requirement_id = sqlc.arg(requirement_id)
   AND (sqlc.arg(search)::text = '' OR lower(p.first_name || ' ' || p.last_name) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
 ORDER BY p.last_name, p.first_name, p.id

@@ -242,11 +242,14 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 	var role openapi.Role
 	decodeResponse(t, response, &role)
 
-	response = doJSON(t, adminClient, http.MethodPut, server.URL+"/api/v1/accounts/"+account.Id.String()+"/roles/"+role.Id.String(), origin, adminCSRF, map[string]any{
-		"expectedVersion": account.Version,
+	response = doJSON(t, adminClient, http.MethodGet, server.URL+"/api/v1/people/"+person.Id.String(), "", "", nil)
+	assertStatus(t, response, http.StatusOK)
+	decodeResponse(t, response, &person)
+	response = doJSON(t, adminClient, http.MethodPut, server.URL+"/api/v1/people/"+person.Id.String()+"/roles/"+role.Id.String(), origin, adminCSRF, map[string]any{
+		"expectedVersion": person.Version,
 	})
 	assertStatus(t, response, http.StatusOK)
-	decodeResponse(t, response, &account)
+	decodeResponse(t, response, &person)
 
 	memberClient := newCookieClient(t)
 	response = doJSON(t, memberClient, http.MethodPost, server.URL+"/api/v1/auth/login", origin, "", map[string]any{
@@ -287,11 +290,11 @@ func TestHTTPVerticalSliceAndSensitiveFieldRedaction(t *testing.T) {
 		t.Fatalf("unexpected cross-person denial: %#v", denied)
 	}
 
-	response = doJSON(t, adminClient, http.MethodDelete, server.URL+"/api/v1/accounts/"+account.Id.String()+"/roles/"+role.Id.String(), origin, adminCSRF, map[string]any{
-		"expectedVersion": account.Version,
+	response = doJSON(t, adminClient, http.MethodDelete, server.URL+"/api/v1/people/"+person.Id.String()+"/roles/"+role.Id.String(), origin, adminCSRF, map[string]any{
+		"expectedVersion": updated.Version,
 	})
 	assertStatus(t, response, http.StatusOK)
-	decodeResponse(t, response, &account)
+	decodeResponse(t, response, &person)
 	response = doJSON(t, memberClient, http.MethodGet, server.URL+"/api/v1/people/"+person.Id.String(), "", "", nil)
 	assertStatus(t, response, http.StatusForbidden)
 	response.Body.Close()

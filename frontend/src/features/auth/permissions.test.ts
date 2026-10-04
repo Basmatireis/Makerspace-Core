@@ -74,7 +74,7 @@ describe('role membership authorization UX', () => {
 
   it('allows a non-master actor only roles within their permission subset', () => {
     const currentUser = currentUserFixture([
-      PermissionId.accountsrolesassign,
+      PermissionId.peoplerolesassign,
       PermissionId.peoplereadall,
     ]);
 
@@ -91,7 +91,7 @@ describe('role membership authorization UX', () => {
 
   it('allows a master actor to manage every role', () => {
     const currentUser = currentUserFixture(
-      [PermissionId.accountsrolesassign],
+      [PermissionId.peoplerolesassign],
       true,
     );
 
@@ -104,11 +104,11 @@ describe('role membership authorization UX', () => {
     const reception = '0192f6f8-743e-7c77-a349-cd07c3e8a920';
     const workshop = '0192f6f8-743e-7c77-a349-cd07c3e8a921';
     const currentUser = currentUserFixture([
-      PermissionId.accountsrolesassign,
+      PermissionId.peoplerolesassign,
       PermissionId.peoplereadall,
     ]);
     currentUser.delegablePermissionGrants = [
-      { permissionId: PermissionId.accountsrolesassign, scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' },
+      { permissionId: PermissionId.peoplerolesassign, scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' },
       { permissionId: PermissionId.peoplereadall, scope: 'selectedDeviceTypes', deviceTypeIds: [reception], minimumAssurance: 'low' },
     ];
 
@@ -135,7 +135,7 @@ describe('role membership authorization UX', () => {
   it('combines selected-type grants and enforces the assurance partial order', () => {
     const reception = '0192f6f8-743e-7c77-a349-cd07c3e8a920';
     const workshop = '0192f6f8-743e-7c77-a349-cd07c3e8a921';
-    const currentUser = currentUserFixture([PermissionId.accountsrolesassign]);
+    const currentUser = currentUserFixture([PermissionId.peoplerolesassign]);
     currentUser.delegablePermissionGrants = [reception, workshop].map((id) => ({
       permissionId: PermissionId.peoplereadall,
       scope: 'selectedDeviceTypes',

@@ -12,11 +12,9 @@ import (
 
 type Querier interface {
 	AcquireMasterInvariantLock(ctx context.Context) error
-	AssignAccountRole(ctx context.Context, arg AssignAccountRoleParams) (int64, error)
 	BumpAccountVersion(ctx context.Context, arg BumpAccountVersionParams) (Account, error)
 	BumpAccountVersionForAdministrativeReset(ctx context.Context, id uuid.UUID) error
 	CountEnabledMasters(ctx context.Context) (int64, error)
-	CountMasterAssignments(ctx context.Context) (int64, error)
 	CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error)
 	CreateAuthIdentity(ctx context.Context, arg CreateAuthIdentityParams) (AuthIdentity, error)
 	CreatePasswordResetToken(ctx context.Context, arg CreatePasswordResetTokenParams) (PasswordResetToken, error)
@@ -31,24 +29,17 @@ type Querier interface {
 	GetAccountIdentityByLoginEmail(ctx context.Context, identifierNormalized string) (GetAccountIdentityByLoginEmailRow, error)
 	GetAccountView(ctx context.Context, id uuid.UUID) (GetAccountViewRow, error)
 	GetIdentityByAccount(ctx context.Context, accountID uuid.UUID) (AuthIdentity, error)
-	GetMasterRole(ctx context.Context) (Role, error)
 	GetPasswordIdentityForAccountForUpdate(ctx context.Context, accountID uuid.UUID) (AuthIdentity, error)
 	GetPersonEmailForAccount(ctx context.Context, accountID uuid.UUID) (*string, error)
 	GetPersonVersionForAccountCreation(ctx context.Context, personID uuid.UUID) (int64, error)
-	GetRoleForAssignment(ctx context.Context, id uuid.UUID) (Role, error)
-	GetRolePermissionGrantsForAssignment(ctx context.Context, roleID uuid.UUID) ([]GetRolePermissionGrantsForAssignmentRow, error)
 	IsAccountMaster(ctx context.Context, accountID uuid.UUID) (bool, error)
-	IsAccountRoleAssigned(ctx context.Context, arg IsAccountRoleAssignedParams) (bool, error)
-	ListAccountRoles(ctx context.Context, accountID uuid.UUID) ([]Role, error)
-	ListAccountRolesByAccounts(ctx context.Context, accountIds []uuid.UUID) ([]ListAccountRolesByAccountsRow, error)
 	ListAccountViewsByPeople(ctx context.Context, personIds []uuid.UUID) ([]ListAccountViewsByPeopleRow, error)
 	ListAuthIdentitiesByAccount(ctx context.Context, accountID uuid.UUID) ([]ListAuthIdentitiesByAccountRow, error)
 	ListAuthIdentitiesByAccounts(ctx context.Context, accountIds []uuid.UUID) ([]ListAuthIdentitiesByAccountsRow, error)
-	LockMasterRole(ctx context.Context) (uuid.UUID, error)
+	LockPersonForAccountMutation(ctx context.Context, accountID uuid.UUID) (uuid.UUID, error)
 	MarkInvitationProvisioning(ctx context.Context, id uuid.UUID) error
 	MarkPasswordResetRequired(ctx context.Context, authIdentityID uuid.UUID) error
 	RecoverAccount(ctx context.Context, id uuid.UUID) (Account, error)
-	RemoveAccountRole(ctx context.Context, arg RemoveAccountRoleParams) (int64, error)
 	RestorePasswordIdentity(ctx context.Context, id uuid.UUID) error
 	RevokeSessionsForAccount(ctx context.Context, arg RevokeSessionsForAccountParams) error
 	SetAuthChallengeDelivery(ctx context.Context, arg SetAuthChallengeDeliveryParams) error

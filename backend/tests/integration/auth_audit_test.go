@@ -124,9 +124,9 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	if err := pool.QueryRow(ctx, `
 		SELECT p.email, i.identifier_display, i.identifier_normalized, a.status, pc.password_hash,
 		       EXISTS (
-		           SELECT 1 FROM account_roles ar
-		           JOIN roles r ON r.id = ar.role_id
-		           WHERE ar.account_id = a.id AND r.system_key = 'master'
+		           SELECT 1 FROM person_roles pr
+		           JOIN roles r ON r.id = pr.role_id
+		           WHERE pr.person_id = a.person_id AND r.system_key = 'master'
 		       )
 		FROM accounts a
 		JOIN people p ON p.id = a.person_id
@@ -621,7 +621,7 @@ func TestMasterRecoveryRevokesSessionCreatedByConcurrentLogin(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bootstrap master: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `DELETE FROM account_roles WHERE account_id = $1 AND role_id = $2`, accountID, masterRoleID); err != nil {
+	if _, err := pool.Exec(ctx, `DELETE FROM person_roles WHERE person_id = (SELECT person_id FROM accounts WHERE id=$1) AND role_id = $2`, accountID, masterRoleID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -700,9 +700,10 @@ func TestMasterRecoveryRevokesSessionCreatedByConcurrentLogin(t *testing.T) {
 	}
 	assertCount(t, pool, `
 		SELECT count(*)
-		FROM account_roles ar
-		JOIN roles r ON r.id = ar.role_id
-		WHERE ar.account_id = $1 AND r.system_key = 'master'`, 1, accountID)
+		FROM person_roles pr
+		JOIN roles r ON r.id = pr.role_id
+		JOIN accounts a ON a.person_id = pr.person_id
+		WHERE a.id = $1 AND r.system_key = 'master'`, 1, accountID)
 }
 
 func TestMutationRollsBackWhenAuditInsertionFails(t *testing.T) {

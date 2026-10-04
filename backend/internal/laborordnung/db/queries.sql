@@ -23,10 +23,9 @@ ORDER BY effective_at DESC, id DESC LIMIT 1;
 -- name: GetPersonMode :one
 SELECT CASE COALESCE(max(CASE r.laborordnung_mode WHEN 'blocking' THEN 2 WHEN 'warning' THEN 1 ELSE 0 END), 0)
     WHEN 2 THEN 'blocking' WHEN 1 THEN 'warning' ELSE 'not_required' END::text AS mode
-FROM accounts a
-LEFT JOIN account_roles ar ON ar.account_id = a.id
-LEFT JOIN roles r ON r.id = ar.role_id
-WHERE a.person_id = sqlc.arg(person_id);
+FROM person_roles pr
+JOIN roles r ON r.id = pr.role_id
+WHERE pr.person_id = sqlc.arg(person_id);
 
 -- name: LockPerson :exec
 SELECT id FROM people WHERE id = sqlc.arg(id) FOR UPDATE;

@@ -157,7 +157,7 @@ func TestOIDCLocalProviderValidatesCallbackAndProvisionsWithoutRoles(t *testing.
 			if accountID == operator.accountID || assurance != "strong_mfa" {
 				t.Fatal("email merged an existing account or trusted assurance was lost")
 			}
-			assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id=$1`, 0, accountID)
+			assertCount(t, pool, `SELECT count(*) FROM person_roles pr JOIN accounts a ON a.person_id=pr.person_id WHERE a.id=$1`, 0, accountID)
 			if _, err := service.Complete(ctx, state, "local-code", browser, authorization.Principal{}, nil); err == nil {
 				t.Fatal("OIDC callback replay accepted")
 			}

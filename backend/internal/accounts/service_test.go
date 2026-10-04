@@ -14,7 +14,6 @@ func TestMutationsRejectNonPositiveExpectedVersionBeforePersistence(t *testing.T
 	service := NewService(nil, config.Config{})
 	principal := authorization.Principal{Master: true, AccountID: uuid.Must(uuid.NewV7())}
 	accountID := uuid.Must(uuid.NewV7())
-	roleID := uuid.Must(uuid.NewV7())
 
 	tests := []struct {
 		name string
@@ -40,10 +39,6 @@ func TestMutationsRejectNonPositiveExpectedVersionBeforePersistence(t *testing.T
 		}},
 		{name: "password reset", run: func() error {
 			_, err := service.IssuePasswordReset(context.Background(), principal, accountID, 0, nil)
-			return err
-		}},
-		{name: "role assignment", run: func() error {
-			_, err := service.ChangeRole(context.Background(), principal, accountID, roleID, 0, true, nil)
 			return err
 		}},
 	}

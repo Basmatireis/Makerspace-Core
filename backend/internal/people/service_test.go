@@ -98,21 +98,21 @@ func TestListRejectsPaginationOffsetOverflowBeforeQuery(t *testing.T) {
 	}
 }
 
-func TestListRequiresAccountsReadForRoleFiltering(t *testing.T) {
-	service := NewService(nil)
-	principal := principalWithPermissions(t, authorization.PeopleReadAll)
-	_, err := service.List(t.Context(), principal, 1, 25, ListFilters{RoleIDs: []uuid.UUID{uuid.Must(uuid.NewV7())}})
-	if !apperror.IsCode(err, "permission_denied") {
-		t.Fatalf("expected permission_denied, got %v", err)
-	}
-}
-
 func TestListRequiresAccountsReadForAccountStatusFiltering(t *testing.T) {
 	service := NewService(nil)
 	principal := principalWithPermissions(t, authorization.PeopleReadAll)
 	_, err := service.List(t.Context(), principal, 1, 25, ListFilters{AccountStatuses: []string{"enabled"}})
 	if !apperror.IsCode(err, "permission_denied") {
 		t.Fatalf("expected permission_denied, got %v", err)
+	}
+}
+
+func TestRoleMutationRejectsNonPositivePersonVersionBeforePersistence(t *testing.T) {
+	service := NewService(nil)
+	principal := authorization.Principal{Master: true, AccountID: uuid.Must(uuid.NewV7())}
+	_, err := service.ChangeRole(t.Context(), principal, uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), 0, true, nil)
+	if !apperror.IsCode(err, "validation_failed") {
+		t.Fatalf("expected validation_failed, got %v", err)
 	}
 }
 

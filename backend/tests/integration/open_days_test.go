@@ -40,7 +40,7 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	endsAt := time.Date(2026, time.October, 7, 17, 0, 0, 0, time.UTC)
 	note := "manager-only preparation note"
 	input := opendays.ScheduleInput{StartsAt: startsAt, EndsAt: endsAt, InternalNote: &note, Requirements: []opendays.RequirementInput{
-		{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{uuid.MustParse(masterRoleID)}},
+		{Kind: "supervisor", RequiredCount: 2, EligibleRoleIDs: []uuid.UUID{uuid.MustParse(masterRoleID)}},
 		{Kind: "trainee", RequiredCount: 0, EligibleRoleIDs: []uuid.UUID{}},
 	}}
 	schedule, err := service.CreateOpenDay(ctx, manager, period.ID, period.Version, input, nil)
@@ -76,6 +76,19 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
+	accountlessPersonID := uuid.Must(uuid.NewV7())
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO people(id,first_name,last_name,email) VALUES($1,'Accountless','Supervisor','accountless-supervisor@example.test');
+		INSERT INTO person_roles(person_id,role_id) VALUES($1,$2)`, accountlessPersonID, masterRoleID); err != nil {
+		t.Fatal(err)
+	}
+	eligible, err := service.EligiblePeople(ctx, manager, day.Requirements[0].ID, "Accountless")
+	if err != nil || len(eligible) != 1 || eligible[0].PersonID != accountlessPersonID {
+		t.Fatalf("accountless eligible people = %#v, %v", eligible, err)
+	}
+	if _, err := service.Assign(ctx, manager, day.ID, day.Requirements[0].ID, accountlessPersonID, nil); err != nil {
+		t.Fatalf("assign accountless supervisor: %v", err)
+	}
 	assignment, err := service.Join(ctx, manager, day.ID, day.Requirements[0].ID, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -91,7 +104,7 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	if _, err := pool.Exec(ctx, `INSERT INTO role_permission_grants (id, role_id, permission_id) VALUES (uuidv7(), $1, $2)`, readerRoleID, authorization.OpenDaysRead); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO account_roles (account_id, role_id) VALUES ($1, $2)`, readerAccount.accountID, readerRoleID); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO person_roles (person_id, role_id) VALUES ($1, $2)`, readerAccount.personID, readerRoleID); err != nil {
 		t.Fatal(err)
 	}
 	reader, err := authorization.LoadPermissionsFrom(ctx, pool, authorization.Principal{AccountID: readerAccount.accountID, PersonID: readerAccount.personID})
@@ -106,7 +119,7 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	if err != nil || draft.Status != "draft" {
 		t.Fatalf("return to draft = %#v, err=%v", draft, err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM open_day_assignments WHERE open_day_id = $1`, 1, day.ID)
+	assertCount(t, pool, `SELECT count(*) FROM open_day_assignments WHERE open_day_id = $1`, 2, day.ID)
 	readerPeriods, err := service.ListPeriods(ctx, reader)
 	if err != nil || len(readerPeriods) != 0 {
 		t.Fatalf("reader periods after return to draft = %#v, err=%v", readerPeriods, err)
@@ -165,7 +178,7 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	if err != nil || returnedStaffing.Status != "staffing" {
 		t.Fatalf("unpublish to staffing = %#v, err=%v", returnedStaffing, err)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM open_day_assignments WHERE open_day_id = $1`, 1, day.ID)
+	assertCount(t, pool, `SELECT count(*) FROM open_day_assignments WHERE open_day_id = $1`, 2, day.ID)
 	public, err = service.ListPublic(ctx)
 	if err != nil || len(public) != 0 {
 		t.Fatalf("unpublished period leaked through public JSON: %#v, err=%v", public, err)
@@ -186,7 +199,7 @@ func TestOpenDaysLifecycleAtomicScheduleAssignmentsAndPublicPrivacy(t *testing.T
 	if len(cancelled.Items) != 1 || cancelled.Items[0].Status != "cancelled" {
 		t.Fatalf("cancelled schedule = %#v", cancelled)
 	}
-	assertCount(t, pool, `SELECT count(*) FROM open_day_assignments WHERE open_day_id = $1`, 1, day.ID)
+	assertCount(t, pool, `SELECT count(*) FROM open_day_assignments WHERE open_day_id = $1`, 2, day.ID)
 	ics, err = service.PublicICS(ctx)
 	if err != nil || !strings.Contains(string(ics), "STATUS:CANCELLED") {
 		t.Fatalf("cancelled ICS = %q, err=%v", ics, err)

@@ -42,8 +42,8 @@ pageSize?: PageSizeParameter;
  */
 search?: string;
 /**
- * Return people assigned to at least one of these roles. Supplying this
-filter requires `accounts.read` because role membership is account data.
+ * Return people assigned to at least one of these roles. Role membership
+is Person data and is available with `people.read.all`.
 
  * @maxItems 50
  */

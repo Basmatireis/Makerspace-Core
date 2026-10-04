@@ -27,7 +27,7 @@ The three account-access commands have deliberately different scopes:
 
 - `bootstrap-master` creates the first Person, Account, password identity, and Master assignment. It refuses once a Master assignment exists.
 - `recover-master` repairs an existing Account only when no enabled Master remains; it enables that Account and assigns Master.
-- `reset-password` changes only the local-password method of one unambiguously identified existing Account. It does not create a Person or Account, change status, or change Roles, and it works while an enabled Master exists.
+- `reset-password` changes only the local-password method of one unambiguously identified existing Account. It does not create a Person or Account, change status, or change the Person's Roles, and it works while an enabled Master exists.
 
 For an enabled existing Account whose local password must be reset, run:
 
@@ -35,7 +35,7 @@ For an enabled existing Account whose local password must be reset, run:
 make admin ARGS='reset-password'
 ```
 
-The command requires a TTY, prompts for the existing login email or identifier, and reads the new password twice without echo. Password arguments, environment variables, and piped stdin are not accepted. It preserves Person data, Roles, PIN/OIDC identities, revokes the Account's sessions, invalidates outstanding password reset/setup challenges, and records a secret-free `admin_cli` audit event. Ambiguous identifiers abort without changes.
+The command requires a TTY, prompts for the existing login email or identifier, and reads the new password twice without echo. Password arguments, environment variables, and piped stdin are not accepted. It preserves Person data and Roles, PIN/OIDC identities, revokes the Account's sessions, invalidates outstanding password reset/setup challenges, and records a secret-free `admin_cli` audit event. Ambiguous identifiers abort without changes.
 
 ## Cleanup and retention
 
@@ -187,7 +187,9 @@ Do not add `--volumes` unless deliberate, irreversible database deletion is inte
 
 Application rollback is safe only while its binary remains compatible with the migrated schema. Prefer forward fixes for data-bearing migrations. For production, restore `compose.yaml` from the previous immutable release bundle and run `docker compose up -d`; backend startup only applies missing forward migrations and never silently downgrades the schema. Revert a production migration only after reviewing its Down section and confirming that losing new schema/data is acceptable. `make migrate-down` remains the development-stack helper for deliberate manual work from a repository checkout.
 
-Account disablement, password set/reset, and Role changes take effect through database-backed authorization on the next request. If access is lost, use the recovery CLI rather than direct table edits. Never extract or manually alter password hashes or session/reset token digests.
+Account disablement, password set/reset, and Person Role changes take effect through database-backed authorization on the next request. Deleting an Account retains its Person and Roles. If access is lost, use the recovery CLI rather than direct table edits. Never extract or manually alter password hashes or session/reset token digests.
+
+Migration 00024 moves the only Role-membership source from Accounts to People and renames `accounts.roles.assign` to `people.roles.assign`. Its Down migration refuses to run while any role-bearing Person has no Account, preventing silent membership loss.
 
 ## Identity and visitor semantic migrations
 

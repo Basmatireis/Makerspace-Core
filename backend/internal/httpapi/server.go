@@ -295,7 +295,7 @@ func (s *Server) IssueAccountPinEnrollment(ctx context.Context, request openapi.
 	}, nil
 }
 
-func (s *Server) RemoveAccountRole(ctx context.Context, request openapi.RemoveAccountRoleRequestObject) (openapi.RemoveAccountRoleResponseObject, error) {
+func (s *Server) RemovePersonRole(ctx context.Context, request openapi.RemovePersonRoleRequestObject) (openapi.RemovePersonRoleResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -303,14 +303,18 @@ func (s *Server) RemoveAccountRole(ctx context.Context, request openapi.RemoveAc
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	account, err := s.accounts.ChangeRole(ctx, principal, request.AccountId, request.RoleId, request.Body.ExpectedVersion, false, requestIDPointer(ctx))
+	person, err := s.people.ChangeRole(ctx, principal, request.PersonId, request.RoleId, request.Body.ExpectedVersion, false, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
-	return openapi.RemoveAccountRole200JSONResponse(accountDTO(account)), nil
+	response, err := s.personDTO(ctx, principal, person, principal.CanReadPerson(person.ID), true)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.RemovePersonRole200JSONResponse(response), nil
 }
 
-func (s *Server) AssignAccountRole(ctx context.Context, request openapi.AssignAccountRoleRequestObject) (openapi.AssignAccountRoleResponseObject, error) {
+func (s *Server) AssignPersonRole(ctx context.Context, request openapi.AssignPersonRoleRequestObject) (openapi.AssignPersonRoleResponseObject, error) {
 	principal, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -318,11 +322,15 @@ func (s *Server) AssignAccountRole(ctx context.Context, request openapi.AssignAc
 	if request.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	account, err := s.accounts.ChangeRole(ctx, principal, request.AccountId, request.RoleId, request.Body.ExpectedVersion, true, requestIDPointer(ctx))
+	person, err := s.people.ChangeRole(ctx, principal, request.PersonId, request.RoleId, request.Body.ExpectedVersion, true, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
-	return openapi.AssignAccountRole200JSONResponse(accountDTO(account)), nil
+	response, err := s.personDTO(ctx, principal, person, principal.CanReadPerson(person.ID), true)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.AssignPersonRole200JSONResponse(response), nil
 }
 
 func (s *Server) ListAuditEvents(ctx context.Context, request openapi.ListAuditEventsRequestObject) (openapi.ListAuditEventsResponseObject, error) {
@@ -1001,10 +1009,14 @@ func (s *Server) personDTO(ctx context.Context, principal authorization.Principa
 }
 
 func personDTOWithRelated(principal authorization.Principal, person people.Person, includeContact, includeAccount, profileImageRequired bool, account *accounts.Account) openapi.Person {
+	roleSummaries := make([]openapi.RoleSummary, 0, len(person.Roles))
+	for _, role := range person.Roles {
+		roleSummaries = append(roleSummaries, roleSummaryDTO(role))
+	}
 	response := openapi.Person{
 		Id: person.ID, FirstName: person.FirstName, LastName: person.LastName,
 		Version: person.Version, CreatedAt: person.CreatedAt, UpdatedAt: person.UpdatedAt,
-		ProfileImageRequired: &profileImageRequired,
+		ProfileImageRequired: &profileImageRequired, Roles: roleSummaries,
 	}
 	if includeContact {
 		response.Email = nullablePointer[string, openapi.Email](person.Email, func(value string) openapi.Email { return openapi.Email(value) })
@@ -1037,10 +1049,6 @@ func profileImageDTO(person people.Person) openapi.ProfileImage {
 }
 
 func accountDTO(account accounts.Account) openapi.Account {
-	roles := make([]openapi.RoleSummary, 0, len(account.Roles))
-	for _, role := range account.Roles {
-		roles = append(roles, roleSummaryDTO(role))
-	}
 	identities := make([]openapi.AuthIdentitySummary, 0, len(account.AuthIdentities))
 	for _, identity := range account.AuthIdentities {
 		identities = append(identities, openapi.AuthIdentitySummary{
@@ -1058,7 +1066,7 @@ func accountDTO(account accounts.Account) openapi.Account {
 		PasswordStatus:       openapi.PasswordStatus(account.PasswordStatus),
 		LoginEmail:           optionalLoginEmail(account.LoginEmail),
 		AuthIdentities:       identities,
-		Roles:                roles, Version: account.Version, CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt,
+		Version:              account.Version, CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt,
 	}
 }
 
@@ -1074,11 +1082,11 @@ func accountSummaryDTO(account accounts.Account) openapi.AccountSummary {
 	return openapi.AccountSummary{
 		Id: full.Id, PersonId: full.PersonId, Status: full.Status, PasswordStatus: full.PasswordStatus,
 		ProvisioningSource: openapi.AccountSummaryProvisioningSource(full.ProvisioningSource), FirstAuthenticatedAt: full.FirstAuthenticatedAt,
-		LoginEmail: full.LoginEmail, AuthIdentities: full.AuthIdentities, Roles: full.Roles, Version: full.Version,
+		LoginEmail: full.LoginEmail, AuthIdentities: full.AuthIdentities, Version: full.Version,
 	}
 }
 
-func roleSummaryDTO(role accounts.RoleSummary) openapi.RoleSummary {
+func roleSummaryDTO(role people.RoleSummary) openapi.RoleSummary {
 	response := openapi.RoleSummary{Id: role.ID, Name: role.Name}
 	if role.SystemKey != nil {
 		response.SystemKey = nullable.NewNullableWithValue(openapi.RoleSummarySystemKey(*role.SystemKey))

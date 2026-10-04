@@ -106,11 +106,11 @@ export function canManageRoleMembership(
   currentUser: CurrentUser,
   role: Pick<Role, 'permissionGrants' | 'systemKey'>,
 ): boolean {
-  if (!hasPermission(currentUser, PermissionId.accountsrolesassign)) {
+  if (!hasPermission(currentUser, PermissionId.peoplerolesassign)) {
     return false;
   }
 
-  const isMasterActor = currentUser.account.roles.some(
+  const isMasterActor = currentUser.person.roles.some(
     (assignedRole) => assignedRole.systemKey === 'master',
   );
   if (isMasterActor) {

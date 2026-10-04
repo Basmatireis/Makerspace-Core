@@ -43,7 +43,6 @@ export function accountFixture(overrides: Partial<Account> = {}): Account {
     }],
     status: 'enabled',
     passwordStatus: 'active',
-    roles: [],
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
     version: 1,
@@ -59,6 +58,7 @@ export function personFixture(overrides: Partial<Person> = {}): Person {
     email: 'grace@example.test',
     phone: null,
     matriculationNumber: 'M-0042',
+    roles: [],
     account: null,
     createdAt: '2026-01-01T00:00:00Z',
     updatedAt: '2026-01-01T00:00:00Z',
@@ -81,6 +81,9 @@ export function currentUserFixture(
       email: 'ada@example.test',
       phone: null,
       matriculationNumber: null,
+      roles: master
+        ? [{ id: fixtureRoleId, name: 'Master', systemKey: 'master' }]
+        : [],
       account: {
         id: accountId,
         personId,
@@ -90,9 +93,6 @@ export function currentUserFixture(
         authIdentities: [{ id: '0192f6f8-743e-7c77-a349-cd07c3e8a907', kind: 'password', displayIdentifier: 'ada@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, usable: true, createdAt: '2026-01-01T00:00:00Z' }],
         status: 'enabled',
         passwordStatus: 'active',
-        roles: master
-          ? [{ id: fixtureRoleId, name: 'Master', systemKey: 'master' }]
-          : [],
         version: 1,
       },
       createdAt: '2026-01-01T00:00:00Z',
@@ -108,9 +108,6 @@ export function currentUserFixture(
       authIdentities: [{ id: '0192f6f8-743e-7c77-a349-cd07c3e8a908', kind: 'password', displayIdentifier: 'ada@example.test', verifiedAt: '2026-01-01T00:00:00Z', disabledAt: null, usable: true, createdAt: '2026-01-01T00:00:00Z' }],
       status: 'enabled',
       passwordStatus: 'active',
-      roles: master
-        ? [{ id: fixtureRoleId, name: 'Master', systemKey: 'master' }]
-        : [],
       createdAt: '2026-01-01T00:00:00Z',
       updatedAt: '2026-01-01T00:00:00Z',
       version: 1,

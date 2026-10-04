@@ -4,9 +4,9 @@ const personId = '0192f6f8-743e-7c77-a349-cd07c3e8c001';
 const accountId = '0192f6f8-743e-7c77-a349-cd07c3e8c002';
 
 function currentUser() {
-  const account = { id: accountId, personId, loginEmail: 'brand.admin@example.test', provisioningSource: 'local', firstAuthenticatedAt: '2026-10-03T10:00:00Z', authIdentities: [], status: 'enabled', passwordStatus: 'active', roles: [], createdAt: '2026-10-03T10:00:00Z', updatedAt: '2026-10-03T10:00:00Z', version: 1 };
+  const account = { id: accountId, personId, loginEmail: 'brand.admin@example.test', provisioningSource: 'local', firstAuthenticatedAt: '2026-10-03T10:00:00Z', authIdentities: [], status: 'enabled', passwordStatus: 'active', createdAt: '2026-10-03T10:00:00Z', updatedAt: '2026-10-03T10:00:00Z', version: 1 };
   return {
-    person: { id: personId, firstName: 'Brand', lastName: 'Administrator', email: 'brand.admin@example.test', phone: null, account, createdAt: '2026-10-03T10:00:00Z', updatedAt: '2026-10-03T10:00:00Z', version: 1 },
+    person: { id: personId, firstName: 'Brand', lastName: 'Administrator', email: 'brand.admin@example.test', phone: null, roles: [], account, createdAt: '2026-10-03T10:00:00Z', updatedAt: '2026-10-03T10:00:00Z', version: 1 },
     account,
     permissions: ['branding.manage'],
     authenticationAssurance: 'normal', managedDevice: null,

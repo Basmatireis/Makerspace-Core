@@ -8,6 +8,7 @@ import (
 	"image/jpeg"
 	_ "image/png"
 	"io"
+	"log/slog"
 	"math"
 	"strings"
 	"time"
@@ -38,9 +39,16 @@ type Person struct {
 	PhotoReference      *string
 	ProfileImageFileID  *uuid.UUID
 	ProfileImageSource  *string
+	Roles               []RoleSummary
 	Version             int64
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+}
+
+type RoleSummary struct {
+	ID        uuid.UUID
+	Name      string
+	SystemKey *string
 }
 
 type CreateInput struct {
@@ -132,7 +140,7 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal, id
 	if err != nil {
 		return Person{}, err
 	}
-	return fromRow(row, true, principal.Has(authorization.PeopleReadMatriculation)), nil
+	return loadPerson(ctx, peopledb.New(s.pool), row, true, principal.Has(authorization.PeopleReadMatriculation))
 }
 
 func (s *Service) GetCurrent(ctx context.Context, principal authorization.Principal) (Person, error) {
@@ -144,7 +152,7 @@ func (s *Service) GetCurrent(ctx context.Context, principal authorization.Princi
 		return Person{}, err
 	}
 	includeDetails := principal.CanReadPerson(principal.PersonID)
-	return fromRow(row, includeDetails, includeDetails && principal.Has(authorization.PeopleReadMatriculation)), nil
+	return loadPerson(ctx, peopledb.New(s.pool), row, includeDetails, includeDetails && principal.Has(authorization.PeopleReadMatriculation))
 }
 
 type ListFilters struct {
@@ -172,7 +180,7 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal, p
 	if !principal.Has(authorization.PeopleReadAll) {
 		return Page{}, apperror.PermissionDenied
 	}
-	if (len(filters.RoleIDs) > 0 || len(filters.AccountStatuses) > 0) && !principal.Has(authorization.AccountsRead) {
+	if len(filters.AccountStatuses) > 0 && !principal.Has(authorization.AccountsRead) {
 		return Page{}, apperror.PermissionDenied
 	}
 	if len(filters.LaborordnungStatuses) > 0 && !principal.Has(authorization.LaborordnungRequestsRead) {
@@ -194,9 +202,13 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal, p
 			return Page{}, invalidRequest("invalid Lab Rules status filter")
 		}
 	}
+	roleIDs := make([]string, len(filters.RoleIDs))
+	for index, roleID := range filters.RoleIDs {
+		roleIDs[index] = roleID.String()
+	}
 	params := peopledb.ListPeopleParams{
 		Search: filters.Search, IncludeMatriculation: principal.Has(authorization.PeopleReadMatriculation),
-		RoleIds: filters.RoleIDs, AccountStatuses: filters.AccountStatuses, LaborordnungStatuses: filters.LaborordnungStatuses,
+		RoleIds: roleIDs, AccountStatuses: filters.AccountStatuses, LaborordnungStatuses: filters.LaborordnungStatuses,
 		PageLimit: int32(pageSize), PageOffset: int32((page - 1) * pageSize),
 	}
 	queries := peopledb.New(s.pool)
@@ -212,8 +224,13 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal, p
 		return Page{}, err
 	}
 	items := make([]Person, 0, len(rows))
+	personIDs := make([]uuid.UUID, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, fromRow(row, true, params.IncludeMatriculation))
+		personIDs = append(personIDs, row.ID)
+	}
+	if err := hydratePeopleRoles(ctx, queries, items, personIDs); err != nil {
+		return Page{}, err
 	}
 	return Page{Items: items, Page: page, PageSize: pageSize, Total: total}, nil
 }
@@ -226,7 +243,7 @@ func (s *Service) ProfileImageRequirements(ctx context.Context, principal author
 	if len(personIDs) == 0 {
 		return result, nil
 	}
-	rows, err := peopledb.New(s.pool).ListProfileImageRequirements(ctx, personIDs)
+	rows, err := peopledb.New(s.pool).ListProfileImageRequirements(ctx, uuidStrings(personIDs))
 	if err != nil {
 		return nil, err
 	}
@@ -294,10 +311,14 @@ func (s *Service) Update(ctx context.Context, principal authorization.Principal,
 	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "person.updated", ResourceType: "person", ResourceID: &id, RequestID: requestID, ChangedFields: changed}); err != nil {
 		return Person{}, err
 	}
+	result, err := loadPerson(ctx, queries, row, principal.CanReadPerson(id), principal.Has(authorization.PeopleReadMatriculation))
+	if err != nil {
+		return Person{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return Person{}, err
 	}
-	return fromRow(row, principal.CanReadPerson(id), principal.Has(authorization.PeopleReadMatriculation)), nil
+	return result, nil
 }
 
 func (s *Service) Delete(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, requestID *uuid.UUID) error {
@@ -411,6 +432,10 @@ func (s *Service) PutProfileImage(ctx context.Context, principal authorization.P
 	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "person.profile_image.updated", ResourceType: "person", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"profileImage"}}); err != nil {
 		return Person{}, err
 	}
+	result, err := loadPerson(ctx, queries, row, principal.CanReadPerson(id), principal.Has(authorization.PeopleReadMatriculation))
+	if err != nil {
+		return Person{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return Person{}, err
 	}
@@ -418,7 +443,7 @@ func (s *Service) PutProfileImage(ctx context.Context, principal authorization.P
 	if current.ProfileImageFileID != nil {
 		_ = s.files.Delete(context.Background(), principal, *current.ProfileImageFileID, requestID)
 	}
-	return fromRow(row, principal.CanReadPerson(id), principal.Has(authorization.PeopleReadMatriculation)), nil
+	return result, nil
 }
 
 func (s *Service) DeleteProfileImage(ctx context.Context, principal authorization.Principal, id uuid.UUID, expectedVersion int64, requestID *uuid.UUID) error {
@@ -480,6 +505,178 @@ func (s *Service) OpenProfileImage(ctx context.Context, principal authorization.
 
 func (s *Service) RequiresProfileImage(ctx context.Context, id uuid.UUID) (bool, error) {
 	return peopledb.New(s.pool).PersonRequiresProfileImage(ctx, id)
+}
+
+func (s *Service) ChangeRole(ctx context.Context, principal authorization.Principal, personID, roleID uuid.UUID, expectedVersion int64, assign bool, requestID *uuid.UUID) (Person, error) {
+	if !principal.Has(authorization.PeopleRolesAssign) {
+		return Person{}, apperror.PermissionDenied
+	}
+	if expectedVersion < 1 {
+		return Person{}, validation("expectedVersion must be positive")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Person{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	queries := peopledb.New(tx)
+	current, err := queries.GetPersonForDeletion(ctx, personID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Person{}, apperror.NotFound
+	}
+	if err != nil {
+		return Person{}, err
+	}
+	if current.Version != expectedVersion {
+		return Person{}, apperror.StaleWrite
+	}
+	role, err := authorizeRoleAssignment(ctx, queries, principal, roleID)
+	if err != nil {
+		return Person{}, err
+	}
+	present, err := queries.IsPersonRoleAssigned(ctx, peopledb.IsPersonRoleAssignedParams{PersonID: personID, RoleID: roleID})
+	if err != nil {
+		return Person{}, err
+	}
+	if present == assign {
+		result, err := loadPerson(ctx, queries, current, principal.CanReadPerson(personID), principal.Has(authorization.PeopleReadMatriculation))
+		if err != nil {
+			return Person{}, err
+		}
+		return result, tx.Commit(ctx)
+	}
+	if !assign && role.SystemKey != nil && *role.SystemKey == "master" {
+		if err := protectLastEnabledMaster(ctx, queries, personID); err != nil {
+			return Person{}, err
+		}
+	}
+	row, err := queries.BumpPersonVersion(ctx, peopledb.BumpPersonVersionParams{ID: personID, ExpectedVersion: expectedVersion})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Person{}, apperror.StaleWrite
+	}
+	if err != nil {
+		return Person{}, err
+	}
+	var rows int64
+	if assign {
+		rows, err = queries.AssignPersonRole(ctx, peopledb.AssignPersonRoleParams{PersonID: personID, RoleID: roleID, AssignedByAccountID: &principal.AccountID})
+	} else {
+		rows, err = queries.RemovePersonRole(ctx, peopledb.RemovePersonRoleParams{PersonID: personID, RoleID: roleID})
+	}
+	if err != nil {
+		return Person{}, err
+	}
+	if rows != 1 {
+		return Person{}, apperror.StaleWrite
+	}
+	action := "person.role_removed"
+	if assign {
+		action = "person.role_assigned"
+	}
+	actor := principal.AccountID
+	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: action, ResourceType: "person", ResourceID: &personID, RequestID: requestID, Metadata: map[string]any{"roleId": roleID.String()}}); err != nil {
+		return Person{}, err
+	}
+	result, err := loadPerson(ctx, queries, row, principal.CanReadPerson(personID), principal.Has(authorization.PeopleReadMatriculation))
+	if err != nil {
+		return Person{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Person{}, err
+	}
+	return result, nil
+}
+
+// ValidateProvisionedRoleTransfer applies ordinary assignment and delegation
+// rules to the source Person within the caller's reconciliation transaction.
+// The system master role is never transferable through reconciliation.
+func ValidateProvisionedRoleTransfer(ctx context.Context, tx pgx.Tx, principal authorization.Principal, sourcePersonID uuid.UUID) error {
+	queries := peopledb.New(tx)
+	roles, err := queries.ListPersonRoles(ctx, sourcePersonID)
+	if err != nil {
+		return err
+	}
+	for _, role := range roles {
+		if role.SystemKey != nil && *role.SystemKey == "master" {
+			return apperror.New(409, "master_role_transfer", "SCIM reconciliation cannot transfer the master role")
+		}
+		if _, err := authorizeRoleAssignment(ctx, queries, principal, role.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func protectLastEnabledMaster(ctx context.Context, queries *peopledb.Queries, personID uuid.UUID) error {
+	if err := queries.AcquireMasterInvariantLock(ctx); err != nil {
+		return err
+	}
+	account, err := queries.GetAccountByPersonForMutation(ctx, personID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if account.Status != "enabled" {
+		return nil
+	}
+	count, err := queries.CountEnabledMasters(ctx)
+	if err != nil {
+		return err
+	}
+	if count <= 1 {
+		return apperror.New(409, "last_master_required", "At least one enabled master account must remain")
+	}
+	return nil
+}
+
+func authorizeRoleAssignment(ctx context.Context, queries *peopledb.Queries, principal authorization.Principal, roleID uuid.UUID) (peopledb.Role, error) {
+	if !principal.Has(authorization.PeopleRolesAssign) {
+		return peopledb.Role{}, apperror.PermissionDenied
+	}
+	role, err := queries.GetRoleForAssignment(ctx, roleID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return peopledb.Role{}, apperror.NotFound
+	}
+	if err != nil {
+		return peopledb.Role{}, err
+	}
+	permissions, err := queries.GetRolePermissionGrantsForAssignment(ctx, roleID)
+	if err != nil {
+		return peopledb.Role{}, err
+	}
+	if role.SystemKey != nil && *role.SystemKey == "master" {
+		if !principal.Master {
+			return peopledb.Role{}, apperror.PermissionDenied
+		}
+		return role, nil
+	}
+	grants := map[uuid.UUID]authorization.PermissionGrant{}
+	for _, permission := range permissions {
+		permissionID := authorization.Permission(permission.PermissionID)
+		if !authorization.Known(permissionID) {
+			slog.WarnContext(ctx, "unknown stored permission blocked role assignment", "role_id", roleID, "permission_id", permission.PermissionID)
+			if !principal.Master {
+				return peopledb.Role{}, apperror.PermissionDenied
+			}
+			continue
+		}
+		grant, exists := grants[permission.ID]
+		if !exists {
+			grant = authorization.PermissionGrant{ID: permission.ID, PermissionID: permissionID, Scope: authorization.GrantScope(permission.Scope), MinimumAssurance: authorization.Assurance(permission.MinimumAssurance)}
+		}
+		if permission.DeviceTypeID != nil {
+			grant.DeviceTypeIDs = append(grant.DeviceTypeIDs, *permission.DeviceTypeID)
+		}
+		grants[permission.ID] = grant
+	}
+	for _, grant := range grants {
+		if !principal.Master && !principal.CanDelegate(grant) {
+			return peopledb.Role{}, apperror.PermissionDenied
+		}
+	}
+	return role, nil
 }
 
 func NormalizeProfileImage(reader io.Reader) ([]byte, error) {
@@ -563,7 +760,46 @@ func fromRow(row peopledb.Person, includeDetails, includeMatriculation bool) Per
 	}
 	return Person{ID: row.ID, FirstName: row.FirstName, LastName: row.LastName, Email: email, Phone: phone,
 		MatriculationNumber: matriculation, PhotoReference: photoReference, ProfileImageFileID: row.ProfileImageFileID,
-		ProfileImageSource: row.ProfileImageSource, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+		ProfileImageSource: row.ProfileImageSource, Roles: []RoleSummary{}, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+}
+
+func loadPerson(ctx context.Context, queries *peopledb.Queries, row peopledb.Person, includeDetails, includeMatriculation bool) (Person, error) {
+	person := fromRow(row, includeDetails, includeMatriculation)
+	roles, err := queries.ListPersonRoles(ctx, row.ID)
+	if err != nil {
+		return Person{}, err
+	}
+	for _, role := range roles {
+		person.Roles = append(person.Roles, RoleSummary{ID: role.ID, Name: role.Name, SystemKey: role.SystemKey})
+	}
+	return person, nil
+}
+
+func hydratePeopleRoles(ctx context.Context, queries *peopledb.Queries, people []Person, personIDs []uuid.UUID) error {
+	if len(personIDs) == 0 {
+		return nil
+	}
+	indexByID := make(map[uuid.UUID]int, len(people))
+	for index := range people {
+		indexByID[people[index].ID] = index
+	}
+	rows, err := queries.ListPersonRolesByPeople(ctx, uuidStrings(personIDs))
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		index := indexByID[row.PersonID]
+		people[index].Roles = append(people[index].Roles, RoleSummary{ID: row.ID, Name: row.Name, SystemKey: row.SystemKey})
+	}
+	return nil
+}
+
+func uuidStrings(ids []uuid.UUID) []string {
+	values := make([]string, len(ids))
+	for index, id := range ids {
+		values[index] = id.String()
+	}
+	return values
 }
 
 func changedFields(current peopledb.Person, firstName, lastName string, email, phone, matriculation *string) []string {

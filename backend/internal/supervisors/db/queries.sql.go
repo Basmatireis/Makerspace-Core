@@ -96,16 +96,15 @@ WITH current_version AS (
 ), supervisor_people AS (
     SELECT DISTINCT p.id, p.first_name, p.last_name, p.profile_image_file_id
     FROM people p
-    JOIN accounts a ON a.person_id = p.id
-    JOIN account_roles ar ON ar.account_id = a.id
-    JOIN roles designated ON designated.id = ar.role_id AND designated.supervisor_dashboard
+    JOIN person_roles pr ON pr.person_id = p.id
+    JOIN roles designated ON designated.id = pr.role_id AND designated.supervisor_dashboard
 ), modes AS (
-    SELECT a.person_id,
+    SELECT p.id AS person_id,
         COALESCE(max(CASE r.laborordnung_mode WHEN 'blocking' THEN 2 WHEN 'warning' THEN 1 ELSE 0 END), 0)::integer AS mode_rank
-    FROM accounts a
-    LEFT JOIN account_roles ar ON ar.account_id = a.id
-    LEFT JOIN roles r ON r.id = ar.role_id
-    GROUP BY a.person_id
+    FROM people p
+    LEFT JOIN person_roles pr ON pr.person_id = p.id
+    LEFT JOIN roles r ON r.id = pr.role_id
+    GROUP BY p.id
 )
 SELECT sp.id AS person_id, sp.first_name, sp.last_name,
     (sp.profile_image_file_id IS NOT NULL)::boolean AS has_profile_image,

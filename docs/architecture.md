@@ -26,10 +26,10 @@ OpenAPI-generated types, domain types, and sqlc rows remain separate. Feature mo
 Person 1 ─── 0..1 Account 1 ─── * AuthIdentity(password | pin | oidc)
    │                 │                    ├── 0..1 PasswordCredential
    │                 │                    └── 0..1 PINCredential
-   │                 ├── * AccountRole * ─── 1 Role
-   │                 │                           └── * RolePermissionGrant
    │                 ├── * Session
    │                 └── * AuthChallenge
+   ├── * PersonRole * ─── 1 Role
+   │                           └── * RolePermissionGrant
    ├── 0..1 private profile-image File
    └── * LabRulesRequest ─── 1 immutable published LabRulesVersion ─── 1 PDF File
 
@@ -57,13 +57,13 @@ PricingGroup 1 ─── * explicit PricingRule
       └── optional default assignment for Person or Organization
 ```
 
-- **Person** is the human/business record. It has a UUIDv7, required first and last names, optional contact email, phone, matriculation number, and a private normalized profile-image File. At least one of email or phone must remain non-null. The old `photo_reference` field is preserved as read-only legacy metadata.
-- **Account** is the optional application-access record for one Person. Its active/inactive lifecycle is independent of authentication methods: an active Account without a usable method is valid but cannot sign in. It has an enabled/disabled wire status and optimistic-concurrency version; disabling it revokes active sessions.
+- **Person** is the human/business record and owns Roles and other Makerspace policy state. It has a UUIDv7, required first and last names, optional contact email, phone, matriculation number, and a private normalized profile-image File. At least one of email or phone must remain non-null. The old `photo_reference` field is preserved as read-only legacy metadata.
+- **Account** is the optional application-access record for one Person. It owns authentication identities, sessions, and access lifecycle—not domain Roles. Its active/inactive lifecycle is independent of authentication methods: an active Account without a usable method is valid but cannot sign in. It has an enabled/disabled wire status and optimistic-concurrency version; disabling it revokes active sessions.
 - **AuthIdentity** represents a password email, case-insensitive PIN username, or exact OIDC issuer/subject pair. Password login identifiers remain separate from Person contact email, and updating either value never silently changes the other.
 - **PasswordCredential** contains only the dedicated password hash and reset-required state. Its absence means no password has been set.
 - **Session** stores digests of opaque session and CSRF tokens, the account/identity, authentication method, ordered assurance, idle and absolute expiry, optional elevation expiry, and revocation state.
 - **AuthChallenge** stores only a keyed code digest, expiry, attempts, single-use state, target account/identity, and non-secret delivery outcome for invitations, email verification, password reset, and PIN setup.
-- **Role** is operator-configurable. Each independently identified permission grant is global, valid on any authenticated managed device, or restricted to selected device types, and specifies minimum assurance. `master` is the sole protected system role; its permissions are computed from the application registry as global at minimum low assurance rather than copied into grant rows.
+- **Role** is operator-configurable and assigned to a Person whether or not that Person has an Account. Each independently identified permission grant is global, valid on any authenticated managed device, or restricted to selected device types, and specifies minimum assurance. `master` is the sole protected system role; its permissions are computed from the application registry as global at minimum low assurance rather than copied into grant rows.
 - **DeviceType** is administrator-maintained classification data used by scoped role grants; authorization never hard-codes names such as Reception or Laser Terminal.
 - **ManagedDevice** stores a reusable device identity, its type, token digest, expiration/revocation state, throttled last-seen time, and optimistic version. It never authenticates a user.
 - **AuditEvent** contains a durable actor type (`user`, `system`, or historical `unknown`), an action, resource type/ID, nullable actor account, time, nullable HTTP request ID, changed field names, source, and selected non-sensitive metadata. Actions remain stable lowercase dot-separated domain/entity/action identifiers.
@@ -74,11 +74,11 @@ PricingGroup 1 ─── * explicit PricingRule
 - **Material** has one transactionally maintained balance and an immutable inventory ledger. Job confirmation and corrections lock materials deterministically and commit stock, price, job, and audit effects atomically.
 - **PricingGroup** resolves explicitly, from a party assignment, or from the global default. Exact-decimal runtime/material rules are copied into immutable job snapshots; final price overrides remain separate from calculations.
 
-UUIDv7 values are generated in application code. Timestamps use UTC `timestamptz`. Mutable people, accounts, and roles use a monotonically increasing version; clients submit `expectedVersion`, and stale writes fail with HTTP 409 and the stable `stale_write` code. Person deletion locks the Person and any attached Account so concurrent Account creation or Role assignment cannot bypass cascade-delete authorization. Login/session creation and security-sensitive Account mutations serialize on the Account row, preventing an in-flight login or password change from escaping a concurrent disable, identity change, administrative password action, or reset. Operations that could remove an enabled master acquire the last-master advisory lock before the Account lock so the invariant and lock order remain safe under concurrency.
+UUIDv7 values are generated in application code. Timestamps use UTC `timestamptz`. Mutable people, accounts, and roles use a monotonically increasing version; Person membership changes use the Person version, and clients submit `expectedVersion`. Stale writes fail with HTTP 409 and the stable `stale_write` code. Person deletion and Person-role removal lock the Person before the last-master advisory lock and any attached Account. Login/session creation and security-sensitive Account mutations serialize on the Account row, preventing an in-flight login or password change from escaping a concurrent disable, identity change, administrative password action, or reset.
 
 ## Privacy and deletion
 
-Person and Account records have genuine hard-delete paths. Deleting a Person cascades its Account, identity, credential, sessions, reset token, and assignments. Deleting only an Account retains the Person. A Person with an Account requires both `people.delete` and `accounts.delete` to delete.
+Person and Account records have genuine hard-delete paths. Deleting a Person cascades its Roles, Account, identity, credential, sessions, reset token, and assignments. Deleting only an Account retains the Person and their Roles. A Person with an Account requires both `people.delete` and `accounts.delete` to delete.
 
 Audit rows do not hold actor names, target names, before/after PII snapshots, or arbitrary metadata. A user actor retains `actor_type=user` when deletion sets its Account foreign key to null; system activity has no Account ID, and `unknown` is reserved for ambiguous migrated history. Resource IDs remain context-only UUIDs without retaining the deleted record. The audit read projection may resolve current names for a small allowlist of resource relationships. Those labels change when current records are renamed and disappear after deletion; the UI then presents the resource type and shortened opaque ID. Passwords, hashes, session/reset tokens, cookies, authorization headers, and request bodies are never written to logs or audit metadata.
 

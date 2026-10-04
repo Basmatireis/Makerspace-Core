@@ -5,6 +5,13 @@ VALUES (sqlc.arg(id), sqlc.arg(person_id), sqlc.arg(status)) RETURNING *;
 -- name: GetAccountForMutation :one
 SELECT * FROM accounts WHERE id = sqlc.arg(id) FOR UPDATE;
 
+-- name: LockPersonForAccountMutation :one
+SELECT p.id
+FROM people p
+JOIN accounts a ON a.person_id = p.id
+WHERE a.id = sqlc.arg(account_id)
+FOR UPDATE OF p;
+
 -- name: GetAccountByPerson :one
 SELECT * FROM accounts WHERE person_id = sqlc.arg(person_id);
 
@@ -120,36 +127,6 @@ WHERE id = sqlc.arg(id) AND kind = 'password';
 UPDATE password_credentials SET reset_required = true, changed_at = now()
 WHERE auth_identity_id = sqlc.arg(auth_identity_id);
 
--- name: AssignAccountRole :execrows
-INSERT INTO account_roles (account_id, role_id, assigned_by_account_id)
-VALUES (sqlc.arg(account_id), sqlc.arg(role_id), sqlc.narg(assigned_by_account_id))
-ON CONFLICT (account_id, role_id) DO NOTHING;
-
--- name: RemoveAccountRole :execrows
-DELETE FROM account_roles WHERE account_id = sqlc.arg(account_id) AND role_id = sqlc.arg(role_id);
-
--- name: ListAccountRoles :many
-SELECT r.* FROM roles r JOIN account_roles ar ON ar.role_id = r.id
-WHERE ar.account_id = sqlc.arg(account_id)
-ORDER BY r.system_key DESC NULLS LAST, lower(r.name), r.id;
-
--- name: ListAccountRolesByAccounts :many
-SELECT ar.account_id, r.* FROM roles r JOIN account_roles ar ON ar.role_id = r.id
-WHERE ar.account_id = ANY(sqlc.arg(account_ids)::uuid[])
-ORDER BY ar.account_id, r.system_key DESC NULLS LAST, lower(r.name), r.id;
-
--- name: GetRoleForAssignment :one
-SELECT * FROM roles WHERE id = sqlc.arg(id) FOR SHARE;
-
--- name: GetRolePermissionGrantsForAssignment :many
-SELECT g.id, g.permission_id, g.scope, g.minimum_assurance, gdt.device_type_id
-FROM role_permission_grants g LEFT JOIN role_permission_grant_device_types gdt ON gdt.grant_id = g.id
-WHERE g.role_id = sqlc.arg(role_id)
-ORDER BY g.permission_id, g.id, gdt.device_type_id;
-
--- name: IsAccountRoleAssigned :one
-SELECT EXISTS (SELECT 1 FROM account_roles WHERE account_id = sqlc.arg(account_id) AND role_id = sqlc.arg(role_id));
-
 -- name: RevokeSessionsForAccount :exec
 UPDATE sessions
 SET revoked_at = COALESCE(revoked_at, now()), revocation_reason = COALESCE(revocation_reason, sqlc.arg(reason))
@@ -165,22 +142,14 @@ ON CONFLICT (account_id) DO UPDATE SET id = EXCLUDED.id, token_digest = EXCLUDED
     created_by_account_id = EXCLUDED.created_by_account_id, created_at = now(), expires_at = EXCLUDED.expires_at
 RETURNING *;
 
--- name: LockMasterRole :one
-SELECT id FROM roles WHERE system_key = 'master' FOR UPDATE;
-
 -- name: AcquireMasterInvariantLock :exec
 SELECT pg_advisory_xact_lock(5577006791947779410);
 
 -- name: CountEnabledMasters :one
 SELECT count(*) FROM accounts a
-JOIN account_roles ar ON ar.account_id = a.id JOIN roles r ON r.id = ar.role_id
+JOIN person_roles pr ON pr.person_id = a.person_id
+JOIN roles r ON r.id = pr.role_id
 WHERE a.status = 'enabled' AND r.system_key = 'master';
-
--- name: CountMasterAssignments :one
-SELECT count(*) FROM account_roles ar JOIN roles r ON r.id = ar.role_id WHERE r.system_key = 'master';
-
--- name: GetMasterRole :one
-SELECT * FROM roles WHERE system_key = 'master';
 
 -- name: GetAccountIdentityByLoginEmail :one
 SELECT a.*, i.id AS auth_identity_id FROM accounts a
@@ -223,8 +192,12 @@ UPDATE accounts SET status = 'enabled', version = version + 1, updated_at = now(
 WHERE id = sqlc.arg(id) RETURNING *;
 
 -- name: IsAccountMaster :one
-SELECT EXISTS (SELECT 1 FROM account_roles ar JOIN roles r ON r.id = ar.role_id
-WHERE ar.account_id = sqlc.arg(account_id) AND r.system_key = 'master');
+SELECT EXISTS (
+    SELECT 1 FROM accounts a
+    JOIN person_roles pr ON pr.person_id = a.person_id
+    JOIN roles r ON r.id = pr.role_id
+    WHERE a.id = sqlc.arg(account_id) AND r.system_key = 'master'
+);
 
 -- name: UpsertAuthChallenge :one
 INSERT INTO auth_challenges (
