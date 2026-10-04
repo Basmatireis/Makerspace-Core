@@ -33,6 +33,16 @@
 - Frontend authorization is UX only; it never replaces backend enforcement.
 - Do not persist private query data in browser storage.
 
+### Frontend performance
+
+- Treat production loading performance as an acceptance criterion. Preserve route-level code splitting and lazy-load independent pages and heavy feature libraries unless they are required for the initial login, shell, or dashboard experience.
+- Keep Carbon Charts and its stylesheet behind the existing asynchronous charting boundary. Do not import chart code or chart CSS from the application entrypoint.
+- Keep Carbon Sass selective. When adding a Carbon component, add only its required `@carbon/styles` module; do not restore the full `@carbon/react` stylesheet or enable unused font families.
+- Prefer existing dependencies and tree-shakeable named imports. Before adding a runtime dependency, verify that its benefit justifies its production bundle cost. Do not add manual chunks, deep package imports, memoization, preloading, or other performance complexity without measured evidence.
+- Keep the recursively loaded initial JavaScript graph at or below 225 kB gzip and entry CSS at or below 80 kB gzip. Measure a production build after frontend dependency, routing, styling, or bundling changes and investigate regressions rather than comparing only the entry filename.
+- Preserve production delivery behavior: hashed `/assets/` files are immutable, HTML is not cached, suitable text assets are gzip-compressed, missing hashed assets return 404, and production source maps remain disabled unless an explicit operational requirement changes that policy.
+- Performance work must preserve behavior, accessibility, authorization UX, and Carbon visual consistency. Validate affected routes at desktop and narrow viewports when loading or styling behavior changes.
+
 ## Quality
 
 - Add or update tests with behavior changes. Prefer real PostgreSQL integration tests for repository/API behavior.
