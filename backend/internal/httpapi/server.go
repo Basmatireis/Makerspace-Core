@@ -10,6 +10,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/branding"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
@@ -47,6 +48,7 @@ type Server struct {
 	roles          *roles.Service
 	audit          *audit.Service
 	opendays       *opendays.Service
+	events         *events.Service
 	managedDevices *manageddevices.Service
 	mail           *mailservice.Service
 	files          *files.Service
@@ -79,6 +81,10 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("initialize Open Days: %w", err)
 	}
+	eventService, err := events.NewService(pool, cfg, fileService)
+	if err != nil {
+		return nil, fmt.Errorf("initialize Events: %w", err)
+	}
 	oidcService, err := oidcservice.NewService(pool, cfg, authService)
 	if err != nil {
 		return nil, fmt.Errorf("initialize OIDC: %w", err)
@@ -97,6 +103,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		roles:          roles.NewService(pool),
 		audit:          audit.NewService(pool),
 		opendays:       openDaysService,
+		events:         eventService,
 		managedDevices: manageddevices.NewService(pool),
 		mail:           mailer,
 		files:          fileService,

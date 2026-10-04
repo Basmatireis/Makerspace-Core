@@ -313,6 +313,8 @@ func maxBodyMiddleware(next http.Handler) http.Handler {
 				limit = maxPDFRequestBodyBytes
 			} else if r.URL.Path == apiBasePath+"/visitor-enrollment/submissions" {
 				limit = 12 << 20
+			} else if r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, apiBasePath+"/events/") && strings.HasSuffix(r.URL.Path, "/files") {
+				limit = (25 << 20) + 1
 			}
 			r.Body = http.MaxBytesReader(w, r.Body, limit)
 		}
@@ -324,6 +326,9 @@ func noStoreMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, apiBasePath+"/auth/") || strings.HasSuffix(r.URL.Path, "/password-reset") ||
 			strings.HasPrefix(r.URL.Path, apiBasePath+"/visitor-enrollment/") ||
+			strings.HasPrefix(r.URL.Path, apiBasePath+"/public/event-signups/") ||
+			strings.HasSuffix(r.URL.Path, "/signups") ||
+			(strings.Contains(r.URL.Path, "/events/") && (strings.HasSuffix(r.URL.Path, "/assignments") || strings.Contains(r.URL.Path, "/assignments/") || strings.HasSuffix(r.URL.Path, "/files") || strings.Contains(r.URL.Path, "/files/"))) ||
 			strings.HasSuffix(r.URL.Path, "/invitations") || strings.HasSuffix(r.URL.Path, "/pin-enrollment") ||
 			(r.Method == http.MethodPost && (r.URL.Path == apiBasePath+"/managed-devices" || r.URL.Path == apiBasePath+"/scim/connectors")) || strings.HasSuffix(r.URL.Path, "/token") {
 			w.Header().Set("Cache-Control", "no-store")
@@ -634,6 +639,9 @@ func isPublicPath(path string) bool {
 		return true
 	}
 	if path == apiBasePath+"/public/config" || strings.HasPrefix(path, apiBasePath+"/public/legal/") || strings.HasPrefix(path, apiBasePath+"/public/branding/assets/") {
+		return true
+	}
+	if strings.HasPrefix(path, apiBasePath+"/public/events/") || strings.HasPrefix(path, apiBasePath+"/public/event-signups/") {
 		return true
 	}
 	switch path {

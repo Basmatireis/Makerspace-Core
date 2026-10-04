@@ -43,7 +43,11 @@ import type {
   Person,
   Role,
 } from '../../api/generated/models';
-import { assignPersonRole, getPersonMakerspaceStatus } from '../../api/generated/people/people';
+import {
+  assignPersonRole,
+  deletePerson,
+  getPersonMakerspaceStatus,
+} from '../../api/generated/people/people';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
@@ -74,7 +78,12 @@ const LAB_RULES_STATUS_OPTIONS: Array<FilterOption<PeopleLaborordnungStatusFilte
   { value: 'not_required', label: 'Not required' },
 ];
 
-type BatchAction = 'create-accounts' | 'assign-role' | 'delete-accounts' | null;
+type BatchAction =
+  | 'create-accounts'
+  | 'assign-role'
+  | 'delete-accounts'
+  | 'delete-people'
+  | null;
 type BatchResult = {
   kind: 'success' | 'warning';
   title: string;
@@ -193,9 +202,15 @@ export function UsersPage() {
   const mayAssignRoles =
     hasPermission(currentUser, PermissionId.peoplerolesassign) &&
     hasPermission(currentUser, PermissionId.rolesread);
-  const mayDeleteAccounts =
-    showAccounts && hasPermission(currentUser, PermissionId.accountsdelete);
-  const canBatchManage = mayCreateAccounts || mayAssignRoles || mayDeleteAccounts;
+  const hasDeleteAccountsPermission = hasPermission(
+    currentUser,
+    PermissionId.accountsdelete,
+  );
+  const mayDeleteAccounts = showAccounts && hasDeleteAccountsPermission;
+  const mayDeletePeople = hasPermission(currentUser, PermissionId.peopledelete) &&
+    (showAccounts || hasDeleteAccountsPermission);
+  const canBatchManage =
+    mayCreateAccounts || mayAssignRoles || mayDeleteAccounts || mayDeletePeople;
   const rolesQuery = useQuery({ ...fullRoleCatalogOptions, enabled: mayReadRoles });
   const supervisorRoleIds = useMemo(
     () => new Set((rolesQuery.data ?? []).filter((role) => role.supervisorDashboard).map((role) => role.id)),
@@ -307,6 +322,45 @@ export function UsersPage() {
       await refreshPeople();
     },
   });
+  const peopleEligibleForDeletion = (members: Person[]) =>
+    members.filter((member) => hasDeleteAccountsPermission || member.account === null);
+  const batchDeletePeople = useMutation({
+    mutationFn: async (members: Person[]) => {
+      const eligible = peopleEligibleForDeletion(members);
+      const results = await Promise.allSettled(
+        eligible.map((person) =>
+          deletePerson(person.id, {
+            expectedVersion: person.version,
+          }),
+        ),
+      );
+      return {
+        deletedPersonIds: results.flatMap((result, index) =>
+          result.status === 'fulfilled' ? [eligible[index].id] : [],
+        ),
+        deleted: results.filter((result) => result.status === 'fulfilled').length,
+        failed: results.filter((result) => result.status === 'rejected').length,
+        skipped: members.length - eligible.length,
+      };
+    },
+    onSuccess: async ({ deletedPersonIds, deleted, failed, skipped }) => {
+      setBatchAction(null);
+      setBatchMembers([]);
+      for (const personId of deletedPersonIds) {
+        queryClient.removeQueries({ queryKey: peopleKeys.detail(personId) });
+      }
+      setBatchResult({
+        kind: failed === 0 ? 'success' : 'warning',
+        title: failed === 0
+          ? 'People deleted'
+          : deleted === 0
+            ? 'People were not deleted'
+            : 'Some people were not deleted',
+        subtitle: `${deleted} deleted${skipped ? `; ${skipped} skipped because deleting their account is not permitted` : ''}${failed ? `; ${failed} could not be deleted` : ''}.`,
+      });
+      await refreshPeople();
+    },
+  });
 
   const people = peopleQuery.data?.items ?? EMPTY_PEOPLE;
   const makerspaceStatusQueries = useQueries({
@@ -360,6 +414,7 @@ export function UsersPage() {
   }));
   const membersEligibleForAccountCreation = batchMembers.filter((member) => member.account === null);
   const membersEligibleForAccountDeletion = peopleWithAccounts(batchMembers);
+  const membersEligibleForPersonDeletion = peopleEligibleForDeletion(batchMembers);
   const membersEligibleForRoleAssignment = batchRole
     ? batchMembers.filter(
         (member) => !member.roles.some((assigned) => assigned.id === batchRole.id),
@@ -433,6 +488,7 @@ export function UsersPage() {
             const selectedForAccountCreation = selectedMembers.filter((member) => member.account === null);
             const selectedForRoleAssignment = selectedMembers;
             const selectedForAccountDeletion = peopleWithAccounts(selectedMembers);
+            const selectedForPersonDeletion = peopleEligibleForDeletion(selectedMembers);
 
             return (
               <TableContainer className="people-table-container">
@@ -479,6 +535,19 @@ export function UsersPage() {
                           }}
                         >
                           Delete accounts
+                        </TableBatchAction>
+                      )}
+                      {mayDeletePeople && (
+                        <TableBatchAction
+                          renderIcon={TrashCan}
+                          iconDescription="Delete people"
+                          disabled={selectedForPersonDeletion.length === 0}
+                          onClick={() => {
+                            setBatchMembers(selectedMembers);
+                            setBatchAction('delete-people');
+                          }}
+                        >
+                          Delete people
                         </TableBatchAction>
                       )}
                     </TableBatchActions>
@@ -824,6 +893,66 @@ export function UsersPage() {
             onClick={() => batchDeleteAccounts.mutate(batchMembers)}
           >
             {batchDeleteAccounts.isPending ? 'Deleting…' : 'Delete accounts'}
+          </Button>
+        </ModalFooter>
+      </ComposedModal>
+
+      <ComposedModal
+        aria-label="Delete people permanently?"
+        danger
+        open={batchAction === 'delete-people'}
+        onClose={() => {
+          if (!batchDeletePeople.isPending) setBatchAction(null);
+        }}
+      >
+        <ModalHeader title="Delete people permanently?" />
+        <ModalBody>
+          <Stack gap={5}>
+            <p>
+              This permanently deletes {membersEligibleForPersonDeletion.length}{' '}
+              selected {membersEligibleForPersonDeletion.length === 1 ? 'person' : 'people'},
+              including their accounts, authentication methods, and role assignments. This cannot
+              be undone.
+            </p>
+            {membersEligibleForPersonDeletion.some(
+              (member) => member.id === currentUser.person.id,
+            ) && (
+              <InlineNotification
+                kind="warning"
+                lowContrast
+                hideCloseButton
+                title="Your own person record is selected"
+                subtitle="Deleting it will end your access to the application."
+              />
+            )}
+            {batchMembers.length !== membersEligibleForPersonDeletion.length && (
+              <InlineNotification
+                kind="info"
+                lowContrast
+                hideCloseButton
+                title="Some people will be skipped"
+                subtitle="Deleting a person with an account requires permission to delete accounts."
+              />
+            )}
+          </Stack>
+        </ModalBody>
+        <ModalFooter>
+          <Button
+            kind="secondary"
+            disabled={batchDeletePeople.isPending}
+            onClick={() => setBatchAction(null)}
+          >
+            Cancel
+          </Button>
+          <Button
+            kind="danger"
+            disabled={
+              membersEligibleForPersonDeletion.length === 0 ||
+              batchDeletePeople.isPending
+            }
+            onClick={() => batchDeletePeople.mutate(batchMembers)}
+          >
+            {batchDeletePeople.isPending ? 'Deleting…' : 'Delete people'}
           </Button>
         </ModalFooter>
       </ComposedModal>

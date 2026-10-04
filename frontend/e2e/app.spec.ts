@@ -710,7 +710,7 @@ test('renders the responsive person detail hierarchy and functional tabs', async
   await expectNoSeriousAccessibilityViolations(page);
 });
 
-test('keeps multiple page actions aligned without desktop overflow', async ({ page }) => {
+test('moves Open Days management actions into the table toolbar', async ({ page }) => {
   await installApi(page, {
     authenticated: true,
     openDayPeriods: [],
@@ -718,12 +718,64 @@ test('keeps multiple page actions aligned without desktop overflow', async ({ pa
   });
 
   await page.goto('/open-days');
-  const actions = page.locator('.page-header__actions');
-  await expect(actions.getByRole('button', { name: 'Manage periods' })).toBeVisible();
-  await expect(actions.getByRole('button', { name: 'New period' })).toBeVisible();
-  await expect(actions.getByRole('button')).toHaveCount(2);
+  const toolbar = page.getByRole('group', { name: 'Periods table toolbar' });
+  await expect(page.getByRole('button', { name: 'Manage periods' })).toHaveCount(0);
+  await expect(toolbar.getByPlaceholder('Search periods')).toBeVisible();
+  await expect(toolbar.getByRole('button', { name: 'Breaks' })).toBeVisible();
+  await expect(toolbar.getByRole('button', { name: 'Create' })).toBeVisible();
+  await expect(page.getByText('0 items')).toBeVisible();
   await expectShellHeaderAndContentAligned(page);
   await expectNoHorizontalPageOverflow(page);
+});
+
+test('renders Open Day periods as an accessible table without narrow-page overflow', async ({ page }) => {
+  await installApi(page, {
+    authenticated: true,
+    openDayPeriods: [{
+      id: openDayPeriodId,
+      name: 'Winter Semester 2026/27',
+      startsOn: '2026-10-01',
+      endsOn: '2027-01-31',
+      status: 'published',
+      totalOpenDays: 44,
+      fullyStaffedCount: 12,
+      needsStaffCount: 32,
+      openSupervisorPositions: 85,
+      cancelledCount: 1,
+      myAssignmentCount: 2,
+      version: 1,
+      createdAt: '2026-09-01T10:00:00Z',
+      updatedAt: '2026-09-01T10:00:00Z',
+    }],
+    user: currentUser(['open_days.read', 'open_days.manage']),
+  });
+
+  await page.goto('/open-days');
+  const table = page.getByRole('table', { name: 'Open Day periods' });
+  await expect(table).toBeVisible();
+  await expect(table.getByRole('row')).toHaveCount(2);
+  const periodLink = table.getByRole('link', { name: 'Winter Semester 2026/27' });
+  await expect(periodLink).toBeVisible();
+  await expect(periodLink).toHaveAttribute('href', `/open-days/${openDayPeriodId}`);
+  await expect(table.getByRole('columnheader', { name: 'Open supervisor positions' })).toBeVisible();
+  await expect(table.getByRole('columnheader', { name: 'Actions' })).toBeVisible();
+  await expect(table.getByRole('button', { name: 'Edit metadata' })).toBeDisabled();
+  await expect(table.getByRole('button', { name: 'Delete Winter Semester 2026/27' })).toBeEnabled();
+  await expect(page.getByText('1 item')).toBeVisible();
+  await expect(table.getByRole('checkbox')).toHaveCount(0);
+  await expectNoHorizontalPageOverflow(page);
+  await expectNoSeriousAccessibilityViolations(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('.app-main')).not.toHaveClass(/app-main--nav-expanded/);
+  await expect(page.locator('.app-main')).toHaveCSS('margin-left', '0px');
+  await expectNoHorizontalPageOverflow(page);
+  const tableScroller = page.locator('.open-day-periods-table .cds--data-table-content');
+  const dimensions = await tableScroller.evaluate((element) => ({
+    clientWidth: element.clientWidth,
+    scrollWidth: element.scrollWidth,
+  }));
+  expect(dimensions.scrollWidth).toBeGreaterThan(dimensions.clientWidth);
 });
 
 test('wraps a long breadcrumb title and action menu at 390px without page overflow', async ({ page }) => {

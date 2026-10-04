@@ -26,9 +26,10 @@ import (
 )
 
 const (
-	CsrfHeaderScopes    = "csrfHeader.Scopes"
-	ScimBearerScopes    = "scimBearer.Scopes"
-	SessionCookieScopes = "sessionCookie.Scopes"
+	CsrfHeaderScopes       = "csrfHeader.Scopes"
+	EventSignupTokenScopes = "eventSignupToken.Scopes"
+	ScimBearerScopes       = "scimBearer.Scopes"
+	SessionCookieScopes    = "sessionCookie.Scopes"
 )
 
 // Defines values for AccountProvisioningSource.
@@ -76,12 +77,18 @@ const (
 	AuthIdentitySummaryKindPin      AuthIdentitySummaryKind = "pin"
 )
 
+// Defines values for AuthenticatedEventSignupRequestSignupFor.
+const (
+	AuthenticatedEventSignupRequestSignupForOther AuthenticatedEventSignupRequestSignupFor = "other"
+	AuthenticatedEventSignupRequestSignupForSelf  AuthenticatedEventSignupRequestSignupFor = "self"
+)
+
 // Defines values for AuthenticationAssurance.
 const (
-	Low       AuthenticationAssurance = "low"
-	Normal    AuthenticationAssurance = "normal"
-	Strong    AuthenticationAssurance = "strong"
-	StrongMfa AuthenticationAssurance = "strong_mfa"
+	AuthenticationAssuranceLow       AuthenticationAssurance = "low"
+	AuthenticationAssuranceNormal    AuthenticationAssurance = "normal"
+	AuthenticationAssuranceStrong    AuthenticationAssurance = "strong"
+	AuthenticationAssuranceStrongMfa AuthenticationAssurance = "strong_mfa"
 )
 
 // Defines values for BillingPartyKind.
@@ -130,6 +137,79 @@ const (
 	CreateRoleRequestLaborordnungModeBlocking    CreateRoleRequestLaborordnungMode = "blocking"
 	CreateRoleRequestLaborordnungModeNotRequired CreateRoleRequestLaborordnungMode = "not_required"
 	CreateRoleRequestLaborordnungModeWarning     CreateRoleRequestLaborordnungMode = "warning"
+)
+
+// Defines values for EventAssignmentSource.
+const (
+	AuthenticatedOnBehalf EventAssignmentSource = "authenticated_on_behalf"
+	AuthenticatedSelf     EventAssignmentSource = "authenticated_self"
+	PublicSignup          EventAssignmentSource = "public_signup"
+	StaffEntry            EventAssignmentSource = "staff_entry"
+)
+
+// Defines values for EventAssignmentStatus.
+const (
+	EventAssignmentStatusActive    EventAssignmentStatus = "active"
+	EventAssignmentStatusCancelled EventAssignmentStatus = "cancelled"
+)
+
+// Defines values for EventEligibilityMode.
+const (
+	Anyone EventEligibilityMode = "anyone"
+	Roles  EventEligibilityMode = "roles"
+)
+
+// Defines values for EventFilePurpose.
+const (
+	Attachment EventFilePurpose = "attachment"
+	Banner     EventFilePurpose = "banner"
+)
+
+// Defines values for EventFileVisibility.
+const (
+	EventFileVisibilityInternal EventFileVisibility = "internal"
+	EventFileVisibilityPublic   EventFileVisibility = "public"
+)
+
+// Defines values for EventSessionStatus.
+const (
+	EventSessionStatusCancelled EventSessionStatus = "cancelled"
+	EventSessionStatusScheduled EventSessionStatus = "scheduled"
+)
+
+// Defines values for EventShiftStatus.
+const (
+	EventShiftStatusCancelled EventShiftStatus = "cancelled"
+	EventShiftStatusClosed    EventShiftStatus = "closed"
+	EventShiftStatusDraft     EventShiftStatus = "draft"
+	EventShiftStatusOpen      EventShiftStatus = "open"
+)
+
+// Defines values for EventStatus.
+const (
+	EventStatusArchived  EventStatus = "archived"
+	EventStatusCancelled EventStatus = "cancelled"
+	EventStatusCompleted EventStatus = "completed"
+	EventStatusConfirmed EventStatus = "confirmed"
+	EventStatusDraft     EventStatus = "draft"
+	EventStatusPlanning  EventStatus = "planning"
+)
+
+// Defines values for EventTaskPriority.
+const (
+	EventTaskPriorityHigh   EventTaskPriority = "high"
+	EventTaskPriorityLow    EventTaskPriority = "low"
+	EventTaskPriorityNormal EventTaskPriority = "normal"
+	EventTaskPriorityUrgent EventTaskPriority = "urgent"
+)
+
+// Defines values for EventTaskStatus.
+const (
+	EventTaskStatusBlocked    EventTaskStatus = "blocked"
+	EventTaskStatusCancelled  EventTaskStatus = "cancelled"
+	EventTaskStatusDone       EventTaskStatus = "done"
+	EventTaskStatusInProgress EventTaskStatus = "in_progress"
+	EventTaskStatusOpen       EventTaskStatus = "open"
 )
 
 // Defines values for HealthStatusStatus.
@@ -283,16 +363,16 @@ const (
 
 // Defines values for OpenDayStatus.
 const (
-	OpenDayStatusCancelled OpenDayStatus = "cancelled"
-	OpenDayStatusScheduled OpenDayStatus = "scheduled"
+	Cancelled OpenDayStatus = "cancelled"
+	Scheduled OpenDayStatus = "scheduled"
 )
 
 // Defines values for OrganizationKind.
 const (
-	OrganizationKindAssociation OrganizationKind = "association"
-	OrganizationKindCompany     OrganizationKind = "company"
-	OrganizationKindInstitute   OrganizationKind = "institute"
-	OrganizationKindOther       OrganizationKind = "other"
+	Association OrganizationKind = "association"
+	Company     OrganizationKind = "company"
+	Institute   OrganizationKind = "institute"
+	Other       OrganizationKind = "other"
 )
 
 // Defines values for PasswordResetIssueDeliveryStatus.
@@ -352,6 +432,10 @@ const (
 	AccountsRead                 PermissionId = "accounts.read"
 	AuditRead                    PermissionId = "audit.read"
 	BrandingManage               PermissionId = "branding.manage"
+	EventsAssign                 PermissionId = "events.assign"
+	EventsManage                 PermissionId = "events.manage"
+	EventsRead                   PermissionId = "events.read"
+	EventsStaffingManage         PermissionId = "events.staffing.manage"
 	IdentitiesOidcLinkAll        PermissionId = "identities.oidc.link.all"
 	IdentitiesOidcLinkSelf       PermissionId = "identities.oidc.link.self"
 	IdentitiesOidcUnlinkAll      PermissionId = "identities.oidc.unlink.all"
@@ -423,6 +507,14 @@ const (
 	ProfileImageSourceTerminalCapture ProfileImageSource = "terminal_capture"
 )
 
+// Defines values for PublicEventRequirementAvailability.
+const (
+	AuthenticatedOnly PublicEventRequirementAvailability = "authenticated_only"
+	Available         PublicEventRequirementAvailability = "available"
+	Full              PublicEventRequirementAvailability = "full"
+	NotOpen           PublicEventRequirementAvailability = "not_open"
+)
+
 // Defines values for PublicLegalDocumentKind.
 const (
 	PublicLegalDocumentKindImprint PublicLegalDocumentKind = "imprint"
@@ -437,8 +529,8 @@ const (
 
 // Defines values for PublicLegalLinkMode.
 const (
-	External PublicLegalLinkMode = "external"
-	Internal PublicLegalLinkMode = "internal"
+	PublicLegalLinkModeExternal PublicLegalLinkMode = "external"
+	PublicLegalLinkModeInternal PublicLegalLinkMode = "internal"
 )
 
 // Defines values for PublicOpenDayTitle.
@@ -724,6 +816,24 @@ type AuthIdentitySummary struct {
 // AuthIdentitySummaryKind defines model for AuthIdentitySummary.Kind.
 type AuthIdentitySummaryKind string
 
+// AuthenticatedEventSignupRequest defines model for AuthenticatedEventSignupRequest.
+type AuthenticatedEventSignupRequest struct {
+	Email     nullable.Nullable[openapi_types.Email] `json:"email,omitempty"`
+	FirstName string                                 `json:"firstName"`
+	LastName  string                                 `json:"lastName"`
+	Phone     nullable.Nullable[string]              `json:"phone,omitempty"`
+
+	// RequirementId Lowercase RFC 9562 UUID version 7 generated by the application.
+	RequirementId UUIDv7 `json:"requirementId"`
+
+	// ShiftId Lowercase RFC 9562 UUID version 7 generated by the application.
+	ShiftId   UUIDv7                                   `json:"shiftId"`
+	SignupFor AuthenticatedEventSignupRequestSignupFor `json:"signupFor"`
+}
+
+// AuthenticatedEventSignupRequestSignupFor defines model for AuthenticatedEventSignupRequest.SignupFor.
+type AuthenticatedEventSignupRequestSignupFor string
+
 // AuthenticationAssurance Ordered authentication assurance required by a permission grant or held by a session.
 type AuthenticationAssurance string
 
@@ -919,6 +1029,14 @@ type CreateAccountRequest struct {
 
 	// LoginEmail Optional login email. Omit or send null to create the Account without a password authentication identity.
 	LoginEmail nullable.Nullable[Email] `json:"loginEmail,omitempty"`
+}
+
+// CreateEventRequest defines model for CreateEventRequest.
+type CreateEventRequest struct {
+	InternalDescription nullable.Nullable[string] `json:"internalDescription,omitempty"`
+	Location            nullable.Nullable[string] `json:"location,omitempty"`
+	Name                string                    `json:"name"`
+	OwnerPersonId       nullable.Nullable[UUIDv7] `json:"ownerPersonId,omitempty"`
 }
 
 // CreateMachineJobRequest defines model for CreateMachineJobRequest.
@@ -1124,6 +1242,426 @@ type Error struct {
 	RequestId string `json:"requestId"`
 }
 
+// Event defines model for Event.
+type Event struct {
+	ClosedAt    nullable.Nullable[time.Time] `json:"closedAt,omitempty"`
+	CreatedAt   time.Time                    `json:"createdAt"`
+	FilledCount int64                        `json:"filledCount"`
+	HasBanner   bool                         `json:"hasBanner"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id                  UUIDv7                       `json:"id"`
+	InternalDescription nullable.Nullable[string]    `json:"internalDescription,omitempty"`
+	IsPublic            bool                         `json:"isPublic"`
+	Location            nullable.Nullable[string]    `json:"location,omitempty"`
+	Name                string                       `json:"name"`
+	NextDeadline        nullable.Nullable[time.Time] `json:"nextDeadline,omitempty"`
+	NextScheduleAt      nullable.Nullable[time.Time] `json:"nextScheduleAt,omitempty"`
+	OwnerName           nullable.Nullable[string]    `json:"ownerName,omitempty"`
+	OwnerPersonId       nullable.Nullable[UUIDv7]    `json:"ownerPersonId,omitempty"`
+	PublicDescription   nullable.Nullable[string]    `json:"publicDescription,omitempty"`
+	PublicId            string                       `json:"publicId"`
+	PublicLocation      nullable.Nullable[string]    `json:"publicLocation,omitempty"`
+	PublicSignupEnabled bool                         `json:"publicSignupEnabled"`
+	PublicTitle         nullable.Nullable[string]    `json:"publicTitle,omitempty"`
+	RangeEndsAt         nullable.Nullable[time.Time] `json:"rangeEndsAt,omitempty"`
+	RangeStartsAt       nullable.Nullable[time.Time] `json:"rangeStartsAt,omitempty"`
+	RequiredCount       int64                        `json:"requiredCount"`
+	Status              EventStatus                  `json:"status"`
+	TaskCompleted       int64                        `json:"taskCompleted"`
+	TaskTotal           int64                        `json:"taskTotal"`
+	UpdatedAt           time.Time                    `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// EventAssignment defines model for EventAssignment.
+type EventAssignment struct {
+	CancelledAt                   nullable.Nullable[time.Time] `json:"cancelledAt,omitempty"`
+	ConflictOverriddenByAccountId nullable.Nullable[UUIDv7]    `json:"conflictOverriddenByAccountId,omitempty"`
+	CreatedAt                     time.Time                    `json:"createdAt"`
+	Email                         nullable.Nullable[string]    `json:"email,omitempty"`
+
+	// EventId Lowercase RFC 9562 UUID version 7 generated by the application.
+	EventId   UUIDv7                    `json:"eventId"`
+	FirstName nullable.Nullable[string] `json:"firstName,omitempty"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id                   UUIDv7                       `json:"id"`
+	LastName             nullable.Nullable[string]    `json:"lastName,omitempty"`
+	PersonId             nullable.Nullable[UUIDv7]    `json:"personId,omitempty"`
+	PersonalDataErasedAt nullable.Nullable[time.Time] `json:"personalDataErasedAt,omitempty"`
+	Phone                nullable.Nullable[string]    `json:"phone,omitempty"`
+
+	// RequirementId Lowercase RFC 9562 UUID version 7 generated by the application.
+	RequirementId UUIDv7 `json:"requirementId"`
+
+	// ShiftId Lowercase RFC 9562 UUID version 7 generated by the application.
+	ShiftId   UUIDv7                `json:"shiftId"`
+	Source    EventAssignmentSource `json:"source"`
+	Status    EventAssignmentStatus `json:"status"`
+	UpdatedAt time.Time             `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// EventAssignmentInput defines model for EventAssignmentInput.
+type EventAssignmentInput struct {
+	Email            nullable.Nullable[openapi_types.Email] `json:"email,omitempty"`
+	FirstName        *string                                `json:"firstName,omitempty"`
+	LastName         *string                                `json:"lastName,omitempty"`
+	OverrideConflict bool                                   `json:"overrideConflict"`
+	PersonId         nullable.Nullable[UUIDv7]              `json:"personId,omitempty"`
+	Phone            nullable.Nullable[string]              `json:"phone,omitempty"`
+
+	// RequirementId Lowercase RFC 9562 UUID version 7 generated by the application.
+	RequirementId UUIDv7 `json:"requirementId"`
+
+	// ShiftId Lowercase RFC 9562 UUID version 7 generated by the application.
+	ShiftId UUIDv7 `json:"shiftId"`
+}
+
+// EventAssignmentList defines model for EventAssignmentList.
+type EventAssignmentList struct {
+	Items []EventAssignment `json:"items"`
+}
+
+// EventAssignmentSource defines model for EventAssignmentSource.
+type EventAssignmentSource string
+
+// EventAssignmentStatus defines model for EventAssignmentStatus.
+type EventAssignmentStatus string
+
+// EventEligibilityMode defines model for EventEligibilityMode.
+type EventEligibilityMode string
+
+// EventFile defines model for EventFile.
+type EventFile struct {
+	ContentType string                    `json:"contentType"`
+	CreatedAt   time.Time                 `json:"createdAt"`
+	Description nullable.Nullable[string] `json:"description,omitempty"`
+
+	// EventId Lowercase RFC 9562 UUID version 7 generated by the application.
+	EventId UUIDv7 `json:"eventId"`
+
+	// FileId Lowercase RFC 9562 UUID version 7 generated by the application.
+	FileId UUIDv7 `json:"fileId"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id               UUIDv7    `json:"id"`
+	IsBanner         bool      `json:"isBanner"`
+	OriginalFilename string    `json:"originalFilename"`
+	SizeBytes        int64     `json:"sizeBytes"`
+	UpdatedAt        time.Time `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version    Version             `json:"version"`
+	Visibility EventFileVisibility `json:"visibility"`
+}
+
+// EventFileList defines model for EventFileList.
+type EventFileList struct {
+	Items []EventFile `json:"items"`
+}
+
+// EventFilePurpose defines model for EventFilePurpose.
+type EventFilePurpose string
+
+// EventFileVisibility defines model for EventFileVisibility.
+type EventFileVisibility string
+
+// EventList defines model for EventList.
+type EventList struct {
+	Items []Event `json:"items"`
+}
+
+// EventPersonOption defines model for EventPersonOption.
+type EventPersonOption struct {
+	Email     nullable.Nullable[string] `json:"email,omitempty"`
+	FirstName string                    `json:"firstName"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id       UUIDv7                    `json:"id"`
+	LastName string                    `json:"lastName"`
+	Phone    nullable.Nullable[string] `json:"phone,omitempty"`
+}
+
+// EventPersonOptionList defines model for EventPersonOptionList.
+type EventPersonOptionList struct {
+	Items []EventPersonOption `json:"items"`
+}
+
+// EventRequirement defines model for EventRequirement.
+type EventRequirement struct {
+	CreatedAt       time.Time                 `json:"createdAt"`
+	Description     nullable.Nullable[string] `json:"description,omitempty"`
+	EligibilityMode EventEligibilityMode      `json:"eligibilityMode"`
+	EligibleRoleIds []UUIDv7                  `json:"eligibleRoleIds"`
+
+	// EventId Lowercase RFC 9562 UUID version 7 generated by the application.
+	EventId     UUIDv7 `json:"eventId"`
+	FilledCount int    `json:"filledCount"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id            UUIDv7 `json:"id"`
+	Name          string `json:"name"`
+	RequiredCount int    `json:"requiredCount"`
+
+	// ShiftId Lowercase RFC 9562 UUID version 7 generated by the application.
+	ShiftId   UUIDv7    `json:"shiftId"`
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// EventRequirementInput defines model for EventRequirementInput.
+type EventRequirementInput struct {
+	Description     nullable.Nullable[string] `json:"description,omitempty"`
+	EligibilityMode EventEligibilityMode      `json:"eligibilityMode"`
+	EligibleRoleIds []UUIDv7                  `json:"eligibleRoleIds"`
+	Name            string                    `json:"name"`
+	RequiredCount   int                       `json:"requiredCount"`
+}
+
+// EventRequirementList defines model for EventRequirementList.
+type EventRequirementList struct {
+	Items []EventRequirement `json:"items"`
+}
+
+// EventRole defines model for EventRole.
+type EventRole struct {
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id   UUIDv7 `json:"id"`
+	Name string `json:"name"`
+}
+
+// EventRoleList defines model for EventRoleList.
+type EventRoleList struct {
+	Items []EventRole `json:"items"`
+}
+
+// EventSession defines model for EventSession.
+type EventSession struct {
+	CreatedAt   time.Time                 `json:"createdAt"`
+	Description nullable.Nullable[string] `json:"description,omitempty"`
+	EndsAt      time.Time                 `json:"endsAt"`
+
+	// EventId Lowercase RFC 9562 UUID version 7 generated by the application.
+	EventId UUIDv7 `json:"eventId"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id        UUIDv7                    `json:"id"`
+	IsPublic  bool                      `json:"isPublic"`
+	Location  nullable.Nullable[string] `json:"location,omitempty"`
+	Name      nullable.Nullable[string] `json:"name,omitempty"`
+	StartsAt  time.Time                 `json:"startsAt"`
+	Status    EventSessionStatus        `json:"status"`
+	UpdatedAt time.Time                 `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// EventSessionInput defines model for EventSessionInput.
+type EventSessionInput struct {
+	Description nullable.Nullable[string] `json:"description,omitempty"`
+	EndsAt      time.Time                 `json:"endsAt"`
+	IsPublic    bool                      `json:"isPublic"`
+	Location    nullable.Nullable[string] `json:"location,omitempty"`
+	Name        nullable.Nullable[string] `json:"name,omitempty"`
+	StartsAt    time.Time                 `json:"startsAt"`
+	Status      EventSessionStatus        `json:"status"`
+}
+
+// EventSessionList defines model for EventSessionList.
+type EventSessionList struct {
+	Items []EventSession `json:"items"`
+}
+
+// EventSessionStatus defines model for EventSessionStatus.
+type EventSessionStatus string
+
+// EventShift defines model for EventShift.
+type EventShift struct {
+	CreatedAt   time.Time                 `json:"createdAt"`
+	Description nullable.Nullable[string] `json:"description,omitempty"`
+	EndsAt      time.Time                 `json:"endsAt"`
+
+	// EventId Lowercase RFC 9562 UUID version 7 generated by the application.
+	EventId UUIDv7 `json:"eventId"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id                  UUIDv7                                `json:"id"`
+	IsPublic            bool                                  `json:"isPublic"`
+	LinkedSessionStatus nullable.Nullable[EventSessionStatus] `json:"linkedSessionStatus,omitempty"`
+	Name                string                                `json:"name"`
+	SessionId           nullable.Nullable[UUIDv7]             `json:"sessionId,omitempty"`
+	SignupClosesAt      nullable.Nullable[time.Time]          `json:"signupClosesAt,omitempty"`
+	SignupOpensAt       nullable.Nullable[time.Time]          `json:"signupOpensAt,omitempty"`
+	StartsAt            time.Time                             `json:"startsAt"`
+	Status              EventShiftStatus                      `json:"status"`
+	UpdatedAt           time.Time                             `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// EventShiftInput defines model for EventShiftInput.
+type EventShiftInput struct {
+	Description    nullable.Nullable[string]    `json:"description,omitempty"`
+	EndsAt         time.Time                    `json:"endsAt"`
+	IsPublic       bool                         `json:"isPublic"`
+	Name           string                       `json:"name"`
+	SessionId      nullable.Nullable[UUIDv7]    `json:"sessionId,omitempty"`
+	SignupClosesAt nullable.Nullable[time.Time] `json:"signupClosesAt,omitempty"`
+	SignupOpensAt  nullable.Nullable[time.Time] `json:"signupOpensAt,omitempty"`
+	StartsAt       time.Time                    `json:"startsAt"`
+	Status         EventShiftStatus             `json:"status"`
+}
+
+// EventShiftList defines model for EventShiftList.
+type EventShiftList struct {
+	Items []EventShift `json:"items"`
+}
+
+// EventShiftStatus defines model for EventShiftStatus.
+type EventShiftStatus string
+
+// EventSignup defines model for EventSignup.
+type EventSignup struct {
+	CancelledAt nullable.Nullable[time.Time] `json:"cancelledAt,omitempty"`
+	CreatedAt   time.Time                    `json:"createdAt"`
+	Email       nullable.Nullable[string]    `json:"email,omitempty"`
+	FirstName   nullable.Nullable[string]    `json:"firstName,omitempty"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id       UUIDv7                    `json:"id"`
+	LastName nullable.Nullable[string] `json:"lastName,omitempty"`
+	Phone    nullable.Nullable[string] `json:"phone,omitempty"`
+	PublicId string                    `json:"publicId"`
+
+	// RequirementId Lowercase RFC 9562 UUID version 7 generated by the application.
+	RequirementId UUIDv7 `json:"requirementId"`
+
+	// ShiftId Lowercase RFC 9562 UUID version 7 generated by the application.
+	ShiftId   UUIDv7                `json:"shiftId"`
+	Source    EventAssignmentSource `json:"source"`
+	Status    EventAssignmentStatus `json:"status"`
+	UpdatedAt time.Time             `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// EventSignupList defines model for EventSignupList.
+type EventSignupList struct {
+	Items []EventSignup `json:"items"`
+}
+
+// EventSignupRequest defines model for EventSignupRequest.
+type EventSignupRequest struct {
+	Email     nullable.Nullable[openapi_types.Email] `json:"email,omitempty"`
+	FirstName string                                 `json:"firstName"`
+	LastName  string                                 `json:"lastName"`
+	Phone     nullable.Nullable[string]              `json:"phone,omitempty"`
+
+	// RequirementId Lowercase RFC 9562 UUID version 7 generated by the application.
+	RequirementId UUIDv7 `json:"requirementId"`
+
+	// ShiftId Lowercase RFC 9562 UUID version 7 generated by the application.
+	ShiftId UUIDv7 `json:"shiftId"`
+}
+
+// EventSignupResult defines model for EventSignupResult.
+type EventSignupResult struct {
+	Assignment    EventSignup               `json:"assignment"`
+	ManagementUrl nullable.Nullable[string] `json:"managementUrl,omitempty"`
+}
+
+// EventStatus defines model for EventStatus.
+type EventStatus string
+
+// EventTask defines model for EventTask.
+type EventTask struct {
+	AssigneePersonId     nullable.Nullable[UUIDv7]    `json:"assigneePersonId,omitempty"`
+	CompletedAt          nullable.Nullable[time.Time] `json:"completedAt,omitempty"`
+	CompletedByAccountId nullable.Nullable[UUIDv7]    `json:"completedByAccountId,omitempty"`
+	CreatedAt            time.Time                    `json:"createdAt"`
+	Description          nullable.Nullable[string]    `json:"description,omitempty"`
+	DueAt                nullable.Nullable[time.Time] `json:"dueAt,omitempty"`
+
+	// EventId Lowercase RFC 9562 UUID version 7 generated by the application.
+	EventId UUIDv7 `json:"eventId"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id         UUIDv7                    `json:"id"`
+	Priority   EventTaskPriority         `json:"priority"`
+	SortOrder  int32                     `json:"sortOrder"`
+	Status     EventTaskStatus           `json:"status"`
+	TaskListId nullable.Nullable[UUIDv7] `json:"taskListId,omitempty"`
+	Title      string                    `json:"title"`
+	UpdatedAt  time.Time                 `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// EventTaskCollection defines model for EventTaskCollection.
+type EventTaskCollection struct {
+	Items []EventTask `json:"items"`
+}
+
+// EventTaskInput defines model for EventTaskInput.
+type EventTaskInput struct {
+	AssigneePersonId nullable.Nullable[UUIDv7]    `json:"assigneePersonId,omitempty"`
+	Description      nullable.Nullable[string]    `json:"description,omitempty"`
+	DueAt            nullable.Nullable[time.Time] `json:"dueAt,omitempty"`
+	Priority         EventTaskPriority            `json:"priority"`
+	SortOrder        int32                        `json:"sortOrder"`
+	Status           EventTaskStatus              `json:"status"`
+	TaskListId       nullable.Nullable[UUIDv7]    `json:"taskListId,omitempty"`
+	Title            string                       `json:"title"`
+}
+
+// EventTaskList defines model for EventTaskList.
+type EventTaskList struct {
+	CreatedAt   time.Time                 `json:"createdAt"`
+	Description nullable.Nullable[string] `json:"description,omitempty"`
+
+	// EventId Lowercase RFC 9562 UUID version 7 generated by the application.
+	EventId UUIDv7 `json:"eventId"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id        UUIDv7    `json:"id"`
+	Name      string    `json:"name"`
+	SortOrder int32     `json:"sortOrder"`
+	UpdatedAt time.Time `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// EventTaskListInput defines model for EventTaskListInput.
+type EventTaskListInput struct {
+	Description nullable.Nullable[string] `json:"description,omitempty"`
+	Name        string                    `json:"name"`
+	SortOrder   int32                     `json:"sortOrder"`
+}
+
+// EventTaskListList defines model for EventTaskListList.
+type EventTaskListList struct {
+	Items []EventTaskList `json:"items"`
+}
+
+// EventTaskPriority defines model for EventTaskPriority.
+type EventTaskPriority string
+
+// EventTaskStatus defines model for EventTaskStatus.
+type EventTaskStatus string
+
 // ExistingPassword Opaque existing secret. Transport decoding also enforces a 1024-byte request-field limit.
 type ExistingPassword = string
 
@@ -1271,6 +1809,15 @@ type LegalConfiguration struct {
 
 // LegalConfigurationMode defines model for LegalConfiguration.Mode.
 type LegalConfigurationMode string
+
+// LinkEventAssignmentPersonRequest defines model for LinkEventAssignmentPersonRequest.
+type LinkEventAssignmentPersonRequest struct {
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version `json:"expectedVersion"`
+
+	// PersonId Lowercase RFC 9562 UUID version 7 generated by the application.
+	PersonId UUIDv7 `json:"personId"`
+}
 
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
@@ -1606,6 +2153,19 @@ type MinimalPerson struct {
 
 // Money defines model for Money.
 type Money = string
+
+// MoveEventAssignmentRequest defines model for MoveEventAssignmentRequest.
+type MoveEventAssignmentRequest struct {
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion  Version `json:"expectedVersion"`
+	OverrideConflict bool    `json:"overrideConflict"`
+
+	// RequirementId Lowercase RFC 9562 UUID version 7 generated by the application.
+	RequirementId UUIDv7 `json:"requirementId"`
+
+	// ShiftId Lowercase RFC 9562 UUID version 7 generated by the application.
+	ShiftId UUIDv7 `json:"shiftId"`
+}
 
 // NewPassword defines model for NewPassword.
 type NewPassword = string
@@ -2028,6 +2588,73 @@ type PublicConfiguration struct {
 
 	// Version Optimistic-concurrency version.
 	Version Version `json:"version"`
+}
+
+// PublicEvent defines model for PublicEvent.
+type PublicEvent struct {
+	Description         nullable.Nullable[string] `json:"description,omitempty"`
+	Files               []PublicEventFile         `json:"files"`
+	HasBanner           bool                      `json:"hasBanner"`
+	Location            nullable.Nullable[string] `json:"location,omitempty"`
+	PublicId            string                    `json:"publicId"`
+	PublicSignupEnabled bool                      `json:"publicSignupEnabled"`
+	Sessions            []PublicEventSession      `json:"sessions"`
+	Shifts              []PublicEventShift        `json:"shifts"`
+	Status              EventStatus               `json:"status"`
+	TimeZone            string                    `json:"timeZone"`
+	Title               string                    `json:"title"`
+}
+
+// PublicEventFile defines model for PublicEventFile.
+type PublicEventFile struct {
+	ContentType string                    `json:"contentType"`
+	Description nullable.Nullable[string] `json:"description,omitempty"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id               UUIDv7 `json:"id"`
+	OriginalFilename string `json:"originalFilename"`
+	SizeBytes        int64  `json:"sizeBytes"`
+}
+
+// PublicEventRequirement defines model for PublicEventRequirement.
+type PublicEventRequirement struct {
+	Availability PublicEventRequirementAvailability `json:"availability"`
+	Description  nullable.Nullable[string]          `json:"description,omitempty"`
+	FilledCount  int                                `json:"filledCount"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id             UUIDv7 `json:"id"`
+	Name           string `json:"name"`
+	RemainingCount int    `json:"remainingCount"`
+	RequiredCount  int    `json:"requiredCount"`
+}
+
+// PublicEventRequirementAvailability defines model for PublicEventRequirement.Availability.
+type PublicEventRequirementAvailability string
+
+// PublicEventSession defines model for PublicEventSession.
+type PublicEventSession struct {
+	Description nullable.Nullable[string] `json:"description,omitempty"`
+	EndsAt      time.Time                 `json:"endsAt"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id       UUIDv7                    `json:"id"`
+	Location nullable.Nullable[string] `json:"location,omitempty"`
+	Name     nullable.Nullable[string] `json:"name,omitempty"`
+	StartsAt time.Time                 `json:"startsAt"`
+}
+
+// PublicEventShift defines model for PublicEventShift.
+type PublicEventShift struct {
+	Description nullable.Nullable[string] `json:"description,omitempty"`
+	EndsAt      time.Time                 `json:"endsAt"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id           UUIDv7                    `json:"id"`
+	Name         string                    `json:"name"`
+	Requirements []PublicEventRequirement  `json:"requirements"`
+	SessionId    nullable.Nullable[UUIDv7] `json:"sessionId,omitempty"`
+	StartsAt     time.Time                 `json:"startsAt"`
 }
 
 // PublicLegalDocument defines model for PublicLegalDocument.
@@ -2574,6 +3201,110 @@ type UpdateBrandingConfigurationRequest struct {
 	Privacy         LegalConfiguration `json:"privacy"`
 }
 
+// UpdateEventFileRequest defines model for UpdateEventFileRequest.
+type UpdateEventFileRequest struct {
+	Description nullable.Nullable[string] `json:"description,omitempty"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version             `json:"expectedVersion"`
+	IsBanner        *bool               `json:"isBanner,omitempty"`
+	Visibility      EventFileVisibility `json:"visibility"`
+}
+
+// UpdateEventRequest defines model for UpdateEventRequest.
+type UpdateEventRequest struct {
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion     Version                   `json:"expectedVersion"`
+	InternalDescription nullable.Nullable[string] `json:"internalDescription,omitempty"`
+	Location            nullable.Nullable[string] `json:"location,omitempty"`
+	Name                string                    `json:"name"`
+	OwnerPersonId       nullable.Nullable[UUIDv7] `json:"ownerPersonId,omitempty"`
+	PublicDescription   nullable.Nullable[string] `json:"publicDescription,omitempty"`
+	PublicLocation      nullable.Nullable[string] `json:"publicLocation,omitempty"`
+	PublicSignupEnabled bool                      `json:"publicSignupEnabled"`
+	PublicTitle         nullable.Nullable[string] `json:"publicTitle,omitempty"`
+}
+
+// UpdateEventRequirementRequest defines model for UpdateEventRequirementRequest.
+type UpdateEventRequirementRequest struct {
+	Description     nullable.Nullable[string] `json:"description,omitempty"`
+	EligibilityMode EventEligibilityMode      `json:"eligibilityMode"`
+	EligibleRoleIds []UUIDv7                  `json:"eligibleRoleIds"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version `json:"expectedVersion"`
+	Name            string  `json:"name"`
+	RequiredCount   int     `json:"requiredCount"`
+}
+
+// UpdateEventSessionRequest defines model for UpdateEventSessionRequest.
+type UpdateEventSessionRequest struct {
+	Description nullable.Nullable[string] `json:"description,omitempty"`
+	EndsAt      time.Time                 `json:"endsAt"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version                   `json:"expectedVersion"`
+	IsPublic        bool                      `json:"isPublic"`
+	Location        nullable.Nullable[string] `json:"location,omitempty"`
+	Name            nullable.Nullable[string] `json:"name,omitempty"`
+	StartsAt        time.Time                 `json:"startsAt"`
+	Status          EventSessionStatus        `json:"status"`
+}
+
+// UpdateEventShiftRequest defines model for UpdateEventShiftRequest.
+type UpdateEventShiftRequest struct {
+	Description nullable.Nullable[string] `json:"description,omitempty"`
+	EndsAt      time.Time                 `json:"endsAt"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version                      `json:"expectedVersion"`
+	IsPublic        bool                         `json:"isPublic"`
+	Name            string                       `json:"name"`
+	SessionId       nullable.Nullable[UUIDv7]    `json:"sessionId,omitempty"`
+	SignupClosesAt  nullable.Nullable[time.Time] `json:"signupClosesAt,omitempty"`
+	SignupOpensAt   nullable.Nullable[time.Time] `json:"signupOpensAt,omitempty"`
+	StartsAt        time.Time                    `json:"startsAt"`
+	Status          EventShiftStatus             `json:"status"`
+}
+
+// UpdateEventSignupRequest defines model for UpdateEventSignupRequest.
+type UpdateEventSignupRequest struct {
+	Email nullable.Nullable[openapi_types.Email] `json:"email,omitempty"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version                   `json:"expectedVersion"`
+	FirstName       *string                   `json:"firstName,omitempty"`
+	LastName        *string                   `json:"lastName,omitempty"`
+	Phone           nullable.Nullable[string] `json:"phone,omitempty"`
+	RequirementId   nullable.Nullable[UUIDv7] `json:"requirementId,omitempty"`
+	ShiftId         nullable.Nullable[UUIDv7] `json:"shiftId,omitempty"`
+}
+
+// UpdateEventTaskListRequest defines model for UpdateEventTaskListRequest.
+type UpdateEventTaskListRequest struct {
+	Description nullable.Nullable[string] `json:"description,omitempty"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version `json:"expectedVersion"`
+	Name            string  `json:"name"`
+	SortOrder       int32   `json:"sortOrder"`
+}
+
+// UpdateEventTaskRequest defines model for UpdateEventTaskRequest.
+type UpdateEventTaskRequest struct {
+	AssigneePersonId nullable.Nullable[UUIDv7]    `json:"assigneePersonId,omitempty"`
+	Description      nullable.Nullable[string]    `json:"description,omitempty"`
+	DueAt            nullable.Nullable[time.Time] `json:"dueAt,omitempty"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version                   `json:"expectedVersion"`
+	Priority        EventTaskPriority         `json:"priority"`
+	SortOrder       int32                     `json:"sortOrder"`
+	Status          EventTaskStatus           `json:"status"`
+	TaskListId      nullable.Nullable[UUIDv7] `json:"taskListId,omitempty"`
+	Title           string                    `json:"title"`
+}
+
 // UpdateLoginEmailRequest defines model for UpdateLoginEmailRequest.
 type UpdateLoginEmailRequest struct {
 	// ExpectedVersion Optimistic-concurrency version.
@@ -2909,6 +3640,33 @@ type Cursor = string
 // DeviceTypeId Lowercase RFC 9562 UUID version 7 generated by the application.
 type DeviceTypeId = UUIDv7
 
+// EventAssignmentId Lowercase RFC 9562 UUID version 7 generated by the application.
+type EventAssignmentId = UUIDv7
+
+// EventFileId Lowercase RFC 9562 UUID version 7 generated by the application.
+type EventFileId = UUIDv7
+
+// EventId Lowercase RFC 9562 UUID version 7 generated by the application.
+type EventId = UUIDv7
+
+// EventRequirementId Lowercase RFC 9562 UUID version 7 generated by the application.
+type EventRequirementId = UUIDv7
+
+// EventSessionId Lowercase RFC 9562 UUID version 7 generated by the application.
+type EventSessionId = UUIDv7
+
+// EventShiftId Lowercase RFC 9562 UUID version 7 generated by the application.
+type EventShiftId = UUIDv7
+
+// EventSignupTokenHeader defines model for EventSignupTokenHeader.
+type EventSignupTokenHeader = string
+
+// EventTaskId Lowercase RFC 9562 UUID version 7 generated by the application.
+type EventTaskId = UUIDv7
+
+// EventTaskListId Lowercase RFC 9562 UUID version 7 generated by the application.
+type EventTaskListId = UUIDv7
+
 // LaborordnungRequestId Lowercase RFC 9562 UUID version 7 generated by the application.
 type LaborordnungRequestId = UUIDv7
 
@@ -2944,6 +3702,9 @@ type PageSize = int
 
 // PersonId Lowercase RFC 9562 UUID version 7 generated by the application.
 type PersonId = UUIDv7
+
+// PublicEventId defines model for PublicEventId.
+type PublicEventId = string
 
 // RoleId Lowercase RFC 9562 UUID version 7 generated by the application.
 type RoleId = UUIDv7
@@ -3013,6 +3774,20 @@ type SearchBillingPartiesParams struct {
 type PutBrandingAssetParams struct {
 	ExpectedVersion Version `form:"expectedVersion" json:"expectedVersion"`
 	XFileName       string  `json:"X-File-Name"`
+}
+
+// ListEventPeopleParams defines parameters for ListEventPeople.
+type ListEventPeopleParams struct {
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+}
+
+// UploadEventFileParams defines parameters for UploadEventFile.
+type UploadEventFileParams struct {
+	XFileName             string              `json:"X-File-Name"`
+	XFileContentType      string              `json:"X-File-Content-Type"`
+	XEventFileVisibility  EventFileVisibility `json:"X-Event-File-Visibility"`
+	XEventFileDescription *string             `json:"X-Event-File-Description,omitempty"`
+	XEventFilePurpose     *EventFilePurpose   `json:"X-Event-File-Purpose,omitempty"`
 }
 
 // CreateLaborordnungVersionParams defines parameters for CreateLaborordnungVersion.
@@ -3132,6 +3907,21 @@ type PutPersonProfileImageParams struct {
 // PutPersonProfileImageParamsXProfileImageSource defines parameters for PutPersonProfileImage.
 type PutPersonProfileImageParamsXProfileImageSource string
 
+// GetCurrentEventSignupParams defines parameters for GetCurrentEventSignup.
+type GetCurrentEventSignupParams struct {
+	XEventSignupToken EventSignupTokenHeader `json:"X-Event-Signup-Token"`
+}
+
+// UpdateCurrentEventSignupParams defines parameters for UpdateCurrentEventSignup.
+type UpdateCurrentEventSignupParams struct {
+	XEventSignupToken EventSignupTokenHeader `json:"X-Event-Signup-Token"`
+}
+
+// CancelCurrentEventSignupParams defines parameters for CancelCurrentEventSignup.
+type CancelCurrentEventSignupParams struct {
+	XEventSignupToken EventSignupTokenHeader `json:"X-Event-Signup-Token"`
+}
+
 // GetPublicLegalDocumentParamsDocument defines parameters for GetPublicLegalDocument.
 type GetPublicLegalDocumentParamsDocument string
 
@@ -3240,6 +4030,117 @@ type RestoreDefaultBrandingAssetJSONRequestBody = VersionRequest
 // UpdateBrandingConfigurationJSONRequestBody defines body for UpdateBrandingConfiguration for application/json ContentType.
 type UpdateBrandingConfigurationJSONRequestBody = UpdateBrandingConfigurationRequest
 
+// CreateEventJSONRequestBody defines body for CreateEvent for application/json ContentType.
+type CreateEventJSONRequestBody = CreateEventRequest
+
+// UpdateOwnPublicEventAssignmentJSONRequestBody defines body for UpdateOwnPublicEventAssignment for application/json ContentType.
+type UpdateOwnPublicEventAssignmentJSONRequestBody = UpdateEventSignupRequest
+
+// CancelOwnPublicEventAssignmentJSONRequestBody defines body for CancelOwnPublicEventAssignment for application/json ContentType.
+type CancelOwnPublicEventAssignmentJSONRequestBody = VersionRequest
+
+// CreateAuthenticatedEventSignupJSONRequestBody defines body for CreateAuthenticatedEventSignup for application/json ContentType.
+type CreateAuthenticatedEventSignupJSONRequestBody = AuthenticatedEventSignupRequest
+
+// DeleteEventJSONRequestBody defines body for DeleteEvent for application/json ContentType.
+type DeleteEventJSONRequestBody = VersionRequest
+
+// UpdateEventJSONRequestBody defines body for UpdateEvent for application/json ContentType.
+type UpdateEventJSONRequestBody = UpdateEventRequest
+
+// ArchiveEventJSONRequestBody defines body for ArchiveEvent for application/json ContentType.
+type ArchiveEventJSONRequestBody = VersionRequest
+
+// CreateEventAssignmentJSONRequestBody defines body for CreateEventAssignment for application/json ContentType.
+type CreateEventAssignmentJSONRequestBody = EventAssignmentInput
+
+// MoveEventAssignmentJSONRequestBody defines body for MoveEventAssignment for application/json ContentType.
+type MoveEventAssignmentJSONRequestBody = MoveEventAssignmentRequest
+
+// CancelEventAssignmentJSONRequestBody defines body for CancelEventAssignment for application/json ContentType.
+type CancelEventAssignmentJSONRequestBody = VersionRequest
+
+// LinkEventAssignmentPersonJSONRequestBody defines body for LinkEventAssignmentPerson for application/json ContentType.
+type LinkEventAssignmentPersonJSONRequestBody = LinkEventAssignmentPersonRequest
+
+// CancelEventJSONRequestBody defines body for CancelEvent for application/json ContentType.
+type CancelEventJSONRequestBody = VersionRequest
+
+// CompleteEventJSONRequestBody defines body for CompleteEvent for application/json ContentType.
+type CompleteEventJSONRequestBody = VersionRequest
+
+// ConfirmEventJSONRequestBody defines body for ConfirmEvent for application/json ContentType.
+type ConfirmEventJSONRequestBody = VersionRequest
+
+// RemoveEventFileJSONRequestBody defines body for RemoveEventFile for application/json ContentType.
+type RemoveEventFileJSONRequestBody = VersionRequest
+
+// UpdateEventFileJSONRequestBody defines body for UpdateEventFile for application/json ContentType.
+type UpdateEventFileJSONRequestBody = UpdateEventFileRequest
+
+// PublishEventJSONRequestBody defines body for PublishEvent for application/json ContentType.
+type PublishEventJSONRequestBody = VersionRequest
+
+// ReturnEventToDraftJSONRequestBody defines body for ReturnEventToDraft for application/json ContentType.
+type ReturnEventToDraftJSONRequestBody = VersionRequest
+
+// ReturnEventToPlanningJSONRequestBody defines body for ReturnEventToPlanning for application/json ContentType.
+type ReturnEventToPlanningJSONRequestBody = VersionRequest
+
+// RotateEventPublicIdJSONRequestBody defines body for RotateEventPublicId for application/json ContentType.
+type RotateEventPublicIdJSONRequestBody = VersionRequest
+
+// CreateEventSessionJSONRequestBody defines body for CreateEventSession for application/json ContentType.
+type CreateEventSessionJSONRequestBody = EventSessionInput
+
+// DeleteEventSessionJSONRequestBody defines body for DeleteEventSession for application/json ContentType.
+type DeleteEventSessionJSONRequestBody = VersionRequest
+
+// UpdateEventSessionJSONRequestBody defines body for UpdateEventSession for application/json ContentType.
+type UpdateEventSessionJSONRequestBody = UpdateEventSessionRequest
+
+// CreateEventShiftJSONRequestBody defines body for CreateEventShift for application/json ContentType.
+type CreateEventShiftJSONRequestBody = EventShiftInput
+
+// DeleteEventShiftJSONRequestBody defines body for DeleteEventShift for application/json ContentType.
+type DeleteEventShiftJSONRequestBody = VersionRequest
+
+// UpdateEventShiftJSONRequestBody defines body for UpdateEventShift for application/json ContentType.
+type UpdateEventShiftJSONRequestBody = UpdateEventShiftRequest
+
+// CreateEventShiftRequirementJSONRequestBody defines body for CreateEventShiftRequirement for application/json ContentType.
+type CreateEventShiftRequirementJSONRequestBody = EventRequirementInput
+
+// DeleteEventShiftRequirementJSONRequestBody defines body for DeleteEventShiftRequirement for application/json ContentType.
+type DeleteEventShiftRequirementJSONRequestBody = VersionRequest
+
+// UpdateEventShiftRequirementJSONRequestBody defines body for UpdateEventShiftRequirement for application/json ContentType.
+type UpdateEventShiftRequirementJSONRequestBody = UpdateEventRequirementRequest
+
+// StartEventPlanningJSONRequestBody defines body for StartEventPlanning for application/json ContentType.
+type StartEventPlanningJSONRequestBody = VersionRequest
+
+// CreateEventTaskListJSONRequestBody defines body for CreateEventTaskList for application/json ContentType.
+type CreateEventTaskListJSONRequestBody = EventTaskListInput
+
+// DeleteEventTaskListJSONRequestBody defines body for DeleteEventTaskList for application/json ContentType.
+type DeleteEventTaskListJSONRequestBody = VersionRequest
+
+// UpdateEventTaskListJSONRequestBody defines body for UpdateEventTaskList for application/json ContentType.
+type UpdateEventTaskListJSONRequestBody = UpdateEventTaskListRequest
+
+// CreateEventTaskJSONRequestBody defines body for CreateEventTask for application/json ContentType.
+type CreateEventTaskJSONRequestBody = EventTaskInput
+
+// DeleteEventTaskJSONRequestBody defines body for DeleteEventTask for application/json ContentType.
+type DeleteEventTaskJSONRequestBody = VersionRequest
+
+// UpdateEventTaskJSONRequestBody defines body for UpdateEventTask for application/json ContentType.
+type UpdateEventTaskJSONRequestBody = UpdateEventTaskRequest
+
+// UnpublishEventJSONRequestBody defines body for UnpublishEvent for application/json ContentType.
+type UnpublishEventJSONRequestBody = VersionRequest
+
 // ConfirmLaborordnungRequestJSONRequestBody defines body for ConfirmLaborordnungRequest for application/json ContentType.
 type ConfirmLaborordnungRequestJSONRequestBody = ConfirmLaborordnungRequest
 
@@ -3345,6 +4246,9 @@ type UpdateOpenDayAcademicBreakJSONRequestBody = UpdateAcademicBreakRequest
 // CreateOpenDayPeriodJSONRequestBody defines body for CreateOpenDayPeriod for application/json ContentType.
 type CreateOpenDayPeriodJSONRequestBody = CreateOpenDayPeriodRequest
 
+// DeleteOpenDayPeriodJSONRequestBody defines body for DeleteOpenDayPeriod for application/json ContentType.
+type DeleteOpenDayPeriodJSONRequestBody = VersionRequest
+
 // UpdateOpenDayPeriodJSONRequestBody defines body for UpdateOpenDayPeriod for application/json ContentType.
 type UpdateOpenDayPeriodJSONRequestBody = UpdateOpenDayPeriodRequest
 
@@ -3425,6 +4329,15 @@ type CreatePricingRuleJSONRequestBody = CreatePricingRuleRequest
 
 // UpdatePricingRuleJSONRequestBody defines body for UpdatePricingRule for application/json ContentType.
 type UpdatePricingRuleJSONRequestBody = UpdatePricingRuleRequest
+
+// UpdateCurrentEventSignupJSONRequestBody defines body for UpdateCurrentEventSignup for application/json ContentType.
+type UpdateCurrentEventSignupJSONRequestBody = UpdateEventSignupRequest
+
+// CancelCurrentEventSignupJSONRequestBody defines body for CancelCurrentEventSignup for application/json ContentType.
+type CancelCurrentEventSignupJSONRequestBody = VersionRequest
+
+// CreatePublicEventSignupJSONRequestBody defines body for CreatePublicEventSignup for application/json ContentType.
+type CreatePublicEventSignupJSONRequestBody = EventSignupRequest
 
 // CreateRoleJSONRequestBody defines body for CreateRole for application/json ContentType.
 type CreateRoleJSONRequestBody = CreateRoleRequest
@@ -3689,6 +4602,165 @@ type ServerInterface interface {
 	// Replace organization identity, colors, and legal configuration
 	// (PUT /branding/configuration)
 	UpdateBrandingConfiguration(w http.ResponseWriter, r *http.Request)
+
+	// (GET /event-eligibility-roles)
+	ListEventEligibilityRoles(w http.ResponseWriter, r *http.Request)
+
+	// (GET /event-people)
+	ListEventPeople(w http.ResponseWriter, r *http.Request, params ListEventPeopleParams)
+
+	// (GET /events)
+	ListEvents(w http.ResponseWriter, r *http.Request)
+
+	// (POST /events)
+	CreateEvent(w http.ResponseWriter, r *http.Request)
+
+	// (GET /events/public/{publicId}/assignments/me)
+	ListOwnPublicEventAssignments(w http.ResponseWriter, r *http.Request, publicId PublicEventId)
+
+	// (PATCH /events/public/{publicId}/assignments/me/{eventAssignmentId})
+	UpdateOwnPublicEventAssignment(w http.ResponseWriter, r *http.Request, publicId PublicEventId, eventAssignmentId EventAssignmentId)
+
+	// (POST /events/public/{publicId}/assignments/me/{eventAssignmentId}/cancel)
+	CancelOwnPublicEventAssignment(w http.ResponseWriter, r *http.Request, publicId PublicEventId, eventAssignmentId EventAssignmentId)
+
+	// (POST /events/public/{publicId}/signups)
+	CreateAuthenticatedEventSignup(w http.ResponseWriter, r *http.Request, publicId PublicEventId)
+
+	// (DELETE /events/{eventId})
+	DeleteEvent(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (GET /events/{eventId})
+	GetEvent(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (PATCH /events/{eventId})
+	UpdateEvent(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (POST /events/{eventId}/archive)
+	ArchiveEvent(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (GET /events/{eventId}/assignments)
+	ListEventAssignments(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (POST /events/{eventId}/assignments)
+	CreateEventAssignment(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (PATCH /events/{eventId}/assignments/{eventAssignmentId})
+	MoveEventAssignment(w http.ResponseWriter, r *http.Request, eventId EventId, eventAssignmentId EventAssignmentId)
+
+	// (POST /events/{eventId}/assignments/{eventAssignmentId}/cancel)
+	CancelEventAssignment(w http.ResponseWriter, r *http.Request, eventId EventId, eventAssignmentId EventAssignmentId)
+
+	// (POST /events/{eventId}/assignments/{eventAssignmentId}/link-person)
+	LinkEventAssignmentPerson(w http.ResponseWriter, r *http.Request, eventId EventId, eventAssignmentId EventAssignmentId)
+
+	// (GET /events/{eventId}/assignments/{eventAssignmentId}/person-matches)
+	ListEventAssignmentPersonMatches(w http.ResponseWriter, r *http.Request, eventId EventId, eventAssignmentId EventAssignmentId)
+
+	// (GET /events/{eventId}/banner)
+	GetEventBanner(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (POST /events/{eventId}/cancel)
+	CancelEvent(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (POST /events/{eventId}/complete)
+	CompleteEvent(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (POST /events/{eventId}/confirm)
+	ConfirmEvent(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (GET /events/{eventId}/files)
+	ListEventFiles(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (POST /events/{eventId}/files)
+	UploadEventFile(w http.ResponseWriter, r *http.Request, eventId EventId, params UploadEventFileParams)
+
+	// (DELETE /events/{eventId}/files/{eventFileId})
+	RemoveEventFile(w http.ResponseWriter, r *http.Request, eventId EventId, eventFileId EventFileId)
+
+	// (PATCH /events/{eventId}/files/{eventFileId})
+	UpdateEventFile(w http.ResponseWriter, r *http.Request, eventId EventId, eventFileId EventFileId)
+
+	// (GET /events/{eventId}/files/{eventFileId}/content)
+	DownloadEventFile(w http.ResponseWriter, r *http.Request, eventId EventId, eventFileId EventFileId)
+
+	// (POST /events/{eventId}/publish)
+	PublishEvent(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (POST /events/{eventId}/return-to-draft)
+	ReturnEventToDraft(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (POST /events/{eventId}/return-to-planning)
+	ReturnEventToPlanning(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (POST /events/{eventId}/rotate-public-id)
+	RotateEventPublicId(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (GET /events/{eventId}/sessions)
+	ListEventSessions(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (POST /events/{eventId}/sessions)
+	CreateEventSession(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (DELETE /events/{eventId}/sessions/{eventSessionId})
+	DeleteEventSession(w http.ResponseWriter, r *http.Request, eventId EventId, eventSessionId EventSessionId)
+
+	// (PATCH /events/{eventId}/sessions/{eventSessionId})
+	UpdateEventSession(w http.ResponseWriter, r *http.Request, eventId EventId, eventSessionId EventSessionId)
+
+	// (GET /events/{eventId}/shifts)
+	ListEventShifts(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (POST /events/{eventId}/shifts)
+	CreateEventShift(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (DELETE /events/{eventId}/shifts/{eventShiftId})
+	DeleteEventShift(w http.ResponseWriter, r *http.Request, eventId EventId, eventShiftId EventShiftId)
+
+	// (PATCH /events/{eventId}/shifts/{eventShiftId})
+	UpdateEventShift(w http.ResponseWriter, r *http.Request, eventId EventId, eventShiftId EventShiftId)
+
+	// (GET /events/{eventId}/shifts/{eventShiftId}/requirements)
+	ListEventShiftRequirements(w http.ResponseWriter, r *http.Request, eventId EventId, eventShiftId EventShiftId)
+
+	// (POST /events/{eventId}/shifts/{eventShiftId}/requirements)
+	CreateEventShiftRequirement(w http.ResponseWriter, r *http.Request, eventId EventId, eventShiftId EventShiftId)
+
+	// (DELETE /events/{eventId}/shifts/{eventShiftId}/requirements/{eventRequirementId})
+	DeleteEventShiftRequirement(w http.ResponseWriter, r *http.Request, eventId EventId, eventShiftId EventShiftId, eventRequirementId EventRequirementId)
+
+	// (PATCH /events/{eventId}/shifts/{eventShiftId}/requirements/{eventRequirementId})
+	UpdateEventShiftRequirement(w http.ResponseWriter, r *http.Request, eventId EventId, eventShiftId EventShiftId, eventRequirementId EventRequirementId)
+
+	// (POST /events/{eventId}/start-planning)
+	StartEventPlanning(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (GET /events/{eventId}/task-lists)
+	ListEventTaskLists(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (POST /events/{eventId}/task-lists)
+	CreateEventTaskList(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (DELETE /events/{eventId}/task-lists/{eventTaskListId})
+	DeleteEventTaskList(w http.ResponseWriter, r *http.Request, eventId EventId, eventTaskListId EventTaskListId)
+
+	// (PATCH /events/{eventId}/task-lists/{eventTaskListId})
+	UpdateEventTaskList(w http.ResponseWriter, r *http.Request, eventId EventId, eventTaskListId EventTaskListId)
+
+	// (GET /events/{eventId}/tasks)
+	ListEventTasks(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (POST /events/{eventId}/tasks)
+	CreateEventTask(w http.ResponseWriter, r *http.Request, eventId EventId)
+
+	// (DELETE /events/{eventId}/tasks/{eventTaskId})
+	DeleteEventTask(w http.ResponseWriter, r *http.Request, eventId EventId, eventTaskId EventTaskId)
+
+	// (PATCH /events/{eventId}/tasks/{eventTaskId})
+	UpdateEventTask(w http.ResponseWriter, r *http.Request, eventId EventId, eventTaskId EventTaskId)
+
+	// (POST /events/{eventId}/unpublish)
+	UnpublishEvent(w http.ResponseWriter, r *http.Request, eventId EventId)
 	// Report that the API process is running
 	// (GET /health/live)
 	GetLiveness(w http.ResponseWriter, r *http.Request)
@@ -3878,6 +4950,9 @@ type ServerInterface interface {
 	// Create a draft Open Day period
 	// (POST /open-day-periods)
 	CreateOpenDayPeriod(w http.ResponseWriter, r *http.Request)
+	// Delete an Open Day period
+	// (DELETE /open-day-periods/{periodId})
+	DeleteOpenDayPeriod(w http.ResponseWriter, r *http.Request, periodId OpenDayPeriodId)
 	// Get an Open Day period
 	// (GET /open-day-periods/{periodId})
 	GetOpenDayPeriod(w http.ResponseWriter, r *http.Request, periodId OpenDayPeriodId)
@@ -4010,6 +5085,27 @@ type ServerInterface interface {
 	// Read safe public organization, branding, and legal-link configuration
 	// (GET /public/config)
 	GetPublicConfiguration(w http.ResponseWriter, r *http.Request)
+
+	// (GET /public/event-signups/current)
+	GetCurrentEventSignup(w http.ResponseWriter, r *http.Request, params GetCurrentEventSignupParams)
+
+	// (PATCH /public/event-signups/current)
+	UpdateCurrentEventSignup(w http.ResponseWriter, r *http.Request, params UpdateCurrentEventSignupParams)
+
+	// (POST /public/event-signups/current/cancel)
+	CancelCurrentEventSignup(w http.ResponseWriter, r *http.Request, params CancelCurrentEventSignupParams)
+
+	// (GET /public/events/{publicId})
+	GetPublicEvent(w http.ResponseWriter, r *http.Request, publicId PublicEventId)
+
+	// (GET /public/events/{publicId}/banner)
+	GetPublicEventBanner(w http.ResponseWriter, r *http.Request, publicId PublicEventId)
+
+	// (GET /public/events/{publicId}/files/{eventFileId})
+	DownloadPublicEventFile(w http.ResponseWriter, r *http.Request, publicId PublicEventId, eventFileId EventFileId)
+
+	// (POST /public/events/{publicId}/signups)
+	CreatePublicEventSignup(w http.ResponseWriter, r *http.Request, publicId PublicEventId)
 	// Read one active public legal-document configuration
 	// (GET /public/legal/{document})
 	GetPublicLegalDocument(w http.ResponseWriter, r *http.Request, document GetPublicLegalDocumentParamsDocument)
@@ -4355,6 +5451,271 @@ func (_ Unimplemented) GetBrandingConfiguration(w http.ResponseWriter, r *http.R
 // Replace organization identity, colors, and legal configuration
 // (PUT /branding/configuration)
 func (_ Unimplemented) UpdateBrandingConfiguration(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /event-eligibility-roles)
+func (_ Unimplemented) ListEventEligibilityRoles(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /event-people)
+func (_ Unimplemented) ListEventPeople(w http.ResponseWriter, r *http.Request, params ListEventPeopleParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /events)
+func (_ Unimplemented) ListEvents(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events)
+func (_ Unimplemented) CreateEvent(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /events/public/{publicId}/assignments/me)
+func (_ Unimplemented) ListOwnPublicEventAssignments(w http.ResponseWriter, r *http.Request, publicId PublicEventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PATCH /events/public/{publicId}/assignments/me/{eventAssignmentId})
+func (_ Unimplemented) UpdateOwnPublicEventAssignment(w http.ResponseWriter, r *http.Request, publicId PublicEventId, eventAssignmentId EventAssignmentId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/public/{publicId}/assignments/me/{eventAssignmentId}/cancel)
+func (_ Unimplemented) CancelOwnPublicEventAssignment(w http.ResponseWriter, r *http.Request, publicId PublicEventId, eventAssignmentId EventAssignmentId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/public/{publicId}/signups)
+func (_ Unimplemented) CreateAuthenticatedEventSignup(w http.ResponseWriter, r *http.Request, publicId PublicEventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /events/{eventId})
+func (_ Unimplemented) DeleteEvent(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /events/{eventId})
+func (_ Unimplemented) GetEvent(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PATCH /events/{eventId})
+func (_ Unimplemented) UpdateEvent(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/archive)
+func (_ Unimplemented) ArchiveEvent(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /events/{eventId}/assignments)
+func (_ Unimplemented) ListEventAssignments(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/assignments)
+func (_ Unimplemented) CreateEventAssignment(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PATCH /events/{eventId}/assignments/{eventAssignmentId})
+func (_ Unimplemented) MoveEventAssignment(w http.ResponseWriter, r *http.Request, eventId EventId, eventAssignmentId EventAssignmentId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/assignments/{eventAssignmentId}/cancel)
+func (_ Unimplemented) CancelEventAssignment(w http.ResponseWriter, r *http.Request, eventId EventId, eventAssignmentId EventAssignmentId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/assignments/{eventAssignmentId}/link-person)
+func (_ Unimplemented) LinkEventAssignmentPerson(w http.ResponseWriter, r *http.Request, eventId EventId, eventAssignmentId EventAssignmentId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /events/{eventId}/assignments/{eventAssignmentId}/person-matches)
+func (_ Unimplemented) ListEventAssignmentPersonMatches(w http.ResponseWriter, r *http.Request, eventId EventId, eventAssignmentId EventAssignmentId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /events/{eventId}/banner)
+func (_ Unimplemented) GetEventBanner(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/cancel)
+func (_ Unimplemented) CancelEvent(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/complete)
+func (_ Unimplemented) CompleteEvent(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/confirm)
+func (_ Unimplemented) ConfirmEvent(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /events/{eventId}/files)
+func (_ Unimplemented) ListEventFiles(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/files)
+func (_ Unimplemented) UploadEventFile(w http.ResponseWriter, r *http.Request, eventId EventId, params UploadEventFileParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /events/{eventId}/files/{eventFileId})
+func (_ Unimplemented) RemoveEventFile(w http.ResponseWriter, r *http.Request, eventId EventId, eventFileId EventFileId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PATCH /events/{eventId}/files/{eventFileId})
+func (_ Unimplemented) UpdateEventFile(w http.ResponseWriter, r *http.Request, eventId EventId, eventFileId EventFileId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /events/{eventId}/files/{eventFileId}/content)
+func (_ Unimplemented) DownloadEventFile(w http.ResponseWriter, r *http.Request, eventId EventId, eventFileId EventFileId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/publish)
+func (_ Unimplemented) PublishEvent(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/return-to-draft)
+func (_ Unimplemented) ReturnEventToDraft(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/return-to-planning)
+func (_ Unimplemented) ReturnEventToPlanning(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/rotate-public-id)
+func (_ Unimplemented) RotateEventPublicId(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /events/{eventId}/sessions)
+func (_ Unimplemented) ListEventSessions(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/sessions)
+func (_ Unimplemented) CreateEventSession(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /events/{eventId}/sessions/{eventSessionId})
+func (_ Unimplemented) DeleteEventSession(w http.ResponseWriter, r *http.Request, eventId EventId, eventSessionId EventSessionId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PATCH /events/{eventId}/sessions/{eventSessionId})
+func (_ Unimplemented) UpdateEventSession(w http.ResponseWriter, r *http.Request, eventId EventId, eventSessionId EventSessionId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /events/{eventId}/shifts)
+func (_ Unimplemented) ListEventShifts(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/shifts)
+func (_ Unimplemented) CreateEventShift(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /events/{eventId}/shifts/{eventShiftId})
+func (_ Unimplemented) DeleteEventShift(w http.ResponseWriter, r *http.Request, eventId EventId, eventShiftId EventShiftId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PATCH /events/{eventId}/shifts/{eventShiftId})
+func (_ Unimplemented) UpdateEventShift(w http.ResponseWriter, r *http.Request, eventId EventId, eventShiftId EventShiftId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /events/{eventId}/shifts/{eventShiftId}/requirements)
+func (_ Unimplemented) ListEventShiftRequirements(w http.ResponseWriter, r *http.Request, eventId EventId, eventShiftId EventShiftId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/shifts/{eventShiftId}/requirements)
+func (_ Unimplemented) CreateEventShiftRequirement(w http.ResponseWriter, r *http.Request, eventId EventId, eventShiftId EventShiftId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /events/{eventId}/shifts/{eventShiftId}/requirements/{eventRequirementId})
+func (_ Unimplemented) DeleteEventShiftRequirement(w http.ResponseWriter, r *http.Request, eventId EventId, eventShiftId EventShiftId, eventRequirementId EventRequirementId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PATCH /events/{eventId}/shifts/{eventShiftId}/requirements/{eventRequirementId})
+func (_ Unimplemented) UpdateEventShiftRequirement(w http.ResponseWriter, r *http.Request, eventId EventId, eventShiftId EventShiftId, eventRequirementId EventRequirementId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/start-planning)
+func (_ Unimplemented) StartEventPlanning(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /events/{eventId}/task-lists)
+func (_ Unimplemented) ListEventTaskLists(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/task-lists)
+func (_ Unimplemented) CreateEventTaskList(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /events/{eventId}/task-lists/{eventTaskListId})
+func (_ Unimplemented) DeleteEventTaskList(w http.ResponseWriter, r *http.Request, eventId EventId, eventTaskListId EventTaskListId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PATCH /events/{eventId}/task-lists/{eventTaskListId})
+func (_ Unimplemented) UpdateEventTaskList(w http.ResponseWriter, r *http.Request, eventId EventId, eventTaskListId EventTaskListId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /events/{eventId}/tasks)
+func (_ Unimplemented) ListEventTasks(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/tasks)
+func (_ Unimplemented) CreateEventTask(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /events/{eventId}/tasks/{eventTaskId})
+func (_ Unimplemented) DeleteEventTask(w http.ResponseWriter, r *http.Request, eventId EventId, eventTaskId EventTaskId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PATCH /events/{eventId}/tasks/{eventTaskId})
+func (_ Unimplemented) UpdateEventTask(w http.ResponseWriter, r *http.Request, eventId EventId, eventTaskId EventTaskId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /events/{eventId}/unpublish)
+func (_ Unimplemented) UnpublishEvent(w http.ResponseWriter, r *http.Request, eventId EventId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -4736,6 +6097,12 @@ func (_ Unimplemented) CreateOpenDayPeriod(w http.ResponseWriter, r *http.Reques
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Delete an Open Day period
+// (DELETE /open-day-periods/{periodId})
+func (_ Unimplemented) DeleteOpenDayPeriod(w http.ResponseWriter, r *http.Request, periodId OpenDayPeriodId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Get an Open Day period
 // (GET /open-day-periods/{periodId})
 func (_ Unimplemented) GetOpenDayPeriod(w http.ResponseWriter, r *http.Request, periodId OpenDayPeriodId) {
@@ -4997,6 +6364,41 @@ func (_ Unimplemented) GetPublicBrandingAsset(w http.ResponseWriter, r *http.Req
 // Read safe public organization, branding, and legal-link configuration
 // (GET /public/config)
 func (_ Unimplemented) GetPublicConfiguration(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /public/event-signups/current)
+func (_ Unimplemented) GetCurrentEventSignup(w http.ResponseWriter, r *http.Request, params GetCurrentEventSignupParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PATCH /public/event-signups/current)
+func (_ Unimplemented) UpdateCurrentEventSignup(w http.ResponseWriter, r *http.Request, params UpdateCurrentEventSignupParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /public/event-signups/current/cancel)
+func (_ Unimplemented) CancelCurrentEventSignup(w http.ResponseWriter, r *http.Request, params CancelCurrentEventSignupParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /public/events/{publicId})
+func (_ Unimplemented) GetPublicEvent(w http.ResponseWriter, r *http.Request, publicId PublicEventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /public/events/{publicId}/banner)
+func (_ Unimplemented) GetPublicEventBanner(w http.ResponseWriter, r *http.Request, publicId PublicEventId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /public/events/{publicId}/files/{eventFileId})
+func (_ Unimplemented) DownloadPublicEventFile(w http.ResponseWriter, r *http.Request, publicId PublicEventId, eventFileId EventFileId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /public/events/{publicId}/signups)
+func (_ Unimplemented) CreatePublicEventSignup(w http.ResponseWriter, r *http.Request, publicId PublicEventId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -6369,6 +7771,2013 @@ func (siw *ServerInterfaceWrapper) UpdateBrandingConfiguration(w http.ResponseWr
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.UpdateBrandingConfiguration(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListEventEligibilityRoles operation middleware
+func (siw *ServerInterfaceWrapper) ListEventEligibilityRoles(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListEventEligibilityRoles(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListEventPeople operation middleware
+func (siw *ServerInterfaceWrapper) ListEventPeople(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListEventPeopleParams
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "search", r.URL.Query(), &params.Search)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListEventPeople(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListEvents operation middleware
+func (siw *ServerInterfaceWrapper) ListEvents(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListEvents(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateEvent operation middleware
+func (siw *ServerInterfaceWrapper) CreateEvent(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateEvent(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListOwnPublicEventAssignments operation middleware
+func (siw *ServerInterfaceWrapper) ListOwnPublicEventAssignments(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "publicId" -------------
+	var publicId PublicEventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "publicId", chi.URLParam(r, "publicId"), &publicId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "publicId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListOwnPublicEventAssignments(w, r, publicId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateOwnPublicEventAssignment operation middleware
+func (siw *ServerInterfaceWrapper) UpdateOwnPublicEventAssignment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "publicId" -------------
+	var publicId PublicEventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "publicId", chi.URLParam(r, "publicId"), &publicId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "publicId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventAssignmentId" -------------
+	var eventAssignmentId EventAssignmentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventAssignmentId", chi.URLParam(r, "eventAssignmentId"), &eventAssignmentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventAssignmentId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateOwnPublicEventAssignment(w, r, publicId, eventAssignmentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CancelOwnPublicEventAssignment operation middleware
+func (siw *ServerInterfaceWrapper) CancelOwnPublicEventAssignment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "publicId" -------------
+	var publicId PublicEventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "publicId", chi.URLParam(r, "publicId"), &publicId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "publicId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventAssignmentId" -------------
+	var eventAssignmentId EventAssignmentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventAssignmentId", chi.URLParam(r, "eventAssignmentId"), &eventAssignmentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventAssignmentId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelOwnPublicEventAssignment(w, r, publicId, eventAssignmentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateAuthenticatedEventSignup operation middleware
+func (siw *ServerInterfaceWrapper) CreateAuthenticatedEventSignup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "publicId" -------------
+	var publicId PublicEventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "publicId", chi.URLParam(r, "publicId"), &publicId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "publicId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateAuthenticatedEventSignup(w, r, publicId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteEvent operation middleware
+func (siw *ServerInterfaceWrapper) DeleteEvent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteEvent(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetEvent operation middleware
+func (siw *ServerInterfaceWrapper) GetEvent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetEvent(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateEvent operation middleware
+func (siw *ServerInterfaceWrapper) UpdateEvent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateEvent(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ArchiveEvent operation middleware
+func (siw *ServerInterfaceWrapper) ArchiveEvent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ArchiveEvent(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListEventAssignments operation middleware
+func (siw *ServerInterfaceWrapper) ListEventAssignments(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListEventAssignments(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateEventAssignment operation middleware
+func (siw *ServerInterfaceWrapper) CreateEventAssignment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateEventAssignment(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// MoveEventAssignment operation middleware
+func (siw *ServerInterfaceWrapper) MoveEventAssignment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventAssignmentId" -------------
+	var eventAssignmentId EventAssignmentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventAssignmentId", chi.URLParam(r, "eventAssignmentId"), &eventAssignmentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventAssignmentId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.MoveEventAssignment(w, r, eventId, eventAssignmentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CancelEventAssignment operation middleware
+func (siw *ServerInterfaceWrapper) CancelEventAssignment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventAssignmentId" -------------
+	var eventAssignmentId EventAssignmentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventAssignmentId", chi.URLParam(r, "eventAssignmentId"), &eventAssignmentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventAssignmentId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelEventAssignment(w, r, eventId, eventAssignmentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// LinkEventAssignmentPerson operation middleware
+func (siw *ServerInterfaceWrapper) LinkEventAssignmentPerson(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventAssignmentId" -------------
+	var eventAssignmentId EventAssignmentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventAssignmentId", chi.URLParam(r, "eventAssignmentId"), &eventAssignmentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventAssignmentId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.LinkEventAssignmentPerson(w, r, eventId, eventAssignmentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListEventAssignmentPersonMatches operation middleware
+func (siw *ServerInterfaceWrapper) ListEventAssignmentPersonMatches(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventAssignmentId" -------------
+	var eventAssignmentId EventAssignmentId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventAssignmentId", chi.URLParam(r, "eventAssignmentId"), &eventAssignmentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventAssignmentId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListEventAssignmentPersonMatches(w, r, eventId, eventAssignmentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetEventBanner operation middleware
+func (siw *ServerInterfaceWrapper) GetEventBanner(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetEventBanner(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CancelEvent operation middleware
+func (siw *ServerInterfaceWrapper) CancelEvent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelEvent(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CompleteEvent operation middleware
+func (siw *ServerInterfaceWrapper) CompleteEvent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CompleteEvent(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConfirmEvent operation middleware
+func (siw *ServerInterfaceWrapper) ConfirmEvent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConfirmEvent(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListEventFiles operation middleware
+func (siw *ServerInterfaceWrapper) ListEventFiles(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListEventFiles(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UploadEventFile operation middleware
+func (siw *ServerInterfaceWrapper) UploadEventFile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UploadEventFileParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-File-Name" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-File-Name")]; found {
+		var XFileName string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-File-Name", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-File-Name", valueList[0], &XFileName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-File-Name", Err: err})
+			return
+		}
+
+		params.XFileName = XFileName
+
+	} else {
+		err := fmt.Errorf("Header parameter X-File-Name is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-File-Name", Err: err})
+		return
+	}
+
+	// ------------- Required header parameter "X-File-Content-Type" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-File-Content-Type")]; found {
+		var XFileContentType string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-File-Content-Type", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-File-Content-Type", valueList[0], &XFileContentType, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-File-Content-Type", Err: err})
+			return
+		}
+
+		params.XFileContentType = XFileContentType
+
+	} else {
+		err := fmt.Errorf("Header parameter X-File-Content-Type is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-File-Content-Type", Err: err})
+		return
+	}
+
+	// ------------- Required header parameter "X-Event-File-Visibility" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Event-File-Visibility")]; found {
+		var XEventFileVisibility EventFileVisibility
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Event-File-Visibility", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Event-File-Visibility", valueList[0], &XEventFileVisibility, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Event-File-Visibility", Err: err})
+			return
+		}
+
+		params.XEventFileVisibility = XEventFileVisibility
+
+	} else {
+		err := fmt.Errorf("Header parameter X-Event-File-Visibility is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-Event-File-Visibility", Err: err})
+		return
+	}
+
+	// ------------- Optional header parameter "X-Event-File-Description" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Event-File-Description")]; found {
+		var XEventFileDescription string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Event-File-Description", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Event-File-Description", valueList[0], &XEventFileDescription, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Event-File-Description", Err: err})
+			return
+		}
+
+		params.XEventFileDescription = &XEventFileDescription
+
+	}
+
+	// ------------- Optional header parameter "X-Event-File-Purpose" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Event-File-Purpose")]; found {
+		var XEventFilePurpose EventFilePurpose
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Event-File-Purpose", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Event-File-Purpose", valueList[0], &XEventFilePurpose, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Event-File-Purpose", Err: err})
+			return
+		}
+
+		params.XEventFilePurpose = &XEventFilePurpose
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UploadEventFile(w, r, eventId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RemoveEventFile operation middleware
+func (siw *ServerInterfaceWrapper) RemoveEventFile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventFileId" -------------
+	var eventFileId EventFileId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventFileId", chi.URLParam(r, "eventFileId"), &eventFileId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventFileId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RemoveEventFile(w, r, eventId, eventFileId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateEventFile operation middleware
+func (siw *ServerInterfaceWrapper) UpdateEventFile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventFileId" -------------
+	var eventFileId EventFileId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventFileId", chi.URLParam(r, "eventFileId"), &eventFileId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventFileId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateEventFile(w, r, eventId, eventFileId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DownloadEventFile operation middleware
+func (siw *ServerInterfaceWrapper) DownloadEventFile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventFileId" -------------
+	var eventFileId EventFileId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventFileId", chi.URLParam(r, "eventFileId"), &eventFileId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventFileId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DownloadEventFile(w, r, eventId, eventFileId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// PublishEvent operation middleware
+func (siw *ServerInterfaceWrapper) PublishEvent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.PublishEvent(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReturnEventToDraft operation middleware
+func (siw *ServerInterfaceWrapper) ReturnEventToDraft(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReturnEventToDraft(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReturnEventToPlanning operation middleware
+func (siw *ServerInterfaceWrapper) ReturnEventToPlanning(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReturnEventToPlanning(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RotateEventPublicId operation middleware
+func (siw *ServerInterfaceWrapper) RotateEventPublicId(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RotateEventPublicId(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListEventSessions operation middleware
+func (siw *ServerInterfaceWrapper) ListEventSessions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListEventSessions(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateEventSession operation middleware
+func (siw *ServerInterfaceWrapper) CreateEventSession(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateEventSession(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteEventSession operation middleware
+func (siw *ServerInterfaceWrapper) DeleteEventSession(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventSessionId" -------------
+	var eventSessionId EventSessionId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventSessionId", chi.URLParam(r, "eventSessionId"), &eventSessionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventSessionId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteEventSession(w, r, eventId, eventSessionId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateEventSession operation middleware
+func (siw *ServerInterfaceWrapper) UpdateEventSession(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventSessionId" -------------
+	var eventSessionId EventSessionId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventSessionId", chi.URLParam(r, "eventSessionId"), &eventSessionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventSessionId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateEventSession(w, r, eventId, eventSessionId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListEventShifts operation middleware
+func (siw *ServerInterfaceWrapper) ListEventShifts(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListEventShifts(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateEventShift operation middleware
+func (siw *ServerInterfaceWrapper) CreateEventShift(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateEventShift(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteEventShift operation middleware
+func (siw *ServerInterfaceWrapper) DeleteEventShift(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventShiftId" -------------
+	var eventShiftId EventShiftId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventShiftId", chi.URLParam(r, "eventShiftId"), &eventShiftId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventShiftId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteEventShift(w, r, eventId, eventShiftId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateEventShift operation middleware
+func (siw *ServerInterfaceWrapper) UpdateEventShift(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventShiftId" -------------
+	var eventShiftId EventShiftId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventShiftId", chi.URLParam(r, "eventShiftId"), &eventShiftId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventShiftId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateEventShift(w, r, eventId, eventShiftId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListEventShiftRequirements operation middleware
+func (siw *ServerInterfaceWrapper) ListEventShiftRequirements(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventShiftId" -------------
+	var eventShiftId EventShiftId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventShiftId", chi.URLParam(r, "eventShiftId"), &eventShiftId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventShiftId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListEventShiftRequirements(w, r, eventId, eventShiftId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateEventShiftRequirement operation middleware
+func (siw *ServerInterfaceWrapper) CreateEventShiftRequirement(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventShiftId" -------------
+	var eventShiftId EventShiftId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventShiftId", chi.URLParam(r, "eventShiftId"), &eventShiftId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventShiftId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateEventShiftRequirement(w, r, eventId, eventShiftId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteEventShiftRequirement operation middleware
+func (siw *ServerInterfaceWrapper) DeleteEventShiftRequirement(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventShiftId" -------------
+	var eventShiftId EventShiftId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventShiftId", chi.URLParam(r, "eventShiftId"), &eventShiftId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventShiftId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventRequirementId" -------------
+	var eventRequirementId EventRequirementId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventRequirementId", chi.URLParam(r, "eventRequirementId"), &eventRequirementId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventRequirementId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteEventShiftRequirement(w, r, eventId, eventShiftId, eventRequirementId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateEventShiftRequirement operation middleware
+func (siw *ServerInterfaceWrapper) UpdateEventShiftRequirement(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventShiftId" -------------
+	var eventShiftId EventShiftId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventShiftId", chi.URLParam(r, "eventShiftId"), &eventShiftId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventShiftId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventRequirementId" -------------
+	var eventRequirementId EventRequirementId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventRequirementId", chi.URLParam(r, "eventRequirementId"), &eventRequirementId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventRequirementId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateEventShiftRequirement(w, r, eventId, eventShiftId, eventRequirementId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StartEventPlanning operation middleware
+func (siw *ServerInterfaceWrapper) StartEventPlanning(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StartEventPlanning(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListEventTaskLists operation middleware
+func (siw *ServerInterfaceWrapper) ListEventTaskLists(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListEventTaskLists(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateEventTaskList operation middleware
+func (siw *ServerInterfaceWrapper) CreateEventTaskList(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateEventTaskList(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteEventTaskList operation middleware
+func (siw *ServerInterfaceWrapper) DeleteEventTaskList(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventTaskListId" -------------
+	var eventTaskListId EventTaskListId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventTaskListId", chi.URLParam(r, "eventTaskListId"), &eventTaskListId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventTaskListId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteEventTaskList(w, r, eventId, eventTaskListId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateEventTaskList operation middleware
+func (siw *ServerInterfaceWrapper) UpdateEventTaskList(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventTaskListId" -------------
+	var eventTaskListId EventTaskListId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventTaskListId", chi.URLParam(r, "eventTaskListId"), &eventTaskListId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventTaskListId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateEventTaskList(w, r, eventId, eventTaskListId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListEventTasks operation middleware
+func (siw *ServerInterfaceWrapper) ListEventTasks(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListEventTasks(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateEventTask operation middleware
+func (siw *ServerInterfaceWrapper) CreateEventTask(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateEventTask(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteEventTask operation middleware
+func (siw *ServerInterfaceWrapper) DeleteEventTask(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventTaskId" -------------
+	var eventTaskId EventTaskId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventTaskId", chi.URLParam(r, "eventTaskId"), &eventTaskId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventTaskId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteEventTask(w, r, eventId, eventTaskId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateEventTask operation middleware
+func (siw *ServerInterfaceWrapper) UpdateEventTask(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventTaskId" -------------
+	var eventTaskId EventTaskId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventTaskId", chi.URLParam(r, "eventTaskId"), &eventTaskId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventTaskId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateEventTask(w, r, eventId, eventTaskId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UnpublishEvent operation middleware
+func (siw *ServerInterfaceWrapper) UnpublishEvent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId EventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnpublishEvent(w, r, eventId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -8381,6 +11790,39 @@ func (siw *ServerInterfaceWrapper) CreateOpenDayPeriod(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// DeleteOpenDayPeriod operation middleware
+func (siw *ServerInterfaceWrapper) DeleteOpenDayPeriod(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "periodId" -------------
+	var periodId OpenDayPeriodId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "periodId", chi.URLParam(r, "periodId"), &periodId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "periodId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteOpenDayPeriod(w, r, periodId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetOpenDayPeriod operation middleware
 func (siw *ServerInterfaceWrapper) GetOpenDayPeriod(w http.ResponseWriter, r *http.Request) {
 
@@ -9904,6 +13346,265 @@ func (siw *ServerInterfaceWrapper) GetPublicConfiguration(w http.ResponseWriter,
 	handler.ServeHTTP(w, r)
 }
 
+// GetCurrentEventSignup operation middleware
+func (siw *ServerInterfaceWrapper) GetCurrentEventSignup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, EventSignupTokenScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetCurrentEventSignupParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-Event-Signup-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Event-Signup-Token")]; found {
+		var XEventSignupToken EventSignupTokenHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Event-Signup-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Event-Signup-Token", valueList[0], &XEventSignupToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Event-Signup-Token", Err: err})
+			return
+		}
+
+		params.XEventSignupToken = XEventSignupToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-Event-Signup-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-Event-Signup-Token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetCurrentEventSignup(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateCurrentEventSignup operation middleware
+func (siw *ServerInterfaceWrapper) UpdateCurrentEventSignup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, EventSignupTokenScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UpdateCurrentEventSignupParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-Event-Signup-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Event-Signup-Token")]; found {
+		var XEventSignupToken EventSignupTokenHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Event-Signup-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Event-Signup-Token", valueList[0], &XEventSignupToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Event-Signup-Token", Err: err})
+			return
+		}
+
+		params.XEventSignupToken = XEventSignupToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-Event-Signup-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-Event-Signup-Token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateCurrentEventSignup(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CancelCurrentEventSignup operation middleware
+func (siw *ServerInterfaceWrapper) CancelCurrentEventSignup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, EventSignupTokenScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params CancelCurrentEventSignupParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-Event-Signup-Token" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Event-Signup-Token")]; found {
+		var XEventSignupToken EventSignupTokenHeader
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Event-Signup-Token", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Event-Signup-Token", valueList[0], &XEventSignupToken, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Event-Signup-Token", Err: err})
+			return
+		}
+
+		params.XEventSignupToken = XEventSignupToken
+
+	} else {
+		err := fmt.Errorf("Header parameter X-Event-Signup-Token is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-Event-Signup-Token", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CancelCurrentEventSignup(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPublicEvent operation middleware
+func (siw *ServerInterfaceWrapper) GetPublicEvent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "publicId" -------------
+	var publicId PublicEventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "publicId", chi.URLParam(r, "publicId"), &publicId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "publicId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPublicEvent(w, r, publicId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPublicEventBanner operation middleware
+func (siw *ServerInterfaceWrapper) GetPublicEventBanner(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "publicId" -------------
+	var publicId PublicEventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "publicId", chi.URLParam(r, "publicId"), &publicId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "publicId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPublicEventBanner(w, r, publicId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DownloadPublicEventFile operation middleware
+func (siw *ServerInterfaceWrapper) DownloadPublicEventFile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "publicId" -------------
+	var publicId PublicEventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "publicId", chi.URLParam(r, "publicId"), &publicId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "publicId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "eventFileId" -------------
+	var eventFileId EventFileId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventFileId", chi.URLParam(r, "eventFileId"), &eventFileId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventFileId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DownloadPublicEventFile(w, r, publicId, eventFileId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreatePublicEventSignup operation middleware
+func (siw *ServerInterfaceWrapper) CreatePublicEventSignup(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "publicId" -------------
+	var publicId PublicEventId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "publicId", chi.URLParam(r, "publicId"), &publicId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "publicId", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreatePublicEventSignup(w, r, publicId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetPublicLegalDocument operation middleware
 func (siw *ServerInterfaceWrapper) GetPublicLegalDocument(w http.ResponseWriter, r *http.Request) {
 
@@ -11040,6 +14741,165 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Put(options.BaseURL+"/branding/configuration", wrapper.UpdateBrandingConfiguration)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/event-eligibility-roles", wrapper.ListEventEligibilityRoles)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/event-people", wrapper.ListEventPeople)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/events", wrapper.ListEvents)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events", wrapper.CreateEvent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/events/public/{publicId}/assignments/me", wrapper.ListOwnPublicEventAssignments)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/events/public/{publicId}/assignments/me/{eventAssignmentId}", wrapper.UpdateOwnPublicEventAssignment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/public/{publicId}/assignments/me/{eventAssignmentId}/cancel", wrapper.CancelOwnPublicEventAssignment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/public/{publicId}/signups", wrapper.CreateAuthenticatedEventSignup)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/events/{eventId}", wrapper.DeleteEvent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/events/{eventId}", wrapper.GetEvent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/events/{eventId}", wrapper.UpdateEvent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/archive", wrapper.ArchiveEvent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/events/{eventId}/assignments", wrapper.ListEventAssignments)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/assignments", wrapper.CreateEventAssignment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/events/{eventId}/assignments/{eventAssignmentId}", wrapper.MoveEventAssignment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/assignments/{eventAssignmentId}/cancel", wrapper.CancelEventAssignment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/assignments/{eventAssignmentId}/link-person", wrapper.LinkEventAssignmentPerson)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/events/{eventId}/assignments/{eventAssignmentId}/person-matches", wrapper.ListEventAssignmentPersonMatches)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/events/{eventId}/banner", wrapper.GetEventBanner)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/cancel", wrapper.CancelEvent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/complete", wrapper.CompleteEvent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/confirm", wrapper.ConfirmEvent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/events/{eventId}/files", wrapper.ListEventFiles)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/files", wrapper.UploadEventFile)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/events/{eventId}/files/{eventFileId}", wrapper.RemoveEventFile)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/events/{eventId}/files/{eventFileId}", wrapper.UpdateEventFile)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/events/{eventId}/files/{eventFileId}/content", wrapper.DownloadEventFile)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/publish", wrapper.PublishEvent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/return-to-draft", wrapper.ReturnEventToDraft)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/return-to-planning", wrapper.ReturnEventToPlanning)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/rotate-public-id", wrapper.RotateEventPublicId)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/events/{eventId}/sessions", wrapper.ListEventSessions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/sessions", wrapper.CreateEventSession)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/events/{eventId}/sessions/{eventSessionId}", wrapper.DeleteEventSession)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/events/{eventId}/sessions/{eventSessionId}", wrapper.UpdateEventSession)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/events/{eventId}/shifts", wrapper.ListEventShifts)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/shifts", wrapper.CreateEventShift)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/events/{eventId}/shifts/{eventShiftId}", wrapper.DeleteEventShift)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/events/{eventId}/shifts/{eventShiftId}", wrapper.UpdateEventShift)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/events/{eventId}/shifts/{eventShiftId}/requirements", wrapper.ListEventShiftRequirements)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/shifts/{eventShiftId}/requirements", wrapper.CreateEventShiftRequirement)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/events/{eventId}/shifts/{eventShiftId}/requirements/{eventRequirementId}", wrapper.DeleteEventShiftRequirement)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/events/{eventId}/shifts/{eventShiftId}/requirements/{eventRequirementId}", wrapper.UpdateEventShiftRequirement)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/start-planning", wrapper.StartEventPlanning)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/events/{eventId}/task-lists", wrapper.ListEventTaskLists)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/task-lists", wrapper.CreateEventTaskList)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/events/{eventId}/task-lists/{eventTaskListId}", wrapper.DeleteEventTaskList)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/events/{eventId}/task-lists/{eventTaskListId}", wrapper.UpdateEventTaskList)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/events/{eventId}/tasks", wrapper.ListEventTasks)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/tasks", wrapper.CreateEventTask)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/events/{eventId}/tasks/{eventTaskId}", wrapper.DeleteEventTask)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/events/{eventId}/tasks/{eventTaskId}", wrapper.UpdateEventTask)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/events/{eventId}/unpublish", wrapper.UnpublishEvent)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/health/live", wrapper.GetLiveness)
 	})
 	r.Group(func(r chi.Router) {
@@ -11229,6 +15089,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/open-day-periods", wrapper.CreateOpenDayPeriod)
 	})
 	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/open-day-periods/{periodId}", wrapper.DeleteOpenDayPeriod)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/open-day-periods/{periodId}", wrapper.GetOpenDayPeriod)
 	})
 	r.Group(func(r chi.Router) {
@@ -11359,6 +15222,27 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/public/config", wrapper.GetPublicConfiguration)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/public/event-signups/current", wrapper.GetCurrentEventSignup)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/public/event-signups/current", wrapper.UpdateCurrentEventSignup)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/public/event-signups/current/cancel", wrapper.CancelCurrentEventSignup)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/public/events/{publicId}", wrapper.GetPublicEvent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/public/events/{publicId}/banner", wrapper.GetPublicEventBanner)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/public/events/{publicId}/files/{eventFileId}", wrapper.DownloadPublicEventFile)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/public/events/{publicId}/signups", wrapper.CreatePublicEventSignup)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/public/legal/{document}", wrapper.GetPublicLegalDocument)
@@ -14126,6 +18010,3652 @@ type UpdateBrandingConfiguration500JSONResponse struct {
 }
 
 func (response UpdateBrandingConfiguration500JSONResponse) VisitUpdateBrandingConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventEligibilityRolesRequestObject struct {
+}
+
+type ListEventEligibilityRolesResponseObject interface {
+	VisitListEventEligibilityRolesResponse(w http.ResponseWriter) error
+}
+
+type ListEventEligibilityRoles200JSONResponse EventRoleList
+
+func (response ListEventEligibilityRoles200JSONResponse) VisitListEventEligibilityRolesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventEligibilityRoles401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListEventEligibilityRoles401JSONResponse) VisitListEventEligibilityRolesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventEligibilityRoles403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListEventEligibilityRoles403JSONResponse) VisitListEventEligibilityRolesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventEligibilityRoles500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListEventEligibilityRoles500JSONResponse) VisitListEventEligibilityRolesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventPeopleRequestObject struct {
+	Params ListEventPeopleParams
+}
+
+type ListEventPeopleResponseObject interface {
+	VisitListEventPeopleResponse(w http.ResponseWriter) error
+}
+
+type ListEventPeople200JSONResponse EventPersonOptionList
+
+func (response ListEventPeople200JSONResponse) VisitListEventPeopleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventPeople401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListEventPeople401JSONResponse) VisitListEventPeopleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventPeople403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListEventPeople403JSONResponse) VisitListEventPeopleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventPeople500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListEventPeople500JSONResponse) VisitListEventPeopleResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventsRequestObject struct {
+}
+
+type ListEventsResponseObject interface {
+	VisitListEventsResponse(w http.ResponseWriter) error
+}
+
+type ListEvents200JSONResponse EventList
+
+func (response ListEvents200JSONResponse) VisitListEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEvents401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListEvents401JSONResponse) VisitListEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEvents403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListEvents403JSONResponse) VisitListEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEvents500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListEvents500JSONResponse) VisitListEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventRequestObject struct {
+	Body *CreateEventJSONRequestBody
+}
+
+type CreateEventResponseObject interface {
+	VisitCreateEventResponse(w http.ResponseWriter) error
+}
+
+type CreateEvent201JSONResponse Event
+
+func (response CreateEvent201JSONResponse) VisitCreateEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEvent401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateEvent401JSONResponse) VisitCreateEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEvent403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateEvent403JSONResponse) VisitCreateEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEvent422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateEvent422JSONResponse) VisitCreateEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEvent500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateEvent500JSONResponse) VisitCreateEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListOwnPublicEventAssignmentsRequestObject struct {
+	PublicId PublicEventId `json:"publicId"`
+}
+
+type ListOwnPublicEventAssignmentsResponseObject interface {
+	VisitListOwnPublicEventAssignmentsResponse(w http.ResponseWriter) error
+}
+
+type ListOwnPublicEventAssignments200ResponseHeaders struct {
+	CacheControl string
+}
+
+type ListOwnPublicEventAssignments200JSONResponse struct {
+	Body    EventSignupList
+	Headers ListOwnPublicEventAssignments200ResponseHeaders
+}
+
+func (response ListOwnPublicEventAssignments200JSONResponse) VisitListOwnPublicEventAssignmentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type ListOwnPublicEventAssignments401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListOwnPublicEventAssignments401JSONResponse) VisitListOwnPublicEventAssignmentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListOwnPublicEventAssignments404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListOwnPublicEventAssignments404JSONResponse) VisitListOwnPublicEventAssignmentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListOwnPublicEventAssignments500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListOwnPublicEventAssignments500JSONResponse) VisitListOwnPublicEventAssignmentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOwnPublicEventAssignmentRequestObject struct {
+	PublicId          PublicEventId     `json:"publicId"`
+	EventAssignmentId EventAssignmentId `json:"eventAssignmentId"`
+	Body              *UpdateOwnPublicEventAssignmentJSONRequestBody
+}
+
+type UpdateOwnPublicEventAssignmentResponseObject interface {
+	VisitUpdateOwnPublicEventAssignmentResponse(w http.ResponseWriter) error
+}
+
+type UpdateOwnPublicEventAssignment200ResponseHeaders struct {
+	CacheControl string
+}
+
+type UpdateOwnPublicEventAssignment200JSONResponse struct {
+	Body    EventSignup
+	Headers UpdateOwnPublicEventAssignment200ResponseHeaders
+}
+
+func (response UpdateOwnPublicEventAssignment200JSONResponse) VisitUpdateOwnPublicEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type UpdateOwnPublicEventAssignment401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateOwnPublicEventAssignment401JSONResponse) VisitUpdateOwnPublicEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOwnPublicEventAssignment404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateOwnPublicEventAssignment404JSONResponse) VisitUpdateOwnPublicEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOwnPublicEventAssignment409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateOwnPublicEventAssignment409JSONResponse) VisitUpdateOwnPublicEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOwnPublicEventAssignment422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateOwnPublicEventAssignment422JSONResponse) VisitUpdateOwnPublicEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateOwnPublicEventAssignment500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateOwnPublicEventAssignment500JSONResponse) VisitUpdateOwnPublicEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelOwnPublicEventAssignmentRequestObject struct {
+	PublicId          PublicEventId     `json:"publicId"`
+	EventAssignmentId EventAssignmentId `json:"eventAssignmentId"`
+	Body              *CancelOwnPublicEventAssignmentJSONRequestBody
+}
+
+type CancelOwnPublicEventAssignmentResponseObject interface {
+	VisitCancelOwnPublicEventAssignmentResponse(w http.ResponseWriter) error
+}
+
+type CancelOwnPublicEventAssignment200ResponseHeaders struct {
+	CacheControl string
+}
+
+type CancelOwnPublicEventAssignment200JSONResponse struct {
+	Body    EventSignup
+	Headers CancelOwnPublicEventAssignment200ResponseHeaders
+}
+
+func (response CancelOwnPublicEventAssignment200JSONResponse) VisitCancelOwnPublicEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type CancelOwnPublicEventAssignment401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CancelOwnPublicEventAssignment401JSONResponse) VisitCancelOwnPublicEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelOwnPublicEventAssignment404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CancelOwnPublicEventAssignment404JSONResponse) VisitCancelOwnPublicEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelOwnPublicEventAssignment409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CancelOwnPublicEventAssignment409JSONResponse) VisitCancelOwnPublicEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelOwnPublicEventAssignment500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CancelOwnPublicEventAssignment500JSONResponse) VisitCancelOwnPublicEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateAuthenticatedEventSignupRequestObject struct {
+	PublicId PublicEventId `json:"publicId"`
+	Body     *CreateAuthenticatedEventSignupJSONRequestBody
+}
+
+type CreateAuthenticatedEventSignupResponseObject interface {
+	VisitCreateAuthenticatedEventSignupResponse(w http.ResponseWriter) error
+}
+
+type CreateAuthenticatedEventSignup201ResponseHeaders struct {
+	CacheControl string
+}
+
+type CreateAuthenticatedEventSignup201JSONResponse struct {
+	Body    EventSignupResult
+	Headers CreateAuthenticatedEventSignup201ResponseHeaders
+}
+
+func (response CreateAuthenticatedEventSignup201JSONResponse) VisitCreateAuthenticatedEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type CreateAuthenticatedEventSignup401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateAuthenticatedEventSignup401JSONResponse) VisitCreateAuthenticatedEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateAuthenticatedEventSignup404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateAuthenticatedEventSignup404JSONResponse) VisitCreateAuthenticatedEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateAuthenticatedEventSignup409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateAuthenticatedEventSignup409JSONResponse) VisitCreateAuthenticatedEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateAuthenticatedEventSignup422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateAuthenticatedEventSignup422JSONResponse) VisitCreateAuthenticatedEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateAuthenticatedEventSignup429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response CreateAuthenticatedEventSignup429JSONResponse) VisitCreateAuthenticatedEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Retry-After", fmt.Sprint(response.Headers.RetryAfter))
+	w.WriteHeader(429)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type CreateAuthenticatedEventSignup500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateAuthenticatedEventSignup500JSONResponse) VisitCreateAuthenticatedEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventRequestObject struct {
+	EventId EventId `json:"eventId"`
+	Body    *DeleteEventJSONRequestBody
+}
+
+type DeleteEventResponseObject interface {
+	VisitDeleteEventResponse(w http.ResponseWriter) error
+}
+
+type DeleteEvent204Response struct {
+}
+
+func (response DeleteEvent204Response) VisitDeleteEventResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteEvent401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteEvent401JSONResponse) VisitDeleteEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEvent403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteEvent403JSONResponse) VisitDeleteEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEvent404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteEvent404JSONResponse) VisitDeleteEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEvent409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteEvent409JSONResponse) VisitDeleteEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEvent500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response DeleteEvent500JSONResponse) VisitDeleteEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetEventRequestObject struct {
+	EventId EventId `json:"eventId"`
+}
+
+type GetEventResponseObject interface {
+	VisitGetEventResponse(w http.ResponseWriter) error
+}
+
+type GetEvent200JSONResponse Event
+
+func (response GetEvent200JSONResponse) VisitGetEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetEvent401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetEvent401JSONResponse) VisitGetEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetEvent403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetEvent403JSONResponse) VisitGetEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetEvent404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetEvent404JSONResponse) VisitGetEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetEvent500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetEvent500JSONResponse) VisitGetEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventRequestObject struct {
+	EventId EventId `json:"eventId"`
+	Body    *UpdateEventJSONRequestBody
+}
+
+type UpdateEventResponseObject interface {
+	VisitUpdateEventResponse(w http.ResponseWriter) error
+}
+
+type UpdateEvent200JSONResponse Event
+
+func (response UpdateEvent200JSONResponse) VisitUpdateEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEvent401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateEvent401JSONResponse) VisitUpdateEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEvent403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateEvent403JSONResponse) VisitUpdateEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEvent404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateEvent404JSONResponse) VisitUpdateEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEvent409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateEvent409JSONResponse) VisitUpdateEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEvent422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateEvent422JSONResponse) VisitUpdateEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEvent500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateEvent500JSONResponse) VisitUpdateEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ArchiveEventRequestObject struct {
+	EventId EventId `json:"eventId"`
+	Body    *ArchiveEventJSONRequestBody
+}
+
+type ArchiveEventResponseObject interface {
+	VisitArchiveEventResponse(w http.ResponseWriter) error
+}
+
+type ArchiveEvent200JSONResponse Event
+
+func (response ArchiveEvent200JSONResponse) VisitArchiveEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ArchiveEvent401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ArchiveEvent401JSONResponse) VisitArchiveEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ArchiveEvent403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ArchiveEvent403JSONResponse) VisitArchiveEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ArchiveEvent404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ArchiveEvent404JSONResponse) VisitArchiveEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ArchiveEvent409JSONResponse struct{ ConflictJSONResponse }
+
+func (response ArchiveEvent409JSONResponse) VisitArchiveEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ArchiveEvent422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response ArchiveEvent422JSONResponse) VisitArchiveEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ArchiveEvent500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ArchiveEvent500JSONResponse) VisitArchiveEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventAssignmentsRequestObject struct {
+	EventId EventId `json:"eventId"`
+}
+
+type ListEventAssignmentsResponseObject interface {
+	VisitListEventAssignmentsResponse(w http.ResponseWriter) error
+}
+
+type ListEventAssignments200JSONResponse EventAssignmentList
+
+func (response ListEventAssignments200JSONResponse) VisitListEventAssignmentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventAssignments401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListEventAssignments401JSONResponse) VisitListEventAssignmentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventAssignments403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListEventAssignments403JSONResponse) VisitListEventAssignmentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventAssignments500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListEventAssignments500JSONResponse) VisitListEventAssignmentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventAssignmentRequestObject struct {
+	EventId EventId `json:"eventId"`
+	Body    *CreateEventAssignmentJSONRequestBody
+}
+
+type CreateEventAssignmentResponseObject interface {
+	VisitCreateEventAssignmentResponse(w http.ResponseWriter) error
+}
+
+type CreateEventAssignment201JSONResponse EventAssignment
+
+func (response CreateEventAssignment201JSONResponse) VisitCreateEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventAssignment401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateEventAssignment401JSONResponse) VisitCreateEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventAssignment403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateEventAssignment403JSONResponse) VisitCreateEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventAssignment404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateEventAssignment404JSONResponse) VisitCreateEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventAssignment409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateEventAssignment409JSONResponse) VisitCreateEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventAssignment422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateEventAssignment422JSONResponse) VisitCreateEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventAssignment500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateEventAssignment500JSONResponse) VisitCreateEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MoveEventAssignmentRequestObject struct {
+	EventId           EventId           `json:"eventId"`
+	EventAssignmentId EventAssignmentId `json:"eventAssignmentId"`
+	Body              *MoveEventAssignmentJSONRequestBody
+}
+
+type MoveEventAssignmentResponseObject interface {
+	VisitMoveEventAssignmentResponse(w http.ResponseWriter) error
+}
+
+type MoveEventAssignment200JSONResponse EventAssignment
+
+func (response MoveEventAssignment200JSONResponse) VisitMoveEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MoveEventAssignment401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response MoveEventAssignment401JSONResponse) VisitMoveEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MoveEventAssignment403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response MoveEventAssignment403JSONResponse) VisitMoveEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MoveEventAssignment404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response MoveEventAssignment404JSONResponse) VisitMoveEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MoveEventAssignment409JSONResponse struct{ ConflictJSONResponse }
+
+func (response MoveEventAssignment409JSONResponse) VisitMoveEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MoveEventAssignment422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response MoveEventAssignment422JSONResponse) VisitMoveEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MoveEventAssignment500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response MoveEventAssignment500JSONResponse) VisitMoveEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelEventAssignmentRequestObject struct {
+	EventId           EventId           `json:"eventId"`
+	EventAssignmentId EventAssignmentId `json:"eventAssignmentId"`
+	Body              *CancelEventAssignmentJSONRequestBody
+}
+
+type CancelEventAssignmentResponseObject interface {
+	VisitCancelEventAssignmentResponse(w http.ResponseWriter) error
+}
+
+type CancelEventAssignment200JSONResponse EventAssignment
+
+func (response CancelEventAssignment200JSONResponse) VisitCancelEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelEventAssignment401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CancelEventAssignment401JSONResponse) VisitCancelEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelEventAssignment403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CancelEventAssignment403JSONResponse) VisitCancelEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelEventAssignment404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CancelEventAssignment404JSONResponse) VisitCancelEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelEventAssignment409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CancelEventAssignment409JSONResponse) VisitCancelEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelEventAssignment500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CancelEventAssignment500JSONResponse) VisitCancelEventAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkEventAssignmentPersonRequestObject struct {
+	EventId           EventId           `json:"eventId"`
+	EventAssignmentId EventAssignmentId `json:"eventAssignmentId"`
+	Body              *LinkEventAssignmentPersonJSONRequestBody
+}
+
+type LinkEventAssignmentPersonResponseObject interface {
+	VisitLinkEventAssignmentPersonResponse(w http.ResponseWriter) error
+}
+
+type LinkEventAssignmentPerson200JSONResponse EventAssignment
+
+func (response LinkEventAssignmentPerson200JSONResponse) VisitLinkEventAssignmentPersonResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkEventAssignmentPerson401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response LinkEventAssignmentPerson401JSONResponse) VisitLinkEventAssignmentPersonResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkEventAssignmentPerson403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response LinkEventAssignmentPerson403JSONResponse) VisitLinkEventAssignmentPersonResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkEventAssignmentPerson404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response LinkEventAssignmentPerson404JSONResponse) VisitLinkEventAssignmentPersonResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkEventAssignmentPerson409JSONResponse struct{ ConflictJSONResponse }
+
+func (response LinkEventAssignmentPerson409JSONResponse) VisitLinkEventAssignmentPersonResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkEventAssignmentPerson422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response LinkEventAssignmentPerson422JSONResponse) VisitLinkEventAssignmentPersonResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkEventAssignmentPerson500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response LinkEventAssignmentPerson500JSONResponse) VisitLinkEventAssignmentPersonResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventAssignmentPersonMatchesRequestObject struct {
+	EventId           EventId           `json:"eventId"`
+	EventAssignmentId EventAssignmentId `json:"eventAssignmentId"`
+}
+
+type ListEventAssignmentPersonMatchesResponseObject interface {
+	VisitListEventAssignmentPersonMatchesResponse(w http.ResponseWriter) error
+}
+
+type ListEventAssignmentPersonMatches200JSONResponse EventPersonOptionList
+
+func (response ListEventAssignmentPersonMatches200JSONResponse) VisitListEventAssignmentPersonMatchesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventAssignmentPersonMatches401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListEventAssignmentPersonMatches401JSONResponse) VisitListEventAssignmentPersonMatchesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventAssignmentPersonMatches403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListEventAssignmentPersonMatches403JSONResponse) VisitListEventAssignmentPersonMatchesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventAssignmentPersonMatches404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListEventAssignmentPersonMatches404JSONResponse) VisitListEventAssignmentPersonMatchesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventAssignmentPersonMatches500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListEventAssignmentPersonMatches500JSONResponse) VisitListEventAssignmentPersonMatchesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetEventBannerRequestObject struct {
+	EventId EventId `json:"eventId"`
+}
+
+type GetEventBannerResponseObject interface {
+	VisitGetEventBannerResponse(w http.ResponseWriter) error
+}
+
+type GetEventBanner200ResponseHeaders struct {
+	CacheControl          string
+	ContentSecurityPolicy string
+	XContentTypeOptions   string
+}
+
+type GetEventBanner200ImagegifResponse struct {
+	Body          io.Reader
+	Headers       GetEventBanner200ResponseHeaders
+	ContentLength int64
+}
+
+func (response GetEventBanner200ImagegifResponse) VisitGetEventBannerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "image/gif")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Content-Security-Policy", fmt.Sprint(response.Headers.ContentSecurityPolicy))
+	w.Header().Set("X-Content-Type-Options", fmt.Sprint(response.Headers.XContentTypeOptions))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetEventBanner200ImagejpegResponse struct {
+	Body          io.Reader
+	Headers       GetEventBanner200ResponseHeaders
+	ContentLength int64
+}
+
+func (response GetEventBanner200ImagejpegResponse) VisitGetEventBannerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "image/jpeg")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Content-Security-Policy", fmt.Sprint(response.Headers.ContentSecurityPolicy))
+	w.Header().Set("X-Content-Type-Options", fmt.Sprint(response.Headers.XContentTypeOptions))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetEventBanner200ImagepngResponse struct {
+	Body          io.Reader
+	Headers       GetEventBanner200ResponseHeaders
+	ContentLength int64
+}
+
+func (response GetEventBanner200ImagepngResponse) VisitGetEventBannerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "image/png")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Content-Security-Policy", fmt.Sprint(response.Headers.ContentSecurityPolicy))
+	w.Header().Set("X-Content-Type-Options", fmt.Sprint(response.Headers.XContentTypeOptions))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetEventBanner200ImagewebpResponse struct {
+	Body          io.Reader
+	Headers       GetEventBanner200ResponseHeaders
+	ContentLength int64
+}
+
+func (response GetEventBanner200ImagewebpResponse) VisitGetEventBannerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "image/webp")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Content-Security-Policy", fmt.Sprint(response.Headers.ContentSecurityPolicy))
+	w.Header().Set("X-Content-Type-Options", fmt.Sprint(response.Headers.XContentTypeOptions))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetEventBanner401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetEventBanner401JSONResponse) VisitGetEventBannerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetEventBanner403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetEventBanner403JSONResponse) VisitGetEventBannerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetEventBanner404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetEventBanner404JSONResponse) VisitGetEventBannerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetEventBanner500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetEventBanner500JSONResponse) VisitGetEventBannerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelEventRequestObject struct {
+	EventId EventId `json:"eventId"`
+	Body    *CancelEventJSONRequestBody
+}
+
+type CancelEventResponseObject interface {
+	VisitCancelEventResponse(w http.ResponseWriter) error
+}
+
+type CancelEvent200JSONResponse Event
+
+func (response CancelEvent200JSONResponse) VisitCancelEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelEvent401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CancelEvent401JSONResponse) VisitCancelEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelEvent403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CancelEvent403JSONResponse) VisitCancelEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelEvent404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CancelEvent404JSONResponse) VisitCancelEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelEvent409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CancelEvent409JSONResponse) VisitCancelEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelEvent422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CancelEvent422JSONResponse) VisitCancelEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelEvent500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CancelEvent500JSONResponse) VisitCancelEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompleteEventRequestObject struct {
+	EventId EventId `json:"eventId"`
+	Body    *CompleteEventJSONRequestBody
+}
+
+type CompleteEventResponseObject interface {
+	VisitCompleteEventResponse(w http.ResponseWriter) error
+}
+
+type CompleteEvent200JSONResponse Event
+
+func (response CompleteEvent200JSONResponse) VisitCompleteEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompleteEvent401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CompleteEvent401JSONResponse) VisitCompleteEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompleteEvent403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CompleteEvent403JSONResponse) VisitCompleteEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompleteEvent404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CompleteEvent404JSONResponse) VisitCompleteEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompleteEvent409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CompleteEvent409JSONResponse) VisitCompleteEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompleteEvent422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CompleteEvent422JSONResponse) VisitCompleteEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CompleteEvent500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CompleteEvent500JSONResponse) VisitCompleteEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmEventRequestObject struct {
+	EventId EventId `json:"eventId"`
+	Body    *ConfirmEventJSONRequestBody
+}
+
+type ConfirmEventResponseObject interface {
+	VisitConfirmEventResponse(w http.ResponseWriter) error
+}
+
+type ConfirmEvent200JSONResponse Event
+
+func (response ConfirmEvent200JSONResponse) VisitConfirmEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmEvent401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ConfirmEvent401JSONResponse) VisitConfirmEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmEvent403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ConfirmEvent403JSONResponse) VisitConfirmEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmEvent404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ConfirmEvent404JSONResponse) VisitConfirmEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmEvent409JSONResponse struct{ ConflictJSONResponse }
+
+func (response ConfirmEvent409JSONResponse) VisitConfirmEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmEvent422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response ConfirmEvent422JSONResponse) VisitConfirmEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfirmEvent500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ConfirmEvent500JSONResponse) VisitConfirmEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventFilesRequestObject struct {
+	EventId EventId `json:"eventId"`
+}
+
+type ListEventFilesResponseObject interface {
+	VisitListEventFilesResponse(w http.ResponseWriter) error
+}
+
+type ListEventFiles200JSONResponse EventFileList
+
+func (response ListEventFiles200JSONResponse) VisitListEventFilesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventFiles401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListEventFiles401JSONResponse) VisitListEventFilesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventFiles403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListEventFiles403JSONResponse) VisitListEventFilesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventFiles500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListEventFiles500JSONResponse) VisitListEventFilesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadEventFileRequestObject struct {
+	EventId EventId `json:"eventId"`
+	Params  UploadEventFileParams
+	Body    io.Reader
+}
+
+type UploadEventFileResponseObject interface {
+	VisitUploadEventFileResponse(w http.ResponseWriter) error
+}
+
+type UploadEventFile201JSONResponse EventFile
+
+func (response UploadEventFile201JSONResponse) VisitUploadEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadEventFile401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UploadEventFile401JSONResponse) VisitUploadEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadEventFile403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UploadEventFile403JSONResponse) VisitUploadEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadEventFile404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UploadEventFile404JSONResponse) VisitUploadEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadEventFile413JSONResponse struct{ PayloadTooLargeJSONResponse }
+
+func (response UploadEventFile413JSONResponse) VisitUploadEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(413)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadEventFile422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UploadEventFile422JSONResponse) VisitUploadEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadEventFile500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UploadEventFile500JSONResponse) VisitUploadEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RemoveEventFileRequestObject struct {
+	EventId     EventId     `json:"eventId"`
+	EventFileId EventFileId `json:"eventFileId"`
+	Body        *RemoveEventFileJSONRequestBody
+}
+
+type RemoveEventFileResponseObject interface {
+	VisitRemoveEventFileResponse(w http.ResponseWriter) error
+}
+
+type RemoveEventFile204Response struct {
+}
+
+func (response RemoveEventFile204Response) VisitRemoveEventFileResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type RemoveEventFile401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RemoveEventFile401JSONResponse) VisitRemoveEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RemoveEventFile403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RemoveEventFile403JSONResponse) VisitRemoveEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RemoveEventFile404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RemoveEventFile404JSONResponse) VisitRemoveEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RemoveEventFile409JSONResponse struct{ ConflictJSONResponse }
+
+func (response RemoveEventFile409JSONResponse) VisitRemoveEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RemoveEventFile500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response RemoveEventFile500JSONResponse) VisitRemoveEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventFileRequestObject struct {
+	EventId     EventId     `json:"eventId"`
+	EventFileId EventFileId `json:"eventFileId"`
+	Body        *UpdateEventFileJSONRequestBody
+}
+
+type UpdateEventFileResponseObject interface {
+	VisitUpdateEventFileResponse(w http.ResponseWriter) error
+}
+
+type UpdateEventFile200JSONResponse EventFile
+
+func (response UpdateEventFile200JSONResponse) VisitUpdateEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventFile401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateEventFile401JSONResponse) VisitUpdateEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventFile403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateEventFile403JSONResponse) VisitUpdateEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventFile404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateEventFile404JSONResponse) VisitUpdateEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventFile409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateEventFile409JSONResponse) VisitUpdateEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventFile422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateEventFile422JSONResponse) VisitUpdateEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventFile500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateEventFile500JSONResponse) VisitUpdateEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DownloadEventFileRequestObject struct {
+	EventId     EventId     `json:"eventId"`
+	EventFileId EventFileId `json:"eventFileId"`
+}
+
+type DownloadEventFileResponseObject interface {
+	VisitDownloadEventFileResponse(w http.ResponseWriter) error
+}
+
+type DownloadEventFile200ResponseHeaders struct {
+	CacheControl          string
+	ContentDisposition    string
+	ContentSecurityPolicy string
+	XContentTypeOptions   string
+}
+
+type DownloadEventFile200ApplicationoctetStreamResponse struct {
+	Body          io.Reader
+	Headers       DownloadEventFile200ResponseHeaders
+	ContentLength int64
+}
+
+func (response DownloadEventFile200ApplicationoctetStreamResponse) VisitDownloadEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/octet-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Content-Disposition", fmt.Sprint(response.Headers.ContentDisposition))
+	w.Header().Set("Content-Security-Policy", fmt.Sprint(response.Headers.ContentSecurityPolicy))
+	w.Header().Set("X-Content-Type-Options", fmt.Sprint(response.Headers.XContentTypeOptions))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type DownloadEventFile401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DownloadEventFile401JSONResponse) VisitDownloadEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DownloadEventFile403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DownloadEventFile403JSONResponse) VisitDownloadEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DownloadEventFile404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DownloadEventFile404JSONResponse) VisitDownloadEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DownloadEventFile500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response DownloadEventFile500JSONResponse) VisitDownloadEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PublishEventRequestObject struct {
+	EventId EventId `json:"eventId"`
+	Body    *PublishEventJSONRequestBody
+}
+
+type PublishEventResponseObject interface {
+	VisitPublishEventResponse(w http.ResponseWriter) error
+}
+
+type PublishEvent200JSONResponse Event
+
+func (response PublishEvent200JSONResponse) VisitPublishEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PublishEvent401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response PublishEvent401JSONResponse) VisitPublishEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PublishEvent403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response PublishEvent403JSONResponse) VisitPublishEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PublishEvent404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response PublishEvent404JSONResponse) VisitPublishEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PublishEvent409JSONResponse struct{ ConflictJSONResponse }
+
+func (response PublishEvent409JSONResponse) VisitPublishEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PublishEvent422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response PublishEvent422JSONResponse) VisitPublishEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type PublishEvent500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response PublishEvent500JSONResponse) VisitPublishEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReturnEventToDraftRequestObject struct {
+	EventId EventId `json:"eventId"`
+	Body    *ReturnEventToDraftJSONRequestBody
+}
+
+type ReturnEventToDraftResponseObject interface {
+	VisitReturnEventToDraftResponse(w http.ResponseWriter) error
+}
+
+type ReturnEventToDraft200JSONResponse Event
+
+func (response ReturnEventToDraft200JSONResponse) VisitReturnEventToDraftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReturnEventToDraft401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ReturnEventToDraft401JSONResponse) VisitReturnEventToDraftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReturnEventToDraft403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ReturnEventToDraft403JSONResponse) VisitReturnEventToDraftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReturnEventToDraft404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ReturnEventToDraft404JSONResponse) VisitReturnEventToDraftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReturnEventToDraft409JSONResponse struct{ ConflictJSONResponse }
+
+func (response ReturnEventToDraft409JSONResponse) VisitReturnEventToDraftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReturnEventToDraft422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response ReturnEventToDraft422JSONResponse) VisitReturnEventToDraftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReturnEventToDraft500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ReturnEventToDraft500JSONResponse) VisitReturnEventToDraftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReturnEventToPlanningRequestObject struct {
+	EventId EventId `json:"eventId"`
+	Body    *ReturnEventToPlanningJSONRequestBody
+}
+
+type ReturnEventToPlanningResponseObject interface {
+	VisitReturnEventToPlanningResponse(w http.ResponseWriter) error
+}
+
+type ReturnEventToPlanning200JSONResponse Event
+
+func (response ReturnEventToPlanning200JSONResponse) VisitReturnEventToPlanningResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReturnEventToPlanning401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ReturnEventToPlanning401JSONResponse) VisitReturnEventToPlanningResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReturnEventToPlanning403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ReturnEventToPlanning403JSONResponse) VisitReturnEventToPlanningResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReturnEventToPlanning404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ReturnEventToPlanning404JSONResponse) VisitReturnEventToPlanningResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReturnEventToPlanning409JSONResponse struct{ ConflictJSONResponse }
+
+func (response ReturnEventToPlanning409JSONResponse) VisitReturnEventToPlanningResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReturnEventToPlanning422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response ReturnEventToPlanning422JSONResponse) VisitReturnEventToPlanningResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReturnEventToPlanning500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ReturnEventToPlanning500JSONResponse) VisitReturnEventToPlanningResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RotateEventPublicIdRequestObject struct {
+	EventId EventId `json:"eventId"`
+	Body    *RotateEventPublicIdJSONRequestBody
+}
+
+type RotateEventPublicIdResponseObject interface {
+	VisitRotateEventPublicIdResponse(w http.ResponseWriter) error
+}
+
+type RotateEventPublicId200JSONResponse Event
+
+func (response RotateEventPublicId200JSONResponse) VisitRotateEventPublicIdResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RotateEventPublicId401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RotateEventPublicId401JSONResponse) VisitRotateEventPublicIdResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RotateEventPublicId403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RotateEventPublicId403JSONResponse) VisitRotateEventPublicIdResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RotateEventPublicId404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RotateEventPublicId404JSONResponse) VisitRotateEventPublicIdResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RotateEventPublicId409JSONResponse struct{ ConflictJSONResponse }
+
+func (response RotateEventPublicId409JSONResponse) VisitRotateEventPublicIdResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RotateEventPublicId422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response RotateEventPublicId422JSONResponse) VisitRotateEventPublicIdResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RotateEventPublicId500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response RotateEventPublicId500JSONResponse) VisitRotateEventPublicIdResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventSessionsRequestObject struct {
+	EventId EventId `json:"eventId"`
+}
+
+type ListEventSessionsResponseObject interface {
+	VisitListEventSessionsResponse(w http.ResponseWriter) error
+}
+
+type ListEventSessions200JSONResponse EventSessionList
+
+func (response ListEventSessions200JSONResponse) VisitListEventSessionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventSessions401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListEventSessions401JSONResponse) VisitListEventSessionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventSessions403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListEventSessions403JSONResponse) VisitListEventSessionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventSessions404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListEventSessions404JSONResponse) VisitListEventSessionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventSessions500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListEventSessions500JSONResponse) VisitListEventSessionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventSessionRequestObject struct {
+	EventId EventId `json:"eventId"`
+	Body    *CreateEventSessionJSONRequestBody
+}
+
+type CreateEventSessionResponseObject interface {
+	VisitCreateEventSessionResponse(w http.ResponseWriter) error
+}
+
+type CreateEventSession201JSONResponse EventSession
+
+func (response CreateEventSession201JSONResponse) VisitCreateEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventSession401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateEventSession401JSONResponse) VisitCreateEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventSession403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateEventSession403JSONResponse) VisitCreateEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventSession404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateEventSession404JSONResponse) VisitCreateEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventSession409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateEventSession409JSONResponse) VisitCreateEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventSession422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateEventSession422JSONResponse) VisitCreateEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventSession500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateEventSession500JSONResponse) VisitCreateEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventSessionRequestObject struct {
+	EventId        EventId        `json:"eventId"`
+	EventSessionId EventSessionId `json:"eventSessionId"`
+	Body           *DeleteEventSessionJSONRequestBody
+}
+
+type DeleteEventSessionResponseObject interface {
+	VisitDeleteEventSessionResponse(w http.ResponseWriter) error
+}
+
+type DeleteEventSession204Response struct {
+}
+
+func (response DeleteEventSession204Response) VisitDeleteEventSessionResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteEventSession401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteEventSession401JSONResponse) VisitDeleteEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventSession403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteEventSession403JSONResponse) VisitDeleteEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventSession404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteEventSession404JSONResponse) VisitDeleteEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventSession409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteEventSession409JSONResponse) VisitDeleteEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventSession500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response DeleteEventSession500JSONResponse) VisitDeleteEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventSessionRequestObject struct {
+	EventId        EventId        `json:"eventId"`
+	EventSessionId EventSessionId `json:"eventSessionId"`
+	Body           *UpdateEventSessionJSONRequestBody
+}
+
+type UpdateEventSessionResponseObject interface {
+	VisitUpdateEventSessionResponse(w http.ResponseWriter) error
+}
+
+type UpdateEventSession200JSONResponse EventSession
+
+func (response UpdateEventSession200JSONResponse) VisitUpdateEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventSession401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateEventSession401JSONResponse) VisitUpdateEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventSession403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateEventSession403JSONResponse) VisitUpdateEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventSession404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateEventSession404JSONResponse) VisitUpdateEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventSession409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateEventSession409JSONResponse) VisitUpdateEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventSession422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateEventSession422JSONResponse) VisitUpdateEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventSession500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateEventSession500JSONResponse) VisitUpdateEventSessionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventShiftsRequestObject struct {
+	EventId EventId `json:"eventId"`
+}
+
+type ListEventShiftsResponseObject interface {
+	VisitListEventShiftsResponse(w http.ResponseWriter) error
+}
+
+type ListEventShifts200JSONResponse EventShiftList
+
+func (response ListEventShifts200JSONResponse) VisitListEventShiftsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventShifts401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListEventShifts401JSONResponse) VisitListEventShiftsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventShifts403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListEventShifts403JSONResponse) VisitListEventShiftsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventShifts500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListEventShifts500JSONResponse) VisitListEventShiftsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventShiftRequestObject struct {
+	EventId EventId `json:"eventId"`
+	Body    *CreateEventShiftJSONRequestBody
+}
+
+type CreateEventShiftResponseObject interface {
+	VisitCreateEventShiftResponse(w http.ResponseWriter) error
+}
+
+type CreateEventShift201JSONResponse EventShift
+
+func (response CreateEventShift201JSONResponse) VisitCreateEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventShift401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateEventShift401JSONResponse) VisitCreateEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventShift403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateEventShift403JSONResponse) VisitCreateEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventShift404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateEventShift404JSONResponse) VisitCreateEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventShift409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateEventShift409JSONResponse) VisitCreateEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventShift422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateEventShift422JSONResponse) VisitCreateEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventShift500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateEventShift500JSONResponse) VisitCreateEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventShiftRequestObject struct {
+	EventId      EventId      `json:"eventId"`
+	EventShiftId EventShiftId `json:"eventShiftId"`
+	Body         *DeleteEventShiftJSONRequestBody
+}
+
+type DeleteEventShiftResponseObject interface {
+	VisitDeleteEventShiftResponse(w http.ResponseWriter) error
+}
+
+type DeleteEventShift204Response struct {
+}
+
+func (response DeleteEventShift204Response) VisitDeleteEventShiftResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteEventShift401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteEventShift401JSONResponse) VisitDeleteEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventShift403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteEventShift403JSONResponse) VisitDeleteEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventShift404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteEventShift404JSONResponse) VisitDeleteEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventShift409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteEventShift409JSONResponse) VisitDeleteEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventShift500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response DeleteEventShift500JSONResponse) VisitDeleteEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventShiftRequestObject struct {
+	EventId      EventId      `json:"eventId"`
+	EventShiftId EventShiftId `json:"eventShiftId"`
+	Body         *UpdateEventShiftJSONRequestBody
+}
+
+type UpdateEventShiftResponseObject interface {
+	VisitUpdateEventShiftResponse(w http.ResponseWriter) error
+}
+
+type UpdateEventShift200JSONResponse EventShift
+
+func (response UpdateEventShift200JSONResponse) VisitUpdateEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventShift401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateEventShift401JSONResponse) VisitUpdateEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventShift403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateEventShift403JSONResponse) VisitUpdateEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventShift404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateEventShift404JSONResponse) VisitUpdateEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventShift409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateEventShift409JSONResponse) VisitUpdateEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventShift422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateEventShift422JSONResponse) VisitUpdateEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventShift500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateEventShift500JSONResponse) VisitUpdateEventShiftResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventShiftRequirementsRequestObject struct {
+	EventId      EventId      `json:"eventId"`
+	EventShiftId EventShiftId `json:"eventShiftId"`
+}
+
+type ListEventShiftRequirementsResponseObject interface {
+	VisitListEventShiftRequirementsResponse(w http.ResponseWriter) error
+}
+
+type ListEventShiftRequirements200JSONResponse EventRequirementList
+
+func (response ListEventShiftRequirements200JSONResponse) VisitListEventShiftRequirementsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventShiftRequirements401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListEventShiftRequirements401JSONResponse) VisitListEventShiftRequirementsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventShiftRequirements403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListEventShiftRequirements403JSONResponse) VisitListEventShiftRequirementsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventShiftRequirements500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListEventShiftRequirements500JSONResponse) VisitListEventShiftRequirementsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventShiftRequirementRequestObject struct {
+	EventId      EventId      `json:"eventId"`
+	EventShiftId EventShiftId `json:"eventShiftId"`
+	Body         *CreateEventShiftRequirementJSONRequestBody
+}
+
+type CreateEventShiftRequirementResponseObject interface {
+	VisitCreateEventShiftRequirementResponse(w http.ResponseWriter) error
+}
+
+type CreateEventShiftRequirement201JSONResponse EventRequirement
+
+func (response CreateEventShiftRequirement201JSONResponse) VisitCreateEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventShiftRequirement401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateEventShiftRequirement401JSONResponse) VisitCreateEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventShiftRequirement403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateEventShiftRequirement403JSONResponse) VisitCreateEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventShiftRequirement404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateEventShiftRequirement404JSONResponse) VisitCreateEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventShiftRequirement409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateEventShiftRequirement409JSONResponse) VisitCreateEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventShiftRequirement422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateEventShiftRequirement422JSONResponse) VisitCreateEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventShiftRequirement500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateEventShiftRequirement500JSONResponse) VisitCreateEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventShiftRequirementRequestObject struct {
+	EventId            EventId            `json:"eventId"`
+	EventShiftId       EventShiftId       `json:"eventShiftId"`
+	EventRequirementId EventRequirementId `json:"eventRequirementId"`
+	Body               *DeleteEventShiftRequirementJSONRequestBody
+}
+
+type DeleteEventShiftRequirementResponseObject interface {
+	VisitDeleteEventShiftRequirementResponse(w http.ResponseWriter) error
+}
+
+type DeleteEventShiftRequirement204Response struct {
+}
+
+func (response DeleteEventShiftRequirement204Response) VisitDeleteEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteEventShiftRequirement401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteEventShiftRequirement401JSONResponse) VisitDeleteEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventShiftRequirement403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteEventShiftRequirement403JSONResponse) VisitDeleteEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventShiftRequirement404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteEventShiftRequirement404JSONResponse) VisitDeleteEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventShiftRequirement409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteEventShiftRequirement409JSONResponse) VisitDeleteEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventShiftRequirement500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response DeleteEventShiftRequirement500JSONResponse) VisitDeleteEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventShiftRequirementRequestObject struct {
+	EventId            EventId            `json:"eventId"`
+	EventShiftId       EventShiftId       `json:"eventShiftId"`
+	EventRequirementId EventRequirementId `json:"eventRequirementId"`
+	Body               *UpdateEventShiftRequirementJSONRequestBody
+}
+
+type UpdateEventShiftRequirementResponseObject interface {
+	VisitUpdateEventShiftRequirementResponse(w http.ResponseWriter) error
+}
+
+type UpdateEventShiftRequirement200JSONResponse EventRequirement
+
+func (response UpdateEventShiftRequirement200JSONResponse) VisitUpdateEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventShiftRequirement401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateEventShiftRequirement401JSONResponse) VisitUpdateEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventShiftRequirement403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateEventShiftRequirement403JSONResponse) VisitUpdateEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventShiftRequirement404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateEventShiftRequirement404JSONResponse) VisitUpdateEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventShiftRequirement409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateEventShiftRequirement409JSONResponse) VisitUpdateEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventShiftRequirement422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateEventShiftRequirement422JSONResponse) VisitUpdateEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventShiftRequirement500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateEventShiftRequirement500JSONResponse) VisitUpdateEventShiftRequirementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StartEventPlanningRequestObject struct {
+	EventId EventId `json:"eventId"`
+	Body    *StartEventPlanningJSONRequestBody
+}
+
+type StartEventPlanningResponseObject interface {
+	VisitStartEventPlanningResponse(w http.ResponseWriter) error
+}
+
+type StartEventPlanning200JSONResponse Event
+
+func (response StartEventPlanning200JSONResponse) VisitStartEventPlanningResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StartEventPlanning401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response StartEventPlanning401JSONResponse) VisitStartEventPlanningResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StartEventPlanning403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response StartEventPlanning403JSONResponse) VisitStartEventPlanningResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StartEventPlanning404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response StartEventPlanning404JSONResponse) VisitStartEventPlanningResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StartEventPlanning409JSONResponse struct{ ConflictJSONResponse }
+
+func (response StartEventPlanning409JSONResponse) VisitStartEventPlanningResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StartEventPlanning422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response StartEventPlanning422JSONResponse) VisitStartEventPlanningResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StartEventPlanning500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response StartEventPlanning500JSONResponse) VisitStartEventPlanningResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventTaskListsRequestObject struct {
+	EventId EventId `json:"eventId"`
+}
+
+type ListEventTaskListsResponseObject interface {
+	VisitListEventTaskListsResponse(w http.ResponseWriter) error
+}
+
+type ListEventTaskLists200JSONResponse EventTaskListList
+
+func (response ListEventTaskLists200JSONResponse) VisitListEventTaskListsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventTaskLists401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListEventTaskLists401JSONResponse) VisitListEventTaskListsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventTaskLists403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListEventTaskLists403JSONResponse) VisitListEventTaskListsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventTaskLists500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListEventTaskLists500JSONResponse) VisitListEventTaskListsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventTaskListRequestObject struct {
+	EventId EventId `json:"eventId"`
+	Body    *CreateEventTaskListJSONRequestBody
+}
+
+type CreateEventTaskListResponseObject interface {
+	VisitCreateEventTaskListResponse(w http.ResponseWriter) error
+}
+
+type CreateEventTaskList201JSONResponse EventTaskList
+
+func (response CreateEventTaskList201JSONResponse) VisitCreateEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventTaskList401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateEventTaskList401JSONResponse) VisitCreateEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventTaskList403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateEventTaskList403JSONResponse) VisitCreateEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventTaskList404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateEventTaskList404JSONResponse) VisitCreateEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventTaskList409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateEventTaskList409JSONResponse) VisitCreateEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventTaskList422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateEventTaskList422JSONResponse) VisitCreateEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventTaskList500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateEventTaskList500JSONResponse) VisitCreateEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventTaskListRequestObject struct {
+	EventId         EventId         `json:"eventId"`
+	EventTaskListId EventTaskListId `json:"eventTaskListId"`
+	Body            *DeleteEventTaskListJSONRequestBody
+}
+
+type DeleteEventTaskListResponseObject interface {
+	VisitDeleteEventTaskListResponse(w http.ResponseWriter) error
+}
+
+type DeleteEventTaskList204Response struct {
+}
+
+func (response DeleteEventTaskList204Response) VisitDeleteEventTaskListResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteEventTaskList401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteEventTaskList401JSONResponse) VisitDeleteEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventTaskList403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteEventTaskList403JSONResponse) VisitDeleteEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventTaskList404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteEventTaskList404JSONResponse) VisitDeleteEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventTaskList409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteEventTaskList409JSONResponse) VisitDeleteEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventTaskList500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response DeleteEventTaskList500JSONResponse) VisitDeleteEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventTaskListRequestObject struct {
+	EventId         EventId         `json:"eventId"`
+	EventTaskListId EventTaskListId `json:"eventTaskListId"`
+	Body            *UpdateEventTaskListJSONRequestBody
+}
+
+type UpdateEventTaskListResponseObject interface {
+	VisitUpdateEventTaskListResponse(w http.ResponseWriter) error
+}
+
+type UpdateEventTaskList200JSONResponse EventTaskList
+
+func (response UpdateEventTaskList200JSONResponse) VisitUpdateEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventTaskList401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateEventTaskList401JSONResponse) VisitUpdateEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventTaskList403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateEventTaskList403JSONResponse) VisitUpdateEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventTaskList404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateEventTaskList404JSONResponse) VisitUpdateEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventTaskList409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateEventTaskList409JSONResponse) VisitUpdateEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventTaskList422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateEventTaskList422JSONResponse) VisitUpdateEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventTaskList500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateEventTaskList500JSONResponse) VisitUpdateEventTaskListResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventTasksRequestObject struct {
+	EventId EventId `json:"eventId"`
+}
+
+type ListEventTasksResponseObject interface {
+	VisitListEventTasksResponse(w http.ResponseWriter) error
+}
+
+type ListEventTasks200JSONResponse EventTaskCollection
+
+func (response ListEventTasks200JSONResponse) VisitListEventTasksResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventTasks401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListEventTasks401JSONResponse) VisitListEventTasksResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventTasks403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListEventTasks403JSONResponse) VisitListEventTasksResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListEventTasks500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListEventTasks500JSONResponse) VisitListEventTasksResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventTaskRequestObject struct {
+	EventId EventId `json:"eventId"`
+	Body    *CreateEventTaskJSONRequestBody
+}
+
+type CreateEventTaskResponseObject interface {
+	VisitCreateEventTaskResponse(w http.ResponseWriter) error
+}
+
+type CreateEventTask201JSONResponse EventTask
+
+func (response CreateEventTask201JSONResponse) VisitCreateEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventTask401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateEventTask401JSONResponse) VisitCreateEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventTask403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateEventTask403JSONResponse) VisitCreateEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventTask404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreateEventTask404JSONResponse) VisitCreateEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventTask409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateEventTask409JSONResponse) VisitCreateEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventTask422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateEventTask422JSONResponse) VisitCreateEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateEventTask500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateEventTask500JSONResponse) VisitCreateEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventTaskRequestObject struct {
+	EventId     EventId     `json:"eventId"`
+	EventTaskId EventTaskId `json:"eventTaskId"`
+	Body        *DeleteEventTaskJSONRequestBody
+}
+
+type DeleteEventTaskResponseObject interface {
+	VisitDeleteEventTaskResponse(w http.ResponseWriter) error
+}
+
+type DeleteEventTask204Response struct {
+}
+
+func (response DeleteEventTask204Response) VisitDeleteEventTaskResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteEventTask401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteEventTask401JSONResponse) VisitDeleteEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventTask403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteEventTask403JSONResponse) VisitDeleteEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventTask404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteEventTask404JSONResponse) VisitDeleteEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventTask409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteEventTask409JSONResponse) VisitDeleteEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteEventTask500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response DeleteEventTask500JSONResponse) VisitDeleteEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventTaskRequestObject struct {
+	EventId     EventId     `json:"eventId"`
+	EventTaskId EventTaskId `json:"eventTaskId"`
+	Body        *UpdateEventTaskJSONRequestBody
+}
+
+type UpdateEventTaskResponseObject interface {
+	VisitUpdateEventTaskResponse(w http.ResponseWriter) error
+}
+
+type UpdateEventTask200JSONResponse EventTask
+
+func (response UpdateEventTask200JSONResponse) VisitUpdateEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventTask401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateEventTask401JSONResponse) VisitUpdateEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventTask403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateEventTask403JSONResponse) VisitUpdateEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventTask404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateEventTask404JSONResponse) VisitUpdateEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventTask409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateEventTask409JSONResponse) VisitUpdateEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventTask422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateEventTask422JSONResponse) VisitUpdateEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateEventTask500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateEventTask500JSONResponse) VisitUpdateEventTaskResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UnpublishEventRequestObject struct {
+	EventId EventId `json:"eventId"`
+	Body    *UnpublishEventJSONRequestBody
+}
+
+type UnpublishEventResponseObject interface {
+	VisitUnpublishEventResponse(w http.ResponseWriter) error
+}
+
+type UnpublishEvent200JSONResponse Event
+
+func (response UnpublishEvent200JSONResponse) VisitUnpublishEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UnpublishEvent401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UnpublishEvent401JSONResponse) VisitUnpublishEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UnpublishEvent403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UnpublishEvent403JSONResponse) VisitUnpublishEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UnpublishEvent404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UnpublishEvent404JSONResponse) VisitUnpublishEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UnpublishEvent409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UnpublishEvent409JSONResponse) VisitUnpublishEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UnpublishEvent422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UnpublishEvent422JSONResponse) VisitUnpublishEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UnpublishEvent500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UnpublishEvent500JSONResponse) VisitUnpublishEventResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -18162,6 +25692,81 @@ func (response CreateOpenDayPeriod500JSONResponse) VisitCreateOpenDayPeriodRespo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type DeleteOpenDayPeriodRequestObject struct {
+	PeriodId OpenDayPeriodId `json:"periodId"`
+	Body     *DeleteOpenDayPeriodJSONRequestBody
+}
+
+type DeleteOpenDayPeriodResponseObject interface {
+	VisitDeleteOpenDayPeriodResponse(w http.ResponseWriter) error
+}
+
+type DeleteOpenDayPeriod204Response struct {
+}
+
+func (response DeleteOpenDayPeriod204Response) VisitDeleteOpenDayPeriodResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteOpenDayPeriod401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteOpenDayPeriod401JSONResponse) VisitDeleteOpenDayPeriodResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteOpenDayPeriod403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteOpenDayPeriod403JSONResponse) VisitDeleteOpenDayPeriodResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteOpenDayPeriod404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteOpenDayPeriod404JSONResponse) VisitDeleteOpenDayPeriodResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteOpenDayPeriod409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteOpenDayPeriod409JSONResponse) VisitDeleteOpenDayPeriodResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteOpenDayPeriod422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response DeleteOpenDayPeriod422JSONResponse) VisitDeleteOpenDayPeriodResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteOpenDayPeriod500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response DeleteOpenDayPeriod500JSONResponse) VisitDeleteOpenDayPeriodResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetOpenDayPeriodRequestObject struct {
 	PeriodId OpenDayPeriodId `json:"periodId"`
 }
@@ -21306,6 +28911,471 @@ func (response GetPublicConfiguration500JSONResponse) VisitGetPublicConfiguratio
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetCurrentEventSignupRequestObject struct {
+	Params GetCurrentEventSignupParams
+}
+
+type GetCurrentEventSignupResponseObject interface {
+	VisitGetCurrentEventSignupResponse(w http.ResponseWriter) error
+}
+
+type GetCurrentEventSignup200ResponseHeaders struct {
+	CacheControl string
+}
+
+type GetCurrentEventSignup200JSONResponse struct {
+	Body    EventSignup
+	Headers GetCurrentEventSignup200ResponseHeaders
+}
+
+func (response GetCurrentEventSignup200JSONResponse) VisitGetCurrentEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type GetCurrentEventSignup404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetCurrentEventSignup404JSONResponse) VisitGetCurrentEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetCurrentEventSignup500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetCurrentEventSignup500JSONResponse) VisitGetCurrentEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateCurrentEventSignupRequestObject struct {
+	Params UpdateCurrentEventSignupParams
+	Body   *UpdateCurrentEventSignupJSONRequestBody
+}
+
+type UpdateCurrentEventSignupResponseObject interface {
+	VisitUpdateCurrentEventSignupResponse(w http.ResponseWriter) error
+}
+
+type UpdateCurrentEventSignup200ResponseHeaders struct {
+	CacheControl string
+}
+
+type UpdateCurrentEventSignup200JSONResponse struct {
+	Body    EventSignup
+	Headers UpdateCurrentEventSignup200ResponseHeaders
+}
+
+func (response UpdateCurrentEventSignup200JSONResponse) VisitUpdateCurrentEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type UpdateCurrentEventSignup404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateCurrentEventSignup404JSONResponse) VisitUpdateCurrentEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateCurrentEventSignup409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateCurrentEventSignup409JSONResponse) VisitUpdateCurrentEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateCurrentEventSignup422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateCurrentEventSignup422JSONResponse) VisitUpdateCurrentEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateCurrentEventSignup500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateCurrentEventSignup500JSONResponse) VisitUpdateCurrentEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelCurrentEventSignupRequestObject struct {
+	Params CancelCurrentEventSignupParams
+	Body   *CancelCurrentEventSignupJSONRequestBody
+}
+
+type CancelCurrentEventSignupResponseObject interface {
+	VisitCancelCurrentEventSignupResponse(w http.ResponseWriter) error
+}
+
+type CancelCurrentEventSignup200ResponseHeaders struct {
+	CacheControl string
+}
+
+type CancelCurrentEventSignup200JSONResponse struct {
+	Body    EventSignup
+	Headers CancelCurrentEventSignup200ResponseHeaders
+}
+
+func (response CancelCurrentEventSignup200JSONResponse) VisitCancelCurrentEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type CancelCurrentEventSignup404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CancelCurrentEventSignup404JSONResponse) VisitCancelCurrentEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelCurrentEventSignup409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CancelCurrentEventSignup409JSONResponse) VisitCancelCurrentEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CancelCurrentEventSignup500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CancelCurrentEventSignup500JSONResponse) VisitCancelCurrentEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPublicEventRequestObject struct {
+	PublicId PublicEventId `json:"publicId"`
+}
+
+type GetPublicEventResponseObject interface {
+	VisitGetPublicEventResponse(w http.ResponseWriter) error
+}
+
+type GetPublicEvent200JSONResponse PublicEvent
+
+func (response GetPublicEvent200JSONResponse) VisitGetPublicEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPublicEvent404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetPublicEvent404JSONResponse) VisitGetPublicEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPublicEvent500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetPublicEvent500JSONResponse) VisitGetPublicEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPublicEventBannerRequestObject struct {
+	PublicId PublicEventId `json:"publicId"`
+}
+
+type GetPublicEventBannerResponseObject interface {
+	VisitGetPublicEventBannerResponse(w http.ResponseWriter) error
+}
+
+type GetPublicEventBanner200ResponseHeaders struct {
+	CacheControl          string
+	ContentSecurityPolicy string
+	XContentTypeOptions   string
+}
+
+type GetPublicEventBanner200ImagegifResponse struct {
+	Body          io.Reader
+	Headers       GetPublicEventBanner200ResponseHeaders
+	ContentLength int64
+}
+
+func (response GetPublicEventBanner200ImagegifResponse) VisitGetPublicEventBannerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "image/gif")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Content-Security-Policy", fmt.Sprint(response.Headers.ContentSecurityPolicy))
+	w.Header().Set("X-Content-Type-Options", fmt.Sprint(response.Headers.XContentTypeOptions))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetPublicEventBanner200ImagejpegResponse struct {
+	Body          io.Reader
+	Headers       GetPublicEventBanner200ResponseHeaders
+	ContentLength int64
+}
+
+func (response GetPublicEventBanner200ImagejpegResponse) VisitGetPublicEventBannerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "image/jpeg")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Content-Security-Policy", fmt.Sprint(response.Headers.ContentSecurityPolicy))
+	w.Header().Set("X-Content-Type-Options", fmt.Sprint(response.Headers.XContentTypeOptions))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetPublicEventBanner200ImagepngResponse struct {
+	Body          io.Reader
+	Headers       GetPublicEventBanner200ResponseHeaders
+	ContentLength int64
+}
+
+func (response GetPublicEventBanner200ImagepngResponse) VisitGetPublicEventBannerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "image/png")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Content-Security-Policy", fmt.Sprint(response.Headers.ContentSecurityPolicy))
+	w.Header().Set("X-Content-Type-Options", fmt.Sprint(response.Headers.XContentTypeOptions))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetPublicEventBanner200ImagewebpResponse struct {
+	Body          io.Reader
+	Headers       GetPublicEventBanner200ResponseHeaders
+	ContentLength int64
+}
+
+func (response GetPublicEventBanner200ImagewebpResponse) VisitGetPublicEventBannerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "image/webp")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Content-Security-Policy", fmt.Sprint(response.Headers.ContentSecurityPolicy))
+	w.Header().Set("X-Content-Type-Options", fmt.Sprint(response.Headers.XContentTypeOptions))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type GetPublicEventBanner404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetPublicEventBanner404JSONResponse) VisitGetPublicEventBannerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPublicEventBanner500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetPublicEventBanner500JSONResponse) VisitGetPublicEventBannerResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DownloadPublicEventFileRequestObject struct {
+	PublicId    PublicEventId `json:"publicId"`
+	EventFileId EventFileId   `json:"eventFileId"`
+}
+
+type DownloadPublicEventFileResponseObject interface {
+	VisitDownloadPublicEventFileResponse(w http.ResponseWriter) error
+}
+
+type DownloadPublicEventFile200ResponseHeaders struct {
+	CacheControl          string
+	ContentDisposition    string
+	ContentSecurityPolicy string
+	XContentTypeOptions   string
+}
+
+type DownloadPublicEventFile200ApplicationoctetStreamResponse struct {
+	Body          io.Reader
+	Headers       DownloadPublicEventFile200ResponseHeaders
+	ContentLength int64
+}
+
+func (response DownloadPublicEventFile200ApplicationoctetStreamResponse) VisitDownloadPublicEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/octet-stream")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Content-Disposition", fmt.Sprint(response.Headers.ContentDisposition))
+	w.Header().Set("Content-Security-Policy", fmt.Sprint(response.Headers.ContentSecurityPolicy))
+	w.Header().Set("X-Content-Type-Options", fmt.Sprint(response.Headers.XContentTypeOptions))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type DownloadPublicEventFile404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DownloadPublicEventFile404JSONResponse) VisitDownloadPublicEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DownloadPublicEventFile500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response DownloadPublicEventFile500JSONResponse) VisitDownloadPublicEventFileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePublicEventSignupRequestObject struct {
+	PublicId PublicEventId `json:"publicId"`
+	Body     *CreatePublicEventSignupJSONRequestBody
+}
+
+type CreatePublicEventSignupResponseObject interface {
+	VisitCreatePublicEventSignupResponse(w http.ResponseWriter) error
+}
+
+type CreatePublicEventSignup201ResponseHeaders struct {
+	CacheControl string
+}
+
+type CreatePublicEventSignup201JSONResponse struct {
+	Body    EventSignupResult
+	Headers CreatePublicEventSignup201ResponseHeaders
+}
+
+func (response CreatePublicEventSignup201JSONResponse) VisitCreatePublicEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type CreatePublicEventSignup404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreatePublicEventSignup404JSONResponse) VisitCreatePublicEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePublicEventSignup409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreatePublicEventSignup409JSONResponse) VisitCreatePublicEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePublicEventSignup422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreatePublicEventSignup422JSONResponse) VisitCreatePublicEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePublicEventSignup429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response CreatePublicEventSignup429JSONResponse) VisitCreatePublicEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Retry-After", fmt.Sprint(response.Headers.RetryAfter))
+	w.WriteHeader(429)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type CreatePublicEventSignup500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreatePublicEventSignup500JSONResponse) VisitCreatePublicEventSignupResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetPublicLegalDocumentRequestObject struct {
 	Document GetPublicLegalDocumentParamsDocument `json:"document"`
 }
@@ -23329,6 +31399,165 @@ type StrictServerInterface interface {
 	// Replace organization identity, colors, and legal configuration
 	// (PUT /branding/configuration)
 	UpdateBrandingConfiguration(ctx context.Context, request UpdateBrandingConfigurationRequestObject) (UpdateBrandingConfigurationResponseObject, error)
+
+	// (GET /event-eligibility-roles)
+	ListEventEligibilityRoles(ctx context.Context, request ListEventEligibilityRolesRequestObject) (ListEventEligibilityRolesResponseObject, error)
+
+	// (GET /event-people)
+	ListEventPeople(ctx context.Context, request ListEventPeopleRequestObject) (ListEventPeopleResponseObject, error)
+
+	// (GET /events)
+	ListEvents(ctx context.Context, request ListEventsRequestObject) (ListEventsResponseObject, error)
+
+	// (POST /events)
+	CreateEvent(ctx context.Context, request CreateEventRequestObject) (CreateEventResponseObject, error)
+
+	// (GET /events/public/{publicId}/assignments/me)
+	ListOwnPublicEventAssignments(ctx context.Context, request ListOwnPublicEventAssignmentsRequestObject) (ListOwnPublicEventAssignmentsResponseObject, error)
+
+	// (PATCH /events/public/{publicId}/assignments/me/{eventAssignmentId})
+	UpdateOwnPublicEventAssignment(ctx context.Context, request UpdateOwnPublicEventAssignmentRequestObject) (UpdateOwnPublicEventAssignmentResponseObject, error)
+
+	// (POST /events/public/{publicId}/assignments/me/{eventAssignmentId}/cancel)
+	CancelOwnPublicEventAssignment(ctx context.Context, request CancelOwnPublicEventAssignmentRequestObject) (CancelOwnPublicEventAssignmentResponseObject, error)
+
+	// (POST /events/public/{publicId}/signups)
+	CreateAuthenticatedEventSignup(ctx context.Context, request CreateAuthenticatedEventSignupRequestObject) (CreateAuthenticatedEventSignupResponseObject, error)
+
+	// (DELETE /events/{eventId})
+	DeleteEvent(ctx context.Context, request DeleteEventRequestObject) (DeleteEventResponseObject, error)
+
+	// (GET /events/{eventId})
+	GetEvent(ctx context.Context, request GetEventRequestObject) (GetEventResponseObject, error)
+
+	// (PATCH /events/{eventId})
+	UpdateEvent(ctx context.Context, request UpdateEventRequestObject) (UpdateEventResponseObject, error)
+
+	// (POST /events/{eventId}/archive)
+	ArchiveEvent(ctx context.Context, request ArchiveEventRequestObject) (ArchiveEventResponseObject, error)
+
+	// (GET /events/{eventId}/assignments)
+	ListEventAssignments(ctx context.Context, request ListEventAssignmentsRequestObject) (ListEventAssignmentsResponseObject, error)
+
+	// (POST /events/{eventId}/assignments)
+	CreateEventAssignment(ctx context.Context, request CreateEventAssignmentRequestObject) (CreateEventAssignmentResponseObject, error)
+
+	// (PATCH /events/{eventId}/assignments/{eventAssignmentId})
+	MoveEventAssignment(ctx context.Context, request MoveEventAssignmentRequestObject) (MoveEventAssignmentResponseObject, error)
+
+	// (POST /events/{eventId}/assignments/{eventAssignmentId}/cancel)
+	CancelEventAssignment(ctx context.Context, request CancelEventAssignmentRequestObject) (CancelEventAssignmentResponseObject, error)
+
+	// (POST /events/{eventId}/assignments/{eventAssignmentId}/link-person)
+	LinkEventAssignmentPerson(ctx context.Context, request LinkEventAssignmentPersonRequestObject) (LinkEventAssignmentPersonResponseObject, error)
+
+	// (GET /events/{eventId}/assignments/{eventAssignmentId}/person-matches)
+	ListEventAssignmentPersonMatches(ctx context.Context, request ListEventAssignmentPersonMatchesRequestObject) (ListEventAssignmentPersonMatchesResponseObject, error)
+
+	// (GET /events/{eventId}/banner)
+	GetEventBanner(ctx context.Context, request GetEventBannerRequestObject) (GetEventBannerResponseObject, error)
+
+	// (POST /events/{eventId}/cancel)
+	CancelEvent(ctx context.Context, request CancelEventRequestObject) (CancelEventResponseObject, error)
+
+	// (POST /events/{eventId}/complete)
+	CompleteEvent(ctx context.Context, request CompleteEventRequestObject) (CompleteEventResponseObject, error)
+
+	// (POST /events/{eventId}/confirm)
+	ConfirmEvent(ctx context.Context, request ConfirmEventRequestObject) (ConfirmEventResponseObject, error)
+
+	// (GET /events/{eventId}/files)
+	ListEventFiles(ctx context.Context, request ListEventFilesRequestObject) (ListEventFilesResponseObject, error)
+
+	// (POST /events/{eventId}/files)
+	UploadEventFile(ctx context.Context, request UploadEventFileRequestObject) (UploadEventFileResponseObject, error)
+
+	// (DELETE /events/{eventId}/files/{eventFileId})
+	RemoveEventFile(ctx context.Context, request RemoveEventFileRequestObject) (RemoveEventFileResponseObject, error)
+
+	// (PATCH /events/{eventId}/files/{eventFileId})
+	UpdateEventFile(ctx context.Context, request UpdateEventFileRequestObject) (UpdateEventFileResponseObject, error)
+
+	// (GET /events/{eventId}/files/{eventFileId}/content)
+	DownloadEventFile(ctx context.Context, request DownloadEventFileRequestObject) (DownloadEventFileResponseObject, error)
+
+	// (POST /events/{eventId}/publish)
+	PublishEvent(ctx context.Context, request PublishEventRequestObject) (PublishEventResponseObject, error)
+
+	// (POST /events/{eventId}/return-to-draft)
+	ReturnEventToDraft(ctx context.Context, request ReturnEventToDraftRequestObject) (ReturnEventToDraftResponseObject, error)
+
+	// (POST /events/{eventId}/return-to-planning)
+	ReturnEventToPlanning(ctx context.Context, request ReturnEventToPlanningRequestObject) (ReturnEventToPlanningResponseObject, error)
+
+	// (POST /events/{eventId}/rotate-public-id)
+	RotateEventPublicId(ctx context.Context, request RotateEventPublicIdRequestObject) (RotateEventPublicIdResponseObject, error)
+
+	// (GET /events/{eventId}/sessions)
+	ListEventSessions(ctx context.Context, request ListEventSessionsRequestObject) (ListEventSessionsResponseObject, error)
+
+	// (POST /events/{eventId}/sessions)
+	CreateEventSession(ctx context.Context, request CreateEventSessionRequestObject) (CreateEventSessionResponseObject, error)
+
+	// (DELETE /events/{eventId}/sessions/{eventSessionId})
+	DeleteEventSession(ctx context.Context, request DeleteEventSessionRequestObject) (DeleteEventSessionResponseObject, error)
+
+	// (PATCH /events/{eventId}/sessions/{eventSessionId})
+	UpdateEventSession(ctx context.Context, request UpdateEventSessionRequestObject) (UpdateEventSessionResponseObject, error)
+
+	// (GET /events/{eventId}/shifts)
+	ListEventShifts(ctx context.Context, request ListEventShiftsRequestObject) (ListEventShiftsResponseObject, error)
+
+	// (POST /events/{eventId}/shifts)
+	CreateEventShift(ctx context.Context, request CreateEventShiftRequestObject) (CreateEventShiftResponseObject, error)
+
+	// (DELETE /events/{eventId}/shifts/{eventShiftId})
+	DeleteEventShift(ctx context.Context, request DeleteEventShiftRequestObject) (DeleteEventShiftResponseObject, error)
+
+	// (PATCH /events/{eventId}/shifts/{eventShiftId})
+	UpdateEventShift(ctx context.Context, request UpdateEventShiftRequestObject) (UpdateEventShiftResponseObject, error)
+
+	// (GET /events/{eventId}/shifts/{eventShiftId}/requirements)
+	ListEventShiftRequirements(ctx context.Context, request ListEventShiftRequirementsRequestObject) (ListEventShiftRequirementsResponseObject, error)
+
+	// (POST /events/{eventId}/shifts/{eventShiftId}/requirements)
+	CreateEventShiftRequirement(ctx context.Context, request CreateEventShiftRequirementRequestObject) (CreateEventShiftRequirementResponseObject, error)
+
+	// (DELETE /events/{eventId}/shifts/{eventShiftId}/requirements/{eventRequirementId})
+	DeleteEventShiftRequirement(ctx context.Context, request DeleteEventShiftRequirementRequestObject) (DeleteEventShiftRequirementResponseObject, error)
+
+	// (PATCH /events/{eventId}/shifts/{eventShiftId}/requirements/{eventRequirementId})
+	UpdateEventShiftRequirement(ctx context.Context, request UpdateEventShiftRequirementRequestObject) (UpdateEventShiftRequirementResponseObject, error)
+
+	// (POST /events/{eventId}/start-planning)
+	StartEventPlanning(ctx context.Context, request StartEventPlanningRequestObject) (StartEventPlanningResponseObject, error)
+
+	// (GET /events/{eventId}/task-lists)
+	ListEventTaskLists(ctx context.Context, request ListEventTaskListsRequestObject) (ListEventTaskListsResponseObject, error)
+
+	// (POST /events/{eventId}/task-lists)
+	CreateEventTaskList(ctx context.Context, request CreateEventTaskListRequestObject) (CreateEventTaskListResponseObject, error)
+
+	// (DELETE /events/{eventId}/task-lists/{eventTaskListId})
+	DeleteEventTaskList(ctx context.Context, request DeleteEventTaskListRequestObject) (DeleteEventTaskListResponseObject, error)
+
+	// (PATCH /events/{eventId}/task-lists/{eventTaskListId})
+	UpdateEventTaskList(ctx context.Context, request UpdateEventTaskListRequestObject) (UpdateEventTaskListResponseObject, error)
+
+	// (GET /events/{eventId}/tasks)
+	ListEventTasks(ctx context.Context, request ListEventTasksRequestObject) (ListEventTasksResponseObject, error)
+
+	// (POST /events/{eventId}/tasks)
+	CreateEventTask(ctx context.Context, request CreateEventTaskRequestObject) (CreateEventTaskResponseObject, error)
+
+	// (DELETE /events/{eventId}/tasks/{eventTaskId})
+	DeleteEventTask(ctx context.Context, request DeleteEventTaskRequestObject) (DeleteEventTaskResponseObject, error)
+
+	// (PATCH /events/{eventId}/tasks/{eventTaskId})
+	UpdateEventTask(ctx context.Context, request UpdateEventTaskRequestObject) (UpdateEventTaskResponseObject, error)
+
+	// (POST /events/{eventId}/unpublish)
+	UnpublishEvent(ctx context.Context, request UnpublishEventRequestObject) (UnpublishEventResponseObject, error)
 	// Report that the API process is running
 	// (GET /health/live)
 	GetLiveness(ctx context.Context, request GetLivenessRequestObject) (GetLivenessResponseObject, error)
@@ -23518,6 +31747,9 @@ type StrictServerInterface interface {
 	// Create a draft Open Day period
 	// (POST /open-day-periods)
 	CreateOpenDayPeriod(ctx context.Context, request CreateOpenDayPeriodRequestObject) (CreateOpenDayPeriodResponseObject, error)
+	// Delete an Open Day period
+	// (DELETE /open-day-periods/{periodId})
+	DeleteOpenDayPeriod(ctx context.Context, request DeleteOpenDayPeriodRequestObject) (DeleteOpenDayPeriodResponseObject, error)
 	// Get an Open Day period
 	// (GET /open-day-periods/{periodId})
 	GetOpenDayPeriod(ctx context.Context, request GetOpenDayPeriodRequestObject) (GetOpenDayPeriodResponseObject, error)
@@ -23650,6 +31882,27 @@ type StrictServerInterface interface {
 	// Read safe public organization, branding, and legal-link configuration
 	// (GET /public/config)
 	GetPublicConfiguration(ctx context.Context, request GetPublicConfigurationRequestObject) (GetPublicConfigurationResponseObject, error)
+
+	// (GET /public/event-signups/current)
+	GetCurrentEventSignup(ctx context.Context, request GetCurrentEventSignupRequestObject) (GetCurrentEventSignupResponseObject, error)
+
+	// (PATCH /public/event-signups/current)
+	UpdateCurrentEventSignup(ctx context.Context, request UpdateCurrentEventSignupRequestObject) (UpdateCurrentEventSignupResponseObject, error)
+
+	// (POST /public/event-signups/current/cancel)
+	CancelCurrentEventSignup(ctx context.Context, request CancelCurrentEventSignupRequestObject) (CancelCurrentEventSignupResponseObject, error)
+
+	// (GET /public/events/{publicId})
+	GetPublicEvent(ctx context.Context, request GetPublicEventRequestObject) (GetPublicEventResponseObject, error)
+
+	// (GET /public/events/{publicId}/banner)
+	GetPublicEventBanner(ctx context.Context, request GetPublicEventBannerRequestObject) (GetPublicEventBannerResponseObject, error)
+
+	// (GET /public/events/{publicId}/files/{eventFileId})
+	DownloadPublicEventFile(ctx context.Context, request DownloadPublicEventFileRequestObject) (DownloadPublicEventFileResponseObject, error)
+
+	// (POST /public/events/{publicId}/signups)
+	CreatePublicEventSignup(ctx context.Context, request CreatePublicEventSignupRequestObject) (CreatePublicEventSignupResponseObject, error)
 	// Read one active public legal-document configuration
 	// (GET /public/legal/{document})
 	GetPublicLegalDocument(ctx context.Context, request GetPublicLegalDocumentRequestObject) (GetPublicLegalDocumentResponseObject, error)
@@ -24964,6 +33217,1663 @@ func (sh *strictHandler) UpdateBrandingConfiguration(w http.ResponseWriter, r *h
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(UpdateBrandingConfigurationResponseObject); ok {
 		if err := validResponse.VisitUpdateBrandingConfigurationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListEventEligibilityRoles operation middleware
+func (sh *strictHandler) ListEventEligibilityRoles(w http.ResponseWriter, r *http.Request) {
+	var request ListEventEligibilityRolesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListEventEligibilityRoles(ctx, request.(ListEventEligibilityRolesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListEventEligibilityRoles")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListEventEligibilityRolesResponseObject); ok {
+		if err := validResponse.VisitListEventEligibilityRolesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListEventPeople operation middleware
+func (sh *strictHandler) ListEventPeople(w http.ResponseWriter, r *http.Request, params ListEventPeopleParams) {
+	var request ListEventPeopleRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListEventPeople(ctx, request.(ListEventPeopleRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListEventPeople")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListEventPeopleResponseObject); ok {
+		if err := validResponse.VisitListEventPeopleResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListEvents operation middleware
+func (sh *strictHandler) ListEvents(w http.ResponseWriter, r *http.Request) {
+	var request ListEventsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListEvents(ctx, request.(ListEventsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListEvents")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListEventsResponseObject); ok {
+		if err := validResponse.VisitListEventsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateEvent operation middleware
+func (sh *strictHandler) CreateEvent(w http.ResponseWriter, r *http.Request) {
+	var request CreateEventRequestObject
+
+	var body CreateEventJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateEvent(ctx, request.(CreateEventRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateEvent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateEventResponseObject); ok {
+		if err := validResponse.VisitCreateEventResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListOwnPublicEventAssignments operation middleware
+func (sh *strictHandler) ListOwnPublicEventAssignments(w http.ResponseWriter, r *http.Request, publicId PublicEventId) {
+	var request ListOwnPublicEventAssignmentsRequestObject
+
+	request.PublicId = publicId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListOwnPublicEventAssignments(ctx, request.(ListOwnPublicEventAssignmentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListOwnPublicEventAssignments")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListOwnPublicEventAssignmentsResponseObject); ok {
+		if err := validResponse.VisitListOwnPublicEventAssignmentsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateOwnPublicEventAssignment operation middleware
+func (sh *strictHandler) UpdateOwnPublicEventAssignment(w http.ResponseWriter, r *http.Request, publicId PublicEventId, eventAssignmentId EventAssignmentId) {
+	var request UpdateOwnPublicEventAssignmentRequestObject
+
+	request.PublicId = publicId
+	request.EventAssignmentId = eventAssignmentId
+
+	var body UpdateOwnPublicEventAssignmentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateOwnPublicEventAssignment(ctx, request.(UpdateOwnPublicEventAssignmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateOwnPublicEventAssignment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateOwnPublicEventAssignmentResponseObject); ok {
+		if err := validResponse.VisitUpdateOwnPublicEventAssignmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CancelOwnPublicEventAssignment operation middleware
+func (sh *strictHandler) CancelOwnPublicEventAssignment(w http.ResponseWriter, r *http.Request, publicId PublicEventId, eventAssignmentId EventAssignmentId) {
+	var request CancelOwnPublicEventAssignmentRequestObject
+
+	request.PublicId = publicId
+	request.EventAssignmentId = eventAssignmentId
+
+	var body CancelOwnPublicEventAssignmentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CancelOwnPublicEventAssignment(ctx, request.(CancelOwnPublicEventAssignmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CancelOwnPublicEventAssignment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CancelOwnPublicEventAssignmentResponseObject); ok {
+		if err := validResponse.VisitCancelOwnPublicEventAssignmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateAuthenticatedEventSignup operation middleware
+func (sh *strictHandler) CreateAuthenticatedEventSignup(w http.ResponseWriter, r *http.Request, publicId PublicEventId) {
+	var request CreateAuthenticatedEventSignupRequestObject
+
+	request.PublicId = publicId
+
+	var body CreateAuthenticatedEventSignupJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateAuthenticatedEventSignup(ctx, request.(CreateAuthenticatedEventSignupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateAuthenticatedEventSignup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateAuthenticatedEventSignupResponseObject); ok {
+		if err := validResponse.VisitCreateAuthenticatedEventSignupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteEvent operation middleware
+func (sh *strictHandler) DeleteEvent(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request DeleteEventRequestObject
+
+	request.EventId = eventId
+
+	var body DeleteEventJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteEvent(ctx, request.(DeleteEventRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteEvent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteEventResponseObject); ok {
+		if err := validResponse.VisitDeleteEventResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetEvent operation middleware
+func (sh *strictHandler) GetEvent(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request GetEventRequestObject
+
+	request.EventId = eventId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetEvent(ctx, request.(GetEventRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetEvent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetEventResponseObject); ok {
+		if err := validResponse.VisitGetEventResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateEvent operation middleware
+func (sh *strictHandler) UpdateEvent(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request UpdateEventRequestObject
+
+	request.EventId = eventId
+
+	var body UpdateEventJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateEvent(ctx, request.(UpdateEventRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateEvent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateEventResponseObject); ok {
+		if err := validResponse.VisitUpdateEventResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ArchiveEvent operation middleware
+func (sh *strictHandler) ArchiveEvent(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request ArchiveEventRequestObject
+
+	request.EventId = eventId
+
+	var body ArchiveEventJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ArchiveEvent(ctx, request.(ArchiveEventRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ArchiveEvent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ArchiveEventResponseObject); ok {
+		if err := validResponse.VisitArchiveEventResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListEventAssignments operation middleware
+func (sh *strictHandler) ListEventAssignments(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request ListEventAssignmentsRequestObject
+
+	request.EventId = eventId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListEventAssignments(ctx, request.(ListEventAssignmentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListEventAssignments")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListEventAssignmentsResponseObject); ok {
+		if err := validResponse.VisitListEventAssignmentsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateEventAssignment operation middleware
+func (sh *strictHandler) CreateEventAssignment(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request CreateEventAssignmentRequestObject
+
+	request.EventId = eventId
+
+	var body CreateEventAssignmentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateEventAssignment(ctx, request.(CreateEventAssignmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateEventAssignment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateEventAssignmentResponseObject); ok {
+		if err := validResponse.VisitCreateEventAssignmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// MoveEventAssignment operation middleware
+func (sh *strictHandler) MoveEventAssignment(w http.ResponseWriter, r *http.Request, eventId EventId, eventAssignmentId EventAssignmentId) {
+	var request MoveEventAssignmentRequestObject
+
+	request.EventId = eventId
+	request.EventAssignmentId = eventAssignmentId
+
+	var body MoveEventAssignmentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.MoveEventAssignment(ctx, request.(MoveEventAssignmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "MoveEventAssignment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(MoveEventAssignmentResponseObject); ok {
+		if err := validResponse.VisitMoveEventAssignmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CancelEventAssignment operation middleware
+func (sh *strictHandler) CancelEventAssignment(w http.ResponseWriter, r *http.Request, eventId EventId, eventAssignmentId EventAssignmentId) {
+	var request CancelEventAssignmentRequestObject
+
+	request.EventId = eventId
+	request.EventAssignmentId = eventAssignmentId
+
+	var body CancelEventAssignmentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CancelEventAssignment(ctx, request.(CancelEventAssignmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CancelEventAssignment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CancelEventAssignmentResponseObject); ok {
+		if err := validResponse.VisitCancelEventAssignmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// LinkEventAssignmentPerson operation middleware
+func (sh *strictHandler) LinkEventAssignmentPerson(w http.ResponseWriter, r *http.Request, eventId EventId, eventAssignmentId EventAssignmentId) {
+	var request LinkEventAssignmentPersonRequestObject
+
+	request.EventId = eventId
+	request.EventAssignmentId = eventAssignmentId
+
+	var body LinkEventAssignmentPersonJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.LinkEventAssignmentPerson(ctx, request.(LinkEventAssignmentPersonRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "LinkEventAssignmentPerson")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(LinkEventAssignmentPersonResponseObject); ok {
+		if err := validResponse.VisitLinkEventAssignmentPersonResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListEventAssignmentPersonMatches operation middleware
+func (sh *strictHandler) ListEventAssignmentPersonMatches(w http.ResponseWriter, r *http.Request, eventId EventId, eventAssignmentId EventAssignmentId) {
+	var request ListEventAssignmentPersonMatchesRequestObject
+
+	request.EventId = eventId
+	request.EventAssignmentId = eventAssignmentId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListEventAssignmentPersonMatches(ctx, request.(ListEventAssignmentPersonMatchesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListEventAssignmentPersonMatches")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListEventAssignmentPersonMatchesResponseObject); ok {
+		if err := validResponse.VisitListEventAssignmentPersonMatchesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetEventBanner operation middleware
+func (sh *strictHandler) GetEventBanner(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request GetEventBannerRequestObject
+
+	request.EventId = eventId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetEventBanner(ctx, request.(GetEventBannerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetEventBanner")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetEventBannerResponseObject); ok {
+		if err := validResponse.VisitGetEventBannerResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CancelEvent operation middleware
+func (sh *strictHandler) CancelEvent(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request CancelEventRequestObject
+
+	request.EventId = eventId
+
+	var body CancelEventJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CancelEvent(ctx, request.(CancelEventRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CancelEvent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CancelEventResponseObject); ok {
+		if err := validResponse.VisitCancelEventResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CompleteEvent operation middleware
+func (sh *strictHandler) CompleteEvent(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request CompleteEventRequestObject
+
+	request.EventId = eventId
+
+	var body CompleteEventJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CompleteEvent(ctx, request.(CompleteEventRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CompleteEvent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CompleteEventResponseObject); ok {
+		if err := validResponse.VisitCompleteEventResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConfirmEvent operation middleware
+func (sh *strictHandler) ConfirmEvent(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request ConfirmEventRequestObject
+
+	request.EventId = eventId
+
+	var body ConfirmEventJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ConfirmEvent(ctx, request.(ConfirmEventRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConfirmEvent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ConfirmEventResponseObject); ok {
+		if err := validResponse.VisitConfirmEventResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListEventFiles operation middleware
+func (sh *strictHandler) ListEventFiles(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request ListEventFilesRequestObject
+
+	request.EventId = eventId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListEventFiles(ctx, request.(ListEventFilesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListEventFiles")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListEventFilesResponseObject); ok {
+		if err := validResponse.VisitListEventFilesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UploadEventFile operation middleware
+func (sh *strictHandler) UploadEventFile(w http.ResponseWriter, r *http.Request, eventId EventId, params UploadEventFileParams) {
+	var request UploadEventFileRequestObject
+
+	request.EventId = eventId
+	request.Params = params
+
+	request.Body = r.Body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UploadEventFile(ctx, request.(UploadEventFileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UploadEventFile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UploadEventFileResponseObject); ok {
+		if err := validResponse.VisitUploadEventFileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RemoveEventFile operation middleware
+func (sh *strictHandler) RemoveEventFile(w http.ResponseWriter, r *http.Request, eventId EventId, eventFileId EventFileId) {
+	var request RemoveEventFileRequestObject
+
+	request.EventId = eventId
+	request.EventFileId = eventFileId
+
+	var body RemoveEventFileJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RemoveEventFile(ctx, request.(RemoveEventFileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RemoveEventFile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RemoveEventFileResponseObject); ok {
+		if err := validResponse.VisitRemoveEventFileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateEventFile operation middleware
+func (sh *strictHandler) UpdateEventFile(w http.ResponseWriter, r *http.Request, eventId EventId, eventFileId EventFileId) {
+	var request UpdateEventFileRequestObject
+
+	request.EventId = eventId
+	request.EventFileId = eventFileId
+
+	var body UpdateEventFileJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateEventFile(ctx, request.(UpdateEventFileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateEventFile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateEventFileResponseObject); ok {
+		if err := validResponse.VisitUpdateEventFileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DownloadEventFile operation middleware
+func (sh *strictHandler) DownloadEventFile(w http.ResponseWriter, r *http.Request, eventId EventId, eventFileId EventFileId) {
+	var request DownloadEventFileRequestObject
+
+	request.EventId = eventId
+	request.EventFileId = eventFileId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DownloadEventFile(ctx, request.(DownloadEventFileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DownloadEventFile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DownloadEventFileResponseObject); ok {
+		if err := validResponse.VisitDownloadEventFileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// PublishEvent operation middleware
+func (sh *strictHandler) PublishEvent(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request PublishEventRequestObject
+
+	request.EventId = eventId
+
+	var body PublishEventJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.PublishEvent(ctx, request.(PublishEventRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "PublishEvent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(PublishEventResponseObject); ok {
+		if err := validResponse.VisitPublishEventResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReturnEventToDraft operation middleware
+func (sh *strictHandler) ReturnEventToDraft(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request ReturnEventToDraftRequestObject
+
+	request.EventId = eventId
+
+	var body ReturnEventToDraftJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReturnEventToDraft(ctx, request.(ReturnEventToDraftRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReturnEventToDraft")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReturnEventToDraftResponseObject); ok {
+		if err := validResponse.VisitReturnEventToDraftResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReturnEventToPlanning operation middleware
+func (sh *strictHandler) ReturnEventToPlanning(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request ReturnEventToPlanningRequestObject
+
+	request.EventId = eventId
+
+	var body ReturnEventToPlanningJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReturnEventToPlanning(ctx, request.(ReturnEventToPlanningRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReturnEventToPlanning")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReturnEventToPlanningResponseObject); ok {
+		if err := validResponse.VisitReturnEventToPlanningResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RotateEventPublicId operation middleware
+func (sh *strictHandler) RotateEventPublicId(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request RotateEventPublicIdRequestObject
+
+	request.EventId = eventId
+
+	var body RotateEventPublicIdJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RotateEventPublicId(ctx, request.(RotateEventPublicIdRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RotateEventPublicId")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RotateEventPublicIdResponseObject); ok {
+		if err := validResponse.VisitRotateEventPublicIdResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListEventSessions operation middleware
+func (sh *strictHandler) ListEventSessions(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request ListEventSessionsRequestObject
+
+	request.EventId = eventId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListEventSessions(ctx, request.(ListEventSessionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListEventSessions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListEventSessionsResponseObject); ok {
+		if err := validResponse.VisitListEventSessionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateEventSession operation middleware
+func (sh *strictHandler) CreateEventSession(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request CreateEventSessionRequestObject
+
+	request.EventId = eventId
+
+	var body CreateEventSessionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateEventSession(ctx, request.(CreateEventSessionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateEventSession")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateEventSessionResponseObject); ok {
+		if err := validResponse.VisitCreateEventSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteEventSession operation middleware
+func (sh *strictHandler) DeleteEventSession(w http.ResponseWriter, r *http.Request, eventId EventId, eventSessionId EventSessionId) {
+	var request DeleteEventSessionRequestObject
+
+	request.EventId = eventId
+	request.EventSessionId = eventSessionId
+
+	var body DeleteEventSessionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteEventSession(ctx, request.(DeleteEventSessionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteEventSession")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteEventSessionResponseObject); ok {
+		if err := validResponse.VisitDeleteEventSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateEventSession operation middleware
+func (sh *strictHandler) UpdateEventSession(w http.ResponseWriter, r *http.Request, eventId EventId, eventSessionId EventSessionId) {
+	var request UpdateEventSessionRequestObject
+
+	request.EventId = eventId
+	request.EventSessionId = eventSessionId
+
+	var body UpdateEventSessionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateEventSession(ctx, request.(UpdateEventSessionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateEventSession")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateEventSessionResponseObject); ok {
+		if err := validResponse.VisitUpdateEventSessionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListEventShifts operation middleware
+func (sh *strictHandler) ListEventShifts(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request ListEventShiftsRequestObject
+
+	request.EventId = eventId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListEventShifts(ctx, request.(ListEventShiftsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListEventShifts")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListEventShiftsResponseObject); ok {
+		if err := validResponse.VisitListEventShiftsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateEventShift operation middleware
+func (sh *strictHandler) CreateEventShift(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request CreateEventShiftRequestObject
+
+	request.EventId = eventId
+
+	var body CreateEventShiftJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateEventShift(ctx, request.(CreateEventShiftRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateEventShift")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateEventShiftResponseObject); ok {
+		if err := validResponse.VisitCreateEventShiftResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteEventShift operation middleware
+func (sh *strictHandler) DeleteEventShift(w http.ResponseWriter, r *http.Request, eventId EventId, eventShiftId EventShiftId) {
+	var request DeleteEventShiftRequestObject
+
+	request.EventId = eventId
+	request.EventShiftId = eventShiftId
+
+	var body DeleteEventShiftJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteEventShift(ctx, request.(DeleteEventShiftRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteEventShift")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteEventShiftResponseObject); ok {
+		if err := validResponse.VisitDeleteEventShiftResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateEventShift operation middleware
+func (sh *strictHandler) UpdateEventShift(w http.ResponseWriter, r *http.Request, eventId EventId, eventShiftId EventShiftId) {
+	var request UpdateEventShiftRequestObject
+
+	request.EventId = eventId
+	request.EventShiftId = eventShiftId
+
+	var body UpdateEventShiftJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateEventShift(ctx, request.(UpdateEventShiftRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateEventShift")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateEventShiftResponseObject); ok {
+		if err := validResponse.VisitUpdateEventShiftResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListEventShiftRequirements operation middleware
+func (sh *strictHandler) ListEventShiftRequirements(w http.ResponseWriter, r *http.Request, eventId EventId, eventShiftId EventShiftId) {
+	var request ListEventShiftRequirementsRequestObject
+
+	request.EventId = eventId
+	request.EventShiftId = eventShiftId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListEventShiftRequirements(ctx, request.(ListEventShiftRequirementsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListEventShiftRequirements")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListEventShiftRequirementsResponseObject); ok {
+		if err := validResponse.VisitListEventShiftRequirementsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateEventShiftRequirement operation middleware
+func (sh *strictHandler) CreateEventShiftRequirement(w http.ResponseWriter, r *http.Request, eventId EventId, eventShiftId EventShiftId) {
+	var request CreateEventShiftRequirementRequestObject
+
+	request.EventId = eventId
+	request.EventShiftId = eventShiftId
+
+	var body CreateEventShiftRequirementJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateEventShiftRequirement(ctx, request.(CreateEventShiftRequirementRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateEventShiftRequirement")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateEventShiftRequirementResponseObject); ok {
+		if err := validResponse.VisitCreateEventShiftRequirementResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteEventShiftRequirement operation middleware
+func (sh *strictHandler) DeleteEventShiftRequirement(w http.ResponseWriter, r *http.Request, eventId EventId, eventShiftId EventShiftId, eventRequirementId EventRequirementId) {
+	var request DeleteEventShiftRequirementRequestObject
+
+	request.EventId = eventId
+	request.EventShiftId = eventShiftId
+	request.EventRequirementId = eventRequirementId
+
+	var body DeleteEventShiftRequirementJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteEventShiftRequirement(ctx, request.(DeleteEventShiftRequirementRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteEventShiftRequirement")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteEventShiftRequirementResponseObject); ok {
+		if err := validResponse.VisitDeleteEventShiftRequirementResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateEventShiftRequirement operation middleware
+func (sh *strictHandler) UpdateEventShiftRequirement(w http.ResponseWriter, r *http.Request, eventId EventId, eventShiftId EventShiftId, eventRequirementId EventRequirementId) {
+	var request UpdateEventShiftRequirementRequestObject
+
+	request.EventId = eventId
+	request.EventShiftId = eventShiftId
+	request.EventRequirementId = eventRequirementId
+
+	var body UpdateEventShiftRequirementJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateEventShiftRequirement(ctx, request.(UpdateEventShiftRequirementRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateEventShiftRequirement")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateEventShiftRequirementResponseObject); ok {
+		if err := validResponse.VisitUpdateEventShiftRequirementResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StartEventPlanning operation middleware
+func (sh *strictHandler) StartEventPlanning(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request StartEventPlanningRequestObject
+
+	request.EventId = eventId
+
+	var body StartEventPlanningJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StartEventPlanning(ctx, request.(StartEventPlanningRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StartEventPlanning")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StartEventPlanningResponseObject); ok {
+		if err := validResponse.VisitStartEventPlanningResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListEventTaskLists operation middleware
+func (sh *strictHandler) ListEventTaskLists(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request ListEventTaskListsRequestObject
+
+	request.EventId = eventId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListEventTaskLists(ctx, request.(ListEventTaskListsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListEventTaskLists")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListEventTaskListsResponseObject); ok {
+		if err := validResponse.VisitListEventTaskListsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateEventTaskList operation middleware
+func (sh *strictHandler) CreateEventTaskList(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request CreateEventTaskListRequestObject
+
+	request.EventId = eventId
+
+	var body CreateEventTaskListJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateEventTaskList(ctx, request.(CreateEventTaskListRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateEventTaskList")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateEventTaskListResponseObject); ok {
+		if err := validResponse.VisitCreateEventTaskListResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteEventTaskList operation middleware
+func (sh *strictHandler) DeleteEventTaskList(w http.ResponseWriter, r *http.Request, eventId EventId, eventTaskListId EventTaskListId) {
+	var request DeleteEventTaskListRequestObject
+
+	request.EventId = eventId
+	request.EventTaskListId = eventTaskListId
+
+	var body DeleteEventTaskListJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteEventTaskList(ctx, request.(DeleteEventTaskListRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteEventTaskList")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteEventTaskListResponseObject); ok {
+		if err := validResponse.VisitDeleteEventTaskListResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateEventTaskList operation middleware
+func (sh *strictHandler) UpdateEventTaskList(w http.ResponseWriter, r *http.Request, eventId EventId, eventTaskListId EventTaskListId) {
+	var request UpdateEventTaskListRequestObject
+
+	request.EventId = eventId
+	request.EventTaskListId = eventTaskListId
+
+	var body UpdateEventTaskListJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateEventTaskList(ctx, request.(UpdateEventTaskListRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateEventTaskList")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateEventTaskListResponseObject); ok {
+		if err := validResponse.VisitUpdateEventTaskListResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListEventTasks operation middleware
+func (sh *strictHandler) ListEventTasks(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request ListEventTasksRequestObject
+
+	request.EventId = eventId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListEventTasks(ctx, request.(ListEventTasksRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListEventTasks")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListEventTasksResponseObject); ok {
+		if err := validResponse.VisitListEventTasksResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateEventTask operation middleware
+func (sh *strictHandler) CreateEventTask(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request CreateEventTaskRequestObject
+
+	request.EventId = eventId
+
+	var body CreateEventTaskJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateEventTask(ctx, request.(CreateEventTaskRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateEventTask")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateEventTaskResponseObject); ok {
+		if err := validResponse.VisitCreateEventTaskResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteEventTask operation middleware
+func (sh *strictHandler) DeleteEventTask(w http.ResponseWriter, r *http.Request, eventId EventId, eventTaskId EventTaskId) {
+	var request DeleteEventTaskRequestObject
+
+	request.EventId = eventId
+	request.EventTaskId = eventTaskId
+
+	var body DeleteEventTaskJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteEventTask(ctx, request.(DeleteEventTaskRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteEventTask")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteEventTaskResponseObject); ok {
+		if err := validResponse.VisitDeleteEventTaskResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateEventTask operation middleware
+func (sh *strictHandler) UpdateEventTask(w http.ResponseWriter, r *http.Request, eventId EventId, eventTaskId EventTaskId) {
+	var request UpdateEventTaskRequestObject
+
+	request.EventId = eventId
+	request.EventTaskId = eventTaskId
+
+	var body UpdateEventTaskJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateEventTask(ctx, request.(UpdateEventTaskRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateEventTask")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateEventTaskResponseObject); ok {
+		if err := validResponse.VisitUpdateEventTaskResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnpublishEvent operation middleware
+func (sh *strictHandler) UnpublishEvent(w http.ResponseWriter, r *http.Request, eventId EventId) {
+	var request UnpublishEventRequestObject
+
+	request.EventId = eventId
+
+	var body UnpublishEventJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnpublishEvent(ctx, request.(UnpublishEventRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnpublishEvent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnpublishEventResponseObject); ok {
+		if err := validResponse.VisitUnpublishEventResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -26807,6 +36717,39 @@ func (sh *strictHandler) CreateOpenDayPeriod(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+// DeleteOpenDayPeriod operation middleware
+func (sh *strictHandler) DeleteOpenDayPeriod(w http.ResponseWriter, r *http.Request, periodId OpenDayPeriodId) {
+	var request DeleteOpenDayPeriodRequestObject
+
+	request.PeriodId = periodId
+
+	var body DeleteOpenDayPeriodJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteOpenDayPeriod(ctx, request.(DeleteOpenDayPeriodRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteOpenDayPeriod")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteOpenDayPeriodResponseObject); ok {
+		if err := validResponse.VisitDeleteOpenDayPeriodResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetOpenDayPeriod operation middleware
 func (sh *strictHandler) GetOpenDayPeriod(w http.ResponseWriter, r *http.Request, periodId OpenDayPeriodId) {
 	var request GetOpenDayPeriodRequestObject
@@ -28136,6 +38079,210 @@ func (sh *strictHandler) GetPublicConfiguration(w http.ResponseWriter, r *http.R
 	}
 }
 
+// GetCurrentEventSignup operation middleware
+func (sh *strictHandler) GetCurrentEventSignup(w http.ResponseWriter, r *http.Request, params GetCurrentEventSignupParams) {
+	var request GetCurrentEventSignupRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetCurrentEventSignup(ctx, request.(GetCurrentEventSignupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetCurrentEventSignup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetCurrentEventSignupResponseObject); ok {
+		if err := validResponse.VisitGetCurrentEventSignupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateCurrentEventSignup operation middleware
+func (sh *strictHandler) UpdateCurrentEventSignup(w http.ResponseWriter, r *http.Request, params UpdateCurrentEventSignupParams) {
+	var request UpdateCurrentEventSignupRequestObject
+
+	request.Params = params
+
+	var body UpdateCurrentEventSignupJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateCurrentEventSignup(ctx, request.(UpdateCurrentEventSignupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateCurrentEventSignup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateCurrentEventSignupResponseObject); ok {
+		if err := validResponse.VisitUpdateCurrentEventSignupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CancelCurrentEventSignup operation middleware
+func (sh *strictHandler) CancelCurrentEventSignup(w http.ResponseWriter, r *http.Request, params CancelCurrentEventSignupParams) {
+	var request CancelCurrentEventSignupRequestObject
+
+	request.Params = params
+
+	var body CancelCurrentEventSignupJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CancelCurrentEventSignup(ctx, request.(CancelCurrentEventSignupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CancelCurrentEventSignup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CancelCurrentEventSignupResponseObject); ok {
+		if err := validResponse.VisitCancelCurrentEventSignupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPublicEvent operation middleware
+func (sh *strictHandler) GetPublicEvent(w http.ResponseWriter, r *http.Request, publicId PublicEventId) {
+	var request GetPublicEventRequestObject
+
+	request.PublicId = publicId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPublicEvent(ctx, request.(GetPublicEventRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPublicEvent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPublicEventResponseObject); ok {
+		if err := validResponse.VisitGetPublicEventResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPublicEventBanner operation middleware
+func (sh *strictHandler) GetPublicEventBanner(w http.ResponseWriter, r *http.Request, publicId PublicEventId) {
+	var request GetPublicEventBannerRequestObject
+
+	request.PublicId = publicId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPublicEventBanner(ctx, request.(GetPublicEventBannerRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPublicEventBanner")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPublicEventBannerResponseObject); ok {
+		if err := validResponse.VisitGetPublicEventBannerResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DownloadPublicEventFile operation middleware
+func (sh *strictHandler) DownloadPublicEventFile(w http.ResponseWriter, r *http.Request, publicId PublicEventId, eventFileId EventFileId) {
+	var request DownloadPublicEventFileRequestObject
+
+	request.PublicId = publicId
+	request.EventFileId = eventFileId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DownloadPublicEventFile(ctx, request.(DownloadPublicEventFileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DownloadPublicEventFile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DownloadPublicEventFileResponseObject); ok {
+		if err := validResponse.VisitDownloadPublicEventFileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreatePublicEventSignup operation middleware
+func (sh *strictHandler) CreatePublicEventSignup(w http.ResponseWriter, r *http.Request, publicId PublicEventId) {
+	var request CreatePublicEventSignupRequestObject
+
+	request.PublicId = publicId
+
+	var body CreatePublicEventSignupJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreatePublicEventSignup(ctx, request.(CreatePublicEventSignupRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreatePublicEventSignup")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreatePublicEventSignupResponseObject); ok {
+		if err := validResponse.VisitCreatePublicEventSignupResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetPublicLegalDocument operation middleware
 func (sh *strictHandler) GetPublicLegalDocument(w http.ResponseWriter, r *http.Request, document GetPublicLegalDocumentParamsDocument) {
 	var request GetPublicLegalDocumentRequestObject
@@ -29092,468 +39239,546 @@ func (sh *strictHandler) SubmitVisitorEnrollment(w http.ResponseWriter, r *http.
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
-	"+V8AAAD//+Y7CkXYuAMA",
+	"H4sIAAAAAAAC/+y9a3PcNrYo+ldQOqdqz+zqlmzH9kySunVKluxEGT+0JTuz7451ZTSJ7kZEAgwAttzx",
+	"8X+/hRcJkuCzn3L6w0wsiXgtrLWw3uvLUUDjhBJEBD/64cvRHMEQMfXPt/RaUIbkP0PEA4YTgSk5+uHo",
+	"kqEFIgJMGL3niHEASQgwEYjFKMSQYcTBlNEYMCQgJpjMAEzFHBGBAyjnAJQBStBY4BiNOQoYEoAhnlDC",
+	"ET8+Gh3xYI5iKFdGJI2PfvjtiNAxV7u5GR2JZYKOfjjigmEyO/r69evoKIEMxkiYnZ8GMEQxDl4wBO8u",
+	"QvkrLDeeQDE/Gh0RGMvxsPTV6IihP1LMUHj0g2ApcrfxvxmaHv1w9L9Ocmid6L/ykw8fLs4X/ziS2zgN",
+	"ApoS0bCk/fsaFnvBIAkxmZ1yjsR1REXNolz+aeh61UXk0mcp45RVMeNdAv9IEQjUn+X1p4ygEEyWQMwR",
+	"SBhaYJpykMAZktesNvtHitgy360eW8CBGH5+jchMzI9+ePboUfX+R0fnaIED9H6ZoFrQh+4na4D+S0kC",
+	"p5zjGYlRw5WjynfrWvwVjlDzsuaLdS3YvNgaF7rSs7TDtfjhupa/RpxjSpqXzj9a27JzPG05r/1kbUvi",
+	"GUmT9/QOkZ8V488W1+9Avvx/j9WAsR4xVkMat+EQ7dPvRkcxJu6PCRQCMbnQ//fb6fh/4PjPR+Pvb8c3",
+	"X55+9/V/H/lIXC3/HvK7ZgiZL9YFIDnda8xF+6LmqzUs/BpOKKMsJCmZSQRHDctH3m/XvIlfEWukh8j7",
+	"7To2gWMsqq/MG/gZx6kULwLKQg4ENU9N3ZsSqXncDYRoCtNIyAdlJFFVznf0w2P5usSYmJ8yNJSyzQwx",
+	"tac3kMAZCvWLUwuSuPTVGoDx7uL87JLRBQ4Rq12X4jBwPlrHsgki53DZ4aWDa37kzMr1Z83+vr7FLhHD",
+	"NKxdMrF/Xt+KXd46tu5n7hLOPHL9O4LGE8hRKIXxNBKNcpr8m5+kHrfSkFz+Gv+JepA2SBBr3Y+a07un",
+	"J896kvklYryB5SX2z+u4jHQS4aBZwkrUNy3r9X9Ur2iDCMnoeqTHr3IGo9zJQS9gaJ4q+VNAiUBE/RMm",
+	"SWQ0xJPfucSHLx3XeskYZXqpMj5FUyrVUsD0kiOAyQJGOAS/XL97O5KaaEp4miSUCRQChVRgAaMUHR9J",
+	"RYeSaYSDLez0WsAIgU/oc4ICgULzjn4Cf/vE5V9u7xkW6NPfRyAl+I8UEcQ5CMzu1DESRoUaqk7IMCQC",
+	"LDCN1C7VYV5RNsFhiMjmT/N+jkAAowgxEMHgjkvyjbGSmOVepTZ4dn31CgRzFNyBKcQRCtUeL4hEYRhd",
+	"I7ZATM+/8d1+IBbsgKt1AZKf/qiNGgRGIEQC4ogDyBAgVAD0OaHcbPktFa9oSsLtQNXgsWbSNGUBAiFF",
+	"3OwKcyHhi/XPC8zxJEKSi4rsQtSeL+EyojB8T+lryPRbsPmt83QSY6EwNIYzJDca0iCVzxpAnwOEQg6w",
+	"4IDRVKAxT1CApzgASnpTu5ZIgQP0gcAFxBGcRFvY+Cmw7A9Q9TsYKbSYMW3Kwhyk+X7UmVCEF5KNaLQG",
+	"HE5RtFQHeE/pG0iWhv3xLXAVFKQMi+WYI8KxwIsMgQCDAhmwS0Qeuaa/KyTYcnw6Fchj5LlGASWhPLbA",
+	"EYCEijliQL49cSJADJdggkAMQ1S05DU+uHLnHwhMxZwy/CfaAi2dFi2SmAPFn8hsJIlb3vcIMLSgd/If",
+	"IebydkPFaM0Doi70A0kYDRBXf35JBBbLbTwVLA1EymAUqbcKS5afpJbdIw6mGEWhpq8YYqI/sg/BV3sr",
+	"VVup2nAYYo3nl4wmiAksn+0pjDgaHSXOr74cBQxBgcJTdVD5zkJx9MNRCIU27VZFjtERIiF/Ryrf+z7F",
+	"YVcRw4osBavD42ePPJNyAZnouoM0Cfueb6Hf7badm+f9SAtHVrz6TZ7ZHMbZaga1fPqRA3t3n7l1nE5+",
+	"R4E4yo3SPe9W0uJFKCnE/gYLFPO2g53mw5bXaRxDtpR7MJuCjEH18wDMmWLGhUO1jaNJGpn3QYusKyFX",
+	"RGeYvIwhjhRgoujd9OiH31qIV33+9UbSbsKQ2q/dTJGaz2icQIEnOMJiCRYY3QM6Ve91RAMYgQRyfk9Z",
+	"CLAC6xQj9iNIOQLFGzqunFq5RfTYawFF2np3l8Wv5XhHC+oGq4RRKXVQgsnsWoknrhdHnUgpcAssFD86",
+	"Gimbxe3vxkCDY4nlmGNBmcfXo6iiw1EMzucn2REpO3qi2bgXRDXYXbnAAi6OyjRaxxTyozSwhxxFSu+k",
+	"/jOI8BQFyyBCQB4EHYNTAhBRryKw38i3fw4XUkQGqXoSy46/GIk5DX8EPA3mAJJsJOYABko8maQCBJBI",
+	"8ZXjGQFYWfUsApkVj0ZH9kn2Iok9k2FA+8T5DmzswMaGs7EHyJMaeU8YvoECMQyjy5QFc8iRYxrqQbNW",
+	"f78gC0QEZctfewJqdESoqIiQjx496kCENAhSxvo9Ln+kMNMWmjZ4jgIcw0ihTCpVCa2ROZt80mmPggoJ",
+	"RqwRuWnFN5SgZQVzsv0WpiqcfVR/C967V+6C3O7OKRl29/2pm5Vt7h0ttS5Ayjb5bBfes6YhFqeBoOy9",
+	"+lPOSlKuvKx8yQWSPCMld4TeE/+rJmdRduK+L1ogDC24yP3knwW37GPPilBuuRDU0u3ZsDC7Kb8Sb9Mo",
+	"AlPKgD7wydnrC6B3x6W6CqcCMZAwvIDBcpwwxBFbYDIDIYqQVl89z4Pa5TnmSQSXb40iWHqcJI5KAQUT",
+	"SU1Sn5cfA6lp/QgIWiAGoAlXQiGYYy4ow/LZ4gQmfE6FXNgB3nediA66N94sOxTwQypIc0hmKHwlFXmP",
+	"VKZ+r7bPASXR0h5igqaUoRMNR2XGVi9qJsAUmZuPT7jiikRH/EeKLvRwA+4+MkeMBAyhgPUI2xreUzVp",
+	"RdpUSyhxzFr6sAoYx0ceEhzCpJnrfW9EZIW8oUQvLhhUG5KoraIDOLjHYk5TIQXen9+/v7QmuBJOPTFu",
+	"KYcgWzGMIU6jBQrfrB/OlmYsrURwgiKuzgyjiN5HWFmhqQ75shftiHfcIqUK3AszUlIYyRAM35FoWTpZ",
+	"fl/Wut2LrjOTuNrsj0DCzzAVy0HkTd3PEZE6CodT86k2nfNBVG4XHcggK+zMzmcZh7Oh509bWTavSKtz",
+	"IRIpmEn0vA0inD83Nz6fYEVezLnYyL4kpU2WxADmBKIU+ZjDEDy4m22+9glVj591Xvd4ADP+11GTy95Z",
+	"jwJH0GeRxz+WiaoFW8rwVdvxH7eqTW7cOGt16lU0UsMuLjI2UBZXnz1ds157h7XvzeK71U+kUIatZuYV",
+	"qBITKXMdpTNPOMTF+Rmwn0hVNdQMH0XTMdeeKMBQ0cDxI6DGxSU/1ZovLii3VSMzt46s4vL/niPlWBFz",
+	"zO0cSxBAAgLN9aKla11BI4BJEKWhFJew4CBgSA2CkYrPzg6izTf5TiaURggSo13KK1vh/n38Q92PDzEK",
+	"CxawL4OKa9KqI5NMO3VCGl1Nopuhozr26+hLiaS4+vsrTfkW3SQ+SCSTl9XOUfMpqse5KR4IU3LKecog",
+	"CXzBOixE8lUtGdigHZG7LSdLAF3/+4xBorzEcylDqr9yHczqWtoiei+vW+JApCwFjJJZ9o/beAq9JPUC",
+	"RxEms0vIRF+GFRZf+rXwhMbQdmer/5LfSymRzSDBfypY/qvDHO/K3yuuggNMZj8xmiattirnW8do6E6R",
+	"R945No2MNjERz58eOeFMj7zhTC4KGnrEDlG+1R6n5mV99FeBocuHlUZ8VARqK9K8xr0NAP1e9wKGVt73",
+	"zg+0O80VmiKGDJn22fjGMbr26huOlFtZMyMFmeBIm92zf9xDvKixvhdyRvpKLdpzbmXfVkEhpmFB2LUR",
+	"f6OjIOWCxoqHEeTdJ2V4hgmMXuEIWQdy64Ic/4leLIXebYUMa4ZnpDjS2Tj9k266eLBa956yqMMZyy+W",
+	"Th9SgNZTeCA3KlycC6U277Q3iyl/hGZUzR0nMBC35scpXOBAcRYnuOJ2AoO7GVOBWNoKnb+K7t9aEZb3",
+	"Na7le3iRL9PnhpWpqLDhFSYysHotQdV3rAVs33FR/8VKSFa86NcN9/yi/ppf+G65imlnNKKs9y0HgbG7",
+	"OlG2/+u3R+Pv4Xh6On518+W5L8Z2dDQpXGXPwQnDVvPrOZKrIK0hY0s3Y7fgTjmy4CgcrxnmZIpnqY6Z",
+	"6wv6jCo74xfXlGDvucs4gxVKzkSdXDN2pFXT1dg4YZi0MvjXaAajIkz0bS9gsBw2eBcBDsi6hAyoR/au",
+	"ckDkp3KDl7o9CRfORQxjyG9rwsJabGglTaRsNG8ZHcn7cRUDzzxPOswj4CzCpDLyaW8rk39DZeG/DLZ8",
+	"A747OoMRkszgJRH9LVNQoBnVwzJlQSU4/EwjHELNYNywxJt9jCSsGlr17l/jCdNcMoYkhVGd/79rHGLp",
+	"NhuiAzPANlpSz5RJ9t09sYESw9yuxgplJ2mNZv2MuVDKiflemVLvuw5/63xahkh5J8WJvSCgcRIhgVTQ",
+	"wq/KCKUxfyAojBLi4EzRt/rPYsbrk++ePnv+j39+f/ri7Pzlq59+/uVfb95e/tfV9fsPv/77v//f/4GT",
+	"IETT2fz3u5gkfzAu0sX95+WfN1/+6X/rkY3p6RDJUwIdMlEb6gRNkLrIQl2+eRCtDS8LwO2OlDlZciTO",
+	"aIgOEN8mxIdBe+gBRkdCpdKXXEmPnxSu6rsnZQiPjlRCWO5CLYNCmAz9zjDA5CVhNIpiU1ehPwygGyjS",
+	"7bXdMZKqyDWPeFbys9YVLLjJ/3l8O775T78Oh4uPvOOeKkTjFFZ8XlxRrvXl+ejxE88xWjHBLTpjCCM/",
+	"t96fHzHIFLPYU42gL1qwYI4X6O3g+LpkvuQ4gNG5SRYrmFsLrsVn7e5xPCMoPId6L2XJq59cXb+vBni+",
+	"gcEcE/QLnQwVu7igsXardrUF5xv7mgfpDYuQ5FVFplOIZIIYFJRd9o7Vo6kIaNwetZiB9Z0ZUHKjrCc6",
+	"oyJ5msvwnDDfehXmfvxgDAXCxsNeCxrcDeXDf6SYq68/ECzOaB9HaBZw6gtNeXBhtpZE/6t/uC1DkLef",
+	"LIPEafh7yoVmA2pgHbf4rzyS1iyxShTtmXKPF5L4BkZQd1enyTCrygZU3iaIqEdvtWhyB7u7EU+G55XA",
+	"15c2wdwYwWxyBL1X9fG0rxREFIZ5vTQnX3vV3I1ikTaTxqwmBUpmPgbvYqyCAjgioY6bExTo4Au1GZup",
+	"k8Uy5hkdpRAEaxf0xOqWxfUubFFtISsL1v8ybQ7/uQuECv/pwoAiGkDP8GedBpNhRkB6T1Dh1VzzC6a2",
+	"VQ/33UsrJOR9GH6sN9xHwjiINRlz7gPplMNZj/S4/CQf5MALkqRCX9hnE17uWFn9wRj53Tr7zVBk1Fka",
+	"MztvxfqB0lcqaAwFDs5oFCEVL/vSZC3mUU1O0B36rPlTfcRkJ1Q0wMlrYK5m7m5/yzukrxk42vQ1/6te",
+	"3LiTk9YAyNark7MNNOR4APKkDSB9mapTHG4gX82CO89NtZH2u3AWPasOV/H/xSqq3TBIV8vgq8SlkCGO",
+	"Nj82lcq85psb+WDW8Y6GY1NYK3QMlhqGQabppFrhHIiIji+vp59UOY3Lxr9ucti90o7fzxnicxqFa9Ju",
+	"B/LClGDRTn0ayFIfr0Ndx3unpqy/MrcU5FATActii9/AJMFkxptyh9oS330hy189+w8inCVd9rTc6aHX",
+	"qlp4ucDso++fN4+vGklX9fKjpjcdc57qdzxjiCnDRYuvPwfrdywapQVuUhVc67A1Ruv/jm++PB49f9Ih",
+	"tEfNVQ4DMFt3rqoE+pFThMHZ7ciPUw1I7FbcPNgscogMh0WvQkxG99bw72/Hs2q1x6zfUXlyMqi7qxHX",
+	"Ak6nWLsibPp1VZXQzpT8h3IOl6vtlEsBwniCZylNOcCEC0jEMbgO5ihMpYIKGJJ3xkH+lU7yQSRMKCaC",
+	"/6gtKB/en9lCh4E27AI6nXIkVGKQ/rWO4EIhiOEdYjyBAQLyuv6kRCXodLnIMkl71KICnOsuvgErncCh",
+	"Yah5NzCRYpDJxE+Gagv1Z+xXfqBUIEeACEEuACVI5SQr41lAiYCBMAVvwN8+KTPbJ4kTn5I5JejT3wHm",
+	"WZLO8VGFnoca+ypijSrjMTSWDQ4eGkPBcJDq+qNv03hSUWyr2awdXIGUoFWnKaFIDh/nvA244lhfdqMU",
+	"YH5u6xr7RIS1abDuSq3wuEojtDn24CxiuUPF4LG6ESw2UvpZg1LTwRDjiPqdt1VUELxp4cZn3Um98ef9",
+	"qCnqb/KKRjtSc90OAm9MSEhWu/uIUHGbnWbktAQq/PoeMqJF/UlEgzv5z5t1adSqvIvJn/yJwT4Cy2Vx",
+	"YMcaGwmjUxyhixjO0FV2kQ5QzDV4FIQ0QWyBOWXnkM8nFLJOA/30Xzl1PfJcn128OaOEoEBQNlSEbVB8",
+	"Bt5bqSHCWtiECq162Wr26sRhKw0bcuWqtIwX9Dry9QPXb2v/WK2OBciqGUqFzOSB1oEQRWgmT3u5KeIq",
+	"sZZu9eNeV0cotu4YBPvwddfsSolAn2v4e05rQ85/EXblLDort31iXwyDxZpRntzrbrseScrwa7p87535",
+	"sP8c4mj5C52cBgIv+ueJZATQK5l6pNX/3vYA85Fe1Hsa83ar+AMYJxI1jh4/PX70j0ePHj06KgQEjv/P",
+	"3x79398ej7+/UaGB//n3v338eKyjBB+Pnn/9+//xRiK+jPDMFGiUT/0Gk5XrmHWHahG11urS7jeeJ16G",
+	"1vBUcT1TZLTMjW/8jS6GZEl4+LatBpohug2vLpdzqWKaiiS+xAMNBn+JsNwuMbhZ/4sBcf+V9iKTCAGj",
+	"NI0ZgqH6hWp0AeSYUu0rRa8lK7M1Md/WwNR0yajfsK9w7DWcIsBNSXsUKssJ+ixGpkawLWafl7DXe+be",
+	"Km8x4tzb20itMk9jSPKzc11w47iLXb5QCm4Vg5SJwLYbdWf2YsCAco9BRPlqhQIGlWePIhSeDXxT55C/",
+	"gIRoMdbjT+nx9qwv3gtz3ZrJv6eNRINVP0SfxTmCoc0EHehgR5+FMWKjVfBCRaN501kfdx29zli2kUkb",
+	"Xf2qs/5a/dto2cGvV8EHPYWuP9Xo/9MfvsciQoPChBgkM/Sy2VfUbZLrtoixrg6gwUyjWxCSruyV6XEC",
+	"8jub8xQOWFSOf08FjAaM3Xk/EVPsO28ml7E4Pwq6jLm9+YgLnDKgiw9E+e5rX768ClXvuBQSoGjFWoa2",
+	"v9q7BWJMdU57sVytGnKFgQ1poWPl8t5VFdEC9UvPa3Qdrbc5AVxhoWS9b4qaDUbnUMCXDK4oSvk8Vk97",
+	"usf7XBnPu0h3HJDVMWjlojk1mh4B/ZiwM3zXfVnyjuW83FI7q+jObR+EjHEO6b5U7hOvghV62sU7K+Kt",
+	"SNVI0L28v1XpTjNJ5LbM9Mgv6yXV/SaucnBGLapVYNcBkzZvACs9wCtYkrzMo1L95VYXRy2akVF4ayqs",
+	"Fn9Jye0EzaH6CxdwOr1FqhSNz+fn5z7O+rr3kIrBNGJD/TyOXfBNqfggJEuJjyPVOpfXT/EK97a+luoi",
+	"lmMn16HB1ztxOwZ0DRAvol6h5r3MAI0GBV/px1aYNpd+3LnorxsOaczsRNvy8L/mQ1oeSnNZhVUcMPcs",
+	"Cjn4KZWzb4f1KSpdkenJOS5TllBeZBRCwGAe2xJ6CoCN3OLXws3aaaypK9Pe6ifZDshWBZc2Dr1LBlQJ",
+	"HK4V9ZOJ1qXUrEtR8BFt54i2CtC3gyaFa14RZZxA4J7V3j0hxF/W0OB2wCPoGs6bnxG8SU1wj3SxorGo",
+	"/2Nx40GPIapXuLJlGVXFxVbMLIuY2TSRitG7CLvTW367HWJDBuaoV+y4MfxsWn0/MsPrO397o6KKM1aB",
+	"WIVHF/6wHebmMqRVedsDjNKw+94SsOnqMtq1bn7Rt1eIHrXLlwM/JN6+Ag8vgHrr/LtnXtUOnMbtPQt6",
+	"F3fo41rTt1OT5O9LSHKcTrw+us+dfDvMxDKC9fCTqpWJGw982M3QdC2lob5cSUlQD4QnRZjcobACrv5M",
+	"2OKez0T8oBlffpsPm+0NFCxNW6q11bhR5uWziPLVylXoed4liKw2zUa5skSd5sIrq7JmucKWGLPihKuy",
+	"ZQcibsMgBqdCVwxSNKpi5zoyaO2u2EVgwjajBh5KEMBQX+BKsV8HL/0GH1EnUGkrbnpN0FviaZp5rMrU",
+	"Kt0u9y+sYHMp5t+K+7+fvd7eOTcZ4P1aKTnhdD1wVGdvyYEfWOSpa9MM8fYS5fm+6o9d+3QnESQm9TfQ",
+	"Rbb1C+4EH+av+cjWI2942N9DftdTE5FDavUuu5HVYhHNJHsRgngwVfk1tvcq6NWWK9z8K6IwdcU3JEfd",
+	"IcwEofVG9K+uuobpSjkOCcOUdQ2hkLC7tAOUmMaE6sxcDhH57snRiiHscqliGLsUVNaW0+7JKPiub26T",
+	"nsSNNLegcSHTiIiZ8NWP9SpQHEzxW+FvOay3bZQaakbqRZQ1xpLu6Lsd/SEjljVw/0uH5dX0f5/j2Vy1",
+	"/50VhTSP5FQV1IxtBZPbhNEZQ5zbKi1KIAt10GSLxaXcP67aET+Bf6QIIPMh4Kpe4TF4zyDhCWUChCig",
+	"ofwTjDgFiEwpCxAHEDx+9OTpeLIUums+4mKsk04jHGNRKMVWlyb8z/71J39GMBJzx+7dHV94FcR3yqcP",
+	"FxBrGrrpUCquzr53QWaIi1Nbf3nVIvD9SxPaitgDiN0OfoMEDKGAbcnI1RTi/hXkH1rxdAfAfjNwQ4X0",
+	"+oYnhcBE89GtrReSEoYCykIU3gaU8DTWVDs6CmEMZ5oNYJ4Y42sM2d0tihMlOfxOJ7emhqL6IxXzmnDJ",
+	"bG9vUturcICSbAt4da3pqziw5DEwE/o7dYx574yp3paZuzh144W8L+6hjyTvucpuAlhD+5s1qZr9Ur9t",
+	"xxwYpegcRZr8Ozb86VKHzgfsUkG6X+jkXFfU1Syka+X+X+hk3XXs+nbB6LTdIW2Y/jA9j/peCU+TJDId",
+	"EVo3JqiA0WXKgjnkqiphnzJNlKBljQOZYHGad9Sy3bSGlOHDmrdllzOyhfmK8PGv6UfvUu+onMC6sop/",
+	"GazPU3E0APPODLeaAbtMWzc2Lv0y5yIZM69pfuzbx6Up27ExqdnPd6sFwxKzkaaoRf3VNf6zw5diULK4",
+	"V4g3m3NWt9P7bvsXislKJaUHWclLGy/O4dvmHjSYXIuBts9DlfTuF6RH1JXeaPWT9Gig2cFAhhaYprx3",
+	"dzT3pt1OadVSpxoN+r0xFus6ljL3bmbF/qAjj2KWIBJa30Tuj1BVOjkKvcqu1xWaNzJyUKF66ur1OOY4",
+	"F65FrG/CkQJQRgVq60jPG7eI+HjIcLvIa2/JyF7FNW2xdFu3tRoSZZrWb46IIigQF2fWIba5heJSFuyw",
+	"uryFAltr6WcmmnZF6K2KLuBzFN46BlF9K7pdmLKHttNnrDMS9Iqj8uVXbrr2ZtpKgfkupHfXqN6W8OkU",
+	"qeToVZ5GVXftCi0w99p+W9+vXk9rOH3VM604Q4SVovnm8Mmz5+UYokfj7+F4evPl+VN/+BCvd2rbTXV8",
+	"IDImXwS2C5Bsk8VrLQKgTYfwYOFW2bvzVg9l72gGozPTfQMOSTU15jMTClEQxp7+06vhs7uQ3ldR/8lT",
+	"bypomaM6eb527c5sKVt7VNi3FzCY3JVCwPo1xmjtotsxj72veFzutJzLSl06zL6ms6GFSrMQqg6tOUa5",
+	"76BtQNnVUemba+K0sgl9xzI24w13rxzypHgbXrbHmEEcpQxd9WmD0O/p+J1OhpaiiyAX2muy2iviNLXo",
+	"6BNQnzq+0apglRK5+jUKKAn5xsrslXp97rrYnQvIbj1FnfuvAK2IfcMiTHMfTk+SnOjeyAWlvRWRzKBu",
+	"Fe9fFD6WVA0j1bkHheuzow7gFG736G7ru32ka+KLXNu8J3ZISwSdqMVr7sskq/VBbjX/aYfgXYWF69pt",
+	"H44b529UB95SaNbduTd390O9syO851q1YzfKq0iuGJ6WTYVyd12ncZLGCUz4nIrux7gsDXTm6sRcLgsf",
+	"K5a9wOj+WnR4yN3Ig3xQ53SIfHghE6Kvr77/Q7aae9/nlVjH05izvpzy/P7/Mht0sizc2/M0VS8jR/kl",
+	"WvXt3Hz3hPyZHq5iVpmAmwacBgHifJpqEZ4JDKNbI18YSaMSs56SOyKVOJ/lzCHVTfvQmoDzDXnO6plf",
+	"G3DLbLic+2fFqtPYKhqry1UwUY0TeglWxvTfZJoOCuGALz9ceZGvl2nO6Zz4tlZd8QQTYaFDYaw8eBvM",
+	"IZkhh48VfqN80wypl7LG1uyYIhtRkKVRDz5ewpartEtxkvDI2ZAHSM59ZNBxbtDusYAIzUh9VXyAMws5",
+	"QiG/1fy9kErTzHSq1Tz1DbjaVssUH3h/xuU2nl8JK4cEy9gxtVhsAzp6WCpWbiNfjS4pbLPaYN7ZZjPC",
+	"OEGHw0Lp+sC2N+hqQucuwo4HfE1nE0rvpEytUL+/r882H+vEJCpdyzwvqZYB3rFLLR28n2P+b4TuBhhv",
+	"fqcTvupwGsLlEJsYvb8WNLi7sFAZON4ifR8xxYnMLIFWcTnNAQfsiaEAEfELnaxLZkrJRJW6ywWCDmJA",
+	"PszuZBUJKb/jErqUlqlstgjMeqwto0IBjL57HuVU1U638h3DXOCgv5e+EtTXtQW9XvCSYn/PyTwS7jXl",
+	"fI0TWwHobA5ZHwWzfWYjR73KzZwbmP0XY2DdwNRX2mD7M03Zemc3D658AV8s3cbQa1mh5u0qL+c/pgeu",
+	"owpWV5Gmgp/+22+gvG3pmX8FJbOhGH0M5XrENFBlSKjlGkRp6zbqK76gtfn2hpSfXIfBbY2eowz8Kxiq",
+	"5EVsy1JlHYCDTVV4pWCICeTIBEJ4iog1eI6njManYaiyAX2D5d9r9au5ebCrZm7jErdHqu2jRlmxVO3z",
+	"Z8++e9bm3ElMp+6COS8WiZcoRcTLDSKUrVUoCUf/P6HEb6IYZHRGrJamViSQvCt5BgJzCQaU+XGdjXiv",
+	"o3jzzj2PMlxyaa+N3spduTcaDReqdSTF9dFo81ED69yg1l7zay/DdY1Wc1MNbNfP0ILerRiI1zFcwUGc",
+	"fQlaKKBXBW+cMIYcIVyQFW5u6PvlaVffN81/PTSyayqoYaUrXF9+gHbQM6Sio2B0jiK8QKxgjCdQiijv",
+	"6Z1Kq59gEr5g9J7XZMUWJt6CVOJyZK8B5rM4SxnXnvmeRZB7iDXONi7lmyVpQc4xBJv7H1rdTaVEwRUS",
+	"KSMoBJRESzBZAj09UASKKQGQhECNBYzqFOYfARYggIRQASYIMCQYRgsUgkjqiqXe1U+/K3BY+SNDMMzL",
+	"DrQB1By3FaINWovG8jDnTO1IOUBvWWt/q2drr2Q58Pnb9fOTA2gNz8eWlKAyHpXKIjxaQTNimU3yZZyI",
+	"5Wph0Fn+af94aDI4s7F/snYJPIXs4tqj+MGXl1FYk0ECLhCDM/SBYNErDXvU7C0MaES7xSBvtX5Bnyjn",
+	"4bhlre/v5wzxOY165F9lG/CFJZA1uka1u+DMyTbvUUJAHq5TsNl1/uUgd+yu2XfVvZu9yRnMqzRUwboC",
+	"yDyo5buOoa+FBt8WzMn1/sD9sCebcRfDGEBPa7R/saYb+mCIwQp7M3kc+T9VLfiJXASjmmCbN/LYMNKZ",
+	"RH2lbx2xWJf23tgIfLXEIXdlL2SUJ1Y97zBOJN87evz0+NE/FLyz/L+/Pfq/vz0ef3/z26Px9zf/+fe/",
+	"ffx4rP755fHoyde//x9vSuAbukClLKxt5191a+W87z2Uu2V/vUX3bkm5voXennSp9Pbu4vzslXpoIRP9",
+	"E7LmlOE/lTLoL77cLMFVJvBBQe7wNSZ3wzDNZDhfrpLf5t8SnWFy6Rjdh/OOqp0wSmft9h31VTs7qGx2",
+	"44pPFTzDfUByroFQhgE75TxlkAToDUwSTGYNcRjNRzrNG3xjSrJpj3zYEUQ44zvlCiYtSvYQ00HtO9TJ",
+	"fN/kBuvX05qnpSqmmgOUbRmVLfyORWMapyUGN3ddN7+4Mf8dy0fr+RN/GvuOBF8PcWZAclBk5LivHECM",
+	"/Mg7TJZ1SWgrtL8OstfFobZQRKJvM6leOrNOdrPVn0o1YWMsBApBSiLEORBzBAIYRYiBOeSAJojchnDJ",
+	"j3V/g5I1tWPb+3h5Wmir0DnZTALfGepVoxPEMA37yFeOXNQDo/RurgWcThsbmBYTqIrA/kBgPMGzlKYc",
+	"YMIFJOIYXOumd5jMAEMS8zjIv4poACOASJhQTAT/EXBEQvDh/RmgTF+WrvsJ6HTKkQDT7NfWnQxieIcY",
+	"T2CAgESnPylBhYK9a2iolQNnx+1wLC74k7YKZZ4yDBjIzirYuXnzfE9dr9/DeaZF1A9cv5/VF5DqE19s",
+	"tIrbOirqKVTId1tVhGq02DIU2gq9GBQ4gxEiIWTDnMEwgCGKcfCCIXjXnR2dusO8gbA0JYItz0x8jYss",
+	"BXHsifc1Egz3CG+1EHgpV/RtJoJklsIZ8uzmsU8Y4+kkxNoh6TtAlzdHEtH/VJsfdWjfnI0sArG6q9K5",
+	"criNyrfagD2XimUNbZHXsSn+QInkHfGV+KvGoaVRpB/GjXTpd6WHjtP7nIvPfIimwvPV1jvOLNnKdZog",
+	"tsCcskuq44ir3RuO3lMBI5AS3acfJPZLAANGOQdZq1vAs+mA+y79CASDmCAEFlDeN0YcQIYA+hxEaYjC",
+	"4y5lSZjoeom9HnqNtE6vFXlY8zfeDsTdegEysGRI7kgGxZP4cLuKNPVYMSpTqg+bV5I/9E1sXp8qMKuV",
+	"FaoC/nhKu3EJXG0rzKu8tfQlcwr5GhIqF27OCU0XjZfE1TSVEczRNiDrdbxkT0O/qxn88pkFR5l/JJuq",
+	"4S4rGtGgHlldH468Dx5v1WVVGwSQjwBYRYwJy0mt3Vfz0j635eqk1XtDEZ7hSYSuaIQuQr4OnbvT5vIn",
+	"s7yjPs9tlyL/NbTmoFN+nTZ83NoBO2eMONXfi7OOSkjTjJyDW8y/c8vjrM+qvj0PnD3ANl4HUxZo+MPA",
+	"ZpAYF8zDSdDpRCvOySyV1IZ+uLUNOtZSUN9ep3EMte7lTpHzKcfF2dPtvlthzTCALE6j+XQDRanyDTns",
+	"Qm4bkqUK8+ACi1RXMOacBhiayI76djvuzBuP4SiQ0LecF2hrexWL0KBtxwAUq8J1SkrPS7eU/VF9mkg6",
+	"Czv1Trq48q0/+QpxJC44T/snQwZdsvBN/10dU6yj8z0vsS4jbmqh3AzK6qmqsUikiQkCKAldRI8CDEUq",
+	"OwCob8GHq9eAFaLOBQWQONIhgKHEaC7UIwfu54iAGOIIYA4IFY6t/fiob3y+m6digVsBmnOsplutgphQ",
+	"cctRIdCNyavP67zfVKMzPo/l8PECqhQ1LucprvCWims1afHXp3aJ4q8VrmXF3m/kfhFNImRwRH/0Ckei",
+	"mDRI6G0Oj9w7GWKu/+nDFz1xtTmBb/aBte5HWbsK/wZYjPmAuvMtkfcrV3/PN3YR1pS+c3bgRbJshp8Y",
+	"JKukPHV/0WoUGhW9+UeKTAR7oapm774IxeyPr9njlQdXDI/JSFyo97qh0REPaFLIjEWSIdzPkSqBB8my",
+	"mFEjWUSk+H8e6M/bS6AXdmgXHZWuywOTZgy5KPbLUlR5LAF9zFE0VTSU/wpGUf4bLbTlP2vBrTTM/LIw",
+	"MESm1pc7dQwFw6qenKkcVhhf89eE0SmO0C2Ope7t3YD3k8J2il8wFNNF8yTmEz2JYXxcncL9OQNP9pvs",
+	"3NlvNK8sfKN5pvuriM4wuVVV0s3+3b/ayL5j+3aUf68eEe9fEGE0iuxRa/9eOqczsQup2r+Xh2NSu3D+",
+	"J8+guuXyP3kH6cNbTKMR4sfaIiHfV/WjuTj9gzbjqGpvIRb2b7mZx/uLW9fS5f5R/jZNCr/KFi+bjmxT",
+	"62wN81P5r9beWvlDNrP+Q3irOUM2X/nX2fjIeYTtx4Xf1X2pZHjuHWLq7UktD3MsKLvVNythlM+XW3lv",
+	"Q8jnEwoV3qjpcgPgMcVhcBxhcmdv3/s3ff3lP6WkaaD5qx6qfpPvLcBx/pOivuynCYNKsHD/rvQbB9jm",
+	"5/IXt7/TSfkr/buMYRR+i0IsqqNNjarCb23I8G1i1I0s2SEDafaLbFfUUURz7C78MvvW6PP2K/tjDrGs",
+	"dpX+pEbq4gOsRkG/AqNWXrWWlptRjVX3Hos5TQX4VGDjn34EUjMAMYKEAzHHHGhTnrL5EgrM11UVYqD/",
+	"1jbe6HY604LDF2A1xYyLgYGdfYsqDFym8JS/TeOJlvb7WN0/1QoOxZsjFCxglJYj4Z4/LW+yvd74vOqk",
+	"GTaNoIXWB+WMahiOlV4boRkMliA2fb9BIl8ytlAgETgCEBh2DoxsApRsAhhKIhggDnSn92blpLzfluxq",
+	"RZZyrYvY2sc64eulO8ofF+h84TaaK7npWYq0Rg/JEli/AriiEbLeeA5gESDHOb25yR60TyFcuYBjtK0U",
+	"PdyN0TUndYcc7dHqTKr50jVaAafkTRaDOKhdYOTvN9i7S5+NWKjl3VXeEMMlkDgMXsMJuEojxIGRQ3Q9",
+	"gkxi0dcW0BiTWcVN2MsJmC0ppwHncOn3YXb2C+orqOypFv2+1l5j7RxDfL5906L6xkgPi1fsGUusR7yt",
+	"iTdqq+VDIzTc1dq3T0M568m9hGK8pBNG65zPH1OrzlBP+Bv3ehjhbz3+Dr+ver+8H5eYrNCPTSn+HnQt",
+	"CR7fFZI0fzsd/4/Ndcn+eXw7vvlPb65LgkmnRMHCis9H5baQN1+ejx770mmqCYQlsOaH1JvxgrHkad2d",
+	"w7lk+11rlRXMz9EUplFNgmpDS7QBVf391fz3plplDou8I8AQd7GLORsPrSig6fDwCl+swGqdOjZZKKzh",
+	"BFf94/GayHXdwR7OLu0z7fTZW1frZlsE2S223KFxYrFSQce2KoUCHn49K0etXpke/dpUriU9qLjVPLws",
+	"70tdqGvbgoflWBFrOTOtEZ32En6zlacXSj/MHoiREZwgfzla5b8hs5pqBubC1lD6RvuqKPOnnat2KXLD",
+	"66IXW6mmmf8YZNDQcfaYFYux0GlAi6oL3rqLCw1pMMl+8GNGySTSw9FK70lEYWhCIByR6gQm+GTx+ETb",
+	"uU68iRw924LzSmMbgViMCYxuTasdDcfpbZrITanC6jEm9seb9kgX25bbNldzz+e9h3QS4eCFsaWfco5E",
+	"764HSRIZb+4LGNzNGE2JhWcrl4UFb3D/8SreLBCv6Yx2HTKFCxxklS9aP486T12VqqmuPVzaZGELo3r4",
+	"NUOn/jZXKb4NMwxoZJI+rLF1z9qbw5pxZ/rrr5lLaNl15IX9Xt4PmsGo24ZVn/bXmNzxtbyQyFbAMsce",
+	"WejZTbW8jGpPqjDP2qJfHj/qlmEuGUUPoTrf6Svs11nmkL+AhNTlwkY0gIPLZKpQo0AzWq+WfTu++fL0",
+	"O38hCT34WjmBmwtWIBWLMQgq13qsN7l9jqdi2KRyZE2+fIfUMz1HnnLWPctFfiyiahZpez6MvSg7g5so",
+	"lmeJ+q7ExSDnLjL4WZRtISSFnj1zQykRiAhbMbZc+qVH0deO1R366FCU4ZmUD+S5PEma/h1y/Cd6sTT9",
+	"dlYyt2lHdGkLowLI3OVaLmeFpKcFxBGc4Mi8EVmJYP17hWnTVAUQECpuaaLKWDuvJwpvKYmWXulxLdw0",
+	"2kgqr+/KvQTLUAwxUW9qp01U044ajLcNxqJyopELicquRsV7bMEWy1O3/TRusrTMSs9gHTJ06V+wiuMD",
+	"+8uDtF2fer2+pcvrQYwD6uXU8Enf84+coNHVlf11YAdp8He5wKjHGSWan9MgHfA6oM+6YFNXje6uZIfC",
+	"ccKw4k8JwwsY+J+JGLI7qU13Mx6W2vTYmlIq78T886ZJ8OpkerFCVqzLaWQ7HBVA0gJ0qQ/1BPhcodqX",
+	"dR273LJOn0Yt0mHvfc0V9rb7aYwmU1BhR9+RZYppQLfyKYcVVNskFzwU68qJ1KK5jTtZT98tH4N11Kn6",
+	"Kl0tbjgXoTbvhyug7wqOOJ1m5AYlDcxbnE6R8lcMvgh3Bt9Wr1BAWWgdQE4x82EbDjFPKIeR31rxwHpA",
+	"DCzSb7M/u0k5GSxOs26kV3oKj+BTulynnn0G+NEKvSqukOmxj94F9l99EcD4j1pLEekNYys2Z6nYWW6Q",
+	"osWfaYR1S+ZCsS3Tl1/Vt75Zg0TtTdn1y8nfzlNS7nmk4e5j1u5dNePNJUMDmsfTDNt6xNb6cLWNZbsL",
+	"dTrIQLZNwvdY611uFfzfHj3WJfD/75PfHo2/u/n7D789Gj/Tv/rfK5ZnU4mD/0ZIS5ZZjNuzJ20hbvwO",
+	"J6eV8oQeS/MdTi5dmqz7TuKPPX2RQF4rdL+HUaRw9UcQwmWEZ3Mx5nAhKWQGE656f9EFYpH8QedsgwWU",
+	"S6pQXMQYZSosdiXQ9iqbdo/QnWn+XzzRxfU7YP74I3hDSQiXAHPw2ETQa7D/Y9THUGXXqi1hZqA7yrCs",
+	"cPnei/Lesh//Y7pA7+5JXkNgV4XwXZiU5/NvXeUv5OUiVPNwvu16EalatW/zYrvdC5Kkoty6q4WnmRW7",
+	"1YYwULqiEcozebcOpKSYZt4rDriQn94labw2Gdqs3RVwCkSF2hoDwWZztjpkapWFefVb7/Zo9I21DnSz",
+	"Qcr9o0uFHe4hIzr6ZhLR4K6ubsPAZoQ+ZC2+Aq8oAzHkArGRzvnDJtNDsy1gw4CAEzQB8mkBR6JPmkdv",
+	"CqhPk/I831li7bnNq635cMkFiv+FlsXgOAmFo5sOuLBPPR7zs4x8/MELPQ+G+qE3LKNKEvRLq7vnl/5y",
+	"AaN0SIiMWwNiCL+9CDuiGqP9wsvk97+udrFmyeJco9KRBwF54xan9mseboVSj/ymM3PUw7Oz9sZugmXP",
+	"U26+i22BQxZfjEuGuHwZVMau1OpV8qlQUgjQ44BE5mMl5vfkrb0i7q+ogAIV28fSOzTQ/Bd4+3V3blzr",
+	"aff9dbSCnLlyq/SGOl7lXY18h6+H+PXZxZsVAL1JmAyHge+48qBnlJAsFHzTPXbW1GRqINFTHAa2J9G6",
+	"nN2qE/rL1dv+C41vqhv5KvPsVnQrQditG1cCVOXEw1LBChi8cYmgSC/DX//CPIrTDCkFOUGQIT28/I6X",
+	"Uju/69QCMnA5QQ8wlA1C2V9GhS3WAeIlY/1LPCNhFPXWtnJm04U7rlJfOSImwLEnfvP500afrxtK/Nha",
+	"OL94+9GVWziaTTq+V3PEOqhJXL9CPKGE98WbK6STOYow8U9Q4DL5DirlzeUsl4hdljO+/W0xBl2JgExc",
+	"kBB97lgY9wrxNBKtzTBqb6IwSWH90nlHDkTrrusNEnDYA9udj0eQizc0xFPca1RDBKHHF6cPamnDyr+q",
+	"W9NN89vSrxNCYaXsRTgqndLZfrPKru4gjQTOulY34XtJPWfYKjFVsUVUucR3vo5OC7tuIdj6ab+6w4va",
+	"LtjyfLaoQA8cm8IYR0N7hmr8Mija2gtthheIDFqpBIR8opG7/zqoXEIRzHV9/P6WGZoUgsND3QpBmel1",
+	"NDJd+BMIEyjP0iG03uJFxRuaNJ9omGqSwaGfzFOCYcUHEmNifnrse0s7cHtnvsbparm1c7I6uF2hgJIA",
+	"R7psvNs4vFdyR9hJKogR5/Yx7MpV16OTVMSx0FSdtmvkm+sGqSuU0N49wQNI7Cx1hTqM5T2s+7O+n36Y",
+	"WnPHvuI0Uk3h6jCmsGAfy6iAbIZE74Hlu3GBVLOl6loubFwwdr3NIYxjH6DVETx1YLhGbIEDZNVTndPa",
+	"V+VKo76hzTxNJPn40bzMzrJvfYcI5pDMkOu438k2kICznS0+zQrJ91g+hp8dZcCjjwza3sid17fXRL6a",
+	"O4PUMCWrP6Nf145rX3YNxpGmvQwDKuRgNm/ws44J2Oa63R5ZO+LfDAt09HW0MS9GbNTDts0oNXLY5Xpz",
+	"sDIgqw1UgXbjgG3tFocukD8YGwYYG3KUXV+dJhXe0u/+HH27IOE/fuTp2GeSeS48FWIv4jgVUsAF7y7O",
+	"zwBP1WFz15x6zscTmpIQZMbHY3AqBIoTwYGgQPMKgIUNWpT7A08ffQ/U1Cp99EdAWYgJZEsAhWB4kgrE",
+	"gc44BSjEagvl9vvPnvUuF2ydF23gU1qtrVKsSypvDv79lbRKjTmO2NuahPI+6n02T7l+nBfb4QKVeoUO",
+	"do5C0Yc/mdXOdEh8ATjfPX/uQ3DtjtNdQvu7BpWtAUb9d3ilB3bYova09F/hg25f0bZA1VfpAcgou4l8",
+	"P87hvThQvIoNJ7aZ/MO31VSXjsUaBuXyXpv2EE4irycc9YlrOnlS86p9i+kRg9KEywSyLSc/Hqr/KpGt",
+	"k1u/SJibpYhtAOJAd/tJdzWFHErA7oi0mQ1ntfyG4fhI0H3XrIi3zqdloLjT9D463nrM0V+yHnXne3mB",
+	"o0hlvzCxdEv4ru2WevYCTuRGWovaOZvO+5J4K8Wu2dmgt9cRunW8tSdMq73e19/acF9astd0Yy/DoAbc",
+	"uo/TJcW9C6LcoaVXI6wvZJv5uzulZpePqaL9bR3YBq+3oMGdPFipRsgtl39Q0QH32b9RnAh/QYXrLDMg",
+	"76uR3VW/OP6ezSvynISOZbYEg5gg1OnranKV7SlRXrY0rxfU/tyT3tDpIXtlK2oV0Wuny74ZMu8VvfdN",
+	"qmxxPaZ5r7/3w5sfFXeZTd8MZHPkzcfNN4SzZW2iDaO2if98XtP9l3voqK9JtFT9yTRf9k7cDEF5uUOb",
+	"4igyGIJRZf7hr2tari7tqW5aapmE1tI6uSnxzpdax7u0za1z1trh2W2WD+475ah6Cc23/D6j1YHNrM4M",
+	"mFo5rzvonYVo6yg3PY2f2ZLj7U6LIl/r41Io8Br/8iMvBGqO6IO/uXNPEYF7xALIEbh6dQa+f/b8CZCf",
+	"AoOV4B9ghghicl4wWSq91Em7LCihaaobBhQ1ADie3nz559dx9u+nX8f/yH747uv4t39+Dyc3hd/Yf3s1",
+	"B3kYZSUpJOC70n0nAVnbHr1zfB19WZOuVmNArZexb7LT5QWynULeAy3lAytyr2InGl7Lu2NtNlVbrVjl",
+	"vHt5Nt/gDqW9q1XbuulN+kaz4sQDa0GtWnN4hetsrOu9wBznZXlby1FLCPyaD6kEzOZ/6g3cbRtirInz",
+	"fOWapRspCtuWW3VPELt0ZIbVU6t0lanVwaHneb16wfgONd/1h+/rqp33S2k0gpO/uvkAbDZmid6vW3kC",
+	"awLfg4fNLew87Fxm8N6daY6nA29KDd278yj0XbEqSyYd6t+MKskUG3y2Gptwe3NxOn/s60P9tKdPa23F",
+	"mxXybMI23JNhvYf8ToecDaEBO3rfyEDua/iJ9ug0qgOqqoS0E4fVy+GFmpzxfV7RvBqYca8MO/fEDnba",
+	"xfeuvz8ceN0KFJsT5gWK7yFeIHblq8Q5oGZIZtcbAv2hVe+4oDFig11n2wuLME0M+7gRCBVZpHtPPY6q",
+	"vClaEN07dpJJRUDbQxnzm3tnBmzEEbly24Ec7P6QhgyDPDDLgTEApwcam0qj9+JReJN3Wh1Gpo0RyMMD",
+	"OzyC2JOeWad9rhVHa7CzTSBHpv9Egaqf/rNvZZUVZF5G49MwZIjzSo6zT5CV37/t2lRqTrno9GHiBOWU",
+	"7M0ILhBQjl0gKGBIQEyUWRmZsqUAkYAtE4FCYKcphXA/fvTkaZfqGDYHMvPdP3/27LtnrU3qI14ukKiY",
+	"i4iUK1D9P5HSv7fQP0esY4+uMrbmTdAklM3u8+04c4/caBz3wp3rHGXY2I+/OeWjhpopVdGrrHNzt5dp",
+	"h0WpBtYm8ht+Cqcf9a7u5LmF4Zx51fKi6+XegwHqVpbsA0PdgmHwU10cXn2rN/HutTxgDXkV+YP+7uL8",
+	"zCbMDn3R2SnnKYMkQG9gkmAya3DXNh/ttNC8NpvW8bI7ybIRzqwivdJR7NBrFDAkKlaZ7583j/c9HSHm",
+	"SQSHltnY0NuOOU+1PpT7XBkuvo3+cgW/Y9FgA29FOxca2TacC3OLhjlLjfyoVE+0Jh5PR9IM7hXQucb/",
+	"Wvnbsw4VLLsXyfczQ18J++4s0Yl2HMARS6P3Qnl5x2aQ4D9XENk3o710ij119m6jTgc58lqp1yCPCURt",
+	"SM3TQNUqcldwFqX7UwEiBLkAlCCgk8HAFKMoBHHKBZggkJhSrZCEAIKAEgEDAWIk5tR8ZNI34VQgdg+1",
+	"8F/jXOhoi9U2RZ8BYkO+hRY+0ORpaBkaQ8FwkEYKbXSGaXMSQJf0Vp8zo/c0g5Xv1WP0m4h4d0Iw5udo",
+	"CtNI+De2CQtHOf/W3UTrBVyVMnF7vA2eGR6OwHxFu0fkDOR2VRa2O7Tcn0YQ626iMJgDFYqjDhU7NyLx",
+	"703VZL882lA7uDv0f8UcC8peEkajSEcRr2yJhVFE71H4RokV3aPCzVaKSquepGPWkWv/2VBi06aUS4IF",
+	"htFV1m9i3bEEGWoUVyrDbFS+vG645By4yKTfJQLHKotqHFBi+tEtbXxzIYC5ks/ntQ+blbbrQx/A2ywy",
+	"h6YJhi5V09uGGGBe6ikJwxgL4XshahIWmAbVGr2GHRzir0uZCmk13Sc7nJO3ku+1CaY+BuFAyDHPJ5h4",
+	"YdLM9Q7srhu7WzvT2kU1/hU4Y5471Fxzv4Jtg5gB7F9G0gy5rmSo5YcOMdf/9JEJtNxrJQaEyQILhd1u",
+	"H5XMu6dTaaYQm120R2vDidR1bKO/tUVPry1/CzrFNotX4AWG70Qu7DuhVJb09hAYl0m1e22O3f3+zNJ2",
+	"YEbTNdallXrDVMi9vGt3iW53lE4ceupzUamYr/mW6ktG1zwEtSHFrfS6I2PdWuxqWSmO8nfDK22oKV93",
+	"LiLSvkFHk38BOXr+tHBNk6XycBQNXY90JoizUreQDmepVzhCZEj5ukzKUzKX3KVXc3hjjDhyaQB1D8qF",
+	"xun/4AB9TiIcqPKEai4gKEBEIF27J5kvOQ5gNOZ4RqBIGQL3lN1NI3p/nN9Qnekix1cH/0YZvmu8GhWI",
+	"snSntmaK52pqgOgHSgNXKbPAnoqQ7dLXR9CapzEkV2iB6xpUtFz7anW8iquPCkfwFsflKEgZFqrOYWyC",
+	"Wjmb/oxgqM32HnxDn2EgoiWIMWOUgU955adbOfYT+BtlQE2MQMJomAaq/emn29ufKRfj8ud/B5SAlHA4",
+	"RQDmjBiFFm1V62/JYI7melvW6HT03+Oz66tXY90JKOfQCf4XWpoW6TZHJGtoVFK9CRrnyeEgVmEt6p95",
+	"bzfABWUo1K37IAcQXP98On7y7DkI8Qxx0bA9FWM/1juo32Zc6cXntxFIrAU0gX+kyOw0HGv5G+iWSO6m",
+	"YRAgFaFGCVDdwgHXOUnjIpCpbXGg/F2Y/K5bEk6WAEq2wuUPBEocAtqZfgwuBCBySmCaVmi+k3LE7BoN",
+	"IDGRQ2N92nqg8ADHL9Sp8q5UrywJaiAcjTy3KQlzbKIBkFO6FajOYNW7zO9QEZjieXrZbFNzIRK1JX24",
+	"M0rvMPJdkboZjtgCsTHHIbLg0Gsfg3dqVbMkwNzs5kdTS01OK3/7sxCJ/PQYXFeoKOUG3B5yMqt9AhLY",
+	"2RXoefMrqA6ogv+r0kimtHrIn9+/v1Q+UQZNtVxKkFv8LURJRJexQpR3CSKnlxe2O7JgkPCEMgF0reGP",
+	"hE4ljon5j4ryKTPOZoWKIVVOVkwWkGFIRFY1dwKDO0Qke1Blo3UqLkb8+CP5SDI6sSKBdndwEKIIT1SV",
+	"gGgJQh3HmWI+B2LOEAJcqgb8BwAJoFp1+0jMc6Aa/KcELiDWM1IGUqKL/4Yj8Emu9AkEEYKMy78xZHwq",
+	"HBAKVJ2h0UeivcmEkrH8Xv9aTmz9L+CCgAQyoVynbCTZasWP+glg/pGY/YEpo7EFApI7jBA3bahhFCEG",
+	"5pCDTwmiSYSOGYLhcWHKTwpeL7uxhohTw1H0CtSA+SP55CfpTy4vClEQQUl2EySliwwv7Ovzkbil/UAA",
+	"CaHynZGw4epK7K1yFFASunPfYzGnqdDFmDGZfSRijjADRnABMYJS/R4BTtXONXkCpPvtKmLCHGg+BTAJ",
+	"UYKInDtaAjpVkwH7zGbkLO9SvjzOPiT2STrSObpHb3KCOKMMgdPLC8cW8sPRo+PHx49MpgSBCT764ei7",
+	"40fH3+niFHP1EJ8YtZiffMmU5a+aIm29jyJtGhcVB5/syGP96Se1Y0SmlFluLWW2sbFwjHWj2ZzUjrN0",
+	"BN0H+oejczWPqSeYC2IvaLjU5RuIMPVOnNIbJ7+bxB4tunQ0PmXu2aKEY5tNW3yXsz159LQKBbPJETDl",
+	"ETDiI3tzfKQgIUlOaKasGAMSKDwG7+cI6MgS9ZFGI0YjKVln9YEMEzqWd/f00aO6M2XbPHkBw9zhfPT0",
+	"0eP2IR+I5YYo1IO+ax/0irIJDkNE9Iin7SPeUvGKpsQs8X37ALfxzbMuZ78wxQeuFc3ployu1KlMGa68",
+	"+dtN5ZX97ear/KVt+Xx0iVgMiSZQfXWSQRiEB/dzHCETso/JDGDBgTY6qZ4uMy5FZYMh/Ojm6+hohkQn",
+	"SpIM9FOVMH7KqmweVZDz0dpIwy6haMKL7kB3duTfGmKuD89a8OonpIMkYHabXnRJIIMxEqpqfo0dLv/k",
+	"JO8fpKI5vBz9RMJ0nDOrky+2rktXdi/5uQ5PG/MEBXiKAwDDGBPMBdOie94Z/4ePJEfqLHtFN507hlH0",
+	"aeQgfYJJ8U+UfSSf8r0eUxwGxymJMLlTX2guaqkxwlMULIPIiFdajjKC048f87fWfUcV7w3mUoIhM8QB",
+	"ZMiyaM28syQcs8pHYpm7+pbp3r/6OS7SqqrJbR+x01TML/ICOvv8oBWskzYQUV9LWARJBgkLhcMztaNn",
+	"SuOaepq816eE9/zhWju7GX3R2p9qGZnpfjlnOSqj4qgjUmfmp3qGZtxlunnxUHY5OkpMKl+7kKvXW4OU",
+	"qyfaPzF3K5KEOX1ocfLAPHbFPMxNuIKtVlskU1cyrWX0fr5RS5maFLZGmHq5T8fA+4Tp99ppIVDUvpXB",
+	"hCFAqMg1cNWeKRB4kdV2LFKwzuv5ixKwSWo60K+h36dPnnQ5SMJogLiiuJdZiced0f6pxm7UKhzUEnke",
+	"PcHXRelFIrvgPLU0dpEttkfU9nhtq+ddQzgS6tw+wsuBAAIaG/OsEkawmCMGlFcUhdo4LFJG5J85gFLh",
+	"VA4LV12jbKy8ExyJNAEfrl5LLqftk+p4ZzCYo/EZJYLR2mJF5vuTt/RaUGY2feAFD4wXXCOikIbDKYqW",
+	"ymwpH8VcKsAu9fXhEapc1TiLV1mJR6TdhAG15K1a8liHAn76EZi+bAACZZ4gs6yghjXfakHA+hthqFws",
+	"2oagZXxjsrV5enqBimBg6zGrzbx2i3VtgmnVVTPbH1lB7/AgKzxsWSE0b4pywzuM4T94TkeK7gw1TbH2",
+	"a/fgFG6dnG2wicwkyZH49KPRebjHxFVx5FhPYERnM/ml9vYFDHk0/WpfsA1xgvoGZPvDC6wLQQJQa1co",
+	"R5/cNHvgEQ+TR7iOAC1XuiKEkwgyhC2MFQluzaLgOCwkf9DuhoCGCJgwY52UX2pO+JFoRhHhKVLi9t++",
+	"ewRiTFQv5skShDoB+e86BErHiiwQQyEQOmjALvuRWKnkGPx7jgiQj7saYWxnI2vx1ZhclOsBQwHCC7nJ",
+	"jyQT/TM5Xxk3zNJLIOaMprO5E4UlhR6CIp9nw9XICirLX1gps8Fg5pFQSFLUzrJrPmhYD9laqrQkvy7t",
+	"vmTjHA/68jod3b4V6QeTY6RyIZQ7FdxLJgPDUPk7weXFW+s/giQsOHKVo1ayRD1Ei4RqFMllp3y8iXa5",
+	"eKsiyuaQz1V01pQy5SvmmAtEAjTyyV25k3VkAmVUVFoWLBZSxJXVVpt/FQO1IgZMBY2hwAGMoqWPkxW6",
+	"lm5eJsMre2clDP0uPseyfXDSfvtyVXbdRT3MlsRUOHB58bY/7xmjLDlqe3JWAx+SGK+VypWZ0Kmx3nwk",
+	"BfONChThbpi2EwKaSUhWHtKSmBr4kWR/LcbsjnRbsIGCGSZcIBi2Sl6Y5Hlsf2HJS96wBl4Wx9NsFzdS",
+	"dsmSB3XJ2IPV/MCZ12E1z9HGg58NXDkNsRirTCKFSG3xovJzEywKTuUPktnBEApojNgKvTHhbtDbyNiw",
+	"RnLfWgw70Yrs5cUF4AQmfE51IlSR/bzGXKhVXi5MV/x+z8NrHGNdCavlw7OUcXk3Nq7oj1RnZZvAIhgY",
+	"J0TORwrJlP/0JBL7Z2JIJ4e8l5/XzPf8ae/pdAX+fhFO9Wel7NRJX1/jtJVTN1euDbE4zYapmYt4eQY5",
+	"GmPCEeFYKUMcQRbMAV1YG4lO1wYmYUplDgE61clcakd59p1vv9dqvtp791R6rTs+DdRewleMxoX5umWl",
+	"N0/6nvaf8maTxtiMZC/hzPuGnoIEztRVKI4CNAMClIXKLkXQPeICqCzcPdcfthbBLXkhMF0vx6pAkpb0",
+	"HPi5bF7+OuPxYn6ihJHxAjE8tZcaOK11/aEQtvut8vL96ozdkPhXu96qaqyaEOjTGyHNFd4IT+Md28lW",
+	"EEWePukg97yn9A0ktnowXyfqFtBU3doSQBDRAEZGk9Jqj3bA5IJK2VZVMDO04C7Li3/5tT5lOc+uGHNH",
+	"RDeGIL4kwZxRQlMOXL0KCoHiRGh8KIfYq1Xf3RM/RRTQ8El1U+6AWu1hE3bbv7wRVo7tcB45BgfoQ65a",
+	"r8t+uyhcPQ2R8oe4QkpuVKmQTicqcQLjerD2jUe4VRdalZkX4tE06x4ZFmM5/Cj38HIkTGZNhGdYxR0b",
+	"a62JnH+obH8j7NveFoDECb9S8FOxCHMETI00r2u1FjkVMtdz63cE8DSQZxzJdZRJzNYJyPKSTQkBnWrO",
+	"kVTfBFJRU8oQf3Z99eoj0R9VYrKnEEepVGFTjlQinGqqj4MswxwwNIMsVEnmdPqR3M+RMuKoxkgKt5SJ",
+	"j/usZCoSakPko+ZelWKuLQRVPJpxj0wYvefIsQ5W878VLPlaCGR0dI3EuK64xHXd0uBNGgmcRAjkw006",
+	"OwcxXIKJ1PpIXuECOnUKM2Vnzw1d+yS/XQvIVASFQvoTh41mxTS6EDtNRf3b81r/vQ/mGmeSJv4iaRtU",
+	"0SUq1sTOm7H1pQrGCOsJZp1Y+8C02N6JhCrpx5WD+mCarj3mNVpeZjnBOpjOvvo6V1e7eTmNFrbUSL68",
+	"qqChPvMmxJ/pDz9wFWy4MSOKu4zHgnJmpcZCTZOUI7ZbtWFr9pAr5TTJHF85DBKGSYATGGk138ApTxHn",
+	"HTFLJXGdUBwGDTnrpTBslSr+7p68uzg/c9KvS1brTaeudhKibfy5Tm/P/PTfep2EnvxJ36j28OrZs8h9",
+	"B43kdfuQx4bWpJ5HUPtS392TzUWC6CXWFAViwj6029y8xFSJyA8u4uOv4CbUd+/Gz/ttDfnVdmKLih0G",
+	"MIomMLhz3l6/cUHSxZn92M8GSy4NYxOs54C9GgvWek7U6951nWePnxSW8bTxrfDc73zmP6XLySuRPAWT",
+	"GbBmmrLQ+poGWUnUevmwLKQ+WP1nV7GYRcM1jLBqICSRFlgU13LgCBCq4gUv/3X2cgR0/8URyErLjpQb",
+	"xoYUJpgttcnJiZE7PbtqeDAUWSWmkQuvpavXmAs5VCHSZfb5BqXQympyC03Z2dpqmR3leGP3pfxhxoSn",
+	"7yxbFOTFDKeS2ox5phH4X+zo6yidfT2RFFpvrsoCIsq1glSlII6iqU9RvcdijgmY4gWy4fnH4NSJ/TLc",
+	"2YYhAYamDPG5ygSEAkDbyPMYvJMP7z1WZitX+s3j6gmAEUMwXAIt3vlBdQxe0/txNrF6DWBEifKYYMLT",
+	"6RQHuizqe1N5UVGFLhPHwUQKaDbAias4wMB44nPVmKFAvjkz5q1KogwOCs0kyLvIyu5NNfJwt0A3HP/5",
+	"aPz9jfnv+ObL49FzX7Fuw8rXL4zZI+4oQUou/yqi9wrcXpd8oURpNcSs31uzpw6nB+xl7e94Upa8LM/Y",
+	"yhzKC2tIklAWw2hM2XiOZ1KUL3KsnjyzyIrquecHjjiI4edbOEP/z6OR45ZPxfxW4BjZyHuUx9XqN/eE",
+	"p6q6N5hgEmIyOwY/MVU812WqgE7tAUscuJ5RqbLPpjKrOpXiXkZUU84QC8csP1ubHmyCcS1bu0IVoO4H",
+	"i9sVoykDpFQc+dvkPDs0sK4iH/TkAKo9dq30mr/0RiDbOzrwam1XKMRM8hybLWllp23obDtCM79LSKFG",
+	"UU44U5EMEb3X74rUj8D1k2fPGxDHTbmvM6Tq+oLv7smG89cr66xsKctl97yAJYwij5Fs73ncQzR7mcKU",
+	"HltXHhHSbu6qyWjU4VumMEvmWDDTjgCjwpRcrzizRk6FO14ym1ZlhzMlX2we+yvrrA37TRVcEzeiVUHt",
+	"eNNA2oaX9kqvtB0v7f7GFjxAIj7L5es6Iu5krC7mRnuD4qpBo7qRCuZui5loCbB2NdpeUxMaLm09BZ34",
+	"oozsIVB5g+D08sIKsn7L+DbKGHjXWuMDp09sknvcULy6VGDNBbmAEdr/IA6d5Jn1L9ktr3iIZF96l0OE",
+	"Yjf6u1S4QNhOSUOpehyYXvrN8a4FYjjLvU1bIT653gYI0BT/sPTXko5/iHatRrsmOVADqhIBdLICyZJ4",
+	"OycrlNCzNVFBx7Fw1zBl3p0sNHVKGbgj9J6MQErMPzCx8cwjwKBA4wjH2Cl5x91cgmUW/3oMrn1pDwEk",
+	"AKpueiCCApFg+SMQOJYIhP5IYYR1myhCBZilkEEiEAqPwRsYTSmLnWZ2ps3alEEuWBqovotI3oOOvJWH",
+	"DGmQxojIvaq/5E2eahMutvFa+pbqRatP/H4iKS1kV2qLuIWYBxHlTp8H4FZHyoLPdkWpG3oDDDTaitbU",
+	"0xYmJ3m5iIJA125JwOSoZ6yLq8M3hrp86zGadTp15/iRUdurvIXaEt611hEZZRJ1TGDUj5639x45rVu2",
+	"Gx21xVinvYpjzxNZipURcvbhL4/QyHsqWSyePJB/YzHfXEjfpekxvMauOxJla5UgyFSlmI3oY3tiU9nD",
+	"7AsQFaIydDlrAmN0oot7dAqQn+AowmQ2Vm03UX1QkS5y8EJ/fWk+7hSsxxvLIzzpUR5BCa+FiUzRyqMf",
+	"njxTnctxnMZHPzzTLab1D3m4HyYCzVSc/CY9mw6IlnVhUG+gCOaS9xvoAwP9QxUDmw2rKnSoO4QR0O1b",
+	"tYDFZpAYt5JUFnSLGA6ClAsa6zC3zKXkfutB9+U4YTiQP80YTZPaGOxrJNxLvdSDflJjNlacr27FlVl6",
+	"3uhbF6Df75D+v0q1JqXZKbMmgAWukBXmBQZZwcwgnkVzgx0WwRlUMS8nkHMk+MkXHlHxtV33eWHGnfL9",
+	"qpi7RsZsTnhmwm31K9jQFsCCMgvQNf2W/gIxz6u0+pMIlJkwOIpQIGwl+kmKIzHGxOK0g8X2dgZ0/Cug",
+	"7nVEhVtttojrl6koI3oHCQZ9TlAgUGjwd3DulR2fCzha+s1X+u/xKxyh8VsYd847ePLsWVt6Q+dYVRoI",
+	"JMZcMATjImFl1aImmEAFm4o0XqmA+PanEfg3mlyObCE6cP3rT2CyFIj/qBrYS05GQu52Vge/XL786fjo",
+	"4fKFbyef6fF3XukBCYA+BwiFXDfhi6gASjA/frDPr03qGAEudVDjgFScC0AjWua3Dg3j8HCu+gdYnkDO",
+	"Pc40ljrzwJX+8Fx/18KtBnHGw9N+eNp7Pe0KIc0DTsIIhZlMOqVM1UkpEodiCh0opAD8WsvDT0j473cf",
+	"EKpYAXsP8GqLmfUwNC1GjA01RwISggjNYFQEQ62055PUNKXWX/ym+pV5VzywtUPadBH3dbK0a43Kcj9G",
+	"IKARZXzUjw4kZ1QFOsfaZY8jLJZjRiPUnOmpKqi+zIdcqREbxEq1oFylzrqpdmBtc/KFUCOAc6xviCHa",
+	"mzS1p9171GbL9su71N9typh+s2lc0CXr36nrr7V4G1OuKW+vk1n5XwIPOpDv5um1NiFbl1ReYK6KHprk",
+	"lQBGEWLf8u3Uhhqo2nfqs00FGOQr7KiBhT5dHTJk5f8O8ec96fwkSScRDk6+6P9ehF9PYOZt4cUqZJ6K",
+	"DffkUo1TM+dums3zhms8I2lSxyFsCTHNuf+DA+dMu649vLP0ykbU0NcIXF7Ty2rjoIFqWdQDw06+oCL2",
+	"mFJkK22gvTHGy/Ki2gIPRTCv0+zq0H2jyp2D7jtS6ZwdeM0JHu/sgyKxb1n/q6PvFenzJIAkQNHuyNQv",
+	"CKlNbZlKd2tF7k6b+saib586HwKFcXVjfGX6uWnWCQqxkC6qbIYU6pbbpc5gd8DTyCsq6r/nCsTh5Xrg",
+	"ZYI60KN+0Foq3p6r329Sqx7ycnii484ZnApjr9SH+cbC43atLY9qfXw5dmzyea83e9AFYguM7v8iFY47",
+	"m8l6PamFx7RJ/dskL3BW2KUkWY9qh8Db/bXhZe/ZCWTBHC9Qf7myXaI81VPv24N4IIADAbgE4NigW11Y",
+	"2zRY52vVGa1PnSbnudru1OH9tl1ba2ZXjstq4yagso2KJOlulF3npC3GoB34yw7MbAVmth4nyabcI2/o",
+	"Ykuk5llpl+JCZ4JT5RYO5PaQyW2wz2Oj3o6/jJOj+9uWOzoOVrAdk0yEyd04UVEYe0M3rzG5K32v40Q2",
+	"1ee0br39pSYT8fgA2qcdXq02EtTUN46l5IZ6KcUaC96YgfsQkfvyMwwEkGvK/5ojHYzf61Ckh/FYL0ZO",
+	"ICESsb80+01e6M9a8QrHcIZOZnjaN7t3ZIb+nqDZ0LEJGTz0Hk2SlROSte1RQxSoeddUsOhMA3h8bXBs",
+	"fEkjHCzbavz/99gOfL9M0FiTKy+OQiSNJVISygmeTo9uRn/Rhhabtn15qW9lLaWLwnFwABzEof0Uhwql",
+	"0NdNAGbuAwkcSGCvSYBMMYs3QwFq6gMBHAhgjwlgijslIL/C28g6lqs0ZjICtd2Dd7cPH/qQRBSGGXxr",
+	"8pC3U6mqpS6Wqy9tZVUFFb32r5ib7PXB9b8yGDtzdVz93MH1+uTvRwPPdpmyhHJ01PsgduD2aoxtOQpA",
+	"UYSH28jfAygEDOb7/oQ97rDEJVxKJvCe0teQzdC3+5KZn+X1tcSs64qGLlvc47h1hY6mEcHBVbfegPXN",
+	"GoE1JnYMmN4gIpZW2aXK0MhzYyRgCAU8qA8PlemeOJjiVSrO6T0pi6Q9MG6tRUxPzROvFIs1uwvOMU8o",
+	"x13aAR88DH8Vp2D2HnjJSWW98vkmzFGXeuqDOerwnuzxe8JUH7yxoOOQwanYBCHoVnvqu/dUJYQeyOFA",
+	"DvtODkkECcE6wmKjFHFpFzoQxYEo9pMoVEv3sa4QMsbhRkhCraGD7UwlkgNBHAhiPwnCdphsd+Nd2y83",
+	"XmZJL9TszLP7PkSlbiu98zprGrix3E6zxO4SO+0ZfQWMTIPLQ0rnQ2Jr5lcWsTqXItossq/Js2NR8lCN",
+	"6AE6dzKU7Ojf2SxGVhfaaaHFdjZ8kC4fBBue42mXCiHX+ruN45Vcpk6u1Hs4xIcNFQ8l+DYqHMoFdiga",
+	"qvPV4c1BLHxA/MgKhQqhuouEG0TwdQmEChUP4uBDFAc1MnYVBjeIi+VldioINjPdgxD4YJnuicGkjiXk",
+	"MkzMhmy8i1m+WG0zM2c/B7lxTbyvk5zpQH6TIqezzO4ET/eszUh4EEK/EX5o/uaiXz8xdfP0sSaJ1cXe",
+	"g9z6kOXWjt8XcLqPtLt5lC7VBjeL7VL87cH6D6Lwg2D9AjKx0Xisa7mCjj05BGMdqGGvqUFAfjeOMO+i",
+	"AL6H/O61+nTTWGVXqtP65N+B2vVB5xvoK7Ag3qTuZtfYneKWnbIJiQ462wNjVeaXGXp1Vsw2jPRrUshy",
+	"xDTqGIAkBPL4HKRkxmiaHFS0h6Wi5ajaUd/aMKZ6VtqlFNmNTR8kyofCpjsKk9sRJM9oFKFA1AQzqX0c",
+	"pMgVpMhNS5C7lR5rWdJBaHww3MiRF/vJig9ATjxY7B+oONhLFNyOGLhrEbCW1x4kv4fAa1OywfoXH+zk",
+	"hwoYByLYHyKYIxiJ+UlkOtHWdYF4jReIIL5RhedntZVrAUXKvZx0joCBI8AcsFS5po7XCUkJujSOIVsq",
+	"12hCmQBiDuX/IXB6eeFZ/ygHrD5AEbAMQU3fdZC9QjDE+wBaebwAEsAleIDhTnxF8Mqx323tGKfAMjsQ",
+	"ogSREJFgKe8qJXABcSTJ77jLnd/PkZgj5pkOIw4gk/CR91pz9xGcUEZZSFIyO7GQbDQpvHZGXNkBG0QI",
+	"z3p19qtLREJMZsqGayv2h0X8+DYsDzkWSFAokudpgtgCc8pAMl9yHMBojBZYIgICpna7Aj/4I0UpcvDB",
+	"BXATVpzEuv1BTWEU9dG7e+JOd+asu2Uc8Td6wlxIBEkMopijAYZSbp77dVo2Om7rLbqv7GgnJo/9Vh1z",
+	"pH/5Wd4IFtHSwAlQpu9QkUKQMialON376z94ThAczwgUKcsejSFk8CWqXutKDRJe++Zrb5fgw67NyOoN",
+	"C25Zbu9IUWdl5n+Q5HckyedEa5AILBDDU3P7gE4BzMgTSPKUEgwNUhP42JU4uRK0zAtVJ7+WHicjnG0J",
+	"W+tFwTPDrpTEgqF8r/VxvkmBRSoRfi79Gk7AVRohbo4P7rGY01QAjkME0HSKAiVpdsWJhbYwdJdmf7UD",
+	"toQSZr06adb8GcwxF5Qtv13x1YWJPa2S4dMkoLGS11RhMSjM7dRgQLMTzQP5zg0+fk5jSMZXaIGdohSt",
+	"/TYeP3q0YpePNfcU6dyZIgmne92QwneXHgpSJUtLonQHxH4Bw0y22J7UoJtTlBTa81cAfQ4QCjl48gy8",
+	"wS+OH+z7/yuMcChldUnZksYRgECVri0ygMvzVwOYfFEqNzih6kRrVK61Fjqj9Mo9WP8wMvE1HzYGdxRK",
+	"TUYD5fL81VqqrP+FS5Y7yIfRvQKtKaivJBCkQc/wQqJlI96NVlDpMmQ0pcx74u9QP0/dFlqqnvufyU1o",
+	"lZ4F90CrbHhOLjMiNbd2iARYy8twEcepgJNoadlg9jBMKQOQGNkfLxAQOG4xXcYwmGOCxr/TyVgjOGX1",
+	"KsA1giyYv9FjfqGTd9kIv2j4R4oUWzdiGlfDG9qQ1Ut8pZkiHGNRmChEU5hGQgp2IzkrjtP46IdnWqTU",
+	"P+QiHiYCzRCzMt6G6MRCp05jUU39pbyeAX7Pha6tvT8azwAiUhgLQYJoEiGQKtkMQA4M1uaAc5DcYCf4",
+	"hU54Fcmb1dscs7eO0WaPqhp0xxCZDxfni3/oGcuOHcYpkQ/4OzaDBP+prUc4RETgKUZMSkq+TQQpFzRG",
+	"bOAufFPaK9J7WuPEMRSIYRitc6+pCGjcvZuhwwjNyNqpJziKsGNE67bAi8Ko2sk5TVkwZNvXemDtxAwt",
+	"MLqXyw+Z/coZXbvElNG4MHemFEjtZ2xfsG5EJOjapkrgDPkfmMctT0rDhNf4T9Th1bKWkN08W/kFXkoY",
+	"eB8uzWIlPz08WY5pTurqUxwJxLIn6nf9ltS8Ts02uPwmNuWpKi3TS6F4vAGM82MbSWEkAXmIbN8f95R2",
+	"JOvQEe2pgiDWN+Wgfne57ASmgsZQ4KA+auKCzBAXp/bDjZNH7Xo7Uryb6SQL19ByXqBpZu1RGs2byIB1",
+	"oNe9oleNygASkNEZjKIlCJFAgUChui4cojihEkWiZQ/K1VLiWAdKdVOvtGj4Xya0agsEU1+lT25EB3l9",
+	"uy5DeU2AIGRipuSRe9zvlzgDo0lSqnMPlDjyTtigI5z+ldu/5BjwExLukyxJHuKoUSb1GD4SKOYVa4XC",
+	"iEaPayd1vC3ZaOMPfXmZvXzfHcQ+ZFzsUZwWYygQVgpGYYHWprAYhNOP1Z4Yq5HHm7UVmkxFO0UaE9WW",
+	"CNOstpf0afamwrHQgUL3hkI1DikXtrKpwQhM3KsaTp71IcxbIc+maOfNm47K6+wlTf4ilVDLmQ+0uDdR",
+	"zY166HCCTBgO0JguEGM4RE3lFM4iBJlj6ZYD39lx32IKbzOd2KODQMLlULRhXeguoVkI355iAqOxwlNA",
+	"c3zbK1XMJ/ZZBCmRzIZIpWa1vSSdS/cuQ0QOr8zOX5lrJADUpKa0ME1uNj+CoSSCgRT/FGHCKEgjm3I5",
+	"8N1JOZxpvNsXer1Sh3QI6IPe4mbotWa1vaRXvTWDBQehcA/I1WCPNmzp20m5pE+5A0Q41F4tskBE5boI",
+	"BgmHQTm9pYFmIzqbUHp3Irm0Mn6327Bf6yHv7IjN42t5xXoToD0PsOf5Jj0XPyEBstvJ3crZ4e2XVQww",
+	"kKxBAqn0Yy5wwLujwXU+plNcoIlqqmfuhdCkngFOw2e92RoWOwDrgMf5lex72tFe8NcOhKMi3nQoEgoL",
+	"ZMRdVO5GORKNOgXOvlcfbh7J5Dr1UdX6KGrT365LN3aPWb3JzsFlEpTbiC6T6+w2vEydtAVhHkQhkQcd",
+	"MFZAXD/eVlhPpm7JKzQhCJ0VLT1ma07qDdJTZZ3d6led6OngBtszN1hPAuz07G89WYb3S6Mw22xLo/jL",
+	"h/y3xPsfYv09AhhXMdAFPRUJ5pWuO8tk25DHdiuLNb0bBxFsSyJYO/PPBK9ucZ9b0PwaEOcQ7WmV/5Yb",
+	"7uFV3KLgvA2hebcCcxPTO8jJ+yonN3FJHOkYsFmqsbqZR+LorPDxRjGuvJgX93AECvv/dkvo3TMs0JiS",
+	"aDnmcIpcH5JyLZQhUbh1HGmu2RQP67vczXGz0mo742sdsExvOfTA+CDhbcqTWsTu6zfvL9uwW/MzAmco",
+	"HIdogYNuVn814Fx9vwXbf2m1Og/Aeb5/EEABIzr7lv0A7qV53AHqz0DDpIsGWgLyhnXR0mo700rLp65F",
+	"K5+bYG+9lX81tbZCCo2UUMfzTr6EGSJ06sq2LaJZU3c2F5GLTdr2F5G/2RBhjUEAEpCSlCs5qR8Wjxo0",
+	"Dh9abut1bmGhB2uNa63pe+X9alueO+zsqIM9ZjvcrGa1nekyPUWAosXmr8s5H7qRZ1WZoYeK5PGTtlWl",
+	"VXUuOzTvPEsZl3C52RaJ1IdfaZAZ4Hzzipc96Lp0ru3pW/uga10yqpsE1JT7NgxXuViJLuEHCNS1bekd",
+	"UjUuJ4zec8TABKueUGupAj46ukZibO/fPVqlQvlBA9w7DdDQpEIbzHmKABbcIgwJenP4ky+xi7T9dcIH",
+	"oQ8eVME9UQUBQwt6l6uCBp3XoQVuTQNsFw0OCmBFAex20f0kyDdFztVT/due6rcPal+DBHLQ9h6+tlfS",
+	"9WIkYAgFXF0aONEMu3/TES9x1jSMlSvsq1CxRXq8Mm9j4RE5CCtbp6lLxGJIVKlQI6/0e8e6EZaS2TdK",
+	"V1RUjJBqzQ0lytcstw/U1kMXN8nzMSLioI4f3ueVw1YUVXissYYS27iIbgTSZoi1X205VyWAAs2o+k19",
+	"28vOeS80uOvXjuM6H3JIfPEwQI0V9ZkvBmsOqS+O6TsvxZHRnnoWJjCCpGgLv7CfdrCC66k2bADXi+zM",
+	"9m3O2IBqh/yXjfes8CBwDcoW3hcpn9qeUy3pMA4qb5hzNaHSwcSW1z83xFUpfl5iUB0SY5y2YxvPjNko",
+	"SywusjMVpANLPGTH7J0pzdyMx4jWjX+eBJTwNE50Fa+OBR3WS3o1hraAstBi3lm+yY2VzqtZb0ciSnZ7",
+	"b1Jhcku4lNo95OlsFjB1jAOJ7kUSiLwK24zLITPV0RvzhPIB8s5JoBsd7Bm5mvYLln6UtruxiufVpR4C",
+	"kdprO9Do/nUNUQYdICiAIJkvuWraFtCUiP70GUN2N0ZxIpZ7RJ5vILuzBPNS7W0ztFlZZ/8JU20TwPD3",
+	"lAtlSD+Q596Qp0SnXMZVRGVK0kLiXpmTZ9mfYJOUBXPI0T49p6dhJopemu1tiGI9K+0/zdqdHmh1f2j1",
+	"NAyBJaXQPKiQhAAGf6SYYyX5BBLZexNooc50F9/S+2Jh6g5upr+u5yW7AwdobV6YQuXvby30Y8sunDhO",
+	"haTg/JmrKau+UwOppE6Kw+AkYXSBbRBBLSG+uzg/u8y+3CD2ugvVZcJkG/l2c2BsUQkUAgkRkN1S1myD",
+	"o4ChQgtE+WGrM9CF70Ydgu5CO5I/CmdtwKODY3CjXckkGkvxvoDIVbytcqSTL/Jne0v+8sQt8WouCnSJ",
+	"0d4CeVQX2pGDqDN5HJxEe+YkKlBSsQDRj4DGWAgUgiDCUpPW7wTAHKQkmEMyQ2EN7SWIjEO4HMMAhijG",
+	"wXjCELzTSnTTi5Igcg6Xp2bUCzlooy9LYaUdPS3F03qIx34AFBB38sI87EgSWACgi7IJIuAcLnkL3p58",
+	"ge4ldcot3CIurynFsIRnxVTDQyj+ukrIdMLGvhlkp0X87CCdbA899YLDWe2jnbHag7Syb7VAhjBzFOEZ",
+	"nuAIi+WY0ailGIghjJf5oCs1ZoNoWVqrzlbhfAbUOb7huh2mB7w6JkgVFoIpZcBeMnAutQsOJIhhGna6",
+	"+Uvz6SbVJXeluuv+FXMsj222rqw1gAs4naqu+Apg+FtGguyuLQQWBiKC2q6wUVH7Lz6g7YqGvoDN2q7c",
+	"lXZlvCqc1pc1xuBUGDA/lLKZD7oGSqgAXkLwHnzs5Iv+Rx9NZKPIviYVRO9R14QRHMjZwzRC36Yu8iBR",
+	"ONdjumFvfc2TKlpu47X1Wic11um0A35IyMhqnnS/5J6mdPdGemirG2VhnpV2ZU1vQ1hbrl9fyqHeyQPW",
+	"aENX9PIkavSQBE4gC+Z4MaDEiZce/bFneol9FSl2TYMHgtphjJlGTQBBkk4izOfZ5QwkpwBGiISQjRVC",
+	"fRZN2aQGXc7MkDMzYvMIWl7Rl11gPgHmHAcBxwo4cxrhEC65iUV0DYtcmZvgpuWeNhy0f+tkudqGzera",
+	"qGQNcrTV2g54VjFlcYDJ5pGqk+1rG1av3dq7fCj6/7P3dc1t48jafwXleqvmYkVrMjvZes/kyuMkc7yV",
+	"ZFx2srtV6zlriGxJ2IAADwDK0bry30+hAZKgROrLoiQnvEssgPjqbnQ3up8u7ZnnUhymv+rb/WhSQMlZ",
+	"O97x+NtYqqhwrHepPNuWtdZvpbotxu2V6F6JPj5nYaC/y8egddvUSGKZBdUiXRHtLkzn9fMuWe3aDdHb",
+	"qT2LnRqLedIktHrMfZKZqsDkSkRGRsivXXLVDQ5Va/9R4uNhz1s9b50ErIYl0GXWsrdX4un0aTx2CD2x",
+	"kc16RbHntFN6vhBZeY9l1au9YxTCjOW4J6qJhR9pT6zWVBj8lpZvGaVjqxv+ahjpuLy2ypFnJ7vkx+t9",
+	"JM/rOcTIlMWU8znR1D2L1N2zJAG+81Nj8ZGhslNUIGKIMgUzBg+dmnVuiNK9WIzdHe6bH8APfCSWXZpH",
+	"c9GFohHxJ/HNMe6zNPfcWRDHKFYlrR4DigTszCpf2tgfzRTSTXgS79bIk2CK63gM/md51IVIc4gykJm7",
+	"RjeLeudw7Xp0hcL+R+fB9HYJSkuxOpYeo6vtSvunKkuqt3iSZfB9QT/EbSVhCVh2YjXs8D28XN2EZLvw",
+	"JqqHj9K12ibU9bSDXMs3qD6q9cSiWsMHJTJWMl1wgu8a43qAd/mVj519ZOtC4McGL4c7CrMtolkPEcd6",
+	"XBtzlSen2OveunzG0auWjwpTMNnmLb52rw+p1mwiUIvd2XpcHbaKA1R2pu4MKrxhpONGwVyUe9uY8Fz+",
+	"ehzkop65GtESrQqujcKqbXxOHH8QKhZ18qdw2jCFVQr1O6g8lmcbwUdUpKQglbNTJ6Xn+b5lN9Zlv6Kz",
+	"x3hC+EGT6mi70Wia/Od/lUx0q80EI/RytJej28lRJzaXuQWDmazqUrwSB56zJ4nUx+o/a/wVjpOXaauX",
+	"tCd6B7udRgSSDgXtYNPGFwGhrfKZDWMqYuDdqNWX+O3Tc7odxJB1i+fLpmwv8o8YGY6HQuiWVqmaUMH+",
+	"Q9ejiP9ea3ngKrU0trKo9iXfcyQlByr66rENHBycWBt2ee1U+yqyIXh0ro1MQRG5QPglK9X+vhZ3J2jd",
+	"bQJSMNCx7IZwrWuIroeN7hxyp5GSVxDy0r0wfAz/2wwh3QC1X+/UfT3SA7DY8kDH0s62YbEezPHUwBx3",
+	"4smlYJbFKCgkPk3ufWSHApqcU87vXxEaY9k2klBDCdMlvHURhnPvG2jsdH9+NmjQANtCY9aYU071GGzU",
+	"DvUq23bR4NAQMaEBM7RmQJxmSeQMFMlA+dVYuYOxuJbFaGzImAFPtF3N/tTTxU3HqF+3494+Bgy6p4Zw",
+	"oNq9uMoxMVPQ4NEryY3kQFJIR6D0lGV3gunCQYNHhDBgmtAZZRwRIBECcelgz+8szcCXjMsECqnatFQ7",
+	"7BUiO1ZrZQZSvanwRaX2yvV4WW0MVQrNi1yw/83B/+5lnzZzS61nY6nSs3U7l1rBjhXMwm0ryJazMcTz",
+	"mAOJqYGJVPNzcptnGZ8zMbkTZso0GTNuQBX+LL1E0ptule92a6jJNeywZY5NLsLPvMW51Xfxz4faROQP",
+	"lErRBN+f39ERuck5aJIp0CBcWbE7oXGu55bMRMLE5J6kQIUmVBCZG20o/tUh5auU+qKdeP1hbmTgbbwT",
+	"FRLJzLkxghMjzQfG6UgqqRKRi8m5//C2pxd+46lH+G7pW03n+HKHc+zS6nNipM3euyDWfLXyqBb+15t8",
+	"1uTzbGRpOdegCA08obXb2d+Eoc235i52Vs79K8ujisU5d+zDRJYbQpMEE48xZF0tdnXa23mtY8MN7dT9",
+	"Tl/4wyGOZFr69TVDsOjQnBycTVEvwym8k260ppPi6OcmF9dX5NPNO39VF9/BAGUpzptcT6VW8PXE43i+",
+	"K2s3WwwPKJm10qExn0OXpmz1UrWGi13D+3Ny5YjEfYVMqXb47HjlDwjlWpZ8fCcqTaTsf5EnzBAFY8C0",
+	"BU0UpJQJIqSIrq+ufMDxmIFyCE2JJELaW1XBDIQhU6oSF0Rrb1a8HJuCgjuVBvsDvrV7iKsEq3nY9Vma",
+	"tzvgJuZ0YqvHUDsFvhg//P1G0B0vt2PpMApdU7fdlKuNVstOnhatvVMzdTTw8T2RatkACpTb5RvxNzAB",
+	"A3Sqbq24kHwE8sDru5CgfoGWacRhBjxYQ1819KmhzasIcEu3hb8h6kHN21GvV92W6Nf/3VLwnQhImNw6",
+	"y4vc17S9D3k6AnXfrCfeidWKIvnde0ecM4RQBVURs1dE5Bw9DHfC/65R/mpyb3+5x+YxB6ogabpnnEOr",
+	"03smHOJI3tZ2Jg+y81FN7CO6n3VE95bK49BrdtvHmNSlyxobstQfvRV5Tj7AQ6FuOo52D+RkZG9jfIlG",
+	"HfWeywkTb1LK+D1hmujcsgAkA6snU60fpEoWdS2f6za37QsjqHATV71W25/e+dVxAUMc42ilC90KGytp",
+	"Oaflvi1Rf97P2xTtBdCaeo2OdkoE3ro08qSlW+VRSj+D0hmNIXLe3PWvRbsp3nW15VMWyzRM8A4iBZ18",
+	"WnhwuhP3MgPxr4TOtf9o1eH+VeCidstoeLO6E+sdxi32wPtyl5xbt3v7YGnEBrnxPji7DGI2ZnGx+sby",
+	"T72t8ARbIXgUKe2y6gCKfbds2JlV0czBmZJjxiFiKZ3A+rRv7+13na5SF+t2yt4eN1OCy3seMdzPxifj",
+	"U2QoycJNXumMaRGQS/S0UjjiMMN/ZzCpk9NYqpSas1/ORkxQfKRb0lYWZeAH24Xb0yV/vX7zW30lC5rU",
+	"JY2nEF1KYZTkbTvu2w8/yFsjlX8S++4l4A3QBOmEzaziIapd34B0nmLo5I2Atc1Ut0GAMXzJIDaQeOG0",
+	"c4hZ0b+K+XV0U430j+itlcof7P9WjRIGkLx8icG/xf9ftEc7L4/m9yLCzYhuZa7iloDjM6uk/SvPuKTJ",
+	"2eAMRJ7aAzP2ghOU/yummckVdq41xMfN4r9/tCDVbHKPyNiAibRRQNMnCwDL9QNy/eG3gVU7/w6jazKa",
+	"G9Dn5OMUiAY1YzGQGSg2ZoXyGpuccpJALBPnXU0pWkkH9A+FlLvKS1S7/YqaR73X6MWflzUF3EwCX2KA",
+	"RJP/T96zX8+frYX3N8qZJYFBJWsHHjUy41bh3ODSbtYXMaBs+OgCvLZ7zXSxaM7wwsgE7eJxUjmj3D1i",
+	"ghhLFYP2P0ZS8DnOm1NtIhB2e5Oo6JljZeZBY76f999KDt9kttTaZyAM4POBuLUa1v3j5fEUZXsOBdpR",
+	"Fzbe+qDXG+TbUDnahmnPyQcpCvajsZHKcmqJmoDcih3uxMNU6jAWkGgwGGJKdD6y/3beRqaIfBAExmNw",
+	"HuXwcZL8Lvj8TlASjhgOaK/jQhhIDk1OGJe92UuDXhqcijTwufJeGhi5QQxRyRIbBOO700Wn5CuSi8/C",
+	"8lfAh7VQHwVEwAxZK4bM+GABnBiG3U5yx0ptAfrVxJ5I3dVT87WyAyH24S9jyjUMzrLgT0FE7YahtcUc",
+	"7aHXImfrPPpP/73KNJGjf0NsmgFgJ0w7J15wOIQJog16tatNJlIlpe/0m4xhrdavqm0ZzV3QdXDqRWB2",
+	"jcwrAvK0rljMxCSaKJlnqxOEr13T31zLTq2taqA2lFPfhrh5f8PHXVunMymsGh4eqmuyNkM13NZuA4iD",
+	"gY4VRhyudR359Cmq3QfthvvdSLvLwmj4mAWnuHFWar1T91mpB2Cr5YGOpfduxVZ9WurJpaXuhQ+H7gY6",
+	"Gjeuv+Nuuqt2sjTOcW+4m7aCxf6g7VH1uG0nhL2VBFyoHJmuZkJktpIH7XlvexW6Pge7CTtkvqVxjnsP",
+	"bsR8/S14srfgav7LR5zFw5FyadFDqjUYPXzUXJqvw0c9pT+9/MvXVov5NzBYDjP+1X/gwvbfGlyh1vuW",
+	"S3NWPirXed3NZyWTZ9TYTT375ex//vlj9F80Gv/x+Jefv/6/s13KmOweFDLwfTOxc1c9m/zpS8p37f4A",
+	"o+zJL9nFk19SxGa7R18kk3WRLO3xvYOzS7fH0a2n9OhachbP13V785FO1rX5R1R8/OM8g+j3rESFWxdw",
+	"fKRAl6agFk+DEU0SBVpX++8gV0jBsO4kAvYuWKnO387tup6NL0P3bKfer4bhmu4YbFb3Grtnh1HOuImY",
+	"IGPK+YjGnzVRoCUvAvG6OxxNx0DcvtZwbwblobhHcQ4TyiPOxOf6/NceFibHRppNhLVLPBbFqrO7dE3e",
+	"2H632K3LowuHaTiyj/IziEg+CEiIW8MeI96OFooG1aJxgcW9W96qjh5wb3aBkH2z8H1/4a/VRluOviul",
+	"NBjnSErpGupzv1Tq6LEo75nqmtuS+TqptTN68Sp+WAFlfDB2OO7L/GZMEBcAx8+IDU6HlPXw0f3XOyJW",
+	"K074me4VJjdMu6KEvzugCSl4AWh9PL12X9djsPoq66TlsIYjKoQ1ljc6s19d4w0twQkb72qOHcmI3IsV",
+	"eF3CoDkCczu8x3yGnQ3CTYy9IphcSC3YeNwUJv71e+STMUOfK/7wlpUe10ameS0fBJc0CQawXbaTeHuN",
+	"sa9JPGoMjacpCLNncnzNdCY1K3KdO3Bp9BS8ioIHm2mKjnzXEbxXTnfAOVhgqzXPc1XrTnXQXY2xF93M",
+	"QOfcrNJGAxQGIgVEhqVAUiroBOv2kE83774Te+3nnzYY7KOU76koimbpA7FrwD/ovxo+JjLO7flsoAS/",
+	"sz1e+/YtuW91f35SNW736BfSj6WZYu7Dis1oPG9N+OpUB6+vshE6w8Wcu63FbSTFQo+ukS84Mx0+8dJ8",
+	"o2K+W7ouyxJGq2MssbEvzaO7t5r8SK1Rlm7hRcWZynLqZNsx4BFhF92wJdhEMf7ZEnculrtZ3OxhTDmI",
+	"hKpzFuv1bFps/KXvtf4ADHwx5SBrXlKWoprfXpKXL39+SYr+DtecCSYmxR6UW1+3XDvZ/9t8ZKc3KnEo",
+	"Fs+BFftCxgDJ+tPA0PjtQuibA99vpAt53U43ecdSZjZRlC5zpaXqFrbZLmE9aPNzSBU5cJkeL2WLPJqA",
+	"6hxVbALS7LbVaVT3rwhFHNalJKeJosK4pKowyt5MYV7gnvM5mUreio7VYcJTNcCRNFpcW5MUk2GE2Z6w",
+	"sDC7rMdkfjYViApVaMRdCYwGLi0vhGGZfBjtnGl1Tt7MKM99+RvtkQI01gepwd1FVOtcURHDnaAi8VZV",
+	"EiWAQAMYXEeoLuscFAfvsrActiYCdroOH+cZXCX3d0KBr62AyNC58N8lrllTYqSfMLJwPZFrAyCM+qIu",
+	"ijXtHNN30fK91qJ44fLPdokc7PRifVNQVLWxFX20KbdvmnJgMR8PZqDmizdPD8e1MxgNBp/4XbVb+YNe",
+	"2nJKpvNMmilYmuQlOyKFfDErxcl22Ag1VeCcvPYY6x6qyskRP8caxp0IUw+Jkg/61WI6NImpENKQEVT4",
+	"5c247SeWGN2A44W3eo/CfuTUZUctG16wgyeZWb+BKamyQ0ndqkF6GPVeyj4RIL2VOLaznUPcijXY6Isi",
+	"9WOrVFRgtYmE2Cs2YY3y0QVTdSgfqwGOFKHSxgWfArSIHjHqGecXKFf7z2F/baS5LCJO7M6qudmCUT8t",
+	"g1VcvXYgFQr+jcB75+Qi8JXciUZnyTLETAu8TCUZ7oTXsRpbEsof6FyTWKYFfE8AaxDLxFeBRMFyJ0bg",
+	"xQmZgmq0vW4cCtey6dWFhGke7MSkDd65+ODoEcqSb7lMyfchf25KrLkldbFucbUIJR2zdBhLIQCRplY+",
+	"VN1eXr2/rJp2SMG1kdps+Woq3y4UiN0IUh1PWbRhBFSBioz8DIJoiBWY8ISx20W90uE6qJDannfq0K6N",
+	"dCTPdm0OGBF7pXUOK+kMLyC38wR3/vmBF39XHuo687j6y0aTMVOuii7G3EQJ0xmnc6gf7VpmahCew0f7",
+	"h5JcNk7ZXui1n6TtJlRmp6wegtEbRjqSMlRf7QobrDzHPmv7dLK2F1i4uP6w0hkTE+TnPfLr0H1rRYWG",
+	"G5jJz7B8e3yTiTVreeeydjJE4eYkxeXYu4P3ouDbPXUP5cVu/6DL2mDbXFmDY91FjVrnjTSLV0SXnFQN",
+	"h6Ocvtr5AR6eq5bZ32mrGVlyLyOdTmopgFAi4GF/WqmCWIqYcVYG4zTHS11g8cAglIKzMcTzmDt3m5Ic",
+	"InsXTrwfbgrxZwyeyBSMOZtMDclFYuenqNBWKklBuIw/63NiJ+I9j4RyKcpnAWw79m8F2uEDBK8HIWZu",
+	"0VQ1PRzc+EUiW3dbn9COcFPb0yPeyYsTyaRq8ZCkGb7mkjo5PIer+eCbVW+H7jQrb/QrIqSLxPX1dZ9v",
+	"xYoLI1MW+0rDnnW859AuNRorAJIpOWMaYaKd+l3UvmTCSEIFAcRfdgmQFdPtJJeGpRRpl1BYIwZr5ZA0",
+	"1/imaMeIynlCggLEY2xXQU6QnJM3GH/iAdodFngpe4onkgYQfvygVAmm32FJJcZhApF/86gE4jl5H8qt",
+	"6tkzlFukuLuKdxZLgkEF1tKaAWamDie8KAq6UFWp2K1luu7FXpBiZVQeGwziKkibUEH5XDN92qLvWQoV",
+	"u7P/8dVuCskRGRk1yImFe6jkgFQmbDy3LLDwfrpGmsx+Gt6AEw4f5xmsf76ot96KXu2Af9qeaDGVwY/S",
+	"SKx55sWB8nOr0eh+J1Oc+NIsrsSMchY4wUobfunVImbpr6iSLkJI2AEWDufWjb32WIp2p3Ugvtc3dByu",
+	"1Nq15dME1OVaGDQ8m8ZOhzip5pGbjsxKiaKOXEwzOmKcGfYtcdInDRu8zrpWG0WXuwq5Zy11Dl+++Km9",
+	"suHCl7ShylyJBL40FzN8gRUTWZqnYb1EJgxMQLV/tlAsm774448DO1v/TfxfMcKPDSP8cQhqtXu/TraU",
+	"rp9IxzKDhOCBhZEXB6ZSRwXPm03WP2vbXd5YQX7C8f9dMQNPdyk+YQbNyMSVoWTbHJHcguFPg9jWuRv2",
+	"PZMlARAUMSpslb1cFe5ty/5zKUuiKTmhxiXr8gTe0yxDXR0CG/xVaWWDoUzUwa9P4px/PuBM7F4SIQ0Z",
+	"W9vuCIT2ujobe1QPMucJmTHJ8V1VFD4GUpAZYWJGFaNiM/IL0xXKgeqPVCT1ZFIYeUiB9g+22fViNbZS",
+	"mK/SRZtJ9MfDydKTFGBHJexdruuNXiGd7OqygsG1/fOh9AMcbG/Os32rCHZyx1cP8Jx69jrmvXG1H32k",
+	"JQDNRyufqE5+QIa7KQLwe4W8Z7i9GQB5BmrGtFRRQvV0JKlKVnr3yvavy+ZdPuE0DNdcSGdG43mEHh32",
+	"H0hIuZhvMs7/YjJRMLFqeQKaTQQGo1ZHqQfEDs0ZFTEMSKbkmHFfeMSHTiDyVQaKySTIXyeo4NeyAqqP",
+	"eoqxers1RmlS1O8NnmGboSz+5rpclD06pJjFsdpRFcsmJIEYjZGTLux5tMe6N1/sWTCDEQB48w4V5BqK",
+	"1/CEZNO5RjgGzCdSqXuos2QGngJISS0EfyE0syYgJOS9A0R5jbghAeH5cyRvhJKcI1Bgnf6g/GFYR9hb",
+	"Ib38R6tvHqxay5qRm90+YZ3vb1CKIXyit/+N3RdISHG6BlTKREFSDeiJjfSxModhg8PvKqlh9dBHCo/Y",
+	"niSDtIfjkGYfJroyoXOvvNQuaxFpp/XS/xUmTCzR1kZO4qo5Xh6XtzdvSYxr1i3IcbuCk9+CiYrdfOwC",
+	"Pe4U4GnxJEh1dv7qBWHJNhns9w7mdORKkJ5nyXirO/gdHd3Yjtev3253A/uBnoSB/+YLjQ3JmBCQkOvX",
+	"b18RTg0oD2mK42gfJqhKLmO6AJz6QS/iEu8kB08GzNhKEMAteUdHBI/F7kqxQQ9TcB77gKj8TpAHWjLp",
+	"jiSkDXWvTRuTzi32OOQd6UZsIqRqR3Ad3wQ5BMecgpnKxAGcIeavo4iKTMrIVEsDWDUVYqkSvSsx5KMa",
+	"1EljnO9laG949U0TBWNMfsB5sjTNDeIbVFOduQy5Yg2jeQtNnxNfDcvDNQ78LjgTmglmGOWRAy+q1Vdk",
+	"mmjDOCcgxlLFTXkIt3Z9pumebHrqcFdY9djxj6jqEtl7MgrzoJpfPhZDdVImiv//9GMLDHwH2YlLHFUe",
+	"9KETq5am0u4rKCjXC7hXpaplJZ+7DnSePh/15EShA15sMMQ1nXNJk49SvqNqAqeitLclTTiKQcg1L+VI",
+	"rosX7RGNP4NIogBC9KaOy9YsMnFoOxUnIhYiG2kKkVTMKn8hHtLF9dXZ4CxX/OyXsyHN2HD24izwCj8W",
+	"suW/gXIzRTz0hSsOEyMWcHOVzA2QYqssL0DKTFmm5L7GAr8QISNtqfx+QJiIeY4VeMFuqD6vxFsddhan",
+	"4n+5xsSL8C8+TFzXW1UYNsGfHYhN8Aev+BKn+dZ+usgTDwrv/1CB1ocDLQLaB7/5iiDLrZd/eE/jKRP1",
+	"CfweFMatf8WXH1/uT/4qR7WmV8IOJdW8qfE7ORlJ+Tn8qSxJ8fWPr/8XAAD//2c6cKc8uQQA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

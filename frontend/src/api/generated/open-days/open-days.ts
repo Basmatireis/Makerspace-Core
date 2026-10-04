@@ -141,6 +141,31 @@ export const updateOpenDayPeriod = async (periodId: string,
 
 
 /**
+ * @summary Delete an Open Day period
+ */
+export const getDeleteOpenDayPeriodUrl = (periodId: string,) => {
+
+
+  
+
+  return `/api/v1/open-day-periods/${periodId}`
+}
+
+export const deleteOpenDayPeriod = async (periodId: string,
+    versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
+  
+  return apiFetch<void>(getDeleteOpenDayPeriodUrl(periodId),
+  {      
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      versionRequest,)
+  }
+);}
+
+
+/**
  * @summary Transition a draft period to open for staffing
  */
 export const getOpenOpenDayPeriodForStaffingUrl = (periodId: string,) => {

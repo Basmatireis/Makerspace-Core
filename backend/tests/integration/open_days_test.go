@@ -357,6 +357,77 @@ func TestOpenDaysVisibilityAndValidation(t *testing.T) {
 	expectAppCode(t, err, "validation_failed")
 }
 
+func TestOpenDayPeriodDeletionRequiresManagePermissionAndCascadesSchedule(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	account := seedAccount(t, pool, "open-days-period-delete", true)
+	manager := authorization.Principal{AccountID: account.accountID, PersonID: account.personID, Master: true}
+	reader := authorization.Principal{AccountID: account.accountID, PersonID: account.personID}
+	service, err := opendays.NewService(pool, config.Config{MakerspaceTimeZone: "Europe/Vienna"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	startsOn := time.Date(2026, time.October, 1, 0, 0, 0, 0, time.UTC)
+	endsOn := time.Date(2026, time.October, 31, 0, 0, 0, 0, time.UTC)
+	period, err := service.CreatePeriod(ctx, manager, "Disposable draft", startsOn, endsOn, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.CreateOpenDay(ctx, manager, period.ID, period.Version, opendays.ScheduleInput{
+		StartsAt: time.Date(2026, time.October, 7, 14, 0, 0, 0, time.UTC),
+		EndsAt:   time.Date(2026, time.October, 7, 17, 0, 0, 0, time.UTC),
+		Requirements: []opendays.RequirementInput{
+			{Kind: "supervisor", RequiredCount: 0},
+			{Kind: "trainee", RequiredCount: 0},
+		},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.DeletePeriod(ctx, reader, period.ID, 2, nil); !errors.Is(err, apperror.PermissionDenied) {
+		t.Fatalf("reader delete error = %v, want permission denied", err)
+	}
+	if err := service.DeletePeriod(ctx, manager, period.ID, 1, nil); !errors.Is(err, apperror.StaleWrite) {
+		t.Fatalf("stale delete error = %v, want stale write", err)
+	}
+	if err := service.DeletePeriod(ctx, manager, period.ID, 2, nil); err != nil {
+		t.Fatalf("delete draft period: %v", err)
+	}
+	assertCount(t, pool, `SELECT count(*) FROM open_day_periods WHERE id = $1`, 0, period.ID)
+	assertCount(t, pool, `SELECT count(*) FROM open_days WHERE period_id = $1`, 0, period.ID)
+	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'open_day_period.deleted' AND resource_id = $1`, 1, period.ID)
+
+	staffed, err := service.CreatePeriod(ctx, manager, "Staffed period", startsOn, endsOn, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	schedule, err := service.CreateOpenDay(ctx, manager, staffed.ID, staffed.Version, opendays.ScheduleInput{
+		StartsAt: time.Date(2026, time.October, 14, 14, 0, 0, 0, time.UTC),
+		EndsAt:   time.Date(2026, time.October, 14, 17, 0, 0, 0, time.UTC),
+		Requirements: []opendays.RequirementInput{
+			{Kind: "supervisor", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{uuid.MustParse(masterRoleID)}},
+			{Kind: "trainee", RequiredCount: 0},
+		},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staffing, err := service.TransitionPeriod(ctx, manager, staffed.ID, schedule.Period.Version, "staffing", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Join(ctx, manager, schedule.Items[0].ID, schedule.Items[0].Requirements[0].ID, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.DeletePeriod(ctx, manager, staffed.ID, staffing.Version, nil); err != nil {
+		t.Fatalf("delete staffed period: %v", err)
+	}
+	assertCount(t, pool, `SELECT count(*) FROM open_day_periods WHERE id = $1`, 0, staffed.ID)
+	assertCount(t, pool, `SELECT count(*) FROM open_days WHERE period_id = $1`, 0, staffed.ID)
+	assertCount(t, pool, `SELECT count(*) FROM open_day_assignments WHERE open_day_id = $1`, 0, schedule.Items[0].ID)
+	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'open_day_period.deleted' AND resource_id = $1`, 1, staffed.ID)
+}
+
 func TestOpenDayCalendarContextUsesAustrianProviderAndDoesNotBlockManualScheduling(t *testing.T) {
 	pool := migratedPool(t)
 	ctx := testContext(t)

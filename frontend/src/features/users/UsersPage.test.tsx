@@ -354,6 +354,109 @@ describe('Directory page', () => {
     expect(screen.getByText('No account')).toBeInTheDocument();
   });
 
+  it('permanently deletes multiple selected people', async () => {
+    const secondPersonId = '0192f6f8-743e-7c77-a349-cd07c3e8a922';
+    const account = accountFixture();
+    let people = [
+      personFixture({ account: null }),
+      personFixture({
+        id: secondPersonId,
+        firstName: 'Katherine',
+        lastName: 'Johnson',
+        account,
+      }),
+    ];
+    const deleteRequests = new Map<string, unknown>();
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.peoplereadall,
+            PermissionId.accountsread,
+            PermissionId.accountsdelete,
+            PermissionId.peopledelete,
+          ]),
+        ),
+      ),
+      http.get('*/api/v1/people', () =>
+        HttpResponse.json(peoplePage(people)),
+      ),
+      http.delete('*/api/v1/people/:personId', async ({ params, request }) => {
+        const personId = String(params.personId);
+        deleteRequests.set(personId, await request.json());
+        people = people.filter((person) => person.id !== personId);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+
+    renderRoute(<App />, '/people');
+
+    await screen.findByText('Grace Hopper');
+    await user.click(screen.getByRole('checkbox', { name: /select all/i }));
+    await user.click(screen.getByRole('button', { name: 'Delete people' }));
+    const dialog = screen.getByRole('dialog', {
+      name: 'Delete people permanently?',
+    });
+    expect(within(dialog).getByText(/permanently deletes 2 selected people/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/cannot be undone/i)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Delete people' }));
+
+    await waitFor(() => expect(deleteRequests.size).toBe(2));
+    expect(deleteRequests.get(otherPersonId)).toEqual({ expectedVersion: 1 });
+    expect(deleteRequests.get(secondPersonId)).toEqual({ expectedVersion: 1 });
+    expect(await screen.findByText('People deleted')).toBeInTheDocument();
+  });
+
+  it('skips people with accounts when account deletion is not permitted', async () => {
+    const accountPersonId = '0192f6f8-743e-7c77-a349-cd07c3e8a923';
+    const deletedPersonIds: string[] = [];
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.peoplereadall,
+            PermissionId.accountsread,
+            PermissionId.peopledelete,
+          ]),
+        ),
+      ),
+      http.get('*/api/v1/people', () =>
+        HttpResponse.json(
+          peoplePage([
+            personFixture({ account: null }),
+            personFixture({
+              id: accountPersonId,
+              firstName: 'Katherine',
+              lastName: 'Johnson',
+              account: accountFixture(),
+            }),
+          ]),
+        ),
+      ),
+      http.delete('*/api/v1/people/:personId', ({ params }) => {
+        deletedPersonIds.push(String(params.personId));
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+
+    renderRoute(<App />, '/people');
+
+    await screen.findByText('Grace Hopper');
+    await user.click(screen.getByRole('checkbox', { name: /select all/i }));
+    await user.click(screen.getByRole('button', { name: 'Delete people' }));
+    const dialog = screen.getByRole('dialog', {
+      name: 'Delete people permanently?',
+    });
+    expect(within(dialog).getByText(/permanently deletes 1 selected person/i)).toBeInTheDocument();
+    expect(within(dialog).getByText('Some people will be skipped')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Delete people' }));
+
+    await waitFor(() => expect(deletedPersonIds).toEqual([otherPersonId]));
+    expect(await screen.findByText(/1 skipped because deleting their account is not permitted/i)).toBeInTheDocument();
+  });
+
   it('moves from the loading state to the empty state', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>

@@ -23,6 +23,7 @@ type Querier interface {
 	DeleteAcademicBreak(ctx context.Context, arg DeleteAcademicBreakParams) (uuid.UUID, error)
 	DeleteAssignment(ctx context.Context, id uuid.UUID) (OpenDayAssignment, error)
 	DeleteOpenDay(ctx context.Context, arg DeleteOpenDayParams) (uuid.UUID, error)
+	DeletePeriod(ctx context.Context, arg DeletePeriodParams) (uuid.UUID, error)
 	DeleteRequirementRoles(ctx context.Context, requirementID uuid.UUID) error
 	GetAcademicBreakForUpdate(ctx context.Context, id uuid.UUID) (OpenDayAcademicBreak, error)
 	GetAssignment(ctx context.Context, id uuid.UUID) (OpenDayAssignment, error)

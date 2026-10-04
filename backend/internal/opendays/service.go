@@ -267,6 +267,40 @@ func (s *Service) UpdatePeriod(ctx context.Context, principal authorization.Prin
 	return periodBase(row), nil
 }
 
+func (s *Service) DeletePeriod(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+	if !principal.Has(authorization.OpenDaysManage) {
+		return apperror.PermissionDenied
+	}
+	if expected < 1 {
+		return validation("expectedVersion must be positive")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := opendaysdb.New(tx)
+	current, err := q.GetPeriodForUpdate(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperror.NotFound
+	}
+	if err != nil {
+		return err
+	}
+	if current.Version != expected {
+		return apperror.StaleWrite
+	}
+	if _, err := q.DeletePeriod(ctx, opendaysdb.DeletePeriodParams{ID: id, ExpectedVersion: expected}); errors.Is(err, pgx.ErrNoRows) {
+		return apperror.StaleWrite
+	} else if err != nil {
+		return databaseError(err)
+	}
+	if err := writeAudit(ctx, tx, principal, "open_day_period.deleted", "open_day_period", id, requestID, nil); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 func (s *Service) TransitionPeriod(ctx context.Context, principal authorization.Principal, id uuid.UUID, expected int64, target string, requestID *uuid.UUID) (Period, error) {
 	if !principal.Has(authorization.OpenDaysManage) {
 		return Period{}, apperror.PermissionDenied

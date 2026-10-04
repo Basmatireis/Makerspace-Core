@@ -107,6 +107,19 @@ sql:
         overrides: *overrides
   - engine: "postgresql"
     schema: "migrations"
+    queries: "internal/events/db/queries.sql"
+    gen:
+      go:
+        package: "eventsdb"
+        out: "internal/events/db"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_json_tags: false
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+        overrides: *overrides
+  - engine: "postgresql"
+    schema: "migrations"
     queries: "internal/manageddevices/db/queries.sql"
     gen:
       go:

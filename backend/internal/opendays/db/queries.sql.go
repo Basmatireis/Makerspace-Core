@@ -308,6 +308,24 @@ func (q *Queries) DeleteOpenDay(ctx context.Context, arg DeleteOpenDayParams) (u
 	return id, err
 }
 
+const deletePeriod = `-- name: DeletePeriod :one
+DELETE FROM open_day_periods
+WHERE id = $1 AND version = $2
+RETURNING id
+`
+
+type DeletePeriodParams struct {
+	ID              uuid.UUID
+	ExpectedVersion int64
+}
+
+func (q *Queries) DeletePeriod(ctx context.Context, arg DeletePeriodParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, deletePeriod, arg.ID, arg.ExpectedVersion)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const deleteRequirementRoles = `-- name: DeleteRequirementRoles :exec
 DELETE FROM open_day_staff_requirement_roles WHERE requirement_id = $1
 `

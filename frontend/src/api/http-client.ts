@@ -51,7 +51,7 @@ async function readResponse(response: Response): Promise<unknown> {
   if (contentType === 'application/json' || contentType.endsWith('+json')) {
     return response.json();
   }
-  if (contentType.startsWith('image/') || contentType === 'application/pdf') {
+  if (contentType.startsWith('image/') || contentType === 'application/pdf' || contentType === 'application/octet-stream' || response.headers.has('content-disposition')) {
     return response.blob();
   }
 
@@ -92,6 +92,7 @@ export async function apiFetch<T>(
       pathname.endsWith('/auth/login') || pathname.endsWith('/auth/pin/login') ||
       pathname.endsWith('/auth/password-reset/complete') || pathname.includes('/visitor-enrollment/');
     const isPublicBrandingRequest = pathname.includes('/public/config') || pathname.includes('/public/legal/') || pathname.includes('/public/branding/assets/');
+    const isPublicEventRequest = pathname.includes('/public/events/') || pathname.includes('/public/event-signups/');
     const isCurrentUserProbe =
       method === 'GET' &&
       pathname.endsWith('/auth/me');
@@ -99,6 +100,7 @@ export async function apiFetch<T>(
       response.status === 401 &&
       !isPublicAuthenticationRequest &&
       !isPublicBrandingRequest &&
+      !isPublicEventRequest &&
       !isCurrentUserProbe
     ) {
       window.dispatchEvent(new CustomEvent('makerspace:session-expired'));

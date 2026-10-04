@@ -106,6 +106,7 @@ export function AppShell() {
   const canAccessSupervisorStaffing = hasPermission(currentUser, PermissionId.supervisor_dashboardread);
   const canAccessPeople = canAccessPeopleDirectory || canAccessSupervisorStaffing;
   const canReadAuditLog = hasPermission(currentUser, PermissionId.auditread);
+  const canAccessEvents = [PermissionId.eventsread, PermissionId.eventsmanage, PermissionId.eventsstaffingmanage, PermissionId.eventsassign].some((permission) => hasPermission(currentUser, permission));
   const showAdministration = canAccessSettings(currentUser) || canReadAuditLog;
 
   return (
@@ -235,6 +236,16 @@ export function AppShell() {
                   renderIcon={Calendar}
                 >
                   Open Days
+                </SideNavLink>
+              )}
+              {canAccessEvents && (
+                <SideNavLink
+                  as={Link}
+                  to="/events"
+                  isActive={location.pathname === '/events' || location.pathname.startsWith('/events/')}
+                  renderIcon={Calendar}
+                >
+                  Events
                 </SideNavLink>
               )}
               {canAccessMachineLogbook(currentUser) && <SideNavMenu title="Machines" defaultExpanded={machineLogbookActive} isActive={machineLogbookActive} renderIcon={Tools}>

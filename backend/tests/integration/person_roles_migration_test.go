@@ -14,10 +14,11 @@ func TestPersonRolesMigrationPreservesMetadataAndRefusesLossyDown(t *testing.T) 
 	pool := emptySchemaPool(t)
 	ctx := testContext(t)
 	paths := orderedMigrationFiles(t)
-	if filepath.Base(paths[len(paths)-1]) != "00024_person_roles.sql" {
-		t.Fatalf("last migration = %s, want 00024_person_roles.sql", filepath.Base(paths[len(paths)-1]))
+	personRolesMigration := paths[23]
+	if filepath.Base(personRolesMigration) != "00024_person_roles.sql" {
+		t.Fatalf("migration 24 = %s, want 00024_person_roles.sql", filepath.Base(personRolesMigration))
 	}
-	applyMigrationFiles(t, pool, paths[:len(paths)-1])
+	applyMigrationFiles(t, pool, paths[:23])
 
 	actor := seedAccount(t, pool, "role-migration-actor", false)
 	target := seedAccount(t, pool, "role-migration-target", false)
@@ -31,7 +32,7 @@ func TestPersonRolesMigrationPreservesMetadataAndRefusesLossyDown(t *testing.T) 
 		t.Fatal(err)
 	}
 
-	content, err := os.ReadFile(paths[len(paths)-1])
+	content, err := os.ReadFile(personRolesMigration)
 	if err != nil {
 		t.Fatal(err)
 	}

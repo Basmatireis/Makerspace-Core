@@ -27,6 +27,7 @@ describe('activity presentation', () => {
     expect(presentAction(event())).toBe('Updated person');
     expect(presentAction(event({ action: 'person.role_assigned', resolvedMetadata: { roleId: 'Supervisors' } }))).toBe('Assigned role: Supervisors');
     expect(presentAction(event({ action: 'open_day_period.published' }))).toBe('Published Open Day period');
+    expect(presentAction(event({ action: 'open_day_period.deleted' }))).toBe('Deleted Open Day period');
     expect(presentAction(event({ action: 'managed_device.revoked' }))).toBe('Revoked managed device');
     expect(presentAction(event({ action: 'laborordnung.version.published' }))).toBe('Published Lab Rules version');
     expect(presentAction(event({ action: 'auth.login_succeeded' }))).toBe('Signed in');

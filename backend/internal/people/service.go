@@ -17,6 +17,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
 	peopledb "github.com/Basmatireis/Makerspace-Core/backend/internal/people/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -350,6 +351,9 @@ func (s *Service) Delete(ctx context.Context, principal authorization.Principal,
 		return errors.New("file storage is unavailable")
 	}
 	actor := principal.AccountID
+	if err := events.ScrubAssignmentsForDeletedPerson(ctx, tx, actor, id, requestID); err != nil {
+		return err
+	}
 	if err := audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "person.deleted", ResourceType: "person", ResourceID: &id, RequestID: requestID}); err != nil {
 		return err
 	}

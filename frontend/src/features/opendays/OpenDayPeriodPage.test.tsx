@@ -130,7 +130,7 @@ describe('Open Day period creation', () => {
     renderRoute(<App />, '/open-days');
     const user = userEvent.setup();
 
-    await user.click((await screen.findAllByRole('button', { name: 'New period' }))[0]);
+    await user.click(await screen.findByRole('button', { name: 'Create' }));
 
     expect(screen.queryByText('Enter a name.')).not.toBeInTheDocument();
     expect(screen.queryByText('Choose an end date.')).not.toBeInTheDocument();
@@ -175,7 +175,7 @@ describe('Open Day period creation', () => {
     renderRoute(<App />, '/open-days');
     const user = userEvent.setup();
 
-    await user.click((await screen.findAllByRole('button', { name: 'New period' }))[0]);
+    await user.click(await screen.findByRole('button', { name: 'Create' }));
     await user.type(screen.getByLabelText('Name'), created.name);
     await user.type(screen.getByLabelText('Start date'), '01.10.2026');
     await user.type(screen.getByLabelText('End date'), '01.10.2026');
@@ -231,34 +231,88 @@ describe('Open Day period management entry points', () => {
     );
   }
 
-  it('shows the backend supervisor-position aggregate and opens planning from a manager card', async () => {
+  it('shows period aggregates and edits draft metadata from the row action', async () => {
     mockPeriodList([PermissionId.open_daysmanage]);
+    let submitted: unknown;
+    server.use(http.patch('*/api/v1/open-day-periods/:periodId', async ({ request }) => {
+      submitted = await request.json();
+      return HttpResponse.json({ ...period('draft'), name: 'Updated period', version: 4 });
+    }));
     renderRoute(<App />, '/open-days');
     const user = userEvent.setup();
 
-    const label = await screen.findByText('Open supervisor positions');
-    expect(within(label.parentElement!).getByText('3')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Edit period' }));
+    const table = await screen.findByRole('table', { name: 'Open Day periods' });
+    expect(within(table).getAllByRole('row')).toHaveLength(2);
+    const periodRow = within(table).getByText('Winter Semester 2026/27').closest('tr')!;
+    expect(within(periodRow).getByText('1 October 2026 – 1 October 2026')).toBeInTheDocument();
+    expect(within(periodRow).getByText('draft')).toBeInTheDocument();
+    expect(within(periodRow).getByText('3')).toBeInTheDocument();
+    await user.click(within(periodRow).getByRole('button', { name: 'Edit metadata' }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit period metadata' });
+    await user.clear(within(dialog).getByLabelText('Name'));
+    await user.type(within(dialog).getByLabelText('Name'), 'Updated period');
+    await user.click(within(dialog).getByRole('button', { name: 'Save period' }));
 
-    expect(await screen.findByRole('group', { name: 'Schedule editor tools' })).toBeInTheDocument();
+    await waitFor(() => expect(submitted).toMatchObject({ name: 'Updated period', expectedVersion: 3 }));
   });
 
-  it('does not show a period card Edit action to readers', async () => {
-    mockPeriodList([PermissionId.open_daysread]);
+  it('confirms and deletes a draft period from its row action', async () => {
+    let deleted = false;
+    let submitted: unknown;
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.open_daysmanage]))),
+      http.get('*/api/v1/open-day-periods', () => HttpResponse.json({ items: deleted ? [] : [period('draft')] })),
+      http.delete('*/api/v1/open-day-periods/:periodId', async ({ request }) => {
+        submitted = await request.json();
+        deleted = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
     renderRoute(<App />, '/open-days');
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: 'Delete Winter Semester 2026/27' }));
+    const dialog = screen.getByRole('dialog', { name: 'Delete period?' });
+    expect(within(dialog).getByText(/permanently deleted/)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Delete period' }));
+
+    await waitFor(() => expect(submitted).toEqual({ expectedVersion: 3 }));
+    expect(await screen.findByRole('heading', { name: 'No periods yet' })).toBeInTheDocument();
+  });
+
+  it('does not show a period-row Edit action to readers', async () => {
+    mockPeriodList([PermissionId.open_daysread]);
+    const { router } = renderRoute(<App />, '/open-days');
+    const user = userEvent.setup();
 
     expect(await screen.findByText('Open supervisor positions')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Edit period' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Breaks' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit metadata' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: 'Winter Semester 2026/27' }));
+    expect(router.state.location.pathname).toBe(`/open-days/${periodId}`);
   });
 
-  it('opens the same planning workflow from Manage Open Days', async () => {
+  it('opens academic-break management from the table toolbar', async () => {
     mockPeriodList([PermissionId.open_daysmanage]);
-    renderRoute(<App />, '/open-days/manage');
+    const { router } = renderRoute(<App />, '/open-days');
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('button', { name: 'Edit period' }));
+    await user.click(await screen.findByRole('button', { name: 'Breaks' }));
 
-    expect(await screen.findByRole('group', { name: 'Schedule editor tools' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Academic breaks', level: 1 })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/open-days/manage');
+    expect(router.state.location.hash).toBe('');
+  });
+
+  it('keeps the management screen focused on academic breaks', async () => {
+    mockPeriodList([PermissionId.open_daysmanage]);
+    renderRoute(<App />, '/open-days/manage');
+
+    expect(await screen.findByRole('heading', { name: 'Academic breaks', level: 1 })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Periods' })).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Show breaks overlapping period' })).toBeInTheDocument();
   });
 });
 

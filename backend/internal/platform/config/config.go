@@ -29,6 +29,7 @@ type Config struct {
 	SessionAbsoluteTTL      time.Duration
 	PasswordResetTTL        time.Duration
 	AuditRetention          time.Duration
+	EventSignupRetention    time.Duration
 	ShutdownTimeout         time.Duration
 	MakerspaceTimeZone      string
 	HolidayCountry          string
@@ -80,6 +81,13 @@ func Load() (Config, error) {
 	}
 	if auditRetention < 0 {
 		return Config{}, errors.New("AUDIT_RETENTION cannot be negative")
+	}
+	eventSignupRetention, err := durationEnv("EVENT_SIGNUP_RETENTION", 180*24*time.Hour)
+	if err != nil {
+		return Config{}, err
+	}
+	if eventSignupRetention < 0 {
+		return Config{}, errors.New("EVENT_SIGNUP_RETENTION cannot be negative")
 	}
 	absolute, err := durationEnv("SESSION_ABSOLUTE_TTL", 72*time.Hour)
 	if err != nil {
@@ -184,6 +192,7 @@ func Load() (Config, error) {
 		SessionAbsoluteTTL:      absolute,
 		PasswordResetTTL:        resetTTL,
 		AuditRetention:          auditRetention,
+		EventSignupRetention:    eventSignupRetention,
 		ShutdownTimeout:         10 * time.Second,
 		MakerspaceTimeZone:      timeZone,
 		HolidayCountry:          holidayCountry,

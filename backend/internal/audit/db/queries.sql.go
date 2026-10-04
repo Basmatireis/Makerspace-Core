@@ -91,6 +91,39 @@ SELECT ae.id, ae.actor_account_id, ae.action, ae.resource_type, ae.resource_id, 
                WHERE oda.id = ae.resource_id
            )
            WHEN 'open_day_academic_break' THEN (SELECT odab.name FROM open_day_academic_breaks odab WHERE odab.id = ae.resource_id)
+           WHEN 'event' THEN (SELECT e.name FROM events e WHERE e.id = ae.resource_id)
+           WHEN 'event_session' THEN (
+               SELECT e.name || ' / ' || COALESCE(es.name, es.starts_at::text)
+               FROM event_sessions es JOIN events e ON e.id = es.event_id WHERE es.id = ae.resource_id
+           )
+           WHEN 'event_task_list' THEN (
+               SELECT e.name || ' / ' || etl.name
+               FROM event_task_lists etl JOIN events e ON e.id = etl.event_id WHERE etl.id = ae.resource_id
+           )
+           WHEN 'event_task' THEN (
+               SELECT e.name || ' / ' || et.title
+               FROM event_tasks et JOIN events e ON e.id = et.event_id WHERE et.id = ae.resource_id
+           )
+           WHEN 'event_shift' THEN (
+               SELECT e.name || ' / ' || esh.name
+               FROM event_shifts esh JOIN events e ON e.id = esh.event_id WHERE esh.id = ae.resource_id
+           )
+           WHEN 'event_requirement' THEN (
+               SELECT e.name || ' / ' || esh.name || ' / ' || esr.name
+               FROM event_shift_requirements esr
+               JOIN event_shifts esh ON esh.id = esr.shift_id
+               JOIN events e ON e.id = esr.event_id WHERE esr.id = ae.resource_id
+           )
+           WHEN 'event_assignment' THEN (
+               SELECT e.name || ' / ' || esh.name
+               FROM event_shift_assignments esa
+               JOIN event_shifts esh ON esh.id = esa.shift_id
+               JOIN events e ON e.id = esa.event_id WHERE esa.id = ae.resource_id
+           )
+           WHEN 'event_file' THEN (
+               SELECT e.name || ' / file'
+               FROM event_files ef JOIN events e ON e.id = ef.event_id WHERE ef.id = ae.resource_id
+           )
            WHEN 'laborordnung_version' THEN (SELECT lv.human_revision FROM laborordnung_versions lv WHERE lv.id = ae.resource_id)
            WHEN 'laborordnung_request' THEN (
                SELECT NULLIF(btrim(p.first_name || ' ' || p.last_name), '')
@@ -116,6 +149,8 @@ SELECT ae.id, ae.actor_account_id, ae.action, ae.resource_type, ae.resource_id, 
            'roleId', (SELECT r.name FROM roles r WHERE r.id::text = ae.metadata ->> 'roleId'),
            'personId', (SELECT NULLIF(btrim(p.first_name || ' ' || p.last_name), '') FROM people p WHERE p.id::text = ae.metadata ->> 'personId'),
            'openDayId', (SELECT od.starts_at::text FROM open_days od WHERE od.id::text = ae.metadata ->> 'openDayId')
+           ,'eventId', (SELECT e.name FROM events e WHERE e.id::text = ae.metadata ->> 'eventId')
+           ,'shiftId', (SELECT esh.name FROM event_shifts esh WHERE esh.id::text = ae.metadata ->> 'shiftId')
        )) AS resolved_metadata
 FROM audit_events ae
 LEFT JOIN accounts actor_account ON actor_account.id = ae.actor_account_id

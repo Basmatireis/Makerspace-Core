@@ -83,7 +83,7 @@ func TestWriteRejectsInconsistentActorTypeAndNonUUIDMetadata(t *testing.T) {
 	tests := []Event{
 		{ActorType: "user", Action: "person.updated", ResourceType: "person"},
 		{ActorType: "system", ActorAccountID: &actorID, Action: "person.updated", ResourceType: "person"},
-		{ActorType: "unknown", Action: "person.updated", ResourceType: "person"},
+		{ActorType: "unknown", ActorAccountID: &actorID, Action: "person.updated", ResourceType: "person"},
 		{Action: "open_day.assignment.created", ResourceType: "open_day_assignment", Metadata: map[string]any{"personId": "not-a-uuid"}},
 	}
 	for _, event := range tests {

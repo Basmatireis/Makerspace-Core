@@ -52,7 +52,7 @@ func TestSemanticMigrationsPreserveSessionsAndInvalidateUnprovenFlows(t *testing
 	assertCount(t, pool, `SELECT count(*) FROM visitor_enrollment_contexts WHERE id=$1 AND used_at IS NOT NULL AND lab_rules_version_id IS NULL`, 1, contextID)
 	assertCount(t, pool, `SELECT count(*) FROM oidc_flows WHERE id=$1`, 0, flowID)
 	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id=$1 AND role_id=$2`, 1, actor.accountID, masterRoleID)
-	applyMigrationFiles(t, pool, paths[len(paths)-1:])
+	applyMigrationFiles(t, pool, paths[17:])
 	authenticated, err := service.Authenticate(ctx, session.Token)
 	if err != nil {
 		t.Fatalf("migration revoked login: %v", err)

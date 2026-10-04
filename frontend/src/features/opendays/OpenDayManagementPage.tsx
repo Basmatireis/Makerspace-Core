@@ -14,27 +14,21 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-  Tag,
   TextInput,
 } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
 import {
   createOpenDayAcademicBreak,
   deleteOpenDayAcademicBreak,
   updateOpenDayAcademicBreak,
-  updateOpenDayPeriod,
 } from '../../api/generated/open-days/open-days';
-import type { AcademicBreak, OpenDayPeriod } from '../../api/generated/models';
+import type { AcademicBreak } from '../../api/generated/models';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { DateInput } from '../../app/DateInput';
 import { formatDate } from '../../app/dateTime';
-import { periodRange, statusTagType } from './format';
-import { openDaySchedulePath } from './paths';
 import { calendarContextQueryOptions, openDayKeys, periodsQueryOptions } from './queries';
 
-type PeriodDraft = Pick<OpenDayPeriod, 'id' | 'name' | 'startsOn' | 'endsOn' | 'version'>;
 type BreakDraft = Pick<AcademicBreak, 'id' | 'name' | 'startsOn' | 'endsOn' | 'version'>;
 
 const emptyBreak: BreakDraft = {
@@ -46,11 +40,9 @@ const emptyBreak: BreakDraft = {
 };
 
 export function OpenDayManagementPage() {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const periodsQuery = useQuery(periodsQueryOptions());
   const [selectedPeriodId, setSelectedPeriodId] = useState('');
-  const [periodDraft, setPeriodDraft] = useState<PeriodDraft | null>(null);
   const [breakDraft, setBreakDraft] = useState<BreakDraft | null>(null);
   const [deleteBreak, setDeleteBreak] = useState<AcademicBreak | null>(null);
 
@@ -61,19 +53,6 @@ export function OpenDayManagementPage() {
   }, [periodsQuery.data, selectedPeriodId]);
 
   const contextQuery = useQuery(calendarContextQueryOptions(selectedPeriodId));
-  const periodMutation = useMutation({
-    mutationFn: (value: PeriodDraft) =>
-      updateOpenDayPeriod(value.id, {
-        name: value.name,
-        startsOn: value.startsOn,
-        endsOn: value.endsOn,
-        expectedVersion: value.version,
-      }),
-    onSuccess: async () => {
-      setPeriodDraft(null);
-      await queryClient.invalidateQueries({ queryKey: openDayKeys.all });
-    },
-  });
   const breakMutation = useMutation({
     mutationFn: (value: BreakDraft) =>
       value.id
@@ -119,13 +98,13 @@ export function OpenDayManagementPage() {
     (item) => item.id === selectedPeriodId,
   );
   const mutationFailed =
-    periodMutation.isError || breakMutation.isError || deleteMutation.isError;
+    breakMutation.isError || deleteMutation.isError;
 
   return (
     <PageShell
-      title="Manage Open Days"
+      title="Academic breaks"
       breadcrumbs={[{ label: 'Open Days', to: '/open-days' }]}
-      description="Edit draft period metadata and maintain academic breaks used by schedule planning."
+      description="Maintain lecture-free date ranges used as context during schedule planning."
       className="open-day-management-page"
     >
       {mutationFailed && (
@@ -136,33 +115,6 @@ export function OpenDayManagementPage() {
           subtitle="The record may have changed. Reload and try again."
         />
       )}
-      <section aria-labelledby="managed-periods-heading">
-        <h2 id="managed-periods-heading">Periods</h2>
-        <div className="managed-period-list">
-          {periodsQuery.data.items.map((item) => (
-            <div className="managed-period" key={item.id}>
-              <div>
-                <strong>{item.name}</strong>
-                <p>{periodRange(item)}</p>
-              </div>
-              <Tag type={statusTagType(item.status)}>{item.status}</Tag>
-              <div className="managed-period__actions">
-                {item.status === 'draft' && (
-                  <Button
-                    kind="ghost"
-                    size="sm"
-                    renderIcon={Edit}
-                    onClick={() => setPeriodDraft(item)}
-                  >
-                    Edit metadata
-                  </Button>
-                )}
-                {item.status !== 'archived' && <Button kind="ghost" size="sm" renderIcon={Edit} onClick={() => navigate(openDaySchedulePath(item.id))}>Edit period</Button>}
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
       <section aria-labelledby="academic-breaks-heading">
         <div className="management-section-heading">
           <div>
@@ -253,23 +205,6 @@ export function OpenDayManagementPage() {
           </TableContainer>
         )}
       </section>
-      <Modal
-        open={Boolean(periodDraft)}
-        modalHeading="Edit draft period"
-        primaryButtonText="Save period"
-        secondaryButtonText="Cancel"
-        primaryButtonDisabled={periodMutation.isPending}
-        onRequestClose={() => setPeriodDraft(null)}
-        onRequestSubmit={() => periodDraft && periodMutation.mutate(periodDraft)}
-      >
-        {periodDraft && (
-          <Stack gap={5}>
-            <TextInput id="managed-period-name" labelText="Name" value={periodDraft.name} onChange={(event) => setPeriodDraft({ ...periodDraft, name: event.target.value })} />
-            <DateInput id="managed-period-start" labelText="Start date" value={periodDraft.startsOn} onChange={(startsOn) => setPeriodDraft({ ...periodDraft, startsOn })} />
-            <DateInput id="managed-period-end" labelText="End date" value={periodDraft.endsOn} onChange={(endsOn) => setPeriodDraft({ ...periodDraft, endsOn })} />
-          </Stack>
-        )}
-      </Modal>
       <Modal
         open={Boolean(breakDraft)}
         modalHeading={breakDraft?.id ? 'Edit academic break' : 'Create academic break'}

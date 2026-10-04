@@ -18,6 +18,11 @@ SET name = sqlc.arg(name), starts_on = sqlc.arg(starts_on), ends_on = sqlc.arg(e
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND status = 'draft'
 RETURNING *;
 
+-- name: DeletePeriod :one
+DELETE FROM open_day_periods
+WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
+RETURNING id;
+
 -- name: TransitionPeriod :one
 UPDATE open_day_periods
 SET status = sqlc.arg(status), version = version + 1, updated_at = now()

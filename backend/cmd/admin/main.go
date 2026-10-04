@@ -102,11 +102,15 @@ func run(ctx context.Context, args []string) error {
 		} else if cfg.AuditRetention > 0 {
 			auditBefore = time.Now().UTC().Add(-cfg.AuditRetention)
 		}
-		sessions, resets, events, err := service.Cleanup(ctx, time.Now().UTC(), auditBefore)
+		var eventSignupBefore time.Time
+		if cfg.EventSignupRetention > 0 {
+			eventSignupBefore = time.Now().UTC().Add(-cfg.EventSignupRetention)
+		}
+		sessions, resets, events, eventAssignments, err := service.Cleanup(ctx, time.Now().UTC(), auditBefore, eventSignupBefore)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("deleted sessions=%d reset_tokens=%d audit_events=%d\n", sessions, resets, events)
+		fmt.Printf("deleted sessions=%d reset_tokens=%d audit_events=%d anonymized_event_assignments=%d\n", sessions, resets, events, eventAssignments)
 		return nil
 	case "verify-files":
 		if len(args) != 1 {

@@ -118,6 +118,143 @@ type DeviceType struct {
 	UpdatedAt   time.Time
 }
 
+type Event struct {
+	ID                  uuid.UUID
+	Name                string
+	InternalDescription *string
+	Location            *string
+	OwnerPersonID       *uuid.UUID
+	Status              string
+	PublicTitle         *string
+	PublicDescription   *string
+	PublicLocation      *string
+	PublicID            string
+	IsPublic            bool
+	PublicSignupEnabled bool
+	ClosedAt            pgtype.Timestamptz
+	CreatedByAccountID  *uuid.UUID
+	Version             int32
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
+type EventFile struct {
+	ID          uuid.UUID
+	EventID     uuid.UUID
+	FileID      uuid.UUID
+	Description *string
+	Visibility  string
+	Version     int32
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	IsBanner    bool
+}
+
+type EventSession struct {
+	ID          uuid.UUID
+	EventID     uuid.UUID
+	Name        *string
+	Location    *string
+	Description *string
+	StartsAt    time.Time
+	EndsAt      time.Time
+	IsPublic    bool
+	Status      string
+	Version     int32
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type EventShift struct {
+	ID             uuid.UUID
+	EventID        uuid.UUID
+	SessionID      *uuid.UUID
+	Name           string
+	Description    *string
+	StartsAt       time.Time
+	EndsAt         time.Time
+	SignupOpensAt  pgtype.Timestamptz
+	SignupClosesAt pgtype.Timestamptz
+	IsPublic       bool
+	Status         string
+	Version        int32
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type EventShiftAssignment struct {
+	ID                            uuid.UUID
+	EventID                       uuid.UUID
+	ShiftID                       uuid.UUID
+	RequirementID                 uuid.UUID
+	PersonID                      *uuid.UUID
+	FirstNameSnapshot             *string
+	LastNameSnapshot              *string
+	EmailSnapshot                 *string
+	EmailNormalized               *string
+	PhoneSnapshot                 *string
+	PhoneNormalized               *string
+	Source                        string
+	Status                        string
+	CreatedByAccountID            *uuid.UUID
+	ManagementTokenDigest         []byte
+	ConflictOverriddenByAccountID *uuid.UUID
+	CancelledAt                   pgtype.Timestamptz
+	CancelledByAccountID          *uuid.UUID
+	PersonalDataErasedAt          pgtype.Timestamptz
+	Version                       int32
+	CreatedAt                     time.Time
+	UpdatedAt                     time.Time
+}
+
+type EventShiftRequirement struct {
+	ID              uuid.UUID
+	EventID         uuid.UUID
+	ShiftID         uuid.UUID
+	Name            string
+	Description     *string
+	RequiredCount   int32
+	EligibilityMode string
+	Version         int32
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type EventShiftRequirementRole struct {
+	RequirementID uuid.UUID
+	RoleID        uuid.UUID
+}
+
+type EventTask struct {
+	ID                   uuid.UUID
+	EventID              uuid.UUID
+	TaskListID           *uuid.UUID
+	Title                string
+	Description          *string
+	Status               string
+	Priority             string
+	AssigneePersonID     *uuid.UUID
+	DueAt                pgtype.Timestamptz
+	CompletedAt          pgtype.Timestamptz
+	CompletedByAccountID *uuid.UUID
+	SortOrder            int32
+	CreatedByAccountID   *uuid.UUID
+	Version              int32
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
+type EventTaskList struct {
+	ID          uuid.UUID
+	EventID     uuid.UUID
+	Name        string
+	Description *string
+	SortOrder   int32
+	Version     int32
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
 type File struct {
 	ID                 uuid.UUID
 	StorageKey         string

@@ -326,6 +326,43 @@ func TestPINEnrollmentCompletionAuthBoundary(t *testing.T) {
 	}
 }
 
+func TestEventPublicRouteAndCacheBoundaries(t *testing.T) {
+	publicID := strings.Repeat("A", 43)
+	publicPaths := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, apiBasePath + "/public/events/" + publicID},
+		{http.MethodGet, apiBasePath + "/public/events/" + publicID + "/banner"},
+		{http.MethodPost, apiBasePath + "/public/events/" + publicID + "/signups"},
+		{http.MethodGet, apiBasePath + "/public/events/" + publicID + "/files/0192f6f8-743e-7c77-a349-cd07c3e8a921"},
+		{http.MethodGet, apiBasePath + "/public/event-signups/current"},
+		{http.MethodPatch, apiBasePath + "/public/event-signups/current"},
+		{http.MethodPost, apiBasePath + "/public/event-signups/current/cancel"},
+	}
+	for _, request := range publicPaths {
+		if !isPublicRequest(request.method, request.path) {
+			t.Fatalf("%s %s must use the public authentication boundary", request.method, request.path)
+		}
+	}
+	if isPublicRequest(http.MethodPost, apiBasePath+"/events/public/"+publicID+"/signups") {
+		t.Fatal("authenticated public-context signup must still require a session")
+	}
+
+	for _, path := range []string{
+		apiBasePath + "/public/events/" + publicID + "/signups",
+		apiBasePath + "/public/event-signups/current",
+		apiBasePath + "/events/public/" + publicID + "/assignments/me",
+		apiBasePath + "/events/0192f6f8-743e-7c77-a349-cd07c3e8a921/files/0192f6f8-743e-7c77-a349-cd07c3e8a922/content",
+	} {
+		recorder := httptest.NewRecorder()
+		noStoreMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })).ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, path, nil))
+		if recorder.Header().Get("Cache-Control") != "no-store" {
+			t.Fatalf("Event response %s was cacheable", path)
+		}
+	}
+}
+
 func TestAccessLogNeverIncludesRequestPathsOrQueryValues(t *testing.T) {
 	identifier := "0192f6f8-743e-7c77-a349-cd07c3e8a921"
 

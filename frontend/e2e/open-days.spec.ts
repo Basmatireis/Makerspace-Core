@@ -375,11 +375,9 @@ test('creates and atomically saves a manager schedule working copy', async ({
   await expect(page.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeVisible();
 });
 
-test('manages draft metadata and inclusive academic-break context', async ({
+test('manages inclusive academic-break context on a focused screen', async ({
   page,
 }, testInfo) => {
-  let periodName = 'Winter Semester 2026/27';
-  let updatedPeriod: Record<string, unknown> | undefined;
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -396,7 +394,7 @@ test('manages draft metadata and inclusive academic-break context', async ({
       return;
     }
     if (path === '/api/v1/open-day-periods' && request.method() === 'GET') {
-      await json(route, { items: [{ ...period('draft'), name: periodName }] });
+      await json(route, { items: [period('draft')] });
       return;
     }
     if (
@@ -431,37 +429,16 @@ test('manages draft metadata and inclusive academic-break context', async ({
       });
       return;
     }
-    if (
-      path === `/api/v1/open-day-periods/${periodId}` &&
-      request.method() === 'PATCH'
-    ) {
-      updatedPeriod = request.postDataJSON();
-      periodName = String(updatedPeriod.name);
-      await json(route, { ...period('draft'), name: periodName, version: 2 });
-      return;
-    }
     throw new Error(`Unexpected API request: ${request.method()} ${path}`);
   });
 
   await page.goto('/open-days/manage');
-  await expect(page.getByRole('heading', { name: 'Manage Open Days' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Academic breaks', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Periods' })).toHaveCount(0);
   await expect(page.getByRole('cell', { name: 'Autumn break', exact: true })).toBeVisible();
   await expect(page.getByRole('cell', { name: '03.10.2026', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Edit metadata' }).click();
-  await page.getByLabel('Name', { exact: true }).fill('Winter Workshops 2026/27');
-  await page.getByRole('button', { name: 'Save period' }).click();
-  await expect.poll(() => updatedPeriod).toMatchObject({
-    name: 'Winter Workshops 2026/27',
-    startsOn: '2026-10-01',
-    endsOn: '2026-10-03',
-    expectedVersion: 1,
-  });
-  await expect(page.locator('.managed-period strong')).toHaveText(
-    'Winter Workshops 2026/27',
-  );
-  await expect(page.getByRole('dialog', { name: 'Edit draft period' })).toBeHidden();
   await expectAccessible(page);
-  await capture(page, testInfo, 'open-days-management.png');
+  await capture(page, testInfo, 'open-days-academic-breaks.png');
 });
 
 test('rejects ambiguous local schedule times without adding a slot', async ({ page }) => {

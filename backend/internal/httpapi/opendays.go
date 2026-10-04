@@ -71,6 +71,20 @@ func (s *Server) UpdateOpenDayPeriod(ctx context.Context, r openapi.UpdateOpenDa
 	return openapi.UpdateOpenDayPeriod200JSONResponse(openDayPeriodDTO(item)), nil
 }
 
+func (s *Server) DeleteOpenDayPeriod(ctx context.Context, r openapi.DeleteOpenDayPeriodRequestObject) (openapi.DeleteOpenDayPeriodResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	if err := s.opendays.DeletePeriod(ctx, p, r.PeriodId, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.DeleteOpenDayPeriod204Response{}, nil
+}
+
 func (s *Server) OpenOpenDayPeriodForStaffing(ctx context.Context, r openapi.OpenOpenDayPeriodForStaffingRequestObject) (openapi.OpenOpenDayPeriodForStaffingResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {

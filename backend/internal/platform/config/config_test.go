@@ -105,8 +105,8 @@ func TestLoadUsesLockedSessionAndRetentionDefaults(t *testing.T) {
 	if cfg.SessionIdleTTL != 6*time.Hour || cfg.SessionAbsoluteTTL != 72*time.Hour {
 		t.Fatalf("unexpected session defaults: idle=%s absolute=%s", cfg.SessionIdleTTL, cfg.SessionAbsoluteTTL)
 	}
-	if cfg.PasswordResetTTL != 30*time.Minute || cfg.AuditRetention != 365*24*time.Hour {
-		t.Fatalf("unexpected retention defaults: reset=%s audit=%s", cfg.PasswordResetTTL, cfg.AuditRetention)
+	if cfg.PasswordResetTTL != 30*time.Minute || cfg.AuditRetention != 365*24*time.Hour || cfg.EventSignupRetention != 180*24*time.Hour {
+		t.Fatalf("unexpected retention defaults: reset=%s audit=%s event-signup=%s", cfg.PasswordResetTTL, cfg.AuditRetention, cfg.EventSignupRetention)
 	}
 	if cfg.MakerspaceTimeZone != "Europe/Vienna" || cfg.HolidayCountry != "AT" || cfg.HolidaySubdivision != "AT-6" || cfg.HolidayLanguage != "de" {
 		t.Fatalf("unexpected Open Days defaults: %#v", cfg)

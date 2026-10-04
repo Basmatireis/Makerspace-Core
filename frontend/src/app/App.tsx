@@ -44,6 +44,11 @@ const UserCreatePage = lazy(() => import('../features/users/UserCreatePage').the
 const UserDetailPage = lazy(() => import('../features/users/UserDetailPage').then(({ UserDetailPage }) => ({ default: UserDetailPage })));
 const ActivityPage = lazy(() => import('../features/audit/ActivityPage').then(({ ActivityPage }) => ({ default: ActivityPage })));
 const RolesPage = lazy(() => import('../features/roles/RolesPage').then(({ RolesPage }) => ({ default: RolesPage })));
+const EventsPage = lazy(() => import('../features/events/EventsPage').then(({ EventsPage }) => ({ default: EventsPage })));
+const EventCreatePage = lazy(() => import('../features/events/EventCreatePage').then(({ EventCreatePage }) => ({ default: EventCreatePage })));
+const EventDetailPage = lazy(() => import('../features/events/EventDetailPage').then(({ EventDetailPage }) => ({ default: EventDetailPage })));
+const PublicEventPage = lazy(() => import('../features/events/PublicEventPage').then(({ PublicEventPage }) => ({ default: PublicEventPage })));
+const EventSignupManagementPage = lazy(() => import('../features/events/EventSignupManagementPage').then(({ EventSignupManagementPage }) => ({ default: EventSignupManagementPage })));
 
 function ProtectedApp() {
   return (
@@ -92,10 +97,15 @@ export function App() {
       <Route path="/legal/imprint" element={<LegalPage kind="imprint" />} />
       <Route path="/legal/privacy" element={<LegalPage kind="privacy" />} />
       <Route path="/legal-and-privacy" element={<Navigate to="/legal/imprint" replace />} />
+      <Route path="/events/public/:publicId" element={<PublicEventPage />} />
+      <Route path="/events/signup/manage" element={<EventSignupManagementPage />} />
       <Route element={<ProtectedApp />}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="profile" element={<ProfilePage />} />
+		<Route path="events" element={<PermissionRoute anyOf={[PermissionId.eventsread, PermissionId.eventsmanage, PermissionId.eventsstaffingmanage, PermissionId.eventsassign]}><EventsPage /></PermissionRoute>} />
+		<Route path="events/new" element={<PermissionRoute allOf={[PermissionId.eventsmanage]}><EventCreatePage /></PermissionRoute>} />
+		<Route path="events/:eventId" element={<PermissionRoute anyOf={[PermissionId.eventsread, PermissionId.eventsmanage, PermissionId.eventsstaffingmanage, PermissionId.eventsassign]}><EventDetailPage /></PermissionRoute>} />
 		<Route path="machine-logbook" element={<PermissionRoute anyOf={[PermissionId.machine_jobsread, PermissionId.statisticsread]}><MachineLogbookOverviewPage /></PermissionRoute>} />
 		<Route path="machine-logbook/jobs" element={<PermissionRoute allOf={[PermissionId.machine_jobsread]}><JobsPage /></PermissionRoute>} />
 		<Route path="machine-logbook/jobs/:jobId" element={<PermissionRoute allOf={[PermissionId.machine_jobsread]}><JobDetailPage /></PermissionRoute>} />

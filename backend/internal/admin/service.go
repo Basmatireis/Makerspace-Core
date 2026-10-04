@@ -10,6 +10,7 @@ import (
 	accountsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/accounts/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	authdb "github.com/Basmatireis/Makerspace-Core/backend/internal/auth/db"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
 	peopledb "github.com/Basmatireis/Makerspace-Core/backend/internal/people/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
 	"github.com/google/uuid"
@@ -250,20 +251,26 @@ func (s *Service) ResetPassword(ctx context.Context, loginEmail, password string
 	return accountID, nil
 }
 
-func (s *Service) Cleanup(ctx context.Context, sessionBefore, auditBefore time.Time) (sessions, resets, auditEvents int64, err error) {
+func (s *Service) Cleanup(ctx context.Context, sessionBefore, auditBefore, eventSignupBefore time.Time) (sessions, resets, auditEvents, eventAssignments int64, err error) {
 	authQueries := authdb.New(s.pool)
 	sessions, err = authQueries.DeleteExpiredSessions(ctx, sessionBefore)
 	if err != nil {
-		return 0, 0, 0, err
+		return 0, 0, 0, 0, err
 	}
 	resets, err = authQueries.DeleteExpiredPasswordResetTokens(ctx, time.Now().UTC())
 	if err != nil {
-		return sessions, 0, 0, err
+		return sessions, 0, 0, 0, err
 	}
 	if !auditBefore.IsZero() {
 		auditEvents, err = audit.NewService(s.pool).DeleteBefore(ctx, auditBefore)
+		if err != nil {
+			return sessions, resets, auditEvents, 0, err
+		}
 	}
-	return sessions, resets, auditEvents, err
+	if !eventSignupBefore.IsZero() {
+		eventAssignments, err = events.EraseExpiredSignupData(ctx, s.pool, eventSignupBefore)
+	}
+	return sessions, resets, auditEvents, eventAssignments, err
 }
 
 func ptr(value string) *string { return &value }

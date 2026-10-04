@@ -52,6 +52,10 @@ const (
 	OpenDaysSignup               Permission = Permission(openapi.OpenDaysSignup)
 	OpenDaysAssign               Permission = Permission(openapi.OpenDaysAssign)
 	OpenDaysManage               Permission = Permission(openapi.OpenDaysManage)
+	EventsRead                   Permission = Permission(openapi.EventsRead)
+	EventsManage                 Permission = Permission(openapi.EventsManage)
+	EventsStaffingManage         Permission = Permission(openapi.EventsStaffingManage)
+	EventsAssign                 Permission = Permission(openapi.EventsAssign)
 	ManagedDevicesRead           Permission = Permission(openapi.ManagedDevicesRead)
 	ManagedDevicesManage         Permission = Permission(openapi.ManagedDevicesManage)
 	LaborordnungRead             Permission = Permission(openapi.LaborordnungRead)
@@ -100,6 +104,7 @@ var registry = []Permission{
 	PeopleRolesAssign,
 	RolesRead, RolesManage, AuditRead,
 	OpenDaysRead, OpenDaysReadAssignments, OpenDaysSignup, OpenDaysAssign, OpenDaysManage,
+	EventsRead, EventsManage, EventsStaffingManage, EventsAssign,
 	ManagedDevicesRead, ManagedDevicesManage,
 	LaborordnungRead, LaborordnungManage, LaborordnungRequestsRead, LaborordnungConfirm,
 	VisitorEnrollmentManage, SupervisorDashboardRead,
@@ -156,6 +161,10 @@ var descriptions = map[Permission]string{
 	OpenDaysSignup:               "Sign up for and leave eligible Open Day assignments.",
 	OpenDaysAssign:               "Assign and remove eligible people on Open Days.",
 	OpenDaysManage:               "Manage Open Day periods, schedules, calendar context, and lifecycle.",
+	EventsRead:                   "Read internal Event details, planning data, files, and staffing counts.",
+	EventsManage:                 "Create and manage Events, lifecycle, publication, schedules, planning, and files.",
+	EventsStaffingManage:         "Manage Event shifts, staffing requirements, eligibility, and staffing identities.",
+	EventsAssign:                 "Create, move, cancel, link, and conflict-override Event assignments.",
 	ManagedDevicesRead:           "Read managed devices and device types.",
 	ManagedDevicesManage:         "Create, edit, revoke, rotate, and delete managed devices and device types.",
 	LaborordnungRead:             "Read Lab Rules versions and exact PDFs.",
