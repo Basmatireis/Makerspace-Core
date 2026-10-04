@@ -219,6 +219,48 @@ func TestBrandingPublicHTTPAndAdministrativeAuthentication(t *testing.T) {
 	response.Body.Close()
 }
 
+func TestBrandingAssetUploadAcceptsContractBinaryContentType(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	cfg := integrationConfig(t)
+	cfg.LocalStorageRoot = t.TempDir()
+	cfg.SessionCookieName = "makerspace_session"
+	cfg.CSRFCookieName = "makerspace_csrf"
+	account := seedAccount(t, pool, "branding-upload-http", true)
+	sessionToken, csrfToken := insertTestSession(t, pool, account)
+	handler, err := httpapi.NewHandler(pool, cfg, slog.New(slog.NewJSONHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(handler)
+	defer server.Close()
+
+	pngBytes := encodeBrandingPNG(t, 32, 24)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPut, server.URL+"/api/v1/branding/assets/application_background?expectedVersion=1", bytes.NewReader(pngBytes))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/octet-stream")
+	request.Header.Set("X-File-Name", "background.png")
+	request.Header.Set("X-CSRF-Token", csrfToken)
+	request.Header.Set("Origin", cfg.PublicBaseURL.String())
+	response, err := clientWithSession(t, server.URL, sessionToken, csrfToken).Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertStatus(t, response, http.StatusOK)
+	var configuration map[string]any
+	decodeResponse(t, response, &configuration)
+	assets, ok := configuration["assets"].(map[string]any)
+	if !ok {
+		t.Fatalf("assets missing from response: %#v", configuration)
+	}
+	background, ok := assets["applicationBackground"].(map[string]any)
+	if !ok || background["mode"] != "custom" || background["originalFilename"] != "background.png" || background["contentType"] != "image/png" {
+		t.Fatalf("unexpected uploaded background: %#v", background)
+	}
+}
+
 func encodeBrandingPNG(t *testing.T, width, height int) []byte {
 	t.Helper()
 	var result bytes.Buffer

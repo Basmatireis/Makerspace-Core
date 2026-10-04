@@ -75,6 +75,8 @@ test('rebrands without a rebuild, cache-busts replaced assets, and exposes legal
     }
     if (path === '/api/v1/branding/assets/logo' && request.method() === 'PUT') {
       expect(Number(url.searchParams.get('expectedVersion'))).toBe(configuration.version);
+      expect(request.headers()['content-type']).toBe('application/octet-stream');
+      expect(request.postDataBuffer()?.toString()).toBe(uploaded === 0 ? 'first-logo' : 'second-logo');
       uploaded += 1;
       const digest = String(uploaded).repeat(64);
       configuration = {

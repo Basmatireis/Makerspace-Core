@@ -179,7 +179,7 @@ function AssetCard({ descriptor, asset, version, onApplied }: {
   const upload = useMutation({
     mutationFn: () => apiFetch<BrandingConfiguration>(getPutBrandingAssetUrl(descriptor.slot, { expectedVersion: version }), {
       method: 'PUT',
-      headers: { 'Content-Type': file!.type || 'application/octet-stream', 'X-File-Name': file!.name },
+      headers: { 'Content-Type': 'application/octet-stream', 'X-File-Name': file!.name },
       body: file,
     }),
     onSuccess: (result) => { setFile(undefined); onApplied(result); },
