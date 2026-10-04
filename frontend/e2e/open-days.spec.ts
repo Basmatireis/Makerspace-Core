@@ -296,19 +296,35 @@ test('creates and atomically saves a manager schedule working copy', async ({
   await page.goto(`/open-days/${periodId}/schedule`);
   await expect(page.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeVisible();
   await expect(page.getByText('1 October 2026 – 3 October 2026')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Save & close' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
   await expectAccessible(page);
 
   await page.getByRole('button', { name: 'Add Open Day on 02.10.2026' }).click();
+  await capture(page, testInfo, 'open-days-create-modal.png');
+  await page.getByRole('dialog', { name: 'Create Open Day' }).getByRole('button', { name: 'Create' }).click();
   await expect(page.getByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Save & close' })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Save' })).toBeEnabled();
+  const editWorkspaceHeight = await page.locator('.app-main').evaluate((main) => main.getBoundingClientRect().height);
   await capture(page, testInfo, 'open-days-manager-working-copy.png');
+  await page.getByRole('button', { name: 'Preview' }).click();
+  await expect(page).toHaveURL(new RegExp(`/open-days/${periodId}$`));
+  await expect(page.getByRole('group', { name: 'Open Days tools' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Supervisor position open/ })).toBeVisible();
+  await expect.poll(() => page.locator('.app-main').evaluate((main) => main.getBoundingClientRect().height)).toBe(editWorkspaceHeight);
+  const previewOutsideBackground = await page.locator('.calendar-cell--outside-period').first().evaluate((cell) => getComputedStyle(cell).backgroundColor);
+  await capture(page, testInfo, 'open-days-manager-unsaved-preview.png');
+  await page.getByRole('button', { name: 'Edit' }).click();
+  await expect(page).toHaveURL(new RegExp(`/open-days/${periodId}\\?mode=edit$`));
+  await expect(page.getByRole('group', { name: 'Schedule editor tools' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ })).toBeVisible();
+  await expect.poll(() => page.locator('.calendar-cell--outside-period').first().evaluate((cell) => getComputedStyle(cell).backgroundColor)).toBe(previewOutsideBackground);
   await page.getByRole('button', { name: 'Table view' }).click();
   const editableTable = page.getByRole('table', { name: 'Editable Open Days' });
   await expect(editableTable).toBeVisible();
   const dateHeader = editableTable.getByRole('columnheader', { name: /Date/ });
   await expect(dateHeader).toBeVisible();
   await expect(editableTable.getByRole('columnheader', { name: 'Staffing status' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Filter' }).click();
   const dateTimeFilters = page.getByRole('group', { name: 'Filter by day and time' });
   await dateTimeFilters.getByRole('combobox', { name: 'Filter by weekday' }).click();
   const clippedWeekdayLabels = await dateTimeFilters
@@ -334,7 +350,7 @@ test('creates and atomically saves a manager schedule working copy', async ({
   await expectAccessible(page);
   await capture(page, testInfo, 'open-days-manager-table-working-copy.png');
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-  await page.getByRole('button', { name: 'Save & close' }).click();
+  await page.getByRole('button', { name: 'Save' }).click();
 
   await expect.poll(() => savedRequest).toBeDefined();
   expect(savedRequest).toMatchObject({
@@ -355,6 +371,7 @@ test('creates and atomically saves a manager schedule working copy', async ({
   expect(new Date(created.endsAt).getTime() - new Date(created.startsAt).getTime()).toBe(
     3 * 60 * 60 * 1000,
   );
+  await page.getByRole('button', { name: 'Preview' }).click();
   await expect(page).toHaveURL(new RegExp(`/open-days/${periodId}$`));
   await expect(page.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeVisible();
 });
@@ -465,8 +482,8 @@ test('rejects ambiguous local schedule times without adding a slot', async ({ pa
   });
   await page.goto(`/open-days/${periodId}/schedule`);
   await expect(page.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeVisible();
-  await page.getByRole('button', { name: 'Open Day defaults' }).click();
-  const defaultsDialog = page.getByRole('dialog', { name: 'Open Day defaults' });
+  await page.getByRole('button', { name: /Add Open Day.*25|Add.*25\.10\.2026/ }).click();
+  const defaultsDialog = page.getByRole('dialog', { name: 'Create Open Day' });
   const visibleModal = page.locator('.cds--modal.is-visible');
   const [dialogBox, viewport] = await Promise.all([defaultsDialog.boundingBox(), page.viewportSize()]);
   expect(dialogBox).not.toBeNull();
@@ -474,11 +491,10 @@ test('rejects ambiguous local schedule times without adding a slot', async ({ pa
   expect(Math.abs(dialogBox!.x + dialogBox!.width / 2 - viewport!.width / 2)).toBeLessThan(2);
   expect(await page.evaluate(() => Boolean(document.elementFromPoint(100, 200)?.closest('.cds--modal')))).toBe(true);
   await expect(visibleModal).toHaveCSS('position', 'fixed');
-  await defaultsDialog.locator('#default-start').fill('02:30');
-  await defaultsDialog.locator('#default-end').fill('04:00');
-  await defaultsDialog.getByRole('button', { name: 'Apply defaults' }).click();
-  await page.getByRole('button', { name: /Add Open Day.*25|Add.*25\.10\.2026/ }).click();
+  await defaultsDialog.locator('#create-start').fill('02:30');
+  await defaultsDialog.locator('#create-end').fill('04:00');
+  await defaultsDialog.getByRole('button', { name: 'Create' }).click();
   await expect(page.getByText(/Local time 25\.10\.2026 02:30 is ambiguous/)).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Save & close' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
   expect(errors).toEqual([]);
 });

@@ -106,6 +106,20 @@ esac
 
 frontend_url="http://$frontend_binding"
 wait_for_url "$frontend_url/"
+
+index_headers=$(curl --fail --silent --show-error --dump-header - --output /dev/null "$frontend_url/")
+printf '%s\n' "$index_headers" | grep -i '^Cache-Control: no-cache' >/dev/null
+
+index_html=$(curl --fail --silent --show-error "$frontend_url/")
+asset_path=$(printf '%s\n' "$index_html" | grep -Eo '/assets/[^" ]+\.(js|css)' | head -n 1)
+test -n "$asset_path"
+asset_headers=$(curl --fail --silent --show-error --header 'Accept-Encoding: gzip' --dump-header - --output /dev/null "$frontend_url$asset_path")
+printf '%s\n' "$asset_headers" | grep -i '^Cache-Control: public, max-age=31536000, immutable' >/dev/null
+printf '%s\n' "$asset_headers" | grep -i '^Content-Encoding: gzip' >/dev/null
+
+missing_asset_status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$frontend_url/assets/production-smoke-missing.js")
+test "$missing_asset_status" = 404
+
 ready_response=$(curl --fail --silent --show-error "$frontend_url/api/v1/health/ready")
 test "$ready_response" = '{"status":"ok"}'
 

@@ -1,7 +1,7 @@
 import { http, HttpResponse } from 'msw';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { OpenDay, OpenDayPeriodStatus, OpenDayRequirementKind, PermissionId as Permission } from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { App } from '../../app/App';
@@ -9,16 +9,6 @@ import { currentUserFixture } from '../../test/fixtures';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 import { longDate, timeRange } from './format';
-
-vi.mock('./ScheduleEditorPage', async () => {
-  const { useLocation } = await import('react-router-dom');
-  return {
-    ScheduleEditorPage: () => {
-      const location = useLocation();
-      return <><h1>Schedule planning</h1><output aria-label="Schedule defaults">{JSON.stringify(location.state)}</output></>;
-    },
-  };
-});
 
 const periodId = '0192f6f8-743e-7c77-a349-cd07c3e8a911';
 const personId = '0192f6f8-743e-7c77-a349-cd07c3e8a901';
@@ -70,6 +60,7 @@ function mockPeriodPage(status: OpenDayPeriodStatus, permissions: Permission[] =
     http.get('*/api/v1/open-day-periods/:periodId/open-days', () =>
       HttpResponse.json({ period: period(status), items: [], timeZone: 'Europe/Vienna' }),
     ),
+    http.get('*/api/v1/open-day-eligibility-roles', () => HttpResponse.json({ items: [] })),
     http.get('*/api/v1/open-day-periods/:periodId/calendar-context', () =>
       HttpResponse.json({
         timeZone: 'Europe/Vienna',
@@ -84,7 +75,7 @@ function mockPeriodPage(status: OpenDayPeriodStatus, permissions: Permission[] =
 }
 
 describe('Open Day period editing entry point', () => {
-  it('replaces the view actions menu with one Edit button and opens editing on the same period route', async () => {
+  it('switches the same period screen from preview to editing', async () => {
     mockPeriodPage('staffing');
     const { router } = renderRoute(<App />, `/open-days/${periodId}`);
     const user = userEvent.setup();
@@ -93,11 +84,14 @@ describe('Open Day period editing entry point', () => {
     expect(within(screen.getByRole('navigation', { name: 'Breadcrumb' })).getByText('Winter Semester 2026/27')).toHaveAttribute('aria-current', 'true');
     expect(screen.getByText('staffing')).toBeInTheDocument();
     expect(screen.getByText('1 October 2026 – 1 October 2026')).toBeInTheDocument();
-    expect(within(screen.getByLabelText('Period summary')).getByText('Open supervisor positions')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Period summary')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Actions' })).not.toBeInTheDocument();
+    const page = screen.getByRole('heading', { name: 'Winter Semester 2026/27' }).closest('.page-shell');
     await user.click(screen.getByRole('button', { name: 'Edit' }));
 
-    expect(await screen.findByRole('heading', { name: 'Schedule planning' })).toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: 'Schedule editor tools' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Winter Semester 2026/27' }).closest('.page-shell')).toBe(page);
+    expect(screen.queryByRole('group', { name: 'Open Days tools' })).not.toBeInTheDocument();
     expect(router.state.location.pathname).toBe(`/open-days/${periodId}`);
     expect(router.state.location.search).toBe('?mode=edit');
   });
@@ -176,6 +170,7 @@ describe('Open Day period creation', () => {
         HttpResponse.json({ period: created, items: [], timeZone: 'Europe/Vienna' }),
       ),
       http.get('*/api/v1/open-day-eligibility-roles', () => HttpResponse.json({ items: eligibilityRoles })),
+      http.get('*/api/v1/open-day-periods/:periodId/calendar-context', () => HttpResponse.json({ timeZone: 'Europe/Vienna', countryCode: 'AT', subdivisionCode: 'AT-6', languageCode: 'de', entries: [], academicBreaks: [] })),
     );
     renderRoute(<App />, '/open-days');
     const user = userEvent.setup();
@@ -202,11 +197,15 @@ describe('Open Day period creation', () => {
     expect(screen.getByText('1 position · Trainee')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Create period' }));
 
-    expect(await screen.findByRole('heading', { name: 'Schedule planning' })).toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: 'Schedule editor tools' })).toBeInTheDocument();
     expect(submittedPeriod).toMatchObject({ startsOn: created.startsOn, endsOn: created.endsOn });
     expect(submittedBreak).toMatchObject({ name: 'Semester break', startsOn: created.startsOn, endsOn: created.startsOn });
-    expect(screen.getByLabelText('Schedule defaults')).toHaveTextContent(`"supervisorRoleIds":["${supervisorRoleId}"]`);
-    expect(screen.getByLabelText('Schedule defaults')).toHaveTextContent(`"traineeRoleIds":["${traineeRoleId}"]`);
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+    const createDialog = screen.getByRole('dialog', { name: 'Create Open Day' });
+    expect(within(createDialog).getByLabelText('Supervisors')).toHaveValue(2);
+    expect(within(createDialog).getByLabelText('Trainees')).toHaveValue(1);
+    expect(within(createDialog).getByRole('combobox', { name: /^Eligible supervisor roles/ })).toBeInTheDocument();
+    expect(within(createDialog).getByRole('combobox', { name: /^Eligible trainee roles/ })).toBeInTheDocument();
   }, 15_000);
 });
 
@@ -218,6 +217,7 @@ describe('Open Day period management entry points', () => {
       http.get('*/api/v1/open-day-periods/:periodId/open-days', () =>
         HttpResponse.json({ period: period('draft'), items: [], timeZone: 'Europe/Vienna' }),
       ),
+      http.get('*/api/v1/open-day-eligibility-roles', () => HttpResponse.json({ items: [] })),
       http.get('*/api/v1/open-day-periods/:periodId/calendar-context', () =>
         HttpResponse.json({
           timeZone: 'Europe/Vienna',
@@ -240,7 +240,7 @@ describe('Open Day period management entry points', () => {
     expect(within(label.parentElement!).getByText('3')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Edit period' }));
 
-    expect(await screen.findByRole('heading', { name: 'Schedule planning' })).toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: 'Schedule editor tools' })).toBeInTheDocument();
   });
 
   it('does not show a period card Edit action to readers', async () => {
@@ -258,7 +258,7 @@ describe('Open Day period management entry points', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Edit period' }));
 
-    expect(await screen.findByRole('heading', { name: 'Schedule planning' })).toBeInTheDocument();
+    expect(await screen.findByRole('group', { name: 'Schedule editor tools' })).toBeInTheDocument();
   });
 });
 
@@ -354,6 +354,7 @@ describe('Open Day table and calendar filters', () => {
         if (!selected) return new HttpResponse(null, { status: 404 });
         return HttpResponse.json(selected);
       }),
+      http.get('*/api/v1/open-day-eligibility-roles', () => HttpResponse.json({ items: [] })),
       http.get('*/api/v1/open-day-periods/:periodId/calendar-context', () =>
         HttpResponse.json({
           timeZone: 'Europe/Vienna',
@@ -430,21 +431,20 @@ describe('Open Day table and calendar filters', () => {
 
   it('shares filters across views and preserves the active selection', async () => {
     mockFilteredPeriodPage();
-    const { container } = renderRoute(<App />, `/open-days/${periodId}`);
+    renderRoute(<App />, `/open-days/${periodId}`);
     const user = userEvent.setup();
 
     await screen.findByLabelText('Semester calendar');
 
-    const viewSwitcher = container.querySelector<HTMLElement>('[aria-label="Open Days view"]');
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
     const openDayFilter = screen.getByRole('combobox', { name: 'Filter Open Days' });
     const sharedToolbar = screen.getByLabelText('Open Days tools');
-    expect(viewSwitcher).not.toBeNull();
     expect(openDayFilter).toHaveTextContent('All');
-    expect(within(viewSwitcher!).getByRole('button', { name: 'Calendar view' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(sharedToolbar).getByRole('button', { name: 'Table view' })).toBeInTheDocument();
 
-    await user.click(within(viewSwitcher!).getByRole('button', { name: 'Table view' }));
+    await user.click(within(sharedToolbar).getByRole('button', { name: 'Table view' }));
     expect(screen.getByLabelText('Open Days tools')).toBe(sharedToolbar);
-    expect(within(viewSwitcher!).getByRole('button', { name: 'Table view' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(sharedToolbar).getByRole('button', { name: 'Calendar view' })).toBeInTheDocument();
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(5);
     expect(within(screen.getByRole('table')).queryByRole('columnheader', { name: 'Staffing status' })).not.toBeInTheDocument();
 
@@ -453,7 +453,7 @@ describe('Open Day table and calendar filters', () => {
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2);
     expect(screen.getByText('1 / 2')).toBeInTheDocument();
 
-    await user.click(within(viewSwitcher!).getByRole('button', { name: 'Calendar view' }));
+    await user.click(within(sharedToolbar).getByRole('button', { name: 'Calendar view' }));
     expect(screen.getByLabelText('Open Days tools')).toBe(sharedToolbar);
     const filteredCalendar = screen.getByLabelText('Semester calendar');
     expect(within(filteredCalendar).getByTitle('Supervisor position open')).toBeInTheDocument();
@@ -465,7 +465,7 @@ describe('Open Day table and calendar filters', () => {
     await user.click(screen.getByRole('option', { name: 'My Open Days' }));
     expect(within(screen.getByLabelText('Semester calendar')).getAllByTitle('Your assignment')).toHaveLength(2);
 
-    await user.click(within(viewSwitcher!).getByRole('button', { name: 'Table view' }));
+    await user.click(within(sharedToolbar).getByRole('button', { name: 'Table view' }));
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(3);
 
     await user.click(openDayFilter);
@@ -479,6 +479,7 @@ describe('Open Day table and calendar filters', () => {
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole('button', { name: 'Table view' }));
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
     const weekday = screen.getByRole('combobox', { name: 'Filter by weekday' });
     const startTime = screen.getByRole('combobox', { name: 'Filter by start time' });
     const dateTimeFilters = screen.getByRole('group', { name: 'Filter by day and time' });

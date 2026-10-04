@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
   Header,
@@ -39,6 +39,7 @@ import { authQueryKey, useCurrentUser, useLogout } from '../features/auth/auth';
 import { canAccessMachineLogbook, canAccessOpenDays, canAccessSettings, hasPermission, PermissionId } from '../features/auth/permissions';
 import { PersonAvatar } from '../features/users/PersonAvatar';
 import { BrandMark } from './BrandMark';
+import { FullPageLoading } from './PageState';
 import { useBranding } from '../features/branding/branding';
 
 const NARROW_SHELL_QUERY = '(max-width: 65.98rem)';
@@ -312,7 +313,9 @@ export function AppShell() {
 				{admissionRequest.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Admission not evaluated" subtitle="This action requires an approved visitor terminal." />}
 			</section>
 		)}
-        <Outlet />
+        <Suspense fallback={<FullPageLoading label="Loading page" />}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );

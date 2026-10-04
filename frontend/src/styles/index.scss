@@ -1,6 +1,57 @@
-@use '@carbon/react';
-@use '@carbon/react/scss/spacing' as *;
-@use '@carbon/react/scss/type' as *;
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+@use '@carbon/styles/scss/reset';
+@use '@carbon/styles/scss/fonts' with (
+  $fonts: (
+    'IBM-Plex-Serif': false,
+  )
+);
+@use '@carbon/styles/scss/grid';
+@use '@carbon/styles/scss/layer';
+@use '@carbon/styles/scss/layout';
+@use '@carbon/styles/scss/zone';
+@use '@carbon/styles/scss/components/breadcrumb';
+@use '@carbon/styles/scss/components/button';
+@use '@carbon/styles/scss/components/checkbox';
+@use '@carbon/styles/scss/components/code-snippet';
+@use '@carbon/styles/scss/components/combo-box';
+@use '@carbon/styles/scss/components/copy-button';
+@use '@carbon/styles/scss/components/data-table';
+@use '@carbon/styles/scss/components/data-table/action';
+@use '@carbon/styles/scss/components/data-table/sort';
+@use '@carbon/styles/scss/components/date-picker';
+@use '@carbon/styles/scss/components/dropdown';
+@use '@carbon/styles/scss/components/file-uploader';
+@use '@carbon/styles/scss/components/form';
+@use '@carbon/styles/scss/components/inline-loading';
+@use '@carbon/styles/scss/components/link';
+@use '@carbon/styles/scss/components/list';
+@use '@carbon/styles/scss/components/list-box';
+@use '@carbon/styles/scss/components/loading';
+@use '@carbon/styles/scss/components/menu';
+@use '@carbon/styles/scss/components/menu-button';
+@use '@carbon/styles/scss/components/modal';
+@use '@carbon/styles/scss/components/multiselect';
+@use '@carbon/styles/scss/components/notification';
+@use '@carbon/styles/scss/components/number-input';
+@use '@carbon/styles/scss/components/overflow-menu';
+@use '@carbon/styles/scss/components/pagination';
+@use '@carbon/styles/scss/components/popover';
+@use '@carbon/styles/scss/components/progress-indicator';
+@use '@carbon/styles/scss/components/radio-button';
+@use '@carbon/styles/scss/components/search';
+@use '@carbon/styles/scss/components/select';
+@use '@carbon/styles/scss/components/stack';
+@use '@carbon/styles/scss/components/structured-list';
+@use '@carbon/styles/scss/components/tabs';
+@use '@carbon/styles/scss/components/tag';
+@use '@carbon/styles/scss/components/text-area';
+@use '@carbon/styles/scss/components/text-input';
+@use '@carbon/styles/scss/components/tile';
+@use '@carbon/styles/scss/components/time-picker';
+@use '@carbon/styles/scss/components/toggle';
+@use '@carbon/styles/scss/components/tooltip';
+@use '@carbon/styles/scss/components/ui-shell';
 
 :root {
   color-scheme: light;
@@ -1810,32 +1861,14 @@ body.cds--body--with-modal-open .app-main > * {
 .period-wizard__summary dd { margin: 0; }
 .period-wizard__error { margin-block-start: $spacing-06; }
 
-.period-summary-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: $spacing-06;
-  padding: $spacing-05 $spacing-06;
-  background: var(--cds-layer);
-}
-.period-summary-bar__stats {
-  display: flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  gap: $spacing-05 $spacing-07;
-  margin: 0;
-  text-align: start;
-}
-.period-summary-bar__stats > div { display: flex; min-inline-size: 7rem; flex-direction: column; gap: $spacing-02; }
-.period-summary-bar__stats dd { margin: 0; order: -1; @include type-style('heading-04'); }
-.period-summary-bar__stats dt { color: var(--cds-text-secondary); @include type-style('label-01'); }
-.period-summary-bar__actions { display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; }
-.period-summary-bar__actions .cds--btn { white-space: nowrap; }
 .open-days-view-container { inline-size: 100%; }
-.open-days-view-toolbar .cds--toolbar-content { inline-size: 100%; justify-content: space-between; padding: 0; }
-.open-days-view-toolbar__primary,
-.open-days-view-toolbar__views { display: flex; align-items: stretch; }
-.open-days-view-toolbar__primary { min-inline-size: 0; }
+.open-days-view-toolbar .cds--toolbar-content { inline-size: 100%; justify-content: flex-end; padding: 0; }
+.open-days-view-toolbar__actions,
+.schedule-editor-toolbar__actions { display: flex; align-items: stretch; margin-inline-start: auto; }
+.open-days-view-toolbar__actions .cds--btn,
+.schedule-editor-toolbar__actions .cds--btn { min-block-size: 3rem; white-space: nowrap; }
+.open-days-filter-panel { display: flex; justify-content: flex-end; padding: $spacing-05; border-block-start: 1px solid var(--cds-border-subtle); background: var(--cds-layer); }
+.open-days-filter-panel__fields { display: flex; align-items: flex-end; gap: 1px; }
 .open-days-date-time-filters { display: flex; align-items: flex-end; gap: 1px; }
 .open-days-date-time-filters > .cds--form-item { flex: 0 0 12rem; inline-size: 12rem; min-inline-size: 12rem; }
 .open-days-date-time-filters > .cds--form-item:first-child { flex-basis: 16rem; inline-size: 16rem; min-inline-size: 16rem; }
@@ -1850,8 +1883,7 @@ body.cds--body--with-modal-open .app-main > * {
   overflow: visible;
   text-overflow: clip;
 }
-.open-days-view-toolbar__views .cds--btn { inline-size: 3rem; min-block-size: 3rem; padding: 0; }
-.open-days-view-toolbar__status-filter { inline-size: 14rem; margin-inline-start: auto; }
+.open-days-view-toolbar__status-filter { inline-size: 14rem; }
 .open-days-view-content--calendar { background: var(--cds-layer); }
 .open-days-view-content--calendar .calendar-legend {
   align-items: center;
@@ -1889,7 +1921,7 @@ body.cds--body--with-modal-open .app-main > * {
 .calendar-cell:focus-within { position: relative; z-index: 2; }
 .calendar-days > .calendar-cell:nth-child(odd) { background: color-mix(in srgb, var(--cds-layer, #fff) 96%, var(--cds-text-primary, #161616)); }
 .calendar-cell--empty { border: 0; }
-.semester-calendar--editor .calendar-cell--outside-period { color: var(--cds-text-disabled); background: var(--cds-layer-accent); }
+.semester-calendar .calendar-days > .calendar-cell--outside-period { color: var(--cds-text-disabled); background: var(--cds-layer-accent); }
 .calendar-cell__header { display: flex; align-items: center; min-inline-size: 0; min-block-size: 1.75rem; gap: $spacing-02; margin-block-end: $spacing-02; }
 .calendar-cell > .cds--tooltip-trigger__wrapper,
 .calendar-cell__tooltip-target { block-size: 100%; }
@@ -1952,16 +1984,13 @@ body.cds--body--with-modal-open .app-main > * {
 .assigned-person .cds--btn { margin-inline-start: auto; }
 .assigned-person__avatar { display: grid; inline-size: 2rem; block-size: 2rem; place-items: center; border-radius: 50%; color: var(--cds-text-on-color); background: var(--cds-link-primary); @include type-style('label-01'); }
 
-.open-day-defaults__times,
-.open-day-defaults__requirements { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: $spacing-05; }
+.open-day-create__times,
+.open-day-create__requirements { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: $spacing-05; }
 .schedule-editor-view-container { inline-size: 100%; }
-.schedule-editor-toolbar__actions { display: flex; align-items: stretch; margin-inline-start: auto; }
-.schedule-editor-toolbar__actions .cds--btn { min-block-size: 3rem; white-space: nowrap; }
 .schedule-editor-table tbody tr { cursor: default; }
 .schedule-editor-table .table-actions { justify-content: flex-end; }
 .bulk-slot-editor__times,
 .bulk-slot-editor__requirements { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: $spacing-05; }
-.semester-calendar--editor { --calendar-month-size: 48rem; }
 .calendar-cell--target { position: relative; z-index: 1; outline: 3px solid var(--cds-focus); outline-offset: -3px; background: var(--cds-highlight); }
 
 .open-day-management-page { max-inline-size: 90rem; }
@@ -2184,27 +2213,25 @@ body.cds--body--with-modal-open .app-main > * {
   .period-grid,
   .requirements-grid { grid-template-columns: 1fr; }
 
-  .period-summary-bar,
   .open-day-detail-status,
   .assignment-banner,
   .open-day-registration-modal__summary { align-items: stretch; flex-direction: column; }
 
-  .period-summary-bar__stats { justify-content: space-between; text-align: start; }
-
-  .open-days-view-toolbar .cds--toolbar-content { align-items: stretch; flex-direction: column; block-size: auto; padding: $spacing-03; gap: $spacing-03; }
-  .open-days-view-toolbar__primary { inline-size: 100%; flex-direction: column; gap: $spacing-03; }
+  .open-days-view-toolbar .cds--toolbar-content { block-size: auto; padding: 0; }
+  .open-days-view-toolbar__actions,
+  .schedule-editor-toolbar__actions { inline-size: 100%; flex-wrap: wrap; justify-content: flex-end; margin-inline-start: 0; }
+  .open-days-filter-panel { padding: $spacing-03; }
+  .open-days-filter-panel__fields { inline-size: 100%; align-items: stretch; flex-direction: column; }
   .open-days-date-time-filters { inline-size: 100%; align-items: stretch; flex-direction: column; gap: 1px; }
   .open-days-date-time-filters > .cds--form-item,
   .open-days-date-time-filters > .cds--form-item:first-child { flex: 0 0 auto; inline-size: 100%; min-inline-size: 0; }
   .open-days-weekday-filter .cds--list-box__menu { min-inline-size: 100%; }
-  .open-days-view-toolbar__views { justify-content: flex-start; }
-  .open-days-view-toolbar__status-filter { inline-size: 100%; margin-inline-start: 0; }
-  .schedule-editor-toolbar__actions { flex-wrap: wrap; margin-inline-start: 0; }
+  .open-days-view-toolbar__status-filter { inline-size: 100%; }
 
   .bulk-slot-editor__times,
   .bulk-slot-editor__requirements,
-  .open-day-defaults__times,
-  .open-day-defaults__requirements { grid-template-columns: 1fr; }
+  .open-day-create__times,
+  .open-day-create__requirements { grid-template-columns: 1fr; }
 
   .managed-period { grid-template-columns: 1fr; }
   .management-section-heading { align-items: stretch; flex-direction: column; }

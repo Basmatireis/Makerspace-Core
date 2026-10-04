@@ -1,6 +1,5 @@
 import { Button, Tile } from '@carbon/react';
-import { LineChart, SimpleBarChart } from '@carbon/charts-react';
-import { ScaleTypes } from '@carbon/charts';
+import { LineChart, ScaleTypes, SimpleBarChart } from '../../app/charting';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { PageShell } from '../../app/PageShell';

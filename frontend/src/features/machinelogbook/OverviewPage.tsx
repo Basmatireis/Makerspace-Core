@@ -1,7 +1,6 @@
 import { Button, Column, Grid, Link as CarbonLink, Stack, Tile } from '@carbon/react';
 import { Add, InventoryManagement } from '@carbon/icons-react';
-import { SimpleBarChart } from '@carbon/charts-react';
-import { ScaleTypes } from '@carbon/charts';
+import { ScaleTypes, SimpleBarChart } from '../../app/charting';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { PageShell } from '../../app/PageShell';

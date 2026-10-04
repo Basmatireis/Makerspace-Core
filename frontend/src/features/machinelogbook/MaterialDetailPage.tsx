@@ -1,7 +1,6 @@
 import { Button, InlineNotification, Modal, Select, SelectItem, Stack, TextArea, TextInput, Tile } from '@carbon/react';
 import { Add, Edit, Subtract, TrashCan } from '@carbon/icons-react';
-import { LineChart } from '@carbon/charts-react';
-import { ScaleTypes } from '@carbon/charts';
+import { LineChart, ScaleTypes } from '../../app/charting';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';

@@ -6,7 +6,6 @@ import { queryClient } from './api/query-client';
 import { App } from './app/App';
 import { SessionEventHandler } from './features/auth/auth';
 import { BrandingProvider } from './features/branding/branding';
-import '@carbon/charts-react/styles.css';
 import './styles/index.scss';
 
 const router = createBrowserRouter([

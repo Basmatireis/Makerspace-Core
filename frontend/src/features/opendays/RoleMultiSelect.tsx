@@ -6,15 +6,16 @@ type Props = {
   titleText: string;
   roles: EligibilityRole[];
   selectedRoleIds: string[];
+  label?: string;
   onChange: (roleIds: string[]) => void;
 };
 
-export function RoleMultiSelect({ id, titleText, roles, selectedRoleIds, onChange }: Props) {
+export function RoleMultiSelect({ id, titleText, roles, selectedRoleIds, label = 'Choose roles', onChange }: Props) {
   return (
     <MultiSelect
       id={id}
       titleText={titleText}
-      label="Choose roles"
+      label={label}
       items={roles}
       itemToString={(role) => role?.name ?? ''}
       selectedItems={roles.filter((role) => selectedRoleIds.includes(role.id))}

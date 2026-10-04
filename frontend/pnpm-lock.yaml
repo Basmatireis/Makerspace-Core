@@ -20,6 +20,9 @@ importers:
       '@carbon/react':
         specifier: 1.116.0
         version: 1.116.0(react-dom@19.3.0(react@19.3.0))(react-is@18.3.1)(react@19.3.0)(sass@1.104.1)
+      '@carbon/styles':
+        specifier: 1.115.0
+        version: 1.115.0(sass@1.104.1)
       '@dnd-kit/react':
         specifier: 0.5.0
         version: 0.5.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)

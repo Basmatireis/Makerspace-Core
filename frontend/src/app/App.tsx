@@ -1,43 +1,49 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { PermissionId } from '../api/generated/models';
 import { DashboardPage } from '../features/dashboard/DashboardPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { PermissionRoute, ProtectedRoute, useCurrentUser } from '../features/auth/auth';
 import { canAccessSettings } from '../features/auth/permissions';
-import { EmailVerificationPage, InvitationPage, PINEnrollmentPage, ResetPasswordPage } from '../features/auth/ResetPasswordPage';
-import { ProfilePage } from '../features/profile/ProfilePage';
-import { RolesPage } from '../features/roles/RolesPage';
-import { SettingsPage } from '../features/settings/SettingsPage';
-import { ManagedDevicesPage } from '../features/devices/ManagedDevicesPage';
-import { UserCreatePage } from '../features/users/UserCreatePage';
-import { UserDetailPage } from '../features/users/UserDetailPage';
-import { UsersPage } from '../features/users/UsersPage';
-import { OpenDaysPage } from '../features/opendays/OpenDaysPage';
-import { OpenDayPeriodPage } from '../features/opendays/OpenDayPeriodPage';
-import { OpenDayDetailPage } from '../features/opendays/OpenDayDetailPage';
-import { OpenDayManagementPage } from '../features/opendays/OpenDayManagementPage';
-import { LaborordnungPage } from '../features/laborordnung/LaborordnungPage';
-import { SupervisorStaffingPage } from '../features/users/SupervisorStaffingPage';
-import { OIDCProvidersPage } from '../features/oidc/OIDCProvidersPage';
-import { SCIMConnectorsPage } from '../features/scim/SCIMConnectorsPage';
-import { VisitorEnrollmentPage } from '../features/visitor/VisitorEnrollmentPage';
-import { VisitorEnrollmentSettingsPage } from '../features/visitor/VisitorEnrollmentSettingsPage';
-import { MailSettingsPage } from '../features/mail/MailSettingsPage';
-import { MachineLogbookOverviewPage } from '../features/machinelogbook/OverviewPage';
-import { JobsPage } from '../features/machinelogbook/JobsPage';
-import { JobDetailPage } from '../features/machinelogbook/JobDetailPage';
-import { ReviewPage } from '../features/machinelogbook/ReviewPage';
-import { InventoryPage } from '../features/machinelogbook/InventoryPage';
-import { MaterialDetailPage } from '../features/machinelogbook/MaterialDetailPage';
-import { MachinesPage } from '../features/machinelogbook/MachinesPage';
-import { StatisticsPage } from '../features/machinelogbook/StatisticsPage';
-import { ConfigurationPage } from '../features/machinelogbook/ConfigurationPage';
 import { AppShell } from './AppShell';
 import { NotFoundPage } from './NotFoundPage';
-import { ActivityPage } from '../features/audit/ActivityPage';
 import { InformationPage } from './InformationPage';
-import { LegalPage } from '../features/branding/LegalPage';
-import { BrandingLegalSettingsPage } from '../features/branding/BrandingLegalSettingsPage';
+import { FullPageLoading } from './PageState';
+
+const ResetPasswordPage = lazy(() => import('../features/auth/ResetPasswordPage').then(({ ResetPasswordPage }) => ({ default: ResetPasswordPage })));
+const InvitationPage = lazy(() => import('../features/auth/ResetPasswordPage').then(({ InvitationPage }) => ({ default: InvitationPage })));
+const PINEnrollmentPage = lazy(() => import('../features/auth/ResetPasswordPage').then(({ PINEnrollmentPage }) => ({ default: PINEnrollmentPage })));
+const EmailVerificationPage = lazy(() => import('../features/auth/ResetPasswordPage').then(({ EmailVerificationPage }) => ({ default: EmailVerificationPage })));
+const VisitorEnrollmentPage = lazy(() => import('../features/visitor/VisitorEnrollmentPage').then(({ VisitorEnrollmentPage }) => ({ default: VisitorEnrollmentPage })));
+const LegalPage = lazy(() => import('../features/branding/LegalPage').then(({ LegalPage }) => ({ default: LegalPage })));
+const ProfilePage = lazy(() => import('../features/profile/ProfilePage').then(({ ProfilePage }) => ({ default: ProfilePage })));
+const MachineLogbookOverviewPage = lazy(() => import('../features/machinelogbook/OverviewPage').then(({ MachineLogbookOverviewPage }) => ({ default: MachineLogbookOverviewPage })));
+const JobsPage = lazy(() => import('../features/machinelogbook/JobsPage').then(({ JobsPage }) => ({ default: JobsPage })));
+const JobDetailPage = lazy(() => import('../features/machinelogbook/JobDetailPage').then(({ JobDetailPage }) => ({ default: JobDetailPage })));
+const ReviewPage = lazy(() => import('../features/machinelogbook/ReviewPage').then(({ ReviewPage }) => ({ default: ReviewPage })));
+const InventoryPage = lazy(() => import('../features/machinelogbook/InventoryPage').then(({ InventoryPage }) => ({ default: InventoryPage })));
+const MaterialDetailPage = lazy(() => import('../features/machinelogbook/MaterialDetailPage').then(({ MaterialDetailPage }) => ({ default: MaterialDetailPage })));
+const MachinesPage = lazy(() => import('../features/machinelogbook/MachinesPage').then(({ MachinesPage }) => ({ default: MachinesPage })));
+const StatisticsPage = lazy(() => import('../features/machinelogbook/StatisticsPage').then(({ StatisticsPage }) => ({ default: StatisticsPage })));
+const OpenDaysPage = lazy(() => import('../features/opendays/OpenDaysPage').then(({ OpenDaysPage }) => ({ default: OpenDaysPage })));
+const OpenDayPeriodPage = lazy(() => import('../features/opendays/OpenDayPeriodPage').then(({ OpenDayPeriodPage }) => ({ default: OpenDayPeriodPage })));
+const OpenDayDetailPage = lazy(() => import('../features/opendays/OpenDayDetailPage').then(({ OpenDayDetailPage }) => ({ default: OpenDayDetailPage })));
+const OpenDayManagementPage = lazy(() => import('../features/opendays/OpenDayManagementPage').then(({ OpenDayManagementPage }) => ({ default: OpenDayManagementPage })));
+const SettingsPage = lazy(() => import('../features/settings/SettingsPage').then(({ SettingsPage }) => ({ default: SettingsPage })));
+const ManagedDevicesPage = lazy(() => import('../features/devices/ManagedDevicesPage').then(({ ManagedDevicesPage }) => ({ default: ManagedDevicesPage })));
+const LaborordnungPage = lazy(() => import('../features/laborordnung/LaborordnungPage').then(({ LaborordnungPage }) => ({ default: LaborordnungPage })));
+const OIDCProvidersPage = lazy(() => import('../features/oidc/OIDCProvidersPage').then(({ OIDCProvidersPage }) => ({ default: OIDCProvidersPage })));
+const SCIMConnectorsPage = lazy(() => import('../features/scim/SCIMConnectorsPage').then(({ SCIMConnectorsPage }) => ({ default: SCIMConnectorsPage })));
+const VisitorEnrollmentSettingsPage = lazy(() => import('../features/visitor/VisitorEnrollmentSettingsPage').then(({ VisitorEnrollmentSettingsPage }) => ({ default: VisitorEnrollmentSettingsPage })));
+const MailSettingsPage = lazy(() => import('../features/mail/MailSettingsPage').then(({ MailSettingsPage }) => ({ default: MailSettingsPage })));
+const BrandingLegalSettingsPage = lazy(() => import('../features/branding/BrandingLegalSettingsPage').then(({ BrandingLegalSettingsPage }) => ({ default: BrandingLegalSettingsPage })));
+const ConfigurationPage = lazy(() => import('../features/machinelogbook/ConfigurationPage').then(({ ConfigurationPage }) => ({ default: ConfigurationPage })));
+const UsersPage = lazy(() => import('../features/users/UsersPage').then(({ UsersPage }) => ({ default: UsersPage })));
+const SupervisorStaffingPage = lazy(() => import('../features/users/SupervisorStaffingPage').then(({ SupervisorStaffingPage }) => ({ default: SupervisorStaffingPage })));
+const UserCreatePage = lazy(() => import('../features/users/UserCreatePage').then(({ UserCreatePage }) => ({ default: UserCreatePage })));
+const UserDetailPage = lazy(() => import('../features/users/UserDetailPage').then(({ UserDetailPage }) => ({ default: UserDetailPage })));
+const ActivityPage = lazy(() => import('../features/audit/ActivityPage').then(({ ActivityPage }) => ({ default: ActivityPage })));
+const RolesPage = lazy(() => import('../features/roles/RolesPage').then(({ RolesPage }) => ({ default: RolesPage })));
 
 function ProtectedApp() {
   return (
@@ -75,7 +81,8 @@ function OpenDayScheduleRedirect() {
 
 export function App() {
   return (
-    <Routes>
+    <Suspense fallback={<FullPageLoading label="Loading page" />}>
+      <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/complete-invitation" element={<InvitationPage />} />
@@ -171,6 +178,7 @@ export function App() {
         />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }
