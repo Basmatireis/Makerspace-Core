@@ -10,7 +10,37 @@ SELECT * FROM people WHERE id = sqlc.arg(id);
 SELECT * FROM people WHERE id = sqlc.arg(id) FOR UPDATE;
 
 -- name: ListPeople :many
-SELECT p.* FROM people p
+WITH current_laborordnung_version AS (
+    SELECT id
+    FROM laborordnung_versions
+    WHERE status = 'published' AND effective_at <= now()
+    ORDER BY effective_at DESC, id DESC
+    LIMIT 1
+)
+SELECT p.*
+FROM people p
+LEFT JOIN accounts a ON a.person_id = p.id
+LEFT JOIN current_laborordnung_version current_laborordnung ON true
+LEFT JOIN LATERAL (
+    SELECT CASE COALESCE(max(CASE r.laborordnung_mode WHEN 'blocking' THEN 2 WHEN 'warning' THEN 1 ELSE 0 END), 0)
+        WHEN 2 THEN 'blocking' WHEN 1 THEN 'warning' ELSE 'not_required' END::text AS mode
+    FROM account_roles ar
+    JOIN roles r ON r.id = ar.role_id
+    WHERE ar.account_id = a.id
+) laborordnung_mode ON true
+LEFT JOIN LATERAL (
+    SELECT required_version_id
+    FROM laborordnung_requests
+    WHERE person_id = p.id AND status = 'completed'
+    ORDER BY completed_at DESC, id DESC
+    LIMIT 1
+) latest_confirmation ON true
+LEFT JOIN LATERAL (
+    SELECT required_version_id
+    FROM laborordnung_requests
+    WHERE person_id = p.id AND status = 'pending'
+    LIMIT 1
+) pending_confirmation ON true
 WHERE (
        sqlc.arg(search)::text = ''
        OR p.first_name ILIKE '%' || sqlc.arg(search)::text || '%'
@@ -20,7 +50,7 @@ WHERE (
        OR (sqlc.arg(include_matriculation)::boolean AND COALESCE(p.matriculation_number, '') ILIKE '%' || sqlc.arg(search)::text || '%')
    )
   AND (
-       cardinality(sqlc.arg(role_ids)::uuid[]) = 0
+       COALESCE(cardinality(sqlc.arg(role_ids)::uuid[]), 0) = 0
        OR EXISTS (
            SELECT 1
            FROM accounts a
@@ -28,11 +58,55 @@ WHERE (
            WHERE a.person_id = p.id AND ar.role_id = ANY(sqlc.arg(role_ids)::uuid[])
        )
    )
-ORDER BY lower(last_name), lower(first_name), id
+  AND (
+       COALESCE(cardinality(sqlc.arg(account_statuses)::text[]), 0) = 0
+       OR (CASE WHEN a.id IS NULL THEN 'no_account' ELSE a.status END) = ANY(sqlc.arg(account_statuses)::text[])
+   )
+  AND (
+       COALESCE(cardinality(sqlc.arg(laborordnung_statuses)::text[]), 0) = 0
+       OR (CASE
+           WHEN laborordnung_mode.mode = 'not_required' THEN 'not_required'
+           WHEN current_laborordnung.id IS NULL THEN 'no_published_version'
+           WHEN latest_confirmation.required_version_id = current_laborordnung.id THEN 'current'
+           WHEN pending_confirmation.required_version_id = current_laborordnung.id THEN 'pending'
+           ELSE 'outdated'
+       END) = ANY(sqlc.arg(laborordnung_statuses)::text[])
+   )
+ORDER BY lower(p.last_name), lower(p.first_name), p.id
 LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 
 -- name: CountPeople :one
-SELECT count(*) FROM people p
+WITH current_laborordnung_version AS (
+    SELECT id
+    FROM laborordnung_versions
+    WHERE status = 'published' AND effective_at <= now()
+    ORDER BY effective_at DESC, id DESC
+    LIMIT 1
+)
+SELECT count(*)
+FROM people p
+LEFT JOIN accounts a ON a.person_id = p.id
+LEFT JOIN current_laborordnung_version current_laborordnung ON true
+LEFT JOIN LATERAL (
+    SELECT CASE COALESCE(max(CASE r.laborordnung_mode WHEN 'blocking' THEN 2 WHEN 'warning' THEN 1 ELSE 0 END), 0)
+        WHEN 2 THEN 'blocking' WHEN 1 THEN 'warning' ELSE 'not_required' END::text AS mode
+    FROM account_roles ar
+    JOIN roles r ON r.id = ar.role_id
+    WHERE ar.account_id = a.id
+) laborordnung_mode ON true
+LEFT JOIN LATERAL (
+    SELECT required_version_id
+    FROM laborordnung_requests
+    WHERE person_id = p.id AND status = 'completed'
+    ORDER BY completed_at DESC, id DESC
+    LIMIT 1
+) latest_confirmation ON true
+LEFT JOIN LATERAL (
+    SELECT required_version_id
+    FROM laborordnung_requests
+    WHERE person_id = p.id AND status = 'pending'
+    LIMIT 1
+) pending_confirmation ON true
 WHERE (
        sqlc.arg(search)::text = ''
        OR p.first_name ILIKE '%' || sqlc.arg(search)::text || '%'
@@ -42,13 +116,27 @@ WHERE (
        OR (sqlc.arg(include_matriculation)::boolean AND COALESCE(p.matriculation_number, '') ILIKE '%' || sqlc.arg(search)::text || '%')
    )
   AND (
-       cardinality(sqlc.arg(role_ids)::uuid[]) = 0
+       COALESCE(cardinality(sqlc.arg(role_ids)::uuid[]), 0) = 0
        OR EXISTS (
            SELECT 1
            FROM accounts a
            JOIN account_roles ar ON ar.account_id = a.id
            WHERE a.person_id = p.id AND ar.role_id = ANY(sqlc.arg(role_ids)::uuid[])
        )
+   )
+  AND (
+       COALESCE(cardinality(sqlc.arg(account_statuses)::text[]), 0) = 0
+       OR (CASE WHEN a.id IS NULL THEN 'no_account' ELSE a.status END) = ANY(sqlc.arg(account_statuses)::text[])
+   )
+  AND (
+       COALESCE(cardinality(sqlc.arg(laborordnung_statuses)::text[]), 0) = 0
+       OR (CASE
+           WHEN laborordnung_mode.mode = 'not_required' THEN 'not_required'
+           WHEN current_laborordnung.id IS NULL THEN 'no_published_version'
+           WHEN latest_confirmation.required_version_id = current_laborordnung.id THEN 'current'
+           WHEN pending_confirmation.required_version_id = current_laborordnung.id THEN 'pending'
+           ELSE 'outdated'
+       END) = ANY(sqlc.arg(laborordnung_statuses)::text[])
    );
 
 -- name: UpdatePerson :one

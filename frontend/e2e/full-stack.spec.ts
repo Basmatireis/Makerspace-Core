@@ -240,7 +240,7 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     await signIn(page, memberLogin, memberPassword);
 
     await page.goto('/people');
-    await expect(page.getByRole('heading', { name: 'People' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Directory' })).toBeVisible();
     await expect(page.getByRole('columnheader', { name: 'Name' })).toBeVisible();
     await expect(
       page.getByRole('columnheader', { name: 'Matriculation number' }),

@@ -12,7 +12,37 @@ import (
 )
 
 const countPeople = `-- name: CountPeople :one
-SELECT count(*) FROM people p
+WITH current_laborordnung_version AS (
+    SELECT id
+    FROM laborordnung_versions
+    WHERE status = 'published' AND effective_at <= now()
+    ORDER BY effective_at DESC, id DESC
+    LIMIT 1
+)
+SELECT count(*)
+FROM people p
+LEFT JOIN accounts a ON a.person_id = p.id
+LEFT JOIN current_laborordnung_version current_laborordnung ON true
+LEFT JOIN LATERAL (
+    SELECT CASE COALESCE(max(CASE r.laborordnung_mode WHEN 'blocking' THEN 2 WHEN 'warning' THEN 1 ELSE 0 END), 0)
+        WHEN 2 THEN 'blocking' WHEN 1 THEN 'warning' ELSE 'not_required' END::text AS mode
+    FROM account_roles ar
+    JOIN roles r ON r.id = ar.role_id
+    WHERE ar.account_id = a.id
+) laborordnung_mode ON true
+LEFT JOIN LATERAL (
+    SELECT required_version_id
+    FROM laborordnung_requests
+    WHERE person_id = p.id AND status = 'completed'
+    ORDER BY completed_at DESC, id DESC
+    LIMIT 1
+) latest_confirmation ON true
+LEFT JOIN LATERAL (
+    SELECT required_version_id
+    FROM laborordnung_requests
+    WHERE person_id = p.id AND status = 'pending'
+    LIMIT 1
+) pending_confirmation ON true
 WHERE (
        $1::text = ''
        OR p.first_name ILIKE '%' || $1::text || '%'
@@ -22,7 +52,7 @@ WHERE (
        OR ($2::boolean AND COALESCE(p.matriculation_number, '') ILIKE '%' || $1::text || '%')
    )
   AND (
-       cardinality($3::uuid[]) = 0
+       COALESCE(cardinality($3::uuid[]), 0) = 0
        OR EXISTS (
            SELECT 1
            FROM accounts a
@@ -30,16 +60,38 @@ WHERE (
            WHERE a.person_id = p.id AND ar.role_id = ANY($3::uuid[])
        )
    )
+  AND (
+       COALESCE(cardinality($4::text[]), 0) = 0
+       OR (CASE WHEN a.id IS NULL THEN 'no_account' ELSE a.status END) = ANY($4::text[])
+   )
+  AND (
+       COALESCE(cardinality($5::text[]), 0) = 0
+       OR (CASE
+           WHEN laborordnung_mode.mode = 'not_required' THEN 'not_required'
+           WHEN current_laborordnung.id IS NULL THEN 'no_published_version'
+           WHEN latest_confirmation.required_version_id = current_laborordnung.id THEN 'current'
+           WHEN pending_confirmation.required_version_id = current_laborordnung.id THEN 'pending'
+           ELSE 'outdated'
+       END) = ANY($5::text[])
+   )
 `
 
 type CountPeopleParams struct {
 	Search               string
 	IncludeMatriculation bool
 	RoleIds              []uuid.UUID
+	AccountStatuses      []string
+	LaborordnungStatuses []string
 }
 
 func (q *Queries) CountPeople(ctx context.Context, arg CountPeopleParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countPeople, arg.Search, arg.IncludeMatriculation, arg.RoleIds)
+	row := q.db.QueryRow(ctx, countPeople,
+		arg.Search,
+		arg.IncludeMatriculation,
+		arg.RoleIds,
+		arg.AccountStatuses,
+		arg.LaborordnungStatuses,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -173,7 +225,37 @@ func (q *Queries) GetProfileImage(ctx context.Context, id uuid.UUID) (GetProfile
 }
 
 const listPeople = `-- name: ListPeople :many
-SELECT p.id, p.first_name, p.last_name, p.email, p.phone, p.matriculation_number, p.photo_reference, p.version, p.created_at, p.updated_at, p.profile_image_file_id, p.profile_image_source FROM people p
+WITH current_laborordnung_version AS (
+    SELECT id
+    FROM laborordnung_versions
+    WHERE status = 'published' AND effective_at <= now()
+    ORDER BY effective_at DESC, id DESC
+    LIMIT 1
+)
+SELECT p.id, p.first_name, p.last_name, p.email, p.phone, p.matriculation_number, p.photo_reference, p.version, p.created_at, p.updated_at, p.profile_image_file_id, p.profile_image_source
+FROM people p
+LEFT JOIN accounts a ON a.person_id = p.id
+LEFT JOIN current_laborordnung_version current_laborordnung ON true
+LEFT JOIN LATERAL (
+    SELECT CASE COALESCE(max(CASE r.laborordnung_mode WHEN 'blocking' THEN 2 WHEN 'warning' THEN 1 ELSE 0 END), 0)
+        WHEN 2 THEN 'blocking' WHEN 1 THEN 'warning' ELSE 'not_required' END::text AS mode
+    FROM account_roles ar
+    JOIN roles r ON r.id = ar.role_id
+    WHERE ar.account_id = a.id
+) laborordnung_mode ON true
+LEFT JOIN LATERAL (
+    SELECT required_version_id
+    FROM laborordnung_requests
+    WHERE person_id = p.id AND status = 'completed'
+    ORDER BY completed_at DESC, id DESC
+    LIMIT 1
+) latest_confirmation ON true
+LEFT JOIN LATERAL (
+    SELECT required_version_id
+    FROM laborordnung_requests
+    WHERE person_id = p.id AND status = 'pending'
+    LIMIT 1
+) pending_confirmation ON true
 WHERE (
        $1::text = ''
        OR p.first_name ILIKE '%' || $1::text || '%'
@@ -183,7 +265,7 @@ WHERE (
        OR ($2::boolean AND COALESCE(p.matriculation_number, '') ILIKE '%' || $1::text || '%')
    )
   AND (
-       cardinality($3::uuid[]) = 0
+       COALESCE(cardinality($3::uuid[]), 0) = 0
        OR EXISTS (
            SELECT 1
            FROM accounts a
@@ -191,14 +273,30 @@ WHERE (
            WHERE a.person_id = p.id AND ar.role_id = ANY($3::uuid[])
        )
    )
-ORDER BY lower(last_name), lower(first_name), id
-LIMIT $5 OFFSET $4
+  AND (
+       COALESCE(cardinality($4::text[]), 0) = 0
+       OR (CASE WHEN a.id IS NULL THEN 'no_account' ELSE a.status END) = ANY($4::text[])
+   )
+  AND (
+       COALESCE(cardinality($5::text[]), 0) = 0
+       OR (CASE
+           WHEN laborordnung_mode.mode = 'not_required' THEN 'not_required'
+           WHEN current_laborordnung.id IS NULL THEN 'no_published_version'
+           WHEN latest_confirmation.required_version_id = current_laborordnung.id THEN 'current'
+           WHEN pending_confirmation.required_version_id = current_laborordnung.id THEN 'pending'
+           ELSE 'outdated'
+       END) = ANY($5::text[])
+   )
+ORDER BY lower(p.last_name), lower(p.first_name), p.id
+LIMIT $7 OFFSET $6
 `
 
 type ListPeopleParams struct {
 	Search               string
 	IncludeMatriculation bool
 	RoleIds              []uuid.UUID
+	AccountStatuses      []string
+	LaborordnungStatuses []string
 	PageOffset           int32
 	PageLimit            int32
 }
@@ -208,6 +306,8 @@ func (q *Queries) ListPeople(ctx context.Context, arg ListPeopleParams) ([]Perso
 		arg.Search,
 		arg.IncludeMatriculation,
 		arg.RoleIds,
+		arg.AccountStatuses,
+		arg.LaborordnungStatuses,
 		arg.PageOffset,
 		arg.PageLimit,
 	)

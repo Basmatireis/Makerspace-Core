@@ -252,7 +252,7 @@ export function AppShell() {
                   isActive={peopleActive}
                   renderIcon={UserMultiple}
                 >
-                  People
+                  Directory
                 </SideNavLink>
               )}
               {showAdministration && (

@@ -11,6 +11,7 @@ type ApiState = {
   publicBranding?: ReturnType<typeof defaultPublicBrandingConfiguration>;
   makerspaceStatus?: ReturnType<typeof personMakerspaceStatus>;
   role?: ReturnType<typeof customRole>;
+  supervisorDashboard?: ReturnType<typeof supervisorDashboard>;
   user?: ReturnType<typeof currentUser>;
 };
 
@@ -21,6 +22,7 @@ const pageErrors = new WeakMap<Page, Error[]>();
 const passwordIdentityId = '0192f6f8-743e-7c77-a349-cd07c3e8a904';
 const managedPersonId = '0192f6f8-743e-7c77-a349-cd07c3e8a905';
 const managedAccountId = '0192f6f8-743e-7c77-a349-cd07c3e8a906';
+const openDayPeriodId = '0192f6f8-743e-7c77-a349-cd07c3e8a932';
 
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -153,6 +155,30 @@ function personMakerspaceStatus() {
   };
 }
 
+function supervisorDashboard() {
+  return {
+    periods: [{
+      id: openDayPeriodId,
+      name: 'Autumn Open Days',
+      status: 'published',
+      supervisorAssignments: 4,
+    }],
+    supervisors: [{
+      personId: managedPersonId,
+      name: 'Grace Hopper',
+      hasProfileImage: true,
+      laborordnungState: 'current',
+      assignmentCounts: [{ periodId: openDayPeriodId, supervisorCount: 2, traineeCount: 1 }],
+    }],
+    totals: {
+      supervisors: 1,
+      profileImagesComplete: 1,
+      laborordnungCurrent: 1,
+      laborordnungOutdated: 0,
+    },
+  };
+}
+
 async function json(route: Route, body: unknown, status = 200) {
   await route.fulfill({
     status,
@@ -267,6 +293,11 @@ async function installApi(page: Page, state: ApiState) {
       return;
     }
 
+    if (path === '/api/v1/supervisor-dashboard' && request.method() === 'GET' && state.supervisorDashboard) {
+      await json(route, state.supervisorDashboard);
+      return;
+    }
+
     throw new Error(`Unexpected API request: ${request.method()} ${path}`);
   });
 }
@@ -284,6 +315,14 @@ async function expectNoHorizontalPageOverflow(page: Page) {
     scrollWidth: document.documentElement.scrollWidth,
   }));
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+}
+
+async function expectNoVerticalPageOverflow(page: Page) {
+  const dimensions = await page.evaluate(() => ({
+    clientHeight: document.documentElement.clientHeight,
+    scrollHeight: document.documentElement.scrollHeight,
+  }));
+  expect(dimensions.scrollHeight).toBeLessThanOrEqual(dimensions.clientHeight);
 }
 
 async function expectShellHeaderAndContentAligned(page: Page) {
@@ -321,6 +360,7 @@ test('signs in, renders the protected shell, and passes an accessibility scan', 
   await expect(page.locator('[data-page-shell]')).toHaveAttribute('data-page-width', 'standard');
   await expectShellHeaderAndContentAligned(page);
   await expectNoHorizontalPageOverflow(page);
+  await expectNoVerticalPageOverflow(page);
   await expect(page.getByText('Welcome, Ada.')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Dashboard' })).toBeVisible();
   await expect(page.getByText('Administration', { exact: true })).toBeVisible();
@@ -333,15 +373,15 @@ test('signs in, renders the protected shell, and passes an accessibility scan', 
   await expectNoSeriousAccessibilityViolations(page);
 });
 
-test('shows promoted People navigation and exposes self-service profile access', async ({ page }) => {
+test('shows promoted Directory navigation and exposes self-service profile access', async ({ page }) => {
   await installApi(page, {
     authenticated: true,
     user: currentUser(['people.read.all', 'people.update.self']),
   });
 
   await page.goto('/people');
-  await expect(page.getByRole('heading', { name: 'People', exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'People' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Directory', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Directory' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Settings' })).toHaveCount(0);
   await expectNoSeriousAccessibilityViolations(page);
 
@@ -426,7 +466,7 @@ test('shows Lab Rules between roles and a centered Status column', async ({ page
     statusTag.boundingBox(),
   ]);
   if (!rolesBounds || !labRulesBounds || !headerBounds || !cellBounds || !tagBounds) {
-    throw new Error('Could not measure the People table column alignment.');
+    throw new Error('Could not measure the Directory table column alignment.');
   }
   expect(rolesBounds.x).toBeLessThan(labRulesBounds.x);
   expect(labRulesBounds.x).toBeLessThan(headerBounds.x);
@@ -435,6 +475,113 @@ test('shows Lab Rules between roles and a centered Status column', async ({ page
     (cellBounds.x + (cellBounds.width / 2)) - (tagBounds.x + (tagBounds.width / 2)),
   )).toBeLessThanOrEqual(1);
   await expect(personRow.getByLabel(`${role.name}, supervisor role`)).toHaveClass(/cds--tag--blue/);
+});
+
+test('opens responsive Directory filters for roles, Lab Rules, and account status', async ({ page }) => {
+  const role = customRole();
+  await installApi(page, {
+    authenticated: true,
+    role,
+    user: currentUser([
+      'people.read.all',
+      'accounts.read',
+      'roles.read',
+      'laborordnung.requests.read',
+    ]),
+  });
+
+  await page.goto('/people');
+  const filterButton = page.getByRole('button', { name: 'Filters', exact: true });
+  await expect(filterButton).toHaveAttribute('aria-expanded', 'false');
+  await filterButton.click();
+  await expect(filterButton).toHaveAttribute('aria-expanded', 'true');
+
+  const filters = page.getByRole('region', { name: 'Directory filters' });
+  const roleFilter = filters.getByRole('combobox', { name: 'Role' });
+  const labRulesFilter = filters.getByRole('combobox', { name: 'Lab Rules' });
+  const statusFilter = filters.getByRole('combobox', { name: 'Status' });
+  await expect(roleFilter).toBeVisible();
+  await expect(labRulesFilter).toBeVisible();
+  await expect(statusFilter).toBeVisible();
+  await expectNoHorizontalPageOverflow(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('.app-main')).toHaveCSS('margin-inline-start', '0px');
+  await expect(filters).toBeVisible();
+  const [roleBounds, labRulesBounds, statusBounds] = await Promise.all([
+    roleFilter.boundingBox(),
+    labRulesFilter.boundingBox(),
+    statusFilter.boundingBox(),
+  ]);
+  if (!roleBounds || !labRulesBounds || !statusBounds) {
+    throw new Error('Could not measure the Directory filter layout.');
+  }
+  expect(Math.abs(roleBounds.x - labRulesBounds.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(labRulesBounds.x - statusBounds.x)).toBeLessThanOrEqual(1);
+  expect(roleBounds.y).toBeLessThan(labRulesBounds.y);
+  expect(labRulesBounds.y).toBeLessThan(statusBounds.y);
+  await expectNoHorizontalPageOverflow(page);
+  await expectNoSeriousAccessibilityViolations(page);
+});
+
+test('renders the Directory-styled Members table without summary statistics', async ({ page }) => {
+  await installApi(page, {
+    authenticated: true,
+    supervisorDashboard: supervisorDashboard(),
+    user: currentUser([
+      'supervisor_dashboard.read',
+      'people.read.all',
+      'open_days.read',
+    ]),
+  });
+
+  await page.goto('/people/staffing');
+  const breadcrumbs = page.getByLabel('Breadcrumb');
+  await expect(breadcrumbs.getByText('Members', { exact: true })).toBeVisible();
+  await expect(breadcrumbs.getByText('Supervisor staffing', { exact: true })).toHaveCount(0);
+
+  const tableContainer = page.locator('.people-table-container.supervisor-staffing-table');
+  await expect(page.getByRole('heading', { name: 'Summary' })).toHaveCount(0);
+  await expect(page.getByText('Member readiness')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Designated supervisors' })).toHaveCount(0);
+  const toolbar = page.getByLabel('Members table toolbar');
+  const directoryButton = page.getByRole('button', { name: 'Directory' });
+  await expect(toolbar).toBeVisible();
+  const periodSelector = toolbar.getByRole('combobox', { name: 'Open Days period' });
+  await expect(periodSelector).toBeVisible();
+  await expect(periodSelector).toHaveAttribute('title', 'Autumn Open Days');
+  await expect(toolbar.getByRole('button', { name: 'Directory' })).toBeVisible();
+  await expect(page.locator('.page-header').getByRole('button', { name: 'Directory' })).toHaveCount(0);
+  await expect(directoryButton).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /Member$/ })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /Supervisor$/ })).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: /Trainee$/ })).toBeVisible();
+  const memberCells = page.getByRole('row', { name: /Grace Hopper/ }).getByRole('cell');
+  await expect(memberCells.nth(3)).toHaveText('2');
+  await expect(memberCells.nth(4)).toHaveText('1');
+  const [periodSelectorBounds, directoryButtonBounds] = await Promise.all([
+    periodSelector.boundingBox(),
+    directoryButton.boundingBox(),
+  ]);
+  if (!periodSelectorBounds || !directoryButtonBounds) {
+    throw new Error('Could not measure the Members toolbar controls.');
+  }
+  expect(Math.abs(periodSelectorBounds.y - directoryButtonBounds.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(periodSelectorBounds.height - directoryButtonBounds.height)).toBeLessThanOrEqual(1);
+  const filterButton = toolbar.getByRole('button', { name: 'Filters' });
+  await filterButton.click();
+  const filters = page.getByRole('region', { name: 'Members filters' });
+  await expect(filters.getByRole('combobox', { name: 'Profile picture' })).toBeVisible();
+  await expect(filters.getByRole('combobox', { name: 'Lab Rules' })).toBeVisible();
+  await expect(tableContainer.locator('.cds--pagination')).toBeVisible();
+  await expect(tableContainer).toBeVisible();
+  await expectNoHorizontalPageOverflow(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator('.app-main')).toHaveCSS('margin-inline-start', '0px');
+  await expect(tableContainer).toBeVisible();
+  await expectNoHorizontalPageOverflow(page);
+  await expectNoSeriousAccessibilityViolations(page);
 });
 
 test('renders the responsive person detail hierarchy and functional tabs', async ({ page }) => {

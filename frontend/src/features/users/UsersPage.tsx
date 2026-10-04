@@ -29,7 +29,7 @@ import {
   TableToolbarSearch,
   Tag,
 } from '@carbon/react';
-import { Add, TrashCan, UserFollow, UserRole } from '@carbon/icons-react';
+import { Add, Filter, TrashCan, UserFollow, UserRole } from '@carbon/icons-react';
 import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -37,7 +37,13 @@ import {
   createPersonAccount,
   deleteAccount,
 } from '../../api/generated/accounts/accounts';
-import type { LaborordnungStatus, Person, Role } from '../../api/generated/models';
+import type {
+  LaborordnungStatus,
+  PeopleAccountStatusFilter,
+  PeopleLaborordnungStatusFilter,
+  Person,
+  Role,
+} from '../../api/generated/models';
 import { getPersonMakerspaceStatus } from '../../api/generated/people/people';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
@@ -49,6 +55,25 @@ import { PersonAvatar } from './PersonAvatar';
 
 const PAGE_SIZES = [10, 25, 50, 100];
 const EMPTY_PEOPLE: Person[] = [];
+
+type FilterOption<T extends string> = {
+  value: T;
+  label: string;
+};
+
+const ACCOUNT_STATUS_OPTIONS: Array<FilterOption<PeopleAccountStatusFilter>> = [
+  { value: 'enabled', label: 'Active' },
+  { value: 'disabled', label: 'Inactive' },
+  { value: 'no_account', label: 'No account' },
+];
+
+const LAB_RULES_STATUS_OPTIONS: Array<FilterOption<PeopleLaborordnungStatusFilter>> = [
+  { value: 'current', label: 'Current' },
+  { value: 'pending', label: 'Confirmation pending' },
+  { value: 'outdated', label: 'Acknowledgement outdated' },
+  { value: 'no_published_version', label: 'No published version' },
+  { value: 'not_required', label: 'Not required' },
+];
 
 type BatchAction = 'create-accounts' | 'assign-role' | 'delete-accounts' | null;
 type BatchResult = {
@@ -110,7 +135,14 @@ export function UsersPage() {
   const pageSize = Math.min(100, positiveInteger(searchParams.get('pageSize'), 25));
   const search = searchParams.get('search') ?? '';
   const selectedRoleIds = searchParams.getAll('role');
+  const selectedAccountStatusOptions = ACCOUNT_STATUS_OPTIONS.filter((option) =>
+    searchParams.getAll('status').includes(option.value),
+  );
+  const selectedLabRulesStatusOptions = LAB_RULES_STATUS_OPTIONS.filter((option) =>
+    searchParams.getAll('labRules').includes(option.value),
+  );
   const [searchValue, setSearchValue] = useState(search);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [batchAction, setBatchAction] = useState<BatchAction>(null);
   const [batchMembers, setBatchMembers] = useState<Person[]>([]);
   const [batchRole, setBatchRole] = useState<Role | null>(null);
@@ -147,7 +179,13 @@ export function UsersPage() {
       page,
       pageSize,
       ...(search ? { search } : {}),
-      ...(showAccounts && selectedRoleIds.length ? { roleIds: selectedRoleIds } : {}),
+      ...(showAccounts && mayReadRoles && selectedRoleIds.length ? { roleIds: selectedRoleIds } : {}),
+      ...(showAccounts && selectedAccountStatusOptions.length
+        ? { accountStatuses: selectedAccountStatusOptions.map((option) => option.value) }
+        : {}),
+      ...(mayReadLabRules && selectedLabRulesStatusOptions.length
+        ? { laborordnungStatuses: selectedLabRulesStatusOptions.map((option) => option.value) }
+        : {}),
     }),
     placeholderData: keepPreviousData,
   });
@@ -339,25 +377,33 @@ export function UsersPage() {
   const selectedRoles = (rolesQuery.data ?? []).filter((role) =>
     selectedRoleIds.includes(role.id),
   );
+  const canFilter = showAccounts || mayReadLabRules;
+  const hasActiveFilters = (showAccounts && mayReadRoles && selectedRoleIds.length > 0)
+    || (showAccounts && selectedAccountStatusOptions.length > 0)
+    || (mayReadLabRules && selectedLabRulesStatusOptions.length > 0);
 
-  const updateRoleFilter = (roles: Role[]) => {
+  const updateFilter = (key: 'role' | 'status' | 'labRules', values: string[]) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('page', '1');
+    next.delete(key);
+    for (const value of values) next.append(key, value);
+    setSearchParams(next, { replace: true });
+  };
+
+  const clearFilters = () => {
     const next = new URLSearchParams(searchParams);
     next.set('page', '1');
     next.delete('role');
-    for (const role of roles) next.append('role', role.id);
+    next.delete('status');
+    next.delete('labRules');
     setSearchParams(next, { replace: true });
   };
 
   return (
     <PageShell
-      title="People"
+      title="Directory"
       description="Manage people, login accounts, roles, and access."
       width="wide"
-      actions={mayViewSupervisorStaffing ? (
-        <Button kind="tertiary" onClick={() => navigate('/people/staffing')}>
-          Supervisor staffing
-        </Button>
-      ) : undefined}
     >
 
       {peopleQuery.isPending && <InlineLoadingState label="Loading people" />}
@@ -398,7 +444,7 @@ export function UsersPage() {
 
             return (
               <TableContainer className="people-table-container">
-                <TableToolbar className="people-table-toolbar" aria-label="People table toolbar">
+                <TableToolbar className="people-table-toolbar" aria-label="Directory table toolbar">
                   {canBatchManage && (
                     <TableBatchActions {...getBatchActionProps()}>
                       {mayCreateAccounts && (
@@ -454,18 +500,16 @@ export function UsersPage() {
                       onChange={(_event, value) => setSearchValue(value ?? '')}
                       onClear={() => setSearchValue('')}
                     />
-                    {showAccounts && mayReadRoles && (
-                      <MultiSelect
-                        id="people-role-filter"
-                        className="people-role-filter"
-                        titleText="Filter by role"
-                        hideLabel
-                        label={rolesQuery.isPending ? 'Loading roles…' : 'Filter by role'}
-                        items={rolesQuery.data ?? []}
-                        itemToString={(role) => role?.name ?? ''}
-                        selectedItems={selectedRoles}
-                        disabled={rolesQuery.isPending || rolesQuery.isError}
-                        onChange={({ selectedItems }) => updateRoleFilter(selectedItems ?? [])}
+                    {canFilter && (
+                      <Button
+                        hasIconOnly
+                        kind={hasActiveFilters ? 'primary' : 'ghost'}
+                        size="md"
+                        renderIcon={Filter}
+                        iconDescription="Filters"
+                        aria-expanded={filtersOpen}
+                        aria-controls="people-filters"
+                        onClick={() => setFiltersOpen((open) => !open)}
                       />
                     )}
                     {mayCreate && (
@@ -477,8 +521,63 @@ export function UsersPage() {
                         Add person
                       </Button>
                     )}
+                    {mayViewSupervisorStaffing && (
+                      <Button
+                        kind="tertiary"
+                        renderIcon={UserRole}
+                        onClick={() => navigate('/people/staffing')}
+                      >
+                        Members
+                      </Button>
+                    )}
                   </TableToolbarContent>
                 </TableToolbar>
+                {filtersOpen && (
+                  <div id="people-filters" className="people-filter-panel" role="region" aria-label="Directory filters">
+                    <div className="people-filter-panel__fields">
+                      {showAccounts && mayReadRoles && (
+                        <MultiSelect
+                          id="people-role-filter"
+                          className="people-filter-panel__field"
+                          titleText="Role"
+                          label={rolesQuery.isPending ? 'Loading roles…' : 'All roles'}
+                          items={rolesQuery.data ?? []}
+                          itemToString={(role) => role?.name ?? ''}
+                          selectedItems={selectedRoles}
+                          disabled={rolesQuery.isPending || rolesQuery.isError}
+                          onChange={({ selectedItems }) => updateFilter('role', (selectedItems ?? []).map((role) => role.id))}
+                        />
+                      )}
+                      {mayReadLabRules && (
+                        <MultiSelect
+                          id="people-lab-rules-filter"
+                          className="people-filter-panel__field"
+                          titleText="Lab Rules"
+                          label="All Lab Rules statuses"
+                          items={LAB_RULES_STATUS_OPTIONS}
+                          itemToString={(option) => option?.label ?? ''}
+                          selectedItems={selectedLabRulesStatusOptions}
+                          onChange={({ selectedItems }) => updateFilter('labRules', (selectedItems ?? []).map((option) => option.value))}
+                        />
+                      )}
+                      {showAccounts && (
+                        <MultiSelect
+                          id="people-account-status-filter"
+                          className="people-filter-panel__field"
+                          titleText="Status"
+                          label="All account statuses"
+                          items={ACCOUNT_STATUS_OPTIONS}
+                          itemToString={(option) => option?.label ?? ''}
+                          selectedItems={selectedAccountStatusOptions}
+                          onChange={({ selectedItems }) => updateFilter('status', (selectedItems ?? []).map((option) => option.value))}
+                        />
+                      )}
+                      <Button kind="ghost" size="md" disabled={!hasActiveFilters} onClick={clearFilters}>
+                        Clear filters
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 <Table {...getTableProps()}>
                   <TableHead>
                     <TableRow>
@@ -568,7 +667,7 @@ export function UsersPage() {
                 {rows.length === 0 && (
                   <div className="empty-state">
                     <h2>No people found</h2>
-                    <p>{search || selectedRoleIds.length ? 'Try different search terms or role filters.' : 'No people have been added yet.'}</p>
+                    <p>{search || hasActiveFilters ? 'Try different search terms or filters.' : 'No people have been added yet.'}</p>
                   </div>
                 )}
                 <Pagination

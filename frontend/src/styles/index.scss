@@ -93,6 +93,7 @@ h2 {
 }
 
 .app-shell {
+  display: flow-root;
   min-height: 100vh;
 }
 
@@ -248,6 +249,10 @@ body.cds--body--with-modal-open .app-main > * {
 
 .profile-panel.cds--header-panel--expanded {
   inline-size: min(22rem, 100vw);
+}
+
+.profile-panel:not(.cds--header-panel--expanded) {
+  overflow: hidden;
 }
 
 .profile-panel__content {
@@ -794,6 +799,25 @@ body.cds--body--with-modal-open .app-main > * {
   min-block-size: 3rem;
 }
 
+.people-filter-panel {
+  display: flex;
+  justify-content: flex-end;
+  padding: $spacing-05;
+  border-block-start: 1px solid var(--cds-border-subtle);
+  background: var(--cds-layer);
+}
+
+.people-filter-panel__fields {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: $spacing-03;
+}
+
+.people-filter-panel__field {
+  inline-size: 15rem;
+}
+
 .people-table-container .cds--data-table-content {
   inline-size: 100%;
   overflow-x: auto;
@@ -802,6 +826,13 @@ body.cds--body--with-modal-open .app-main > * {
 .supervisor-staffing-page {
   inline-size: 100%;
   min-inline-size: 0;
+}
+
+.supervisor-staffing-main {
+  display: grid;
+  min-inline-size: 0;
+  align-content: start;
+  gap: $spacing-05;
 }
 
 .supervisor-staffing-table {
@@ -821,25 +852,9 @@ body.cds--body--with-modal-open .app-main > * {
   min-inline-size: 48rem;
 }
 
-.supervisor-period-header {
-  display: grid;
-  min-inline-size: 9rem;
-  gap: $spacing-02;
-}
-
-.supervisor-period-header .cds--tag {
-  margin: 0;
-  text-transform: capitalize;
-}
-
-.supervisor-period-header__count {
-  color: var(--cds-text-secondary);
-  font-weight: normal;
-  @include type-style('label-01');
-}
-
-.people-role-filter {
-  min-inline-size: 15rem;
+.supervisor-staffing-period-selector {
+  inline-size: 18rem;
+  min-inline-size: 14rem;
 }
 
 .danger-zone {
@@ -2082,8 +2097,6 @@ body.cds--body--with-modal-open .app-main > * {
   .review-list__item { min-inline-size: 15rem; }
   .statistics-grid { grid-template-columns: 1fr; }
 
-  .people-role-filter { min-inline-size: 12rem; }
-
   .branding-settings-grid,
   .branding-assets-grid {
     grid-template-columns: 1fr;
@@ -2154,8 +2167,6 @@ body.cds--body--with-modal-open .app-main > * {
     flex-direction: column;
   }
 
-  .people-role-filter { inline-size: 100%; }
-
   .people-table-container .cds--table-toolbar .cds--toolbar-content {
     flex-wrap: wrap;
     inline-size: 100%;
@@ -2163,7 +2174,6 @@ body.cds--body--with-modal-open .app-main > * {
   }
 
   .people-table-container .cds--table-toolbar .cds--toolbar-content > .cds--search,
-  .people-table-container .cds--table-toolbar .cds--toolbar-content > .people-role-filter,
   .people-table-container .cds--table-toolbar .cds--toolbar-content > .cds--btn {
     flex: 1 1 100%;
     inline-size: 100%;
@@ -2174,8 +2184,26 @@ body.cds--body--with-modal-open .app-main > * {
     overflow-x: auto;
   }
 
-  .supervisor-staffing-page .summary-grid {
-    grid-template-columns: 1fr;
+  .supervisor-staffing-period-selector {
+    inline-size: 100%;
+    min-inline-size: 0;
+    max-inline-size: none;
+  }
+
+  .people-filter-panel {
+    padding: $spacing-03;
+  }
+
+  .people-filter-panel__fields {
+    inline-size: 100%;
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .people-filter-panel__field,
+  .people-filter-panel__fields > .cds--btn {
+    inline-size: 100%;
+    max-inline-size: none;
   }
 
   .page-header__row,

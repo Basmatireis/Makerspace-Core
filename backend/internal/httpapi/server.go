@@ -585,11 +585,25 @@ func (s *Server) ListPeople(ctx context.Context, request openapi.ListPeopleReque
 	if request.Params.Search != nil {
 		search = *request.Params.Search
 	}
-	roleIDs := []uuid.UUID{}
+	var roleIDs []uuid.UUID
 	if request.Params.RoleIds != nil {
 		roleIDs = *request.Params.RoleIds
 	}
-	page, err := s.people.List(ctx, principal, pageNumber, pageSize, search, roleIDs)
+	var accountStatuses []string
+	if request.Params.AccountStatuses != nil {
+		for _, status := range *request.Params.AccountStatuses {
+			accountStatuses = append(accountStatuses, string(status))
+		}
+	}
+	var laborordnungStatuses []string
+	if request.Params.LaborordnungStatuses != nil {
+		for _, status := range *request.Params.LaborordnungStatuses {
+			laborordnungStatuses = append(laborordnungStatuses, string(status))
+		}
+	}
+	page, err := s.people.List(ctx, principal, pageNumber, pageSize, people.ListFilters{
+		Search: search, RoleIDs: roleIDs, AccountStatuses: accountStatuses, LaborordnungStatuses: laborordnungStatuses,
+	})
 	if err != nil {
 		return nil, err
 	}

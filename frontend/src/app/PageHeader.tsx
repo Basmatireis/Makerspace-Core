@@ -27,22 +27,25 @@ export function PageHeader({
 }: PageHeaderProps) {
   usePageTitle(title);
   const titleId = useId();
+  const resolvedBreadcrumbs: PageCrumb[] = breadcrumbs.length === 0
+    ? [{ label: title }]
+    : breadcrumbs.at(-1)?.to
+      ? [...breadcrumbs, { label: title }]
+      : breadcrumbs;
 
   return (
     <header className={`page-header${tabs ? ' page-header--with-tabs' : ''}`} aria-labelledby={titleId}>
       <Stack gap={5} className="page-header__body">
-        {breadcrumbs.length > 0 && (
-          <Breadcrumb noTrailingSlash>
-            {breadcrumbs.map((crumb) => (
-              <BreadcrumbItem
-                key={`${crumb.label}-${crumb.to ?? 'current'}`}
-                isCurrentPage={!crumb.to}
-              >
-                {crumb.to ? <Link to={crumb.to}>{crumb.label}</Link> : crumb.label}
-              </BreadcrumbItem>
-            ))}
-          </Breadcrumb>
-        )}
+        <Breadcrumb noTrailingSlash>
+          {resolvedBreadcrumbs.map((crumb) => (
+            <BreadcrumbItem
+              key={`${crumb.label}-${crumb.to ?? 'current'}`}
+              isCurrentPage={!crumb.to}
+            >
+              {crumb.to ? <Link to={crumb.to}>{crumb.label}</Link> : crumb.label}
+            </BreadcrumbItem>
+          ))}
+        </Breadcrumb>
         <div className="page-header__row">
           <div className="page-header__title">
             <div className="page-header__heading">

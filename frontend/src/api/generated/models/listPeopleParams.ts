@@ -21,6 +21,8 @@ the required session and CSRF credentials.
 import type { PageParameter } from './pageParameter';
 import type { PageSizeParameter } from './pageSizeParameter';
 import type { UUIDv7 } from './uUIDv7';
+import type { PeopleAccountStatusFilter } from './peopleAccountStatusFilter';
+import type { PeopleLaborordnungStatusFilter } from './peopleLaborordnungStatusFilter';
 
 export type ListPeopleParams = {
 /**
@@ -46,4 +48,19 @@ filter requires `accounts.read` because role membership is account data.
  * @maxItems 50
  */
 roleIds?: UUIDv7[];
+/**
+ * Return people matching at least one account lifecycle category. Supplying
+this filter requires `accounts.read`.
+
+ * @maxItems 3
+ */
+accountStatuses?: PeopleAccountStatusFilter[];
+/**
+ * Return people matching at least one permission-gated Lab Rules presentation
+status. `pending` means an outstanding confirmation request for the current
+published version. Supplying this filter requires `laborordnung.requests.read`.
+
+ * @maxItems 5
+ */
+laborordnungStatuses?: PeopleLaborordnungStatusFilter[];
 };

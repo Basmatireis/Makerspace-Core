@@ -18,12 +18,13 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { UUIDv7 } from './uUIDv7';
 
-export interface SupervisorAssignmentCount {
-  periodId: UUIDv7;
-  /** @minimum 0 */
-  supervisorCount: number;
-  /** @minimum 0 */
-  traineeCount: number;
-}
+export type PeopleAccountStatusFilter = typeof PeopleAccountStatusFilter[keyof typeof PeopleAccountStatusFilter];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const PeopleAccountStatusFilter = {
+  no_account: 'no_account',
+  enabled: 'enabled',
+  disabled: 'disabled',
+} as const;

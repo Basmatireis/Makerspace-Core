@@ -473,6 +473,33 @@ paths:
             maxItems: 50
             items:
               $ref: "#/components/schemas/UUIDv7"
+        - name: accountStatuses
+          in: query
+          description: |
+            Return people matching at least one account lifecycle category. Supplying
+            this filter requires `accounts.read`.
+          style: form
+          explode: true
+          schema:
+            type: array
+            uniqueItems: true
+            maxItems: 3
+            items:
+              $ref: "#/components/schemas/PeopleAccountStatusFilter"
+        - name: laborordnungStatuses
+          in: query
+          description: |
+            Return people matching at least one permission-gated Lab Rules presentation
+            status. `pending` means an outstanding confirmation request for the current
+            published version. Supplying this filter requires `laborordnung.requests.read`.
+          style: form
+          explode: true
+          schema:
+            type: array
+            uniqueItems: true
+            maxItems: 5
+            items:
+              $ref: "#/components/schemas/PeopleLaborordnungStatusFilter"
       responses:
         "200":
           description: A page of people.
@@ -4255,6 +4282,9 @@ components:
         currentVersion: {allOf: [{$ref: "#/components/schemas/LaborordnungVersion"}], nullable: true}
         latestConfirmedVersion: {allOf: [{$ref: "#/components/schemas/LaborordnungVersion"}], nullable: true}
         requestId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+    PeopleLaborordnungStatusFilter:
+      type: string
+      enum: [not_required, no_published_version, current, outdated, pending]
     LaborordnungRequest:
       type: object
       additionalProperties: false
@@ -4305,10 +4335,11 @@ components:
     SupervisorAssignmentCount:
       type: object
       additionalProperties: false
-      required: [periodId, count]
+      required: [periodId, supervisorCount, traineeCount]
       properties:
         periodId: {$ref: "#/components/schemas/UUIDv7"}
-        count: {type: integer, minimum: 0}
+        supervisorCount: {type: integer, minimum: 0}
+        traineeCount: {type: integer, minimum: 0}
     SupervisorRow:
       type: object
       additionalProperties: false
@@ -4456,6 +4487,10 @@ components:
       type: string
       enum: [enabled, disabled]
       description: Account lifecycle state. An enabled Account may have no usable authentication method; such an Account is active but cannot sign in.
+
+    PeopleAccountStatusFilter:
+      type: string
+      enum: [no_account, enabled, disabled]
 
     PasswordStatus:
       type: string

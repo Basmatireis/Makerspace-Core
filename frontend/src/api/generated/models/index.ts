@@ -228,6 +228,8 @@ export * from './passwordResetIssue';
 export * from './passwordResetIssueDeliveryStatus';
 export * from './passwordStatus';
 export * from './payloadTooLargeResponse';
+export * from './peopleAccountStatusFilter';
+export * from './peopleLaborordnungStatusFilter';
 export * from './permission';
 export * from './permissionGrant';
 export * from './permissionGrantScope';

@@ -807,7 +807,7 @@ function UserDetailContent({ person }: { person: Person }) {
       <PageShell
         title={`${person.firstName} ${person.lastName}`}
         breadcrumbs={[
-          { label: 'People', to: '/people' },
+          { label: 'Directory', to: '/people' },
           { label: `${person.firstName} ${person.lastName}` },
         ]}
         description={`Personal details, account access, and ${statusLabel.toLowerCase()}.`}

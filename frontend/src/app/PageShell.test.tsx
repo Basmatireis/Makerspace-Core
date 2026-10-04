@@ -10,7 +10,7 @@ describe('PageShell', () => {
       <PageShell
         title="Person details"
         description="Account and access information."
-        breadcrumbs={[{ label: 'People', to: '/people' }, { label: 'Person details' }]}
+        breadcrumbs={[{ label: 'Directory', to: '/people' }]}
         actions={<Button>Edit</Button>}
         width="wide"
       >
@@ -24,11 +24,18 @@ describe('PageShell', () => {
     expect(shell).toHaveClass('page-shell--wide');
     expect(screen.getByRole('heading', { name: 'Person details', level: 1 })).toBeInTheDocument();
     expect(screen.getByText('Account and access information.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'People' })).toHaveAttribute('href', '/people');
+    expect(screen.getByRole('link', { name: 'Directory' })).toHaveAttribute('href', '/people');
     expect(screen.getByText('Person details', { selector: '[aria-current]' })).toHaveAttribute('aria-current', 'true');
     expect(within(screen.getByRole('banner')).getByRole('button', { name: 'Edit' })).toBeInTheDocument();
     expect(container.querySelector('.page-shell__content')).toHaveTextContent('Page body');
     await waitFor(() => expect(document.title).toBe('Person details · HTU Graz Makerspace'));
+  });
+
+  it('adds a current-page breadcrumb when a page has no parent trail', () => {
+    renderRoute(<PageShell title="Dashboard">Page body</PageShell>);
+
+    const breadcrumb = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(breadcrumb).getByText('Dashboard')).toHaveAttribute('aria-current', 'true');
   });
 
   it('keeps the Carbon tab list in the header and tab panels in page content', () => {

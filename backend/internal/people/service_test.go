@@ -92,7 +92,7 @@ func TestCleanOptionalNormalizesWhitespaceToNull(t *testing.T) {
 
 func TestListRejectsPaginationOffsetOverflowBeforeQuery(t *testing.T) {
 	service := NewService(nil)
-	_, err := service.List(t.Context(), authorization.Principal{Master: true}, math.MaxInt32, 100, "", nil)
+	_, err := service.List(t.Context(), authorization.Principal{Master: true}, math.MaxInt32, 100, ListFilters{})
 	if !apperror.IsCode(err, "invalid_request") {
 		t.Fatalf("expected invalid_request, got %v", err)
 	}
@@ -101,8 +101,39 @@ func TestListRejectsPaginationOffsetOverflowBeforeQuery(t *testing.T) {
 func TestListRequiresAccountsReadForRoleFiltering(t *testing.T) {
 	service := NewService(nil)
 	principal := principalWithPermissions(t, authorization.PeopleReadAll)
-	_, err := service.List(t.Context(), principal, 1, 25, "", []uuid.UUID{uuid.Must(uuid.NewV7())})
+	_, err := service.List(t.Context(), principal, 1, 25, ListFilters{RoleIDs: []uuid.UUID{uuid.Must(uuid.NewV7())}})
 	if !apperror.IsCode(err, "permission_denied") {
 		t.Fatalf("expected permission_denied, got %v", err)
+	}
+}
+
+func TestListRequiresAccountsReadForAccountStatusFiltering(t *testing.T) {
+	service := NewService(nil)
+	principal := principalWithPermissions(t, authorization.PeopleReadAll)
+	_, err := service.List(t.Context(), principal, 1, 25, ListFilters{AccountStatuses: []string{"enabled"}})
+	if !apperror.IsCode(err, "permission_denied") {
+		t.Fatalf("expected permission_denied, got %v", err)
+	}
+}
+
+func TestListRequiresLaborordnungRequestReadForLabRulesFiltering(t *testing.T) {
+	service := NewService(nil)
+	principal := principalWithPermissions(t, authorization.PeopleReadAll)
+	_, err := service.List(t.Context(), principal, 1, 25, ListFilters{LaborordnungStatuses: []string{"current"}})
+	if !apperror.IsCode(err, "permission_denied") {
+		t.Fatalf("expected permission_denied, got %v", err)
+	}
+}
+
+func TestListRejectsUnknownStatusFiltersBeforeQuery(t *testing.T) {
+	service := NewService(nil)
+	principal := authorization.Principal{Master: true}
+	for _, filters := range []ListFilters{
+		{AccountStatuses: []string{"locked"}},
+		{LaborordnungStatuses: []string{"missing"}},
+	} {
+		if _, err := service.List(t.Context(), principal, 1, 25, filters); !apperror.IsCode(err, "invalid_request") {
+			t.Fatalf("expected invalid_request for %#v, got %v", filters, err)
+		}
 	}
 }

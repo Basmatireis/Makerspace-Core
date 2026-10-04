@@ -40,7 +40,7 @@ export const getListPeopleUrl = (params?: ListPeopleParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    const explodeParameters = ["roleIds"];
+    const explodeParameters = ["roleIds","accountStatuses","laborordnungStatuses"];
 
     if (Array.isArray(value) && explodeParameters.includes(key)) {
       value.forEach((v) => {

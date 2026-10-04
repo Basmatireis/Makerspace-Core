@@ -18,8 +18,9 @@ type Period struct {
 }
 
 type AssignmentCount struct {
-	PeriodID uuid.UUID
-	Count    int64
+	PeriodID        uuid.UUID
+	SupervisorCount int64
+	TraineeCount    int64
 }
 
 type Row struct {
@@ -64,14 +65,16 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal) (D
 	if err != nil {
 		return Dashboard{}, err
 	}
-	byPerson := make(map[uuid.UUID]map[uuid.UUID]int64, len(supervisorRows))
+	byPerson := make(map[uuid.UUID]map[uuid.UUID]AssignmentCount, len(supervisorRows))
 	periodTotals := make(map[uuid.UUID]int64, len(periodRows))
 	for _, count := range counts {
 		if byPerson[count.PersonID] == nil {
-			byPerson[count.PersonID] = map[uuid.UUID]int64{}
+			byPerson[count.PersonID] = map[uuid.UUID]AssignmentCount{}
 		}
-		byPerson[count.PersonID][count.PeriodID] = count.AssignmentCount
-		periodTotals[count.PeriodID] += count.AssignmentCount
+		byPerson[count.PersonID][count.PeriodID] = AssignmentCount{
+			PeriodID: count.PeriodID, SupervisorCount: count.SupervisorCount, TraineeCount: count.TraineeCount,
+		}
+		periodTotals[count.PeriodID] += count.SupervisorCount
 	}
 	dashboard := Dashboard{Periods: make([]Period, 0, len(periodRows)), Supervisors: make([]Row, 0, len(supervisorRows))}
 	for _, period := range periodRows {
@@ -80,7 +83,9 @@ func (s *Service) Get(ctx context.Context, principal authorization.Principal) (D
 	for _, supervisor := range supervisorRows {
 		row := Row{PersonID: supervisor.PersonID, Name: supervisor.FirstName + " " + supervisor.LastName, HasProfileImage: supervisor.HasProfileImage, LaborordnungState: supervisor.LaborordnungState, AssignmentCounts: make([]AssignmentCount, 0, len(periodRows))}
 		for _, period := range periodRows {
-			row.AssignmentCounts = append(row.AssignmentCounts, AssignmentCount{PeriodID: period.ID, Count: byPerson[supervisor.PersonID][period.ID]})
+			count := byPerson[supervisor.PersonID][period.ID]
+			count.PeriodID = period.ID
+			row.AssignmentCounts = append(row.AssignmentCounts, count)
 		}
 		dashboard.Supervisors = append(dashboard.Supervisors, row)
 		dashboard.Totals.Supervisors++

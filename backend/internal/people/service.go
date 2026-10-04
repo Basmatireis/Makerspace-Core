@@ -147,26 +147,67 @@ func (s *Service) GetCurrent(ctx context.Context, principal authorization.Princi
 	return fromRow(row, includeDetails, includeDetails && principal.Has(authorization.PeopleReadMatriculation)), nil
 }
 
-func (s *Service) List(ctx context.Context, principal authorization.Principal, page, pageSize int, search string, roleIDs []uuid.UUID) (Page, error) {
+type ListFilters struct {
+	Search               string
+	RoleIDs              []uuid.UUID
+	AccountStatuses      []string
+	LaborordnungStatuses []string
+}
+
+var validAccountStatuses = map[string]struct{}{
+	"no_account": {},
+	"enabled":    {},
+	"disabled":   {},
+}
+
+var validLaborordnungStatuses = map[string]struct{}{
+	"not_required":         {},
+	"no_published_version": {},
+	"current":              {},
+	"outdated":             {},
+	"pending":              {},
+}
+
+func (s *Service) List(ctx context.Context, principal authorization.Principal, page, pageSize int, filters ListFilters) (Page, error) {
 	if !principal.Has(authorization.PeopleReadAll) {
 		return Page{}, apperror.PermissionDenied
 	}
-	if len(roleIDs) > 0 && !principal.Has(authorization.AccountsRead) {
+	if (len(filters.RoleIDs) > 0 || len(filters.AccountStatuses) > 0) && !principal.Has(authorization.AccountsRead) {
 		return Page{}, apperror.PermissionDenied
 	}
-	if page < 1 || pageSize < 1 || pageSize > 100 || page > math.MaxInt32/pageSize || !utf8.ValidString(search) || utf8.RuneCountInString(search) > 200 {
+	if len(filters.LaborordnungStatuses) > 0 && !principal.Has(authorization.LaborordnungRequestsRead) {
+		return Page{}, apperror.PermissionDenied
+	}
+	if page < 1 || pageSize < 1 || pageSize > 100 || page > math.MaxInt32/pageSize || !utf8.ValidString(filters.Search) || utf8.RuneCountInString(filters.Search) > 200 {
 		return Page{}, invalidRequest("invalid pagination or search")
 	}
-	if len(roleIDs) > 50 {
-		return Page{}, invalidRequest("too many role filters")
+	if len(filters.RoleIDs) > 50 || len(filters.AccountStatuses) > len(validAccountStatuses) || len(filters.LaborordnungStatuses) > len(validLaborordnungStatuses) {
+		return Page{}, invalidRequest("too many filters")
 	}
-	params := peopledb.ListPeopleParams{Search: search, IncludeMatriculation: principal.Has(authorization.PeopleReadMatriculation), RoleIds: roleIDs, PageLimit: int32(pageSize), PageOffset: int32((page - 1) * pageSize)}
+	for _, status := range filters.AccountStatuses {
+		if _, ok := validAccountStatuses[status]; !ok {
+			return Page{}, invalidRequest("invalid account status filter")
+		}
+	}
+	for _, status := range filters.LaborordnungStatuses {
+		if _, ok := validLaborordnungStatuses[status]; !ok {
+			return Page{}, invalidRequest("invalid Lab Rules status filter")
+		}
+	}
+	params := peopledb.ListPeopleParams{
+		Search: filters.Search, IncludeMatriculation: principal.Has(authorization.PeopleReadMatriculation),
+		RoleIds: filters.RoleIDs, AccountStatuses: filters.AccountStatuses, LaborordnungStatuses: filters.LaborordnungStatuses,
+		PageLimit: int32(pageSize), PageOffset: int32((page - 1) * pageSize),
+	}
 	queries := peopledb.New(s.pool)
 	rows, err := queries.ListPeople(ctx, params)
 	if err != nil {
 		return Page{}, err
 	}
-	total, err := queries.CountPeople(ctx, peopledb.CountPeopleParams{Search: params.Search, IncludeMatriculation: params.IncludeMatriculation, RoleIds: roleIDs})
+	total, err := queries.CountPeople(ctx, peopledb.CountPeopleParams{
+		Search: params.Search, IncludeMatriculation: params.IncludeMatriculation,
+		RoleIds: params.RoleIds, AccountStatuses: params.AccountStatuses, LaborordnungStatuses: params.LaborordnungStatuses,
+	})
 	if err != nil {
 		return Page{}, err
 	}

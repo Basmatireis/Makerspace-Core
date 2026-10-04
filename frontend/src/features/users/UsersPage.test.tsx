@@ -18,7 +18,7 @@ function peoplePage(items: ReturnType<typeof personFixture>[]) {
   return { items, page: 1, pageSize: 25, total: items.length };
 }
 
-describe('People page', () => {
+describe('Directory page', () => {
   it('redirects the legacy directory URL and preserves its filters', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
@@ -31,13 +31,14 @@ describe('People page', () => {
 
     const { router } = renderRoute(<App />, '/settings/users?search=Ada&page=2');
 
-    expect(await screen.findByRole('heading', { name: 'People' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Directory' })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/people');
     expect(router.state.location.search).toBe('?search=Ada&page=2');
   });
 
   it('renders permitted table columns and actions', async () => {
     const supervisorRole = roleFixture({ supervisorDashboard: true });
+    const user = userEvent.setup();
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(
@@ -87,10 +88,10 @@ describe('People page', () => {
     renderRoute(<App />, '/people');
 
     expect(await screen.findByText('Grace Hopper')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'People' })).toHaveAttribute('href', '/people');
+    expect(screen.getByRole('link', { name: 'Directory' })).toHaveAttribute('href', '/people');
     const addPersonButton = screen.getByRole('button', { name: 'Add person' });
     expect(addPersonButton).toBeInTheDocument();
-    expect(screen.getByLabelText('People table toolbar')).toContainElement(
+    expect(screen.getByLabelText('Directory table toolbar')).toContainElement(
       addPersonButton,
     );
     const statusHeader = screen.getByRole('columnheader', { name: /Status/ });
@@ -117,19 +118,33 @@ describe('People page', () => {
       'cds--tag--green',
     );
     expect(screen.getAllByRole('columnheader').at(-1)).toHaveTextContent('Status');
-    expect(screen.getByRole('button', { name: 'Supervisor staffing' })).toBeInTheDocument();
+    const filtersButton = screen.getByRole('button', { name: 'Filters' });
+    expect(filtersButton).toHaveAttribute('aria-expanded', 'false');
+    await user.click(filtersButton);
+    const filters = screen.getByRole('region', { name: 'Directory filters' });
+    expect(filtersButton).toHaveAttribute('aria-expanded', 'true');
+    expect(within(filters).getByRole('combobox', { name: 'Role' })).toBeInTheDocument();
+    expect(within(filters).getByRole('combobox', { name: 'Lab Rules' })).toBeInTheDocument();
+    expect(within(filters).getByRole('combobox', { name: 'Status' })).toBeInTheDocument();
+    const membersButton = screen.getByRole('button', { name: 'Members' });
+    const tableToolbar = screen.getByLabelText('Directory table toolbar');
+    expect(tableToolbar).toContainElement(membersButton);
+    expect(membersButton.querySelector('svg')).toBeInTheDocument();
+    expect(membersButton).toBe(tableToolbar.querySelector('.cds--toolbar-content')?.lastElementChild);
     expect(document.querySelector('.people-table__avatar-cell img')).toHaveAttribute(
       'src',
       `/api/v1/people/${otherPersonId}/profile-image`,
     );
   });
 
-  it('passes all selected role filters to the people API', async () => {
+  it('passes selected role, Lab Rules, and status filters to the people API', async () => {
     const secondRole = roleFixture({
       id: '0192f6f8-743e-7c77-a349-cd07c3e8a921',
       name: 'Trainees',
     });
     let requestedRoleIds: string[] = [];
+    let requestedAccountStatuses: string[] = [];
+    let requestedLaborordnungStatuses: string[] = [];
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(
@@ -137,6 +152,7 @@ describe('People page', () => {
             PermissionId.peoplereadall,
             PermissionId.accountsread,
             PermissionId.rolesread,
+            PermissionId.laborordnungrequestsread,
           ]),
         ),
       ),
@@ -144,22 +160,32 @@ describe('People page', () => {
         HttpResponse.json({ items: [roleFixture(), secondRole], nextCursor: null }),
       ),
       http.get('*/api/v1/people', ({ request }) => {
-        requestedRoleIds = new URL(request.url).searchParams.getAll('roleIds');
+        const params = new URL(request.url).searchParams;
+        requestedRoleIds = params.getAll('roleIds');
+        requestedAccountStatuses = params.getAll('accountStatuses');
+        requestedLaborordnungStatuses = params.getAll('laborordnungStatuses');
         return HttpResponse.json(peoplePage([]));
       }),
     );
 
-    renderRoute(
+    const { router } = renderRoute(
       <App />,
-      `/people?role=${roleFixture().id}&role=${secondRole.id}`,
+      `/people?role=${roleFixture().id}&role=${secondRole.id}&labRules=current&labRules=pending&status=enabled&status=no_account`,
     );
+    const user = userEvent.setup();
 
-    expect(
-      await screen.findByRole('combobox', { name: /Filter by role/ }),
-    ).toBeInTheDocument();
     await waitFor(() =>
       expect(requestedRoleIds).toEqual([roleFixture().id, secondRole.id]),
     );
+    expect(requestedAccountStatuses).toEqual(['enabled', 'no_account']);
+    expect(requestedLaborordnungStatuses).toEqual(['current', 'pending']);
+
+    await user.click(screen.getByRole('button', { name: 'Filters' }));
+    const filters = screen.getByRole('region', { name: 'Directory filters' });
+    expect(within(filters).getAllByText('2', { selector: '.cds--tag__label' })).toHaveLength(3);
+
+    await user.click(within(filters).getByRole('button', { name: 'Clear filters' }));
+    await waitFor(() => expect(router.state.location.search).toBe('?page=1'));
   });
 
   it('omits sensitive and account columns when the actor lacks permission', async () => {
@@ -191,6 +217,7 @@ describe('People page', () => {
     expect(screen.queryByRole('columnheader', { name: /Roles/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /Lab Rules/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add person' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Filters' })).not.toBeInTheDocument();
   });
 
   it('creates selected email-less member accounts without a password identity', async () => {

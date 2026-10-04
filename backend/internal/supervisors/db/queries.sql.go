@@ -45,11 +45,13 @@ func (q *Queries) ListOpenPeriods(ctx context.Context) ([]ListOpenPeriodsRow, er
 }
 
 const listSupervisorAssignmentCounts = `-- name: ListSupervisorAssignmentCounts :many
-SELECT a.person_id, p.id AS period_id, count(*)::bigint AS assignment_count
+SELECT a.person_id, p.id AS period_id,
+    count(*) FILTER (WHERE r.kind = 'supervisor')::bigint AS supervisor_count,
+    count(*) FILTER (WHERE r.kind = 'trainee')::bigint AS trainee_count
 FROM open_day_assignments a
 JOIN open_days d ON d.id = a.open_day_id AND d.status = 'scheduled'
 JOIN open_day_periods p ON p.id = d.period_id AND p.status IN ('staffing', 'published')
-JOIN open_day_staff_requirements r ON r.id = a.requirement_id AND r.kind = 'supervisor'
+JOIN open_day_staff_requirements r ON r.id = a.requirement_id AND r.kind IN ('supervisor', 'trainee')
 GROUP BY a.person_id, p.id
 ORDER BY a.person_id, p.id
 `
@@ -57,7 +59,8 @@ ORDER BY a.person_id, p.id
 type ListSupervisorAssignmentCountsRow struct {
 	PersonID        uuid.UUID
 	PeriodID        uuid.UUID
-	AssignmentCount int64
+	SupervisorCount int64
+	TraineeCount    int64
 }
 
 func (q *Queries) ListSupervisorAssignmentCounts(ctx context.Context) ([]ListSupervisorAssignmentCountsRow, error) {
@@ -69,7 +72,12 @@ func (q *Queries) ListSupervisorAssignmentCounts(ctx context.Context) ([]ListSup
 	items := []ListSupervisorAssignmentCountsRow{}
 	for rows.Next() {
 		var i ListSupervisorAssignmentCountsRow
-		if err := rows.Scan(&i.PersonID, &i.PeriodID, &i.AssignmentCount); err != nil {
+		if err := rows.Scan(
+			&i.PersonID,
+			&i.PeriodID,
+			&i.SupervisorCount,
+			&i.TraineeCount,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

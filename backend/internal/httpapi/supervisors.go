@@ -23,7 +23,9 @@ func (s *Server) GetSupervisorDashboard(ctx context.Context, _ openapi.GetSuperv
 	for _, supervisor := range dashboard.Supervisors {
 		counts := make([]openapi.SupervisorAssignmentCount, 0, len(supervisor.AssignmentCounts))
 		for _, count := range supervisor.AssignmentCounts {
-			counts = append(counts, openapi.SupervisorAssignmentCount{PeriodId: count.PeriodID, Count: int(count.Count)})
+			counts = append(counts, openapi.SupervisorAssignmentCount{
+				PeriodId: count.PeriodID, SupervisorCount: int(count.SupervisorCount), TraineeCount: int(count.TraineeCount),
+			})
 		}
 		rows = append(rows, openapi.SupervisorRow{PersonId: supervisor.PersonID, Name: supervisor.Name, HasProfileImage: supervisor.HasProfileImage, LaborordnungState: openapi.SupervisorRowLaborordnungState(supervisor.LaborordnungState), AssignmentCounts: counts})
 	}

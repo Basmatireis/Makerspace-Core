@@ -48,7 +48,7 @@ describe('protected application routing', () => {
     expect(settingsHeading.closest('[data-page-shell]')).toHaveAttribute('data-page-width', 'standard');
     expect(screen.getByRole('link', { name: 'Settings' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: title })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'People' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Directory' })).not.toBeInTheDocument();
   });
 
   it.each(['/settings/oidc', '/settings/mail', '/settings/branding-legal'])('denies %s without its permission', async (path) => {
@@ -126,7 +126,7 @@ describe('protected application routing', () => {
     expect(screen.queryByRole('heading', { name: 'Settings' })).not.toBeInTheDocument();
   });
 
-  it('promotes People without granting access to Settings', async () => {
+  it('promotes Directory without granting access to Settings', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(currentUserFixture([PermissionId.peoplereadall])),
@@ -136,12 +136,12 @@ describe('protected application routing', () => {
       ),
     );
     renderRoute(<App />, '/people');
-    expect(await screen.findByRole('heading', { name: 'People' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'People' })).toHaveAttribute('href', '/people');
+    expect(await screen.findByRole('heading', { name: 'Directory' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Directory' })).toHaveAttribute('href', '/people');
     expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
   });
 
-  it('links supervisor-only users directly to People staffing', async () => {
+  it('links supervisor-only users directly to Directory staffing', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(currentUserFixture([PermissionId.supervisor_dashboardread])),
@@ -150,7 +150,7 @@ describe('protected application routing', () => {
     renderRoute(<App />, '/dashboard');
 
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'People' })).toHaveAttribute('href', '/people/staffing');
+    expect(screen.getByRole('link', { name: 'Directory' })).toHaveAttribute('href', '/people/staffing');
     expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
   });
 
@@ -189,7 +189,7 @@ describe('protected application routing', () => {
     for (const name of [
       'Dashboard',
       'Open Days',
-      'People',
+      'Directory',
       'Settings',
       'Audit Log',
       'About',
@@ -223,7 +223,7 @@ describe('protected application routing', () => {
     renderRoute(<App />, '/settings');
     expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Managed devices' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'People' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Directory' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Roles' })).not.toBeInTheDocument();
   });
 

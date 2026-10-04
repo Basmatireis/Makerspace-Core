@@ -18,12 +18,15 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { UUIDv7 } from './uUIDv7';
 
-export interface SupervisorAssignmentCount {
-  periodId: UUIDv7;
-  /** @minimum 0 */
-  supervisorCount: number;
-  /** @minimum 0 */
-  traineeCount: number;
-}
+export type PeopleLaborordnungStatusFilter = typeof PeopleLaborordnungStatusFilter[keyof typeof PeopleLaborordnungStatusFilter];
+
+
+// eslint-disable-next-line @typescript-eslint/no-redeclare
+export const PeopleLaborordnungStatusFilter = {
+  not_required: 'not_required',
+  no_published_version: 'no_published_version',
+  current: 'current',
+  outdated: 'outdated',
+  pending: 'pending',
+} as const;

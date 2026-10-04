@@ -244,6 +244,7 @@ export function BrandingLegalSettingsPage() {
     <Tabs>
       <PageShell
         title="Branding & legal"
+        breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
         description="Configure the installation-wide organization identity, visual assets, colors, and public legal documents."
         tabs={<TabList aria-label="Branding configuration sections">
           <Tab>Organization &amp; colors</Tab><Tab>Assets</Tab><Tab>Legal</Tab>
