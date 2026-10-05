@@ -623,7 +623,7 @@ describe('Open Day table and calendar filters', () => {
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(2);
     await user.click(within(dateTimeFilters).getByRole('option', { name: '14:00' }));
     await waitFor(() => expect(within(dateTimeFilters).getByRole('option', { name: '14:00' })).toHaveAttribute('aria-checked', 'true'));
-    expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(3);
+    await waitFor(() => expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(3));
 
     table = screen.getByRole('table');
     const dateHeader = within(table).getByRole('columnheader', { name: /Date/ });
