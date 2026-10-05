@@ -450,6 +450,14 @@ func TestOpenDayCalendarContextUsesAustrianProviderAndDoesNotBlockManualScheduli
 	if err != nil {
 		t.Fatal(err)
 	}
+	breaks, err := service.ListAcademicBreaks(ctx, manager)
+	if err != nil || len(breaks) != 1 || breaks[0].ID != academicBreak.ID {
+		t.Fatalf("academic break list = %#v, err=%v", breaks, err)
+	}
+	reader := authorization.Principal{AccountID: account.accountID, PersonID: account.personID}
+	if _, err := service.ListAcademicBreaks(ctx, reader); !errors.Is(err, apperror.PermissionDenied) {
+		t.Fatalf("reader academic break list error = %v, want permission denied", err)
+	}
 
 	calendar, err := service.CalendarContext(ctx, manager, period.ID)
 	if err != nil {

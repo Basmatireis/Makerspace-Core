@@ -5,8 +5,6 @@ import {
   Select,
   SelectItem,
   Stack,
-  Tag,
-  Toggle,
 } from '@carbon/react';
 import { Add, Close, TrashCan } from '@carbon/icons-react';
 import type {
@@ -14,7 +12,6 @@ import type {
   ManagedDeviceType,
   Permission,
   PermissionGrant,
-  Role,
 } from '../../api/generated/models';
 import { PermissionGrantScope } from '../../api/generated/models';
 import {
@@ -25,10 +22,10 @@ import {
 import { presentPermission } from './permissionPresentation';
 
 type Props = {
-  role: Role;
   permission: Permission;
   rules: PermissionGrant[];
   modified: boolean;
+  readOnly: boolean;
   allowed: readonly PermissionGrant[];
   deviceTypes: ManagedDeviceType[];
   isSaving: boolean;
@@ -45,10 +42,10 @@ const assuranceOptions: { value: AuthenticationAssurance; label: string }[] = [
 ];
 
 export function PermissionEditor({
-  role,
   permission,
   rules,
   modified,
+  readOnly,
   allowed,
   deviceTypes,
   isSaving,
@@ -65,12 +62,10 @@ export function PermissionEditor({
     <aside className="permission-editor" aria-labelledby="permission-editor-title">
       <div className="permission-editor__header">
         <div>
-          <p className="permission-editor__eyebrow">{role.name}</p>
+          <p className="permission-editor__eyebrow">Permission details</p>
           <h2 id="permission-editor-title">{presentation.label}</h2>
-          <p className="section-description">{permission.description}</p>
-          <Tag type={modified ? 'blue' : 'gray'} size="sm">
-            {modified ? 'Modified in draft' : 'No draft changes'}
-          </Tag>
+          <code className="permission-editor__identifier">{permission.id}</code>
+          <p className="permission-editor__description">{permission.description}</p>
         </div>
         <Button kind="ghost" size="sm" hasIconOnly renderIcon={Close} iconDescription="Close permission editor" onClick={onClose} />
       </div>
@@ -85,20 +80,21 @@ export function PermissionEditor({
               subtitle="Choose at least one device type where required and remove duplicate rules before saving the role."
             />
           )}
-          <Toggle
-            id={`permission-enabled-${role.id}-${permission.id}`}
-            labelText="Permission enabled"
-            labelA="Disabled"
-            labelB="Enabled"
-            toggled={enabled}
-            disabled={isSaving || permissionEnvelopes.length === 0}
-            onToggle={(next) => onChange(next ? [initialGrant(permission.id, permissionEnvelopes[0])] : [])}
-          />
           {enabled && (
             <div>
               <h3 className="permission-editor__section-title">Access rules</h3>
-              <p className="section-description">Requirements inside a rule apply together. Separate rules are evaluated as OR alternatives.</p>
             </div>
+          )}
+          {enabled && (
+            <Button
+              kind="tertiary"
+              size="sm"
+              renderIcon={Add}
+              disabled={isSaving || readOnly || permissionEnvelopes.length === 0}
+              onClick={() => onChange([...rules, initialGrant(permission.id, permissionEnvelopes[0])])}
+            >
+              Add access rule
+            </Button>
           )}
           {rules.map((rule, index) => (
             <RuleEditor
@@ -107,26 +103,20 @@ export function PermissionEditor({
               rule={rule}
               envelopes={permissionEnvelopes}
               deviceTypes={deviceTypes}
-              disabled={isSaving}
+              disabled={isSaving || readOnly}
               onChange={(next) => onChange(rules.map((item, itemIndex) => itemIndex === index ? next : item))}
               onRemove={() => onChange(rules.filter((_, itemIndex) => itemIndex !== index))}
             />
           ))}
           {enabled && (
-            <Button
-              kind="tertiary"
-              size="sm"
-              renderIcon={Add}
-              disabled={isSaving || permissionEnvelopes.length === 0}
-              onClick={() => onChange([...rules, initialGrant(permission.id, permissionEnvelopes[0])])}
-            >
-              Add access rule
-            </Button>
+            <p className="section-description permission-editor__rules-help">
+              Requirements inside a rule apply together. Separate rules are evaluated as OR alternatives.
+            </p>
           )}
         </Stack>
       </div>
       <div className="permission-editor__footer">
-        <Button kind="secondary" disabled={isSaving || !modified} onClick={onRevert}>Revert permission</Button>
+        <Button kind="secondary" disabled={isSaving || readOnly || !modified} onClick={onRevert}>Revert permission</Button>
         <Button disabled={isSaving || !valid} onClick={onClose}>Done</Button>
       </div>
     </aside>

@@ -1,26 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   Button,
-  Dropdown,
   InlineNotification,
   Modal,
-  MultiSelect,
-  Search,
-  Select,
-  SelectItem,
+  OverflowMenu,
+  OverflowMenuItem,
   Stack,
-  Tab,
-  TabList,
-  TabPanel,
-  TabPanels,
-  Tabs,
   Tag,
+  TableToolbarSearch,
 } from '@carbon/react';
-import { Add, Checkmark, Filter, Reset, Save, Subtract } from '@carbon/icons-react';
+import { Add, Filter, Locked, Save, UserRole } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useBlocker, useLocation, useNavigate, useParams } from 'react-router-dom';
 import type {
-  AuthenticationAssurance,
   CreateRoleRequest,
   Permission,
   PermissionGrant,
@@ -41,16 +33,16 @@ import {
   grantCoveredBy,
   hasPermission,
   normalizePermissionGrants,
+  permissionGrantCoveredBy,
   permissionGrantsValid,
   PermissionId,
 } from '../auth/permissions';
 import { PermissionEditor } from './PermissionEditor';
-import { PermissionMatrix, type PermissionStateFilter } from './PermissionMatrix';
+import { PermissionMatrix } from './PermissionMatrix';
 import { permissionGroupOrder, presentPermission } from './permissionPresentation';
 import { CreateRoleDialog, DeleteRoleDialog, RoleSettingsDialog } from './RoleDialogs';
 import {
   deviceTypeListOptions,
-  effectivePermissionOptions,
   fullRoleCatalogOptions,
   permissionListOptions,
   roleKeys,
@@ -60,14 +52,7 @@ type SelectedCell = { roleId: string; permissionId: string };
 type RoleDraft = { baseRole: Role; permissionGrants: PermissionGrant[] };
 type PendingDraftAction =
   | { kind: 'cell'; role: Role; permission: Permission }
-  | { kind: 'tab'; index: number };
-
-const permissionStateOptions: { id: PermissionStateFilter; label: string }[] = [
-  { id: 'all', label: 'All grant states' },
-  { id: 'granted', label: 'Unconditional in a shown role' },
-  { id: 'conditional', label: 'Conditional in a shown role' },
-  { id: 'denied', label: 'Missing from every shown role' },
-];
+  | { kind: 'role'; role: Role };
 
 export function RolesPage() {
   const currentUser = useCurrentUser();
@@ -81,19 +66,15 @@ export function RolesPage() {
   const roles = useMemo(() => rolesQuery.data ?? [], [rolesQuery.data]);
   const permissions = useMemo(() => permissionQuery.data?.items ?? [], [permissionQuery.data]);
   const deviceTypes = useMemo(() => deviceTypesQuery.data?.items ?? [], [deviceTypesQuery.data]);
-  const [selectedTab, setSelectedTab] = useState(0);
-  const [search, setSearch] = useState('');
-  const [groupFilter, setGroupFilter] = useState('all');
-  const [stateFilter, setStateFilter] = useState<PermissionStateFilter>('all');
-  const [visibleRoleIds, setVisibleRoleIds] = useState<string[] | null>(null);
+  const [selectedRoleId, setSelectedRoleId] = useState<string>();
   const [selectedCell, setSelectedCell] = useState<SelectedCell>();
   const [draft, setDraft] = useState<RoleDraft>();
   const [pendingDraftAction, setPendingDraftAction] = useState<PendingDraftAction>();
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reloadConfirmOpen, setReloadConfirmOpen] = useState(false);
   const [deleteRoleId, setDeleteRoleId] = useState<string>();
-  const [assurance, setAssurance] = useState<AuthenticationAssurance>(currentUser.authenticationAssurance);
-  const [deviceTypeId, setDeviceTypeId] = useState(currentUser.managedDevice?.deviceTypeId ?? '');
+  const [permissionSearch, setPermissionSearch] = useState('');
+  const [permissionGroup, setPermissionGroup] = useState<string>();
   const createOpen = location.pathname.endsWith('/new');
   const settingsRole = roles.find((role) => role.id === routeRoleId);
   const deletingRole = roles.find((role) => role.id === deleteRoleId);
@@ -104,18 +85,41 @@ export function RolesPage() {
       currentUser.delegablePermissionGrants.some((own) => grantCoveredBy(own, grant))));
   const canManagePermission = (role: Role, permission: Permission) => canManageRole(role) &&
     currentUser.delegablePermissionGrants.some((grant) => grant.permissionId === permission.id);
+  const canSetPermissionState = (
+    _role: Role,
+    permission: Permission,
+    state: 'denied' | 'granted' | 'conditional',
+  ) => state === 'denied' || (state === 'granted'
+    ? permissionGrantCoveredBy(currentUser.delegablePermissionGrants, {
+      permissionId: permission.id,
+      scope: 'everywhere',
+      deviceTypeIds: [],
+      minimumAssurance: 'low',
+    })
+    : currentUser.delegablePermissionGrants.some((grant) => grant.permissionId === permission.id));
   const copySources = roles.filter((role) => role.systemKey !== 'master' || isMasterActor)
     .filter((role) => isMasterActor || role.permissionGrants.every((grant) =>
       currentUser.delegablePermissionGrants.some((own) => grantCoveredBy(own, grant))));
+  const availablePermissionGroups = useMemo(() => permissionGroupOrder.filter((group) =>
+    permissions.some((permission) => presentPermission(permission).group === group)), [permissions]);
+  const visiblePermissions = useMemo(() => {
+    const query = permissionSearch.trim().toLocaleLowerCase();
+    return permissions.filter((permission) => {
+      const presented = presentPermission(permission);
+      if (permissionGroup && presented.group !== permissionGroup) return false;
+      return !query || `${presented.label} ${permission.id} ${permission.description}`.toLocaleLowerCase().includes(query);
+    });
+  }, [permissionGroup, permissionSearch, permissions]);
 
-  const visibleRoles = useMemo(() => {
-    if (visibleRoleIds === null) return roles;
-    const selected = new Set(visibleRoleIds);
-    return roles.filter((role) => selected.has(role.id));
-  }, [roles, visibleRoleIds]);
-  const matrixRoles = useMemo(() => visibleRoles.map((role) => role.id === draft?.baseRole.id
-    ? { ...role, permissionGrants: draft.permissionGrants }
-    : role), [draft, visibleRoles]);
+  useEffect(() => {
+    if (!selectedRoleId && roles[0]) setSelectedRoleId(roles[0].id);
+    else if (selectedRoleId && !roles.some((role) => role.id === selectedRoleId)) setSelectedRoleId(roles[0]?.id);
+  }, [roles, selectedRoleId]);
+  const selectedRole = roles.find((role) => role.id === selectedRoleId) ?? roles[0];
+  const matrixRoles = useMemo(() => selectedRole ? [{
+    ...selectedRole,
+    permissionGrants: selectedRole.id === draft?.baseRole.id ? draft.permissionGrants : selectedRole.permissionGrants,
+  }] : [], [draft, selectedRole]);
   const changedPermissionIds = useMemo(
     () => draft ? permissionChanges(draft.baseRole.permissionGrants, draft.permissionGrants) : new Set<string>(),
     [draft],
@@ -123,18 +127,13 @@ export function RolesPage() {
   const draftDirty = changedPermissionIds.size > 0;
   const draftValid = Boolean(draft && permissionGrantsValid(draft.permissionGrants));
   const selectedPermission = permissions.find((permission) => permission.id === selectedCell?.permissionId);
-  const selectedRules = draft && selectedPermission
-    ? grantsForPermission(draft.permissionGrants, selectedPermission.id)
+  const selectedPanelRole = roles.find((role) => role.id === selectedCell?.roleId);
+  const selectedRules = selectedPermission && selectedPanelRole
+    ? grantsForPermission(
+      draft?.baseRole.id === selectedPanelRole.id ? draft.permissionGrants : selectedPanelRole.permissionGrants,
+      selectedPermission.id,
+    )
     : [];
-  const groupOptions = useMemo(() => [
-    { id: 'all', label: 'All permission groups' },
-    ...permissionGroupOrder
-      .filter((group) => permissions.some((permission) => presentPermission(permission).group === group))
-      .map((group) => ({ id: group, label: group })),
-  ], [permissions]);
-  const activeFilterCount = Number(search.trim().length > 0) + Number(groupFilter !== 'all') +
-    Number(stateFilter !== 'all') + Number(visibleRoleIds !== null);
-
   useEffect(() => {
     const beforeUnload = (event: BeforeUnloadEvent) => {
       if (draftDirty) event.preventDefault();
@@ -143,27 +142,6 @@ export function RolesPage() {
     return () => window.removeEventListener('beforeunload', beforeUnload);
   }, [draftDirty]);
   const blocker = useBlocker(draftDirty);
-
-  const effectiveQuery = useQuery({
-    ...effectivePermissionOptions(assurance, deviceTypeId || undefined),
-    enabled: selectedTab === 1,
-  });
-  const evaluationMismatch = useMemo(() => effectiveQuery.data?.items.some((evaluation) => {
-    const role = roles.find((candidate) => candidate.id === evaluation.roleId);
-    return !role || role.version !== evaluation.roleVersion;
-  }) ?? false, [effectiveQuery.data, roles]);
-  const refetchRoles = rolesQuery.refetch;
-  const refetchEffectivePermissions = effectiveQuery.refetch;
-  useEffect(() => {
-    if (evaluationMismatch) void Promise.all([refetchRoles(), refetchEffectivePermissions()]);
-  }, [evaluationMismatch, refetchEffectivePermissions, refetchRoles]);
-  const effectivePermissions = useMemo(() => {
-    if (!effectiveQuery.data || evaluationMismatch) return undefined;
-    return new Map(effectiveQuery.data.items.map((evaluation) => [
-      evaluation.roleId,
-      new Set(evaluation.permissionIds),
-    ]));
-  }, [effectiveQuery.data, evaluationMismatch]);
 
   const refreshRoles = async () => {
     await Promise.all([
@@ -216,6 +194,11 @@ export function RolesPage() {
     setSelectedCell({ roleId: role.id, permissionId: permission.id });
   };
   const requestCell = (role: Role, permission: Permission) => {
+    if (!canManagePermission(role, permission)) {
+      permissionMutation.reset();
+      setSelectedCell({ roleId: role.id, permissionId: permission.id });
+      return;
+    }
     if (draft && draft.baseRole.id !== role.id && draftDirty) {
       setPendingDraftAction({ kind: 'cell', role, permission });
       return;
@@ -227,15 +210,15 @@ export function RolesPage() {
     }
     activateCell(role, permission);
   };
-  const requestTab = (index: number) => {
-    if (index === selectedTab) return;
+  const requestRole = (role: Role) => {
+    if (role.id === selectedRole?.id) return;
     if (draftDirty) {
-      setPendingDraftAction({ kind: 'tab', index });
+      setPendingDraftAction({ kind: 'role', role });
       return;
     }
     setDraft(undefined);
     setSelectedCell(undefined);
-    setSelectedTab(index);
+    setSelectedRoleId(role.id);
   };
   const discardDraft = () => {
     permissionMutation.reset();
@@ -249,7 +232,7 @@ export function RolesPage() {
     discardDraft();
     if (!action) return;
     if (action.kind === 'cell') activateCell(action.role, action.permission);
-    else setSelectedTab(action.index);
+    else setSelectedRoleId(action.role.id);
   };
   const updateSelectedRules = (rules: PermissionGrant[]) => {
     if (!draft || !selectedPermission) return;
@@ -262,17 +245,46 @@ export function RolesPage() {
       ]),
     });
   };
+  const setPermissionState = (
+    role: Role,
+    permission: Permission,
+    state: 'denied' | 'granted' | 'conditional',
+  ) => {
+    const continuingDraft = draft?.baseRole.id === role.id;
+    const current = continuingDraft ? draft.permissionGrants : role.permissionGrants;
+    const existing = grantsForPermission(current, permission.id);
+    let rules: PermissionGrant[] = [];
+    if (state === 'granted') {
+      rules = [{ permissionId: permission.id, scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' }];
+    } else if (state === 'conditional') {
+      const conditional = existing.filter((grant) => grant.scope !== 'everywhere' || grant.minimumAssurance !== 'low');
+      if (conditional.length > 0) rules = conditional;
+      else {
+        const envelope = currentUser.delegablePermissionGrants.find((grant) => grant.permissionId === permission.id);
+        if (envelope) rules = [{
+          permissionId: permission.id,
+          scope: envelope.scope,
+          deviceTypeIds: [...envelope.deviceTypeIds],
+          minimumAssurance: envelope.scope === 'everywhere' && envelope.minimumAssurance === 'low'
+            ? 'normal'
+            : envelope.minimumAssurance,
+        }];
+      }
+    }
+    setDraft({
+      baseRole: continuingDraft ? draft.baseRole : role,
+      permissionGrants: normalizePermissionGrants([
+        ...current.filter((grant) => grant.permissionId !== permission.id),
+        ...rules,
+      ]),
+    });
+    setSelectedCell({ roleId: role.id, permissionId: permission.id });
+    permissionMutation.reset();
+  };
   const revertSelectedPermission = () => {
     if (!draft || !selectedPermission) return;
     updateSelectedRules(grantsForPermission(draft.baseRole.permissionGrants, selectedPermission.id));
   };
-  const resetFilters = () => {
-    setSearch('');
-    setGroupFilter('all');
-    setStateFilter('all');
-    setVisibleRoleIds(null);
-  };
-
   const isPending = rolesQuery.isPending || permissionQuery.isPending || deviceTypesQuery.isPending;
   const loadError = rolesQuery.error ?? permissionQuery.error ?? deviceTypesQuery.error;
   if (isPending) return <InlineLoadingState label="Loading roles and permissions" />;
@@ -286,109 +298,82 @@ export function RolesPage() {
     <PageShell
       title="Roles & Permissions"
       breadcrumbs={[{ label: 'Settings', to: '/settings' }]}
-      description="Compare role access, stage permission rules, and evaluate authentication and device constraints."
-      actions={hasPermission(currentUser, PermissionId.rolesmanage)
-        ? <Button kind="tertiary" renderIcon={Add} onClick={() => navigate('/settings/roles/new')}>Create role</Button>
-        : undefined}
+      description="Manage role access and stage permission rules. Changes apply to all users with the respective role."
       width="fluid"
       className="roles-page"
     >
       {routeRoleId && !settingsRole && rolesQuery.data && (
         <InlineNotification kind="error" lowContrast hideCloseButton title="Role not found" subtitle="The role may have been deleted." />
       )}
-      <div className={`roles-workspace${selectedCell ? ' roles-workspace--panel-open' : ''}`}>
-        <div className="roles-workspace__main">
-          <div className="roles-toolbar">
-            <div className="roles-toolbar__primary">
-              <div className="roles-toolbar__view">
-                <Tabs selectedIndex={selectedTab} onChange={({ selectedIndex }) => requestTab(selectedIndex)}>
-                  <TabList aria-label="Permission matrix view">
-                    <Tab>Configuration</Tab>
-                    <Tab>Effective permissions</Tab>
-                  </TabList>
-                  <TabPanels>
-                    <TabPanel><MatrixLegend conditional /></TabPanel>
-                    <TabPanel><MatrixLegend /></TabPanel>
-                  </TabPanels>
-                </Tabs>
-              </div>
-              <Search labelText="Search permissions" placeholder="Search name, identifier, or description" size="md" value={search} onChange={(event) => setSearch(event.currentTarget.value)} />
-            </div>
-            <div className="roles-filters" aria-label="Permission matrix filters">
-              <Dropdown
-                id="permission-group-filter"
-                titleText="Permission group"
-                label="Choose a group"
-                items={groupOptions}
-                itemToString={(item) => item?.label ?? ''}
-                selectedItem={groupOptions.find((item) => item.id === groupFilter)}
-                onChange={({ selectedItem }) => setGroupFilter(selectedItem?.id ?? 'all')}
-              />
-              <Dropdown
-                id="permission-state-filter"
-                titleText="Grant state"
-                label="Choose a grant state"
-                items={permissionStateOptions}
-                itemToString={(item) => item?.label ?? ''}
-                selectedItem={permissionStateOptions.find((item) => item.id === stateFilter)}
-                onChange={({ selectedItem }) => setStateFilter(selectedItem?.id ?? 'all')}
-              />
-              <MultiSelect
-                id="visible-role-filter"
-                titleText="Roles shown"
-                label="Choose roles"
-                items={roles}
-                itemToString={(role) => role?.name ?? ''}
-                selectedItems={visibleRoles}
-                onChange={({ selectedItems }) => {
-                  const ids = (selectedItems ?? []).map((role) => role.id);
-                  setVisibleRoleIds(ids.length === roles.length ? null : ids);
-                }}
-              />
-              <div className="roles-filters__status">
-                <Tag type={activeFilterCount > 0 ? 'blue' : 'gray'}>
-                  {activeFilterCount} active {activeFilterCount === 1 ? 'filter' : 'filters'}
-                </Tag>
-                <Button kind="ghost" size="sm" renderIcon={Reset} disabled={activeFilterCount === 0} onClick={resetFilters}>
-                  Reset filters
-                </Button>
-              </div>
-            </div>
+      <div className="roles-workspace roles-workspace--panel-open">
+        <div className="roles-toolbar" role="toolbar" aria-label="Roles and permissions actions">
+          <div className="roles-toolbar__search-slot">
+            <TableToolbarSearch
+              id="role-permission-search"
+              className="roles-toolbar__search"
+              size="lg"
+              labelText="Search permissions"
+              placeholder="Search permissions"
+              value={permissionSearch}
+              onChange={(_event, value) => setPermissionSearch(value ?? '')}
+              onClear={() => setPermissionSearch('')}
+            />
           </div>
-          {selectedTab === 1 && (
-            <div className="effective-context" aria-label="Effective permission context">
-              <span>Evaluate as:</span>
-              <Select id="effective-assurance" hideLabel labelText="Authentication assurance" value={assurance} onChange={(event) => setAssurance(event.target.value as AuthenticationAssurance)}>
-                <SelectItem value="low" text="Low assurance" />
-                <SelectItem value="normal" text="Normal assurance" />
-                <SelectItem value="strong" text="Strong assurance" />
-                <SelectItem value="strong_mfa" text="Strong + MFA" />
-              </Select>
-              <Select id="effective-device" hideLabel labelText="Device context" value={deviceTypeId} onChange={(event) => setDeviceTypeId(event.target.value)}>
-                <SelectItem value="" text="Unmanaged device" />
-                {deviceTypes.map((type) => <SelectItem key={type.id} value={type.id} text={type.name} />)}
-              </Select>
-            </div>
+          <OverflowMenu
+            className={`roles-toolbar__filter${permissionGroup ? ' roles-toolbar__filter--active' : ''}`}
+            renderIcon={Filter}
+            iconDescription="Filter permissions"
+            size="lg"
+            flipped
+          >
+            <OverflowMenuItem itemText="All permission groups" onClick={() => setPermissionGroup(undefined)} />
+            {availablePermissionGroups.map((group) => (
+              <OverflowMenuItem key={group} itemText={group} onClick={() => setPermissionGroup(group)} />
+            ))}
+          </OverflowMenu>
+          {draft && draftDirty && (
+            <>
+              <Button kind="tertiary" size="sm" disabled={permissionMutation.isPending} onClick={discardDraft}>Discard changes</Button>
+              <Button size="sm" renderIcon={Save} disabled={permissionMutation.isPending || !draftValid} onClick={() => setReviewOpen(true)}>
+                Review and save
+              </Button>
+            </>
           )}
-          {draft && selectedTab === 0 && (
-            <section className="roles-draft-bar" aria-label="Permission draft">
-              <div className="roles-draft-bar__summary">
-                <strong>Editing {draft.baseRole.name}</strong>
-                <Tag type={draftDirty ? 'blue' : 'gray'}>
-                  {changedPermissionIds.size} modified {changedPermissionIds.size === 1 ? 'permission' : 'permissions'}
-                </Tag>
-                <span>Changes remain local until the complete role is reviewed and saved.</span>
-              </div>
-              <div className="roles-draft-bar__actions">
-                <Button kind="secondary" size="sm" disabled={permissionMutation.isPending} onClick={discardDraft}>
-                  {draftDirty ? 'Discard changes' : 'Stop editing'}
-                </Button>
-                <Button size="sm" renderIcon={Save} disabled={permissionMutation.isPending || !draftDirty || !draftValid} onClick={() => setReviewOpen(true)}>
-                  Review and save
-                </Button>
-              </div>
-            </section>
+          {hasPermission(currentUser, PermissionId.rolesmanage) && (
+            <Button className="roles-toolbar__create" kind="primary" size="sm" renderIcon={Add} onClick={() => navigate('/settings/roles/new')}>
+              Create role
+            </Button>
           )}
+        </div>
+        <aside className="roles-list" aria-label="Roles">
+          <div className="roles-list__items">
+            {roles.map((role) => {
+              const manageable = canManageRole(role);
+              return (
+                <div key={role.id} className={`roles-list__item${role.id === selectedRole?.id ? ' roles-list__item--selected' : ''}`}>
+                  <button
+                    type="button"
+                    className="roles-list__select"
+                    aria-current={role.id === selectedRole?.id ? 'true' : undefined}
+                    onClick={() => requestRole(role)}
+                  >
+                    <span className="roles-list__icon">{role.systemKey === 'master' ? <Locked size={24} aria-label="Protected system role" /> : <UserRole size={24} aria-hidden="true" />}</span>
+                    <span className="roles-list__copy">
+                      <strong>{role.name}</strong>
+                      <span>{role.description || 'No description'}</span>
+                    </span>
+                  </button>
+                  <OverflowMenu iconDescription={`Actions for ${role.name}`} align="left" size="sm" flipped>
+                    {manageable && <OverflowMenuItem itemText="Edit role details" onClick={() => navigate(`/settings/roles/${role.id}`)} />}
+                    {manageable && <OverflowMenuItem isDelete itemText="Delete role" onClick={() => setDeleteRoleId(role.id)} />}
+                    {!manageable && <OverflowMenuItem disabled itemText="Protected system role" />}
+                  </OverflowMenu>
+                </div>
+              );
+            })}
+          </div>
+        </aside>
+        <div className="roles-workspace__main">
           {permissionMutation.isError && draft && (
             <div className="roles-draft-error">
               <InlineNotification
@@ -401,35 +386,26 @@ export function RolesPage() {
               {permissionStale && <Button kind="tertiary" size="sm" onClick={() => setReloadConfirmOpen(true)}>Discard draft and reload</Button>}
             </div>
           )}
-          {selectedTab === 1 && (effectiveQuery.isPending || evaluationMismatch) && <InlineLoadingState label="Evaluating permissions" />}
-          {selectedTab === 1 && effectiveQuery.isError && <ErrorState title="Unable to evaluate permissions" message="Change the context or try again." onRetry={() => void effectiveQuery.refetch()} />}
-          {(selectedTab === 0 || effectivePermissions) && (
-            <PermissionMatrix
-              permissions={permissions}
+          <PermissionMatrix
+              permissions={visiblePermissions}
               roles={matrixRoles}
               deviceTypes={deviceTypes}
-              search={search}
-              groupFilter={groupFilter}
-              stateFilter={stateFilter}
-              effectivePermissions={selectedTab === 1 ? effectivePermissions : undefined}
               editingRoleId={draft?.baseRole.id}
               selectedPermissionId={selectedCell?.permissionId}
               changedPermissionIds={changedPermissionIds}
-              canManageRole={canManageRole}
               canManagePermission={canManagePermission}
+              canSetState={canSetPermissionState}
               onSelectCell={requestCell}
-              onEditRole={(role) => navigate(`/settings/roles/${role.id}`)}
-              onDeleteRole={(role) => setDeleteRoleId(role.id)}
-            />
-          )}
+              onChangeState={setPermissionState}
+          />
         </div>
-        {selectedTab === 0 && draft && selectedPermission && selectedCell?.roleId === draft.baseRole.id && (
+        {selectedPanelRole && selectedPermission ? (
           <PermissionEditor
-            key={`${draft.baseRole.id}-${selectedPermission.id}`}
-            role={draft.baseRole}
+            key={`${selectedPanelRole.id}-${selectedPermission.id}`}
             permission={selectedPermission}
             rules={selectedRules}
             modified={changedPermissionIds.has(selectedPermission.id)}
+            readOnly={!canManagePermission(selectedPanelRole, selectedPermission)}
             allowed={currentUser.delegablePermissionGrants}
             deviceTypes={deviceTypes}
             isSaving={permissionMutation.isPending}
@@ -437,6 +413,14 @@ export function RolesPage() {
             onRevert={revertSelectedPermission}
             onClose={() => setSelectedCell(undefined)}
           />
+        ) : (
+          <aside className="permission-editor permission-editor--empty" aria-label="Permission details">
+            <div>
+              <UserRole size={32} aria-hidden="true" />
+              <h2>Select a permission</h2>
+              <p>Choose a permission row to view or edit its access rules.</p>
+            </div>
+          </aside>
         )}
       </div>
       <CreateRoleDialog
@@ -529,17 +513,6 @@ export function RolesPage() {
         <p>Reloading fetches the current server version and permanently discards these local changes.</p>
       </Modal>}
     </PageShell>
-  );
-}
-
-function MatrixLegend({ conditional = false }: { conditional?: boolean }) {
-  return (
-    <div className="roles-legend" aria-label="Permission state legend">
-      <span>Legend:</span>
-      <span><Subtract size={16} /> Not granted</span>
-      <span className="roles-legend--granted"><Checkmark size={16} /> Unconditional</span>
-      {conditional && <span className="roles-legend--conditional"><Checkmark size={16} /><Filter size={12} /> Conditional</span>}
-    </div>
   );
 }
 

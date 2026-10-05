@@ -1,13 +1,21 @@
-import { getOpenDay, getOpenDayCalendarContext, listOpenDayEligibilityRoles, listOpenDayPeriods, listOpenDays } from '../../api/generated/open-days/open-days';
+import { getOpenDay, getOpenDayCalendarContext, listOpenDayAcademicBreaks, listOpenDayEligibilityRoles, listOpenDayPeriods, listOpenDays } from '../../api/generated/open-days/open-days';
 
 export const openDayKeys = {
   all: ['open-days'] as const,
   periods: () => [...openDayKeys.all, 'periods'] as const,
+  academicBreaks: () => [...openDayKeys.all, 'academic-breaks'] as const,
   schedule: (periodId: string) => [...openDayKeys.all, 'period', periodId] as const,
   calendarContext: (periodId: string) => [...openDayKeys.all, 'calendar-context', periodId] as const,
   eligibilityRoles: () => [...openDayKeys.all, 'eligibility-roles'] as const,
   day: (openDayId: string) => [...openDayKeys.all, 'day', openDayId] as const,
 };
+
+export function academicBreaksQueryOptions() {
+  return {
+    queryKey: openDayKeys.academicBreaks(),
+    queryFn: ({ signal }: { signal: AbortSignal }) => listOpenDayAcademicBreaks({ signal }),
+  };
+}
 
 export function eligibilityRolesQueryOptions(enabled = true) {
   return {

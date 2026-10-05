@@ -162,6 +162,10 @@ SELECT id, name FROM roles ORDER BY system_key DESC NULLS LAST, lower(name), id;
 INSERT INTO open_day_academic_breaks (id, name, starts_on, ends_on)
 VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(starts_on), sqlc.arg(ends_on)) RETURNING *;
 
+-- name: ListAcademicBreaks :many
+SELECT * FROM open_day_academic_breaks
+ORDER BY starts_on, ends_on, lower(name), id;
+
 -- name: ListAcademicBreaksInRange :many
 SELECT * FROM open_day_academic_breaks
 WHERE starts_on <= sqlc.arg(ends_on) AND ends_on >= sqlc.arg(starts_on)

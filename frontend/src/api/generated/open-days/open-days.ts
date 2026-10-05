@@ -20,6 +20,7 @@ the required session and CSRF credentials.
  */
 import type {
   AcademicBreak,
+  AcademicBreakList,
   AssignOpenDayPersonRequest,
   CreateAcademicBreakRequest,
   CreateOpenDayPeriodRequest,
@@ -653,6 +654,30 @@ export const getGetOpenDayCalendarContextUrl = (periodId: string,) => {
 export const getOpenDayCalendarContext = async (periodId: string, options?: RequestInit): Promise<OpenDayCalendarContext> => {
   
   return apiFetch<OpenDayCalendarContext>(getGetOpenDayCalendarContextUrl(periodId),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+/**
+ * Requires `open_days.manage`.
+ * @summary List all academic breaks
+ */
+export const getListOpenDayAcademicBreaksUrl = () => {
+
+
+  
+
+  return `/api/v1/open-day-academic-breaks`
+}
+
+export const listOpenDayAcademicBreaks = async ( options?: RequestInit): Promise<AcademicBreakList> => {
+  
+  return apiFetch<AcademicBreakList>(getListOpenDayAcademicBreaksUrl(),
   {      
     ...options,
     method: 'GET'

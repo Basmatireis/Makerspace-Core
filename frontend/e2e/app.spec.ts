@@ -186,6 +186,12 @@ async function json(route: Route, body: unknown, status = 200) {
   });
 }
 
+function rgbBrightness(color: string) {
+  const channels = color.match(/\d+(?:\.\d+)?/g)?.slice(0, 3).map(Number);
+  if (!channels || channels.length !== 3) throw new Error(`Expected an RGB color, received ${color}.`);
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+}
+
 async function installApi(page: Page, state: ApiState) {
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
@@ -885,10 +891,72 @@ test('shows an accessible destructive confirmation before deleting a custom role
 
   await page.goto('/settings/roles');
   await expect(page.getByRole('heading', { name: 'Roles & Permissions' })).toBeVisible();
-  await page.getByRole('tab', { name: 'Effective permissions' }).click();
-  await expect(page.getByRole('button', { name: /View View all people for Workshop supervisors: Granted in this context/ })).toBeVisible();
-  await page.getByRole('tab', { name: 'Configuration' }).click();
-  await page.getByRole('button', { name: `Actions for ${role.name}` }).click();
+  await expect(page.getByRole('tab', { name: 'Effective permissions' })).toHaveCount(0);
+  await expect(page.getByText('Legend:')).toHaveCount(0);
+  const editableActiveState = page.locator('.roles-access-control__option--active').first();
+  const restingBackground = await editableActiveState.evaluate((element) => getComputedStyle(element).backgroundColor);
+  await editableActiveState.hover();
+  const hoverBackground = await editableActiveState.evaluate((element) => getComputedStyle(element).backgroundColor);
+  expect(rgbBrightness(hoverBackground)).toBeLessThan(rgbBrightness(restingBackground));
+  await page.getByRole('button', { name: 'Set View all people for Workshop supervisors to Conditional' }).click();
+  const [toolbarBounds, searchBounds, filterBounds, createBounds, discardBounds, saveBounds] = await Promise.all([
+    page.locator('.roles-toolbar').boundingBox(),
+    page.locator('.roles-toolbar__search').boundingBox(),
+    page.getByRole('button', { name: 'Filter permissions' }).boundingBox(),
+    page.getByRole('button', { name: 'Create role' }).boundingBox(),
+    page.getByRole('button', { name: 'Discard changes' }).boundingBox(),
+    page.getByRole('button', { name: 'Review and save' }).boundingBox(),
+  ]);
+  if (!toolbarBounds || !searchBounds || !filterBounds || !createBounds || !discardBounds || !saveBounds) {
+    throw new Error('Could not measure role editor toolbar and actions.');
+  }
+  expect(Math.abs(toolbarBounds.height - 48)).toBeLessThanOrEqual(1);
+  expect(Math.abs(searchBounds.height - toolbarBounds.height)).toBeLessThanOrEqual(1);
+  expect(Math.abs(filterBounds.height - toolbarBounds.height)).toBeLessThanOrEqual(1);
+  expect(Math.abs(createBounds.height - toolbarBounds.height)).toBeLessThanOrEqual(1);
+  expect(Math.abs(discardBounds.height - toolbarBounds.height)).toBeLessThanOrEqual(1);
+  expect(Math.abs(saveBounds.height - toolbarBounds.height)).toBeLessThanOrEqual(1);
+  expect(discardBounds.width).toBeLessThan(200);
+  expect(saveBounds.width).toBeLessThan(200);
+  expect(searchBounds.x).toBeLessThan(filterBounds.x);
+  expect(filterBounds.x).toBeLessThan(discardBounds.x);
+  expect(discardBounds.x).toBeLessThan(saveBounds.x);
+  expect(saveBounds.x).toBeLessThan(createBounds.x);
+  await page.getByRole('searchbox', { name: 'Search permissions' }).focus();
+  await expect(page.locator('.roles-toolbar__search')).toHaveClass(/cds--toolbar-search-container-active/);
+  const [expandedSearchBounds, expandedFilterBounds] = await Promise.all([
+    page.locator('.roles-toolbar__search').boundingBox(),
+    page.getByRole('button', { name: 'Filter permissions' }).boundingBox(),
+  ]);
+  expect(expandedFilterBounds?.x).toBe(filterBounds.x);
+  expect(expandedSearchBounds?.x).toBe(toolbarBounds.x);
+  expect(expandedSearchBounds && expandedFilterBounds
+    ? Math.abs(expandedSearchBounds.x + expandedSearchBounds.width - expandedFilterBounds.x)
+    : Number.POSITIVE_INFINITY).toBeLessThanOrEqual(1);
+  await expect(page.locator('.roles-matrix thead')).toHaveCount(0);
+  await page.locator('.roles-matrix-scroll').evaluate((element) => { element.scrollTop = 300; });
+  const scrolledToolbarBounds = await page.locator('.roles-toolbar').boundingBox();
+  expect(scrolledToolbarBounds?.y).toBe(toolbarBounds.y);
+  const createIconBounds = await page.getByRole('button', { name: 'Create role' }).locator('svg').boundingBox();
+  if (!createIconBounds) throw new Error('Could not measure create-role icon.');
+  expect(Math.abs((createIconBounds.y + createIconBounds.height / 2) - (createBounds.y + createBounds.height / 2))).toBeLessThanOrEqual(1);
+  for (const buttonName of ['Create role', 'Discard changes', 'Review and save']) {
+    await expect(page.getByRole('button', { name: buttonName })).toHaveCSS('align-items', 'center');
+    await expect(page.getByRole('button', { name: buttonName })).toHaveCSS('padding-top', '0px');
+    await expect(page.getByRole('button', { name: buttonName })).toHaveCSS('padding-bottom', '0px');
+  }
+  await page.getByRole('button', { name: 'Discard changes' }).click();
+  const roleActions = page.getByRole('button', { name: `Actions for ${role.name}` });
+  await roleActions.hover();
+  const roleActionsTooltip = page.getByRole('tooltip').filter({ hasText: `Actions for ${role.name}` });
+  await expect(roleActionsTooltip).toBeVisible();
+  const [roleListBounds, roleActionsTooltipBounds] = await Promise.all([
+    page.locator('.roles-list').boundingBox(),
+    roleActionsTooltip.boundingBox(),
+  ]);
+  if (!roleListBounds || !roleActionsTooltipBounds) throw new Error('Could not measure the role action tooltip.');
+  expect(roleActionsTooltipBounds.x + roleActionsTooltipBounds.width).toBeLessThanOrEqual(roleListBounds.x + roleListBounds.width);
+  await roleActions.click();
   await page.getByRole('menuitem', { name: 'Delete role' }).click();
 
   await expect(page.getByRole('heading', { name: 'Delete role?' })).toBeVisible();
@@ -899,6 +967,62 @@ test('shows an accessible destructive confirmation before deleting a custom role
   await page.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByRole('heading', { name: 'Delete role?' })).toBeHidden();
   await expect(page).toHaveURL(/\/settings\/roles$/);
+});
+
+test('keeps the roles editor usable at a narrow viewport', async ({ page }) => {
+  const role = customRole();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installApi(page, {
+    authenticated: true,
+    role,
+    user: currentUser(role.permissionGrants.map((grant) => grant.permissionId)),
+  });
+
+  await page.goto('/settings/roles');
+  await expect(page.getByRole('heading', { name: 'Roles & Permissions' })).toBeVisible();
+  await expect(page.locator('.roles-list')).toBeHidden();
+  await page.getByRole('button', { name: /Edit View all people for Workshop supervisors/ }).click();
+  await expect(page.getByRole('heading', { name: 'View all people' })).toBeVisible();
+
+  const editorBounds = await page.locator('.permission-editor').boundingBox();
+  if (!editorBounds) throw new Error('Could not measure the responsive permission editor.');
+  expect(editorBounds.x).toBeGreaterThanOrEqual(0);
+  expect(editorBounds.x + editorBounds.width).toBeLessThanOrEqual(390);
+  await expectNoSeriousAccessibilityViolations(page);
+});
+
+test('keeps selected read-only access states legible', async ({ page }) => {
+  const role = customRole();
+  await installApi(page, {
+    authenticated: true,
+    role,
+    user: currentUser(['roles.read']),
+  });
+
+  await page.goto('/settings/roles');
+  const activeState = page.locator('.roles-access-control__option--active').first();
+  await expect(activeState).toBeVisible();
+  await expect(activeState).toBeDisabled();
+  await expect(page.getByRole('heading', { name: 'Select a permission' })).toBeVisible();
+
+  const [groupBounds, rowBounds, buttonBounds] = await Promise.all([
+    page.locator('.roles-matrix__group-row').first().boundingBox(),
+    page.locator('.roles-matrix__permission-row').first().boundingBox(),
+    page.locator('.roles-access-control__option').first().boundingBox(),
+  ]);
+  if (!groupBounds || !rowBounds || !buttonBounds) throw new Error('Could not measure permission table rows.');
+  expect(Math.abs(groupBounds.height - rowBounds.height)).toBeLessThanOrEqual(1);
+  expect(Math.abs(buttonBounds.height - rowBounds.height)).toBeLessThanOrEqual(1);
+
+  await page.getByRole('button', { name: 'View details for View all people' }).click();
+  await expect(page.getByRole('heading', { name: 'View all people' })).toBeVisible();
+  await expect.poll(() => activeState.evaluate((element) => getComputedStyle(element).color))
+    .toBe('rgb(255, 255, 255)');
+  const contrast = await new AxeBuilder({ page })
+    .include('.roles-access-control')
+    .withRules(['color-contrast'])
+    .analyze();
+  expect(contrast.violations).toEqual([]);
 });
 
 test('redirects to sign in when an authenticated request reports session expiry', async ({ page }) => {

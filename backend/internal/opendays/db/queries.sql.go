@@ -526,6 +526,39 @@ func (q *Queries) GetRequirementForUpdate(ctx context.Context, id uuid.UUID) (Op
 	return i, err
 }
 
+const listAcademicBreaks = `-- name: ListAcademicBreaks :many
+SELECT id, name, starts_on, ends_on, version, created_at, updated_at FROM open_day_academic_breaks
+ORDER BY starts_on, ends_on, lower(name), id
+`
+
+func (q *Queries) ListAcademicBreaks(ctx context.Context) ([]OpenDayAcademicBreak, error) {
+	rows, err := q.db.Query(ctx, listAcademicBreaks)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OpenDayAcademicBreak{}
+	for rows.Next() {
+		var i OpenDayAcademicBreak
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.StartsOn,
+			&i.EndsOn,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAcademicBreaksInRange = `-- name: ListAcademicBreaksInRange :many
 SELECT id, name, starts_on, ends_on, version, created_at, updated_at FROM open_day_academic_breaks
 WHERE starts_on <= $1 AND ends_on >= $2

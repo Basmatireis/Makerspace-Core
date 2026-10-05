@@ -2190,6 +2190,17 @@ paths:
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /open-day-academic-breaks:
+    get:
+      tags: [Open Days]
+      operationId: listOpenDayAcademicBreaks
+      summary: List all academic breaks
+      description: Requires `open_days.manage`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Academic breaks., content: {application/json: {schema: {$ref: "#/components/schemas/AcademicBreakList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
     post:
       tags: [Open Days]
       operationId: createOpenDayAcademicBreak
@@ -6464,6 +6475,13 @@ components:
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+
+    AcademicBreakList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/AcademicBreak"}}
 
     CreateAcademicBreakRequest:
       type: object

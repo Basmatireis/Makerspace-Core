@@ -144,6 +144,21 @@ type CalendarContext struct {
 	AcademicBreaks                                       []AcademicBreak
 }
 
+func (s *Service) ListAcademicBreaks(ctx context.Context, p authorization.Principal) ([]AcademicBreak, error) {
+	if !p.Has(authorization.OpenDaysManage) {
+		return nil, apperror.PermissionDenied
+	}
+	rows, err := opendaysdb.New(s.pool).ListAcademicBreaks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]AcademicBreak, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, breakFromRow(row))
+	}
+	return items, nil
+}
+
 func (s *Service) CalendarContext(ctx context.Context, principal authorization.Principal, periodID uuid.UUID) (CalendarContext, error) {
 	period, err := s.GetPeriod(ctx, principal, periodID)
 	if err != nil {

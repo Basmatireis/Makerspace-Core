@@ -20,6 +20,7 @@ the required session and CSRF credentials.
  */
 
 export * from './academicBreak';
+export * from './academicBreakList';
 export * from './account';
 export * from './accountLoginEmail';
 export * from './accountProvisioningSource';

@@ -397,6 +397,22 @@ test('manages inclusive academic-break context on a focused screen', async ({
       await json(route, { items: [period('draft')] });
       return;
     }
+    if (path === '/api/v1/open-day-academic-breaks' && request.method() === 'GET') {
+      await json(route, {
+        items: [
+          {
+            id: assignmentId,
+            name: 'Autumn break',
+            startsOn: '2026-10-01',
+            endsOn: '2026-10-03',
+            version: 2,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          },
+        ],
+      });
+      return;
+    }
     if (
       path === `/api/v1/open-day-periods/${periodId}/calendar-context` &&
       request.method() === 'GET'

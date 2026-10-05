@@ -2,6 +2,32 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
+## [0.4.0] - 2026-10-05
+
+### Added
+
+- Configurable makerspace identity, colors, image assets, and legal content, with public branding applied consistently across authenticated and public pages.
+- End-to-end event management for planning, sessions, shifts, staffing assignments, task lists, files, public event pages, and authenticated or token-based signups.
+- Directory filtering and bulk actions, richer supervisor staffing views, and direct role assignment on Person records.
+- Global academic-break administration for Open Day planning, including a permission-protected list API and period-aware management UI.
+
+### Changed
+
+- Open Day period creation now focuses on the period and date range, while academic breaks and schedule setup live in their dedicated management views.
+- Open Day schedule editing, role administration, People, Members, machine-logbook, and settings screens use more compact Carbon workspaces and responsive interaction patterns.
+- Role administration now centers one selected role at a time, with explicit none/self/all access controls and an integrated permission detail panel.
+- Frontend delivery keeps charting behind its asynchronous boundary, serves compressed static assets with production-safe cache behavior, and enforces documented bundle budgets.
+
+### Fixed
+
+- Branding asset uploads are sent as binary request bodies so uploaded images are preserved correctly.
+- Directory filters, supervisor assignment counts, Open Day date handling, and responsive table and toolbar behavior now remain consistent across API, desktop, and narrow-screen flows.
+
+### Security and privacy
+
+- Event, branding, People, role-assignment, and academic-break operations use registered permissions, service-layer authorization, and transactional audit behavior where data is mutated.
+- Public event and branding responses expose only purpose-specific fields; private event files and signup capabilities remain protected by visibility rules and scoped tokens.
+
 ## [0.3.0] - 2026-10-03
 
 ### Added
@@ -69,6 +95,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 - Initial development release.
 
+[0.4.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/Basmatireis/Makerspace-Core/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/Basmatireis/Makerspace-Core/releases/tag/v0.1.0

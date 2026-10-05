@@ -22,7 +22,7 @@ import {
   TextInput,
 } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { deleteOpenDayPeriod, updateOpenDayPeriod } from '../../api/generated/open-days/open-days';
 import type { OpenDayPeriod } from '../../api/generated/models';
 import { DateInput } from '../../app/DateInput';
@@ -80,6 +80,7 @@ export function OpenDaysPage() {
     },
   });
   const periods = periodsQuery.data?.items ?? [];
+  const activePeriods = periods.filter((period) => period.status === 'staffing' || period.status === 'published');
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const filteredPeriods = normalizedSearch
     ? periods.filter((period) => [
@@ -105,6 +106,10 @@ export function OpenDaysPage() {
     actions: '',
   }));
   const periodsById = new Map(visiblePeriods.map((period) => [period.id, period]));
+
+  if (periodsQuery.data && !canManage && activePeriods.length === 1) {
+    return <Navigate to={`/open-days/${activePeriods[0].id}`} replace />;
+  }
 
   return (
     <PageShell
@@ -179,9 +184,9 @@ export function OpenDaysPage() {
       {createOpen && <CreateOpenDayPeriodWizard
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreated={(periodId, defaults) => {
+        onCreated={(periodId) => {
           setCreateOpen(false);
-          navigate(openDaySchedulePath(periodId), { state: { openDayDefaults: defaults } });
+          navigate(openDaySchedulePath(periodId));
         }}
       />}
       <Modal

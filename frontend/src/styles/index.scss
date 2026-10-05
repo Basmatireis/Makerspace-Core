@@ -1770,14 +1770,201 @@ progress::-moz-progress-bar {
   flex: 1 1 auto;
   min-width: 0;
   min-block-size: 0;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: 18rem minmax(0, 1fr);
+  grid-template-rows: 3rem minmax(0, 1fr);
   overflow: hidden;
   border: 1px solid var(--cds-border-subtle);
   background: var(--cds-layer);
 }
 
 .roles-workspace--panel-open {
-  grid-template-columns: minmax(40rem, 1fr) minmax(28rem, 34rem);
+  grid-template-columns: 18rem minmax(38rem, 1fr) minmax(24rem, 28rem);
+}
+
+.roles-list {
+  grid-row: 2;
+  grid-column: 1;
+  min-width: 0;
+  min-block-size: 0;
+  overflow: hidden;
+  border-inline-end: 1px solid var(--cds-border-subtle);
+  background: var(--cds-background);
+}
+
+.roles-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  block-size: 3rem;
+  min-block-size: 3rem;
+  max-block-size: 3rem;
+  grid-row: 1;
+  grid-column: 1 / 3;
+  align-items: center;
+  border-block-end: 1px solid var(--cds-border-subtle);
+  background: var(--cds-background);
+}
+
+.roles-toolbar__search-slot {
+  position: relative;
+  z-index: 2;
+  block-size: 3rem;
+  min-inline-size: 3rem;
+  flex: 1 1 auto;
+}
+
+.roles-toolbar__search {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  block-size: 3rem;
+  min-block-size: 3rem;
+  max-block-size: 3rem;
+  inline-size: 3rem;
+}
+
+.roles-toolbar__search .cds--search-input,
+.roles-toolbar__search .cds--search-close {
+  block-size: 3rem;
+}
+
+.roles-toolbar__search-slot .roles-toolbar__search.cds--toolbar-search-container-active {
+  inset-inline-start: 0;
+  inline-size: auto;
+}
+
+.roles-toolbar > .cds--btn {
+  block-size: 100%;
+  min-block-size: 3rem;
+  max-block-size: 3rem;
+  inline-size: auto;
+  min-inline-size: max-content;
+  max-inline-size: none;
+  flex: 0 0 auto;
+  align-items: center;
+  padding-block: 0;
+  padding-inline: $spacing-05;
+}
+
+.roles-toolbar > .cds--btn svg {
+  position: static;
+  margin-inline-start: $spacing-04;
+}
+
+.roles-toolbar > .cds--btn.cds--btn--icon-only {
+  inline-size: 3rem;
+  min-inline-size: 3rem;
+  justify-content: center;
+  padding: 0;
+}
+
+.roles-toolbar > .cds--btn.cds--btn--icon-only svg {
+  margin: 0;
+}
+
+.roles-toolbar .roles-toolbar__filter {
+  block-size: 3rem;
+  min-block-size: 3rem;
+  max-block-size: 3rem;
+  inline-size: 3rem;
+  min-inline-size: 3rem;
+  flex: 0 0 3rem;
+}
+
+.roles-toolbar__filter--active {
+  background: var(--cds-layer-selected);
+}
+
+.roles-list__items {
+  overflow-y: auto;
+  block-size: 100%;
+  padding-block-end: $spacing-04;
+}
+
+.roles-list__item {
+  display: grid;
+  inline-size: 100%;
+  min-block-size: 4.75rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-block-end: 1px solid var(--cds-border-subtle);
+  background: transparent;
+  color: var(--cds-text-primary);
+  text-align: start;
+}
+
+.roles-list__item:hover {
+  background: var(--cds-layer-hover);
+}
+
+.roles-list__select:focus-visible {
+  outline: 2px solid var(--cds-focus);
+  outline-offset: -2px;
+}
+
+.roles-list__item--selected {
+  border-inline-start: 3px solid var(--cds-link-primary);
+  background: var(--cds-layer-selected);
+}
+
+.roles-list__select {
+  display: grid;
+  min-inline-size: 0;
+  min-block-size: 4.75rem;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: $spacing-04;
+  padding: $spacing-04;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: start;
+}
+
+.roles-list__item > .cds--overflow-menu {
+  align-self: stretch;
+  block-size: auto;
+}
+
+.roles-list__icon {
+  color: var(--cds-icon-primary);
+}
+
+.roles-list__item--selected .roles-list__icon {
+  color: var(--cds-link-primary);
+}
+
+.roles-list__copy {
+  display: grid;
+  min-inline-size: 0;
+  gap: $spacing-02;
+}
+
+.roles-list__copy strong,
+.roles-list__copy > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roles-list__copy strong {
+  @include type-style('heading-compact-01');
+}
+
+.roles-list__copy > span {
+  color: var(--cds-text-secondary);
+  @include type-style('label-01');
+}
+
+.roles-list__empty {
+  padding: $spacing-05;
+  color: var(--cds-text-secondary);
+  @include type-style('body-compact-01');
 }
 
 .roles-workspace__main {
@@ -1785,88 +1972,9 @@ progress::-moz-progress-bar {
   min-width: 0;
   min-block-size: 0;
   flex-direction: column;
+  grid-row: 2;
+  grid-column: 2;
   overflow: hidden;
-}
-
-.roles-toolbar {
-  display: grid;
-  flex: none;
-  gap: $spacing-04;
-  padding: $spacing-04 $spacing-05;
-  background: var(--cds-background);
-}
-
-.roles-toolbar__primary {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: $spacing-06;
-}
-
-.roles-toolbar__view {
-  flex: 1;
-  min-width: 0;
-}
-
-.roles-toolbar__view .cds--tabs {
-  max-width: 32rem;
-}
-
-.roles-toolbar .cds--search {
-  width: min(30rem, 40vw);
-  margin-top: $spacing-01;
-}
-
-.roles-filters {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(13rem, 1fr)) auto;
-  align-items: end;
-  gap: $spacing-04;
-}
-
-.roles-filters__status {
-  display: flex;
-  min-block-size: 3rem;
-  align-items: center;
-  justify-content: flex-end;
-  gap: $spacing-02;
-  white-space: nowrap;
-}
-
-.roles-legend,
-.effective-context {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: $spacing-05;
-  min-height: 2.5rem;
-  @include type-style('body-compact-01');
-  color: var(--cds-text-secondary);
-}
-
-.roles-legend > span {
-  display: inline-flex;
-  align-items: center;
-  gap: $spacing-02;
-}
-
-.roles-legend--granted {
-  color: var(--cds-support-success);
-}
-
-.roles-legend--conditional {
-  color: var(--cds-link-primary);
-}
-
-.effective-context {
-  flex: none;
-  padding: $spacing-04 $spacing-05;
-  border-top: 1px solid var(--cds-border-subtle);
-  background: var(--cds-background);
-}
-
-.effective-context .cds--form-item {
-  width: min(18rem, 30vw);
 }
 
 .roles-draft-bar {
@@ -1916,7 +2024,6 @@ progress::-moz-progress-bar {
   min-block-size: 0;
   max-width: 100%;
   overflow: auto;
-  border-top: 1px solid var(--cds-border-subtle);
   overscroll-behavior: contain;
 }
 
@@ -1927,29 +2034,21 @@ progress::-moz-progress-bar {
 
 .roles-matrix__sizing {
   inline-size: 100%;
+  min-inline-size: 42rem;
 }
 
 .roles-matrix__permission-col {
-  inline-size: 22rem;
+  inline-size: 45%;
 }
 
-.roles-matrix__role-col {
-  inline-size: 11rem;
+.roles-matrix__access-col {
+  inline-size: 55%;
 }
 
 .roles-matrix th,
 .roles-matrix td {
   padding: 0;
   vertical-align: middle;
-}
-
-.roles-matrix thead th {
-  position: sticky;
-  top: 0;
-  z-index: 4;
-  block-size: 4.5rem;
-  border-bottom: 2px solid var(--cds-border-strong);
-  background: var(--cds-background);
 }
 
 .roles-matrix .roles-matrix__permission-column {
@@ -1959,57 +2058,6 @@ progress::-moz-progress-bar {
   padding-inline: $spacing-05;
   border-right: 1px solid var(--cds-border-subtle);
   background: var(--cds-background);
-}
-
-.roles-matrix thead .roles-matrix__permission-column {
-  z-index: 6;
-}
-
-.roles-matrix__permission-column > span:first-child {
-  display: block;
-  @include type-style('heading-compact-01');
-}
-
-.roles-matrix__column-helper {
-  display: block;
-  margin-block-start: $spacing-01;
-  color: var(--cds-text-secondary);
-  font-weight: normal;
-  text-transform: none;
-  @include type-style('label-01');
-}
-
-.roles-matrix__role-heading {
-  display: flex;
-  min-inline-size: 0;
-  align-items: center;
-  justify-content: center;
-  gap: $spacing-02;
-  padding-inline: $spacing-03;
-  text-transform: uppercase;
-  @include type-style('heading-compact-01');
-}
-
-.roles-matrix__role-heading > span {
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.roles-matrix__role-heading .cds--tag {
-  flex: none;
-  margin: 0;
-  text-transform: none;
-}
-
-.roles-matrix__role-heading .cds--overflow-menu {
-  flex: none;
-  margin-inline-start: auto;
-}
-
-.roles-matrix__role-header--editing {
-  box-shadow: inset 0 -3px 0 var(--cds-link-primary);
 }
 
 .roles-matrix__group-row td {
@@ -2055,16 +2103,36 @@ progress::-moz-progress-bar {
   background: var(--cds-layer-hover);
 }
 
+.roles-matrix__permission-row--selected td,
+.roles-matrix__permission-row--selected .roles-matrix__permission-column {
+  background: var(--cds-layer-selected);
+}
+
 .roles-matrix__permission-row td {
-  block-size: 4.25rem;
+  block-size: 3rem;
   border-bottom: 1px solid var(--cds-border-subtle);
   background: var(--cds-layer);
 }
 
 .roles-matrix__permission-name {
+  position: relative;
   display: grid;
+  inline-size: 100%;
+  block-size: 3rem;
   min-inline-size: 0;
+  align-content: center;
   gap: $spacing-01;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: start;
+}
+
+.roles-matrix__permission-name:focus-visible {
+  outline: 2px solid var(--cds-focus);
+  outline-offset: 0;
 }
 
 .roles-matrix__permission-label {
@@ -2095,6 +2163,76 @@ progress::-moz-progress-bar {
   color: var(--cds-icon-disabled);
 }
 
+.roles-matrix__cell {
+  position: relative;
+  padding: 0 !important;
+}
+
+.roles-access-control {
+  display: grid;
+  block-size: 100%;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.roles-access-control__option {
+  display: flex;
+  min-inline-size: 0;
+  min-block-size: 3rem;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-02;
+  padding: 0 $spacing-03;
+  border: 1px solid var(--cds-border-subtle);
+  border-inline-end: 0;
+  background: var(--cds-layer);
+  color: var(--cds-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  @include type-style('label-01');
+}
+
+.roles-access-control__option:last-child {
+  border-inline-end: 1px solid var(--cds-border-subtle);
+}
+
+.roles-access-control__option:hover:not(:disabled) {
+  background: var(--cds-layer-hover);
+}
+
+.roles-access-control__option:focus-visible {
+  z-index: 1;
+  outline: 2px solid var(--cds-focus);
+  outline-offset: -2px;
+}
+
+.roles-access-control__option--active {
+  border-color: var(--cds-button-primary);
+  background: var(--cds-button-primary);
+  color: #fff;
+  -webkit-text-fill-color: #fff;
+}
+
+.roles-access-control__option--active:last-child {
+  border-inline-end-color: var(--cds-button-primary);
+}
+
+.roles-access-control__option--active:hover {
+  border-color: color-mix(in srgb, var(--cds-button-primary) 82%, #000) !important;
+  background: color-mix(in srgb, var(--cds-button-primary) 82%, #000) !important;
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+}
+
+.roles-access-control__option:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.roles-access-control__option--active:disabled {
+  color: #fff !important;
+  -webkit-text-fill-color: #fff !important;
+}
+
 .roles-matrix__cell-button:not([aria-disabled='true']) {
   cursor: pointer;
 }
@@ -2121,14 +2259,15 @@ progress::-moz-progress-bar {
 
 .roles-matrix__modified-dot {
   position: absolute;
-  inset-block-start: $spacing-02;
-  inset-inline-end: $spacing-02;
+  inset-block-start: 50%;
+  inset-inline-end: 0;
   inline-size: .5rem;
   block-size: .5rem;
   overflow: hidden;
   border-radius: 50%;
   background: var(--cds-link-primary);
   color: transparent;
+  transform: translateY(-50%);
 }
 
 .roles-matrix__conditional-icon {
@@ -2150,6 +2289,8 @@ progress::-moz-progress-bar {
   min-inline-size: 0;
   min-block-size: 0;
   block-size: 100%;
+  grid-row: 1 / 3;
+  grid-column: 3;
   grid-template-rows: auto minmax(0, 1fr) auto;
   overflow: hidden;
   border-left: 1px solid var(--cds-border-subtle);
@@ -2160,6 +2301,25 @@ progress::-moz-progress-bar {
 .permission-editor__body,
 .permission-editor__footer {
   padding: $spacing-05;
+}
+
+.permission-editor--empty {
+  grid-template-rows: minmax(0, 1fr);
+  place-items: center;
+  text-align: center;
+}
+
+.permission-editor--empty > div {
+  display: grid;
+  max-inline-size: 18rem;
+  justify-items: center;
+  gap: $spacing-03;
+  padding: $spacing-06;
+  color: var(--cds-text-secondary);
+}
+
+.permission-editor--empty h2 {
+  color: var(--cds-text-primary);
 }
 
 .permission-editor__header {
@@ -2177,8 +2337,21 @@ progress::-moz-progress-bar {
   color: var(--cds-text-secondary);
 }
 
-.permission-editor__header .cds--tag {
-  margin: $spacing-03 0 0;
+.permission-editor__identifier {
+  display: block;
+  margin-block-start: $spacing-02;
+  color: var(--cds-text-secondary);
+  @include type-style('code-01');
+}
+
+.permission-editor__description {
+  margin-block-start: $spacing-04;
+  color: var(--cds-text-secondary);
+  @include type-style('body-compact-01');
+}
+
+.permission-editor__rules-help {
+  padding-block-end: $spacing-03;
 }
 
 .permission-editor__body {
@@ -2245,35 +2418,42 @@ progress::-moz-progress-bar {
 
 @media (max-width: 82rem) {
   .roles-workspace--panel-open {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: 17rem minmax(0, 1fr) minmax(22rem, 26rem);
   }
 
-  .permission-editor {
-    position: absolute;
-    z-index: 8;
-    inset: 0 0 0 auto;
-    inline-size: min(32rem, 100%);
-    box-shadow: -4px 0 12px rgb(0 0 0 / 18%);
-  }
-
-  .roles-filters {
-    grid-template-columns: repeat(2, minmax(13rem, 1fr));
-  }
-
-  .roles-filters__status {
-    justify-content: flex-start;
-  }
 }
 
 @media (max-width: 65.98rem) {
-  .roles-toolbar__primary,
   .roles-draft-bar {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .roles-toolbar .cds--search {
-    inline-size: 100%;
+  .roles-workspace,
+  .roles-workspace--panel-open {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .roles-toolbar,
+  .roles-workspace__main {
+    grid-column: 1;
+  }
+
+  .roles-list {
+    display: none;
+  }
+
+  .permission-editor:not(.permission-editor--empty) {
+    position: absolute;
+    z-index: 8;
+    inset: 0 0 0 auto;
+    inline-size: min(32rem, 100%);
+    grid-column: 1;
+    box-shadow: -4px 0 12px rgb(0 0 0 / 18%);
+  }
+
+  .permission-editor--empty {
+    display: none;
   }
 
   .roles-draft-bar__summary {
@@ -2686,20 +2866,26 @@ progress::-moz-progress-bar {
 .open-day-periods-table .cds--data-table th.period-table__actions-column,
 .open-day-periods-table .cds--data-table td.period-table__actions-column { inline-size: 1%; white-space: nowrap; }
 .period-table__actions { display: flex; justify-content: flex-end; gap: $spacing-02; }
-.period-wizard__body { min-block-size: 34rem; }
-.period-wizard__progress { inline-size: 100%; max-inline-size: none; margin-block-end: $spacing-07; }
-.period-wizard__content { min-block-size: 20rem; }
-.period-wizard__content h3 { margin-block-end: $spacing-02; @include type-style('heading-compact-02'); }
-.period-wizard__content h3 + p { color: var(--cds-text-secondary); }
-.period-wizard__break-editor { padding: $spacing-05; background: var(--cds-layer-accent); }
-.period-wizard__break-dates,
-.period-wizard__times,
-.period-wizard__requirements { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: $spacing-05; }
-.period-wizard__inline-actions { display: flex; justify-content: flex-end; }
-.period-wizard__summary { display: grid; gap: 1px; background: var(--cds-border-subtle); }
-.period-wizard__summary > div { display: grid; grid-template-columns: minmax(10rem, .6fr) 1.4fr; gap: $spacing-05; padding: $spacing-04 $spacing-05; background: var(--cds-layer); }
-.period-wizard__summary dt { color: var(--cds-text-secondary); font-weight: 600; }
-.period-wizard__summary dd { margin: 0; }
+.academic-breaks-section,
+.academic-breaks-table { min-inline-size: 0; }
+.academic-breaks-table .cds--table-toolbar,
+.academic-breaks-table .cds--toolbar-content { block-size: auto; min-block-size: 3rem; }
+.academic-breaks-table__period-filter {
+  inline-size: min(24rem, 100%);
+  margin-inline-end: auto;
+}
+.academic-breaks-table .cds--data-table-content { overflow-x: auto; }
+.academic-breaks-table .cds--data-table { min-inline-size: 36rem; }
+.academic-breaks-table .cds--data-table th.academic-breaks-table__actions-column,
+.academic-breaks-table .cds--data-table td.academic-breaks-table__actions-column {
+  inline-size: 4rem;
+  text-align: center;
+}
+.academic-breaks-table .cds--data-table th.academic-breaks-table__actions-column .cds--table-header-label {
+  display: block;
+  inline-size: 100%;
+  text-align: center;
+}
 .period-wizard__error { margin-block-start: $spacing-06; }
 
 .open-days-view-container { inline-size: 100%; }
@@ -2834,9 +3020,6 @@ progress::-moz-progress-bar {
 .bulk-slot-editor__requirements { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: $spacing-05; }
 .calendar-cell--target { position: relative; z-index: 1; outline: 3px solid var(--cds-focus); outline-offset: -3px; background: var(--cds-highlight); }
 
-.open-day-management-page { max-inline-size: 90rem; }
-.management-section-heading p { margin-block-start: $spacing-02; color: var(--cds-text-secondary); }
-.management-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: $spacing-05; margin-block-end: $spacing-05; }
 .table-actions { display: flex; gap: $spacing-02; }
 .lab-rules-warning { display: grid; gap: $spacing-03; margin-block-end: $spacing-06; padding: $spacing-05; border-inline-start: 4px solid var(--cds-support-warning); background: var(--cds-notification-background-warning); }
 
@@ -3075,6 +3258,19 @@ progress::-moz-progress-bar {
     max-inline-size: none;
   }
 
+  .academic-breaks-table .cds--toolbar-content {
+    flex-wrap: wrap;
+    inline-size: 100%;
+    min-inline-size: 0;
+  }
+
+  .academic-breaks-table__period-filter,
+  .academic-breaks-table .cds--toolbar-content > .cds--btn {
+    flex: 1 1 100%;
+    inline-size: 100%;
+    max-inline-size: none;
+  }
+
   .open-day-detail-status,
   .assignment-banner,
   .open-day-registration-modal__summary { align-items: stretch; flex-direction: column; }
@@ -3095,7 +3291,6 @@ progress::-moz-progress-bar {
   .open-day-create__times,
   .open-day-create__requirements { grid-template-columns: 1fr; }
 
-  .management-section-heading { align-items: stretch; flex-direction: column; }
   .metric-grid, .metric-grid--three, .detail-grid, .review-form, .review-machine-data, .filter-bar, .machine-logbook-page .form-grid, .usage-row { grid-template-columns: 1fr; }
   .review-detail { padding: $spacing-05; }
   .date-filter { align-items: stretch; flex-direction: column; }

@@ -58,14 +58,17 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
       .fill('Browser-tested limited administration role.');
     await createRoleDialog.getByRole('button', { name: 'Create role' }).click();
     await expect(page).toHaveURL(/\/settings\/roles$/);
+    await page
+      .getByRole('complementary', { name: 'Roles' })
+      .locator('.roles-list__select')
+      .filter({ hasText: 'E2E workshop supervisors' })
+      .click();
 
-    await page.getByRole('button', { name: /Edit View all people for E2E workshop supervisors/ }).click();
-    await page.getByLabel('Permission enabled').click({ force: true });
+    await page.getByRole('button', { name: 'Set View all people for E2E workshop supervisors to Conditional' }).click();
     await page.getByLabel('Minimum authentication assurance').selectOption('normal');
     await page.getByRole('button', { name: 'Done', exact: true }).click();
 
-    await page.getByRole('button', { name: /Edit Edit own profile for E2E workshop supervisors/ }).click();
-    await page.getByLabel('Permission enabled').click({ force: true });
+    await page.getByRole('button', { name: 'Set Edit own profile for E2E workshop supervisors to Unconditional' }).click();
     await page.getByRole('button', { name: 'Done', exact: true }).click();
 
     await page.getByRole('button', { name: 'Review and save' }).click();
@@ -80,15 +83,8 @@ test('runs the bootstrapped administration, redaction, self-service, and hard-de
     ).toBeHidden();
     await expect(page.getByRole('button', { name: /Edit View all people for E2E workshop supervisors: Normal assurance/ })).toBeVisible();
 
-    await page.getByRole('tab', { name: 'Effective permissions' }).click();
-    await page.getByLabel('Authentication assurance').selectOption('low');
-    await expect(page.getByRole('button', { name: /View View all people for E2E workshop supervisors: Not granted in this context/ })).toBeVisible();
-    await page.getByLabel('Authentication assurance').selectOption('normal');
-    await expect(page.getByRole('button', { name: /View View all people for E2E workshop supervisors: Granted in this context/ })).toBeVisible();
-    await page.getByRole('tab', { name: 'Configuration' }).click();
-
     await page.getByRole('button', { name: 'Actions for E2E workshop supervisors', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Edit role' }).click();
+    await page.getByRole('menuitem', { name: 'Edit role details' }).click();
     await expect(page).toHaveURL(/\/settings\/roles\/[0-9a-f-]+$/);
     rolePath = new URL(page.url()).pathname;
     const editRoleDialog = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: 'Edit role' }) });

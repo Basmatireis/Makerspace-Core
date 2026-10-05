@@ -308,6 +308,6 @@ describe('role protection UX', () => {
     expect(screen.getAllByText('Master').length).toBeGreaterThan(0);
     expect(screen.getByLabelText('Protected system role')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /delete role/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Actions for Master/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Actions for Master/ })).toBeInTheDocument();
   });
 });

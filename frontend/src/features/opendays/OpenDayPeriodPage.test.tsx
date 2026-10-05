@@ -135,7 +135,7 @@ describe('Open Day period creation', () => {
     expect(screen.queryByText('Enter a name.')).not.toBeInTheDocument();
     expect(screen.queryByText('Choose an end date.')).not.toBeInTheDocument();
     expect(screen.queryByText('Missing required information')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.click(screen.getByRole('button', { name: 'Create Period' }));
     expect(await screen.findByText('Enter a name.')).toBeInTheDocument();
     expect(screen.getByText('Missing required information')).toBeInTheDocument();
 
@@ -143,28 +143,15 @@ describe('Open Day period creation', () => {
     expect(screen.queryByText('Missing required information')).not.toBeInTheDocument();
   });
 
-  it('collects setup in four steps and opens the schedule editor with the selected defaults', async () => {
+  it('creates a period directly from the compact form', async () => {
     const created = period('draft');
     let submittedPeriod: unknown;
-    let submittedBreak: unknown;
     server.use(
       http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.open_daysmanage]))),
       http.get('*/api/v1/open-day-periods', () => HttpResponse.json({ items: [] })),
       http.post('*/api/v1/open-day-periods', async ({ request }) => {
         submittedPeriod = await request.json();
         return HttpResponse.json(created, { status: 201 });
-      }),
-      http.post('*/api/v1/open-day-academic-breaks', async ({ request }) => {
-        submittedBreak = await request.json();
-        return HttpResponse.json({
-          id: '0192f6f8-743e-7c77-a349-cd07c3e8a973',
-          name: 'Semester break',
-          startsOn: created.startsOn,
-          endsOn: created.startsOn,
-          version: 1,
-          createdAt: '2026-09-01T10:00:00Z',
-          updatedAt: '2026-09-01T10:00:00Z',
-        }, { status: 201 });
       }),
       http.get('*/api/v1/open-day-periods/:periodId/open-days', () =>
         HttpResponse.json({ period: created, items: [], timeZone: 'Europe/Vienna' }),
@@ -176,46 +163,33 @@ describe('Open Day period creation', () => {
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole('button', { name: 'Create' }));
+    expect(screen.getByRole('heading', { name: 'Create Period' }).closest('.cds--modal-container')).toHaveClass(
+      'cds--modal-container--xs',
+    );
+    expect(screen.queryByText('Period and date range')).not.toBeInTheDocument();
+    expect(screen.queryByText('Name the period and choose the dates shown in its planning calendar.')).not.toBeInTheDocument();
     await user.type(screen.getByLabelText('Name'), created.name);
     await user.type(screen.getByLabelText('Start date'), '01.10.2026');
     await user.type(screen.getByLabelText('End date'), '01.10.2026');
-    await user.click(screen.getByRole('button', { name: 'Next' }));
-
-    expect(screen.getByRole('heading', { name: 'Academic breaks' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Add academic break' }));
-    await user.type(screen.getByLabelText('Name'), 'Semester break');
-    await user.click(screen.getByRole('button', { name: 'Add break' }));
-    await user.click(screen.getByRole('button', { name: 'Next' }));
-
-    expect(screen.getByRole('heading', { name: 'Base timeslot' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Supervisor positions')).toHaveValue(2);
-    expect(screen.getByLabelText('Trainee positions')).toHaveValue(1);
-    await user.click(screen.getByRole('button', { name: 'Next' }));
-
-    expect(screen.getByRole('heading', { name: 'Summary' })).toBeInTheDocument();
-    expect(screen.getByText('2 positions · Supervisor')).toBeInTheDocument();
-    expect(screen.getByText('1 position · Trainee')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Create period' }));
+    expect(screen.queryByText('Academic breaks')).not.toBeInTheDocument();
+    expect(screen.queryByText('Summary')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Create Period' }));
 
     expect(await screen.findByRole('group', { name: 'Schedule editor tools' })).toBeInTheDocument();
     expect(submittedPeriod).toMatchObject({ startsOn: created.startsOn, endsOn: created.endsOn });
-    expect(submittedBreak).toMatchObject({ name: 'Semester break', startsOn: created.startsOn, endsOn: created.startsOn });
-    await user.click(screen.getByRole('button', { name: 'Create' }));
-    const createDialog = screen.getByRole('dialog', { name: 'Create Open Day' });
-    expect(within(createDialog).getByLabelText('Supervisors')).toHaveValue(2);
-    expect(within(createDialog).getByLabelText('Trainees')).toHaveValue(1);
-    expect(within(createDialog).getByRole('combobox', { name: /^Eligible supervisor roles/ })).toBeInTheDocument();
-    expect(within(createDialog).getByRole('combobox', { name: /^Eligible trainee roles/ })).toBeInTheDocument();
   }, 15_000);
 });
 
 describe('Open Day period management entry points', () => {
-  function mockPeriodList(permissions: Permission[]) {
+  function mockPeriodList(
+    permissions: Permission[],
+    listedPeriods = [period('draft')],
+  ) {
     server.use(
       http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
-      http.get('*/api/v1/open-day-periods', () => HttpResponse.json({ items: [period('draft')] })),
+      http.get('*/api/v1/open-day-periods', () => HttpResponse.json({ items: listedPeriods })),
       http.get('*/api/v1/open-day-periods/:periodId/open-days', () =>
-        HttpResponse.json({ period: period('draft'), items: [], timeZone: 'Europe/Vienna' }),
+        HttpResponse.json({ period: listedPeriods[0], items: [], timeZone: 'Europe/Vienna' }),
       ),
       http.get('*/api/v1/open-day-eligibility-roles', () => HttpResponse.json({ items: [] })),
       http.get('*/api/v1/open-day-periods/:periodId/calendar-context', () =>
@@ -227,6 +201,9 @@ describe('Open Day period management entry points', () => {
           entries: [],
           academicBreaks: [],
         }),
+      ),
+      http.get('*/api/v1/open-day-academic-breaks', () =>
+        HttpResponse.json({ items: [] }),
       ),
     );
   }
@@ -294,6 +271,39 @@ describe('Open Day period management entry points', () => {
     expect(router.state.location.pathname).toBe(`/open-days/${periodId}`);
   });
 
+  it('opens the sole active period directly for readers and hides the table', async () => {
+    mockPeriodList([PermissionId.open_daysread], [
+      period('staffing'),
+      {
+        ...period('archived'),
+        id: '0192f6f8-743e-7c77-a349-cd07c3e8a912',
+        name: 'Archived Semester 2026',
+      },
+    ]);
+    const { router } = renderRoute(<App />, '/open-days');
+
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/open-days/${periodId}`));
+    expect(await screen.findByRole('heading', { name: 'Winter Semester 2026/27' })).toBeInTheDocument();
+    expect(screen.queryByRole('table', { name: 'Open Day periods' })).not.toBeInTheDocument();
+  });
+
+  it('shows the period table when a reader can view multiple active periods', async () => {
+    mockPeriodList([PermissionId.open_daysread], [
+      period('staffing'),
+      {
+        ...period('published'),
+        id: '0192f6f8-743e-7c77-a349-cd07c3e8a912',
+        name: 'Spring Semester 2027',
+      },
+    ]);
+    const { router } = renderRoute(<App />, '/open-days');
+
+    const table = await screen.findByRole('table', { name: 'Open Day periods' });
+    expect(within(table).getByRole('link', { name: 'Winter Semester 2026/27' })).toBeInTheDocument();
+    expect(within(table).getByRole('link', { name: 'Spring Semester 2027' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/open-days');
+  });
+
   it('opens academic-break management from the table toolbar', async () => {
     mockPeriodList([PermissionId.open_daysmanage]);
     const { router } = renderRoute(<App />, '/open-days');
@@ -309,10 +319,70 @@ describe('Open Day period management entry points', () => {
   it('keeps the management screen focused on academic breaks', async () => {
     mockPeriodList([PermissionId.open_daysmanage]);
     renderRoute(<App />, '/open-days/manage');
+    const user = userEvent.setup();
 
     expect(await screen.findByRole('heading', { name: 'Academic breaks', level: 1 })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Periods' })).not.toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Show breaks overlapping period' })).toBeInTheDocument();
+    const toolbar = screen.getByRole('group', { name: 'Academic breaks table toolbar' });
+    expect(within(toolbar).getByRole('combobox', { name: 'Show breaks overlapping periods' })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('button', { name: 'Create' })).toBeInTheDocument();
+    expect(await screen.findByRole('table', { name: 'Academic breaks' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'No academic breaks', level: 3 })).toBeInTheDocument();
+
+    await user.click(within(toolbar).getByRole('button', { name: 'Create' }));
+    const dialog = screen.getByRole('dialog', { name: 'Create academic break' });
+    expect(dialog).toHaveClass(
+      'cds--modal-container--xs',
+    );
+    const dateRange = within(dialog).getByLabelText('Start date').closest('.cds--date-picker--range');
+    expect(dateRange).not.toBeNull();
+    expect(within(dateRange as HTMLElement).getByLabelText('End date')).toBeInTheDocument();
+  });
+
+  it('shows every academic break by default and filters by multiple periods', async () => {
+    const springPeriod = {
+      ...period('draft'),
+      id: '0192f6f8-743e-7c77-a349-cd07c3e8a912',
+      name: 'Spring Semester 2027',
+      startsOn: '2027-03-01',
+      endsOn: '2027-06-30',
+    };
+    const timestamp = '2026-09-01T10:00:00Z';
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(currentUserFixture([PermissionId.open_daysmanage])),
+      ),
+      http.get('*/api/v1/open-day-periods', () =>
+        HttpResponse.json({ items: [
+          { ...period('draft'), startsOn: '2026-10-01', endsOn: '2027-01-31' },
+          springPeriod,
+        ] }),
+      ),
+      http.get('*/api/v1/open-day-academic-breaks', () =>
+        HttpResponse.json({ items: [
+          { id: '0192f6f8-743e-7c77-a349-cd07c3e8a921', name: 'Christmas break', startsOn: '2026-12-23', endsOn: '2027-01-06', version: 1, createdAt: timestamp, updatedAt: timestamp },
+          { id: '0192f6f8-743e-7c77-a349-cd07c3e8a922', name: 'Easter break', startsOn: '2027-03-29', endsOn: '2027-04-05', version: 1, createdAt: timestamp, updatedAt: timestamp },
+          { id: '0192f6f8-743e-7c77-a349-cd07c3e8a923', name: 'Summer break', startsOn: '2027-07-01', endsOn: '2027-08-31', version: 1, createdAt: timestamp, updatedAt: timestamp },
+        ] }),
+      ),
+    );
+    renderRoute(<App />, '/open-days/manage');
+    const user = userEvent.setup();
+
+    expect(await screen.findByRole('cell', { name: 'Christmas break' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'Easter break' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'Summer break' })).toBeInTheDocument();
+
+    const periodFilter = screen.getByRole('combobox', {
+      name: 'Show breaks overlapping periods',
+    });
+    await user.click(periodFilter);
+    await user.click(screen.getByRole('option', { name: 'Winter Semester 2026/27' }));
+    await user.click(screen.getByRole('option', { name: 'Spring Semester 2027' }));
+
+    expect(screen.getByRole('cell', { name: 'Christmas break' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'Easter break' })).toBeInTheDocument();
+    expect(screen.queryByRole('cell', { name: 'Summer break' })).not.toBeInTheDocument();
   });
 });
 

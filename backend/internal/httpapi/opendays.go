@@ -408,6 +408,22 @@ func (s *Server) GetOpenDayCalendarContext(ctx context.Context, r openapi.GetOpe
 	return openapi.GetOpenDayCalendarContext200JSONResponse{TimeZone: value.TimeZone, CountryCode: value.CountryCode, SubdivisionCode: subdivision, LanguageCode: value.LanguageCode, Entries: entries, AcademicBreaks: breaks}, nil
 }
 
+func (s *Server) ListOpenDayAcademicBreaks(ctx context.Context, _ openapi.ListOpenDayAcademicBreaksRequestObject) (openapi.ListOpenDayAcademicBreaksResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items, err := s.opendays.ListAcademicBreaks(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]openapi.AcademicBreak, 0, len(items))
+	for _, item := range items {
+		out = append(out, academicBreakDTO(item))
+	}
+	return openapi.ListOpenDayAcademicBreaks200JSONResponse{Items: out}, nil
+}
+
 func (s *Server) CreateOpenDayAcademicBreak(ctx context.Context, r openapi.CreateOpenDayAcademicBreakRequestObject) (openapi.CreateOpenDayAcademicBreakResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {

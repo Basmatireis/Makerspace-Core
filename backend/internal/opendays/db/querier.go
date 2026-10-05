@@ -35,6 +35,7 @@ type Querier interface {
 	GetPersonOpenDayAssignment(ctx context.Context, arg GetPersonOpenDayAssignmentParams) (OpenDayAssignment, error)
 	GetRequirement(ctx context.Context, id uuid.UUID) (OpenDayStaffRequirement, error)
 	GetRequirementForUpdate(ctx context.Context, id uuid.UUID) (OpenDayStaffRequirement, error)
+	ListAcademicBreaks(ctx context.Context) ([]OpenDayAcademicBreak, error)
 	ListAcademicBreaksInRange(ctx context.Context, arg ListAcademicBreaksInRangeParams) ([]OpenDayAcademicBreak, error)
 	ListAssignments(ctx context.Context, openDayID uuid.UUID) ([]ListAssignmentsRow, error)
 	ListEligibilityRoles(ctx context.Context) ([]ListEligibilityRolesRow, error)
