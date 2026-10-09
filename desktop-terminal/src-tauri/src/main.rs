@@ -327,6 +327,10 @@ async fn fetch_device_identity(core: &Url, token: &str) -> Result<DeviceHardware
 }
 
 fn validate_core_url(value: &str) -> Result<Url, String> {
+    validate_core_url_for_mode(value, cfg!(debug_assertions))
+}
+
+fn validate_core_url_for_mode(value: &str, allow_loopback_http: bool) -> Result<Url, String> {
     let parsed =
         Url::parse(value.trim()).map_err(|_| "The Makerspace Core URL is invalid.".to_owned())?;
     if parsed.username() != ""
@@ -340,12 +344,18 @@ fn validate_core_url(value: &str) -> Result<Url, String> {
                 .to_owned(),
         );
     }
-    let loopback = matches!(parsed.host_str(), Some("localhost" | "127.0.0.1" | "::1"));
-    if parsed.scheme() != "https"
-        && !(cfg!(debug_assertions) && parsed.scheme() == "http" && loopback)
+    let loopback = matches!(
+        parsed.host_str(),
+        Some("localhost" | "127.0.0.1" | "[::1]" | "::1")
+    );
+    if parsed.scheme() != "https" && !(allow_loopback_http && parsed.scheme() == "http" && loopback)
     {
         return Err(
-            "Makerspace Core must use HTTPS; debug builds permit loopback HTTP.".to_owned(),
+            if parsed.scheme() == "http" && loopback && !allow_loopback_http {
+                "This production build requires an HTTPS Makerspace Core URL. For local loopback HTTP testing, start the desktop app with `pnpm dev`.".to_owned()
+            } else {
+                "Makerspace Core must use HTTPS. Debug builds permit HTTP only for localhost, 127.0.0.1, or ::1.".to_owned()
+            },
         );
     }
     Ok(parsed)
@@ -483,10 +493,31 @@ mod tests {
     use super::*;
 
     #[test]
-    fn production_url_rules_reject_credentials_and_paths() {
-        assert!(validate_core_url("https://core.example.org/").is_ok());
-        assert!(validate_core_url("https://user@core.example.org/").is_err());
-        assert!(validate_core_url("https://core.example.org/subpath").is_err());
+    fn core_url_rules_reject_credentials_and_paths() {
+        assert!(validate_core_url_for_mode("https://core.example.org/", false).is_ok());
+        assert!(validate_core_url_for_mode("https://user@core.example.org/", false).is_err());
+        assert!(validate_core_url_for_mode("https://core.example.org/subpath", false).is_err());
+    }
+
+    #[test]
+    fn production_rejects_loopback_http_with_actionable_error() {
+        assert_eq!(
+            validate_core_url_for_mode("http://localhost:5173", false).unwrap_err(),
+            "This production build requires an HTTPS Makerspace Core URL. For local loopback HTTP testing, start the desktop app with `pnpm dev`."
+        );
+    }
+
+    #[test]
+    fn debug_accepts_only_exact_loopback_http_hosts() {
+        for url in [
+            "http://localhost:5173",
+            "http://127.0.0.1:5173",
+            "http://[::1]:5173",
+        ] {
+            assert!(validate_core_url_for_mode(url, true).is_ok(), "{url}");
+        }
+        assert!(validate_core_url_for_mode("http://localhost.example:5173", true).is_err());
+        assert!(validate_core_url_for_mode("http://192.168.1.5:5173", true).is_err());
     }
 
     #[test]

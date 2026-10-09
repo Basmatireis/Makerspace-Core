@@ -10,7 +10,14 @@ The desktop app bundles the Go Device Bridge as a private sidecar. The shell sta
 2. Start Makerspace Core Desktop and enter the exact Core origin plus the one-time managed-device token.
 3. The shell verifies the token with Core before loading the web application. An entrance device with `visitor_terminal` opens `/terminal`; other permitted devices open `/login`.
 
-Production registrations require HTTPS. Debug builds also accept loopback HTTP for local development. A revoked, expired, or invalid token leaves the app on its registration screen with an actionable error. Set `MAKERSPACE_DESKTOP_RESET_REGISTRATION=1` for one launch to remove the saved registration and credential.
+Production registrations require HTTPS, including bundles created by `make build-desktop` or `pnpm build`. For local development against an HTTP Core origin such as `http://localhost:5173`, launch a debug build instead:
+
+```sh
+cd desktop-terminal
+pnpm dev
+```
+
+Debug builds accept HTTP only on the exact loopback hosts `localhost`, `127.0.0.1`, and `::1`. A revoked, expired, or invalid token leaves the app on its registration screen with an actionable error. Set `MAKERSPACE_DESKTOP_RESET_REGISTRATION=1` for one launch to remove the saved registration and credential.
 
 The token is stored in the operating system credential store and installed into the WebView as the same HttpOnly, SameSite managed-device cookie used by Android. It is passed once to the bundled sidecar over stdin. It is never placed in command arguments, environment variables, URLs, JavaScript storage, configuration files, or logs. Non-secret registration metadata and the loopback pairing key live in the app configuration directory; private files use mode `0600` on Unix.
 
