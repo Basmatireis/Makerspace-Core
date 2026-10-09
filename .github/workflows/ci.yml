@@ -109,6 +109,41 @@ jobs:
       - name: Build
         run: pnpm build
 
+  desktop:
+    name: Desktop terminal
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: desktop-terminal
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          package_json_file: desktop-terminal/package.json
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+          cache-dependency-path: desktop-terminal/pnpm-lock.yaml
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check native shell and bundled bridge
+        run: pnpm check
+      - name: Build application
+        run: pnpm exec tauri build --no-bundle
+
   end-to-end:
     name: End-to-end
     runs-on: ubuntu-latest

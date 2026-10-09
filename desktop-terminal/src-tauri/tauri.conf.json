@@ -1,0 +1,23 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Makerspace Core Desktop",
+  "version": "0.1.0",
+  "identifier": "at.makerspace.core.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm build:bootstrap && pnpm build:sidecar",
+    "beforeBuildCommand": "pnpm build:bootstrap && pnpm build:sidecar",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "capabilities": ["bootstrap"]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "externalBin": ["binaries/device-bridge"]
+  }
+}

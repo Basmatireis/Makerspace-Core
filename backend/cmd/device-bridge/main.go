@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -23,7 +24,7 @@ import (
 
 type config struct {
 	listen, origins, pairingFile, coreURL, deviceTokenFile, tlsCert, tlsKey string
-	simulator, showPairing                                                  bool
+	simulator, showPairing, deviceTokenStdin                                bool
 }
 
 func main() {
@@ -44,6 +45,7 @@ func run() error {
 	flag.StringVar(&cfg.pairingFile, "pairing-key-file", defaultPairing, "0600 file containing the browser pairing key")
 	flag.StringVar(&cfg.coreURL, "core-url", "", "optional Makerspace Core base URL")
 	flag.StringVar(&cfg.deviceTokenFile, "device-token-file", "", "optional 0600 file containing the managed-device token")
+	flag.BoolVar(&cfg.deviceTokenStdin, "device-token-stdin", false, "read the managed-device token once from standard input")
 	flag.StringVar(&cfg.tlsCert, "tls-cert", "", "optional local TLS certificate")
 	flag.StringVar(&cfg.tlsKey, "tls-key", "", "optional local TLS private key")
 	flag.BoolVar(&cfg.simulator, "simulator", false, "enable development-only NFC simulation")
@@ -79,14 +81,17 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go pcsc.Run(ctx, broker)
-	if cfg.simulator {
-		go simulatorConsole(ctx, broker)
-	}
-	if cfg.coreURL != "" || cfg.deviceTokenFile != "" {
-		if cfg.coreURL == "" || cfg.deviceTokenFile == "" {
-			return errors.New("core-url and device-token-file must be configured together")
+	if cfg.coreURL != "" || cfg.deviceTokenFile != "" || cfg.deviceTokenStdin {
+		if cfg.coreURL == "" || (cfg.deviceTokenFile == "") == !cfg.deviceTokenStdin {
+			return errors.New("core-url requires exactly one of device-token-file or device-token-stdin")
 		}
-		token, readErr := readSecretFile(cfg.deviceTokenFile)
+		var token string
+		var readErr error
+		if cfg.deviceTokenStdin {
+			token, readErr = readSecretStdin()
+		} else {
+			token, readErr = readSecretFile(cfg.deviceTokenFile)
+		}
 		if readErr != nil {
 			return readErr
 		}
@@ -95,6 +100,11 @@ func run() error {
 			return clientErr
 		}
 		go reportToCore(ctx, client, bridge, capabilities)
+	}
+	// The desktop shell sends the managed-device credential on stdin before the
+	// development simulator starts reading commands from the same stream.
+	if cfg.simulator {
+		go simulatorConsole(ctx, broker)
 	}
 
 	httpServer := &http.Server{Addr: cfg.listen, Handler: bridge.Handler(), ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 35 * time.Second, MaxHeaderBytes: 16 << 10}
@@ -117,6 +127,23 @@ func run() error {
 		return nil
 	}
 	return err
+}
+
+func readSecretStdin() (string, error) {
+	return readSecret(os.Stdin)
+}
+
+func readSecret(input io.Reader) (string, error) {
+	reader := bufio.NewReader(io.LimitReader(input, 129))
+	value, err := reader.ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return "", errors.New("read managed-device credential from standard input")
+	}
+	value = strings.TrimSpace(value)
+	if value == "" || len(value) > 128 {
+		return "", errors.New("managed-device credential from standard input is invalid")
+	}
+	return value, nil
 }
 
 func reportToCore(ctx context.Context, client *devicebridge.CoreClient, bridge *devicebridge.Server, capabilities func() []devicebridge.Capability) {

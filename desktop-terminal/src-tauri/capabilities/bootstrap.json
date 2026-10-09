@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "bootstrap",
+  "description": "Allows the bundled registration page to register this desktop; remote Core pages receive no Tauri command permissions.",
+  "windows": ["main"],
+  "local": true,
+  "permissions": ["core:default"]
+}

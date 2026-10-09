@@ -33,6 +33,13 @@ android-terminal/build/
 android-terminal/app/build/
 android-terminal/local.properties
 
+# Desktop terminal build output
+desktop-terminal/node_modules/
+desktop-terminal/dist/
+desktop-terminal/src-tauri/target/
+desktop-terminal/src-tauri/binaries/
+desktop-terminal/src-tauri/gen/
+
 # Local PostgreSQL data when a bind mount is used for troubleshooting
 .postgres-data/
 

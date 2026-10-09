@@ -218,11 +218,22 @@ export class AndroidDeviceBridge implements DeviceBridge {
   }
 }
 
-declare global { interface Window { makerspaceDeviceBridgeNative?: NativeTransport } }
+type EmbeddedDesktopBridgeConfig = { baseURL: string; pairingKey: string };
+
+declare global {
+  interface Window {
+    makerspaceDeviceBridgeNative?: NativeTransport;
+    makerspaceDesktopBridge?: EmbeddedDesktopBridgeConfig;
+  }
+}
 
 export function createPlatformDeviceBridge(): DeviceBridge {
-  return window.makerspaceDeviceBridgeNative ? new AndroidDeviceBridge(window.makerspaceDeviceBridgeNative) : new BrowserDeviceBridge();
+  if (window.makerspaceDeviceBridgeNative) return new AndroidDeviceBridge(window.makerspaceDeviceBridgeNative);
+  if (window.makerspaceDesktopBridge) return new DesktopDeviceBridge(window.makerspaceDesktopBridge);
+  return new BrowserDeviceBridge();
 }
+
+export function hasEmbeddedDesktopBridge(): boolean { return window.makerspaceDesktopBridge !== undefined; }
 
 function normalizeDeviceInfo(value: unknown): DeviceInfo {
   if (!isRecord(value) || value.protocolVersion !== 1 || !['desktop', 'android', 'browser'].includes(String(value.platform)) || !Array.isArray(value.capabilities)) {

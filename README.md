@@ -98,7 +98,7 @@ Stable releases are explicit: push a `vMAJOR.MINOR.PATCH` tag to run the same va
 - [Orders, payments, and external wiRef invoicing](docs/orders.md)
 - [Terminal, attendance, session policies, and surveys](docs/terminal-attendance-surveys.md)
 - [Device Bridge architecture](docs/device-bridge.md)
-- [Desktop Device Bridge](docs/desktop-device-bridge.md)
+- [Desktop terminal](docs/desktop-device-bridge.md)
 - [Android terminal](docs/android-terminal.md)
 - [Authentication and sessions](docs/authentication.md)
 - [Bootstrap, recovery, cleanup, and deployment operations](docs/operations.md)

@@ -7,7 +7,7 @@
 - [Authorization](authorization.md)
 - [Managed devices](managed-devices.md)
 - [Device Bridge architecture](device-bridge.md)
-- [Desktop Device Bridge](desktop-device-bridge.md)
+- [Desktop terminal](desktop-device-bridge.md)
 - [Android terminal](android-terminal.md)
 - [Terminal, attendance, session policies, and surveys](terminal-attendance-surveys.md)
 - [Orders, payments, and invoicing requests](orders.md)

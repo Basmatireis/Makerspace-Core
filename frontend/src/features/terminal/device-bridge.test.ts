@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-  AndroidDeviceBridge, BrowserDeviceBridge, DesktopDeviceBridge, DeviceBridgeError,
+  AndroidDeviceBridge, BrowserDeviceBridge, createPlatformDeviceBridge, DesktopDeviceBridge, DeviceBridgeError,
 } from './device-bridge';
 
 const info = {
@@ -13,6 +13,12 @@ const info = {
 };
 
 describe('Device Bridge contract', () => {
+  afterEach(() => {
+    delete window.makerspaceDesktopBridge;
+    delete window.makerspaceDeviceBridgeNative;
+    vi.unstubAllGlobals();
+  });
+
   it('keeps ordinary browsers usable and returns a clear unsupported error', async () => {
     const bridge = new BrowserDeviceBridge();
     await expect(bridge.getCapabilities()).resolves.toEqual([]);
@@ -28,7 +34,11 @@ describe('Device Bridge contract', () => {
     expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:17321/v1/info', expect.objectContaining({
       headers: expect.objectContaining({ Authorization: `Pairing ${'a'.repeat(32)}` }),
     }));
-    vi.unstubAllGlobals();
+  });
+
+  it('automatically selects the bridge injected by the desktop shell', () => {
+    window.makerspaceDesktopBridge = { baseURL: 'http://127.0.0.1:17321', pairingKey: 'a'.repeat(32) };
+    expect(createPlatformDeviceBridge()).toBeInstanceOf(DesktopDeviceBridge);
   });
 
   it('normalizes desktop NFC events and ignores duplicates for one-shot scans', async () => {
@@ -45,7 +55,6 @@ describe('Device Bridge contract', () => {
     const bridge = new DesktopDeviceBridge({ baseURL: 'http://localhost:17321', pairingKey: 'b'.repeat(32) });
     await expect(bridge.scanNfc({ timeoutMs: 1_000 })).resolves.toMatchObject({ kind: 'nfc_scan', uid: '04B8', duplicate: false });
     bridge.disconnect();
-    vi.unstubAllGlobals();
   });
 
   it('uses the narrow Android message transport and the same event format', async () => {

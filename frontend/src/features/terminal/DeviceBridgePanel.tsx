@@ -1,13 +1,14 @@
 import { Button, Form, InlineNotification, PasswordInput, Stack, Tag, TextInput, Tile } from '@carbon/react';
 import { useEffect, useState } from 'react';
 import { useDeviceBridge } from './DeviceBridgeProvider';
-import type { NfcEvent } from './device-bridge';
+import { hasEmbeddedDesktopBridge, type NfcEvent } from './device-bridge';
 
 export function DeviceBridgeConnectionPanel() {
   const { info, error, connectDesktop, disconnect } = useDeviceBridge();
   const [baseURL, setBaseURL] = useState('http://127.0.0.1:17321');
   const [pairingKey, setPairingKey] = useState('');
   const [pending, setPending] = useState(false);
+  if (hasEmbeddedDesktopBridge()) return null;
 
   return <Tile><Stack gap={4}>
     <div><h2>Local hardware bridge</h2><p className="section-description">Connect this browser session to the loopback Desktop Bridge. The pairing key stays in memory and is cleared on reload.</p></div>

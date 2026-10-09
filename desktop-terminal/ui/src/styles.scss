@@ -1,0 +1,50 @@
+@use '@carbon/styles/scss/reset';
+@use '@carbon/styles/scss/fonts/sans';
+@use '@carbon/styles/scss/type';
+@use '@carbon/styles/scss/spacing';
+@use '@carbon/styles/scss/components/button';
+@use '@carbon/styles/scss/components/checkbox';
+@use '@carbon/styles/scss/components/form';
+@use '@carbon/styles/scss/components/notification';
+@use '@carbon/styles/scss/components/stack';
+@use '@carbon/styles/scss/components/text-input';
+@use '@carbon/styles/scss/components/tile';
+
+@include sans.light($styles: normal, $unicode-ranges: (Latin1, Latin2));
+@include sans.regular($styles: normal, $unicode-ranges: (Latin1, Latin2));
+@include sans.semibold($styles: normal, $unicode-ranges: (Latin1, Latin2));
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  color: var(--cds-text-primary);
+  background: var(--cds-background);
+}
+
+.registration-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: spacing.$spacing-07;
+  box-sizing: border-box;
+}
+
+.registration-card {
+  width: min(34rem, 100%);
+}
+
+.registration-card h1 {
+  @include type.type-style('heading-05');
+  margin: 0 0 spacing.$spacing-04;
+}
+
+.registration-card p {
+  @include type.type-style('body-01');
+  margin: 0;
+  color: var(--cds-text-secondary);
+}

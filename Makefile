@@ -5,8 +5,8 @@ SHELL := /bin/sh
 .PHONY: help dev dev-detached down logs db-up db-shell \
 	migrate-up migrate-down migrate-status \
 	generate generate-openapi-go generate-openapi-ts generate-sqlc \
-	test test-backend test-frontend test-integration test-e2e test-production-compose test-android \
-	check check-generated check-backend check-frontend build admin bootstrap-master reset-password
+	test test-backend test-frontend test-integration test-e2e test-production-compose test-android test-desktop \
+	check check-generated check-backend check-frontend build build-desktop admin bootstrap-master reset-password
 
 help: ## Show available targets.
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "%-24s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -66,6 +66,10 @@ test-production-compose: ## Smoke-test the standalone production Compose release
 test-android: ## Build and unit-test the Android terminal in a pinned SDK container.
 	./scripts/test-android-terminal.sh
 
+test-desktop: ## Build the PC/SC sidecar and run Rust formatting, lint, and unit checks.
+	cd desktop-terminal && pnpm install --frozen-lockfile
+	cd desktop-terminal && pnpm check
+
 test-integration: migrate-up ## Run Go tests against the Compose PostgreSQL instance.
 	docker compose run --rm -e APP_ENV=test backend sh -c 'TEST_DATABASE_URL="$$DATABASE_URL" go test -count=1 ./...'
 
@@ -92,6 +96,10 @@ check-frontend: ## Run lint, type checking, tests, and a production build.
 build: ## Build the backend and frontend production images.
 	docker build --target final -f backend/Dockerfile .
 	docker build --target final -f frontend/Dockerfile .
+
+build-desktop: ## Build the native desktop application and platform installer.
+	cd desktop-terminal && pnpm install --frozen-lockfile
+	cd desktop-terminal && pnpm build
 
 admin: db-up ## Run the administrative CLI; pass non-secret arguments with ARGS='...'.
 	docker compose --profile tools run --rm --build admin $(ARGS)

@@ -1,67 +1,57 @@
-# Desktop Device Bridge
+# Desktop terminal
 
-The Desktop Device Bridge is a small Go process that exposes local hardware to the existing React application. The browser uses the platform-neutral `DeviceBridge` interface; it does not contain PC/SC code and it never receives the managed-device token.
+Makerspace Core Desktop is a Tauri application that loads the existing Core web application in the operating system WebView and adds local hardware support. It follows the same model as the Android terminal: Core remains the source of UI and business rules, while the native shell owns the managed-device credential, navigation boundary, and hardware adapter.
 
-The bridge listens on loopback only, defaults to `127.0.0.1:17321`, checks the HTTP `Host` header, permits an explicit origin allowlist, and requires `Authorization: Pairing <key>` on every protected request. The key is generated into the operating system's user configuration directory with mode `0600`. It is shown only when the operator explicitly runs `--show-pairing-key` and is kept in React memory only for the current page lifetime.
+The desktop app bundles the Go Device Bridge as a private sidecar. The shell starts it on `127.0.0.1:17321`, creates the pairing key, restricts it to the configured Core origin, and injects the loopback connection into the web application. Operators do not copy a pairing key or run a second process. Ordinary browsers continue to use the browser fallback and do not become Managed Devices automatically.
 
-## Build and run
+## Register a desktop
 
-Run commands from `backend/`.
+1. In **Administration → Managed devices**, create or edit a device with the required application modes and capabilities. Select native-token delivery.
+2. Start Makerspace Core Desktop and enter the exact Core origin plus the one-time managed-device token.
+3. The shell verifies the token with Core before loading the web application. An entrance device with `visitor_terminal` opens `/terminal`; other permitted devices open `/login`.
 
-```sh
-go run ./cmd/device-bridge --simulator
-go run ./cmd/device-bridge --show-pairing-key
-```
+Production registrations require HTTPS. Debug builds also accept loopback HTTP for local development. A revoked, expired, or invalid token leaves the app on its registration screen with an actionable error. Set `MAKERSPACE_DESKTOP_RESET_REGISTRATION=1` for one launch to remove the saved registration and credential.
 
-The default build reports NFC as unsupported. A hardware build uses the `pcsc` build tag and CGO:
+The token is stored in the operating system credential store and installed into the WebView as the same HttpOnly, SameSite managed-device cookie used by Android. It is passed once to the bundled sidecar over stdin. It is never placed in command arguments, environment variables, URLs, JavaScript storage, configuration files, or logs. Non-secret registration metadata and the loopback pairing key live in the app configuration directory; private files use mode `0600` on Unix.
 
-```sh
-go build -tags pcsc -o device-bridge ./cmd/device-bridge
-```
+The remote Core page has no Tauri command permissions. Navigation is limited to the exact registered Core origin, and only the bundled registration page can invoke registration. The managed-device identity and a staff user session remain separate credentials. Closing or restarting the native app does not extend a server-expired user session.
 
-- macOS links the system PC/SC framework.
-- Linux requires the PC/SC headers and `pkg-config` at build time, normally `libpcsclite-dev`, and a running `pcscd` service at runtime.
-- Windows requires a CGO toolchain and links `winscard`.
+## Build and test
 
-Configure the production Core origin explicitly. For example:
+Install the normal Tauri 2 prerequisites for the target operating system, Go, Rust, Node.js, and pnpm. Run from the repository root:
 
 ```sh
-./device-bridge \
-  --origins https://core.example.org \
-  --core-url https://core.example.org \
-  --device-token-file /secure/path/managed-device.token
+make test-desktop
+make build-desktop
 ```
 
-The token file must be mode `0600` or stricter. `--core-url` and `--device-token-file` are an all-or-nothing pair. The bridge reports its current capabilities to Core, but it never sends NFC UIDs to that endpoint. Use `--tls-cert` and `--tls-key` together when browser policy or local deployment requires HTTPS on loopback.
+`build-desktop` compiles the PC/SC-enabled Go sidecar for the Rust host target and then creates the platform Tauri bundle. Platform hardware prerequisites are:
 
-In **Administration → Managed devices**, open **Local hardware bridge**, enter the loopback URL and pairing key, and connect. The pairing material is intentionally lost on reload.
+- macOS: the system PC/SC framework;
+- Linux: PC/SC headers and `pkg-config` at build time, normally `libpcsclite-dev`, plus `pcscd` at runtime;
+- Windows: a CGO toolchain and WinSCard.
 
-To register the bridge with Core, create or edit the Managed Device with the required application modes and configured `nfc` capability, select native-token delivery, and store the one-time value in the protected token file. The hardware report endpoint will show `nfc` as effective only when both the administrator configuration and current bridge report contain it.
+The simulator checkbox exists only in debug builds. Simulated NFC is visible in the UI but is excluded from capability reports to Core.
 
-## Protocol
+## Loopback protocol
 
 Protocol version 1 provides:
 
 - `GET /health`, an unauthenticated loopback liveness check;
 - `GET /v1/info`, authenticated device and capability state;
 - `GET /v1/events?after=<sequence>&wait=25s`, authenticated long polling with a monotonic reconnect cursor;
-- `POST /v1/simulator/events`, available only when `--simulator` is enabled.
+- `POST /v1/simulator/events`, present only when the debug simulator is enabled.
 
-Events distinguish NFC scans, tag removal, reader connection changes, and unsupported capability states. NFC UIDs are normalized hexadecimal technical identifiers. Duplicate reads inside the debounce window are marked, while one-shot scans ignore duplicates. Reader names are metadata only and never authorize access.
+The sidecar binds only to loopback, checks the HTTP `Host` header, permits one exact Core origin, and requires `Authorization: Pairing <key>` on protected requests. Events contain normalized technical observations such as reader state, UID, source, timestamp, and sequence. They do not authenticate, admit, or check in a person.
 
-The simulator accepts `scan <uid>`, `duplicate <uid>`, `remove`, `disconnect`, `reconnect`, and `unsupported` on standard input. The simulator HTTP endpoint accepts the same actions as JSON and is absent when the flag is disabled.
+The PC/SC adapter enumerates readers and uses the common `FF CA 00 00 00` UID APDU. Readers or tags that do not implement it return `uid_read_unsupported`. Concrete USB drivers, reader-specific APDUs, card-sector reads, and identity mapping remain outside this implementation.
 
-## Hardware limits
+For development and diagnostics, the Go sidecar can still run separately from `backend/`:
 
-The PC/SC adapter enumerates readers and uses the common `FF CA 00 00 00` UID APDU. Some readers, tags, and vendor drivers do not implement that command. Those devices produce an explicit `uid_read_unsupported` capability event instead of a fabricated identifier. Reader-specific APDUs, USB drivers, card-sector reads, and business identity mapping are intentionally outside this bridge.
+```sh
+go run ./cmd/device-bridge --simulator
+go run ./cmd/device-bridge --show-pairing-key
+go build -tags pcsc -o device-bridge ./cmd/device-bridge
+```
 
-The process logs operational state only. Pairing keys, managed-device tokens, NFC UIDs, HTTP bodies, and authorization headers must not be logged. Production service packaging should run it as the signed-in desktop user with the narrow origin list and a protected token file.
-
-Common failures are intentionally visible:
-
-- `unsupported` means the binary lacks the `pcsc` tag or CGO support.
-- `pcsc_service_unavailable` means the operating-system smart-card service could not be opened.
-- `disconnected` means no PC/SC reader is enumerated; check the cable, OS service, and vendor support.
-- `uid_read_unsupported` means the reader/tag rejected the generic UID APDU; a reader-specific implementation would be required.
-- HTTP 401 from the loopback API means the pairing key is wrong; HTTP 403 usually means the Core origin or loopback Host was rejected.
-- A browser network error with an HTTPS Core deployment can require locally trusted TLS for the bridge, depending on browser private-network policy.
+The standalone mode retains manual loopback pairing in the web UI. It is a diagnostic path; the packaged desktop app is the normal desktop deployment.

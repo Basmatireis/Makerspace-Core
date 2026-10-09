@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- provider and hook form one bridge module */
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import {
-  BrowserDeviceBridge, createPlatformDeviceBridge, DesktopDeviceBridge, type DeviceBridge, type DeviceInfo,
+  BrowserDeviceBridge, createPlatformDeviceBridge, DesktopDeviceBridge, hasEmbeddedDesktopBridge, type DeviceBridge, type DeviceInfo,
 } from './device-bridge';
 
 type DeviceBridgeContextValue = {
@@ -21,13 +21,27 @@ export function DeviceBridgeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const controller = new AbortController();
-    void bridge.getDeviceInfo({ signal: controller.signal }).then((value) => {
-      setInfo(value);
-      setError(null);
-    }).catch((caught: unknown) => {
-      if (!controller.signal.aborted) setError(caught instanceof Error ? caught : new Error('Device bridge is unavailable'));
-    });
-    return () => controller.abort();
+    let retry: number | undefined;
+    let attempt = 0;
+    const load = () => {
+      void bridge.getDeviceInfo({ signal: controller.signal }).then((value) => {
+        setInfo(value);
+        setError(null);
+      }).catch((caught: unknown) => {
+        if (controller.signal.aborted) return;
+        attempt += 1;
+        if (hasEmbeddedDesktopBridge() && attempt < 20) {
+          retry = window.setTimeout(load, 250);
+          return;
+        }
+        setError(caught instanceof Error ? caught : new Error('Device bridge is unavailable'));
+      });
+    };
+    load();
+    return () => {
+      controller.abort();
+      if (retry !== undefined) window.clearTimeout(retry);
+    };
   }, [bridge]);
 
   const value = useMemo<DeviceBridgeContextValue>(() => ({
