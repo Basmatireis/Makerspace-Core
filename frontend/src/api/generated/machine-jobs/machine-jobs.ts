@@ -31,7 +31,6 @@ import type {
   ReplaceMachineJobUsagesRequest,
   SearchMachineJobOperatorsParams,
   UUIDv7,
-  UpdateMachineJobBillingRequest,
   UpdateMachineJobRequest,
   VersionRequest
 } from '.././models';
@@ -313,31 +312,6 @@ export const clearMachineJobPriceOverride = async (machineJobId: UUIDv7,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       versionRequest,)
-  }
-);}
-
-
-/**
- * @summary Update the minimal billing state
- */
-export const getUpdateMachineJobBillingUrl = (machineJobId: UUIDv7,) => {
-
-
-  
-
-  return `/api/v1/machine-jobs/${machineJobId}/billing`
-}
-
-export const updateMachineJobBilling = async (machineJobId: UUIDv7,
-    updateMachineJobBillingRequest: UpdateMachineJobBillingRequest, options?: RequestInit): Promise<MachineJob> => {
-  
-  return apiFetch<MachineJob>(getUpdateMachineJobBillingUrl(machineJobId),
-  {      
-    ...options,
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      updateMachineJobBillingRequest,)
   }
 );}
 

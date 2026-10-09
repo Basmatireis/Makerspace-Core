@@ -9,6 +9,7 @@ import { AppShell } from './AppShell';
 import { NotFoundPage } from './NotFoundPage';
 import { InformationPage } from './InformationPage';
 import { FullPageLoading } from './PageState';
+import { DeviceBridgeProvider } from '../features/terminal/DeviceBridgeProvider';
 
 const ResetPasswordPage = lazy(() => import('../features/auth/ResetPasswordPage').then(({ ResetPasswordPage }) => ({ default: ResetPasswordPage })));
 const InvitationPage = lazy(() => import('../features/auth/ResetPasswordPage').then(({ InvitationPage }) => ({ default: InvitationPage })));
@@ -17,6 +18,41 @@ const EmailVerificationPage = lazy(() => import('../features/auth/ResetPasswordP
 const VisitorEnrollmentPage = lazy(() => import('../features/visitor/VisitorEnrollmentPage').then(({ VisitorEnrollmentPage }) => ({ default: VisitorEnrollmentPage })));
 const LegalPage = lazy(() => import('../features/branding/LegalPage').then(({ LegalPage }) => ({ default: LegalPage })));
 const ProfilePage = lazy(() => import('../features/profile/ProfilePage').then(({ ProfilePage }) => ({ default: ProfilePage })));
+const OrdersPage = lazy(() =>
+  import('../features/orders/OrdersPage').then((m) => ({
+    default: m.OrdersPage,
+  })),
+);
+const OrderDetailPage = lazy(() =>
+  import('../features/orders/OrderDetailPage').then((m) => ({
+    default: m.OrderDetailPage,
+  })),
+);
+const CounterSalePage = lazy(() =>
+  import('../features/orders/CounterSalePage').then((m) => ({
+    default: m.CounterSalePage,
+  })),
+);
+const PaymentsPage = lazy(() =>
+  import('../features/orders/PaymentsPage').then((m) => ({
+    default: m.PaymentsPage,
+  })),
+);
+const PaymentDetailPage = lazy(() =>
+  import('../features/orders/PaymentsPage').then((m) => ({
+    default: m.PaymentDetailPage,
+  })),
+);
+const ExternalInvoicingPage = lazy(() =>
+  import('../features/orders/ExternalInvoicingPage').then((m) => ({
+    default: m.ExternalInvoicingPage,
+  })),
+);
+const ExternalInvoiceDetailPage = lazy(() =>
+  import('../features/orders/ExternalInvoicingPage').then((m) => ({
+    default: m.ExternalInvoiceDetailPage,
+  })),
+);
 const MachineLogbookOverviewPage = lazy(() => import('../features/machinelogbook/OverviewPage').then(({ MachineLogbookOverviewPage }) => ({ default: MachineLogbookOverviewPage })));
 const JobsPage = lazy(() => import('../features/machinelogbook/JobsPage').then(({ JobsPage }) => ({ default: JobsPage })));
 const JobDetailPage = lazy(() => import('../features/machinelogbook/JobDetailPage').then(({ JobDetailPage }) => ({ default: JobDetailPage })));
@@ -49,6 +85,11 @@ const EventCreatePage = lazy(() => import('../features/events/EventCreatePage').
 const EventDetailPage = lazy(() => import('../features/events/EventDetailPage').then(({ EventDetailPage }) => ({ default: EventDetailPage })));
 const PublicEventPage = lazy(() => import('../features/events/PublicEventPage').then(({ PublicEventPage }) => ({ default: PublicEventPage })));
 const EventSignupManagementPage = lazy(() => import('../features/events/EventSignupManagementPage').then(({ EventSignupManagementPage }) => ({ default: EventSignupManagementPage })));
+const VisitorTerminalPage = lazy(() => import('../features/terminal/VisitorTerminalPage').then(({ VisitorTerminalPage }) => ({ default: VisitorTerminalPage })));
+const PublicSurveyPage = lazy(() => import('../features/surveys/PublicSurveyPage').then(({ PublicSurveyPage }) => ({ default: PublicSurveyPage })));
+const AttendancePage = lazy(() => import('../features/attendance/AttendancePage').then(({ AttendancePage }) => ({ default: AttendancePage })));
+const SessionPoliciesPage = lazy(() => import('../features/devices/SessionPoliciesPage').then(({ SessionPoliciesPage }) => ({ default: SessionPoliciesPage })));
+const SurveyAdminPage = lazy(() => import('../features/surveys/SurveyAdminPage').then(({ SurveyAdminPage }) => ({ default: SurveyAdminPage })));
 
 function ProtectedApp() {
   return (
@@ -86,6 +127,7 @@ function OpenDayScheduleRedirect() {
 
 export function App() {
   return (
+    <DeviceBridgeProvider>
     <Suspense fallback={<FullPageLoading label="Loading page" />}>
       <Routes>
       <Route path="/login" element={<LoginPage />} />
@@ -94,6 +136,8 @@ export function App() {
 	  <Route path="/complete-pin-setup" element={<PINEnrollmentPage />} />
 	  <Route path="/verify-email" element={<EmailVerificationPage />} />
       <Route path="/visitor-enrollment" element={<VisitorEnrollmentPage />} />
+      <Route path="/terminal" element={<VisitorTerminalPage />} />
+      <Route path="/survey/:token" element={<PublicSurveyPage />} />
       <Route path="/legal/imprint" element={<LegalPage kind="imprint" />} />
       <Route path="/legal/privacy" element={<LegalPage kind="privacy" />} />
       <Route path="/legal-and-privacy" element={<Navigate to="/legal/imprint" replace />} />
@@ -103,6 +147,7 @@ export function App() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="profile" element={<ProfilePage />} />
+		<Route path="attendance" element={<PermissionRoute anyOf={[PermissionId.attendanceread, PermissionId.attendanceassist, PermissionId.attendancestatisticsread]}><AttendancePage /></PermissionRoute>} />
 		<Route path="events" element={<PermissionRoute anyOf={[PermissionId.eventsread, PermissionId.eventsmanage, PermissionId.eventsstaffingmanage, PermissionId.eventsassign]}><EventsPage /></PermissionRoute>} />
 		<Route path="events/new" element={<PermissionRoute allOf={[PermissionId.eventsmanage]}><EventCreatePage /></PermissionRoute>} />
 		<Route path="events/:eventId" element={<PermissionRoute anyOf={[PermissionId.eventsread, PermissionId.eventsmanage, PermissionId.eventsstaffingmanage, PermissionId.eventsassign]}><EventDetailPage /></PermissionRoute>} />
@@ -147,6 +192,8 @@ export function App() {
             </PermissionRoute>
           )}
         />
+		<Route path="settings/session-policies" element={<PermissionRoute allOf={[PermissionId.session_policiesmanage]}><SessionPoliciesPage /></PermissionRoute>} />
+		<Route path="settings/surveys" element={<PermissionRoute anyOf={[PermissionId.surveysread, PermissionId.surveysmanage]}><SurveyAdminPage /></PermissionRoute>} />
 		<Route path="settings/laborordnung" element={<PermissionRoute anyOf={[PermissionId.laborordnungread, PermissionId.laborordnungmanage, PermissionId.laborordnungrequestsread]}><LaborordnungPage /></PermissionRoute>} />
         <Route path="settings/oidc" element={<PermissionRoute allOf={[PermissionId.oidcmanage]}><OIDCProvidersPage /></PermissionRoute>} />
         <Route path="settings/scim" element={<PermissionRoute allOf={[PermissionId.scimmanage]}><SCIMConnectorsPage /></PermissionRoute>} />
@@ -170,6 +217,74 @@ export function App() {
           path="people/:personId"
           element={<PermissionRoute allOf={[PermissionId.peoplereadall]}><UserDetailPage /></PermissionRoute>}
         />
+        <Route
+          path="orders"
+          element={
+            <PermissionRoute allOf={[PermissionId.ordersread]}>
+              <OrdersPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="orders/counter-sale"
+          element={
+            <PermissionRoute
+              allOf={[
+                PermissionId.ordersread,
+                PermissionId.orderswrite,
+                PermissionId.ordersfinalize,
+                PermissionId.paymentsread,
+                PermissionId.paymentsrecord,
+              ]}
+            >
+              <CounterSalePage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="orders/:orderId"
+          element={
+            <PermissionRoute allOf={[PermissionId.ordersread]}>
+              <OrderDetailPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="payments"
+          element={
+            <PermissionRoute allOf={[PermissionId.paymentsread]}>
+              <PaymentsPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="payments/:paymentId"
+          element={
+            <PermissionRoute allOf={[PermissionId.paymentsread]}>
+              <PaymentDetailPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="external-invoicing"
+          element={
+            <PermissionRoute
+              allOf={[PermissionId.external_invoice_requestsread]}
+            >
+              <ExternalInvoicingPage />
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="external-invoicing/:requestId"
+          element={
+            <PermissionRoute
+              allOf={[PermissionId.external_invoice_requestsread]}
+            >
+              <ExternalInvoiceDetailPage />
+            </PermissionRoute>
+          }
+        />
         <Route path="audit-log" element={<PermissionRoute allOf={[PermissionId.auditread]}><ActivityPage /></PermissionRoute>} />
         <Route path="about" element={<InformationPage title="About" />} />
         <Route path="settings/users/*" element={<LegacyRedirect from="/settings/users" to="/people" />} />
@@ -190,5 +305,6 @@ export function App() {
       </Route>
       </Routes>
     </Suspense>
+    </DeviceBridgeProvider>
   );
 }

@@ -397,7 +397,7 @@ func (s *Server) ListMachineJobs(ctx context.Context, r openapi.ListMachineJobsR
 	if err != nil {
 		return nil, err
 	}
-	items, total, err := s.machineLogbook.ListJobs(ctx, p, machinelogbook.JobFilters{Search: defaultString(r.Params.Search), MachineID: r.Params.MachineId, CustomerID: r.Params.CustomerId, OperatorID: r.Params.OperatorPersonId, MaterialID: r.Params.MaterialId, Outcome: stringEnum(r.Params.Outcome), BillingStatus: stringEnum(r.Params.BillingStatus), Source: stringEnum(r.Params.Source), ReviewState: stringEnum(r.Params.ReviewState), From: r.Params.From, To: r.Params.To, Page: defaultInt(r.Params.Page, 1), PageSize: defaultInt(r.Params.PageSize, 25)})
+	items, total, err := s.machineLogbook.ListJobs(ctx, p, machinelogbook.JobFilters{Search: defaultString(r.Params.Search), MachineID: r.Params.MachineId, CustomerID: r.Params.CustomerId, OperatorID: r.Params.OperatorPersonId, MaterialID: r.Params.MaterialId, Outcome: stringEnum(r.Params.Outcome), Source: stringEnum(r.Params.Source), ReviewState: stringEnum(r.Params.ReviewState), From: r.Params.From, To: r.Params.To, Page: defaultInt(r.Params.Page, 1), PageSize: defaultInt(r.Params.PageSize, 25)})
 	if err != nil {
 		return nil, err
 	}
@@ -479,7 +479,11 @@ func (s *Server) UpdateMachineJob(ctx context.Context, r openapi.UpdateMachineJo
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.UpdateJobFacts(ctx, p, r.MachineJobId, r.Body.ExpectedVersion, machinelogbook.JobInput{MachineID: r.Body.MachineId, StartsAt: r.Body.StartsAt, EndsAt: r.Body.EndsAt, Customer: partyInput(r.Body.Customer), OperatorPersonID: r.Body.OperatorPersonId, Outcome: string(r.Body.Outcome), Notes: nullableStringPointer(r.Body.Notes), PricingGroupID: uuidNullable(r.Body.PricingGroupId)}, requestIDPointer(ctx))
+	customer := machinelogbook.PartyReference{}
+	if r.Body.Customer != nil {
+		customer = partyInput(*r.Body.Customer)
+	}
+	item, err := s.machineLogbook.UpdateJobFacts(ctx, p, r.MachineJobId, r.Body.ExpectedVersion, machinelogbook.JobInput{MachineID: r.Body.MachineId, StartsAt: r.Body.StartsAt, EndsAt: r.Body.EndsAt, Customer: customer, OperatorPersonID: r.Body.OperatorPersonId, Outcome: string(r.Body.Outcome), Notes: nullableStringPointer(r.Body.Notes), PricingGroupID: uuidNullable(r.Body.PricingGroupId)}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -541,21 +545,6 @@ func (s *Server) ClearMachineJobPriceOverride(ctx context.Context, r openapi.Cle
 	}
 	return openapi.ClearMachineJobPriceOverride200JSONResponse(mlJobDTO(item)), nil
 }
-func (s *Server) UpdateMachineJobBilling(ctx context.Context, r openapi.UpdateMachineJobBillingRequestObject) (openapi.UpdateMachineJobBillingResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if r.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	item, err := s.machineLogbook.UpdateJobBilling(ctx, p, r.MachineJobId, r.Body.ExpectedVersion, string(r.Body.Status), nullableStringPointer(r.Body.BillingReference), nullableStringPointer(r.Body.WaiverReason), requestIDPointer(ctx))
-	if err != nil {
-		return nil, err
-	}
-	return openapi.UpdateMachineJobBilling200JSONResponse(mlJobDTO(item)), nil
-}
-
 func (s *Server) GetMachineLogbookOverview(ctx context.Context, _ openapi.GetMachineLogbookOverviewRequestObject) (openapi.GetMachineLogbookOverviewResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {

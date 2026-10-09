@@ -31,7 +31,6 @@ import type { MachineJobPricingSnapshot } from './machineJobPricingSnapshot';
 import type { MachineJobCalculatedPrice } from './machineJobCalculatedPrice';
 import type { MachineJobFinalPrice } from './machineJobFinalPrice';
 import type { MachineJobEffectivePrice } from './machineJobEffectivePrice';
-import type { BillingStatus } from './billingStatus';
 import type { Version } from './version';
 
 export interface MachineJob {
@@ -66,9 +65,6 @@ export interface MachineJob {
   priceOverrideReason?: string | null;
   /** @nullable */
   priceOverriddenAt?: string | null;
-  billingStatus: BillingStatus;
-  /** @nullable */
-  billingReference?: string | null;
   version: Version;
   createdAt: string;
   updatedAt: string;

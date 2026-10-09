@@ -31,6 +31,13 @@ const device = {
   expiresAt: null,
   revokedAt: null,
   lastSeenAt: null,
+	sessionPolicyId: null,
+	terminalEnabled: false,
+	allowedApplicationModes: ['staff_ui' as const],
+	checkInAssurance: 'low' as const,
+	checkOutAssurance: 'low' as const,
+	checkoutMode: 'verified' as const,
+	capabilities: [],
   version: 1,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-01T00:00:00Z',
@@ -67,6 +74,13 @@ describe('Managed devices administration', () => {
       deviceTypeId: typeId,
       expiresAt: null,
       credentialDelivery: 'nativeToken',
+	  sessionPolicyId: null,
+	  terminalEnabled: false,
+	  allowedApplicationModes: ['staff_ui'],
+	  checkInAssurance: 'low',
+	  checkOutAssurance: 'low',
+	  checkoutMode: 'verified',
+	  capabilities: [],
     }));
     expect(await screen.findByDisplayValue('a'.repeat(43))).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Dismiss permanently' }));

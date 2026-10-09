@@ -8,13 +8,16 @@ import (
 	"time"
 
 	accountsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/accounts/db"
+	attendancedb "github.com/Basmatireis/Makerspace-Core/backend/internal/attendance/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	authdb "github.com/Basmatireis/Makerspace-Core/backend/internal/auth/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/events"
 	peopledb "github.com/Basmatireis/Makerspace-Core/backend/internal/people/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/security"
+	surveysdb "github.com/Basmatireis/Makerspace-Core/backend/internal/surveys/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -260,6 +263,15 @@ func (s *Service) Cleanup(ctx context.Context, sessionBefore, auditBefore, event
 	resets, err = authQueries.DeleteExpiredPasswordResetTokens(ctx, time.Now().UTC())
 	if err != nil {
 		return sessions, 0, 0, 0, err
+	}
+	if _, err = authQueries.DeleteExpiredAuthSecurityState(ctx, sessionBefore); err != nil {
+		return sessions, resets, 0, 0, err
+	}
+	if _, err = surveysdb.New(s.pool).DeleteExpiredSurveyInvitationPII(ctx, sessionBefore.Add(-7*24*time.Hour)); err != nil {
+		return sessions, resets, 0, 0, err
+	}
+	if _, err = attendancedb.New(s.pool).ArchiveExpiredVisitDetail(ctx, pgtype.Timestamptz{Time: sessionBefore.Add(-90 * 24 * time.Hour), Valid: true}); err != nil {
+		return sessions, resets, 0, 0, err
 	}
 	if !auditBefore.IsZero() {
 		auditEvents, err = audit.NewService(s.pool).DeleteBefore(ctx, auditBefore)

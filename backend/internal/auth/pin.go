@@ -374,12 +374,19 @@ func (s *Service) createPINSession(ctx context.Context, queries *authdb.Queries,
 		return Session{}, err
 	}
 	now := time.Now().UTC()
-	idle, absolute := now.Add(s.config.SessionIdleTTL), now.Add(s.config.SessionAbsoluteTTL)
-	row, err := queries.CreatePINSession(ctx, authdb.CreatePINSessionParams{ID: uuid.Must(uuid.NewV7()), AccountID: accountID, AuthIdentityID: identityID, TokenDigest: tokenDigest, CsrfDigest: csrfDigest, IdleExpiresAt: idle, AbsoluteExpiresAt: absolute})
+	policy, idle, absolute, err := s.sessionDeadlines(ctx, queries, now)
 	if err != nil {
 		return Session{}, err
 	}
-	return Session{ID: row.ID, Token: rawToken, CSRFToken: csrfToken, IdleExpiresAt: row.IdleExpiresAt, AbsoluteExpiry: row.AbsoluteExpiresAt}, nil
+	row, err := queries.CreatePINSession(ctx, authdb.CreatePINSessionParams{ID: uuid.Must(uuid.NewV7()), AccountID: accountID,
+		AuthIdentityID: identityID, TokenDigest: tokenDigest, CsrfDigest: csrfDigest, IdleExpiresAt: idle, AbsoluteExpiresAt: absolute,
+		ManagedDeviceID: policy.ManagedDeviceID, SessionPolicyID: policy.ID, SessionPolicyVersion: policy.Version,
+		IdleTimeoutSeconds: int32(policy.IdleTimeout / time.Second), PostSessionDestination: policy.PostSessionDestination})
+	if err != nil {
+		return Session{}, err
+	}
+	return Session{ID: row.ID, Token: rawToken, CSRFToken: csrfToken, IdleExpiresAt: row.IdleExpiresAt,
+		AbsoluteExpiry: row.AbsoluteExpiresAt, PostSessionDestination: policy.PostSessionDestination}, nil
 }
 
 func (s *Service) pinThrottleDigest(dimension, value string) []byte {

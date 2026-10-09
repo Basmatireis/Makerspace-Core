@@ -25,30 +25,39 @@ SELECT EXISTS (
 );
 
 -- name: CreateSession :one
-INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, authenticated_at, idle_expires_at, absolute_expires_at)
-VALUES (sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(auth_identity_id), sqlc.arg(token_digest), sqlc.arg(csrf_digest), 'password', now(), sqlc.arg(idle_expires_at), sqlc.arg(absolute_expires_at))
+INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, authenticated_at,
+  idle_expires_at, absolute_expires_at, managed_device_id, session_policy_id, session_policy_version,
+  idle_timeout_seconds, post_session_destination)
+VALUES (sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(auth_identity_id), sqlc.arg(token_digest), sqlc.arg(csrf_digest), 'password', now(),
+  sqlc.arg(idle_expires_at), sqlc.arg(absolute_expires_at), sqlc.narg(managed_device_id), sqlc.narg(session_policy_id),
+  sqlc.arg(session_policy_version), sqlc.arg(idle_timeout_seconds), sqlc.arg(post_session_destination))
 RETURNING *;
 
 -- name: CreatePINSession :one
 INSERT INTO sessions (
     id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method,
-    base_assurance, current_assurance, authenticated_at, idle_expires_at, absolute_expires_at
+    base_assurance, current_assurance, authenticated_at, idle_expires_at, absolute_expires_at,
+    managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination
 )
 VALUES (
     sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(auth_identity_id), sqlc.arg(token_digest),
-    sqlc.arg(csrf_digest), 'pin', 'low', 'low', now(), sqlc.arg(idle_expires_at), sqlc.arg(absolute_expires_at)
+    sqlc.arg(csrf_digest), 'pin', 'low', 'low', now(), sqlc.arg(idle_expires_at), sqlc.arg(absolute_expires_at),
+    sqlc.narg(managed_device_id), sqlc.narg(session_policy_id), sqlc.arg(session_policy_version),
+    sqlc.arg(idle_timeout_seconds), sqlc.arg(post_session_destination)
 )
 RETURNING *;
 
 -- name: CreateOIDCSession :one
 INSERT INTO sessions (
     id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method,
-    base_assurance, current_assurance, authenticated_at, idle_expires_at, absolute_expires_at
+    base_assurance, current_assurance, authenticated_at, idle_expires_at, absolute_expires_at,
+    managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination
 )
 VALUES (
     sqlc.arg(id), sqlc.arg(account_id), sqlc.arg(auth_identity_id), sqlc.arg(token_digest),
     sqlc.arg(csrf_digest), 'oidc', sqlc.arg(assurance), sqlc.arg(assurance), sqlc.arg(authenticated_at),
-    sqlc.arg(idle_expires_at), sqlc.arg(absolute_expires_at)
+    sqlc.arg(idle_expires_at), sqlc.arg(absolute_expires_at), sqlc.narg(managed_device_id), sqlc.narg(session_policy_id),
+    sqlc.arg(session_policy_version), sqlc.arg(idle_timeout_seconds), sqlc.arg(post_session_destination)
 )
 RETURNING *;
 
@@ -64,7 +73,8 @@ WHERE accounts.id = sqlc.arg(account_id);
 
 -- name: GetSessionPrincipal :one
 SELECT s.id AS session_id, s.account_id, s.auth_identity_id, s.csrf_digest,
-	       s.idle_expires_at, s.absolute_expires_at, s.last_seen_at,
+	       s.idle_expires_at, s.absolute_expires_at, s.last_seen_at, s.managed_device_id,
+	       s.session_policy_id, s.session_policy_version, s.idle_timeout_seconds, s.post_session_destination,
 	       s.auth_method, s.base_assurance, s.current_assurance, s.authenticated_at, s.assurance_expires_at,
 	       a.person_id, p.first_name, p.last_name
 FROM sessions s JOIN accounts a ON a.id = s.account_id JOIN people p ON p.id = a.person_id
@@ -73,9 +83,27 @@ WHERE s.token_digest = sqlc.arg(token_digest) AND s.revoked_at IS NULL
   AND s.idle_expires_at > now() AND s.absolute_expires_at > now() AND a.status = 'enabled'
   AND i.disabled_at IS NULL;
 
--- name: TouchSession :exec
-UPDATE sessions SET last_seen_at = now(), idle_expires_at = LEAST(sqlc.arg(idle_expires_at), absolute_expires_at)
-WHERE id = sqlc.arg(id) AND last_seen_at < now() - interval '5 minutes' AND revoked_at IS NULL;
+-- name: GetSessionPostDestinationByDigest :one
+SELECT post_session_destination
+FROM sessions
+WHERE token_digest = sqlc.arg(token_digest);
+
+-- name: TouchSession :one
+UPDATE sessions SET last_seen_at = now(),
+  idle_expires_at = LEAST(now() + make_interval(secs => idle_timeout_seconds), absolute_expires_at)
+WHERE id = sqlc.arg(id) AND revoked_at IS NULL AND idle_expires_at > now() AND absolute_expires_at > now()
+RETURNING idle_expires_at, absolute_expires_at, post_session_destination;
+
+-- name: GetEffectiveSessionPolicy :one
+SELECT p.*
+FROM session_policies p
+WHERE p.id = COALESCE(
+  (SELECT md.session_policy_id FROM managed_devices md
+   WHERE md.id = sqlc.narg(managed_device_id) AND md.revoked_at IS NULL
+     AND (md.expires_at IS NULL OR md.expires_at > now())),
+  (SELECT id FROM session_policies WHERE is_default LIMIT 1)
+)
+LIMIT 1;
 
 -- name: RevokeSession :exec
 UPDATE sessions SET revoked_at = COALESCE(revoked_at, now()), revocation_reason = COALESCE(revocation_reason, sqlc.arg(reason))
@@ -229,7 +257,7 @@ WITH deleted_challenges AS (
 SELECT count(*) FROM deleted_challenges;
 
 -- name: FindPINLogin :one
-SELECT a.id AS account_id, a.status, i.id AS auth_identity_id, i.identifier_display AS login_name,
+SELECT a.id AS account_id, a.person_id, a.status, i.id AS auth_identity_id, i.identifier_display AS login_name,
        pc.pin_hash, p.first_name, p.last_name
 FROM auth_identities i
 JOIN accounts a ON a.id = i.account_id

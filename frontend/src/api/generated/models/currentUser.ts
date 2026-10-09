@@ -25,6 +25,7 @@ import type { AuthenticationAssurance } from './authenticationAssurance';
 import type { CurrentUserManagedDevice } from './currentUserManagedDevice';
 import type { PermissionGrant } from './permissionGrant';
 import type { LaborordnungStatus } from './laborordnungStatus';
+import type { SessionContext } from './sessionContext';
 
 export interface CurrentUser {
   account: Account;
@@ -35,4 +36,5 @@ export interface CurrentUser {
   managedDevice: CurrentUserManagedDevice;
   delegablePermissionGrants: PermissionGrant[];
   laborordnungStatus: LaborordnungStatus;
+  session: SessionContext;
 }

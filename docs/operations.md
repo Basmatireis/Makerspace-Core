@@ -53,6 +53,14 @@ docker compose --profile tools run --rm --build admin cleanup --audit-before 202
 
 Cleanup always prunes expired sessions/reset tokens and, by default, audit rows older than the configured retention. `AUDIT_RETENTION=0` is the deliberate opt-out for installations whose confirmed policy requires externally managed retention; it must not arise from a missing configuration value. Test the policy on a backup before the first production audit purge.
 
+The same cleanup removes delivery identity from redeemed or expired Survey invitations after a seven-day operational grace period. Completed and voided Visit detail is removed after 90 days; completed Visit rows are first rolled into non-identifying UTC daily attendance aggregates. Open Visits are never removed by retention cleanup.
+
+Run due post-visit email delivery from the existing scheduler. Claims are concurrency-safe and retry failed or stale deliveries up to the configured database limit:
+
+```sh
+docker compose run --rm --entrypoint /app/admin backend deliver-surveys --limit 100
+```
+
 External Event signup contact snapshots and management-token digests default to a 180-day retention period after an Event is completed or cancelled (`EVENT_SIGNUP_RETENTION=4320h`). The same manual cleanup command erases those fields transactionally, retains only non-PII staffing history and any still-linked Person ID, and records a privacy-minimized audit event. Set `EVENT_SIGNUP_RETENTION=0` only as an explicit opt-out backed by the installation's documented retention policy.
 
 Person and Account deletion remains a separate authorized product operation. Hard deletion cascades credentials and sessions rather than retaining PII under a soft-delete flag. Audit actor references become null and resource UUIDs remain non-PII context.

@@ -21,6 +21,8 @@ the required session and CSRF credentials.
 import type {
   CreateManagedDeviceRequest,
   CreateManagedDeviceTypeRequest,
+  DeviceHardwareContext,
+  DeviceHardwareReport,
   ListManagedDevicesParams,
   ManagedDevice,
   ManagedDeviceList,
@@ -28,8 +30,13 @@ import type {
   ManagedDeviceType,
   ManagedDeviceTypeList,
   RotateManagedDeviceTokenRequest,
+  SessionPolicy,
+  SessionPolicyInput,
+  SessionPolicyList,
+  UUIDv7,
   UpdateManagedDeviceRequest,
   UpdateManagedDeviceTypeRequest,
+  UpdateSessionPolicyRequest,
   VersionRequest
 } from '.././models';
 
@@ -210,6 +217,54 @@ export const createManagedDevice = async (createManagedDeviceRequest: CreateMana
 
 
 /**
+ * @summary Get the authenticated managed device and its hardware report
+ */
+export const getGetOwnManagedDeviceHardwareUrl = () => {
+
+
+  
+
+  return `/api/v1/managed-devices/self/hardware`
+}
+
+export const getOwnManagedDeviceHardware = async ( options?: RequestInit): Promise<DeviceHardwareContext> => {
+  
+  return apiFetch<DeviceHardwareContext>(getGetOwnManagedDeviceHardwareUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+/**
+ * The authenticated device identity is derived from its credential; a body-supplied device ID is never accepted. Native clients may call this operation without a browser Origin by using X-Managed-Device-Token. Cookie-authenticated browser requests remain subject to the configured origin check.
+ * @summary Replace the authenticated managed device's reported hardware capabilities
+ */
+export const getReportOwnManagedDeviceHardwareUrl = () => {
+
+
+  
+
+  return `/api/v1/managed-devices/self/hardware`
+}
+
+export const reportOwnManagedDeviceHardware = async (deviceHardwareReport: DeviceHardwareReport, options?: RequestInit): Promise<DeviceHardwareContext> => {
+  
+  return apiFetch<DeviceHardwareContext>(getReportOwnManagedDeviceHardwareUrl(),
+  {      
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      deviceHardwareReport,)
+  }
+);}
+
+
+/**
  * @summary Get a managed device
  */
 export const getGetManagedDeviceUrl = (managedDeviceId: string,) => {
@@ -328,6 +383,69 @@ export const rotateManagedDeviceToken = async (managedDeviceId: string,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       rotateManagedDeviceTokenRequest,)
+  }
+);}
+
+
+export const getListSessionPoliciesUrl = () => {
+
+
+  
+
+  return `/api/v1/session-policies`
+}
+
+export const listSessionPolicies = async ( options?: RequestInit): Promise<SessionPolicyList> => {
+  
+  return apiFetch<SessionPolicyList>(getListSessionPoliciesUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+export const getCreateSessionPolicyUrl = () => {
+
+
+  
+
+  return `/api/v1/session-policies`
+}
+
+export const createSessionPolicy = async (sessionPolicyInput: SessionPolicyInput, options?: RequestInit): Promise<SessionPolicy> => {
+  
+  return apiFetch<SessionPolicy>(getCreateSessionPolicyUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      sessionPolicyInput,)
+  }
+);}
+
+
+export const getUpdateSessionPolicyUrl = (sessionPolicyId: UUIDv7,) => {
+
+
+  
+
+  return `/api/v1/session-policies/${sessionPolicyId}`
+}
+
+export const updateSessionPolicy = async (sessionPolicyId: UUIDv7,
+    updateSessionPolicyRequest: UpdateSessionPolicyRequest, options?: RequestInit): Promise<SessionPolicy> => {
+  
+  return apiFetch<SessionPolicy>(getUpdateSessionPolicyUrl(sessionPolicyId),
+  {      
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateSessionPolicyRequest,)
   }
 );}
 

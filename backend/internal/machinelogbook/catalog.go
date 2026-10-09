@@ -363,7 +363,7 @@ func (s *Service) UpdateOrganization(ctx context.Context, p authorization.Princi
 }
 
 func canLookupParties(p authorization.Principal) bool {
-	return p.Has(authorization.MachineJobsCreate) || p.Has(authorization.MachineJobsReview) || p.Has(authorization.OrganizationsRead)
+	return p.Has(authorization.OrdersRead) || p.Has(authorization.MachineJobsCreate) || p.Has(authorization.MachineJobsReview) || p.Has(authorization.OrganizationsRead)
 }
 func (s *Service) SearchBillingParties(ctx context.Context, p authorization.Principal, search string, limit int) ([]BillingParty, error) {
 	if !canLookupParties(p) {

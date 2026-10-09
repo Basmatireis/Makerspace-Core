@@ -151,7 +151,7 @@ type AutomaticJobInput struct {
 type JobFilters struct {
 	Search                                        string
 	MachineID, CustomerID, OperatorID, MaterialID *uuid.UUID
-	Outcome, BillingStatus, Source, ReviewState   *string
+	Outcome, Source, ReviewState                  *string
 	From, To                                      *time.Time
 	Page, PageSize                                int
 }
@@ -197,8 +197,6 @@ type MachineJob struct {
 	CalculatedPrice, FinalPrice, EffectivePrice *string
 	PriceOverrideReason                         *string
 	PriceOverriddenAt                           *time.Time
-	BillingStatus                               string
-	BillingReference                            *string
 	Version                                     int64
 	CreatedAt, UpdatedAt                        time.Time
 }
@@ -211,11 +209,11 @@ type DailyActivity struct {
 }
 
 type Overview struct {
-	JobsToday, JobsThisWeek, UnbilledJobs, NeedsReview, FailedOrPartialThisWeek, LowStockItems int64
-	UnbilledAmount                                                                             string
-	RecentJobs                                                                                 []MachineJob
-	LowStockMaterials                                                                          []Material
-	Activity                                                                                   []DailyActivity
+	JobsToday, JobsThisWeek, UnassignedJobs, NeedsReview, FailedOrPartialThisWeek, LowStockItems int64
+	UnassignedEstimatedAmount                                                                    string
+	RecentJobs                                                                                   []MachineJob
+	LowStockMaterials                                                                            []Material
+	Activity                                                                                     []DailyActivity
 }
 
 type Statistics struct {

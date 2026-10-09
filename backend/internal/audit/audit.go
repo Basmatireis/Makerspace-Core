@@ -83,7 +83,7 @@ func write(ctx context.Context, queries auditdb.Querier, event Event) error {
 		metadata = map[string]any{}
 	}
 	for key, value := range metadata {
-		if key != "roleId" && key != "personId" && key != "openDayId" && key != "eventId" && key != "shiftId" {
+		if key != "orderId" && key != "paymentId" && key != "replacementOrderId" && key != "externalInvoiceRequestId" && key != "roleId" && key != "personId" && key != "openDayId" && key != "eventId" && key != "shiftId" {
 			return fmt.Errorf("audit metadata key %q is not allowlisted", key)
 		}
 		text, ok := value.(string)

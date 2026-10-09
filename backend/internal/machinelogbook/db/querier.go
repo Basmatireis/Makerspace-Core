@@ -95,7 +95,6 @@ type Querier interface {
 	TotalInventoryValue(ctx context.Context) (pgtype.Numeric, error)
 	TouchMachineIngest(ctx context.Context, arg TouchMachineIngestParams) error
 	UpdateMachine(ctx context.Context, arg UpdateMachineParams) (Machine, error)
-	UpdateMachineJobBilling(ctx context.Context, arg UpdateMachineJobBillingParams) (MachineJob, error)
 	UpdateMachineJobFacts(ctx context.Context, arg UpdateMachineJobFactsParams) (MachineJob, error)
 	UpdateMachineType(ctx context.Context, arg UpdateMachineTypeParams) (MachineType, error)
 	UpdateMaterial(ctx context.Context, arg UpdateMaterialParams) (Material, error)

@@ -1,12 +1,12 @@
 # Machine logbook
 
-The machine logbook records machine usage, material stock, pricing, billing state, and operational reporting for one makerspace. It is one backend feature package, **internal/machinelogbook**, so job confirmation, stock deduction, price capture, and audit events share a PostgreSQL transaction.
+The machine logbook records machine usage, material stock, pricing, charge-source traceability, and operational reporting for one makerspace. It is one backend feature package, **internal/machinelogbook**, so job confirmation, stock deduction, price capture, and audit events share a PostgreSQL transaction.
 
 ## Catalog and parties
 
 Machine types and machines are versioned. A machine status is administrative only: **active**, **maintenance**, or **retired**. The application does not infer or display live running, idle, or offline state. Automatic collection configuration and the last successful ingest time are shown separately. Referenced types and machines are retired instead of deleted.
 
-Organizations are versioned billing parties with the type **company**, **institute**, **association**, or **other**. A job customer is either a Person or an Organization, represented by two nullable foreign keys and an exclusive-or service invariant. Operators are People with enabled Accounts. Customer and operator searches return only identifiers and display names needed for assignment.
+Organizations are versioned billing parties with the type **company**, **institute**, **association**, or **other**. An identified job customer is either a Person or an Organization, represented by two mutually exclusive nullable foreign keys. Anonymous automatic review jobs and atomic immediate counter-sale jobs may omit both. Operators are People with enabled Accounts. Customer and operator searches return only identifiers and display names needed for assignment.
 
 Person references use ON DELETE SET NULL. Hard-deleting a Person therefore removes their PII without deleting non-PII machine, timing, usage, price, or inventory facts. Jobs do not retain person-name snapshots. Referenced Organizations are deactivated instead of deleted.
 
@@ -16,13 +16,13 @@ Jobs have an application-generated UUIDv7 and a sequence-backed display identifi
 
 Material usage is a set of typed material/quantity rows. Supported units are **g**, **m**, **ml**, **m2**, and **piece**. Runtime is derived from the job interval. The module deliberately does not provide a generic metric/EAV store.
 
-A manual job requires a machine, customer, enabled-account operator, interval, outcome, and valid usages and is confirmed atomically. Automatic ingestion creates a **needs_review** job and proposed usages without touching inventory. Confirmation supplies the missing assignments and outcome, captures pricing, consumes every material, confirms the job, and writes audit events in one transaction.
+Ordinary manual-job creation requires a machine, customer, enabled-account operator, interval, outcome, and valid usages and is confirmed atomically. Anonymous creation/confirmation is permitted only through the Orders counter-sale transaction, which must fully settle an immediately fulfilled cash/card charge. Automatic ingestion creates a **needs_review** job and proposed usages without touching inventory. Confirmation supplies the missing assignments and outcome, captures pricing, consumes every material, confirms the job, and writes audit events in one transaction.
 
 Automatic ingestion requires an authenticated user session, CSRF, and **machine_jobs.create**; a managed-device token may narrow an existing grant but never authenticates a collector by itself. The machine/external-job pair is unique. Repeating a semantically identical JSON payload returns the existing job, while conflicting facts return **409 external_job_mismatch**. A future unattended collector must use a deliberately designed device/service identity rather than weakening this endpoint.
 
-Confirmed corrections use optimistic concurrency. Source and external identifiers remain immutable. Usage replacement creates compensating inventory transactions; immutable ledger history is never rewritten. A billed job rejects factual, usage, customer, and price changes until explicitly returned to **unbilled**.
+Confirmed corrections use optimistic concurrency. Source and external identifiers remain immutable. Usage replacement creates compensating inventory transactions; immutable ledger history is never rewritten. A finalized Order does not lock operational job corrections: its immutable item snapshot remains unchanged and the UI/API reports source changes. Omitted customer on a factual correction preserves the current identity, including an anonymous job.
 
-Billing states are **unbilled**, **billed**, and **waived**. Billed requires an external reference. Waiving a job records a zero final override and a reason atomically.
+Legacy job billing fields and the billing endpoint were removed with migration 00028. The charge flow is **Machine Job → Order Item → Order → Payment or external wiRef invoicing**. [Orders](orders.md) describes frozen charge snapshots, full reversal/replacement, and atomic anonymous checkout. An explicit zero-price override remains a pricing decision, not a billing state.
 
 ## Pricing snapshots
 
@@ -57,9 +57,9 @@ The module registers:
 - **pricing.read**, **pricing.manage**
 - **statistics.read**
 
-Frontend gates are presentation only. Services authorize every operation, including the minimal party/operator lookups used for create and review.
+Frontend gates are presentation only. Services authorize every operation, including the minimal party/operator lookups used for create/review and Order payer selection. Minimal lookups also accept `orders.read`.
 
-Catalog, organization, pricing, job/review/reassignment/correction, billing/override, purchase, consumption, adjustment, disposal, and mark-empty mutations write an audit event in the same transaction. Audit metadata contains changed field names and non-sensitive identifiers only. It does not duplicate names, free-text notes, search text, external metadata, or override reasons.
+Catalog, organization, pricing, job/review/reassignment/correction, override, purchase, consumption, adjustment, disposal, and mark-empty mutations write an audit event in the same transaction. Audit metadata contains changed field names and non-sensitive identifiers only. It does not duplicate names, free-text notes, search text, external metadata, or override reasons.
 
 ## API and UI
 
@@ -68,7 +68,7 @@ The OpenAPI resource groups are:
 - **/machine-types**, **/machines**
 - **/organizations**, **/billing-parties**, **/machine-job-operators**
 - **/pricing-groups**, **/pricing-rules**, **/billing-party-pricing-group**
-- **/machine-jobs**, **/machine-jobs/automatic**, review, usage, price, and billing subresources
+- **/machine-jobs**, **/machine-jobs/automatic**, review, usage, price, and Order-association subresources
 - **/materials** and purchase, consumption, correction, transaction, and mark-empty subresources
 - **/machine-logbook/overview**, **/machine-logbook/statistics**
 

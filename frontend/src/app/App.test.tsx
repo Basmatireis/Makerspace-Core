@@ -117,6 +117,31 @@ describe('protected application routing', () => {
     );
   });
 
+  it('returns an expired entrance-terminal staff session to the public terminal', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json({
+        code: 'unauthenticated',
+        message: 'Authentication is required',
+        details: { postSessionDestination: 'visitor_terminal' },
+      }, { status: 401 })),
+      http.get('*/api/v1/terminal/context', () => HttpResponse.json({
+        deviceId: '0192f6f8-743e-7c77-a349-cd07c3e8a940',
+        deviceName: 'Entrance',
+        checkoutMode: 'public_tap',
+        checkInAssurance: 'low',
+        checkOutAssurance: 'low',
+        authenticationMethods: ['password', 'pin'],
+        capabilities: [],
+        staffDestination: 'login',
+      })),
+      http.get('*/api/v1/terminal/presence', () => HttpResponse.json({ items: [], count: 0 })),
+    );
+    const { router } = renderRoute(<App />, '/dashboard');
+
+    expect(await screen.findByRole('heading', { name: 'Welcome' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/terminal');
+  });
+
   it('redirects an authenticated user away from settings they cannot access', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture())),
@@ -124,6 +149,25 @@ describe('protected application routing', () => {
     renderRoute(<App />, '/settings');
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Settings' })).not.toBeInTheDocument();
+  });
+
+  it('allows statistics-only attendance access without requesting person-level visits', async () => {
+    let visitRequests = 0;
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.attendancestatisticsread]))),
+      http.get('*/api/v1/visits', () => { visitRequests += 1; return HttpResponse.json({ items: [] }); }),
+      http.get('*/api/v1/attendance/statistics', () => HttpResponse.json({
+        from: '2026-09-09T00:00:00Z', to: '2026-10-09T00:00:00Z', visitorCount: 12,
+        uniqueVisitors: 8, visitorHours: '24.5', peakOccupancy: 4, currentOccupancy: 1,
+        averageCompletedVisitMinutes: '122.5',
+      })),
+    );
+    renderRoute(<App />, '/attendance');
+
+    expect(await screen.findByRole('heading', { name: 'Attendance' })).toBeInTheDocument();
+    expect(await screen.findByText('12')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Currently here' })).not.toBeInTheDocument();
+    expect(visitRequests).toBe(0);
   });
 
   it('promotes Directory without granting access to Settings', async () => {

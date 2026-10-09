@@ -1,3 +1,6 @@
+import { useCurrentUser } from '../auth/auth';
+import { hasPermission, PermissionId } from '../auth/permissions';
+import { Link } from 'react-router-dom';
 import { Button, ComboBox, InlineNotification, Select, SelectItem, TextArea, Tile } from '@carbon/react';
 import { ArrowLeft, ArrowRight } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -14,6 +17,7 @@ import { billingPartySearchQuery, machineLogbookKeys, operatorSearchQuery, revie
 type ReviewForm = { customer: BillingParty | null; operator: Operator | null; outcome: MachineJobOutcome; notes: string };
 
 export function ReviewPage() {
+ const currentUser=useCurrentUser();
   const client = useQueryClient();
   const queue = useQuery(reviewQuery());
   const [selected, setSelected] = useState(0);
@@ -30,11 +34,11 @@ export function ReviewPage() {
   }, onSuccess: async () => { await client.invalidateQueries({ queryKey: machineLogbookKeys.all }); setSelected((current) => Math.min(current, Math.max((queue.data?.items.length ?? 1) - 2, 0))); }, onError: async () => { await client.invalidateQueries({ queryKey: machineLogbookKeys.review() }); } });
   if (queue.isPending) return <FullPageLoading label="Loading review queue" />;
   if (queue.isError) return <ErrorState message="The review queue could not be loaded." onRetry={() => queue.refetch()} />;
-  if (queue.data.items.length === 0) return <PageShell title="Review queue" breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Review' }]} width="wide"><Tile><EmptyState title="Review queue is clear" description="Automatically detected jobs that need assignment will appear here." /></Tile></PageShell>;
+  if (queue.data.items.length === 0) return <PageShell title="Review queue" breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Review' }]} actions={hasPermission(currentUser,PermissionId.orderswrite)&&hasPermission(currentUser,PermissionId.ordersfinalize)&&hasPermission(currentUser,PermissionId.ordersread)&&hasPermission(currentUser,PermissionId.paymentsread)&&hasPermission(currentUser,PermissionId.paymentsrecord)&&job?<Button as={Link} to={`/orders/counter-sale?job=${job.id}`}>Anonymous counter sale</Button>:undefined} width="wide"><Tile><EmptyState title="Review queue is clear" description="Automatically detected jobs that need assignment will appear here." /></Tile></PageShell>;
 
   const customerItems = parties.data?.items ?? [];
   const operatorItems = operators.data?.items ?? [];
-  return <PageShell title="Review queue" description={`${queue.data.items.length} remaining`} breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Review' }]} width="wide" className="machine-logbook-page review-page">
+  return <PageShell title="Review queue" description={`${queue.data.items.length} remaining`} breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Review' }]} actions={hasPermission(currentUser,PermissionId.orderswrite)&&hasPermission(currentUser,PermissionId.ordersfinalize)&&hasPermission(currentUser,PermissionId.ordersread)&&hasPermission(currentUser,PermissionId.paymentsread)&&hasPermission(currentUser,PermissionId.paymentsrecord)&&job?<Button as={Link} to={`/orders/counter-sale?job=${job.id}`}>Anonymous counter sale</Button>:undefined} width="wide" className="machine-logbook-page review-page">
     <div className="review-layout">
       <aside className="review-list" aria-label="Jobs awaiting review">{queue.data.items.map((item, index) => <button type="button" key={item.id} className={index === selected ? 'review-list__item review-list__item--active' : 'review-list__item'} onClick={() => setSelected(index)}><strong>{item.machine.name}</strong><span>{formatDateTime(item.startsAt)}</span><span>{item.usages.map((u) => `${u.quantity} ${u.unit} ${u.materialName}`).join(', ') || 'No material usage'}</span></button>)}</aside>
       <section className="review-detail">

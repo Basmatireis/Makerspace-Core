@@ -65,6 +65,9 @@ export function canUpdatePerson(currentUser: CurrentUser, personId: string): boo
 export const settingsPermissions: readonly PermissionIdType[] = [
   PermissionId.rolesread,
   PermissionId.managed_devicesread,
+	PermissionId.session_policiesmanage,
+	PermissionId.surveysread,
+	PermissionId.surveysmanage,
   PermissionId.laborordnungread,
   PermissionId.laborordnungmanage,
   PermissionId.laborordnungrequestsread,

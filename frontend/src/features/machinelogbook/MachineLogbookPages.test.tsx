@@ -64,8 +64,6 @@ function jobFixture(overrides: Partial<MachineJob> = {}): MachineJob {
     effectivePrice: null,
     priceOverrideReason: null,
     priceOverriddenAt: null,
-    billingStatus: 'unbilled',
-    billingReference: null,
     version: 1,
     createdAt: '2026-09-15T11:26:00Z',
     updatedAt: '2026-09-15T11:26:00Z',

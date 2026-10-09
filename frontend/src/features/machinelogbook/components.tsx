@@ -1,14 +1,12 @@
 import { Tag } from '@carbon/react';
-import type { BillingStatus, MachineJobOutcome, MachineJobReviewState, StockState } from '../../api/generated/models';
+import type { MachineJobOutcome, MachineJobReviewState, StockState } from '../../api/generated/models';
 
 export function OutcomeTag({ outcome }: { outcome: MachineJobOutcome }) {
   const type = outcome === 'successful' ? 'green' : outcome === 'failed' ? 'red' : outcome === 'partial_failure' ? 'warm-gray' : 'gray';
   return <Tag type={type}>{outcome.replace('_', ' ')}</Tag>;
 }
 
-export function BillingTag({ status }: { status: BillingStatus }) {
-  return <Tag type={status === 'billed' ? 'green' : status === 'waived' ? 'purple' : 'blue'}>{status}</Tag>;
-}
+
 
 export function ReviewTag({ state }: { state: MachineJobReviewState }) {
   return state === 'needs_review' ? <Tag type="warm-gray">Needs review</Tag> : null;

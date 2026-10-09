@@ -20,6 +20,11 @@ the required session and CSRF credentials.
  */
 import type { UUIDv7 } from './uUIDv7';
 import type { ManagedDeviceCredentialDelivery } from './managedDeviceCredentialDelivery';
+import type { CreateManagedDeviceRequestSessionPolicyId } from './createManagedDeviceRequestSessionPolicyId';
+import type { DeviceApplicationMode } from './deviceApplicationMode';
+import type { AuthenticationAssurance } from './authenticationAssurance';
+import type { CheckoutMode } from './checkoutMode';
+import type { DeviceCapability } from './deviceCapability';
 
 export interface CreateManagedDeviceRequest {
   /**
@@ -31,4 +36,16 @@ export interface CreateManagedDeviceRequest {
   /** @nullable */
   expiresAt: string | null;
   credentialDelivery: ManagedDeviceCredentialDelivery;
+  /** @nullable */
+  sessionPolicyId: CreateManagedDeviceRequestSessionPolicyId;
+  terminalEnabled: boolean;
+  /**
+   * @minItems 1
+   * @maxItems 2
+   */
+  allowedApplicationModes: DeviceApplicationMode[];
+  checkInAssurance: AuthenticationAssurance;
+  checkOutAssurance: AuthenticationAssurance;
+  checkoutMode: CheckoutMode;
+  capabilities: DeviceCapability[];
 }

@@ -20,7 +20,6 @@ the required session and CSRF credentials.
  */
 import type { UUIDv7 } from './uUIDv7';
 import type { MachineJobOutcome } from './machineJobOutcome';
-import type { BillingStatus } from './billingStatus';
 import type { MachineJobSource } from './machineJobSource';
 import type { MachineJobReviewState } from './machineJobReviewState';
 
@@ -37,7 +36,6 @@ customerId?: UUIDv7;
 operatorPersonId?: UUIDv7;
 materialId?: UUIDv7;
 outcome?: MachineJobOutcome;
-billingStatus?: BillingStatus;
 source?: MachineJobSource;
 reviewState?: MachineJobReviewState;
 from?: string;

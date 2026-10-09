@@ -371,7 +371,6 @@ WHERE (sqlc.arg(search)::text = '' OR lower(j.display_id) LIKE '%' || lower(sqlc
   AND (sqlc.narg(operator_id)::uuid IS NULL OR j.operator_person_id = sqlc.narg(operator_id)::uuid)
   AND (sqlc.narg(material_id)::uuid IS NULL OR u.material_id = sqlc.narg(material_id)::uuid)
   AND (sqlc.narg(outcome)::text IS NULL OR j.outcome = sqlc.narg(outcome)::text)
-  AND (sqlc.narg(billing_status)::text IS NULL OR j.billing_status = sqlc.narg(billing_status)::text)
   AND (sqlc.narg(source)::text IS NULL OR j.source = sqlc.narg(source)::text)
   AND (sqlc.narg(review_state)::text IS NULL OR j.review_state = sqlc.narg(review_state)::text)
   AND (sqlc.narg(from_time)::timestamptz IS NULL OR j.starts_at >= sqlc.narg(from_time)::timestamptz)
@@ -396,7 +395,6 @@ WHERE (sqlc.arg(search)::text = '' OR lower(j.display_id) LIKE '%' || lower(sqlc
   AND (sqlc.narg(operator_id)::uuid IS NULL OR j.operator_person_id = sqlc.narg(operator_id)::uuid)
   AND (sqlc.narg(material_id)::uuid IS NULL OR u.material_id = sqlc.narg(material_id)::uuid)
   AND (sqlc.narg(outcome)::text IS NULL OR j.outcome = sqlc.narg(outcome)::text)
-  AND (sqlc.narg(billing_status)::text IS NULL OR j.billing_status = sqlc.narg(billing_status)::text)
   AND (sqlc.narg(source)::text IS NULL OR j.source = sqlc.narg(source)::text)
   AND (sqlc.narg(review_state)::text IS NULL OR j.review_state = sqlc.narg(review_state)::text)
   AND (sqlc.narg(from_time)::timestamptz IS NULL OR j.starts_at >= sqlc.narg(from_time)::timestamptz)
@@ -417,12 +415,12 @@ UPDATE machine_jobs SET machine_id = sqlc.arg(machine_id), starts_at = sqlc.arg(
     customer_person_id = sqlc.narg(customer_person_id), customer_organization_id = sqlc.narg(customer_organization_id),
     operator_person_id = sqlc.arg(operator_person_id), outcome = sqlc.arg(outcome), notes = sqlc.narg(notes),
     version = version + 1, updated_at = now()
-WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND review_state = 'confirmed' AND billing_status <> 'billed'
+WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND review_state = 'confirmed'
 RETURNING *;
 
 -- name: BumpMachineJobVersion :one
 UPDATE machine_jobs SET version = version + 1, updated_at = now()
-WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND billing_status <> 'billed'
+WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
 -- name: CreatePricingSnapshot :one
@@ -454,36 +452,26 @@ RETURNING *;
 -- name: RecalculateMachineJobPrice :one
 UPDATE machine_jobs SET pricing_status = sqlc.arg(pricing_status), calculated_price = sqlc.narg(calculated_price),
     version = version + 1, updated_at = now()
-WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND billing_status <> 'billed'
+WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
 -- name: SetMachineJobPriceOverride :one
 UPDATE machine_jobs SET final_price = sqlc.arg(final_price), price_override_reason = sqlc.arg(reason),
     price_overridden_by_account_id = sqlc.arg(actor_account_id), price_overridden_at = now(), version = version + 1, updated_at = now()
-WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND billing_status <> 'billed'
+WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
 -- name: ClearMachineJobPriceOverride :one
 UPDATE machine_jobs SET final_price = NULL, price_override_reason = NULL, price_overridden_by_account_id = NULL,
     price_overridden_at = NULL, version = version + 1, updated_at = now()
-WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND billing_status <> 'billed'
-RETURNING *;
-
--- name: UpdateMachineJobBilling :one
-UPDATE machine_jobs SET billing_status = sqlc.arg(billing_status), billing_reference = sqlc.narg(billing_reference),
-    final_price = CASE WHEN sqlc.arg(billing_status)::text = 'waived' THEN 0 ELSE final_price END,
-    price_override_reason = CASE WHEN sqlc.arg(billing_status)::text = 'waived' THEN sqlc.narg(waiver_reason) ELSE price_override_reason END,
-    price_overridden_by_account_id = CASE WHEN sqlc.arg(billing_status)::text = 'waived' THEN sqlc.arg(actor_account_id) ELSE price_overridden_by_account_id END,
-    price_overridden_at = CASE WHEN sqlc.arg(billing_status)::text = 'waived' THEN now() ELSE price_overridden_at END,
-    version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
 -- name: CountOverviewJobs :one
 SELECT count(*) FILTER (WHERE starts_at >= date_trunc('day', now()))::bigint AS jobs_today,
        count(*) FILTER (WHERE starts_at >= date_trunc('week', now()))::bigint AS jobs_this_week,
-       count(*) FILTER (WHERE billing_status = 'unbilled' AND review_state = 'confirmed')::bigint AS unbilled_jobs,
-       COALESCE(sum(COALESCE(final_price, calculated_price)) FILTER (WHERE billing_status = 'unbilled' AND review_state = 'confirmed'), 0)::numeric AS unbilled_amount,
+       count(*) FILTER (WHERE review_state = 'confirmed' AND NOT EXISTS(SELECT 1 FROM order_job_claims c WHERE c.machine_job_id=machine_jobs.id))::bigint AS unassigned_jobs,
+       COALESCE(sum(COALESCE(final_price, calculated_price)) FILTER (WHERE review_state = 'confirmed' AND NOT EXISTS(SELECT 1 FROM order_job_claims c WHERE c.machine_job_id=machine_jobs.id)), 0)::numeric AS unassigned_estimated_amount,
        count(*) FILTER (WHERE review_state = 'needs_review')::bigint AS needs_review,
        count(*) FILTER (WHERE starts_at >= date_trunc('week', now()) AND outcome IN ('failed', 'partial_failure'))::bigint AS failed_or_partial_this_week
 FROM machine_jobs;

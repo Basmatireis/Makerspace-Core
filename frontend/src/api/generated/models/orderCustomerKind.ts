@@ -19,12 +19,12 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 
-export type BillingStatus = typeof BillingStatus[keyof typeof BillingStatus];
+export type OrderCustomerKind = typeof OrderCustomerKind[keyof typeof OrderCustomerKind];
 
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
-export const BillingStatus = {
-  unbilled: 'unbilled',
-  billed: 'billed',
-  waived: 'waived',
+export const OrderCustomerKind = {
+  anonymous: 'anonymous',
+  person: 'person',
+  organization: 'organization',
 } as const;

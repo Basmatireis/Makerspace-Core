@@ -21,6 +21,9 @@ import {
 } from '@carbon/react';
 import {
   Dashboard,
+  Receipt,
+  Money,
+  Document,
   DocumentSecurity,
   Calendar,
   Information,
@@ -36,7 +39,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { getGetLaborordnungPDFUrl, requestOwnLaborordnungConfirmation } from '../api/generated/laborordnung/laborordnung';
 import { evaluateVisitorAdmission } from '../api/generated/visitor-enrollment/visitor-enrollment';
 import { authQueryKey, useCurrentUser, useLogout } from '../features/auth/auth';
-import { canAccessMachineLogbook, canAccessOpenDays, canAccessSettings, hasPermission, PermissionId } from '../features/auth/permissions';
+import { canAccessMachineLogbook, canAccessOpenDays, canAccessSettings, hasAnyPermission, hasPermission, PermissionId } from '../features/auth/permissions';
 import { PersonAvatar } from '../features/users/PersonAvatar';
 import { BrandMark } from './BrandMark';
 import { FullPageLoading } from './PageState';
@@ -107,6 +110,7 @@ export function AppShell() {
   const canAccessPeople = canAccessPeopleDirectory || canAccessSupervisorStaffing;
   const canReadAuditLog = hasPermission(currentUser, PermissionId.auditread);
   const canAccessEvents = [PermissionId.eventsread, PermissionId.eventsmanage, PermissionId.eventsstaffingmanage, PermissionId.eventsassign].some((permission) => hasPermission(currentUser, permission));
+	const canAccessAttendance = hasAnyPermission(currentUser, [PermissionId.attendanceread, PermissionId.attendanceassist, PermissionId.attendancestatisticsread]);
   const showAdministration = canAccessSettings(currentUser) || canReadAuditLog;
 
   return (
@@ -199,7 +203,7 @@ export function AppShell() {
                 disabled={logoutMutation.isPending}
                 onClick={() => logoutMutation.mutate()}
               >
-                {logoutMutation.isPending ? 'Signing out…' : 'Sign out'}
+				{logoutMutation.isPending ? 'Ending staff session…' : currentUser.session.postSessionDestination === 'visitor_terminal' ? 'Return to public terminal' : 'Sign out'}
               </Button>
               {logoutMutation.isError && (
                 <InlineNotification
@@ -248,6 +252,7 @@ export function AppShell() {
                   Events
                 </SideNavLink>
               )}
+			  {canAccessAttendance && <SideNavLink as={Link} to="/attendance" isActive={location.pathname.startsWith('/attendance')} renderIcon={UserMultiple}>Attendance</SideNavLink>}
               {canAccessMachineLogbook(currentUser) && <SideNavMenu title="Machines" defaultExpanded={machineLogbookActive} isActive={machineLogbookActive} renderIcon={Tools}>
                 {(hasPermission(currentUser, PermissionId.machine_jobsread) || hasPermission(currentUser, PermissionId.statisticsread)) && <SideNavMenuItem as={Link} to="/machine-logbook" isActive={location.pathname === '/machine-logbook'}>Overview</SideNavMenuItem>}
                 {hasPermission(currentUser, PermissionId.machine_jobsread) && <SideNavMenuItem as={Link} to="/machine-logbook/jobs" isActive={location.pathname.startsWith('/machine-logbook/jobs')}>Jobs</SideNavMenuItem>}
@@ -264,6 +269,39 @@ export function AppShell() {
                   renderIcon={UserMultiple}
                 >
                   Directory
+                </SideNavLink>
+              )}
+              {hasPermission(currentUser, PermissionId.ordersread) && (
+                <SideNavLink
+                  as={Link}
+                  to="/orders"
+                  renderIcon={Receipt}
+                  isActive={location.pathname.startsWith('/orders')}
+                >
+                  Orders
+                </SideNavLink>
+              )}
+              {hasPermission(currentUser, PermissionId.paymentsread) && (
+                <SideNavLink
+                  as={Link}
+                  to="/payments"
+                  renderIcon={Money}
+                  isActive={location.pathname.startsWith('/payments')}
+                >
+                  Payments
+                </SideNavLink>
+              )}
+              {hasPermission(
+                currentUser,
+                PermissionId.external_invoice_requestsread,
+              ) && (
+                <SideNavLink
+                  as={Link}
+                  to="/external-invoicing"
+                  renderIcon={Document}
+                  isActive={location.pathname.startsWith('/external-invoicing')}
+                >
+                  External invoicing
                 </SideNavLink>
               )}
               {showAdministration && (

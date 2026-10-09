@@ -30,7 +30,8 @@ import type {
   LoginRequest,
   PinLoginRequest,
   RemoveOwnPasswordRequest,
-  RequestPasswordResetRequest
+  RequestPasswordResetRequest,
+  SessionContext
 } from '.././models';
 
 import { apiFetch } from '../../http-client';
@@ -396,6 +397,26 @@ export const completeEmailVerification = async (completeEmailVerificationRequest
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       completeEmailVerificationRequest,)
+  }
+);}
+
+
+export const getRecordSessionActivityUrl = () => {
+
+
+  
+
+  return `/api/v1/auth/activity`
+}
+
+export const recordSessionActivity = async ( options?: RequestInit): Promise<SessionContext> => {
+  
+  return apiFetch<SessionContext>(getRecordSessionActivityUrl(),
+  {      
+    ...options,
+    method: 'POST'
+    
+    
   }
 );}
 

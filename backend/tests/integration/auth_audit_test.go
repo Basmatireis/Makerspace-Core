@@ -3,6 +3,7 @@ package integration_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"net/url"
 	"strings"
 	"sync"
@@ -168,11 +169,12 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 		t.Fatalf("login: %v", err)
 	}
 	assertSessionMaterial(t, pool, session)
-	if got := session.IdleExpiresAt.Sub(time.Now().UTC()); got < serviceConfig.SessionIdleTTL-time.Minute || got > serviceConfig.SessionIdleTTL+time.Minute {
-		t.Fatalf("idle expiry delta = %s, want approximately %s", got, serviceConfig.SessionIdleTTL)
+	privateIdle, privateAbsolute := 72*time.Hour, 7*24*time.Hour
+	if got := session.IdleExpiresAt.Sub(time.Now().UTC()); got < privateIdle-time.Minute || got > privateIdle+time.Minute {
+		t.Fatalf("idle expiry delta = %s, want approximately %s", got, privateIdle)
 	}
-	if got := session.AbsoluteExpiry.Sub(time.Now().UTC()); got < serviceConfig.SessionAbsoluteTTL-time.Minute || got > serviceConfig.SessionAbsoluteTTL+time.Minute {
-		t.Fatalf("absolute expiry delta = %s, want approximately %s", got, serviceConfig.SessionAbsoluteTTL)
+	if got := session.AbsoluteExpiry.Sub(time.Now().UTC()); got < privateAbsolute-time.Minute || got > privateAbsolute+time.Minute {
+		t.Fatalf("absolute expiry delta = %s, want approximately %s", got, privateAbsolute)
 	}
 	authenticated, err := authService.Authenticate(ctx, session.Token)
 	if err != nil {
@@ -187,6 +189,11 @@ func TestBootstrapAuthenticationResetAndAuditPrivacy(t *testing.T) {
 	}
 	if _, err := authService.Authenticate(ctx, session.Token); !apperror.IsCode(err, "unauthenticated") {
 		t.Fatalf("expired idle session returned %v, want unauthenticated", err)
+	} else {
+		var appErr *apperror.Error
+		if !errors.As(err, &appErr) || appErr.Details["postSessionDestination"] != "login" {
+			t.Fatalf("expired session destination = %#v, want login", appErr)
+		}
 	}
 	absoluteSession, err := authService.Login(ctx, loginEmail, bootstrapPassword, "127.0.0.1", nil)
 	if err != nil {

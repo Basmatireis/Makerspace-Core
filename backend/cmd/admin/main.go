@@ -11,11 +11,15 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/branding"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/files"
+	mailservice "github.com/Basmatireis/Makerspace-Core/backend/internal/mail"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/notifications"
 	oidcservice "github.com/Basmatireis/Makerspace-Core/backend/internal/oidc"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
 	"golang.org/x/term"
 )
 
@@ -28,7 +32,7 @@ func main() {
 
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: admin <bootstrap-master|recover-master|reset-password|cleanup|verify-files|reencrypt-oidc-secrets|migrate-files-local-to-s3>")
+		return errors.New("usage: admin <bootstrap-master|recover-master|reset-password|cleanup|deliver-surveys|verify-files|reencrypt-oidc-secrets|migrate-files-local-to-s3>")
 	}
 	if args[0] == "reset-password" && len(args) != 1 {
 		return errors.New("reset-password accepts no flags, password arguments, environment values, or piped input")
@@ -111,6 +115,31 @@ func run(ctx context.Context, args []string) error {
 			return err
 		}
 		fmt.Printf("deleted sessions=%d reset_tokens=%d audit_events=%d anonymized_event_assignments=%d\n", sessions, resets, events, eventAssignments)
+		return nil
+	case "deliver-surveys":
+		flags := flag.NewFlagSet("deliver-surveys", flag.ContinueOnError)
+		limit := flags.Int("limit", 100, "maximum invitations to deliver")
+		if err := flags.Parse(args[1:]); err != nil {
+			return err
+		}
+		if *limit < 1 || *limit > 1000 {
+			return errors.New("limit must be between 1 and 1000")
+		}
+		store, err := storage.NewFromConfig(ctx, cfg)
+		if err != nil {
+			return err
+		}
+		fileService := files.NewService(pool, store)
+		mailer, err := mailservice.NewService(pool, cfg.EncryptionKeys)
+		if err != nil {
+			return err
+		}
+		notifier := notifications.NewService(mailer, branding.NewService(pool, fileService))
+		count, err := surveys.NewService(pool, cfg, notifier).DeliverDue(ctx, int32(*limit))
+		if err != nil {
+			return err
+		}
+		fmt.Printf("processed survey_invitations=%d\n", count)
 		return nil
 	case "verify-files":
 		if len(args) != 1 {

@@ -22,7 +22,7 @@ func (s *Service) Overview(ctx context.Context, p authorization.Principal) (Over
 	if err != nil {
 		return Overview{}, err
 	}
-	result := Overview{JobsToday: counts.JobsToday, JobsThisWeek: counts.JobsThisWeek, UnbilledJobs: counts.UnbilledJobs, UnbilledAmount: decimalString(counts.UnbilledAmount), NeedsReview: counts.NeedsReview, FailedOrPartialThisWeek: counts.FailedOrPartialThisWeek, LowStockItems: lowCount, RecentJobs: []MachineJob{}, LowStockMaterials: []Material{}, Activity: []DailyActivity{}}
+	result := Overview{JobsToday: counts.JobsToday, JobsThisWeek: counts.JobsThisWeek, UnassignedJobs: counts.UnassignedJobs, UnassignedEstimatedAmount: decimalString(counts.UnassignedEstimatedAmount), NeedsReview: counts.NeedsReview, FailedOrPartialThisWeek: counts.FailedOrPartialThisWeek, LowStockItems: lowCount, RecentJobs: []MachineJob{}, LowStockMaterials: []Material{}, Activity: []DailyActivity{}}
 	recent, err := q.ListRecentJobIDs(ctx, 5)
 	if err != nil {
 		return Overview{}, err

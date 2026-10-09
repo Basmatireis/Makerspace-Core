@@ -35,12 +35,14 @@ type Querier interface {
 	FindPasswordResetAccountByDigest(ctx context.Context, tokenDigest []byte) (uuid.UUID, error)
 	GetAccountForAuthentication(ctx context.Context, id uuid.UUID) (GetAccountForAuthenticationRow, error)
 	GetActiveAuthChallengeForUpdate(ctx context.Context, arg GetActiveAuthChallengeForUpdateParams) (AuthChallenge, error)
+	GetEffectiveSessionPolicy(ctx context.Context, managedDeviceID *uuid.UUID) (SessionPolicy, error)
 	GetLoginByEmail(ctx context.Context, identifierNormalized string) (GetLoginByEmailRow, error)
 	GetPINIdentityForAccount(ctx context.Context, accountID uuid.UUID) (AuthIdentity, error)
 	GetPasswordCredentialForAccount(ctx context.Context, accountID uuid.UUID) (PasswordCredential, error)
 	GetPasswordIdentityTargetForAccount(ctx context.Context, accountID uuid.UUID) (GetPasswordIdentityTargetForAccountRow, error)
 	GetPasswordResetByDigest(ctx context.Context, tokenDigest []byte) (GetPasswordResetByDigestRow, error)
 	GetSessionForReauthentication(ctx context.Context, arg GetSessionForReauthenticationParams) (Session, error)
+	GetSessionPostDestinationByDigest(ctx context.Context, tokenDigest []byte) (string, error)
 	GetSessionPrincipal(ctx context.Context, tokenDigest []byte) (GetSessionPrincipalRow, error)
 	GrantRecentAuthentication(ctx context.Context, arg GrantRecentAuthenticationParams) error
 	IncrementAuthChallengeFailure(ctx context.Context, id uuid.UUID) error
@@ -52,7 +54,7 @@ type Querier interface {
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) error
 	RevokeSessionsForAccount(ctx context.Context, arg RevokeSessionsForAccountParams) error
 	SetAuthChallengeDelivery(ctx context.Context, arg SetAuthChallengeDeliveryParams) error
-	TouchSession(ctx context.Context, arg TouchSessionParams) error
+	TouchSession(ctx context.Context, id uuid.UUID) (TouchSessionRow, error)
 	UpdatePINIdentity(ctx context.Context, arg UpdatePINIdentityParams) (AuthIdentity, error)
 	UpsertAuthChallenge(ctx context.Context, arg UpsertAuthChallengeParams) (AuthChallenge, error)
 	UpsertPINCredential(ctx context.Context, arg UpsertPINCredentialParams) error

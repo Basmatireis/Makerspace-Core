@@ -248,3 +248,42 @@ sql:
         emit_empty_slices: true
         emit_pointers_for_null_types: true
         overrides: *overrides
+  - engine: "postgresql"
+    schema: "migrations"
+    queries: "internal/orders/db/queries.sql"
+    gen:
+      go:
+        package: "ordersdb"
+        out: "internal/orders/db"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_json_tags: false
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+        overrides: *overrides
+  - engine: "postgresql"
+    schema: "migrations"
+    queries: "internal/attendance/db/queries.sql"
+    gen:
+      go:
+        package: "attendancedb"
+        out: "internal/attendance/db"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_json_tags: false
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+        overrides: *overrides
+  - engine: "postgresql"
+    schema: "migrations"
+    queries: "internal/surveys/db/queries.sql"
+    gen:
+      go:
+        package: "surveysdb"
+        out: "internal/surveys/db"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_json_tags: false
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+        overrides: *overrides

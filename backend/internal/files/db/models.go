@@ -23,6 +23,17 @@ type Account struct {
 	AdministrativelyDisabledAt pgtype.Timestamptz
 }
 
+type AttendanceDailyStatistic struct {
+	Day                   pgtype.Date
+	VisitorCount          int64
+	DailyUniqueVisitors   int64
+	VisitorSeconds        int64
+	CompletedVisitCount   int64
+	CompletedVisitSeconds int64
+	PeakOccupancy         int64
+	UpdatedAt             time.Time
+}
+
 type AuditEvent struct {
 	ID             uuid.UUID
 	ActorAccountID *uuid.UUID
@@ -255,6 +266,57 @@ type EventTaskList struct {
 	UpdatedAt   time.Time
 }
 
+type ExternalInvoiceRequest struct {
+	ID                  uuid.UUID
+	Reference           string
+	OrderID             *uuid.UUID
+	OrderReference      string
+	Provider            string
+	State               string
+	Currency            string
+	RequestedAmount     pgtype.Numeric
+	SupersedesRequestID *uuid.UUID
+	Version             int64
+	CreatedAt           time.Time
+}
+
+type ExternalInvoiceRequestDetail struct {
+	RequestID                     uuid.UUID
+	RecipientKind                 string
+	RecipientName                 string
+	RecipientPersonID             *uuid.UUID
+	RecipientOrganizationID       *uuid.UUID
+	AddressLine1                  string
+	AddressLine2                  string
+	PostalCode                    string
+	Locality                      string
+	Region                        string
+	CountryCode                   string
+	ContactPersonID               *uuid.UUID
+	ContactName                   string
+	ContactChannel                string
+	ServiceStartsOn               pgtype.Date
+	ServiceEndsOn                 pgtype.Date
+	ServiceDescription            string
+	PurchaseOrderReference        string
+	RequirementsVersion           int64
+	RequirePurchaseOrderReference bool
+	ItemSummary                   []byte
+	SnapshotSchemaVersion         int32
+}
+
+type ExternalInvoiceRequestEvent struct {
+	ID                 uuid.UUID
+	RequestID          uuid.UUID
+	Kind               string
+	ExternalReference  string
+	ReconciliationKind string
+	Reason             string
+	EffectiveAt        time.Time
+	RecordedAt         time.Time
+	ActorAccountID     *uuid.UUID
+}
+
 type File struct {
 	ID                 uuid.UUID
 	StorageKey         string
@@ -348,8 +410,6 @@ type MachineJob struct {
 	PriceOverrideReason        *string
 	PriceOverriddenByAccountID *uuid.UUID
 	PriceOverriddenAt          pgtype.Timestamptz
-	BillingStatus              string
-	BillingReference           *string
 	ActivePricingSnapshotID    *uuid.UUID
 	Version                    int64
 	CreatedAt                  time.Time
@@ -419,16 +479,42 @@ type MailConfiguration struct {
 }
 
 type ManagedDevice struct {
-	ID           uuid.UUID
-	Name         string
-	DeviceTypeID uuid.UUID
-	TokenDigest  []byte
-	ExpiresAt    pgtype.Timestamptz
-	RevokedAt    pgtype.Timestamptz
-	LastSeenAt   pgtype.Timestamptz
-	Version      int64
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID                uuid.UUID
+	Name              string
+	DeviceTypeID      uuid.UUID
+	TokenDigest       []byte
+	ExpiresAt         pgtype.Timestamptz
+	RevokedAt         pgtype.Timestamptz
+	LastSeenAt        pgtype.Timestamptz
+	Version           int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	SessionPolicyID   *uuid.UUID
+	TerminalEnabled   bool
+	CheckInAssurance  string
+	CheckOutAssurance string
+	CheckoutMode      string
+	AllowedAppModes   []string
+}
+
+type ManagedDeviceCapability struct {
+	ManagedDeviceID uuid.UUID
+	Capability      string
+	Enabled         bool
+	Version         int64
+	UpdatedAt       time.Time
+}
+
+type ManagedDeviceHardwareReport struct {
+	ManagedDeviceID uuid.UUID
+	Platform        string
+	BridgeVersion   string
+	ReportedAt      time.Time
+}
+
+type ManagedDeviceReportedCapability struct {
+	ManagedDeviceID uuid.UUID
+	Capability      string
 }
 
 type Material struct {
@@ -537,6 +623,93 @@ type OpenDayStaffRequirementRole struct {
 	RoleID        uuid.UUID
 }
 
+type Order struct {
+	ID                     uuid.UUID
+	Reference              string
+	Status                 string
+	Currency               string
+	CustomerKind           string
+	CustomerPersonID       *uuid.UUID
+	CustomerOrganizationID *uuid.UUID
+	FulfillmentMode        string
+	TotalAmount            pgtype.Numeric
+	ReplacesOrderID        *uuid.UUID
+	ReplacesOrderReference *string
+	Version                int64
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+	CreatedByAccountID     *uuid.UUID
+	FinalizedAt            pgtype.Timestamptz
+	CancelledAt            pgtype.Timestamptz
+	ReversedAt             pgtype.Timestamptz
+}
+
+type OrderAdjustment struct {
+	ID             uuid.UUID
+	Reference      string
+	OrderID        *uuid.UUID
+	OrderReference string
+	Kind           string
+	Currency       string
+	Amount         pgtype.Numeric
+	Reason         string
+	ActorAccountID *uuid.UUID
+	CreatedAt      time.Time
+}
+
+type OrderAdjustmentItem struct {
+	ID                   uuid.UUID
+	AdjustmentID         uuid.UUID
+	OriginalOrderItemID  *uuid.UUID
+	OriginalItemPosition int32
+	Amount               pgtype.Numeric
+}
+
+type OrderCustomerSnapshot struct {
+	OrderID          uuid.UUID
+	DisplayName      string
+	OrganizationKind *string
+	CapturedAt       time.Time
+}
+
+type OrderItem struct {
+	ID                    uuid.UUID
+	OrderID               uuid.UUID
+	Position              int32
+	Kind                  string
+	Description           string
+	Quantity              pgtype.Numeric
+	Unit                  string
+	UnitPrice             pgtype.Numeric
+	Amount                pgtype.Numeric
+	SourceMachineJobID    *uuid.UUID
+	SourceJobVersion      *int64
+	MachineJobSnapshot    []byte
+	SnapshotSchemaVersion int32
+	CreatedAt             time.Time
+	CreatedByAccountID    *uuid.UUID
+	RemovedAt             pgtype.Timestamptz
+	RemovedByAccountID    *uuid.UUID
+}
+
+type OrderJobClaim struct {
+	MachineJobID uuid.UUID
+	OrderItemID  uuid.UUID
+	CreatedAt    time.Time
+}
+
+type OrderOperation struct {
+	ID                 uuid.UUID
+	OperationKey       uuid.UUID
+	Kind               string
+	RequestFingerprint []byte
+	ActorAccountID     *uuid.UUID
+	OrderID            *uuid.UUID
+	PaymentID          *uuid.UUID
+	RequestID          *uuid.UUID
+	CompletedAt        time.Time
+}
+
 type Organization struct {
 	ID        uuid.UUID
 	Name      string
@@ -545,6 +718,14 @@ type Organization struct {
 	Version   int64
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type OrganizationInvoicingRequirement struct {
+	OrganizationID                uuid.UUID
+	RequirePurchaseOrderReference bool
+	Version                       int64
+	UpdatedAt                     time.Time
+	UpdatedByAccountID            *uuid.UUID
 }
 
 type OrganizationPricingGroupAssignment struct {
@@ -570,6 +751,39 @@ type PasswordResetToken struct {
 	CreatedByAccountID *uuid.UUID
 	CreatedAt          time.Time
 	ExpiresAt          time.Time
+}
+
+type Payment struct {
+	ID                       uuid.UUID
+	Reference                string
+	EntryKind                string
+	Method                   string
+	Amount                   pgtype.Numeric
+	Currency                 string
+	OccurredAt               time.Time
+	RecordedAt               time.Time
+	ActorAccountID           *uuid.UUID
+	ReversesPaymentID        *uuid.UUID
+	ReversedPaymentReference *string
+	ReversalReasonKind       *string
+	Reason                   string
+	ExternalSource           string
+	ExternalReference        string
+	ExternalInvoiceRequestID *uuid.UUID
+}
+
+type PaymentAllocation struct {
+	ID                   uuid.UUID
+	PaymentID            *uuid.UUID
+	PaymentReference     string
+	OrderID              *uuid.UUID
+	OrderReference       string
+	Amount               pgtype.Numeric
+	Currency             string
+	OperationID          uuid.UUID
+	ReversesAllocationID *uuid.UUID
+	ActorAccountID       *uuid.UUID
+	CreatedAt            time.Time
 }
 
 type Person struct {
@@ -703,22 +917,148 @@ type ScimUser struct {
 }
 
 type Session struct {
+	ID                     uuid.UUID
+	AccountID              uuid.UUID
+	AuthIdentityID         uuid.UUID
+	TokenDigest            []byte
+	CsrfDigest             []byte
+	AuthMethod             string
+	CreatedAt              time.Time
+	LastSeenAt             time.Time
+	IdleExpiresAt          time.Time
+	AbsoluteExpiresAt      time.Time
+	RevokedAt              pgtype.Timestamptz
+	RevocationReason       *string
+	BaseAssurance          string
+	CurrentAssurance       string
+	AuthenticatedAt        time.Time
+	AssuranceExpiresAt     pgtype.Timestamptz
+	ManagedDeviceID        *uuid.UUID
+	SessionPolicyID        *uuid.UUID
+	SessionPolicyVersion   int64
+	IdleTimeoutSeconds     int32
+	PostSessionDestination string
+}
+
+type SessionPolicy struct {
+	ID                      uuid.UUID
+	Name                    string
+	IdleTimeoutSeconds      int32
+	AbsoluteLifetimeSeconds int32
+	PostSessionDestination  string
+	IsDefault               bool
+	Version                 int64
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
+}
+
+type Survey struct {
+	ID          uuid.UUID
+	Name        string
+	Description *string
+	Status      string
+	Anonymous   bool
+	Version     int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type SurveyAnswer struct {
+	ID           uuid.UUID
+	ResponseID   uuid.UUID
+	QuestionID   uuid.UUID
+	OptionID     *uuid.UUID
+	TextValue    *string
+	NumericValue *int32
+	BooleanValue *bool
+	Position     int32
+}
+
+type SurveyInvitation struct {
+	ID                  uuid.UUID
+	SurveyVersionID     uuid.UUID
+	PersonID            *uuid.UUID
+	VisitID             *uuid.UUID
+	TokenDigest         []byte
+	RecipientEmail      *string
+	Status              string
+	DueAt               time.Time
+	ExpiresAt           time.Time
+	SentAt              pgtype.Timestamptz
+	RedeemedAt          pgtype.Timestamptz
+	DeliveryAttempts    int32
+	DeliveryClaimedAt   pgtype.Timestamptz
+	DeliveryFailureCode *string
+	CreatedAt           time.Time
+}
+
+type SurveyQuestion struct {
+	ID              uuid.UUID
+	SurveyVersionID uuid.UUID
+	Kind            string
+	Prompt          string
+	Required        bool
+	Position        int32
+	RatingMin       *int32
+	RatingMax       *int32
+}
+
+type SurveyQuestionOption struct {
+	ID         uuid.UUID
+	QuestionID uuid.UUID
+	Label      string
+	Position   int32
+}
+
+type SurveyResponse struct {
 	ID                 uuid.UUID
-	AccountID          uuid.UUID
-	AuthIdentityID     uuid.UUID
-	TokenDigest        []byte
-	CsrfDigest         []byte
-	AuthMethod         string
-	CreatedAt          time.Time
-	LastSeenAt         time.Time
-	IdleExpiresAt      time.Time
-	AbsoluteExpiresAt  time.Time
-	RevokedAt          pgtype.Timestamptz
-	RevocationReason   *string
-	BaseAssurance      string
-	CurrentAssurance   string
-	AuthenticatedAt    time.Time
-	AssuranceExpiresAt pgtype.Timestamptz
+	SurveyVersionID    uuid.UUID
+	SubmittedOn        pgtype.Date
+	IdentifiedPersonID *uuid.UUID
+}
+
+type SurveyTrigger struct {
+	ID           uuid.UUID
+	SurveyID     uuid.UUID
+	Kind         string
+	Enabled      bool
+	DelaySeconds int32
+	CooldownDays int32
+	Version      int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type SurveyVersion struct {
+	ID           uuid.UUID
+	SurveyID     uuid.UUID
+	Revision     int32
+	Title        string
+	Introduction *string
+	PublishedAt  pgtype.Timestamptz
+	CreatedAt    time.Time
+}
+
+type Visit struct {
+	ID                    uuid.UUID
+	PersonID              uuid.UUID
+	CheckedInAt           time.Time
+	CheckedOutAt          pgtype.Timestamptz
+	CheckInDeviceID       *uuid.UUID
+	CheckOutDeviceID      *uuid.UUID
+	Status                string
+	CheckInMethod         string
+	CheckOutMethod        *string
+	CheckInAssurance      string
+	CheckOutAssurance     *string
+	AdmissionDecision     string
+	LaborordnungVersionID *uuid.UUID
+	CheckedInByAccountID  *uuid.UUID
+	CheckedOutByAccountID *uuid.UUID
+	CorrectionReason      *string
+	Version               int64
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
 type VisitorEnrollmentConfiguration struct {

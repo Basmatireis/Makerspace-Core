@@ -295,15 +295,6 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatalf("immutable snapshot revisions = %d %v", revisions, snapshotAmounts)
 	}
 
-	billingReference := "invoice-" + suffix
-	billed, err := s.UpdateJobBilling(ctx, p, repriced.ID, repriced.Version, "billed", &billingReference, nil, &requestID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = s.UpdateJobFacts(ctx, p, billed.ID, billed.Version, JobInput{MachineID: machine.ID, StartsAt: startsAt, EndsAt: startsAt.Add(3*time.Hour + 14*time.Minute), Customer: PartyReference{Kind: "organization", ID: organization2.ID}, OperatorPersonID: personID, Outcome: "successful"}, &requestID); !apperror.IsCode(err, "job_billed") {
-		t.Fatalf("expected billed edit rejection, got %v", err)
-	}
-
 	current, err := s.GetMaterial(ctx, p, material.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -370,11 +361,11 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatalf("latest transaction is not mark-empty: %+v", transactions[0])
 	}
 
-	filtered, total, err := s.ListJobs(ctx, p, JobFilters{MachineID: &machine.ID, CustomerID: &organization2.ID, OperatorID: &personID, MaterialID: &material.ID, Outcome: stringPointer("successful"), BillingStatus: stringPointer("billed"), Source: stringPointer("automatic"), ReviewState: stringPointer("confirmed"), From: timePointer(startsAt.Add(-time.Minute)), To: timePointer(startsAt.Add(24 * time.Hour)), Page: 1, PageSize: 25})
+	filtered, total, err := s.ListJobs(ctx, p, JobFilters{MachineID: &machine.ID, CustomerID: &organization2.ID, OperatorID: &personID, MaterialID: &material.ID, Outcome: stringPointer("successful"), Source: stringPointer("automatic"), ReviewState: stringPointer("confirmed"), From: timePointer(startsAt.Add(-time.Minute)), To: timePointer(startsAt.Add(24 * time.Hour)), Page: 1, PageSize: 25})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if total != 1 || len(filtered) != 1 || filtered[0].ID != billed.ID {
+	if total != 1 || len(filtered) != 1 || filtered[0].ID != repriced.ID {
 		t.Fatalf("combined job filters returned total=%d jobs=%+v", total, filtered)
 	}
 	statistics, err := s.Statistics(ctx, p, startsAt.Add(-time.Hour), startsAt.Add(48*time.Hour))
@@ -395,7 +386,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	if deletedPartyJob.Customer != nil || deletedPartyJob.Operator != nil {
 		t.Fatalf("deleted person references were retained: customer=%+v operator=%+v", deletedPartyJob.Customer, deletedPartyJob.Operator)
 	}
-	organizationJob, err := s.GetJob(ctx, p, billed.ID)
+	organizationJob, err := s.GetJob(ctx, p, repriced.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

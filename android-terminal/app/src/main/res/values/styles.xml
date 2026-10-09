@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.MakerspaceTerminal" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#0f62fe</item>
+        <item name="android:navigationBarColor">#161616</item>
+        <item name="android:statusBarColor">#161616</item>
+        <item name="android:windowActionModeOverlay">true</item>
+    </style>
+</resources>

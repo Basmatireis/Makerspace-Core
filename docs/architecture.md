@@ -8,7 +8,7 @@ The browser calls relative `/api/v1` routes. In development Vite proxies `/api` 
 
 ## Backend boundaries
 
-Business features own their service, repository/query, domain model, and tests. The modules include people, accounts, auth, authorization, roles, audit, managed devices, files/storage, Lab Rules, OIDC, SCIM, visitor enrollment, supervisors, Open Days, and the machine logbook. A single thin `httpapi` adapter implements the generated strict interface and delegates business behavior to those feature services; it owns only transport mapping, cookies, and HTTP middleware. Shared platform code is limited to configuration, database setup, HTTP/error plumbing, logging, and optional telemetry integration.
+Business features own their service, repository/query, domain model, and tests. The modules include people, accounts, auth, authorization, roles, audit, managed devices, attendance, surveys, notifications, files/storage, Lab Rules, OIDC, SCIM, visitor enrollment, supervisors, Open Days, the machine logbook, and Orders/payment/external-invoicing records. A single thin `httpapi` adapter implements the generated strict interface and delegates business behavior to those feature services; it owns only transport mapping, cookies, and HTTP middleware. Shared platform code is limited to configuration, database setup, HTTP/error plumbing, logging, and optional telemetry integration.
 
 Within a feature:
 
@@ -36,6 +36,10 @@ Person 1 ─── 0..1 Account 1 ─── * AuthIdentity(password | pin | oidc
 DeviceType 1 ─── * ManagedDevice
      ├── * RolePermissionGrantDeviceType * ─── 1 RolePermissionGrant
      └── * VisitorEnrollmentContext
+ManagedDevice ─── 0..1 SessionPolicy ─── * Session policy snapshot
+Person 1 ─── * Visit ─── optional check-in/out ManagedDevice
+Visit ─── * SurveyInvitation ─── 1 immutable SurveyVersion ─── * SurveyQuestion
+SurveyInvitation ──redeems── SurveyResponse ─── * SurveyAnswer
 
 SCIMConnector 1 ─── * SCIMUserMapping ─── 1 Person/Account
 OIDCProvider 1 ─── * OIDC AuthIdentity
@@ -53,6 +57,10 @@ MachineType 1 ─── * Machine 1 ─── * MachineJob ─── * MaterialU
                                       │     └── * immutable PricingSnapshot│
                                       └── customer Person xor Organization │
 Material 1 ─── 1 transactional Balance ─── * immutable InventoryTransaction
+MachineJob / manual service ─── * immutable OrderItem ─── 1 Order
+Order ─── * immutable PaymentAllocation ─── 1 Payment
+Order ─── * ExternalInvoiceRequest ─── recipient/service snapshot + evidence events
+
 PricingGroup 1 ─── * explicit PricingRule
       └── optional default assignment for Person or Organization
 ```
@@ -66,13 +74,18 @@ PricingGroup 1 ─── * explicit PricingRule
 - **Role** is operator-configurable and assigned to a Person whether or not that Person has an Account. Each independently identified permission grant is global, valid on any authenticated managed device, or restricted to selected device types, and specifies minimum assurance. `master` is the sole protected system role; its permissions are computed from the application registry as global at minimum low assurance rather than copied into grant rows.
 - **DeviceType** is administrator-maintained classification data used by scoped role grants; authorization never hard-codes names such as Reception or Laser Terminal.
 - **ManagedDevice** stores a reusable device identity, its type, token digest, expiration/revocation state, throttled last-seen time, and optimistic version. It never authenticates a user.
+- **SessionPolicy** defines idle and absolute server-side limits plus the post-session destination. A Session snapshots the effective policy and binds to the authenticated ManagedDevice when present; an unregistered browser uses the single database default without becoming a ManagedDevice.
+- **Visit** is attendance state for an existing Person. Credential verification for check-in does not issue an application Session. Admission reuses Lab Rules evaluation and its confirmation-request flow.
+- **Survey** owns immutable published versions, typed ordered questions, and a post-visit Trigger. Delivery identity stays on the invitation; an anonymous response is stored separately without a Person foreign key.
 - **AuditEvent** contains a durable actor type (`user`, `system`, or historical `unknown`), an action, resource type/ID, nullable actor account, time, nullable HTTP request ID, changed field names, source, and selected non-sensitive metadata. Actions remain stable lowercase dot-separated domain/entity/action identifiers.
 - **OpenDayPeriod** owns an inclusive local-date range and follows `draft ↔ staffing ↔ published → archived`. Backward transitions retain schedules and assignments; archive remains final and read-only. Its version serializes schedule edits and lifecycle changes.
 - **OpenDay** stores UTC instants, a scheduled/cancelled state, an optimistic version, and a manager-only note. Each Open Day has stable supervisor and trainee requirements. Person assignments remain as history if eligibility Roles later change.
 - **AcademicBreak** is operator-maintained inclusive date context. Public holidays are computed offline from pinned country/subdivision configuration.
-- **Machine** has a versioned type and truthful administrative status. **MachineJob** records its UTC interval, source, review/billing state, nullable customer/operator references, typed material usage, and immutable pricing-snapshot revisions.
+- **Machine** has a versioned type and truthful administrative status. **MachineJob** records its UTC interval, source, review state, nullable customer/operator references, typed material usage, and immutable pricing-snapshot revisions.
 - **Material** has one transactionally maintained balance and an immutable inventory ledger. Job confirmation and corrections lock materials deterministically and commit stock, price, job, and audit effects atomically.
 - **PricingGroup** resolves explicitly, from a party assignment, or from the global default. Exact-decimal runtime/material rules are copied into immutable job snapshots; final price overrides remain separate from calculations.
+
+**Orders** preserve internal service/financial snapshots and separate immutable Payments/allocation history from wiRef requests. Makerspace-Core does not issue invoices. Job corrections remain operational; charge corrections use full reversal/replacement. Anonymous job confirmation and paid immediate checkout share one database transaction. See [Orders](orders.md) for states, integrity, and retention boundaries.
 
 UUIDv7 values are generated in application code. Timestamps use UTC `timestamptz`. Mutable people, accounts, and roles use a monotonically increasing version; Person membership changes use the Person version, and clients submit `expectedVersion`. Stale writes fail with HTTP 409 and the stable `stale_write` code. Person deletion and Person-role removal lock the Person before the last-master advisory lock and any attached Account. Login/session creation and security-sensitive Account mutations serialize on the Account row, preventing an in-flight login or password change from escaping a concurrent disable, identity change, administrative password action, or reset.
 
@@ -90,6 +103,6 @@ The contract uses lower-camel JSON properties. Optional nullable PATCH propertie
 
 ## Deliberate non-goals
 
-The schema and code contain no Orders, general Events, Trainings, Rental, general-purpose document signing, Visits, or Feedback placeholders. Machine-logbook statistics are purpose-built operational reports, not a generic analytics platform. Events remain deliberately outside the Open Days module. Lab Rules evidence records verification of a physical document; it does not store a drawn signature or treat a checkbox, PIN, or session as a legal signature. SCIM supports Users only—Groups, Roles, and entitlements are deliberately unsupported. Visitor enrollment is available only on explicitly approved managed-device types and never creates a generic public registration route.
+The schema and code contain no general Trainings, Rental, or general-purpose document signing placeholders. Machine-logbook and attendance statistics are purpose-built operational reports, not a generic analytics platform. Lab Rules evidence records verification of a physical document; it does not store a drawn signature or treat a checkbox, PIN, or session as a legal signature. SCIM supports Users only—Groups, Roles, and entitlements are deliberately unsupported. Visitor enrollment is available only on explicitly approved managed-device types and never creates a generic public registration route.
 
 Visitor enrollment contexts pin the applicable Lab Rules version at creation. Their state, PDF, and resulting physical-confirmation request all reference that exact immutable version, even if another version becomes current while the visitor is enrolling. Confirmation evidence retains the signed version; ordinary policy evaluation can then report the newer version as outstanding. Device eligibility, enabled state, allowed methods, and initial-role configuration are still checked at submission; pinning the document does not freeze security configuration.

@@ -28,16 +28,19 @@ func TestSemanticMigrationsPreserveSessionsAndInvalidateUnprovenFlows(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	tx, err := pool.Begin(ctx)
+	sessionToken, sessionDigest, err := security.NewOpaqueToken()
 	if err != nil {
 		t.Fatal(err)
 	}
-	session, err := service.CreateOIDCSession(ctx, tx, actor.accountID, identity, authorization.AssuranceNormal, time.Now())
+	_, csrfDigest, err := security.NewOpaqueToken()
 	if err != nil {
-		_ = tx.Rollback(ctx)
 		t.Fatal(err)
 	}
-	if err := tx.Commit(ctx); err != nil {
+	sessionID := uuid.Must(uuid.NewV7())
+	if _, err = pool.Exec(ctx, `INSERT INTO sessions(id,account_id,auth_identity_id,token_digest,csrf_digest,auth_method,
+		base_assurance,current_assurance,authenticated_at,idle_expires_at,absolute_expires_at)
+		VALUES($1,$2,$3,$4,$5,'oidc','normal','normal',now(),now()+interval '1 hour',now()+interval '2 hours')`,
+		sessionID, actor.accountID, identity, sessionDigest, csrfDigest); err != nil {
 		t.Fatal(err)
 	}
 	deviceType, device, contextID, flowID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
@@ -53,7 +56,7 @@ func TestSemanticMigrationsPreserveSessionsAndInvalidateUnprovenFlows(t *testing
 	assertCount(t, pool, `SELECT count(*) FROM oidc_flows WHERE id=$1`, 0, flowID)
 	assertCount(t, pool, `SELECT count(*) FROM account_roles WHERE account_id=$1 AND role_id=$2`, 1, actor.accountID, masterRoleID)
 	applyMigrationFiles(t, pool, paths[17:])
-	authenticated, err := service.Authenticate(ctx, session.Token)
+	authenticated, err := service.Authenticate(ctx, sessionToken)
 	if err != nil {
 		t.Fatalf("migration revoked login: %v", err)
 	}
@@ -63,10 +66,10 @@ func TestSemanticMigrationsPreserveSessionsAndInvalidateUnprovenFlows(t *testing
 	assertCount(t, pool, `SELECT count(*) FROM auth_identities WHERE id=$1 AND subject='preserved-subject'`, 1, identity)
 	assertCount(t, pool, `SELECT count(*) FROM person_roles WHERE person_id=$1 AND role_id=$2`, 1, actor.personID, masterRoleID)
 	var stored []byte
-	if err := pool.QueryRow(ctx, `SELECT token_digest FROM sessions WHERE id=$1`, session.ID).Scan(&stored); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT token_digest FROM sessions WHERE id=$1`, sessionID).Scan(&stored); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(stored, security.DigestToken(session.Token)) {
+	if !bytes.Equal(stored, security.DigestToken(sessionToken)) {
 		t.Fatal("migration altered session credentials")
 	}
 	// Exercise these two Down paths with real retained account/session data.
@@ -80,7 +83,7 @@ func TestSemanticMigrationsPreserveSessionsAndInvalidateUnprovenFlows(t *testing
 			t.Fatal(err)
 		}
 	}
-	if _, err := service.Authenticate(ctx, session.Token); err != nil {
+	if _, err := service.Authenticate(ctx, sessionToken); err != nil {
 		t.Fatalf("downgrade revoked login: %v", err)
 	}
 	applyMigrationFiles(t, pool, paths[15:17])

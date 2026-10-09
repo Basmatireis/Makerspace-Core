@@ -15,6 +15,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/manageddevices"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
@@ -203,10 +204,45 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
+		headerDeviceToken := r.Header.Get("X-Managed-Device-Token")
+		browserDeviceToken := ""
+		if cookie, cookieErr := r.Cookie(s.config.ManagedDeviceCookieName); cookieErr == nil {
+			browserDeviceToken = cookie.Value
+		}
+		if headerDeviceToken != "" && browserDeviceToken != "" {
+			writeAPIError(w, r, apperror.New(http.StatusBadRequest, "managed_device_credentials_conflict", "Use either native or browser managed-device credentials, not both"), logger)
+			return
+		}
+		deviceToken := headerDeviceToken
+		if deviceToken == "" {
+			deviceToken = browserDeviceToken
+		}
+		device, err := s.managedDevices.Authenticate(r.Context(), deviceToken)
+		if err != nil {
+			writeAPIError(w, r, err, logger)
+			return
+		}
+		ctx := r.Context()
+		var managedDeviceID *uuid.UUID
+		if device != nil {
+			id := device.ID
+			managedDeviceID = &id
+			ctx = context.WithValue(ctx, visitorDeviceContextKey, *device)
+		}
+		ctx = auth.WithManagedDeviceContext(ctx, managedDeviceID)
+		r = r.WithContext(ctx)
+		if device != nil && !managedDeviceAllowsMode(*device, "staff_ui") && isStaffSessionEntryPath(r.URL.Path) {
+			writeAPIError(w, r, apperror.New(http.StatusForbidden, "device_mode_denied", "This managed device is not configured for staff sessions"), logger)
+			return
+		}
 		callback := r.URL.Path == apiBasePath+"/auth/oidc/callback"
 		_, sessionCookieErr := r.Cookie(s.config.SessionCookieName)
 		if isPublicRequest(r.Method, r.URL.Path) && (!callback || sessionCookieErr != nil) {
 			next.ServeHTTP(w, r)
+			return
+		}
+		if device != nil && !managedDeviceAllowsMode(*device, "staff_ui") && r.URL.Path != apiBasePath+"/auth/logout" {
+			writeAPIError(w, r, apperror.New(http.StatusForbidden, "device_mode_denied", "This managed device is not configured for staff sessions"), logger)
 			return
 		}
 		cookie, err := r.Cookie(s.config.SessionCookieName)
@@ -220,25 +256,6 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 				next.ServeHTTP(w, r)
 				return
 			}
-			writeAPIError(w, r, err, logger)
-			return
-		}
-		headerDeviceToken := r.Header.Get("X-Managed-Device-Token")
-		browserDeviceCookie, browserCookieErr := r.Cookie(s.config.ManagedDeviceCookieName)
-		browserDeviceToken := ""
-		if browserCookieErr == nil {
-			browserDeviceToken = browserDeviceCookie.Value
-		}
-		if headerDeviceToken != "" && browserDeviceToken != "" {
-			writeAPIError(w, r, apperror.New(http.StatusBadRequest, "managed_device_credentials_conflict", "Use either native or browser managed-device credentials, not both"), logger)
-			return
-		}
-		deviceToken := headerDeviceToken
-		if deviceToken == "" {
-			deviceToken = browserDeviceToken
-		}
-		device, err := s.managedDevices.Authenticate(r.Context(), deviceToken)
-		if err != nil {
 			writeAPIError(w, r, err, logger)
 			return
 		}
@@ -264,7 +281,7 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 				return
 			}
 		}
-		ctx := context.WithValue(r.Context(), authenticatedContextKey, authenticated)
+		ctx = context.WithValue(r.Context(), authenticatedContextKey, authenticated)
 		if state, ok := ctx.Value(operationStateContextKey).(*operationState); ok {
 			userID := authenticated.Principal.AccountID
 			state.userID = &userID
@@ -281,12 +298,17 @@ func (s *Server) originMiddleware(next http.Handler, logger *slog.Logger) http.H
 			next.ServeHTTP(w, r)
 			return
 		}
-		if isUnsafeMethod(r.Method) && r.Header.Get("Origin") != expectedOrigin {
+		if isUnsafeMethod(r.Method) && r.Header.Get("Origin") != expectedOrigin && !isNativeDeviceHardwareReport(r) {
 			writeAPIError(w, r, apperror.New(http.StatusForbidden, "origin_invalid", "Request origin is not allowed"), logger)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func isNativeDeviceHardwareReport(r *http.Request) bool {
+	return r.Method == http.MethodPut && r.URL.Path == apiBasePath+"/managed-devices/self/hardware" &&
+		r.Header.Get("Origin") == "" && strings.TrimSpace(r.Header.Get("X-Managed-Device-Token")) != ""
 }
 
 func requestMetadataMiddleware(next http.Handler, routes chi.Routes, trustedProxies []netip.Prefix) http.Handler {
@@ -326,6 +348,8 @@ func noStoreMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, apiBasePath+"/auth/") || strings.HasSuffix(r.URL.Path, "/password-reset") ||
 			strings.HasPrefix(r.URL.Path, apiBasePath+"/visitor-enrollment/") ||
+			strings.HasPrefix(r.URL.Path, apiBasePath+"/terminal/") || strings.HasPrefix(r.URL.Path, apiBasePath+"/public/surveys/") ||
+			strings.HasPrefix(r.URL.Path, apiBasePath+"/visits") || strings.HasPrefix(r.URL.Path, apiBasePath+"/attendance/") ||
 			strings.HasPrefix(r.URL.Path, apiBasePath+"/public/event-signups/") ||
 			strings.HasSuffix(r.URL.Path, "/signups") ||
 			(strings.Contains(r.URL.Path, "/events/") && (strings.HasSuffix(r.URL.Path, "/assignments") || strings.Contains(r.URL.Path, "/assignments/") || strings.HasSuffix(r.URL.Path, "/files") || strings.Contains(r.URL.Path, "/files/"))) ||
@@ -644,12 +668,16 @@ func isPublicPath(path string) bool {
 	if strings.HasPrefix(path, apiBasePath+"/public/events/") || strings.HasPrefix(path, apiBasePath+"/public/event-signups/") {
 		return true
 	}
+	if strings.HasPrefix(path, apiBasePath+"/terminal/") || strings.HasPrefix(path, apiBasePath+"/public/surveys/") {
+		return true
+	}
 	switch path {
 	case apiBasePath + "/health/live", apiBasePath + "/health/ready", apiBasePath + "/auth/login", apiBasePath + "/auth/password-reset/complete",
 		apiBasePath + "/auth/pin/login",
 		apiBasePath + "/auth/password-reset/request", apiBasePath + "/auth/password-reset/complete-code",
 		apiBasePath + "/auth/invitations/complete", apiBasePath + "/auth/email-verification/complete",
-		apiBasePath + "/public/open-days", apiBasePath + "/public/open-days/calendar.ics":
+		apiBasePath + "/public/open-days", apiBasePath + "/public/open-days/calendar.ics",
+		apiBasePath + "/managed-devices/self/hardware":
 		return true
 	default:
 		return false
@@ -686,4 +714,19 @@ func isSCIMPath(path string) bool {
 
 func isUnsafeMethod(method string) bool {
 	return method != http.MethodGet && method != http.MethodHead && method != http.MethodOptions
+}
+
+func managedDeviceAllowsMode(device manageddevices.DeviceContext, mode string) bool {
+	for _, allowed := range device.AllowedApplicationModes {
+		if allowed == mode {
+			return true
+		}
+	}
+	return false
+}
+
+func isStaffSessionEntryPath(path string) bool {
+	return path == apiBasePath+"/auth/login" || path == apiBasePath+"/auth/pin/login" ||
+		path == apiBasePath+"/auth/oidc/callback" ||
+		(strings.HasPrefix(path, apiBasePath+"/auth/oidc/") && strings.HasSuffix(path, "/start"))
 }

@@ -30,7 +30,7 @@ export function roleFixture(overrides: Partial<Role> = {}): Role {
 }
 
 export function accountFixture(overrides: Partial<Account> = {}): Account {
-  return {
+	return {
     id: otherAccountId,
     personId: otherPersonId,
     loginEmail: 'grace.login@example.test',
@@ -74,6 +74,7 @@ export function currentUserFixture(
   const personId = fixturePersonId;
   const accountId = fixtureAccountId;
   return {
+	session: { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' },
     person: {
       id: personId,
       firstName: 'Ada',

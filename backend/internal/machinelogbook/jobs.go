@@ -79,6 +79,15 @@ func validatePartyAndOperator(ctx context.Context, q *machinelogbookdb.Queries, 
 	if !ok {
 		return nil, nil, validation("operator must have an enabled account")
 	}
+	return validateParty(ctx, q, party, false)
+}
+
+func validateParty(ctx context.Context, q *machinelogbookdb.Queries, party PartyReference, anonymous bool) (*uuid.UUID, *uuid.UUID, error) {
+	var ok bool
+	var err error
+	if anonymous && party.Kind == "" && party.ID == uuid.Nil {
+		return nil, nil, nil
+	}
 	switch party.Kind {
 	case "person":
 		ok, err = q.BillingPersonExists(ctx, party.ID)
@@ -261,6 +270,24 @@ func (s *Service) CreateManualJob(ctx context.Context, p authorization.Principal
 	if err := require(p, authorization.MachineJobsCreate); err != nil {
 		return MachineJob{}, err
 	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return MachineJob{}, err
+	}
+	defer tx.Rollback(ctx)
+	job, err := s.CreateManualJobInTransaction(ctx, tx, false, p, input, requestID)
+	if err != nil {
+		return MachineJob{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return MachineJob{}, err
+	}
+	return job, nil
+}
+func (s *Service) CreateManualJobInTransaction(ctx context.Context, tx pgx.Tx, anonymous bool, p authorization.Principal, input JobInput, requestID *uuid.UUID) (MachineJob, error) {
+	if err := require(p, authorization.MachineJobsCreate); err != nil {
+		return MachineJob{}, err
+	}
 	if err := validateInterval(input.StartsAt, input.EndsAt); err != nil {
 		return MachineJob{}, err
 	}
@@ -271,11 +298,6 @@ func (s *Service) CreateManualJob(ctx context.Context, p authorization.Principal
 	if err != nil {
 		return MachineJob{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return MachineJob{}, err
-	}
-	defer tx.Rollback(ctx)
 	q := machinelogbookdb.New(tx)
 	machine, err := q.GetMachineForUpdate(ctx, input.MachineID)
 	if err != nil {
@@ -284,7 +306,7 @@ func (s *Service) CreateManualJob(ctx context.Context, p authorization.Principal
 	if machine.Status == "retired" {
 		return MachineJob{}, conflict("machine_retired", "Retired machines cannot receive new jobs")
 	}
-	personID, organizationID, err := validatePartyAndOperator(ctx, q, input.Customer, input.OperatorPersonID)
+	personID, organizationID, err := validateJobAssignments(ctx, q, input.Customer, input.OperatorPersonID, anonymous)
 	if err != nil {
 		return MachineJob{}, err
 	}
@@ -314,10 +336,7 @@ func (s *Service) CreateManualJob(ctx context.Context, p authorization.Principal
 	if err = writeAudit(ctx, tx, p, "machine_job.created", "machine_job", id, requestID, []string{"machineId", "startsAt", "endsAt", "customer", "operatorPersonId", "outcome", "notes", "usages", "pricingSnapshot"}); err != nil {
 		return MachineJob{}, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return MachineJob{}, err
-	}
-	return s.loadJob(ctx, id)
+	return s.jobFromRow(ctx, q, job)
 }
 
 func automaticMatches(ctx context.Context, q *machinelogbookdb.Queries, job machinelogbookdb.MachineJob, input AutomaticJobInput, parsed []parsedUsage) (bool, error) {
@@ -418,17 +437,31 @@ func (s *Service) ConfirmJob(ctx context.Context, p authorization.Principal, id 
 	if err := require(p, authorization.MachineJobsReview); err != nil {
 		return MachineJob{}, err
 	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return MachineJob{}, err
+	}
+	defer tx.Rollback(ctx)
+	job, err := s.ConfirmJobInTransaction(ctx, tx, false, p, id, expected, party, operator, outcome, notes, pricingGroupID, requestID)
+	if err != nil {
+		return MachineJob{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return MachineJob{}, err
+	}
+	return job, nil
+}
+func (s *Service) ConfirmJobInTransaction(ctx context.Context, tx pgx.Tx, anonymous bool, p authorization.Principal, id uuid.UUID, expected int64, party PartyReference, operator uuid.UUID, outcome string, notes *string, pricingGroupID *uuid.UUID, requestID *uuid.UUID) (MachineJob, error) {
+	if err := require(p, authorization.MachineJobsReview); err != nil {
+		return MachineJob{}, err
+	}
 	if expected < 1 {
 		return MachineJob{}, validation("expectedVersion must be positive")
 	}
 	if err := validateOutcome(outcome); err != nil {
 		return MachineJob{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return MachineJob{}, err
-	}
-	defer tx.Rollback(ctx)
+	var err error
 	q := machinelogbookdb.New(tx)
 	current, err := q.GetMachineJobForUpdate(ctx, id)
 	if err != nil {
@@ -440,7 +473,7 @@ func (s *Service) ConfirmJob(ctx context.Context, p authorization.Principal, id 
 	if current.ReviewState != "needs_review" {
 		return MachineJob{}, conflict("job_not_pending_review", "Job is not awaiting review")
 	}
-	personID, organizationID, err := validatePartyAndOperator(ctx, q, party, operator)
+	personID, organizationID, err := validateJobAssignments(ctx, q, party, operator, anonymous)
 	if err != nil {
 		return MachineJob{}, err
 	}
@@ -474,10 +507,7 @@ func (s *Service) ConfirmJob(ctx context.Context, p authorization.Principal, id 
 	if err = writeAudit(ctx, tx, p, "machine_job.confirmed", "machine_job", id, requestID, []string{"customer", "operatorPersonId", "outcome", "notes", "reviewState", "pricingSnapshot", "inventory"}); err != nil {
 		return MachineJob{}, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return MachineJob{}, err
-	}
-	return s.loadJob(ctx, id)
+	return s.jobFromRow(ctx, q, job)
 }
 
 func (s *Service) loadBillingParty(ctx context.Context, q *machinelogbookdb.Queries, job machinelogbookdb.MachineJob) (*BillingParty, error) {
@@ -521,7 +551,7 @@ func (s *Service) jobFromRow(ctx context.Context, q *machinelogbookdb.Queries, r
 	if err != nil {
 		return MachineJob{}, err
 	}
-	item := MachineJob{ID: row.ID, DisplayID: row.DisplayID, Machine: machineFromGet(machineRow), StartsAt: row.StartsAt, EndsAt: row.EndsAt, DurationSeconds: int64(row.EndsAt.Sub(row.StartsAt).Seconds()), Source: row.Source, ExternalID: row.ExternalID, ReviewState: row.ReviewState, Outcome: row.Outcome, Notes: row.Notes, PricingStatus: row.PricingStatus, CalculatedPrice: nullableDecimal(row.CalculatedPrice), FinalPrice: nullableDecimal(row.FinalPrice), PriceOverrideReason: row.PriceOverrideReason, PriceOverriddenAt: nullableTime(row.PriceOverriddenAt), BillingStatus: row.BillingStatus, BillingReference: row.BillingReference, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Usages: make([]MachineJobUsage, 0, len(usages))}
+	item := MachineJob{ID: row.ID, DisplayID: row.DisplayID, Machine: machineFromGet(machineRow), StartsAt: row.StartsAt, EndsAt: row.EndsAt, DurationSeconds: int64(row.EndsAt.Sub(row.StartsAt).Seconds()), Source: row.Source, ExternalID: row.ExternalID, ReviewState: row.ReviewState, Outcome: row.Outcome, Notes: row.Notes, PricingStatus: row.PricingStatus, CalculatedPrice: nullableDecimal(row.CalculatedPrice), FinalPrice: nullableDecimal(row.FinalPrice), PriceOverrideReason: row.PriceOverrideReason, PriceOverriddenAt: nullableTime(row.PriceOverriddenAt), Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Usages: make([]MachineJobUsage, 0, len(usages))}
 	if item.FinalPrice != nil {
 		item.EffectivePrice = item.FinalPrice
 	} else {
@@ -593,13 +623,13 @@ func (s *Service) ListJobs(ctx context.Context, p authorization.Principal, filte
 	if filters.From != nil && filters.To != nil && !filters.To.After(*filters.From) {
 		return nil, 0, validation("to must be after from")
 	}
-	params := machinelogbookdb.ListMachineJobIDsParams{Search: strings.TrimSpace(filters.Search), MachineID: filters.MachineID, CustomerID: filters.CustomerID, OperatorID: filters.OperatorID, MaterialID: filters.MaterialID, Outcome: filters.Outcome, BillingStatus: filters.BillingStatus, Source: filters.Source, ReviewState: filters.ReviewState, FromTime: pgTime(filters.From), ToTime: pgTime(filters.To), PageOffset: offset, PageLimit: limit}
+	params := machinelogbookdb.ListMachineJobIDsParams{Search: strings.TrimSpace(filters.Search), MachineID: filters.MachineID, CustomerID: filters.CustomerID, OperatorID: filters.OperatorID, MaterialID: filters.MaterialID, Outcome: filters.Outcome, Source: filters.Source, ReviewState: filters.ReviewState, FromTime: pgTime(filters.From), ToTime: pgTime(filters.To), PageOffset: offset, PageLimit: limit}
 	q := machinelogbookdb.New(s.pool)
 	rows, err := q.ListMachineJobIDs(ctx, params)
 	if err != nil {
 		return nil, 0, err
 	}
-	total, err := q.CountMachineJobs(ctx, machinelogbookdb.CountMachineJobsParams{Search: params.Search, MachineID: params.MachineID, CustomerID: params.CustomerID, OperatorID: params.OperatorID, MaterialID: params.MaterialID, Outcome: params.Outcome, BillingStatus: params.BillingStatus, Source: params.Source, ReviewState: params.ReviewState, FromTime: params.FromTime, ToTime: params.ToTime})
+	total, err := q.CountMachineJobs(ctx, machinelogbookdb.CountMachineJobsParams{Search: params.Search, MachineID: params.MachineID, CustomerID: params.CustomerID, OperatorID: params.OperatorID, MaterialID: params.MaterialID, Outcome: params.Outcome, Source: params.Source, ReviewState: params.ReviewState, FromTime: params.FromTime, ToTime: params.ToTime})
 	if err != nil {
 		return nil, 0, err
 	}
@@ -668,9 +698,6 @@ func (s *Service) UpdateJobFacts(ctx context.Context, p authorization.Principal,
 	if current.Version != expected {
 		return MachineJob{}, apperror.StaleWrite
 	}
-	if current.BillingStatus == "billed" {
-		return MachineJob{}, conflict("job_billed", "Return the job to unbilled before editing it")
-	}
 	if current.ReviewState != "confirmed" {
 		return MachineJob{}, conflict("job_not_confirmed", "Only confirmed jobs can be edited")
 	}
@@ -685,7 +712,14 @@ func (s *Service) UpdateJobFacts(ctx context.Context, p authorization.Principal,
 	if newMachine.Status == "retired" && newMachine.ID != oldMachine.ID {
 		return MachineJob{}, conflict("machine_retired", "Retired machines cannot receive jobs")
 	}
-	personID, organizationID, err := validatePartyAndOperator(ctx, q, input.Customer, input.OperatorPersonID)
+	if input.Customer.Kind == "" {
+		if current.CustomerPersonID != nil {
+			input.Customer = PartyReference{Kind: "person", ID: *current.CustomerPersonID}
+		} else if current.CustomerOrganizationID != nil {
+			input.Customer = PartyReference{Kind: "organization", ID: *current.CustomerOrganizationID}
+		}
+	}
+	personID, organizationID, err := validateJobAssignments(ctx, q, input.Customer, input.OperatorPersonID, current.CustomerPersonID == nil && current.CustomerOrganizationID == nil)
 	if err != nil {
 		return MachineJob{}, err
 	}
@@ -750,7 +784,13 @@ func (s *Service) recalculateFromSnapshot(ctx context.Context, q *machinelogbook
 	complete := true
 	total := decimal.Zero
 	var runtimeFound bool
+	seenRules := map[string]bool{}
 	for _, rule := range rules {
+		key := rule.Kind + "/" + rule.Selector + "/" + rule.Unit
+		if seenRules[key] {
+			continue
+		}
+		seenRules[key] = true
 		if rule.Missing {
 			complete = false
 			continue
@@ -822,9 +862,6 @@ func (s *Service) ReplaceJobUsages(ctx context.Context, p authorization.Principa
 	}
 	if job.Version != expected {
 		return MachineJob{}, apperror.StaleWrite
-	}
-	if job.BillingStatus == "billed" {
-		return MachineJob{}, conflict("job_billed", "Return the job to unbilled before editing it")
 	}
 	if job.ReviewState != "confirmed" {
 		return MachineJob{}, conflict("job_not_confirmed", "Only confirmed jobs can be edited")
@@ -971,42 +1008,28 @@ func (s *Service) ClearJobPriceOverride(ctx context.Context, p authorization.Pri
 	return s.loadJob(ctx, id)
 }
 
-func (s *Service) UpdateJobBilling(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, status string, reference, waiverReason *string, requestID *uuid.UUID) (MachineJob, error) {
-	if err := require(p, authorization.MachineJobsEdit); err != nil {
-		return MachineJob{}, err
+// ChargeSource locks a job and returns domain data using the caller's transaction.
+func (s *Service) ChargeSource(ctx context.Context, tx pgx.Tx, p authorization.Principal, id uuid.UUID) (MachineJob, error) {
+	if !p.Has(authorization.OrdersRead) {
+		return MachineJob{}, apperror.PermissionDenied
 	}
-	if expected < 1 {
-		return MachineJob{}, validation("expectedVersion must be positive")
-	}
-	reference = cleanOptional(reference)
-	waiverReason = cleanOptional(waiverReason)
-	if status != "unbilled" && status != "billed" && status != "waived" {
-		return MachineJob{}, validation("invalid billing status")
-	}
-	if status == "billed" && reference == nil {
-		return MachineJob{}, validation("billingReference is required for billed jobs")
-	}
-	if status == "waived" && waiverReason == nil {
-		return MachineJob{}, validation("waiverReason is required for waived jobs")
-	}
-	tx, err := s.pool.Begin(ctx)
+	q := machinelogbookdb.New(tx)
+	row, err := q.GetMachineJobForUpdate(ctx, id)
 	if err != nil {
-		return MachineJob{}, err
+		return MachineJob{}, noRows(err)
 	}
-	defer tx.Rollback(ctx)
-	actor := p.AccountID
-	_, err = machinelogbookdb.New(tx).UpdateMachineJobBilling(ctx, machinelogbookdb.UpdateMachineJobBillingParams{BillingStatus: status, BillingReference: reference, WaiverReason: waiverReason, ActorAccountID: &actor, ID: id, ExpectedVersion: expected})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return MachineJob{}, apperror.StaleWrite
+	return s.jobFromRow(ctx, q, row)
+}
+func validateJobAssignments(ctx context.Context, q *machinelogbookdb.Queries, party PartyReference, operator uuid.UUID, anonymous bool) (*uuid.UUID, *uuid.UUID, error) {
+	if operator == uuid.Nil {
+		return nil, nil, validation("operatorPersonId is required")
 	}
+	ok, err := q.OperatorExists(ctx, operator)
 	if err != nil {
-		return MachineJob{}, databaseError(err)
+		return nil, nil, err
 	}
-	if err = writeAudit(ctx, tx, p, "machine_job.billing_updated", "machine_job", id, requestID, []string{"billingStatus", "billingReference", "finalPrice"}); err != nil {
-		return MachineJob{}, err
+	if !ok {
+		return nil, nil, validation("operator must have an enabled account")
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return MachineJob{}, err
-	}
-	return s.loadJob(ctx, id)
+	return validateParty(ctx, q, party, anonymous)
 }

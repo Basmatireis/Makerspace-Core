@@ -21,11 +21,13 @@ the required session and CSRF credentials.
 import type {
   BillingPartyList,
   CreateOrganizationRequest,
+  InvoicingRequirements,
   ListOrganizationsParams,
   Organization,
   OrganizationPage,
   SearchBillingPartiesParams,
   UUIDv7,
+  UpdateInvoicingRequirements,
   UpdateOrganizationRequest
 } from '.././models';
 
@@ -136,6 +138,48 @@ export const searchBillingParties = async (params?: SearchBillingPartiesParams, 
     method: 'GET'
     
     
+  }
+);}
+
+
+export const getGetOrganizationInvoicingRequirementsUrl = (organizationId: UUIDv7,) => {
+
+
+  
+
+  return `/api/v1/organizations/${organizationId}/invoicing-requirements`
+}
+
+export const getOrganizationInvoicingRequirements = async (organizationId: UUIDv7, options?: RequestInit): Promise<InvoicingRequirements> => {
+  
+  return apiFetch<InvoicingRequirements>(getGetOrganizationInvoicingRequirementsUrl(organizationId),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+export const getUpdateOrganizationInvoicingRequirementsUrl = (organizationId: UUIDv7,) => {
+
+
+  
+
+  return `/api/v1/organizations/${organizationId}/invoicing-requirements`
+}
+
+export const updateOrganizationInvoicingRequirements = async (organizationId: UUIDv7,
+    updateInvoicingRequirements: UpdateInvoicingRequirements, options?: RequestInit): Promise<InvoicingRequirements> => {
+  
+  return apiFetch<InvoicingRequirements>(getUpdateOrganizationInvoicingRequirementsUrl(organizationId),
+  {      
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateInvoicingRequirements,)
   }
 );}
 

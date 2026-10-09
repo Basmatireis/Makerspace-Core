@@ -1348,6 +1348,35 @@ progress::-moz-progress-bar {
   }
 }
 
+.terminal-page {
+  max-inline-size: 72rem;
+  margin-inline: auto;
+}
+
+.terminal-presence-grid,
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--cds-spacing-04);
+}
+
+.stats-grid .cds--tile {
+  display: grid;
+  gap: var(--cds-spacing-02);
+}
+
+.stats-grid strong { font-size: 1.75rem; }
+
+.survey-question {
+  border: 0;
+  padding: 0;
+}
+
+.survey-question legend {
+  margin-block-end: var(--cds-spacing-04);
+  font-weight: 600;
+}
+
 .form-grid {
   row-gap: $spacing-06;
   padding: 0;

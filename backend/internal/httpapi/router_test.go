@@ -242,6 +242,40 @@ func TestOriginMiddlewareRequiresExactOriginForUnsafeRequests(t *testing.T) {
 		t.Fatalf("exact origin status = %d", recorder.Code)
 	}
 
+	t.Run("native device hardware report", func(t *testing.T) {
+		request := httptest.NewRequest(http.MethodPut, "/api/v1/managed-devices/self/hardware", nil)
+		request.Header.Set("X-Managed-Device-Token", strings.Repeat("a", 43))
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusNoContent {
+			t.Fatalf("originless native report status = %d", recorder.Code)
+		}
+
+		request = httptest.NewRequest(http.MethodPut, "/api/v1/managed-devices/self/hardware", nil)
+		request.Header.Set("Origin", "https://example.test")
+		request.Header.Set("X-Managed-Device-Token", strings.Repeat("a", 43))
+		recorder = httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("foreign-origin native report status = %d", recorder.Code)
+		}
+
+		request = httptest.NewRequest(http.MethodPut, "/api/v1/managed-devices/self/hardware", nil)
+		recorder = httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("originless browser report status = %d", recorder.Code)
+		}
+
+		request = httptest.NewRequest(http.MethodPut, "/api/v1/auth/logout", nil)
+		request.Header.Set("X-Managed-Device-Token", strings.Repeat("a", 43))
+		recorder = httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("unrelated originless request status = %d", recorder.Code)
+		}
+	})
+
 	request = httptest.NewRequest(http.MethodGet, "/api/v1/auth/me", nil)
 	recorder = httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
@@ -589,6 +623,22 @@ func recordedAPIRequestLog(t *testing.T, method, target string) (map[string]any,
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 	return decodeRequestLog(t, output.String()), output.String()
+}
+
+func TestManagedDeviceApplicationModeBoundaries(t *testing.T) {
+	visitorOnly := manageddevices.DeviceContext{AllowedApplicationModes: []string{"visitor_terminal"}}
+	staff := manageddevices.DeviceContext{AllowedApplicationModes: []string{"staff_ui"}}
+	if managedDeviceAllowsMode(visitorOnly, "staff_ui") || !managedDeviceAllowsMode(staff, "staff_ui") {
+		t.Fatal("staff UI mode was not enforced")
+	}
+	for _, path := range []string{apiBasePath + "/auth/login", apiBasePath + "/auth/pin/login", apiBasePath + "/auth/oidc/company/start", apiBasePath + "/auth/oidc/callback"} {
+		if !isStaffSessionEntryPath(path) {
+			t.Fatalf("staff session entry path was not classified: %s", path)
+		}
+	}
+	if isStaffSessionEntryPath(apiBasePath + "/terminal/context") {
+		t.Fatal("public terminal context was classified as a staff session entry")
+	}
 }
 
 func recordedRequestLog(t *testing.T, router *chi.Mux, method, target, remoteAddress string, headers http.Header, trustedProxies []netip.Prefix) (map[string]any, string) {

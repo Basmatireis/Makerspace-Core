@@ -11,9 +11,9 @@ import {
   createManagedDevice, createManagedDeviceType, deleteManagedDevice,
   deleteManagedDeviceType, listManagedDevices, listManagedDeviceTypes,
   revokeManagedDevice, rotateManagedDeviceToken, updateManagedDevice,
-  updateManagedDeviceType,
+  updateManagedDeviceType, listSessionPolicies,
 } from '../../api/generated/managed-devices/managed-devices';
-import type { ManagedDevice, ManagedDeviceCredentialDelivery, ManagedDeviceProvisioning, ManagedDeviceType } from '../../api/generated/models';
+import type { AuthenticationAssurance, CheckoutMode, DeviceApplicationMode, DeviceCapability, ManagedDevice, ManagedDeviceCredentialDelivery, ManagedDeviceProvisioning, ManagedDeviceType, SessionPolicy } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
@@ -21,11 +21,15 @@ import { DateTimeInput } from '../../app/DateInput';
 import { formatDateTime, instantToZonedDateTimeValue, isZonedDateTimeValue, zonedDateTimeValueToISO } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
+import { DeviceBridgeConnectionPanel } from '../terminal/DeviceBridgePanel';
 
 const keys = {
   devices: ['managed-devices'] as const,
   types: ['managed-device-types'] as const,
+  policies: ['session-policies'] as const,
 };
+
+type DeviceConfiguration = { sessionPolicyId: string | null; terminalEnabled: boolean; allowedApplicationModes: DeviceApplicationMode[]; checkInAssurance: AuthenticationAssurance; checkOutAssurance: AuthenticationAssurance; checkoutMode: CheckoutMode; capabilities: DeviceCapability[] };
 
 type Confirmation = { kind: 'revoke' | 'delete'; device: ManagedDevice } | null;
 
@@ -43,6 +47,7 @@ export function ManagedDevicesPage() {
     queryKey: keys.types,
     queryFn: ({ signal }) => listManagedDeviceTypes({ signal }),
   });
+  const policiesQuery = useQuery({ queryKey: keys.policies, queryFn: ({ signal }) => listSessionPolicies({ signal }) });
   const [secret, setSecret] = useState<ManagedDeviceProvisioning | null>(null);
   const [editingDevice, setEditingDevice] = useState<ManagedDevice | null>(null);
   const [rotatingDevice, setRotatingDevice] = useState<ManagedDevice | null>(null);
@@ -59,10 +64,11 @@ export function ManagedDevicesPage() {
   };
 
   const editDeviceMutation = useMutation({
-    mutationFn: ({ device, name, deviceTypeId, expiresAt }: {
+    mutationFn: ({ device, name, deviceTypeId, expiresAt, ...configuration }: {
       device: ManagedDevice; name: string; deviceTypeId: string; expiresAt: string | null;
-    }) => updateManagedDevice(device.id, {
+    } & DeviceConfiguration) => updateManagedDevice(device.id, {
       name, deviceTypeId, expiresAt, expectedVersion: device.version,
+      ...configuration,
     }),
     onSuccess: async () => { setEditingDevice(null); await refresh(); },
   });
@@ -115,6 +121,7 @@ export function ManagedDevicesPage() {
       description="Register trusted local computers and control device-scoped access."
     >
       {secret && <OneTimeToken provisioning={secret} onDismiss={() => setSecret(null)} />}
+      {canManage && <DeviceBridgeConnectionPanel />}
       {devicesQuery.isPending && <InlineLoadingState label="Loading managed devices" />}
       {devicesQuery.isError && (
         <ErrorState title="Unable to load managed devices" message="Check the connection and try again." onRetry={() => void devicesQuery.refetch()} />
@@ -132,7 +139,7 @@ export function ManagedDevicesPage() {
         </Stack>
       )}
       {canManage && typesQuery.data && (
-        <CreateDeviceForm types={typesQuery.data.items} onCreated={async (value) => { setSecret(value); await refresh(); }} />
+        <CreateDeviceForm types={typesQuery.data.items} policies={policiesQuery.data?.items ?? []} onCreated={async (value) => { setSecret(value); await refresh(); }} />
       )}
       <DeviceTypesPanel
         types={typesQuery.data?.items ?? []}
@@ -147,6 +154,7 @@ export function ManagedDevicesPage() {
         <DeviceFormModal
           device={editingDevice}
           types={typesQuery.data.items}
+          policies={policiesQuery.data?.items ?? []}
           pending={editDeviceMutation.isPending}
           error={editDeviceMutation.error}
           onClose={() => setEditingDevice(null)}
@@ -250,8 +258,9 @@ function StatusTag({ status }: { status: string }) {
   return <Tag type={type}>{status[0].toUpperCase() + status.slice(1)}</Tag>;
 }
 
-function CreateDeviceForm({ types, onCreated }: {
+function CreateDeviceForm({ types, policies, onCreated }: {
   types: ManagedDeviceType[];
+  policies: SessionPolicy[];
   onCreated: (value: ManagedDeviceProvisioning) => Promise<void>;
 }) {
   const [name, setName] = useState('');
@@ -259,6 +268,7 @@ function CreateDeviceForm({ types, onCreated }: {
   const [noExpiration, setNoExpiration] = useState(true);
   const [expiration, setExpiration] = useState('');
   const [credentialDelivery, setCredentialDelivery] = useState<ManagedDeviceCredentialDelivery>('nativeToken');
+  const [configuration, setConfiguration] = useState<DeviceConfiguration>({ sessionPolicyId: null, terminalEnabled: false, allowedApplicationModes: ['staff_ui'], checkInAssurance: 'low', checkOutAssurance: 'low', checkoutMode: 'verified', capabilities: [] });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const submit = async () => {
@@ -269,6 +279,7 @@ function CreateDeviceForm({ types, onCreated }: {
         name: name.trim(), deviceTypeId,
         expiresAt: noExpiration ? null : zonedDateTimeValueToISO(expiration),
         credentialDelivery,
+        ...configuration,
       });
       setName(''); setDeviceTypeId(''); setNoExpiration(true); setExpiration('');
       await onCreated(value);
@@ -288,24 +299,26 @@ function CreateDeviceForm({ types, onCreated }: {
         {types.map((type) => <SelectItem key={type.id} value={type.id} text={type.name} />)}
       </Select>
       <ExpirationFields noExpiration={noExpiration} expiration={expiration} setNoExpiration={setNoExpiration} setExpiration={setExpiration} id="create" />
+	  <DevicePolicyFields id="create" policies={policies} value={configuration} onChange={setConfiguration} />
       <Select id="new-device-delivery" labelText="Credential delivery" value={credentialDelivery} onChange={(event) => setCredentialDelivery(event.target.value as ManagedDeviceCredentialDelivery)}>
         <SelectItem value="nativeToken" text="Native token (show once)" />
         <SelectItem value="bindBrowser" text="Bind this browser securely" />
       </Select>
-      <Button type="submit" disabled={!name.trim() || !deviceTypeId || (!noExpiration && !isZonedDateTimeValue(expiration)) || pending}>Create device</Button>
+      <Button type="submit" disabled={!name.trim() || !deviceTypeId || configuration.allowedApplicationModes.length === 0 || (configuration.terminalEnabled && (!configuration.sessionPolicyId || !configuration.allowedApplicationModes.includes('visitor_terminal'))) || (!noExpiration && !isZonedDateTimeValue(expiration)) || pending}>Create device</Button>
     </Stack></Form></Tile>
   );
 }
 
-function DeviceFormModal({ device, types, pending, error, onClose, onSubmit }: {
-  device: ManagedDevice; types: ManagedDeviceType[]; pending: boolean; error: Error | null;
+function DeviceFormModal({ device, types, policies, pending, error, onClose, onSubmit }: {
+  device: ManagedDevice; types: ManagedDeviceType[]; policies: SessionPolicy[]; pending: boolean; error: Error | null;
   onClose: () => void;
-  onSubmit: (value: { name: string; deviceTypeId: string; expiresAt: string | null }) => void;
+  onSubmit: (value: { name: string; deviceTypeId: string; expiresAt: string | null } & DeviceConfiguration) => void;
 }) {
   const [name, setName] = useState(device.name);
   const [deviceTypeId, setDeviceTypeId] = useState(device.deviceTypeId);
   const [noExpiration, setNoExpiration] = useState(device.expiresAt === null);
   const [expiration, setExpiration] = useState(device.expiresAt ? instantToZonedDateTimeValue(device.expiresAt) : '');
+  const [configuration, setConfiguration] = useState<DeviceConfiguration>({ sessionPolicyId: device.sessionPolicyId, terminalEnabled: device.terminalEnabled, allowedApplicationModes: device.allowedApplicationModes, checkInAssurance: device.checkInAssurance, checkOutAssurance: device.checkOutAssurance, checkoutMode: device.checkoutMode, capabilities: device.capabilities });
   return (
     <ComposedModal open onClose={onClose}>
       <ModalHeader title="Edit managed device" />
@@ -320,10 +333,27 @@ function DeviceFormModal({ device, types, pending, error, onClose, onSubmit }: {
         ) : (
           <ExpirationFields noExpiration={noExpiration} expiration={expiration} setNoExpiration={setNoExpiration} setExpiration={setExpiration} id="edit" />
         )}
+		<DevicePolicyFields id="edit" policies={policies} value={configuration} onChange={setConfiguration} />
       </Stack></ModalBody>
-      <ModalFooter><Button kind="secondary" onClick={onClose}>Cancel</Button><Button disabled={pending || !name.trim() || (device.status !== 'expired' && !noExpiration && !isZonedDateTimeValue(expiration))} onClick={() => onSubmit({ name: name.trim(), deviceTypeId, expiresAt: device.status === 'expired' ? device.expiresAt : noExpiration ? null : zonedDateTimeValueToISO(expiration) })}>Save</Button></ModalFooter>
+      <ModalFooter><Button kind="secondary" onClick={onClose}>Cancel</Button><Button disabled={pending || !name.trim() || configuration.allowedApplicationModes.length === 0 || (configuration.terminalEnabled && (!configuration.sessionPolicyId || !configuration.allowedApplicationModes.includes('visitor_terminal'))) || (device.status !== 'expired' && !noExpiration && !isZonedDateTimeValue(expiration))} onClick={() => onSubmit({ name: name.trim(), deviceTypeId, expiresAt: device.status === 'expired' ? device.expiresAt : noExpiration ? null : zonedDateTimeValueToISO(expiration), ...configuration })}>Save</Button></ModalFooter>
     </ComposedModal>
   );
+}
+
+function DevicePolicyFields({ id, policies, value, onChange }: { id: string; policies: SessionPolicy[]; value: DeviceConfiguration; onChange: (value: DeviceConfiguration) => void }) {
+  const capabilityOptions: DeviceCapability[] = ['nfc', 'camera', 'qr', 'barcode', 'scale', 'label_printer'];
+  const applicationModes: DeviceApplicationMode[] = ['visitor_terminal', 'staff_ui'];
+  return <Stack gap={4}>
+    <Select id={`${id}-session-policy`} labelText="Session policy" invalid={value.terminalEnabled && !value.sessionPolicyId} invalidText="Public terminals require an explicit session policy." value={value.sessionPolicyId ?? ''} onChange={(event) => onChange({ ...value, sessionPolicyId: event.target.value || null })}><SelectItem value="" text="Default private-device policy" />{policies.map((policy) => <SelectItem key={policy.id} value={policy.id} text={policy.name} />)}</Select>
+    <fieldset><legend>Allowed application modes</legend><Stack gap={2}>{applicationModes.map((mode) => <Checkbox key={mode} id={`${id}-mode-${mode}`} labelText={mode === 'visitor_terminal' ? 'Visitor terminal' : 'Staff UI'} checked={value.allowedApplicationModes.includes(mode)} onChange={(_, data) => onChange({ ...value, allowedApplicationModes: data.checked ? [...value.allowedApplicationModes, mode] : value.allowedApplicationModes.filter((item) => item !== mode) })} />)}</Stack></fieldset>
+    <Checkbox id={`${id}-terminal-enabled`} labelText="Enable public visitor terminal" checked={value.terminalEnabled} onChange={(_, data) => onChange({ ...value, terminalEnabled: data.checked, allowedApplicationModes: data.checked && !value.allowedApplicationModes.includes('visitor_terminal') ? [...value.allowedApplicationModes, 'visitor_terminal'] : value.allowedApplicationModes })} />
+    {value.terminalEnabled && <>
+      <Select id={`${id}-check-in-assurance`} labelText="Check-in assurance" value={value.checkInAssurance} onChange={(event) => onChange({ ...value, checkInAssurance: event.target.value as AuthenticationAssurance })}>{['low', 'normal', 'strong', 'strong_mfa'].map((item) => <SelectItem key={item} value={item} text={item} />)}</Select>
+      <Select id={`${id}-check-out-assurance`} labelText="Checkout assurance" value={value.checkOutAssurance} onChange={(event) => onChange({ ...value, checkOutAssurance: event.target.value as AuthenticationAssurance })}>{['low', 'normal', 'strong', 'strong_mfa'].map((item) => <SelectItem key={item} value={item} text={item} />)}</Select>
+      <Select id={`${id}-checkout-mode`} labelText="Checkout mode" value={value.checkoutMode} onChange={(event) => onChange({ ...value, checkoutMode: event.target.value as CheckoutMode })}><SelectItem value="verified" text="Verified credential" /><SelectItem value="public_tap" text="Public tap from Currently Here" /></Select>
+      <fieldset><legend>Device capabilities</legend><Stack gap={2}>{capabilityOptions.map((capability) => <Checkbox key={capability} id={`${id}-capability-${capability}`} labelText={capability.replace('_', ' ')} checked={value.capabilities.includes(capability)} onChange={(_, data) => onChange({ ...value, capabilities: data.checked ? [...value.capabilities, capability] : value.capabilities.filter((item) => item !== capability) })} />)}</Stack></fieldset>
+    </>}
+  </Stack>;
 }
 
 function ExpirationModal({ device, pending, error, onClose, onSubmit }: {

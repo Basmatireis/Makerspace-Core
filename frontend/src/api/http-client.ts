@@ -93,6 +93,7 @@ export async function apiFetch<T>(
       pathname.endsWith('/auth/password-reset/complete') || pathname.includes('/visitor-enrollment/');
     const isPublicBrandingRequest = pathname.includes('/public/config') || pathname.includes('/public/legal/') || pathname.includes('/public/branding/assets/');
     const isPublicEventRequest = pathname.includes('/public/events/') || pathname.includes('/public/event-signups/');
+    const isPublicTerminalRequest = pathname.includes('/terminal/') || pathname.includes('/public/surveys/');
     const isCurrentUserProbe =
       method === 'GET' &&
       pathname.endsWith('/auth/me');
@@ -101,9 +102,10 @@ export async function apiFetch<T>(
       !isPublicAuthenticationRequest &&
       !isPublicBrandingRequest &&
       !isPublicEventRequest &&
+      !isPublicTerminalRequest &&
       !isCurrentUserProbe
     ) {
-      window.dispatchEvent(new CustomEvent('makerspace:session-expired'));
+      window.dispatchEvent(new CustomEvent('makerspace:session-expired', { detail: data }));
     }
     throw new ApiError(response.status, data, response.statusText);
   }

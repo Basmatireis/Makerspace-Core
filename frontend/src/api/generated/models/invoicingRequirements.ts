@@ -18,20 +18,9 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { BillingStatus } from './billingStatus';
-import type { Version } from './version';
 
-export interface UpdateMachineJobBillingRequest {
-  status: BillingStatus;
-  /**
-   * @maxLength 200
-   * @nullable
-   */
-  billingReference?: string | null;
-  /**
-   * @maxLength 500
-   * @nullable
-   */
-  waiverReason?: string | null;
-  expectedVersion: Version;
+export interface InvoicingRequirements {
+  requirePurchaseOrderReference: boolean;
+  /** @minimum 0 */
+  version: number;
 }

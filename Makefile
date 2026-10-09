@@ -5,7 +5,7 @@ SHELL := /bin/sh
 .PHONY: help dev dev-detached down logs db-up db-shell \
 	migrate-up migrate-down migrate-status \
 	generate generate-openapi-go generate-openapi-ts generate-sqlc \
-	test test-backend test-frontend test-integration test-e2e test-production-compose \
+	test test-backend test-frontend test-integration test-e2e test-production-compose test-android \
 	check check-generated check-backend check-frontend build admin bootstrap-master reset-password
 
 help: ## Show available targets.
@@ -62,6 +62,9 @@ test-e2e: ## Run all Playwright checks against an isolated live Go/PostgreSQL st
 
 test-production-compose: ## Smoke-test the standalone production Compose release bundle.
 	./scripts/test-production-compose.sh
+
+test-android: ## Build and unit-test the Android terminal in a pinned SDK container.
+	./scripts/test-android-terminal.sh
 
 test-integration: migrate-up ## Run Go tests against the Compose PostgreSQL instance.
 	docker compose run --rm -e APP_ENV=test backend sh -c 'TEST_DATABASE_URL="$$DATABASE_URL" go test -count=1 ./...'

@@ -29,8 +29,8 @@ export interface MachineLogbookOverview {
   /** @minimum 0 */
   jobsThisWeek: number;
   /** @minimum 0 */
-  unbilledJobs: number;
-  unbilledAmount: Money;
+  unassignedJobs: number;
+  unassignedEstimatedAmount: Money;
   /** @minimum 0 */
   needsReview: number;
   /** @minimum 0 */

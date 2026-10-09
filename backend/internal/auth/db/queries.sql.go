@@ -71,26 +71,33 @@ func (q *Queries) ConsumeAuthRateLimit(ctx context.Context, arg ConsumeAuthRateL
 const createOIDCSession = `-- name: CreateOIDCSession :one
 INSERT INTO sessions (
     id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method,
-    base_assurance, current_assurance, authenticated_at, idle_expires_at, absolute_expires_at
+    base_assurance, current_assurance, authenticated_at, idle_expires_at, absolute_expires_at,
+    managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination
 )
 VALUES (
     $1, $2, $3, $4,
     $5, 'oidc', $6, $6, $7,
-    $8, $9
+    $8, $9, $10, $11,
+    $12, $13, $14
 )
-RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at
+RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at, managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination
 `
 
 type CreateOIDCSessionParams struct {
-	ID                uuid.UUID
-	AccountID         uuid.UUID
-	AuthIdentityID    uuid.UUID
-	TokenDigest       []byte
-	CsrfDigest        []byte
-	Assurance         string
-	AuthenticatedAt   time.Time
-	IdleExpiresAt     time.Time
-	AbsoluteExpiresAt time.Time
+	ID                     uuid.UUID
+	AccountID              uuid.UUID
+	AuthIdentityID         uuid.UUID
+	TokenDigest            []byte
+	CsrfDigest             []byte
+	Assurance              string
+	AuthenticatedAt        time.Time
+	IdleExpiresAt          time.Time
+	AbsoluteExpiresAt      time.Time
+	ManagedDeviceID        *uuid.UUID
+	SessionPolicyID        *uuid.UUID
+	SessionPolicyVersion   int64
+	IdleTimeoutSeconds     int32
+	PostSessionDestination string
 }
 
 func (q *Queries) CreateOIDCSession(ctx context.Context, arg CreateOIDCSessionParams) (Session, error) {
@@ -104,6 +111,11 @@ func (q *Queries) CreateOIDCSession(ctx context.Context, arg CreateOIDCSessionPa
 		arg.AuthenticatedAt,
 		arg.IdleExpiresAt,
 		arg.AbsoluteExpiresAt,
+		arg.ManagedDeviceID,
+		arg.SessionPolicyID,
+		arg.SessionPolicyVersion,
+		arg.IdleTimeoutSeconds,
+		arg.PostSessionDestination,
 	)
 	var i Session
 	err := row.Scan(
@@ -123,6 +135,11 @@ func (q *Queries) CreateOIDCSession(ctx context.Context, arg CreateOIDCSessionPa
 		&i.CurrentAssurance,
 		&i.AuthenticatedAt,
 		&i.AssuranceExpiresAt,
+		&i.ManagedDeviceID,
+		&i.SessionPolicyID,
+		&i.SessionPolicyVersion,
+		&i.IdleTimeoutSeconds,
+		&i.PostSessionDestination,
 	)
 	return i, err
 }
@@ -169,23 +186,31 @@ func (q *Queries) CreatePINIdentity(ctx context.Context, arg CreatePINIdentityPa
 const createPINSession = `-- name: CreatePINSession :one
 INSERT INTO sessions (
     id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method,
-    base_assurance, current_assurance, authenticated_at, idle_expires_at, absolute_expires_at
+    base_assurance, current_assurance, authenticated_at, idle_expires_at, absolute_expires_at,
+    managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination
 )
 VALUES (
     $1, $2, $3, $4,
-    $5, 'pin', 'low', 'low', now(), $6, $7
+    $5, 'pin', 'low', 'low', now(), $6, $7,
+    $8, $9, $10,
+    $11, $12
 )
-RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at
+RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at, managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination
 `
 
 type CreatePINSessionParams struct {
-	ID                uuid.UUID
-	AccountID         uuid.UUID
-	AuthIdentityID    uuid.UUID
-	TokenDigest       []byte
-	CsrfDigest        []byte
-	IdleExpiresAt     time.Time
-	AbsoluteExpiresAt time.Time
+	ID                     uuid.UUID
+	AccountID              uuid.UUID
+	AuthIdentityID         uuid.UUID
+	TokenDigest            []byte
+	CsrfDigest             []byte
+	IdleExpiresAt          time.Time
+	AbsoluteExpiresAt      time.Time
+	ManagedDeviceID        *uuid.UUID
+	SessionPolicyID        *uuid.UUID
+	SessionPolicyVersion   int64
+	IdleTimeoutSeconds     int32
+	PostSessionDestination string
 }
 
 func (q *Queries) CreatePINSession(ctx context.Context, arg CreatePINSessionParams) (Session, error) {
@@ -197,6 +222,11 @@ func (q *Queries) CreatePINSession(ctx context.Context, arg CreatePINSessionPara
 		arg.CsrfDigest,
 		arg.IdleExpiresAt,
 		arg.AbsoluteExpiresAt,
+		arg.ManagedDeviceID,
+		arg.SessionPolicyID,
+		arg.SessionPolicyVersion,
+		arg.IdleTimeoutSeconds,
+		arg.PostSessionDestination,
 	)
 	var i Session
 	err := row.Scan(
@@ -216,6 +246,11 @@ func (q *Queries) CreatePINSession(ctx context.Context, arg CreatePINSessionPara
 		&i.CurrentAssurance,
 		&i.AuthenticatedAt,
 		&i.AssuranceExpiresAt,
+		&i.ManagedDeviceID,
+		&i.SessionPolicyID,
+		&i.SessionPolicyVersion,
+		&i.IdleTimeoutSeconds,
+		&i.PostSessionDestination,
 	)
 	return i, err
 }
@@ -257,19 +292,28 @@ func (q *Queries) CreatePasswordResetToken(ctx context.Context, arg CreatePasswo
 }
 
 const createSession = `-- name: CreateSession :one
-INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, authenticated_at, idle_expires_at, absolute_expires_at)
-VALUES ($1, $2, $3, $4, $5, 'password', now(), $6, $7)
-RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at
+INSERT INTO sessions (id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, authenticated_at,
+  idle_expires_at, absolute_expires_at, managed_device_id, session_policy_id, session_policy_version,
+  idle_timeout_seconds, post_session_destination)
+VALUES ($1, $2, $3, $4, $5, 'password', now(),
+  $6, $7, $8, $9,
+  $10, $11, $12)
+RETURNING id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, created_at, last_seen_at, idle_expires_at, absolute_expires_at, revoked_at, revocation_reason, base_assurance, current_assurance, authenticated_at, assurance_expires_at, managed_device_id, session_policy_id, session_policy_version, idle_timeout_seconds, post_session_destination
 `
 
 type CreateSessionParams struct {
-	ID                uuid.UUID
-	AccountID         uuid.UUID
-	AuthIdentityID    uuid.UUID
-	TokenDigest       []byte
-	CsrfDigest        []byte
-	IdleExpiresAt     time.Time
-	AbsoluteExpiresAt time.Time
+	ID                     uuid.UUID
+	AccountID              uuid.UUID
+	AuthIdentityID         uuid.UUID
+	TokenDigest            []byte
+	CsrfDigest             []byte
+	IdleExpiresAt          time.Time
+	AbsoluteExpiresAt      time.Time
+	ManagedDeviceID        *uuid.UUID
+	SessionPolicyID        *uuid.UUID
+	SessionPolicyVersion   int64
+	IdleTimeoutSeconds     int32
+	PostSessionDestination string
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error) {
@@ -281,6 +325,11 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		arg.CsrfDigest,
 		arg.IdleExpiresAt,
 		arg.AbsoluteExpiresAt,
+		arg.ManagedDeviceID,
+		arg.SessionPolicyID,
+		arg.SessionPolicyVersion,
+		arg.IdleTimeoutSeconds,
+		arg.PostSessionDestination,
 	)
 	var i Session
 	err := row.Scan(
@@ -300,6 +349,11 @@ func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (S
 		&i.CurrentAssurance,
 		&i.AuthenticatedAt,
 		&i.AssuranceExpiresAt,
+		&i.ManagedDeviceID,
+		&i.SessionPolicyID,
+		&i.SessionPolicyVersion,
+		&i.IdleTimeoutSeconds,
+		&i.PostSessionDestination,
 	)
 	return i, err
 }
@@ -408,7 +462,7 @@ func (q *Queries) FindLoginAccountByEmail(ctx context.Context, identifierNormali
 }
 
 const findPINLogin = `-- name: FindPINLogin :one
-SELECT a.id AS account_id, a.status, i.id AS auth_identity_id, i.identifier_display AS login_name,
+SELECT a.id AS account_id, a.person_id, a.status, i.id AS auth_identity_id, i.identifier_display AS login_name,
        pc.pin_hash, p.first_name, p.last_name
 FROM auth_identities i
 JOIN accounts a ON a.id = i.account_id
@@ -420,6 +474,7 @@ WHERE i.kind = 'pin' AND i.identifier_normalized = $1::text
 
 type FindPINLoginRow struct {
 	AccountID      uuid.UUID
+	PersonID       uuid.UUID
 	Status         string
 	AuthIdentityID uuid.UUID
 	LoginName      *string
@@ -433,6 +488,7 @@ func (q *Queries) FindPINLogin(ctx context.Context, identifierNormalized string)
 	var i FindPINLoginRow
 	err := row.Scan(
 		&i.AccountID,
+		&i.PersonID,
 		&i.Status,
 		&i.AuthIdentityID,
 		&i.LoginName,
@@ -561,6 +617,35 @@ func (q *Queries) GetActiveAuthChallengeForUpdate(ctx context.Context, arg GetAc
 		&i.DeliveryAttemptedAt,
 		&i.DeliveryFailureCode,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getEffectiveSessionPolicy = `-- name: GetEffectiveSessionPolicy :one
+SELECT p.id, p.name, p.idle_timeout_seconds, p.absolute_lifetime_seconds, p.post_session_destination, p.is_default, p.version, p.created_at, p.updated_at
+FROM session_policies p
+WHERE p.id = COALESCE(
+  (SELECT md.session_policy_id FROM managed_devices md
+   WHERE md.id = $1 AND md.revoked_at IS NULL
+     AND (md.expires_at IS NULL OR md.expires_at > now())),
+  (SELECT id FROM session_policies WHERE is_default LIMIT 1)
+)
+LIMIT 1
+`
+
+func (q *Queries) GetEffectiveSessionPolicy(ctx context.Context, managedDeviceID *uuid.UUID) (SessionPolicy, error) {
+	row := q.db.QueryRow(ctx, getEffectiveSessionPolicy, managedDeviceID)
+	var i SessionPolicy
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.IdleTimeoutSeconds,
+		&i.AbsoluteLifetimeSeconds,
+		&i.PostSessionDestination,
+		&i.IsDefault,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -710,7 +795,7 @@ func (q *Queries) GetPasswordResetByDigest(ctx context.Context, tokenDigest []by
 }
 
 const getSessionForReauthentication = `-- name: GetSessionForReauthentication :one
-SELECT s.id, s.account_id, s.auth_identity_id, s.token_digest, s.csrf_digest, s.auth_method, s.created_at, s.last_seen_at, s.idle_expires_at, s.absolute_expires_at, s.revoked_at, s.revocation_reason, s.base_assurance, s.current_assurance, s.authenticated_at, s.assurance_expires_at FROM sessions s JOIN auth_identities i ON i.id=s.auth_identity_id
+SELECT s.id, s.account_id, s.auth_identity_id, s.token_digest, s.csrf_digest, s.auth_method, s.created_at, s.last_seen_at, s.idle_expires_at, s.absolute_expires_at, s.revoked_at, s.revocation_reason, s.base_assurance, s.current_assurance, s.authenticated_at, s.assurance_expires_at, s.managed_device_id, s.session_policy_id, s.session_policy_version, s.idle_timeout_seconds, s.post_session_destination FROM sessions s JOIN auth_identities i ON i.id=s.auth_identity_id
 WHERE s.id=$1 AND s.account_id=$2
   AND s.revoked_at IS NULL AND s.idle_expires_at>now() AND s.absolute_expires_at>now()
   AND i.disabled_at IS NULL
@@ -742,13 +827,32 @@ func (q *Queries) GetSessionForReauthentication(ctx context.Context, arg GetSess
 		&i.CurrentAssurance,
 		&i.AuthenticatedAt,
 		&i.AssuranceExpiresAt,
+		&i.ManagedDeviceID,
+		&i.SessionPolicyID,
+		&i.SessionPolicyVersion,
+		&i.IdleTimeoutSeconds,
+		&i.PostSessionDestination,
 	)
 	return i, err
 }
 
+const getSessionPostDestinationByDigest = `-- name: GetSessionPostDestinationByDigest :one
+SELECT post_session_destination
+FROM sessions
+WHERE token_digest = $1
+`
+
+func (q *Queries) GetSessionPostDestinationByDigest(ctx context.Context, tokenDigest []byte) (string, error) {
+	row := q.db.QueryRow(ctx, getSessionPostDestinationByDigest, tokenDigest)
+	var post_session_destination string
+	err := row.Scan(&post_session_destination)
+	return post_session_destination, err
+}
+
 const getSessionPrincipal = `-- name: GetSessionPrincipal :one
 SELECT s.id AS session_id, s.account_id, s.auth_identity_id, s.csrf_digest,
-	       s.idle_expires_at, s.absolute_expires_at, s.last_seen_at,
+	       s.idle_expires_at, s.absolute_expires_at, s.last_seen_at, s.managed_device_id,
+	       s.session_policy_id, s.session_policy_version, s.idle_timeout_seconds, s.post_session_destination,
 	       s.auth_method, s.base_assurance, s.current_assurance, s.authenticated_at, s.assurance_expires_at,
 	       a.person_id, p.first_name, p.last_name
 FROM sessions s JOIN accounts a ON a.id = s.account_id JOIN people p ON p.id = a.person_id
@@ -759,21 +863,26 @@ WHERE s.token_digest = $1 AND s.revoked_at IS NULL
 `
 
 type GetSessionPrincipalRow struct {
-	SessionID          uuid.UUID
-	AccountID          uuid.UUID
-	AuthIdentityID     uuid.UUID
-	CsrfDigest         []byte
-	IdleExpiresAt      time.Time
-	AbsoluteExpiresAt  time.Time
-	LastSeenAt         time.Time
-	AuthMethod         string
-	BaseAssurance      string
-	CurrentAssurance   string
-	AuthenticatedAt    time.Time
-	AssuranceExpiresAt pgtype.Timestamptz
-	PersonID           uuid.UUID
-	FirstName          string
-	LastName           string
+	SessionID              uuid.UUID
+	AccountID              uuid.UUID
+	AuthIdentityID         uuid.UUID
+	CsrfDigest             []byte
+	IdleExpiresAt          time.Time
+	AbsoluteExpiresAt      time.Time
+	LastSeenAt             time.Time
+	ManagedDeviceID        *uuid.UUID
+	SessionPolicyID        *uuid.UUID
+	SessionPolicyVersion   int64
+	IdleTimeoutSeconds     int32
+	PostSessionDestination string
+	AuthMethod             string
+	BaseAssurance          string
+	CurrentAssurance       string
+	AuthenticatedAt        time.Time
+	AssuranceExpiresAt     pgtype.Timestamptz
+	PersonID               uuid.UUID
+	FirstName              string
+	LastName               string
 }
 
 func (q *Queries) GetSessionPrincipal(ctx context.Context, tokenDigest []byte) (GetSessionPrincipalRow, error) {
@@ -787,6 +896,11 @@ func (q *Queries) GetSessionPrincipal(ctx context.Context, tokenDigest []byte) (
 		&i.IdleExpiresAt,
 		&i.AbsoluteExpiresAt,
 		&i.LastSeenAt,
+		&i.ManagedDeviceID,
+		&i.SessionPolicyID,
+		&i.SessionPolicyVersion,
+		&i.IdleTimeoutSeconds,
+		&i.PostSessionDestination,
 		&i.AuthMethod,
 		&i.BaseAssurance,
 		&i.CurrentAssurance,
@@ -975,19 +1089,24 @@ func (q *Queries) SetAuthChallengeDelivery(ctx context.Context, arg SetAuthChall
 	return err
 }
 
-const touchSession = `-- name: TouchSession :exec
-UPDATE sessions SET last_seen_at = now(), idle_expires_at = LEAST($1, absolute_expires_at)
-WHERE id = $2 AND last_seen_at < now() - interval '5 minutes' AND revoked_at IS NULL
+const touchSession = `-- name: TouchSession :one
+UPDATE sessions SET last_seen_at = now(),
+  idle_expires_at = LEAST(now() + make_interval(secs => idle_timeout_seconds), absolute_expires_at)
+WHERE id = $1 AND revoked_at IS NULL AND idle_expires_at > now() AND absolute_expires_at > now()
+RETURNING idle_expires_at, absolute_expires_at, post_session_destination
 `
 
-type TouchSessionParams struct {
-	IdleExpiresAt time.Time
-	ID            uuid.UUID
+type TouchSessionRow struct {
+	IdleExpiresAt          time.Time
+	AbsoluteExpiresAt      time.Time
+	PostSessionDestination string
 }
 
-func (q *Queries) TouchSession(ctx context.Context, arg TouchSessionParams) error {
-	_, err := q.db.Exec(ctx, touchSession, arg.IdleExpiresAt, arg.ID)
-	return err
+func (q *Queries) TouchSession(ctx context.Context, id uuid.UUID) (TouchSessionRow, error) {
+	row := q.db.QueryRow(ctx, touchSession, id)
+	var i TouchSessionRow
+	err := row.Scan(&i.IdleExpiresAt, &i.AbsoluteExpiresAt, &i.PostSessionDestination)
+	return i, err
 }
 
 const updatePINIdentity = `-- name: UpdatePINIdentity :one

@@ -17,7 +17,7 @@ const activatePricingSnapshot = `-- name: ActivatePricingSnapshot :one
 UPDATE machine_jobs SET active_pricing_snapshot_id = $1, pricing_status = $2,
     calculated_price = $3, version = version + 1, updated_at = now()
 WHERE id = $4 AND version = $5
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, billing_status, billing_reference, active_pricing_snapshot_id, version, created_at, updated_at
+RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, active_pricing_snapshot_id, version, created_at, updated_at
 `
 
 type ActivatePricingSnapshotParams struct {
@@ -58,8 +58,6 @@ func (q *Queries) ActivatePricingSnapshot(ctx context.Context, arg ActivatePrici
 		&i.PriceOverrideReason,
 		&i.PriceOverriddenByAccountID,
 		&i.PriceOverriddenAt,
-		&i.BillingStatus,
-		&i.BillingReference,
 		&i.ActivePricingSnapshotID,
 		&i.Version,
 		&i.CreatedAt,
@@ -92,8 +90,8 @@ func (q *Queries) BillingPersonExists(ctx context.Context, id uuid.UUID) (bool, 
 
 const bumpMachineJobVersion = `-- name: BumpMachineJobVersion :one
 UPDATE machine_jobs SET version = version + 1, updated_at = now()
-WHERE id = $1 AND version = $2 AND billing_status <> 'billed'
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, billing_status, billing_reference, active_pricing_snapshot_id, version, created_at, updated_at
+WHERE id = $1 AND version = $2
+RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, active_pricing_snapshot_id, version, created_at, updated_at
 `
 
 type BumpMachineJobVersionParams struct {
@@ -125,8 +123,6 @@ func (q *Queries) BumpMachineJobVersion(ctx context.Context, arg BumpMachineJobV
 		&i.PriceOverrideReason,
 		&i.PriceOverriddenByAccountID,
 		&i.PriceOverriddenAt,
-		&i.BillingStatus,
-		&i.BillingReference,
 		&i.ActivePricingSnapshotID,
 		&i.Version,
 		&i.CreatedAt,
@@ -148,8 +144,8 @@ func (q *Queries) ClearDefaultPricingGroup(ctx context.Context, exceptID uuid.UU
 const clearMachineJobPriceOverride = `-- name: ClearMachineJobPriceOverride :one
 UPDATE machine_jobs SET final_price = NULL, price_override_reason = NULL, price_overridden_by_account_id = NULL,
     price_overridden_at = NULL, version = version + 1, updated_at = now()
-WHERE id = $1 AND version = $2 AND billing_status <> 'billed'
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, billing_status, billing_reference, active_pricing_snapshot_id, version, created_at, updated_at
+WHERE id = $1 AND version = $2
+RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, active_pricing_snapshot_id, version, created_at, updated_at
 `
 
 type ClearMachineJobPriceOverrideParams struct {
@@ -181,8 +177,6 @@ func (q *Queries) ClearMachineJobPriceOverride(ctx context.Context, arg ClearMac
 		&i.PriceOverrideReason,
 		&i.PriceOverriddenByAccountID,
 		&i.PriceOverriddenAt,
-		&i.BillingStatus,
-		&i.BillingReference,
 		&i.ActivePricingSnapshotID,
 		&i.Version,
 		&i.CreatedAt,
@@ -196,7 +190,7 @@ UPDATE machine_jobs SET customer_person_id = $1, customer_organization_id = $2,
     operator_person_id = $3, outcome = $4, notes = $5, review_state = 'confirmed',
     version = version + 1, updated_at = now()
 WHERE id = $6 AND version = $7 AND review_state = 'needs_review'
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, billing_status, billing_reference, active_pricing_snapshot_id, version, created_at, updated_at
+RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, active_pricing_snapshot_id, version, created_at, updated_at
 `
 
 type ConfirmMachineJobParams struct {
@@ -241,8 +235,6 @@ func (q *Queries) ConfirmMachineJob(ctx context.Context, arg ConfirmMachineJobPa
 		&i.PriceOverrideReason,
 		&i.PriceOverriddenByAccountID,
 		&i.PriceOverriddenAt,
-		&i.BillingStatus,
-		&i.BillingReference,
 		&i.ActivePricingSnapshotID,
 		&i.Version,
 		&i.CreatedAt,
@@ -291,25 +283,23 @@ WHERE ($1::text = '' OR lower(j.display_id) LIKE '%' || lower($1::text) || '%' O
   AND ($4::uuid IS NULL OR j.operator_person_id = $4::uuid)
   AND ($5::uuid IS NULL OR u.material_id = $5::uuid)
   AND ($6::text IS NULL OR j.outcome = $6::text)
-  AND ($7::text IS NULL OR j.billing_status = $7::text)
-  AND ($8::text IS NULL OR j.source = $8::text)
-  AND ($9::text IS NULL OR j.review_state = $9::text)
-  AND ($10::timestamptz IS NULL OR j.starts_at >= $10::timestamptz)
-  AND ($11::timestamptz IS NULL OR j.starts_at < $11::timestamptz)
+  AND ($7::text IS NULL OR j.source = $7::text)
+  AND ($8::text IS NULL OR j.review_state = $8::text)
+  AND ($9::timestamptz IS NULL OR j.starts_at >= $9::timestamptz)
+  AND ($10::timestamptz IS NULL OR j.starts_at < $10::timestamptz)
 `
 
 type CountMachineJobsParams struct {
-	Search        string
-	MachineID     *uuid.UUID
-	CustomerID    *uuid.UUID
-	OperatorID    *uuid.UUID
-	MaterialID    *uuid.UUID
-	Outcome       *string
-	BillingStatus *string
-	Source        *string
-	ReviewState   *string
-	FromTime      pgtype.Timestamptz
-	ToTime        pgtype.Timestamptz
+	Search      string
+	MachineID   *uuid.UUID
+	CustomerID  *uuid.UUID
+	OperatorID  *uuid.UUID
+	MaterialID  *uuid.UUID
+	Outcome     *string
+	Source      *string
+	ReviewState *string
+	FromTime    pgtype.Timestamptz
+	ToTime      pgtype.Timestamptz
 }
 
 func (q *Queries) CountMachineJobs(ctx context.Context, arg CountMachineJobsParams) (int64, error) {
@@ -320,7 +310,6 @@ func (q *Queries) CountMachineJobs(ctx context.Context, arg CountMachineJobsPara
 		arg.OperatorID,
 		arg.MaterialID,
 		arg.Outcome,
-		arg.BillingStatus,
 		arg.Source,
 		arg.ReviewState,
 		arg.FromTime,
@@ -393,20 +382,20 @@ func (q *Queries) CountOrganizations(ctx context.Context, arg CountOrganizations
 const countOverviewJobs = `-- name: CountOverviewJobs :one
 SELECT count(*) FILTER (WHERE starts_at >= date_trunc('day', now()))::bigint AS jobs_today,
        count(*) FILTER (WHERE starts_at >= date_trunc('week', now()))::bigint AS jobs_this_week,
-       count(*) FILTER (WHERE billing_status = 'unbilled' AND review_state = 'confirmed')::bigint AS unbilled_jobs,
-       COALESCE(sum(COALESCE(final_price, calculated_price)) FILTER (WHERE billing_status = 'unbilled' AND review_state = 'confirmed'), 0)::numeric AS unbilled_amount,
+       count(*) FILTER (WHERE review_state = 'confirmed' AND NOT EXISTS(SELECT 1 FROM order_job_claims c WHERE c.machine_job_id=machine_jobs.id))::bigint AS unassigned_jobs,
+       COALESCE(sum(COALESCE(final_price, calculated_price)) FILTER (WHERE review_state = 'confirmed' AND NOT EXISTS(SELECT 1 FROM order_job_claims c WHERE c.machine_job_id=machine_jobs.id)), 0)::numeric AS unassigned_estimated_amount,
        count(*) FILTER (WHERE review_state = 'needs_review')::bigint AS needs_review,
        count(*) FILTER (WHERE starts_at >= date_trunc('week', now()) AND outcome IN ('failed', 'partial_failure'))::bigint AS failed_or_partial_this_week
 FROM machine_jobs
 `
 
 type CountOverviewJobsRow struct {
-	JobsToday               int64
-	JobsThisWeek            int64
-	UnbilledJobs            int64
-	UnbilledAmount          pgtype.Numeric
-	NeedsReview             int64
-	FailedOrPartialThisWeek int64
+	JobsToday                 int64
+	JobsThisWeek              int64
+	UnassignedJobs            int64
+	UnassignedEstimatedAmount pgtype.Numeric
+	NeedsReview               int64
+	FailedOrPartialThisWeek   int64
 }
 
 func (q *Queries) CountOverviewJobs(ctx context.Context) (CountOverviewJobsRow, error) {
@@ -415,8 +404,8 @@ func (q *Queries) CountOverviewJobs(ctx context.Context) (CountOverviewJobsRow, 
 	err := row.Scan(
 		&i.JobsToday,
 		&i.JobsThisWeek,
-		&i.UnbilledJobs,
-		&i.UnbilledAmount,
+		&i.UnassignedJobs,
+		&i.UnassignedEstimatedAmount,
 		&i.NeedsReview,
 		&i.FailedOrPartialThisWeek,
 	)
@@ -469,7 +458,7 @@ INSERT INTO machine_jobs (id, display_id, machine_id, starts_at, ends_at, source
 VALUES ($1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10,
     $11, $12, $13, $14)
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, billing_status, billing_reference, active_pricing_snapshot_id, version, created_at, updated_at
+RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, active_pricing_snapshot_id, version, created_at, updated_at
 `
 
 type CreateMachineJobParams struct {
@@ -528,8 +517,6 @@ func (q *Queries) CreateMachineJob(ctx context.Context, arg CreateMachineJobPara
 		&i.PriceOverrideReason,
 		&i.PriceOverriddenByAccountID,
 		&i.PriceOverriddenAt,
-		&i.BillingStatus,
-		&i.BillingReference,
 		&i.ActivePricingSnapshotID,
 		&i.Version,
 		&i.CreatedAt,
@@ -847,7 +834,7 @@ func (q *Queries) GetActivePricingRulesByGroup(ctx context.Context, pricingGroup
 }
 
 const getAutomaticMachineJob = `-- name: GetAutomaticMachineJob :one
-SELECT id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, billing_status, billing_reference, active_pricing_snapshot_id, version, created_at, updated_at FROM machine_jobs WHERE machine_id = $1 AND source = 'automatic' AND external_id = $2
+SELECT id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, active_pricing_snapshot_id, version, created_at, updated_at FROM machine_jobs WHERE machine_id = $1 AND source = 'automatic' AND external_id = $2
 `
 
 type GetAutomaticMachineJobParams struct {
@@ -879,8 +866,6 @@ func (q *Queries) GetAutomaticMachineJob(ctx context.Context, arg GetAutomaticMa
 		&i.PriceOverrideReason,
 		&i.PriceOverriddenByAccountID,
 		&i.PriceOverriddenAt,
-		&i.BillingStatus,
-		&i.BillingReference,
 		&i.ActivePricingSnapshotID,
 		&i.Version,
 		&i.CreatedAt,
@@ -1056,7 +1041,7 @@ func (q *Queries) GetMachineForUpdate(ctx context.Context, id uuid.UUID) (Machin
 }
 
 const getMachineJobBase = `-- name: GetMachineJobBase :one
-SELECT id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, billing_status, billing_reference, active_pricing_snapshot_id, version, created_at, updated_at FROM machine_jobs WHERE id = $1
+SELECT id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, active_pricing_snapshot_id, version, created_at, updated_at FROM machine_jobs WHERE id = $1
 `
 
 func (q *Queries) GetMachineJobBase(ctx context.Context, id uuid.UUID) (MachineJob, error) {
@@ -1083,8 +1068,6 @@ func (q *Queries) GetMachineJobBase(ctx context.Context, id uuid.UUID) (MachineJ
 		&i.PriceOverrideReason,
 		&i.PriceOverriddenByAccountID,
 		&i.PriceOverriddenAt,
-		&i.BillingStatus,
-		&i.BillingReference,
 		&i.ActivePricingSnapshotID,
 		&i.Version,
 		&i.CreatedAt,
@@ -1094,7 +1077,7 @@ func (q *Queries) GetMachineJobBase(ctx context.Context, id uuid.UUID) (MachineJ
 }
 
 const getMachineJobForUpdate = `-- name: GetMachineJobForUpdate :one
-SELECT id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, billing_status, billing_reference, active_pricing_snapshot_id, version, created_at, updated_at FROM machine_jobs WHERE id = $1 FOR UPDATE
+SELECT id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, active_pricing_snapshot_id, version, created_at, updated_at FROM machine_jobs WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetMachineJobForUpdate(ctx context.Context, id uuid.UUID) (MachineJob, error) {
@@ -1121,8 +1104,6 @@ func (q *Queries) GetMachineJobForUpdate(ctx context.Context, id uuid.UUID) (Mac
 		&i.PriceOverrideReason,
 		&i.PriceOverriddenByAccountID,
 		&i.PriceOverriddenAt,
-		&i.BillingStatus,
-		&i.BillingReference,
 		&i.ActivePricingSnapshotID,
 		&i.Version,
 		&i.CreatedAt,
@@ -1735,29 +1716,27 @@ WHERE ($1::text = '' OR lower(j.display_id) LIKE '%' || lower($1::text) || '%' O
   AND ($4::uuid IS NULL OR j.operator_person_id = $4::uuid)
   AND ($5::uuid IS NULL OR u.material_id = $5::uuid)
   AND ($6::text IS NULL OR j.outcome = $6::text)
-  AND ($7::text IS NULL OR j.billing_status = $7::text)
-  AND ($8::text IS NULL OR j.source = $8::text)
-  AND ($9::text IS NULL OR j.review_state = $9::text)
-  AND ($10::timestamptz IS NULL OR j.starts_at >= $10::timestamptz)
-  AND ($11::timestamptz IS NULL OR j.starts_at < $11::timestamptz)
+  AND ($7::text IS NULL OR j.source = $7::text)
+  AND ($8::text IS NULL OR j.review_state = $8::text)
+  AND ($9::timestamptz IS NULL OR j.starts_at >= $9::timestamptz)
+  AND ($10::timestamptz IS NULL OR j.starts_at < $10::timestamptz)
 ORDER BY j.starts_at DESC, j.id DESC
-LIMIT $13 OFFSET $12
+LIMIT $12 OFFSET $11
 `
 
 type ListMachineJobIDsParams struct {
-	Search        string
-	MachineID     *uuid.UUID
-	CustomerID    *uuid.UUID
-	OperatorID    *uuid.UUID
-	MaterialID    *uuid.UUID
-	Outcome       *string
-	BillingStatus *string
-	Source        *string
-	ReviewState   *string
-	FromTime      pgtype.Timestamptz
-	ToTime        pgtype.Timestamptz
-	PageOffset    int32
-	PageLimit     int32
+	Search      string
+	MachineID   *uuid.UUID
+	CustomerID  *uuid.UUID
+	OperatorID  *uuid.UUID
+	MaterialID  *uuid.UUID
+	Outcome     *string
+	Source      *string
+	ReviewState *string
+	FromTime    pgtype.Timestamptz
+	ToTime      pgtype.Timestamptz
+	PageOffset  int32
+	PageLimit   int32
 }
 
 type ListMachineJobIDsRow struct {
@@ -1773,7 +1752,6 @@ func (q *Queries) ListMachineJobIDs(ctx context.Context, arg ListMachineJobIDsPa
 		arg.OperatorID,
 		arg.MaterialID,
 		arg.Outcome,
-		arg.BillingStatus,
 		arg.Source,
 		arg.ReviewState,
 		arg.FromTime,
@@ -2343,8 +2321,8 @@ func (q *Queries) OverviewDailyActivity(ctx context.Context) ([]OverviewDailyAct
 const recalculateMachineJobPrice = `-- name: RecalculateMachineJobPrice :one
 UPDATE machine_jobs SET pricing_status = $1, calculated_price = $2,
     version = version + 1, updated_at = now()
-WHERE id = $3 AND version = $4 AND billing_status <> 'billed'
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, billing_status, billing_reference, active_pricing_snapshot_id, version, created_at, updated_at
+WHERE id = $3 AND version = $4
+RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, active_pricing_snapshot_id, version, created_at, updated_at
 `
 
 type RecalculateMachineJobPriceParams struct {
@@ -2383,8 +2361,6 @@ func (q *Queries) RecalculateMachineJobPrice(ctx context.Context, arg Recalculat
 		&i.PriceOverrideReason,
 		&i.PriceOverriddenByAccountID,
 		&i.PriceOverriddenAt,
-		&i.BillingStatus,
-		&i.BillingReference,
 		&i.ActivePricingSnapshotID,
 		&i.Version,
 		&i.CreatedAt,
@@ -2500,8 +2476,8 @@ func (q *Queries) SearchMachineJobOperators(ctx context.Context, arg SearchMachi
 const setMachineJobPriceOverride = `-- name: SetMachineJobPriceOverride :one
 UPDATE machine_jobs SET final_price = $1, price_override_reason = $2,
     price_overridden_by_account_id = $3, price_overridden_at = now(), version = version + 1, updated_at = now()
-WHERE id = $4 AND version = $5 AND billing_status <> 'billed'
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, billing_status, billing_reference, active_pricing_snapshot_id, version, created_at, updated_at
+WHERE id = $4 AND version = $5
+RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, active_pricing_snapshot_id, version, created_at, updated_at
 `
 
 type SetMachineJobPriceOverrideParams struct {
@@ -2542,8 +2518,6 @@ func (q *Queries) SetMachineJobPriceOverride(ctx context.Context, arg SetMachine
 		&i.PriceOverrideReason,
 		&i.PriceOverriddenByAccountID,
 		&i.PriceOverriddenAt,
-		&i.BillingStatus,
-		&i.BillingReference,
 		&i.ActivePricingSnapshotID,
 		&i.Version,
 		&i.CreatedAt,
@@ -2879,74 +2853,13 @@ func (q *Queries) UpdateMachine(ctx context.Context, arg UpdateMachineParams) (M
 	return i, err
 }
 
-const updateMachineJobBilling = `-- name: UpdateMachineJobBilling :one
-UPDATE machine_jobs SET billing_status = $1, billing_reference = $2,
-    final_price = CASE WHEN $1::text = 'waived' THEN 0 ELSE final_price END,
-    price_override_reason = CASE WHEN $1::text = 'waived' THEN $3 ELSE price_override_reason END,
-    price_overridden_by_account_id = CASE WHEN $1::text = 'waived' THEN $4 ELSE price_overridden_by_account_id END,
-    price_overridden_at = CASE WHEN $1::text = 'waived' THEN now() ELSE price_overridden_at END,
-    version = version + 1, updated_at = now()
-WHERE id = $5 AND version = $6
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, billing_status, billing_reference, active_pricing_snapshot_id, version, created_at, updated_at
-`
-
-type UpdateMachineJobBillingParams struct {
-	BillingStatus    string
-	BillingReference *string
-	WaiverReason     *string
-	ActorAccountID   *uuid.UUID
-	ID               uuid.UUID
-	ExpectedVersion  int64
-}
-
-func (q *Queries) UpdateMachineJobBilling(ctx context.Context, arg UpdateMachineJobBillingParams) (MachineJob, error) {
-	row := q.db.QueryRow(ctx, updateMachineJobBilling,
-		arg.BillingStatus,
-		arg.BillingReference,
-		arg.WaiverReason,
-		arg.ActorAccountID,
-		arg.ID,
-		arg.ExpectedVersion,
-	)
-	var i MachineJob
-	err := row.Scan(
-		&i.ID,
-		&i.DisplayID,
-		&i.MachineID,
-		&i.StartsAt,
-		&i.EndsAt,
-		&i.Source,
-		&i.ExternalID,
-		&i.ExternalMetadata,
-		&i.ReviewState,
-		&i.CustomerPersonID,
-		&i.CustomerOrganizationID,
-		&i.OperatorPersonID,
-		&i.Outcome,
-		&i.Notes,
-		&i.PricingStatus,
-		&i.CalculatedPrice,
-		&i.FinalPrice,
-		&i.PriceOverrideReason,
-		&i.PriceOverriddenByAccountID,
-		&i.PriceOverriddenAt,
-		&i.BillingStatus,
-		&i.BillingReference,
-		&i.ActivePricingSnapshotID,
-		&i.Version,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const updateMachineJobFacts = `-- name: UpdateMachineJobFacts :one
 UPDATE machine_jobs SET machine_id = $1, starts_at = $2, ends_at = $3,
     customer_person_id = $4, customer_organization_id = $5,
     operator_person_id = $6, outcome = $7, notes = $8,
     version = version + 1, updated_at = now()
-WHERE id = $9 AND version = $10 AND review_state = 'confirmed' AND billing_status <> 'billed'
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, billing_status, billing_reference, active_pricing_snapshot_id, version, created_at, updated_at
+WHERE id = $9 AND version = $10 AND review_state = 'confirmed'
+RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, final_price, price_override_reason, price_overridden_by_account_id, price_overridden_at, active_pricing_snapshot_id, version, created_at, updated_at
 `
 
 type UpdateMachineJobFactsParams struct {
@@ -2997,8 +2910,6 @@ func (q *Queries) UpdateMachineJobFacts(ctx context.Context, arg UpdateMachineJo
 		&i.PriceOverrideReason,
 		&i.PriceOverriddenByAccountID,
 		&i.PriceOverriddenAt,
-		&i.BillingStatus,
-		&i.BillingReference,
 		&i.ActivePricingSnapshotID,
 		&i.Version,
 		&i.CreatedAt,

@@ -56,6 +56,23 @@ func TestManagedDeviceTokenLifecycle(t *testing.T) {
 	if invalid, err := service.Authenticate(ctx, unknownToken); err != nil || invalid != nil {
 		t.Fatalf("unknown well-formed token result=%v err=%v", invalid, err)
 	}
+	boundSessionID := uuid.Must(uuid.NewV7())
+	_, boundDigest, err := security.NewOpaqueToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, csrfDigest, err := security.NewOpaqueToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `
+		INSERT INTO sessions(id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method,
+			idle_expires_at, absolute_expires_at, managed_device_id)
+		VALUES($1, $2, $3, $4, $5, 'password', now() + interval '1 hour', now() + interval '2 hours', $6)`,
+		boundSessionID, account.accountID, account.identity, boundDigest, csrfDigest, issued.Device.ID,
+	); err != nil {
+		t.Fatal(err)
+	}
 	rotated, err := service.Rotate(ctx, principal, issued.Device.ID, issued.Device.Version, nil, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -66,12 +83,32 @@ func TestManagedDeviceTokenLifecycle(t *testing.T) {
 	if current, err := service.Authenticate(ctx, rotated.Token); err != nil || current == nil {
 		t.Fatalf("rotated token invalid: %v %v", current, err)
 	}
+	var sessionRevoked bool
+	if err = pool.QueryRow(ctx, `SELECT revoked_at IS NOT NULL FROM sessions WHERE id=$1`, boundSessionID).Scan(&sessionRevoked); err != nil || !sessionRevoked {
+		t.Fatalf("rotation did not revoke bound session: revoked=%t err=%v", sessionRevoked, err)
+	}
+	revocationSessionID := uuid.Must(uuid.NewV7())
+	_, revocationDigest, err := security.NewOpaqueToken()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `
+		INSERT INTO sessions(id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method,
+			idle_expires_at, absolute_expires_at, managed_device_id)
+		VALUES($1, $2, $3, $4, $5, 'password', now() + interval '1 hour', now() + interval '2 hours', $6)`,
+		revocationSessionID, account.accountID, account.identity, revocationDigest, csrfDigest, rotated.Device.ID,
+	); err != nil {
+		t.Fatal(err)
+	}
 	revoked, err := service.Revoke(ctx, principal, rotated.Device.ID, rotated.Device.Version, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if current, err := service.Authenticate(ctx, rotated.Token); err != nil || current != nil {
 		t.Fatalf("revoked token authenticated: %v %v", current, err)
+	}
+	if err = pool.QueryRow(ctx, `SELECT revoked_at IS NOT NULL FROM sessions WHERE id=$1`, revocationSessionID).Scan(&sessionRevoked); err != nil || !sessionRevoked {
+		t.Fatalf("device revocation did not revoke bound session: revoked=%t err=%v", sessionRevoked, err)
 	}
 	if err = service.Delete(ctx, principal, revoked.ID, revoked.Version, nil); err != nil {
 		t.Fatal(err)

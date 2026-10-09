@@ -21,17 +21,20 @@ import (
 )
 
 type Session struct {
-	ID             uuid.UUID
-	Token          string
-	CSRFToken      string
-	IdleExpiresAt  time.Time
-	AbsoluteExpiry time.Time
+	ID                     uuid.UUID
+	Token                  string
+	CSRFToken              string
+	IdleExpiresAt          time.Time
+	AbsoluteExpiry         time.Time
+	PostSessionDestination string
 }
 
 type Authenticated struct {
-	Principal  authorization.Principal
-	CSRFDigest []byte
-	AuthMethod string
+	Principal                        authorization.Principal
+	CSRFDigest                       []byte
+	AuthMethod                       string
+	IdleExpiresAt, AbsoluteExpiresAt time.Time
+	PostSessionDestination           string
 }
 
 type Service struct {
@@ -145,9 +148,10 @@ func (s *Service) Authenticate(ctx context.Context, sessionToken string) (Authen
 		return Authenticated{}, apperror.Unauthenticated
 	}
 	queries := authdb.New(s.pool)
-	row, err := queries.GetSessionPrincipal(ctx, security.DigestToken(sessionToken))
+	tokenDigest := security.DigestToken(sessionToken)
+	row, err := queries.GetSessionPrincipal(ctx, tokenDigest)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return Authenticated{}, apperror.Unauthenticated
+		return Authenticated{}, s.unauthenticatedWithDestination(ctx, queries, tokenDigest)
 	}
 	if err != nil {
 		return Authenticated{}, err
@@ -164,10 +168,38 @@ func (s *Service) Authenticate(ctx context.Context, sessionToken string) (Authen
 	if err != nil {
 		return Authenticated{}, err
 	}
-	_ = queries.TouchSession(ctx, authdb.TouchSessionParams{
-		ID: row.SessionID, IdleExpiresAt: time.Now().UTC().Add(s.config.SessionIdleTTL),
-	})
-	return Authenticated{Principal: principal, CSRFDigest: row.CsrfDigest, AuthMethod: row.AuthMethod}, nil
+	currentDevice := managedDeviceFromContext(ctx)
+	if (row.ManagedDeviceID == nil) != (currentDevice == nil) || (row.ManagedDeviceID != nil && currentDevice != nil && *row.ManagedDeviceID != *currentDevice) {
+		return Authenticated{}, apperror.Unauthenticated
+	}
+	return Authenticated{Principal: principal, CSRFDigest: row.CsrfDigest, AuthMethod: row.AuthMethod,
+		IdleExpiresAt: row.IdleExpiresAt, AbsoluteExpiresAt: row.AbsoluteExpiresAt,
+		PostSessionDestination: row.PostSessionDestination}, nil
+}
+
+func (s *Service) unauthenticatedWithDestination(ctx context.Context, queries *authdb.Queries, tokenDigest []byte) error {
+	destination, err := queries.GetSessionPostDestinationByDigest(ctx, tokenDigest)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperror.Unauthenticated
+	}
+	if err != nil {
+		return err
+	}
+	unauthenticated := apperror.New(401, "unauthenticated", "Authentication is required")
+	unauthenticated.Details["postSessionDestination"] = destination
+	return unauthenticated
+}
+
+func (s *Service) RecordActivity(ctx context.Context, principal authorization.Principal) (Session, error) {
+	row, err := authdb.New(s.pool).TouchSession(ctx, principal.SessionID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Session{}, apperror.Unauthenticated
+	}
+	if err != nil {
+		return Session{}, err
+	}
+	return Session{ID: principal.SessionID, IdleExpiresAt: row.IdleExpiresAt,
+		AbsoluteExpiry: row.AbsoluteExpiresAt, PostSessionDestination: row.PostSessionDestination}, nil
 }
 
 func (s *Service) WithDevice(ctx context.Context, authenticated Authenticated, device *authorization.ManagedDevice) (Authenticated, error) {
@@ -367,20 +399,21 @@ func (s *Service) createSession(ctx context.Context, queries *authdb.Queries, ac
 		return Session{}, err
 	}
 	now := time.Now().UTC()
-	absolute := now.Add(s.config.SessionAbsoluteTTL)
-	idle := now.Add(s.config.SessionIdleTTL)
-	if idle.After(absolute) {
-		idle = absolute
+	policy, idle, absolute, err := s.sessionDeadlines(ctx, queries, now)
+	if err != nil {
+		return Session{}, err
 	}
 	id := uuid.Must(uuid.NewV7())
 	if _, err := queries.CreateSession(ctx, authdb.CreateSessionParams{
 		ID: id, AccountID: accountID, AuthIdentityID: identityID,
 		TokenDigest: tokenDigest, CsrfDigest: csrfDigest,
-		IdleExpiresAt: idle, AbsoluteExpiresAt: absolute,
+		IdleExpiresAt: idle, AbsoluteExpiresAt: absolute, ManagedDeviceID: policy.ManagedDeviceID,
+		SessionPolicyID: policy.ID, SessionPolicyVersion: policy.Version,
+		IdleTimeoutSeconds: int32(policy.IdleTimeout / time.Second), PostSessionDestination: policy.PostSessionDestination,
 	}); err != nil {
 		return Session{}, err
 	}
-	return Session{ID: id, Token: token, CSRFToken: csrf, IdleExpiresAt: idle, AbsoluteExpiry: absolute}, nil
+	return Session{ID: id, Token: token, CSRFToken: csrf, IdleExpiresAt: idle, AbsoluteExpiry: absolute, PostSessionDestination: policy.PostSessionDestination}, nil
 }
 
 func (s *Service) CreateOIDCSession(ctx context.Context, db authdb.DBTX, accountID, identityID uuid.UUID, assurance authorization.Assurance, authenticatedAt time.Time) (Session, error) {
@@ -414,22 +447,23 @@ func (s *Service) CreateOIDCSession(ctx context.Context, db authdb.DBTX, account
 		return Session{}, err
 	}
 	now := time.Now().UTC()
-	absolute := now.Add(s.config.SessionAbsoluteTTL)
-	idle := now.Add(s.config.SessionIdleTTL)
-	if idle.After(absolute) {
-		idle = absolute
+	policy, idle, absolute, err := s.sessionDeadlines(ctx, queries, now)
+	if err != nil {
+		return Session{}, err
 	}
 	id := uuid.Must(uuid.NewV7())
 	if _, err := queries.CreateOIDCSession(ctx, authdb.CreateOIDCSessionParams{
 		ID: id, AccountID: accountID, AuthIdentityID: identityID, TokenDigest: tokenDigest,
 		CsrfDigest: csrfDigest, Assurance: string(assurance), AuthenticatedAt: authenticatedAt, IdleExpiresAt: idle, AbsoluteExpiresAt: absolute,
+		ManagedDeviceID: policy.ManagedDeviceID, SessionPolicyID: policy.ID, SessionPolicyVersion: policy.Version,
+		IdleTimeoutSeconds: int32(policy.IdleTimeout / time.Second), PostSessionDestination: policy.PostSessionDestination,
 	}); err != nil {
 		return Session{}, err
 	}
 	if err := queries.MarkAuthenticationSucceeded(ctx, authdb.MarkAuthenticationSucceededParams{AuthIdentityID: identityID, AccountID: accountID}); err != nil {
 		return Session{}, err
 	}
-	return Session{ID: id, Token: token, CSRFToken: csrf, IdleExpiresAt: idle, AbsoluteExpiry: absolute}, nil
+	return Session{ID: id, Token: token, CSRFToken: csrf, IdleExpiresAt: idle, AbsoluteExpiry: absolute, PostSessionDestination: policy.PostSessionDestination}, nil
 }
 
 func validationError(message string) *apperror.Error {

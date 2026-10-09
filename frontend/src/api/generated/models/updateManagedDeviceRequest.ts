@@ -20,6 +20,11 @@ the required session and CSRF credentials.
  */
 import type { UUIDv7 } from './uUIDv7';
 import type { Version } from './version';
+import type { UpdateManagedDeviceRequestSessionPolicyId } from './updateManagedDeviceRequestSessionPolicyId';
+import type { DeviceApplicationMode } from './deviceApplicationMode';
+import type { AuthenticationAssurance } from './authenticationAssurance';
+import type { CheckoutMode } from './checkoutMode';
+import type { DeviceCapability } from './deviceCapability';
 
 export interface UpdateManagedDeviceRequest {
   /**
@@ -31,4 +36,16 @@ export interface UpdateManagedDeviceRequest {
   /** @nullable */
   expiresAt: string | null;
   expectedVersion: Version;
+  /** @nullable */
+  sessionPolicyId: UpdateManagedDeviceRequestSessionPolicyId;
+  terminalEnabled: boolean;
+  /**
+   * @minItems 1
+   * @maxItems 2
+   */
+  allowedApplicationModes: DeviceApplicationMode[];
+  checkInAssurance: AuthenticationAssurance;
+  checkOutAssurance: AuthenticationAssurance;
+  checkoutMode: CheckoutMode;
+  capabilities: DeviceCapability[];
 }

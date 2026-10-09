@@ -27,6 +27,12 @@ frontend/dist/
 frontend/coverage/
 .pnpm-store/
 
+# Android build output and local SDK configuration
+android-terminal/.gradle/
+android-terminal/build/
+android-terminal/app/build/
+android-terminal/local.properties
+
 # Local PostgreSQL data when a bind mount is used for troubleshooting
 .postgres-data/
 

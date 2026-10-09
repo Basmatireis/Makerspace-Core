@@ -74,17 +74,21 @@ func TestHTTPManagedDeviceContextAndScopedAuthorization(t *testing.T) {
 	response = doJSONWithDevice(t, client, http.MethodGet, server.URL+"/api/v1/permissions", "", "", "malformed-or-unknown", nil)
 	assertStatus(t, response, http.StatusForbidden)
 	response.Body.Close()
-	response = doJSONWithDevice(t, client, http.MethodGet, server.URL+"/api/v1/permissions", "", "", workshopDevice.Token, nil)
+	workshopSession, workshopCSRF := insertTestSession(t, pool, actor, workshopDevice.Device.ID)
+	workshopClient := clientWithSession(t, server.URL, workshopSession, workshopCSRF)
+	response = doJSONWithDevice(t, workshopClient, http.MethodGet, server.URL+"/api/v1/permissions", "", "", workshopDevice.Token, nil)
 	assertStatus(t, response, http.StatusForbidden)
 	response.Body.Close()
 
-	response = doJSONWithDevice(t, client, http.MethodGet, server.URL+"/api/v1/permissions", "", "", receptionDevice.Token, nil)
+	receptionSession, receptionCSRF := insertTestSession(t, pool, actor, receptionDevice.Device.ID)
+	receptionClient := clientWithSession(t, server.URL, receptionSession, receptionCSRF)
+	response = doJSONWithDevice(t, receptionClient, http.MethodGet, server.URL+"/api/v1/permissions", "", "", receptionDevice.Token, nil)
 	assertStatus(t, response, http.StatusOK)
 	response.Body.Close()
-	response = doJSONWithDevice(t, client, http.MethodGet, server.URL+"/api/v1/managed-device-types/"+reception.ID.String(), "", "", receptionDevice.Token, nil)
+	response = doJSONWithDevice(t, receptionClient, http.MethodGet, server.URL+"/api/v1/managed-device-types/"+reception.ID.String(), "", "", receptionDevice.Token, nil)
 	assertStatus(t, response, http.StatusOK)
 	response.Body.Close()
-	response = doJSONWithDevice(t, client, http.MethodGet, server.URL+"/api/v1/auth/me", "", "", receptionDevice.Token, nil)
+	response = doJSONWithDevice(t, receptionClient, http.MethodGet, server.URL+"/api/v1/auth/me", "", "", receptionDevice.Token, nil)
 	assertStatus(t, response, http.StatusOK)
 	var current openapi.CurrentUser
 	decodeResponse(t, response, &current)
@@ -95,7 +99,7 @@ func TestHTTPManagedDeviceContextAndScopedAuthorization(t *testing.T) {
 		t.Fatalf("effective permissions = %v", current.Permissions)
 	}
 
-	response = doJSONWithDevice(t, client, http.MethodPost, server.URL+"/api/v1/managed-device-types", origin, csrfToken, receptionDevice.Token, map[string]any{
+	response = doJSONWithDevice(t, receptionClient, http.MethodPost, server.URL+"/api/v1/managed-device-types", origin, receptionCSRF, receptionDevice.Token, map[string]any{
 		"name": "Temporary type", "description": nil,
 	})
 	assertStatus(t, response, http.StatusCreated)
@@ -110,12 +114,97 @@ func TestHTTPManagedDeviceContextAndScopedAuthorization(t *testing.T) {
 	if err != nil || revoked.RevokedAt == nil {
 		t.Fatalf("revoke: device=%#v err=%v", revoked, err)
 	}
-	response = doJSONWithDevice(t, client, http.MethodGet, server.URL+"/api/v1/permissions", "", "", receptionDevice.Token, nil)
-	assertStatus(t, response, http.StatusForbidden)
+	response = doJSONWithDevice(t, receptionClient, http.MethodGet, server.URL+"/api/v1/permissions", "", "", receptionDevice.Token, nil)
+	assertStatus(t, response, http.StatusUnauthorized)
 	response.Body.Close()
 }
 
-func insertTestSession(t *testing.T, pool *pgxpool.Pool, account seededAccount) (string, string) {
+func TestManagedDeviceHardwareReportUsesAuthenticatedIdentityAndApplicationModes(t *testing.T) {
+	pool := migratedPool(t)
+	ctx := testContext(t)
+	admin := seedAccount(t, pool, "hardware-report-admin", true)
+	principal := authorization.Principal{AccountID: admin.accountID, PersonID: admin.personID, Master: true}
+	service := manageddevices.NewService(pool)
+	deviceType, err := service.CreateType(ctx, principal, "Android terminal", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var policyID uuid.UUID
+	if err = pool.QueryRow(ctx, `SELECT id FROM session_policies WHERE name='Entrance terminal'`).Scan(&policyID); err != nil {
+		t.Fatal(err)
+	}
+	visitor, err := service.CreateConfigured(ctx, principal, "Visitor-only tablet", deviceType.ID, nil, manageddevices.DeviceSettings{
+		SessionPolicyID: &policyID, TerminalEnabled: true, AllowedApplicationModes: []string{"visitor_terminal"},
+		CheckInAssurance: "low", CheckOutAssurance: "low", CheckoutMode: "verified", Capabilities: []string{"nfc"},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staff, err := service.CreateConfigured(ctx, principal, "Staff tablet", deviceType.ID, nil, manageddevices.DeviceSettings{
+		SessionPolicyID: &policyID, AllowedApplicationModes: []string{"staff_ui"}, CheckInAssurance: "low", CheckOutAssurance: "low", CheckoutMode: "verified",
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `UPDATE managed_devices SET allowed_app_modes=ARRAY['maintenance']::text[] WHERE id=$1`, staff.Device.ID); err == nil {
+		t.Fatal("database accepted an unsupported application mode")
+	}
+	if _, err = pool.Exec(ctx, `UPDATE managed_devices SET terminal_enabled=true, allowed_app_modes=ARRAY['staff_ui']::text[] WHERE id=$1`, staff.Device.ID); err == nil {
+		t.Fatal("database accepted a terminal without visitor_terminal mode")
+	}
+	origin := "http://makerspace.example.test"
+	server := newManagedDeviceHTTPServer(t, pool, origin)
+	defer server.Close()
+	client := newCookieClient(t)
+
+	response := doJSONWithDevice(t, client, http.MethodPut, server.URL+"/api/v1/managed-devices/self/hardware", "https://foreign.example.test", "", visitor.Token, map[string]any{
+		"platform": "android", "bridgeVersion": "1.0.0", "capabilities": []string{"nfc", "camera"},
+	})
+	assertStatus(t, response, http.StatusForbidden)
+	response.Body.Close()
+
+	response = doJSONWithDevice(t, client, http.MethodPut, server.URL+"/api/v1/managed-devices/self/hardware", "", "", visitor.Token, map[string]any{
+		"platform": "android", "bridgeVersion": "1.0.0", "capabilities": []string{"nfc", "camera"},
+	})
+	assertStatus(t, response, http.StatusOK)
+	var hardware openapi.DeviceHardwareContext
+	decodeResponse(t, response, &hardware)
+	if hardware.DeviceId != visitor.Device.ID || len(hardware.ReportedCapabilities) != 2 || len(hardware.EffectiveCapabilities) != 1 || hardware.EffectiveCapabilities[0] != openapi.Nfc {
+		t.Fatalf("unexpected hardware context: %#v", hardware)
+	}
+	var reportDeviceID uuid.UUID
+	if err = pool.QueryRow(ctx, `SELECT managed_device_id FROM managed_device_hardware_reports WHERE managed_device_id=$1`, visitor.Device.ID).Scan(&reportDeviceID); err != nil || reportDeviceID != visitor.Device.ID {
+		t.Fatalf("hardware report identity=%s err=%v", reportDeviceID, err)
+	}
+	var auditCount int
+	if err = pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE resource_id=$1 AND action='managed_device.hardware_reported'`, visitor.Device.ID).Scan(&auditCount); err != nil || auditCount != 1 {
+		t.Fatalf("hardware audit count=%d err=%v", auditCount, err)
+	}
+	response = doJSONWithDevice(t, client, http.MethodPut, server.URL+"/api/v1/managed-devices/self/hardware", "", "", "not-a-valid-device-token", map[string]any{
+		"platform": "android", "bridgeVersion": "1.0.0", "capabilities": []string{"nfc"},
+	})
+	assertStatus(t, response, http.StatusUnauthorized)
+	response.Body.Close()
+
+	response = doJSONWithDevice(t, client, http.MethodPut, server.URL+"/api/v1/managed-devices/self/hardware", origin, "", staff.Token, map[string]any{
+		"deviceId": visitor.Device.ID, "platform": "android", "bridgeVersion": "1.0.0", "capabilities": []string{"nfc"},
+	})
+	assertStatus(t, response, http.StatusBadRequest)
+	response.Body.Close()
+	response = doJSONWithDevice(t, client, http.MethodGet, server.URL+"/api/v1/managed-devices/self/hardware", "", "", "", nil)
+	assertStatus(t, response, http.StatusUnauthorized)
+	response.Body.Close()
+
+	login := map[string]any{"email": "nobody@example.test", "password": "not-the-password"}
+	response = doJSONWithDevice(t, client, http.MethodPost, server.URL+"/api/v1/auth/login", origin, "", visitor.Token, login)
+	assertStatus(t, response, http.StatusForbidden)
+	response.Body.Close()
+	response = doJSONWithDevice(t, client, http.MethodPost, server.URL+"/api/v1/auth/login", origin, "", staff.Token, login)
+	assertStatus(t, response, http.StatusUnauthorized)
+	response.Body.Close()
+}
+
+func insertTestSession(t *testing.T, pool *pgxpool.Pool, account seededAccount, managedDevice ...uuid.UUID) (string, string) {
 	t.Helper()
 	ctx := testContext(t)
 	sessionToken, sessionDigest, err := security.NewOpaqueToken()
@@ -126,10 +215,14 @@ func insertTestSession(t *testing.T, pool *pgxpool.Pool, account seededAccount) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	var managedDeviceID *uuid.UUID
+	if len(managedDevice) > 0 {
+		managedDeviceID = &managedDevice[0]
+	}
 	if _, err = pool.Exec(ctx, `
-		INSERT INTO sessions(id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, idle_expires_at, absolute_expires_at)
-		VALUES($1, $2, $3, $4, $5, 'password', now() + interval '1 hour', now() + interval '2 hours')`,
-		uuid.Must(uuid.NewV7()), account.accountID, account.identity, sessionDigest, csrfDigest,
+		INSERT INTO sessions(id, account_id, auth_identity_id, token_digest, csrf_digest, auth_method, idle_expires_at, absolute_expires_at, managed_device_id)
+		VALUES($1, $2, $3, $4, $5, 'password', now() + interval '1 hour', now() + interval '2 hours', $6)`,
+		uuid.Must(uuid.NewV7()), account.accountID, account.identity, sessionDigest, csrfDigest, managedDeviceID,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +237,8 @@ func newManagedDeviceHTTPServer(t *testing.T, pool *pgxpool.Pool, origin string)
 	}
 	handler, err := httpapi.NewHandler(pool, config.Config{
 		PublicBaseURL: baseURL, SessionCookieName: "makerspace_session", CSRFCookieName: "makerspace_csrf",
-		SessionIdleTTL: time.Hour, SessionAbsoluteTTL: 2 * time.Hour, PasswordResetTTL: 30 * time.Minute,
+		ManagedDeviceCookieName: "makerspace_device",
+		SessionIdleTTL:          time.Hour, SessionAbsoluteTTL: 2 * time.Hour, PasswordResetTTL: 30 * time.Minute,
 	}, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)

@@ -138,6 +138,7 @@ paths:
               schema: {type: string}
         "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "429": {$ref: "#/components/responses/TooManyRequests"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
@@ -1405,6 +1406,31 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /managed-devices/self/hardware:
+    get:
+      tags: [Managed Devices]
+      operationId: getOwnManagedDeviceHardware
+      summary: Get the authenticated managed device and its hardware report
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      responses:
+        "200": {description: Authenticated device hardware context., content: {application/json: {schema: {$ref: "#/components/schemas/DeviceHardwareContext"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Managed Devices]
+      operationId: reportOwnManagedDeviceHardware
+      summary: Replace the authenticated managed device's reported hardware capabilities
+      description: The authenticated device identity is derived from its credential; a body-supplied device ID is never accepted. Native clients may call this operation without a browser Origin by using X-Managed-Device-Token. Cookie-authenticated browser requests remain subject to the configured origin check.
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/DeviceHardwareReport"}}}}
+      responses:
+        "200": {description: Updated device hardware context., content: {application/json: {schema: {$ref: "#/components/schemas/DeviceHardwareContext"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
@@ -2810,6 +2836,7 @@ paths:
       parameters: [{name: providerSlug, in: path, required: true, schema: {type: string, pattern: "^[a-z0-9][a-z0-9-]{1,62}$"}}]
       responses:
         "302": {description: Redirect to the provider., headers: {Location: {schema: {type: string}}, Set-Cookie: {schema: {type: string}}}}
+        "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
@@ -3780,7 +3807,6 @@ paths:
         - {name: operatorPersonId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
         - {name: materialId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
         - {name: outcome, in: query, schema: {$ref: "#/components/schemas/MachineJobOutcome"}}
-        - {name: billingStatus, in: query, schema: {$ref: "#/components/schemas/BillingStatus"}}
         - {name: source, in: query, schema: {$ref: "#/components/schemas/MachineJobSource"}}
         - {name: reviewState, in: query, schema: {$ref: "#/components/schemas/MachineJobReviewState"}}
         - {name: from, in: query, schema: {type: string, format: date-time}}
@@ -3933,24 +3959,6 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /machine-jobs/{machineJobId}/billing:
-    parameters:
-      - {name: machineJobId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
-    put:
-      tags: [Machine Jobs]
-      operationId: updateMachineJobBilling
-      summary: Update the minimal billing state
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateMachineJobBillingRequest"}}}}
-      responses:
-        "200": {description: Billing state updated., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
   /machine-logbook/overview:
     get:
       tags: [Machine Logbook]
@@ -3980,6 +3988,1747 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /orders:
+    get:
+      tags:
+        - "Orders"
+      operationId: "listOrders"
+      security:
+        -
+          sessionCookie: []
+      responses:
+        "200":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      parameters:
+        -
+          name: "page"
+          in: "query"
+          schema:
+            type: "integer"
+            minimum: 1
+            maximum: 2147483647
+        -
+          name: "pageSize"
+          in: "query"
+          schema:
+            type: "integer"
+            minimum: 1
+            maximum: 100
+        -
+          name: "search"
+          in: "query"
+          schema:
+            type: "string"
+            maxLength: 200
+        -
+          name: "status"
+          in: "query"
+          schema:
+            type: "string"
+            maxLength: 200
+    post:
+      tags:
+        - "Orders"
+      operationId: "createOrder"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderDraftInput"
+  /orders/{orderId}:
+    get:
+      tags:
+        - "Orders"
+      operationId: "getOrder"
+      security:
+        -
+          sessionCookie: []
+      responses:
+        "200":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    parameters:
+      -
+        name: "orderId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+    patch:
+      tags:
+        - "Orders"
+      operationId: "updateOrder"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "200":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrderDraftInput"
+  /orders/{orderId}/items:
+    post:
+      tags:
+        - "Orders"
+      operationId: "addOrderItem"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderItemInput"
+    parameters:
+      -
+        name: "orderId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /orders/{orderId}/items/{itemId}:
+    patch:
+      tags:
+        - "Orders"
+      operationId: "updateOrderItem"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "200":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderItemInput"
+    parameters:
+      -
+        name: "orderId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+      -
+        name: "itemId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+    delete:
+      tags:
+        - "Orders"
+      operationId: "removeOrderItem"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "200":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderCommand"
+  /orders/{orderId}/items/{itemId}/refresh:
+    post:
+      tags:
+        - "Orders"
+      operationId: "refreshOrderItem"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderCommand"
+    parameters:
+      -
+        name: "orderId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+      -
+        name: "itemId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /orders/{orderId}/finalize:
+    post:
+      tags:
+        - "Orders"
+      operationId: "finalizeOrder"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderCommand"
+    parameters:
+      -
+        name: "orderId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /orders/{orderId}/checkout:
+    post:
+      tags:
+        - "Orders"
+      operationId: "checkoutOrder"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderCommand"
+    parameters:
+      -
+        name: "orderId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /orders/{orderId}/cancel:
+    post:
+      tags:
+        - "Orders"
+      operationId: "cancelOrder"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderCommand"
+    parameters:
+      -
+        name: "orderId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /orders/{orderId}/reverse:
+    post:
+      tags:
+        - "Orders"
+      operationId: "reverseOrder"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderCommand"
+    parameters:
+      -
+        name: "orderId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /orders/{orderId}/replacements:
+    post:
+      tags:
+        - "Orders"
+      operationId: "createReplacementOrder"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderCommand"
+    parameters:
+      -
+        name: "orderId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /orders/{orderId}/replace:
+    post:
+      tags:
+        - "Orders"
+      operationId: "replaceOrder"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderCommand"
+    parameters:
+      -
+        name: "orderId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /counter-sales:
+    post:
+      tags:
+        - "Orders"
+      operationId: "completeCounterSale"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CounterSaleCommand"
+  /payments:
+    get:
+      tags:
+        - "Payments"
+      operationId: "listOrderPayments"
+      security:
+        -
+          sessionCookie: []
+      responses:
+        "200":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderPaymentPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      parameters:
+        -
+          name: "page"
+          in: "query"
+          schema:
+            type: "integer"
+            minimum: 1
+            maximum: 2147483647
+        -
+          name: "pageSize"
+          in: "query"
+          schema:
+            type: "integer"
+            minimum: 1
+            maximum: 100
+        -
+          name: "method"
+          in: "query"
+          schema:
+            type: "string"
+            enum:
+              - "cash"
+              - "card"
+              - "external"
+        -
+          name: "from"
+          in: "query"
+          schema:
+            type: "string"
+            format: "date-time"
+        -
+          name: "to"
+          in: "query"
+          schema:
+            type: "string"
+            format: "date-time"
+  /payments/{paymentId}:
+    get:
+      tags:
+        - "Payments"
+      operationId: "getOrderPayment"
+      security:
+        -
+          sessionCookie: []
+      responses:
+        "200":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderPayment"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    parameters:
+      -
+        name: "paymentId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /orders/{orderId}/payments:
+    post:
+      tags:
+        - "Payments"
+      operationId: "recordOrderPayment"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordOrderPayment"
+    parameters:
+      -
+        name: "orderId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /payments/{paymentId}/reverse:
+    post:
+      tags:
+        - "Payments"
+      operationId: "reverseOrderPayment"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReversePaymentCommand"
+    parameters:
+      -
+        name: "paymentId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /payments/reconciliation:
+    get:
+      tags:
+        - "Payments"
+      operationId: "getPaymentReconciliation"
+      security:
+        -
+          sessionCookie: []
+      responses:
+        "200":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentReconciliation"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      parameters:
+        -
+          name: "page"
+          in: "query"
+          schema:
+            type: "integer"
+            minimum: 1
+            maximum: 2147483647
+        -
+          name: "pageSize"
+          in: "query"
+          schema:
+            type: "integer"
+            minimum: 1
+            maximum: 100
+        -
+          name: "method"
+          in: "query"
+          schema:
+            type: "string"
+            enum:
+              - "cash"
+              - "card"
+              - "external"
+        -
+          name: "from"
+          in: "query"
+          schema:
+            type: "string"
+            format: "date-time"
+        -
+          name: "to"
+          in: "query"
+          schema:
+            type: "string"
+            format: "date-time"
+  /orders/{orderId}/external-invoice-requests:
+    post:
+      tags:
+        - "External Invoicing"
+      operationId: "createExternalInvoiceRequest"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalInvoiceRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInvoiceRequest"
+    parameters:
+      -
+        name: "orderId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /external-invoice-requests:
+    get:
+      tags:
+        - "External Invoicing"
+      operationId: "listExternalInvoiceRequests"
+      security:
+        -
+          sessionCookie: []
+      responses:
+        "200":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalInvoiceRequestPage"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      parameters:
+        -
+          name: "page"
+          in: "query"
+          schema:
+            type: "integer"
+            minimum: 1
+            maximum: 2147483647
+        -
+          name: "pageSize"
+          in: "query"
+          schema:
+            type: "integer"
+            minimum: 1
+            maximum: 100
+        -
+          name: "search"
+          in: "query"
+          schema:
+            type: "string"
+            maxLength: 200
+        -
+          name: "status"
+          in: "query"
+          schema:
+            type: "string"
+            maxLength: 200
+  /external-invoice-requests/{requestId}:
+    get:
+      tags:
+        - "External Invoicing"
+      operationId: "getExternalInvoiceRequest"
+      security:
+        -
+          sessionCookie: []
+      responses:
+        "200":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalInvoiceRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    parameters:
+      -
+        name: "requestId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+    patch:
+      tags:
+        - "External Invoicing"
+      operationId: "updateExternalInvoiceRequest"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "200":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalInvoiceRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateInvoiceRequest"
+  /external-invoice-requests/{requestId}/ready:
+    post:
+      tags:
+        - "External Invoicing"
+      operationId: "markExternalInvoiceRequestReady"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalInvoiceRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceRequestCommand"
+    parameters:
+      -
+        name: "requestId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /external-invoice-requests/{requestId}/submit:
+    post:
+      tags:
+        - "External Invoicing"
+      operationId: "submitExternalInvoiceRequest"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalInvoiceRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceRequestCommand"
+    parameters:
+      -
+        name: "requestId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /external-invoice-requests/{requestId}/record-issued:
+    post:
+      tags:
+        - "External Invoicing"
+      operationId: "recordExternalInvoiceIssued"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalInvoiceRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceRequestCommand"
+    parameters:
+      -
+        name: "requestId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /external-invoice-requests/{requestId}/request-cancellation:
+    post:
+      tags:
+        - "External Invoicing"
+      operationId: "requestExternalInvoiceCancellation"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalInvoiceRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceRequestCommand"
+    parameters:
+      -
+        name: "requestId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /external-invoice-requests/{requestId}/confirm-cancellation:
+    post:
+      tags:
+        - "External Invoicing"
+      operationId: "confirmExternalInvoiceCancellation"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalInvoiceRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceRequestCommand"
+    parameters:
+      -
+        name: "requestId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /external-invoice-requests/{requestId}/cancel:
+    post:
+      tags:
+        - "External Invoicing"
+      operationId: "cancelExternalInvoiceRequest"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalInvoiceRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceRequestCommand"
+    parameters:
+      -
+        name: "requestId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /external-invoice-requests/{requestId}/reference-corrections:
+    post:
+      tags:
+        - "External Invoicing"
+      operationId: "correctExternalInvoiceReference"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "201":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExternalInvoiceRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceRequestCommand"
+    parameters:
+      -
+        name: "requestId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+  /organizations/{organizationId}/invoicing-requirements:
+    get:
+      tags:
+        - "Organizations"
+      operationId: "getOrganizationInvoicingRequirements"
+      security:
+        -
+          sessionCookie: []
+      responses:
+        "200":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoicingRequirements"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    parameters:
+      -
+        name: "organizationId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+    put:
+      tags:
+        - "Organizations"
+      operationId: "updateOrganizationInvoicingRequirements"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "200":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoicingRequirements"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateInvoicingRequirements"
+  /machine-jobs/{machineJobId}/order-association:
+    get:
+      tags:
+        - "Orders"
+      operationId: "getJobOrderAssociation"
+      security:
+        -
+          sessionCookie: []
+      responses:
+        "200":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobOrderAssociation"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    parameters:
+      -
+        name: "machineJobId"
+        in: "path"
+        required: true
+        schema:
+          $ref: "#/components/schemas/UUIDv7"
+
+  /counter-sales/preview:
+    post:
+      tags:
+        - "Orders"
+      operationId: "previewCounterSale"
+      security:
+        -
+          sessionCookie: []
+          csrfHeader: []
+      responses:
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "200":
+          description: "Operation completed."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CounterSaleQuote"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CounterSaleCommand"
+
+  /session-policies:
+    get:
+      tags: [Managed Devices]
+      operationId: listSessionPolicies
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Session policies., content: {application/json: {schema: {$ref: "#/components/schemas/SessionPolicyList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Managed Devices]
+      operationId: createSessionPolicy
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SessionPolicyInput"}}}}
+      responses:
+        "201": {description: Session policy created., content: {application/json: {schema: {$ref: "#/components/schemas/SessionPolicy"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /session-policies/{sessionPolicyId}:
+    parameters: [{name: sessionPolicyId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    put:
+      tags: [Managed Devices]
+      operationId: updateSessionPolicy
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSessionPolicyRequest"}}}}
+      responses:
+        "200": {description: Session policy updated., content: {application/json: {schema: {$ref: "#/components/schemas/SessionPolicy"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /auth/activity:
+    post:
+      tags: [Authentication]
+      operationId: recordSessionActivity
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Session expiry after recorded foreground activity., content: {application/json: {schema: {$ref: "#/components/schemas/SessionContext"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /terminal/context:
+    get:
+      tags: [Attendance]
+      operationId: getTerminalContext
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      responses:
+        "200": {description: Public terminal capabilities and attendance policy., content: {application/json: {schema: {$ref: "#/components/schemas/TerminalContext"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/presence:
+    get:
+      tags: [Attendance]
+      operationId: listTerminalPresence
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      responses:
+        "200": {description: Privacy-minimized current presence., content: {application/json: {schema: {$ref: "#/components/schemas/PublicPresenceList"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/check-in/password:
+    post:
+      tags: [Attendance]
+      operationId: terminalPasswordCheckIn
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AttendancePasswordRequest"}}}}
+      responses:
+        "201": {description: Visitor checked in without a staff session., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/check-in/pin:
+    post:
+      tags: [Attendance]
+      operationId: terminalPinCheckIn
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AttendancePinRequest"}}}}
+      responses:
+        "201": {description: Visitor checked in without a staff session., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/check-out/password:
+    post:
+      tags: [Attendance]
+      operationId: terminalPasswordCheckOut
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AttendancePasswordRequest"}}}}
+      responses:
+        "200": {description: Visitor checked out., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/check-out/pin:
+    post:
+      tags: [Attendance]
+      operationId: terminalPinCheckOut
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AttendancePinRequest"}}}}
+      responses:
+        "200": {description: Visitor checked out., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /terminal/presence/{visitId}/check-out:
+    parameters: [{name: visitId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    post:
+      tags: [Attendance]
+      operationId: terminalPublicCheckOut
+      security: [{managedDeviceToken: []}, {managedDeviceCookie: []}]
+      responses:
+        "200": {description: Public-tap checkout completed., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /visits:
+    get:
+      tags: [Attendance]
+      operationId: listVisits
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: currentlyHere, in: query, schema: {type: boolean}}
+        - {name: from, in: query, schema: {type: string, format: date-time}}
+        - {name: to, in: query, schema: {type: string, format: date-time}}
+      responses:
+        "200": {description: Attendance records., content: {application/json: {schema: {$ref: "#/components/schemas/VisitList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Attendance]
+      operationId: supervisedVisitCheckIn
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SupervisedCheckInRequest"}}}}
+      responses:
+        "201": {description: Supervised check-in completed., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /visits/{visitId}/check-out:
+    parameters: [{name: visitId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    post:
+      tags: [Attendance]
+      operationId: supervisedVisitCheckOut
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Supervised checkout completed., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /visits/{visitId}/void:
+    parameters: [{name: visitId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    post:
+      tags: [Attendance]
+      operationId: voidVisit
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VoidVisitRequest"}}}}
+      responses:
+        "200": {description: Attendance record voided., content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /attendance/statistics:
+    get:
+      tags: [Attendance]
+      operationId: getAttendanceStatistics
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: from, in: query, required: true, schema: {type: string, format: date-time}}
+        - {name: to, in: query, required: true, schema: {type: string, format: date-time}}
+      responses:
+        "200": {description: Attendance statistics., content: {application/json: {schema: {$ref: "#/components/schemas/AttendanceStatistics"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /surveys:
+    get:
+      tags: [Surveys]
+      operationId: listSurveys
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Surveys., content: {application/json: {schema: {$ref: "#/components/schemas/SurveyList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Surveys]
+      operationId: createSurvey
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateSurveyRequest"}}}}
+      responses:
+        "201": {description: Survey created., content: {application/json: {schema: {$ref: "#/components/schemas/Survey"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /surveys/{surveyId}:
+    parameters: [{name: surveyId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    get:
+      tags: [Surveys]
+      operationId: getSurvey
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Survey., content: {application/json: {schema: {$ref: "#/components/schemas/Survey"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Surveys]
+      operationId: updateSurvey
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSurveyRequest"}}}}
+      responses:
+        "200": {description: Survey draft updated., content: {application/json: {schema: {$ref: "#/components/schemas/Survey"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /surveys/{surveyId}/publish:
+    parameters: [{name: surveyId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    post:
+      tags: [Surveys]
+      operationId: publishSurvey
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Survey published., content: {application/json: {schema: {$ref: "#/components/schemas/Survey"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /surveys/{surveyId}/close:
+    parameters: [{name: surveyId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    post:
+      tags: [Surveys]
+      operationId: closeSurvey
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Survey closed and its trigger disabled., content: {application/json: {schema: {$ref: "#/components/schemas/Survey"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /surveys/{surveyId}/trigger:
+    parameters: [{name: surveyId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    put:
+      tags: [Surveys]
+      operationId: updateSurveyTrigger
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SurveyTriggerInput"}}}}
+      responses:
+        "200": {description: Trigger updated., content: {application/json: {schema: {$ref: "#/components/schemas/SurveyTrigger"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+  /public/surveys/{token}:
+    parameters: [{name: token, in: path, required: true, schema: {type: string, minLength: 43, maxLength: 43}}]
+    get:
+      tags: [Surveys]
+      operationId: getPublicSurvey
+      responses:
+        "200": {description: Survey invitation., content: {application/json: {schema: {$ref: "#/components/schemas/PublicSurvey"}}}}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "410": {description: Invitation expired., content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Surveys]
+      operationId: submitPublicSurvey
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SubmitSurveyResponse"}}}}
+      responses:
+        "204": {description: Anonymous response stored and invitation consumed.}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "410": {description: Invitation expired., content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
 components:
   headers:
     NoStore:
@@ -4004,6 +5753,11 @@ components:
       in: header
       name: X-Managed-Device-Token
       description: Optional opaque managed-device bearer credential accepted on every session-authenticated operation and injected by a trusted native client. It never replaces the user session.
+    managedDeviceCookie:
+      type: apiKey
+      in: cookie
+      name: makerspace_device
+      description: HttpOnly browser-bound managed-device credential. Secure production uses the `__Host-makerspace_device` name.
     scimBearer:
       type: http
       scheme: bearer
@@ -4321,6 +6075,13 @@ components:
         - events.assign
         - managed_devices.read
         - managed_devices.manage
+        - session_policies.manage
+        - attendance.read
+        - attendance.assist
+        - attendance.correct
+        - attendance.statistics.read
+        - surveys.read
+        - surveys.manage
         - laborordnung.read
         - laborordnung.manage
         - laborordnung.requests.read
@@ -4340,6 +6101,15 @@ components:
         - machine_jobs.read
         - machine_jobs.create
         - machine_jobs.edit
+        - orders.read
+        - orders.write
+        - orders.finalize
+        - orders.reverse
+        - payments.read
+        - payments.record
+        - payments.reverse
+        - external_invoice_requests.read
+        - external_invoice_requests.manage
         - machine_jobs.review
         - machine_jobs.override_price
         - inventory.read
@@ -4536,7 +6306,7 @@ components:
     CurrentUser:
       type: object
       additionalProperties: false
-      required: [account, person, permissions, authenticationAssurance, managedDevice, delegablePermissionGrants, laborordnungStatus]
+      required: [account, person, permissions, authenticationAssurance, managedDevice, delegablePermissionGrants, laborordnungStatus, session]
       properties:
         account:
           $ref: "#/components/schemas/Account"
@@ -4557,6 +6327,8 @@ components:
           items: {$ref: "#/components/schemas/PermissionGrant"}
         laborordnungStatus:
           $ref: "#/components/schemas/LaborordnungStatus"
+        session:
+          $ref: "#/components/schemas/SessionContext"
 
     ManagedDeviceContext:
       type: object
@@ -5825,10 +7597,16 @@ components:
     ManagedDeviceStatus:
       type: string
       enum: [active, expired, revoked]
+    DeviceApplicationMode:
+      type: string
+      enum: [visitor_terminal, staff_ui]
+    DevicePlatform:
+      type: string
+      enum: [desktop, android]
     ManagedDevice:
       type: object
       additionalProperties: false
-      required: [id, name, deviceTypeId, deviceTypeName, status, expiresAt, revokedAt, lastSeenAt, version, createdAt, updatedAt]
+      required: [id, name, deviceTypeId, deviceTypeName, status, expiresAt, revokedAt, lastSeenAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInAssurance, checkOutAssurance, checkoutMode, capabilities, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, minLength: 1, maxLength: 100}
@@ -5838,6 +7616,23 @@ components:
         expiresAt: {type: string, format: date-time, nullable: true}
         revokedAt: {type: string, format: date-time, nullable: true}
         lastSeenAt: {type: string, format: date-time, nullable: true}
+        sessionPolicyId:
+          allOf: [{$ref: "#/components/schemas/UUIDv7"}]
+          nullable: true
+        terminalEnabled: {type: boolean}
+        allowedApplicationModes:
+          type: array
+          minItems: 1
+          maxItems: 2
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/DeviceApplicationMode"}
+        checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
+        checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
+        checkoutMode: {$ref: "#/components/schemas/CheckoutMode"}
+        capabilities:
+          type: array
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/DeviceCapability"}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
@@ -5854,21 +7649,49 @@ components:
     CreateManagedDeviceRequest:
       type: object
       additionalProperties: false
-      required: [name, deviceTypeId, expiresAt, credentialDelivery]
+      required: [name, deviceTypeId, expiresAt, credentialDelivery, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInAssurance, checkOutAssurance, checkoutMode, capabilities]
       properties:
         name: {type: string, minLength: 1, maxLength: 100}
         deviceTypeId: {$ref: "#/components/schemas/UUIDv7"}
         expiresAt: {type: string, format: date-time, nullable: true}
         credentialDelivery: {$ref: "#/components/schemas/ManagedDeviceCredentialDelivery"}
+        sessionPolicyId:
+          allOf: [{$ref: "#/components/schemas/UUIDv7"}]
+          nullable: true
+        terminalEnabled: {type: boolean}
+        allowedApplicationModes:
+          type: array
+          minItems: 1
+          maxItems: 2
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/DeviceApplicationMode"}
+        checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
+        checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
+        checkoutMode: {$ref: "#/components/schemas/CheckoutMode"}
+        capabilities: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/DeviceCapability"}}
     UpdateManagedDeviceRequest:
       type: object
       additionalProperties: false
-      required: [name, deviceTypeId, expiresAt, expectedVersion]
+      required: [name, deviceTypeId, expiresAt, sessionPolicyId, terminalEnabled, allowedApplicationModes, checkInAssurance, checkOutAssurance, checkoutMode, capabilities, expectedVersion]
       properties:
         name: {type: string, minLength: 1, maxLength: 100}
         deviceTypeId: {$ref: "#/components/schemas/UUIDv7"}
         expiresAt: {type: string, format: date-time, nullable: true}
         expectedVersion: {$ref: "#/components/schemas/Version"}
+        sessionPolicyId:
+          allOf: [{$ref: "#/components/schemas/UUIDv7"}]
+          nullable: true
+        terminalEnabled: {type: boolean}
+        allowedApplicationModes:
+          type: array
+          minItems: 1
+          maxItems: 2
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/DeviceApplicationMode"}
+        checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
+        checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
+        checkoutMode: {$ref: "#/components/schemas/CheckoutMode"}
+        capabilities: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/DeviceCapability"}}
     RotateManagedDeviceTokenRequest:
       type: object
       additionalProperties: false
@@ -5892,6 +7715,52 @@ components:
           maxLength: 43
           readOnly: true
           description: Returned only by device creation and token rotation; it cannot be retrieved later.
+    DeviceHardwareReport:
+      type: object
+      additionalProperties: false
+      required: [platform, bridgeVersion, capabilities]
+      properties:
+        platform: {$ref: "#/components/schemas/DevicePlatform"}
+        bridgeVersion: {type: string, minLength: 1, maxLength: 40}
+        capabilities:
+          type: array
+          maxItems: 6
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/DeviceCapability"}
+    DeviceHardwareContext:
+      type: object
+      additionalProperties: false
+      required: [deviceId, deviceName, terminalEnabled, allowedApplicationModes, sessionPolicyId, configuredCapabilities, reportedCapabilities, effectiveCapabilities, platform, bridgeVersion, reportedAt]
+      properties:
+        deviceId: {$ref: "#/components/schemas/UUIDv7"}
+        deviceName: {type: string, minLength: 1, maxLength: 100}
+        terminalEnabled: {type: boolean}
+        allowedApplicationModes:
+          type: array
+          minItems: 1
+          maxItems: 2
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/DeviceApplicationMode"}
+        sessionPolicyId:
+          allOf: [{$ref: "#/components/schemas/UUIDv7"}]
+          nullable: true
+        configuredCapabilities:
+          type: array
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/DeviceCapability"}
+        reportedCapabilities:
+          type: array
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/DeviceCapability"}
+        effectiveCapabilities:
+          type: array
+          uniqueItems: true
+          items: {$ref: "#/components/schemas/DeviceCapability"}
+        platform:
+          allOf: [{$ref: "#/components/schemas/DevicePlatform"}]
+          nullable: true
+        bridgeVersion: {type: string, nullable: true, maxLength: 40}
+        reportedAt: {type: string, format: date-time, nullable: true}
 
     RoleSummary:
       type: object
@@ -6770,7 +8639,8 @@ components:
       properties:
         op: {type: string, enum: [add, replace, remove]}
         path: {type: string, maxLength: 255}
-        value: {}
+        value:
+          {}
 
     SCIMPatchRequest:
       type: object
@@ -7271,10 +9141,6 @@ components:
       type: string
       enum: [pending, complete, incomplete]
 
-    BillingStatus:
-      type: string
-      enum: [unbilled, billed, waived]
-
     MachineJobUsageInput:
       type: object
       additionalProperties: false
@@ -7327,7 +9193,7 @@ components:
     MachineJob:
       type: object
       additionalProperties: false
-      required: [id, displayId, machine, startsAt, endsAt, durationSeconds, source, reviewState, outcome, usages, pricingStatus, billingStatus, version, createdAt, updatedAt]
+      required: [id, displayId, machine, startsAt, endsAt, durationSeconds, source, reviewState, outcome, usages, pricingStatus, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         displayId: {type: string}
@@ -7350,8 +9216,6 @@ components:
         effectivePrice: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true}
         priceOverrideReason: {type: string, nullable: true}
         priceOverriddenAt: {type: string, format: date-time, nullable: true}
-        billingStatus: {$ref: "#/components/schemas/BillingStatus"}
-        billingReference: {type: string, nullable: true}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
@@ -7377,6 +9241,21 @@ components:
       type: object
       additionalProperties: false
       required: [machineId, startsAt, endsAt, customer, operatorPersonId, outcome, usages]
+      properties:
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        customer: {$ref: "#/components/schemas/BillingPartyReference"}
+        operatorPersonId: {$ref: "#/components/schemas/UUIDv7"}
+        outcome: {$ref: "#/components/schemas/MachineJobOutcome"}
+        notes: {type: string, maxLength: 2000, nullable: true}
+        pricingGroupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        usages: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/MachineJobUsageInput"}}
+
+    CounterSaleManualJob:
+      type: object
+      additionalProperties: false
+      required: [machineId, startsAt, endsAt, operatorPersonId, outcome, usages]
       properties:
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         startsAt: {type: string, format: date-time}
@@ -7415,7 +9294,7 @@ components:
     UpdateMachineJobRequest:
       type: object
       additionalProperties: false
-      required: [machineId, startsAt, endsAt, customer, operatorPersonId, outcome, expectedVersion]
+      required: [machineId, startsAt, endsAt, operatorPersonId, outcome, expectedVersion]
       properties:
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         startsAt: {type: string, format: date-time}
@@ -7444,16 +9323,6 @@ components:
         reason: {type: string, minLength: 1, maxLength: 500}
         expectedVersion: {$ref: "#/components/schemas/Version"}
 
-    UpdateMachineJobBillingRequest:
-      type: object
-      additionalProperties: false
-      required: [status, expectedVersion]
-      properties:
-        status: {$ref: "#/components/schemas/BillingStatus"}
-        billingReference: {type: string, maxLength: 200, nullable: true}
-        waiverReason: {type: string, maxLength: 500, nullable: true}
-        expectedVersion: {$ref: "#/components/schemas/Version"}
-
     DailyJobActivity:
       type: object
       additionalProperties: false
@@ -7465,12 +9334,12 @@ components:
     MachineLogbookOverview:
       type: object
       additionalProperties: false
-      required: [jobsToday, jobsThisWeek, unbilledJobs, unbilledAmount, needsReview, failedOrPartialThisWeek, lowStockItems, recentJobs, lowStockMaterials, activity]
+      required: [jobsToday, jobsThisWeek, unassignedJobs, unassignedEstimatedAmount, needsReview, failedOrPartialThisWeek, lowStockItems, recentJobs, lowStockMaterials, activity]
       properties:
         jobsToday: {type: integer, format: int64, minimum: 0}
         jobsThisWeek: {type: integer, format: int64, minimum: 0}
-        unbilledJobs: {type: integer, format: int64, minimum: 0}
-        unbilledAmount: {$ref: "#/components/schemas/Money"}
+        unassignedJobs: {type: integer, format: int64, minimum: 0}
+        unassignedEstimatedAmount: {$ref: "#/components/schemas/Money"}
         needsReview: {type: integer, format: int64, minimum: 0}
         failedOrPartialThisWeek: {type: integer, format: int64, minimum: 0}
         lowStockItems: {type: integer, format: int64, minimum: 0}
@@ -7499,3 +9368,1243 @@ components:
         customerCharges: {type: array, items: {$ref: "#/components/schemas/StatisticPoint"}}
         adjustmentLoss: {type: array, items: {$ref: "#/components/schemas/StatisticPoint"}}
         machineFailureRates: {type: array, items: {$ref: "#/components/schemas/StatisticPoint"}}
+
+    OrderCustomer:
+      type: "object"
+      additionalProperties: false
+      properties:
+        kind:
+          $ref: "#/components/schemas/BillingPartyKind"
+        id:
+          $ref: "#/components/schemas/UUIDv7"
+      required:
+        - "kind"
+        - "id"
+    OrderDraftInput:
+      type: "object"
+      additionalProperties: false
+      properties:
+        customer:
+          allOf:
+            -
+              $ref: "#/components/schemas/OrderCustomer"
+          nullable: true
+        fulfillmentMode:
+          type: "string"
+          enum:
+            - "immediate"
+            - "deferred"
+      required:
+        - "fulfillmentMode"
+    UpdateOrderDraftInput:
+      type: "object"
+      additionalProperties: false
+      properties:
+        customer:
+          allOf:
+            -
+              $ref: "#/components/schemas/OrderCustomer"
+          nullable: true
+        fulfillmentMode:
+          type: "string"
+          enum:
+            - "immediate"
+            - "deferred"
+        expectedVersion:
+          $ref: "#/components/schemas/Version"
+      required:
+        - "fulfillmentMode"
+        - "expectedVersion"
+    OrderItemInput:
+      type: "object"
+      additionalProperties: false
+      properties:
+        kind:
+          type: "string"
+          enum:
+            - "manual"
+            - "machine_job"
+        description:
+          type: "string"
+          maxLength: 500
+        quantity:
+          $ref: "#/components/schemas/Decimal"
+        unit:
+          type: "string"
+          maxLength: 40
+        unitPrice:
+          $ref: "#/components/schemas/Decimal"
+        machineJobId:
+          $ref: "#/components/schemas/UUIDv7"
+        expectedJobVersion:
+          $ref: "#/components/schemas/Version"
+        expectedVersion:
+          $ref: "#/components/schemas/Version"
+      required:
+        - "kind"
+        - "expectedVersion"
+    PaymentInput:
+      type: "object"
+      additionalProperties: false
+      properties:
+        method:
+          type: "string"
+          enum:
+            - "cash"
+            - "card"
+            - "external"
+        amount:
+          $ref: "#/components/schemas/Money"
+        occurredAt:
+          type: "string"
+          format: "date-time"
+        externalSource:
+          type: "string"
+          maxLength: 200
+        externalReference:
+          type: "string"
+          maxLength: 200
+      required:
+        - "method"
+        - "amount"
+        - "occurredAt"
+    PaymentReversalInput:
+      type: "object"
+      additionalProperties: false
+      properties:
+        paymentId:
+          $ref: "#/components/schemas/UUIDv7"
+        reasonKind:
+          type: "string"
+          enum:
+            - "refund"
+            - "recording_error"
+            - "external_correction"
+        reason:
+          type: "string"
+          minLength: 1
+          maxLength: 500
+        occurredAt:
+          type: "string"
+          format: "date-time"
+        externalReference:
+          type: "string"
+          maxLength: 200
+      required:
+        - "paymentId"
+        - "reasonKind"
+        - "reason"
+        - "occurredAt"
+    OrderCommand:
+      type: "object"
+      additionalProperties: false
+      properties:
+        operationKey:
+          $ref: "#/components/schemas/UUIDv7"
+        expectedVersion:
+          $ref: "#/components/schemas/Version"
+        reason:
+          type: "string"
+          maxLength: 500
+        replacementOrderId:
+          $ref: "#/components/schemas/UUIDv7"
+        expectedReplacementVersion:
+          $ref: "#/components/schemas/Version"
+        payments:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/PaymentInput"
+        reversals:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/PaymentReversalInput"
+      required:
+        - "operationKey"
+        - "expectedVersion"
+    RecordOrderPayment:
+      type: "object"
+      additionalProperties: false
+      properties:
+        operationKey:
+          $ref: "#/components/schemas/UUIDv7"
+        expectedVersion:
+          $ref: "#/components/schemas/Version"
+        payment:
+          $ref: "#/components/schemas/PaymentInput"
+      required:
+        - "operationKey"
+        - "expectedVersion"
+        - "payment"
+    ReversePaymentCommand:
+      type: "object"
+      additionalProperties: false
+      properties:
+        operationKey:
+          $ref: "#/components/schemas/UUIDv7"
+        expectedVersion:
+          $ref: "#/components/schemas/Version"
+        reversal:
+          $ref: "#/components/schemas/PaymentReversalInput"
+        replacementPayment:
+          $ref: "#/components/schemas/PaymentInput"
+      required:
+        - "operationKey"
+        - "expectedVersion"
+        - "reversal"
+    JobChargeSnapshot:
+      type: "object"
+      additionalProperties: false
+      properties:
+        displayId:
+          type: "string"
+        machineId:
+          $ref: "#/components/schemas/UUIDv7"
+        machineName:
+          type: "string"
+        machineTypeId:
+          $ref: "#/components/schemas/UUIDv7"
+        machineTypeName:
+          type: "string"
+        startsAt:
+          type: "string"
+          format: "date-time"
+        endsAt:
+          type: "string"
+          format: "date-time"
+        durationNanoseconds:
+          type: "string"
+        outcome:
+          $ref: "#/components/schemas/MachineJobOutcome"
+        usages:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/MachineJobUsage"
+        pricing:
+          $ref: "#/components/schemas/MachineJobPricingSnapshot"
+        pricingStatus:
+          $ref: "#/components/schemas/PricingStatus"
+        calculatedAmount:
+          allOf:
+            -
+              $ref: "#/components/schemas/Money"
+          nullable: true
+        finalAmount:
+          allOf:
+            -
+              $ref: "#/components/schemas/Money"
+          nullable: true
+        effectiveAmount:
+          $ref: "#/components/schemas/Money"
+        overrideReason:
+          allOf:
+            -
+              type: "string"
+          nullable: true
+        overriddenAt:
+          allOf:
+            -
+              type: "string"
+              format: "date-time"
+          nullable: true
+        capturedAt:
+          type: "string"
+          format: "date-time"
+      required:
+        - "displayId"
+        - "machineId"
+        - "machineName"
+        - "machineTypeId"
+        - "machineTypeName"
+        - "startsAt"
+        - "endsAt"
+        - "durationNanoseconds"
+        - "outcome"
+        - "usages"
+        - "pricing"
+        - "pricingStatus"
+        - "effectiveAmount"
+        - "capturedAt"
+    OrderItem:
+      type: "object"
+      additionalProperties: false
+      properties:
+        id:
+          $ref: "#/components/schemas/UUIDv7"
+        position:
+          type: "integer"
+        kind:
+          type: "string"
+          enum:
+            - "manual"
+            - "machine_job"
+        description:
+          type: "string"
+        quantity:
+          $ref: "#/components/schemas/Decimal"
+        unit:
+          type: "string"
+        unitPrice:
+          $ref: "#/components/schemas/Decimal"
+        amount:
+          $ref: "#/components/schemas/Money"
+        sourceMachineJobId:
+          allOf:
+            -
+              $ref: "#/components/schemas/UUIDv7"
+          nullable: true
+        sourceJobVersion:
+          allOf:
+            -
+              $ref: "#/components/schemas/Version"
+          nullable: true
+        sourceChanged:
+          type: "boolean"
+        snapshot:
+          $ref: "#/components/schemas/JobChargeSnapshot"
+        createdAt:
+          type: "string"
+          format: "date-time"
+        removedAt:
+          allOf:
+            -
+              type: "string"
+              format: "date-time"
+          nullable: true
+      required:
+        - "id"
+        - "position"
+        - "kind"
+        - "description"
+        - "quantity"
+        - "unit"
+        - "unitPrice"
+        - "amount"
+        - "sourceChanged"
+        - "createdAt"
+    OrderAllocation:
+      type: "object"
+      additionalProperties: false
+      properties:
+        id:
+          $ref: "#/components/schemas/UUIDv7"
+        paymentId:
+          allOf:
+            -
+              $ref: "#/components/schemas/UUIDv7"
+          nullable: true
+        paymentReference:
+          type: "string"
+        orderId:
+          allOf:
+            -
+              $ref: "#/components/schemas/UUIDv7"
+          nullable: true
+        orderReference:
+          type: "string"
+        amount:
+          $ref: "#/components/schemas/Decimal"
+        operationId:
+          $ref: "#/components/schemas/UUIDv7"
+        createdAt:
+          type: "string"
+          format: "date-time"
+      required:
+        - "id"
+        - "paymentId"
+        - "paymentReference"
+        - "orderId"
+        - "orderReference"
+        - "amount"
+        - "operationId"
+        - "createdAt"
+    OrderAdjustment:
+      type: "object"
+      additionalProperties: false
+      properties:
+        id:
+          $ref: "#/components/schemas/UUIDv7"
+        reference:
+          type: "string"
+        amount:
+          $ref: "#/components/schemas/Money"
+        reason:
+          type: "string"
+        createdAt:
+          type: "string"
+          format: "date-time"
+      required:
+        - "id"
+        - "reference"
+        - "amount"
+        - "reason"
+        - "createdAt"
+    Order:
+      type: "object"
+      additionalProperties: false
+      properties:
+        id:
+          $ref: "#/components/schemas/UUIDv7"
+        reference:
+          type: "string"
+        status:
+          type: "string"
+          enum:
+            - "draft"
+            - "finalized"
+            - "cancelled"
+            - "reversed"
+        currency:
+          type: "string"
+          enum:
+            - "EUR"
+        customerKind:
+          type: "string"
+          enum:
+            - "anonymous"
+            - "person"
+            - "organization"
+        customer:
+          allOf:
+            -
+              $ref: "#/components/schemas/OrderCustomer"
+          nullable: true
+        customerName:
+          allOf:
+            -
+              type: "string"
+          nullable: true
+        fulfillmentMode:
+          type: "string"
+          enum:
+            - "immediate"
+            - "deferred"
+        totalAmount:
+          $ref: "#/components/schemas/Money"
+        netCharge:
+          $ref: "#/components/schemas/Money"
+        settledAmount:
+          $ref: "#/components/schemas/Money"
+        outstandingAmount:
+          $ref: "#/components/schemas/Money"
+        settlementState:
+          type: "string"
+          enum:
+            - "unpaid"
+            - "partially_paid"
+            - "paid"
+            - "no_payment_due"
+        replacesOrderId:
+          allOf:
+            -
+              $ref: "#/components/schemas/UUIDv7"
+          nullable: true
+        replacesOrderReference:
+          allOf:
+            -
+              type: "string"
+          nullable: true
+        items:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/OrderItem"
+        allocations:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/OrderAllocation"
+        adjustments:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/OrderAdjustment"
+        version:
+          $ref: "#/components/schemas/Version"
+        createdAt:
+          type: "string"
+          format: "date-time"
+        updatedAt:
+          type: "string"
+          format: "date-time"
+        activeExternalRequestId:
+          type: "string"
+          format: "uuid"
+          nullable: true
+        replacedByOrderId:
+          type: "string"
+          format: "uuid"
+          nullable: true
+        activeExternalRequestReference:
+          type: "string"
+          nullable: true
+        activeExternalRequestState:
+          type: "string"
+          nullable: true
+        replacedByOrderReference:
+          type: "string"
+          nullable: true
+      required:
+        - "id"
+        - "reference"
+        - "status"
+        - "currency"
+        - "customerKind"
+        - "customer"
+        - "customerName"
+        - "fulfillmentMode"
+        - "totalAmount"
+        - "netCharge"
+        - "settledAmount"
+        - "outstandingAmount"
+        - "settlementState"
+        - "replacesOrderId"
+        - "replacesOrderReference"
+        - "items"
+        - "allocations"
+        - "adjustments"
+        - "version"
+        - "createdAt"
+        - "updatedAt"
+    OrderPayment:
+      type: "object"
+      additionalProperties: false
+      properties:
+        id:
+          $ref: "#/components/schemas/UUIDv7"
+        reference:
+          type: "string"
+        entryKind:
+          type: "string"
+          enum:
+            - "receipt"
+            - "reversal"
+        method:
+          type: "string"
+          enum:
+            - "cash"
+            - "card"
+            - "external"
+        amount:
+          $ref: "#/components/schemas/Money"
+        occurredAt:
+          type: "string"
+          format: "date-time"
+        recordedAt:
+          type: "string"
+          format: "date-time"
+        reversesPaymentId:
+          allOf:
+            -
+              $ref: "#/components/schemas/UUIDv7"
+          nullable: true
+        reversedPaymentReference:
+          allOf:
+            -
+              type: "string"
+          nullable: true
+        reasonKind:
+          allOf:
+            -
+              type: "string"
+          nullable: true
+        reason:
+          type: "string"
+        externalSource:
+          type: "string"
+        externalReference:
+          type: "string"
+        allocations:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/OrderAllocation"
+      required:
+        - "id"
+        - "reference"
+        - "entryKind"
+        - "method"
+        - "amount"
+        - "occurredAt"
+        - "recordedAt"
+        - "reversesPaymentId"
+        - "reversedPaymentReference"
+        - "reasonKind"
+        - "reason"
+        - "externalSource"
+        - "externalReference"
+        - "allocations"
+    OrderPage:
+      type: "object"
+      additionalProperties: false
+      properties:
+        items:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/Order"
+        page:
+          type: "integer"
+        pageSize:
+          type: "integer"
+        total:
+          type: "integer"
+          format: "int64"
+      required:
+        - "items"
+        - "page"
+        - "pageSize"
+        - "total"
+    OrderPaymentPage:
+      type: "object"
+      additionalProperties: false
+      properties:
+        items:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/OrderPayment"
+        page:
+          type: "integer"
+        pageSize:
+          type: "integer"
+        total:
+          type: "integer"
+          format: "int64"
+      required:
+        - "items"
+        - "page"
+        - "pageSize"
+        - "total"
+    ExternalInvoiceRequestPage:
+      type: "object"
+      additionalProperties: false
+      properties:
+        items:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/ExternalInvoiceRequest"
+        page:
+          type: "integer"
+        pageSize:
+          type: "integer"
+        total:
+          type: "integer"
+          format: "int64"
+      required:
+        - "items"
+        - "page"
+        - "pageSize"
+        - "total"
+    PaymentReconciliation:
+      type: "object"
+      additionalProperties: false
+      properties:
+        cash:
+          $ref: "#/components/schemas/Decimal"
+        card:
+          $ref: "#/components/schemas/Decimal"
+        external:
+          $ref: "#/components/schemas/Decimal"
+        entries:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/OrderPayment"
+        page:
+          type: "integer"
+        pageSize:
+          type: "integer"
+        total:
+          type: "integer"
+          format: "int64"
+      required:
+        - "cash"
+        - "card"
+        - "external"
+        - "entries"
+        - "page"
+        - "pageSize"
+        - "total"
+    InvoicingRequirements:
+      type: "object"
+      additionalProperties: false
+      properties:
+        requirePurchaseOrderReference:
+          type: "boolean"
+        version:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+      required:
+        - "requirePurchaseOrderReference"
+        - "version"
+    UpdateInvoicingRequirements:
+      type: "object"
+      additionalProperties: false
+      properties:
+        requirePurchaseOrderReference:
+          type: "boolean"
+        expectedVersion:
+          type: "integer"
+          format: "int64"
+          minimum: 0
+      required:
+        - "requirePurchaseOrderReference"
+        - "expectedVersion"
+    InvoiceRequestDetails:
+      type: "object"
+      additionalProperties: false
+      properties:
+        recipientName:
+          type: "string"
+          maxLength: 200
+        addressLine1:
+          type: "string"
+          maxLength: 200
+        addressLine2:
+          type: "string"
+          maxLength: 200
+        postalCode:
+          type: "string"
+          maxLength: 40
+        locality:
+          type: "string"
+          maxLength: 120
+        region:
+          type: "string"
+          maxLength: 120
+        countryCode:
+          type: "string"
+          maxLength: 2
+        contactPersonId:
+          allOf:
+            -
+              $ref: "#/components/schemas/UUIDv7"
+          nullable: true
+        contactName:
+          type: "string"
+          maxLength: 200
+        contactChannel:
+          type: "string"
+          maxLength: 200
+        serviceStartsOn:
+          type: "string"
+          format: "date"
+        serviceEndsOn:
+          type: "string"
+          format: "date"
+        serviceDescription:
+          type: "string"
+          maxLength: 2000
+        purchaseOrderReference:
+          type: "string"
+          maxLength: 200
+    CreateInvoiceRequest:
+      type: "object"
+      additionalProperties: false
+      properties:
+        operationKey:
+          $ref: "#/components/schemas/UUIDv7"
+        expectedVersion:
+          $ref: "#/components/schemas/Version"
+        details:
+          $ref: "#/components/schemas/InvoiceRequestDetails"
+      required:
+        - "operationKey"
+        - "expectedVersion"
+        - "details"
+    UpdateInvoiceRequest:
+      type: "object"
+      additionalProperties: false
+      properties:
+        expectedVersion:
+          $ref: "#/components/schemas/Version"
+        details:
+          $ref: "#/components/schemas/InvoiceRequestDetails"
+      required:
+        - "expectedVersion"
+        - "details"
+    InvoiceRequestCommand:
+      type: "object"
+      additionalProperties: false
+      properties:
+        operationKey:
+          $ref: "#/components/schemas/UUIDv7"
+        expectedVersion:
+          $ref: "#/components/schemas/Version"
+        externalReference:
+          type: "string"
+          maxLength: 200
+        reconciliationKind:
+          type: "string"
+          enum:
+            - "cancellation"
+            - "credit_note"
+            - "corrected_invoice"
+            - "reallocation"
+            - "other"
+        reason:
+          type: "string"
+          maxLength: 500
+        effectiveAt:
+          type: "string"
+          format: "date-time"
+        amount:
+          $ref: "#/components/schemas/Money"
+      required:
+        - "operationKey"
+        - "expectedVersion"
+    InvoiceRequestEvent:
+      type: "object"
+      additionalProperties: false
+      properties:
+        id:
+          $ref: "#/components/schemas/UUIDv7"
+        kind:
+          type: "string"
+        externalReference:
+          type: "string"
+        reconciliationKind:
+          type: "string"
+        reason:
+          type: "string"
+        effectiveAt:
+          type: "string"
+          format: "date-time"
+        recordedAt:
+          type: "string"
+          format: "date-time"
+      required:
+        - "id"
+        - "kind"
+        - "externalReference"
+        - "reconciliationKind"
+        - "reason"
+        - "effectiveAt"
+        - "recordedAt"
+    ExternalInvoiceRequest:
+      type: "object"
+      additionalProperties: false
+      properties:
+        id:
+          $ref: "#/components/schemas/UUIDv7"
+        reference:
+          type: "string"
+        orderId:
+          allOf:
+            -
+              $ref: "#/components/schemas/UUIDv7"
+          nullable: true
+        orderReference:
+          type: "string"
+        provider:
+          type: "string"
+          enum:
+            - "wiref"
+        state:
+          type: "string"
+          enum:
+            - "draft"
+            - "ready"
+            - "submitted"
+            - "issued"
+            - "cancellation_requested"
+            - "cancelled"
+        currency:
+          type: "string"
+          enum:
+            - "EUR"
+        requestedAmount:
+          $ref: "#/components/schemas/Money"
+        details:
+          $ref: "#/components/schemas/InvoiceRequestDetails"
+        requirePurchaseOrderReference:
+          type: "boolean"
+        requirementsVersion:
+          type: "integer"
+          format: "int64"
+        itemSummary:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/OrderItem"
+        events:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/InvoiceRequestEvent"
+        supersedesRequestId:
+          allOf:
+            -
+              $ref: "#/components/schemas/UUIDv7"
+          nullable: true
+        version:
+          $ref: "#/components/schemas/Version"
+        createdAt:
+          type: "string"
+          format: "date-time"
+      required:
+        - "id"
+        - "reference"
+        - "orderId"
+        - "orderReference"
+        - "provider"
+        - "state"
+        - "currency"
+        - "requestedAmount"
+        - "details"
+        - "requirePurchaseOrderReference"
+        - "requirementsVersion"
+        - "itemSummary"
+        - "events"
+        - "supersedesRequestId"
+        - "version"
+        - "createdAt"
+    JobOrderAssociation:
+      type: "object"
+      additionalProperties: false
+      properties:
+        orderId:
+          allOf:
+            -
+              $ref: "#/components/schemas/UUIDv7"
+          nullable: true
+        orderReference:
+          allOf:
+            -
+              type: "string"
+          nullable: true
+        sourceChanged:
+          type: "boolean"
+      required:
+        - "orderId"
+        - "orderReference"
+        - "sourceChanged"
+    CounterSaleJob:
+      type: "object"
+      additionalProperties: false
+      properties:
+        existingJobId:
+          $ref: "#/components/schemas/UUIDv7"
+        expectedJobVersion:
+          $ref: "#/components/schemas/Version"
+        manualJob:
+          $ref: "#/components/schemas/CounterSaleManualJob"
+        operatorPersonId:
+          $ref: "#/components/schemas/UUIDv7"
+        outcome:
+          $ref: "#/components/schemas/MachineJobOutcome"
+        pricingGroupId:
+          $ref: "#/components/schemas/UUIDv7"
+        notes:
+          type: "string"
+          maxLength: 2000
+    CounterSaleCommand:
+      type: "object"
+      additionalProperties: false
+      properties:
+        operationKey:
+          $ref: "#/components/schemas/UUIDv7"
+        immediateFulfillmentConfirmed:
+          type: "boolean"
+        job:
+          $ref: "#/components/schemas/CounterSaleJob"
+        payments:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/PaymentInput"
+        manualItems:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/OrderItemInput"
+      required:
+        - "operationKey"
+        - "immediateFulfillmentConfirmed"
+        - "job"
+        - "payments"
+
+    CounterSaleQuote:
+      type: "object"
+      additionalProperties: false
+      required:
+        - "totalAmount"
+        - "currency"
+      properties:
+        totalAmount:
+          $ref: "#/components/schemas/Money"
+        currency:
+          type: "string"
+          enum:
+            - "EUR"
+
+    PostSessionDestination:
+      type: string
+      enum: [login, visitor_terminal]
+    CheckoutMode:
+      type: string
+      enum: [verified, public_tap]
+    DeviceCapability:
+      type: string
+      enum: [nfc, camera, qr, barcode, scale, label_printer]
+    SessionPolicy:
+      type: object
+      additionalProperties: false
+      required: [id, name, idleTimeoutSeconds, absoluteLifetimeSeconds, postSessionDestination, isDefault, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, minLength: 1, maxLength: 120}
+        idleTimeoutSeconds: {type: integer, minimum: 60, maximum: 2592000}
+        absoluteLifetimeSeconds: {type: integer, minimum: 300, maximum: 7776000}
+        postSessionDestination: {$ref: "#/components/schemas/PostSessionDestination"}
+        isDefault: {type: boolean}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    SessionPolicyList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/SessionPolicy"}}
+    SessionPolicyInput:
+      type: object
+      additionalProperties: false
+      required: [name, idleTimeoutSeconds, absoluteLifetimeSeconds, postSessionDestination, isDefault]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 120}
+        idleTimeoutSeconds: {type: integer, minimum: 60, maximum: 2592000}
+        absoluteLifetimeSeconds: {type: integer, minimum: 300, maximum: 7776000}
+        postSessionDestination: {$ref: "#/components/schemas/PostSessionDestination"}
+        isDefault: {type: boolean}
+    UpdateSessionPolicyRequest:
+      allOf:
+        - {$ref: "#/components/schemas/SessionPolicyInput"}
+        - type: object
+          additionalProperties: false
+          required: [expectedVersion]
+          properties:
+            expectedVersion: {$ref: "#/components/schemas/Version"}
+    SessionContext:
+      type: object
+      additionalProperties: false
+      required: [idleExpiresAt, absoluteExpiresAt, postSessionDestination]
+      properties:
+        idleExpiresAt: {type: string, format: date-time}
+        absoluteExpiresAt: {type: string, format: date-time}
+        postSessionDestination: {$ref: "#/components/schemas/PostSessionDestination"}
+
+    TerminalContext:
+      type: object
+      additionalProperties: false
+      required: [deviceId, deviceName, checkoutMode, checkInAssurance, checkOutAssurance, authenticationMethods, capabilities, staffDestination]
+      properties:
+        deviceId: {$ref: "#/components/schemas/UUIDv7"}
+        deviceName: {type: string}
+        checkoutMode: {$ref: "#/components/schemas/CheckoutMode"}
+        checkInAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
+        checkOutAssurance: {$ref: "#/components/schemas/AuthenticationAssurance"}
+        authenticationMethods: {type: array, uniqueItems: true, items: {type: string, enum: [password, pin, oidc, nfc]}}
+        capabilities: {type: array, uniqueItems: true, items: {$ref: "#/components/schemas/DeviceCapability"}}
+        staffDestination: {type: string, enum: [login]}
+    PublicPresence:
+      type: object
+      additionalProperties: false
+      required: [visitId, displayName, checkedInAt]
+      properties:
+        visitId: {$ref: "#/components/schemas/UUIDv7"}
+        displayName: {type: string, minLength: 1, maxLength: 205}
+        checkedInAt: {type: string, format: date-time}
+    PublicPresenceList:
+      type: object
+      additionalProperties: false
+      required: [items, count]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/PublicPresence"}}
+        count: {type: integer, minimum: 0}
+    AttendancePasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email: {$ref: "#/components/schemas/Email"}
+        password: {$ref: "#/components/schemas/ExistingPassword"}
+    AttendancePinRequest:
+      type: object
+      additionalProperties: false
+      required: [loginName, pin]
+      properties:
+        loginName: {type: string, minLength: 3, maxLength: 64}
+        pin: {type: string, format: password, minLength: 6, maxLength: 12, pattern: "^[0-9]{6,12}$", writeOnly: true}
+    VisitStatus:
+      type: string
+      enum: [checked_in, checked_out, voided]
+    Visit:
+      type: object
+      additionalProperties: false
+      required: [id, personId, displayName, checkedInAt, checkedOutAt, status, checkInMethod, checkOutMethod, admissionDecision, correctionReason, version]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+        displayName: {type: string}
+        checkedInAt: {type: string, format: date-time}
+        checkedOutAt: {type: string, format: date-time, nullable: true}
+        status: {$ref: "#/components/schemas/VisitStatus"}
+        checkInMethod: {type: string}
+        checkOutMethod: {type: string, nullable: true}
+        admissionDecision: {type: string, enum: [admitted, warning]}
+        correctionReason: {type: string, maxLength: 500, nullable: true}
+        version: {$ref: "#/components/schemas/Version"}
+    VisitList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/Visit"}}
+    SupervisedCheckInRequest:
+      type: object
+      additionalProperties: false
+      required: [personId]
+      properties:
+        personId: {$ref: "#/components/schemas/UUIDv7"}
+    VoidVisitRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, reason]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        reason: {type: string, minLength: 1, maxLength: 500}
+    AttendanceStatistics:
+      type: object
+      additionalProperties: false
+      required: [from, to, visitorCount, uniqueVisitors, visitorHours, peakOccupancy, currentOccupancy, averageCompletedVisitMinutes]
+      properties:
+        from: {type: string, format: date-time}
+        to: {type: string, format: date-time}
+        visitorCount: {type: integer, format: int64, minimum: 0}
+        uniqueVisitors: {type: integer, format: int64, minimum: 0}
+        visitorHours: {$ref: "#/components/schemas/Decimal"}
+        peakOccupancy: {type: integer, format: int64, minimum: 0}
+        currentOccupancy: {type: integer, format: int64, minimum: 0}
+        averageCompletedVisitMinutes: {$ref: "#/components/schemas/Decimal"}
+
+    SurveyQuestionKind:
+      type: string
+      enum: [single_choice, multiple_choice, free_text, rating, yes_no]
+    SurveyOptionInput:
+      type: object
+      additionalProperties: false
+      required: [label]
+      properties:
+        label: {type: string, minLength: 1, maxLength: 500}
+    SurveyQuestionInput:
+      type: object
+      additionalProperties: false
+      required: [kind, prompt, required, options]
+      properties:
+        kind: {$ref: "#/components/schemas/SurveyQuestionKind"}
+        prompt: {type: string, minLength: 1, maxLength: 1000}
+        required: {type: boolean}
+        options: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/SurveyOptionInput"}}
+        ratingMin: {type: integer, minimum: 0, maximum: 9, nullable: true}
+        ratingMax: {type: integer, minimum: 1, maximum: 10, nullable: true}
+    SurveyOption:
+      allOf:
+        - {$ref: "#/components/schemas/SurveyOptionInput"}
+        - type: object
+          additionalProperties: false
+          required: [id, position]
+          properties:
+            id: {$ref: "#/components/schemas/UUIDv7"}
+            position: {type: integer, minimum: 1}
+    SurveyQuestion:
+      allOf:
+        - {$ref: "#/components/schemas/SurveyQuestionInput"}
+        - type: object
+          additionalProperties: false
+          required: [id, position]
+          properties:
+            id: {$ref: "#/components/schemas/UUIDv7"}
+            position: {type: integer, minimum: 1}
+            options: {type: array, items: {$ref: "#/components/schemas/SurveyOption"}}
+    CreateSurveyRequest:
+      type: object
+      additionalProperties: false
+      required: [name, title, description, introduction, anonymous, questions]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 160}
+        title: {type: string, minLength: 1, maxLength: 200}
+        description: {type: string, maxLength: 2000, nullable: true}
+        introduction: {type: string, maxLength: 5000, nullable: true}
+        anonymous: {type: boolean}
+        questions: {type: array, minItems: 1, maxItems: 100, items: {$ref: "#/components/schemas/SurveyQuestionInput"}}
+    UpdateSurveyRequest:
+      allOf:
+        - {$ref: "#/components/schemas/CreateSurveyRequest"}
+        - type: object
+          additionalProperties: false
+          required: [expectedVersion]
+          properties:
+            expectedVersion: {$ref: "#/components/schemas/Version"}
+    SurveyTrigger:
+      type: object
+      additionalProperties: false
+      required: [id, kind, enabled, delaySeconds, cooldownDays, version]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        kind: {type: string, enum: [visit_checked_out]}
+        enabled: {type: boolean}
+        delaySeconds: {type: integer, minimum: 0, maximum: 604800}
+        cooldownDays: {type: integer, minimum: 0, maximum: 3650}
+        version: {$ref: "#/components/schemas/Version"}
+    SurveyTriggerInput:
+      type: object
+      additionalProperties: false
+      required: [enabled, delaySeconds, cooldownDays, expectedVersion]
+      properties:
+        enabled: {type: boolean}
+        delaySeconds: {type: integer, minimum: 0, maximum: 604800}
+        cooldownDays: {type: integer, minimum: 0, maximum: 3650}
+        expectedVersion: {type: integer, format: int64, minimum: 0}
+    Survey:
+      type: object
+      additionalProperties: false
+      required: [id, name, description, status, anonymous, title, introduction, revision, questions, trigger, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        description: {type: string, nullable: true}
+        status: {type: string, enum: [draft, published, closed]}
+        anonymous: {type: boolean}
+        title: {type: string}
+        introduction: {type: string, nullable: true}
+        revision: {type: integer, minimum: 1}
+        questions: {type: array, items: {$ref: "#/components/schemas/SurveyQuestion"}}
+        trigger:
+          allOf: [{$ref: "#/components/schemas/SurveyTrigger"}]
+          nullable: true
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    SurveyList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/Survey"}}
+    PublicSurvey:
+      type: object
+      additionalProperties: false
+      required: [title, introduction, anonymous, questions, expiresAt]
+      properties:
+        title: {type: string}
+        introduction: {type: string, nullable: true}
+        anonymous: {type: boolean}
+        questions: {type: array, items: {$ref: "#/components/schemas/SurveyQuestion"}}
+        expiresAt: {type: string, format: date-time}
+    SurveyAnswerInput:
+      type: object
+      additionalProperties: false
+      required: [questionId, optionIds]
+      properties:
+        questionId: {$ref: "#/components/schemas/UUIDv7"}
+        optionIds: {type: array, uniqueItems: true, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}}
+        textValue: {type: string, maxLength: 5000, nullable: true}
+        numericValue: {type: integer, nullable: true}
+        booleanValue: {type: boolean, nullable: true}
+    SubmitSurveyResponse:
+      type: object
+      additionalProperties: false
+      required: [answers]
+      properties:
+        answers: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SurveyAnswerInput"}}

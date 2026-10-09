@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiFetch, ApiError } from './http-client';
 
-function unauthorizedResponse() {
+function unauthorizedResponse(details?: unknown) {
   return new Response(
-    JSON.stringify({ code: 'invalid_session', message: 'Sign in required.' }),
+    JSON.stringify({ code: 'invalid_session', message: 'Sign in required.', details }),
     {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
@@ -27,7 +27,7 @@ describe('session expiry events', () => {
   });
 
   it('emits expiry for a 401 from another authenticated request', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(unauthorizedResponse()));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(unauthorizedResponse({ postSessionDestination: 'visitor_terminal' })));
     const dispatch = vi.spyOn(window, 'dispatchEvent');
 
     await expect(apiFetch('/api/v1/auth/password', { method: 'PUT' })).rejects.toBeInstanceOf(
@@ -36,6 +36,11 @@ describe('session expiry events', () => {
 
     expect(dispatch).toHaveBeenCalledTimes(1);
     expect(dispatch.mock.calls[0]?.[0].type).toBe('makerspace:session-expired');
+    expect((dispatch.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({
+      code: 'invalid_session',
+      message: 'Sign in required.',
+      details: { postSessionDestination: 'visitor_terminal' },
+    });
   });
 
   it.each(['/api/v1/auth/login', '/api/v1/auth/pin/login?test=1'])('does not expire an existing session after failed login at %s', async (url) => {

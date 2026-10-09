@@ -28,7 +28,7 @@ export interface UpdateMachineJobRequest {
   machineId: UUIDv7;
   startsAt: string;
   endsAt: string;
-  customer: BillingPartyReference;
+  customer?: BillingPartyReference;
   operatorPersonId: UUIDv7;
   outcome: MachineJobOutcome;
   /**

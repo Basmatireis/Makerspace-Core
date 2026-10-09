@@ -33,6 +33,11 @@ Authorization is based on application-registered permission identifiers. Backend
 | `open_days.manage` | Manage periods, schedules, eligibility, academic breaks, and lifecycle state. |
 | `managed_devices.read` | Read managed devices and device-type catalog entries. |
 | `managed_devices.manage` | Administer managed devices, their tokens, and device types. |
+| `session_policies.manage` | Create and update reusable session policies and select the global default. |
+| `attendance.read`, `attendance.assist` | Read attendance or perform supervised check-in and checkout. |
+| `attendance.correct` | Void an attendance record with an audited reason and optimistic version. |
+| `attendance.statistics.read` | Read bounded, recent attendance statistics. |
+| `surveys.read`, `surveys.manage` | Read surveys or manage drafts, publication, closing, and post-visit triggers. |
 | `people.profile_image.update.self`, `people.profile_image.update.all` | Replace the current Person's or any Person's private profile image. |
 | `people.profile_image.remove.self`, `people.profile_image.remove.all` | Remove the current Person's or any Person's private profile image. |
 | `accounts.password.enroll.self`, `accounts.password.enroll.all` | Enroll a local password method, subject to service safeguards. |
@@ -51,10 +56,14 @@ Authorization is based on application-registered permission identifiers. Backend
 | `branding.manage` | Configure the installation-wide organization identity, brand colors and assets, and imprint/privacy delivery. |
 | `machines.read`, `machines.manage` | Read machine catalog/metrics or create and update machine types and machines. |
 | `machine_jobs.read`, `machine_jobs.create` | Read/filter jobs or create confirmed manual jobs and session-authenticated automatic ingests. |
-| `machine_jobs.edit`, `machine_jobs.review` | Correct confirmed unbilled jobs or confirm the automatic review queue. |
+| `machine_jobs.edit`, `machine_jobs.review` | Correct confirmed operational jobs independently of Order state or confirm the automatic review queue. |
 | `machine_jobs.override_price` | Set and clear final-price overrides while retaining calculated prices. |
 | `inventory.read`, `inventory.manage` | Read material balances/ledger or mutate catalog and stock through ledger-backed operations. |
 | `organizations.read`, `organizations.manage` | Read billing organizations or create/update/deactivate them. |
+| `orders.read`, `orders.write` | Read internal charge snapshots or manage drafts and item claims. Minimal payer/operator lookup accepts Order read. |
+| `orders.finalize`, `orders.reverse` | Freeze charges or append full reversal/linked replacement. Replacement also needs payment read/record. |
+| `payments.read`, `payments.record`, `payments.reverse` | Read journal/allocations, append receipts, or explicitly reverse whole receipts. Order read is required for mutations. |
+| `external_invoice_requests.read`, `external_invoice_requests.manage` | Read recipient/service snapshots or manage wiRef preparation and external evidence. Management also needs Order read. |
 | `pricing.read`, `pricing.manage` | Read pricing groups/rules or manage rates and party defaults. |
 | `statistics.read` | Read date-filtered machine-logbook operational and financial statistics. |
 
@@ -111,3 +120,5 @@ Every authorization-sensitive mutation and security-relevant denial path has foc
 SCIM reconciliation does not confer internal privileges. A source must have `provisioning_source='scim'`, no `first_authenticated_at`, a SCIM mapping, and no local authentication identities. Preflight and execution reject any role that the operator cannot assign through the ordinary role-assignment checks, including permission, device scope, and minimum-assurance subset constraints. A source with a master Role is always rejected, even for a master operator. Conflicts preserve both Accounts and all related records transactionally.
 
 For an OIDC-bound SCIM connector, `externalId` is the immutable subject assigned at provisioning. PUT and the existing supported PATCH dialect reject changes with SCIM 409 `mutability`. Unrelated attributes remain editable; no identity migration or broader PATCH dialect is implied.
+
+Financial permissions authorize global staff workflows; no self-service financial endpoints are exposed. They never expose matriculation numbers. Backend services enforce each required permission, including on idempotent retries. Atomic counter sales additionally require job create/review permission. Organization invoicing policy changes require organization manage plus Order read. See [Orders](orders.md).

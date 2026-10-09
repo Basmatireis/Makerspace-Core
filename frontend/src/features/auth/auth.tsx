@@ -22,6 +22,7 @@ import {
   login,
   loginWithPin,
   logout,
+  recordSessionActivity,
 } from '../../api/generated/authentication/authentication';
 import { ApiError } from '../../api/http-client';
 import { clearPrivateQueryData } from '../../api/query-client';
@@ -73,11 +74,13 @@ export function usePINLogin() {
 
 export function useLogout() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => logout(),
     onSuccess: () => {
+	  const currentUser = queryClient.getQueryData<CurrentUser>(authQueryKey);
       clearPrivateQueryData();
-      navigate('/login', { replace: true });
+	  navigate(sessionDestination(currentUser), { replace: true });
     },
   });
 }
@@ -93,7 +96,7 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
   if (currentUser.error instanceof ApiError && currentUser.error.status === 401) {
     return (
       <Navigate
-        to="/login"
+        to={sessionDestination(undefined, currentUser.error.data)}
         replace
         state={{ from: `${location.pathname}${location.search}` }}
       />
@@ -114,9 +117,51 @@ export function ProtectedRoute({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={currentUser.data}>
+      <SessionActivityHandler currentUser={currentUser.data} />
       {children}
     </AuthContext.Provider>
   );
+}
+
+function sessionDestination(currentUser: CurrentUser | undefined, errorData?: unknown): string {
+  if (currentUser?.session.postSessionDestination === 'visitor_terminal') return '/terminal';
+  if (typeof errorData === 'object' && errorData !== null && 'details' in errorData) {
+    const details = errorData.details;
+    if (typeof details === 'object' && details !== null && 'postSessionDestination' in details && details.postSessionDestination === 'visitor_terminal') {
+      return '/terminal';
+    }
+  }
+  return '/login';
+}
+
+function SessionActivityHandler({ currentUser }: { currentUser: CurrentUser }) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  useEffect(() => {
+    let lastRecordedAt = 0;
+    let pending = false;
+    const expireAt = Math.min(new Date(currentUser.session.idleExpiresAt).getTime(), new Date(currentUser.session.absoluteExpiresAt).getTime());
+	let timeout = 0;
+	const scheduleExpiry = () => {
+	  const remaining = expireAt - Date.now();
+	  if (remaining <= 0) {
+		clearPrivateQueryData();
+		navigate(sessionDestination(currentUser), { replace: true });
+		return;
+	  }
+	  timeout = window.setTimeout(scheduleExpiry, Math.min(remaining + 100, 2_147_000_000));
+	};
+	scheduleExpiry();
+    const record = () => {
+      if (pending || Date.now() - lastRecordedAt < 60_000) return;
+      pending = true; lastRecordedAt = Date.now();
+      void recordSessionActivity().then((session) => queryClient.setQueryData<CurrentUser>(authQueryKey, (value) => value ? { ...value, session } : value)).finally(() => { pending = false; });
+    };
+    const events: Array<keyof WindowEventMap> = ['pointerdown', 'keydown', 'touchstart'];
+    events.forEach((event) => window.addEventListener(event, record, { passive: true }));
+    return () => { window.clearTimeout(timeout); events.forEach((event) => window.removeEventListener(event, record)); };
+  }, [currentUser, navigate, queryClient]);
+  return null;
 }
 
 type PermissionRouteProps = {
@@ -141,13 +186,15 @@ export function PermissionRoute({ anyOf = [], allOf = [], children }: Permission
 export function SessionEventHandler() {
   const navigate = useNavigate();
   const location = useLocation();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
-    const handleSessionExpired = () => {
+    const handleSessionExpired = (event: Event) => {
+	  const currentUser = queryClient.getQueryData<CurrentUser>(authQueryKey);
       clearPrivateQueryData();
-      const publicPath = ['/login', '/reset-password', '/complete-invitation', '/complete-pin-setup', '/verify-email', '/visitor-enrollment', '/events/signup/manage'].includes(location.pathname) || location.pathname.startsWith('/legal/') || location.pathname.startsWith('/events/public/');
+      const publicPath = ['/login', '/reset-password', '/complete-invitation', '/complete-pin-setup', '/verify-email', '/visitor-enrollment', '/terminal', '/events/signup/manage'].includes(location.pathname) || location.pathname.startsWith('/legal/') || location.pathname.startsWith('/events/public/') || location.pathname.startsWith('/survey/');
       if (!publicPath) {
-        navigate('/login', {
+		navigate(sessionDestination(currentUser, event instanceof CustomEvent ? event.detail : undefined), {
           replace: true,
           state: { from: `${location.pathname}${location.search}` },
         });
@@ -158,7 +205,7 @@ export function SessionEventHandler() {
     return () => {
       window.removeEventListener('makerspace:session-expired', handleSessionExpired);
     };
-  }, [location.pathname, location.search, navigate]);
+  }, [location.pathname, location.search, navigate, queryClient]);
 
   return null;
 }

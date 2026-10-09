@@ -1,5 +1,5 @@
 import { Column, Grid, Stack, ClickableTile } from '@carbon/react';
-import { DataBase, Devices, Document, Group, UserMultiple, IbmCloudKeyProtect, Email, PaintBrush } from '@carbon/icons-react';
+import { DataBase, Devices, Document, Group, UserMultiple, IbmCloudKeyProtect, Email, PaintBrush, Timer, QuestionAnswering } from '@carbon/icons-react';
 import { PageShell } from '../../app/PageShell';
 import { useCurrentUser } from '../auth/auth';
 import { hasAnyPermission, hasPermission, PermissionId } from '../auth/permissions';
@@ -8,6 +8,8 @@ export function SettingsPage() {
   const currentUser = useCurrentUser();
   const canUseRoles = hasAnyPermission(currentUser, [PermissionId.rolesread]);
   const canUseDevices = hasAnyPermission(currentUser, [PermissionId.managed_devicesread]);
+  const canManageSessionPolicies = hasPermission(currentUser, PermissionId.session_policiesmanage);
+  const canUseSurveys = hasPermission(currentUser, PermissionId.surveysread) || hasPermission(currentUser, PermissionId.surveysmanage);
 	const canUseLaborordnung = hasAnyPermission(currentUser, [PermissionId.laborordnungread, PermissionId.laborordnungmanage, PermissionId.laborordnungrequestsread]);
   const canManageOIDC = hasAnyPermission(currentUser, [PermissionId.oidcmanage]);
   const canManageSCIM = hasAnyPermission(currentUser, [PermissionId.scimmanage]);
@@ -48,6 +50,8 @@ export function SettingsPage() {
             </ClickableTile>
           </Column>
         )}
+		{canManageSessionPolicies && <Column sm={4} md={4} lg={5}><ClickableTile href="/settings/session-policies" className="settings-tile"><Stack gap={5}><Timer size={32} /><div><h2>Session policies</h2><p>Set idle limits, absolute lifetimes, and timeout destinations.</p></div></Stack></ClickableTile></Column>}
+		{canUseSurveys && <Column sm={4} md={4} lg={5}><ClickableTile href="/settings/surveys" className="settings-tile"><Stack gap={5}><QuestionAnswering size={32} /><div><h2>Surveys</h2><p>Build surveys and configure post-visit delivery.</p></div></Stack></ClickableTile></Column>}
 		{canUseLaborordnung && <Column sm={4} md={4} lg={5}><ClickableTile href="/settings/laborordnung" className="settings-tile"><Stack gap={5}><Document size={32} /><div><h2>Lab Rules</h2><p>Publish PDFs and verify physical evidence.</p></div></Stack></ClickableTile></Column>}
         {canManageOIDC && <Column sm={4} md={4} lg={5}><ClickableTile href="/settings/oidc" className="settings-tile"><Stack gap={5}><IbmCloudKeyProtect size={32} /><div><h2>OpenID Connect</h2><p>Configure external identity providers and trusted assurance.</p></div></Stack></ClickableTile></Column>}
         {canManageSCIM && <Column sm={4} md={4} lg={5}><ClickableTile href="/settings/scim" className="settings-tile"><Stack gap={5}><DataBase size={32} /><div><h2>SCIM provisioning</h2><p>Manage connectors, bearer tokens, and Account reconciliation.</p></div></Stack></ClickableTile></Column>}

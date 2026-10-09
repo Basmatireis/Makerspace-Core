@@ -20,14 +20,14 @@ export function MachineLogbookOverviewPage() {
   const chartData = data.activity.map((point) => ({ group: 'Jobs', key: point.date, value: point.count }));
   const chartOptions = { title: 'Job activity — last 7 days', axes: { left: { mapsTo: 'value', scaleType: ScaleTypes.LINEAR }, bottom: { mapsTo: 'key', scaleType: ScaleTypes.LABELS } }, height: '280px', legend: { enabled: false }, toolbar: { enabled: false }, accessibility: { svgAriaLabel: 'Bar chart of machine jobs per day' } };
 
-  return <PageShell title="Machines" description="Operational overview of machine use, billing, and stock." actions={<>
+  return <PageShell title="Machines" description="Operational overview of machine use, pricing, and stock." actions={<>
       {hasPermission(currentUser, PermissionId.inventorymanage) && <Button as={Link} to="/machine-logbook/inventory" kind="secondary" renderIcon={InventoryManagement}>Add material</Button>}
       {hasPermission(currentUser, PermissionId.machine_jobscreate) && <Button as={Link} to="/machine-logbook/jobs?new=1" renderIcon={Add}>New job</Button>}
     </>} width="wide" className="machine-logbook-page">
     {data.needsReview > 0 && <Tile className="review-callout"><div><strong>{data.needsReview} machine {data.needsReview === 1 ? 'job requires' : 'jobs require'} review</strong><p>Automatically detected jobs await customer and operator assignment.</p></div><CarbonLink as={Link} to="/machine-logbook/review">Review now →</CarbonLink></Tile>}
     <div className="metric-grid">
       <Tile><span>Jobs today</span><strong>{data.jobsToday}</strong><small>{data.jobsThisWeek} this week</small></Tile>
-      <Tile><span>Unbilled jobs</span><strong>{data.unbilledJobs}</strong><small>€ {formatDecimal(data.unbilledAmount)} open</small></Tile>
+      <Tile><span>Jobs without Orders</span><strong>{data.unassignedJobs}</strong><small>€ {formatDecimal(data.unassignedEstimatedAmount)} open</small></Tile>
       <Tile><span>Needs review</span><strong>{data.needsReview}</strong><small>auto-detected</small></Tile>
       <Tile><span>Failed / partial</span><strong>{data.failedOrPartialThisWeek}</strong><small>this week</small></Tile>
       <Tile><span>Low stock items</span><strong>{data.lowStockItems}</strong><small>materials</small></Tile>

@@ -14,6 +14,16 @@ import (
 type Permission string
 
 const (
+	OrdersRead                    Permission = Permission(openapi.OrdersRead)
+	OrdersWrite                   Permission = Permission(openapi.OrdersWrite)
+	OrdersFinalize                Permission = Permission(openapi.OrdersFinalize)
+	OrdersReverse                 Permission = Permission(openapi.OrdersReverse)
+	PaymentsRead                  Permission = Permission(openapi.PaymentsRead)
+	PaymentsRecord                Permission = Permission(openapi.PaymentsRecord)
+	PaymentsReverse               Permission = Permission(openapi.PaymentsReverse)
+	ExternalInvoiceRequestsRead   Permission = Permission(openapi.ExternalInvoiceRequestsRead)
+	ExternalInvoiceRequestsManage Permission = Permission(openapi.ExternalInvoiceRequestsManage)
+
 	PeopleReadSelf               Permission = Permission(openapi.PeopleReadSelf)
 	PeopleReadAll                Permission = Permission(openapi.PeopleReadAll)
 	PeopleCreate                 Permission = Permission(openapi.PeopleCreate)
@@ -58,6 +68,13 @@ const (
 	EventsAssign                 Permission = Permission(openapi.EventsAssign)
 	ManagedDevicesRead           Permission = Permission(openapi.ManagedDevicesRead)
 	ManagedDevicesManage         Permission = Permission(openapi.ManagedDevicesManage)
+	SessionPoliciesManage        Permission = Permission(openapi.SessionPoliciesManage)
+	AttendanceRead               Permission = Permission(openapi.AttendanceRead)
+	AttendanceAssist             Permission = Permission(openapi.AttendanceAssist)
+	AttendanceCorrect            Permission = Permission(openapi.AttendanceCorrect)
+	AttendanceStatisticsRead     Permission = Permission(openapi.AttendanceStatisticsRead)
+	SurveysRead                  Permission = Permission(openapi.SurveysRead)
+	SurveysManage                Permission = Permission(openapi.SurveysManage)
 	LaborordnungRead             Permission = Permission(openapi.LaborordnungRead)
 	LaborordnungManage           Permission = Permission(openapi.LaborordnungManage)
 	LaborordnungRequestsRead     Permission = Permission(openapi.LaborordnungRequestsRead)
@@ -94,6 +111,7 @@ type Definition struct {
 }
 
 var registry = []Permission{
+	OrdersRead, OrdersWrite, OrdersFinalize, OrdersReverse, PaymentsRead, PaymentsRecord, PaymentsReverse, ExternalInvoiceRequestsRead, ExternalInvoiceRequestsManage,
 	PeopleReadSelf, PeopleReadAll, PeopleCreate, PeopleUpdateSelf, PeopleUpdateAll,
 	PeopleDelete, PeopleReadMatriculation, PeopleUpdateMatriculation,
 	PeopleProfileImageUpdateSelf, PeopleProfileImageUpdateAll, PeopleProfileImageRemoveSelf, PeopleProfileImageRemoveAll,
@@ -105,7 +123,9 @@ var registry = []Permission{
 	RolesRead, RolesManage, AuditRead,
 	OpenDaysRead, OpenDaysReadAssignments, OpenDaysSignup, OpenDaysAssign, OpenDaysManage,
 	EventsRead, EventsManage, EventsStaffingManage, EventsAssign,
-	ManagedDevicesRead, ManagedDevicesManage,
+	ManagedDevicesRead, ManagedDevicesManage, SessionPoliciesManage,
+	AttendanceRead, AttendanceAssist, AttendanceCorrect, AttendanceStatisticsRead,
+	SurveysRead, SurveysManage,
 	LaborordnungRead, LaborordnungManage, LaborordnungRequestsRead, LaborordnungConfirm,
 	VisitorEnrollmentManage, SupervisorDashboardRead,
 	OIDCLinkSelf, OIDCLinkAll, OIDCUnlinkSelf, OIDCUnlinkAll, OIDCManage, SCIMManage, MailManage, BrandingManage,
@@ -123,6 +143,16 @@ var known = func() map[Permission]struct{} {
 }()
 
 var descriptions = map[Permission]string{
+	OrdersRead:                    "Read internal orders and their charge snapshots.",
+	OrdersWrite:                   "Create and edit draft orders.",
+	OrdersFinalize:                "Finalize internal charges.",
+	OrdersReverse:                 "Reverse charges and commit replacements.",
+	PaymentsRead:                  "Read payments and reconciliation activity.",
+	PaymentsRecord:                "Record receipts and carry them to authorized replacements.",
+	PaymentsReverse:               "Record full refunds and payment corrections.",
+	ExternalInvoiceRequestsRead:   "Read external invoicing snapshots and evidence.",
+	ExternalInvoiceRequestsManage: "Prepare and manage external invoicing requests.",
+
 	PeopleReadSelf:               "Read the person record linked to the current account.",
 	PeopleReadAll:                "Read every person record.",
 	PeopleCreate:                 "Create person records.",
@@ -167,6 +197,13 @@ var descriptions = map[Permission]string{
 	EventsAssign:                 "Create, move, cancel, link, and conflict-override Event assignments.",
 	ManagedDevicesRead:           "Read managed devices and device types.",
 	ManagedDevicesManage:         "Create, edit, revoke, rotate, and delete managed devices and device types.",
+	SessionPoliciesManage:        "Create and change reusable server-enforced session policies.",
+	AttendanceRead:               "Read identified visit and current-presence records.",
+	AttendanceAssist:             "Check people in or out through a supervised attendance flow.",
+	AttendanceCorrect:            "Correct or void attendance records.",
+	AttendanceStatisticsRead:     "Read attendance statistics and visitor-hour reports.",
+	SurveysRead:                  "Read survey definitions and summarized responses.",
+	SurveysManage:                "Build, publish, close, and trigger surveys.",
 	LaborordnungRead:             "Read Lab Rules versions and exact PDFs.",
 	LaborordnungManage:           "Upload and publish immutable Lab Rules versions.",
 	LaborordnungRequestsRead:     "Read the physical-document confirmation queue.",

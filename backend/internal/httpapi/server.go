@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/attendance"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/auth"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -20,6 +21,7 @@ import (
 	oidcservice "github.com/Basmatireis/Makerspace-Core/backend/internal/oidc"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/orders"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
@@ -27,6 +29,7 @@ import (
 	scimservice "github.com/Basmatireis/Makerspace-Core/backend/internal/scim"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/supervisors"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -53,12 +56,15 @@ type Server struct {
 	mail           *mailservice.Service
 	files          *files.Service
 	laborordnung   *laborordnung.Service
+	orders         *orders.Service
 	machineLogbook *machinelogbook.Service
 	supervisors    *supervisors.Service
 	oidc           *oidcservice.Service
 	scim           *scimservice.Service
 	visitor        *visitor.Service
 	branding       *branding.Service
+	attendance     *attendance.Service
+	surveys        *surveys.Service
 }
 
 func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
@@ -93,6 +99,8 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		return nil, fmt.Errorf("validate OIDC configuration: %w", err)
 	}
 	labRulesService := laborordnung.NewService(pool, fileService)
+	machineLogbook := machinelogbook.NewService(pool)
+	surveyService := surveys.NewService(pool, cfg, notifier)
 	return &Server{
 		pool:           pool,
 		config:         cfg,
@@ -108,12 +116,15 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		mail:           mailer,
 		files:          fileService,
 		laborordnung:   labRulesService,
-		machineLogbook: machinelogbook.NewService(pool),
+		machineLogbook: machineLogbook,
+		orders:         orders.NewService(pool, machineLogbook),
 		supervisors:    supervisors.NewService(pool),
 		oidc:           oidcService,
 		scim:           scimservice.NewService(pool),
 		visitor:        visitor.NewService(pool, cfg, fileService, labRulesService, notifier),
 		branding:       brandingService,
+		surveys:        surveyService,
+		attendance:     attendance.NewService(pool, authService, labRulesService, surveyService),
 	}, nil
 }
 
@@ -440,10 +451,11 @@ func (s *Server) Logout(ctx context.Context, _ openapi.LogoutRequestObject) (ope
 }
 
 func (s *Server) GetCurrentUser(ctx context.Context, _ openapi.GetCurrentUserRequestObject) (openapi.GetCurrentUserResponseObject, error) {
-	principal, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
+	authenticated, ok := ctx.Value(authenticatedContextKey).(auth.Authenticated)
+	if !ok {
+		return nil, apperror.Unauthenticated
 	}
+	principal := authenticated.Principal
 	account, err := s.accounts.GetCurrent(ctx, principal)
 	if err != nil {
 		return nil, err
@@ -479,9 +491,24 @@ func (s *Server) GetCurrentUser(ctx context.Context, _ openapi.GetCurrentUserReq
 			AuthenticationAssurance: openapi.AuthenticationAssurance(principal.Assurance),
 			ManagedDevice:           device, DelegablePermissionGrants: delegable,
 			LaborordnungStatus: laborordnungStatusDTO(laborStatus),
+			Session: openapi.SessionContext{IdleExpiresAt: authenticated.IdleExpiresAt, AbsoluteExpiresAt: authenticated.AbsoluteExpiresAt,
+				PostSessionDestination: openapi.PostSessionDestination(authenticated.PostSessionDestination)},
 		},
 		Headers: openapi.GetCurrentUser200ResponseHeaders{CacheControl: "no-store"},
 	}, nil
+}
+
+func (s *Server) RecordSessionActivity(ctx context.Context, _ openapi.RecordSessionActivityRequestObject) (openapi.RecordSessionActivityResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	session, err := s.auth.RecordActivity(ctx, principal)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.RecordSessionActivity200JSONResponse{IdleExpiresAt: session.IdleExpiresAt, AbsoluteExpiresAt: session.AbsoluteExpiry,
+		PostSessionDestination: openapi.PostSessionDestination(session.PostSessionDestination)}, nil
 }
 
 func (s *Server) ChangeOwnPassword(ctx context.Context, request openapi.ChangeOwnPasswordRequestObject) (openapi.ChangeOwnPasswordResponseObject, error) {

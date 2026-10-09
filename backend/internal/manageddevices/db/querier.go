@@ -11,22 +11,38 @@ import (
 )
 
 type Querier interface {
+	AddDeviceCapability(ctx context.Context, arg AddDeviceCapabilityParams) error
+	AddReportedDeviceCapability(ctx context.Context, arg AddReportedDeviceCapabilityParams) error
+	ClearDefaultSessionPolicy(ctx context.Context, id uuid.UUID) error
+	ClearDeviceCapabilities(ctx context.Context, managedDeviceID uuid.UUID) error
+	ClearReportedDeviceCapabilities(ctx context.Context, managedDeviceID uuid.UUID) error
 	CreateDeviceType(ctx context.Context, arg CreateDeviceTypeParams) (DeviceType, error)
 	CreateManagedDevice(ctx context.Context, arg CreateManagedDeviceParams) (ManagedDevice, error)
+	CreateSessionPolicy(ctx context.Context, arg CreateSessionPolicyParams) (SessionPolicy, error)
 	DeleteDeviceType(ctx context.Context, arg DeleteDeviceTypeParams) (uuid.UUID, error)
 	DeleteManagedDevice(ctx context.Context, arg DeleteManagedDeviceParams) (uuid.UUID, error)
+	GetDefaultSessionPolicy(ctx context.Context) (SessionPolicy, error)
 	GetDeviceType(ctx context.Context, id uuid.UUID) (DeviceType, error)
 	GetDeviceTypeForMutation(ctx context.Context, id uuid.UUID) (DeviceType, error)
 	GetManagedDevice(ctx context.Context, id uuid.UUID) (GetManagedDeviceRow, error)
 	GetManagedDeviceForMutation(ctx context.Context, id uuid.UUID) (ManagedDevice, error)
+	GetManagedDeviceHardwareReport(ctx context.Context, managedDeviceID uuid.UUID) (GetManagedDeviceHardwareReportRow, error)
+	GetSessionPolicy(ctx context.Context, id uuid.UUID) (SessionPolicy, error)
 	GetValidManagedDeviceByDigest(ctx context.Context, tokenDigest []byte) (GetValidManagedDeviceByDigestRow, error)
+	ListDeviceCapabilities(ctx context.Context, managedDeviceID uuid.UUID) ([]string, error)
 	ListDeviceTypes(ctx context.Context) ([]DeviceType, error)
 	ListManagedDevices(ctx context.Context) ([]ListManagedDevicesRow, error)
+	ListReportedDeviceCapabilities(ctx context.Context, managedDeviceID uuid.UUID) ([]string, error)
+	ListSessionPolicies(ctx context.Context) ([]SessionPolicy, error)
 	RevokeManagedDevice(ctx context.Context, arg RevokeManagedDeviceParams) (ManagedDevice, error)
+	RevokeSessionsForManagedDevice(ctx context.Context, managedDeviceID *uuid.UUID) error
+	RevokeSessionsForPolicy(ctx context.Context, sessionPolicyID *uuid.UUID) error
 	RotateManagedDeviceToken(ctx context.Context, arg RotateManagedDeviceTokenParams) (ManagedDevice, error)
 	TouchManagedDevice(ctx context.Context, id uuid.UUID) error
 	UpdateDeviceType(ctx context.Context, arg UpdateDeviceTypeParams) (DeviceType, error)
 	UpdateManagedDevice(ctx context.Context, arg UpdateManagedDeviceParams) (ManagedDevice, error)
+	UpdateSessionPolicy(ctx context.Context, arg UpdateSessionPolicyParams) (SessionPolicy, error)
+	UpsertManagedDeviceHardwareReport(ctx context.Context, arg UpsertManagedDeviceHardwareReportParams) error
 }
 
 var _ Querier = (*Queries)(nil)

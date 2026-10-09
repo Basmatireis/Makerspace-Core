@@ -19,9 +19,53 @@ type ApplicationNameProvider interface {
 	ApplicationName(context.Context) string
 }
 
+type Channel string
+
+const (
+	ChannelEmail Channel = "email"
+	ChannelSMS   Channel = "sms"
+)
+
+type Notification struct {
+	Channel   Channel
+	Recipient string
+	Subject   string
+	Text      string
+}
+
+// SMSProvider is intentionally transport-only. A future tablet relay implements
+// this interface and never receives browser credentials or domain permissions.
+type SMSProvider interface {
+	SendSMS(context.Context, string, string) error
+}
+
 type Service struct {
 	mail  MailService
 	names ApplicationNameProvider
+	sms   SMSProvider
+}
+
+func (s *Service) WithSMSProvider(provider SMSProvider) *Service { s.sms = provider; return s }
+
+func (s *Service) Send(ctx context.Context, notification Notification) error {
+	switch notification.Channel {
+	case ChannelEmail:
+		return s.mail.Send(ctx, mailservice.Message{To: notification.Recipient, Subject: notification.Subject, Text: notification.Text})
+	case ChannelSMS:
+		if s.sms == nil {
+			return fmt.Errorf("sms provider is not configured")
+		}
+		return s.sms.SendSMS(ctx, notification.Recipient, notification.Text)
+	default:
+		return fmt.Errorf("unsupported notification channel")
+	}
+}
+
+func (s *Service) SendSurveyInvitation(ctx context.Context, to, title, token string, expiresAt time.Time) error {
+	name := s.applicationName(ctx)
+	link := s.mail.BaseURL(ctx) + "/survey/" + token
+	return s.Send(ctx, Notification{Channel: ChannelEmail, Recipient: to, Subject: name + ": " + title,
+		Text: fmt.Sprintf("We would value your feedback. Open %s before %s. The response is stored separately from this delivery record when the survey is anonymous.", link, formatDateTime(expiresAt))})
 }
 
 var viennaLocation = func() *time.Location {
