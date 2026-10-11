@@ -53,6 +53,7 @@ function currentUser(permissions: string[]) {
     permissions,
     authenticationAssurance: 'normal',
     managedDevice: null,
+    session: { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' },
     delegablePermissionGrants: permissions.map((permissionId) => ({ permissionId, scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' })),
     laborordnungStatus: { mode: 'not_required', state: 'not_required', actionRequired: false, currentVersion: null, latestConfirmedVersion: null, requestId: null },
   };
@@ -150,6 +151,10 @@ test('keeps other identities and management fields private while staff sign up',
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/auth/activity' && request.method() === 'POST') {
+      await json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
+      return;
+    }
     if (path === '/api/v1/auth/oidc/providers') {
       await json(route, { items: [] });
       return;
@@ -216,6 +221,10 @@ test('creates and atomically saves a manager schedule working copy', async ({
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/auth/activity' && request.method() === 'POST') {
+      await json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
+      return;
+    }
     if (path === '/api/v1/auth/oidc/providers') {
       await json(route, { items: [] });
       return;
@@ -381,6 +390,10 @@ test('manages inclusive academic-break context on a focused screen', async ({
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/auth/activity' && request.method() === 'POST') {
+      await json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
+      return;
+    }
     if (path === '/api/v1/auth/oidc/providers') {
       await json(route, { items: [] });
       return;
@@ -463,6 +476,7 @@ test('rejects ambiguous local schedule times without adding a slot', async ({ pa
   page.on('pageerror', (error) => errors.push(error));
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/auth/activity') && route.request().method() === 'POST') return json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
     if (path.endsWith('/public/config')) {
       return json(route, defaultPublicBrandingConfiguration());
     }

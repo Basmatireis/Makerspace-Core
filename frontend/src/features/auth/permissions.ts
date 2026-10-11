@@ -98,6 +98,7 @@ export const machineLogbookPermissions: readonly PermissionIdType[] = [
   PermissionId.machine_jobsread,
   PermissionId.machine_jobsreview,
   PermissionId.inventoryread,
+  PermissionId.print_submissionsread,
   PermissionId.statisticsread,
 ];
 

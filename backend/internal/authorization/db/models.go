@@ -317,6 +317,32 @@ type ExternalInvoiceRequestEvent struct {
 	ActorAccountID     *uuid.UUID
 }
 
+type FilamentSpool struct {
+	ID                   uuid.UUID
+	DisplayID            string
+	MaterialID           uuid.UUID
+	Manufacturer         *string
+	ProductName          *string
+	InitialNetWeightG    pgtype.Numeric
+	TareWeightG          pgtype.Numeric
+	AcquiredOn           pgtype.Date
+	AcquisitionReference *string
+	StorageLocation      *string
+	Notes                *string
+	Lifecycle            string
+	Version              int64
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
+type FilamentSpoolIdentifier struct {
+	ID        uuid.UUID
+	SpoolID   uuid.UUID
+	Kind      string
+	Value     string
+	CreatedAt time.Time
+}
+
 type File struct {
 	ID                 uuid.UUID
 	StorageKey         string
@@ -344,6 +370,10 @@ type InventoryTransaction struct {
 	MachineJobUsageID   *uuid.UUID
 	ActorAccountID      *uuid.UUID
 	CreatedAt           time.Time
+	SpoolID             *uuid.UUID
+	FromSpoolID         *uuid.UUID
+	ToSpoolID           *uuid.UUID
+	TransferQuantity    pgtype.Numeric
 }
 
 type LaborordnungRequest struct {
@@ -417,13 +447,18 @@ type MachineJob struct {
 }
 
 type MachineJobMaterialUsage struct {
-	ID           uuid.UUID
-	MachineJobID uuid.UUID
-	MaterialID   uuid.UUID
-	Quantity     pgtype.Numeric
-	Active       bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID                   uuid.UUID
+	MachineJobID         uuid.UUID
+	MaterialID           *uuid.UUID
+	Quantity             pgtype.Numeric
+	Active               bool
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	Ownership            string
+	SpoolID              *uuid.UUID
+	ExternalMaterialName *string
+	QuantityBasis        string
+	SourcePrinterEventID *uuid.UUID
 }
 
 type MachineJobPricingSnapshot struct {
@@ -537,6 +572,13 @@ type MaterialBalance struct {
 	AverageUnitCost pgtype.Numeric
 	Version         int64
 	UpdatedAt       time.Time
+}
+
+type MaterialFilamentProperty struct {
+	MaterialID uuid.UUID
+	DiameterMm pgtype.Numeric
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
 
 type OidcFlow struct {
@@ -854,6 +896,123 @@ type PricingRule struct {
 	Version          int64
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+}
+
+type PrintAttempt struct {
+	ID              uuid.UUID
+	SubmissionID    uuid.UUID
+	AttemptNumber   int32
+	MachineID       uuid.UUID
+	State           string
+	ExternalPrintID *string
+	AcceptedAt      pgtype.Timestamptz
+	StartedAt       pgtype.Timestamptz
+	EndedAt         pgtype.Timestamptz
+	MachineJobID    *uuid.UUID
+	Version         int64
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type PrintFilamentDeclaration struct {
+	ID                   uuid.UUID
+	SubmissionID         *uuid.UUID
+	AttemptID            *uuid.UUID
+	Ownership            string
+	MaterialID           *uuid.UUID
+	SpoolID              *uuid.UUID
+	ExternalMaterialName *string
+	EstimatedQuantityG   pgtype.Numeric
+	CreatedAt            time.Time
+}
+
+type PrintSubmission struct {
+	ID                     uuid.UUID
+	DisplayID              string
+	MachineID              uuid.UUID
+	CustomerPersonID       *uuid.UUID
+	CustomerOrganizationID *uuid.UUID
+	Title                  string
+	Notes                  *string
+	State                  string
+	ReprintsSubmissionID   *uuid.UUID
+	Version                int64
+	CreatedByAccountID     *uuid.UUID
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
+type PrinterEvent struct {
+	ID                    uuid.UUID
+	SourceID              string
+	EventKey              string
+	Fingerprint           string
+	ProtocolVersion       int32
+	MachineID             *uuid.UUID
+	AttemptID             *uuid.UUID
+	Kind                  string
+	OccurredAt            time.Time
+	ReceivedAt            time.Time
+	SourceSequence        *int64
+	ExternalPrintID       *string
+	Payload               []byte
+	ReconciliationState   string
+	ReconciledByAccountID *uuid.UUID
+	ReconciledAt          pgtype.Timestamptz
+}
+
+type PrinterInputUnit struct {
+	ID                 uuid.UUID
+	MachineID          uuid.UUID
+	Name               string
+	Position           int32
+	ExternalIdentifier *string
+	Enabled            bool
+	Version            int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type PrinterProfile struct {
+	MachineID uuid.UUID
+	Enabled   bool
+	Version   int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type PrinterSlot struct {
+	ID                 uuid.UUID
+	InputUnitID        uuid.UUID
+	Name               string
+	Position           int32
+	ExternalIdentifier *string
+	Status             string
+	Version            int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type PrinterSpoolAssignment struct {
+	ID                   uuid.UUID
+	SlotID               uuid.UUID
+	SpoolID              uuid.UUID
+	MountedAt            time.Time
+	UnmountedAt          pgtype.Timestamptz
+	MountedByAccountID   *uuid.UUID
+	UnmountedByAccountID *uuid.UUID
+	Source               string
+	SourceEventID        *uuid.UUID
+	CreatedAt            time.Time
+}
+
+type PrintingOperation struct {
+	OperationKey   uuid.UUID
+	ActorAccountID uuid.UUID
+	Kind           string
+	Fingerprint    string
+	ResultID       uuid.UUID
+	CreatedAt      time.Time
 }
 
 type Role struct {

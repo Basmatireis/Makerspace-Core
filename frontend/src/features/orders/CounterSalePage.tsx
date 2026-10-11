@@ -117,7 +117,7 @@ export function CounterSalePage() {
             operatorPersonId: v.operatorPersonId,
             outcome: v.outcome,
             pricingGroupId: v.pricingGroupId || undefined,
-            usages: v.usages,
+            usages: v.usages.map((usage) => ({ ...usage, ownership: 'makerspace', spoolId: null, externalMaterialName: null, quantityBasis: 'actual' })),
           },
         }
       : {

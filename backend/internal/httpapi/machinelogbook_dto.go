@@ -53,7 +53,7 @@ func mlPricingGroupDTO(item machinelogbook.PricingGroup) openapi.PricingGroup {
 	return openapi.PricingGroup{Id: item.ID, Name: item.Name, Description: nullableString(item.Description), Active: item.Active, IsDefault: item.IsDefault, Rules: rules, Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
 }
 func mlMaterialDTO(item machinelogbook.Material) openapi.Material {
-	return openapi.Material{Id: item.ID, Name: item.Name, Category: item.Category, Color: nullableString(item.Color), Unit: openapi.MaterialUnit(item.Unit), Active: item.Active, LowStockThreshold: nullableDecimalValue(item.LowStockThreshold), Quantity: item.Quantity, InventoryValue: item.InventoryValue, AverageUnitCost: item.AverageUnitCost, RecentConsumption: item.RecentConsumption, StockState: openapi.StockState(item.StockState), Version: item.Version, InventoryVersion: item.InventoryVersion, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
+	return openapi.Material{Id: item.ID, Name: item.Name, Category: item.Category, Color: nullableString(item.Color), Unit: openapi.MaterialUnit(item.Unit), Active: item.Active, LowStockThreshold: nullableDecimalValue(item.LowStockThreshold), FilamentDiameterMm: nullableDecimalValue(item.FilamentDiameterMM), Quantity: item.Quantity, AssignedQuantity: item.AssignedQuantity, UnassignedQuantity: item.UnassignedQuantity, InventoryValue: item.InventoryValue, AverageUnitCost: item.AverageUnitCost, RecentConsumption: item.RecentConsumption, StockState: openapi.StockState(item.StockState), Version: item.Version, InventoryVersion: item.InventoryVersion, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
 }
 func mlInventoryTransactionDTO(item machinelogbook.InventoryTransaction) openapi.InventoryTransaction {
 	var reason nullable.Nullable[openapi.InventoryAdjustmentReason]
@@ -62,7 +62,7 @@ func mlInventoryTransactionDTO(item machinelogbook.InventoryTransaction) openapi
 	} else {
 		reason = nullable.NewNullableWithValue(openapi.InventoryAdjustmentReason(*item.AdjustmentReason))
 	}
-	return openapi.InventoryTransaction{Id: item.ID, MaterialId: item.MaterialID, Kind: openapi.InventoryTransactionKind(item.Kind), QuantityDelta: item.QuantityDelta, UnitAcquisitionCost: item.UnitAcquisitionCost, InventoryValueDelta: item.InventoryValueDelta, TotalPurchasePrice: nullableMoney(item.TotalPurchasePrice), OccurredAt: item.OccurredAt, Supplier: nullableString(item.Supplier), Note: nullableString(item.Note), AdjustmentReason: reason, MachineJobId: nullableUUIDValue(item.MachineJobID), MachineJobDisplayId: nullableString(item.MachineJobDisplayID), CreatedAt: item.CreatedAt}
+	return openapi.InventoryTransaction{Id: item.ID, MaterialId: item.MaterialID, Kind: openapi.InventoryTransactionKind(item.Kind), QuantityDelta: item.QuantityDelta, UnitAcquisitionCost: item.UnitAcquisitionCost, InventoryValueDelta: item.InventoryValueDelta, TotalPurchasePrice: nullableMoney(item.TotalPurchasePrice), OccurredAt: item.OccurredAt, Supplier: nullableString(item.Supplier), Note: nullableString(item.Note), AdjustmentReason: reason, MachineJobId: nullableUUIDValue(item.MachineJobID), MachineJobDisplayId: nullableString(item.MachineJobDisplayID), SpoolId: nullableUUIDValue(item.SpoolID), FromSpoolId: nullableUUIDValue(item.FromSpoolID), ToSpoolId: nullableUUIDValue(item.ToSpoolID), TransferQuantity: nullableDecimalValue(item.TransferQuantity), CreatedAt: item.CreatedAt}
 }
 func mlInventoryResultDTO(item machinelogbook.InventoryMutationResult) openapi.InventoryMutationResult {
 	return openapi.InventoryMutationResult{Material: mlMaterialDTO(item.Material), Transaction: mlInventoryTransactionDTO(item.Transaction)}
@@ -70,7 +70,7 @@ func mlInventoryResultDTO(item machinelogbook.InventoryMutationResult) openapi.I
 func mlJobDTO(item machinelogbook.MachineJob) openapi.MachineJob {
 	usages := make([]openapi.MachineJobUsage, 0, len(item.Usages))
 	for _, u := range item.Usages {
-		usages = append(usages, openapi.MachineJobUsage{Id: u.ID, MaterialId: u.MaterialID, MaterialName: u.MaterialName, Category: u.Category, Unit: openapi.MaterialUnit(u.Unit), Quantity: u.Quantity})
+		usages = append(usages, openapi.MachineJobUsage{Id: u.ID, MaterialId: nullableUUIDValue(u.MaterialID), SpoolId: nullableUUIDValue(u.SpoolID), SpoolDisplayId: nullableString(u.SpoolDisplayID), Ownership: openapi.FilamentOwnership(u.Ownership), MaterialName: u.MaterialName, Category: u.Category, Unit: openapi.MaterialUnit(u.Unit), Quantity: u.Quantity, QuantityBasis: openapi.QuantityBasis(u.QuantityBasis)})
 	}
 	var customer nullable.Nullable[openapi.BillingParty]
 	if item.Customer == nil {
@@ -172,7 +172,11 @@ func partyInput(value openapi.BillingPartyReference) machinelogbook.PartyReferen
 func usageInputs(values []openapi.MachineJobUsageInput) []machinelogbook.UsageInput {
 	items := make([]machinelogbook.UsageInput, 0, len(values))
 	for _, v := range values {
-		items = append(items, machinelogbook.UsageInput{MaterialID: v.MaterialId, Quantity: string(v.Quantity)})
+		materialID := uuid.Nil
+		if value := uuidNullable(v.MaterialId); value != nil {
+			materialID = *value
+		}
+		items = append(items, machinelogbook.UsageInput{MaterialID: materialID, SpoolID: uuidNullable(v.SpoolId), Ownership: string(v.Ownership), ExternalMaterialName: nullableStringPointer(v.ExternalMaterialName), Quantity: string(v.Quantity), QuantityBasis: string(v.QuantityBasis)})
 	}
 	return items
 }

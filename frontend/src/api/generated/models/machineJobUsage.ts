@@ -19,14 +19,25 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
+import type { FilamentOwnership } from './filamentOwnership';
+import type { MachineJobUsageMaterialId } from './machineJobUsageMaterialId';
+import type { MachineJobUsageSpoolId } from './machineJobUsageSpoolId';
 import type { MaterialUnit } from './materialUnit';
 import type { Decimal } from './decimal';
+import type { QuantityBasis } from './quantityBasis';
 
 export interface MachineJobUsage {
   id: UUIDv7;
-  materialId: UUIDv7;
+  ownership: FilamentOwnership;
+  /** @nullable */
+  materialId?: MachineJobUsageMaterialId;
+  /** @nullable */
+  spoolId?: MachineJobUsageSpoolId;
+  /** @nullable */
+  spoolDisplayId?: string | null;
   materialName: string;
   category: string;
   unit: MaterialUnit;
   quantity: Decimal;
+  quantityBasis: QuantityBasis;
 }

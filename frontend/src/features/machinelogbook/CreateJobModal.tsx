@@ -25,6 +25,7 @@ import {
   materialsQuery,
   operatorSearchQuery,
   pricingQuery,
+  spoolsQuery,
 } from './queries';
 
 type CreateJobFields = {
@@ -36,7 +37,7 @@ type CreateJobFields = {
   outcome: MachineJobOutcome;
   pricingGroupId: string;
   notes: string;
-  usages: Array<{ materialId: string; quantity: string }>;
+  usages: Array<{ ownership: 'makerspace' | 'external'; materialId: string; spoolId: string; externalMaterialName: string; quantity: string; quantityBasis: 'actual' | 'estimated' }>;
 };
 
 export function CreateJobModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -54,7 +55,7 @@ export function CreateJobModal({ open, onClose }: { open: boolean; onClose: () =
       outcome: 'successful',
       pricingGroupId: '',
       notes: '',
-      usages: [{ materialId: '', quantity: '' }],
+      usages: [{ ownership: 'makerspace', materialId: '', spoolId: '', externalMaterialName: '', quantity: '', quantityBasis: 'actual' }],
     },
   });
   const { fields, append, remove } = useFieldArray({ control: form.control, name: 'usages' });
@@ -62,6 +63,7 @@ export function CreateJobModal({ open, onClose }: { open: boolean; onClose: () =
   const [operatorSearch, setOperatorSearch] = useState('');
   const machines = useQuery({ ...machinesQuery({ page: 1, pageSize: 100 }), enabled: open });
   const materials = useQuery({ ...materialsQuery({ page: 1, pageSize: 100 }), enabled: open });
+  const spools = useQuery({ ...spoolsQuery({ lifecycle: 'active', page: 1, pageSize: 100 }), enabled: open });
   const pricing = useQuery({ ...pricingQuery(), enabled: open });
   const parties = useQuery({ ...billingPartySearchQuery(customerSearch), enabled: open });
   const operators = useQuery({ ...operatorSearchQuery(operatorSearch), enabled: open });
@@ -78,8 +80,8 @@ export function CreateJobModal({ open, onClose }: { open: boolean; onClose: () =
         pricingGroupId: values.pricingGroupId || null,
         notes: values.notes || null,
         usages: values.usages
-          .filter((usage) => usage.materialId && usage.quantity)
-          .map((usage) => ({ materialId: usage.materialId, quantity: usage.quantity })),
+          .filter((usage) => usage.quantity && (usage.ownership === 'external' ? usage.externalMaterialName : usage.materialId))
+          .map((usage) => ({ ownership: usage.ownership, materialId: usage.ownership === 'makerspace' ? usage.materialId : null, spoolId: usage.ownership === 'makerspace' ? usage.spoolId || null : null, externalMaterialName: usage.ownership === 'external' ? usage.externalMaterialName : null, quantity: usage.quantity, quantityBasis: usage.quantityBasis })),
       });
     },
     onSuccess: async (created) => {
@@ -88,7 +90,7 @@ export function CreateJobModal({ open, onClose }: { open: boolean; onClose: () =
       navigate(`/machine-logbook/jobs/${created.id}`);
     },
   });
-  const lookupError = machines.isError || materials.isError || pricing.isError || parties.isError || operators.isError;
+  const lookupError = machines.isError || materials.isError || spools.isError || pricing.isError || parties.isError || operators.isError;
 
   return <Modal
     open={open}
@@ -162,17 +164,26 @@ export function CreateJobModal({ open, onClose }: { open: boolean; onClose: () =
       <div>
         <div className="section-heading">
           <div><h3>Material usage</h3><p className="section-description">Add every consumed material, including waste from failed outcomes.</p></div>
-          <Button type="button" size="sm" kind="tertiary" renderIcon={Add} onClick={() => append({ materialId: '', quantity: '' })}>Add usage</Button>
+          <Button type="button" size="sm" kind="tertiary" renderIcon={Add} onClick={() => append({ ownership: 'makerspace', materialId: '', spoolId: '', externalMaterialName: '', quantity: '', quantityBasis: 'actual' })}>Add usage</Button>
         </div>
         <Stack gap={4}>
-          {fields.map((field, index) => <div className="usage-row" key={field.id}>
-            <Select id={`new-job-material-${field.id}`} labelText="Material" {...form.register(`usages.${index}.materialId`, { required: true })}>
-              <SelectItem value="" text="Select a material" />
-              {(materials.data?.items ?? []).filter((material) => material.active).map((material) => <SelectItem key={material.id} value={material.id} text={`${material.name} (${material.unit})`} />)}
-            </Select>
-            <TextInput id={`new-job-quantity-${field.id}`} labelText="Quantity" {...form.register(`usages.${index}.quantity`, { required: true })} />
-            <Button type="button" hasIconOnly kind="ghost" renderIcon={TrashCan} iconDescription="Remove material usage" disabled={fields.length === 1} onClick={() => remove(index)} />
-          </div>)}
+          {fields.map((field, index) => {
+            const ownership = form.watch(`usages.${index}.ownership`);
+            const materialId = form.watch(`usages.${index}.materialId`);
+            return <div className="usage-row usage-row--filament" key={field.id}>
+              <Select id={`new-job-ownership-${field.id}`} labelText="Ownership" {...form.register(`usages.${index}.ownership`)}><SelectItem value="makerspace" text="Makerspace" /><SelectItem value="external" text="Customer / external" /></Select>
+              {ownership === 'makerspace' ? <>
+                <Select id={`new-job-material-${field.id}`} labelText="Material" {...form.register(`usages.${index}.materialId`, { required: true })}>
+                  <SelectItem value="" text="Select a material" />
+                  {(materials.data?.items ?? []).filter((material) => material.active).map((material) => <SelectItem key={material.id} value={material.id} text={`${material.name} (${material.unit})`} />)}
+                </Select>
+                <Select id={`new-job-spool-${field.id}`} labelText="Spool (optional)" {...form.register(`usages.${index}.spoolId`)}><SelectItem value="" text="Unassigned stock" />{(spools.data?.items ?? []).filter((spool) => spool.materialId === materialId && !spool.mounted).map((spool) => <SelectItem key={spool.id} value={spool.id} text={`${spool.displayId} · ${spool.remainingQuantity} ${spool.unit}`} />)}</Select>
+              </> : <TextInput id={`new-job-external-${field.id}`} labelText="External material" {...form.register(`usages.${index}.externalMaterialName`, { required: true })} />}
+              <TextInput id={`new-job-quantity-${field.id}`} labelText="Quantity" {...form.register(`usages.${index}.quantity`, { required: true })} />
+              <Select id={`new-job-basis-${field.id}`} labelText="Basis" {...form.register(`usages.${index}.quantityBasis`)}><SelectItem value="actual" text="Actual" /><SelectItem value="estimated" text="Estimated" /></Select>
+              <Button type="button" hasIconOnly kind="ghost" renderIcon={TrashCan} iconDescription="Remove material usage" disabled={fields.length === 1} onClick={() => remove(index)} />
+            </div>;
+          })}
         </Stack>
       </div>
       <TextArea id="new-job-notes" labelText="Notes" {...form.register('notes')} />

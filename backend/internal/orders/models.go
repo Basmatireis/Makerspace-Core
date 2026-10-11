@@ -309,12 +309,16 @@ type CounterSaleCommand struct {
 }
 
 type JobUsage struct {
-	ID           uuid.UUID `json:"id"`
-	MaterialID   uuid.UUID `json:"materialId"`
-	MaterialName string    `json:"materialName"`
-	Category     string    `json:"category"`
-	Unit         string    `json:"unit"`
-	Quantity     string    `json:"quantity"`
+	ID             uuid.UUID  `json:"id"`
+	MaterialID     *uuid.UUID `json:"materialId,omitempty"`
+	SpoolID        *uuid.UUID `json:"spoolId,omitempty"`
+	SpoolDisplayID *string    `json:"spoolDisplayId,omitempty"`
+	Ownership      string     `json:"ownership"`
+	MaterialName   string     `json:"materialName"`
+	Category       string     `json:"category"`
+	Unit           string     `json:"unit"`
+	Quantity       string     `json:"quantity"`
+	QuantityBasis  string     `json:"quantityBasis"`
 }
 type PricingEvidence struct {
 	ID               uuid.UUID   `json:"id"`
@@ -337,8 +341,12 @@ type PriceRule struct {
 	Missing      bool       `json:"missing"`
 }
 type UsageInput struct {
-	MaterialID uuid.UUID `json:"materialId"`
-	Quantity   string    `json:"quantity"`
+	MaterialID           uuid.UUID  `json:"materialId,omitempty"`
+	SpoolID              *uuid.UUID `json:"spoolId"`
+	Ownership            string     `json:"ownership"`
+	ExternalMaterialName *string    `json:"externalMaterialName"`
+	Quantity             string     `json:"quantity"`
+	QuantityBasis        string     `json:"quantityBasis"`
 }
 type ManualJob struct {
 	MachineID        uuid.UUID      `json:"machineId"`

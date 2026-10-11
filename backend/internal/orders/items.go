@@ -30,7 +30,7 @@ func snapshot(job machinelogbook.MachineJob) (*JobChargeSnapshot, error) {
 	}
 	usages := []JobUsage{}
 	for _, u := range job.Usages {
-		usages = append(usages, JobUsage{ID: u.ID, MaterialID: u.MaterialID, MaterialName: u.MaterialName, Category: u.Category, Unit: u.Unit, Quantity: u.Quantity})
+		usages = append(usages, JobUsage{ID: u.ID, MaterialID: u.MaterialID, SpoolID: u.SpoolID, SpoolDisplayID: u.SpoolDisplayID, Ownership: u.Ownership, MaterialName: u.MaterialName, Category: u.Category, Unit: u.Unit, Quantity: u.Quantity, QuantityBasis: u.QuantityBasis})
 	}
 	return &JobChargeSnapshot{DisplayID: job.DisplayID, MachineID: job.Machine.ID, MachineName: job.Machine.Name, MachineTypeID: job.Machine.MachineType.ID, MachineTypeName: job.Machine.MachineType.Name, StartsAt: job.StartsAt, EndsAt: job.EndsAt, DurationNanoseconds: decimal.NewFromInt(job.EndsAt.Sub(job.StartsAt).Nanoseconds()).String(), Outcome: job.Outcome, Usages: usages, Pricing: pricing, PricingStatus: job.PricingStatus, CalculatedAmount: job.CalculatedPrice, FinalAmount: job.FinalPrice, EffectiveAmount: *job.EffectivePrice, OverrideReason: job.PriceOverrideReason, OverriddenAt: job.PriceOverriddenAt, CapturedAt: time.Now().UTC()}, nil
 }

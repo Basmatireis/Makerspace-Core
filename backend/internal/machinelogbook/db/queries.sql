@@ -245,13 +245,31 @@ VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(category), sqlc.narg(color), sqlc
 -- name: CreateMaterialBalance :one
 INSERT INTO material_balances (material_id) VALUES (sqlc.arg(material_id)) RETURNING *;
 
+-- name: UpsertMaterialFilamentProperties :one
+INSERT INTO material_filament_properties (material_id, diameter_mm)
+VALUES (sqlc.arg(material_id), sqlc.arg(diameter_mm))
+ON CONFLICT (material_id) DO UPDATE SET diameter_mm=EXCLUDED.diameter_mm, updated_at=now()
+RETURNING *;
+
+-- name: DeleteMaterialFilamentProperties :exec
+DELETE FROM material_filament_properties WHERE material_id=sqlc.arg(material_id);
+
 -- name: GetMaterial :one
 SELECT m.*, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
-       COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.occurred_at >= now() - interval '30 days'), 0)::numeric AS recent_consumption
+       COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.occurred_at >= now() - interval '30 days'), 0)::numeric AS recent_consumption,
+       fp.diameter_mm,
+       COALESCE((SELECT sum(x.remaining) FROM (
+           SELECT COALESCE(sum(it.quantity_delta) FILTER (WHERE it.spool_id=fs.id),0)
+                + COALESCE(sum(it.transfer_quantity) FILTER (WHERE it.to_spool_id=fs.id),0)
+                - COALESCE(sum(it.transfer_quantity) FILTER (WHERE it.from_spool_id=fs.id),0) AS remaining
+           FROM filament_spools fs LEFT JOIN inventory_transactions it ON it.spool_id=fs.id OR it.from_spool_id=fs.id OR it.to_spool_id=fs.id
+           WHERE fs.material_id=m.id GROUP BY fs.id
+       ) x),0)::numeric AS assigned_quantity
 FROM materials m JOIN material_balances b ON b.material_id = m.id
+LEFT JOIN material_filament_properties fp ON fp.material_id=m.id
 LEFT JOIN inventory_transactions t ON t.material_id = m.id
 WHERE m.id = sqlc.arg(id)
-GROUP BY m.id, b.material_id;
+GROUP BY m.id, b.material_id, fp.material_id;
 
 -- name: GetMaterialForUpdate :one
 SELECT m.*, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at
@@ -261,8 +279,17 @@ FOR UPDATE OF b, m;
 
 -- name: ListMaterials :many
 SELECT m.*, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
-       COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.occurred_at >= now() - interval '30 days'), 0)::numeric AS recent_consumption
+       COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.occurred_at >= now() - interval '30 days'), 0)::numeric AS recent_consumption,
+       fp.diameter_mm,
+       COALESCE((SELECT sum(x.remaining) FROM (
+           SELECT COALESCE(sum(it.quantity_delta) FILTER (WHERE it.spool_id=fs.id),0)
+                + COALESCE(sum(it.transfer_quantity) FILTER (WHERE it.to_spool_id=fs.id),0)
+                - COALESCE(sum(it.transfer_quantity) FILTER (WHERE it.from_spool_id=fs.id),0) AS remaining
+           FROM filament_spools fs LEFT JOIN inventory_transactions it ON it.spool_id=fs.id OR it.from_spool_id=fs.id OR it.to_spool_id=fs.id
+           WHERE fs.material_id=m.id GROUP BY fs.id
+       ) x),0)::numeric AS assigned_quantity
 FROM materials m JOIN material_balances b ON b.material_id = m.id
+LEFT JOIN material_filament_properties fp ON fp.material_id=m.id
 LEFT JOIN inventory_transactions t ON t.material_id = m.id
 WHERE (sqlc.arg(search)::text = '' OR lower(m.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(m.category) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
   AND (sqlc.arg(category)::text = '' OR m.category = lower(sqlc.arg(category)::text))
@@ -270,7 +297,7 @@ WHERE (sqlc.arg(search)::text = '' OR lower(m.name) LIKE '%' || lower(sqlc.arg(s
        (sqlc.arg(stock_state)::text = 'empty' AND b.quantity = 0) OR
        (sqlc.arg(stock_state)::text = 'low_stock' AND b.quantity > 0 AND m.low_stock_threshold IS NOT NULL AND b.quantity <= m.low_stock_threshold) OR
        (sqlc.arg(stock_state)::text = 'in_stock' AND b.quantity > 0 AND (m.low_stock_threshold IS NULL OR b.quantity > m.low_stock_threshold)))
-GROUP BY m.id, b.material_id
+GROUP BY m.id, b.material_id, fp.material_id
 ORDER BY m.active DESC, lower(m.name), m.id
 LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 
@@ -317,6 +344,136 @@ LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 -- name: CountInventoryTransactions :one
 SELECT count(*) FROM inventory_transactions WHERE material_id = sqlc.arg(material_id);
 
+-- name: NextFilamentSpoolSequence :one
+SELECT nextval('filament_spool_display_sequence')::bigint;
+
+-- name: CreateFilamentSpool :one
+INSERT INTO filament_spools (id, display_id, material_id, manufacturer, product_name, initial_net_weight_g,
+    tare_weight_g, acquired_on, acquisition_reference, storage_location, notes)
+VALUES (sqlc.arg(id), sqlc.arg(display_id), sqlc.arg(material_id), sqlc.narg(manufacturer), sqlc.narg(product_name),
+    sqlc.arg(initial_net_weight_g), sqlc.narg(tare_weight_g), sqlc.narg(acquired_on), sqlc.narg(acquisition_reference),
+    sqlc.narg(storage_location), sqlc.narg(notes))
+RETURNING *;
+
+-- name: GetFilamentSpool :one
+SELECT s.*, m.name AS material_name, m.category, m.color, m.unit,
+       (COALESCE(sum(t.quantity_delta) FILTER (WHERE t.spool_id=s.id), 0::numeric)
+       + COALESCE(sum(t.transfer_quantity) FILTER (WHERE t.to_spool_id=s.id), 0::numeric)
+       - COALESCE(sum(t.transfer_quantity) FILTER (WHERE t.from_spool_id=s.id), 0::numeric))::numeric AS remaining_quantity,
+       EXISTS(SELECT 1 FROM printer_spool_assignments a WHERE a.spool_id=s.id AND a.unmounted_at IS NULL) AS mounted
+FROM filament_spools s
+JOIN materials m ON m.id=s.material_id
+LEFT JOIN inventory_transactions t ON t.spool_id=s.id OR t.from_spool_id=s.id OR t.to_spool_id=s.id
+WHERE s.id=sqlc.arg(id)
+GROUP BY s.id, m.id;
+
+-- name: GetFilamentSpoolForUpdate :one
+SELECT s.*, m.name AS material_name, m.category, m.color, m.unit,
+       (COALESCE((SELECT sum(t.quantity_delta) FROM inventory_transactions t WHERE t.spool_id=s.id), 0::numeric)
+       + COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.to_spool_id=s.id), 0::numeric)
+       - COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.from_spool_id=s.id), 0::numeric))::numeric AS remaining_quantity
+FROM filament_spools s JOIN materials m ON m.id=s.material_id
+WHERE s.id=sqlc.arg(id)
+FOR UPDATE OF s;
+
+-- name: ListFilamentSpools :many
+SELECT s.*, m.name AS material_name, m.category, m.color, m.unit,
+       (COALESCE(sum(t.quantity_delta) FILTER (WHERE t.spool_id=s.id), 0::numeric)
+       + COALESCE(sum(t.transfer_quantity) FILTER (WHERE t.to_spool_id=s.id), 0::numeric)
+       - COALESCE(sum(t.transfer_quantity) FILTER (WHERE t.from_spool_id=s.id), 0::numeric))::numeric AS remaining_quantity,
+       EXISTS(SELECT 1 FROM printer_spool_assignments a WHERE a.spool_id=s.id AND a.unmounted_at IS NULL) AS mounted
+FROM filament_spools s
+JOIN materials m ON m.id=s.material_id
+LEFT JOIN inventory_transactions t ON t.spool_id=s.id OR t.from_spool_id=s.id OR t.to_spool_id=s.id
+WHERE (sqlc.arg(search)::text='' OR lower(s.display_id) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR lower(m.name) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR lower(COALESCE(s.manufacturer,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR lower(COALESCE(s.product_name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%')
+  AND (sqlc.narg(material_id)::uuid IS NULL OR s.material_id=sqlc.narg(material_id))
+  AND (sqlc.arg(lifecycle)::text='' OR s.lifecycle=sqlc.arg(lifecycle)::text)
+  AND (sqlc.arg(location)::text='' OR lower(COALESCE(s.storage_location,'')) LIKE '%'||lower(sqlc.arg(location)::text)||'%')
+GROUP BY s.id, m.id
+ORDER BY s.lifecycle, lower(s.display_id), s.id
+LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+
+-- name: CountFilamentSpools :one
+SELECT count(*) FROM filament_spools s JOIN materials m ON m.id=s.material_id
+WHERE (sqlc.arg(search)::text='' OR lower(s.display_id) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR lower(m.name) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR lower(COALESCE(s.manufacturer,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
+    OR lower(COALESCE(s.product_name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%')
+  AND (sqlc.narg(material_id)::uuid IS NULL OR s.material_id=sqlc.narg(material_id))
+  AND (sqlc.arg(lifecycle)::text='' OR s.lifecycle=sqlc.arg(lifecycle)::text)
+  AND (sqlc.arg(location)::text='' OR lower(COALESCE(s.storage_location,'')) LIKE '%'||lower(sqlc.arg(location)::text)||'%');
+
+-- name: UpdateFilamentSpool :one
+UPDATE filament_spools SET manufacturer=sqlc.narg(manufacturer), product_name=sqlc.narg(product_name),
+    tare_weight_g=sqlc.narg(tare_weight_g), acquired_on=sqlc.narg(acquired_on), acquisition_reference=sqlc.narg(acquisition_reference),
+    storage_location=sqlc.narg(storage_location), notes=sqlc.narg(notes), lifecycle=sqlc.arg(lifecycle),
+    version=version+1, updated_at=now()
+WHERE id=sqlc.arg(id) AND version=sqlc.arg(expected_version)
+RETURNING *;
+
+-- name: BumpFilamentSpoolVersion :one
+UPDATE filament_spools SET version=version+1, updated_at=now()
+WHERE id=sqlc.arg(id) AND version=sqlc.arg(expected_version) RETURNING *;
+
+-- name: AddFilamentSpoolIdentifier :one
+INSERT INTO filament_spool_identifiers (id, spool_id, kind, value)
+VALUES (sqlc.arg(id), sqlc.arg(spool_id), sqlc.arg(kind), sqlc.arg(value)) RETURNING *;
+
+-- name: DeleteFilamentSpoolIdentifier :execrows
+DELETE FROM filament_spool_identifiers WHERE id=sqlc.arg(id) AND spool_id=sqlc.arg(spool_id);
+
+-- name: ListFilamentSpoolIdentifiers :many
+SELECT * FROM filament_spool_identifiers WHERE spool_id=sqlc.arg(spool_id) ORDER BY kind, id;
+
+-- name: FindFilamentSpoolByIdentifier :one
+SELECT spool_id FROM filament_spool_identifiers WHERE kind=sqlc.arg(kind) AND lower(value)=lower(sqlc.arg(value));
+
+-- name: FilamentSpoolMounted :one
+SELECT EXISTS(SELECT 1 FROM printer_spool_assignments WHERE spool_id=sqlc.arg(spool_id) AND unmounted_at IS NULL);
+
+-- name: InsertSpoolInventoryTransaction :one
+INSERT INTO inventory_transactions (id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta,
+    total_purchase_price, occurred_at, supplier, note, adjustment_reason, machine_job_usage_id, actor_account_id, spool_id)
+VALUES (sqlc.arg(id), sqlc.arg(material_id), sqlc.arg(kind), sqlc.arg(quantity_delta), sqlc.arg(unit_acquisition_cost),
+    sqlc.arg(inventory_value_delta), sqlc.narg(total_purchase_price), sqlc.arg(occurred_at), sqlc.narg(supplier),
+    sqlc.narg(note), sqlc.narg(adjustment_reason), sqlc.narg(machine_job_usage_id), sqlc.narg(actor_account_id), sqlc.arg(spool_id))
+RETURNING *;
+
+-- name: InsertSpoolTransfer :one
+INSERT INTO inventory_transactions (id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta,
+    occurred_at, note, adjustment_reason, actor_account_id, from_spool_id, to_spool_id, transfer_quantity)
+VALUES (sqlc.arg(id), sqlc.arg(material_id), 'spool_transfer', 0, 0, 0, sqlc.arg(occurred_at), sqlc.narg(note),
+    sqlc.narg(adjustment_reason), sqlc.narg(actor_account_id), sqlc.narg(from_spool_id), sqlc.narg(to_spool_id), sqlc.arg(transfer_quantity))
+RETURNING *;
+
+-- name: ListFilamentSpoolTransactions :many
+SELECT t.*, j.id AS machine_job_id, j.display_id AS machine_job_display_id
+FROM inventory_transactions t
+LEFT JOIN machine_job_material_usages u ON u.id=t.machine_job_usage_id
+LEFT JOIN machine_jobs j ON j.id=u.machine_job_id
+WHERE t.spool_id=sqlc.arg(spool_id) OR t.from_spool_id=sqlc.arg(spool_id) OR t.to_spool_id=sqlc.arg(spool_id)
+ORDER BY t.occurred_at DESC, t.id DESC
+LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+
+-- name: CountFilamentSpoolTransactions :one
+SELECT count(*) FROM inventory_transactions
+WHERE spool_id=sqlc.arg(spool_id) OR from_spool_id=sqlc.arg(spool_id) OR to_spool_id=sqlc.arg(spool_id);
+
+-- name: AllocatedMaterialQuantity :one
+SELECT COALESCE(sum(remaining), 0)::numeric FROM (
+    SELECT s.id,
+        COALESCE(sum(t.quantity_delta) FILTER (WHERE t.spool_id=s.id), 0)
+        + COALESCE(sum(t.transfer_quantity) FILTER (WHERE t.to_spool_id=s.id), 0)
+        - COALESCE(sum(t.transfer_quantity) FILTER (WHERE t.from_spool_id=s.id), 0) AS remaining
+    FROM filament_spools s
+    LEFT JOIN inventory_transactions t ON t.spool_id=s.id OR t.from_spool_id=s.id OR t.to_spool_id=s.id
+    WHERE s.material_id=sqlc.arg(material_id)
+    GROUP BY s.id
+) spool_balances;
+
 -- name: NextMachineJobSequence :one
 SELECT nextval('machine_job_display_sequence')::bigint;
 
@@ -338,17 +495,23 @@ SELECT * FROM machine_jobs WHERE id = sqlc.arg(id) FOR UPDATE;
 SELECT * FROM machine_jobs WHERE machine_id = sqlc.arg(machine_id) AND source = 'automatic' AND external_id = sqlc.arg(external_id);
 
 -- name: InsertMachineJobUsage :one
-INSERT INTO machine_job_material_usages (id, machine_job_id, material_id, quantity)
-VALUES (sqlc.arg(id), sqlc.arg(machine_job_id), sqlc.arg(material_id), sqlc.arg(quantity)) RETURNING *;
+INSERT INTO machine_job_material_usages (id, machine_job_id, material_id, spool_id, ownership, external_material_name, quantity_basis, quantity, source_printer_event_id)
+VALUES (sqlc.arg(id), sqlc.arg(machine_job_id), sqlc.narg(material_id), sqlc.narg(spool_id), sqlc.arg(ownership),
+    sqlc.narg(external_material_name), sqlc.arg(quantity_basis), sqlc.arg(quantity), sqlc.narg(source_printer_event_id)) RETURNING *;
 
 -- name: ListMachineJobUsages :many
-SELECT u.*, m.name AS material_name, m.category, m.unit
-FROM machine_job_material_usages u JOIN materials m ON m.id = u.material_id
+SELECT u.*, COALESCE(m.name, u.external_material_name) AS material_name,
+       COALESCE(m.category, 'external') AS category, COALESCE(m.unit, 'g') AS unit,
+       s.display_id AS spool_display_id
+FROM machine_job_material_usages u
+LEFT JOIN materials m ON m.id = u.material_id
+LEFT JOIN filament_spools s ON s.id = u.spool_id
 WHERE u.machine_job_id = sqlc.arg(machine_job_id) AND u.active
-ORDER BY lower(m.name), u.id;
+ORDER BY lower(COALESCE(m.name, u.external_material_name)), u.id;
 
 -- name: ListAllMachineJobUsagesForUpdate :many
-SELECT * FROM machine_job_material_usages WHERE machine_job_id = sqlc.arg(machine_job_id) AND active ORDER BY material_id FOR UPDATE;
+SELECT * FROM machine_job_material_usages WHERE machine_job_id = sqlc.arg(machine_job_id) AND active
+ORDER BY material_id NULLS LAST, spool_id NULLS LAST, id FOR UPDATE;
 
 -- name: DeactivateMachineJobUsages :exec
 UPDATE machine_job_material_usages SET active = false, updated_at = now()

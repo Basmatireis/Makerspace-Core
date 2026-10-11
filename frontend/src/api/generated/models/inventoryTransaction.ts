@@ -24,6 +24,10 @@ import type { Decimal } from './decimal';
 import type { InventoryTransactionTotalPurchasePrice } from './inventoryTransactionTotalPurchasePrice';
 import type { InventoryTransactionAdjustmentReason } from './inventoryTransactionAdjustmentReason';
 import type { InventoryTransactionMachineJobId } from './inventoryTransactionMachineJobId';
+import type { InventoryTransactionSpoolId } from './inventoryTransactionSpoolId';
+import type { InventoryTransactionFromSpoolId } from './inventoryTransactionFromSpoolId';
+import type { InventoryTransactionToSpoolId } from './inventoryTransactionToSpoolId';
+import type { InventoryTransactionTransferQuantity } from './inventoryTransactionTransferQuantity';
 
 export interface InventoryTransaction {
   id: UUIDv7;
@@ -45,5 +49,13 @@ export interface InventoryTransaction {
   machineJobId?: InventoryTransactionMachineJobId;
   /** @nullable */
   machineJobDisplayId?: string | null;
+  /** @nullable */
+  spoolId?: InventoryTransactionSpoolId;
+  /** @nullable */
+  fromSpoolId?: InventoryTransactionFromSpoolId;
+  /** @nullable */
+  toSpoolId?: InventoryTransactionToSpoolId;
+  /** @nullable */
+  transferQuantity?: InventoryTransactionTransferQuantity;
   createdAt: string;
 }

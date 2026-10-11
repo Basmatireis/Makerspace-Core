@@ -30,11 +30,13 @@ func stockState(quantity decimal.Decimal, threshold pgtype.Numeric) string {
 
 func materialFromGet(row machinelogbookdb.GetMaterialRow) Material {
 	q := decimalFromNumeric(row.Quantity)
-	return Material{ID: row.ID, Name: row.Name, Category: row.Category, Color: row.Color, Unit: row.Unit, Active: row.Active, LowStockThreshold: nullableDecimal(row.LowStockThreshold), Quantity: q.String(), InventoryValue: decimalString(row.InventoryValue), AverageUnitCost: decimalString(row.AverageUnitCost), RecentConsumption: decimalString(row.RecentConsumption), StockState: stockState(q, row.LowStockThreshold), Version: row.Version, InventoryVersion: row.InventoryVersion, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	assigned := decimalFromNumeric(row.AssignedQuantity)
+	return Material{ID: row.ID, Name: row.Name, Category: row.Category, Color: row.Color, Unit: row.Unit, Active: row.Active, LowStockThreshold: nullableDecimal(row.LowStockThreshold), FilamentDiameterMM: nullableDecimal(row.DiameterMm), Quantity: q.String(), AssignedQuantity: assigned.String(), UnassignedQuantity: q.Sub(assigned).String(), InventoryValue: decimalString(row.InventoryValue), AverageUnitCost: decimalString(row.AverageUnitCost), RecentConsumption: decimalString(row.RecentConsumption), StockState: stockState(q, row.LowStockThreshold), Version: row.Version, InventoryVersion: row.InventoryVersion, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 func materialFromList(row machinelogbookdb.ListMaterialsRow) Material {
 	q := decimalFromNumeric(row.Quantity)
-	return Material{ID: row.ID, Name: row.Name, Category: row.Category, Color: row.Color, Unit: row.Unit, Active: row.Active, LowStockThreshold: nullableDecimal(row.LowStockThreshold), Quantity: q.String(), InventoryValue: decimalString(row.InventoryValue), AverageUnitCost: decimalString(row.AverageUnitCost), RecentConsumption: decimalString(row.RecentConsumption), StockState: stockState(q, row.LowStockThreshold), Version: row.Version, InventoryVersion: row.InventoryVersion, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	assigned := decimalFromNumeric(row.AssignedQuantity)
+	return Material{ID: row.ID, Name: row.Name, Category: row.Category, Color: row.Color, Unit: row.Unit, Active: row.Active, LowStockThreshold: nullableDecimal(row.LowStockThreshold), FilamentDiameterMM: nullableDecimal(row.DiameterMm), Quantity: q.String(), AssignedQuantity: assigned.String(), UnassignedQuantity: q.Sub(assigned).String(), InventoryValue: decimalString(row.InventoryValue), AverageUnitCost: decimalString(row.AverageUnitCost), RecentConsumption: decimalString(row.RecentConsumption), StockState: stockState(q, row.LowStockThreshold), Version: row.Version, InventoryVersion: row.InventoryVersion, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
 func validateMaterial(name, category, unit string, threshold *string) (string, string, pgtype.Numeric, error) {
@@ -103,6 +105,10 @@ func (s *Service) ListMaterials(ctx context.Context, p authorization.Principal, 
 }
 
 func (s *Service) CreateMaterial(ctx context.Context, p authorization.Principal, name, category string, color *string, unit string, threshold *string, requestID *uuid.UUID) (Material, error) {
+	return s.CreateMaterialWithFilament(ctx, p, name, category, color, unit, threshold, nil, requestID)
+}
+
+func (s *Service) CreateMaterialWithFilament(ctx context.Context, p authorization.Principal, name, category string, color *string, unit string, threshold, filamentDiameter *string, requestID *uuid.UUID) (Material, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return Material{}, err
 	}
@@ -125,6 +131,15 @@ func (s *Service) CreateMaterial(ctx context.Context, p authorization.Principal,
 	if _, err = q.CreateMaterialBalance(ctx, id); err != nil {
 		return Material{}, err
 	}
+	if filamentDiameter != nil {
+		diameter, parseErr := numericFromString(*filamentDiameter, true)
+		if parseErr != nil || unit != "g" {
+			return Material{}, validation("filamentDiameterMm requires a gram-denominated material")
+		}
+		if _, err = q.UpsertMaterialFilamentProperties(ctx, machinelogbookdb.UpsertMaterialFilamentPropertiesParams{MaterialID: id, DiameterMm: diameter}); err != nil {
+			return Material{}, err
+		}
+	}
 	if err = writeAudit(ctx, tx, p, "material.created", "material", id, requestID, []string{"name", "category", "color", "unit", "lowStockThreshold"}); err != nil {
 		return Material{}, err
 	}
@@ -139,6 +154,10 @@ func (s *Service) CreateMaterial(ctx context.Context, p authorization.Principal,
 }
 
 func (s *Service) UpdateMaterial(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, name, category string, color *string, unit string, active bool, threshold *string, requestID *uuid.UUID) (Material, error) {
+	return s.UpdateMaterialWithFilament(ctx, p, id, expected, name, category, color, unit, active, threshold, nil, requestID)
+}
+
+func (s *Service) UpdateMaterialWithFilament(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, name, category string, color *string, unit string, active bool, threshold, filamentDiameter *string, requestID *uuid.UUID) (Material, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return Material{}, err
 	}
@@ -166,12 +185,34 @@ func (s *Service) UpdateMaterial(ctx context.Context, p authorization.Principal,
 	if current.Unit != unit && !decimalFromNumeric(current.Quantity).IsZero() {
 		return Material{}, conflict("material_unit_in_use", "Material unit cannot change while stock exists")
 	}
+	if current.Unit != unit {
+		spoolCount, spoolErr := q.CountFilamentSpools(ctx, machinelogbookdb.CountFilamentSpoolsParams{MaterialID: &id})
+		if spoolErr != nil {
+			return Material{}, spoolErr
+		}
+		if spoolCount > 0 {
+			return Material{}, conflict("material_unit_in_use", "Material unit cannot change while filament spools exist")
+		}
+	}
 	_, err = q.UpdateMaterial(ctx, machinelogbookdb.UpdateMaterialParams{Name: name, Category: category, Color: color, Unit: unit, Active: active, LowStockThreshold: numeric, ID: id, ExpectedVersion: expected})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Material{}, apperror.StaleWrite
 	}
 	if err != nil {
 		return Material{}, databaseError(err)
+	}
+	if filamentDiameter == nil {
+		if err = q.DeleteMaterialFilamentProperties(ctx, id); err != nil {
+			return Material{}, err
+		}
+	} else {
+		diameter, parseErr := numericFromString(*filamentDiameter, true)
+		if parseErr != nil || unit != "g" {
+			return Material{}, validation("filamentDiameterMm requires a gram-denominated material")
+		}
+		if _, err = q.UpsertMaterialFilamentProperties(ctx, machinelogbookdb.UpsertMaterialFilamentPropertiesParams{MaterialID: id, DiameterMm: diameter}); err != nil {
+			return Material{}, err
+		}
 	}
 	if err = writeAudit(ctx, tx, p, "material.updated", "material", id, requestID, []string{"name", "category", "color", "unit", "active", "lowStockThreshold"}); err != nil {
 		return Material{}, err
@@ -187,10 +228,10 @@ func (s *Service) UpdateMaterial(ctx context.Context, p authorization.Principal,
 }
 
 func transactionFromRow(row machinelogbookdb.InventoryTransaction) InventoryTransaction {
-	return InventoryTransaction{ID: row.ID, MaterialID: row.MaterialID, Kind: row.Kind, QuantityDelta: decimalString(row.QuantityDelta), UnitAcquisitionCost: decimalString(row.UnitAcquisitionCost), InventoryValueDelta: decimalString(row.InventoryValueDelta), TotalPurchasePrice: nullableDecimal(row.TotalPurchasePrice), OccurredAt: row.OccurredAt, Supplier: row.Supplier, Note: row.Note, AdjustmentReason: row.AdjustmentReason, CreatedAt: row.CreatedAt}
+	return InventoryTransaction{ID: row.ID, MaterialID: row.MaterialID, Kind: row.Kind, QuantityDelta: decimalString(row.QuantityDelta), UnitAcquisitionCost: decimalString(row.UnitAcquisitionCost), InventoryValueDelta: decimalString(row.InventoryValueDelta), TotalPurchasePrice: nullableDecimal(row.TotalPurchasePrice), OccurredAt: row.OccurredAt, Supplier: row.Supplier, Note: row.Note, AdjustmentReason: row.AdjustmentReason, SpoolID: row.SpoolID, FromSpoolID: row.FromSpoolID, ToSpoolID: row.ToSpoolID, TransferQuantity: nullableDecimal(row.TransferQuantity), CreatedAt: row.CreatedAt}
 }
 func transactionFromList(row machinelogbookdb.ListInventoryTransactionsRow) InventoryTransaction {
-	return InventoryTransaction{ID: row.ID, MaterialID: row.MaterialID, Kind: row.Kind, QuantityDelta: decimalString(row.QuantityDelta), UnitAcquisitionCost: decimalString(row.UnitAcquisitionCost), InventoryValueDelta: decimalString(row.InventoryValueDelta), TotalPurchasePrice: nullableDecimal(row.TotalPurchasePrice), OccurredAt: row.OccurredAt, Supplier: row.Supplier, Note: row.Note, AdjustmentReason: row.AdjustmentReason, MachineJobID: row.MachineJobID, MachineJobDisplayID: row.MachineJobDisplayID, CreatedAt: row.CreatedAt}
+	return InventoryTransaction{ID: row.ID, MaterialID: row.MaterialID, Kind: row.Kind, QuantityDelta: decimalString(row.QuantityDelta), UnitAcquisitionCost: decimalString(row.UnitAcquisitionCost), InventoryValueDelta: decimalString(row.InventoryValueDelta), TotalPurchasePrice: nullableDecimal(row.TotalPurchasePrice), OccurredAt: row.OccurredAt, Supplier: row.Supplier, Note: row.Note, AdjustmentReason: row.AdjustmentReason, MachineJobID: row.MachineJobID, MachineJobDisplayID: row.MachineJobDisplayID, SpoolID: row.SpoolID, FromSpoolID: row.FromSpoolID, ToSpoolID: row.ToSpoolID, TransferQuantity: nullableDecimal(row.TransferQuantity), CreatedAt: row.CreatedAt}
 }
 
 func (s *Service) ListMaterialTransactions(ctx context.Context, p authorization.Principal, id uuid.UUID, page, pageSize int) ([]InventoryTransaction, int64, error) {
@@ -227,6 +268,7 @@ type inventoryMutation struct {
 	OccurredAt                          time.Time
 	Supplier, Note, Reason              *string
 	UsageID                             *uuid.UUID
+	SpoolID                             *uuid.UUID
 }
 
 func (s *Service) applyInventoryMutation(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, p authorization.Principal, id uuid.UUID, expected int64, m inventoryMutation, requestID *uuid.UUID) (InventoryMutationResult, error) {
@@ -243,6 +285,28 @@ func (s *Service) applyInventoryMutation(ctx context.Context, tx pgx.Tx, q *mach
 	newValue := oldValue.Add(m.ValueDelta)
 	if newQuantity.IsNegative() {
 		return InventoryMutationResult{}, conflict("insufficient_stock", "Inventory would become negative")
+	}
+	var spoolVersion int64
+	if m.SpoolID != nil {
+		spool, spoolErr := q.GetFilamentSpoolForUpdate(ctx, *m.SpoolID)
+		if spoolErr != nil {
+			return InventoryMutationResult{}, noRows(spoolErr)
+		}
+		if spool.MaterialID != id {
+			return InventoryMutationResult{}, conflict("spool_material_mismatch", "Spool does not belong to the selected material")
+		}
+		if decimalFromNumeric(spool.RemainingQuantity).Add(m.QuantityDelta).IsNegative() {
+			return InventoryMutationResult{}, conflict("insufficient_spool_stock", "Spool inventory would become negative")
+		}
+		spoolVersion = spool.Version
+	} else if m.QuantityDelta.IsNegative() {
+		allocated, allocationErr := q.AllocatedMaterialQuantity(ctx, id)
+		if allocationErr != nil {
+			return InventoryMutationResult{}, allocationErr
+		}
+		if newQuantity.LessThan(decimalFromNumeric(allocated)) {
+			return InventoryMutationResult{}, conflict("insufficient_unassigned_stock", "Unassigned material inventory would become negative")
+		}
 	}
 	if newValue.IsNegative() {
 		if newValue.Abs().LessThan(decimal.RequireFromString("0.000000001")) {
@@ -267,9 +331,19 @@ func (s *Service) applyInventoryMutation(ctx context.Context, tx pgx.Tx, q *mach
 		total = numericFromDecimal(*m.TotalPrice)
 	}
 	actor := p.AccountID
-	ledger, err := q.InsertInventoryTransaction(ctx, machinelogbookdb.InsertInventoryTransactionParams{ID: newID(), MaterialID: id, Kind: m.Kind, QuantityDelta: numericFromDecimal(m.QuantityDelta), UnitAcquisitionCost: numericFromDecimal(m.UnitCost), InventoryValueDelta: numericFromDecimal(m.ValueDelta), TotalPurchasePrice: total, OccurredAt: m.OccurredAt.UTC(), Supplier: cleanOptional(m.Supplier), Note: cleanOptional(m.Note), AdjustmentReason: m.Reason, MachineJobUsageID: m.UsageID, ActorAccountID: &actor})
+	var ledger machinelogbookdb.InventoryTransaction
+	if m.SpoolID != nil {
+		ledger, err = q.InsertSpoolInventoryTransaction(ctx, machinelogbookdb.InsertSpoolInventoryTransactionParams{ID: newID(), MaterialID: id, Kind: m.Kind, QuantityDelta: numericFromDecimal(m.QuantityDelta), UnitAcquisitionCost: numericFromDecimal(m.UnitCost), InventoryValueDelta: numericFromDecimal(m.ValueDelta), TotalPurchasePrice: total, OccurredAt: m.OccurredAt.UTC(), Supplier: cleanOptional(m.Supplier), Note: cleanOptional(m.Note), AdjustmentReason: m.Reason, MachineJobUsageID: m.UsageID, ActorAccountID: &actor, SpoolID: m.SpoolID})
+	} else {
+		ledger, err = q.InsertInventoryTransaction(ctx, machinelogbookdb.InsertInventoryTransactionParams{ID: newID(), MaterialID: id, Kind: m.Kind, QuantityDelta: numericFromDecimal(m.QuantityDelta), UnitAcquisitionCost: numericFromDecimal(m.UnitCost), InventoryValueDelta: numericFromDecimal(m.ValueDelta), TotalPurchasePrice: total, OccurredAt: m.OccurredAt.UTC(), Supplier: cleanOptional(m.Supplier), Note: cleanOptional(m.Note), AdjustmentReason: m.Reason, MachineJobUsageID: m.UsageID, ActorAccountID: &actor})
+	}
 	if err != nil {
 		return InventoryMutationResult{}, databaseError(err)
+	}
+	if m.SpoolID != nil {
+		if _, err = q.BumpFilamentSpoolVersion(ctx, machinelogbookdb.BumpFilamentSpoolVersionParams{ID: *m.SpoolID, ExpectedVersion: spoolVersion}); err != nil {
+			return InventoryMutationResult{}, err
+		}
 	}
 	action := "inventory." + m.Kind
 	if err = writeAudit(ctx, tx, p, action, "material", id, requestID, []string{"quantity", "inventoryValue", "inventoryVersion"}); err != nil {

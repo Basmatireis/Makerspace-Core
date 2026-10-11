@@ -25,6 +25,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	scimservice "github.com/Basmatireis/Makerspace-Core/backend/internal/scim"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
@@ -58,6 +59,7 @@ type Server struct {
 	laborordnung   *laborordnung.Service
 	orders         *orders.Service
 	machineLogbook *machinelogbook.Service
+	printing       *printing.Service
 	supervisors    *supervisors.Service
 	oidc           *oidcservice.Service
 	scim           *scimservice.Service
@@ -117,6 +119,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		files:          fileService,
 		laborordnung:   labRulesService,
 		machineLogbook: machineLogbook,
+		printing:       printing.NewService(pool, machineLogbook),
 		orders:         orders.NewService(pool, machineLogbook),
 		supervisors:    supervisors.NewService(pool),
 		oidc:           oidcService,
@@ -602,14 +605,14 @@ func (s *Server) CompleteEmailVerification(ctx context.Context, request openapi.
 }
 
 func (s *Server) GetLiveness(context.Context, openapi.GetLivenessRequestObject) (openapi.GetLivenessResponseObject, error) {
-	return openapi.GetLiveness200JSONResponse(openapi.HealthStatus{Status: openapi.Ok}), nil
+	return openapi.GetLiveness200JSONResponse(openapi.HealthStatus{Status: openapi.HealthStatusStatusOk}), nil
 }
 
 func (s *Server) GetReadiness(ctx context.Context, _ openapi.GetReadinessRequestObject) (openapi.GetReadinessResponseObject, error) {
 	if err := s.pool.Ping(ctx); err != nil {
-		return openapi.GetReadiness503JSONResponse(openapi.HealthStatus{Status: openapi.Unavailable}), nil
+		return openapi.GetReadiness503JSONResponse(openapi.HealthStatus{Status: openapi.HealthStatusStatusUnavailable}), nil
 	}
-	return openapi.GetReadiness200JSONResponse(openapi.HealthStatus{Status: openapi.Ok}), nil
+	return openapi.GetReadiness200JSONResponse(openapi.HealthStatus{Status: openapi.HealthStatusStatusOk}), nil
 }
 
 func (s *Server) ListPeople(ctx context.Context, request openapi.ListPeopleRequestObject) (openapi.ListPeopleResponseObject, error) {

@@ -59,7 +59,12 @@ const JobDetailPage = lazy(() => import('../features/machinelogbook/JobDetailPag
 const ReviewPage = lazy(() => import('../features/machinelogbook/ReviewPage').then(({ ReviewPage }) => ({ default: ReviewPage })));
 const InventoryPage = lazy(() => import('../features/machinelogbook/InventoryPage').then(({ InventoryPage }) => ({ default: InventoryPage })));
 const MaterialDetailPage = lazy(() => import('../features/machinelogbook/MaterialDetailPage').then(({ MaterialDetailPage }) => ({ default: MaterialDetailPage })));
+const FilamentSpoolsPage = lazy(() => import('../features/machinelogbook/FilamentSpoolsPage').then(({ FilamentSpoolsPage }) => ({ default: FilamentSpoolsPage })));
+const FilamentSpoolDetailPage = lazy(() => import('../features/machinelogbook/FilamentSpoolDetailPage').then(({ FilamentSpoolDetailPage }) => ({ default: FilamentSpoolDetailPage })));
 const MachinesPage = lazy(() => import('../features/machinelogbook/MachinesPage').then(({ MachinesPage }) => ({ default: MachinesPage })));
+const PrinterProfilePage = lazy(() => import('../features/machinelogbook/PrinterProfilePage').then(({ PrinterProfilePage }) => ({ default: PrinterProfilePage })));
+const PrintSubmissionsPage = lazy(() => import('../features/machinelogbook/PrintSubmissionsPage').then(({ PrintSubmissionsPage }) => ({ default: PrintSubmissionsPage })));
+const PrintSubmissionDetailPage = lazy(() => import('../features/machinelogbook/PrintSubmissionDetailPage').then(({ PrintSubmissionDetailPage }) => ({ default: PrintSubmissionDetailPage })));
 const StatisticsPage = lazy(() => import('../features/machinelogbook/StatisticsPage').then(({ StatisticsPage }) => ({ default: StatisticsPage })));
 const OpenDaysPage = lazy(() => import('../features/opendays/OpenDaysPage').then(({ OpenDaysPage }) => ({ default: OpenDaysPage })));
 const OpenDayPeriodPage = lazy(() => import('../features/opendays/OpenDayPeriodPage').then(({ OpenDayPeriodPage }) => ({ default: OpenDayPeriodPage })));
@@ -157,7 +162,12 @@ export function App() {
 		<Route path="machine-logbook/review" element={<PermissionRoute allOf={[PermissionId.machine_jobsreview]}><ReviewPage /></PermissionRoute>} />
 		<Route path="machine-logbook/inventory" element={<PermissionRoute allOf={[PermissionId.inventoryread]}><InventoryPage /></PermissionRoute>} />
 		<Route path="machine-logbook/inventory/:materialId" element={<PermissionRoute allOf={[PermissionId.inventoryread]}><MaterialDetailPage /></PermissionRoute>} />
+		<Route path="machine-logbook/spools" element={<PermissionRoute allOf={[PermissionId.inventoryread]}><FilamentSpoolsPage /></PermissionRoute>} />
+		<Route path="machine-logbook/spools/:spoolId" element={<PermissionRoute allOf={[PermissionId.inventoryread]}><FilamentSpoolDetailPage /></PermissionRoute>} />
 		<Route path="machine-logbook/machines" element={<PermissionRoute allOf={[PermissionId.machinesread]}><MachinesPage /></PermissionRoute>} />
+		<Route path="machine-logbook/machines/:machineId/printer" element={<PermissionRoute allOf={[PermissionId.machinesread]}><PrinterProfilePage /></PermissionRoute>} />
+		<Route path="machine-logbook/print-submissions" element={<PermissionRoute allOf={[PermissionId.print_submissionsread]}><PrintSubmissionsPage /></PermissionRoute>} />
+		<Route path="machine-logbook/print-submissions/:submissionId" element={<PermissionRoute allOf={[PermissionId.print_submissionsread]}><PrintSubmissionDetailPage /></PermissionRoute>} />
 		<Route path="machine-logbook/statistics" element={<PermissionRoute allOf={[PermissionId.statisticsread]}><StatisticsPage /></PermissionRoute>} />
 		<Route path="supervisors" element={<LegacyRedirect from="/supervisors" to="/people/staffing" />} />
         <Route

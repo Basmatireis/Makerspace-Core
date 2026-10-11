@@ -133,7 +133,7 @@ test('persists the complete machine-logbook workflow through the live API and UI
       externalId: `E2E-${Date.now()}`,
       startsAt,
       endsAt,
-      usages: [{ materialId: material.id, quantity: '50' }],
+      usages: [{ ownership: 'makerspace', materialId: material.id, quantity: '50', quantityBasis: 'actual' }],
       externalMetadata: { collector: 'playwright' },
     }),
     'ingest automatic job',

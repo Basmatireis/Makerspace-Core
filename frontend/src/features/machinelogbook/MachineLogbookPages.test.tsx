@@ -54,8 +54,8 @@ function jobFixture(overrides: Partial<MachineJob> = {}): MachineJob {
     outcome: 'unknown',
     notes: null,
     usages: [
-      { id: '0192f6f8-743e-7c77-a349-cd07c3e8a917', materialId, materialName: 'PLA Black', category: 'pla', unit: 'g', quantity: '183' },
-      { id: '0192f6f8-743e-7c77-a349-cd07c3e8a918', materialId: secondMaterialId, materialName: 'Support White', category: 'pla', unit: 'g', quantity: '12' },
+      { id: '0192f6f8-743e-7c77-a349-cd07c3e8a917', ownership: 'makerspace', materialId, materialName: 'PLA Black', category: 'pla', unit: 'g', quantity: '183', quantityBasis: 'actual' },
+      { id: '0192f6f8-743e-7c77-a349-cd07c3e8a918', ownership: 'makerspace', materialId: secondMaterialId, materialName: 'Support White', category: 'pla', unit: 'g', quantity: '12', quantityBasis: 'actual' },
     ],
     pricingStatus: 'pending',
     pricingSnapshot: null,
@@ -80,6 +80,8 @@ const material: Material = {
   active: true,
   lowStockThreshold: '500',
   quantity: '8420',
+  assignedQuantity: '0',
+  unassignedQuantity: '8420',
   averageUnitCost: '0.018',
   inventoryValue: '151.56',
   stockState: 'in_stock',
@@ -208,6 +210,7 @@ describe('Machine Logbook pages', () => {
       http.get('*/api/v1/machine-jobs', () => HttpResponse.json({ items: [], page: 1, pageSize: 25, total: 0 })),
       http.get('*/api/v1/machines', () => HttpResponse.json({ items: [machine], page: 1, pageSize: 100, total: 1 })),
       http.get('*/api/v1/materials', () => HttpResponse.json({ items: [material], page: 1, pageSize: 100, total: 1, totalInventoryValue: material.inventoryValue })),
+      http.get('*/api/v1/filament-spools', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 })),
       http.get('*/api/v1/pricing-groups', () => HttpResponse.json({ items: [] })),
       http.get('*/api/v1/billing-parties', () => HttpResponse.json({ items: [{ kind: 'organization', id: organizationId, displayName: 'TU Berlin', organizationKind: 'institute', pricingGroup: null, pricingGroupAssignmentVersion: 0 }] })),
       http.get('*/api/v1/machine-job-operators', () => HttpResponse.json({ items: [{ personId: operatorId, displayName: 'Maria Hoffmann' }] })),
@@ -263,8 +266,30 @@ describe('Machine Logbook pages', () => {
     await user.type(within(dialog).getByLabelText('Color (optional)'), 'Black');
     await user.type(within(dialog).getByLabelText('Low-stock threshold (optional)'), '500');
     await user.click(within(dialog).getByRole('button', { name: 'Add material' }));
-    await waitFor(() => expect(submitted).toEqual({ name: 'PLA Black', category: 'pla', color: 'Black', unit: 'g', lowStockThreshold: '500' }));
+    await waitFor(() => expect(submitted).toEqual({ name: 'PLA Black', category: 'pla', color: 'Black', unit: 'g', lowStockThreshold: '500', filamentDiameterMm: null }));
     expect(await screen.findByRole('heading', { name: 'PLA Black' })).toBeInTheDocument();
+  });
+
+  it('lists physical filament spools with derived quantities', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.inventoryread]))),
+      http.get('*/api/v1/filament-spools', () => HttpResponse.json({ items: [{ id: secondMaterialId, displayId: 'S-2026-000001', materialId, materialName: 'PLA Black', category: 'pla', color: 'Black', unit: 'g', manufacturer: 'Prusament', productName: 'PLA', initialNetWeightG: '1000', remainingQuantity: '842', tareWeightG: '210', acquiredOn: null, acquisitionReference: null, storageLocation: 'Shelf A', notes: null, lifecycle: 'active', mounted: false, identifiers: [], version: 2, createdAt: '2026-09-15T08:00:00Z', updatedAt: '2026-09-15T08:00:00Z' }], page: 1, pageSize: 25, total: 1 })),
+    );
+    renderRoute(<App />, '/machine-logbook/spools');
+    expect(await screen.findByRole('heading', { name: 'Filament spools' })).toBeInTheDocument();
+    expect(screen.getByText('S-2026-000001')).toBeInTheDocument();
+    expect(screen.getByText('842 g')).toBeInTheDocument();
+  });
+
+  it('lists staff print submissions and their workflow state', async () => {
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.print_submissionsread]))),
+      http.get('*/api/v1/print-submissions', () => HttpResponse.json({ items: [{ id: secondMaterialId, displayId: 'PS-2026-000001', machineId, machineName: machine.name, customer: null, title: 'Replacement bracket', notes: null, state: 'queued', reprintsSubmissionId: null, declarations: [], attempts: [], version: 1, createdAt: '2026-09-15T08:00:00Z', updatedAt: '2026-09-15T08:00:00Z' }], page: 1, pageSize: 25, total: 1 })),
+    );
+    renderRoute(<App />, '/machine-logbook/print-submissions');
+    expect(await screen.findByRole('heading', { name: 'Print submissions' })).toBeInTheDocument();
+    expect(screen.getByText('Replacement bracket')).toBeInTheDocument();
+    expect(screen.getByText('queued')).toBeInTheDocument();
   });
 
   it('submits optimistic organization and pricing-rule edits', async () => {

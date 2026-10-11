@@ -14,7 +14,7 @@ Person references use ON DELETE SET NULL. Hard-deleting a Person therefore remov
 
 Jobs have an application-generated UUIDv7 and a sequence-backed display identifier such as **J-2026-000001**; sequence gaps are expected. Times are stored as UTC timestamptz. Sources are **manual** and **automatic**; outcomes are **successful**, **partial_failure**, **failed**, **cancelled**, and **unknown**. Outcome does not decide whether material consumption is retained.
 
-Material usage is a set of typed material/quantity rows. Supported units are **g**, **m**, **ml**, **m2**, and **piece**. Runtime is derived from the job interval. The module deliberately does not provide a generic metric/EAV store.
+Material usage is a set of typed material/quantity rows. Supported units are **g**, **m**, **ml**, **m2**, and **piece**. Filament usage also records makerspace/external ownership, optional physical Spool attribution, and actual/estimated quantity basis. External filament does not consume stock or add a makerspace material charge. Runtime is derived from the job interval. The module deliberately does not provide a generic metric/EAV store.
 
 Ordinary manual-job creation requires a machine, customer, enabled-account operator, interval, outcome, and valid usages and is confirmed atomically. Anonymous creation/confirmation is permitted only through the Orders counter-sale transaction, which must fully settle an immediately fulfilled cash/card charge. Automatic ingestion creates a **needs_review** job and proposed usages without touching inventory. Confirmation supplies the missing assignments and outcome, captures pricing, consumes every material, confirms the job, and writes audit events in one transaction.
 
@@ -42,6 +42,8 @@ The calculated amount and final override are separate. An override records amoun
 
 Materials are versioned catalog records with a normalized category, unit, optional color, active state, and optional low-stock threshold. **inventory_transactions** is an immutable ledger with purchase, machine-job consumption, manual consumption, adjustment, and disposal entries. The material balance is maintained transactionally with quantity, inventory value, weighted-average unit cost, and an inventory version.
 
+Gram-denominated filament Materials may define a diameter and contain physical Spools. Spool balances are derived from the same ledger through attributed transactions and zero-value transfers, while the Material exposes assigned and unassigned quantities. See [Filament spools and generic printer integration](filament-printing.md).
+
 Every balance mutation locks material rows in UUID order, checks **expectedInventoryVersion**, prevents negative stock, writes its ledger row, updates the balance, and writes audit data in the same transaction. Multi-material job consumption is all-or-nothing.
 
 Purchases add their total acquisition price and recalculate weighted-average cost. Outgoing consumption and disposal record the current average cost. Positive corrections use the current average; when none exists, the correction requires an acquisition unit cost. Marking a material empty writes one negative adjustment for the locked current quantity. No correction edits historical transactions.
@@ -53,6 +55,8 @@ The module registers:
 - **machines.read**, **machines.manage**
 - **machine_jobs.read**, **machine_jobs.create**, **machine_jobs.edit**, **machine_jobs.review**, **machine_jobs.override_price**
 - **inventory.read**, **inventory.manage**
+- **filament_spools.manage**, **printer_slots.assign**
+- **print_submissions.read**, **print_submissions.manage**
 - **organizations.read**, **organizations.manage**
 - **pricing.read**, **pricing.manage**
 - **statistics.read**

@@ -55,7 +55,7 @@ export function JobsPage() {
   const machineOptions = [...new Map(query.data.items.map((job) => [job.machine.id, job.machine.name])).entries()];
   const customerOptions = [...new Map(query.data.items.filter((job) => job.customer).map((job) => [job.customer!.id, job.customer!.displayName])).entries()];
   const operatorOptions = [...new Map(query.data.items.filter((job) => job.operator).map((job) => [job.operator!.personId, job.operator!.displayName])).entries()];
-  const materialOptions = [...new Map(query.data.items.flatMap((job) => job.usages.map((usage) => [usage.materialId, usage.materialName] as const))).entries()];
+  const materialOptions = [...new Map(query.data.items.flatMap((job) => job.usages.filter((usage) => usage.materialId).map((usage) => [usage.materialId!, usage.materialName] as const))).entries()];
 
   return <PageShell title="Jobs" description={`${query.data.total} machine jobs`} breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Jobs' }]} actions={hasPermission(currentUser, PermissionId.machine_jobscreate) ? <Button renderIcon={Add} onClick={() => setCreateOpen(true)}>New job</Button> : undefined} width="wide" className="machine-logbook-page table-page">
     <div className="filter-bar jobs-filter-bar">

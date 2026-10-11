@@ -210,6 +210,7 @@ function currentUser() {
     permissions,
     authenticationAssurance: 'normal',
     managedDevice: null,
+    session: { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' },
     delegablePermissionGrants: permissions.map((permissionId) => ({
       permissionId,
       scope: 'everywhere',
@@ -235,6 +236,9 @@ async function installMachineLogbookApi(page: Page) {
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/auth/activity' && request.method() === 'POST') {
+      return json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
+    }
     if (request.method() !== 'GET') {
       throw new Error(`Unexpected mutation in read-only page coverage: ${request.method()} ${path}`);
     }

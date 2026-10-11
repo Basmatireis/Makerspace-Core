@@ -37,6 +37,7 @@ function currentUser(permissions: string[]) {
     permissions,
     authenticationAssurance: 'normal',
     managedDevice: null,
+    session: { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' },
     delegablePermissionGrants: permissions.map((permissionId) => ({ permissionId, scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' })),
     laborordnungStatus: { mode: 'not_required', state: 'not_required', actionRequired: false, currentVersion: null, latestConfirmedVersion: null, requestId: null },
   };
@@ -118,6 +119,7 @@ test('uses the standard table toolbar, filters, and pagination for events', asyn
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/auth/activity' && request.method() === 'POST') return json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
     if (path === '/api/v1/public/config') return json(route, defaultPublicBrandingConfiguration());
     if (path === '/api/v1/auth/oidc/providers') return json(route, { items: [] });
     if (path === '/api/v1/auth/me') return json(route, currentUser(['events.read', 'events.manage']));
@@ -160,6 +162,7 @@ test('supports internal planning and staffing at desktop and narrow widths', asy
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/auth/activity' && request.method() === 'POST') return json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
     if (path === '/api/v1/public/config') return json(route, defaultPublicBrandingConfiguration());
     if (path === '/api/v1/auth/oidc/providers') return json(route, { items: [] });
     if (path === '/api/v1/auth/me') return json(route, currentUser(['events.read', 'events.manage', 'events.staffing.manage', 'events.assign']));
@@ -270,6 +273,7 @@ test('creates an anonymous signup and keeps its management token in the URL frag
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/auth/activity' && request.method() === 'POST') return json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
     if (path === '/api/v1/public/config') return json(route, defaultPublicBrandingConfiguration());
     if (path === '/api/v1/auth/oidc/providers') return json(route, { items: [] });
     if (path === '/api/v1/auth/me') return json(route, { code: 'invalid_session', message: 'Sign in required.' }, 401);
@@ -321,6 +325,7 @@ test('supports authenticated self and on-behalf public signup without exposing r
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    if (path === '/api/v1/auth/activity' && request.method() === 'POST') return json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
     if (path === '/api/v1/public/config') return json(route, defaultPublicBrandingConfiguration());
     if (path === '/api/v1/auth/oidc/providers') return json(route, { items: [] });
     if (path === '/api/v1/auth/me') return json(route, currentUser([]));

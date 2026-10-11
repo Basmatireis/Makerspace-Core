@@ -20,6 +20,7 @@ the required session and CSRF credentials.
  */
 import type { MaterialUnit } from './materialUnit';
 import type { CreateMaterialRequestLowStockThreshold } from './createMaterialRequestLowStockThreshold';
+import type { CreateMaterialRequestFilamentDiameterMm } from './createMaterialRequestFilamentDiameterMm';
 
 export interface CreateMaterialRequest {
   /**
@@ -40,4 +41,6 @@ export interface CreateMaterialRequest {
   unit: MaterialUnit;
   /** @nullable */
   lowStockThreshold?: CreateMaterialRequestLowStockThreshold;
+  /** @nullable */
+  filamentDiameterMm?: CreateMaterialRequestFilamentDiameterMm;
 }

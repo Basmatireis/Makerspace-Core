@@ -10,6 +10,7 @@ function currentUser() {
     account,
     permissions: ['branding.manage'],
     authenticationAssurance: 'normal', managedDevice: null,
+    session: { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' },
     delegablePermissionGrants: [{ permissionId: 'branding.manage', scope: 'everywhere', deviceTypeIds: [], minimumAssurance: 'low' }],
     laborordnungStatus: { mode: 'not_required', state: 'not_required', actionRequired: false, currentVersion: null, latestConfirmedVersion: null, requestId: null },
   };
@@ -63,6 +64,7 @@ test('rebrands without a rebuild, cache-busts replaced assets, and exposes legal
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname;
+    if (path === '/api/v1/auth/activity' && request.method() === 'POST') return json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
     if (path === '/api/v1/public/config' && request.method() === 'GET') return json(route, publicConfiguration(configuration));
     if (path === '/api/v1/public/legal/imprint' && request.method() === 'GET') return json(route, { kind: 'imprint', title: 'Imprint', mode: 'internal', markdown: configuration.imprint.markdown, externalUrl: null });
     if (path === '/api/v1/auth/me' && request.method() === 'GET') return json(route, currentUser());

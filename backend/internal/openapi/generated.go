@@ -58,6 +58,13 @@ const (
 	AccountSummaryProvisioningSourceVisitor    AccountSummaryProvisioningSource = "visitor"
 )
 
+// Defines values for AddFilamentSpoolIdentifierRequestKind.
+const (
+	AddFilamentSpoolIdentifierRequestKindBarcode AddFilamentSpoolIdentifierRequestKind = "barcode"
+	AddFilamentSpoolIdentifierRequestKindNfc     AddFilamentSpoolIdentifierRequestKind = "nfc"
+	AddFilamentSpoolIdentifierRequestKindQr      AddFilamentSpoolIdentifierRequestKind = "qr"
+)
+
 // Defines values for AuditActorType.
 const (
 	AuditActorTypeSystem  AuditActorType = "system"
@@ -138,6 +145,19 @@ const (
 	CounterSaleQuoteCurrencyEUR CounterSaleQuoteCurrency = "EUR"
 )
 
+// Defines values for CreateFilamentSpoolRequestStockMode.
+const (
+	ExistingStock  CreateFilamentSpoolRequestStockMode = "existing_stock"
+	NewAcquisition CreateFilamentSpoolRequestStockMode = "new_acquisition"
+)
+
+// Defines values for CreatePrinterSlotRequestStatus.
+const (
+	CreatePrinterSlotRequestStatusAvailable   CreatePrinterSlotRequestStatus = "available"
+	CreatePrinterSlotRequestStatusRetired     CreatePrinterSlotRequestStatus = "retired"
+	CreatePrinterSlotRequestStatusUnavailable CreatePrinterSlotRequestStatus = "unavailable"
+)
+
 // Defines values for CreateRoleRequestLaborordnungMode.
 const (
 	CreateRoleRequestLaborordnungModeBlocking    CreateRoleRequestLaborordnungMode = "blocking"
@@ -153,12 +173,12 @@ const (
 
 // Defines values for DeviceCapability.
 const (
-	Barcode      DeviceCapability = "barcode"
-	Camera       DeviceCapability = "camera"
-	LabelPrinter DeviceCapability = "label_printer"
-	Nfc          DeviceCapability = "nfc"
-	Qr           DeviceCapability = "qr"
-	Scale        DeviceCapability = "scale"
+	DeviceCapabilityBarcode      DeviceCapability = "barcode"
+	DeviceCapabilityCamera       DeviceCapability = "camera"
+	DeviceCapabilityLabelPrinter DeviceCapability = "label_printer"
+	DeviceCapabilityNfc          DeviceCapability = "nfc"
+	DeviceCapabilityQr           DeviceCapability = "qr"
+	DeviceCapabilityScale        DeviceCapability = "scale"
 )
 
 // Defines values for DevicePlatform.
@@ -260,10 +280,29 @@ const (
 	ExternalInvoiceRequestStateSubmitted             ExternalInvoiceRequestState = "submitted"
 )
 
+// Defines values for FilamentOwnership.
+const (
+	FilamentOwnershipExternal   FilamentOwnership = "external"
+	FilamentOwnershipMakerspace FilamentOwnership = "makerspace"
+)
+
+// Defines values for FilamentSpoolLifecycle.
+const (
+	FilamentSpoolLifecycleActive  FilamentSpoolLifecycle = "active"
+	FilamentSpoolLifecycleRetired FilamentSpoolLifecycle = "retired"
+)
+
+// Defines values for FilamentSpoolIdentifierKind.
+const (
+	FilamentSpoolIdentifierKindBarcode FilamentSpoolIdentifierKind = "barcode"
+	FilamentSpoolIdentifierKindNfc     FilamentSpoolIdentifierKind = "nfc"
+	FilamentSpoolIdentifierKindQr      FilamentSpoolIdentifierKind = "qr"
+)
+
 // Defines values for HealthStatusStatus.
 const (
-	Ok          HealthStatusStatus = "ok"
-	Unavailable HealthStatusStatus = "unavailable"
+	HealthStatusStatusOk          HealthStatusStatus = "ok"
+	HealthStatusStatusUnavailable HealthStatusStatus = "unavailable"
 )
 
 // Defines values for InventoryAdjustmentReason.
@@ -284,6 +323,7 @@ const (
 	MachineJobConsumption InventoryTransactionKind = "machine_job_consumption"
 	ManualConsumption     InventoryTransactionKind = "manual_consumption"
 	Purchase              InventoryTransactionKind = "purchase"
+	SpoolTransfer         InventoryTransactionKind = "spool_transfer"
 )
 
 // Defines values for InvoiceRequestCommandReconciliationKind.
@@ -578,6 +618,7 @@ const (
 	EventsStaffingManage          PermissionId = "events.staffing.manage"
 	ExternalInvoiceRequestsManage PermissionId = "external_invoice_requests.manage"
 	ExternalInvoiceRequestsRead   PermissionId = "external_invoice_requests.read"
+	FilamentSpoolsManage          PermissionId = "filament_spools.manage"
 	IdentitiesOidcLinkAll         PermissionId = "identities.oidc.link.all"
 	IdentitiesOidcLinkSelf        PermissionId = "identities.oidc.link.self"
 	IdentitiesOidcUnlinkAll       PermissionId = "identities.oidc.unlink.all"
@@ -628,6 +669,9 @@ const (
 	PeopleUpdateSelf              PermissionId = "people.update.self"
 	PricingManage                 PermissionId = "pricing.manage"
 	PricingRead                   PermissionId = "pricing.read"
+	PrintSubmissionsManage        PermissionId = "print_submissions.manage"
+	PrintSubmissionsRead          PermissionId = "print_submissions.read"
+	PrinterSlotsAssign            PermissionId = "printer_slots.assign"
 	RolesManage                   PermissionId = "roles.manage"
 	RolesRead                     PermissionId = "roles.read"
 	ScimManage                    PermissionId = "scim.manage"
@@ -653,9 +697,54 @@ const (
 
 // Defines values for PricingStatus.
 const (
-	Complete   PricingStatus = "complete"
-	Incomplete PricingStatus = "incomplete"
-	Pending    PricingStatus = "pending"
+	PricingStatusComplete   PricingStatus = "complete"
+	PricingStatusIncomplete PricingStatus = "incomplete"
+	PricingStatusPending    PricingStatus = "pending"
+)
+
+// Defines values for PrintAttemptState.
+const (
+	PrintAttemptStateAccepted  PrintAttemptState = "accepted"
+	PrintAttemptStateCancelled PrintAttemptState = "cancelled"
+	PrintAttemptStateCompleted PrintAttemptState = "completed"
+	PrintAttemptStateFailed    PrintAttemptState = "failed"
+	PrintAttemptStatePrinting  PrintAttemptState = "printing"
+	PrintAttemptStateQueued    PrintAttemptState = "queued"
+)
+
+// Defines values for PrintSubmissionState.
+const (
+	PrintSubmissionStateCancelled  PrintSubmissionState = "cancelled"
+	PrintSubmissionStateCompleted  PrintSubmissionState = "completed"
+	PrintSubmissionStateFailed     PrintSubmissionState = "failed"
+	PrintSubmissionStateInProgress PrintSubmissionState = "in_progress"
+	PrintSubmissionStateQueued     PrintSubmissionState = "queued"
+)
+
+// Defines values for PrinterEventKind.
+const (
+	Connectivity      PrinterEventKind = "connectivity"
+	ConsumptionReport PrinterEventKind = "consumption_report"
+	Identity          PrinterEventKind = "identity"
+	OperationalState  PrinterEventKind = "operational_state"
+	Progress          PrinterEventKind = "progress"
+	SlotObservation   PrinterEventKind = "slot_observation"
+	TerminalOutcome   PrinterEventKind = "terminal_outcome"
+)
+
+// Defines values for PrinterEventReconciliationState.
+const (
+	PrinterEventReconciliationStateAccepted      PrinterEventReconciliationState = "accepted"
+	PrinterEventReconciliationStateNotApplicable PrinterEventReconciliationState = "not_applicable"
+	PrinterEventReconciliationStatePending       PrinterEventReconciliationState = "pending"
+	PrinterEventReconciliationStateRejected      PrinterEventReconciliationState = "rejected"
+)
+
+// Defines values for PrinterSlotStatus.
+const (
+	PrinterSlotStatusAvailable   PrinterSlotStatus = "available"
+	PrinterSlotStatusRetired     PrinterSlotStatus = "retired"
+	PrinterSlotStatusUnavailable PrinterSlotStatus = "unavailable"
 )
 
 // Defines values for ProfileImageSource.
@@ -694,6 +783,18 @@ const (
 // Defines values for PublicOpenDayTitle.
 const (
 	PublicOpenDayTitleOpenDay PublicOpenDayTitle = "Open Day"
+)
+
+// Defines values for QuantityBasis.
+const (
+	Actual    QuantityBasis = "actual"
+	Estimated QuantityBasis = "estimated"
+)
+
+// Defines values for ReconcilePrinterEventRequestDecision.
+const (
+	Accepted ReconcilePrinterEventRequestDecision = "accepted"
+	Rejected ReconcilePrinterEventRequestDecision = "rejected"
 )
 
 // Defines values for RecurrenceOccurrenceDisposition.
@@ -742,8 +843,8 @@ const (
 
 // Defines values for SupervisorPeriodStatus.
 const (
-	Published SupervisorPeriodStatus = "published"
-	Staffing  SupervisorPeriodStatus = "staffing"
+	SupervisorPeriodStatusPublished SupervisorPeriodStatus = "published"
+	SupervisorPeriodStatusStaffing  SupervisorPeriodStatus = "staffing"
 )
 
 // Defines values for SupervisorRowLaborordnungState.
@@ -786,6 +887,21 @@ const (
 // Defines values for TerminalContextStaffDestination.
 const (
 	Login TerminalContextStaffDestination = "login"
+)
+
+// Defines values for TransitionPrintAttemptRequestState.
+const (
+	TransitionPrintAttemptRequestStateAccepted  TransitionPrintAttemptRequestState = "accepted"
+	TransitionPrintAttemptRequestStateCancelled TransitionPrintAttemptRequestState = "cancelled"
+	TransitionPrintAttemptRequestStateCompleted TransitionPrintAttemptRequestState = "completed"
+	TransitionPrintAttemptRequestStateFailed    TransitionPrintAttemptRequestState = "failed"
+	TransitionPrintAttemptRequestStatePrinting  TransitionPrintAttemptRequestState = "printing"
+)
+
+// Defines values for UpdateFilamentSpoolRequestLifecycle.
+const (
+	UpdateFilamentSpoolRequestLifecycleActive  UpdateFilamentSpoolRequestLifecycle = "active"
+	UpdateFilamentSpoolRequestLifecycleRetired UpdateFilamentSpoolRequestLifecycle = "retired"
 )
 
 // Defines values for UpdateMailConfigurationRequestTlsMode.
@@ -853,6 +969,19 @@ const (
 	VisitorEnrollmentResultInvitationDeliverySent   VisitorEnrollmentResultInvitationDelivery = "sent"
 )
 
+// Defines values for ListFilamentSpoolsParamsLifecycle.
+const (
+	ListFilamentSpoolsParamsLifecycleActive  ListFilamentSpoolsParamsLifecycle = "active"
+	ListFilamentSpoolsParamsLifecycleRetired ListFilamentSpoolsParamsLifecycle = "retired"
+)
+
+// Defines values for LookupFilamentSpoolParamsKind.
+const (
+	LookupFilamentSpoolParamsKindBarcode LookupFilamentSpoolParamsKind = "barcode"
+	LookupFilamentSpoolParamsKindNfc     LookupFilamentSpoolParamsKind = "nfc"
+	LookupFilamentSpoolParamsKindQr      LookupFilamentSpoolParamsKind = "qr"
+)
+
 // Defines values for ListOrderPaymentsParamsMethod.
 const (
 	ListOrderPaymentsParamsMethodCard     ListOrderPaymentsParamsMethod = "card"
@@ -862,9 +991,9 @@ const (
 
 // Defines values for GetPaymentReconciliationParamsMethod.
 const (
-	GetPaymentReconciliationParamsMethodCard     GetPaymentReconciliationParamsMethod = "card"
-	GetPaymentReconciliationParamsMethodCash     GetPaymentReconciliationParamsMethod = "cash"
-	GetPaymentReconciliationParamsMethodExternal GetPaymentReconciliationParamsMethod = "external"
+	Card     GetPaymentReconciliationParamsMethod = "card"
+	Cash     GetPaymentReconciliationParamsMethod = "cash"
+	External GetPaymentReconciliationParamsMethod = "external"
 )
 
 // Defines values for PutPersonProfileImageParamsXProfileImageSource.
@@ -872,6 +1001,15 @@ const (
 	PutPersonProfileImageParamsXProfileImageSourceAdminUpload     PutPersonProfileImageParamsXProfileImageSource = "admin_upload"
 	PutPersonProfileImageParamsXProfileImageSourceSelfUpload      PutPersonProfileImageParamsXProfileImageSource = "self_upload"
 	PutPersonProfileImageParamsXProfileImageSourceTerminalCapture PutPersonProfileImageParamsXProfileImageSource = "terminal_capture"
+)
+
+// Defines values for ListPrintSubmissionsParamsState.
+const (
+	Cancelled  ListPrintSubmissionsParamsState = "cancelled"
+	Completed  ListPrintSubmissionsParamsState = "completed"
+	Failed     ListPrintSubmissionsParamsState = "failed"
+	InProgress ListPrintSubmissionsParamsState = "in_progress"
+	Queued     ListPrintSubmissionsParamsState = "queued"
 )
 
 // Defines values for GetPublicLegalDocumentParamsDocument.
@@ -958,6 +1096,15 @@ type AccountSummary struct {
 
 // AccountSummaryProvisioningSource defines model for AccountSummary.ProvisioningSource.
 type AccountSummaryProvisioningSource string
+
+// AddFilamentSpoolIdentifierRequest defines model for AddFilamentSpoolIdentifierRequest.
+type AddFilamentSpoolIdentifierRequest struct {
+	Kind  AddFilamentSpoolIdentifierRequestKind `json:"kind"`
+	Value string                                `json:"value"`
+}
+
+// AddFilamentSpoolIdentifierRequestKind defines model for AddFilamentSpoolIdentifierRequest.Kind.
+type AddFilamentSpoolIdentifierRequestKind string
 
 // AddMaterialPurchaseRequest defines model for AddMaterialPurchaseRequest.
 type AddMaterialPurchaseRequest struct {
@@ -1238,6 +1385,12 @@ type CompletePinEnrollmentRequest struct {
 	Pin       *string `json:"pin,omitempty"`
 }
 
+// ConfigurePrinterRequest defines model for ConfigurePrinterRequest.
+type ConfigurePrinterRequest struct {
+	Enabled         bool  `json:"enabled"`
+	ExpectedVersion int64 `json:"expectedVersion"`
+}
+
 // ConfirmLaborordnungRequest defines model for ConfirmLaborordnungRequest.
 type ConfirmLaborordnungRequest struct {
 	ArchiveNote               nullable.Nullable[string]             `json:"archiveNote,omitempty"`
@@ -1269,6 +1422,21 @@ type CorrectMaterialStockRequest struct {
 	OccurredAt               time.Time                 `json:"occurredAt"`
 	PhysicalQuantity         Decimal                   `json:"physicalQuantity"`
 	Reason                   InventoryAdjustmentReason `json:"reason"`
+}
+
+// CorrectSpoolStockRequest defines model for CorrectSpoolStockRequest.
+type CorrectSpoolStockRequest struct {
+	AcquisitionUnitCost nullable.Nullable[Decimal] `json:"acquisitionUnitCost,omitempty"`
+
+	// ExpectedInventoryVersion Optimistic-concurrency version.
+	ExpectedInventoryVersion Version `json:"expectedInventoryVersion"`
+
+	// ExpectedSpoolVersion Optimistic-concurrency version.
+	ExpectedSpoolVersion Version                   `json:"expectedSpoolVersion"`
+	Note                 nullable.Nullable[string] `json:"note,omitempty"`
+	OccurredAt           time.Time                 `json:"occurredAt"`
+	PhysicalQuantity     Decimal                   `json:"physicalQuantity"`
+	Reason               InventoryAdjustmentReason `json:"reason"`
 }
 
 // CounterSaleCommand defines model for CounterSaleCommand.
@@ -1350,6 +1518,30 @@ type CreateEventRequest struct {
 	OwnerPersonId       nullable.Nullable[UUIDv7] `json:"ownerPersonId,omitempty"`
 }
 
+// CreateFilamentSpoolRequest defines model for CreateFilamentSpoolRequest.
+type CreateFilamentSpoolRequest struct {
+	AcquiredOn           nullable.Nullable[openapi_types.Date] `json:"acquiredOn,omitempty"`
+	AcquisitionReference nullable.Nullable[string]             `json:"acquisitionReference,omitempty"`
+
+	// ExpectedInventoryVersion Optimistic-concurrency version.
+	ExpectedInventoryVersion Version                   `json:"expectedInventoryVersion"`
+	InitialNetWeightG        Decimal                   `json:"initialNetWeightG"`
+	Manufacturer             nullable.Nullable[string] `json:"manufacturer,omitempty"`
+
+	// MaterialId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MaterialId      UUIDv7                              `json:"materialId"`
+	Notes           nullable.Nullable[string]           `json:"notes,omitempty"`
+	OccurredAt      time.Time                           `json:"occurredAt"`
+	ProductName     nullable.Nullable[string]           `json:"productName,omitempty"`
+	StockMode       CreateFilamentSpoolRequestStockMode `json:"stockMode"`
+	StorageLocation nullable.Nullable[string]           `json:"storageLocation,omitempty"`
+	TareWeightG     nullable.Nullable[Decimal]          `json:"tareWeightG,omitempty"`
+	TotalPrice      nullable.Nullable[Money]            `json:"totalPrice,omitempty"`
+}
+
+// CreateFilamentSpoolRequestStockMode defines model for CreateFilamentSpoolRequest.StockMode.
+type CreateFilamentSpoolRequestStockMode string
+
 // CreateInvoiceRequest defines model for CreateInvoiceRequest.
 type CreateInvoiceRequest struct {
 	Details InvoiceRequestDetails `json:"details"`
@@ -1423,11 +1615,12 @@ type CreateManagedDeviceTypeRequest struct {
 
 // CreateMaterialRequest defines model for CreateMaterialRequest.
 type CreateMaterialRequest struct {
-	Category          string                     `json:"category"`
-	Color             nullable.Nullable[string]  `json:"color,omitempty"`
-	LowStockThreshold nullable.Nullable[Decimal] `json:"lowStockThreshold,omitempty"`
-	Name              string                     `json:"name"`
-	Unit              MaterialUnit               `json:"unit"`
+	Category           string                     `json:"category"`
+	Color              nullable.Nullable[string]  `json:"color,omitempty"`
+	FilamentDiameterMm nullable.Nullable[Decimal] `json:"filamentDiameterMm,omitempty"`
+	LowStockThreshold  nullable.Nullable[Decimal] `json:"lowStockThreshold,omitempty"`
+	Name               string                     `json:"name"`
+	Unit               MaterialUnit               `json:"unit"`
 }
 
 // CreateOIDCProviderRequest defines model for CreateOIDCProviderRequest.
@@ -1492,6 +1685,48 @@ type CreatePricingRuleRequest struct {
 	MaterialUnit     nullable.Nullable[MaterialUnit] `json:"materialUnit,omitempty"`
 	Rate             Decimal                         `json:"rate"`
 }
+
+// CreatePrintAttemptRequest defines model for CreatePrintAttemptRequest.
+type CreatePrintAttemptRequest struct {
+	// ExpectedSubmissionVersion Optimistic-concurrency version.
+	ExpectedSubmissionVersion Version `json:"expectedSubmissionVersion"`
+
+	// MachineId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MachineId UUIDv7 `json:"machineId"`
+
+	// OperationKey Lowercase RFC 9562 UUID version 7 generated by the application.
+	OperationKey UUIDv7 `json:"operationKey"`
+}
+
+// CreatePrintSubmissionRequest defines model for CreatePrintSubmissionRequest.
+type CreatePrintSubmissionRequest struct {
+	Customer     nullable.Nullable[BillingPartyReference] `json:"customer,omitempty"`
+	Declarations []FilamentDeclarationInput               `json:"declarations"`
+
+	// MachineId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MachineId            UUIDv7                    `json:"machineId"`
+	Notes                nullable.Nullable[string] `json:"notes,omitempty"`
+	ReprintsSubmissionId nullable.Nullable[UUIDv7] `json:"reprintsSubmissionId,omitempty"`
+	Title                string                    `json:"title"`
+}
+
+// CreatePrinterInputUnitRequest defines model for CreatePrinterInputUnitRequest.
+type CreatePrinterInputUnitRequest struct {
+	ExternalIdentifier nullable.Nullable[string] `json:"externalIdentifier,omitempty"`
+	Name               string                    `json:"name"`
+	Position           int                       `json:"position"`
+}
+
+// CreatePrinterSlotRequest defines model for CreatePrinterSlotRequest.
+type CreatePrinterSlotRequest struct {
+	ExternalIdentifier nullable.Nullable[string]      `json:"externalIdentifier,omitempty"`
+	Name               string                         `json:"name"`
+	Position           int                            `json:"position"`
+	Status             CreatePrinterSlotRequestStatus `json:"status"`
+}
+
+// CreatePrinterSlotRequestStatus defines model for CreatePrinterSlotRequest.Status.
+type CreatePrinterSlotRequestStatus string
 
 // CreateRoleRequest defines model for CreateRoleRequest.
 type CreateRoleRequest struct {
@@ -2083,6 +2318,88 @@ type ExternalInvoiceRequestPage struct {
 	Total    int64                    `json:"total"`
 }
 
+// FilamentDeclaration defines model for FilamentDeclaration.
+type FilamentDeclaration struct {
+	EstimatedQuantityG   nullable.Nullable[Decimal] `json:"estimatedQuantityG,omitempty"`
+	ExternalMaterialName nullable.Nullable[string]  `json:"externalMaterialName,omitempty"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id             UUIDv7                    `json:"id"`
+	MaterialId     nullable.Nullable[UUIDv7] `json:"materialId,omitempty"`
+	MaterialName   string                    `json:"materialName"`
+	Ownership      FilamentOwnership         `json:"ownership"`
+	SpoolDisplayId nullable.Nullable[string] `json:"spoolDisplayId,omitempty"`
+	SpoolId        nullable.Nullable[UUIDv7] `json:"spoolId,omitempty"`
+}
+
+// FilamentDeclarationInput defines model for FilamentDeclarationInput.
+type FilamentDeclarationInput struct {
+	EstimatedQuantityG   nullable.Nullable[Decimal] `json:"estimatedQuantityG,omitempty"`
+	ExternalMaterialName nullable.Nullable[string]  `json:"externalMaterialName,omitempty"`
+	MaterialId           nullable.Nullable[UUIDv7]  `json:"materialId,omitempty"`
+	Ownership            FilamentOwnership          `json:"ownership"`
+	SpoolId              nullable.Nullable[UUIDv7]  `json:"spoolId,omitempty"`
+}
+
+// FilamentOwnership defines model for FilamentOwnership.
+type FilamentOwnership string
+
+// FilamentSpool defines model for FilamentSpool.
+type FilamentSpool struct {
+	AcquiredOn           nullable.Nullable[openapi_types.Date] `json:"acquiredOn,omitempty"`
+	AcquisitionReference nullable.Nullable[string]             `json:"acquisitionReference,omitempty"`
+	Category             string                                `json:"category"`
+	Color                nullable.Nullable[string]             `json:"color,omitempty"`
+	CreatedAt            time.Time                             `json:"createdAt"`
+	DisplayId            string                                `json:"displayId"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id                UUIDv7                    `json:"id"`
+	Identifiers       []FilamentSpoolIdentifier `json:"identifiers"`
+	InitialNetWeightG Decimal                   `json:"initialNetWeightG"`
+	Lifecycle         FilamentSpoolLifecycle    `json:"lifecycle"`
+	Manufacturer      nullable.Nullable[string] `json:"manufacturer,omitempty"`
+
+	// MaterialId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MaterialId        UUIDv7                     `json:"materialId"`
+	MaterialName      string                     `json:"materialName"`
+	Mounted           bool                       `json:"mounted"`
+	Notes             nullable.Nullable[string]  `json:"notes,omitempty"`
+	ProductName       nullable.Nullable[string]  `json:"productName,omitempty"`
+	RemainingQuantity Decimal                    `json:"remainingQuantity"`
+	StorageLocation   nullable.Nullable[string]  `json:"storageLocation,omitempty"`
+	TareWeightG       nullable.Nullable[Decimal] `json:"tareWeightG,omitempty"`
+	Unit              MaterialUnit               `json:"unit"`
+	UpdatedAt         time.Time                  `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// FilamentSpoolLifecycle defines model for FilamentSpool.Lifecycle.
+type FilamentSpoolLifecycle string
+
+// FilamentSpoolIdentifier defines model for FilamentSpoolIdentifier.
+type FilamentSpoolIdentifier struct {
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id    UUIDv7                      `json:"id"`
+	Kind  FilamentSpoolIdentifierKind `json:"kind"`
+	Value string                      `json:"value"`
+}
+
+// FilamentSpoolIdentifierKind defines model for FilamentSpoolIdentifier.Kind.
+type FilamentSpoolIdentifierKind string
+
+// FilamentSpoolPage defines model for FilamentSpoolPage.
+type FilamentSpoolPage struct {
+	Items    []FilamentSpool `json:"items"`
+	Page     int             `json:"page"`
+	PageSize int             `json:"pageSize"`
+	Total    int64           `json:"total"`
+}
+
 // HealthStatus defines model for HealthStatus.
 type HealthStatus struct {
 	Status HealthStatusStatus `json:"status"`
@@ -2116,6 +2433,7 @@ type InventoryMutationResult struct {
 type InventoryTransaction struct {
 	AdjustmentReason nullable.Nullable[InventoryAdjustmentReason] `json:"adjustmentReason,omitempty"`
 	CreatedAt        time.Time                                    `json:"createdAt"`
+	FromSpoolId      nullable.Nullable[UUIDv7]                    `json:"fromSpoolId,omitempty"`
 
 	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
 	Id                  UUIDv7                    `json:"id"`
@@ -2125,13 +2443,16 @@ type InventoryTransaction struct {
 	MachineJobId        nullable.Nullable[UUIDv7] `json:"machineJobId,omitempty"`
 
 	// MaterialId Lowercase RFC 9562 UUID version 7 generated by the application.
-	MaterialId          UUIDv7                    `json:"materialId"`
-	Note                nullable.Nullable[string] `json:"note,omitempty"`
-	OccurredAt          time.Time                 `json:"occurredAt"`
-	QuantityDelta       Decimal                   `json:"quantityDelta"`
-	Supplier            nullable.Nullable[string] `json:"supplier,omitempty"`
-	TotalPurchasePrice  nullable.Nullable[Money]  `json:"totalPurchasePrice,omitempty"`
-	UnitAcquisitionCost Decimal                   `json:"unitAcquisitionCost"`
+	MaterialId          UUIDv7                     `json:"materialId"`
+	Note                nullable.Nullable[string]  `json:"note,omitempty"`
+	OccurredAt          time.Time                  `json:"occurredAt"`
+	QuantityDelta       Decimal                    `json:"quantityDelta"`
+	SpoolId             nullable.Nullable[UUIDv7]  `json:"spoolId,omitempty"`
+	Supplier            nullable.Nullable[string]  `json:"supplier,omitempty"`
+	ToSpoolId           nullable.Nullable[UUIDv7]  `json:"toSpoolId,omitempty"`
+	TotalPurchasePrice  nullable.Nullable[Money]   `json:"totalPurchasePrice,omitempty"`
+	TransferQuantity    nullable.Nullable[Decimal] `json:"transferQuantity,omitempty"`
+	UnitAcquisitionCost Decimal                    `json:"unitAcquisitionCost"`
 }
 
 // InventoryTransactionKind defines model for InventoryTransactionKind.
@@ -2325,6 +2646,15 @@ type LinkEventAssignmentPersonRequest struct {
 	PersonId UUIDv7 `json:"personId"`
 }
 
+// LinkPrintAttemptJobRequest defines model for LinkPrintAttemptJobRequest.
+type LinkPrintAttemptJobRequest struct {
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version `json:"expectedVersion"`
+
+	// MachineJobId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MachineJobId UUIDv7 `json:"machineJobId"`
+}
+
 // LoginRequest defines model for LoginRequest.
 type LoginRequest struct {
 	Email Email `json:"email"`
@@ -2434,20 +2764,25 @@ type MachineJobUsage struct {
 	Category string `json:"category"`
 
 	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
-	Id UUIDv7 `json:"id"`
-
-	// MaterialId Lowercase RFC 9562 UUID version 7 generated by the application.
-	MaterialId   UUIDv7       `json:"materialId"`
-	MaterialName string       `json:"materialName"`
-	Quantity     Decimal      `json:"quantity"`
-	Unit         MaterialUnit `json:"unit"`
+	Id             UUIDv7                    `json:"id"`
+	MaterialId     nullable.Nullable[UUIDv7] `json:"materialId,omitempty"`
+	MaterialName   string                    `json:"materialName"`
+	Ownership      FilamentOwnership         `json:"ownership"`
+	Quantity       Decimal                   `json:"quantity"`
+	QuantityBasis  QuantityBasis             `json:"quantityBasis"`
+	SpoolDisplayId nullable.Nullable[string] `json:"spoolDisplayId,omitempty"`
+	SpoolId        nullable.Nullable[UUIDv7] `json:"spoolId,omitempty"`
+	Unit           MaterialUnit              `json:"unit"`
 }
 
 // MachineJobUsageInput defines model for MachineJobUsageInput.
 type MachineJobUsageInput struct {
-	// MaterialId Lowercase RFC 9562 UUID version 7 generated by the application.
-	MaterialId UUIDv7  `json:"materialId"`
-	Quantity   Decimal `json:"quantity"`
+	ExternalMaterialName nullable.Nullable[string] `json:"externalMaterialName,omitempty"`
+	MaterialId           nullable.Nullable[UUIDv7] `json:"materialId,omitempty"`
+	Ownership            FilamentOwnership         `json:"ownership"`
+	Quantity             Decimal                   `json:"quantity"`
+	QuantityBasis        QuantityBasis             `json:"quantityBasis"`
+	SpoolId              nullable.Nullable[UUIDv7] `json:"spoolId,omitempty"`
 }
 
 // MachineLogbookOverview defines model for MachineLogbookOverview.
@@ -2622,25 +2957,28 @@ type MarkMaterialEmptyRequest struct {
 
 // Material defines model for Material.
 type Material struct {
-	Active          bool                      `json:"active"`
-	AverageUnitCost Decimal                   `json:"averageUnitCost"`
-	Category        string                    `json:"category"`
-	Color           nullable.Nullable[string] `json:"color,omitempty"`
-	CreatedAt       time.Time                 `json:"createdAt"`
+	Active             bool                       `json:"active"`
+	AssignedQuantity   Decimal                    `json:"assignedQuantity"`
+	AverageUnitCost    Decimal                    `json:"averageUnitCost"`
+	Category           string                     `json:"category"`
+	Color              nullable.Nullable[string]  `json:"color,omitempty"`
+	CreatedAt          time.Time                  `json:"createdAt"`
+	FilamentDiameterMm nullable.Nullable[Decimal] `json:"filamentDiameterMm,omitempty"`
 
 	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
 	Id             UUIDv7  `json:"id"`
 	InventoryValue Decimal `json:"inventoryValue"`
 
 	// InventoryVersion Optimistic-concurrency version.
-	InventoryVersion  Version                    `json:"inventoryVersion"`
-	LowStockThreshold nullable.Nullable[Decimal] `json:"lowStockThreshold,omitempty"`
-	Name              string                     `json:"name"`
-	Quantity          Decimal                    `json:"quantity"`
-	RecentConsumption Decimal                    `json:"recentConsumption"`
-	StockState        StockState                 `json:"stockState"`
-	Unit              MaterialUnit               `json:"unit"`
-	UpdatedAt         time.Time                  `json:"updatedAt"`
+	InventoryVersion   Version                    `json:"inventoryVersion"`
+	LowStockThreshold  nullable.Nullable[Decimal] `json:"lowStockThreshold,omitempty"`
+	Name               string                     `json:"name"`
+	Quantity           Decimal                    `json:"quantity"`
+	RecentConsumption  Decimal                    `json:"recentConsumption"`
+	StockState         StockState                 `json:"stockState"`
+	UnassignedQuantity Decimal                    `json:"unassignedQuantity"`
+	Unit               MaterialUnit               `json:"unit"`
+	UpdatedAt          time.Time                  `json:"updatedAt"`
 
 	// Version Optimistic-concurrency version.
 	Version Version `json:"version"`
@@ -2668,6 +3006,12 @@ type MinimalPerson struct {
 
 // Money defines model for Money.
 type Money = string
+
+// MountSpoolRequest defines model for MountSpoolRequest.
+type MountSpoolRequest struct {
+	// SpoolId Lowercase RFC 9562 UUID version 7 generated by the application.
+	SpoolId UUIDv7 `json:"spoolId"`
+}
 
 // MoveEventAssignmentRequest defines model for MoveEventAssignmentRequest.
 type MoveEventAssignmentRequest struct {
@@ -3309,6 +3653,153 @@ type PricingSnapshotRule struct {
 // PricingStatus defines model for PricingStatus.
 type PricingStatus string
 
+// PrintAttempt defines model for PrintAttempt.
+type PrintAttempt struct {
+	AcceptedAt    nullable.Nullable[time.Time] `json:"acceptedAt,omitempty"`
+	AttemptNumber int                          `json:"attemptNumber"`
+	CreatedAt     time.Time                    `json:"createdAt"`
+	Declarations  []FilamentDeclaration        `json:"declarations"`
+	EndedAt       nullable.Nullable[time.Time] `json:"endedAt,omitempty"`
+	Events        []PrinterEvent               `json:"events"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id UUIDv7 `json:"id"`
+
+	// MachineId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MachineId    UUIDv7                       `json:"machineId"`
+	MachineJobId nullable.Nullable[UUIDv7]    `json:"machineJobId,omitempty"`
+	MachineName  string                       `json:"machineName"`
+	StartedAt    nullable.Nullable[time.Time] `json:"startedAt,omitempty"`
+	State        PrintAttemptState            `json:"state"`
+
+	// SubmissionId Lowercase RFC 9562 UUID version 7 generated by the application.
+	SubmissionId UUIDv7    `json:"submissionId"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// PrintAttemptState defines model for PrintAttempt.State.
+type PrintAttemptState string
+
+// PrintSubmission defines model for PrintSubmission.
+type PrintSubmission struct {
+	Attempts     []PrintAttempt                           `json:"attempts"`
+	CreatedAt    time.Time                                `json:"createdAt"`
+	Customer     nullable.Nullable[BillingPartyReference] `json:"customer,omitempty"`
+	Declarations []FilamentDeclaration                    `json:"declarations"`
+	DisplayId    string                                   `json:"displayId"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id UUIDv7 `json:"id"`
+
+	// MachineId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MachineId            UUIDv7                    `json:"machineId"`
+	MachineName          string                    `json:"machineName"`
+	Notes                nullable.Nullable[string] `json:"notes,omitempty"`
+	ReprintsSubmissionId nullable.Nullable[UUIDv7] `json:"reprintsSubmissionId,omitempty"`
+	State                PrintSubmissionState      `json:"state"`
+	Title                string                    `json:"title"`
+	UpdatedAt            time.Time                 `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// PrintSubmissionState defines model for PrintSubmission.State.
+type PrintSubmissionState string
+
+// PrintSubmissionPage defines model for PrintSubmissionPage.
+type PrintSubmissionPage struct {
+	Items    []PrintSubmission `json:"items"`
+	Page     int               `json:"page"`
+	PageSize int               `json:"pageSize"`
+	Total    int64             `json:"total"`
+}
+
+// PrinterEvent defines model for PrinterEvent.
+type PrinterEvent struct {
+	EventKey string `json:"eventKey"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id                  UUIDv7                          `json:"id"`
+	Kind                PrinterEventKind                `json:"kind"`
+	OccurredAt          time.Time                       `json:"occurredAt"`
+	Payload             map[string]interface{}          `json:"payload"`
+	ProtocolVersion     int                             `json:"protocolVersion"`
+	ReceivedAt          time.Time                       `json:"receivedAt"`
+	ReconciliationState PrinterEventReconciliationState `json:"reconciliationState"`
+	SourceId            string                          `json:"sourceId"`
+}
+
+// PrinterEventKind defines model for PrinterEvent.Kind.
+type PrinterEventKind string
+
+// PrinterEventReconciliationState defines model for PrinterEvent.ReconciliationState.
+type PrinterEventReconciliationState string
+
+// PrinterInputUnit defines model for PrinterInputUnit.
+type PrinterInputUnit struct {
+	Enabled            bool                      `json:"enabled"`
+	ExternalIdentifier nullable.Nullable[string] `json:"externalIdentifier,omitempty"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id UUIDv7 `json:"id"`
+
+	// MachineId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MachineId UUIDv7 `json:"machineId"`
+	Name      string `json:"name"`
+	Position  int    `json:"position"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// PrinterProfile defines model for PrinterProfile.
+type PrinterProfile struct {
+	CreatedAt  time.Time          `json:"createdAt"`
+	Enabled    bool               `json:"enabled"`
+	InputUnits []PrinterInputUnit `json:"inputUnits"`
+
+	// MachineId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MachineId   UUIDv7        `json:"machineId"`
+	MachineName string        `json:"machineName"`
+	Slots       []PrinterSlot `json:"slots"`
+	UpdatedAt   time.Time     `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// PrinterSlot defines model for PrinterSlot.
+type PrinterSlot struct {
+	AssignmentId       nullable.Nullable[UUIDv7] `json:"assignmentId,omitempty"`
+	ExternalIdentifier nullable.Nullable[string] `json:"externalIdentifier,omitempty"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id UUIDv7 `json:"id"`
+
+	// InputUnitId Lowercase RFC 9562 UUID version 7 generated by the application.
+	InputUnitId   UUIDv7 `json:"inputUnitId"`
+	InputUnitName string `json:"inputUnitName"`
+
+	// MachineId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MachineId      UUIDv7                       `json:"machineId"`
+	MountedAt      nullable.Nullable[time.Time] `json:"mountedAt,omitempty"`
+	Name           string                       `json:"name"`
+	Position       int                          `json:"position"`
+	SpoolDisplayId nullable.Nullable[string]    `json:"spoolDisplayId,omitempty"`
+	SpoolId        nullable.Nullable[UUIDv7]    `json:"spoolId,omitempty"`
+	Status         PrinterSlotStatus            `json:"status"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// PrinterSlotStatus defines model for PrinterSlot.Status.
+type PrinterSlotStatus string
+
 // ProfileImage defines model for ProfileImage.
 type ProfileImage struct {
 	DownloadUrl string `json:"downloadUrl"`
@@ -3488,6 +3979,23 @@ type PublicSurvey struct {
 type PublishLaborordnungRequest struct {
 	EffectiveAt time.Time `json:"effectiveAt"`
 }
+
+// QuantityBasis defines model for QuantityBasis.
+type QuantityBasis string
+
+// ReconcilePrinterEventRequest defines model for ReconcilePrinterEventRequest.
+type ReconcilePrinterEventRequest struct {
+	Decision           ReconcilePrinterEventRequestDecision `json:"decision"`
+	ExpectedJobVersion nullable.Nullable[int64]             `json:"expectedJobVersion,omitempty"`
+	MachineJobId       nullable.Nullable[UUIDv7]            `json:"machineJobId,omitempty"`
+
+	// OperationKey Lowercase RFC 9562 UUID version 7 generated by the application.
+	OperationKey UUIDv7                  `json:"operationKey"`
+	Usages       *[]MachineJobUsageInput `json:"usages,omitempty"`
+}
+
+// ReconcilePrinterEventRequestDecision defines model for ReconcilePrinterEventRequest.Decision.
+type ReconcilePrinterEventRequestDecision string
 
 // RecordMaterialConsumptionRequest defines model for RecordMaterialConsumptionRequest.
 type RecordMaterialConsumptionRequest struct {
@@ -3945,6 +4453,21 @@ type SetBillingPartyPricingGroupRequest struct {
 	PricingGroupId  nullable.Nullable[UUIDv7] `json:"pricingGroupId,omitempty"`
 }
 
+// SpoolInventoryCommand defines model for SpoolInventoryCommand.
+type SpoolInventoryCommand struct {
+	Disposal *bool `json:"disposal,omitempty"`
+
+	// ExpectedInventoryVersion Optimistic-concurrency version.
+	ExpectedInventoryVersion Version `json:"expectedInventoryVersion"`
+
+	// ExpectedSpoolVersion Optimistic-concurrency version.
+	ExpectedSpoolVersion Version                                      `json:"expectedSpoolVersion"`
+	Note                 nullable.Nullable[string]                    `json:"note,omitempty"`
+	OccurredAt           time.Time                                    `json:"occurredAt"`
+	Quantity             Decimal                                      `json:"quantity"`
+	Reason               nullable.Nullable[InventoryAdjustmentReason] `json:"reason,omitempty"`
+}
+
 // StaffingRequirementInput defines model for StaffingRequirementInput.
 type StaffingRequirementInput struct {
 	EligibleRoleIds []UUIDv7               `json:"eligibleRoleIds"`
@@ -4150,6 +4673,27 @@ type TerminalContextAuthenticationMethods string
 // TerminalContextStaffDestination defines model for TerminalContext.StaffDestination.
 type TerminalContextStaffDestination string
 
+// TransferSpoolStockRequest defines model for TransferSpoolStockRequest.
+type TransferSpoolStockRequest struct {
+	// ExpectedInventoryVersion Optimistic-concurrency version.
+	ExpectedInventoryVersion Version                   `json:"expectedInventoryVersion"`
+	FromSpoolId              nullable.Nullable[UUIDv7] `json:"fromSpoolId,omitempty"`
+	Note                     nullable.Nullable[string] `json:"note,omitempty"`
+	OccurredAt               time.Time                 `json:"occurredAt"`
+	Quantity                 Decimal                   `json:"quantity"`
+	ToSpoolId                nullable.Nullable[UUIDv7] `json:"toSpoolId,omitempty"`
+}
+
+// TransitionPrintAttemptRequest defines model for TransitionPrintAttemptRequest.
+type TransitionPrintAttemptRequest struct {
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version                            `json:"expectedVersion"`
+	State           TransitionPrintAttemptRequestState `json:"state"`
+}
+
+// TransitionPrintAttemptRequestState defines model for TransitionPrintAttemptRequest.State.
+type TransitionPrintAttemptRequestState string
+
 // UUIDv7 Lowercase RFC 9562 UUID version 7 generated by the application.
 type UUIDv7 = openapi_types.UUID
 
@@ -4278,6 +4822,24 @@ type UpdateEventTaskRequest struct {
 	Title           string                    `json:"title"`
 }
 
+// UpdateFilamentSpoolRequest defines model for UpdateFilamentSpoolRequest.
+type UpdateFilamentSpoolRequest struct {
+	AcquiredOn           nullable.Nullable[openapi_types.Date] `json:"acquiredOn,omitempty"`
+	AcquisitionReference nullable.Nullable[string]             `json:"acquisitionReference,omitempty"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version                             `json:"expectedVersion"`
+	Lifecycle       UpdateFilamentSpoolRequestLifecycle `json:"lifecycle"`
+	Manufacturer    nullable.Nullable[string]           `json:"manufacturer,omitempty"`
+	Notes           nullable.Nullable[string]           `json:"notes,omitempty"`
+	ProductName     nullable.Nullable[string]           `json:"productName,omitempty"`
+	StorageLocation nullable.Nullable[string]           `json:"storageLocation,omitempty"`
+	TareWeightG     nullable.Nullable[Decimal]          `json:"tareWeightG,omitempty"`
+}
+
+// UpdateFilamentSpoolRequestLifecycle defines model for UpdateFilamentSpoolRequest.Lifecycle.
+type UpdateFilamentSpoolRequestLifecycle string
+
 // UpdateInvoiceRequest defines model for UpdateInvoiceRequest.
 type UpdateInvoiceRequest struct {
 	Details InvoiceRequestDetails `json:"details"`
@@ -4401,10 +4963,11 @@ type UpdateMaterialRequest struct {
 	Color    nullable.Nullable[string] `json:"color,omitempty"`
 
 	// ExpectedVersion Optimistic-concurrency version.
-	ExpectedVersion   Version                    `json:"expectedVersion"`
-	LowStockThreshold nullable.Nullable[Decimal] `json:"lowStockThreshold,omitempty"`
-	Name              string                     `json:"name"`
-	Unit              MaterialUnit               `json:"unit"`
+	ExpectedVersion    Version                    `json:"expectedVersion"`
+	FilamentDiameterMm nullable.Nullable[Decimal] `json:"filamentDiameterMm,omitempty"`
+	LowStockThreshold  nullable.Nullable[Decimal] `json:"lowStockThreshold,omitempty"`
+	Name               string                     `json:"name"`
+	Unit               MaterialUnit               `json:"unit"`
 }
 
 // UpdateOIDCProviderRequest defines model for UpdateOIDCProviderRequest.
@@ -4869,6 +5432,34 @@ type ListExternalInvoiceRequestsParams struct {
 	Status   *string `form:"status,omitempty" json:"status,omitempty"`
 }
 
+// ListFilamentSpoolsParams defines parameters for ListFilamentSpools.
+type ListFilamentSpoolsParams struct {
+	Search     *string                            `form:"search,omitempty" json:"search,omitempty"`
+	MaterialId *UUIDv7                            `form:"materialId,omitempty" json:"materialId,omitempty"`
+	Lifecycle  *ListFilamentSpoolsParamsLifecycle `form:"lifecycle,omitempty" json:"lifecycle,omitempty"`
+	Location   *string                            `form:"location,omitempty" json:"location,omitempty"`
+	Page       *int                               `form:"page,omitempty" json:"page,omitempty"`
+	PageSize   *int                               `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// ListFilamentSpoolsParamsLifecycle defines parameters for ListFilamentSpools.
+type ListFilamentSpoolsParamsLifecycle string
+
+// LookupFilamentSpoolParams defines parameters for LookupFilamentSpool.
+type LookupFilamentSpoolParams struct {
+	Kind  LookupFilamentSpoolParamsKind `form:"kind" json:"kind"`
+	Value string                        `form:"value" json:"value"`
+}
+
+// LookupFilamentSpoolParamsKind defines parameters for LookupFilamentSpool.
+type LookupFilamentSpoolParamsKind string
+
+// ListFilamentSpoolTransactionsParams defines parameters for ListFilamentSpoolTransactions.
+type ListFilamentSpoolTransactionsParams struct {
+	Page     *int `form:"page,omitempty" json:"page,omitempty"`
+	PageSize *int `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
 // CreateLaborordnungVersionParams defines parameters for CreateLaborordnungVersion.
 type CreateLaborordnungVersionParams struct {
 	XHumanRevision string `json:"X-Human-Revision"`
@@ -5016,6 +5607,18 @@ type PutPersonProfileImageParams struct {
 
 // PutPersonProfileImageParamsXProfileImageSource defines parameters for PutPersonProfileImage.
 type PutPersonProfileImageParamsXProfileImageSource string
+
+// ListPrintSubmissionsParams defines parameters for ListPrintSubmissions.
+type ListPrintSubmissionsParams struct {
+	Search    *string                          `form:"search,omitempty" json:"search,omitempty"`
+	State     *ListPrintSubmissionsParamsState `form:"state,omitempty" json:"state,omitempty"`
+	MachineId *UUIDv7                          `form:"machineId,omitempty" json:"machineId,omitempty"`
+	Page      *int                             `form:"page,omitempty" json:"page,omitempty"`
+	PageSize  *int                             `form:"pageSize,omitempty" json:"pageSize,omitempty"`
+}
+
+// ListPrintSubmissionsParamsState defines parameters for ListPrintSubmissions.
+type ListPrintSubmissionsParamsState string
 
 // GetCurrentEventSignupParams defines parameters for GetCurrentEventSignup.
 type GetCurrentEventSignupParams struct {
@@ -5288,6 +5891,21 @@ type RequestExternalInvoiceCancellationJSONRequestBody = InvoiceRequestCommand
 // SubmitExternalInvoiceRequestJSONRequestBody defines body for SubmitExternalInvoiceRequest for application/json ContentType.
 type SubmitExternalInvoiceRequestJSONRequestBody = InvoiceRequestCommand
 
+// CreateFilamentSpoolJSONRequestBody defines body for CreateFilamentSpool for application/json ContentType.
+type CreateFilamentSpoolJSONRequestBody = CreateFilamentSpoolRequest
+
+// UpdateFilamentSpoolJSONRequestBody defines body for UpdateFilamentSpool for application/json ContentType.
+type UpdateFilamentSpoolJSONRequestBody = UpdateFilamentSpoolRequest
+
+// ConsumeFilamentSpoolJSONRequestBody defines body for ConsumeFilamentSpool for application/json ContentType.
+type ConsumeFilamentSpoolJSONRequestBody = SpoolInventoryCommand
+
+// CorrectFilamentSpoolStockJSONRequestBody defines body for CorrectFilamentSpoolStock for application/json ContentType.
+type CorrectFilamentSpoolStockJSONRequestBody = CorrectSpoolStockRequest
+
+// AddFilamentSpoolIdentifierJSONRequestBody defines body for AddFilamentSpoolIdentifier for application/json ContentType.
+type AddFilamentSpoolIdentifierJSONRequestBody = AddFilamentSpoolIdentifierRequest
+
 // ConfirmLaborordnungRequestJSONRequestBody defines body for ConfirmLaborordnungRequest for application/json ContentType.
 type ConfirmLaborordnungRequestJSONRequestBody = ConfirmLaborordnungRequest
 
@@ -5326,6 +5944,12 @@ type CreateMachineJSONRequestBody = CreateMachineRequest
 
 // UpdateMachineJSONRequestBody defines body for UpdateMachine for application/json ContentType.
 type UpdateMachineJSONRequestBody = UpdateMachineRequest
+
+// ConfigurePrinterProfileJSONRequestBody defines body for ConfigurePrinterProfile for application/json ContentType.
+type ConfigurePrinterProfileJSONRequestBody = ConfigurePrinterRequest
+
+// CreatePrinterInputUnitJSONRequestBody defines body for CreatePrinterInputUnit for application/json ContentType.
+type CreatePrinterInputUnitJSONRequestBody = CreatePrinterInputUnitRequest
 
 // UpdateMailConfigurationJSONRequestBody defines body for UpdateMailConfiguration for application/json ContentType.
 type UpdateMailConfigurationJSONRequestBody = UpdateMailConfigurationRequest
@@ -5374,6 +5998,9 @@ type MarkMaterialEmptyJSONRequestBody = MarkMaterialEmptyRequest
 
 // AddMaterialPurchaseJSONRequestBody defines body for AddMaterialPurchase for application/json ContentType.
 type AddMaterialPurchaseJSONRequestBody = AddMaterialPurchaseRequest
+
+// TransferSpoolStockJSONRequestBody defines body for TransferSpoolStock for application/json ContentType.
+type TransferSpoolStockJSONRequestBody = TransferSpoolStockRequest
 
 // CreateOIDCProviderJSONRequestBody defines body for CreateOIDCProvider for application/json ContentType.
 type CreateOIDCProviderJSONRequestBody = CreateOIDCProviderRequest
@@ -5524,6 +6151,27 @@ type CreatePricingRuleJSONRequestBody = CreatePricingRuleRequest
 
 // UpdatePricingRuleJSONRequestBody defines body for UpdatePricingRule for application/json ContentType.
 type UpdatePricingRuleJSONRequestBody = UpdatePricingRuleRequest
+
+// TransitionPrintAttemptJSONRequestBody defines body for TransitionPrintAttempt for application/json ContentType.
+type TransitionPrintAttemptJSONRequestBody = TransitionPrintAttemptRequest
+
+// LinkPrintAttemptJobJSONRequestBody defines body for LinkPrintAttemptJob for application/json ContentType.
+type LinkPrintAttemptJobJSONRequestBody = LinkPrintAttemptJobRequest
+
+// CreatePrintSubmissionJSONRequestBody defines body for CreatePrintSubmission for application/json ContentType.
+type CreatePrintSubmissionJSONRequestBody = CreatePrintSubmissionRequest
+
+// CreatePrintAttemptJSONRequestBody defines body for CreatePrintAttempt for application/json ContentType.
+type CreatePrintAttemptJSONRequestBody = CreatePrintAttemptRequest
+
+// ReconcilePrinterEventJSONRequestBody defines body for ReconcilePrinterEvent for application/json ContentType.
+type ReconcilePrinterEventJSONRequestBody = ReconcilePrinterEventRequest
+
+// CreatePrinterSlotJSONRequestBody defines body for CreatePrinterSlot for application/json ContentType.
+type CreatePrinterSlotJSONRequestBody = CreatePrinterSlotRequest
+
+// MountPrinterSpoolJSONRequestBody defines body for MountPrinterSpool for application/json ContentType.
+type MountPrinterSpoolJSONRequestBody = MountSpoolRequest
 
 // UpdateCurrentEventSignupJSONRequestBody defines body for UpdateCurrentEventSignup for application/json ContentType.
 type UpdateCurrentEventSignupJSONRequestBody = UpdateEventSignupRequest
@@ -6040,6 +6688,36 @@ type ServerInterface interface {
 
 	// (POST /external-invoice-requests/{requestId}/submit)
 	SubmitExternalInvoiceRequest(w http.ResponseWriter, r *http.Request, requestId UUIDv7)
+	// List physical filament spools
+	// (GET /filament-spools)
+	ListFilamentSpools(w http.ResponseWriter, r *http.Request, params ListFilamentSpoolsParams)
+	// Register a purchased or already-counted spool
+	// (POST /filament-spools)
+	CreateFilamentSpool(w http.ResponseWriter, r *http.Request)
+
+	// (GET /filament-spools/lookup)
+	LookupFilamentSpool(w http.ResponseWriter, r *http.Request, params LookupFilamentSpoolParams)
+
+	// (GET /filament-spools/{spoolId})
+	GetFilamentSpool(w http.ResponseWriter, r *http.Request, spoolId UUIDv7)
+
+	// (PATCH /filament-spools/{spoolId})
+	UpdateFilamentSpool(w http.ResponseWriter, r *http.Request, spoolId UUIDv7)
+
+	// (POST /filament-spools/{spoolId}/consumptions)
+	ConsumeFilamentSpool(w http.ResponseWriter, r *http.Request, spoolId UUIDv7)
+
+	// (POST /filament-spools/{spoolId}/corrections)
+	CorrectFilamentSpoolStock(w http.ResponseWriter, r *http.Request, spoolId UUIDv7)
+
+	// (POST /filament-spools/{spoolId}/identifiers)
+	AddFilamentSpoolIdentifier(w http.ResponseWriter, r *http.Request, spoolId UUIDv7)
+
+	// (DELETE /filament-spools/{spoolId}/identifiers/{identifierId})
+	DeleteFilamentSpoolIdentifier(w http.ResponseWriter, r *http.Request, spoolId UUIDv7, identifierId UUIDv7)
+
+	// (GET /filament-spools/{spoolId}/transactions)
+	ListFilamentSpoolTransactions(w http.ResponseWriter, r *http.Request, spoolId UUIDv7, params ListFilamentSpoolTransactionsParams)
 	// Report that the API process is running
 	// (GET /health/live)
 	GetLiveness(w http.ResponseWriter, r *http.Request)
@@ -6133,6 +6811,15 @@ type ServerInterface interface {
 	// Update a machine
 	// (PATCH /machines/{machineId})
 	UpdateMachine(w http.ResponseWriter, r *http.Request, machineId UUIDv7)
+
+	// (GET /machines/{machineId}/printer)
+	GetPrinterProfile(w http.ResponseWriter, r *http.Request, machineId UUIDv7)
+
+	// (PUT /machines/{machineId}/printer)
+	ConfigurePrinterProfile(w http.ResponseWriter, r *http.Request, machineId UUIDv7)
+
+	// (POST /machines/{machineId}/printer/input-units)
+	CreatePrinterInputUnit(w http.ResponseWriter, r *http.Request, machineId UUIDv7)
 	// Read write-only-safe transactional mail configuration
 	// (GET /mail/configuration)
 	GetMailConfiguration(w http.ResponseWriter, r *http.Request)
@@ -6205,6 +6892,9 @@ type ServerInterface interface {
 	// Add purchased stock and acquisition cost
 	// (POST /materials/{materialId}/purchases)
 	AddMaterialPurchase(w http.ResponseWriter, r *http.Request, materialId UUIDv7)
+	// Transfer stock attribution without changing material totals
+	// (POST /materials/{materialId}/spool-transfers)
+	TransferSpoolStock(w http.ResponseWriter, r *http.Request, materialId UUIDv7)
 	// List immutable material transactions
 	// (GET /materials/{materialId}/transactions)
 	ListMaterialTransactions(w http.ResponseWriter, r *http.Request, materialId UUIDv7, params ListMaterialTransactionsParams)
@@ -6433,6 +7123,36 @@ type ServerInterface interface {
 	// Update a pricing rule
 	// (PATCH /pricing-rules/{pricingRuleId})
 	UpdatePricingRule(w http.ResponseWriter, r *http.Request, pricingRuleId UUIDv7)
+
+	// (PATCH /print-attempts/{attemptId})
+	TransitionPrintAttempt(w http.ResponseWriter, r *http.Request, attemptId UUIDv7)
+
+	// (PUT /print-attempts/{attemptId}/machine-job)
+	LinkPrintAttemptJob(w http.ResponseWriter, r *http.Request, attemptId UUIDv7)
+
+	// (GET /print-submissions)
+	ListPrintSubmissions(w http.ResponseWriter, r *http.Request, params ListPrintSubmissionsParams)
+
+	// (POST /print-submissions)
+	CreatePrintSubmission(w http.ResponseWriter, r *http.Request)
+
+	// (GET /print-submissions/{submissionId})
+	GetPrintSubmission(w http.ResponseWriter, r *http.Request, submissionId UUIDv7)
+
+	// (POST /print-submissions/{submissionId}/attempts)
+	CreatePrintAttempt(w http.ResponseWriter, r *http.Request, submissionId UUIDv7)
+
+	// (POST /printer-events/{eventId}/reconciliation)
+	ReconcilePrinterEvent(w http.ResponseWriter, r *http.Request, eventId UUIDv7)
+
+	// (POST /printer-input-units/{inputUnitId}/slots)
+	CreatePrinterSlot(w http.ResponseWriter, r *http.Request, inputUnitId UUIDv7)
+
+	// (POST /printer-slots/{slotId}/mount)
+	MountPrinterSpool(w http.ResponseWriter, r *http.Request, slotId UUIDv7)
+
+	// (POST /printer-slots/{slotId}/unmount)
+	UnmountPrinterSpool(w http.ResponseWriter, r *http.Request, slotId UUIDv7)
 	// Read a content-addressed active custom branding asset
 	// (GET /public/branding/assets/{slot}/{sha256})
 	GetPublicBrandingAsset(w http.ResponseWriter, r *http.Request, slot BrandingAssetSlot, sha256 string)
@@ -7212,6 +7932,58 @@ func (_ Unimplemented) SubmitExternalInvoiceRequest(w http.ResponseWriter, r *ht
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// List physical filament spools
+// (GET /filament-spools)
+func (_ Unimplemented) ListFilamentSpools(w http.ResponseWriter, r *http.Request, params ListFilamentSpoolsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Register a purchased or already-counted spool
+// (POST /filament-spools)
+func (_ Unimplemented) CreateFilamentSpool(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /filament-spools/lookup)
+func (_ Unimplemented) LookupFilamentSpool(w http.ResponseWriter, r *http.Request, params LookupFilamentSpoolParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /filament-spools/{spoolId})
+func (_ Unimplemented) GetFilamentSpool(w http.ResponseWriter, r *http.Request, spoolId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PATCH /filament-spools/{spoolId})
+func (_ Unimplemented) UpdateFilamentSpool(w http.ResponseWriter, r *http.Request, spoolId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /filament-spools/{spoolId}/consumptions)
+func (_ Unimplemented) ConsumeFilamentSpool(w http.ResponseWriter, r *http.Request, spoolId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /filament-spools/{spoolId}/corrections)
+func (_ Unimplemented) CorrectFilamentSpoolStock(w http.ResponseWriter, r *http.Request, spoolId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /filament-spools/{spoolId}/identifiers)
+func (_ Unimplemented) AddFilamentSpoolIdentifier(w http.ResponseWriter, r *http.Request, spoolId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /filament-spools/{spoolId}/identifiers/{identifierId})
+func (_ Unimplemented) DeleteFilamentSpoolIdentifier(w http.ResponseWriter, r *http.Request, spoolId UUIDv7, identifierId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /filament-spools/{spoolId}/transactions)
+func (_ Unimplemented) ListFilamentSpoolTransactions(w http.ResponseWriter, r *http.Request, spoolId UUIDv7, params ListFilamentSpoolTransactionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Report that the API process is running
 // (GET /health/live)
 func (_ Unimplemented) GetLiveness(w http.ResponseWriter, r *http.Request) {
@@ -7397,6 +8169,21 @@ func (_ Unimplemented) UpdateMachine(w http.ResponseWriter, r *http.Request, mac
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// (GET /machines/{machineId}/printer)
+func (_ Unimplemented) GetPrinterProfile(w http.ResponseWriter, r *http.Request, machineId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PUT /machines/{machineId}/printer)
+func (_ Unimplemented) ConfigurePrinterProfile(w http.ResponseWriter, r *http.Request, machineId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /machines/{machineId}/printer/input-units)
+func (_ Unimplemented) CreatePrinterInputUnit(w http.ResponseWriter, r *http.Request, machineId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // Read write-only-safe transactional mail configuration
 // (GET /mail/configuration)
 func (_ Unimplemented) GetMailConfiguration(w http.ResponseWriter, r *http.Request) {
@@ -7538,6 +8325,12 @@ func (_ Unimplemented) MarkMaterialEmpty(w http.ResponseWriter, r *http.Request,
 // Add purchased stock and acquisition cost
 // (POST /materials/{materialId}/purchases)
 func (_ Unimplemented) AddMaterialPurchase(w http.ResponseWriter, r *http.Request, materialId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Transfer stock attribution without changing material totals
+// (POST /materials/{materialId}/spool-transfers)
+func (_ Unimplemented) TransferSpoolStock(w http.ResponseWriter, r *http.Request, materialId UUIDv7) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -7972,6 +8765,56 @@ func (_ Unimplemented) CreatePricingRule(w http.ResponseWriter, r *http.Request,
 // Update a pricing rule
 // (PATCH /pricing-rules/{pricingRuleId})
 func (_ Unimplemented) UpdatePricingRule(w http.ResponseWriter, r *http.Request, pricingRuleId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PATCH /print-attempts/{attemptId})
+func (_ Unimplemented) TransitionPrintAttempt(w http.ResponseWriter, r *http.Request, attemptId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PUT /print-attempts/{attemptId}/machine-job)
+func (_ Unimplemented) LinkPrintAttemptJob(w http.ResponseWriter, r *http.Request, attemptId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /print-submissions)
+func (_ Unimplemented) ListPrintSubmissions(w http.ResponseWriter, r *http.Request, params ListPrintSubmissionsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /print-submissions)
+func (_ Unimplemented) CreatePrintSubmission(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /print-submissions/{submissionId})
+func (_ Unimplemented) GetPrintSubmission(w http.ResponseWriter, r *http.Request, submissionId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /print-submissions/{submissionId}/attempts)
+func (_ Unimplemented) CreatePrintAttempt(w http.ResponseWriter, r *http.Request, submissionId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /printer-events/{eventId}/reconciliation)
+func (_ Unimplemented) ReconcilePrinterEvent(w http.ResponseWriter, r *http.Request, eventId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /printer-input-units/{inputUnitId}/slots)
+func (_ Unimplemented) CreatePrinterSlot(w http.ResponseWriter, r *http.Request, inputUnitId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /printer-slots/{slotId}/mount)
+func (_ Unimplemented) MountPrinterSpool(w http.ResponseWriter, r *http.Request, slotId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /printer-slots/{slotId}/unmount)
+func (_ Unimplemented) UnmountPrinterSpool(w http.ResponseWriter, r *http.Request, slotId UUIDv7) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -11995,6 +12838,411 @@ func (siw *ServerInterfaceWrapper) SubmitExternalInvoiceRequest(w http.ResponseW
 	handler.ServeHTTP(w, r)
 }
 
+// ListFilamentSpools operation middleware
+func (siw *ServerInterfaceWrapper) ListFilamentSpools(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListFilamentSpoolsParams
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "search", r.URL.Query(), &params.Search)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "materialId" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "materialId", r.URL.Query(), &params.MaterialId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "materialId", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "lifecycle" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "lifecycle", r.URL.Query(), &params.Lifecycle)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "lifecycle", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "location" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "location", r.URL.Query(), &params.Location)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "location", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", r.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "pageSize", r.URL.Query(), &params.PageSize)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListFilamentSpools(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateFilamentSpool operation middleware
+func (siw *ServerInterfaceWrapper) CreateFilamentSpool(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateFilamentSpool(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// LookupFilamentSpool operation middleware
+func (siw *ServerInterfaceWrapper) LookupFilamentSpool(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params LookupFilamentSpoolParams
+
+	// ------------- Required query parameter "kind" -------------
+
+	if paramValue := r.URL.Query().Get("kind"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "kind"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "kind", r.URL.Query(), &params.Kind)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "kind", Err: err})
+		return
+	}
+
+	// ------------- Required query parameter "value" -------------
+
+	if paramValue := r.URL.Query().Get("value"); paramValue != "" {
+
+	} else {
+		siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "value"})
+		return
+	}
+
+	err = runtime.BindQueryParameter("form", true, true, "value", r.URL.Query(), &params.Value)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "value", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.LookupFilamentSpool(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFilamentSpool operation middleware
+func (siw *ServerInterfaceWrapper) GetFilamentSpool(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "spoolId" -------------
+	var spoolId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spoolId", chi.URLParam(r, "spoolId"), &spoolId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spoolId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFilamentSpool(w, r, spoolId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateFilamentSpool operation middleware
+func (siw *ServerInterfaceWrapper) UpdateFilamentSpool(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "spoolId" -------------
+	var spoolId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spoolId", chi.URLParam(r, "spoolId"), &spoolId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spoolId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateFilamentSpool(w, r, spoolId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConsumeFilamentSpool operation middleware
+func (siw *ServerInterfaceWrapper) ConsumeFilamentSpool(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "spoolId" -------------
+	var spoolId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spoolId", chi.URLParam(r, "spoolId"), &spoolId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spoolId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConsumeFilamentSpool(w, r, spoolId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CorrectFilamentSpoolStock operation middleware
+func (siw *ServerInterfaceWrapper) CorrectFilamentSpoolStock(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "spoolId" -------------
+	var spoolId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spoolId", chi.URLParam(r, "spoolId"), &spoolId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spoolId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CorrectFilamentSpoolStock(w, r, spoolId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddFilamentSpoolIdentifier operation middleware
+func (siw *ServerInterfaceWrapper) AddFilamentSpoolIdentifier(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "spoolId" -------------
+	var spoolId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spoolId", chi.URLParam(r, "spoolId"), &spoolId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spoolId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddFilamentSpoolIdentifier(w, r, spoolId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteFilamentSpoolIdentifier operation middleware
+func (siw *ServerInterfaceWrapper) DeleteFilamentSpoolIdentifier(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "spoolId" -------------
+	var spoolId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spoolId", chi.URLParam(r, "spoolId"), &spoolId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spoolId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "identifierId" -------------
+	var identifierId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "identifierId", chi.URLParam(r, "identifierId"), &identifierId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "identifierId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteFilamentSpoolIdentifier(w, r, spoolId, identifierId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListFilamentSpoolTransactions operation middleware
+func (siw *ServerInterfaceWrapper) ListFilamentSpoolTransactions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "spoolId" -------------
+	var spoolId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "spoolId", chi.URLParam(r, "spoolId"), &spoolId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "spoolId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListFilamentSpoolTransactionsParams
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", r.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "pageSize", r.URL.Query(), &params.PageSize)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListFilamentSpoolTransactions(w, r, spoolId, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetLiveness operation middleware
 func (siw *ServerInterfaceWrapper) GetLiveness(w http.ResponseWriter, r *http.Request) {
 
@@ -13023,6 +14271,103 @@ func (siw *ServerInterfaceWrapper) UpdateMachine(w http.ResponseWriter, r *http.
 	handler.ServeHTTP(w, r)
 }
 
+// GetPrinterProfile operation middleware
+func (siw *ServerInterfaceWrapper) GetPrinterProfile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "machineId" -------------
+	var machineId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "machineId", chi.URLParam(r, "machineId"), &machineId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "machineId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPrinterProfile(w, r, machineId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ConfigurePrinterProfile operation middleware
+func (siw *ServerInterfaceWrapper) ConfigurePrinterProfile(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "machineId" -------------
+	var machineId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "machineId", chi.URLParam(r, "machineId"), &machineId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "machineId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ConfigurePrinterProfile(w, r, machineId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreatePrinterInputUnit operation middleware
+func (siw *ServerInterfaceWrapper) CreatePrinterInputUnit(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "machineId" -------------
+	var machineId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "machineId", chi.URLParam(r, "machineId"), &machineId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "machineId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreatePrinterInputUnit(w, r, machineId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetMailConfiguration operation middleware
 func (siw *ServerInterfaceWrapper) GetMailConfiguration(w http.ResponseWriter, r *http.Request) {
 
@@ -13748,6 +15093,39 @@ func (siw *ServerInterfaceWrapper) AddMaterialPurchase(w http.ResponseWriter, r 
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.AddMaterialPurchase(w, r, materialId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// TransferSpoolStock operation middleware
+func (siw *ServerInterfaceWrapper) TransferSpoolStock(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "materialId" -------------
+	var materialId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "materialId", chi.URLParam(r, "materialId"), &materialId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "materialId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.TransferSpoolStock(w, r, materialId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -16384,6 +17762,355 @@ func (siw *ServerInterfaceWrapper) UpdatePricingRule(w http.ResponseWriter, r *h
 	handler.ServeHTTP(w, r)
 }
 
+// TransitionPrintAttempt operation middleware
+func (siw *ServerInterfaceWrapper) TransitionPrintAttempt(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "attemptId" -------------
+	var attemptId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "attemptId", chi.URLParam(r, "attemptId"), &attemptId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "attemptId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.TransitionPrintAttempt(w, r, attemptId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// LinkPrintAttemptJob operation middleware
+func (siw *ServerInterfaceWrapper) LinkPrintAttemptJob(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "attemptId" -------------
+	var attemptId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "attemptId", chi.URLParam(r, "attemptId"), &attemptId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "attemptId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.LinkPrintAttemptJob(w, r, attemptId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListPrintSubmissions operation middleware
+func (siw *ServerInterfaceWrapper) ListPrintSubmissions(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListPrintSubmissionsParams
+
+	// ------------- Optional query parameter "search" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "search", r.URL.Query(), &params.Search)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "search", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "state" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "state", r.URL.Query(), &params.State)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "state", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "machineId" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "machineId", r.URL.Query(), &params.MachineId)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "machineId", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "page" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "page", r.URL.Query(), &params.Page)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "page", Err: err})
+		return
+	}
+
+	// ------------- Optional query parameter "pageSize" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "pageSize", r.URL.Query(), &params.PageSize)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "pageSize", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPrintSubmissions(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreatePrintSubmission operation middleware
+func (siw *ServerInterfaceWrapper) CreatePrintSubmission(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreatePrintSubmission(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPrintSubmission operation middleware
+func (siw *ServerInterfaceWrapper) GetPrintSubmission(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "submissionId" -------------
+	var submissionId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "submissionId", chi.URLParam(r, "submissionId"), &submissionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "submissionId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPrintSubmission(w, r, submissionId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreatePrintAttempt operation middleware
+func (siw *ServerInterfaceWrapper) CreatePrintAttempt(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "submissionId" -------------
+	var submissionId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "submissionId", chi.URLParam(r, "submissionId"), &submissionId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "submissionId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreatePrintAttempt(w, r, submissionId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReconcilePrinterEvent operation middleware
+func (siw *ServerInterfaceWrapper) ReconcilePrinterEvent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "eventId" -------------
+	var eventId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "eventId", chi.URLParam(r, "eventId"), &eventId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "eventId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReconcilePrinterEvent(w, r, eventId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreatePrinterSlot operation middleware
+func (siw *ServerInterfaceWrapper) CreatePrinterSlot(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "inputUnitId" -------------
+	var inputUnitId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "inputUnitId", chi.URLParam(r, "inputUnitId"), &inputUnitId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "inputUnitId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreatePrinterSlot(w, r, inputUnitId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// MountPrinterSpool operation middleware
+func (siw *ServerInterfaceWrapper) MountPrinterSpool(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "slotId" -------------
+	var slotId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slotId", chi.URLParam(r, "slotId"), &slotId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slotId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.MountPrinterSpool(w, r, slotId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UnmountPrinterSpool operation middleware
+func (siw *ServerInterfaceWrapper) UnmountPrinterSpool(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "slotId" -------------
+	var slotId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "slotId", chi.URLParam(r, "slotId"), &slotId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "slotId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UnmountPrinterSpool(w, r, slotId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetPublicBrandingAsset operation middleware
 func (siw *ServerInterfaceWrapper) GetPublicBrandingAsset(w http.ResponseWriter, r *http.Request) {
 
@@ -18660,6 +20387,36 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/external-invoice-requests/{requestId}/submit", wrapper.SubmitExternalInvoiceRequest)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/filament-spools", wrapper.ListFilamentSpools)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/filament-spools", wrapper.CreateFilamentSpool)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/filament-spools/lookup", wrapper.LookupFilamentSpool)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/filament-spools/{spoolId}", wrapper.GetFilamentSpool)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/filament-spools/{spoolId}", wrapper.UpdateFilamentSpool)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/filament-spools/{spoolId}/consumptions", wrapper.ConsumeFilamentSpool)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/filament-spools/{spoolId}/corrections", wrapper.CorrectFilamentSpoolStock)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/filament-spools/{spoolId}/identifiers", wrapper.AddFilamentSpoolIdentifier)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/filament-spools/{spoolId}/identifiers/{identifierId}", wrapper.DeleteFilamentSpoolIdentifier)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/filament-spools/{spoolId}/transactions", wrapper.ListFilamentSpoolTransactions)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/health/live", wrapper.GetLiveness)
 	})
 	r.Group(func(r chi.Router) {
@@ -18753,6 +20510,15 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Patch(options.BaseURL+"/machines/{machineId}", wrapper.UpdateMachine)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/machines/{machineId}/printer", wrapper.GetPrinterProfile)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/machines/{machineId}/printer", wrapper.ConfigurePrinterProfile)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/machines/{machineId}/printer/input-units", wrapper.CreatePrinterInputUnit)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/mail/configuration", wrapper.GetMailConfiguration)
 	})
 	r.Group(func(r chi.Router) {
@@ -18823,6 +20589,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/materials/{materialId}/purchases", wrapper.AddMaterialPurchase)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/materials/{materialId}/spool-transfers", wrapper.TransferSpoolStock)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/materials/{materialId}/transactions", wrapper.ListMaterialTransactions)
@@ -19051,6 +20820,36 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Patch(options.BaseURL+"/pricing-rules/{pricingRuleId}", wrapper.UpdatePricingRule)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/print-attempts/{attemptId}", wrapper.TransitionPrintAttempt)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/print-attempts/{attemptId}/machine-job", wrapper.LinkPrintAttemptJob)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/print-submissions", wrapper.ListPrintSubmissions)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/print-submissions", wrapper.CreatePrintSubmission)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/print-submissions/{submissionId}", wrapper.GetPrintSubmission)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/print-submissions/{submissionId}/attempts", wrapper.CreatePrintAttempt)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/printer-events/{eventId}/reconciliation", wrapper.ReconcilePrinterEvent)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/printer-input-units/{inputUnitId}/slots", wrapper.CreatePrinterSlot)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/printer-slots/{slotId}/mount", wrapper.MountPrinterSpool)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/printer-slots/{slotId}/unmount", wrapper.UnmountPrinterSpool)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/public/branding/assets/{slot}/{sha256}", wrapper.GetPublicBrandingAsset)
@@ -26594,6 +28393,643 @@ func (response SubmitExternalInvoiceRequest500JSONResponse) VisitSubmitExternalI
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ListFilamentSpoolsRequestObject struct {
+	Params ListFilamentSpoolsParams
+}
+
+type ListFilamentSpoolsResponseObject interface {
+	VisitListFilamentSpoolsResponse(w http.ResponseWriter) error
+}
+
+type ListFilamentSpools200JSONResponse FilamentSpoolPage
+
+func (response ListFilamentSpools200JSONResponse) VisitListFilamentSpoolsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListFilamentSpools401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListFilamentSpools401JSONResponse) VisitListFilamentSpoolsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListFilamentSpools403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListFilamentSpools403JSONResponse) VisitListFilamentSpoolsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListFilamentSpools500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListFilamentSpools500JSONResponse) VisitListFilamentSpoolsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateFilamentSpoolRequestObject struct {
+	Body *CreateFilamentSpoolJSONRequestBody
+}
+
+type CreateFilamentSpoolResponseObject interface {
+	VisitCreateFilamentSpoolResponse(w http.ResponseWriter) error
+}
+
+type CreateFilamentSpool201JSONResponse FilamentSpool
+
+func (response CreateFilamentSpool201JSONResponse) VisitCreateFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateFilamentSpool401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateFilamentSpool401JSONResponse) VisitCreateFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateFilamentSpool403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateFilamentSpool403JSONResponse) VisitCreateFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateFilamentSpool409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreateFilamentSpool409JSONResponse) VisitCreateFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateFilamentSpool422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateFilamentSpool422JSONResponse) VisitCreateFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateFilamentSpool500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateFilamentSpool500JSONResponse) VisitCreateFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LookupFilamentSpoolRequestObject struct {
+	Params LookupFilamentSpoolParams
+}
+
+type LookupFilamentSpoolResponseObject interface {
+	VisitLookupFilamentSpoolResponse(w http.ResponseWriter) error
+}
+
+type LookupFilamentSpool200JSONResponse FilamentSpool
+
+func (response LookupFilamentSpool200JSONResponse) VisitLookupFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LookupFilamentSpool401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response LookupFilamentSpool401JSONResponse) VisitLookupFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LookupFilamentSpool403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response LookupFilamentSpool403JSONResponse) VisitLookupFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LookupFilamentSpool404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response LookupFilamentSpool404JSONResponse) VisitLookupFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LookupFilamentSpool500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response LookupFilamentSpool500JSONResponse) VisitLookupFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetFilamentSpoolRequestObject struct {
+	SpoolId UUIDv7 `json:"spoolId"`
+}
+
+type GetFilamentSpoolResponseObject interface {
+	VisitGetFilamentSpoolResponse(w http.ResponseWriter) error
+}
+
+type GetFilamentSpool200JSONResponse FilamentSpool
+
+func (response GetFilamentSpool200JSONResponse) VisitGetFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetFilamentSpool401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetFilamentSpool401JSONResponse) VisitGetFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetFilamentSpool403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetFilamentSpool403JSONResponse) VisitGetFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetFilamentSpool404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetFilamentSpool404JSONResponse) VisitGetFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetFilamentSpool500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetFilamentSpool500JSONResponse) VisitGetFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateFilamentSpoolRequestObject struct {
+	SpoolId UUIDv7 `json:"spoolId"`
+	Body    *UpdateFilamentSpoolJSONRequestBody
+}
+
+type UpdateFilamentSpoolResponseObject interface {
+	VisitUpdateFilamentSpoolResponse(w http.ResponseWriter) error
+}
+
+type UpdateFilamentSpool200JSONResponse FilamentSpool
+
+func (response UpdateFilamentSpool200JSONResponse) VisitUpdateFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateFilamentSpool401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateFilamentSpool401JSONResponse) VisitUpdateFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateFilamentSpool403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateFilamentSpool403JSONResponse) VisitUpdateFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateFilamentSpool404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateFilamentSpool404JSONResponse) VisitUpdateFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateFilamentSpool409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateFilamentSpool409JSONResponse) VisitUpdateFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateFilamentSpool422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateFilamentSpool422JSONResponse) VisitUpdateFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateFilamentSpool500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateFilamentSpool500JSONResponse) VisitUpdateFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConsumeFilamentSpoolRequestObject struct {
+	SpoolId UUIDv7 `json:"spoolId"`
+	Body    *ConsumeFilamentSpoolJSONRequestBody
+}
+
+type ConsumeFilamentSpoolResponseObject interface {
+	VisitConsumeFilamentSpoolResponse(w http.ResponseWriter) error
+}
+
+type ConsumeFilamentSpool201JSONResponse InventoryMutationResult
+
+func (response ConsumeFilamentSpool201JSONResponse) VisitConsumeFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConsumeFilamentSpool401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ConsumeFilamentSpool401JSONResponse) VisitConsumeFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConsumeFilamentSpool403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ConsumeFilamentSpool403JSONResponse) VisitConsumeFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConsumeFilamentSpool404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ConsumeFilamentSpool404JSONResponse) VisitConsumeFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConsumeFilamentSpool409JSONResponse struct{ ConflictJSONResponse }
+
+func (response ConsumeFilamentSpool409JSONResponse) VisitConsumeFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConsumeFilamentSpool422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response ConsumeFilamentSpool422JSONResponse) VisitConsumeFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConsumeFilamentSpool500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ConsumeFilamentSpool500JSONResponse) VisitConsumeFilamentSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CorrectFilamentSpoolStockRequestObject struct {
+	SpoolId UUIDv7 `json:"spoolId"`
+	Body    *CorrectFilamentSpoolStockJSONRequestBody
+}
+
+type CorrectFilamentSpoolStockResponseObject interface {
+	VisitCorrectFilamentSpoolStockResponse(w http.ResponseWriter) error
+}
+
+type CorrectFilamentSpoolStock201JSONResponse InventoryMutationResult
+
+func (response CorrectFilamentSpoolStock201JSONResponse) VisitCorrectFilamentSpoolStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CorrectFilamentSpoolStock401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CorrectFilamentSpoolStock401JSONResponse) VisitCorrectFilamentSpoolStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CorrectFilamentSpoolStock403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CorrectFilamentSpoolStock403JSONResponse) VisitCorrectFilamentSpoolStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CorrectFilamentSpoolStock404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CorrectFilamentSpoolStock404JSONResponse) VisitCorrectFilamentSpoolStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CorrectFilamentSpoolStock409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CorrectFilamentSpoolStock409JSONResponse) VisitCorrectFilamentSpoolStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CorrectFilamentSpoolStock422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CorrectFilamentSpoolStock422JSONResponse) VisitCorrectFilamentSpoolStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CorrectFilamentSpoolStock500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CorrectFilamentSpoolStock500JSONResponse) VisitCorrectFilamentSpoolStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AddFilamentSpoolIdentifierRequestObject struct {
+	SpoolId UUIDv7 `json:"spoolId"`
+	Body    *AddFilamentSpoolIdentifierJSONRequestBody
+}
+
+type AddFilamentSpoolIdentifierResponseObject interface {
+	VisitAddFilamentSpoolIdentifierResponse(w http.ResponseWriter) error
+}
+
+type AddFilamentSpoolIdentifier201JSONResponse FilamentSpoolIdentifier
+
+func (response AddFilamentSpoolIdentifier201JSONResponse) VisitAddFilamentSpoolIdentifierResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AddFilamentSpoolIdentifier401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response AddFilamentSpoolIdentifier401JSONResponse) VisitAddFilamentSpoolIdentifierResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AddFilamentSpoolIdentifier403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response AddFilamentSpoolIdentifier403JSONResponse) VisitAddFilamentSpoolIdentifierResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AddFilamentSpoolIdentifier404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response AddFilamentSpoolIdentifier404JSONResponse) VisitAddFilamentSpoolIdentifierResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AddFilamentSpoolIdentifier409JSONResponse struct{ ConflictJSONResponse }
+
+func (response AddFilamentSpoolIdentifier409JSONResponse) VisitAddFilamentSpoolIdentifierResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AddFilamentSpoolIdentifier422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response AddFilamentSpoolIdentifier422JSONResponse) VisitAddFilamentSpoolIdentifierResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type AddFilamentSpoolIdentifier500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response AddFilamentSpoolIdentifier500JSONResponse) VisitAddFilamentSpoolIdentifierResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteFilamentSpoolIdentifierRequestObject struct {
+	SpoolId      UUIDv7 `json:"spoolId"`
+	IdentifierId UUIDv7 `json:"identifierId"`
+}
+
+type DeleteFilamentSpoolIdentifierResponseObject interface {
+	VisitDeleteFilamentSpoolIdentifierResponse(w http.ResponseWriter) error
+}
+
+type DeleteFilamentSpoolIdentifier204Response struct {
+}
+
+func (response DeleteFilamentSpoolIdentifier204Response) VisitDeleteFilamentSpoolIdentifierResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteFilamentSpoolIdentifier401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteFilamentSpoolIdentifier401JSONResponse) VisitDeleteFilamentSpoolIdentifierResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteFilamentSpoolIdentifier403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteFilamentSpoolIdentifier403JSONResponse) VisitDeleteFilamentSpoolIdentifierResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteFilamentSpoolIdentifier404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteFilamentSpoolIdentifier404JSONResponse) VisitDeleteFilamentSpoolIdentifierResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteFilamentSpoolIdentifier500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response DeleteFilamentSpoolIdentifier500JSONResponse) VisitDeleteFilamentSpoolIdentifierResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListFilamentSpoolTransactionsRequestObject struct {
+	SpoolId UUIDv7 `json:"spoolId"`
+	Params  ListFilamentSpoolTransactionsParams
+}
+
+type ListFilamentSpoolTransactionsResponseObject interface {
+	VisitListFilamentSpoolTransactionsResponse(w http.ResponseWriter) error
+}
+
+type ListFilamentSpoolTransactions200JSONResponse InventoryTransactionPage
+
+func (response ListFilamentSpoolTransactions200JSONResponse) VisitListFilamentSpoolTransactionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListFilamentSpoolTransactions401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListFilamentSpoolTransactions401JSONResponse) VisitListFilamentSpoolTransactionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListFilamentSpoolTransactions403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListFilamentSpoolTransactions403JSONResponse) VisitListFilamentSpoolTransactionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListFilamentSpoolTransactions404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListFilamentSpoolTransactions404JSONResponse) VisitListFilamentSpoolTransactionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListFilamentSpoolTransactions500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListFilamentSpoolTransactions500JSONResponse) VisitListFilamentSpoolTransactionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetLivenessRequestObject struct {
 }
 
@@ -28505,6 +30941,193 @@ func (response UpdateMachine500JSONResponse) VisitUpdateMachineResponse(w http.R
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetPrinterProfileRequestObject struct {
+	MachineId UUIDv7 `json:"machineId"`
+}
+
+type GetPrinterProfileResponseObject interface {
+	VisitGetPrinterProfileResponse(w http.ResponseWriter) error
+}
+
+type GetPrinterProfile200JSONResponse PrinterProfile
+
+func (response GetPrinterProfile200JSONResponse) VisitGetPrinterProfileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPrinterProfile401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetPrinterProfile401JSONResponse) VisitGetPrinterProfileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPrinterProfile403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetPrinterProfile403JSONResponse) VisitGetPrinterProfileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPrinterProfile404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetPrinterProfile404JSONResponse) VisitGetPrinterProfileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPrinterProfile500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetPrinterProfile500JSONResponse) VisitGetPrinterProfileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfigurePrinterProfileRequestObject struct {
+	MachineId UUIDv7 `json:"machineId"`
+	Body      *ConfigurePrinterProfileJSONRequestBody
+}
+
+type ConfigurePrinterProfileResponseObject interface {
+	VisitConfigurePrinterProfileResponse(w http.ResponseWriter) error
+}
+
+type ConfigurePrinterProfile200JSONResponse PrinterProfile
+
+func (response ConfigurePrinterProfile200JSONResponse) VisitConfigurePrinterProfileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfigurePrinterProfile401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ConfigurePrinterProfile401JSONResponse) VisitConfigurePrinterProfileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfigurePrinterProfile403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ConfigurePrinterProfile403JSONResponse) VisitConfigurePrinterProfileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfigurePrinterProfile404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ConfigurePrinterProfile404JSONResponse) VisitConfigurePrinterProfileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfigurePrinterProfile409JSONResponse struct{ ConflictJSONResponse }
+
+func (response ConfigurePrinterProfile409JSONResponse) VisitConfigurePrinterProfileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ConfigurePrinterProfile500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ConfigurePrinterProfile500JSONResponse) VisitConfigurePrinterProfileResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterInputUnitRequestObject struct {
+	MachineId UUIDv7 `json:"machineId"`
+	Body      *CreatePrinterInputUnitJSONRequestBody
+}
+
+type CreatePrinterInputUnitResponseObject interface {
+	VisitCreatePrinterInputUnitResponse(w http.ResponseWriter) error
+}
+
+type CreatePrinterInputUnit201JSONResponse PrinterInputUnit
+
+func (response CreatePrinterInputUnit201JSONResponse) VisitCreatePrinterInputUnitResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterInputUnit401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreatePrinterInputUnit401JSONResponse) VisitCreatePrinterInputUnitResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterInputUnit403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreatePrinterInputUnit403JSONResponse) VisitCreatePrinterInputUnitResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterInputUnit409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreatePrinterInputUnit409JSONResponse) VisitCreatePrinterInputUnitResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterInputUnit422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreatePrinterInputUnit422JSONResponse) VisitCreatePrinterInputUnitResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterInputUnit500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreatePrinterInputUnit500JSONResponse) VisitCreatePrinterInputUnitResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetMailConfigurationRequestObject struct {
 }
 
@@ -30114,6 +32737,82 @@ type AddMaterialPurchase500JSONResponse struct {
 }
 
 func (response AddMaterialPurchase500JSONResponse) VisitAddMaterialPurchaseResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TransferSpoolStockRequestObject struct {
+	MaterialId UUIDv7 `json:"materialId"`
+	Body       *TransferSpoolStockJSONRequestBody
+}
+
+type TransferSpoolStockResponseObject interface {
+	VisitTransferSpoolStockResponse(w http.ResponseWriter) error
+}
+
+type TransferSpoolStock201JSONResponse InventoryTransaction
+
+func (response TransferSpoolStock201JSONResponse) VisitTransferSpoolStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TransferSpoolStock401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response TransferSpoolStock401JSONResponse) VisitTransferSpoolStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TransferSpoolStock403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response TransferSpoolStock403JSONResponse) VisitTransferSpoolStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TransferSpoolStock404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response TransferSpoolStock404JSONResponse) VisitTransferSpoolStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TransferSpoolStock409JSONResponse struct{ ConflictJSONResponse }
+
+func (response TransferSpoolStock409JSONResponse) VisitTransferSpoolStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TransferSpoolStock422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response TransferSpoolStock422JSONResponse) VisitTransferSpoolStockResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TransferSpoolStock500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response TransferSpoolStock500JSONResponse) VisitTransferSpoolStockResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -35498,6 +38197,670 @@ func (response UpdatePricingRule500JSONResponse) VisitUpdatePricingRuleResponse(
 	return json.NewEncoder(w).Encode(response)
 }
 
+type TransitionPrintAttemptRequestObject struct {
+	AttemptId UUIDv7 `json:"attemptId"`
+	Body      *TransitionPrintAttemptJSONRequestBody
+}
+
+type TransitionPrintAttemptResponseObject interface {
+	VisitTransitionPrintAttemptResponse(w http.ResponseWriter) error
+}
+
+type TransitionPrintAttempt200JSONResponse PrintAttempt
+
+func (response TransitionPrintAttempt200JSONResponse) VisitTransitionPrintAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TransitionPrintAttempt401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response TransitionPrintAttempt401JSONResponse) VisitTransitionPrintAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TransitionPrintAttempt403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response TransitionPrintAttempt403JSONResponse) VisitTransitionPrintAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TransitionPrintAttempt404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response TransitionPrintAttempt404JSONResponse) VisitTransitionPrintAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TransitionPrintAttempt409JSONResponse struct{ ConflictJSONResponse }
+
+func (response TransitionPrintAttempt409JSONResponse) VisitTransitionPrintAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TransitionPrintAttempt422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response TransitionPrintAttempt422JSONResponse) VisitTransitionPrintAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type TransitionPrintAttempt500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response TransitionPrintAttempt500JSONResponse) VisitTransitionPrintAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkPrintAttemptJobRequestObject struct {
+	AttemptId UUIDv7 `json:"attemptId"`
+	Body      *LinkPrintAttemptJobJSONRequestBody
+}
+
+type LinkPrintAttemptJobResponseObject interface {
+	VisitLinkPrintAttemptJobResponse(w http.ResponseWriter) error
+}
+
+type LinkPrintAttemptJob200JSONResponse PrintAttempt
+
+func (response LinkPrintAttemptJob200JSONResponse) VisitLinkPrintAttemptJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkPrintAttemptJob401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response LinkPrintAttemptJob401JSONResponse) VisitLinkPrintAttemptJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkPrintAttemptJob403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response LinkPrintAttemptJob403JSONResponse) VisitLinkPrintAttemptJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkPrintAttemptJob404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response LinkPrintAttemptJob404JSONResponse) VisitLinkPrintAttemptJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkPrintAttemptJob409JSONResponse struct{ ConflictJSONResponse }
+
+func (response LinkPrintAttemptJob409JSONResponse) VisitLinkPrintAttemptJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkPrintAttemptJob500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response LinkPrintAttemptJob500JSONResponse) VisitLinkPrintAttemptJobResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrintSubmissionsRequestObject struct {
+	Params ListPrintSubmissionsParams
+}
+
+type ListPrintSubmissionsResponseObject interface {
+	VisitListPrintSubmissionsResponse(w http.ResponseWriter) error
+}
+
+type ListPrintSubmissions200JSONResponse PrintSubmissionPage
+
+func (response ListPrintSubmissions200JSONResponse) VisitListPrintSubmissionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrintSubmissions401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListPrintSubmissions401JSONResponse) VisitListPrintSubmissionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrintSubmissions403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListPrintSubmissions403JSONResponse) VisitListPrintSubmissionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrintSubmissions500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListPrintSubmissions500JSONResponse) VisitListPrintSubmissionsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrintSubmissionRequestObject struct {
+	Body *CreatePrintSubmissionJSONRequestBody
+}
+
+type CreatePrintSubmissionResponseObject interface {
+	VisitCreatePrintSubmissionResponse(w http.ResponseWriter) error
+}
+
+type CreatePrintSubmission201JSONResponse PrintSubmission
+
+func (response CreatePrintSubmission201JSONResponse) VisitCreatePrintSubmissionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrintSubmission401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreatePrintSubmission401JSONResponse) VisitCreatePrintSubmissionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrintSubmission403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreatePrintSubmission403JSONResponse) VisitCreatePrintSubmissionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrintSubmission409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreatePrintSubmission409JSONResponse) VisitCreatePrintSubmissionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrintSubmission422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreatePrintSubmission422JSONResponse) VisitCreatePrintSubmissionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrintSubmission500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreatePrintSubmission500JSONResponse) VisitCreatePrintSubmissionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPrintSubmissionRequestObject struct {
+	SubmissionId UUIDv7 `json:"submissionId"`
+}
+
+type GetPrintSubmissionResponseObject interface {
+	VisitGetPrintSubmissionResponse(w http.ResponseWriter) error
+}
+
+type GetPrintSubmission200JSONResponse PrintSubmission
+
+func (response GetPrintSubmission200JSONResponse) VisitGetPrintSubmissionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPrintSubmission401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetPrintSubmission401JSONResponse) VisitGetPrintSubmissionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPrintSubmission403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetPrintSubmission403JSONResponse) VisitGetPrintSubmissionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPrintSubmission404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetPrintSubmission404JSONResponse) VisitGetPrintSubmissionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPrintSubmission500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetPrintSubmission500JSONResponse) VisitGetPrintSubmissionResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrintAttemptRequestObject struct {
+	SubmissionId UUIDv7 `json:"submissionId"`
+	Body         *CreatePrintAttemptJSONRequestBody
+}
+
+type CreatePrintAttemptResponseObject interface {
+	VisitCreatePrintAttemptResponse(w http.ResponseWriter) error
+}
+
+type CreatePrintAttempt200JSONResponse PrintAttempt
+
+func (response CreatePrintAttempt200JSONResponse) VisitCreatePrintAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrintAttempt201JSONResponse PrintAttempt
+
+func (response CreatePrintAttempt201JSONResponse) VisitCreatePrintAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrintAttempt401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreatePrintAttempt401JSONResponse) VisitCreatePrintAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrintAttempt403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreatePrintAttempt403JSONResponse) VisitCreatePrintAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrintAttempt409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreatePrintAttempt409JSONResponse) VisitCreatePrintAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrintAttempt422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreatePrintAttempt422JSONResponse) VisitCreatePrintAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrintAttempt500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreatePrintAttempt500JSONResponse) VisitCreatePrintAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReconcilePrinterEventRequestObject struct {
+	EventId UUIDv7 `json:"eventId"`
+	Body    *ReconcilePrinterEventJSONRequestBody
+}
+
+type ReconcilePrinterEventResponseObject interface {
+	VisitReconcilePrinterEventResponse(w http.ResponseWriter) error
+}
+
+type ReconcilePrinterEvent204Response struct {
+}
+
+func (response ReconcilePrinterEvent204Response) VisitReconcilePrinterEventResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type ReconcilePrinterEvent401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ReconcilePrinterEvent401JSONResponse) VisitReconcilePrinterEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReconcilePrinterEvent403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ReconcilePrinterEvent403JSONResponse) VisitReconcilePrinterEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReconcilePrinterEvent404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ReconcilePrinterEvent404JSONResponse) VisitReconcilePrinterEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReconcilePrinterEvent409JSONResponse struct{ ConflictJSONResponse }
+
+func (response ReconcilePrinterEvent409JSONResponse) VisitReconcilePrinterEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReconcilePrinterEvent422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response ReconcilePrinterEvent422JSONResponse) VisitReconcilePrinterEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReconcilePrinterEvent500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ReconcilePrinterEvent500JSONResponse) VisitReconcilePrinterEventResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterSlotRequestObject struct {
+	InputUnitId UUIDv7 `json:"inputUnitId"`
+	Body        *CreatePrinterSlotJSONRequestBody
+}
+
+type CreatePrinterSlotResponseObject interface {
+	VisitCreatePrinterSlotResponse(w http.ResponseWriter) error
+}
+
+type CreatePrinterSlot201JSONResponse PrinterSlot
+
+func (response CreatePrinterSlot201JSONResponse) VisitCreatePrinterSlotResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterSlot401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreatePrinterSlot401JSONResponse) VisitCreatePrinterSlotResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterSlot403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreatePrinterSlot403JSONResponse) VisitCreatePrinterSlotResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterSlot404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreatePrinterSlot404JSONResponse) VisitCreatePrinterSlotResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterSlot409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreatePrinterSlot409JSONResponse) VisitCreatePrinterSlotResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterSlot422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreatePrinterSlot422JSONResponse) VisitCreatePrinterSlotResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterSlot500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreatePrinterSlot500JSONResponse) VisitCreatePrinterSlotResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MountPrinterSpoolRequestObject struct {
+	SlotId UUIDv7 `json:"slotId"`
+	Body   *MountPrinterSpoolJSONRequestBody
+}
+
+type MountPrinterSpoolResponseObject interface {
+	VisitMountPrinterSpoolResponse(w http.ResponseWriter) error
+}
+
+type MountPrinterSpool200JSONResponse PrinterSlot
+
+func (response MountPrinterSpool200JSONResponse) VisitMountPrinterSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MountPrinterSpool401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response MountPrinterSpool401JSONResponse) VisitMountPrinterSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MountPrinterSpool403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response MountPrinterSpool403JSONResponse) VisitMountPrinterSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MountPrinterSpool404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response MountPrinterSpool404JSONResponse) VisitMountPrinterSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MountPrinterSpool409JSONResponse struct{ ConflictJSONResponse }
+
+func (response MountPrinterSpool409JSONResponse) VisitMountPrinterSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type MountPrinterSpool500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response MountPrinterSpool500JSONResponse) VisitMountPrinterSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UnmountPrinterSpoolRequestObject struct {
+	SlotId UUIDv7 `json:"slotId"`
+}
+
+type UnmountPrinterSpoolResponseObject interface {
+	VisitUnmountPrinterSpoolResponse(w http.ResponseWriter) error
+}
+
+type UnmountPrinterSpool200JSONResponse PrinterSlot
+
+func (response UnmountPrinterSpool200JSONResponse) VisitUnmountPrinterSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UnmountPrinterSpool401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UnmountPrinterSpool401JSONResponse) VisitUnmountPrinterSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UnmountPrinterSpool403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UnmountPrinterSpool403JSONResponse) VisitUnmountPrinterSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UnmountPrinterSpool404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UnmountPrinterSpool404JSONResponse) VisitUnmountPrinterSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UnmountPrinterSpool409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UnmountPrinterSpool409JSONResponse) VisitUnmountPrinterSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UnmountPrinterSpool500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UnmountPrinterSpool500JSONResponse) VisitUnmountPrinterSpoolResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetPublicBrandingAssetRequestObject struct {
 	Slot   BrandingAssetSlot `json:"slot"`
 	Sha256 string            `json:"sha256"`
@@ -39725,6 +43088,36 @@ type StrictServerInterface interface {
 
 	// (POST /external-invoice-requests/{requestId}/submit)
 	SubmitExternalInvoiceRequest(ctx context.Context, request SubmitExternalInvoiceRequestRequestObject) (SubmitExternalInvoiceRequestResponseObject, error)
+	// List physical filament spools
+	// (GET /filament-spools)
+	ListFilamentSpools(ctx context.Context, request ListFilamentSpoolsRequestObject) (ListFilamentSpoolsResponseObject, error)
+	// Register a purchased or already-counted spool
+	// (POST /filament-spools)
+	CreateFilamentSpool(ctx context.Context, request CreateFilamentSpoolRequestObject) (CreateFilamentSpoolResponseObject, error)
+
+	// (GET /filament-spools/lookup)
+	LookupFilamentSpool(ctx context.Context, request LookupFilamentSpoolRequestObject) (LookupFilamentSpoolResponseObject, error)
+
+	// (GET /filament-spools/{spoolId})
+	GetFilamentSpool(ctx context.Context, request GetFilamentSpoolRequestObject) (GetFilamentSpoolResponseObject, error)
+
+	// (PATCH /filament-spools/{spoolId})
+	UpdateFilamentSpool(ctx context.Context, request UpdateFilamentSpoolRequestObject) (UpdateFilamentSpoolResponseObject, error)
+
+	// (POST /filament-spools/{spoolId}/consumptions)
+	ConsumeFilamentSpool(ctx context.Context, request ConsumeFilamentSpoolRequestObject) (ConsumeFilamentSpoolResponseObject, error)
+
+	// (POST /filament-spools/{spoolId}/corrections)
+	CorrectFilamentSpoolStock(ctx context.Context, request CorrectFilamentSpoolStockRequestObject) (CorrectFilamentSpoolStockResponseObject, error)
+
+	// (POST /filament-spools/{spoolId}/identifiers)
+	AddFilamentSpoolIdentifier(ctx context.Context, request AddFilamentSpoolIdentifierRequestObject) (AddFilamentSpoolIdentifierResponseObject, error)
+
+	// (DELETE /filament-spools/{spoolId}/identifiers/{identifierId})
+	DeleteFilamentSpoolIdentifier(ctx context.Context, request DeleteFilamentSpoolIdentifierRequestObject) (DeleteFilamentSpoolIdentifierResponseObject, error)
+
+	// (GET /filament-spools/{spoolId}/transactions)
+	ListFilamentSpoolTransactions(ctx context.Context, request ListFilamentSpoolTransactionsRequestObject) (ListFilamentSpoolTransactionsResponseObject, error)
 	// Report that the API process is running
 	// (GET /health/live)
 	GetLiveness(ctx context.Context, request GetLivenessRequestObject) (GetLivenessResponseObject, error)
@@ -39818,6 +43211,15 @@ type StrictServerInterface interface {
 	// Update a machine
 	// (PATCH /machines/{machineId})
 	UpdateMachine(ctx context.Context, request UpdateMachineRequestObject) (UpdateMachineResponseObject, error)
+
+	// (GET /machines/{machineId}/printer)
+	GetPrinterProfile(ctx context.Context, request GetPrinterProfileRequestObject) (GetPrinterProfileResponseObject, error)
+
+	// (PUT /machines/{machineId}/printer)
+	ConfigurePrinterProfile(ctx context.Context, request ConfigurePrinterProfileRequestObject) (ConfigurePrinterProfileResponseObject, error)
+
+	// (POST /machines/{machineId}/printer/input-units)
+	CreatePrinterInputUnit(ctx context.Context, request CreatePrinterInputUnitRequestObject) (CreatePrinterInputUnitResponseObject, error)
 	// Read write-only-safe transactional mail configuration
 	// (GET /mail/configuration)
 	GetMailConfiguration(ctx context.Context, request GetMailConfigurationRequestObject) (GetMailConfigurationResponseObject, error)
@@ -39890,6 +43292,9 @@ type StrictServerInterface interface {
 	// Add purchased stock and acquisition cost
 	// (POST /materials/{materialId}/purchases)
 	AddMaterialPurchase(ctx context.Context, request AddMaterialPurchaseRequestObject) (AddMaterialPurchaseResponseObject, error)
+	// Transfer stock attribution without changing material totals
+	// (POST /materials/{materialId}/spool-transfers)
+	TransferSpoolStock(ctx context.Context, request TransferSpoolStockRequestObject) (TransferSpoolStockResponseObject, error)
 	// List immutable material transactions
 	// (GET /materials/{materialId}/transactions)
 	ListMaterialTransactions(ctx context.Context, request ListMaterialTransactionsRequestObject) (ListMaterialTransactionsResponseObject, error)
@@ -40118,6 +43523,36 @@ type StrictServerInterface interface {
 	// Update a pricing rule
 	// (PATCH /pricing-rules/{pricingRuleId})
 	UpdatePricingRule(ctx context.Context, request UpdatePricingRuleRequestObject) (UpdatePricingRuleResponseObject, error)
+
+	// (PATCH /print-attempts/{attemptId})
+	TransitionPrintAttempt(ctx context.Context, request TransitionPrintAttemptRequestObject) (TransitionPrintAttemptResponseObject, error)
+
+	// (PUT /print-attempts/{attemptId}/machine-job)
+	LinkPrintAttemptJob(ctx context.Context, request LinkPrintAttemptJobRequestObject) (LinkPrintAttemptJobResponseObject, error)
+
+	// (GET /print-submissions)
+	ListPrintSubmissions(ctx context.Context, request ListPrintSubmissionsRequestObject) (ListPrintSubmissionsResponseObject, error)
+
+	// (POST /print-submissions)
+	CreatePrintSubmission(ctx context.Context, request CreatePrintSubmissionRequestObject) (CreatePrintSubmissionResponseObject, error)
+
+	// (GET /print-submissions/{submissionId})
+	GetPrintSubmission(ctx context.Context, request GetPrintSubmissionRequestObject) (GetPrintSubmissionResponseObject, error)
+
+	// (POST /print-submissions/{submissionId}/attempts)
+	CreatePrintAttempt(ctx context.Context, request CreatePrintAttemptRequestObject) (CreatePrintAttemptResponseObject, error)
+
+	// (POST /printer-events/{eventId}/reconciliation)
+	ReconcilePrinterEvent(ctx context.Context, request ReconcilePrinterEventRequestObject) (ReconcilePrinterEventResponseObject, error)
+
+	// (POST /printer-input-units/{inputUnitId}/slots)
+	CreatePrinterSlot(ctx context.Context, request CreatePrinterSlotRequestObject) (CreatePrinterSlotResponseObject, error)
+
+	// (POST /printer-slots/{slotId}/mount)
+	MountPrinterSpool(ctx context.Context, request MountPrinterSpoolRequestObject) (MountPrinterSpoolResponseObject, error)
+
+	// (POST /printer-slots/{slotId}/unmount)
+	UnmountPrinterSpool(ctx context.Context, request UnmountPrinterSpoolRequestObject) (UnmountPrinterSpoolResponseObject, error)
 	// Read a content-addressed active custom branding asset
 	// (GET /public/branding/assets/{slot}/{sha256})
 	GetPublicBrandingAsset(ctx context.Context, request GetPublicBrandingAssetRequestObject) (GetPublicBrandingAssetResponseObject, error)
@@ -43620,6 +47055,301 @@ func (sh *strictHandler) SubmitExternalInvoiceRequest(w http.ResponseWriter, r *
 	}
 }
 
+// ListFilamentSpools operation middleware
+func (sh *strictHandler) ListFilamentSpools(w http.ResponseWriter, r *http.Request, params ListFilamentSpoolsParams) {
+	var request ListFilamentSpoolsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListFilamentSpools(ctx, request.(ListFilamentSpoolsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListFilamentSpools")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListFilamentSpoolsResponseObject); ok {
+		if err := validResponse.VisitListFilamentSpoolsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateFilamentSpool operation middleware
+func (sh *strictHandler) CreateFilamentSpool(w http.ResponseWriter, r *http.Request) {
+	var request CreateFilamentSpoolRequestObject
+
+	var body CreateFilamentSpoolJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateFilamentSpool(ctx, request.(CreateFilamentSpoolRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateFilamentSpool")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateFilamentSpoolResponseObject); ok {
+		if err := validResponse.VisitCreateFilamentSpoolResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// LookupFilamentSpool operation middleware
+func (sh *strictHandler) LookupFilamentSpool(w http.ResponseWriter, r *http.Request, params LookupFilamentSpoolParams) {
+	var request LookupFilamentSpoolRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.LookupFilamentSpool(ctx, request.(LookupFilamentSpoolRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "LookupFilamentSpool")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(LookupFilamentSpoolResponseObject); ok {
+		if err := validResponse.VisitLookupFilamentSpoolResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFilamentSpool operation middleware
+func (sh *strictHandler) GetFilamentSpool(w http.ResponseWriter, r *http.Request, spoolId UUIDv7) {
+	var request GetFilamentSpoolRequestObject
+
+	request.SpoolId = spoolId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFilamentSpool(ctx, request.(GetFilamentSpoolRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFilamentSpool")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFilamentSpoolResponseObject); ok {
+		if err := validResponse.VisitGetFilamentSpoolResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateFilamentSpool operation middleware
+func (sh *strictHandler) UpdateFilamentSpool(w http.ResponseWriter, r *http.Request, spoolId UUIDv7) {
+	var request UpdateFilamentSpoolRequestObject
+
+	request.SpoolId = spoolId
+
+	var body UpdateFilamentSpoolJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateFilamentSpool(ctx, request.(UpdateFilamentSpoolRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateFilamentSpool")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateFilamentSpoolResponseObject); ok {
+		if err := validResponse.VisitUpdateFilamentSpoolResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConsumeFilamentSpool operation middleware
+func (sh *strictHandler) ConsumeFilamentSpool(w http.ResponseWriter, r *http.Request, spoolId UUIDv7) {
+	var request ConsumeFilamentSpoolRequestObject
+
+	request.SpoolId = spoolId
+
+	var body ConsumeFilamentSpoolJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ConsumeFilamentSpool(ctx, request.(ConsumeFilamentSpoolRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConsumeFilamentSpool")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ConsumeFilamentSpoolResponseObject); ok {
+		if err := validResponse.VisitConsumeFilamentSpoolResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CorrectFilamentSpoolStock operation middleware
+func (sh *strictHandler) CorrectFilamentSpoolStock(w http.ResponseWriter, r *http.Request, spoolId UUIDv7) {
+	var request CorrectFilamentSpoolStockRequestObject
+
+	request.SpoolId = spoolId
+
+	var body CorrectFilamentSpoolStockJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CorrectFilamentSpoolStock(ctx, request.(CorrectFilamentSpoolStockRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CorrectFilamentSpoolStock")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CorrectFilamentSpoolStockResponseObject); ok {
+		if err := validResponse.VisitCorrectFilamentSpoolStockResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AddFilamentSpoolIdentifier operation middleware
+func (sh *strictHandler) AddFilamentSpoolIdentifier(w http.ResponseWriter, r *http.Request, spoolId UUIDv7) {
+	var request AddFilamentSpoolIdentifierRequestObject
+
+	request.SpoolId = spoolId
+
+	var body AddFilamentSpoolIdentifierJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AddFilamentSpoolIdentifier(ctx, request.(AddFilamentSpoolIdentifierRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AddFilamentSpoolIdentifier")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AddFilamentSpoolIdentifierResponseObject); ok {
+		if err := validResponse.VisitAddFilamentSpoolIdentifierResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteFilamentSpoolIdentifier operation middleware
+func (sh *strictHandler) DeleteFilamentSpoolIdentifier(w http.ResponseWriter, r *http.Request, spoolId UUIDv7, identifierId UUIDv7) {
+	var request DeleteFilamentSpoolIdentifierRequestObject
+
+	request.SpoolId = spoolId
+	request.IdentifierId = identifierId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteFilamentSpoolIdentifier(ctx, request.(DeleteFilamentSpoolIdentifierRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteFilamentSpoolIdentifier")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteFilamentSpoolIdentifierResponseObject); ok {
+		if err := validResponse.VisitDeleteFilamentSpoolIdentifierResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListFilamentSpoolTransactions operation middleware
+func (sh *strictHandler) ListFilamentSpoolTransactions(w http.ResponseWriter, r *http.Request, spoolId UUIDv7, params ListFilamentSpoolTransactionsParams) {
+	var request ListFilamentSpoolTransactionsRequestObject
+
+	request.SpoolId = spoolId
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListFilamentSpoolTransactions(ctx, request.(ListFilamentSpoolTransactionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListFilamentSpoolTransactions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListFilamentSpoolTransactionsResponseObject); ok {
+		if err := validResponse.VisitListFilamentSpoolTransactionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetLiveness operation middleware
 func (sh *strictHandler) GetLiveness(w http.ResponseWriter, r *http.Request) {
 	var request GetLivenessRequestObject
@@ -44493,6 +48223,98 @@ func (sh *strictHandler) UpdateMachine(w http.ResponseWriter, r *http.Request, m
 	}
 }
 
+// GetPrinterProfile operation middleware
+func (sh *strictHandler) GetPrinterProfile(w http.ResponseWriter, r *http.Request, machineId UUIDv7) {
+	var request GetPrinterProfileRequestObject
+
+	request.MachineId = machineId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPrinterProfile(ctx, request.(GetPrinterProfileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPrinterProfile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPrinterProfileResponseObject); ok {
+		if err := validResponse.VisitGetPrinterProfileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ConfigurePrinterProfile operation middleware
+func (sh *strictHandler) ConfigurePrinterProfile(w http.ResponseWriter, r *http.Request, machineId UUIDv7) {
+	var request ConfigurePrinterProfileRequestObject
+
+	request.MachineId = machineId
+
+	var body ConfigurePrinterProfileJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ConfigurePrinterProfile(ctx, request.(ConfigurePrinterProfileRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ConfigurePrinterProfile")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ConfigurePrinterProfileResponseObject); ok {
+		if err := validResponse.VisitConfigurePrinterProfileResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreatePrinterInputUnit operation middleware
+func (sh *strictHandler) CreatePrinterInputUnit(w http.ResponseWriter, r *http.Request, machineId UUIDv7) {
+	var request CreatePrinterInputUnitRequestObject
+
+	request.MachineId = machineId
+
+	var body CreatePrinterInputUnitJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreatePrinterInputUnit(ctx, request.(CreatePrinterInputUnitRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreatePrinterInputUnit")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreatePrinterInputUnitResponseObject); ok {
+		if err := validResponse.VisitCreatePrinterInputUnitResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetMailConfiguration operation middleware
 func (sh *strictHandler) GetMailConfiguration(w http.ResponseWriter, r *http.Request) {
 	var request GetMailConfigurationRequestObject
@@ -45206,6 +49028,39 @@ func (sh *strictHandler) AddMaterialPurchase(w http.ResponseWriter, r *http.Requ
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(AddMaterialPurchaseResponseObject); ok {
 		if err := validResponse.VisitAddMaterialPurchaseResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// TransferSpoolStock operation middleware
+func (sh *strictHandler) TransferSpoolStock(w http.ResponseWriter, r *http.Request, materialId UUIDv7) {
+	var request TransferSpoolStockRequestObject
+
+	request.MaterialId = materialId
+
+	var body TransferSpoolStockJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.TransferSpoolStock(ctx, request.(TransferSpoolStockRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TransferSpoolStock")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(TransferSpoolStockResponseObject); ok {
+		if err := validResponse.VisitTransferSpoolStockResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -47524,6 +51379,313 @@ func (sh *strictHandler) UpdatePricingRule(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// TransitionPrintAttempt operation middleware
+func (sh *strictHandler) TransitionPrintAttempt(w http.ResponseWriter, r *http.Request, attemptId UUIDv7) {
+	var request TransitionPrintAttemptRequestObject
+
+	request.AttemptId = attemptId
+
+	var body TransitionPrintAttemptJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.TransitionPrintAttempt(ctx, request.(TransitionPrintAttemptRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "TransitionPrintAttempt")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(TransitionPrintAttemptResponseObject); ok {
+		if err := validResponse.VisitTransitionPrintAttemptResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// LinkPrintAttemptJob operation middleware
+func (sh *strictHandler) LinkPrintAttemptJob(w http.ResponseWriter, r *http.Request, attemptId UUIDv7) {
+	var request LinkPrintAttemptJobRequestObject
+
+	request.AttemptId = attemptId
+
+	var body LinkPrintAttemptJobJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.LinkPrintAttemptJob(ctx, request.(LinkPrintAttemptJobRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "LinkPrintAttemptJob")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(LinkPrintAttemptJobResponseObject); ok {
+		if err := validResponse.VisitLinkPrintAttemptJobResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListPrintSubmissions operation middleware
+func (sh *strictHandler) ListPrintSubmissions(w http.ResponseWriter, r *http.Request, params ListPrintSubmissionsParams) {
+	var request ListPrintSubmissionsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListPrintSubmissions(ctx, request.(ListPrintSubmissionsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListPrintSubmissions")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListPrintSubmissionsResponseObject); ok {
+		if err := validResponse.VisitListPrintSubmissionsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreatePrintSubmission operation middleware
+func (sh *strictHandler) CreatePrintSubmission(w http.ResponseWriter, r *http.Request) {
+	var request CreatePrintSubmissionRequestObject
+
+	var body CreatePrintSubmissionJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreatePrintSubmission(ctx, request.(CreatePrintSubmissionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreatePrintSubmission")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreatePrintSubmissionResponseObject); ok {
+		if err := validResponse.VisitCreatePrintSubmissionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPrintSubmission operation middleware
+func (sh *strictHandler) GetPrintSubmission(w http.ResponseWriter, r *http.Request, submissionId UUIDv7) {
+	var request GetPrintSubmissionRequestObject
+
+	request.SubmissionId = submissionId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPrintSubmission(ctx, request.(GetPrintSubmissionRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPrintSubmission")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPrintSubmissionResponseObject); ok {
+		if err := validResponse.VisitGetPrintSubmissionResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreatePrintAttempt operation middleware
+func (sh *strictHandler) CreatePrintAttempt(w http.ResponseWriter, r *http.Request, submissionId UUIDv7) {
+	var request CreatePrintAttemptRequestObject
+
+	request.SubmissionId = submissionId
+
+	var body CreatePrintAttemptJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreatePrintAttempt(ctx, request.(CreatePrintAttemptRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreatePrintAttempt")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreatePrintAttemptResponseObject); ok {
+		if err := validResponse.VisitCreatePrintAttemptResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReconcilePrinterEvent operation middleware
+func (sh *strictHandler) ReconcilePrinterEvent(w http.ResponseWriter, r *http.Request, eventId UUIDv7) {
+	var request ReconcilePrinterEventRequestObject
+
+	request.EventId = eventId
+
+	var body ReconcilePrinterEventJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReconcilePrinterEvent(ctx, request.(ReconcilePrinterEventRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReconcilePrinterEvent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReconcilePrinterEventResponseObject); ok {
+		if err := validResponse.VisitReconcilePrinterEventResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreatePrinterSlot operation middleware
+func (sh *strictHandler) CreatePrinterSlot(w http.ResponseWriter, r *http.Request, inputUnitId UUIDv7) {
+	var request CreatePrinterSlotRequestObject
+
+	request.InputUnitId = inputUnitId
+
+	var body CreatePrinterSlotJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreatePrinterSlot(ctx, request.(CreatePrinterSlotRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreatePrinterSlot")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreatePrinterSlotResponseObject); ok {
+		if err := validResponse.VisitCreatePrinterSlotResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// MountPrinterSpool operation middleware
+func (sh *strictHandler) MountPrinterSpool(w http.ResponseWriter, r *http.Request, slotId UUIDv7) {
+	var request MountPrinterSpoolRequestObject
+
+	request.SlotId = slotId
+
+	var body MountPrinterSpoolJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.MountPrinterSpool(ctx, request.(MountPrinterSpoolRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "MountPrinterSpool")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(MountPrinterSpoolResponseObject); ok {
+		if err := validResponse.VisitMountPrinterSpoolResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UnmountPrinterSpool operation middleware
+func (sh *strictHandler) UnmountPrinterSpool(w http.ResponseWriter, r *http.Request, slotId UUIDv7) {
+	var request UnmountPrinterSpoolRequestObject
+
+	request.SlotId = slotId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UnmountPrinterSpool(ctx, request.(UnmountPrinterSpoolRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UnmountPrinterSpool")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UnmountPrinterSpoolResponseObject); ok {
+		if err := validResponse.VisitUnmountPrinterSpoolResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetPublicBrandingAsset operation middleware
 func (sh *strictHandler) GetPublicBrandingAsset(w http.ResponseWriter, r *http.Request, slot BrandingAssetSlot, sha256 string) {
 	var request GetPublicBrandingAssetRequestObject
@@ -49409,656 +53571,706 @@ func (sh *strictHandler) VoidVisit(w http.ResponseWriter, r *http.Request, visit
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/+z9e3PcNrYvgH4VVJ9TdWZ2dcvycyZJ3TolS/aMMralkezMvjvxldEkuhsRCTAA2HLH",
-	"x9/9Fl4kSIIPsLslOdEfM7Ek4rWwsLCwHr/1ZRLRNKMEEcEn33+ZrBCMEVP/fEcvBWVI/jNGPGI4E5iS",
-	"yfeTc4bWiAgwZ/SGI8YBJDHARCCWohhDhhEHC0ZTwJCAmGCyBDAXK0QEjqDsA1AGKEEzgVM04yhiSACG",
-	"eEYJR/xgMp3waIVSKEdGJE8n3/88IXTG1Ww+Tidik6HJ9xMuGCbLydevX6eTDDKYImFmfhTBGKU4eskQ",
-	"vD6N5a+wnHgGxWoynRCYyvaw9tV0wtBvOWYonnwvWI7cafxvhhaT7yf/61FJrUf6r/zRhw+nJ+u/TeQ0",
-	"jqKI5kR0DGn/voPBXjJIYkyWR5wjcZlQ0TIol38aO15zEDn0cc44ZU3OOMvgbzkCkfqz3P6cERSD+QaI",
-	"FQIZQ2tMcw4yuERym9Vkf8sR25Sz1W0rPJDCz28QWYrV5Pvnh4fN/Z9OTtAaR+j9JkOtpI/dT3ZA/Vfy",
-	"CBxxjpckRR1bjhrf7Wrw1zhB3cOaL3Y1YPdgOxzoQvfST9fqh7sa/hJxjinpHrr8aGfDrvCiZ732k50N",
-	"iZckz97Ta0T+qQR/Mbi+B8rh/3umGsx0i5lq0jkN59A+ezqdpJi4P2ZQCMTkQP+/n49m/wNnvx/Ovrua",
-	"ffzy7OnX/z3xHXE1/HvIr7spZL7YFYFkd28wF/2Dmq92MPAbOKeMspjkZCkZHHUMn3i/3fEkfkKs8zwk",
-	"3m93MQmcYtG8Zd7CzzjNpXoRURZzIKi5atrulET1404gRguYJ0JeKFPJqrK/yfeP5e2SYmJ+KthQ6jZL",
-	"xNSc3kIClyjWN04rSdLaVzsgxtnpyfE5o2scI9Y6LsVx5Hy0i2EzRE7gZsBNB3d8yZmR29da/H13g50j",
-	"hmncOmRm/7y7EYfcdWzX19w5XHr0+jOCZnPIUSyV8TwRnXqa/Jv/SD3uPUNy+Ev8Owo42iBDrHc+qk/v",
-	"nJ48Dzzm54jxDpGX2T/vYjPyeYKjbg0rU9/0jBd+qV7QDhWS0d1oj19lD+ZxJxu9hLG5quRPESUCEfVP",
-	"mGWJeSE++pVLfvgycKxXjFGmh6rzU7Kg8lkKmB5yCjBZwwTH4MfLs3dT+RLNCc+zjDKBYqCYCqxhkqOD",
-	"iXzoULJIcHQLM70UMEHgE/qcoUig2Nyjn8BfPnH5l6sbhgX69NcpyAn+LUcEcQ4iMzu1jIxRoZqqFTIM",
-	"iQBrTBM1S7WY15TNcRwjsv/VvF8hEMEkQQwkMLrm8vimWGnMcq7yNXh8efEaRCsUXYMFxAmK1RxPiWRh",
-	"mFwitkZM97/32X4gluyAq3EBkp/+oI0aBCYgRgLihAPIECBUAPQ5o9xM+R0Vr2lO4tuhquFjLaRpziIE",
-	"Yoq4mRXmQtIX65/XmON5gqQUFcWGqDmfw01CYfye0jeQ6btg/1Pn+TzFQnFoCpdITjSmUS6vNYA+RwjF",
-	"HGDBAaO5QDOeoQgvcASU9qZmLZkCR+gDgWuIEzhPbmHiR8CKP0DV72Ci2GLJtCkLc5CX81FrQgleSzGi",
-	"2RpwuEDJRi3gPaVvIdkY8cdvQaqgKGdYbGYcEY4FXhcMBBgUyJBdMvLUNf1dIME2s6OFQB4jzyWKKInl",
-	"sgVOACRUrBAD8u5JMwFSuAFzBFIYo6olr/PClTP/QGAuVpTh39EtnKWjqkUSc6DkE1lO5eGW+z0FDK3p",
-	"tfxHjLnc3VgJWnOBqA39QDJGI8TVn18RgcXmNq4KlkciZzBJ1F2FpcjPcivuEQcLjJJYn68UYqI/shfB",
-	"V7srTVupmnAcY83n54xmiAksr+0FTDiaTjLnV18mEUNQoPhILVTes1BMvp/EUGjTblPlmE4QifkZaXzv",
-	"+xTHQ1UMq7JUrA6Pnx96OuUCMjF0BnkWh65vre/tvpmb632ilSOrXv0s12wW40y1oFrZ/dShvTvP0jpO",
-	"57+iSEyUUdrZ4TdYq10Bu4wFSqv/6FpZlZ++FvOBjMFNc72qS/+slak8cK5SgpzG8lw3Zt856bLZ5jJP",
-	"U8g2zalPx/D7AjMuHFnT2ZrkibnVtKK91ZFI6BKTVynEiSJMkpwtJt//3CNy1OdfP0qJkzGk5msnU5VB",
-	"xzTNoMBznGCxAWuMbgBdKC0joRFMQAY5v6EsBliRdYER+wHkHIHqDh00Vq2cObrtpYAi79278+rXsr3z",
-	"dhtGq4xRqStRgsnyUilVru9JrUg9O9dYKCk6mSpLy9WvxqyEU3k2MceCMo+HSp3lAUsxPF+u5I4EkPO6",
-	"NRP3kqiFuxsbWOHFaf2Mtomycikd4qFkkdrtrv8MErxA0SZKEJALQQfgiABE1F0O7DdSY1nBtVTsQa4u",
-	"8rq7MkViReMfAM+jFYCkaIk5gJFSqua5ABEkUunmeEkAVrZIy0BmxMl0YhUJL5PYNRkBdJ8k34MYexBj",
-	"48XYNyiTOmVPHL+FAjEMk/OcRSvIkWPQCjiz1upwStaICMo2PwUSajohVDQU38PDwwGHkEZRzljY5fJb",
-	"Dos3TtcET1CEU5golsnlA0i/I51JPhk0R0GFJCPWjNw14ltKUFO9LOZb6aqy9mn7Lnj3Xjk5Sm8Bp2Tc",
-	"3oefblb3FAy0L7sEqXsSill41yoEIjEkEbLCaSSbW+k9QGaXB7W3wWfMBSZLO7fGWpE520WHPWvEI3dS",
-	"CZJ3zQfoi2cVt/dTD39nuPoQLaY6rRzoJ5WOXlTd54ez7z5+eTF9/MRj459OlNn4jCQbcy3VaFTOXU+m",
-	"m0RSdkqiRzxUOVkjBpdI3rYJEij+Sd4xbzHJBeIBskQdWiLOoijPIIk2FdphIl48mziOncOmnWk6WTCa",
-	"Dpd3GYLX24wm6PCxtF3/J3378hGDmYv72D6bxzX/J83Z8D2psZOirlp2bTqN5dXGq5Pas9fTbi7ycm4e",
-	"Y3EUCcreqz+VulDOVXAL33CBUjW7a0JviF8tl70o91wo10fCXOaVw/z3yml+7BkRyilXYgmH6b1W6H+s",
-	"q7nv8iQBC8qAXvCj4zenQM+OA8oAXAjEQMbwGkabWcYQR2yNyRLEKEHaaujRb9UsTzDPErix4q+mXes9",
-	"BIrxYAJi/TEgMEU/AILWiAFookRRDFaYC8qw1Ls5gRlfUXFQlYRPB2kN0N3x7sdPhT+khFlBskTxa4yS",
-	"2POsVL9X0+eAkmRjFzFHC8rQI01H5T1UT4LiBVbVznyKjvvesoflVDc35A55NKVIwBgK2M6wvVGVTU9C",
-	"oj1khBLHm6AXq4hxMPEcwTFaJnODnjoZWTFvLNmLCwbVhCRrq6AsDm6wWNFcyBf7P9+/P7eejxpPPTHR",
-	"AM6B7OUwhjhN1ih+u3s62zNjz0oC5yjhas0wSehNgpXzj+pIW7vRzvuUW6ZU8dJxcZQURzIE41Ib8OyX",
-	"dSoGnevCE6km+wOQ9DNCxUoQuVM3K0QAocohpj/VHks+6pTbQUcKyIY4s/1ZwdGuyflENm88t1dCZPLS",
-	"kux5FSW4vG4++kIxGg/eUopN7U1Sm2TtHcOc+L+qHHMEgod3i8m3XqHq8rMxQ/vzHJT3rMcCRdBnUYad",
-	"1w9VD7cM9zp4zGF794lZo+A2JjUjLk4LMVB/bz9/tmPD3DXWIQ+W3523i3xJaNOSV6HKTIDiZZIvPVFo",
-	"pyfHwH4Cco5iLfBRsphxHQAAGKpaaH8A1EQWyE+16Q5XrHNNdZvb+IHq8P9ZIeXPFivMbR8bEEECjEaa",
-	"bFzzMJoCTKIkj6W6hAUHEUOqEUxUWkyxEG1/LmcypzRBkBjzmNyyLfbfJz/U/vgYozJghfsKqrg2+bZj",
-	"UpjXnEhy9wE9zFLbbPt1+qV2pLj6+2t98i27SX6QTCY3q1+ill00l/OxuiBMyRHnOZMPXg93shjJW7Xm",
-	"IYC2RRktMt8A6IY9LRkkKjhnJXVI9VeucwhcV0FCb+R2Sx5IlKmTUfWO1/+4ShfQe6Re4iRRthAmQgVW",
-	"XL3pdyITOjOKnKn+S34vtUS2hAT/rmj5rwF9nNW/V1IFR5gs/8FonvUa251vHa+H20UZ8OwYZYOe1DUW",
-	"NOcRO4fSGl46h/WdvwYNXTmsTHqTKlF7mWbvcQEVDh0fFuB2c4EWiCFzTEMmvneObt1675LcFLtQbUMH",
-	"GlmdtfeCT2lcUVJtgPR0EuVcKOMNoQR52YUyvMQEJq9xgmy8Te+AHP+OXm6Mma9xfFqaO1YpbvIaA3MU",
-	"h7jOe+ees2TAGus3jc62VITWXXgoN61snEulvmAeb9JneXksqeo7zWAkrsyPC7jGkZIITiza1RxG10um",
-	"4la1+6u8zdy/eeWGO4dgU3A5h5flMCE7rEw8lQlv0ZGh1RtJqtC2lrCh7ZLwwZpme2ej33Ts88v2bX7p",
-	"2+Umpx3TxNijg0yfkbGXOq6K//Xz4ew7OFsczV5//PLCl5IwncwrWxnYOGPYvtgCW3IV0zqmbW1n7BTc",
-	"LqeWHJXlddOcLPAy1yHGoaQvTuVg/uL6JNh9HtLOcIXSD9Egn7BtaZ/Xqm2aMUx6BfwbtIRJlSZ6t9cw",
-	"2oxrfBeRVcj6og2pp3avSkKUq3JjPYddCafORowTyO9aomh7bF+1F0Td2N3TOpH74yr0nn6eDOhHwGWC",
-	"SaPls2DrkH9CdaW9TrZyAr49OoYJksLgFRHhFiUo0JLqZoWSr/LB/kkTHEMtYNyo24/3MfC6aSDVs3+D",
-	"50xLyRSSHCZtgUdDw7Zru9kRTF0QttMCeqxMqWc3ZLsgCGM9Oh8d3TCdEHQztPk759M6ReozqXbsJwGK",
-	"rmku3tZeD9aOJMWWYsgrATPv/lmfrYry+Ek102dnJDHNRByuq3pV/16NkXjy9NnzF3/7+3dHL49PXr3+",
-	"xz9//Nfbd+f/vrh8/+Gn//z3//d/4DyK0WK5+vU6JdlvjIt8ffN58/vHL3/3awshAS0tQSlqBV5aG0qd",
-	"FlF6f3gS7YyzK8QdwNaG1OXB5kgc0xg9UPw2KT6O2mMXMJ0IhV1ScyLVYqyePgkOpRIGEmUwDTB5RRhN",
-	"ktQA2YTTALohIsPu6ztm0uGxct5k9o/lPw+uZh//y/8KvOugOhflyxyMIXF26o3CUg/8SyhbsGiF1+jd",
-	"6NDgbLXhOILJicnOrRhaK07F5/2OcbwkKD6Bei513S1MM2+fVwc938JohQn6kc7HKm5c0FQ7VIdagcuJ",
-	"fS3ji8cFd/PmU2hQdHeGGBSUnQeHGdNcRDTtD7guyHpmGtQcKLuJy2jormYzPCssp96kuZ8/GEORsKH8",
-	"l4JG12Pl8G855urrDwSLYxriAi1iKX1BKd9choA9ov8OzxRgCPL+lRWUOIp/zbnQYkA1bJMW/y6TAMwQ",
-	"2yQAqHhWxC5hgo5pmkJtqAzxPqUKJVOg13mywPr6N6JK5703AwR+pfM+sjjT+pHOlatHvaZPg5x0yrst",
-	"m5ySLPeG4ehThyn5F9oEJCbBTWoRRgdN5Fw3aJlGbaMrc5r2EFhT05lSzyb/qGkflNWjn+4/0nmI3LVc",
-	"+COdhx9yvdk/BvHJ26JN51Vzb6+WgekvXZv71iXbreoEJOYhYjXVJAkh9oPyUNgNQyidc7gMyJ8tV/JB",
-	"NiwEVgo/G9HrWEP94qvcW2e+BYv0KDpmuj1C7N+5UQKCDZZRxez86sOF17ynkuuOUpt5Ep6o53YwLYf2",
-	"LktFplVgJkampQ23iJNxjpE9WK27KKJendtlojo3z7DDV9xBjZyTVxZSy/ixbGI1vVGI4DpMCSQUxiVC",
-	"tINQtW3edxWW2gA3qU6BMlodgLMUq3g8jkisQ9YFBTruUU3GZvkXaQRlNngt+s+69jxpMnV72ZB3iZpC",
-	"AYQcvpkWtezEJULjATDkIkhoBD3Nnw9qTMb58egNQZWbZ8dPSDWtdrqfkjXF0UgTsIGJG/CGccY4MY22",
-	"MhWM0cu71ej6XKbF6tqJd/e2lge96kGvGqhXDbUldalYLtePtB3lgqZQ4OiYJglSeT6vDFyM1xaAPmvh",
-	"3p7pMYgVDXHKkgnbufv7FaEBuCGGjhY3xK8SVSfugIF0ELJ362RvI91QHoI86SNI2I1UQRwfyWRJQm9Q",
-	"fFTGrLylccBp1GPXmlePo3anmB8eD8pojWAGFfIODp7KsW26GZg9q4BmT6uZHX24SL6EENvVWS521pcT",
-	"WdFpunG/1Wh0JtPoxCCO9h8wh5OOm81VMmq1kspg2xVmiG8TbE3GRY+ZFJpzmuBos6vbTSCWYgKTDkHs",
-	"F061IjMlWby71Zx9c+hp69n18LSPN2s8Vjt1A6XOePkYt75BRj8i+tkiVL5qB9BIldWJzgvkXRUGWnfG",
-	"D3uW3Shv1fsVQ3xFk3hH3qaRt3tOcL/ZxxD5g/y25fQ48Xiqy/Ytc2thjHXZseKMvIVZhsmSd2Xxj5Tv",
-	"jflHCS7wmwI96brppSqXVq+wc/jdi+72zaCFbeN2UZeWijnPtWZa3AY5w9UIDD8awq9YdOq/3CQNu9Ea",
-	"NjhE/3f28cvj6YsnA4L1VV/1wF4zdWeraqSfOniOzmynfp7qYGK35MiDCbOkyHhaBCFRG/uGpn+4xcVa",
-	"2TxhNgPNAQ4Y23D991LAxQLr0CCL5NZ8HFe08SdNN677fq/XQoDpHC9zmnOACReQiANwGa1QnCeYLAFD",
-	"cs84KL/S6faIxBnFRPAftEH1w/tjW+kh0oEWgC4WHAmVoq9/rXMyUAxSeI0Yz2CEgNyu3ylRqfJDNrJ+",
-	"pD0P/Qqd2za+gyudVIBxrHk9MqV5lAXVfwzVFNrXGIZkWMPaFSBBkAtACVLoQMqWHlEiYCQMdi74yydl",
-	"df8keeJTtqIEfforwLxIlz+YtKIGhtr+G2qNQgQdm50CRzdNoWA4ynUBlnd5Om+Yapq4MgNC8yhB23ZT",
-	"R20r6OOst4NXHHvi3TwKMD+xhZ18KsLObDLuSL30uMgTtD/x4AxipUPDhLf9wzc1Wvpxx6NmgGnRUfUH",
-	"T6v6QPACNJkY0jHAhCYDX3XRvpMXNLmjZ65bQtHagoriZRNCxVWxmqlTE7ny6xvIiFb15wmNruU/P+7O",
-	"0FIimfyDwaBQrmrDgfa6jNEFTtBpCpfoothIhyhmGzwPhDxDbI05ZSeQr+YUskEN/ee/sep25rk8Pn17",
-	"TAlBkaBsrArb8fAZuW+1ipC7sY/Ra0Re9dr8BknYRsXK8nFVG6aD9Dlbo5HPBkgo2aRUeyeaVG8/2AOV",
-	"fEwEo3Ee+UXDWBPYi/6NV8TAlAQ8LRQZ/23aeV4Vlt9arPySM7BIdqWy6r6qW1Cj59TZPnfFXlbRaY8f",
-	"uFbDwtNsBsLeN+EpduEoiFGClpJNzvclh2u30LCqBW+aLXQ0amk7DlEBXPcEJQJ9blEFSrE8Zv2n8dBL",
-	"SEMp9XfMtUnAmPN7z5n+rFihP32oQGefVNfbzl11wndxjXezyxX4DtAJxMnmRzo/igReh+MMRCNxqeOW",
-	"1KFuGWI+0oN6V2M0RRX8BtNMctfk8bODw78dHh4eTirpYLP/+5fD//fz49l3H1Vi2H/99S+//HKgc8Qe",
-	"T198/ev/9eah+Z2mbvq0RsC+sj4fbS1bLK5y7NXcGq5Ppy+yiJQFPUUMSlHIFNgIM+lnPIKJft3NUXKl",
-	"oCYQ6xjjn5DFN5AVh/CP4G2eMxwvkWPnq9jPB9zDpb3q+BYd17FTaHyYM1a3GGvVXyyQKml0m2vMEijk",
-	"8Q5xY8mBzm27FkBfXdR3G6+07eM2qXFPXNpxWbve4agwD3XTv91yiFoo3caPDsvUD3Zl3/2C35VwF+rj",
-	"QAHXJ0r6HHm7YqZSHr4IPmchp6ueWNdO+97gglrXFShCfi2ogswmMaPYjz33KsFLU67rgib7RH5se28P",
-	"gN5tDTiozX7voJt1ao3H3dQ9JcZRsPeJv9XI8qVqPXba1olQiH+LWFHHxm5ymgJnuIWqQN8w0sEQWIOi",
-	"hvsIKJVGifx5goCxe88YgrH6hSrWDmSbWiEBdV5rgQI2SuCqhaZOCL9/wr4ygpdwgQA3ZZlRrJxf6LOY",
-	"moqRtiBzWYZZz5l7S2akiHODte8ZZZWnkJRr5xq9+GBIaEWlrsY2BhrzqrATdXv2csCI2jlRQvl2qtuo",
-	"Yr1JguKxBZRWkL+EhGjzkickJuDu2V0GD+bnCpnLP6e95Pc0P0SfxQmCsYXnGxkgij4LE4eAtuELlV/k",
-	"xRh8PLT1LrOTLHTa9lut+zmtA6eWF8nV7OOXZ09boFNV4zfb8IPuQoP5d4Zw6Q/ft5mK+x9lkCzRq+5w",
-	"n2GdXPalsQyN4RktNIZlRugyCYV9VUB+XVRBG1OWDvLr91TAZETbO6+Jb0q/WmZ3RJyfBV3B3F9A3yVO",
-	"ndDVC6K+9603XwnpHxxaTCKUbFkYRj64ExyJszViDMcxIi8325WWawiwETdtEdwTXKJG1fYKMYd1Rv/s",
-	"tlQ13GKgbLd3iuoNJidQwFcMbqlK+YKOngVGOIZsGV/hRViDAly2V4qWp9FUjA4Twk7zu67Sb09CSa9p",
-	"o74vt1WxC8HZJwAHiDHtGR5ZA7j3Id7LVJ0HOiiAr6ndaSGJjo3QbNFfdntU7/fhqsfXtrJag3YDOGn/",
-	"BrDaBbyFJckrPBqQ3Fe60lTVS4viK1OuqvpLSq7maAXVX7TnDyl8cK/h0yt9nPGhMpMrG6xRG9r7ceyC",
-	"dackJBvJj9MJo0nFhlvr4jUOtr7WitXU01928YLfOlxnhHqRBHnngswAnQYFXz2eXpp21+O5c9Vfl4Uu",
-	"3du9Z1su/qeySc9FaTarMopD5sBKPaOvUtn77Yg+dUq3FHqyj/OcZZRXBYUQMFqltq6JImCntPipsrO2",
-	"G2vqKl5v7Z3cDsm2JZc2Dp1lI0q3jH8VhelEu3rU7Oqh4Du0g5MSGkS/HTapbPOWLOPkcgWWzvRkgX3Z",
-	"viDtmEvQNZx3XyN4ny/Be/QWqxqLwi+Ljx72GPP0ire2LKOmutjLmXUVs+gmUWkWp/Hw81bu7oAYh5Go",
-	"Yw07bgo/ax7WYMkFSz/uLfRp9IZqj00iNukxRD7cjnBzBdK2su0bjNKw874lYtPtdbTLMvI4pPCybnWX",
-	"Nwf+lmT7FjK8Qupbl9+BqfF34DTuLyQbjDgX4lrTu9OCPObLKXecTmacvrN5O8LECoLdyJOmlYkbD3w8",
-	"zNB0KbWhUKmkNKhvRCYlmFyjuEGucCFsec9nIv6mBV+5m9+22BupWJoQ6J0Bbyrz8nFC+XZwa7qfswyR",
-	"7brZq1SWrNONBrmtaJYj3JJgVpJwW7HsUMQNnWZwYZDi1RlVsXMDBbR2V9xFYMJtRg18K0EAY32BW8V+",
-	"PXjp93iJOoFKt+Km1wf6lmSaFh7bCjXVy0jEhFsKK9gfStAfxf0fZq+3e84NiE9YfXsnnC6AR3VytGz4",
-	"gSUeaMJuivdXfSzn1b7s1qs7SyAx6C2RU6sqcoIPy9t8aks8dlzs7yG/DnyJyCat7y47ke1iEU0n9yIE",
-	"8cFU5X+xvVdBrxZDff+3iOLULe+QknXHCBOEdhvRv/3TNc63ynHIGKZsaAiFpN25baDUNCZUIcB6iMjT",
-	"J5MtQ9jlUNUwdqmo7CzH2ZNR8DQ0t8mizpSR5pY0LmU6GbFQvsJEryLFgyn+VuRbSevbNkqNNSMFHcoW",
-	"Y8lw9r2d90NxWHYg/c8dkWeVq4TeSGkpqSWfBCu8XEkmYcuqkubRnJqKmrGtYHKVMbpkiHMLtKcUslgH",
-	"TfZYXExlULdwfb1SGfwtR8CWEAVcQU4fgPcMEp5RJkCMIhrLP8GEU4DIgrIIcQDB48Mnz2bzjUDAZGPO",
-	"dNJpglMsKmi6bWnCfw+HEH9lq9FsUzVrhHALKU64dVGudRBAc7WflpCywDhQgdJLnegbXsrXW8WX7RAN",
-	"UHVWKRHv0Uc0wJ+7XTdYjvfR+7Lt6stwN4qD6k0W8uQ8Z9EKcnTWNmvH5O8CRztoH42wWb9OhHzvPIZg",
-	"rFSJfJ5ioR92CnHeeeEp7+pVsc5esaIQLzmKEb9wM7y339ldXNnlZpZs1+AZh0Ms7Zwz3tzz8lD37at/",
-	"E6tHqjjiflL6lQ3vZeSVhucmmX9/d6lfCHvOfWam0mRY+ZdL/HvLX0VrsmiP5qHnbwZ2RrFd+qj4TwQT",
-	"sXJ8qcPpxpvX9rWKE4NriDVvfxyAIN/mMzolS8TFkS00tm21w/CKBbb02wgF0jZ+iwSMoYB9ABdNWIrw",
-	"UonfWpVAh8B+12JHKcBTImUIZZuj+Neci1RF0UEDH1kGu5uPrizEY04YiqQ0jK8iSnieWpzTGKZwqVVL",
-	"zDPj0Eshu75CaaZeo7/S+ZUpraD+SMWqJQS/mNvbXJgyBiMMrxbXe2ipHyU4pN4KC0NSj96kJ/neadPc",
-	"LdN3tevODXlfnUOIdcizlcNu1XZu2JX5MgxOxMzmJ5jk6AQl+vgPAlKfDoKn9xG7hlP/I52f6EI7WoQM",
-	"LVH5I53vGt4+tNzroOnSSCksQZv4Ww5V4ejQLeF5liWm9GfvxNRNa9WjcxYGyau1Z29QEsHiKPotx1wd",
-	"p2PKxVh0fqxlW7E5U4vXX6WPf0w/e1f2o09va+XeSnqnJmBZgvRKC2BXaKeQ5DCp/bKUIoUwr2g+Hjnt",
-	"zGPv2qNf7rbrjl2R8FU9svtLMQqAZAf6ZVVNPqZpCvVWh9wMYW/PAsVyTIGq8NJUVo+pPG97YZrGlBBX",
-	"D1rujwX2vNwjSiKcYOg7YO7j19TLxOJKid/ppNBzrrDePf2UTopY5Hb1J6zKeT/DnPQBxLWoEjFDnL/B",
-	"BD0etBtOgyeDGpiCS8crSAhKQpq8GwrkZb7frbNMacJsc2wSi9xJeEtfRtCmkNbr+zTNTpQLmHh6fub9",
-	"utUy1EsYhiKcYUSGk5KhpceH4F0FR2yNI3TSk9re1u7V8BqBpsVlUM2/nuMyBvxvpLj0CL2t1Gar+Ho2",
-	"z8q8gTLO+5l89I2unoIdLam5cu88inlX76PKZNrFX7XkYKj4G2F8XXcYXAM0hD7z4LpD8P9I58cryJbo",
-	"ksCMr2g4gFei6r+5tuqt9e4IZgpkNAgWw314eYIN9I34DhLKJd/E3PtdyTWB2k+gnWuBCUx2SLERlivT",
-	"xIrztrdpaJ10p1lr1zQXEU3RcNPXmWlQ4hfFiBzVSDeE8l7njkH18RlABjTPdNm64Ysxde6KA1f2Mawg",
-	"zXnl4zuwQfb6ssuzOK0YH12WqzNYk3P89knfSS45qlhauS916jYPeUXgtAhJJVSPOKcRhiPMbHv2RgYx",
-	"rI7Elkr0clCVhA6XVrUrP+kw2arm8agYYP8FafrwTdMt8jSyyJoOV/WUSn48LGpmJ+GnIbqfi/EW0qIN",
-	"WLg3CnzDcQSTExrl2ljc8vx4/nxQ+B9aY5q7PuthB8vd6cKe4K+tYh2yAYLVct1Ag4Z3MjpzDcUnLVWh",
-	"hmSs1VyEGSKxjbwuo60LT3Dcb1PQiR6WYyqs0Fx1c3ucYEOXrlWu7+KRClGmldM28DzvPd7LJ0PGR329",
-	"8RaqCyrpZ6t528KizQeIjj8Q+ztE8mXAxbEN99/fQGkN429c4Vi22+CSRohMbVaEXqncKb5C8ZUTgaF3",
-	"Ras1Ktqz/3ympgqaCSypbX5jp1t3pq/QgW9D9h4KN8RY0isVVVWJC7TG3BvZ2nt/BV2t8eJ1IGhiwQhb",
-	"5Sqv4JPnL+oZkoez7+Bs8fHLi2f+5EjenrJjJzXwgiiEfJXYLkGKSdZNNC4B+rxZHi68VfHu3NVjxTta",
-	"wuTYVAob86KwFjGT6FVRxp793etrZtcxvWmy/pNnXttqXaI6KIZ27MFiqRh7Wpm3lzCYXNcSXLUxfmQA",
-	"0mgPU6h6XK8gVupKQxwwb+hybBmmIkG0M4BOfaS8l2VgdnfEXS2Qu75Am4VadOhblrEchKouNvyszNHq",
-	"rLYx5kop4qAQEXgxNNBgAXGSM3QRUqc/7Or4lc7HFtpIIBc6fm+7W8QxxAy0DKlPncyPpmKVEzn6ZWl6",
-	"3UsRETOdO8+IJw0Ll3s5drC3s/8NolW5b1z+fGnJG23n3114zaikCC5oasqbDxr/JU4SJcaYaJnGMM/B",
-	"INb1RoEUas7uKLddWO0AnADFEruaLQ53Hww86DZ6jQ8LX1NxETSAec5sC78ddgs3Riape1bzZYzOhC26",
-	"cpwYg9q5foi7c2AwtMbo5lIMuFXdgPSy0WDklbJ5BXQl1H0Sfqvs2uOym3vK46jpcbuUl1EB6OLuXpcn",
-	"5nIb4JeSIPsvzFrekePfd81D7yIM5lGEOF/kWn9mAsPkylzu5ppvwGHk5JrIF5TPbOUczX2HUnYR5w8U",
-	"QNku7PqIWxe79zRcwtrdu+zCw3JPg+ximpj/YDTPWqMDmCenBAudEWH1v6vI+BzLUGX3NypEmSF1M7YY",
-	"eh07YCcLsjwJkNs1brnIh+AexxNnQh4i1fIETYBTsYN2jr1ubP/d6ZqnEYr5lZbnFZSebqHTLBSkd8B9",
-	"6vR08YGHC64ICrSkOl94K64ckzNh27RysY3rDzAT5ASLoZlHH+S3/UkGlWlOS5KZwZxpdjOMk3s2LqMq",
-	"hLbBpGvJoDqNBy7wDV3OKb2WOrRi/XBH29pMd5CQOIE42fxI50e2oecm1TrAGTvX2sH7Feb/Qeh6hOXk",
-	"Vzrn2zanMdyMMUjRm0tBo+tTS5WR7S3Th6gpToJejbRKymkJOGJODEWIiB/pfFc6U04MQlP8igucwvC0",
-	"/7IHO61t1KVyw2u80xioa+5VMrfzc51JKgT2ccC0PG/9J1recJgLHIU7zxtZX4O2uhjwnGI/KEaZKvWG",
-	"cr7Djq1qpMN5d9mz0bBel9bHPfT+o7F77qHrC21H/SfN2W57N1exvBtfbo4ddWQnI7TcavXh/Mv00HXa",
-	"4Oom0zT407/7HSfvtl6gf4bnZ0cFzBTK8Qi0qRBCDdehZFtvTqhig3bmchtT82YXprcdOnQK8m9hwpIb",
-	"cVs2LOuXG23EwlvFKMwhRyY+wVO5oMOhu2A0PdLZgd7G8u+tL6+VubCbBm/jqbZLahs9o6xaH+vF8+dP",
-	"n/e5eXwAUDwVmfdQioTXq9Iqq6tQGo7+f0KJ33gxyvyMWOuZ2vKAoMJ36SAcrfT9okhZLteZiHc7qjvv",
-	"7PO04CX37PWdNwKXKD5Ba+vIChB9SUJvUHyUZQnW6bdy/sPPnx601rwK2/JEMZT54fGgwm8RzKAqr4aD",
-	"p3Jsm24GFpmLVii6PiVHnOcMkn7PylFZ9hlTp5nt6iwXO+uL5mJIkb5j99uxxZYl8UJzoMpWIxHT0ecM",
-	"s+2qn4QWdLhE23khybiVMrSm11sGPeryM+c0wdFml6G7Q+JNHBHjoP4ilmICk86gpbvVZCqM3eBYJ1il",
-	"ZEV3syo809yCJgmmrSLVI2p8IqN29GvCcKxG5mzfMSUCfQ5Hy92NgLhrEdCiHGzBQeUC+knPkArDg8kJ",
-	"SvAasYrjiUCpdL+n1wqddo5J/JLRG94CBFbp+Bb0bFfH8BobP4vjnHEddRJYSzBAUXemcS61MHkWTFZq",
-	"MDeHL1rtTQPp9wKJnBEUA0qSDZhvgO4eqAOKKQGQxEC1BYxq1LYfABYggoRQAeYIMCQYRmsUgwQKxA6q",
-	"cL7PnlauF/kjQzAu0Xv7CGqW20vRjne45vK4FI79TDniJT5Kc2nD0ni+84JQI+/+u74BSwLt4Pq4pWd9",
-	"nY9qSJCHW7z1WWFlf5VmYrNdvH0BuRUeeE9Gp9CG49PVU51dQLXWpfjJVyJH7sjEBteIwSX6QLAIQp6b",
-	"dnvGI5rQYcHutwrZGBJOP563rD/p/YohvqJJwGuhmIDvuUB2GAagHWDHDsBeAGqiXNygQMrL8stRoQd3",
-	"Lb6boQzFnVzQvHmGGlxXIZmHtXzbMfa20OS7BQdJu+/7fnhITLvTcQIg0L/iH6xrhz6Yw2CVvaVcjvyf",
-	"Krr3RA6CUUtg2Vu5bJjolLVQ7VtH47bhKzTt2TvLUHNH9lJGhRqo6x2mmZR7k8fPDg7/puhdJJr+5fD/",
-	"/fx49t3Hnw9n3338r7/+5ZdfDtQ/vzyePvn61//rzT19S9eolu5324l+Fv/nmJJFgiPRWyjhPtQibEx6",
-	"WJrhO3TjVmYJrZfyZEjBlLPTk+PX6qKFTIRn/q0ow7+rx6C/hmG3BtfowEcFOcM3mFyPrOWiU+nPt0mk",
-	"9E+JLjE5d9xI42VH00ia5Mt++476ql8cNCa794dPkzzjvZqyr5FUhhErLJJvYZZhsuyILBrt5GhMOUpw",
-	"IXfqUDk9j+wxpoPWe2iQ76LL6B30PuA8rxUD0xKgF4X3Vyw6Te/2MLggCbqG9Efz35m8tF488eMl3JHi",
-	"6zmcBZEcFpk6DlmHEFM/847TZd0jdCtnfxfHXqOQ3QJaSWByZtibWSdyWpixWmk1XW8J5CRBnAOxQiCC",
-	"SYIYWEEOaIbIVQw3/ECXCa5ZU58Ms7Gkm6NKdeLBiZSS+E5TP5YiYpjGIfoVqwG2DuMoPZtLARcLB/HV",
-	"92BykwOrxP5AYDrHy5zmHGDCBSTiAFxGKxTnCSZLwJDkPA7KrxSwM0Akzigmgv8AOCIx+PD+GFCmN0tD",
-	"gAO6WHAkwKL4tQ2QACm8RoxnMEJAstPvlKBK3btORhvm0yyJc8dV5S0v+BMSK3hiBQeMFGcN7ty/eT7w",
-	"rRd2cR5rFfUD1/dn8wakesWne4UL3AV0o2KFcrbNh1DLK7ZOhT5EIcMCxzBBJIZsnDMYRjBGKY5eMgSv",
-	"h4ujI7eZN7S7Cz/eUceeeG8jwULChSwFXskRfZNJIFnmcIk8s3nsxWjP5zHWDknfAobcOfIQ/Q8lXm20",
-	"r9SxaVklYnNWtXWVdJvWd7WDe86VyApOYzNJvgXsS7fpbKRGMhAff5Enib4YB08oKNXOEbIDu/c5F5/7",
-	"GE0lnKipD+xZipXLPENsjTll51RHxjeLIE/eUwETkJMFlvsEMvslgBGjnAOub30UA150B9x76QcgGMQE",
-	"IbCGcr8x4gAyBNDnKMljFB8Mwb8ZWrAg8KLXTOsEL8nFmr/xfiLerRegIEvB5I5mUF2Jj7ebTNPOFdP6",
-	"SfVx81b6h96J/b+nKsJq6wdVhX88GIJcEtcAcRdwggWCqz9ewkGMNkeoXkqnPGi6Tp48XF1dGcUc3QZl",
-	"vY6X4moI25rRN58ZcFr4R4quOvay8SIK1H9MMuBA+QuLw8N737Kq9BEoWwCsIsaElaTW7qtlachuuW/S",
-	"5r6hBC/xPEEXNEGnMd/Fm3vQ5Morc5uq2kPqGracNYedyu20CRHWDjg4B8op5VLtdVpjmm7mrImY4t7t",
-	"rR995kI/7c6qfnseOLuA27gdDOTV+IuBjbGsC7xGr4oyPw4Oc2n9zfXV3/dc8PZVgZsf10URV9HfvEii",
-	"5GHV7Mtaqt7c4aIYXGi3ZRU53/NyDA7fcICYcMw+Nedj28yPeWP+WtcLIKFkk1Kl/+njpepWLCExPsHO",
-	"KdqDHlRPY5En8mEgN62e04XTFMVYa+mxZMC2JM0g807YeVbVOwRK/dHJQmf+DsYaoLngAqpqAoEoBayz",
-	"aBlDWQIjFL/cnJWlUoJPfq2XsDNvGvOzXdZqqXS6Rc0WJEQSDAyhW0nGbED95CSD2syqARmSzVXxC2yx",
-	"6eFGtr2Kc79q3Y4brgAkpTJWAzFjaK0qTvhzIuVzLRT64m5en8ytS2Gfmw5IU0U6ORKwJmmasqNKBfeA",
-	"1nnAdxSbO97k6laWLF8K7jVTvctGPm9rN9te69DuOWi1sy5iu4DrYyJoN7CE9+o2V9du9X2Q1A0o3i9R",
-	"i4K1Id6FPZfU8mSPb0pPxvYjmu4uApmmnIWni2lXra6CxVxqD+KzcfWjbTjahRY3abXOzOAyz6Oj+kaV",
-	"ejYkDQD8M/uhoNE8GlZQ7eiCUI4KMlQsScEcgpB1bplHN2xZwPaVpau6fODLdcemDhcLXBs5auszJgoc",
-	"ty/lRKo4Y5Dw9vIM2v7tUaNAvcNWOqgnxX27yWtJbzspjdzAtLSAo7/SuVePte4hZwaO0XNUQkhK15YQ",
-	"29c75QMBv5ulgYcUj7Sf/EjnwdW+Oit86W5LLL1dXcQ29aUZ5kewKEDwR2UmqEvackNhAK0mHjrJKiaP",
-	"pRzXubSrdB90bcsTOkZQ9WSO+jLV1S1Q3fG9X/Cjz2daY6E9gZKWnNVXlX9rRiuKpA+8jveegqQtwB35",
-	"R905RyF5RntAXzM02ox5rO7HQgtDq5ELtqlbRhmKEM7EpFQWvaejWWnfj06hvyqhn7dDYEZiRSuzjSBf",
-	"KeMRi7sLjo3J+u15xss/WeoFWekYiuSzK3Am3WZRbTA797wWA6emOuLnu3zF9lk1Sj4stth9h7rJ1g7p",
-	"fJPtoERlxxwDSo1FfZxdNXX1iYLbkZpW7ny7wtPxtXwzeJODHOXOyqyLvDXv2wXxH1g0QH17macp1IGX",
-	"bhdlkIKjKAXm3N5tpJbRUYok7e7VjTU013bIvVBomkGyUTneXGCR6zq5TkX/6UQFmfjjB5yeb0EOOEfo",
-	"jwxza4tWVautoNtOAK6WOxvozGwz63Vmx9WNLeXAlYurX423yaQXiCNxynkeju0bDVEpj8xnyraiobk8",
-	"YTi6WLV5gH0chWfoQfUTeWYygGsRV0S3AgwlChoMqG/Bh4s3gFUgpwQFkDihYQDGkqO5UBEu4GaFCEgh",
-	"TgDmgFDhJNocTELBuVycPEvcBtGcZXXtapPEhIorjiooF0xufVlN/GMzNfvzTDafraFCXOWyn+oI76i4",
-	"VJ1Wf31kh6j+WvFaUVL8o5qvY/zeqy3Q+yqpJq9Nh7xSepvc8kukjvHepST7OcZowxElEU7wGLVLrSwE",
-	"XIivAj4PzT/pU4KLDRg+hVvXm1tYxk0qCbkmva6acdXCw87PmJd1xU0a6lMPukzrT/XS0LHIzVNQvikx",
-	"WV4hxlSguCXDlcm09MeD1aM0K69Q31Oz75AimiXIXKValr7GiahChRN6VV4bZQZ3jLn+p0/e6I7dwvTt",
-	"vTtXhQ7usbH4V46mrRPmdGyJUrRVFJ0KMWmZAEsx5+Eyp8fG3LPv/S+7cmKncUvpS2cG/k2zPfyDQbIN",
-	"LOxw2dcS9O0H6MbjTDhVhMyvhY6/C3DuzKV60A5NJzyiWcV/KaXd5maFVElMSDZV1FGpSSVKTS7BEPmA",
-	"s+yOaged1rbLQ5NuDjmtyJ9MncoDSegDjpKFOkPlr2CSlL/Rb9vyZ/2+rTUzv6w0jJGp/ed2nULBsKov",
-	"aSoJVtq3/DVjdIETdIVTuGyZgPeTynSqX2iHZWcn5hPdiRF8XK3C/bkgT/GbYt3Fb7SsrHyjZab7q4Qu",
-	"MblCUtk383f/atGPDqyKXf+90rW9f0GE0SSxS239e22dTscupVr/Xm+OSevA5Z88jdqGK//kbaQXbzmN",
-	"Jogf6KwNeQmqH83G6R90qouq/hhjYf9WpsJ4f3HlZgO5f5S/zbPKr4rB6+k18upcI4eTzE/1v9qctMYf",
-	"ip71H+IrLRmK/uq/LtobBPSrjCY4whUiCIFILKVIwd7lb+R4CpbQ+Z3RTaq/5EUlM9sLz9kabRo/FuMm",
-	"jlpgP6r8ru1LZXzh3iamIuhkOlljjgVlV5rX5K45tChy865iyFdzChUnQx1aY9O2DiiOo4MEk2vLj96/",
-	"aYas/yknXQ3NX3VT9ZtybhFOy5+UPCh+mjMdTev+XRmmnO03P9e/uPqVzutf6d8VIqzyWxQrV78K0isP",
-	"hP5JIaqVP9pYavdz5QopIwCLHpyfI43m5vzGNiqUYEzWFEfoqr7l7R+0LdsU+av81iLUXWXGwFVgaxa8",
-	"UPyi6NfN1HDo4v6y+NZYkIu1mx/Lra4dmRYFlo/wU0RhtZut6m9t+x+nLUmEN1isaC7Ap8qN+OkHQPIk",
-	"ASmChAOxwhzo1BaVYkgoMF83jVYj4QLksRi+ulfqc394GmZcjMQRCy1gMnKYilb0Lk/n+uEUkuT5qVUH",
-	"q+4coWANk7wOvPTiWX2Svakq2aqZEzyuG0ErJoE6gD+MZ8qSmqAljDYgRQLGUECQSaWArRVJBE4ABOZm",
-	"BEbNA0rNAzbXAGBx4EFu655vD5i/OpZyrNPUemQG8eu528ofm+18URg8m6gQLEfahgzJBtg0VnBBE2TB",
-	"HziAVYIclOfNxRalITXG5QCOm7BRT/Zu3HzlUXeOo11amxOvHLrlgcUpeVtAXpVm8QBhnTSsI8M5pWlZ",
-	"6ZDdTdmQwg2QPAzewDm4yBPEgVGgdPmL4lrV2xbRFJNlIys9KOe8GFJ2A07gxp8yPzgNXW9BY06t7Pe1",
-	"dRtb+xgDMRBqYQyF5BsHjxUIXadbvGuBt+kzfdIEjc/sd1HtRrgpKptQhedyUNuc9fkh3NQa2g/+3v3s",
-	"RvnbjYfdD41wv/zt55goEN1xDnZlQ/Gwa03xeFrBBP/5aPY/Flq1+OfB1ezjf3mhVTNMBuFSV0Z8UR1R",
-	"QY6/mD72obc28aprZC0XqSfjJSPl4lK/908QF5gUXjdrAlS9OK9kWw3N/waphQrdXcRUzSq/0xpBmJ+g",
-	"BcyTFnj11kAqlofoRoaW8rK9R7pRvXpwSQu7vnHxTi7n7B0YpMKm48FBfMFufdOuM+L4LLHQMncdK7gI",
-	"R5PqOq67jlZ0Zmlv/bQsCr2r5BlblN4tft8PIVyrszFsGtXyM/5nW8laQf7nAeVynHCCnYDbVqdagiNZ",
-	"z0StzngPH/6rkQujDXFMvs5TbbAzRWE6biCb5zWCs0dyZALnyF8eXHnWyLKlFofZsB0UbtJeRMr8RRNU",
-	"3JCc8J6Tzfz5PJo6zhyLFDFLnQ62aMaQWUf+VMXCGjcaJsUPfs6oWVgCXOD0hiQUxiaGz9HQHsEMP1o/",
-	"fqTNZo+8MKQ4CSqoyosIL7taq3JdRTATOTMe48VVnslJKVyLFBP7Y39erJ5QMdK0sj7vPuTzBEcvjU/h",
-	"iHMkQm0XsKyV+xJG10tGc2Lp2Y9BVfHTh7dXAdOReEOXdGiTBVzjqKjb0vt5MrjrppJOdS342iQrU5i2",
-	"06+bOu27aUvVj8puKDigU0j6uMZW7ettbdsd66+/Fq6xzdCWp/Z7uT9o2R9npyf8Rn76BpNrvpMbEtmU",
-	"WLPsqaWenVTPzajmpMpK7Swu6fHhsPoIUlAEKNXlTF9j/5tlBflLSEgbkrsLARNc5FUFgUVa0Hof7Vez",
-	"j1+ePfWXQdGNL5V7vrvcin4rj6KKeWd7SzOs8EKM61S2bKn2MAA4WfdRAiYPx2iVH4tkSPBlPW7JbpTt",
-	"wYU5LjHOfVvicpCzFwX9LMv2HCTFnoGBxZQIRIStd1wvXBRQsnhgbZIgzCGGl1I/kOvyQIz7Z8jx7+jl",
-	"RujlbWW9037t2hSmFZK5w/VszhaQvWuIE11HvwLmaH6fGJCyRAWNiiuaqSLszu2J4itKko1Xe9yJNE32",
-	"AkTv2/IWVJ4UYqLu1EGTaILmdtiCO4xFdZhclxKNWU2r+9jDLVam3vbVuM/CSFtdg23M0NtwSz8K9he3",
-	"6ds+dXv9kTYv4DCOqPbUIid91z9ywnm3f+zvgjtIh/vMJUY7zyjV/IRG+YjbwUaCDX3R1TFZcJoxrORT",
-	"xvAaRpsWQBZ2LV/Tw4yHdZgrUmbXdOVmFYrXINOLVbJSDcpZzHBaIUkP0eV7KJDgK8VqX3a17Hp6mV6N",
-	"GmTA3EPNFXa3w16MJtVdcUdoy/qJ6WC3+irHlQPcpxR8KDVXHlLL5jaMxXukg715PgHrPKfaa8z1uOFc",
-	"htq/H67Cvls44lQ/5wzxAlAm4Gm3QtE1ik/Jrmre9ReyVb700aUWbOt6lTh3If1UGrG50cC3ywgeKPZu",
-	"GBOYEmgdy7xUOQShL8gCcd9r/BmR+o+JYDTOo8FxCCqaJcjCpFf6b9POpwsO1Bes+KjMeVopQ1DOzqVG",
-	"6y7wlRt2OBILY7FAyoU4Wja6PfimeqESDKxP9pgSnqfquho3YXkoKYdJKw+pVL9TmzAQjvFBTMHc2stn",
-	"wMNnTBL0KJBPmwQ97OFR0KIEVr/QXfQDdTmYkwXha3hcrSRvZ4YtYPPuCOY5DNw5DAu5HKSFYrpaADqL",
-	"7L9Cj4xxgvdWA9RbjOsxamXqqZL9/6QJjlWycaXepbZJLhIcCT+yS6BC7M319z/2/zj6cI1zzEb5NE53",
-	"r7r55txkXYUxDS24LSDfwMervUjhzkCDFjLyoiPxe6zVScd/9ZefDx9/VHGg/+/Jz4ezpx//+v3Ph7Pn",
-	"+lf/e8sKqSov/T8I6edxEff7/Elf2C+/xtlRo0Kwx112jbNz90y2fSf5x66+ekDeKHa/gUmiePUHEMNN",
-	"gpcrMeNwLU/IEmYcQBIDukYskT9o5CSwhnJIlZ6gQDNUqsBWpA2qXHqD0HWsX+XVFZ1engHzxx/AW0pi",
-	"uAGYg8cmq0iT/W/TEGu7Hau1iqih7rTgssrmezfKu8t+/k/pGp3dkBLJawz/G8QO20mv5/Iz5kIh4Jvv",
-	"G8g1tf78U1c5XSVo2wcOl4jfNmpbrkYdLMVq0y3qHaTws8HVcIoK+2WaGXEYQpuh0gVNUAkUcetEyqoo",
-	"JkG5ERX4kyGYJK1YG2bsoYRTJKog3I0km81jHZC9Wn/+qN/6p6fyqI1quF1plNtSd53KIudjNF8HMnpU",
-	"VZFQzdkDUO1sAA0PRNg6FSLYpRiWvVy+9+tVPGrATTeQER3DOU9odN2Gy0TG5UL7pEX1Gn5NGUghF4hN",
-	"dSI6NumH+t4ANpgUOKF3oOwWcCRCcg+DRVB77q5HfypgKk4sSkXLhxsuUGpOXBliLakw+TiAF+4266Ra",
-	"bqJcy9QnoL3U83Con3rj0nzlgX5lzU3lpr9awyQfE2jpYjyNufBO44GsxmhYkLL8/qftNtYMWe1rWlvy",
-	"KCLv3W/Rv83jfRlKy9p3uqi6eLxFVD+L45xxnUQQeFMELXFcyvSWkRhDLo6KhKzeGNpJITQg74IyjYgg",
-	"1I0PdDsgmflAvbMCZWtQ3tYFFVCgCozce3qNRlqsI4ZUmDJMTgzGb/8LxBn5uNl8q2o4/W6W8XDGTQXN",
-	"s/h2il8en77dgtD7pMl4GviWKxd6TAkpEor2q6KirpjrWzj0FMfROaNrvMM6nELyyattedn0c4HW9LqT",
-	"pvdcdatR2MWFrRGqseJxCcUVDt67RlA9L+Nv/0o/StKMQcSfI8iQbl6/x2t4A0+f9MMKKLdJKQkCyFC3",
-	"yBV/mVam2EaIVwrqODQ6VBhLSW+xNzPpyh43T189rjLCqScL4MWzzsghNyHlsTUxf/GhOtRpZifpRPCY",
-	"JbZRTfL6BeIZJTyUby6QTgms0sTfQUXKlDOo00v1cl7WaesOHRm3JQIycUpi9HlgfZALxPNEmwQC8hzK",
-	"nah0Uhm/tt6pQ9G27XqLBBx3wQ6X4wnk4i2N8QIHteqIQ/c4Q/VC7dmw+u8H3lKGxrlbejKN6u9Gd6Ti",
-	"RpjUVulMv/vJrvYgTwT+CSZdgtYH15AxbB8xTbVFNKVEU9pKQthxKyk7z8LKr+hO2tZnw9QCeGwBU5xs",
-	"RgIRav4yLFpxjvu+XuI1IqNGqhGh7Gjqzr+NKudQRKsza8AN9T5nlRSjWIPoK9v0xJa59ZfUhWI1KEHL",
-	"8kXT5Ny9onFPk4IOYTpPjYYNJ1SKifnpse8uHSDtnf46u2uV1s7K2uhWrTlybINEQqMj40FaQYo4t5fh",
-	"UKm6lxqHkbZ+OmOUkxtGqQuUURZMJ0hsL21wT8byHrf9We9PGKe27LEPMU0+U7hajEG7DbGMCsiWSAQ3",
-	"bJRdcYjUMqXmWC5tXDIO3c0xguM+UGsgedrIcInYGkfIPk81MkLokytPQhNkeJ7J4+Nn87o4K771LSJS",
-	"tbTdyIk7mQYScHlngy+KQjEBw6fws/MY8LxHRk1v6vbrm2smb807o9S4R1a4oN/VjFtvdk3GqT57BQc0",
-	"joOZvOHPNiGgHiqDL1nb4j8K4P7rdG9ejNQ8D/smo56R4zbXm8lbEFlNoEm0jw7Zdm5xGEL5B2PDCGND",
-	"ybK7Q/tT8UVh++e8tysa/uPD9iJ5px7Y8tM0zYVUcMHZ6ckx4LlabOmaU9f5bE5zEoPC+HgAjoRAaSY4",
-	"EBRoWQGwsFGjcn7g2eF3QHWtQAh+AKr2GmQbAIVgeJ4LxIHGLQAoxmoKNUx49aYLxLC3zos+8qlXrYXO",
-	"1zj/+6N/+COtgVTKEXvXAksS8rwv+qmjkHq5Ha6RzcnU0fRotHMUihD5ZEY71jkJFeI8ffHCx+DaHXeu",
-	"MKbDXYPK1gCT8Ble6IYDpqg9LeEjfNDlqfoGaPoqPQSZFjtRzsdZvJcHqlux5/Rok8X+rpmdNRDyZxQi",
-	"xKUp/+TAQXjigZ+4ppMnLbfaHzE/ZRTYRP2A3JaTH499/+J4qFu/ejD3eyJugxAP5+5+nrsWOKAasQcy",
-	"rYayOaZEoM/BoGBzTpNcoFcjcrfjZEyzrBVSvzNm09+qSVd3TlPP8lon0EHac5rgaDOSsm/wAklaXKKI",
-	"kriaSfa3v/3txWGlisTTQ+9bbETMUJCQiBP0HqeI5sI3zSfPv3tSneYLP7LBMOD/SnmHAaHqO2WYuw70",
-	"8ZB62sorrYuvFhYYFf/jsvaosv675O8/EQPWeGNvbNG76fsP+qpIzy2CvgonxXYZlOMVLoJuhuZdvnM+",
-	"bey187ehd3uxdHzrQbV/yipAg/flJU4SlV/LxMatdLKzXQoCnZUUYQOwv51Jl9UgvQU1duxN19MbSN22",
-	"x0MgTRO8xPNEJeburTb/kHIY7dXZmhCy/uJi/RZxW1WkhiVbp0ELuXX13HOKg/FcrtHGa/Jsr/dRBHQN",
-	"gsupL1Ols9lyGR1hXYJG13JhNSjFKy7/oMLfbop/ozQTfty5y3yeYqEhpEa6cCDhN0EGaDXYkWrleTK7",
-	"EYD+i9QO6CWLSeVD8fEKRdenY4MaVDm98fEItnnXFCkrC0gWxyNsjoFVGss8x4EA0IJBTBAa9HWTBLZ4",
-	"Yn3YWr/dNKrkswZTJ4Qr7Yja7Oz1/RXfjOn3gt54wdmoMMb7Yd2819/76c0n1VkW3XcT2Sx5/7l4HSHy",
-	"VoRxczdaNCe+Qv5659xzjkLdrDVcYh1f7++4m4Jyc8dWf1XHYAxH1eWHv+JGve6Rp+5GrTZwV9Y+oVfF",
-	"tlw573KdND+ZTmgu1LO8M5nfl66/E4Fb7GZ94b5VTpub0L3L74uzOrJq87EhU6/kdRudWYr2tnJT3vmx",
-	"LYbVHwhRlWshYQoVWeMffuqlQMsS/fTfPZTnfasoGgoT2nqQ9oEfypCOruyPeGmK85jBhajI8ukkSihv",
-	"ERBtUKVSZ8DLZVCIllrXe9PMX8LuPqFZ2OvHxVttgWQtNqSKyGpJNNJg2tDLAyNg9ekq0mhaeNg1V+Yp",
-	"Yjjqa+HwF1XUGvfW7UDH8r98LWmD4pnRZ/GTJ6Hn+WE4gIIzvrvy9r3bv8FTS+ItLJ2qg7NCiIacZN3K",
-	"vhj3pqq6+KKh9W468C4/1lY/5oQVJod63khIFJXupH1ziosgcHtsu71vkD4JoUxreM6X7rHvDa9SZvfF",
-	"aKujWMvbNmQahCiopppmwgtF3eNxYlBgsnwLP9dMglXQy/77wPSDSaWf76qGxQHddIBr+c2QZunO30qK",
-	"95+teo1jjskyQVfRimKVPpjmicCZ+5sFQ+hKhT/YRU+mkw3iV4S22PVc5Sc0kY0mMb0hJwautaDr0xfP",
-	"D/us9DFK4Mbn4nxx+Ozvh73NdwYEUi/fo4omXJkSCVc0F31JyaO1O8MhJb5FhSTTKnl7cpPdXRwjPu7t",
-	"Vm7rDqqHjA4k9hDnzHtTbXlkvFGlGO9bJFZ1K2RRw7r0BGq/HMVxJF8Hi8j/NOrXWCOY6ZB1HBCsa0Cc",
-	"bNPN0LG0ff2I85xBA/neNcxRhTBlM9vVWS521hfNhQWf7Orm2P1WMbykRIi6r1u867BuLha1kAq7/cov",
-	"21/nqphTZbDaOj274aPqtIU7a4zjmbfvnBgqeAC7bxCLIEfg4vUx+O75iydAfgqMoAN/A0tEEJMvUTDf",
-	"qBBEB2GzEm+Y51rLqvrC4Wzx8cvfv86Kfz/7Ovtb8cPTr7Of//4dnH+s/Mb+2+tDl4tRT+MK2LXrORqk",
-	"B+swc28fUh3eTdRCS6x8u0D7WKyurKjtVP4emRQxsoT3NiHB44t/DyzmpoqxVcuiD6/n5ms8oBZ4s8zb",
-	"sEtK72hRzXhkpZptixRvsZ2dhcClslbW8e2tXy0p8FPZxFcvy/wpmLi3HZJko9lPti5yupcqsn0wejcE",
-	"sXPHlbM9ip6u6LI9OXQ/b7avMD+gSLz+8H1befQwK6AxFvvLoY/gZhOgE3y71Tso7Tx3frG5laDHrcs0",
-	"vndrWuHFyJ1STe/dehT7blkBodAO9W+mDdysPV5bC8y4aIOq8sKuDf5YJfPWvnwWmL60s2rPinn2ESUZ",
-	"KLDeQ36t0QXGnAHb+r4dAzmv8Su6R6s5JWuKo9Hap7DAAT3FAZ0xTkyjLU5xz3qnxcTaeVPPqRrAy289",
-	"INqs4jxn0QpypGoWljHP/abs7vYhysUbusREVZ+5kxD+V+OL4zjtQxZcVmAaW+uKC5oiNjqc/fZycVO9",
-	"1BCrGKGigFcKfFHqejq08ogY6BbMRUT78TPKnTszDfaSHFBN7R2RQFuS3Z9H2yBUSYERjDzS1lVrfS/u",
-	"JDOn95ts5L3UiXUzPsNqTGreaOXpLcTJDsx8c8jRB5Y0jvKzv4di+G+hcjOaHsUxQ5w30HR9erT8vg1t",
-	"pvHxinIx6MPMyY6rmbsRXCOgMiyAoIBJ5YEoqzYyFQoBIhHbZALFwHZTAwt6fPjk2RAcdou2WXrinj9/",
-	"+ryvWKdIeL0Ul5IoIlFBY+r/iXx8+LxOOUeMDCNnq09OUdnMvpyO0/fUdYa5G+5s57TgxjD55hQqGSkP",
-	"koTeoPio9FHI6Yf612rNO2AiHj+4+m7L1ScviRAd4w5r2oyvZ1TJg99VbRPjI+8wg/rNmBW6TytlaeoT",
-	"bY4ybT2Lgx2gdbdp1e85Uq6M1zW2Lc24W30kNJTQG8ccQkOBGIbJaOWz2rypfe5Dk+u1HrRi0pUq6tnp",
-	"ybEFGx6ro7KCq9/CLMNk2WF/GC1hm0DDCS7MjEFQfrbpJYoYEg0z53cvutv7lKEY8yyBY0sU7ElbxZzn",
-	"+llfBjEwXNX2/FDvv2IxXJp6jFYONYppOBvmBqQ5Q039rNR+aE2qt84YHF3ofnCB+p3Kt+cDbsvhFd79",
-	"wtBXf324SHQS6UdIxFrre/EcV1bFEwYXoxAOXDvZMEqo8Y5tM6/yssVbNE8WOElSRET9RYXTFMVYM0qM",
-	"Fogxb4ZTjZL1DoN4hS0hwb9v8bzfj6VjEGCEM3cbsD4q5qBXLppjaYJyOwBjNVG1OW0oOauWgCMBEgS5",
-	"AJQgoHOtwAKjJAZpzgWYI5CZAqKQxACCiBIBIwFSFYanPzKgwnAhELuB2lDQ4gcd6DbSZu8dn4MuN2iP",
-	"hO1yivY0TaFgOMoTxTYa97gbuWcI6LLP7xrczWhD3fbAOl2H+O6eF/sAKht61g1F+rDCKhtwUcOHDrh1",
-	"PT18O0+RCzo8eHCktGuKsLtjy0bx93aggxvIiH56zBMaXct/ftydVWbnpf1HS6BKyc6xCv1e3lL3ppav",
-	"X9PvqGgbQH3X6BUsgDwYl4GJl3fwIrBgU6OEbbXx/V/sT5hjQdkrwqhW83fglTNGUF9uUedy9FSOPCkg",
-	"A/0ArvF2T2hz+zLLECwwTDRI3D7C2oqjXx2pTrNpffOGyQpnwdVL+CwTOFXQdrOIEg3CE21sqk0ll6YR",
-	"U+T1FZqRbjeMZ8TdpZg59NzEKTaIslGBZ1JW8EyxEJWb33fdGzeDOTa+nC/rdSg/6dVnTFbqKQmJ6DGN",
-	"znKxjVPJYMKrLYd8pD5Ws8RuhYSTBQf+lJgzvdLvUn+6o0RfB3Sqan1197O2UQ7OS5WVGowz9fCrZ7+6",
-	"E4jVqvcOC6IP43hUEHdvnCNpk7VVcqybuT2drCmOWxCE7DVniadLZwX75QZJCPM2aJkJ00J0hwFlA/j8",
-	"TQ3lLOeelNKCnQpmLOfaukEtqkN7RnPH7rToQw+K0DBFaOfqzF1AYW2hM5XwVt2QVg1uGyUMYHhZW9Ok",
-	"KdMcoALM9T99x6QQ/VsJIEzWWCjuPkEJXiNdqb6IAdMwfAuIzSz6Uwrh/CJPEL/YrWDbHfYjdIr/VrfA",
-	"SwzfilzaD2KpAjDzWxBcBqbzjVn28P0zQ9uGxZlu8SuE1cyp4zvXj3t91u4Qw/YonzvnKRDNY8e7FBro",
-	"15731nte78hNsxOPSlE5of7d+MIIqss3g2s+9E/QseG+hBy9eFbZpvlGOYOrLo7Dwzo81rDAX2eo1zhB",
-	"ZEw5zULLUzqXnKXXpvDWmO/l0AByFcq81jz9fzhAn7MER6pcquoLCAoQEUjXEstWG44jmMw4XhIocobA",
-	"DWXXi4TeHEymfUbrkl8d/psW/K75alo5lLU9tVA6nq1pIaKfKB1SpS4CA00kiwVSXpkQRWuVp5BcuCCs",
-	"YQdyu7qC1dGnlSV46URxrGh127lgrNWCsZ1b0fTrLUzOUZQzLFSN2dTErHC2+CeCsXZOe84W+gwjkWxA",
-	"ihmjDHwqq+5dybafwF8oA6pjBLIC9hV8urr6J+ViVv/8r4ASkBMOFwg4+D4otkeUHyj1Z/L9ZKWnZV0r",
-	"k/+eHV9evJ69p9eIlIwHM/wvjfKJyqRt/U3TAEnQrATRBqkKi1X/jBhSeCcwAVxQhmJASbKRAgWCy38e",
-	"zZ48fwFivERcdExPJb3O9Azap5m6wbjHlF5j1JzpP4XIpEwFc0ZveFEW2rSd6TeHM+sDcNnYgpwjLQ89",
-	"e6E7+ATk3IsVRXoyxYoa3/cup43umT5OgGbwtxzVlzFHkCHm7gGMIqRSUCgBSGq/wMRbz6o8o/PK5GIh",
-	"iQEmv6rDAOYbAOWNwOUPBMrjD3Rs4QE4FYDILgFDWQIjQ6KcI2bH6NhhE0g906tt32Me4fSlWpVKTFL/",
-	"em2lpybCZOphTilTZ8Y8h5wq4EDIkZqsWbKkkjDqutLDFpNaCZE5kfVtDHemd4YjtkZsxnGMLDn02AdA",
-	"saMdEmBuZvODKcspu5W/tZwbypFmtOEsaRo0yf9VPSYX1HOq3r8/V4FMDJrC65Qgt45ojLKEblLFKGcZ",
-	"Ikfnp3JNcsqCQcIzygTQZet/IXQheUysflCCjDITIaZYMaYqMgqTNWQYElEUYJ/D6BoRKe1U+Rps4/kP",
-	"fiG/kOKcWG1OxyhwEKMEzxUKWbIBsU7UyjFfAbFiCAEuX3X8ewAJoPrV/Qsx99RGzj8ncA2x7pEykBNd",
-	"Rz6egk9ypE8gShBkXP6NIRMIwQGhQFX0mf5CdAgYoWQmv9e/lh3boAlwSkAGmVDxTmwqb4lG8NMngPkv",
-	"xMwPLBhNLRGQnGGCuCZ0BJMEMbCCHHzKEM0SdMAQjA8qXX5S9Ho1TDQknBqJokeghsy/kE/+I/3JlUUx",
-	"ihIoj90cScWw4At7mf5C3CqxIIKEUHltStpwtSV2V7kCenT7vsFiRXOh6/pjsvyFiBXCDBidE6QIEkyW",
-	"U8Cpmrk+ngDJDZBbDsQKc6DlFMAkRhkisu9kA+hCdQastlAcZ7mX8iJ15iG5r8Bv/37ytjwQx5QhcHR+",
-	"6pixvp8cHjw+ODT5zwRmePL95OnB4cFTDX63UnrFI2PR4I++FHaOr/pE2jIP1bNp4ko4+GRbHuhPP6kZ",
-	"I7KgzEprqW7PjHFqlkIu1OrNUTso8o0NGvrkRPVjKveVOvRLGm80PBwRpsyFA+336FejnmndbaBmV/j6",
-	"q4qaeRgV/C57e3L4rEkFM8kpMPBrGPGp3Tk+VZSQR05ooawEAxIoPgDvVwjocFD1kWYjRhP5KCrKwhgh",
-	"dCD37tnhYduaimk+egnjMnph8uzwcX+TD8RKQxTrRk/7G72mbI7jGBHd4ll/i3dUvJYqkW7wXX8D+WJK",
-	"sFb6nw9Z+6kBN7tUZ+6V1H4rSrSyQrnq888fG7fszx+/yl/maQrZZvL95ByxFBJ9QPXWSQFhGB7crHCC",
-	"TE4uJkuABQfaXigPJ1xyqfEbDuGTj1+nkyUSg06SFKCfmgfjH0U9y0mDOQ93djTsEOpMeNkdGBCTPxpj",
-	"7o7PevjqH0hHNsJiN73skkEGUyRU/bsWE2r5id2301iHCHkl+iNJ01kprB59sbiRQ8W9lOc6pnzGMxTh",
-	"BY4AjFNMMBdMq+4ZYsYg+v0vpGTqIj2doZSu0QFMkk9Th+kzTKp/ouwX8qmc6wHFcXSQkwSTa/WFlqL2",
-	"NCZ4gaJNlBj1SutRRnH64ZfyrnXvUSV7o5XUYMgScQAZsiJaC+8iy96M8guxwl19y9CaXqNYX8fVs3qh",
-	"VmL25CgXq9MSoPM+X2gVw7LNHtDbEldJUlDCUuHhmrqja0rzmrqavNunlPfy4tq5uJl+0a8/qU2Wb79S",
-	"skzqrDgdyNSF5bBdoBlPp6rKOFpc6pLgw5RcPd4OtFzd0f1Tc29FkzCrjy1PPgiPuxIeZidcxVY/W6RQ",
-	"VzqtFfR+udF6MvVRuLWDqYf7dAC8V5i+ryMTD4Ti2utbGUwYAoSK8gW+oAyoLJcCO756gnWa85/0AJsc",
-	"74fza87vsydPhiwkYzRCXJ24VwWE/J2d/SPN3ahXOWg95GXgC9/VSa8eslPOc3vGTovB7tFpe7yz0c/N",
-	"A+kCcSTUun0HryQCiGhqzLNKGcFihRhQDm0Ua+OwyBmRf+YAygencli4zzXKZso7wZHIM/Dh4o2Ucto+",
-	"qZZ3DKMVmh1TIhhtBcE03z96Ry8FZWbSD7LgG5MFl4gopuFwgZKNMlvKS7HUCrB7+kJkhIJBnRWhRlvJ",
-	"iHyYMqCGvFJDHugozk8/AF2tVB4FZZ4gywIxz5pvtSJg/Y0wVi4WbUPQOr4x2drkej1AQzGw9V7UZN64",
-	"ILD7EFptKLn3R1fQM3zQFb5tXSE2d4pywzuC4f/w8hypc2dO0wJrv3aApHCBMG9DTBQmSY7Epx/Mm4d7",
-	"TFwNR471BCZ0uZRfam9fxJDnpX9ZmO3PyxyGfUiC5kD3TxZYF4IkoH5doZJ9nACZBxnxTcoI1xGg9UpX",
-	"hXByeMaIhZk6grdmUXAcFlI+aHdDRGMETIS4RtIxATXWsvAL0YIiwQuk1O2/PD0EKSa5VD3mGxBr1JC/",
-	"6hAoHSuyRgzFQOigATvsL8RqJQfgPytEgLzcVQtjO5tai6/m5KpeDxiKEF7LSf5CCtW/0POVccMMvQFi",
-	"xWi+XDlRWFLpISjxeTbcF1nlyfInfpTZYDBzSSgmqb7Oim1+eGF9y9ZS9Uryv6Xdm2xW8kGorNOJCbei",
-	"/WBygFQai3KnghspZGAcK38nOD99Z/1HkMQVR65y1EqRqJtolVC1IqXuVLY30S6n71RE2QrylYrOWlCm",
-	"fMUcc4FIhKY+vat0sk5NoIyKSiuCxWKKuLLaavOvEqBWxYC5oCkUOIJJsvFJMkdfwmT/Ohne2jsraeh3",
-	"8TmW7Qcn7R9fryq2u/oOs5j3igfOT9+Fy54ZKvLabk/P6pBDkuP1o3JrIXRkrDe/kIr5RgWKcDdM2wkB",
-	"LTQkqw9pTUw1/IUUf63G7E512eGRihkmXCAY92pemJQpiH9izUvusCZeEcfTbRc3WnbNkgd1TYgHq/mD",
-	"ZN6F1bxkGw9/dkhlIRCJIYnQIy6gUNhLiqNM4GgzHLRocFl+34jkUcE5v+U6K91E5ywYTTvjcoblVvs7",
-	"F3T7rj/u0z7lI5vPWFV8B8r9OLjNU3cvzoT3DBQsXNDIMnEeYzFT2X0u77aqAfJzE/EMjuQP8saGMRTQ",
-	"eGKUjMaEu5GbU2OIncrDp98Sj7Q15vz0FHACM76iOjmxemjeYC7UKK/0BEPD3t7gFGtswJ4Pj3PGJTFb",
-	"jgiMjCet5NhKMvffBx82hnSG03v5eUt/L54Fd6eLw4WF6bWvlbIjBz5jh902Vt1djSLG4qhopnqu8uUx",
-	"5GiGCUeEY/Wi5wiyaAXo2hr6NFwEMFl/Kv0N0IXOSFQzKjNiffO9VP217runekPb8mmk5hK/1pJ8N5Lb",
-	"dvqeTu6XxC6O7DlcehXBI5DBpdoKJVGAFkCAslgZVwm6QVwAhQJwzx/Bt5aGIGUhyBhew2gzU9CN+rni",
-	"0M/VVeSvCxkvVo+U90YN9aUleOcCRZTFBkj2yH6+Rza5tAsmAn32+p/MF9qEvzEWfKbmqUP+0JKp3G27",
-	"uoNvcucHqbHlzromJXeL1aNptkYML+yGyDnZHBH/rh+bL1Q0wk9O2z09U1vH29bcpjoEevXmMek+MgnP",
-	"0zu252+hHj57MuB99p7St5BYSGS+Sx6tSCK1axsAQUIjmBiLjzbPaEdx+aCq29RDeJeVoCF+65Ty8BVb",
-	"jLljSjAGa74h0YpRQnMOXPuPfLqlmdD8UJeCatSzG+I/ERU2fNKclNug1cqxD//Sn95ZJNsOWI9sgyP0",
-	"oTQB7srPtK5sPY2R8tu6emhp/G0cnUGnxAngDRDte4/EbQ60rTCvxM1q0T01IsZK+GkZicKRMBmACV5i",
-	"lR9hvEomw+dbFft7Ed92twAkTpioop+KmVohYGA4vSEgrcypmLldWp8RwPNIrnEqx1Gm+wKJx+InGKgT",
-	"DYnBkXyhC6SiO5XD8Pjy4vUvRH/UyB1ZQJzkDCkHgUrYXSKCGI4KJAzA0BKyWIFh0MUv5GaFlLFZVWhW",
-	"vKVcEdxnzVcRm3s6PqrvbU+MVZV13Kxx4xqAo9KL0cSpULTkOzkg08klErM2EJzLtqHB2zwROEsQKJsb",
-	"2A0OUrgBc/mwJyUSD/RAi993g/x90t8uBWQq0ksx/SNHjBagP0MOO81F+93zRv89hHON01sf/urRNqyi",
-	"oXR2JM67ufWVChqL2w/MLrn2j/hcdROeVXKiqweFcJqGt/Tapc8L7AId9GtvfY0poMNROE3WFhKpHF4h",
-	"/ajPvMAdx/rDD1wFRe/NAOIO47F+HFutsYK9lHPE7vbZcGsmrwvl3C0c9CUNMoZJhDOY6Ge+oVMJZcEH",
-	"cpZKNn1EcRx1YGvU0kUUpMXZDTk7PTl2YCJ8Xrw9ptgPUqJtnoyG4Sjiif7oeC6B8knvqI5E0b0XGUYO",
-	"G8nt9jGPDQHMPZegjvk4uyH7i1jTQ+woWs2Ep+nwHnMTU6Uif3ORaX+GcAa9926ej9/WUG7tILGoxGEE",
-	"k2QOo+vWeAb7ipTn4th+PCiYwdgE2yVgUD34VueYut2HjvP88ZPKME8O+z1mT33mP/WWk1siZQomS2DN",
-	"NHWl9Q2NCtTtdv2wrqR+s++fu4oZrxquYYJVdVLJtMCyuNYDp4BQFdd8/q/jV1Ogy+ZPQYFePlWeNhv6",
-	"nGG20SYnJ5b36Pii48JQxyozVSLb44TeYC5kU8VI58Xne9RCG6OpKlEdKBLaalks5WBv+6VcnsaEp/es",
-	"GBSUoKsLedqMeaaT+F9s68skX359JE9ou7mqiHmpY5opRDOOkoXvoXqDxQoTsMBrZNOIDsCRE6NqpLMN",
-	"lwQMLRjiK5WxDAWAnOcMkggdgDN58d5gZbZytd8y/4cAmDAE4w3Q6p2fVAfgDb2ZFR2r2wAmlCiPCSY8",
-	"XyxwpOGb3xuEWHUqNJwlBxoc2wRichWvHJlgi/JpzFAk75wl86InKYODYjNJ8iG6srtTnTLcrQEBZ78f",
-	"zr77aP47+/jl8fSFrx6EEeW7V8bsEu8okVMO/zqhN4rc3qiLCpRyMxQ27K65pw6nb9jLGu54Upa8Ag/B",
-	"6hzKC2uOJKEshcmMstkKL6UqX5VYgTKzKorapecHjjhI4ecruET/n8Op45bPxepK4BTZDCFUxv/rO/cR",
-	"z1VRBTDHJMZkeQD+wRTItytUAV3YBdYkcLugUvD0BkFarUpJL6OqKWeIpWOBI6FNDxYIoVWsXaAGUe+H",
-	"iLsrQVMnSA3E/Y8pee7QwLqNfhAoAbja8zbttbzpjUJ2786B99V2gWLMpMyxWd1Wd7qNN9s3w5h+J5Ji",
-	"pqpmcaxiHxJ6o28i+aICl0+ev+hgNRdMpM30qpFTz27InpE5GuNsbVsrtf0Smhcmicesdu+l4rdoKDOQ",
-	"ux7rWBlD0m8ga8nV1gFfBnKqcEWYbqeAUWGKSTTcX1MHu5PXDK1NbeNYaST75/7GODvjfoPvbSJN9ONR",
-	"u+o0kW7Dr3uhR7odv+79jUb4Bg/xcamRtx3iQebtKuqDN4yuGWaqS0Rh7hbPSjYAa+ekLYA4p/HGIsXo",
-	"bChllo+ByogGR+enVvX129JvA6DFO9YOLzi9YpPx5QbvtYEcaCnIBUzQ/Q/70OnrRWWmu5UV3+Kxr93L",
-	"MUKpGy9eg2QRtgbc2FM9U86m3gjZymE4Lv1Tt3L45Hh7OIAG1sievx6gkYf42GZ8bFYSNaIqdUCnN5AC",
-	"nmBwekONPXtTG3TkC3dNWebeKYJZF5SBa0JvyBTkxPwDExsBPQUMCjRLcIodME/uZh9siojZA3DpS5SI",
-	"IAFQlXgFCRSIRJsfgMCpZCD0Ww4TrAvgESrAMocMEoFQfADewmRBWepUHTUFJBcMcsHySBUDRnIfdKyu",
-	"XGRMozxFRM5V/aUsX9eaonEbt6VvqKCz+sTvWZLaQrGlFp4yxjxKKHcq2AAX960IV7urk7qnO8BQow+O",
-	"q/1sYfKoBMKpKHT9lgRMJoHRMe4bvjM45o8e1dn2ph4ccTLtu5VvATXHO9YuYqlMao8JpfrBc/feIKco",
-	"1e3GU91idNS9inwvU1+qmC+l+PADv3TKnkbeiydz5D9YrPYXBHhuCt/vsJ6YZNnWRxBkCgNrL++xhwyP",
-	"3RnnQVKJ/NDQ/gSm6JEGOhoUhD/HSYLJcqZKEKP2wCWNlfFSf31uPh4UEMg7UTaeBKBsKHW30pEB8J18",
-	"/+T5VPaK0zydfP/8UEX76R/KkEJMBFqqWPx9ek8dEm3aQq3eQhGt5G1hqA8M9R/AMGzGrQJ6UXsIE6BL",
-	"WWuVjC0hMY4o+bzQ5bI4iHIuaKpD6QonlPuth903s4zhSP60ZDTPWuO8L5FwN/VcN/qHarM3oNK2Ebe+",
-	"BIqSxkAX47jfaQN/FuQ69RZUhlAAK1KhACkHhlnB0jCeZXPDHZbBGVRxNY8g50jwR194QsXX/tfSS9Pu",
-	"iN8v9PAdCmazwmMT0qtvwY4SKZaURRCwqT33J4ir3qbsqWSgwujBUYIiYatyzHOciBkmlqcdLra7M6L6",
-	"aYV1LxMqXOTtKq+f56LO6AM0GPQ5Q5FAseHf0fldtn2p4Gh9uRzpv2evcYJm72A6OLfhyfPnfSkUg+Nh",
-	"aSSQmHHBEEyrB6sAHZtjAhVtGvp7Aw323T+m4D9ofj61oJzg8qd/gPlGIP4DmMPoWqM7cQATTo29DPx4",
-	"/uofB5NvVy78cXKmHj/1ag9IAPQ5QijmuiBpQgVQivnBN3v92sSRKeDy1WpclkpyAWhUy3LXoREcHsnV",
-	"fgHLFci+Z8WLpR2nTX14or/rkVajJOPD1f5wtQdd7YohzQVO4gTFhU66oExhsVQPhxIKA05Ihfhd0Mr+",
-	"/b0PDFWtBnAP+OoWs/dhbMotGatryQQkBglawqRKhlZtz6ep6ZPavvH7qt3oHfFBrD2kZld5Xydku9ao",
-	"Ir9kCiKaUManYedASkblYENsxmGiuanbg3asP7+Eyf4iWooRjmmaQhLfduWJMxb74VPOirpDTg72gyXr",
-	"Tk5GaXFV3iIPMz/KGFpjdNPO1Of6g/vL04f7mMG/cyrQA3t/g+ytMLlnOiALJ1hsZowmqDvzX4Gmvyqb",
-	"XKgWe+Q0NaAcpc0TpWZg/ShSm1ctgLOsP5DyavfRlJtw91G7mPo371x/ty/H58d984IutXSmtr/VO2nc",
-	"bqYskwY34H8KPhhwfPd/XlsBOnQVhTXmCgTXJDNGMEkQ+yPvTmsgmcJCVZ/tS1UoR7ijwmt6dW3MUMDB",
-	"PmQXBZ7zR1k+T3D06Iv+72n89REsPOO8ikrpQfC5Ieeqneq5dKnvXzZc4iXJszYJYSElteT+Pxw4a7pr",
-	"LPo7S7fvZA29jcCVNUEWdocNVKnNAA579AVVucdAU241gf5aWK/qg2pvKRTRqs0K18buezXEOex+R+Y3",
-	"ZwZe068nkuabOmJ/hidb/XxveT4fRZBEKLm7Y+pXhNSkbvmU3q3Hb/jZ1DuW/PFP57dwwrjaMb71+fnY",
-	"/SaoRLq7rLKfo9A23F2+GewMeJ74a6+pv5cPiIeb6xuHjRtwHvWF1oOAfqJ+v89X9ZibwxPJfMLgQhh7",
-	"pV7MH8xCftev5WlrPEbJHfu83tvNHnSN2Bqjmz8J4v1gM1nQlVq5TLuef/uUBc4Id6lJtrPaQ5LE/bXh",
-	"FffZI8iiFV6jcL2yX6M80l3ftwvx4QA8HAD3ADg26F4X1m0arMux2ozWRwW3OOZqF5f9j+3a2rG4clxW",
-	"ezcB1W1UJMvv5rHrrLTHGHQH/rIHYbaFMNuNk2Rf7pG3dH1LR80z0l2qC4MPnALTeThu3/JxG+3z2Ku3",
-	"40/j5Bh+t5WOjgcr2B0fmQST61mmojDuzbl5g8l17XsdJ7Kvutdt493f02QiHr+BcpoPt1bfEdSnb5ZK",
-	"zQ0FPYo1F7w1De9DRO6rzzASQI4p/2uW9GD83sVDepyM9XLkHBIiGftLt9/kpf6sl69wCpfo0RIvQpEY",
-	"pqbprxlajm2bkdFNb9A82xo8QtseNUWB6ndHcHTHmsCzS8Njs3Oa4GjTV/Plv2e24ftNhmb6uPJqK0Ty",
-	"VDIloZzgxWLycfonLXC0b9uX9/Rt/UoZ8uB4cAA8qEP3Ux2qFLrY9QEwfT8cgYcjcK+PAFlglu7nBKiu",
-	"Hw7AwwG4xwdggQclIL/Gt5F1LEfpzGQEaroP3t0QOfQhSyiMC/q25CHfDqpgD4ah+166lVEVVfTYP2Fu",
-	"stdHYzUWNHb6Gjj6icPr7cnfhyPXdp6zjHI0CV6IbXh7eJC3HAWgToRH2sjfAygEjFb3/Qp7PGCIc7iR",
-	"QuA9pW8gW6I/7k1mfpbb1xOzrtFnXbF4j+PWFTuaMjMPrrrdBqzv1wisOXFgwPQeGbE2yl0+GTplbooE",
-	"jKGAD8+Hb1XoPnI4xfuoOKE3pK6SBnDcTgGnj8wVrx4WO3YXnGCeUY6HlId/8DD8WZyCxX3gPU4q65Wv",
-	"9mGOOtddP5ijHu6Te3yfMFXldCbo/5+9d21u3Ebahv8KyvVW5cNtWplkZnffzCfHnsk6NQc/9iT3Vu3M",
-	"s4ZISEJMAlwAlEdx5b8/hRMJSjxJFkXKgy+7GYskTtfV6G40uoOIwZnogwi6kKp67hNVF0I9HTwdxk6H",
-	"NIaEYB1h0Ssjrm1DnhSeFOMkBRVQoEBnCAlw1AslVBs62M5kIvGE8IQYJyFs/eD2Y7xb+2TvaZZ0Q82H",
-	"ebbfPir1UNc7b/MCr73d7TRNDHex046xKoGRKV/sr3Qek1gzf7LA6pyKqF+w7+lkx0LSZyM6wsOdHJId",
-	"z3f6ReRmQ4MmWmwXw167PAoxvMCzLhlCbvVzveNKNlOnV+o++PiwXdVDOX29KoeygQFVQzW+Otx4tfCI",
-	"5JFVChWguquEPQJ8XwqhgqJXB49RHdRg7KoM9ojF9WYGVQSbha5XAo9W6E4MkjqmkMuRmL/SexWzorHa",
-	"YmZOf7zeuCfZ10nPdGa+T5XTaWY4xdMdazMIvRL6TOSh+c2F33Zqav/82JPG6qLX663HrLd2fL6E6W20",
-	"3f4hvZYb3DQ2pPq7hej3qvBRiH4Bmeg1HutWtqBjT3wwlmfDqNkgIL8PYsy7GICfIL9/px7tG1W2pTqr",
-	"T/4OVK+9zbfjWYGd4j5tN9vGcIZbPsomEHmb7chElfljDq/OhlnPoN+TQVYA05hjAJIIyOFzkJE5o1nq",
-	"TbTjMtEKqHa0t3pGakVLQ2qR3cS01yiPRUx3VCYPo0he0DhGoagJZlL98FrkE7TIvjXIYbXHWpHklcaj",
-	"kUaOvridrngEeqL32B+pOriVKngYNXBoFbBW1nrN7xhkbUZ6zH/xm/24z4DhSTAiEnzVnw8wWVIcooDZ",
-	"cvCNFpB560q/lJeQr87t+d8MqWxIJjVkCudoPckkTrLk5KcfXrz8+8t//Pi3l39XKTX1H4uEmpgINEfM",
-	"yTpZ8eVb/GfN1198//1un+UIsnDRkBezPi3m+pcEFBnf6ktf+iRs5TJey/WpYPFHCwNgE7d7LvfA5Wbu",
-	"mhUDeskkRFp4PHk0/2Ush9o6L5VYODk4+jzyjgh51fI+hWJRyLwcfjvnNf7tt6vL5d+1LGw2N+ox3Jft",
-	"UQXeA2pcnkLHrIg9SZjXVw/qn4RNNYcOycFyIxc0SaCEz4FdrZ6E3zAJdZWVwFSyhTbb6kgoaWrAlBF6",
-	"4fbVE9MT8zkSkyGo8TwOJr6H7L4ajzeqo56GnobPk4YhZVGAOc9QNB463qhurSHzSnfSU9FT8XlScYYY",
-	"IiEKQsqYjijiY9JVVac2IGo67WnpaflMaan+c6QWpMGityA9Mb81YvJsmmAxHireqv54/6on4bMg4QLB",
-	"WCwmMV6ipnPpd3iJCOK9htr/U3XlVgdnVMXwLRAwcwowByxTl6LP9jmrchqzJIFspTbdlDIBxALK/0Hg",
-	"/Pqqov2TYpL1AMoTmzvA6mb2BsEIj2Fq5fBCSACX0wOsLH7i9Mp3fzzYMM6BlYcgQikiESLhSq5VRuAS",
-	"4lhS8azLmj8skFggVvE5jDiATM6P9hdWrn0Mp5RRFpGMzCedQrneOW84cVy9AaKivbqbU9eIRJjM1e3B",
-	"XKCX8fE87rwUKJBToSjPsxSxJeaUgXSx4jiEcYCWWAIBAXPopLe6/2YoQw4e3AluQsUkUXK3Ue3/+EDc",
-	"z1047R4YI5VhpV8xFxIgqQGKGRpgKONm69+nItKxWx/Qw0aPBrlsM+5LCwXo33yVK4JFvDLzBCjTa6io",
-	"EGaMISLANWKcku94QQiO5wSKjOWbxi40eIw3l9U52d0+Fvxd1fdOWg9pq9DVj1bf0OCB45c6MupiXfh7",
-	"rX4grb4grQERWCKGZ2b1AZ0BmNMTSHpKDYaGmUm51ZWcOk7a7FB1+uva5nRrY6sPgtZ6VfDCiCulsWAo",
-	"92s9nGepsEgjolpKv4NTcJPFiJvhgwcsFjQTgOMIATSboVBpml0xsdR3W7prs7/bFw4ECdNenTZrfgYL",
-	"zAVlq+ervrpzYkerdPgsDWmi9DVV0g4Kszo1CGi+vl0x8zXXT3SJ7MJX96/gn1kCSXCDltgph1LtsnOu",
-	"Z9j7I/m/6699bDb5Fsco+CD/1bG1H169amvtS1f1II1mO1QqP5yHr2otKxikiuWuqdIdgP0zjHLd4nBa",
-	"w4sfNy88X1++BehriFDEwQ+vwHv889nR7v+/wxhHUleXzJYcRwACVTS5LACuL9/uIOTLWrnBhKpQrqFc",
-	"6y103tItbyH6d6PJuk0KQwHMVU8USUtGT8r15du91Pf/hovlO+DD6EFNLX0gMTUaCNJTz/BSwrIRd6dP",
-	"MOlyMJoi+lvid9cbxnVdaKm3X71N9mFVVjQ4AquyYTu5zklqVs3noNjLznCVJJmA03hlxWC+McwoA5AY",
-	"3R8vERA4aXFdJjBcYIKCP+g00ACnrN4EuFU3dd/rd36l04/5G51uJu/vom+MEyxKH4rQDGaxkIrdaXEn",
-	"+VXbleQ+r//a2amzWN5DISdyDvKJH7nSdbD9R+MMICKVsQikiKYxApnSzQDkwKC2mDgH5Aad4Fc65Zsg",
-	"bzZvC2QfHNGmjyrCYcuIhtMNPVj5COQG/pHNIcF/au8RjhAReIYRk5pSVSfCjAuaILZjL6o+aZdI92mP",
-	"H06gQAzDeJ99zURIE9T5e44gNG/WZyagGQt3+fKtfrH2wwwtMXq4FVDs8vUb5+3aJmaMJqVv53q7NFAC",
-	"u8l0w7mge/vURqKLfA94scf8FtUbS3uyiz53lmIB65JJWCkoRZ7fVRzvmTSnZzgWiOW7yB9a3NdsIM1u",
-	"smIl+jpMWmtmK53/RQ+Iq0YbyWAsJ9KnPRzPCZI+69XRHfowCYJEr5QD/e6q0wRmgiZQ4LA+sOGKzBEX",
-	"5/bB3ulR295AtnEzT/KICq2KhZozew+kaO5EPlmer6Piq4ayNOBznsE4XoEICRQKFKnlwhFKUiohEq+2",
-	"YK7WEgMdy9TNAtKq4f8x0U8HIEx9CUfZER2H9XxP9eQyAYKQCWuSQ95ifR+TfBpb8lCtSeRBxKCjnI5a",
-	"7hwMAb8g4W7JkvIQx406aeuVCRcR/aeG6n2jX29mlPu7A2yfjnNEoVTq5qvVglFU4toMluNkthO1DWGM",
-	"B+FkU8Rj/7bpejujJOWvUsu1S+/pOJrIxkZFd3dCUhYhFkDOaYjzy7512tCvdPpRPn/uPN4jUKua8/fs",
-	"RpmPU63TQLpWG8RThkMU0CViDEeoqV7FRYwgc7zF8sWP9r3nmCO9eSuwQwehnBdfFWNfEl3OZilKeYYJ",
-	"jAOFU0ALvI3KnMkqtgQLkDXK9ESVmtZGSZ1rdy0jRPyGNLgidYsEgJpqypLRdLPXABhKYxhiMtfEhHGY",
-	"5QlFdlStMg7niA9l6mSV9yjlIB0C/aa72A9fa1obJV911wwKvP44Aroa9GjnkF6djEt+yh4gwqE+GSJL",
-	"RNSVDsEg4TBcv8XRwNmYzqeU3k+klFYO5HY/8Dv9ykf7Rv94XW+x3o1mxwPseJ6l9/8XJEC+OsXRbD54",
-	"++QmAsxM1oCACygwFzjk3WFwW7zTKfzNRAbVC/dSeM+WQUK7f/XLwVDsTFgHHBdLMvbbNeO1z8vEUVFj",
-	"OpwHRSUacRfK3ZgjYdQpPvSTerB/kMl26oOH9VBUp5/vsWjiDnNzJTsHaMmpPESElmxn2BAtNdIWwBxF",
-	"voyjDroqAbcatxuiJze35BKaY/zOhpZ+52AHvT3yaaOdYe2rTnzyh71jIaBGz7YE7LTtH/xOSEU5ww6A",
-	"zVNn+LD56glqiZn38fIVChhXccQlOxUJVqldd9bJDqGPDauLNe0bXgU7kArWLvxzxatb7OQBLL8G4PiI",
-	"SWv8t6zwFqeKB1ScD6E0D6swNwk9ryePVU9ukpI41mGO84y1RlS9hzi+KD3cK+LWG6vEHo5Bqf/PN1Pc",
-	"A8MCBZTEq4DDGXLPkNTRwvpMlFYdx1pqVh20WvlStbj9SbO11gaTax1QprscVcyx1/D6Okkto/v2/afr",
-	"NnRreUbgHEVBhJY47Ob1Vy9cqucP4Ptfa63uBOCy6D8IoYAxnT/ncwB30SqOA9TPQM9JFwt0bZJ7tkXX",
-	"WhvMKl0fdS2sqo4JRnta+a2ZtRtUaGRCncybPEY5EIzhWxdGfKn+fijS7BJB/HIzG6QLZD2w8QP52YYI",
-	"awQBSEBGMq70pO1QfNpgcVTB8lC7c4sI9d4a11uz7ZJvl8Lx0hFnJx38MYeRZjWtDWbLbKkClD02367k",
-	"PHYnz1N1hi1MpIpz0rbkqyqd41+nrQ9eZIzLeflyKIrUh1/pKTOT8+wNLzvQfdlch7O3xmBrXTOqc+HX",
-	"ZLU2AlcdsRKdBg8QqFO40nukUjlOGX3giIEpVqWP9pLs+vTkFonArr87tI1E3N4CHJ0FaDipYIM5zxDA",
-	"glvA6JLeW0n4CUfxbLKALHqArK00TAnf/7Tv9CiWyy1JpKOvoia/1UJn1xLFHNlRgVC/uLvA3t/yJyVd",
-	"TC6bWvPTtV+alGqxQACWxluFDcGL8TNVB7FNjOsjgM1SkrBqbnUyM6HqMUaI4SWKwIzRRDUcMqR+hvFr",
-	"AMGURquAZxIExftXl/JNgpaIARiGKJX6Jvig5V8YYzm3IIErEMI4BmKBeRGIkl93g7mA/MjwHBMwXZnr",
-	"Nf8KzBAD4zFVU30G9LwG5SHZj9jyZYChBGICeDb9A4UCCKqv0xk3s6pAoJoLFyi8l0J544IaZc182f8u",
-	"WG5Ed+HQhkZnutqDk2ai+psSPUqS/DylRZp8x434QJGzTjCFUxxjgVu0w6od57HUv+29kEfhgfTOx5E4",
-	"HwFDS3q/Aet9+B0P5nNsN0a9y3HD5dhtobfzWbwvS64tHY6HczaOwdHYYPN6/+Lx+xfXvIsJEjCCAj5d",
-	"G5hogb19NadKctZU4pYtjFWpOCAfb8zeWNpEvLJycE5dI5ZAohI8G31lu32sG7GENhJ65BUVG8deqs2e",
-	"UrPUNDcGtm3h/TXpWhJEhHcA+/35yYGSihUV53+GiW1SRFdYajv6s08d+HZkCAWaU/WX+nrCnW9a0vB+",
-	"uyJKt8Ur/qplhQDUqKi/a2lQ4y9bOoetRfKnnHtqW5jCGJLy6euVfbTDuav+VM9HrrqRwU5bzRgboOZv",
-	"XPZeaagCwDWQLe0vUj+1xfxaLmA6UO5ZcjVBybvYiqoVhlwbJSvWBFSHq5hOPcfe72L2KhLLjQxmgnQQ",
-	"if4+5uhcaWZlKpxo3eTnJKSEZ0mq80Z2TCG0X+rVONpCyiKLvIuik70la61pbyAVJV+995kwtxm51Nor",
-	"6Ol0FjA1DE/RUVw7lEthSyg6NAOUgQjzlPId9J1JqMvTjIyupmiO5Y+ydnsrI7PZ1DGQ1C6b5+j4aj0p",
-	"hw4QFECQLlZcldoMaUbE9vxMILsPUJKK1Yjo+R6ye0uYN6pv/XBzo53xE1N1E8Doj4wL5Uj39BwNPSWc",
-	"Ch1XkcpEaULiLplzs397wqYZCxeQozFtp+dRropem+71xNiKlsbPWdtTz9XxcPU8ioClUmQ2VEgiAMP/",
-	"ZphjU5+M77CjliobdDlb+lQuhdDhmOnbPXnJ18CZtLZTmFKtiecW+nHgI5wkyYRkcLHN1RTyGNRBKtlJ",
-	"cRROUkaX2AYR1BLx49XlxXX+ZI/odRuqu3uZd+T53rp07pfIGQH5KuX3XTgKGSoVrpUPth4GuvPb64Gg",
-	"29BA+kdprA048geDvZZ6lTCW6n0JyJu43ZRIk0f5b7tK1QnxW+LVXAh0idE+AD02GxrogKgzPfwh0cgO",
-	"iUpMKqe8ew1ogoVAkbk4afYJgDnISLiAZI6iGu6liAQRXAUwhBFKcBhMGYL3rl6wHjCskMrBnXz1PxFc",
-	"8TMdZ3a3eQ9SKREpIpdwdW6+/7P+fI8IL7VUp03Yh4Ae7vPVKWAcA1gerIuEFBFwCVfteRyqlrFXVaLU",
-	"0kC6RHm0rTAaRKU47tChMjRrkNkkqCaP0F2kTpdJD4jlPd0pXcNZ+W6pv3uxryx1ndC47ZXB8zI+O6ij",
-	"h4OnbnB3Ufv9YKLWq6djSze2izBHMZ5jlUdgFTAat+QbM8R4U7x0o97pEZZrbdWpk85jQI3jGacGwwQn",
-	"MNbDBJlCIZhRBuwiA2dRu2AgRQzTqNPKX5tH+7SP3Zbqlvt3zLEctum6cs8BLuBshsnc1O7FzxkE+Vrb",
-	"GViaGbGZcmAcl9092xoaegH6dVa6LQ3lrSyNtuqaIIMzYab5WDJzH3WatUhN+BrAt5Bjk0f9H9tYIr2C",
-	"fU8miO5jnlpMfj3KYvQ8bZGjhHBhx3RDb32Sm01YHmK3rXRHa9Tpeybc38DJk9x0X+Qtz07cFdnCWu1V",
-	"hFW0NNTxSRtgbWI7vSg+wc0RW7SRq3pV3MzZQhOYQBYu8HKHnDaVfKwONtRNjFWlGJqDnlADBhVqaAII",
-	"0mwaY77IF2dHOoUwRiSCLDD5QhvTFmu4XJhXbFLS/gG63mLVdRLzyNMTFD83BWdBYxzBFTfBp6UDTOVu",
-	"gn3rPW0YtL918lwdwmd1a0yyBj3aWm0eZxuuLA4w6R9UnXxfh/B6DevvqoJobs8cS/05v9XX+9EoQTmz",
-	"dtzj1W8zygLrWO9TeZZPlp5+S9mtbdcr0V6JHp5Z6maHvoADy7apoECSRalFvADtLqQz+nmfVLvWTXg7",
-	"1VNsbBQz0ASwOMx9kpnKkMgYCQQNFF/7ZNWNaqr0/CeqDg89tzy3RpFHRQJ0k1py94oMTp/GsUPoiZU0",
-	"84qiZ9qYji9Imu9jaXFqr4kCsCpn9UQ10fqR9kS1rIJptzA/y8gdW/3wq6KlYbnW5MiTnd3w43kfyXEd",
-	"hwia4BDG8QpwqI9Fyu5ZEKF456NG+5EJk11kiIQoSBlaYvTQq1mnm8jdi7bt/hL9mQZMwwNRdqMf1VU2",
-	"7EPArMSzI+5Rmnt6LYAmilRJi8MAe+M+lcoXF/JHsUBJF06qvTUwEEzUOB6df0mO6hDpGAUpommMuke9",
-	"x+hav9FX2v0vvQfTyyEwTklzLL2KrpYj9UdVEqq3aiXz4HuLH6Cn0hZjLRdj3MPJ1Y0L27UzUT55pPqp",
-	"bUJdxx3kmp9B+ajWkUW1ugdKus5w2Qm+a4zrAc7lGw87fWTrWuBHh5PDHYXZFtGsh4hjHdbGbPLk2Ln2",
-	"1uURR69KHllTMNrmLL60r08g53hOlBa7s/XYHLaqGijsTN5bbviKloaNgjnP57bywnP+6zCpqjy5KtNj",
-	"ShWcC6bK9MUroPkBIFnXyZ/CtEmCmhTqd6jwWJ50Sh9RQImhhC7HDqXjPN+SE6tvvypnjzBA+I6DYmn7",
-	"0Wiq/Oe/Ukz61WacFrwc9XJ0OzmqxeYmW1Qwk1Rd7Cmx4zl7kkh9LP7R4q/QTN7Elpe0I92D9UyrDCQ9",
-	"CtrTrg+fO0Br8plNQkhCFPejVl+ob4/P6XYQQ1YPPt40Zb3IHzAyXC0KgFtapaw9TTUz+al3yRCf52//",
-	"4cXLv7/8x49/e/n3PaaK3yI7/GnflZO5gCLjozkMUqtWl6L+o11kIN/0rvieGFzJ2JyJmlat+XpYf1mT",
-	"1bdVEOsVkUbOoc0LVpMk2cNzPBvMBlyLXWPyqP6/pbxwAeA+JZ2H0filXGsxDgOn/ksV9ylUnRa2Fa2e",
-	"E160rovWeiu2bwI12b19KyUXNEkgibxG4mmzK20WKLynmRgNcUx/PHU8dUZOHfRVtxdgsqQ4RIHBKh8N",
-	"l5Rl/MZ080r30rpJ+0zusdbUgSlWM2DPuaPgnF09oJcPk3kd/2aYwBj/icZCt7emP37r8jQa+daFBUpG",
-	"s02dR5Hq7ZVQF1t6o438vnfgeuI8mTiTR/l/3cI3DgHsrfYD7zz7tmF9UAfzaeXnNXsO5L4e2a7i6ed3",
-	"lZZdZcLQjKHK7GfHzdWaVDZqsOPbKL3+55m6wdQUruouIQ1iO92gkLLIBDGt8vjgXhJdrDfkWeRZVMei",
-	"a8uTGh4xlMYwROOhkeqO99x56ox8AzLEGdUmpA99boqeeR55Ho2eR0vE+Ig2INUdTxxPnLERZw4J/lOt",
-	"Udv9F/fJvhKD1dwqgaHAy/KlF/PmlNIYQdJ8Y6b0YoRmMIuFuh+ztys4+Ud/eHW6zX2cfu++FCtWewXG",
-	"XdWRZ2I5bMWeMOOCJogBugb8gkfu39svsBRP91t5x2loqAvz7lhbQDfMbflvqEYOrEZyA5A39gWpVxX/",
-	"NAejXdQq96VDnAf1TrHNhoa6lrwNxTKdcctrXmPJmtUHJyfYBtSVksI230lzvmDfvnFf7hHB1Q16G2Kk",
-	"99c2dJ1BxH9VCqJNmVyP5b52hAYwH25P8Iw6aqt8U+C7p5HNeSny85jnmZ4iQWKhku8WH0VEfuPfJyHk",
-	"UuaEkMnf7Z2Nky+dXQszRpPSl2eUJVCc/HQiiR0InMjRdPyYoNt/6gDpLxQ4fBaM8e6va+eplvgThkJK",
-	"QhxjrR826HLmCzflF7w48OLAEQfVIPEy4ahkwqP5ry4JR9ygoQNsMR5Ko4dSF8stB9gejLY66G53QrvP",
-	"HnU5o+072E61ZBrxZ7beOtwy3m6jntN6ITAFIg7uTHEjhmB0BuP47jWAYUgzIkAEBQSYA5pgIVCUV6K6",
-	"Mw9w9dLd2clphc1ZVx2qJaOotkBOOz2n1Eb57HrOTY4CTDhSRcqXCOgzZkCXiIEUMTMaKTZUOUpJFRgK",
-	"MMMojrgczf4OqtcnXRW+1DNuUsQiVXcWChAjyHXREToDYoE4AozGiJ+BGxojkKBkihhf4PQzwdzmKFZL",
-	"JAeBOYBLiGMJRbVQmwt79pkofTeNaYSsZKwaqmz2KionaMyvi3YRoOp4+0q/8aqYGMiYyrCZEfzfDJnf",
-	"jQzjYhUr3Zqy5KRt5hIowgUm8/K0WdjGeIbCVRgjEEKB5pStzsBtlqbxCpP5ZyIWmIMZjgViNqUz34B0",
-	"16kyr92qjJZohynTNDl3P/NW9a08iz8eahIVP5SUCeaqBMs7OAU3WYw4SBniiAhF889EJ/E8kzAjESbz",
-	"O5AgSDiABNBMcAHVXyW5ZliaNHKzMBslmFHmJtz+bMvEoggsdSZfZ8VA9YLFcEoZZRHJyPzMpt3YcvXc",
-	"bzx1Cd9tfKtqHV/tsI69WntKjNS5fc6BtM6lPCpVwPPBH5gLSyOJ5YwjBqCTDLx0Tmd2Qjf6o2Uv1vEO",
-	"d68lRxkOs1jTB5M0EwBGEZb/VFVb2fqr+hz3rPRixQ6tD/57LXLjNjFQkIkZXwWyzfaZB5acniyUnqW6",
-	"8I6GuS9tfaVileodnF9fgd9u3pmt2n5H1eik5KwqCC3XCv4aeSmrbyruJV2vkJOTtdChVUljnge1FLf9",
-	"W1isH7w7A1caJPorYAHVJmk0h1MAY05zHn8mhSaSv3+eRVgAhmZIVe7lgKEEYgIIJcH11ZWpuTnDiHGl",
-	"C0YUECp3VWk/EwEWkEW6jqTcWdXmWFUXs1dpsKeymIa3apRIah5yfBLzcgZ0x7ROLPUYKLsQr5fQ/HaL",
-	"yA1X3nhjMayuyet2ymajVdLJYFHaOyVTh6N4dgco2zSAHOV2c0f8BQmHAL2qWw0bkinCeWr0XRQp/UJZ",
-	"pkGMlih2xsCfG6APXt2zCYBbui3MDlGu67kdeo3qtoFf83eJ4M/EgTC41ZYXuCtpex+yZIrYXbWe+Jk0",
-	"K4rgo/GOaGcIgAyBjIQLSOYoeg1IFisPw2difudK/nJwJ3+5U4+HMYIMRVX7jA6E6XWfcZsYKO6ynuS2",
-	"rKlVE31R06Muarql8jgxmt32ZZbK0qXFhsz1R2NFnoEP6MGqm5rR+qoMmMrdWN1JUTrqXUznmLxJII7v",
-	"AOaAZ5ICKDqVejLk/IGyaF3XMuXeV/J5awRZN3HxVrP9aZxfvZqhpo2B7FA7wioXi3Fa7tsSNet93Kao",
-	"F0ANtmtuQioVscKUNdDitfIogfeI8RSGKDAlmVpPi3ZTvMtqy29pSBOpt+Sl553qiEo+rR04fSZ3NEXk",
-	"PxFccfPR4oW7146LWg+j4szqM2l3GNfYA+/zWbq1dat6Vh02WqyQG++dtUtRiGc4tKNfYq6q/wqqJQKM",
-	"Y8S8rfAEW8E5FMntsmIB7LxLGvZmVVQzOGV0hmMU4ATOGws1ux6ea/3SVaJj+sbs7dE9BWp4x1HG9Gh8",
-	"MqZKNASpO8mNzpgaAbmBp0bhqJqZ/JGieRlOeeDjFBOoDuk2tJV1GfhBvhLL1QW/Xr/5pTySNU3qAoYL",
-	"FFxQIhiN62bcPD/5QG8FZeZI7JuXgDcIRgoneCkVD1LMegfoPMXQqbrJc51Vo65DDDP6mqJQoMgIp53D",
-	"xOz7RUivxk3R0r+Ct1Iqf4AJamzFDSB59UoFOtt/v6gPIN5szcxFoCYjuKUZC2tSD5xIJe0/WRpTqIKf",
-	"TUi0kBscgfF/QpiKjKmXSw+qw037zy81Ecld9hEaCiQCLhiCyZMFgGT9Kbj+8MupVDv/F02vwXQlED8D",
-	"nxYIcMSWOERgiRieYau8hiKDMYhQSCPtXU2gspIO6B9ykdvkJSrtfgkSMIICeq/Rix83NQU1mQB9DRGK",
-	"OPgHeI9/PjtaC+93GGMJgdNC1p6qIy+T+avLpl2tL6qAssmjDvDa7jRTx6Jpw0tFJnAdj5PQJYz1ISYi",
-	"M8pCxM2PASXxSvU7hlwEiMjpjQL7pjTYNh1DWi0x/lsao2dZMLz1GEgF8Jkr+SYK0B9eDq0oy3UAM0aT",
-	"xriB3VWe9qDXG8VbVznahrRn4AMlln4wFJRJplrvC1BsVS98Jg8Lyt1YQMCRUCGmgGdT+d/a24gZoA8E",
-	"oNkMaY+yezgJPpJ49ZlA4LboNii3YysMaIyqnDDn6kkvDbw0GIs00Ii00kDQDjFEOSU6BOPr1VVOydcg",
-	"I/dE8svhYSnUhyFA0FJRK0SpMMECqmMq7HaeaSrVBegXHXsiuouj5msmGxJYfmcGY45OT1LnT05EbcfQ",
-	"WttHueilyNkyR/9tvleYJnT6Bworj1xu0Bxz7cRzFgdgArhQXu1ikoFK+3j2jGNYi/GzYlqmKx107ay6",
-	"DcwuwbwAkME608ll5oxmaXNKgmv96C/6yV6traIh2XClnNXPAN3vZ7zcpXFqk0Kq4e6iMltwrzlXnTut",
-	"/QYQOw0NFUbsjrUNPj5ZXf9Bu+58V2J3UxhNHlNnFTvnpyu/1H9+ugPQarOhofTerWjlE9SNLkHdXng4",
-	"0TvQYGxs3+Nust4Mz412ht3h1EgbmCiXapj9zROxyhaNIoeFTMO0mYSKbDkH5XpvuxXqdw62E/ZIvo12",
-	"ht0HO5HP74Kj3QWb+ZdNYxxOpkxfi55AzpHgk0ceU/HX5JEv4A+v/taYq+dafeFn84Fz+f7WyRVKb9/G",
-	"VJzUlPzT/WkkeQqFnNSTn07+77+/D/5/GMy+PP7t5V//307pqnYPCjk176Zk51f5cv4/X5N419cf0DR9",
-	"8km2PfKLbGy2PvRVMGmLZKmP7z09udBzHNwapAfXNMbhqu21N5/gvO2ZfwX2459WKQo+pnl9iLaA44EC",
-	"XaqCWgwGAxhFDHFezL9OvgwsYfVKOPS2VCrzW7td22l84bpne/V+VTRXtceox8peY33sMM1wLAJMwAzG",
-	"8RSG9xwwxGlsA/H6WxwOZwjoeS1lwD7NF0UfisdoDuMgxuS+3P/WxVKXYwOO50TaJSYXRdPaXehH3sj3",
-	"btVrfS6d20zFkn2i94gE9IGgCOgx7DHibbBQNFQMWg1wI8mRxoOaG77Daeubte+bDb9VG61Z+r6UUqed",
-	"gZTSFvTpXwp1dCjkHamuuS3M26TWJIQkRPH2N8ua+FDtGVENHYwOw57MdyOBnvv4qGgwHijzyaP+Z0uu",
-	"Uv0d9Zn+FSbdTL2ipH7XiSYoiVdnJwPrtfvaHp3RF7dOahZrMoWESGO505r9rB/uaAnO8WxXc2wgI3Iv",
-	"VuB1ngZNA0zP8B7vM+xsEHYx9mwwOaGc4NmsKkz8r2+RJzOsfK7qh7c497hWkuaSPpCYwshpQL6yncTb",
-	"a4x9SeJBIWC4SBARe4bjJeYp5djede7BpeER3ITg026aooZvG+CNcrpDnoM1WrUczxVP96qD7mqMvein",
-	"BzyLRZM26mRhAJToGgIggQTOVbUf8NvNu2/EXnv5Q4fGPlH6HpKVWVl+ILo6/FH+q8ljRMNMrk8HJfid",
-	"fOPSPH/SJVt7VDxc79G30g8nKcP6wwwvYbiqvfDVqw5eHmVl6gwdc66nVk0jsAMdXCNfc2bq/MQb/Q1s",
-	"f7d0XdIUkSCCq5YYS/XwxxSRS/lo7ytmWqqNstQDl+9EWYwKy6mXaVcBjyrtom42TzZh2z/ZYKd9hNdM",
-	"9iSEMSIRZGc45O00tRN/Yd5qXwCBvoq8kZaTlI2o5rcX4NWrl6+AfV/nNccEk7mdg3zqy5ZrL/N/m01l",
-	"96Z5Hor1dcB2XsAMoajzavCMLdGKTx4FvUekg7S8VS/0j37TTtXOrH4BmCyxMAH5O+2dL/bo2TLrt9HX",
-	"q7yTAH1N5UbxdIjYhdXz0LXCiFrfrtenX/5Yuj398sfKHatam7zNpgneBMv+FUndkG7ixszazrkxzgkl",
-	"q4Rm6jxOPQu4VMwiXQ6gWMaQEp4lecxI/9dzh0PpYM79TYRLiaUu82x36af6qs4N1UH621lT73CCRRfT",
-	"7iJjnLJ+E83LIbSnmT+Gy22HvbJh9UJ788/ZJzUquqSV19OqbcC71wCqzNEb1zLnDBKhr4G694LEAq1s",
-	"pYZ4BRY0rs3n1+MVzaKBgWxwNbYqvYu6MbF7yt6n7sP6LPLHciElN96msS7aU8HSfEOY5Nelg53vhp6B",
-	"N0sYZ6Z0Pze5TbiqaFRK0BlAzjMGSYg+E6kXaBkQBRFSqVFUODCAPK/MYhdeq6k6G7BKMaxf+LRK0VV0",
-	"95kwZKrBqFz2GTHfBfqxqqvcpsOKwuWrpx1S95QHdW7HtHMU8nnN92qrdLrDP9kl1rnXjfWNRVQxsQU+",
-	"6szxN1W39tUNYrREbLW+8/gEgjunz1LhcmZW5VR+xzemHILFKqVigSQm45yOCiFfRaM42S6bS0kVOAOX",
-	"piqESa6n5YjpYykrJ3EvSwNGH/jr9QQOIISEUAGmqKi4UF1pYmSpHCqsK7Wr+7oRAydb0GjpuMGePsnM",
-	"+gWJHJU9SupaDdIUfvBS9oklHWrBsZ3t7GbaaanmsC5SP9VKRYakNhEBucVGuFI+6vDPHuVj0cBAMXV1",
-	"LPjNyW/jc9wd8Y0opquV6myFnTSX9Rw5u1M1E1sQ9bfN9DpXlzqtDkN/qFShZ+Dc8ZV8JpXOks2kWDUJ",
-	"sQrJ8JkYHavySQDjB7jiIKSJTTjmJGIJaWTq1irB8plMkREnYIFYpe11o/MGbppe/VSurmpsZNJG7bkq",
-	"RMLkVIyec2Glb0P+3OTZMTfUxbLFVSOUeIiTSUgJQSo3XuPR+u3F1fuL4tEeEVxqqc6WL7ryfJMXyYkA",
-	"xfLkZWamCDLEAnVcCDgKGRLuCqvXzsu1WduSG5XmvFeHdqmlgTzbpT6oGP4rzjPUiDO1AemZB2rmjy/d",
-	"+jfloS6TRx8RCw5mmOm63ypKMIgwT2O4QuWlbSVThfCcPMo/5HDpnGRi7a39pJmoyiOvldVDEL2ipYGU",
-	"ofJoG2ywfB19nonx5JlYo7Dd/lRtRkzmis975OtEf6uhpswNWtJ7tLl7PMurgK3cuSitDGBqciK7OXp3",
-	"8F4UfDmn+qDczvZ3PK9muM2WdTrUXlSpdd5Qsb5F9MmkojnVyvjVzg/o4Vi1TL+nNROZxkZGap1UIgBA",
-	"QNDD/rRShkJKQhzjPBinOl7qXJU7dUIpYjxD4SqMtbuN0RgFci+cGz/cAoX3KngiZWgW4/lCgIxEsn8M",
-	"Ei6lEiUgpuE9PwOyI8bzCGBMSX4soJ6dmbMCrjOaOKcHbpZv+yirOji4MYNUtO63oqps4aY0pwPuyesd",
-	"SSmr8ZAkqTrNBWU4HMPWfPDJKj+n3GlS3vDXgFB9d8BUBD/eGjvngiY4NLXRDXWM51AONZgxhEDK6BJz",
-	"ldheq9+2Wi8mggJIAFIZ4/WV7YJ0O8mlSS5F6iWUqmqlqnuBJOPqTFG2EeT9NNHfpipAEeSEojPwRsWf",
-	"mJISunpBLnvsEUlF2RD1QcoidWFYFYHDMZqjwJx5FALxDLx35VZx7OnKLWD3LnvOIiHo1IzOrRmExUJX",
-	"NrBljNfqwNnZ2sS1F3vO1RPBslCoIC4LbQAJjFcc83GLvqMUKnJm/zT1uazkCAQNKuTE2j6UMyChEZ6t",
-	"JAXWzk9bpMnyh8kN0sLh0ypF7ccX5ae3wqts8H+2B626ylC697J+Tyo14oCZvpUwut/ONN0tgTF2nGC5",
-	"Db9xahHi5Gelkq4nvZENrC3OrW67dVnsc+NaEPPWM1oOXRzyWvI0QuyiNXGjWpvKlw6xUtUtVy2ZlBK2",
-	"8mUIUzjFMRb4OTHpN446nM7qpzpFl+ua3ic1Vwtfvfihvhbr2pe4gExckQh9rS6/+kLdUsRJlrgVXjER",
-	"aI5Y/WetYln1xe+/P5W9Nd9U/7ItfF/RwpdDoFXOfZtsyV0/AQ9piiKgFsyNvDgwSjUKjpsm7cfacpY7",
-	"K8hPWP7/ZVigp7sUn9CD6lzqhaEknxkQbk7z4wBbm7th3z3ZEABO2TVrq+xlq9BnW/I/N25JVF1OKLGk",
-	"7Z7Ae5imSldHjg3+OreykYCYlNP1j2KdXx6wJ3IuAaECzKRtNwDQLou1kUv1QLM4AktMY3WuSqyPAViY",
-	"AUyWkGFIusHPva6QN1Q+pAKJgYk18hQC5R/kY9fr9SNzYd6ki1ZD9PvDydJRCrBBgb3Ldt3pFFLLrj5r",
-	"rlzLPx9KP1CN7c15tm8VQXZuePVArZOn15D7xtV+9JGaADQTrTxSnfyAhLuxAfheIfeE25sBoB31QUpj",
-	"HOI2b7h++No+2+fZjdNUbaI88xCwnX9GMf12qd6bfBGXKq8Cb3dduPPW1wGf28YVkVL70CFRpVG2IWPl",
-	"Sw3v9yCvHpxVImXyyEuA6RziXn6r9xD3AzCnoqWhzsa3ZJCvpzhqymUpYkvMKQsiyBdTClnUeEaXP3+Z",
-	"P94n2Cqaqy7guYThKlDnMhI3IB/Ms7ytdz6fMzSHAoEIcTwn6kpJsZT8FMimYwxJiE5ByugMx6bgoQmA",
-	"VBl3U8QwjZwsNEC56Up3+4qP5ojRCRgb1T3zTK/IkE3U6ne6A89QrStleG1S5/pMs+o2MVRse1su4CE0",
-	"t+PbFcrpVPPMz/o/WupF9Z/2uW2Rz77hxDy7pXy2C9u7Ttyn+HGbGEoLbhM/EYMz4ZXfIxFzkzCmHHW0",
-	"LvdKoeotXPamVwoNfNWzdfOWExDll+gFw/M5YiDCCk6eT6PnU6rr7I2GUabu37fMqdSWPvTsGTt7jLwb",
-	"gj1tKt0n07W+6nc4bWxxQPB9Pz2orApv9iKv2o2RTAKxBBMYT9Td4QCTSQo5f6Daq1m9N3wy71ybJy/k",
-	"q1d9XXI7FwKRCJIQ2fYG8qD8jjmudJ6pHyjT169RBHBxdQoCLuBsBsyKPAX83waUTdZ+7XQvqnefrv1S",
-	"De0CKvXoxqQDsDE5GKYx8XD2cN4JzjQTu0rrj5kYp7j+/vD4ppkYM5CPCYzbCNeDQBATj75njj5Tj6Th",
-	"3MUi7yIvXdLbsq83VV9z1g6gdCNWOfBgPlYTEnI28HFKTyunyzWFqPFkPJca9uHei6balmprBm/ETphK",
-	"dMAO6Jmv1+RxKWWYOgWwor+b58W816PbMoeLWsrSPnNoQa+7EAiYalmvcsnYlE9nzz+T4n5RuNTbZgAj",
-	"kzK9XtGwZd3MTnuev9E3Cpy2bhDP4uoS8fYREKEQ84Pn+zqWzJpvvsq1wEJlw1Iq3IShjCObGSoC6WLF",
-	"VWkylVufJTppjdxBkUEAyNEC1C8ApimjSxSB9y4EnfAtq529IYzGsSrzX8Yfyn+YlOvjN+gf5qPFNy/W",
-	"Kuv3Dcu6lquvQBcPPMtYwBsEI3sXVsh5QRGwq1soZWsr1IiPxlOADovfV8BHc9NDGkZbQdJJAT4MNP0x",
-	"QmNxk71yqV7WWiuvetP/Gc0x2cBWp4QJxeNq87i4vXkLQjVmXlNFebckv6cnt0gEdjYf+6ikPJDJUYKF",
-	"WglQrJ3ZehFRkSin+92DYzgNVMXgszSabbUHv4PTG/ni9eXb7XZg01CxejMqdY+Tn06mKiHlyWZqps1C",
-	"t19hKECKCUERuL58+xrEUCCmQw50O9ykzGQ5yzC3xVe/4yCiYSaHcUDfUS9oyXdjpKbkHZwCtSxyVuwE",
-	"PSyQzl7hgMrMBHiAOUl3hBAXUKCtoHOr3jjkHqlbrAJSMSNqHM8CDs4yJ0gsaKT9YhIBBhEFTPIsrRID",
-	"mMxVDksW8V3BkE1LZf8qc95euPaGUd84YGimEoGrfuIkyYSq9VV0danDnewYpqsaTJ+BC+NQ0iW+T80s",
-	"6IsomGCBYRzoQp7u1gowB1zgOAaIzCgLq3Jy38rxiap9ssp7o7ewwn/zr6B4JZD7ZODWBKj256ynrUsw",
-	"sf/+4ftNUfmlp1CzDUblCz3IuavblXpfQX5WoAXc61zVkpJPbwc8S45HPRnpdeAXHZq4hquYwugTpe8g",
-	"m6OxKO11CcQ1YlT5YSPlQMZtdqcpDO8RiQKnnP5NuUZxs8hsvsv2u36kU5pL4zmPV/9EDJWySRrMTSmN",
-	"EST1eShnjCalF3NtTBqNqlrDSedcmYJu/6kvfesBdecQhYvU7nnP8PZeyQ9c5/S3dy5RpCas39CdojHT",
-	"ztjCd4oOAhv1tHHu4Ms+PSWCsvpwgo/5XKyKIkMdjK0DtOpgzAO0X4AuKY7Ggs3fKdao7Ouaif3+2EKB",
-	"NnZwIJfFh8gPHiJf5o/6lPy05siaMIMJCijDc0xKJfHPr69OTk8yFp/8dDKBKZ4sX5w4TTxaev0TwVgs",
-	"TqRGuubZUbVxnII5mJKA0UxIsOihSxMQJVjYajXgrmT5/QQIDbg07u5OASZhnEWqjI2cIH5WMPy81Ibq",
-	"ivnlWtXecf9iKoXw8lNFGXPnz7qOufOH9YQq7mezSFKk+MPHFBFwCVflhnTkVOVvb5ZovVv66c0f3sNw",
-	"gUm5Ax/ZHBL8p/a8lr7CcKgU/Y33wa90Wnr0isimKFtVPfyOzqeU3rs//cwgidS3v/z1/wIAAP//2/FD",
-	"4srwBQA=",
+	"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",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

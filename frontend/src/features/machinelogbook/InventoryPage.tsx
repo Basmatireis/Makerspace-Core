@@ -21,7 +21,7 @@ import { Add } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { createMaterial } from '../../api/generated/inventory/inventory';
 import type { MaterialUnit, StockState } from '../../api/generated/models';
 import { PageShell } from '../../app/PageShell';
@@ -49,6 +49,7 @@ type MaterialFields = {
   color: string;
   unit: MaterialUnit;
   lowStockThreshold: string;
+  filamentDiameterMm: string;
 };
 
 export function InventoryPage() {
@@ -74,6 +75,7 @@ export function InventoryPage() {
       color: values.color || null,
       unit: values.unit,
       lowStockThreshold: values.lowStockThreshold || null,
+      filamentDiameterMm: values.filamentDiameterMm || null,
     }),
     onSuccess: async (created) => {
       setCreateOpen(false);
@@ -107,9 +109,7 @@ export function InventoryPage() {
     title="Inventory"
     description={`Total inventory value: ${formatMoney(query.data.totalInventoryValue)}`}
     breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Inventory' }]}
-    actions={hasPermission(currentUser, PermissionId.inventorymanage)
-      ? <Button renderIcon={Add} onClick={() => setCreateOpen(true)}>Add material</Button>
-      : undefined}
+    actions={<><Button as={Link} kind="secondary" to="/machine-logbook/spools">Filament spools</Button>{hasPermission(currentUser, PermissionId.inventorymanage) && <Button renderIcon={Add} onClick={() => setCreateOpen(true)}>Add material</Button>}</>}
     width="wide"
     className="machine-logbook-page table-page"
   >
@@ -162,6 +162,7 @@ export function InventoryPage() {
           <SelectItem value="piece" text="Pieces" />
         </Select>
         <TextInput id="material-low-stock" labelText="Low-stock threshold (optional)" {...form.register('lowStockThreshold')} />
+        <TextInput id="material-filament-diameter" labelText="Filament diameter (mm, optional)" helperText="Set this for spool-managed filament, for example 1.75." {...form.register('filamentDiameterMm')} />
         {mutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Material not created" subtitle="Check the values and make sure the name is unique." />}
       </Stack>
     </Modal>}

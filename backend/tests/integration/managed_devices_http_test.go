@@ -169,7 +169,7 @@ func TestManagedDeviceHardwareReportUsesAuthenticatedIdentityAndApplicationModes
 	assertStatus(t, response, http.StatusOK)
 	var hardware openapi.DeviceHardwareContext
 	decodeResponse(t, response, &hardware)
-	if hardware.DeviceId != visitor.Device.ID || len(hardware.ReportedCapabilities) != 2 || len(hardware.EffectiveCapabilities) != 1 || hardware.EffectiveCapabilities[0] != openapi.Nfc {
+	if hardware.DeviceId != visitor.Device.ID || len(hardware.ReportedCapabilities) != 2 || len(hardware.EffectiveCapabilities) != 1 || hardware.EffectiveCapabilities[0] != openapi.DeviceCapabilityNfc {
 		t.Fatalf("unexpected hardware context: %#v", hardware)
 	}
 	var reportDeviceID uuid.UUID

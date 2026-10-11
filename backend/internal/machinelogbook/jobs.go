@@ -20,9 +20,14 @@ import (
 )
 
 type parsedUsage struct {
-	MaterialID uuid.UUID
-	Quantity   decimal.Decimal
-	UsageID    uuid.UUID
+	MaterialID           *uuid.UUID
+	SpoolID              *uuid.UUID
+	Ownership            string
+	ExternalMaterialName *string
+	QuantityBasis        string
+	Quantity             decimal.Decimal
+	UsageID              uuid.UUID
+	SourcePrinterEventID *uuid.UUID
 }
 
 func metadataEqual(left, right []byte) bool {
@@ -52,20 +57,68 @@ func validateInterval(startsAt, endsAt time.Time) error {
 }
 func parseUsages(inputs []UsageInput) ([]parsedUsage, error) {
 	items := make([]parsedUsage, 0, len(inputs))
-	seen := map[uuid.UUID]bool{}
+	seen := map[string]bool{}
 	for _, input := range inputs {
-		if input.MaterialID == uuid.Nil || seen[input.MaterialID] {
-			return nil, validation("usages must contain unique material IDs")
+		if input.Ownership == "" {
+			input.Ownership = "makerspace"
 		}
-		seen[input.MaterialID] = true
+		if input.QuantityBasis == "" {
+			input.QuantityBasis = "actual"
+		}
+		if input.QuantityBasis != "actual" && input.QuantityBasis != "estimated" {
+			return nil, validation("invalid quantityBasis")
+		}
+		if input.Ownership == "makerspace" {
+			if input.MaterialID == uuid.Nil || input.ExternalMaterialName != nil {
+				return nil, validation("makerspace usage requires a material")
+			}
+			key := "material/" + input.MaterialID.String()
+			if input.SpoolID != nil {
+				key = "spool/" + input.SpoolID.String()
+			}
+			if seen[key] {
+				return nil, validation("makerspace usage sources must be unique")
+			}
+			seen[key] = true
+		} else if input.Ownership == "external" {
+			if input.SpoolID != nil || cleanOptional(input.ExternalMaterialName) == nil {
+				return nil, validation("external usage requires a material description and cannot use a spool")
+			}
+			input.ExternalMaterialName = cleanOptional(input.ExternalMaterialName)
+		} else {
+			return nil, validation("invalid filament ownership")
+		}
 		quantity, err := parseDecimal(input.Quantity, true)
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, parsedUsage{MaterialID: input.MaterialID, Quantity: quantity, UsageID: newID()})
+		var materialID *uuid.UUID
+		if input.MaterialID != uuid.Nil {
+			value := input.MaterialID
+			materialID = &value
+		}
+		items = append(items, parsedUsage{MaterialID: materialID, SpoolID: input.SpoolID, Ownership: input.Ownership, ExternalMaterialName: input.ExternalMaterialName, QuantityBasis: input.QuantityBasis, Quantity: quantity, UsageID: newID()})
 	}
-	sort.Slice(items, func(i, j int) bool { return bytes.Compare(items[i].MaterialID[:], items[j].MaterialID[:]) < 0 })
+	sort.Slice(items, func(i, j int) bool { return usageSortKey(items[i]) < usageSortKey(items[j]) })
 	return items, nil
+}
+
+func usageSortKey(item parsedUsage) string {
+	if item.MaterialID == nil {
+		return "z/" + stringValue(item.ExternalMaterialName) + "/" + item.UsageID.String()
+	}
+	spool := ""
+	if item.SpoolID != nil {
+		spool = item.SpoolID.String()
+	}
+	return item.MaterialID.String() + "/" + spool
+}
+
+func stringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func validatePartyAndOperator(ctx context.Context, q *machinelogbookdb.Queries, party PartyReference, operator uuid.UUID) (*uuid.UUID, *uuid.UUID, error) {
@@ -145,7 +198,7 @@ func resolvePricingGroup(ctx context.Context, q *machinelogbookdb.Queries, perso
 
 func (s *Service) insertUsages(ctx context.Context, q *machinelogbookdb.Queries, jobID uuid.UUID, items []parsedUsage) error {
 	for i := range items {
-		row, err := q.InsertMachineJobUsage(ctx, machinelogbookdb.InsertMachineJobUsageParams{ID: items[i].UsageID, MachineJobID: jobID, MaterialID: items[i].MaterialID, Quantity: numericFromDecimal(items[i].Quantity)})
+		row, err := q.InsertMachineJobUsage(ctx, machinelogbookdb.InsertMachineJobUsageParams{ID: items[i].UsageID, MachineJobID: jobID, MaterialID: items[i].MaterialID, SpoolID: items[i].SpoolID, Ownership: items[i].Ownership, ExternalMaterialName: items[i].ExternalMaterialName, QuantityBasis: items[i].QuantityBasis, Quantity: numericFromDecimal(items[i].Quantity), SourcePrinterEventID: items[i].SourcePrinterEventID})
 		if err != nil {
 			return databaseError(err)
 		}
@@ -156,7 +209,10 @@ func (s *Service) insertUsages(ctx context.Context, q *machinelogbookdb.Queries,
 
 func (s *Service) consumeUsages(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, p authorization.Principal, items []parsedUsage, occurredAt time.Time, requestID *uuid.UUID) error {
 	for _, item := range items {
-		current, err := q.GetMaterialForUpdate(ctx, item.MaterialID)
+		if item.Ownership == "external" {
+			continue
+		}
+		current, err := q.GetMaterialForUpdate(ctx, *item.MaterialID)
 		if err != nil {
 			return noRows(err)
 		}
@@ -164,7 +220,7 @@ func (s *Service) consumeUsages(ctx context.Context, tx pgx.Tx, q *machinelogboo
 			return conflict("material_inactive", "An inactive material cannot be consumed")
 		}
 		average := decimalFromNumeric(current.AverageUnitCost)
-		_, err = s.applyInventoryMutation(ctx, tx, q, p, item.MaterialID, current.InventoryVersion, inventoryMutation{Kind: "machine_job_consumption", QuantityDelta: item.Quantity.Neg(), UnitCost: average, ValueDelta: item.Quantity.Mul(average).Neg(), OccurredAt: occurredAt, UsageID: &item.UsageID}, requestID)
+		_, err = s.applyInventoryMutation(ctx, tx, q, p, *item.MaterialID, current.InventoryVersion, inventoryMutation{Kind: "machine_job_consumption", QuantityDelta: item.Quantity.Neg(), UnitCost: average, ValueDelta: item.Quantity.Mul(average).Neg(), OccurredAt: occurredAt, UsageID: &item.UsageID, SpoolID: item.SpoolID}, requestID)
 		if err != nil {
 			return err
 		}
@@ -217,6 +273,9 @@ func (s *Service) capturePricingSnapshot(ctx context.Context, q *machinelogbookd
 	}
 	snapshotRules = append(snapshotRules, runtimeEntry)
 	for _, usage := range usages {
+		if usage.Ownership == "external" {
+			continue
+		}
 		var matched *machinelogbookdb.PricingRule
 		for i := range rules {
 			if rules[i].Kind == "material" && rules[i].MaterialCategory != nil && rules[i].MaterialUnit != nil && *rules[i].MaterialCategory == usage.Category && *rules[i].MaterialUnit == usage.Unit {
@@ -350,9 +409,13 @@ func automaticMatches(ctx context.Context, q *machinelogbookdb.Queries, job mach
 	if len(existing) != len(parsed) {
 		return false, nil
 	}
-	sort.Slice(existing, func(i, j int) bool { return bytes.Compare(existing[i].MaterialID[:], existing[j].MaterialID[:]) < 0 })
+	sort.Slice(existing, func(i, j int) bool {
+		left := parsedUsage{MaterialID: existing[i].MaterialID, SpoolID: existing[i].SpoolID, Ownership: existing[i].Ownership, ExternalMaterialName: existing[i].ExternalMaterialName, UsageID: existing[i].ID}
+		right := parsedUsage{MaterialID: existing[j].MaterialID, SpoolID: existing[j].SpoolID, Ownership: existing[j].Ownership, ExternalMaterialName: existing[j].ExternalMaterialName, UsageID: existing[j].ID}
+		return usageSortKey(left) < usageSortKey(right)
+	})
 	for i := range parsed {
-		if existing[i].MaterialID != parsed[i].MaterialID || !decimalFromNumeric(existing[i].Quantity).Equal(parsed[i].Quantity) {
+		if !sameUUID(existing[i].MaterialID, parsed[i].MaterialID) || !sameUUID(existing[i].SpoolID, parsed[i].SpoolID) || existing[i].Ownership != parsed[i].Ownership || existing[i].QuantityBasis != parsed[i].QuantityBasis || stringValue(existing[i].ExternalMaterialName) != stringValue(parsed[i].ExternalMaterialName) || !decimalFromNumeric(existing[i].Quantity).Equal(parsed[i].Quantity) {
 			return false, nil
 		}
 	}
@@ -494,9 +557,9 @@ func (s *Service) ConfirmJobInTransaction(ctx context.Context, tx pgx.Tx, anonym
 	}
 	parsed := make([]parsedUsage, 0, len(rows))
 	for _, row := range rows {
-		parsed = append(parsed, parsedUsage{MaterialID: row.MaterialID, Quantity: decimalFromNumeric(row.Quantity), UsageID: row.ID})
+		parsed = append(parsed, parsedUsage{MaterialID: row.MaterialID, SpoolID: row.SpoolID, Ownership: row.Ownership, ExternalMaterialName: row.ExternalMaterialName, QuantityBasis: row.QuantityBasis, Quantity: decimalFromNumeric(row.Quantity), UsageID: row.ID, SourcePrinterEventID: row.SourcePrinterEventID})
 	}
-	sort.Slice(parsed, func(i, j int) bool { return bytes.Compare(parsed[i].MaterialID[:], parsed[j].MaterialID[:]) < 0 })
+	sort.Slice(parsed, func(i, j int) bool { return usageSortKey(parsed[i]) < usageSortKey(parsed[j]) })
 	if err = s.consumeUsages(ctx, tx, q, p, parsed, current.EndsAt, requestID); err != nil {
 		return MachineJob{}, err
 	}
@@ -558,7 +621,7 @@ func (s *Service) jobFromRow(ctx context.Context, q *machinelogbookdb.Queries, r
 		item.EffectivePrice = item.CalculatedPrice
 	}
 	for _, u := range usages {
-		item.Usages = append(item.Usages, MachineJobUsage{ID: u.ID, MaterialID: u.MaterialID, MaterialName: u.MaterialName, Category: u.Category, Unit: u.Unit, Quantity: decimalString(u.Quantity)})
+		item.Usages = append(item.Usages, MachineJobUsage{ID: u.ID, MaterialID: u.MaterialID, SpoolID: u.SpoolID, Ownership: u.Ownership, MaterialName: u.MaterialName, Category: u.Category, Unit: u.Unit, Quantity: decimalString(u.Quantity), QuantityBasis: u.QuantityBasis, SpoolDisplayID: u.SpoolDisplayID})
 	}
 	item.Customer, err = s.loadBillingParty(ctx, q, row)
 	if err != nil {
@@ -792,7 +855,17 @@ func (s *Service) recalculateFromSnapshot(ctx context.Context, q *machinelogbook
 		}
 		seenRules[key] = true
 		if rule.Missing {
-			complete = false
+			if rule.Kind == "machine_runtime" {
+				complete = false
+			}
+			if rule.Kind == "material" {
+				for _, usage := range usages {
+					if usage.Ownership == "makerspace" && rule.Selector == usage.Category && rule.Unit == usage.Unit {
+						complete = false
+						break
+					}
+				}
+			}
 			continue
 		}
 		rate := decimalFromNumeric(rule.Rate)
@@ -804,7 +877,7 @@ func (s *Service) recalculateFromSnapshot(ctx context.Context, q *machinelogbook
 		}
 		matched := false
 		for _, usage := range usages {
-			if rule.Kind == "material" && rule.Selector == usage.Category && rule.Unit == usage.Unit {
+			if usage.Ownership == "makerspace" && rule.Kind == "material" && rule.Selector == usage.Category && rule.Unit == usage.Unit {
 				matched = true
 				total = total.Add(decimalFromNumeric(usage.Quantity).Mul(rate))
 			}
@@ -815,6 +888,9 @@ func (s *Service) recalculateFromSnapshot(ctx context.Context, q *machinelogbook
 		complete = false
 	}
 	for _, usage := range usages {
+		if usage.Ownership == "external" {
+			continue
+		}
 		found := false
 		for _, rule := range rules {
 			if rule.Kind == "material" && rule.Selector == usage.Category && rule.Unit == usage.Unit && !rule.Missing {
@@ -840,6 +916,25 @@ func (s *Service) recalculateFromSnapshot(ctx context.Context, q *machinelogbook
 }
 
 func (s *Service) ReplaceJobUsages(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, inputs []UsageInput, requestID *uuid.UUID) (MachineJob, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return MachineJob{}, err
+	}
+	defer tx.Rollback(ctx)
+	if _, err = s.ReplaceJobUsagesInTransaction(ctx, tx, p, id, expected, inputs, nil, requestID); err != nil {
+		return MachineJob{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return MachineJob{}, err
+	}
+	return s.loadJob(ctx, id)
+}
+
+// ReplaceJobUsagesInTransaction applies a reviewed usage correction inside the
+// caller's transaction. Printing reconciliation uses this entry point so the
+// source event, inventory movements, job update, and audit records commit as a
+// single unit.
+func (s *Service) ReplaceJobUsagesInTransaction(ctx context.Context, tx pgx.Tx, p authorization.Principal, id uuid.UUID, expected int64, inputs []UsageInput, sourcePrinterEventID *uuid.UUID, requestID *uuid.UUID) (MachineJob, error) {
 	if err := require(p, authorization.MachineJobsEdit); err != nil {
 		return MachineJob{}, err
 	}
@@ -850,11 +945,9 @@ func (s *Service) ReplaceJobUsages(ctx context.Context, p authorization.Principa
 	if err != nil {
 		return MachineJob{}, err
 	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return MachineJob{}, err
+	for i := range parsed {
+		parsed[i].SourcePrinterEventID = sourcePrinterEventID
 	}
-	defer tx.Rollback(ctx)
 	q := machinelogbookdb.New(tx)
 	job, err := q.GetMachineJobForUpdate(ctx, id)
 	if err != nil {
@@ -872,10 +965,14 @@ func (s *Service) ReplaceJobUsages(ctx context.Context, p authorization.Principa
 	}
 	materialIDs := map[uuid.UUID]bool{}
 	for _, u := range old {
-		materialIDs[u.MaterialID] = true
+		if u.Ownership == "makerspace" && u.MaterialID != nil {
+			materialIDs[*u.MaterialID] = true
+		}
 	}
 	for _, u := range parsed {
-		materialIDs[u.MaterialID] = true
+		if u.Ownership == "makerspace" && u.MaterialID != nil {
+			materialIDs[*u.MaterialID] = true
+		}
 	}
 	ordered := make([]uuid.UUID, 0, len(materialIDs))
 	for materialID := range materialIDs {
@@ -891,17 +988,20 @@ func (s *Service) ReplaceJobUsages(ctx context.Context, p authorization.Principa
 		versions[materialID] = row.InventoryVersion
 	}
 	for _, u := range old {
-		row, err := q.GetMaterialForUpdate(ctx, u.MaterialID)
+		if u.Ownership == "external" {
+			continue
+		}
+		row, err := q.GetMaterialForUpdate(ctx, *u.MaterialID)
 		if err != nil {
 			return MachineJob{}, err
 		}
 		average := decimalFromNumeric(row.AverageUnitCost)
 		quantity := decimalFromNumeric(u.Quantity)
-		_, err = s.applyInventoryMutation(ctx, tx, q, p, u.MaterialID, versions[u.MaterialID], inventoryMutation{Kind: "adjustment", QuantityDelta: quantity, UnitCost: average, ValueDelta: quantity.Mul(average), OccurredAt: time.Now().UTC(), Reason: stringPointer("job_corrected"), UsageID: &u.ID}, requestID)
+		_, err = s.applyInventoryMutation(ctx, tx, q, p, *u.MaterialID, versions[*u.MaterialID], inventoryMutation{Kind: "adjustment", QuantityDelta: quantity, UnitCost: average, ValueDelta: quantity.Mul(average), OccurredAt: time.Now().UTC(), Reason: stringPointer("job_corrected"), UsageID: &u.ID, SpoolID: u.SpoolID}, requestID)
 		if err != nil {
 			return MachineJob{}, err
 		}
-		versions[u.MaterialID]++
+		versions[*u.MaterialID]++
 	}
 	if err = q.DeactivateMachineJobUsages(ctx, id); err != nil {
 		return MachineJob{}, err
@@ -910,16 +1010,19 @@ func (s *Service) ReplaceJobUsages(ctx context.Context, p authorization.Principa
 		return MachineJob{}, err
 	}
 	for _, u := range parsed {
-		row, err := q.GetMaterialForUpdate(ctx, u.MaterialID)
+		if u.Ownership == "external" {
+			continue
+		}
+		row, err := q.GetMaterialForUpdate(ctx, *u.MaterialID)
 		if err != nil {
 			return MachineJob{}, err
 		}
 		average := decimalFromNumeric(row.AverageUnitCost)
-		_, err = s.applyInventoryMutation(ctx, tx, q, p, u.MaterialID, versions[u.MaterialID], inventoryMutation{Kind: "machine_job_consumption", QuantityDelta: u.Quantity.Neg(), UnitCost: average, ValueDelta: u.Quantity.Mul(average).Neg(), OccurredAt: time.Now().UTC(), UsageID: &u.UsageID}, requestID)
+		_, err = s.applyInventoryMutation(ctx, tx, q, p, *u.MaterialID, versions[*u.MaterialID], inventoryMutation{Kind: "machine_job_consumption", QuantityDelta: u.Quantity.Neg(), UnitCost: average, ValueDelta: u.Quantity.Mul(average).Neg(), OccurredAt: time.Now().UTC(), UsageID: &u.UsageID, SpoolID: u.SpoolID}, requestID)
 		if err != nil {
 			return MachineJob{}, err
 		}
-		versions[u.MaterialID]++
+		versions[*u.MaterialID]++
 	}
 	job, err = q.BumpMachineJobVersion(ctx, machinelogbookdb.BumpMachineJobVersionParams{ID: id, ExpectedVersion: expected})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -935,10 +1038,7 @@ func (s *Service) ReplaceJobUsages(ctx context.Context, p authorization.Principa
 	if err = writeAudit(ctx, tx, p, "machine_job.usages_replaced", "machine_job", id, requestID, []string{"usages", "inventory", "calculatedPrice"}); err != nil {
 		return MachineJob{}, err
 	}
-	if err = tx.Commit(ctx); err != nil {
-		return MachineJob{}, err
-	}
-	return s.loadJob(ctx, id)
+	return s.jobFromRow(ctx, q, job)
 }
 
 func stringPointer(value string) *string { return &value }

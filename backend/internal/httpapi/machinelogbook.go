@@ -289,7 +289,7 @@ func (s *Server) CreateMaterial(ctx context.Context, r openapi.CreateMaterialReq
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.CreateMaterial(ctx, p, r.Body.Name, r.Body.Category, nullableStringPointer(r.Body.Color), string(r.Body.Unit), decimalNullable(r.Body.LowStockThreshold), requestIDPointer(ctx))
+	item, err := s.machineLogbook.CreateMaterialWithFilament(ctx, p, r.Body.Name, r.Body.Category, nullableStringPointer(r.Body.Color), string(r.Body.Unit), decimalNullable(r.Body.LowStockThreshold), decimalNullable(r.Body.FilamentDiameterMm), requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -314,7 +314,15 @@ func (s *Server) UpdateMaterial(ctx context.Context, r openapi.UpdateMaterialReq
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.UpdateMaterial(ctx, p, r.MaterialId, r.Body.ExpectedVersion, r.Body.Name, r.Body.Category, nullableStringPointer(r.Body.Color), string(r.Body.Unit), r.Body.Active, decimalNullable(r.Body.LowStockThreshold), requestIDPointer(ctx))
+	diameter := decimalNullable(r.Body.FilamentDiameterMm)
+	if !r.Body.FilamentDiameterMm.IsSpecified() {
+		current, getErr := s.machineLogbook.GetMaterial(ctx, p, r.MaterialId)
+		if getErr != nil {
+			return nil, getErr
+		}
+		diameter = current.FilamentDiameterMM
+	}
+	item, err := s.machineLogbook.UpdateMaterialWithFilament(ctx, p, r.MaterialId, r.Body.ExpectedVersion, r.Body.Name, r.Body.Category, nullableStringPointer(r.Body.Color), string(r.Body.Unit), r.Body.Active, decimalNullable(r.Body.LowStockThreshold), diameter, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}

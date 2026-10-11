@@ -22,6 +22,7 @@ import type { UUIDv7 } from './uUIDv7';
 import type { MaterialUnit } from './materialUnit';
 import type { MaterialLowStockThreshold } from './materialLowStockThreshold';
 import type { Decimal } from './decimal';
+import type { MaterialFilamentDiameterMm } from './materialFilamentDiameterMm';
 import type { StockState } from './stockState';
 import type { Version } from './version';
 
@@ -36,6 +37,10 @@ export interface Material {
   /** @nullable */
   lowStockThreshold?: MaterialLowStockThreshold;
   quantity: Decimal;
+  assignedQuantity: Decimal;
+  unassignedQuantity: Decimal;
+  /** @nullable */
+  filamentDiameterMm?: MaterialFilamentDiameterMm;
   averageUnitCost: Decimal;
   inventoryValue: Decimal;
   stockState: StockState;

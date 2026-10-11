@@ -437,7 +437,7 @@ func (s *Service) counterSale(ctx context.Context, p authorization.Principal, in
 		}
 		usages := []machinelogbook.UsageInput{}
 		for _, u := range v.Usages {
-			usages = append(usages, machinelogbook.UsageInput{MaterialID: u.MaterialID, Quantity: u.Quantity})
+			usages = append(usages, machinelogbook.UsageInput{MaterialID: u.MaterialID, SpoolID: u.SpoolID, Ownership: u.Ownership, ExternalMaterialName: u.ExternalMaterialName, Quantity: u.Quantity, QuantityBasis: u.QuantityBasis})
 		}
 		job, err = s.jobs.CreateManualJobInTransaction(ctx, tx, true, p, machinelogbook.JobInput{MachineID: v.MachineID, StartsAt: v.StartsAt, EndsAt: v.EndsAt, OperatorPersonID: v.OperatorPersonID, Outcome: v.Outcome, Notes: v.Notes, PricingGroupID: v.PricingGroupID, Usages: usages}, requestID)
 	} else if input.Job.ExistingJobID != uuid.Nil {

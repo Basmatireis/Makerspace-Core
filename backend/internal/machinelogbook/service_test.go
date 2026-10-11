@@ -34,7 +34,9 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 		{"machine_jobs.review", func() error { _, err := s.ReviewQueue(ctx, p); return err }},
 		{"machine_jobs.override_price", func() error { _, err := s.OverrideJobPrice(ctx, p, id, 1, "1", "test", nil); return err }},
 		{"inventory.read", func() error { _, _, _, err := s.ListMaterials(ctx, p, "", "", "", 1, 25); return err }},
+		{"inventory.read spools", func() error { _, _, err := s.ListFilamentSpools(ctx, p, "", nil, "", "", 1, 25); return err }},
 		{"inventory.manage", func() error { _, err := s.CreateMaterial(ctx, p, "PLA", "pla", nil, "g", nil, nil); return err }},
+		{"filament_spools.manage", func() error { _, err := s.CreateFilamentSpool(ctx, p, FilamentSpoolInput{}, nil); return err }},
 		{"organizations.read", func() error { _, _, err := s.ListOrganizations(ctx, p, "", nil, 1, 25); return err }},
 		{"organizations.manage", func() error { _, err := s.CreateOrganization(ctx, p, "Institute", "institute", nil); return err }},
 		{"pricing.read", func() error { _, err := s.ListPricingGroups(ctx, p); return err }},
@@ -175,6 +177,21 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = runtimeRule
+	externalName := "Customer supplied PLA"
+	externalJob, err := s.CreateManualJob(ctx, p, JobInput{MachineID: machine.ID, StartsAt: time.Date(2026, time.September, 14, 8, 0, 0, 0, time.UTC), EndsAt: time.Date(2026, time.September, 14, 9, 0, 0, 0, time.UTC), Customer: PartyReference{Kind: "person", ID: personID}, OperatorPersonID: personID, Outcome: "successful", PricingGroupID: &group.ID, Usages: []UsageInput{{Ownership: "external", ExternalMaterialName: &externalName, Quantity: "50", QuantityBasis: "actual"}}}, &requestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if externalJob.CalculatedPrice == nil || *externalJob.CalculatedPrice != "0.5" || len(externalJob.Usages) != 1 || externalJob.Usages[0].Ownership != "external" {
+		t.Fatalf("external filament pricing result: %+v", externalJob)
+	}
+	afterExternalJob, err := s.GetMaterial(ctx, p, material.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if afterExternalJob.Quantity != "2000" {
+		t.Fatalf("external filament changed inventory: %+v", afterExternalJob)
+	}
 
 	organization, err := s.CreateOrganization(ctx, p, "Test Institute "+suffix, "institute", &requestID)
 	if err != nil {

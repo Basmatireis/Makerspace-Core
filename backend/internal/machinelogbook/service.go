@@ -94,15 +94,17 @@ type PricingGroup struct {
 }
 
 type Material struct {
-	ID                                                           uuid.UUID
-	Name, Category, Unit                                         string
-	Color                                                        *string
-	Active                                                       bool
-	LowStockThreshold                                            *string
-	Quantity, InventoryValue, AverageUnitCost, RecentConsumption string
-	StockState                                                   string
-	Version, InventoryVersion                                    int64
-	CreatedAt, UpdatedAt                                         time.Time
+	ID                                                 uuid.UUID
+	Name, Category, Unit                               string
+	Color                                              *string
+	Active                                             bool
+	LowStockThreshold                                  *string
+	FilamentDiameterMM                                 *string
+	Quantity, AssignedQuantity, UnassignedQuantity     string
+	InventoryValue, AverageUnitCost, RecentConsumption string
+	StockState                                         string
+	Version, InventoryVersion                          int64
+	CreatedAt, UpdatedAt                               time.Time
 }
 
 type InventoryTransaction struct {
@@ -113,6 +115,8 @@ type InventoryTransaction struct {
 	Supplier, Note, AdjustmentReason                              *string
 	MachineJobID                                                  *uuid.UUID
 	MachineJobDisplayID                                           *string
+	SpoolID, FromSpoolID, ToSpoolID                               *uuid.UUID
+	TransferQuantity                                              *string
 }
 
 type InventoryMutationResult struct {
@@ -125,8 +129,11 @@ type PartyReference struct {
 	ID   uuid.UUID
 }
 type UsageInput struct {
-	MaterialID uuid.UUID
-	Quantity   string
+	MaterialID              uuid.UUID
+	SpoolID                 *uuid.UUID
+	Ownership               string
+	ExternalMaterialName    *string
+	Quantity, QuantityBasis string
 }
 
 type JobInput struct {
@@ -157,8 +164,43 @@ type JobFilters struct {
 }
 
 type MachineJobUsage struct {
-	ID, MaterialID                         uuid.UUID
+	ID                                     uuid.UUID
+	MaterialID, SpoolID                    *uuid.UUID
 	MaterialName, Category, Unit, Quantity string
+	Ownership, QuantityBasis               string
+	SpoolDisplayID                         *string
+}
+
+type FilamentSpoolIdentifier struct {
+	ID          uuid.UUID
+	Kind, Value string
+	CreatedAt   time.Time
+}
+
+type FilamentSpool struct {
+	ID, MaterialID                               uuid.UUID
+	DisplayID, MaterialName, Category, Unit      string
+	Color, Manufacturer, ProductName             *string
+	InitialNetWeightG, RemainingQuantity         string
+	TareWeightG                                  *string
+	AcquiredOn                                   *time.Time
+	AcquisitionReference, StorageLocation, Notes *string
+	Lifecycle                                    string
+	Mounted                                      bool
+	Identifiers                                  []FilamentSpoolIdentifier
+	Version                                      int64
+	CreatedAt, UpdatedAt                         time.Time
+}
+
+type FilamentSpoolInput struct {
+	MaterialID                                   uuid.UUID
+	InitialNetWeightG, StockMode                 string
+	TotalPrice                                   *string
+	Manufacturer, ProductName, TareWeightG       *string
+	AcquiredOn                                   *time.Time
+	AcquisitionReference, StorageLocation, Notes *string
+	OccurredAt                                   time.Time
+	ExpectedInventoryVersion                     int64
 }
 
 type PricingSnapshotRule struct {

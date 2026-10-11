@@ -258,6 +258,7 @@ export function AppShell() {
                 {hasPermission(currentUser, PermissionId.machine_jobsread) && <SideNavMenuItem as={Link} to="/machine-logbook/jobs" isActive={location.pathname.startsWith('/machine-logbook/jobs')}>Jobs</SideNavMenuItem>}
                 {hasPermission(currentUser, PermissionId.machine_jobsreview) && <SideNavMenuItem as={Link} to="/machine-logbook/review" isActive={location.pathname.startsWith('/machine-logbook/review')}>Review</SideNavMenuItem>}
                 {hasPermission(currentUser, PermissionId.inventoryread) && <SideNavMenuItem as={Link} to="/machine-logbook/inventory" isActive={location.pathname.startsWith('/machine-logbook/inventory')}>Inventory</SideNavMenuItem>}
+                {hasPermission(currentUser, PermissionId.print_submissionsread) && <SideNavMenuItem as={Link} to="/machine-logbook/print-submissions" isActive={location.pathname.startsWith('/machine-logbook/print-submissions')}>Print submissions</SideNavMenuItem>}
                 {hasPermission(currentUser, PermissionId.machinesread) && <SideNavMenuItem as={Link} to="/machine-logbook/machines" isActive={location.pathname.startsWith('/machine-logbook/machines')}>Machines</SideNavMenuItem>}
                 {hasPermission(currentUser, PermissionId.statisticsread) && <SideNavMenuItem as={Link} to="/machine-logbook/statistics" isActive={location.pathname.startsWith('/machine-logbook/statistics')}>Statistics</SideNavMenuItem>}
               </SideNavMenu>}

@@ -98,6 +98,10 @@ const (
 	MachineJobsOverridePrice     Permission = Permission(openapi.MachineJobsOverridePrice)
 	InventoryRead                Permission = Permission(openapi.InventoryRead)
 	InventoryManage              Permission = Permission(openapi.InventoryManage)
+	FilamentSpoolsManage         Permission = Permission(openapi.FilamentSpoolsManage)
+	PrinterSlotsAssign           Permission = Permission(openapi.PrinterSlotsAssign)
+	PrintSubmissionsRead         Permission = Permission(openapi.PrintSubmissionsRead)
+	PrintSubmissionsManage       Permission = Permission(openapi.PrintSubmissionsManage)
 	OrganizationsRead            Permission = Permission(openapi.OrganizationsRead)
 	OrganizationsManage          Permission = Permission(openapi.OrganizationsManage)
 	PricingRead                  Permission = Permission(openapi.PricingRead)
@@ -131,7 +135,8 @@ var registry = []Permission{
 	OIDCLinkSelf, OIDCLinkAll, OIDCUnlinkSelf, OIDCUnlinkAll, OIDCManage, SCIMManage, MailManage, BrandingManage,
 	MachinesRead, MachinesManage,
 	MachineJobsRead, MachineJobsCreate, MachineJobsEdit, MachineJobsReview, MachineJobsOverridePrice,
-	InventoryRead, InventoryManage, OrganizationsRead, OrganizationsManage, PricingRead, PricingManage, StatisticsRead,
+	InventoryRead, InventoryManage, FilamentSpoolsManage, PrinterSlotsAssign, PrintSubmissionsRead, PrintSubmissionsManage,
+	OrganizationsRead, OrganizationsManage, PricingRead, PricingManage, StatisticsRead,
 }
 
 var known = func() map[Permission]struct{} {
@@ -227,6 +232,10 @@ var descriptions = map[Permission]string{
 	MachineJobsOverridePrice:     "Set and clear final machine-job price overrides.",
 	InventoryRead:                "Read materials, balances, valuation, and inventory history.",
 	InventoryManage:              "Create materials and record purchases, consumption, corrections, and disposal.",
+	FilamentSpoolsManage:         "Manage physical filament spool records and identifiers.",
+	PrinterSlotsAssign:           "Mount, unmount, and move filament spools in printer slots.",
+	PrintSubmissionsRead:         "Read print submissions, attempts, and printer observations.",
+	PrintSubmissionsManage:       "Create and manage print submissions, attempts, and reconciliation.",
 	OrganizationsRead:            "Read organizations usable as billing parties.",
 	OrganizationsManage:          "Create and update organizations.",
 	PricingRead:                  "Read pricing groups, rules, and billing-party defaults.",

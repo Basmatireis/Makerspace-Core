@@ -29,4 +29,5 @@ export const InventoryTransactionKind = {
   manual_consumption: 'manual_consumption',
   adjustment: 'adjustment',
   disposal: 'disposal',
+  spool_transfer: 'spool_transfer',
 } as const;

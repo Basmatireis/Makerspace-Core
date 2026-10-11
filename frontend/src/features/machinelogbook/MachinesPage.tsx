@@ -21,6 +21,7 @@ import { Add } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
 import { createMachine, createMachineType } from '../../api/generated/machines/machines';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
@@ -38,6 +39,7 @@ type MachineFields = {
 };
 
 export function MachinesPage() {
+  const navigate = useNavigate();
   const currentUser = useCurrentUser();
   const client = useQueryClient();
   const machines = useQuery(machinesQuery({ page: 1, pageSize: 100 }));
@@ -113,7 +115,7 @@ export function MachinesPage() {
               <TableHead><TableRow>{tableHeaders.map((header) => <TableHeader {...getHeaderProps({ header })} key={header.key}>{header.header}</TableHeader>)}</TableRow></TableHead>
               <TableBody>{tableRows.map((row) => {
                 const raw = rows.find((item) => item.id === row.id)!;
-                return <TableRow {...getRowProps({ row })} key={row.id}>{row.cells.map((cell) => <TableCell key={cell.id}>{cell.info.header === 'status' ? <Tag type={raw.status === 'active' ? 'green' : raw.status === 'maintenance' ? 'warm-gray' : 'gray'}>{raw.status}</Tag> : cell.info.header === 'collection' ? <Tag type={raw.collection === 'Automatic' ? 'green' : 'gray'}>{raw.collection}</Tag> : cell.value as string}</TableCell>)}</TableRow>;
+                return <TableRow {...getRowProps({ row })} key={row.id} className="clickable-row" onClick={() => navigate(`/machine-logbook/machines/${row.id}/printer`)}>{row.cells.map((cell) => <TableCell key={cell.id}>{cell.info.header === 'status' ? <Tag type={raw.status === 'active' ? 'green' : raw.status === 'maintenance' ? 'warm-gray' : 'gray'}>{raw.status}</Tag> : cell.info.header === 'collection' ? <Tag type={raw.collection === 'Automatic' ? 'green' : 'gray'}>{raw.collection}</Tag> : cell.value as string}</TableCell>)}</TableRow>;
               })}</TableBody>
             </Table>
           </TableContainer>
