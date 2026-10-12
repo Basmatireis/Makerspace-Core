@@ -1,0 +1,381 @@
+import { useEffect, useState } from 'react';
+import { Controller, FormProvider, useFieldArray, useForm } from 'react-hook-form';
+import {
+  Button, Checkbox, CheckboxGroup, ComboBox, ComposedModal, InlineNotification, ModalBody, ModalFooter, ModalHeader, NumberInput, ProgressIndicator, ProgressStep,
+  RadioButton, RadioButtonGroup, Select, SelectItem, Stack, StructuredListBody, StructuredListCell, StructuredListHead, StructuredListRow, StructuredListWrapper, TextInput,
+} from '@carbon/react';
+import { Add, TrashCan } from '@carbon/icons-react';
+import { formatDateTime } from '../derived';
+import {
+  formatGrams, identifierKinds, identifierLabel, isFilament, needsRefill, onSpoolsStock, spoolNameText, TransactionKindTag,
+} from '../components/inventoryShared';
+import { ProductPicker } from '../components/ProductPicker';
+import { LeftoverFields, leftoverDefaults, leftoverSummary, resolveLeftover, type LeftoverValues } from '../components/LeftoverFields';
+import { closeMaterialDelta, planClose } from '../fillPlan';
+import { useSimulatedMutation, useStore } from '../store';
+import type { FilamentProduct, IdentifierKind, InventoryTransactionKind, Spool, SpoolStockSource } from '../types';
+
+type Values = LeftoverValues & {
+  spoolId: string;
+  productId: string; manual: boolean;
+  materialId: string; netWeight: number | ''; source: SpoolStockSource; price: number | ''; supplier: string; manufacturer: string; product: string;
+  keep: Record<string, boolean>;
+  added: { kind: IdentifierKind; value: string }[];
+};
+
+type StepKey = 'spool' | 'leftover' | 'filament' | 'tags';
+const LABELS: Record<StepKey, string> = { spool: 'Spool', leftover: 'Leftover', filament: 'New filament', tags: 'Tags' };
+const STEP_FIELDS: Record<StepKey, (keyof Values)[]> = {
+  spool: ['spoolId'], leftover: ['grossWeight', 'tareWeight'], filament: ['productId', 'materialId', 'netWeight', 'price', 'source'], tags: [],
+};
+
+const blankTag = (): Values['added'][number] => ({ kind: 'nfc', value: '' });
+/** NFC tags are replaced with every refill; barcodes and QR codes stay on the spool. */
+const keepDefaults = (spool: Spool | undefined) => Object.fromEntries((spool?.identifiers ?? []).map((item) => [item.id, item.kind !== 'nfc']));
+
+/** Narrow screens stack the steps vertically. */
+function useNarrow() {
+  const query = '(max-width: 41.98rem)';
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia(query).matches);
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const update = () => setNarrow(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  return narrow;
+}
+
+const entryText = (kind: InventoryTransactionKind, quantity: number, spool: string) => {
+  const amount = formatGrams(Math.abs(quantity));
+  if (kind === 'transfer') return quantity >= 0 ? `${amount} loose stock → ${spool}` : `${amount} ${spool} → loose stock`;
+  return `${quantity > 0 ? '+' : '−'}${amount}`;
+};
+
+/** Refill workflow: choose a spool, say what happens with its leftover, load the new filament and replace the tags. */
+export function ChangeFilamentModal({ open, onClose, spool: preselected }: { open: boolean; onClose: () => void; spool?: Spool }) {
+  const store = useStore();
+  const narrow = useNarrow();
+  const { mutate, pending } = useSimulatedMutation(store.changeFilament);
+  const [step, setStep] = useState(0);
+  const canPurchase = store.can('inventory.manage');
+  const choices = store.spools.filter((item) => item.kind === 'reusable' && item.lifecycle !== 'archived');
+  const filaments = store.materials.filter((material) => isFilament(material) && material.active);
+
+  const products = store.products.filter((product) => product.active && filaments.some((item) => item.id === product.materialId));
+  /**
+   * Refilling the same filament is the common case, so the spool's current product is preselected — but only a
+   * refill product, because a reusable spool is refilled from refills, not from filament sold on its own spool.
+   */
+  const defaults = (spool: Spool | undefined): Values => {
+    const filled = Boolean(spool && !needsRefill(spool) && filaments.some((item) => item.id === spool.materialId));
+    const current = filled ? products.find((item) => item.id === spool?.productId) : undefined;
+    const product = current?.active && current.packaging === 'refill' ? current : undefined;
+    return {
+      ...leftoverDefaults(spool), spoolId: spool?.id ?? '', productId: product?.id ?? '', manual: filled && !current,
+      materialId: product?.materialId ?? (filled && spool ? spool.materialId : ''), netWeight: product?.netWeightG ?? 1000, source: 'stock', price: '', supplier: '',
+      manufacturer: product?.manufacturer ?? (filled ? spool?.manufacturer ?? '' : ''), product: product?.name ?? (filled ? spool?.productName ?? '' : ''), keep: keepDefaults(spool), added: [blankTag()],
+    };
+  };
+  const form = useForm<Values>({ defaultValues: defaults(preselected) });
+  const { control, register, handleSubmit, reset, setValue, getValues, trigger, clearErrors, formState: { errors } } = form;
+  const { fields, append, remove } = useFieldArray({ control, name: 'added' });
+  const values = form.watch();
+  const spool = store.spools.find((item) => item.id === values.spoolId);
+  const refillOnly = spool ? needsRefill(spool) : false;
+  const steps: StepKey[] = ['spool', ...(refillOnly ? [] : ['leftover' as const]), 'filament', 'tags'];
+  const current = steps[Math.min(step, steps.length - 1)] ?? 'spool';
+  const last = step >= steps.length - 1;
+
+  useEffect(() => {
+    if (!open) return;
+    reset(defaults(preselected));
+    setStep(preselected ? 1 : 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, preselected?.id]);
+
+  const chooseSpool = (next: Spool | null) => {
+    setValue('spoolId', next?.id ?? '', { shouldValidate: Boolean(next) });
+    const fresh = defaults(next ?? undefined);
+    for (const key of ['leftoverBasis', 'grossWeight', 'tareWeight', 'leftoverOutcome', 'productId', 'manual', 'materialId', 'netWeight', 'manufacturer', 'product', 'keep'] as const) setValue(key, fresh[key]);
+  };
+
+  const chooseProduct = (product: FilamentProduct | null) => {
+    setValue('productId', product?.id ?? '', { shouldValidate: Boolean(product) });
+    if (!product) return;
+    setValue('materialId', product.materialId, { shouldValidate: true });
+    setValue('netWeight', product.netWeightG);
+    setValue('manufacturer', product.manufacturer);
+    setValue('product', product.name);
+    // The price only applies to a new purchase; it stays editable.
+    setValue('price', product.defaultPrice ?? '');
+  };
+  const setManual = (next: boolean) => {
+    setValue('manual', next);
+    if (next) { setValue('productId', ''); clearErrors('productId'); }
+  };
+
+  const leftover = spool && !refillOnly ? resolveLeftover(spool, values) : null;
+  const material = store.materials.find((item) => item.id === values.materialId);
+  const selectedProduct = products.find((item) => item.id === values.productId);
+  const net = values.netWeight === '' ? 0 : Number(values.netWeight);
+
+  // Loose stock after the old fill has been closed: a returned leftover joins it, corrections and disposals leave the material.
+  const stockAfterClose = (materialId: string) => {
+    const target = store.materials.find((item) => item.id === materialId);
+    if (!target) return { total: 0, loose: 0 };
+    const delta = spool && leftover && spool.materialId === materialId ? closeMaterialDelta(spool, leftover.choice) : 0;
+    const total = Math.round((target.quantity + delta) * 1000) / 1000;
+    const others = onSpoolsStock(target, store.spools.filter((item) => item.id !== spool?.id));
+    return { total, loose: Math.max(0, total - others) };
+  };
+  const stock = material ? stockAfterClose(material.id) : { total: 0, loose: 0 };
+
+  const sourceHelper = !material ? 'Choose a material to see the effect on its stock.'
+    : values.source === 'stock'
+      ? `Moves ${formatGrams(net)} from loose stock to this spool. The material total stays ${formatGrams(stock.total)}. ${formatGrams(stock.loose)} of loose stock is available.`
+      : `Adds ${formatGrams(net)} to ${material.name} stock (new total ${formatGrams(stock.total + net)}) and records the purchase.`;
+
+  const taken = (value: string, index: number) => {
+    const text = value.trim().toLowerCase();
+    if (!text) return null;
+    if (store.spools.some((item) => item.id !== values.spoolId && item.identifiers.some((identifier) => identifier.value.toLowerCase() === text))) return 'This identifier is already assigned to another spool.';
+    if ((spool?.identifiers ?? []).some((identifier) => values.keep[identifier.id] && identifier.value.toLowerCase() === text)) return 'This identifier is already kept on this spool.';
+    if (getValues('added').some((item, other) => other !== index && item.value.trim().toLowerCase() === text)) return 'This identifier is entered twice.';
+    return null;
+  };
+
+  const kept = (spool?.identifiers ?? []).filter((item) => values.keep[item.id]);
+  const dropped = (spool?.identifiers ?? []).filter((item) => !values.keep[item.id]);
+  const added = values.added.filter((item) => item.value.trim());
+  const closing = spool && leftover ? planClose(spool, leftover.choice) : [];
+  const nextFill = (spool?.fillNumber ?? 0) + 1;
+  const name = spool ? spoolNameText(spool) : 'spool';
+  const review = [
+    ...(spool && leftover ? [{
+      key: 'close', change: `Close fill ${spool.fillNumber}`,
+      detail: `${spool.materialName}: used ${formatGrams(Math.max(0, spool.initialNetWeightG - leftover.choice.leftoverG))}, ${leftover.choice.leftoverG > 0
+        ? `leftover ${formatGrams(leftover.choice.leftoverG)} ${leftover.choice.outcome === 'returned_to_stock' ? 'returned to loose stock' : 'disposed'}` : 'nothing left'}`,
+    }] : []),
+    ...closing.map((entry, index) => ({ key: `c${index}`, change: <TransactionKindTag kind={entry.kind} />, detail: `${entryText(entry.kind, entry.quantity, spool?.displayId ?? '')} · ${entry.note}` })),
+    { key: 'open', change: `Start fill ${nextFill}`, detail: material ? `${material.name}, ${formatGrams(net)}${[values.manufacturer, values.product].filter((item) => item.trim()).length ? `, ${[values.manufacturer, values.product].filter((item) => item.trim()).join(' ')}` : ''}` : 'No material chosen' },
+    ...(material ? [{
+      key: 'open-entry', change: <TransactionKindTag kind={values.source === 'purchase' ? 'purchase' : 'transfer'} />,
+      detail: values.source === 'purchase'
+        ? `+${formatGrams(net)} bought${values.price !== '' ? ` for ${Number(values.price).toFixed(2)} €` : ''}, booked to ${name}`
+        : `${entryText('transfer', net, spool?.displayId ?? '')}, total unchanged`,
+    }] : []),
+    {
+      key: 'tags', change: 'Tags',
+      detail: [`Keep ${kept.length === 0 ? 'none' : kept.map((item) => item.value).join(', ')}`, dropped.length ? `Remove ${dropped.map((item) => item.value).join(', ')}` : null, added.length ? `Add ${added.map((item) => `${identifierLabel(item.kind)} ${item.value.trim()}`).join(', ')}` : null].filter(Boolean).join(' · '),
+    },
+  ];
+
+  const next = async () => {
+    if (!(await trigger(STEP_FIELDS[current]))) return;
+    setStep((value) => value + 1);
+  };
+
+  const submit = handleSubmit(async (data) => {
+    if (!spool || !material) return;
+    const result = await mutate({
+      spoolId: spool.id, leftover: refillOnly ? null : resolveLeftover(spool, data).choice,
+      materialId: material.id, productId: data.manual ? null : data.productId || null, netWeightG: Number(data.netWeight), source: data.source, totalPrice: data.source === 'purchase' && data.price !== '' ? Number(data.price) : null,
+      supplier: data.supplier.trim() || null, manufacturer: data.manufacturer.trim() || null, productName: data.product.trim() || null,
+      keepIdentifierIds: spool.identifiers.filter((item) => data.keep[item.id]).map((item) => item.id),
+      added: data.added.filter((item) => item.value.trim()).map((item) => ({ kind: item.kind, value: item.value.trim() })),
+    });
+    store.notify({ kind: 'success', title: `${spool.displayId} refilled with ${material.name} (fill ${result.fillNumber})` });
+    onClose();
+  });
+
+  return (
+    <ComposedModal open={open} size="lg" preventCloseOnClickOutside onClose={() => { if (!pending) onClose(); }} aria-label="Change filament">
+      <ModalHeader title="Change filament" label={spool ? spoolNameText(spool) : 'Spools'} />
+      <ModalBody hasForm>
+        <FormProvider {...form}>
+          <form onSubmit={(event) => { event.preventDefault(); void (last ? submit() : next()); }} noValidate>
+            <Stack gap={7}>
+              <ProgressIndicator
+                currentIndex={Math.min(step, steps.length - 1)} vertical={narrow} spaceEqually={!narrow}
+                onChange={(index: number) => { if (index < step && !pending) setStep(index); }}
+              >
+                {steps.map((key) => <ProgressStep key={key} label={LABELS[key]} />)}
+              </ProgressIndicator>
+
+              {current === 'spool' && (
+                <Controller
+                  control={control} name="spoolId" rules={{ required: 'Choose a spool.' }}
+                  render={({ fieldState }) => (
+                    <ComboBox<Spool>
+                      id="refill-spool" titleText="Spool" placeholder="Search by ID, label, material or tag" items={choices}
+                      helperText="Reusable spools only. Scan or type a tag value to find a spool."
+                      itemToString={(item) => item ? `${spoolNameText(item)} · ${needsRefill(item) ? 'Needs refill' : item.materialName}` : ''}
+                      shouldFilterItem={({ item, inputValue }) => {
+                        const text = (inputValue ?? '').trim().toLowerCase();
+                        if (!item || !text) return true;
+                        return [item.displayId, item.label, item.materialName, ...item.identifiers.map((identifier) => identifier.value)].filter(Boolean).join(' ').toLowerCase().includes(text);
+                      }}
+                      selectedItem={spool && choices.includes(spool) ? spool : null} onChange={({ selectedItem }) => chooseSpool(selectedItem ?? null)}
+                      invalid={fieldState.invalid} invalidText={fieldState.error?.message}
+                    />
+                  )}
+                />
+              )}
+
+              {current === 'leftover' && spool && (
+                <Stack gap={6}>
+                  <dl className="mj-facts">
+                    <div><dt>Current fill</dt><dd>{spool.materialName} · fill {spool.fillNumber}{spool.filledAt ? ` · since ${formatDateTime(spool.filledAt)}` : ''}</dd></div>
+                    <div><dt>Expected remaining</dt><dd>{formatGrams(spool.remainingQuantity)} of {formatGrams(spool.initialNetWeightG)}</dd></div>
+                  </dl>
+                  <LeftoverFields spool={spool} idPrefix="refill" />
+                </Stack>
+              )}
+
+              {current === 'filament' && (
+                <Stack gap={6}>
+                  {refillOnly && <InlineNotification kind="info" lowContrast hideCloseButton title="Needs refill" subtitle={`${name} has no filament. The new fill is fill ${nextFill}.`} />}
+                  <Controller
+                    control={control} name="productId" rules={{ validate: (value, form) => form.manual || Boolean(value) || 'Choose a product, or select Not in catalog.' }}
+                    render={({ fieldState }) => (
+                      <ProductPicker
+                        id="refill-product-picker" products={products} materials={store.materials} productId={values.productId} manual={values.manual}
+                        onProduct={chooseProduct} onManual={setManual} invalid={fieldState.invalid} invalidText={fieldState.error?.message}
+                      />
+                    )}
+                  />
+                  {spool?.kind === 'reusable' && selectedProduct?.packaging === 'spool' && (
+                    <InlineNotification
+                      kind="info" lowContrast hideCloseButton title="Single-use packaging"
+                      subtitle={`${selectedProduct.manufacturer} ${selectedProduct.name} comes on its own spool. Loading it onto reusable ${spool.displayId} means rewinding it onto this spool.`}
+                    />
+                  )}
+                  {selectedProduct ? (
+                    <TextInput id="refill-material-product" labelText="Material" readOnly value={material?.name ?? ''} helperText="Set by the product." />
+                  ) : (
+                    <Select
+                      id="refill-material" labelText="Material" invalid={Boolean(errors.materialId)} invalidText={errors.materialId?.message}
+                      {...register('materialId', { required: 'Choose a material.' })}
+                    >
+                      <SelectItem value="" text="Choose a material" />
+                      {filaments.map((item) => <SelectItem key={item.id} value={item.id} text={item.name} />)}
+                    </Select>
+                  )}
+                  <Controller
+                    control={control} name="netWeight"
+                    rules={{
+                      validate: (value, form) => {
+                        if (value === '' || Number(value) <= 0) return 'Enter a weight above zero.';
+                        const target = store.materials.find((item) => item.id === form.materialId);
+                        return form.source === 'stock' && target && Number(value) > stockAfterClose(target.id).loose ? `Only ${formatGrams(stockAfterClose(target.id).loose)} of loose stock is available.` : true;
+                      },
+                    }}
+                    render={({ field, fieldState }) => (
+                      <NumberInput
+                        id="refill-weight" label="Net weight of the new filament (g)" helperText="Filament without the spool." allowEmpty min={0} step={50} hideSteppers
+                        value={field.value} invalid={fieldState.invalid} invalidText={fieldState.error?.message} onChange={(_event, state) => field.onChange(state.value === '' ? '' : Number(state.value))}
+                      />
+                    )}
+                  />
+                  <Controller
+                    control={control} name="source"
+                    render={({ field }) => (
+                      <RadioButtonGroup legendText="Where does the filament come from?" name="refill-source" orientation="vertical" valueSelected={field.value} helperText={sourceHelper} onChange={(value) => field.onChange(value)}>
+                        <RadioButton id="refill-source-stock" value="stock" labelText={`From loose stock${material ? ` (${formatGrams(stock.loose)} available)` : ''}`} />
+                        <RadioButton id="refill-source-purchase" value="purchase" disabled={!canPurchase} labelText={canPurchase ? 'New purchase' : 'New purchase (needs the inventory.manage permission)'} />
+                      </RadioButtonGroup>
+                    )}
+                  />
+                  {values.source === 'purchase' && (
+                    <>
+                      <Controller
+                        control={control} name="price" rules={{ validate: (value, form) => form.source !== 'purchase' || (value !== '' && Number(value) >= 0) || 'Enter the total price, zero or more.' }}
+                        render={({ field, fieldState }) => (
+                          <NumberInput
+                            id="refill-price" label="Total price (€)" helperText="Updates the average acquisition cost." allowEmpty min={0} step={0.5} hideSteppers
+                            value={field.value} invalid={fieldState.invalid} invalidText={fieldState.error?.message} onChange={(_event, state) => field.onChange(state.value === '' ? '' : Number(state.value))}
+                          />
+                        )}
+                      />
+                      <TextInput id="refill-supplier" labelText="Supplier (optional)" autoComplete="off" {...register('supplier')} />
+                    </>
+                  )}
+                  {values.manual && <TextInput id="refill-manufacturer" labelText="Manufacturer (optional)" autoComplete="off" {...register('manufacturer')} />}
+                  {values.manual && <TextInput id="refill-product" labelText="Product (optional)" autoComplete="off" {...register('product')} />}
+                </Stack>
+              )}
+
+              {current === 'tags' && spool && (
+                <Stack gap={6}>
+                  {spool.identifiers.length > 0 ? (
+                    <Controller
+                      control={control} name="keep"
+                      render={({ field }) => (
+                        <CheckboxGroup legendText="Keep on this spool" helperText="Unchecked tags stay in the history of the old fill. NFC tags are replaced with every refill.">
+                          {spool.identifiers.map((identifier) => (
+                            <Checkbox
+                              key={identifier.id} id={`refill-keep-${identifier.id}`} labelText={`${identifierLabel(identifier.kind)} ${identifier.value}`}
+                              checked={Boolean(field.value[identifier.id])} onChange={(_event, { checked }) => field.onChange({ ...field.value, [identifier.id]: checked })}
+                            />
+                          ))}
+                        </CheckboxGroup>
+                      )}
+                    />
+                  ) : <p className="mj-secondary">This spool has no identifiers yet.</p>}
+                  <fieldset className="mj-fieldset">
+                    <legend className="cds--label">New identifiers</legend>
+                    <Stack gap={5}>
+                      {fields.map((field, index) => (
+                        <div className="mj-identifier-row" key={field.id}>
+                          <Select id={`refill-tag-kind-${index}`} labelText="Kind" {...register(`added.${index}.kind`)}>
+                            {identifierKinds.map((kind) => <SelectItem key={kind.id} value={kind.id} text={kind.label} />)}
+                          </Select>
+                          <TextInput
+                            id={`refill-tag-value-${index}`} labelText="Value" autoComplete="off" helperText={index === 0 ? 'As printed or read by the scanner. Leave empty to add no tag.' : undefined}
+                            invalid={Boolean(errors.added?.[index]?.value)} invalidText={errors.added?.[index]?.value?.message}
+                            {...register(`added.${index}.value`, { validate: (value) => taken(value, index) ?? true })}
+                          />
+                          <Button hasIconOnly kind="ghost" renderIcon={TrashCan} iconDescription={`Remove identifier row ${index + 1}`} tooltipPosition="left" onClick={() => remove(index)} />
+                        </div>
+                      ))}
+                      <div><Button kind="tertiary" size="sm" renderIcon={Add} onClick={() => append(blankTag())}>Add identifier</Button></div>
+                    </Stack>
+                  </fieldset>
+                  <section aria-labelledby="refill-review-title">
+                    <h3 id="refill-review-title" className="cds--label">Review</h3>
+                    <StructuredListWrapper isCondensed aria-label="Changes that will be saved">
+                      <StructuredListHead>
+                        <StructuredListRow head>
+                          <StructuredListCell head>Change</StructuredListCell>
+                          <StructuredListCell head>Details</StructuredListCell>
+                        </StructuredListRow>
+                      </StructuredListHead>
+                      <StructuredListBody>
+                        {review.map((row) => (
+                          <StructuredListRow key={row.key}>
+                            <StructuredListCell noWrap>{row.change}</StructuredListCell>
+                            <StructuredListCell>{row.detail}</StructuredListCell>
+                          </StructuredListRow>
+                        ))}
+                      </StructuredListBody>
+                    </StructuredListWrapper>
+                    {leftover?.complete && leftover.choice.basis === 'weighed' && <p className="mj-secondary">{leftoverSummary(spool, leftover.choice)}</p>}
+                    {material && <p className="mj-secondary">{material.name} total after saving: {formatGrams(values.source === 'purchase' ? stock.total + net : stock.total)}.</p>}
+                  </section>
+                </Stack>
+              )}
+            </Stack>
+          </form>
+        </FormProvider>
+      </ModalBody>
+      <ModalFooter
+        primaryButtonText={last ? (pending ? 'Saving…' : 'Save') : 'Next'} primaryButtonDisabled={pending || (current === 'spool' && !values.spoolId)}
+        {...(step > 0
+          ? { secondaryButtons: [{ buttonText: 'Cancel', onClick: () => { if (!pending) onClose(); } }, { buttonText: 'Back', onClick: () => { if (!pending) setStep((value) => Math.max(0, value - 1)); } }] as [{ buttonText: string; onClick: () => void }, { buttonText: string; onClick: () => void }] }
+          : { secondaryButtonText: 'Cancel', onRequestClose: () => { if (!pending) onClose(); } })}
+        onRequestSubmit={() => { void (last ? submit() : next()); }}
+      >{null}</ModalFooter>
+    </ComposedModal>
+  );
+}

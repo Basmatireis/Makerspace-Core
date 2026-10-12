@@ -1,0 +1,125 @@
+import { useEffect, useState } from 'react';
+import {
+  Button, Header, HeaderGlobalAction, HeaderGlobalBar, HeaderMenuButton, HeaderName, HeaderPanel, RadioButton, RadioButtonGroup,
+  Select, SelectItem, SideNav, SideNavItems, SideNavLink, SkipToContent, Stack, Tag, Theme, ToastNotification,
+} from '@carbon/react';
+import { Chemistry, Dashboard, Reset, Tools, Catalog, InventoryManagement, ChartColumn } from '@carbon/icons-react';
+import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { rolePresets, useStore, type Role, type Scenario } from './store';
+import { OverviewPage } from './pages/OverviewPage';
+import { PrintDetailPage } from './pages/PrintDetailPage';
+import { JobsPage } from './pages/JobsPage';
+import { JobDetailPage } from './pages/JobDetailPage';
+import { MachinesPage } from './pages/MachinesPage';
+import { MachineDetailPage } from './pages/MachineDetailPage';
+import { InventoryPage } from './pages/InventoryPage';
+import { MaterialDetailPage } from './pages/MaterialDetailPage';
+import { SpoolDetailPage } from './pages/SpoolDetailPage';
+import { StatisticsPage } from './pages/StatisticsPage';
+
+type NavItem = { label: string; to: string; icon: typeof Dashboard; match: (path: string) => boolean };
+
+const NAV: NavItem[] = [
+  { label: 'Overview', to: '/', icon: Dashboard, match: (p) => p === '/' },
+  { label: 'Jobs', to: '/jobs', icon: Catalog, match: (p) => p.startsWith('/jobs') },
+  { label: 'Machines', to: '/machines', icon: Tools, match: (p) => p.startsWith('/machines') },
+  { label: 'Inventory', to: '/inventory', icon: InventoryManagement, match: (p) => p.startsWith('/inventory') },
+  { label: 'Statistics', to: '/statistics', icon: ChartColumn, match: (p) => p.startsWith('/statistics') },
+];
+
+function useIsNarrow() {
+  const query = '(max-width: 65.98rem)';
+  const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const onChange = () => setNarrow(media.matches);
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, []);
+  return narrow;
+}
+
+function PrototypeControls() {
+  const store = useStore();
+  return (
+    <Stack gap={6} className="prototype-controls">
+      <div>
+        <p className="prototype-controls__title">Prototype controls</p>
+        <p className="prototype-controls__hint">Frontend-only mockup with local data. Nothing is sent to the API.</p>
+      </div>
+      <RadioButtonGroup legendText="View as" name="prototype-role" orientation="vertical" valueSelected={store.role} onChange={(value) => store.setRole(value as Role)}>
+        {(Object.keys(rolePresets) as Role[]).map((role) => <RadioButton key={role} id={`role-${role}`} value={role} labelText={`${rolePresets[role].label} — ${rolePresets[role].description}`} />)}
+      </RadioButtonGroup>
+      <Select id="prototype-scenario" labelText="Data state" helperText="Applies to every list and detail view." value={store.scenario} onChange={(event) => store.setScenario(event.target.value as Scenario)}>
+        <SelectItem value="normal" text="Realistic data" />
+        <SelectItem value="loading" text="Loading" />
+        <SelectItem value="error" text="Request failed" />
+        <SelectItem value="empty" text="Empty" />
+      </Select>
+      <Button kind="tertiary" size="sm" renderIcon={Reset} onClick={store.reset}>Reset prototype data</Button>
+    </Stack>
+  );
+}
+
+export function PrototypeApp() {
+  const store = useStore();
+  const location = useLocation();
+  const narrow = useIsNarrow();
+  const [navOpen, setNavOpen] = useState(!narrow);
+  const [panelOpen, setPanelOpen] = useState(false);
+  useEffect(() => { setNavOpen(!narrow); }, [narrow]);
+  useEffect(() => { if (narrow) setNavOpen(false); }, [narrow, location.pathname]);
+  useEffect(() => { document.getElementById('main-content')?.scrollTo?.(0, 0); window.scrollTo(0, 0); }, [location.pathname]);
+
+  return (
+    <div className="app-shell">
+      <Theme theme="g100">
+        <Header aria-label="Makerspace Core">
+          <SkipToContent onClick={(event) => { event.preventDefault(); document.getElementById('main-content')?.focus(); }} />
+          <HeaderMenuButton aria-label={navOpen ? 'Close navigation' : 'Open navigation'} isActive={navOpen} isCollapsible onClick={() => setNavOpen((open) => !open)} />
+          <HeaderName as={Link} to="/" prefix="Makerspace">Core</HeaderName>
+          <HeaderGlobalBar>
+            <Tag type="purple" size="sm" className="prototype-badge">Prototype · {rolePresets[store.role].label}</Tag>
+            <HeaderGlobalAction aria-label={panelOpen ? 'Close prototype controls' : 'Open prototype controls'} tooltipAlignment="end" isActive={panelOpen} onClick={() => setPanelOpen((open) => !open)}>
+              <Chemistry size={20} />
+            </HeaderGlobalAction>
+          </HeaderGlobalBar>
+          <HeaderPanel expanded={panelOpen} className="prototype-panel"><PrototypeControls /></HeaderPanel>
+          <SideNav aria-label="Workshop navigation" expanded={navOpen} isFixedNav isPersistent={false} onOverlayClick={() => setNavOpen(false)}>
+            <SideNavItems>
+              <li className="app-side-nav__heading prototype-nav__heading">Workshop</li>
+              {NAV.map((item) => {
+                const active = item.match(location.pathname);
+                return (
+                  <SideNavLink key={item.to} as={Link} to={item.to} renderIcon={item.icon} isActive={active} aria-current={active ? 'page' : undefined} onClick={() => narrow && setNavOpen(false)}>
+                    {item.label}
+                  </SideNavLink>
+                );
+              })}
+            </SideNavItems>
+          </SideNav>
+        </Header>
+      </Theme>
+      <main id="main-content" tabIndex={-1} className={`app-main${navOpen && !narrow ? ' app-main--nav-expanded' : ''}`}>
+        <Routes>
+          <Route path="/" element={<OverviewPage />} />
+          <Route path="/jobs" element={<JobsPage />} />
+          <Route path="/jobs/prints/:printId" element={<PrintDetailPage />} />
+          <Route path="/jobs/:jobId" element={<JobDetailPage />} />
+          <Route path="/machines" element={<MachinesPage />} />
+          <Route path="/machines/:machineId" element={<MachineDetailPage />} />
+          <Route path="/inventory" element={<InventoryPage />} />
+          <Route path="/inventory/materials/:materialId" element={<MaterialDetailPage />} />
+          <Route path="/inventory/spools/:spoolId" element={<SpoolDetailPage />} />
+          <Route path="/statistics" element={<StatisticsPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </main>
+      <div className="prototype-toasts" aria-live="polite">
+        {store.toasts.map((toast) => (
+          <ToastNotification key={toast.id} kind={toast.kind} lowContrast timeout={5000} title={toast.title} subtitle={toast.subtitle} onClose={() => { store.dismissToast(toast.id); return false; }} onCloseButtonClick={() => store.dismissToast(toast.id)} />
+        ))}
+      </div>
+    </div>
+  );
+}
