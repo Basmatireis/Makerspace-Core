@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import {
@@ -10,6 +10,8 @@ import {
   type CounterSaleCommand,
   type ExternalInvoiceRequest,
   type InvoiceRequestCommand,
+  type OrderPayment,
+  type ReversePaymentCommand,
 } from "../../api/generated/models";
 import { App } from "../../app/App";
 import { currentUserFixture } from "../../test/fixtures";
@@ -108,6 +110,54 @@ function detail(o: Order) {
 }
 
 describe("Orders workflows", () => {
+  it("confirms a full payment reversal after preserving the correction evidence", async () => {
+    me();
+    const paymentId = "01995ea6-6d00-7000-8000-000000000106";
+    const allocationId = "01995ea6-6d00-7000-8000-000000000107";
+    const operationId = "01995ea6-6d00-7000-8000-000000000108";
+    const payment: OrderPayment = {
+      id: paymentId,
+      reference: "P-2026-000001",
+      entryKind: "receipt",
+      method: "cash",
+      amount: "10.00",
+      occurredAt: at,
+      recordedAt: at,
+      reversesPaymentId: null,
+      reversedPaymentReference: null,
+      reasonKind: null,
+      reason: "Sale",
+      externalSource: "",
+      externalReference: "",
+      allocations: [{ id: allocationId, paymentId, paymentReference: "P-2026-000001", orderId: id, orderReference: "O-2026-000001", amount: "10.00", operationId, createdAt: at }],
+    };
+    const finalized = order({ status: "finalized", settledAmount: "10.00", outstandingAmount: "0.00", settlementState: "paid" });
+    let submitted: ReversePaymentCommand | undefined;
+    detail(finalized);
+    server.use(
+      http.get(`*/api/v1/payments/${paymentId}`, () => HttpResponse.json(payment)),
+      http.post(`*/api/v1/payments/${paymentId}/reverse`, async ({ request }) => {
+        submitted = await request.json() as ReversePaymentCommand;
+        return HttpResponse.json(order({ status: "reversed" }));
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/payments/${paymentId}`);
+
+    await user.type(await screen.findByLabelText("Reason"), "Cash refunded");
+    await user.click(screen.getByRole("button", { name: "Record full reversal" }));
+    const dialog = screen.getByRole("alertdialog", { name: "Reverse payment P-2026-000001?" });
+    expect(within(dialog).getByText(/immutable financial evidence/i)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toHaveFocus();
+    expect(submitted).toBeUndefined();
+
+    await user.click(within(dialog).getByRole("button", { name: "Record full reversal" }));
+    await waitFor(() => expect(submitted).toMatchObject({
+      expectedVersion: finalized.version,
+      reversal: { paymentId, reasonKind: "refund", reason: "Cash refunded" },
+    }));
+  });
+
   it("keeps navigation and write actions permission-aware", async () => {
     me([PermissionId.ordersread]);
     server.use(
@@ -355,6 +405,10 @@ describe("Orders workflows", () => {
         name: "Commit replacement and carry payments",
       }),
     );
+    const confirmation = screen.getByRole("alertdialog", { name: "Commit replacement order?" });
+    expect(within(confirmation).getByText(/remaining receipts transfer without money movement/i)).toBeInTheDocument();
+    expect(submitted).toBeUndefined();
+    await user.click(within(confirmation).getByRole("button", { name: "Commit replacement" }));
     await waitFor(() =>
       expect(submitted).toMatchObject({
         replacementOrderId: replacementId,

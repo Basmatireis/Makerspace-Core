@@ -429,24 +429,31 @@ func (q *Queries) GetPrintAttemptForUpdate(ctx context.Context, id uuid.UUID) (P
 }
 
 const getPrintSubmission = `-- name: GetPrintSubmission :one
-SELECT s.id, s.display_id, s.machine_id, s.customer_person_id, s.customer_organization_id, s.title, s.notes, s.state, s.reprints_submission_id, s.version, s.created_by_account_id, s.created_at, s.updated_at, m.name AS machine_name FROM print_submissions s JOIN machines m ON m.id=s.machine_id WHERE s.id=$1
+SELECT s.id, s.display_id, s.machine_id, s.customer_person_id, s.customer_organization_id, s.title, s.notes, s.state, s.reprints_submission_id, s.version, s.created_by_account_id, s.created_at, s.updated_at, m.name AS machine_name, cp.first_name AS customer_first_name, cp.last_name AS customer_last_name, co.name AS customer_organization_name
+FROM print_submissions s JOIN machines m ON m.id=s.machine_id
+LEFT JOIN people cp ON cp.id=s.customer_person_id
+LEFT JOIN organizations co ON co.id=s.customer_organization_id
+WHERE s.id=$1
 `
 
 type GetPrintSubmissionRow struct {
-	ID                     uuid.UUID
-	DisplayID              string
-	MachineID              uuid.UUID
-	CustomerPersonID       *uuid.UUID
-	CustomerOrganizationID *uuid.UUID
-	Title                  string
-	Notes                  *string
-	State                  string
-	ReprintsSubmissionID   *uuid.UUID
-	Version                int64
-	CreatedByAccountID     *uuid.UUID
-	CreatedAt              time.Time
-	UpdatedAt              time.Time
-	MachineName            string
+	ID                       uuid.UUID
+	DisplayID                string
+	MachineID                uuid.UUID
+	CustomerPersonID         *uuid.UUID
+	CustomerOrganizationID   *uuid.UUID
+	Title                    string
+	Notes                    *string
+	State                    string
+	ReprintsSubmissionID     *uuid.UUID
+	Version                  int64
+	CreatedByAccountID       *uuid.UUID
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
+	MachineName              string
+	CustomerFirstName        *string
+	CustomerLastName         *string
+	CustomerOrganizationName *string
 }
 
 func (q *Queries) GetPrintSubmission(ctx context.Context, id uuid.UUID) (GetPrintSubmissionRow, error) {
@@ -467,6 +474,9 @@ func (q *Queries) GetPrintSubmission(ctx context.Context, id uuid.UUID) (GetPrin
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.MachineName,
+		&i.CustomerFirstName,
+		&i.CustomerLastName,
+		&i.CustomerOrganizationName,
 	)
 	return i, err
 }
@@ -497,7 +507,7 @@ func (q *Queries) GetPrintSubmissionForUpdate(ctx context.Context, id uuid.UUID)
 }
 
 const getPrinterEventByKey = `-- name: GetPrinterEventByKey :one
-SELECT id, source_id, event_key, fingerprint, protocol_version, machine_id, attempt_id, kind, occurred_at, received_at, source_sequence, external_print_id, payload, reconciliation_state, reconciled_by_account_id, reconciled_at FROM printer_events WHERE source_id=$1 AND event_key=$2 FOR UPDATE
+SELECT id, source_id, event_key, fingerprint, protocol_version, machine_id, attempt_id, kind, occurred_at, received_at, source_sequence, external_print_id, payload, reconciliation_state, reconciled_by_account_id, reconciled_at, connector_id, connector_assignment_id, observed_run_id, configuration_version, application_state, application_reason, report_revision FROM printer_events WHERE source_id=$1 AND event_key=$2 FOR UPDATE
 `
 
 type GetPrinterEventByKeyParams struct {
@@ -525,12 +535,19 @@ func (q *Queries) GetPrinterEventByKey(ctx context.Context, arg GetPrinterEventB
 		&i.ReconciliationState,
 		&i.ReconciledByAccountID,
 		&i.ReconciledAt,
+		&i.ConnectorID,
+		&i.ConnectorAssignmentID,
+		&i.ObservedRunID,
+		&i.ConfigurationVersion,
+		&i.ApplicationState,
+		&i.ApplicationReason,
+		&i.ReportRevision,
 	)
 	return i, err
 }
 
 const getPrinterEventForUpdate = `-- name: GetPrinterEventForUpdate :one
-SELECT id, source_id, event_key, fingerprint, protocol_version, machine_id, attempt_id, kind, occurred_at, received_at, source_sequence, external_print_id, payload, reconciliation_state, reconciled_by_account_id, reconciled_at FROM printer_events WHERE id=$1 FOR UPDATE
+SELECT id, source_id, event_key, fingerprint, protocol_version, machine_id, attempt_id, kind, occurred_at, received_at, source_sequence, external_print_id, payload, reconciliation_state, reconciled_by_account_id, reconciled_at, connector_id, connector_assignment_id, observed_run_id, configuration_version, application_state, application_reason, report_revision FROM printer_events WHERE id=$1 FOR UPDATE
 `
 
 func (q *Queries) GetPrinterEventForUpdate(ctx context.Context, id uuid.UUID) (PrinterEvent, error) {
@@ -553,6 +570,13 @@ func (q *Queries) GetPrinterEventForUpdate(ctx context.Context, id uuid.UUID) (P
 		&i.ReconciliationState,
 		&i.ReconciledByAccountID,
 		&i.ReconciledAt,
+		&i.ConnectorID,
+		&i.ConnectorAssignmentID,
+		&i.ObservedRunID,
+		&i.ConfigurationVersion,
+		&i.ApplicationState,
+		&i.ApplicationReason,
+		&i.ReportRevision,
 	)
 	return i, err
 }
@@ -579,19 +603,21 @@ func (q *Queries) GetPrinterInputUnitForUpdate(ctx context.Context, id uuid.UUID
 }
 
 const getPrinterProfile = `-- name: GetPrinterProfile :one
-SELECT p.machine_id, p.enabled, p.version, p.created_at, p.updated_at, m.name AS machine_name, m.status AS machine_status
+SELECT p.machine_id, p.enabled, p.version, p.created_at, p.updated_at, p.identity_namespace, p.identity_value, m.name AS machine_name, m.status AS machine_status
 FROM printer_profiles p JOIN machines m ON m.id=p.machine_id
 WHERE p.machine_id=$1
 `
 
 type GetPrinterProfileRow struct {
-	MachineID     uuid.UUID
-	Enabled       bool
-	Version       int64
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
-	MachineName   string
-	MachineStatus string
+	MachineID         uuid.UUID
+	Enabled           bool
+	Version           int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	IdentityNamespace *string
+	IdentityValue     *string
+	MachineName       string
+	MachineStatus     string
 }
 
 func (q *Queries) GetPrinterProfile(ctx context.Context, machineID uuid.UUID) (GetPrinterProfileRow, error) {
@@ -603,6 +629,8 @@ func (q *Queries) GetPrinterProfile(ctx context.Context, machineID uuid.UUID) (G
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IdentityNamespace,
+		&i.IdentityValue,
 		&i.MachineName,
 		&i.MachineStatus,
 	)
@@ -719,7 +747,7 @@ INSERT INTO printer_events (id, source_id, event_key, fingerprint, protocol_vers
     occurred_at, source_sequence, external_print_id, payload, reconciliation_state)
 VALUES ($1, $2, $3, $4, $5,
     $6, $7, $8, $9, $10,
-    $11, $12, $13) RETURNING id, source_id, event_key, fingerprint, protocol_version, machine_id, attempt_id, kind, occurred_at, received_at, source_sequence, external_print_id, payload, reconciliation_state, reconciled_by_account_id, reconciled_at
+    $11, $12, $13) RETURNING id, source_id, event_key, fingerprint, protocol_version, machine_id, attempt_id, kind, occurred_at, received_at, source_sequence, external_print_id, payload, reconciliation_state, reconciled_by_account_id, reconciled_at, connector_id, connector_assignment_id, observed_run_id, configuration_version, application_state, application_reason, report_revision
 `
 
 type InsertPrinterEventParams struct {
@@ -772,6 +800,13 @@ func (q *Queries) InsertPrinterEvent(ctx context.Context, arg InsertPrinterEvent
 		&i.ReconciliationState,
 		&i.ReconciledByAccountID,
 		&i.ReconciledAt,
+		&i.ConnectorID,
+		&i.ConnectorAssignmentID,
+		&i.ObservedRunID,
+		&i.ConfigurationVersion,
+		&i.ApplicationState,
+		&i.ApplicationReason,
+		&i.ReportRevision,
 	)
 	return i, err
 }
@@ -1032,7 +1067,7 @@ func (q *Queries) ListPrintSubmissions(ctx context.Context, arg ListPrintSubmiss
 }
 
 const listPrinterEventsForAttempt = `-- name: ListPrinterEventsForAttempt :many
-SELECT id, source_id, event_key, fingerprint, protocol_version, machine_id, attempt_id, kind, occurred_at, received_at, source_sequence, external_print_id, payload, reconciliation_state, reconciled_by_account_id, reconciled_at FROM printer_events WHERE attempt_id=$1 ORDER BY occurred_at, id
+SELECT id, source_id, event_key, fingerprint, protocol_version, machine_id, attempt_id, kind, occurred_at, received_at, source_sequence, external_print_id, payload, reconciliation_state, reconciled_by_account_id, reconciled_at, connector_id, connector_assignment_id, observed_run_id, configuration_version, application_state, application_reason, report_revision FROM printer_events WHERE attempt_id=$1 ORDER BY occurred_at, id
 `
 
 func (q *Queries) ListPrinterEventsForAttempt(ctx context.Context, attemptID *uuid.UUID) ([]PrinterEvent, error) {
@@ -1061,6 +1096,13 @@ func (q *Queries) ListPrinterEventsForAttempt(ctx context.Context, attemptID *uu
 			&i.ReconciliationState,
 			&i.ReconciledByAccountID,
 			&i.ReconciledAt,
+			&i.ConnectorID,
+			&i.ConnectorAssignmentID,
+			&i.ObservedRunID,
+			&i.ConfigurationVersion,
+			&i.ApplicationState,
+			&i.ApplicationReason,
+			&i.ReportRevision,
 		); err != nil {
 			return nil, err
 		}
@@ -1278,7 +1320,7 @@ func (q *Queries) NextPrintSubmissionSequence(ctx context.Context) (int64, error
 
 const reconcilePrinterEvent = `-- name: ReconcilePrinterEvent :one
 UPDATE printer_events SET reconciliation_state=$1, reconciled_by_account_id=$2, reconciled_at=now()
-WHERE id=$3 AND reconciliation_state='pending' RETURNING id, source_id, event_key, fingerprint, protocol_version, machine_id, attempt_id, kind, occurred_at, received_at, source_sequence, external_print_id, payload, reconciliation_state, reconciled_by_account_id, reconciled_at
+WHERE id=$3 AND reconciliation_state='pending' RETURNING id, source_id, event_key, fingerprint, protocol_version, machine_id, attempt_id, kind, occurred_at, received_at, source_sequence, external_print_id, payload, reconciliation_state, reconciled_by_account_id, reconciled_at, connector_id, connector_assignment_id, observed_run_id, configuration_version, application_state, application_reason, report_revision
 `
 
 type ReconcilePrinterEventParams struct {
@@ -1307,6 +1349,13 @@ func (q *Queries) ReconcilePrinterEvent(ctx context.Context, arg ReconcilePrinte
 		&i.ReconciliationState,
 		&i.ReconciledByAccountID,
 		&i.ReconciledAt,
+		&i.ConnectorID,
+		&i.ConnectorAssignmentID,
+		&i.ObservedRunID,
+		&i.ConfigurationVersion,
+		&i.ApplicationState,
+		&i.ApplicationReason,
+		&i.ReportRevision,
 	)
 	return i, err
 }
@@ -1477,7 +1526,7 @@ const upsertPrinterProfile = `-- name: UpsertPrinterProfile :one
 INSERT INTO printer_profiles (machine_id, enabled) VALUES ($1, $2)
 ON CONFLICT (machine_id) DO UPDATE SET enabled=EXCLUDED.enabled, version=printer_profiles.version+1, updated_at=now()
 WHERE printer_profiles.version=$3 OR $3=0
-RETURNING machine_id, enabled, version, created_at, updated_at
+RETURNING machine_id, enabled, version, created_at, updated_at, identity_namespace, identity_value
 `
 
 type UpsertPrinterProfileParams struct {
@@ -1495,6 +1544,8 @@ func (q *Queries) UpsertPrinterProfile(ctx context.Context, arg UpsertPrinterPro
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.IdentityNamespace,
+		&i.IdentityValue,
 	)
 	return i, err
 }

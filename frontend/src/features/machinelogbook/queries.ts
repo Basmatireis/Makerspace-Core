@@ -1,7 +1,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { getMachineLogbookOverview, getMachineLogbookStatistics } from '../../api/generated/machine-logbook/machine-logbook';
 import { getMachineJob, listMachineJobReviewQueue, listMachineJobs, searchMachineJobOperators } from '../../api/generated/machine-jobs/machine-jobs';
-import { listMachineTypes, listMachines } from '../../api/generated/machines/machines';
+import { getMachine, listMachineTypes, listMachines } from '../../api/generated/machines/machines';
 import { getMaterial, listMaterials, listMaterialTransactions } from '../../api/generated/inventory/inventory';
 import { listOrganizations, searchBillingParties } from '../../api/generated/organizations/organizations';
 import { listPricingGroups } from '../../api/generated/pricing/pricing';
@@ -16,6 +16,7 @@ export const machineLogbookKeys = {
   job: (id: string) => [...machineLogbookKeys.all, 'job', id] as const,
   review: () => [...machineLogbookKeys.all, 'review'] as const,
   machines: (params: ListMachinesParams) => [...machineLogbookKeys.all, 'machines', params] as const,
+  machine: (id: string) => [...machineLogbookKeys.all, 'machine', id] as const,
   machineTypes: () => [...machineLogbookKeys.all, 'machine-types'] as const,
   materials: (params: ListMaterialsParams) => [...machineLogbookKeys.all, 'materials', params] as const,
   material: (id: string) => [...machineLogbookKeys.all, 'material', id] as const,
@@ -36,6 +37,7 @@ export const jobsQuery = (params: ListMachineJobsParams) => queryOptions({ query
 export const jobQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.job(id), queryFn: () => getMachineJob(id) });
 export const reviewQuery = () => queryOptions({ queryKey: machineLogbookKeys.review(), queryFn: () => listMachineJobReviewQueue() });
 export const machinesQuery = (params: ListMachinesParams) => queryOptions({ queryKey: machineLogbookKeys.machines(params), queryFn: () => listMachines(params) });
+export const machineQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.machine(id), queryFn: () => getMachine(id) });
 export const machineTypesQuery = () => queryOptions({ queryKey: machineLogbookKeys.machineTypes(), queryFn: () => listMachineTypes() });
 export const materialsQuery = (params: ListMaterialsParams) => queryOptions({ queryKey: machineLogbookKeys.materials(params), queryFn: () => listMaterials(params) });
 export const materialQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.material(id), queryFn: () => getMaterial(id) });

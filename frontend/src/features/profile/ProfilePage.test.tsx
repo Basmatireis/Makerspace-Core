@@ -68,12 +68,23 @@ describe('Profile page', () => {
   });
 
   it('uses the same profile-picture card action as the People detail page', async () => {
-    const currentUser = currentUserFixture([
+    let currentUser = currentUserFixture([
       PermissionId.peopleprofile_imageupdateself,
       PermissionId.peopleprofile_imageremoveself,
     ]);
+    currentUser.person.profileImage = {
+      fileId: '0192f6f8-743e-7c77-a349-cd07c3e8a920',
+      source: 'self_upload',
+      downloadUrl: `/api/v1/people/${currentUser.person.id}/profile-image`,
+    };
+    let removed = false;
     server.use(
       http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUser)),
+      http.delete('*/api/v1/people/:personId/profile-image', () => {
+        removed = true;
+        currentUser = { ...currentUser, person: { ...currentUser.person, profileImage: undefined, version: 2 } };
+        return new HttpResponse(null, { status: 204 });
+      }),
     );
     const user = userEvent.setup();
     renderRoute(<App />, '/profile');
@@ -85,6 +96,12 @@ describe('Profile page', () => {
     const dialog = screen.getByRole('dialog', { name: 'Edit profile picture' });
     expect(dialog).toBeInTheDocument();
     expect(screen.queryByText('Drag an image here or click to upload')).not.toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Remove picture' }));
+    const confirmation = screen.getByRole('alertdialog', { name: 'Remove profile picture for Ada Lovelace?' });
+    expect(within(confirmation).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    expect(removed).toBe(false);
+    await user.click(within(confirmation).getByRole('button', { name: 'Remove picture' }));
+    await waitFor(() => expect(removed).toBe(true));
   });
 
   it('shows an active account without login methods as a valid separate state', async () => {
@@ -150,4 +167,38 @@ it('lets an OIDC-only account request reauthentication and link without a passwo
   await user.click(within(linkDialog).getByRole('button', { name: 'Link provider' }));
   await waitFor(() => expect(linkBody).toEqual({}));
   expect(await screen.findByText('Authenticate again before linking')).toBeInTheDocument();
+});
+
+it('confirms unlinking an OIDC identity before changing sign-in access', async () => {
+  let current = currentUserFixture([PermissionId.identitiesoidcunlinkself]);
+  const identity = { id: current.account.id, kind: 'oidc' as const, providerSlug: 'linked', displayIdentifier: 'Linked provider', verifiedAt: current.account.createdAt, disabledAt: null, usable: true, createdAt: current.account.createdAt };
+  current.account.authIdentities = [identity];
+  let removed = false;
+  server.use(
+    http.get('*/api/v1/auth/me', () => HttpResponse.json(current)),
+    http.delete('*/api/v1/auth/methods/oidc/:identityId', () => {
+      removed = true;
+      current = { ...current, account: { ...current.account, authIdentities: [] } };
+      return new HttpResponse(null, { status: 204 });
+    }),
+  );
+  const user = userEvent.setup();
+  renderRoute(<App />, '/profile');
+
+  await user.click(await screen.findByRole('button', { name: 'Actions for Linked provider' }));
+  await user.click(await screen.findByText('Unlink identity'));
+  let dialog = screen.getByRole('alertdialog', { name: 'Unlink external identity?' });
+  expect(within(dialog).getByText(/other authentication methods remain unchanged/i)).toBeInTheDocument();
+  expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+  expect(removed).toBe(false);
+  await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+  const launcher = screen.getByRole('button', { name: 'Actions for Linked provider' });
+  await waitFor(() => expect(launcher).toHaveFocus());
+  await user.click(launcher);
+  await user.click(await screen.findByText('Unlink identity'));
+  dialog = screen.getByRole('alertdialog', { name: 'Unlink external identity?' });
+
+  await user.click(within(dialog).getByRole('button', { name: 'Unlink identity' }));
+  await waitFor(() => expect(removed).toBe(true));
+  await waitFor(() => expect(screen.queryByText('Linked provider')).not.toBeInTheDocument());
 });

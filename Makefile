@@ -93,9 +93,10 @@ check-frontend: ## Run lint, type checking, tests, and a production build.
 	docker compose run --rm --no-deps -e CI=true frontend pnpm test
 	docker compose run --rm --no-deps -e CI=true frontend pnpm build
 
-build: ## Build the backend and frontend production images.
+build: ## Build the backend, frontend, and printer connector production images.
 	docker build --target final -f backend/Dockerfile .
 	docker build --target final -f frontend/Dockerfile .
+	docker build --target final -f printer-connector/Dockerfile .
 
 build-desktop: ## Build the native desktop application and platform installer.
 	cd desktop-terminal && pnpm install --frozen-lockfile

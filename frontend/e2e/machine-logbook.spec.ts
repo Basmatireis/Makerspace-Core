@@ -381,3 +381,43 @@ test('keeps navigation and the review workflow usable at a narrow viewport', asy
   await expect(page.getByRole('link', { name: 'Review' })).toBeVisible();
   await expectNoAccessibilityViolations(page);
 });
+
+
+for (const width of [320, 390, 414, 768, 1440]) {
+  test(`configuration, overview and statistics remain usable at ${width}px`, async ({ page }, testInfo) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width, height: 900 });
+    const noOverflow = async () => expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.goto('/settings/machine-logbook');
+    await page.getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Preserved organization draft');
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('alertdialog')).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Keep editing', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('Preserved organization draft');
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
+    await page.getByRole('tab', { name: 'Pricing groups' }).click();
+    await expect(page.getByRole('heading', { name: 'Partner institute', exact: true })).toBeVisible();
+    await noOverflow();
+    await expectNoAccessibilityViolations(page);
+    await page.screenshot({ path: testInfo.outputPath(`configuration-${width}.png`), fullPage: true });
+    const editRule = width < 672 ? page.getByRole('button', { name: 'Edit rule', exact: true }).first() : page.getByRole('button', { name: 'Edit rule for Partner institute', exact: true }).first();
+    await editRule.click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.getByRole('button', { name: 'Save rule', exact: true }).scrollIntoViewIfNeeded();
+    const footer = await page.getByRole('button', { name: 'Save rule', exact: true }).boundingBox();
+    expect(footer!.y + footer!.height).toBeLessThanOrEqual(900);
+    await expectNoAccessibilityViolations(page);
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    for (const path of ['/machine-logbook', '/machine-logbook/statistics']) {
+      await page.goto(path);
+      await expect(page.getByRole('heading', { name: path.endsWith('statistics') ? 'Statistics' : 'Machines', exact: true })).toBeVisible();
+      await expect(page.locator('.chart-tile').first()).toBeVisible();
+      await noOverflow();
+      await expectNoAccessibilityViolations(page);
+      await page.screenshot({ path: testInfo.outputPath(`${path.endsWith('statistics') ? 'statistics' : 'overview'}-${width}.png`), fullPage: true });
+    }
+  });
+}

@@ -1,3 +1,4 @@
+import './styles.scss';
 import { Button, InlineNotification, Modal, Select, SelectItem, Stack, TextArea, TextInput, Tile } from '@carbon/react';
 import { Add, Edit, Subtract, TrashCan } from '@carbon/icons-react';
 import { LineChart, ScaleTypes } from '../../app/charting';
@@ -80,7 +81,7 @@ export function MaterialDetailPage() {
     <PageShell
       title={item.name}
       description={`${item.category}${item.color ? ` · ${item.color}` : ''}`}
-      breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Inventory', to: '/machine-logbook/inventory' }, { label: item.name }]}
+      breadcrumbs={[{ label: 'Workshop', to: '/machine-logbook' }, { label: 'Inventory', to: '/machine-logbook/inventory' }, { label: item.name }]}
       actions={hasPermission(currentUser, PermissionId.inventorymanage) && <><Button kind="secondary" renderIcon={Add} onClick={() => open('purchase')}>Add stock</Button><Button kind="secondary" renderIcon={Subtract} onClick={() => open('consume')}>Record consumption</Button><Button kind="secondary" onClick={() => open('dispose')}>Record disposal</Button><Button kind="secondary" renderIcon={Edit} onClick={() => open('correct')}>Correct stock</Button><Button kind="danger" renderIcon={TrashCan} disabled={Number(item.quantity) === 0} onClick={() => open('empty')}>Mark as empty</Button></>}
       width="wide"
       className="machine-logbook-page detail-page"

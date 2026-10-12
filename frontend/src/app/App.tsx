@@ -62,6 +62,7 @@ const MaterialDetailPage = lazy(() => import('../features/machinelogbook/Materia
 const FilamentSpoolsPage = lazy(() => import('../features/machinelogbook/FilamentSpoolsPage').then(({ FilamentSpoolsPage }) => ({ default: FilamentSpoolsPage })));
 const FilamentSpoolDetailPage = lazy(() => import('../features/machinelogbook/FilamentSpoolDetailPage').then(({ FilamentSpoolDetailPage }) => ({ default: FilamentSpoolDetailPage })));
 const MachinesPage = lazy(() => import('../features/machinelogbook/MachinesPage').then(({ MachinesPage }) => ({ default: MachinesPage })));
+const MachineDetailPage = lazy(() => import('../features/machinelogbook/MachineDetailPage').then(({ MachineDetailPage }) => ({ default: MachineDetailPage })));
 const PrinterProfilePage = lazy(() => import('../features/machinelogbook/PrinterProfilePage').then(({ PrinterProfilePage }) => ({ default: PrinterProfilePage })));
 const PrintSubmissionsPage = lazy(() => import('../features/machinelogbook/PrintSubmissionsPage').then(({ PrintSubmissionsPage }) => ({ default: PrintSubmissionsPage })));
 const PrintSubmissionDetailPage = lazy(() => import('../features/machinelogbook/PrintSubmissionDetailPage').then(({ PrintSubmissionDetailPage }) => ({ default: PrintSubmissionDetailPage })));
@@ -75,6 +76,7 @@ const ManagedDevicesPage = lazy(() => import('../features/devices/ManagedDevices
 const LaborordnungPage = lazy(() => import('../features/laborordnung/LaborordnungPage').then(({ LaborordnungPage }) => ({ default: LaborordnungPage })));
 const OIDCProvidersPage = lazy(() => import('../features/oidc/OIDCProvidersPage').then(({ OIDCProvidersPage }) => ({ default: OIDCProvidersPage })));
 const SCIMConnectorsPage = lazy(() => import('../features/scim/SCIMConnectorsPage').then(({ SCIMConnectorsPage }) => ({ default: SCIMConnectorsPage })));
+const PrinterConnectorsPage = lazy(() => import('../features/printer-connectors/PrinterConnectorsPage').then(({ PrinterConnectorsPage }) => ({ default: PrinterConnectorsPage })));
 const VisitorEnrollmentSettingsPage = lazy(() => import('../features/visitor/VisitorEnrollmentSettingsPage').then(({ VisitorEnrollmentSettingsPage }) => ({ default: VisitorEnrollmentSettingsPage })));
 const MailSettingsPage = lazy(() => import('../features/mail/MailSettingsPage').then(({ MailSettingsPage }) => ({ default: MailSettingsPage })));
 const BrandingLegalSettingsPage = lazy(() => import('../features/branding/BrandingLegalSettingsPage').then(({ BrandingLegalSettingsPage }) => ({ default: BrandingLegalSettingsPage })));
@@ -165,6 +167,7 @@ export function App() {
 		<Route path="machine-logbook/spools" element={<PermissionRoute allOf={[PermissionId.inventoryread]}><FilamentSpoolsPage /></PermissionRoute>} />
 		<Route path="machine-logbook/spools/:spoolId" element={<PermissionRoute allOf={[PermissionId.inventoryread]}><FilamentSpoolDetailPage /></PermissionRoute>} />
 		<Route path="machine-logbook/machines" element={<PermissionRoute allOf={[PermissionId.machinesread]}><MachinesPage /></PermissionRoute>} />
+		<Route path="machine-logbook/machines/:machineId" element={<PermissionRoute allOf={[PermissionId.machinesread]}><MachineDetailPage /></PermissionRoute>} />
 		<Route path="machine-logbook/machines/:machineId/printer" element={<PermissionRoute allOf={[PermissionId.machinesread]}><PrinterProfilePage /></PermissionRoute>} />
 		<Route path="machine-logbook/print-submissions" element={<PermissionRoute allOf={[PermissionId.print_submissionsread]}><PrintSubmissionsPage /></PermissionRoute>} />
 		<Route path="machine-logbook/print-submissions/:submissionId" element={<PermissionRoute allOf={[PermissionId.print_submissionsread]}><PrintSubmissionDetailPage /></PermissionRoute>} />
@@ -207,10 +210,11 @@ export function App() {
 		<Route path="settings/laborordnung" element={<PermissionRoute anyOf={[PermissionId.laborordnungread, PermissionId.laborordnungmanage, PermissionId.laborordnungrequestsread]}><LaborordnungPage /></PermissionRoute>} />
         <Route path="settings/oidc" element={<PermissionRoute allOf={[PermissionId.oidcmanage]}><OIDCProvidersPage /></PermissionRoute>} />
         <Route path="settings/scim" element={<PermissionRoute allOf={[PermissionId.scimmanage]}><SCIMConnectorsPage /></PermissionRoute>} />
+        <Route path="settings/printer-connectors" element={<PermissionRoute allOf={[PermissionId.printer_connectorsread]}><PrinterConnectorsPage /></PermissionRoute>} />
         <Route path="settings/visitor-enrollment" element={<PermissionRoute allOf={[PermissionId.visitor_enrollmentmanage]}><VisitorEnrollmentSettingsPage /></PermissionRoute>} />
         <Route path="settings/mail" element={<PermissionRoute allOf={[PermissionId.mailmanage]}><MailSettingsPage /></PermissionRoute>} />
         <Route path="settings/branding-legal" element={<PermissionRoute allOf={[PermissionId.brandingmanage]}><BrandingLegalSettingsPage /></PermissionRoute>} />
-        <Route path="settings/machine-logbook" element={<PermissionRoute allOf={[PermissionId.organizationsread, PermissionId.pricingread, PermissionId.machinesread]}><ConfigurationPage /></PermissionRoute>} />
+        <Route path="settings/machine-logbook" element={<PermissionRoute anyOf={[PermissionId.organizationsread, PermissionId.pricingread]}><ConfigurationPage /></PermissionRoute>} />
         <Route
           path="people"
           element={<PermissionRoute allOf={[PermissionId.peoplereadall]}><UsersPage /></PermissionRoute>}

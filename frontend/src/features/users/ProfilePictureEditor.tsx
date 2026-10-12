@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Button,
   ComposedModal,
@@ -11,6 +11,8 @@ import {
 } from '@carbon/react';
 import { Edit } from '@carbon/icons-react';
 import type { Person } from '../../api/generated/models';
+import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
+import { useLatestCallback } from '../../app/useLatestCallback';
 import { PersonAvatar } from './PersonAvatar';
 
 type ProfilePictureEditorProps = {
@@ -22,6 +24,7 @@ type ProfilePictureEditorProps = {
   canRemove: boolean;
   isUploading: boolean;
   isRemoving: boolean;
+  removeError?: Error | null;
   trigger?: 'avatar' | 'button';
   onUpload: (file: File) => void;
   onRemove: () => void;
@@ -36,14 +39,24 @@ export function ProfilePictureEditor({
   canRemove,
   isUploading,
   isRemoving,
+  removeError,
   trigger = 'avatar',
   onUpload,
   onRemove,
 }: ProfilePictureEditorProps) {
   const [open, setOpen] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const fullName = `${firstName} ${lastName}`;
   const canEdit = canUpdate || Boolean(profileImage && canRemove);
   const pending = isUploading || isRemoving;
+  const closeEditor = useLatestCallback(() => { if (!pending) setOpen(false); return false; });
+
+  useEffect(() => {
+    if (confirmRemove && !profileImage && !isRemoving) {
+      setConfirmRemove(false);
+      setOpen(false);
+    }
+  }, [confirmRemove, isRemoving, profileImage]);
 
   return (
     <>
@@ -92,9 +105,9 @@ export function ProfilePictureEditor({
       </div>
 
       <ComposedModal
-        open={open}
+        open={open && !confirmRemove}
         aria-label="Edit profile picture"
-        onClose={() => !pending && setOpen(false)}
+        onClose={closeEditor}
         size="sm"
       >
         <ModalHeader title="Edit profile picture" />
@@ -132,12 +145,9 @@ export function ProfilePictureEditor({
                 kind="danger--tertiary"
                 size="sm"
                 disabled={pending}
-                onClick={() => {
-                  onRemove();
-                  setOpen(false);
-                }}
+                onClick={() => setConfirmRemove(true)}
               >
-                {isRemoving ? 'Removing…' : 'Remove picture'}
+                Remove picture
               </Button>
             )}
           </Stack>
@@ -148,6 +158,18 @@ export function ProfilePictureEditor({
           </Button>
         </ModalFooter>
       </ComposedModal>
+
+      <DestructiveActionDialog
+        open={open && confirmRemove}
+        title={`Remove profile picture for ${fullName}?`}
+        confirmLabel="Remove picture"
+        pending={isRemoving}
+        error={removeError?.message}
+        onClose={() => setConfirmRemove(false)}
+        onConfirm={onRemove}
+      >
+        <p>The current profile picture will be permanently removed. A replacement can be uploaded later.</p>
+      </DestructiveActionDialog>
     </>
   );
 }

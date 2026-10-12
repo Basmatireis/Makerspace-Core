@@ -942,6 +942,98 @@ type PrintSubmission struct {
 	UpdatedAt              time.Time
 }
 
+type PrinterConnector struct {
+	ID                           uuid.UUID
+	Name                         string
+	LocationLabel                *string
+	Lifecycle                    string
+	ConfigurationRevision        int64
+	AppliedConfigurationRevision int64
+	SoftwareVersion              *string
+	ProtocolVersion              *int32
+	HealthState                  *string
+	HealthSummary                *string
+	PendingEventCount            int64
+	QuarantinedEventCount        int64
+	LastHeartbeatAt              pgtype.Timestamptz
+	EnrolledAt                   pgtype.Timestamptz
+	DisabledAt                   pgtype.Timestamptz
+	RevokedAt                    pgtype.Timestamptz
+	Version                      int64
+	CreatedAt                    time.Time
+	UpdatedAt                    time.Time
+}
+
+type PrinterConnectorAssignment struct {
+	ID                          uuid.UUID
+	ConnectorID                 uuid.UUID
+	MachineID                   uuid.UUID
+	AdapterKind                 string
+	AdapterSchemaVersion        int32
+	Settings                    []byte
+	EncryptedSecrets            []byte
+	ConfigurationVersion        int64
+	Enabled                     bool
+	AppliedConfigurationVersion int64
+	RuntimeState                *string
+	RuntimeErrorCode            *string
+	ActivatedAt                 time.Time
+	EndedAt                     pgtype.Timestamptz
+	Version                     int64
+	CreatedAt                   time.Time
+	UpdatedAt                   time.Time
+}
+
+type PrinterConnectorCredential struct {
+	ID          uuid.UUID
+	ConnectorID uuid.UUID
+	TokenDigest []byte
+	State       string
+	ExpiresAt   time.Time
+	LastUsedAt  pgtype.Timestamptz
+	RetireAfter pgtype.Timestamptz
+	RevokedAt   pgtype.Timestamptz
+	CreatedAt   time.Time
+}
+
+type PrinterConnectorEnrollment struct {
+	ID                    uuid.UUID
+	ConnectorID           uuid.UUID
+	TokenDigest           []byte
+	CredentialFingerprint *string
+	AcceptedCredentialID  *uuid.UUID
+	ExpiresAt             time.Time
+	ConsumedAt            pgtype.Timestamptz
+	RevokedAt             pgtype.Timestamptz
+	CreatedByAccountID    *uuid.UUID
+	CreatedAt             time.Time
+}
+
+type PrinterDiscoveryCandidate struct {
+	ID           uuid.UUID
+	RequestID    uuid.UUID
+	CandidateKey string
+	Observation  []byte
+	Decision     string
+	AssignmentID *uuid.UUID
+	FirstSeenAt  time.Time
+	LastSeenAt   time.Time
+	Version      int64
+}
+
+type PrinterDiscoveryRequest struct {
+	ID                   uuid.UUID
+	ConnectorID          uuid.UUID
+	AdapterKind          string
+	State                string
+	RequestedByAccountID *uuid.UUID
+	ExpiresAt            time.Time
+	ErrorCode            *string
+	Version              int64
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+}
+
 type PrinterEvent struct {
 	ID                    uuid.UUID
 	SourceID              string
@@ -959,6 +1051,13 @@ type PrinterEvent struct {
 	ReconciliationState   string
 	ReconciledByAccountID *uuid.UUID
 	ReconciledAt          pgtype.Timestamptz
+	ConnectorID           *uuid.UUID
+	ConnectorAssignmentID *uuid.UUID
+	ObservedRunID         *uuid.UUID
+	ConfigurationVersion  *int64
+	ApplicationState      string
+	ApplicationReason     *string
+	ReportRevision        *int64
 }
 
 type PrinterInputUnit struct {
@@ -973,12 +1072,29 @@ type PrinterInputUnit struct {
 	UpdatedAt          time.Time
 }
 
+type PrinterObservedRun struct {
+	ID              uuid.UUID
+	AssignmentID    uuid.UUID
+	MachineID       uuid.UUID
+	VendorJobID     *string
+	AttemptID       *uuid.UUID
+	State           string
+	HistoryComplete bool
+	FirstObservedAt time.Time
+	LastObservedAt  time.Time
+	Version         int64
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
 type PrinterProfile struct {
-	MachineID uuid.UUID
-	Enabled   bool
-	Version   int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	MachineID         uuid.UUID
+	Enabled           bool
+	Version           int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	IdentityNamespace *string
+	IdentityValue     *string
 }
 
 type PrinterSlot struct {

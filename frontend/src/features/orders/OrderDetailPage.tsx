@@ -16,7 +16,7 @@ import {
 } from "@carbon/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   addOrderItem,
@@ -45,6 +45,7 @@ import type {
 import { useCurrentUser } from "../auth/auth";
 import { hasPermission, PermissionId } from "../auth/permissions";
 import { PageShell } from "../../app/PageShell";
+import { DestructiveActionDialog } from "../../app/DestructiveActionDialog";
 import { ErrorState, FullPageLoading } from "../../app/PageState";
 import { CustomerPicker, FinancialError, PaymentForm } from "./shared";
 import { financeKeys, useOperationKeys, cents } from "./operations";
@@ -84,6 +85,10 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
       hasPermission(user, PermissionId.machine_jobsread),
   });
   const [editingItem, setEditingItem] = useState<string>();
+  const [destructiveAction, setDestructiveAction] = useState<
+    | { kind: "remove-item"; itemId: string; description: string }
+    | { kind: "cancel-draft" }
+  >();
   const form = useForm<{
     description: string;
     quantity: string;
@@ -103,7 +108,10 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
   };
   const mutation = useMutation({
     mutationFn: (fn: () => Promise<unknown>) => fn(),
-    onSuccess: refresh,
+    onSuccess: async () => {
+      setDestructiveAction(undefined);
+      await refresh();
+    },
   });
   if (query.isPending) return <FullPageLoading label="Loading order" />;
   if (query.isError)
@@ -293,15 +301,11 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
                         <Button
                           size="sm"
                           kind="danger--tertiary"
-                          onClick={() =>
-                            run(() =>
-                              removeOrderItem(
-                                o.id,
-                                i.id,
-                                command("remove-" + i.id),
-                              ),
-                            )
-                          }
+                          disabled={mutation.isPending}
+                          onClick={() => {
+                            mutation.reset();
+                            setDestructiveAction({ kind: "remove-item", itemId: i.id, description: i.description });
+                          }}
                         >
                           Remove
                         </Button>
@@ -486,9 +490,11 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
                 {can(PermissionId.orderswrite) && (
                   <Button
                     kind="danger--tertiary"
-                    onClick={() =>
-                      run(() => cancelOrder(o.id, command("cancel")))
-                    }
+                    disabled={mutation.isPending}
+                    onClick={() => {
+                      mutation.reset();
+                      setDestructiveAction({ kind: "cancel-draft" });
+                    }}
                   >
                     Cancel draft
                   </Button>
@@ -610,6 +616,7 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
               }
               allocations={o.allocations}
               pending={mutation.isPending}
+              error={mutation.error}
             />
           )}
         {o.adjustments.map((a) => (
@@ -620,6 +627,25 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
             </p>
           </Tile>
         ))}
+        <DestructiveActionDialog
+          open={Boolean(destructiveAction)}
+          title={destructiveAction?.kind === "remove-item" ? "Remove item from draft?" : "Cancel draft order?"}
+          confirmLabel={destructiveAction?.kind === "remove-item" ? "Remove item" : "Cancel draft"}
+          pending={mutation.isPending}
+          error={mutation.error?.message}
+          onClose={() => { setDestructiveAction(undefined); mutation.reset(); }}
+          onConfirm={() => {
+            if (destructiveAction?.kind === "remove-item") {
+              run(() => removeOrderItem(o.id, destructiveAction.itemId, command("remove-" + destructiveAction.itemId)));
+            } else if (destructiveAction?.kind === "cancel-draft") {
+              run(() => cancelOrder(o.id, command("cancel")));
+            }
+          }}
+        >
+          <p>{destructiveAction?.kind === "remove-item"
+            ? `${destructiveAction.description} will be removed from this draft and excluded from its total. Other items are unchanged.`
+            : `Draft ${o.reference} will be cancelled. Its recorded details remain available, but the draft can no longer be edited or finalized.`}</p>
+        </DestructiveActionDialog>
       </Stack>
     </PageShell>
   );
@@ -636,6 +662,7 @@ function CorrectionPanel({
   canReversePayments,
   allocations,
   pending,
+  error,
 }: {
   orderId: string;
   status: string;
@@ -648,6 +675,7 @@ function CorrectionPanel({
   canReversePayments: boolean;
   allocations: import("../../api/generated/models").OrderAllocation[];
   pending: boolean;
+  error: Error | null;
 }) {
   const [newPayment, setNewPayment] = useState<PaymentInput>();
   const [addPayment, setAddPayment] = useState(false);
@@ -657,6 +685,10 @@ function CorrectionPanel({
   const [kind, setKind] =
     useState<PaymentReversalInput["reasonKind"]>("refund");
   const [occurredAt] = useState(() => new Date().toISOString());
+  const [confirmAction, setConfirmAction] = useState<"reverse" | "replace">();
+  useEffect(() => {
+    if (status !== "finalized" && confirmAction === "reverse") setConfirmAction(undefined);
+  }, [confirmAction, status]);
   const candidates = useQuery({
     queryKey: [...financeKeys, "replacement-candidates", orderId],
     queryFn: () => listOrders({ status: "draft", page: 1, pageSize: 100 }),
@@ -747,14 +779,7 @@ function CorrectionPanel({
           <Button
             kind="danger"
             disabled={!reason || pending}
-            onClick={() =>
-              run(() =>
-                reverseOrder(
-                  orderId,
-                  command("reverse", { reason, reversals: reversals() }),
-                ),
-              )
-            }
+            onClick={() => setConfirmAction("reverse")}
           >
             Reverse all charges
           </Button>
@@ -811,20 +836,7 @@ function CorrectionPanel({
                 pending ||
                 (addPayment && !newPayment)
               }
-              onClick={() =>
-                run(() =>
-                  replaceOrder(
-                    orderId,
-                    command("replace", {
-                      replacementOrderId: replacementId,
-                      expectedReplacementVersion: replacement.data!.version,
-                      reason,
-                      reversals: reversals(),
-                      payments: newPayment ? [newPayment] : [],
-                    }),
-                  ),
-                )
-              }
+              onClick={() => setConfirmAction("replace")}
             >
               Commit replacement and carry payments
             </Button>
@@ -834,6 +846,32 @@ function CorrectionPanel({
             </p>
           </>
         )}
+        <DestructiveActionDialog
+          open={Boolean(confirmAction)}
+          title={confirmAction === "replace" ? "Commit replacement order?" : "Reverse all order charges?"}
+          confirmLabel={confirmAction === "replace" ? "Commit replacement" : "Reverse charges"}
+          pending={pending}
+          error={error?.message}
+          onClose={() => setConfirmAction(undefined)}
+          onConfirm={() => {
+            if (confirmAction === "reverse") {
+              run(() => reverseOrder(orderId, command("reverse", { reason, reversals: reversals() })));
+            } else if (confirmAction === "replace" && replacement.data) {
+              run(() => replaceOrder(orderId, command("replace", {
+                replacementOrderId: replacementId,
+                expectedReplacementVersion: replacement.data.version,
+                reason,
+                reversals: reversals(),
+                payments: newPayment ? [newPayment] : [],
+              })));
+            }
+          }}
+        >
+          <p>{confirmAction === "replace"
+            ? `The original order will be reversed and replaced by ${replacement.data?.reference ?? "the selected draft"}. Selected receipt reversals and any staged payment will be recorded in the same operation; remaining receipts transfer without money movement.`
+            : `All charges on this order will be reversed. ${reverseIds.length} selected receipt${reverseIds.length === 1 ? "" : "s"} will also be reversed; payment and order history remain as immutable financial evidence.`}</p>
+          <p>Reason: {reason}</p>
+        </DestructiveActionDialog>
         <span className="visually-hidden">Order version {version}</span>
       </Stack>
     </Tile>

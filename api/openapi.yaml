@@ -40,6 +40,7 @@ tags:
   - name: Inventory
   - name: Filament Spools
   - name: Printing
+  - name: Printer Connectors
   - name: Machine Logbook
   - name: Branding
 
@@ -632,7 +633,14 @@ paths:
       description: |
         Requires `people.delete`. If the person has an account, also requires
         `accounts.delete`. Audit references remain non-PII identifiers and do not
-        prevent hard deletion.
+        prevent hard deletion. A person provisioned through SCIM cannot be
+        deleted here and returns `409 person_scim_managed`; deprovision them in
+        the identity provider. Removing the last enabled master returns
+        `409 last_master_required`. Every blocking reason is listed in
+        `details.reasons` as `{code, message}` objects. A single reason keeps
+        its own code; several reasons return `409 person_deletion_blocked`.
+        Other records that still restrict deletion return
+        `409 deletion_referenced`.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -828,7 +836,13 @@ paths:
       tags: [Accounts]
       operationId: deleteAccount
       summary: Permanently delete an account while retaining its person
-      description: Requires `accounts.delete` and enforces the last-enabled-master invariant.
+      description: |
+        Requires `accounts.delete` and enforces the last-enabled-master invariant.
+        Every blocking reason is listed in `details.reasons` as `{code, message}`
+        objects. A single reason keeps its own code, such as
+        `409 last_master_required`, `409 account_scim_managed`, or
+        `409 deletion_referenced`; several reasons return
+        `409 account_deletion_blocked`.
       security:
         - sessionCookie: []
           csrfHeader: []
@@ -3164,6 +3178,251 @@ paths:
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connectors:
+    get:
+      tags: [Printer Connectors]
+      operationId: listPrinterConnectors
+      summary: List printer connector identities and current health
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Printer connectors., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Printer Connectors]
+      operationId: createPrinterConnector
+      summary: Create a pending printer connector identity
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreatePrinterConnectorRequest"}}}}
+      responses:
+        "201": {description: Pending connector., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnector"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connectors/{printerConnectorId}:
+    parameters: [{name: printerConnectorId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    get:
+      tags: [Printer Connectors]
+      operationId: getPrinterConnector
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Connector detail., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnector"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    patch:
+      tags: [Printer Connectors]
+      operationId: updatePrinterConnector
+      summary: Rename, relocate, enable, or disable a connector
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdatePrinterConnectorRequest"}}}}
+      responses:
+        "200": {description: Updated connector., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnector"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connectors/{printerConnectorId}/enrollments:
+    parameters: [{name: printerConnectorId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    post:
+      tags: [Printer Connectors]
+      operationId: createPrinterConnectorEnrollment
+      summary: Issue a one-time connector enrollment secret
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "201": {description: One-time enrollment secret., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorEnrollmentIssue"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connectors/{printerConnectorId}/revocation:
+    parameters: [{name: printerConnectorId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    post:
+      tags: [Printer Connectors]
+      operationId: revokePrinterConnector
+      summary: Revoke connector credentials and end its assignments
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Revoked connector., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnector"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connectors/{printerConnectorId}/assignments:
+    parameters: [{name: printerConnectorId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    post:
+      tags: [Printer Connectors]
+      operationId: createPrinterConnectorAssignment
+      summary: Assign an existing printer profile to a connector
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreatePrinterConnectorAssignmentRequest"}}}}
+      responses:
+        "201": {description: Assignment created., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorAssignment"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    get:
+      tags: [Printer Connectors]
+      operationId: listPrinterConnectorAssignments
+      summary: List current and ended assignments without printer secrets
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Connector assignments., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorAssignmentList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connectors/{printerConnectorId}/assignments/{assignmentId}:
+    parameters:
+      - {name: printerConnectorId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: assignmentId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    patch:
+      tags: [Printer Connectors]
+      operationId: updatePrinterConnectorAssignment
+      summary: Update, disable, or end a printer assignment
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdatePrinterConnectorAssignmentRequest"}}}}
+      responses:
+        "200": {description: Updated assignment., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorAssignment"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connectors/{printerConnectorId}/observed-runs:
+    parameters: [{name: printerConnectorId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    get:
+      tags: [Printer Connectors]
+      operationId: listPrinterObservedRuns
+      summary: List recent physical print runs observed by this connector
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Recent observed runs., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterObservedRunList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connectors/{printerConnectorId}/events:
+    parameters: [{name: printerConnectorId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    get:
+      tags: [Printer Connectors]
+      operationId: listPrinterConnectorEvents
+      summary: List recent normalized events and their application status
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Recent connector events., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorEventList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-observed-runs/{printerObservedRunId}/attempt:
+    parameters: [{name: printerObservedRunId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    post:
+      tags: [Printer Connectors]
+      operationId: linkPrinterObservedRunAttempt
+      summary: Explicitly correlate a physical run with an existing Print Attempt
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/LinkPrinterObservedRunAttemptRequest"}}}}
+      responses:
+        "200": {description: Linked observed run., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterObservedRun"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connector/enroll:
+    post:
+      tags: [Printer Connectors]
+      operationId: enrollPrinterConnector
+      summary: Exchange a short-lived enrollment secret for a connector identity
+      security: [{printerConnectorBearer: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/EnrollPrinterConnectorRequest"}}}}
+      responses:
+        "200": {description: Enrolled connector identity., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorEnrollmentResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connector/self/configuration:
+    get:
+      tags: [Printer Connectors]
+      operationId: getPrinterConnectorConfiguration
+      summary: Fetch the complete centrally managed connector configuration
+      security: [{printerConnectorBearer: []}]
+      responses:
+        "200": {description: Configuration snapshot., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorConfiguration"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connector/self/heartbeat:
+    post:
+      tags: [Printer Connectors]
+      operationId: reportPrinterConnectorHeartbeat
+      summary: Report connector and assignment health
+      security: [{printerConnectorBearer: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorHeartbeat"}}}}
+      responses:
+        "200": {description: Current connector status., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnector"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connector/self/events:
+    post:
+      tags: [Printer Connectors]
+      operationId: ingestPrinterConnectorEvents
+      summary: Durably ingest an idempotent batch of normalized printer events
+      security: [{printerConnectorBearer: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorEventBatch"}}}}
+      responses:
+        "200": {description: Independent event receipts., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorEventBatchReceipt"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "413": {$ref: "#/components/responses/PayloadTooLarge"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connector/self/credential-rotation:
+    post:
+      tags: [Printer Connectors]
+      operationId: rotatePrinterConnectorCredential
+      summary: Replace the current connector credential with a connector-generated secret
+      security: [{printerConnectorBearer: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RotatePrinterConnectorCredentialRequest"}}}}
+      responses:
+        "200": {description: Rotated connector credential., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorEnrollmentResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /scim/connectors:
@@ -6140,6 +6399,11 @@ components:
       scheme: bearer
       bearerFormat: opaque
       description: One-time-displayed connector token stored only as a digest.
+    printerConnectorBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: Printer connector enrollment or machine credential. Core stores only a digest.
     eventSignupToken:
       type: apiKey
       in: header
@@ -6495,6 +6759,9 @@ components:
         - printer_slots.assign
         - print_submissions.read
         - print_submissions.manage
+        - printer_connectors.read
+        - printer_connectors.manage
+        - printer_connectors.credentials.manage
         - organizations.read
         - organizations.manage
         - pricing.read
@@ -8863,6 +9130,292 @@ components:
         status: {$ref: "#/components/schemas/LaborordnungStatus"}
         requestId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
 
+    PrinterConnector:
+      type: object
+      additionalProperties: false
+      required: [id, name, locationLabel, lifecycle, configurationRevision, appliedConfigurationRevision, softwareVersion, protocolVersion, healthState, healthSummary, pendingEventCount, quarantinedEventCount, lastHeartbeatAt, enrolledAt, disabledAt, revokedAt, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, minLength: 1, maxLength: 120}
+        locationLabel: {type: string, minLength: 1, maxLength: 200, nullable: true}
+        lifecycle: {type: string, enum: [pending, active, disabled, revoked]}
+        configurationRevision: {type: integer, format: int64, minimum: 1}
+        appliedConfigurationRevision: {type: integer, format: int64, minimum: 0}
+        softwareVersion: {type: string, maxLength: 80, nullable: true}
+        protocolVersion: {type: integer, minimum: 1, nullable: true}
+        healthState: {type: string, enum: [connected, degraded], nullable: true}
+        healthSummary: {type: string, maxLength: 500, nullable: true}
+        pendingEventCount: {type: integer, format: int64, minimum: 0}
+        quarantinedEventCount: {type: integer, format: int64, minimum: 0}
+        lastHeartbeatAt: {type: string, format: date-time, nullable: true}
+        enrolledAt: {type: string, format: date-time, nullable: true}
+        disabledAt: {type: string, format: date-time, nullable: true}
+        revokedAt: {type: string, format: date-time, nullable: true}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+
+    PrinterConnectorList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/PrinterConnector"}}}
+
+    CreatePrinterConnectorRequest:
+      type: object
+      additionalProperties: false
+      required: [name, locationLabel]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 120}
+        locationLabel: {type: string, minLength: 1, maxLength: 200, nullable: true}
+
+    UpdatePrinterConnectorRequest:
+      type: object
+      additionalProperties: false
+      required: [name, locationLabel, enabled, expectedVersion]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 120}
+        locationLabel: {type: string, minLength: 1, maxLength: 200, nullable: true}
+        enabled: {type: boolean}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    PrinterConnectorEnrollmentIssue:
+      type: object
+      additionalProperties: false
+      required: [connector, enrollmentId, enrollmentSecret, expiresAt]
+      properties:
+        connector: {$ref: "#/components/schemas/PrinterConnector"}
+        enrollmentId: {$ref: "#/components/schemas/UUIDv7"}
+        enrollmentSecret: {type: string, minLength: 43, maxLength: 43, writeOnly: true}
+        expiresAt: {type: string, format: date-time}
+
+    EnrollPrinterConnectorRequest:
+      type: object
+      additionalProperties: false
+      required: [credentialId, credentialSecret, softwareVersion, protocolVersion]
+      properties:
+        credentialId: {$ref: "#/components/schemas/UUIDv7"}
+        credentialSecret: {type: string, minLength: 43, maxLength: 43, writeOnly: true}
+        softwareVersion: {type: string, minLength: 1, maxLength: 80}
+        protocolVersion: {type: integer, minimum: 1}
+
+    PrinterConnectorEnrollmentResult:
+      type: object
+      additionalProperties: false
+      required: [connectorId, credentialId, protocolVersion, credentialExpiresAt]
+      properties:
+        connectorId: {$ref: "#/components/schemas/UUIDv7"}
+        credentialId: {$ref: "#/components/schemas/UUIDv7"}
+        protocolVersion: {type: integer, minimum: 1}
+        credentialExpiresAt: {type: string, format: date-time}
+
+    CreatePrinterConnectorAssignmentRequest:
+      type: object
+      additionalProperties: false
+      required: [machineId, adapterKind, adapterSchemaVersion, settings, secrets]
+      properties:
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        adapterKind: {type: string, minLength: 1, maxLength: 80}
+        adapterSchemaVersion: {type: integer, minimum: 1}
+        settings: {type: object, additionalProperties: true}
+        secrets: {type: object, additionalProperties: {type: string, maxLength: 2048}, writeOnly: true}
+
+    UpdatePrinterConnectorAssignmentRequest:
+      type: object
+      additionalProperties: false
+      required: [adapterKind, adapterSchemaVersion, settings, enabled, end, expectedVersion]
+      properties:
+        adapterKind: {type: string, minLength: 1, maxLength: 80}
+        adapterSchemaVersion: {type: integer, minimum: 1}
+        settings: {type: object, additionalProperties: true}
+        secrets:
+          type: object
+          additionalProperties: {type: string, maxLength: 2048}
+          writeOnly: true
+          description: Omit to retain existing printer credentials; provide an empty object to clear them.
+        enabled: {type: boolean}
+        end: {type: boolean}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    PrinterConnectorAssignment:
+      type: object
+      additionalProperties: false
+      required: [id, connectorId, machineId, machineName, adapterKind, adapterSchemaVersion, settings, configurationVersion, appliedConfigurationVersion, enabled, runtimeState, runtimeErrorCode, endedAt, version, activatedAt, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        connectorId: {$ref: "#/components/schemas/UUIDv7"}
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        machineName: {type: string}
+        adapterKind: {type: string}
+        adapterSchemaVersion: {type: integer}
+        settings: {type: object, additionalProperties: true}
+        configurationVersion: {type: integer, format: int64}
+        appliedConfigurationVersion: {type: integer, format: int64}
+        enabled: {type: boolean}
+        runtimeState: {type: string, enum: [connecting, connected, disconnected, degraded, disabled], nullable: true}
+        runtimeErrorCode: {type: string, maxLength: 80, nullable: true}
+        endedAt: {type: string, format: date-time, nullable: true}
+        version: {$ref: "#/components/schemas/Version"}
+        activatedAt: {type: string, format: date-time}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+
+    PrinterConnectorAssignmentList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/PrinterConnectorAssignment"}}}
+
+    PrinterObservedRun:
+      type: object
+      additionalProperties: false
+      required: [id, assignmentId, machineId, machineName, vendorJobId, attemptId, state, historyComplete, firstObservedAt, lastObservedAt, version]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        assignmentId: {$ref: "#/components/schemas/UUIDv7"}
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        machineName: {type: string}
+        vendorJobId: {type: string, maxLength: 200, nullable: true}
+        attemptId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        state: {type: string, enum: [observed, printing, completed, failed, cancelled, uncertain]}
+        historyComplete: {type: boolean}
+        firstObservedAt: {type: string, format: date-time}
+        lastObservedAt: {type: string, format: date-time}
+        version: {$ref: "#/components/schemas/Version"}
+
+    PrinterObservedRunList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/PrinterObservedRun"}}}
+
+    PrinterConnectorEvent:
+      type: object
+      additionalProperties: false
+      required: [id, machineId, assignmentId, kind, occurredAt, receivedAt, applicationState, applicationReason, reconciliationState, payload]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        assignmentId: {$ref: "#/components/schemas/UUIDv7"}
+        kind: {type: string, enum: [identity, connectivity, operational_state, progress, slot_observation, consumption_report, terminal_outcome]}
+        occurredAt: {type: string, format: date-time}
+        receivedAt: {type: string, format: date-time}
+        applicationState: {type: string, enum: [recorded, applied, review_required]}
+        applicationReason: {type: string, maxLength: 200, nullable: true}
+        reconciliationState: {type: string, enum: [not_applicable, pending, accepted, rejected]}
+        payload: {type: object, additionalProperties: true}
+
+    PrinterConnectorEventList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/PrinterConnectorEvent"}}}
+
+    LinkPrinterObservedRunAttemptRequest:
+      type: object
+      additionalProperties: false
+      required: [attemptId, expectedVersion]
+      properties:
+        attemptId: {$ref: "#/components/schemas/UUIDv7"}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    PrinterConnectorRuntimeAssignment:
+      type: object
+      additionalProperties: false
+      required: [id, machineId, machineName, adapterKind, adapterSchemaVersion, configurationVersion, settings, secrets, enabled]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        machineName: {type: string}
+        adapterKind: {type: string}
+        adapterSchemaVersion: {type: integer}
+        configurationVersion: {type: integer, format: int64}
+        settings: {type: object, additionalProperties: true}
+        secrets: {type: object, additionalProperties: {type: string}, writeOnly: true}
+        enabled: {type: boolean}
+
+    PrinterConnectorConfiguration:
+      type: object
+      additionalProperties: false
+      required: [revision, protocolVersion, assignments]
+      properties:
+        revision: {type: integer, format: int64, minimum: 1}
+        protocolVersion: {type: integer, minimum: 1}
+        assignments: {type: array, items: {$ref: "#/components/schemas/PrinterConnectorRuntimeAssignment"}}
+
+    PrinterConnectorAssignmentHealth:
+      type: object
+      additionalProperties: false
+      required: [assignmentId, appliedConfigurationVersion, state, errorCode]
+      properties:
+        assignmentId: {$ref: "#/components/schemas/UUIDv7"}
+        appliedConfigurationVersion: {type: integer, format: int64, minimum: 0}
+        state: {type: string, enum: [connecting, connected, disconnected, degraded, disabled]}
+        errorCode: {type: string, maxLength: 80, nullable: true}
+
+    PrinterConnectorHeartbeat:
+      type: object
+      additionalProperties: false
+      required: [softwareVersion, protocolVersion, appliedConfigurationRevision, healthState, healthSummary, pendingEventCount, quarantinedEventCount, assignments]
+      properties:
+        softwareVersion: {type: string, minLength: 1, maxLength: 80}
+        protocolVersion: {type: integer, minimum: 1}
+        appliedConfigurationRevision: {type: integer, format: int64, minimum: 0}
+        healthState: {type: string, enum: [connected, degraded]}
+        healthSummary: {type: string, maxLength: 500, nullable: true}
+        pendingEventCount: {type: integer, format: int64, minimum: 0}
+        quarantinedEventCount: {type: integer, format: int64, minimum: 0}
+        assignments: {type: array, maxItems: 32, items: {$ref: "#/components/schemas/PrinterConnectorAssignmentHealth"}}
+
+    PrinterConnectorEventInput:
+      type: object
+      additionalProperties: false
+      required: [eventId, assignmentId, runId, historyComplete, configurationVersion, sequence, occurredAt, kind, externalPrintId, reportRevision, payload]
+      properties:
+        eventId: {$ref: "#/components/schemas/UUIDv7"}
+        assignmentId: {$ref: "#/components/schemas/UUIDv7"}
+        runId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        historyComplete: {type: boolean}
+        configurationVersion: {type: integer, format: int64, minimum: 1}
+        sequence: {type: integer, format: int64, minimum: 1}
+        occurredAt: {type: string, format: date-time}
+        kind: {type: string, enum: [identity, connectivity, operational_state, progress, slot_observation, consumption_report, terminal_outcome]}
+        externalPrintId: {type: string, minLength: 1, maxLength: 200, nullable: true}
+        reportRevision: {type: integer, format: int64, minimum: 1, nullable: true}
+        payload: {type: object, additionalProperties: true}
+
+    PrinterConnectorEventBatch:
+      type: object
+      additionalProperties: false
+      required: [protocolVersion, events]
+      properties:
+        protocolVersion: {type: integer, minimum: 1}
+        events: {type: array, minItems: 1, maxItems: 20, items: {$ref: "#/components/schemas/PrinterConnectorEventInput"}}
+
+    PrinterConnectorEventReceipt:
+      type: object
+      additionalProperties: false
+      required: [eventId, coreEventId, status, reasonCode]
+      properties:
+        eventId: {$ref: "#/components/schemas/UUIDv7"}
+        coreEventId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        status: {type: string, enum: [accepted, duplicate, rejected, retry]}
+        reasonCode: {type: string, maxLength: 80, nullable: true}
+
+    PrinterConnectorEventBatchReceipt:
+      type: object
+      additionalProperties: false
+      required: [receipts]
+      properties: {receipts: {type: array, items: {$ref: "#/components/schemas/PrinterConnectorEventReceipt"}}}
+
+    RotatePrinterConnectorCredentialRequest:
+      type: object
+      additionalProperties: false
+      required: [credentialId, credentialSecret]
+      properties:
+        credentialId: {$ref: "#/components/schemas/UUIDv7"}
+        credentialSecret: {type: string, minLength: 43, maxLength: 43, writeOnly: true}
+
     SCIMConnector:
       type: object
       additionalProperties: false
@@ -9774,6 +10327,10 @@ components:
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         machineName: {type: string}
         customer: {allOf: [{$ref: "#/components/schemas/BillingPartyReference"}], nullable: true}
+        customerDisplayName:
+          type: string
+          nullable: true
+          description: Current display name of the assigned customer; null when unassigned.
         title: {type: string}
         notes: {type: string, nullable: true}
         state: {type: string, enum: [queued, in_progress, completed, failed, cancelled]}

@@ -66,26 +66,21 @@ type CellProps = {
   className?: string;
   onSelectDate?: () => void;
   tooltipDescription?: ReactNode;
+  selectLabel?: string;
+  selected?: boolean;
 };
 
-export const CalendarDayCell = forwardRef<HTMLDivElement, CellProps>(function CalendarDayCell({ day, children, className = '', onSelectDate, tooltipDescription }, ref) {
+export const CalendarDayCell = forwardRef<HTMLDivElement, CellProps>(function CalendarDayCell({ day, children, className = '', onSelectDate, tooltipDescription, selectLabel, selected = false }, ref) {
   const fullDate = formatLongDate(day.date);
   const contextDescription = day.entries.map((entry) => `${entry.category === 'academicBreak' ? 'Academic break' : 'Public holiday'}: ${entry.name}`);
   const description = tooltipDescription ?? [fullDate, ...contextDescription].join('. ');
 
-  return (
-    <Tooltip
-      as="div"
-      ref={ref}
-      description={description}
-      align="bottom-start"
-      enterDelayMs={300}
-      className={`calendar-cell${day.withinRange ? '' : ' calendar-cell--outside-period'}${className ? ` ${className}` : ''}`}
-    >
+  const cellClassName = `calendar-cell${day.withinRange ? '' : ' calendar-cell--outside-period'}${selected ? ' calendar-cell--selected' : ''}${className ? ` ${className}` : ''}`;
+  const content = (
       <div className="calendar-cell__tooltip-target" aria-label={fullDate}>
         <div className="calendar-cell__header">
           {onSelectDate ? (
-            <Button kind="ghost" size="sm" renderIcon={Add} className="calendar-cell__date-action" onClick={onSelectDate} aria-label={`Add Open Day on ${formatDate(day.date)}`}>
+            <Button kind="ghost" size="sm" renderIcon={selectLabel ? undefined : Add} className="calendar-cell__date-action" onClick={onSelectDate} aria-label={selectLabel ?? `Add Open Day on ${formatDate(day.date)}`} aria-pressed={selectLabel ? selected : undefined}>
               {day.dayNumber}
             </Button>
           ) : <span className="calendar-cell__date">{day.dayNumber}</span>}
@@ -110,8 +105,11 @@ export const CalendarDayCell = forwardRef<HTMLDivElement, CellProps>(function Ca
         ))}
         {children}
       </div>
-    </Tooltip>
   );
+  // Compact touch cells expose the date on their Carbon button; details sit below the grid.
+  if (selectLabel) return <div ref={ref} className={cellClassName}>{content}</div>;
+  return <Tooltip as="div" ref={ref} description={description} align="bottom-start" enterDelayMs={300} className={cellClassName}>{content}</Tooltip>;
+
 });
 
 function dateKey(year: number, month: number, day: number) {

@@ -1,4 +1,6 @@
-import { Button, Tile } from '@carbon/react';
+import './styles.scss';
+import './configuration.scss';
+import { Button, InlineNotification, Tile } from '@carbon/react';
 import { LineChart, ScaleTypes, SimpleBarChart } from '../../app/charting';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -17,42 +19,44 @@ export function StatisticsPage() {
   earlier.setUTCMonth(earlier.getUTCMonth() - 6);
   const [from, setFrom] = useState(earlier.toISOString().slice(0, 10));
   const [to, setTo] = useState(today);
-  const query = useQuery(statisticsQuery({ from, to }));
-  if (query.isPending) return <FullPageLoading label="Loading statistics" />;
-  if (query.isError) return <ErrorState message="Statistics could not be loaded." onRetry={() => query.refetch()} />;
+  const validRange = Boolean(from && to && from <= to);
+  const query = useQuery({ ...statisticsQuery({ from, to }), enabled: validRange });
 
   return (
     <PageShell
       title="Statistics"
       description="Date-filtered operational and financial reporting."
-      breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Statistics' }]}
-      actions={<div className="date-filter"><DateInput id="statistics-from" labelText="From" value={from} onChange={setFrom} /><DateInput id="statistics-to" labelText="To" value={to} onChange={setTo} /><Button kind="secondary" onClick={() => query.refetch()}>Refresh</Button></div>}
+      breadcrumbs={[{ label: 'Workshop', to: '/machine-logbook' }, { label: 'Statistics' }]}
+      actions={<div className="date-filter"><DateInput id="statistics-from" labelText="From" value={from} onChange={setFrom} /><DateInput id="statistics-to" labelText="To" value={to} onChange={setTo} /><Button kind="secondary" disabled={!validRange || query.isFetching} onClick={() => query.refetch()}>Refresh</Button></div>}
       width="wide"
       className="machine-logbook-page"
     >
-      <div className="statistics-grid">
+      {!validRange ? <InlineNotification kind="warning" lowContrast hideCloseButton title="Choose a valid date range" subtitle="The end date must be on or after the start date." />
+        : query.isPending ? <FullPageLoading label="Loading statistics" />
+        : query.isError ? <ErrorState message="Statistics could not be loaded." onRetry={() => query.refetch()} />
+        : <div className="statistics-grid">
         <StatisticChart title="Material usage by category" points={query.data.materialUsageByCategory} kind="bar" suffix="" />
         <StatisticChart title="Machine runtime (hours)" points={query.data.machineRuntimeHours} kind="bar" suffix=" h" />
         <StatisticChart title="Jobs per machine" points={query.data.machineJobCounts} kind="bar" suffix="" />
         <ComparisonChart acquisition={query.data.acquisitionCost} charges={query.data.customerCharges} />
         <StatisticChart title="Adjustments / disposal loss" points={query.data.adjustmentLoss} kind="bar" suffix="" />
         <StatisticChart title="Machine failure rate" points={query.data.machineFailureRates} kind="bar" suffix="%" />
-      </div>
+      </div>}
     </PageShell>
   );
 }
 
 function StatisticChart({ title, points, kind, suffix }: { title: string; points: StatisticPoint[]; kind: 'bar' | 'line'; suffix: string }) {
   const data = points.map((point) => ({ group: title, key: formatStatisticLabel(point.label), value: Number(point.value) }));
-  const options = { title, axes: { left: { mapsTo: 'value', scaleType: ScaleTypes.LINEAR }, bottom: { mapsTo: 'key', scaleType: ScaleTypes.LABELS } }, height: '300px', legend: { enabled: false }, toolbar: { enabled: false }, accessibility: { svgAriaLabel: title } };
-  return <Tile className="chart-tile">{kind === 'line' ? <LineChart data={data} options={options} /> : <SimpleBarChart data={data} options={options} />}<table className="accessible-data-table"><caption>{title}</caption><thead><tr><th>Category</th><th>Value</th></tr></thead><tbody>{points.map((point) => <tr key={point.key}><td>{formatStatisticLabel(point.label)}</td><td>{formatDecimal(point.value)}{suffix}</td></tr>)}</tbody></table></Tile>;
+  const options = { title: '', axes: { left: { mapsTo: 'value', scaleType: ScaleTypes.LINEAR }, bottom: { mapsTo: 'key', scaleType: ScaleTypes.LABELS } }, height: '300px', legend: { enabled: false }, toolbar: { enabled: false }, accessibility: { svgAriaLabel: title } };
+  return <Tile className="chart-tile"><h2 className="machine-chart-title">{title}</h2>{kind === 'line' ? <LineChart data={data} options={options} /> : <SimpleBarChart data={data} options={options} />}<table className="accessible-data-table"><caption>{title}</caption><thead><tr><th>Category</th><th>Value</th></tr></thead><tbody>{points.map((point) => <tr key={point.key}><td>{formatStatisticLabel(point.label)}</td><td>{formatDecimal(point.value)}{suffix}</td></tr>)}</tbody></table></Tile>;
 }
 
 function ComparisonChart({ acquisition, charges }: { acquisition: StatisticPoint[]; charges: StatisticPoint[] }) {
-  const data = [...acquisition.map((point) => ({ group: 'Acquisition cost', key: formatStatisticLabel(point.label), value: Number(point.value) })), ...charges.map((point) => ({ group: 'Effective charges', key: formatStatisticLabel(point.label), value: Number(point.value) }))];
-  const options = { title: 'Acquisition cost vs. effective charges (€)', axes: { left: { mapsTo: 'value', scaleType: ScaleTypes.LINEAR }, bottom: { mapsTo: 'key', scaleType: ScaleTypes.LABELS } }, height: '300px', curve: 'curveMonotoneX' as const, toolbar: { enabled: false }, accessibility: { svgAriaLabel: 'Monthly acquisition cost and effective customer charges' } };
+  const data = [...acquisition.map((point) => ({ group: 'Acquisition', key: formatStatisticLabel(point.label), value: Number(point.value) })), ...charges.map((point) => ({ group: 'Charges', key: formatStatisticLabel(point.label), value: Number(point.value) }))];
+  const options = { title: '', axes: { left: { mapsTo: 'value', scaleType: ScaleTypes.LINEAR }, bottom: { mapsTo: 'key', scaleType: ScaleTypes.LABELS } }, height: '300px', curve: 'curveMonotoneX' as const, toolbar: { enabled: false }, accessibility: { svgAriaLabel: 'Monthly acquisition cost and effective customer charges' } };
   const months = [...new Set([...acquisition, ...charges].map((point) => point.label))];
-  return <Tile className="chart-tile"><LineChart data={data} options={options} /><table className="accessible-data-table"><caption>Acquisition cost versus effective charges</caption><thead><tr><th>Month</th><th>Acquisition cost</th><th>Charges</th></tr></thead><tbody>{months.map((month) => <tr key={month}><td>{formatStatisticLabel(month)}</td><td>€ {formatDecimal(acquisition.find((point) => point.label === month)?.value ?? '0')}</td><td>€ {formatDecimal(charges.find((point) => point.label === month)?.value ?? '0')}</td></tr>)}</tbody></table></Tile>;
+  return <Tile className="chart-tile"><h2 className="machine-chart-title">Acquisition cost vs. effective charges (€)</h2><LineChart data={data} options={options} /><table className="accessible-data-table"><caption>Acquisition cost versus effective charges</caption><thead><tr><th>Month</th><th>Acquisition cost</th><th>Charges</th></tr></thead><tbody>{months.map((month) => <tr key={month}><td>{formatStatisticLabel(month)}</td><td>€ {formatDecimal(acquisition.find((point) => point.label === month)?.value ?? '0')}</td><td>€ {formatDecimal(charges.find((point) => point.label === month)?.value ?? '0')}</td></tr>)}</tbody></table></Tile>;
 }
 
 function formatStatisticLabel(value: string) {

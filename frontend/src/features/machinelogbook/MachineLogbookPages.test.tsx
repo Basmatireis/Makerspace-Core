@@ -107,7 +107,7 @@ describe('Machine Logbook pages', () => {
 
     const jobsHeading = await screen.findByRole('heading', { name: 'Jobs' });
     expect(jobsHeading.closest('[data-page-shell]')).toHaveAttribute('data-page-width', 'wide');
-    expect(screen.getByText('183 g PLA Black, 12 g Support White')).toBeInTheDocument();
+    expect(within(screen.getByRole('table', { name: 'Machine jobs' })).getByText('183 g PLA Black, 12 g Support White')).toBeInTheDocument();
     expect(screen.getAllByText('Needs review').some((element) => element.closest('.cds--tag'))).toBe(true);
     expect(screen.getByRole('link', { name: 'Jobs' })).toBeInTheDocument();
 
@@ -173,7 +173,7 @@ describe('Machine Logbook pages', () => {
     await user.click(await screen.findByText('Maria Hoffmann'));
     await user.click(screen.getByRole('button', { name: 'Confirm job' }));
     expect(await screen.findByText('Job was not confirmed')).toBeInTheDocument();
-    expect(screen.getByText(/job changed.*latest queue has been loaded/i)).toBeInTheDocument();
+    expect(screen.getByText(/job changed.*review the latest machine data/i)).toBeInTheDocument();
   });
 
   it('requires an explicit destructive confirmation and sends the latest inventory version', async () => {
@@ -206,7 +206,7 @@ describe('Machine Logbook pages', () => {
   it('creates a confirmed manual job with multiple catalog lookups', async () => {
     let submitted: CreateMachineJobRequest | undefined;
     server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.machine_jobsread, PermissionId.machine_jobscreate]))),
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.machine_jobsread, PermissionId.machine_jobscreate, PermissionId.machinesread, PermissionId.inventoryread]))),
       http.get('*/api/v1/machine-jobs', () => HttpResponse.json({ items: [], page: 1, pageSize: 25, total: 0 })),
       http.get('*/api/v1/machines', () => HttpResponse.json({ items: [machine], page: 1, pageSize: 100, total: 1 })),
       http.get('*/api/v1/materials', () => HttpResponse.json({ items: [material], page: 1, pageSize: 100, total: 1, totalInventoryValue: material.inventoryValue })),
@@ -288,8 +288,9 @@ describe('Machine Logbook pages', () => {
     );
     renderRoute(<App />, '/machine-logbook/print-submissions');
     expect(await screen.findByRole('heading', { name: 'Print submissions' })).toBeInTheDocument();
-    expect(screen.getByText('Replacement bracket')).toBeInTheDocument();
-    expect(screen.getByText('queued')).toBeInTheDocument();
+    const table = screen.getByRole('table', { name: 'Print submissions' });
+    expect(within(table).getByText('Replacement bracket')).toBeInTheDocument();
+    expect(within(table).getByText('queued')).toBeInTheDocument();
   });
 
   it('submits optimistic organization and pricing-rule edits', async () => {
@@ -320,7 +321,7 @@ describe('Machine Logbook pages', () => {
     expect(shell?.querySelector('.page-header__tabs')).toContainElement(
       screen.getByRole('tablist', { name: 'Configuration sections' }),
     );
-    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    await user.click(await screen.findByRole('button', { name: 'Edit' }));
     let dialog = await screen.findByRole('dialog');
     await user.clear(within(dialog).getByLabelText('Name'));
     await user.type(within(dialog).getByLabelText('Name'), 'TU Berlin Makerspace');

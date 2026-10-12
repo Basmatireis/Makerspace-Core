@@ -9,6 +9,9 @@ SELECT * FROM people WHERE id = sqlc.arg(id);
 -- name: GetPersonForDeletion :one
 SELECT * FROM people WHERE id = sqlc.arg(id) FOR UPDATE;
 
+-- name: PersonHasSCIMProvisioning :one
+SELECT EXISTS (SELECT 1 FROM scim_users WHERE person_id = sqlc.arg(person_id));
+
 -- name: ListPeople :many
 WITH current_laborordnung_version AS (
     SELECT id

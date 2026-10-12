@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Button, InlineLoading, InlineNotification, Loading, Stack } from '@carbon/react';
 import { Renew } from '@carbon/icons-react';
 
@@ -39,6 +40,22 @@ export function ErrorState({
           Try again
         </Button>
       )}
+    </Stack>
+  );
+}
+
+export type EmptyStateProps = {
+  title: string;
+  description?: string;
+  action?: ReactNode;
+};
+
+export function EmptyState({ title, description, action }: EmptyStateProps) {
+  return (
+    <Stack gap={4} className="empty-state">
+      <h2>{title}</h2>
+      {description && <p>{description}</p>}
+      {action && <div className="empty-state__action">{action}</div>}
     </Stack>
   );
 }

@@ -13,6 +13,7 @@
 - [Orders, payments, and invoicing requests](orders.md)
 - [Machine logbook, pricing, and inventory](machine-logbook.md)
 - [Filament spools and generic printer integration](filament-printing.md)
+- [Docker printer connector](printer-connector.md)
 - [Development and generation workflow](development.md)
 - [Observability](observability.md)
 - [Repository review and validation](repository-review.md)

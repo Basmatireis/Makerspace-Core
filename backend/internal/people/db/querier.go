@@ -31,6 +31,7 @@ type Querier interface {
 	ListPersonRoles(ctx context.Context, personID uuid.UUID) ([]Role, error)
 	ListPersonRolesByPeople(ctx context.Context, personIds []string) ([]ListPersonRolesByPeopleRow, error)
 	ListProfileImageRequirements(ctx context.Context, personIds []string) ([]ListProfileImageRequirementsRow, error)
+	PersonHasSCIMProvisioning(ctx context.Context, personID uuid.UUID) (bool, error)
 	PersonRequiresProfileImage(ctx context.Context, personID uuid.UUID) (bool, error)
 	RemovePersonRole(ctx context.Context, arg RemovePersonRoleParams) (int64, error)
 	SetProfileImage(ctx context.Context, arg SetProfileImageParams) (Person, error)

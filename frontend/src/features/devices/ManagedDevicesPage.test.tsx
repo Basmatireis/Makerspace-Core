@@ -44,6 +44,44 @@ const device = {
 };
 
 describe('Managed devices administration', () => {
+  it('confirms device-type deletion and keeps reference conflicts visible', async () => {
+    let deleteAttempts = 0;
+    let types = [deviceType];
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
+        PermissionId.managed_devicesread,
+        PermissionId.managed_devicesmanage,
+      ]))),
+      http.get('*/api/v1/managed-device-types', () => HttpResponse.json({ items: types })),
+      http.get('*/api/v1/managed-devices', () => HttpResponse.json({ items: [], nextCursor: null })),
+      http.delete('*/api/v1/managed-device-types/:typeId', () => {
+        deleteAttempts += 1;
+        if (deleteAttempts === 1) {
+          return HttpResponse.json({ code: 'conflict', message: 'Still referenced' }, { status: 409 });
+        }
+        types = [];
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/settings/managed-devices');
+
+    const typeHeading = await screen.findByRole('heading', { name: 'Device types' });
+    const panel = typeHeading.closest('.cds--tile') as HTMLElement;
+    await user.click(await within(panel).findByRole('button', { name: 'Delete' }));
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete device type Reception?' });
+    expect(within(dialog).getByText(/blocked while a device or role permission still references it/i)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    expect(deleteAttempts).toBe(0);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Delete device type' }));
+    expect(await within(dialog).findByText(/still used by a device or role permission/i)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Delete device type' }));
+
+    await waitFor(() => expect(deleteAttempts).toBe(2));
+    await waitFor(() => expect(screen.queryByText('Reception')).not.toBeInTheDocument());
+  });
+
   it('renders status and creates a device with a dismissible one-time token', async () => {
     let submitted: CreateManagedDeviceRequest | undefined;
     server.use(

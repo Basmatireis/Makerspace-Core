@@ -22,9 +22,11 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/devicebridge"
 )
 
+// The bridge runs as the Makerspace Core Desktop sidecar. The shell owns the
+// pairing key and passes the managed-device credential once on stdin.
 type config struct {
-	listen, origins, pairingFile, coreURL, deviceTokenFile, tlsCert, tlsKey string
-	simulator, showPairing, deviceTokenStdin                                bool
+	listen, origins, pairingFile, coreURL string
+	simulator, deviceTokenStdin           bool
 }
 
 func main() {
@@ -42,14 +44,10 @@ func run() error {
 	}
 	flag.StringVar(&cfg.listen, "listen", "127.0.0.1:17321", "loopback address for the local bridge")
 	flag.StringVar(&cfg.origins, "origins", "http://localhost:5173,http://127.0.0.1:5173", "comma-separated exact web origins allowed to use the bridge")
-	flag.StringVar(&cfg.pairingFile, "pairing-key-file", defaultPairing, "0600 file containing the browser pairing key")
+	flag.StringVar(&cfg.pairingFile, "pairing-key-file", defaultPairing, "0600 file containing the desktop shell pairing key")
 	flag.StringVar(&cfg.coreURL, "core-url", "", "optional Makerspace Core base URL")
-	flag.StringVar(&cfg.deviceTokenFile, "device-token-file", "", "optional 0600 file containing the managed-device token")
 	flag.BoolVar(&cfg.deviceTokenStdin, "device-token-stdin", false, "read the managed-device token once from standard input")
-	flag.StringVar(&cfg.tlsCert, "tls-cert", "", "optional local TLS certificate")
-	flag.StringVar(&cfg.tlsKey, "tls-key", "", "optional local TLS private key")
 	flag.BoolVar(&cfg.simulator, "simulator", false, "enable development-only NFC simulation")
-	flag.BoolVar(&cfg.showPairing, "show-pairing-key", false, "print the pairing key to this terminal and exit")
 	flag.Parse()
 
 	host, _, err := net.SplitHostPort(cfg.listen)
@@ -59,10 +57,6 @@ func run() error {
 	pairingKey, err := loadOrCreatePairingKey(cfg.pairingFile)
 	if err != nil {
 		return err
-	}
-	if cfg.showPairing {
-		fmt.Println(pairingKey)
-		return nil
 	}
 	origins := splitNonEmpty(cfg.origins)
 	broker := devicebridge.NewBroker()
@@ -81,17 +75,11 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go pcsc.Run(ctx, broker)
-	if cfg.coreURL != "" || cfg.deviceTokenFile != "" || cfg.deviceTokenStdin {
-		if cfg.coreURL == "" || (cfg.deviceTokenFile == "") == !cfg.deviceTokenStdin {
-			return errors.New("core-url requires exactly one of device-token-file or device-token-stdin")
+	if cfg.coreURL != "" || cfg.deviceTokenStdin {
+		if cfg.coreURL == "" || !cfg.deviceTokenStdin {
+			return errors.New("core-url and device-token-stdin must be configured together")
 		}
-		var token string
-		var readErr error
-		if cfg.deviceTokenStdin {
-			token, readErr = readSecretStdin()
-		} else {
-			token, readErr = readSecretFile(cfg.deviceTokenFile)
-		}
+		token, readErr := readSecretStdin()
 		if readErr != nil {
 			return readErr
 		}
@@ -114,15 +102,8 @@ func run() error {
 		defer cancel()
 		_ = httpServer.Shutdown(shutdownCtx)
 	}()
-	slog.Info("device bridge listening", "address", cfg.listen, "simulator", cfg.simulator, "tls", cfg.tlsCert != "")
-	if (cfg.tlsCert == "") != (cfg.tlsKey == "") {
-		return errors.New("tls-cert and tls-key must be configured together")
-	}
-	if cfg.tlsCert != "" {
-		err = httpServer.ListenAndServeTLS(cfg.tlsCert, cfg.tlsKey)
-	} else {
-		err = httpServer.ListenAndServe()
-	}
+	slog.Info("device bridge listening", "address", cfg.listen, "simulator", cfg.simulator)
+	err = httpServer.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}

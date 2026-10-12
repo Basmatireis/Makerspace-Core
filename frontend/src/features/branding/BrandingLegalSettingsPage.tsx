@@ -40,6 +40,7 @@ import {
 import { apiFetch, ApiError } from '../../api/http-client';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { PageShell } from '../../app/PageShell';
+import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { publicConfigurationFromAdmin, publicConfigurationKey } from './branding';
 
 type FormValues = Omit<UpdateBrandingConfigurationRequest, 'expectedVersion'>;
@@ -203,12 +204,37 @@ function AssetCard({ descriptor, asset, version, onApplied }: {
         {(upload.isError || action.isError) && <InlineNotification kind="error" lowContrast hideCloseButton title="Asset change failed" subtitle={mutationMessage(upload.error ?? action.error)} />}
         <div className="button-cluster">
           <Button size="sm" renderIcon={Upload} disabled={!file || upload.isPending} onClick={() => upload.mutate()}>{upload.isPending ? 'Uploading…' : 'Upload selected'}</Button>
-          <Button size="sm" kind="danger--tertiary" renderIcon={TrashCan} disabled={asset.mode === 'none' || action.isPending} onClick={() => setConfirm('remove')}>Remove</Button>
-          <Button size="sm" kind="tertiary" renderIcon={Renew} disabled={asset.mode === 'default' || action.isPending} onClick={() => setConfirm('default')}>Restore default</Button>
+          <Button size="sm" kind="danger--tertiary" renderIcon={TrashCan} disabled={asset.mode === 'none' || action.isPending} onClick={() => { action.reset(); setConfirm('remove'); }}>Remove</Button>
+          <Button size="sm" kind="tertiary" renderIcon={Renew} disabled={asset.mode === 'default' || action.isPending} onClick={() => { action.reset(); setConfirm('default'); }}>Restore default</Button>
         </div>
       </Stack>
-      <Modal open={Boolean(confirm)} danger={confirm === 'remove'} modalHeading={confirm === 'remove' ? `Remove ${descriptor.title.toLowerCase()}?` : `Restore the default ${descriptor.title.toLowerCase()}?`} primaryButtonText={confirm === 'remove' ? 'Remove asset' : 'Restore default'} secondaryButtonText="Cancel" onRequestClose={() => setConfirm(undefined)} onRequestSubmit={() => { if (confirm) action.mutate(confirm); }}>
-        <p>{confirm === 'remove' ? 'The asset will be intentionally absent. This is different from using the bundled default.' : 'The current override will be replaced by the bundled installation asset.'}</p>
+      <DestructiveActionDialog
+        open={confirm === 'remove'}
+        title={`Remove ${descriptor.title.toLowerCase()}?`}
+        confirmLabel="Remove asset"
+        pending={action.isPending}
+        error={action.isError ? mutationMessage(action.error) : undefined}
+        onClose={() => { setConfirm(undefined); action.reset(); }}
+        onConfirm={() => action.mutate('remove')}
+      >
+        <p>The custom asset will be permanently removed and this location will intentionally have no asset. This differs from restoring the bundled default.</p>
+      </DestructiveActionDialog>
+      <Modal
+        open={confirm === 'default'}
+        modalHeading={`Restore the default ${descriptor.title.toLowerCase()}?`}
+        primaryButtonText={action.isPending ? 'Restoring…' : 'Restore default'}
+        primaryButtonDisabled={action.isPending}
+        secondaryButtonText="Cancel"
+        selectorPrimaryFocus=".cds--btn--secondary"
+        preventCloseOnClickOutside
+        onRequestClose={() => { if (!action.isPending) { setConfirm(undefined); action.reset(); } }}
+        onSecondarySubmit={() => { if (!action.isPending) { setConfirm(undefined); action.reset(); } }}
+        onRequestSubmit={() => { if (!action.isPending) action.mutate('default'); }}
+      >
+        <Stack gap={5}>
+          <p>The current override will be replaced by the bundled installation asset.</p>
+          {action.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Default not restored" subtitle={mutationMessage(action.error)} />}
+        </Stack>
       </Modal>
     </Tile>
   );

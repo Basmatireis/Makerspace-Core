@@ -326,7 +326,7 @@ test('creates and atomically saves a manager schedule working copy', async ({
   await expect(page.getByRole('group', { name: 'Schedule editor tools' })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ })).toBeVisible();
   await expect.poll(() => page.locator('.calendar-cell--outside-period').first().evaluate((cell) => getComputedStyle(cell).backgroundColor)).toBe(previewOutsideBackground);
-  await page.getByRole('button', { name: 'Table view' }).click();
+  await page.getByRole('button', { name: 'List view' }).click();
   const editableTable = page.getByRole('table', { name: 'Editable Open Days' });
   await expect(editableTable).toBeVisible();
   const dateHeader = editableTable.getByRole('columnheader', { name: /Date/ });
@@ -380,7 +380,7 @@ test('creates and atomically saves a manager schedule working copy', async ({
     3 * 60 * 60 * 1000,
   );
   await page.getByRole('button', { name: 'Preview' }).click();
-  await expect(page).toHaveURL(new RegExp(`/open-days/${periodId}$`));
+  await expect(page).toHaveURL(new RegExp(`/open-days/${periodId}\\?view=list$`));
   await expect(page.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeVisible();
 });
 
@@ -503,4 +503,162 @@ test('rejects ambiguous local schedule times without adding a slot', async ({ pa
   await expect(page.getByText(/Local time 25\.10\.2026 02:30 is ambiguous/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save' })).toBeDisabled();
   expect(errors).toEqual([]);
+});
+
+
+async function mockResponsivePeriod(page: Page) {
+  const draft = { ...period('draft'), totalOpenDays: 1 };
+  const assigned = { id: assignmentId, openDayId, requirementId: supervisorRequirementId, personId, displayName: 'Ada Lovelace', isCurrentUser: true, createdAt: timestamp };
+  const day = { ...staffOpenDay(), internalNote: 'Workshop preparation', requirements: [
+    { ...staffOpenDay().requirements[0], eligibleRoleIds: [roleId], assignments: [assigned] },
+    { ...staffOpenDay().requirements[1], eligibleRoleIds: [roleId], assignments: [] },
+  ] };
+  const saveRequests: unknown[] = [];
+  await page.route('**/api/v1/**', async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const method = route.request().method();
+    if (path.endsWith('/auth/activity')) return json(route, { idleExpiresAt: '2099-01-01T01:00:00Z', absoluteExpiresAt: '2099-01-02T00:00:00Z', postSessionDestination: 'login' });
+    if (path.endsWith('/auth/me')) return json(route, currentUser(['open_days.read', 'open_days.manage', 'open_days.assign', 'open_days.signup']));
+    if (path.endsWith('/public/config')) return json(route, defaultPublicBrandingConfiguration());
+    if (path.endsWith('/auth/oidc/providers')) return json(route, { items: [] });
+    if (path === '/api/v1/open-day-periods') return json(route, { items: [draft] });
+    if (path === `/api/v1/open-day-periods/${periodId}/open-days`) return json(route, { period: draft, items: [day], timeZone: 'Europe/Vienna' });
+    if (path === `/api/v1/open-days/${openDayId}`) return json(route, day);
+    if (path.endsWith('/calendar-context')) return json(route, { timeZone: 'Europe/Vienna', entries: [], academicBreaks: [] });
+    if (path.endsWith('/open-day-eligibility-roles')) return json(route, { items: [{ id: roleId, name: 'Team' }] });
+    if (path.endsWith('/eligible-people')) return json(route, { items: [{ personId, displayName: 'Ada Lovelace' }] });
+    if (path.endsWith('/recurrence-preview')) return json(route, { occurrences: [{ date: '2026-10-03', startsAt: '2026-10-03T14:00:00Z', endsAt: '2026-10-03T17:00:00Z', disposition: 'create' }] });
+    if (path.endsWith('/schedule') && method === 'PUT') { saveRequests.push(route.request().postDataJSON()); return json(route, { period: draft, items: [day], timeZone: 'Europe/Vienna' }); }
+    throw new Error(`Unexpected API request: ${method} ${path}`);
+  });
+  return { saveRequests };
+}
+
+for (const width of [320, 390, 414, 768, 1440]) {
+  test(`supports schedule, calendar and staffing at ${width}px`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 900 });
+    await mockResponsivePeriod(page);
+    await page.goto(`/open-days/${periodId}?mode=edit&source=responsive`);
+    await expect(page.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeVisible();
+    const phone = width < 672;
+    if (phone) {
+      await expect(page.locator('.open-day-agenda')).toBeVisible();
+      await expect(page.getByRole('table')).toHaveCount(0);
+      await page.locator('.open-day-agenda .cds--checkbox-label').click();
+      await page.getByRole('button', { name: 'Edit selected' }).click();
+      const bulk = page.getByRole('dialog', { name: 'Edit 1 selected Open Day' });
+      await bulk.getByLabel('Internal note').fill('Mobile working copy');
+      await bulk.getByRole('button', { name: 'Apply to selected' }).click();
+      await expect(page.getByRole('button', { name: 'Save' })).toBeEnabled();
+    } else await page.getByRole('button', { name: 'List view' }).click();
+    await expectAccessible(page);
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await capture(page, testInfo, `open-days-list-${width}.png`);
+    await page.getByRole('button', { name: 'Calendar view' }).click();
+    await expect(page).toHaveURL(/mode=edit.*source=responsive.*view=calendar/);
+    const toolbar = page.getByRole('group', { name: 'Schedule editor tools' });
+    const legend = page.locator('.calendar-legend');
+    await expect(toolbar).toBeVisible();
+    await expect(legend).toBeVisible();
+    const toolbarBox = await toolbar.boundingBox();
+    const legendBox = await legend.boundingBox();
+    expect(legendBox!.y).toBeGreaterThanOrEqual(toolbarBox!.y + toolbarBox!.height - 1);
+    if (phone) {
+      await expect(page.getByRole('button', { name: /Drag or edit/ })).toHaveCount(0);
+      await page.getByRole('button', { name: 'Show Open Days on 02.10.2026' }).click();
+      await expect(page.locator('.open-day-agenda-selection').getByRole('button', { name: 'Edit', exact: true })).toBeVisible();
+      await expect(page.getByText('Mobile working copy')).toBeVisible();
+    }
+    await expectAccessible(page);
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await capture(page, testInfo, `open-days-calendar-${width}.png`);
+    await page.getByRole('button', { name: 'Create', exact: true }).click();
+    const create = page.getByRole('dialog', { name: 'Create Open Day' });
+    await create.locator('label[for="create-open-day-series"]').click();
+    await create.getByRole('button', { name: 'Preview series' }).click();
+    const review = page.getByRole('dialog', { name: 'Review Open Day series' });
+    await expect(review.getByRole('checkbox', { name: '03.10.2026 · create' })).toBeChecked();
+    await expect(review.getByRole('button', { name: 'Add selected' })).toBeInViewport();
+    await expectAccessible(page);
+    await capture(page, testInfo, `open-days-series-${width}.png`);
+    await page.keyboard.press('Escape');
+    const discard = page.getByRole('dialog', { name: 'Discard Open Day inputs?' });
+    await expect(discard.getByRole('button', { name: 'Keep editing' })).toBeFocused();
+    await discard.getByRole('button', { name: 'Discard inputs' }).click();
+    await page.getByRole('button', { name: 'Preview', exact: true }).click();
+    await page.getByRole('button', { name: 'Filter', exact: true }).click();
+    await expect(page.getByRole('group', { name: 'Filter by day and time' })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.getByRole('button', { name: 'Filter', exact: true }).click();
+    if (phone) {
+      await page.getByRole('button', { name: /Show Open Days on Friday, 02.10.2026/ }).click();
+      await page.locator('.open-day-agenda').getByRole('button', { name: /16:00/ }).click();
+    } else await page.getByRole('button', { name: /Supervisor position open/ }).click();
+    await page.getByRole('button', { name: 'Assign person', exact: true }).first().click();
+    await expect(page.locator('.cds--modal.is-visible')).toHaveCount(1);
+    const assign = page.getByRole('dialog', { name: 'Assign supervisor' });
+    await expect(assign.getByRole('searchbox', { name: 'Search eligible people' })).toBeVisible();
+    await expectAccessible(page);
+    await assign.getByRole('button', { name: 'Back to Open Day' }).click();
+    await page.getByRole('button', { name: 'Remove Ada Lovelace' }).click();
+    const remove = page.getByRole('dialog', { name: 'Remove assignment?' });
+    await expect(page.locator('.cds--modal.is-visible')).toHaveCount(1);
+    await expect(remove.getByRole('button', { name: 'Keep assignment' })).toBeFocused();
+    await remove.getByRole('button', { name: 'Keep assignment' }).click();
+    await expectAccessible(page);
+    await capture(page, testInfo, `open-days-staffing-${width}.png`);
+  });
+}
+
+test('protects period inputs and keeps its controlled dialog open during creation', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.clock.setFixedTime(new Date('2026-10-11T12:00:00Z'));
+  await mockResponsivePeriod(page);
+  let releaseCreation: (() => void) | undefined;
+  await page.route('**/api/v1/open-day-periods', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    await new Promise<void>((resolve) => { releaseCreation = resolve; });
+    return json(route, period('draft'), 201);
+  });
+  await page.goto('/open-days');
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  let dialog = page.getByRole('dialog', { name: 'Create Period' });
+  await dialog.getByLabel('Name', { exact: true }).fill('Next semester');
+  await page.keyboard.press('Escape');
+  const discard = page.getByRole('dialog', { name: 'Discard period inputs?' });
+  await expect(discard).toBeVisible();
+  await expect(discard.getByRole('button', { name: 'Keep editing' })).toBeFocused();
+  await expectAccessible(page);
+  await expect(page.locator('.cds--modal.is-visible')).toHaveCount(1);
+  await discard.getByRole('button', { name: 'Keep editing' }).click();
+  dialog = page.getByRole('dialog', { name: 'Create Period' });
+  await expect(dialog.getByLabel('Name', { exact: true })).toHaveValue('Next semester');
+  await dialog.getByLabel('Start date', { exact: true }).click();
+  await page.getByRole('button', { name: 'Thursday, October 1, 2026', exact: true }).click();
+  await page.getByRole('button', { name: 'Saturday, October 3, 2026', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Create Period', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: 'Creating…' })).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(dialog).toBeVisible();
+  releaseCreation?.();
+  await expect(page.getByRole('heading', { name: 'Winter Semester 2026/27' })).toBeVisible();
+  await expect(page).toHaveURL(/mode=edit/);
+});
+
+
+test('protects a creation date chosen through the calendar picker', async ({ page }) => {
+  await mockResponsivePeriod(page);
+  await page.goto(`/open-days/${periodId}?mode=edit`);
+  await page.getByRole('button', { name: 'Create', exact: true }).click();
+  const create = page.getByRole('dialog', { name: 'Create Open Day' });
+  await create.getByLabel('Date', { exact: true }).click();
+  await page.locator('.flatpickr-calendar.open [aria-label="October 2, 2026"]').click();
+  await expect(create.getByLabel('Date', { exact: true })).toHaveValue('02.10.2026');
+  await create.getByRole('button', { name: 'Cancel', exact: true }).click();
+  const discard = page.getByRole('dialog', { name: 'Discard Open Day inputs?' });
+  await expect(discard).toBeVisible();
+  await discard.getByRole('button', { name: 'Keep editing' }).click();
+  await expect(create.getByLabel('Date', { exact: true })).toHaveValue('02.10.2026');
 });

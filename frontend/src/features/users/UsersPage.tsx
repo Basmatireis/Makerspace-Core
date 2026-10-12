@@ -1,11 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Accordion,
+  AccordionItem,
   Button,
   ComposedModal,
   DataTable,
   Dropdown,
   Form,
   InlineNotification,
+  ListItem,
+  UnorderedList,
   Link as CarbonLink,
   ModalBody,
   ModalFooter,
@@ -49,11 +53,13 @@ import {
   getPersonMakerspaceStatus,
 } from '../../api/generated/people/people';
 import { PageShell } from '../../app/PageShell';
+import { useLatestCallback } from '../../app/useLatestCallback';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
 import { canManageRoleMembership, hasPermission, PermissionId } from '../auth/permissions';
 import { fullRoleCatalogOptions } from '../roles/queries';
 import { peopleKeys, peopleListOptions } from './queries';
+import { deletionFailureReasons, type DeletionFailure } from './deletionErrors';
 import { PersonAvatar } from './PersonAvatar';
 
 const PAGE_SIZES = [10, 25, 50, 100];
@@ -88,7 +94,10 @@ type BatchResult = {
   kind: 'success' | 'warning';
   title: string;
   subtitle: string;
+  failures?: DeletionFailure[];
 };
+
+const fullName = (person: Person) => `${person.firstName} ${person.lastName}`.trim();
 
 type LabRulesStatusPresentation = {
   label: string;
@@ -301,10 +310,13 @@ export function UsersPage() {
         ),
         deleted: results.filter((result) => result.status === 'fulfilled').length,
         failed: results.filter((result) => result.status === 'rejected').length,
+        failures: results.flatMap((result, index) =>
+          result.status === 'rejected' ? [{ name: fullName(eligible[index]), reasons: deletionFailureReasons(result.reason, 'account') }] : [],
+        ),
         skipped: members.length - eligible.length,
       };
     },
-    onSuccess: async ({ deletedAccountIds, deleted, failed, skipped }) => {
+    onSuccess: async ({ deletedAccountIds, deleted, failed, failures, skipped }) => {
       setBatchAction(null);
       setBatchMembers([]);
       for (const accountId of deletedAccountIds) {
@@ -318,6 +330,7 @@ export function UsersPage() {
             ? 'Accounts were not deleted'
             : 'Some accounts were not deleted',
         subtitle: `${deleted} deleted${skipped ? `; ${skipped} skipped because no visible account exists` : ''}${failed ? `; ${failed} could not be deleted` : ''}.`,
+        failures,
       });
       await refreshPeople();
     },
@@ -340,10 +353,13 @@ export function UsersPage() {
         ),
         deleted: results.filter((result) => result.status === 'fulfilled').length,
         failed: results.filter((result) => result.status === 'rejected').length,
+        failures: results.flatMap((result, index) =>
+          result.status === 'rejected' ? [{ name: fullName(eligible[index]), reasons: deletionFailureReasons(result.reason, 'person') }] : [],
+        ),
         skipped: members.length - eligible.length,
       };
     },
-    onSuccess: async ({ deletedPersonIds, deleted, failed, skipped }) => {
+    onSuccess: async ({ deletedPersonIds, deleted, failed, failures, skipped }) => {
       setBatchAction(null);
       setBatchMembers([]);
       for (const personId of deletedPersonIds) {
@@ -357,10 +373,16 @@ export function UsersPage() {
             ? 'People were not deleted'
             : 'Some people were not deleted',
         subtitle: `${deleted} deleted${skipped ? `; ${skipped} skipped because deleting their account is not permitted` : ''}${failed ? `; ${failed} could not be deleted` : ''}.`,
+        failures,
       });
       await refreshPeople();
     },
   });
+
+  const deleteAccountsLauncher = useRef<HTMLButtonElement>(null);
+  const deletePeopleLauncher = useRef<HTMLButtonElement>(null);
+  const closeDeleteAccounts = useLatestCallback(() => { if (!batchDeleteAccounts.isPending) setBatchAction(null); return false; });
+  const closeDeletePeople = useLatestCallback(() => { if (!batchDeletePeople.isPending) setBatchAction(null); return false; });
 
   const people = peopleQuery.data?.items ?? EMPTY_PEOPLE;
   const makerspaceStatusQueries = useQueries({
@@ -462,13 +484,25 @@ export function UsersPage() {
         />
       )}
       {batchResult && (
-        <InlineNotification
-          kind={batchResult.kind}
-          lowContrast
-          title={batchResult.title}
-          subtitle={batchResult.subtitle}
-          onCloseButtonClick={() => setBatchResult(null)}
-        />
+        <Stack gap={3}>
+          <InlineNotification
+            kind={batchResult.kind}
+            lowContrast
+            title={batchResult.title}
+            subtitle={batchResult.subtitle}
+            onCloseButtonClick={() => setBatchResult(null)}
+          />
+          {Boolean(batchResult.failures?.length) && <Accordion isFlush size="sm" aria-label="Failed deletions">
+            {batchResult.failures!.map((failure, index) => <AccordionItem
+              key={`${failure.name}-${index}`}
+              title={failure.reasons.length === 1 ? `${failure.name} — ${failure.reasons[0]}` : `${failure.name} — ${failure.reasons.length} reasons`}
+            >
+              <UnorderedList>
+                {failure.reasons.map((reason) => <ListItem key={reason}>{reason}</ListItem>)}
+              </UnorderedList>
+            </AccordionItem>)}
+          </Accordion>}
+        </Stack>
       )}
       {peopleQuery.data && (
         <DataTable key={tableKey} rows={rows} headers={headers} isSortable>
@@ -529,7 +563,8 @@ export function UsersPage() {
                           renderIcon={TrashCan}
                           iconDescription="Delete login accounts"
                           disabled={selectedForAccountDeletion.length === 0}
-                          onClick={() => {
+                          onClick={(event) => {
+                            deleteAccountsLauncher.current = event.currentTarget;
                             setBatchMembers(selectedMembers);
                             setBatchAction('delete-accounts');
                           }}
@@ -542,7 +577,8 @@ export function UsersPage() {
                           renderIcon={TrashCan}
                           iconDescription="Delete people"
                           disabled={selectedForPersonDeletion.length === 0}
-                          onClick={() => {
+                          onClick={(event) => {
+                            deletePeopleLauncher.current = event.currentTarget;
                             setBatchMembers(selectedMembers);
                             setBatchAction('delete-people');
                           }}
@@ -842,10 +878,11 @@ export function UsersPage() {
       <ComposedModal
         aria-label="Delete accounts permanently?"
         danger
+        selectorPrimaryFocus=".cds--btn--secondary"
+        preventCloseOnClickOutside
         open={batchAction === 'delete-accounts'}
-        onClose={() => {
-          if (!batchDeleteAccounts.isPending) setBatchAction(null);
-        }}
+        launcherButtonRef={deleteAccountsLauncher}
+        onClose={closeDeleteAccounts}
       >
         <ModalHeader title="Delete accounts permanently?" />
         <ModalBody>
@@ -853,8 +890,8 @@ export function UsersPage() {
             <p>
               This permanently deletes {membersEligibleForAccountDeletion.length}{' '}
               selected {membersEligibleForAccountDeletion.length === 1 ? 'account' : 'accounts'},
-              including their authentication methods and role assignments. The people records
-              remain. This cannot be undone.
+              including their authentication methods and sessions. The people records and their
+              assigned roles remain. This cannot be undone.
             </p>
             {batchMembers.some((member) => member.id === currentUser.person.id && member.account) && (
               <InlineNotification
@@ -900,10 +937,11 @@ export function UsersPage() {
       <ComposedModal
         aria-label="Delete people permanently?"
         danger
+        selectorPrimaryFocus=".cds--btn--secondary"
+        preventCloseOnClickOutside
         open={batchAction === 'delete-people'}
-        onClose={() => {
-          if (!batchDeletePeople.isPending) setBatchAction(null);
-        }}
+        launcherButtonRef={deletePeopleLauncher}
+        onClose={closeDeletePeople}
       >
         <ModalHeader title="Delete people permanently?" />
         <ModalBody>
@@ -911,8 +949,10 @@ export function UsersPage() {
             <p>
               This permanently deletes {membersEligibleForPersonDeletion.length}{' '}
               selected {membersEligibleForPersonDeletion.length === 1 ? 'person' : 'people'},
-              including their accounts, authentication methods, and role assignments. This cannot
-              be undone.
+              including their accounts, authentication methods, and role assignments. Operational
+              links are detached and assignment identity data is scrubbed. Existing order customer
+              and external-invoice recipient snapshots are retained as financial records. This
+              cannot be undone.
             </p>
             {membersEligibleForPersonDeletion.some(
               (member) => member.id === currentUser.person.id,

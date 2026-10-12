@@ -88,7 +88,11 @@ VALUES (sqlc.arg(id), sqlc.arg(display_id), sqlc.arg(machine_id), sqlc.narg(cust
     sqlc.arg(title), sqlc.narg(notes), sqlc.narg(reprints_submission_id), sqlc.narg(created_by_account_id)) RETURNING *;
 
 -- name: GetPrintSubmission :one
-SELECT s.*, m.name AS machine_name FROM print_submissions s JOIN machines m ON m.id=s.machine_id WHERE s.id=sqlc.arg(id);
+SELECT s.*, m.name AS machine_name, cp.first_name AS customer_first_name, cp.last_name AS customer_last_name, co.name AS customer_organization_name
+FROM print_submissions s JOIN machines m ON m.id=s.machine_id
+LEFT JOIN people cp ON cp.id=s.customer_person_id
+LEFT JOIN organizations co ON co.id=s.customer_organization_id
+WHERE s.id=sqlc.arg(id);
 
 -- name: GetPrintSubmissionForUpdate :one
 SELECT * FROM print_submissions WHERE id=sqlc.arg(id) FOR UPDATE;

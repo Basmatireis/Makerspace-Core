@@ -11,7 +11,7 @@ import {
   Tile,
   Pagination,
 } from "@carbon/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
@@ -26,6 +26,7 @@ import type {
 } from "../../api/generated/models";
 import { DateInput } from "../../app/DateInput";
 import { PageShell } from "../../app/PageShell";
+import { DestructiveActionDialog } from "../../app/DestructiveActionDialog";
 import { ErrorState, FullPageLoading } from "../../app/PageState";
 import { useCurrentUser } from "../auth/auth";
 import { hasPermission, PermissionId } from "../auth/permissions";
@@ -50,6 +51,7 @@ export function PaymentsPage() {
     to: params.get("to") ? `${params.get("to")}T00:00:00Z` : undefined,
   };
   const query = useQuery({
+    placeholderData: keepPreviousData,
     queryKey: [...financeKeys, "journal", filters],
     queryFn: () => getPaymentReconciliation(filters),
   });
@@ -57,7 +59,7 @@ export function PaymentsPage() {
     const next = new URLSearchParams(params);
     next.set(name, value);
     next.set("page", "1");
-    setParams(next);
+    setParams(next, { replace: true });
   };
   if (query.isPending) return <FullPageLoading label="Loading payments" />;
   if (query.isError)
@@ -164,6 +166,7 @@ function PaymentDetailPageContent({ paymentId }: { paymentId: string }) {
     useState<PaymentReversalInput["reasonKind"]>("refund");
   const [occurredAt] = useState(() => new Date().toISOString());
   const [replacement, setReplacement] = useState<PaymentInput>();
+  const [confirmReversal, setConfirmReversal] = useState(false);
   const query = useQuery({
     queryKey: [...financeKeys, "payment", paymentId],
     queryFn: () => getOrderPayment(paymentId),
@@ -199,7 +202,10 @@ function PaymentDetailPageContent({ paymentId }: { paymentId: string }) {
         operationKey: key("reverse", input),
       });
     },
-    onSuccess: () => client.invalidateQueries({ queryKey: financeKeys }),
+    onSuccess: async () => {
+      setConfirmReversal(false);
+      await client.invalidateQueries({ queryKey: financeKeys });
+    },
   });
   if (query.isPending) return <FullPageLoading label="Loading payment" />;
   if (query.isError)
@@ -319,10 +325,23 @@ function PaymentDetailPageContent({ paymentId }: { paymentId: string }) {
                 <Button
                   kind="danger"
                   disabled={!reason || mutation.isPending}
-                  onClick={() => mutation.mutate()}
+                  onClick={() => { mutation.reset(); setConfirmReversal(true); }}
                 >
                   Record full reversal
                 </Button>
+                <DestructiveActionDialog
+                  open={confirmReversal}
+                  title={`Reverse payment ${p.reference}?`}
+                  confirmLabel="Record full reversal"
+                  pending={mutation.isPending}
+                  error={mutation.error?.message}
+                  onClose={() => { setConfirmReversal(false); mutation.reset(); }}
+                  onConfirm={() => mutation.mutate()}
+                >
+                  <p>The full {formatMoney(p.amount)} receipt will be reversed. The original payment, its allocations, and this correction remain as immutable financial evidence.</p>
+                  <p>Correction: {kind.replaceAll("_", " ")} · Reason: {reason}{reference ? ` · Evidence: ${reference}` : ""}</p>
+                  {replacement && <p>A replacement {replacement.method} receipt for {formatMoney(replacement.amount)} will be recorded in the same operation.</p>}
+                </DestructiveActionDialog>
               </Stack>
             </Tile>
           )}

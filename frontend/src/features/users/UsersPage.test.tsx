@@ -339,10 +339,15 @@ describe('Directory page', () => {
     await screen.findByText('Grace Hopper');
     await user.click(screen.getByRole('checkbox', { name: /select row/i }));
     await user.click(screen.getByRole('button', { name: 'Delete accounts' }));
-    const dialog = screen.getByRole('dialog', {
+    let dialog = screen.getByRole('dialog', {
       name: 'Delete accounts permanently?',
     });
-    expect(within(dialog).getByText(/people records remain/i)).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    const launcher = screen.getByRole('button', { name: 'Delete accounts' });
+    await waitFor(() => expect(launcher).toHaveFocus());
+    await user.click(launcher);
+    dialog = screen.getByRole('dialog', { name: 'Delete accounts permanently?' });
+    expect(within(dialog).getByText(/people records and their assigned roles remain/i)).toBeInTheDocument();
     expect(within(dialog).getByText(/cannot be undone/i)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Delete accounts' }));
 
@@ -399,6 +404,7 @@ describe('Directory page', () => {
       name: 'Delete people permanently?',
     });
     expect(within(dialog).getByText(/permanently deletes 2 selected people/i)).toBeInTheDocument();
+    expect(within(dialog).getByText(/order customer and external-invoice recipient snapshots are retained/i)).toBeInTheDocument();
     expect(within(dialog).getByText(/cannot be undone/i)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Delete people' }));
 
@@ -455,6 +461,84 @@ describe('Directory page', () => {
 
     await waitFor(() => expect(deletedPersonIds).toEqual([otherPersonId]));
     expect(await screen.findByText(/1 skipped because deleting their account is not permitted/i)).toBeInTheDocument();
+  });
+
+  it('explains why individual people could not be deleted', async () => {
+    const scimPersonId = '0192f6f8-743e-7c77-a349-cd07c3e8a924';
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(
+          currentUserFixture([
+            PermissionId.peoplereadall,
+            PermissionId.accountsread,
+            PermissionId.accountsdelete,
+            PermissionId.peopledelete,
+          ]),
+        ),
+      ),
+      http.get('*/api/v1/people', () =>
+        HttpResponse.json(
+          peoplePage([
+            personFixture({ account: null }),
+            personFixture({ id: scimPersonId, firstName: 'Katherine', lastName: 'Johnson', account: accountFixture() }),
+          ]),
+        ),
+      ),
+      http.delete('*/api/v1/people/:personId', ({ params }) => params.personId === scimPersonId
+        ? HttpResponse.json({ code: 'person_scim_managed', message: 'This person is provisioned through SCIM.', requestId: 'req-1' }, { status: 409 })
+        : new HttpResponse(null, { status: 204 })),
+    );
+    const user = userEvent.setup();
+
+    renderRoute(<App />, '/people');
+
+    await screen.findByText('Katherine Johnson');
+    await user.click(screen.getByRole('checkbox', { name: /select all/i }));
+    await user.click(screen.getByRole('button', { name: 'Delete people' }));
+    const dialog = screen.getByRole('dialog', { name: 'Delete people permanently?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Delete people' }));
+
+    const title = await screen.findByText('Some people were not deleted');
+    expect(title).toBeInTheDocument();
+    expect(screen.getByRole('button', {
+      name: /Katherine Johnson — Provisioned through SCIM\. Remove them in the identity provider instead\./,
+    })).toBeInTheDocument();
+  });
+
+  it('lists every reason when a person deletion is blocked for several reasons', async () => {
+    const blockedId = '019df000-0000-7000-8000-00000000b10c';
+    server.use(
+      http.get('*/api/v1/auth/me', () =>
+        HttpResponse.json(currentUserFixture([PermissionId.peoplereadall, PermissionId.accountsread, PermissionId.accountsdelete, PermissionId.peopledelete])),
+      ),
+      http.get('*/api/v1/people', () =>
+        HttpResponse.json(peoplePage([personFixture({ id: blockedId, firstName: 'Grace', lastName: 'Hopper', account: accountFixture() })])),
+      ),
+      http.delete('*/api/v1/people/:personId', () =>
+        HttpResponse.json({
+          code: 'person_deletion_blocked',
+          message: 'Deletion blocked.',
+          requestId: 'req-2',
+          details: { reasons: [
+            { code: 'account_scim_managed', message: 'Account is SCIM managed.' },
+            { code: 'deletion_referenced', message: 'Still referenced by open orders.' },
+          ] },
+        }, { status: 409 })),
+    );
+    const user = userEvent.setup();
+
+    renderRoute(<App />, '/people');
+
+    await screen.findByText('Grace Hopper');
+    await user.click(screen.getByRole('checkbox', { name: /select all/i }));
+    await user.click(screen.getByRole('button', { name: 'Delete people' }));
+    const dialog = screen.getByRole('dialog', { name: 'Delete people permanently?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Delete people' }));
+
+    await screen.findByText('People were not deleted');
+    await user.click(screen.getByRole('button', { name: 'Grace Hopper — 2 reasons' }));
+    expect(screen.getByText('Provisioned through SCIM. Remove the account in the identity provider instead.')).toBeInTheDocument();
+    expect(screen.getByText('Still referenced by open orders.')).toBeInTheDocument();
   });
 
   it('moves from the loading state to the empty state', async () => {

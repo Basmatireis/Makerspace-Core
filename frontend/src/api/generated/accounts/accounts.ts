@@ -83,6 +83,12 @@ export const getAccount = async (accountId: string, options?: RequestInit): Prom
 
 /**
  * Requires `accounts.delete` and enforces the last-enabled-master invariant.
+Every blocking reason is listed in `details.reasons` as `{code, message}`
+objects. A single reason keeps its own code, such as
+`409 last_master_required`, `409 account_scim_managed`, or
+`409 deletion_referenced`; several reasons return
+`409 account_deletion_blocked`.
+
  * @summary Permanently delete an account while retaining its person
  */
 export const getDeleteAccountUrl = (accountId: string,) => {

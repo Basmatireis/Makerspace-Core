@@ -1,9 +1,10 @@
+import './styles.scss';
 import { Add } from '@carbon/icons-react';
 import {
   Button, DataTable, InlineNotification, Modal, Pagination, Search, Select, SelectItem, Stack,
   Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, Tag, TextInput,
 } from '@carbon/react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -42,12 +43,12 @@ export function FilamentSpoolsPage() {
   const page = Number(params.get('page') || 1);
   const pageSize = Number(params.get('pageSize') || 25);
   const form = useForm<SpoolFields>({ defaultValues: { stockMode: 'existing_stock' } });
-  const query = useQuery(spoolsQuery({
+  const query = useQuery({ ...spoolsQuery({
     search: params.get('search') || undefined,
     lifecycle: (params.get('lifecycle') || undefined) as FilamentSpoolLifecycle | undefined,
     page,
     pageSize,
-  }));
+  }), placeholderData: keepPreviousData });
   const materials = useQuery({ ...materialsQuery({ page: 1, pageSize: 100 }), enabled: createOpen });
   const mutation = useMutation({
     mutationFn: (values: SpoolFields) => {
@@ -80,7 +81,7 @@ export function FilamentSpoolsPage() {
     if (value) next.set(key, value); else next.delete(key);
     if (key !== 'page') next.set('page', '1');
     return next;
-  });
+  }, { replace: true });
 
   if (query.isPending) return <FullPageLoading label="Loading filament spools" />;
   if (query.isError) return <ErrorState message="Filament spools could not be loaded." onRetry={() => query.refetch()} />;
@@ -104,7 +105,7 @@ export function FilamentSpoolsPage() {
   return <PageShell
     title="Filament spools"
     description={`${query.data.total} physical spools; quantities are attributed from the material inventory ledger.`}
-    breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Inventory', to: '/machine-logbook/inventory' }, { label: 'Filament spools' }]}
+    breadcrumbs={[{ label: 'Workshop', to: '/machine-logbook' }, { label: 'Inventory', to: '/machine-logbook/inventory' }, { label: 'Filament spools' }]}
     actions={hasPermission(currentUser, PermissionId.filament_spoolsmanage) ? <Button renderIcon={Add} onClick={() => setCreateOpen(true)}>Register spool</Button> : undefined}
     width="wide"
     className="machine-logbook-page table-page"

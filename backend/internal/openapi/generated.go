@@ -26,12 +26,13 @@ import (
 )
 
 const (
-	CsrfHeaderScopes          = "csrfHeader.Scopes"
-	EventSignupTokenScopes    = "eventSignupToken.Scopes"
-	ManagedDeviceCookieScopes = "managedDeviceCookie.Scopes"
-	ManagedDeviceTokenScopes  = "managedDeviceToken.Scopes"
-	ScimBearerScopes          = "scimBearer.Scopes"
-	SessionCookieScopes       = "sessionCookie.Scopes"
+	CsrfHeaderScopes             = "csrfHeader.Scopes"
+	EventSignupTokenScopes       = "eventSignupToken.Scopes"
+	ManagedDeviceCookieScopes    = "managedDeviceCookie.Scopes"
+	ManagedDeviceTokenScopes     = "managedDeviceToken.Scopes"
+	PrinterConnectorBearerScopes = "printerConnectorBearer.Scopes"
+	ScimBearerScopes             = "scimBearer.Scopes"
+	SessionCookieScopes          = "sessionCookie.Scopes"
 )
 
 // Defines values for AccountProvisioningSource.
@@ -589,98 +590,101 @@ const (
 
 // Defines values for PermissionId.
 const (
-	AccountsCreate                PermissionId = "accounts.create"
-	AccountsDelete                PermissionId = "accounts.delete"
-	AccountsDisable               PermissionId = "accounts.disable"
-	AccountsEnable                PermissionId = "accounts.enable"
-	AccountsLoginEmailUpdate      PermissionId = "accounts.login_email.update"
-	AccountsPasswordEnrollAll     PermissionId = "accounts.password.enroll.all"
-	AccountsPasswordEnrollSelf    PermissionId = "accounts.password.enroll.self"
-	AccountsPasswordRemoveAll     PermissionId = "accounts.password.remove.all"
-	AccountsPasswordRemoveSelf    PermissionId = "accounts.password.remove.self"
-	AccountsPasswordReset         PermissionId = "accounts.password.reset"
-	AccountsPasswordSet           PermissionId = "accounts.password.set"
-	AccountsPinEnrollAll          PermissionId = "accounts.pin.enroll.all"
-	AccountsPinEnrollSelf         PermissionId = "accounts.pin.enroll.self"
-	AccountsPinRemoveAll          PermissionId = "accounts.pin.remove.all"
-	AccountsPinRemoveSelf         PermissionId = "accounts.pin.remove.self"
-	AccountsPinReset              PermissionId = "accounts.pin.reset"
-	AccountsRead                  PermissionId = "accounts.read"
-	AttendanceAssist              PermissionId = "attendance.assist"
-	AttendanceCorrect             PermissionId = "attendance.correct"
-	AttendanceRead                PermissionId = "attendance.read"
-	AttendanceStatisticsRead      PermissionId = "attendance.statistics.read"
-	AuditRead                     PermissionId = "audit.read"
-	BrandingManage                PermissionId = "branding.manage"
-	EventsAssign                  PermissionId = "events.assign"
-	EventsManage                  PermissionId = "events.manage"
-	EventsRead                    PermissionId = "events.read"
-	EventsStaffingManage          PermissionId = "events.staffing.manage"
-	ExternalInvoiceRequestsManage PermissionId = "external_invoice_requests.manage"
-	ExternalInvoiceRequestsRead   PermissionId = "external_invoice_requests.read"
-	FilamentSpoolsManage          PermissionId = "filament_spools.manage"
-	IdentitiesOidcLinkAll         PermissionId = "identities.oidc.link.all"
-	IdentitiesOidcLinkSelf        PermissionId = "identities.oidc.link.self"
-	IdentitiesOidcUnlinkAll       PermissionId = "identities.oidc.unlink.all"
-	IdentitiesOidcUnlinkSelf      PermissionId = "identities.oidc.unlink.self"
-	InventoryManage               PermissionId = "inventory.manage"
-	InventoryRead                 PermissionId = "inventory.read"
-	LaborordnungConfirm           PermissionId = "laborordnung.confirm"
-	LaborordnungManage            PermissionId = "laborordnung.manage"
-	LaborordnungRead              PermissionId = "laborordnung.read"
-	LaborordnungRequestsRead      PermissionId = "laborordnung.requests.read"
-	MachineJobsCreate             PermissionId = "machine_jobs.create"
-	MachineJobsEdit               PermissionId = "machine_jobs.edit"
-	MachineJobsOverridePrice      PermissionId = "machine_jobs.override_price"
-	MachineJobsRead               PermissionId = "machine_jobs.read"
-	MachineJobsReview             PermissionId = "machine_jobs.review"
-	MachinesManage                PermissionId = "machines.manage"
-	MachinesRead                  PermissionId = "machines.read"
-	MailManage                    PermissionId = "mail.manage"
-	ManagedDevicesManage          PermissionId = "managed_devices.manage"
-	ManagedDevicesRead            PermissionId = "managed_devices.read"
-	OidcManage                    PermissionId = "oidc.manage"
-	OpenDaysAssign                PermissionId = "open_days.assign"
-	OpenDaysManage                PermissionId = "open_days.manage"
-	OpenDaysRead                  PermissionId = "open_days.read"
-	OpenDaysReadAssignments       PermissionId = "open_days.read_assignments"
-	OpenDaysSignup                PermissionId = "open_days.signup"
-	OrdersFinalize                PermissionId = "orders.finalize"
-	OrdersRead                    PermissionId = "orders.read"
-	OrdersReverse                 PermissionId = "orders.reverse"
-	OrdersWrite                   PermissionId = "orders.write"
-	OrganizationsManage           PermissionId = "organizations.manage"
-	OrganizationsRead             PermissionId = "organizations.read"
-	PaymentsRead                  PermissionId = "payments.read"
-	PaymentsRecord                PermissionId = "payments.record"
-	PaymentsReverse               PermissionId = "payments.reverse"
-	PeopleCreate                  PermissionId = "people.create"
-	PeopleDelete                  PermissionId = "people.delete"
-	PeopleProfileImageRemoveAll   PermissionId = "people.profile_image.remove.all"
-	PeopleProfileImageRemoveSelf  PermissionId = "people.profile_image.remove.self"
-	PeopleProfileImageUpdateAll   PermissionId = "people.profile_image.update.all"
-	PeopleProfileImageUpdateSelf  PermissionId = "people.profile_image.update.self"
-	PeopleReadAll                 PermissionId = "people.read.all"
-	PeopleReadMatriculation       PermissionId = "people.read.matriculation"
-	PeopleReadSelf                PermissionId = "people.read.self"
-	PeopleRolesAssign             PermissionId = "people.roles.assign"
-	PeopleUpdateAll               PermissionId = "people.update.all"
-	PeopleUpdateMatriculation     PermissionId = "people.update.matriculation"
-	PeopleUpdateSelf              PermissionId = "people.update.self"
-	PricingManage                 PermissionId = "pricing.manage"
-	PricingRead                   PermissionId = "pricing.read"
-	PrintSubmissionsManage        PermissionId = "print_submissions.manage"
-	PrintSubmissionsRead          PermissionId = "print_submissions.read"
-	PrinterSlotsAssign            PermissionId = "printer_slots.assign"
-	RolesManage                   PermissionId = "roles.manage"
-	RolesRead                     PermissionId = "roles.read"
-	ScimManage                    PermissionId = "scim.manage"
-	SessionPoliciesManage         PermissionId = "session_policies.manage"
-	StatisticsRead                PermissionId = "statistics.read"
-	SupervisorDashboardRead       PermissionId = "supervisor_dashboard.read"
-	SurveysManage                 PermissionId = "surveys.manage"
-	SurveysRead                   PermissionId = "surveys.read"
-	VisitorEnrollmentManage       PermissionId = "visitor_enrollment.manage"
+	AccountsCreate                     PermissionId = "accounts.create"
+	AccountsDelete                     PermissionId = "accounts.delete"
+	AccountsDisable                    PermissionId = "accounts.disable"
+	AccountsEnable                     PermissionId = "accounts.enable"
+	AccountsLoginEmailUpdate           PermissionId = "accounts.login_email.update"
+	AccountsPasswordEnrollAll          PermissionId = "accounts.password.enroll.all"
+	AccountsPasswordEnrollSelf         PermissionId = "accounts.password.enroll.self"
+	AccountsPasswordRemoveAll          PermissionId = "accounts.password.remove.all"
+	AccountsPasswordRemoveSelf         PermissionId = "accounts.password.remove.self"
+	AccountsPasswordReset              PermissionId = "accounts.password.reset"
+	AccountsPasswordSet                PermissionId = "accounts.password.set"
+	AccountsPinEnrollAll               PermissionId = "accounts.pin.enroll.all"
+	AccountsPinEnrollSelf              PermissionId = "accounts.pin.enroll.self"
+	AccountsPinRemoveAll               PermissionId = "accounts.pin.remove.all"
+	AccountsPinRemoveSelf              PermissionId = "accounts.pin.remove.self"
+	AccountsPinReset                   PermissionId = "accounts.pin.reset"
+	AccountsRead                       PermissionId = "accounts.read"
+	AttendanceAssist                   PermissionId = "attendance.assist"
+	AttendanceCorrect                  PermissionId = "attendance.correct"
+	AttendanceRead                     PermissionId = "attendance.read"
+	AttendanceStatisticsRead           PermissionId = "attendance.statistics.read"
+	AuditRead                          PermissionId = "audit.read"
+	BrandingManage                     PermissionId = "branding.manage"
+	EventsAssign                       PermissionId = "events.assign"
+	EventsManage                       PermissionId = "events.manage"
+	EventsRead                         PermissionId = "events.read"
+	EventsStaffingManage               PermissionId = "events.staffing.manage"
+	ExternalInvoiceRequestsManage      PermissionId = "external_invoice_requests.manage"
+	ExternalInvoiceRequestsRead        PermissionId = "external_invoice_requests.read"
+	FilamentSpoolsManage               PermissionId = "filament_spools.manage"
+	IdentitiesOidcLinkAll              PermissionId = "identities.oidc.link.all"
+	IdentitiesOidcLinkSelf             PermissionId = "identities.oidc.link.self"
+	IdentitiesOidcUnlinkAll            PermissionId = "identities.oidc.unlink.all"
+	IdentitiesOidcUnlinkSelf           PermissionId = "identities.oidc.unlink.self"
+	InventoryManage                    PermissionId = "inventory.manage"
+	InventoryRead                      PermissionId = "inventory.read"
+	LaborordnungConfirm                PermissionId = "laborordnung.confirm"
+	LaborordnungManage                 PermissionId = "laborordnung.manage"
+	LaborordnungRead                   PermissionId = "laborordnung.read"
+	LaborordnungRequestsRead           PermissionId = "laborordnung.requests.read"
+	MachineJobsCreate                  PermissionId = "machine_jobs.create"
+	MachineJobsEdit                    PermissionId = "machine_jobs.edit"
+	MachineJobsOverridePrice           PermissionId = "machine_jobs.override_price"
+	MachineJobsRead                    PermissionId = "machine_jobs.read"
+	MachineJobsReview                  PermissionId = "machine_jobs.review"
+	MachinesManage                     PermissionId = "machines.manage"
+	MachinesRead                       PermissionId = "machines.read"
+	MailManage                         PermissionId = "mail.manage"
+	ManagedDevicesManage               PermissionId = "managed_devices.manage"
+	ManagedDevicesRead                 PermissionId = "managed_devices.read"
+	OidcManage                         PermissionId = "oidc.manage"
+	OpenDaysAssign                     PermissionId = "open_days.assign"
+	OpenDaysManage                     PermissionId = "open_days.manage"
+	OpenDaysRead                       PermissionId = "open_days.read"
+	OpenDaysReadAssignments            PermissionId = "open_days.read_assignments"
+	OpenDaysSignup                     PermissionId = "open_days.signup"
+	OrdersFinalize                     PermissionId = "orders.finalize"
+	OrdersRead                         PermissionId = "orders.read"
+	OrdersReverse                      PermissionId = "orders.reverse"
+	OrdersWrite                        PermissionId = "orders.write"
+	OrganizationsManage                PermissionId = "organizations.manage"
+	OrganizationsRead                  PermissionId = "organizations.read"
+	PaymentsRead                       PermissionId = "payments.read"
+	PaymentsRecord                     PermissionId = "payments.record"
+	PaymentsReverse                    PermissionId = "payments.reverse"
+	PeopleCreate                       PermissionId = "people.create"
+	PeopleDelete                       PermissionId = "people.delete"
+	PeopleProfileImageRemoveAll        PermissionId = "people.profile_image.remove.all"
+	PeopleProfileImageRemoveSelf       PermissionId = "people.profile_image.remove.self"
+	PeopleProfileImageUpdateAll        PermissionId = "people.profile_image.update.all"
+	PeopleProfileImageUpdateSelf       PermissionId = "people.profile_image.update.self"
+	PeopleReadAll                      PermissionId = "people.read.all"
+	PeopleReadMatriculation            PermissionId = "people.read.matriculation"
+	PeopleReadSelf                     PermissionId = "people.read.self"
+	PeopleRolesAssign                  PermissionId = "people.roles.assign"
+	PeopleUpdateAll                    PermissionId = "people.update.all"
+	PeopleUpdateMatriculation          PermissionId = "people.update.matriculation"
+	PeopleUpdateSelf                   PermissionId = "people.update.self"
+	PricingManage                      PermissionId = "pricing.manage"
+	PricingRead                        PermissionId = "pricing.read"
+	PrintSubmissionsManage             PermissionId = "print_submissions.manage"
+	PrintSubmissionsRead               PermissionId = "print_submissions.read"
+	PrinterConnectorsCredentialsManage PermissionId = "printer_connectors.credentials.manage"
+	PrinterConnectorsManage            PermissionId = "printer_connectors.manage"
+	PrinterConnectorsRead              PermissionId = "printer_connectors.read"
+	PrinterSlotsAssign                 PermissionId = "printer_slots.assign"
+	RolesManage                        PermissionId = "roles.manage"
+	RolesRead                          PermissionId = "roles.read"
+	ScimManage                         PermissionId = "scim.manage"
+	SessionPoliciesManage              PermissionId = "session_policies.manage"
+	StatisticsRead                     PermissionId = "statistics.read"
+	SupervisorDashboardRead            PermissionId = "supervisor_dashboard.read"
+	SurveysManage                      PermissionId = "surveys.manage"
+	SurveysRead                        PermissionId = "surveys.read"
+	VisitorEnrollmentManage            PermissionId = "visitor_enrollment.manage"
 )
 
 // Defines values for PostSessionDestination.
@@ -721,6 +725,89 @@ const (
 	PrintSubmissionStateQueued     PrintSubmissionState = "queued"
 )
 
+// Defines values for PrinterConnectorHealthState.
+const (
+	PrinterConnectorHealthStateConnected PrinterConnectorHealthState = "connected"
+	PrinterConnectorHealthStateDegraded  PrinterConnectorHealthState = "degraded"
+)
+
+// Defines values for PrinterConnectorLifecycle.
+const (
+	PrinterConnectorLifecycleActive   PrinterConnectorLifecycle = "active"
+	PrinterConnectorLifecycleDisabled PrinterConnectorLifecycle = "disabled"
+	PrinterConnectorLifecyclePending  PrinterConnectorLifecycle = "pending"
+	PrinterConnectorLifecycleRevoked  PrinterConnectorLifecycle = "revoked"
+)
+
+// Defines values for PrinterConnectorAssignmentRuntimeState.
+const (
+	PrinterConnectorAssignmentRuntimeStateConnected    PrinterConnectorAssignmentRuntimeState = "connected"
+	PrinterConnectorAssignmentRuntimeStateConnecting   PrinterConnectorAssignmentRuntimeState = "connecting"
+	PrinterConnectorAssignmentRuntimeStateDegraded     PrinterConnectorAssignmentRuntimeState = "degraded"
+	PrinterConnectorAssignmentRuntimeStateDisabled     PrinterConnectorAssignmentRuntimeState = "disabled"
+	PrinterConnectorAssignmentRuntimeStateDisconnected PrinterConnectorAssignmentRuntimeState = "disconnected"
+)
+
+// Defines values for PrinterConnectorAssignmentHealthState.
+const (
+	PrinterConnectorAssignmentHealthStateConnected    PrinterConnectorAssignmentHealthState = "connected"
+	PrinterConnectorAssignmentHealthStateConnecting   PrinterConnectorAssignmentHealthState = "connecting"
+	PrinterConnectorAssignmentHealthStateDegraded     PrinterConnectorAssignmentHealthState = "degraded"
+	PrinterConnectorAssignmentHealthStateDisabled     PrinterConnectorAssignmentHealthState = "disabled"
+	PrinterConnectorAssignmentHealthStateDisconnected PrinterConnectorAssignmentHealthState = "disconnected"
+)
+
+// Defines values for PrinterConnectorEventApplicationState.
+const (
+	Applied        PrinterConnectorEventApplicationState = "applied"
+	Recorded       PrinterConnectorEventApplicationState = "recorded"
+	ReviewRequired PrinterConnectorEventApplicationState = "review_required"
+)
+
+// Defines values for PrinterConnectorEventKind.
+const (
+	PrinterConnectorEventKindConnectivity      PrinterConnectorEventKind = "connectivity"
+	PrinterConnectorEventKindConsumptionReport PrinterConnectorEventKind = "consumption_report"
+	PrinterConnectorEventKindIdentity          PrinterConnectorEventKind = "identity"
+	PrinterConnectorEventKindOperationalState  PrinterConnectorEventKind = "operational_state"
+	PrinterConnectorEventKindProgress          PrinterConnectorEventKind = "progress"
+	PrinterConnectorEventKindSlotObservation   PrinterConnectorEventKind = "slot_observation"
+	PrinterConnectorEventKindTerminalOutcome   PrinterConnectorEventKind = "terminal_outcome"
+)
+
+// Defines values for PrinterConnectorEventReconciliationState.
+const (
+	PrinterConnectorEventReconciliationStateAccepted      PrinterConnectorEventReconciliationState = "accepted"
+	PrinterConnectorEventReconciliationStateNotApplicable PrinterConnectorEventReconciliationState = "not_applicable"
+	PrinterConnectorEventReconciliationStatePending       PrinterConnectorEventReconciliationState = "pending"
+	PrinterConnectorEventReconciliationStateRejected      PrinterConnectorEventReconciliationState = "rejected"
+)
+
+// Defines values for PrinterConnectorEventInputKind.
+const (
+	PrinterConnectorEventInputKindConnectivity      PrinterConnectorEventInputKind = "connectivity"
+	PrinterConnectorEventInputKindConsumptionReport PrinterConnectorEventInputKind = "consumption_report"
+	PrinterConnectorEventInputKindIdentity          PrinterConnectorEventInputKind = "identity"
+	PrinterConnectorEventInputKindOperationalState  PrinterConnectorEventInputKind = "operational_state"
+	PrinterConnectorEventInputKindProgress          PrinterConnectorEventInputKind = "progress"
+	PrinterConnectorEventInputKindSlotObservation   PrinterConnectorEventInputKind = "slot_observation"
+	PrinterConnectorEventInputKindTerminalOutcome   PrinterConnectorEventInputKind = "terminal_outcome"
+)
+
+// Defines values for PrinterConnectorEventReceiptStatus.
+const (
+	PrinterConnectorEventReceiptStatusAccepted  PrinterConnectorEventReceiptStatus = "accepted"
+	PrinterConnectorEventReceiptStatusDuplicate PrinterConnectorEventReceiptStatus = "duplicate"
+	PrinterConnectorEventReceiptStatusRejected  PrinterConnectorEventReceiptStatus = "rejected"
+	PrinterConnectorEventReceiptStatusRetry     PrinterConnectorEventReceiptStatus = "retry"
+)
+
+// Defines values for PrinterConnectorHeartbeatHealthState.
+const (
+	PrinterConnectorHeartbeatHealthStateConnected PrinterConnectorHeartbeatHealthState = "connected"
+	PrinterConnectorHeartbeatHealthStateDegraded  PrinterConnectorHeartbeatHealthState = "degraded"
+)
+
 // Defines values for PrinterEventKind.
 const (
 	Connectivity      PrinterEventKind = "connectivity"
@@ -738,6 +825,16 @@ const (
 	PrinterEventReconciliationStateNotApplicable PrinterEventReconciliationState = "not_applicable"
 	PrinterEventReconciliationStatePending       PrinterEventReconciliationState = "pending"
 	PrinterEventReconciliationStateRejected      PrinterEventReconciliationState = "rejected"
+)
+
+// Defines values for PrinterObservedRunState.
+const (
+	PrinterObservedRunStateCancelled PrinterObservedRunState = "cancelled"
+	PrinterObservedRunStateCompleted PrinterObservedRunState = "completed"
+	PrinterObservedRunStateFailed    PrinterObservedRunState = "failed"
+	PrinterObservedRunStateObserved  PrinterObservedRunState = "observed"
+	PrinterObservedRunStatePrinting  PrinterObservedRunState = "printing"
+	PrinterObservedRunStateUncertain PrinterObservedRunState = "uncertain"
 )
 
 // Defines values for PrinterSlotStatus.
@@ -793,8 +890,8 @@ const (
 
 // Defines values for ReconcilePrinterEventRequestDecision.
 const (
-	Accepted ReconcilePrinterEventRequestDecision = "accepted"
-	Rejected ReconcilePrinterEventRequestDecision = "rejected"
+	ReconcilePrinterEventRequestDecisionAccepted ReconcilePrinterEventRequestDecision = "accepted"
+	ReconcilePrinterEventRequestDecisionRejected ReconcilePrinterEventRequestDecision = "rejected"
 )
 
 // Defines values for RecurrenceOccurrenceDisposition.
@@ -1005,11 +1102,11 @@ const (
 
 // Defines values for ListPrintSubmissionsParamsState.
 const (
-	Cancelled  ListPrintSubmissionsParamsState = "cancelled"
-	Completed  ListPrintSubmissionsParamsState = "completed"
-	Failed     ListPrintSubmissionsParamsState = "failed"
-	InProgress ListPrintSubmissionsParamsState = "in_progress"
-	Queued     ListPrintSubmissionsParamsState = "queued"
+	ListPrintSubmissionsParamsStateCancelled  ListPrintSubmissionsParamsState = "cancelled"
+	ListPrintSubmissionsParamsStateCompleted  ListPrintSubmissionsParamsState = "completed"
+	ListPrintSubmissionsParamsStateFailed     ListPrintSubmissionsParamsState = "failed"
+	ListPrintSubmissionsParamsStateInProgress ListPrintSubmissionsParamsState = "in_progress"
+	ListPrintSubmissionsParamsStateQueued     ListPrintSubmissionsParamsState = "queued"
 )
 
 // Defines values for GetPublicLegalDocumentParamsDocument.
@@ -1710,6 +1807,23 @@ type CreatePrintSubmissionRequest struct {
 	Title                string                    `json:"title"`
 }
 
+// CreatePrinterConnectorAssignmentRequest defines model for CreatePrinterConnectorAssignmentRequest.
+type CreatePrinterConnectorAssignmentRequest struct {
+	AdapterKind          string `json:"adapterKind"`
+	AdapterSchemaVersion int    `json:"adapterSchemaVersion"`
+
+	// MachineId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MachineId UUIDv7                 `json:"machineId"`
+	Secrets   *map[string]string     `json:"secrets,omitempty"`
+	Settings  map[string]interface{} `json:"settings"`
+}
+
+// CreatePrinterConnectorRequest defines model for CreatePrinterConnectorRequest.
+type CreatePrinterConnectorRequest struct {
+	LocationLabel nullable.Nullable[string] `json:"locationLabel"`
+	Name          string                    `json:"name"`
+}
+
 // CreatePrinterInputUnitRequest defines model for CreatePrinterInputUnitRequest.
 type CreatePrinterInputUnitRequest struct {
 	ExternalIdentifier nullable.Nullable[string] `json:"externalIdentifier,omitempty"`
@@ -1839,6 +1953,15 @@ type Email = openapi_types.Email
 type EnrollPinRequest struct {
 	LoginName string  `json:"loginName"`
 	Pin       *string `json:"pin,omitempty"`
+}
+
+// EnrollPrinterConnectorRequest defines model for EnrollPrinterConnectorRequest.
+type EnrollPrinterConnectorRequest struct {
+	// CredentialId Lowercase RFC 9562 UUID version 7 generated by the application.
+	CredentialId     UUIDv7  `json:"credentialId"`
+	CredentialSecret *string `json:"credentialSecret,omitempty"`
+	ProtocolVersion  int     `json:"protocolVersion"`
+	SoftwareVersion  string  `json:"softwareVersion"`
 }
 
 // Error defines model for Error.
@@ -2653,6 +2776,15 @@ type LinkPrintAttemptJobRequest struct {
 
 	// MachineJobId Lowercase RFC 9562 UUID version 7 generated by the application.
 	MachineJobId UUIDv7 `json:"machineJobId"`
+}
+
+// LinkPrinterObservedRunAttemptRequest defines model for LinkPrinterObservedRunAttemptRequest.
+type LinkPrinterObservedRunAttemptRequest struct {
+	// AttemptId Lowercase RFC 9562 UUID version 7 generated by the application.
+	AttemptId UUIDv7 `json:"attemptId"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version `json:"expectedVersion"`
 }
 
 // LoginRequest defines model for LoginRequest.
@@ -3685,11 +3817,14 @@ type PrintAttemptState string
 
 // PrintSubmission defines model for PrintSubmission.
 type PrintSubmission struct {
-	Attempts     []PrintAttempt                           `json:"attempts"`
-	CreatedAt    time.Time                                `json:"createdAt"`
-	Customer     nullable.Nullable[BillingPartyReference] `json:"customer,omitempty"`
-	Declarations []FilamentDeclaration                    `json:"declarations"`
-	DisplayId    string                                   `json:"displayId"`
+	Attempts  []PrintAttempt                           `json:"attempts"`
+	CreatedAt time.Time                                `json:"createdAt"`
+	Customer  nullable.Nullable[BillingPartyReference] `json:"customer,omitempty"`
+
+	// CustomerDisplayName Current display name of the assigned customer; null when unassigned.
+	CustomerDisplayName nullable.Nullable[string] `json:"customerDisplayName,omitempty"`
+	Declarations        []FilamentDeclaration     `json:"declarations"`
+	DisplayId           string                    `json:"displayId"`
 
 	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
 	Id UUIDv7 `json:"id"`
@@ -3716,6 +3851,233 @@ type PrintSubmissionPage struct {
 	Page     int               `json:"page"`
 	PageSize int               `json:"pageSize"`
 	Total    int64             `json:"total"`
+}
+
+// PrinterConnector defines model for PrinterConnector.
+type PrinterConnector struct {
+	AppliedConfigurationRevision int64                                          `json:"appliedConfigurationRevision"`
+	ConfigurationRevision        int64                                          `json:"configurationRevision"`
+	CreatedAt                    time.Time                                      `json:"createdAt"`
+	DisabledAt                   nullable.Nullable[time.Time]                   `json:"disabledAt"`
+	EnrolledAt                   nullable.Nullable[time.Time]                   `json:"enrolledAt"`
+	HealthState                  nullable.Nullable[PrinterConnectorHealthState] `json:"healthState"`
+	HealthSummary                nullable.Nullable[string]                      `json:"healthSummary"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id                    UUIDv7                       `json:"id"`
+	LastHeartbeatAt       nullable.Nullable[time.Time] `json:"lastHeartbeatAt"`
+	Lifecycle             PrinterConnectorLifecycle    `json:"lifecycle"`
+	LocationLabel         nullable.Nullable[string]    `json:"locationLabel"`
+	Name                  string                       `json:"name"`
+	PendingEventCount     int64                        `json:"pendingEventCount"`
+	ProtocolVersion       nullable.Nullable[int]       `json:"protocolVersion"`
+	QuarantinedEventCount int64                        `json:"quarantinedEventCount"`
+	RevokedAt             nullable.Nullable[time.Time] `json:"revokedAt"`
+	SoftwareVersion       nullable.Nullable[string]    `json:"softwareVersion"`
+	UpdatedAt             time.Time                    `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// PrinterConnectorHealthState defines model for PrinterConnector.HealthState.
+type PrinterConnectorHealthState string
+
+// PrinterConnectorLifecycle defines model for PrinterConnector.Lifecycle.
+type PrinterConnectorLifecycle string
+
+// PrinterConnectorAssignment defines model for PrinterConnectorAssignment.
+type PrinterConnectorAssignment struct {
+	ActivatedAt                 time.Time `json:"activatedAt"`
+	AdapterKind                 string    `json:"adapterKind"`
+	AdapterSchemaVersion        int       `json:"adapterSchemaVersion"`
+	AppliedConfigurationVersion int64     `json:"appliedConfigurationVersion"`
+	ConfigurationVersion        int64     `json:"configurationVersion"`
+
+	// ConnectorId Lowercase RFC 9562 UUID version 7 generated by the application.
+	ConnectorId UUIDv7                       `json:"connectorId"`
+	CreatedAt   time.Time                    `json:"createdAt"`
+	Enabled     bool                         `json:"enabled"`
+	EndedAt     nullable.Nullable[time.Time] `json:"endedAt"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id UUIDv7 `json:"id"`
+
+	// MachineId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MachineId        UUIDv7                                                    `json:"machineId"`
+	MachineName      string                                                    `json:"machineName"`
+	RuntimeErrorCode nullable.Nullable[string]                                 `json:"runtimeErrorCode"`
+	RuntimeState     nullable.Nullable[PrinterConnectorAssignmentRuntimeState] `json:"runtimeState"`
+	Settings         map[string]interface{}                                    `json:"settings"`
+	UpdatedAt        time.Time                                                 `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// PrinterConnectorAssignmentRuntimeState defines model for PrinterConnectorAssignment.RuntimeState.
+type PrinterConnectorAssignmentRuntimeState string
+
+// PrinterConnectorAssignmentHealth defines model for PrinterConnectorAssignmentHealth.
+type PrinterConnectorAssignmentHealth struct {
+	AppliedConfigurationVersion int64 `json:"appliedConfigurationVersion"`
+
+	// AssignmentId Lowercase RFC 9562 UUID version 7 generated by the application.
+	AssignmentId UUIDv7                                `json:"assignmentId"`
+	ErrorCode    nullable.Nullable[string]             `json:"errorCode"`
+	State        PrinterConnectorAssignmentHealthState `json:"state"`
+}
+
+// PrinterConnectorAssignmentHealthState defines model for PrinterConnectorAssignmentHealth.State.
+type PrinterConnectorAssignmentHealthState string
+
+// PrinterConnectorAssignmentList defines model for PrinterConnectorAssignmentList.
+type PrinterConnectorAssignmentList struct {
+	Items []PrinterConnectorAssignment `json:"items"`
+}
+
+// PrinterConnectorConfiguration defines model for PrinterConnectorConfiguration.
+type PrinterConnectorConfiguration struct {
+	Assignments     []PrinterConnectorRuntimeAssignment `json:"assignments"`
+	ProtocolVersion int                                 `json:"protocolVersion"`
+	Revision        int64                               `json:"revision"`
+}
+
+// PrinterConnectorEnrollmentIssue defines model for PrinterConnectorEnrollmentIssue.
+type PrinterConnectorEnrollmentIssue struct {
+	Connector PrinterConnector `json:"connector"`
+
+	// EnrollmentId Lowercase RFC 9562 UUID version 7 generated by the application.
+	EnrollmentId     UUIDv7    `json:"enrollmentId"`
+	EnrollmentSecret *string   `json:"enrollmentSecret,omitempty"`
+	ExpiresAt        time.Time `json:"expiresAt"`
+}
+
+// PrinterConnectorEnrollmentResult defines model for PrinterConnectorEnrollmentResult.
+type PrinterConnectorEnrollmentResult struct {
+	// ConnectorId Lowercase RFC 9562 UUID version 7 generated by the application.
+	ConnectorId         UUIDv7    `json:"connectorId"`
+	CredentialExpiresAt time.Time `json:"credentialExpiresAt"`
+
+	// CredentialId Lowercase RFC 9562 UUID version 7 generated by the application.
+	CredentialId    UUIDv7 `json:"credentialId"`
+	ProtocolVersion int    `json:"protocolVersion"`
+}
+
+// PrinterConnectorEvent defines model for PrinterConnectorEvent.
+type PrinterConnectorEvent struct {
+	ApplicationReason nullable.Nullable[string]             `json:"applicationReason"`
+	ApplicationState  PrinterConnectorEventApplicationState `json:"applicationState"`
+
+	// AssignmentId Lowercase RFC 9562 UUID version 7 generated by the application.
+	AssignmentId UUIDv7 `json:"assignmentId"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id   UUIDv7                    `json:"id"`
+	Kind PrinterConnectorEventKind `json:"kind"`
+
+	// MachineId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MachineId           UUIDv7                                   `json:"machineId"`
+	OccurredAt          time.Time                                `json:"occurredAt"`
+	Payload             map[string]interface{}                   `json:"payload"`
+	ReceivedAt          time.Time                                `json:"receivedAt"`
+	ReconciliationState PrinterConnectorEventReconciliationState `json:"reconciliationState"`
+}
+
+// PrinterConnectorEventApplicationState defines model for PrinterConnectorEvent.ApplicationState.
+type PrinterConnectorEventApplicationState string
+
+// PrinterConnectorEventKind defines model for PrinterConnectorEvent.Kind.
+type PrinterConnectorEventKind string
+
+// PrinterConnectorEventReconciliationState defines model for PrinterConnectorEvent.ReconciliationState.
+type PrinterConnectorEventReconciliationState string
+
+// PrinterConnectorEventBatch defines model for PrinterConnectorEventBatch.
+type PrinterConnectorEventBatch struct {
+	Events          []PrinterConnectorEventInput `json:"events"`
+	ProtocolVersion int                          `json:"protocolVersion"`
+}
+
+// PrinterConnectorEventBatchReceipt defines model for PrinterConnectorEventBatchReceipt.
+type PrinterConnectorEventBatchReceipt struct {
+	Receipts []PrinterConnectorEventReceipt `json:"receipts"`
+}
+
+// PrinterConnectorEventInput defines model for PrinterConnectorEventInput.
+type PrinterConnectorEventInput struct {
+	// AssignmentId Lowercase RFC 9562 UUID version 7 generated by the application.
+	AssignmentId         UUIDv7 `json:"assignmentId"`
+	ConfigurationVersion int64  `json:"configurationVersion"`
+
+	// EventId Lowercase RFC 9562 UUID version 7 generated by the application.
+	EventId         UUIDv7                         `json:"eventId"`
+	ExternalPrintId nullable.Nullable[string]      `json:"externalPrintId"`
+	HistoryComplete bool                           `json:"historyComplete"`
+	Kind            PrinterConnectorEventInputKind `json:"kind"`
+	OccurredAt      time.Time                      `json:"occurredAt"`
+	Payload         map[string]interface{}         `json:"payload"`
+	ReportRevision  nullable.Nullable[int64]       `json:"reportRevision"`
+	RunId           nullable.Nullable[UUIDv7]      `json:"runId"`
+	Sequence        int64                          `json:"sequence"`
+}
+
+// PrinterConnectorEventInputKind defines model for PrinterConnectorEventInput.Kind.
+type PrinterConnectorEventInputKind string
+
+// PrinterConnectorEventList defines model for PrinterConnectorEventList.
+type PrinterConnectorEventList struct {
+	Items []PrinterConnectorEvent `json:"items"`
+}
+
+// PrinterConnectorEventReceipt defines model for PrinterConnectorEventReceipt.
+type PrinterConnectorEventReceipt struct {
+	CoreEventId nullable.Nullable[UUIDv7] `json:"coreEventId"`
+
+	// EventId Lowercase RFC 9562 UUID version 7 generated by the application.
+	EventId    UUIDv7                             `json:"eventId"`
+	ReasonCode nullable.Nullable[string]          `json:"reasonCode"`
+	Status     PrinterConnectorEventReceiptStatus `json:"status"`
+}
+
+// PrinterConnectorEventReceiptStatus defines model for PrinterConnectorEventReceipt.Status.
+type PrinterConnectorEventReceiptStatus string
+
+// PrinterConnectorHeartbeat defines model for PrinterConnectorHeartbeat.
+type PrinterConnectorHeartbeat struct {
+	AppliedConfigurationRevision int64                                `json:"appliedConfigurationRevision"`
+	Assignments                  []PrinterConnectorAssignmentHealth   `json:"assignments"`
+	HealthState                  PrinterConnectorHeartbeatHealthState `json:"healthState"`
+	HealthSummary                nullable.Nullable[string]            `json:"healthSummary"`
+	PendingEventCount            int64                                `json:"pendingEventCount"`
+	ProtocolVersion              int                                  `json:"protocolVersion"`
+	QuarantinedEventCount        int64                                `json:"quarantinedEventCount"`
+	SoftwareVersion              string                               `json:"softwareVersion"`
+}
+
+// PrinterConnectorHeartbeatHealthState defines model for PrinterConnectorHeartbeat.HealthState.
+type PrinterConnectorHeartbeatHealthState string
+
+// PrinterConnectorList defines model for PrinterConnectorList.
+type PrinterConnectorList struct {
+	Items []PrinterConnector `json:"items"`
+}
+
+// PrinterConnectorRuntimeAssignment defines model for PrinterConnectorRuntimeAssignment.
+type PrinterConnectorRuntimeAssignment struct {
+	AdapterKind          string `json:"adapterKind"`
+	AdapterSchemaVersion int    `json:"adapterSchemaVersion"`
+	ConfigurationVersion int64  `json:"configurationVersion"`
+	Enabled              bool   `json:"enabled"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id UUIDv7 `json:"id"`
+
+	// MachineId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MachineId   UUIDv7                 `json:"machineId"`
+	MachineName string                 `json:"machineName"`
+	Secrets     *map[string]string     `json:"secrets,omitempty"`
+	Settings    map[string]interface{} `json:"settings"`
 }
 
 // PrinterEvent defines model for PrinterEvent.
@@ -3754,6 +4116,36 @@ type PrinterInputUnit struct {
 
 	// Version Optimistic-concurrency version.
 	Version Version `json:"version"`
+}
+
+// PrinterObservedRun defines model for PrinterObservedRun.
+type PrinterObservedRun struct {
+	// AssignmentId Lowercase RFC 9562 UUID version 7 generated by the application.
+	AssignmentId    UUIDv7                    `json:"assignmentId"`
+	AttemptId       nullable.Nullable[UUIDv7] `json:"attemptId"`
+	FirstObservedAt time.Time                 `json:"firstObservedAt"`
+	HistoryComplete bool                      `json:"historyComplete"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id             UUIDv7    `json:"id"`
+	LastObservedAt time.Time `json:"lastObservedAt"`
+
+	// MachineId Lowercase RFC 9562 UUID version 7 generated by the application.
+	MachineId   UUIDv7                    `json:"machineId"`
+	MachineName string                    `json:"machineName"`
+	State       PrinterObservedRunState   `json:"state"`
+	VendorJobId nullable.Nullable[string] `json:"vendorJobId"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// PrinterObservedRunState defines model for PrinterObservedRun.State.
+type PrinterObservedRunState string
+
+// PrinterObservedRunList defines model for PrinterObservedRunList.
+type PrinterObservedRunList struct {
+	Items []PrinterObservedRun `json:"items"`
 }
 
 // PrinterProfile defines model for PrinterProfile.
@@ -4159,6 +4551,13 @@ type RotateManagedDeviceTokenRequest struct {
 	// ExpectedVersion Optimistic-concurrency version.
 	ExpectedVersion Version                      `json:"expectedVersion"`
 	ExpiresAt       nullable.Nullable[time.Time] `json:"expiresAt"`
+}
+
+// RotatePrinterConnectorCredentialRequest defines model for RotatePrinterConnectorCredentialRequest.
+type RotatePrinterConnectorCredentialRequest struct {
+	// CredentialId Lowercase RFC 9562 UUID version 7 generated by the application.
+	CredentialId     UUIDv7  `json:"credentialId"`
+	CredentialSecret *string `json:"credentialSecret,omitempty"`
 }
 
 // RotateSCIMTokenRequest defines model for RotateSCIMTokenRequest.
@@ -5066,6 +5465,31 @@ type UpdatePricingRuleRequest struct {
 	MaterialCategory nullable.Nullable[string]       `json:"materialCategory,omitempty"`
 	MaterialUnit     nullable.Nullable[MaterialUnit] `json:"materialUnit,omitempty"`
 	Rate             Decimal                         `json:"rate"`
+}
+
+// UpdatePrinterConnectorAssignmentRequest defines model for UpdatePrinterConnectorAssignmentRequest.
+type UpdatePrinterConnectorAssignmentRequest struct {
+	AdapterKind          string `json:"adapterKind"`
+	AdapterSchemaVersion int    `json:"adapterSchemaVersion"`
+	Enabled              bool   `json:"enabled"`
+	End                  bool   `json:"end"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version `json:"expectedVersion"`
+
+	// Secrets Omit to retain existing printer credentials; provide an empty object to clear them.
+	Secrets  *map[string]string     `json:"secrets,omitempty"`
+	Settings map[string]interface{} `json:"settings"`
+}
+
+// UpdatePrinterConnectorRequest defines model for UpdatePrinterConnectorRequest.
+type UpdatePrinterConnectorRequest struct {
+	Enabled bool `json:"enabled"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version                   `json:"expectedVersion"`
+	LocationLabel   nullable.Nullable[string] `json:"locationLabel"`
+	Name            string                    `json:"name"`
 }
 
 // UpdateRoleRequest At least one update field must be present.
@@ -6164,11 +6588,41 @@ type CreatePrintSubmissionJSONRequestBody = CreatePrintSubmissionRequest
 // CreatePrintAttemptJSONRequestBody defines body for CreatePrintAttempt for application/json ContentType.
 type CreatePrintAttemptJSONRequestBody = CreatePrintAttemptRequest
 
+// EnrollPrinterConnectorJSONRequestBody defines body for EnrollPrinterConnector for application/json ContentType.
+type EnrollPrinterConnectorJSONRequestBody = EnrollPrinterConnectorRequest
+
+// RotatePrinterConnectorCredentialJSONRequestBody defines body for RotatePrinterConnectorCredential for application/json ContentType.
+type RotatePrinterConnectorCredentialJSONRequestBody = RotatePrinterConnectorCredentialRequest
+
+// IngestPrinterConnectorEventsJSONRequestBody defines body for IngestPrinterConnectorEvents for application/json ContentType.
+type IngestPrinterConnectorEventsJSONRequestBody = PrinterConnectorEventBatch
+
+// ReportPrinterConnectorHeartbeatJSONRequestBody defines body for ReportPrinterConnectorHeartbeat for application/json ContentType.
+type ReportPrinterConnectorHeartbeatJSONRequestBody = PrinterConnectorHeartbeat
+
+// CreatePrinterConnectorJSONRequestBody defines body for CreatePrinterConnector for application/json ContentType.
+type CreatePrinterConnectorJSONRequestBody = CreatePrinterConnectorRequest
+
+// UpdatePrinterConnectorJSONRequestBody defines body for UpdatePrinterConnector for application/json ContentType.
+type UpdatePrinterConnectorJSONRequestBody = UpdatePrinterConnectorRequest
+
+// CreatePrinterConnectorAssignmentJSONRequestBody defines body for CreatePrinterConnectorAssignment for application/json ContentType.
+type CreatePrinterConnectorAssignmentJSONRequestBody = CreatePrinterConnectorAssignmentRequest
+
+// UpdatePrinterConnectorAssignmentJSONRequestBody defines body for UpdatePrinterConnectorAssignment for application/json ContentType.
+type UpdatePrinterConnectorAssignmentJSONRequestBody = UpdatePrinterConnectorAssignmentRequest
+
+// RevokePrinterConnectorJSONRequestBody defines body for RevokePrinterConnector for application/json ContentType.
+type RevokePrinterConnectorJSONRequestBody = VersionRequest
+
 // ReconcilePrinterEventJSONRequestBody defines body for ReconcilePrinterEvent for application/json ContentType.
 type ReconcilePrinterEventJSONRequestBody = ReconcilePrinterEventRequest
 
 // CreatePrinterSlotJSONRequestBody defines body for CreatePrinterSlot for application/json ContentType.
 type CreatePrinterSlotJSONRequestBody = CreatePrinterSlotRequest
+
+// LinkPrinterObservedRunAttemptJSONRequestBody defines body for LinkPrinterObservedRunAttempt for application/json ContentType.
+type LinkPrinterObservedRunAttemptJSONRequestBody = LinkPrinterObservedRunAttemptRequest
 
 // MountPrinterSpoolJSONRequestBody defines body for MountPrinterSpool for application/json ContentType.
 type MountPrinterSpoolJSONRequestBody = MountSpoolRequest
@@ -7141,12 +7595,63 @@ type ServerInterface interface {
 
 	// (POST /print-submissions/{submissionId}/attempts)
 	CreatePrintAttempt(w http.ResponseWriter, r *http.Request, submissionId UUIDv7)
+	// Exchange a short-lived enrollment secret for a connector identity
+	// (POST /printer-connector/enroll)
+	EnrollPrinterConnector(w http.ResponseWriter, r *http.Request)
+	// Fetch the complete centrally managed connector configuration
+	// (GET /printer-connector/self/configuration)
+	GetPrinterConnectorConfiguration(w http.ResponseWriter, r *http.Request)
+	// Replace the current connector credential with a connector-generated secret
+	// (POST /printer-connector/self/credential-rotation)
+	RotatePrinterConnectorCredential(w http.ResponseWriter, r *http.Request)
+	// Durably ingest an idempotent batch of normalized printer events
+	// (POST /printer-connector/self/events)
+	IngestPrinterConnectorEvents(w http.ResponseWriter, r *http.Request)
+	// Report connector and assignment health
+	// (POST /printer-connector/self/heartbeat)
+	ReportPrinterConnectorHeartbeat(w http.ResponseWriter, r *http.Request)
+	// List printer connector identities and current health
+	// (GET /printer-connectors)
+	ListPrinterConnectors(w http.ResponseWriter, r *http.Request)
+	// Create a pending printer connector identity
+	// (POST /printer-connectors)
+	CreatePrinterConnector(w http.ResponseWriter, r *http.Request)
+
+	// (GET /printer-connectors/{printerConnectorId})
+	GetPrinterConnector(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7)
+	// Rename, relocate, enable, or disable a connector
+	// (PATCH /printer-connectors/{printerConnectorId})
+	UpdatePrinterConnector(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7)
+	// List current and ended assignments without printer secrets
+	// (GET /printer-connectors/{printerConnectorId}/assignments)
+	ListPrinterConnectorAssignments(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7)
+	// Assign an existing printer profile to a connector
+	// (POST /printer-connectors/{printerConnectorId}/assignments)
+	CreatePrinterConnectorAssignment(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7)
+	// Update, disable, or end a printer assignment
+	// (PATCH /printer-connectors/{printerConnectorId}/assignments/{assignmentId})
+	UpdatePrinterConnectorAssignment(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7, assignmentId UUIDv7)
+	// Issue a one-time connector enrollment secret
+	// (POST /printer-connectors/{printerConnectorId}/enrollments)
+	CreatePrinterConnectorEnrollment(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7)
+	// List recent normalized events and their application status
+	// (GET /printer-connectors/{printerConnectorId}/events)
+	ListPrinterConnectorEvents(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7)
+	// List recent physical print runs observed by this connector
+	// (GET /printer-connectors/{printerConnectorId}/observed-runs)
+	ListPrinterObservedRuns(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7)
+	// Revoke connector credentials and end its assignments
+	// (POST /printer-connectors/{printerConnectorId}/revocation)
+	RevokePrinterConnector(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7)
 
 	// (POST /printer-events/{eventId}/reconciliation)
 	ReconcilePrinterEvent(w http.ResponseWriter, r *http.Request, eventId UUIDv7)
 
 	// (POST /printer-input-units/{inputUnitId}/slots)
 	CreatePrinterSlot(w http.ResponseWriter, r *http.Request, inputUnitId UUIDv7)
+	// Explicitly correlate a physical run with an existing Print Attempt
+	// (POST /printer-observed-runs/{printerObservedRunId}/attempt)
+	LinkPrinterObservedRunAttempt(w http.ResponseWriter, r *http.Request, printerObservedRunId UUIDv7)
 
 	// (POST /printer-slots/{slotId}/mount)
 	MountPrinterSpool(w http.ResponseWriter, r *http.Request, slotId UUIDv7)
@@ -8798,6 +9303,101 @@ func (_ Unimplemented) CreatePrintAttempt(w http.ResponseWriter, r *http.Request
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// Exchange a short-lived enrollment secret for a connector identity
+// (POST /printer-connector/enroll)
+func (_ Unimplemented) EnrollPrinterConnector(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Fetch the complete centrally managed connector configuration
+// (GET /printer-connector/self/configuration)
+func (_ Unimplemented) GetPrinterConnectorConfiguration(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace the current connector credential with a connector-generated secret
+// (POST /printer-connector/self/credential-rotation)
+func (_ Unimplemented) RotatePrinterConnectorCredential(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Durably ingest an idempotent batch of normalized printer events
+// (POST /printer-connector/self/events)
+func (_ Unimplemented) IngestPrinterConnectorEvents(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Report connector and assignment health
+// (POST /printer-connector/self/heartbeat)
+func (_ Unimplemented) ReportPrinterConnectorHeartbeat(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List printer connector identities and current health
+// (GET /printer-connectors)
+func (_ Unimplemented) ListPrinterConnectors(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Create a pending printer connector identity
+// (POST /printer-connectors)
+func (_ Unimplemented) CreatePrinterConnector(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /printer-connectors/{printerConnectorId})
+func (_ Unimplemented) GetPrinterConnector(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Rename, relocate, enable, or disable a connector
+// (PATCH /printer-connectors/{printerConnectorId})
+func (_ Unimplemented) UpdatePrinterConnector(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List current and ended assignments without printer secrets
+// (GET /printer-connectors/{printerConnectorId}/assignments)
+func (_ Unimplemented) ListPrinterConnectorAssignments(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Assign an existing printer profile to a connector
+// (POST /printer-connectors/{printerConnectorId}/assignments)
+func (_ Unimplemented) CreatePrinterConnectorAssignment(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Update, disable, or end a printer assignment
+// (PATCH /printer-connectors/{printerConnectorId}/assignments/{assignmentId})
+func (_ Unimplemented) UpdatePrinterConnectorAssignment(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7, assignmentId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Issue a one-time connector enrollment secret
+// (POST /printer-connectors/{printerConnectorId}/enrollments)
+func (_ Unimplemented) CreatePrinterConnectorEnrollment(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List recent normalized events and their application status
+// (GET /printer-connectors/{printerConnectorId}/events)
+func (_ Unimplemented) ListPrinterConnectorEvents(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List recent physical print runs observed by this connector
+// (GET /printer-connectors/{printerConnectorId}/observed-runs)
+func (_ Unimplemented) ListPrinterObservedRuns(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Revoke connector credentials and end its assignments
+// (POST /printer-connectors/{printerConnectorId}/revocation)
+func (_ Unimplemented) RevokePrinterConnector(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // (POST /printer-events/{eventId}/reconciliation)
 func (_ Unimplemented) ReconcilePrinterEvent(w http.ResponseWriter, r *http.Request, eventId UUIDv7) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -8805,6 +9405,12 @@ func (_ Unimplemented) ReconcilePrinterEvent(w http.ResponseWriter, r *http.Requ
 
 // (POST /printer-input-units/{inputUnitId}/slots)
 func (_ Unimplemented) CreatePrinterSlot(w http.ResponseWriter, r *http.Request, inputUnitId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Explicitly correlate a physical run with an existing Print Attempt
+// (POST /printer-observed-runs/{printerObservedRunId}/attempt)
+func (_ Unimplemented) LinkPrinterObservedRunAttempt(w http.ResponseWriter, r *http.Request, printerObservedRunId UUIDv7) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -17979,6 +18585,446 @@ func (siw *ServerInterfaceWrapper) CreatePrintAttempt(w http.ResponseWriter, r *
 	handler.ServeHTTP(w, r)
 }
 
+// EnrollPrinterConnector operation middleware
+func (siw *ServerInterfaceWrapper) EnrollPrinterConnector(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, PrinterConnectorBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.EnrollPrinterConnector(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPrinterConnectorConfiguration operation middleware
+func (siw *ServerInterfaceWrapper) GetPrinterConnectorConfiguration(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, PrinterConnectorBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPrinterConnectorConfiguration(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RotatePrinterConnectorCredential operation middleware
+func (siw *ServerInterfaceWrapper) RotatePrinterConnectorCredential(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, PrinterConnectorBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RotatePrinterConnectorCredential(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// IngestPrinterConnectorEvents operation middleware
+func (siw *ServerInterfaceWrapper) IngestPrinterConnectorEvents(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, PrinterConnectorBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.IngestPrinterConnectorEvents(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ReportPrinterConnectorHeartbeat operation middleware
+func (siw *ServerInterfaceWrapper) ReportPrinterConnectorHeartbeat(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, PrinterConnectorBearerScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ReportPrinterConnectorHeartbeat(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListPrinterConnectors operation middleware
+func (siw *ServerInterfaceWrapper) ListPrinterConnectors(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPrinterConnectors(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreatePrinterConnector operation middleware
+func (siw *ServerInterfaceWrapper) CreatePrinterConnector(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreatePrinterConnector(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPrinterConnector operation middleware
+func (siw *ServerInterfaceWrapper) GetPrinterConnector(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "printerConnectorId" -------------
+	var printerConnectorId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "printerConnectorId", chi.URLParam(r, "printerConnectorId"), &printerConnectorId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "printerConnectorId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPrinterConnector(w, r, printerConnectorId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdatePrinterConnector operation middleware
+func (siw *ServerInterfaceWrapper) UpdatePrinterConnector(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "printerConnectorId" -------------
+	var printerConnectorId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "printerConnectorId", chi.URLParam(r, "printerConnectorId"), &printerConnectorId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "printerConnectorId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdatePrinterConnector(w, r, printerConnectorId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListPrinterConnectorAssignments operation middleware
+func (siw *ServerInterfaceWrapper) ListPrinterConnectorAssignments(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "printerConnectorId" -------------
+	var printerConnectorId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "printerConnectorId", chi.URLParam(r, "printerConnectorId"), &printerConnectorId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "printerConnectorId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPrinterConnectorAssignments(w, r, printerConnectorId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreatePrinterConnectorAssignment operation middleware
+func (siw *ServerInterfaceWrapper) CreatePrinterConnectorAssignment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "printerConnectorId" -------------
+	var printerConnectorId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "printerConnectorId", chi.URLParam(r, "printerConnectorId"), &printerConnectorId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "printerConnectorId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreatePrinterConnectorAssignment(w, r, printerConnectorId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdatePrinterConnectorAssignment operation middleware
+func (siw *ServerInterfaceWrapper) UpdatePrinterConnectorAssignment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "printerConnectorId" -------------
+	var printerConnectorId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "printerConnectorId", chi.URLParam(r, "printerConnectorId"), &printerConnectorId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "printerConnectorId", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "assignmentId" -------------
+	var assignmentId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "assignmentId", chi.URLParam(r, "assignmentId"), &assignmentId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "assignmentId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdatePrinterConnectorAssignment(w, r, printerConnectorId, assignmentId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreatePrinterConnectorEnrollment operation middleware
+func (siw *ServerInterfaceWrapper) CreatePrinterConnectorEnrollment(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "printerConnectorId" -------------
+	var printerConnectorId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "printerConnectorId", chi.URLParam(r, "printerConnectorId"), &printerConnectorId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "printerConnectorId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreatePrinterConnectorEnrollment(w, r, printerConnectorId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListPrinterConnectorEvents operation middleware
+func (siw *ServerInterfaceWrapper) ListPrinterConnectorEvents(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "printerConnectorId" -------------
+	var printerConnectorId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "printerConnectorId", chi.URLParam(r, "printerConnectorId"), &printerConnectorId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "printerConnectorId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPrinterConnectorEvents(w, r, printerConnectorId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListPrinterObservedRuns operation middleware
+func (siw *ServerInterfaceWrapper) ListPrinterObservedRuns(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "printerConnectorId" -------------
+	var printerConnectorId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "printerConnectorId", chi.URLParam(r, "printerConnectorId"), &printerConnectorId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "printerConnectorId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPrinterObservedRuns(w, r, printerConnectorId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RevokePrinterConnector operation middleware
+func (siw *ServerInterfaceWrapper) RevokePrinterConnector(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "printerConnectorId" -------------
+	var printerConnectorId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "printerConnectorId", chi.URLParam(r, "printerConnectorId"), &printerConnectorId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "printerConnectorId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RevokePrinterConnector(w, r, printerConnectorId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // ReconcilePrinterEvent operation middleware
 func (siw *ServerInterfaceWrapper) ReconcilePrinterEvent(w http.ResponseWriter, r *http.Request) {
 
@@ -18036,6 +19082,39 @@ func (siw *ServerInterfaceWrapper) CreatePrinterSlot(w http.ResponseWriter, r *h
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.CreatePrinterSlot(w, r, inputUnitId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// LinkPrinterObservedRunAttempt operation middleware
+func (siw *ServerInterfaceWrapper) LinkPrinterObservedRunAttempt(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "printerObservedRunId" -------------
+	var printerObservedRunId UUIDv7
+
+	err = runtime.BindStyledParameterWithOptions("simple", "printerObservedRunId", chi.URLParam(r, "printerObservedRunId"), &printerObservedRunId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "printerObservedRunId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.LinkPrinterObservedRunAttempt(w, r, printerObservedRunId)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -20840,10 +21919,61 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/print-submissions/{submissionId}/attempts", wrapper.CreatePrintAttempt)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/printer-connector/enroll", wrapper.EnrollPrinterConnector)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/printer-connector/self/configuration", wrapper.GetPrinterConnectorConfiguration)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/printer-connector/self/credential-rotation", wrapper.RotatePrinterConnectorCredential)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/printer-connector/self/events", wrapper.IngestPrinterConnectorEvents)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/printer-connector/self/heartbeat", wrapper.ReportPrinterConnectorHeartbeat)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/printer-connectors", wrapper.ListPrinterConnectors)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/printer-connectors", wrapper.CreatePrinterConnector)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/printer-connectors/{printerConnectorId}", wrapper.GetPrinterConnector)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/printer-connectors/{printerConnectorId}", wrapper.UpdatePrinterConnector)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/printer-connectors/{printerConnectorId}/assignments", wrapper.ListPrinterConnectorAssignments)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/printer-connectors/{printerConnectorId}/assignments", wrapper.CreatePrinterConnectorAssignment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/printer-connectors/{printerConnectorId}/assignments/{assignmentId}", wrapper.UpdatePrinterConnectorAssignment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/printer-connectors/{printerConnectorId}/enrollments", wrapper.CreatePrinterConnectorEnrollment)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/printer-connectors/{printerConnectorId}/events", wrapper.ListPrinterConnectorEvents)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/printer-connectors/{printerConnectorId}/observed-runs", wrapper.ListPrinterObservedRuns)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/printer-connectors/{printerConnectorId}/revocation", wrapper.RevokePrinterConnector)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/printer-events/{eventId}/reconciliation", wrapper.ReconcilePrinterEvent)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/printer-input-units/{inputUnitId}/slots", wrapper.CreatePrinterSlot)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/printer-observed-runs/{printerObservedRunId}/attempt", wrapper.LinkPrinterObservedRunAttempt)
 	})
 	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/printer-slots/{slotId}/mount", wrapper.MountPrinterSpool)
@@ -38581,6 +39711,1028 @@ func (response CreatePrintAttempt500JSONResponse) VisitCreatePrintAttemptRespons
 	return json.NewEncoder(w).Encode(response)
 }
 
+type EnrollPrinterConnectorRequestObject struct {
+	Body *EnrollPrinterConnectorJSONRequestBody
+}
+
+type EnrollPrinterConnectorResponseObject interface {
+	VisitEnrollPrinterConnectorResponse(w http.ResponseWriter) error
+}
+
+type EnrollPrinterConnector200ResponseHeaders struct {
+	CacheControl string
+}
+
+type EnrollPrinterConnector200JSONResponse struct {
+	Body    PrinterConnectorEnrollmentResult
+	Headers EnrollPrinterConnector200ResponseHeaders
+}
+
+func (response EnrollPrinterConnector200JSONResponse) VisitEnrollPrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type EnrollPrinterConnector401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response EnrollPrinterConnector401JSONResponse) VisitEnrollPrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EnrollPrinterConnector409JSONResponse struct{ ConflictJSONResponse }
+
+func (response EnrollPrinterConnector409JSONResponse) VisitEnrollPrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EnrollPrinterConnector422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response EnrollPrinterConnector422JSONResponse) VisitEnrollPrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type EnrollPrinterConnector500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response EnrollPrinterConnector500JSONResponse) VisitEnrollPrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPrinterConnectorConfigurationRequestObject struct {
+}
+
+type GetPrinterConnectorConfigurationResponseObject interface {
+	VisitGetPrinterConnectorConfigurationResponse(w http.ResponseWriter) error
+}
+
+type GetPrinterConnectorConfiguration200ResponseHeaders struct {
+	CacheControl string
+}
+
+type GetPrinterConnectorConfiguration200JSONResponse struct {
+	Body    PrinterConnectorConfiguration
+	Headers GetPrinterConnectorConfiguration200ResponseHeaders
+}
+
+func (response GetPrinterConnectorConfiguration200JSONResponse) VisitGetPrinterConnectorConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type GetPrinterConnectorConfiguration401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetPrinterConnectorConfiguration401JSONResponse) VisitGetPrinterConnectorConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPrinterConnectorConfiguration403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetPrinterConnectorConfiguration403JSONResponse) VisitGetPrinterConnectorConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPrinterConnectorConfiguration500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetPrinterConnectorConfiguration500JSONResponse) VisitGetPrinterConnectorConfigurationResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RotatePrinterConnectorCredentialRequestObject struct {
+	Body *RotatePrinterConnectorCredentialJSONRequestBody
+}
+
+type RotatePrinterConnectorCredentialResponseObject interface {
+	VisitRotatePrinterConnectorCredentialResponse(w http.ResponseWriter) error
+}
+
+type RotatePrinterConnectorCredential200ResponseHeaders struct {
+	CacheControl string
+}
+
+type RotatePrinterConnectorCredential200JSONResponse struct {
+	Body    PrinterConnectorEnrollmentResult
+	Headers RotatePrinterConnectorCredential200ResponseHeaders
+}
+
+func (response RotatePrinterConnectorCredential200JSONResponse) VisitRotatePrinterConnectorCredentialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type RotatePrinterConnectorCredential401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RotatePrinterConnectorCredential401JSONResponse) VisitRotatePrinterConnectorCredentialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RotatePrinterConnectorCredential403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RotatePrinterConnectorCredential403JSONResponse) VisitRotatePrinterConnectorCredentialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RotatePrinterConnectorCredential409JSONResponse struct{ ConflictJSONResponse }
+
+func (response RotatePrinterConnectorCredential409JSONResponse) VisitRotatePrinterConnectorCredentialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RotatePrinterConnectorCredential422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response RotatePrinterConnectorCredential422JSONResponse) VisitRotatePrinterConnectorCredentialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RotatePrinterConnectorCredential500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response RotatePrinterConnectorCredential500JSONResponse) VisitRotatePrinterConnectorCredentialResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IngestPrinterConnectorEventsRequestObject struct {
+	Body *IngestPrinterConnectorEventsJSONRequestBody
+}
+
+type IngestPrinterConnectorEventsResponseObject interface {
+	VisitIngestPrinterConnectorEventsResponse(w http.ResponseWriter) error
+}
+
+type IngestPrinterConnectorEvents200JSONResponse PrinterConnectorEventBatchReceipt
+
+func (response IngestPrinterConnectorEvents200JSONResponse) VisitIngestPrinterConnectorEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IngestPrinterConnectorEvents401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response IngestPrinterConnectorEvents401JSONResponse) VisitIngestPrinterConnectorEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IngestPrinterConnectorEvents403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response IngestPrinterConnectorEvents403JSONResponse) VisitIngestPrinterConnectorEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IngestPrinterConnectorEvents413JSONResponse struct{ PayloadTooLargeJSONResponse }
+
+func (response IngestPrinterConnectorEvents413JSONResponse) VisitIngestPrinterConnectorEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(413)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IngestPrinterConnectorEvents422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response IngestPrinterConnectorEvents422JSONResponse) VisitIngestPrinterConnectorEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type IngestPrinterConnectorEvents429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response IngestPrinterConnectorEvents429JSONResponse) VisitIngestPrinterConnectorEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Retry-After", fmt.Sprint(response.Headers.RetryAfter))
+	w.WriteHeader(429)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type IngestPrinterConnectorEvents500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response IngestPrinterConnectorEvents500JSONResponse) VisitIngestPrinterConnectorEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReportPrinterConnectorHeartbeatRequestObject struct {
+	Body *ReportPrinterConnectorHeartbeatJSONRequestBody
+}
+
+type ReportPrinterConnectorHeartbeatResponseObject interface {
+	VisitReportPrinterConnectorHeartbeatResponse(w http.ResponseWriter) error
+}
+
+type ReportPrinterConnectorHeartbeat200JSONResponse PrinterConnector
+
+func (response ReportPrinterConnectorHeartbeat200JSONResponse) VisitReportPrinterConnectorHeartbeatResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReportPrinterConnectorHeartbeat401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ReportPrinterConnectorHeartbeat401JSONResponse) VisitReportPrinterConnectorHeartbeatResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReportPrinterConnectorHeartbeat403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ReportPrinterConnectorHeartbeat403JSONResponse) VisitReportPrinterConnectorHeartbeatResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReportPrinterConnectorHeartbeat422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response ReportPrinterConnectorHeartbeat422JSONResponse) VisitReportPrinterConnectorHeartbeatResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ReportPrinterConnectorHeartbeat500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ReportPrinterConnectorHeartbeat500JSONResponse) VisitReportPrinterConnectorHeartbeatResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterConnectorsRequestObject struct {
+}
+
+type ListPrinterConnectorsResponseObject interface {
+	VisitListPrinterConnectorsResponse(w http.ResponseWriter) error
+}
+
+type ListPrinterConnectors200JSONResponse PrinterConnectorList
+
+func (response ListPrinterConnectors200JSONResponse) VisitListPrinterConnectorsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterConnectors401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListPrinterConnectors401JSONResponse) VisitListPrinterConnectorsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterConnectors403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListPrinterConnectors403JSONResponse) VisitListPrinterConnectorsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterConnectors500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListPrinterConnectors500JSONResponse) VisitListPrinterConnectorsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterConnectorRequestObject struct {
+	Body *CreatePrinterConnectorJSONRequestBody
+}
+
+type CreatePrinterConnectorResponseObject interface {
+	VisitCreatePrinterConnectorResponse(w http.ResponseWriter) error
+}
+
+type CreatePrinterConnector201JSONResponse PrinterConnector
+
+func (response CreatePrinterConnector201JSONResponse) VisitCreatePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterConnector401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreatePrinterConnector401JSONResponse) VisitCreatePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterConnector403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreatePrinterConnector403JSONResponse) VisitCreatePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterConnector409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreatePrinterConnector409JSONResponse) VisitCreatePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterConnector422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreatePrinterConnector422JSONResponse) VisitCreatePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterConnector500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreatePrinterConnector500JSONResponse) VisitCreatePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPrinterConnectorRequestObject struct {
+	PrinterConnectorId UUIDv7 `json:"printerConnectorId"`
+}
+
+type GetPrinterConnectorResponseObject interface {
+	VisitGetPrinterConnectorResponse(w http.ResponseWriter) error
+}
+
+type GetPrinterConnector200JSONResponse PrinterConnector
+
+func (response GetPrinterConnector200JSONResponse) VisitGetPrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPrinterConnector401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetPrinterConnector401JSONResponse) VisitGetPrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPrinterConnector403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetPrinterConnector403JSONResponse) VisitGetPrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPrinterConnector404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetPrinterConnector404JSONResponse) VisitGetPrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetPrinterConnector500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetPrinterConnector500JSONResponse) VisitGetPrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePrinterConnectorRequestObject struct {
+	PrinterConnectorId UUIDv7 `json:"printerConnectorId"`
+	Body               *UpdatePrinterConnectorJSONRequestBody
+}
+
+type UpdatePrinterConnectorResponseObject interface {
+	VisitUpdatePrinterConnectorResponse(w http.ResponseWriter) error
+}
+
+type UpdatePrinterConnector200JSONResponse PrinterConnector
+
+func (response UpdatePrinterConnector200JSONResponse) VisitUpdatePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePrinterConnector401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdatePrinterConnector401JSONResponse) VisitUpdatePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePrinterConnector403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdatePrinterConnector403JSONResponse) VisitUpdatePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePrinterConnector404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdatePrinterConnector404JSONResponse) VisitUpdatePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePrinterConnector409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdatePrinterConnector409JSONResponse) VisitUpdatePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePrinterConnector422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdatePrinterConnector422JSONResponse) VisitUpdatePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePrinterConnector500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdatePrinterConnector500JSONResponse) VisitUpdatePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterConnectorAssignmentsRequestObject struct {
+	PrinterConnectorId UUIDv7 `json:"printerConnectorId"`
+}
+
+type ListPrinterConnectorAssignmentsResponseObject interface {
+	VisitListPrinterConnectorAssignmentsResponse(w http.ResponseWriter) error
+}
+
+type ListPrinterConnectorAssignments200JSONResponse PrinterConnectorAssignmentList
+
+func (response ListPrinterConnectorAssignments200JSONResponse) VisitListPrinterConnectorAssignmentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterConnectorAssignments401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListPrinterConnectorAssignments401JSONResponse) VisitListPrinterConnectorAssignmentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterConnectorAssignments403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListPrinterConnectorAssignments403JSONResponse) VisitListPrinterConnectorAssignmentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterConnectorAssignments404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListPrinterConnectorAssignments404JSONResponse) VisitListPrinterConnectorAssignmentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterConnectorAssignments500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListPrinterConnectorAssignments500JSONResponse) VisitListPrinterConnectorAssignmentsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterConnectorAssignmentRequestObject struct {
+	PrinterConnectorId UUIDv7 `json:"printerConnectorId"`
+	Body               *CreatePrinterConnectorAssignmentJSONRequestBody
+}
+
+type CreatePrinterConnectorAssignmentResponseObject interface {
+	VisitCreatePrinterConnectorAssignmentResponse(w http.ResponseWriter) error
+}
+
+type CreatePrinterConnectorAssignment201JSONResponse PrinterConnectorAssignment
+
+func (response CreatePrinterConnectorAssignment201JSONResponse) VisitCreatePrinterConnectorAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterConnectorAssignment401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreatePrinterConnectorAssignment401JSONResponse) VisitCreatePrinterConnectorAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterConnectorAssignment403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreatePrinterConnectorAssignment403JSONResponse) VisitCreatePrinterConnectorAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterConnectorAssignment404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreatePrinterConnectorAssignment404JSONResponse) VisitCreatePrinterConnectorAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterConnectorAssignment409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreatePrinterConnectorAssignment409JSONResponse) VisitCreatePrinterConnectorAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterConnectorAssignment422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreatePrinterConnectorAssignment422JSONResponse) VisitCreatePrinterConnectorAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterConnectorAssignment500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreatePrinterConnectorAssignment500JSONResponse) VisitCreatePrinterConnectorAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePrinterConnectorAssignmentRequestObject struct {
+	PrinterConnectorId UUIDv7 `json:"printerConnectorId"`
+	AssignmentId       UUIDv7 `json:"assignmentId"`
+	Body               *UpdatePrinterConnectorAssignmentJSONRequestBody
+}
+
+type UpdatePrinterConnectorAssignmentResponseObject interface {
+	VisitUpdatePrinterConnectorAssignmentResponse(w http.ResponseWriter) error
+}
+
+type UpdatePrinterConnectorAssignment200JSONResponse PrinterConnectorAssignment
+
+func (response UpdatePrinterConnectorAssignment200JSONResponse) VisitUpdatePrinterConnectorAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePrinterConnectorAssignment401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdatePrinterConnectorAssignment401JSONResponse) VisitUpdatePrinterConnectorAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePrinterConnectorAssignment403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdatePrinterConnectorAssignment403JSONResponse) VisitUpdatePrinterConnectorAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePrinterConnectorAssignment404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdatePrinterConnectorAssignment404JSONResponse) VisitUpdatePrinterConnectorAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePrinterConnectorAssignment409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdatePrinterConnectorAssignment409JSONResponse) VisitUpdatePrinterConnectorAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePrinterConnectorAssignment422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdatePrinterConnectorAssignment422JSONResponse) VisitUpdatePrinterConnectorAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdatePrinterConnectorAssignment500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdatePrinterConnectorAssignment500JSONResponse) VisitUpdatePrinterConnectorAssignmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterConnectorEnrollmentRequestObject struct {
+	PrinterConnectorId UUIDv7 `json:"printerConnectorId"`
+}
+
+type CreatePrinterConnectorEnrollmentResponseObject interface {
+	VisitCreatePrinterConnectorEnrollmentResponse(w http.ResponseWriter) error
+}
+
+type CreatePrinterConnectorEnrollment201ResponseHeaders struct {
+	CacheControl string
+}
+
+type CreatePrinterConnectorEnrollment201JSONResponse struct {
+	Body    PrinterConnectorEnrollmentIssue
+	Headers CreatePrinterConnectorEnrollment201ResponseHeaders
+}
+
+func (response CreatePrinterConnectorEnrollment201JSONResponse) VisitCreatePrinterConnectorEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response.Body)
+}
+
+type CreatePrinterConnectorEnrollment401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreatePrinterConnectorEnrollment401JSONResponse) VisitCreatePrinterConnectorEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterConnectorEnrollment403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreatePrinterConnectorEnrollment403JSONResponse) VisitCreatePrinterConnectorEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterConnectorEnrollment404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response CreatePrinterConnectorEnrollment404JSONResponse) VisitCreatePrinterConnectorEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterConnectorEnrollment409JSONResponse struct{ ConflictJSONResponse }
+
+func (response CreatePrinterConnectorEnrollment409JSONResponse) VisitCreatePrinterConnectorEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreatePrinterConnectorEnrollment500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreatePrinterConnectorEnrollment500JSONResponse) VisitCreatePrinterConnectorEnrollmentResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterConnectorEventsRequestObject struct {
+	PrinterConnectorId UUIDv7 `json:"printerConnectorId"`
+}
+
+type ListPrinterConnectorEventsResponseObject interface {
+	VisitListPrinterConnectorEventsResponse(w http.ResponseWriter) error
+}
+
+type ListPrinterConnectorEvents200JSONResponse PrinterConnectorEventList
+
+func (response ListPrinterConnectorEvents200JSONResponse) VisitListPrinterConnectorEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterConnectorEvents401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListPrinterConnectorEvents401JSONResponse) VisitListPrinterConnectorEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterConnectorEvents403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListPrinterConnectorEvents403JSONResponse) VisitListPrinterConnectorEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterConnectorEvents404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListPrinterConnectorEvents404JSONResponse) VisitListPrinterConnectorEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterConnectorEvents500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListPrinterConnectorEvents500JSONResponse) VisitListPrinterConnectorEventsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterObservedRunsRequestObject struct {
+	PrinterConnectorId UUIDv7 `json:"printerConnectorId"`
+}
+
+type ListPrinterObservedRunsResponseObject interface {
+	VisitListPrinterObservedRunsResponse(w http.ResponseWriter) error
+}
+
+type ListPrinterObservedRuns200JSONResponse PrinterObservedRunList
+
+func (response ListPrinterObservedRuns200JSONResponse) VisitListPrinterObservedRunsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterObservedRuns401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListPrinterObservedRuns401JSONResponse) VisitListPrinterObservedRunsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterObservedRuns403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListPrinterObservedRuns403JSONResponse) VisitListPrinterObservedRunsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterObservedRuns404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response ListPrinterObservedRuns404JSONResponse) VisitListPrinterObservedRunsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListPrinterObservedRuns500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListPrinterObservedRuns500JSONResponse) VisitListPrinterObservedRunsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RevokePrinterConnectorRequestObject struct {
+	PrinterConnectorId UUIDv7 `json:"printerConnectorId"`
+	Body               *RevokePrinterConnectorJSONRequestBody
+}
+
+type RevokePrinterConnectorResponseObject interface {
+	VisitRevokePrinterConnectorResponse(w http.ResponseWriter) error
+}
+
+type RevokePrinterConnector200JSONResponse PrinterConnector
+
+func (response RevokePrinterConnector200JSONResponse) VisitRevokePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RevokePrinterConnector401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RevokePrinterConnector401JSONResponse) VisitRevokePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RevokePrinterConnector403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RevokePrinterConnector403JSONResponse) VisitRevokePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RevokePrinterConnector404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RevokePrinterConnector404JSONResponse) VisitRevokePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RevokePrinterConnector409JSONResponse struct{ ConflictJSONResponse }
+
+func (response RevokePrinterConnector409JSONResponse) VisitRevokePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RevokePrinterConnector500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response RevokePrinterConnector500JSONResponse) VisitRevokePrinterConnectorResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type ReconcilePrinterEventRequestObject struct {
 	EventId UUIDv7 `json:"eventId"`
 	Body    *ReconcilePrinterEventJSONRequestBody
@@ -38726,6 +40878,71 @@ type CreatePrinterSlot500JSONResponse struct {
 }
 
 func (response CreatePrinterSlot500JSONResponse) VisitCreatePrinterSlotResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkPrinterObservedRunAttemptRequestObject struct {
+	PrinterObservedRunId UUIDv7 `json:"printerObservedRunId"`
+	Body                 *LinkPrinterObservedRunAttemptJSONRequestBody
+}
+
+type LinkPrinterObservedRunAttemptResponseObject interface {
+	VisitLinkPrinterObservedRunAttemptResponse(w http.ResponseWriter) error
+}
+
+type LinkPrinterObservedRunAttempt200JSONResponse PrinterObservedRun
+
+func (response LinkPrinterObservedRunAttempt200JSONResponse) VisitLinkPrinterObservedRunAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkPrinterObservedRunAttempt401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response LinkPrinterObservedRunAttempt401JSONResponse) VisitLinkPrinterObservedRunAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkPrinterObservedRunAttempt403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response LinkPrinterObservedRunAttempt403JSONResponse) VisitLinkPrinterObservedRunAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkPrinterObservedRunAttempt404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response LinkPrinterObservedRunAttempt404JSONResponse) VisitLinkPrinterObservedRunAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkPrinterObservedRunAttempt409JSONResponse struct{ ConflictJSONResponse }
+
+func (response LinkPrinterObservedRunAttempt409JSONResponse) VisitLinkPrinterObservedRunAttemptResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type LinkPrinterObservedRunAttempt500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response LinkPrinterObservedRunAttempt500JSONResponse) VisitLinkPrinterObservedRunAttemptResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(500)
 
@@ -43541,12 +45758,63 @@ type StrictServerInterface interface {
 
 	// (POST /print-submissions/{submissionId}/attempts)
 	CreatePrintAttempt(ctx context.Context, request CreatePrintAttemptRequestObject) (CreatePrintAttemptResponseObject, error)
+	// Exchange a short-lived enrollment secret for a connector identity
+	// (POST /printer-connector/enroll)
+	EnrollPrinterConnector(ctx context.Context, request EnrollPrinterConnectorRequestObject) (EnrollPrinterConnectorResponseObject, error)
+	// Fetch the complete centrally managed connector configuration
+	// (GET /printer-connector/self/configuration)
+	GetPrinterConnectorConfiguration(ctx context.Context, request GetPrinterConnectorConfigurationRequestObject) (GetPrinterConnectorConfigurationResponseObject, error)
+	// Replace the current connector credential with a connector-generated secret
+	// (POST /printer-connector/self/credential-rotation)
+	RotatePrinterConnectorCredential(ctx context.Context, request RotatePrinterConnectorCredentialRequestObject) (RotatePrinterConnectorCredentialResponseObject, error)
+	// Durably ingest an idempotent batch of normalized printer events
+	// (POST /printer-connector/self/events)
+	IngestPrinterConnectorEvents(ctx context.Context, request IngestPrinterConnectorEventsRequestObject) (IngestPrinterConnectorEventsResponseObject, error)
+	// Report connector and assignment health
+	// (POST /printer-connector/self/heartbeat)
+	ReportPrinterConnectorHeartbeat(ctx context.Context, request ReportPrinterConnectorHeartbeatRequestObject) (ReportPrinterConnectorHeartbeatResponseObject, error)
+	// List printer connector identities and current health
+	// (GET /printer-connectors)
+	ListPrinterConnectors(ctx context.Context, request ListPrinterConnectorsRequestObject) (ListPrinterConnectorsResponseObject, error)
+	// Create a pending printer connector identity
+	// (POST /printer-connectors)
+	CreatePrinterConnector(ctx context.Context, request CreatePrinterConnectorRequestObject) (CreatePrinterConnectorResponseObject, error)
+
+	// (GET /printer-connectors/{printerConnectorId})
+	GetPrinterConnector(ctx context.Context, request GetPrinterConnectorRequestObject) (GetPrinterConnectorResponseObject, error)
+	// Rename, relocate, enable, or disable a connector
+	// (PATCH /printer-connectors/{printerConnectorId})
+	UpdatePrinterConnector(ctx context.Context, request UpdatePrinterConnectorRequestObject) (UpdatePrinterConnectorResponseObject, error)
+	// List current and ended assignments without printer secrets
+	// (GET /printer-connectors/{printerConnectorId}/assignments)
+	ListPrinterConnectorAssignments(ctx context.Context, request ListPrinterConnectorAssignmentsRequestObject) (ListPrinterConnectorAssignmentsResponseObject, error)
+	// Assign an existing printer profile to a connector
+	// (POST /printer-connectors/{printerConnectorId}/assignments)
+	CreatePrinterConnectorAssignment(ctx context.Context, request CreatePrinterConnectorAssignmentRequestObject) (CreatePrinterConnectorAssignmentResponseObject, error)
+	// Update, disable, or end a printer assignment
+	// (PATCH /printer-connectors/{printerConnectorId}/assignments/{assignmentId})
+	UpdatePrinterConnectorAssignment(ctx context.Context, request UpdatePrinterConnectorAssignmentRequestObject) (UpdatePrinterConnectorAssignmentResponseObject, error)
+	// Issue a one-time connector enrollment secret
+	// (POST /printer-connectors/{printerConnectorId}/enrollments)
+	CreatePrinterConnectorEnrollment(ctx context.Context, request CreatePrinterConnectorEnrollmentRequestObject) (CreatePrinterConnectorEnrollmentResponseObject, error)
+	// List recent normalized events and their application status
+	// (GET /printer-connectors/{printerConnectorId}/events)
+	ListPrinterConnectorEvents(ctx context.Context, request ListPrinterConnectorEventsRequestObject) (ListPrinterConnectorEventsResponseObject, error)
+	// List recent physical print runs observed by this connector
+	// (GET /printer-connectors/{printerConnectorId}/observed-runs)
+	ListPrinterObservedRuns(ctx context.Context, request ListPrinterObservedRunsRequestObject) (ListPrinterObservedRunsResponseObject, error)
+	// Revoke connector credentials and end its assignments
+	// (POST /printer-connectors/{printerConnectorId}/revocation)
+	RevokePrinterConnector(ctx context.Context, request RevokePrinterConnectorRequestObject) (RevokePrinterConnectorResponseObject, error)
 
 	// (POST /printer-events/{eventId}/reconciliation)
 	ReconcilePrinterEvent(ctx context.Context, request ReconcilePrinterEventRequestObject) (ReconcilePrinterEventResponseObject, error)
 
 	// (POST /printer-input-units/{inputUnitId}/slots)
 	CreatePrinterSlot(ctx context.Context, request CreatePrinterSlotRequestObject) (CreatePrinterSlotResponseObject, error)
+	// Explicitly correlate a physical run with an existing Print Attempt
+	// (POST /printer-observed-runs/{printerObservedRunId}/attempt)
+	LinkPrinterObservedRunAttempt(ctx context.Context, request LinkPrinterObservedRunAttemptRequestObject) (LinkPrinterObservedRunAttemptResponseObject, error)
 
 	// (POST /printer-slots/{slotId}/mount)
 	MountPrinterSpool(ctx context.Context, request MountPrinterSpoolRequestObject) (MountPrinterSpoolResponseObject, error)
@@ -51561,6 +53829,472 @@ func (sh *strictHandler) CreatePrintAttempt(w http.ResponseWriter, r *http.Reque
 	}
 }
 
+// EnrollPrinterConnector operation middleware
+func (sh *strictHandler) EnrollPrinterConnector(w http.ResponseWriter, r *http.Request) {
+	var request EnrollPrinterConnectorRequestObject
+
+	var body EnrollPrinterConnectorJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.EnrollPrinterConnector(ctx, request.(EnrollPrinterConnectorRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "EnrollPrinterConnector")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(EnrollPrinterConnectorResponseObject); ok {
+		if err := validResponse.VisitEnrollPrinterConnectorResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPrinterConnectorConfiguration operation middleware
+func (sh *strictHandler) GetPrinterConnectorConfiguration(w http.ResponseWriter, r *http.Request) {
+	var request GetPrinterConnectorConfigurationRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPrinterConnectorConfiguration(ctx, request.(GetPrinterConnectorConfigurationRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPrinterConnectorConfiguration")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPrinterConnectorConfigurationResponseObject); ok {
+		if err := validResponse.VisitGetPrinterConnectorConfigurationResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RotatePrinterConnectorCredential operation middleware
+func (sh *strictHandler) RotatePrinterConnectorCredential(w http.ResponseWriter, r *http.Request) {
+	var request RotatePrinterConnectorCredentialRequestObject
+
+	var body RotatePrinterConnectorCredentialJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RotatePrinterConnectorCredential(ctx, request.(RotatePrinterConnectorCredentialRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RotatePrinterConnectorCredential")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RotatePrinterConnectorCredentialResponseObject); ok {
+		if err := validResponse.VisitRotatePrinterConnectorCredentialResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// IngestPrinterConnectorEvents operation middleware
+func (sh *strictHandler) IngestPrinterConnectorEvents(w http.ResponseWriter, r *http.Request) {
+	var request IngestPrinterConnectorEventsRequestObject
+
+	var body IngestPrinterConnectorEventsJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.IngestPrinterConnectorEvents(ctx, request.(IngestPrinterConnectorEventsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "IngestPrinterConnectorEvents")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(IngestPrinterConnectorEventsResponseObject); ok {
+		if err := validResponse.VisitIngestPrinterConnectorEventsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ReportPrinterConnectorHeartbeat operation middleware
+func (sh *strictHandler) ReportPrinterConnectorHeartbeat(w http.ResponseWriter, r *http.Request) {
+	var request ReportPrinterConnectorHeartbeatRequestObject
+
+	var body ReportPrinterConnectorHeartbeatJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ReportPrinterConnectorHeartbeat(ctx, request.(ReportPrinterConnectorHeartbeatRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ReportPrinterConnectorHeartbeat")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ReportPrinterConnectorHeartbeatResponseObject); ok {
+		if err := validResponse.VisitReportPrinterConnectorHeartbeatResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListPrinterConnectors operation middleware
+func (sh *strictHandler) ListPrinterConnectors(w http.ResponseWriter, r *http.Request) {
+	var request ListPrinterConnectorsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListPrinterConnectors(ctx, request.(ListPrinterConnectorsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListPrinterConnectors")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListPrinterConnectorsResponseObject); ok {
+		if err := validResponse.VisitListPrinterConnectorsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreatePrinterConnector operation middleware
+func (sh *strictHandler) CreatePrinterConnector(w http.ResponseWriter, r *http.Request) {
+	var request CreatePrinterConnectorRequestObject
+
+	var body CreatePrinterConnectorJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreatePrinterConnector(ctx, request.(CreatePrinterConnectorRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreatePrinterConnector")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreatePrinterConnectorResponseObject); ok {
+		if err := validResponse.VisitCreatePrinterConnectorResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPrinterConnector operation middleware
+func (sh *strictHandler) GetPrinterConnector(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7) {
+	var request GetPrinterConnectorRequestObject
+
+	request.PrinterConnectorId = printerConnectorId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPrinterConnector(ctx, request.(GetPrinterConnectorRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPrinterConnector")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPrinterConnectorResponseObject); ok {
+		if err := validResponse.VisitGetPrinterConnectorResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdatePrinterConnector operation middleware
+func (sh *strictHandler) UpdatePrinterConnector(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7) {
+	var request UpdatePrinterConnectorRequestObject
+
+	request.PrinterConnectorId = printerConnectorId
+
+	var body UpdatePrinterConnectorJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdatePrinterConnector(ctx, request.(UpdatePrinterConnectorRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdatePrinterConnector")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdatePrinterConnectorResponseObject); ok {
+		if err := validResponse.VisitUpdatePrinterConnectorResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListPrinterConnectorAssignments operation middleware
+func (sh *strictHandler) ListPrinterConnectorAssignments(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7) {
+	var request ListPrinterConnectorAssignmentsRequestObject
+
+	request.PrinterConnectorId = printerConnectorId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListPrinterConnectorAssignments(ctx, request.(ListPrinterConnectorAssignmentsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListPrinterConnectorAssignments")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListPrinterConnectorAssignmentsResponseObject); ok {
+		if err := validResponse.VisitListPrinterConnectorAssignmentsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreatePrinterConnectorAssignment operation middleware
+func (sh *strictHandler) CreatePrinterConnectorAssignment(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7) {
+	var request CreatePrinterConnectorAssignmentRequestObject
+
+	request.PrinterConnectorId = printerConnectorId
+
+	var body CreatePrinterConnectorAssignmentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreatePrinterConnectorAssignment(ctx, request.(CreatePrinterConnectorAssignmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreatePrinterConnectorAssignment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreatePrinterConnectorAssignmentResponseObject); ok {
+		if err := validResponse.VisitCreatePrinterConnectorAssignmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdatePrinterConnectorAssignment operation middleware
+func (sh *strictHandler) UpdatePrinterConnectorAssignment(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7, assignmentId UUIDv7) {
+	var request UpdatePrinterConnectorAssignmentRequestObject
+
+	request.PrinterConnectorId = printerConnectorId
+	request.AssignmentId = assignmentId
+
+	var body UpdatePrinterConnectorAssignmentJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdatePrinterConnectorAssignment(ctx, request.(UpdatePrinterConnectorAssignmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdatePrinterConnectorAssignment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdatePrinterConnectorAssignmentResponseObject); ok {
+		if err := validResponse.VisitUpdatePrinterConnectorAssignmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreatePrinterConnectorEnrollment operation middleware
+func (sh *strictHandler) CreatePrinterConnectorEnrollment(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7) {
+	var request CreatePrinterConnectorEnrollmentRequestObject
+
+	request.PrinterConnectorId = printerConnectorId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreatePrinterConnectorEnrollment(ctx, request.(CreatePrinterConnectorEnrollmentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreatePrinterConnectorEnrollment")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreatePrinterConnectorEnrollmentResponseObject); ok {
+		if err := validResponse.VisitCreatePrinterConnectorEnrollmentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListPrinterConnectorEvents operation middleware
+func (sh *strictHandler) ListPrinterConnectorEvents(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7) {
+	var request ListPrinterConnectorEventsRequestObject
+
+	request.PrinterConnectorId = printerConnectorId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListPrinterConnectorEvents(ctx, request.(ListPrinterConnectorEventsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListPrinterConnectorEvents")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListPrinterConnectorEventsResponseObject); ok {
+		if err := validResponse.VisitListPrinterConnectorEventsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListPrinterObservedRuns operation middleware
+func (sh *strictHandler) ListPrinterObservedRuns(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7) {
+	var request ListPrinterObservedRunsRequestObject
+
+	request.PrinterConnectorId = printerConnectorId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListPrinterObservedRuns(ctx, request.(ListPrinterObservedRunsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListPrinterObservedRuns")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListPrinterObservedRunsResponseObject); ok {
+		if err := validResponse.VisitListPrinterObservedRunsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RevokePrinterConnector operation middleware
+func (sh *strictHandler) RevokePrinterConnector(w http.ResponseWriter, r *http.Request, printerConnectorId UUIDv7) {
+	var request RevokePrinterConnectorRequestObject
+
+	request.PrinterConnectorId = printerConnectorId
+
+	var body RevokePrinterConnectorJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RevokePrinterConnector(ctx, request.(RevokePrinterConnectorRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RevokePrinterConnector")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RevokePrinterConnectorResponseObject); ok {
+		if err := validResponse.VisitRevokePrinterConnectorResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // ReconcilePrinterEvent operation middleware
 func (sh *strictHandler) ReconcilePrinterEvent(w http.ResponseWriter, r *http.Request, eventId UUIDv7) {
 	var request ReconcilePrinterEventRequestObject
@@ -51620,6 +54354,39 @@ func (sh *strictHandler) CreatePrinterSlot(w http.ResponseWriter, r *http.Reques
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(CreatePrinterSlotResponseObject); ok {
 		if err := validResponse.VisitCreatePrinterSlotResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// LinkPrinterObservedRunAttempt operation middleware
+func (sh *strictHandler) LinkPrinterObservedRunAttempt(w http.ResponseWriter, r *http.Request, printerObservedRunId UUIDv7) {
+	var request LinkPrinterObservedRunAttemptRequestObject
+
+	request.PrinterObservedRunId = printerObservedRunId
+
+	var body LinkPrinterObservedRunAttemptJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.LinkPrinterObservedRunAttempt(ctx, request.(LinkPrinterObservedRunAttemptRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "LinkPrinterObservedRunAttempt")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(LinkPrinterObservedRunAttemptResponseObject); ok {
+		if err := validResponse.VisitLinkPrinterObservedRunAttemptResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -53571,706 +56338,760 @@ func (sh *strictHandler) VoidVisit(w http.ResponseWriter, r *http.Request, visit
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
+	"GSSR+tjnv/5vAAAA///FC202oegGAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

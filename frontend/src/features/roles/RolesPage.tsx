@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Button,
   InlineNotification,
@@ -73,6 +73,8 @@ export function RolesPage() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reloadConfirmOpen, setReloadConfirmOpen] = useState(false);
   const [deleteRoleId, setDeleteRoleId] = useState<string>();
+  const roleActionButtons = useRef(new Map<string, HTMLElement>());
+  const deleteLauncherRef = useRef<HTMLElement | null>(null);
   const [permissionSearch, setPermissionSearch] = useState('');
   const [permissionGroup, setPermissionGroup] = useState<string>();
   const createOpen = location.pathname.endsWith('/new');
@@ -363,9 +365,9 @@ export function RolesPage() {
                       <span>{role.description || 'No description'}</span>
                     </span>
                   </button>
-                  <OverflowMenu iconDescription={`Actions for ${role.name}`} align="left" size="sm" flipped>
+                  <OverflowMenu ref={(button) => { if (button) roleActionButtons.current.set(role.id, button); else roleActionButtons.current.delete(role.id); }} iconDescription={`Actions for ${role.name}`} align="left" size="sm" flipped>
                     {manageable && <OverflowMenuItem itemText="Edit role details" onClick={() => navigate(`/settings/roles/${role.id}`)} />}
-                    {manageable && <OverflowMenuItem isDelete itemText="Delete role" onClick={() => setDeleteRoleId(role.id)} />}
+                    {manageable && <OverflowMenuItem isDelete itemText="Delete role" onClick={() => { deleteLauncherRef.current = roleActionButtons.current.get(role.id) ?? null; deleteMutation.reset(); setDeleteRoleId(role.id); }} />}
                     {!manageable && <OverflowMenuItem disabled itemText="Protected system role" />}
                   </OverflowMenu>
                 </div>
@@ -440,6 +442,7 @@ export function RolesPage() {
       />
       <DeleteRoleDialog
         role={deletingRole}
+        launcherButtonRef={deleteLauncherRef}
         isPending={deleteMutation.isPending}
         error={deleteMutation.error}
         onClose={() => setDeleteRoleId(undefined)}

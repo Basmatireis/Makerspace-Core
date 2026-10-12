@@ -153,7 +153,14 @@ export const updatePerson = async (personId: string,
 /**
  * Requires `people.delete`. If the person has an account, also requires
 `accounts.delete`. Audit references remain non-PII identifiers and do not
-prevent hard deletion.
+prevent hard deletion. A person provisioned through SCIM cannot be
+deleted here and returns `409 person_scim_managed`; deprovision them in
+the identity provider. Removing the last enabled master returns
+`409 last_master_required`. Every blocking reason is listed in
+`details.reasons` as `{code, message}` objects. A single reason keeps
+its own code; several reasons return `409 person_deletion_blocked`.
+Other records that still restrict deletion return
+`409 deletion_referenced`.
 
  * @summary Permanently delete one person
  */

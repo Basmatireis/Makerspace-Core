@@ -1,3 +1,4 @@
+import './styles.scss';
 import {
   Button,
   DataTable,
@@ -18,7 +19,7 @@ import {
   TextInput,
 } from '@carbon/react';
 import { Add } from '@carbon/icons-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
@@ -57,17 +58,18 @@ export function InventoryPage() {
   const client = useQueryClient();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(params.get('new') === '1' && hasPermission(currentUser, PermissionId.inventorymanage));
+  const closeCreate = () => { setCreateOpen(false); setParams((current) => { const next = new URLSearchParams(current); next.delete('new'); return next; }, { replace: true }); };
   const form = useForm<MaterialFields>({ defaultValues: { unit: 'g' } });
   const page = Number(params.get('page') || 1);
   const pageSize = Number(params.get('pageSize') || 25);
-  const query = useQuery(materialsQuery({
+  const query = useQuery({ ...materialsQuery({
     search: params.get('search') || undefined,
     category: params.get('category') || undefined,
     stockState: (params.get('stock') || undefined) as StockState | undefined,
     page,
     pageSize,
-  }));
+  }), placeholderData: keepPreviousData });
   const mutation = useMutation({
     mutationFn: (values: MaterialFields) => createMaterial({
       name: values.name,
@@ -78,7 +80,7 @@ export function InventoryPage() {
       filamentDiameterMm: values.filamentDiameterMm || null,
     }),
     onSuccess: async (created) => {
-      setCreateOpen(false);
+      closeCreate();
       form.reset({ name: '', category: '', color: '', unit: 'g', lowStockThreshold: '' });
       await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
       navigate(`/machine-logbook/inventory/${created.id}`);
@@ -89,7 +91,7 @@ export function InventoryPage() {
     if (value) next.set(key, value); else next.delete(key);
     if (key !== 'page') next.set('page', '1');
     return next;
-  });
+  }, { replace: true });
 
   if (query.isPending) return <FullPageLoading label="Loading inventory" />;
   if (query.isError) return <ErrorState message="Inventory could not be loaded." onRetry={() => query.refetch()} />;
@@ -108,7 +110,7 @@ export function InventoryPage() {
   return <PageShell
     title="Inventory"
     description={`Total inventory value: ${formatMoney(query.data.totalInventoryValue)}`}
-    breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Inventory' }]}
+    breadcrumbs={[{ label: 'Workshop', to: '/machine-logbook' }, { label: 'Inventory' }]}
     actions={<><Button as={Link} kind="secondary" to="/machine-logbook/spools">Filament spools</Button>{hasPermission(currentUser, PermissionId.inventorymanage) && <Button renderIcon={Add} onClick={() => setCreateOpen(true)}>Add material</Button>}</>}
     width="wide"
     className="machine-logbook-page table-page"
@@ -147,7 +149,7 @@ export function InventoryPage() {
       primaryButtonText={mutation.isPending ? 'Adding…' : 'Add material'}
       secondaryButtonText="Cancel"
       primaryButtonDisabled={mutation.isPending}
-      onRequestClose={() => setCreateOpen(false)}
+      onRequestClose={closeCreate}
       onRequestSubmit={form.handleSubmit((values) => mutation.mutate(values))}
     >
       <Stack gap={5}>

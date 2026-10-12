@@ -307,7 +307,10 @@ func (s *Service) Delete(ctx context.Context, principal authorization.Principal,
 	if current.Version != expectedVersion {
 		return apperror.StaleWrite
 	}
-	if err := protectLastMaster(ctx, queries, current); err != nil {
+	var appErr *apperror.Error
+	if err := protectLastMaster(ctx, queries, current); errors.As(err, &appErr) {
+		return accountDeletionBlocked(appErr)
+	} else if err != nil {
 		return err
 	}
 	actor := principal.AccountID
@@ -316,10 +319,16 @@ func (s *Service) Delete(ctx context.Context, principal authorization.Principal,
 	}
 	if _, err := queries.DeleteAccount(ctx, accountsdb.DeleteAccountParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(err, pgx.ErrNoRows) {
 		return apperror.StaleWrite
+	} else if blocker := DeletionReferenceBlocker(err); blocker != nil {
+		return accountDeletionBlocked(blocker)
 	} else if err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+func accountDeletionBlocked(reasons ...*apperror.Error) *apperror.Error {
+	return apperror.Blocked("account_deletion_blocked", "This account cannot be deleted for several reasons", reasons...)
 }
 
 func (s *Service) UpdateLoginEmail(ctx context.Context, principal authorization.Principal, id uuid.UUID, email string, expectedVersion int64, requestID *uuid.UUID) (Account, error) {

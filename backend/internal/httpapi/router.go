@@ -19,10 +19,12 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
 	"github.com/getkin/kin-openapi/openapi3filter"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	nethttpmiddleware "github.com/oapi-codegen/nethttp-middleware"
 	"go.opentelemetry.io/otel"
@@ -53,6 +55,8 @@ const (
 	scimConnectorContextKey
 	visitorDeviceContextKey
 	visitorEnrollmentContextKey
+	printerConnectorContextKey
+	printerConnectorEnrollmentSecretContextKey
 )
 
 type operationState struct {
@@ -138,6 +142,34 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if cookie, err := r.Cookie(s.config.OIDCFlowCookieName); err == nil {
 			r = r.WithContext(context.WithValue(r.Context(), oidcFlowTokenContextKey, cookie.Value))
+		}
+		if isPrinterConnectorPath(r.URL.Path) {
+			scheme, token, found := strings.Cut(strings.TrimSpace(r.Header.Get("Authorization")), " ")
+			if !found || !strings.EqualFold(scheme, "Bearer") || strings.TrimSpace(token) == "" {
+				writeAPIError(w, r, apperror.Unauthenticated, logger)
+				return
+			}
+			ctx := r.Context()
+			if r.URL.Path == apiBasePath+"/printer-connector/enroll" {
+				ctx = context.WithValue(ctx, printerConnectorEnrollmentSecretContextKey, strings.TrimSpace(token))
+			} else {
+				connector, err := s.printerConnectors.Authenticate(ctx, strings.TrimSpace(token))
+				if err != nil {
+					writeAPIError(w, r, err, logger)
+					return
+				}
+				if connector == nil {
+					writeAPIError(w, r, apperror.Unauthenticated, logger)
+					return
+				}
+				if !s.allowPrinterConnectorRequest(connector.ID, time.Now().UTC()) {
+					writeAPIError(w, r, apperror.New(http.StatusTooManyRequests, "rate_limited", "Connector request rate exceeded"), logger)
+					return
+				}
+				ctx = context.WithValue(ctx, printerConnectorContextKey, *connector)
+			}
+			next.ServeHTTP(w, r.WithContext(ctx))
+			return
 		}
 		if isSCIMPath(r.URL.Path) {
 			scheme, token, found := strings.Cut(strings.TrimSpace(r.Header.Get("Authorization")), " ")
@@ -291,10 +323,34 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 	})
 }
 
+type connectorRateWindow struct {
+	startedAt time.Time
+	count     int
+}
+
+func (s *Server) allowPrinterConnectorRequest(id uuid.UUID, now time.Time) bool {
+	s.connectorRateMu.Lock()
+	defer s.connectorRateMu.Unlock()
+	window := s.connectorRates[id]
+	if window.startedAt.IsZero() || now.Sub(window.startedAt) >= time.Minute {
+		window = connectorRateWindow{startedAt: now}
+	}
+	window.count++
+	s.connectorRates[id] = window
+	if len(s.connectorRates) > 256 {
+		for key, candidate := range s.connectorRates {
+			if now.Sub(candidate.startedAt) > 10*time.Minute {
+				delete(s.connectorRates, key)
+			}
+		}
+	}
+	return window.count <= 600
+}
+
 func (s *Server) originMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 	expectedOrigin := s.config.PublicBaseURL.Scheme + "://" + s.config.PublicBaseURL.Host
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isSCIMPath(r.URL.Path) {
+		if isSCIMPath(r.URL.Path) || isPrinterConnectorPath(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -327,7 +383,9 @@ func maxBodyMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Body != nil {
 			limit := int64(maxJSONRequestBodyBytes)
-			if strings.HasSuffix(r.URL.Path, "/profile-image") {
+			if r.URL.Path == apiBasePath+"/printer-connector/self/events" {
+				limit = 512 << 10
+			} else if strings.HasSuffix(r.URL.Path, "/profile-image") {
 				limit = maxImageRequestBodyBytes
 			} else if strings.HasPrefix(r.URL.Path, apiBasePath+"/branding/assets/") {
 				limit = maxImageRequestBodyBytes
@@ -346,7 +404,7 @@ func maxBodyMiddleware(next http.Handler) http.Handler {
 
 func noStoreMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, apiBasePath+"/auth/") || strings.HasSuffix(r.URL.Path, "/password-reset") ||
+		if strings.HasPrefix(r.URL.Path, apiBasePath+"/auth/") || strings.HasPrefix(r.URL.Path, apiBasePath+"/printer-connector/") || strings.HasSuffix(r.URL.Path, "/password-reset") ||
 			strings.HasPrefix(r.URL.Path, apiBasePath+"/visitor-enrollment/") ||
 			strings.HasPrefix(r.URL.Path, apiBasePath+"/terminal/") || strings.HasPrefix(r.URL.Path, apiBasePath+"/public/surveys/") ||
 			strings.HasPrefix(r.URL.Path, apiBasePath+"/visits") || strings.HasPrefix(r.URL.Path, apiBasePath+"/attendance/") ||
@@ -609,10 +667,14 @@ func writeAPIError(w http.ResponseWriter, r *http.Request, err error, logger *sl
 			response.Details = &details
 		}
 	} else {
-		logger.ErrorContext(r.Context(), "request failed",
-			"request_id", response.RequestId,
-			"error_type", fmt.Sprintf("%T", err),
-		)
+		attributes := []any{"request_id", response.RequestId, "error_type", fmt.Sprintf("%T", err)}
+		// SQLSTATE and constraint names identify the failing rule without
+		// exposing row values from the error message or detail.
+		var postgresError *pgconn.PgError
+		if errors.As(err, &postgresError) {
+			attributes = append(attributes, "sqlstate", postgresError.Code, "constraint", postgresError.ConstraintName)
+		}
+		logger.ErrorContext(r.Context(), "request failed", attributes...)
 	}
 	if status == http.StatusTooManyRequests {
 		w.Header().Set("Retry-After", "900")
@@ -652,6 +714,9 @@ func sourceAddress(ctx context.Context) string {
 }
 
 func isPublicPath(path string) bool {
+	if isPrinterConnectorPath(path) {
+		return true
+	}
 	if isSCIMPath(path) {
 		return true
 	}
@@ -710,6 +775,26 @@ func cookieValue(cookie *http.Cookie) string {
 
 func isSCIMPath(path string) bool {
 	return strings.HasPrefix(path, apiBasePath+"/scim/v2/")
+}
+
+func isPrinterConnectorPath(path string) bool {
+	return strings.HasPrefix(path, apiBasePath+"/printer-connector/")
+}
+
+func printerConnectorContext(ctx context.Context) (printerconnectors.Context, error) {
+	value, ok := ctx.Value(printerConnectorContextKey).(printerconnectors.Context)
+	if !ok {
+		return printerconnectors.Context{}, apperror.Unauthenticated
+	}
+	return value, nil
+}
+
+func printerConnectorEnrollmentSecret(ctx context.Context) (string, error) {
+	value, ok := ctx.Value(printerConnectorEnrollmentSecretContextKey).(string)
+	if !ok || value == "" {
+		return "", apperror.Unauthenticated
+	}
+	return value, nil
 }
 
 func isUnsafeMethod(method string) bool {

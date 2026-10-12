@@ -25,6 +25,33 @@ function matrixHandlers(role = roleFixture()) {
 }
 
 describe('Roles and permissions matrix', () => {
+  it('confirms deletion with membership consequences and preserves server conflicts in the dialog', async () => {
+    const actor = currentUserFixture([PermissionId.rolesread, PermissionId.rolesmanage]);
+    const role = roleFixture();
+    let deleteAttempts = 0;
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(actor)),
+      ...matrixHandlers(role),
+      http.delete('*/api/v1/roles/:roleId', () => {
+        deleteAttempts += 1;
+        return HttpResponse.json({ code: 'conflict', message: 'Role still protected' }, { status: 409 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/settings/roles');
+
+    await user.click(await screen.findByRole('button', { name: `Actions for ${role.name}` }));
+    await user.click(await screen.findByText('Delete role'));
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete role?' });
+    expect(within(dialog).getByText(/removed from every person who has it/i)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    expect(deleteAttempts).toBe(0);
+
+    await user.click(within(dialog).getByRole('button', { name: 'Delete role' }));
+    expect(await within(dialog).findByText('Role still protected')).toBeInTheDocument();
+    expect(deleteAttempts).toBe(1);
+  });
+
   it('stages and reviews a permission change without dropping other grants', async () => {
     const actor = currentUserFixture([
       PermissionId.rolesread,

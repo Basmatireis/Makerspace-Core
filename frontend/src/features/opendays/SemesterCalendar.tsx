@@ -17,9 +17,12 @@ type Props = {
   entries?: CalendarEntry[];
   timeZone: string;
   onOpenDay: (day: OpenDay) => void;
+  compact?: boolean;
+  selectedDate?: string;
+  onSelectDate?: (date: string) => void;
 };
 
-export function SemesterCalendar({ startsOn, endsOn, days, entries = [], timeZone, onOpenDay }: Props) {
+export function SemesterCalendar({ startsOn, endsOn, days, entries = [], timeZone, onOpenDay, compact = false, selectedDate, onSelectDate }: Props) {
   const byDate = new Map<string, OpenDay[]>();
   for (const item of days) {
     const key = dateInTimeZone(item.startsAt, timeZone);
@@ -30,8 +33,8 @@ export function SemesterCalendar({ startsOn, endsOn, days, entries = [], timeZon
     <>
       <CalendarLegend />
       <SemesterCalendarGrid startsOn={startsOn} endsOn={endsOn} entries={entries} renderDay={(day) => (
-        <CalendarDayCell day={day} tooltipDescription={dateTooltipContent(day.date, byDate.get(day.date) ?? [], day.entries, timeZone)} key={day.date}>
-          {(byDate.get(day.date) ?? []).map((slot) => <CalendarSlot day={slot} timeZone={timeZone} onOpenDay={onOpenDay} key={slot.id} />)}
+        <CalendarDayCell day={day} tooltipDescription={dateTooltipContent(day.date, byDate.get(day.date) ?? [], day.entries, timeZone)} key={day.date} className={compact ? 'calendar-cell--compact' : ''} selected={selectedDate === day.date} onSelectDate={compact && day.withinRange ? () => onSelectDate?.(day.date) : undefined} selectLabel={compact ? `Show Open Days on ${formatLongDate(day.date)}` : undefined}>
+          {compact ? <span className="calendar-cell__event-count" aria-hidden="true">{(byDate.get(day.date) ?? []).length || ''}</span> : (byDate.get(day.date) ?? []).map((slot) => <CalendarSlot day={slot} timeZone={timeZone} onOpenDay={onOpenDay} key={slot.id} />)}
         </CalendarDayCell>
       )} />
     </>

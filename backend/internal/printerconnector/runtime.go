@@ -1,0 +1,304 @@
+package printerconnector
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+)
+
+var Version = "dev"
+
+type Runtime struct {
+	store                   *Store
+	client                  *Client
+	dataDir, enrollmentFile string
+	logger                  *slog.Logger
+	mu                      sync.Mutex
+	adapters                map[uuid.UUID]context.CancelFunc
+	health                  map[uuid.UUID]AssignmentHealth
+	revision                int64
+}
+
+func NewRuntime(store *Store, client *Client, dataDir, enrollmentFile string, logger *slog.Logger) *Runtime {
+	return &Runtime{store: store, client: client, dataDir: dataDir, enrollmentFile: enrollmentFile, logger: logger, adapters: map[uuid.UUID]context.CancelFunc{}, health: map[uuid.UUID]AssignmentHealth{}}
+}
+
+func newSecret() (string, error) {
+	value := make([]byte, 32)
+	if _, err := rand.Read(value); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(value), nil
+}
+
+func (r *Runtime) Run(ctx context.Context) error {
+	identity, err := r.ensureIdentity(ctx)
+	if err != nil {
+		return err
+	}
+	identity, err = r.rotateCredentialIfNeeded(ctx, identity)
+	if err != nil {
+		return err
+	}
+	cached, err := r.store.Configuration(ctx)
+	if err != nil {
+		return err
+	}
+	if cached != nil {
+		r.apply(ctx, *cached)
+	}
+	if err = r.writeHealth("healthy"); err != nil {
+		return err
+	}
+	delivery := time.NewTicker(2 * time.Second)
+	configuration := time.NewTicker(30 * time.Second)
+	heartbeat := time.NewTicker(30 * time.Second)
+	defer delivery.Stop()
+	defer configuration.Stop()
+	defer heartbeat.Stop()
+	if err = r.syncConfiguration(ctx, identity); err != nil {
+		r.logger.Warn("initial configuration unavailable", "error_type", fmt.Sprintf("%T", err))
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			r.stopAdapters()
+			return nil
+		case <-delivery.C:
+			if err = r.deliver(ctx, identity); err != nil {
+				r.logger.Warn("event delivery failed", "error_type", fmt.Sprintf("%T", err))
+			}
+		case <-configuration.C:
+			if identity, err = r.rotateCredentialIfNeeded(ctx, identity); err != nil {
+				r.logger.Warn("credential rotation failed", "error_type", fmt.Sprintf("%T", err))
+			}
+			if err = r.syncConfiguration(ctx, identity); err != nil {
+				r.logger.Warn("configuration sync failed", "error_type", fmt.Sprintf("%T", err))
+			}
+		case <-heartbeat.C:
+			if err = r.sendHeartbeat(ctx, identity); err != nil {
+				r.logger.Warn("heartbeat failed", "error_type", fmt.Sprintf("%T", err))
+			}
+		}
+	}
+}
+
+func (r *Runtime) rotateCredentialIfNeeded(ctx context.Context, identity Identity) (Identity, error) {
+	if identity.CredentialExpiresAt.After(time.Now().UTC().Add(7 * 24 * time.Hour)) {
+		return identity, nil
+	}
+	previous := identity
+	previousToken := identity.CredentialSecret
+	secret, err := newSecret()
+	if err != nil {
+		return identity, err
+	}
+	identity.CredentialID = uuid.Must(uuid.NewV7())
+	identity.CredentialSecret = secret
+	rotated, err := r.client.RotateCredential(ctx, previousToken, identity)
+	if err != nil {
+		return previous, err
+	}
+	if err = r.store.SaveIdentity(ctx, rotated); err != nil {
+		return previous, err
+	}
+	return rotated, nil
+}
+
+func (r *Runtime) ensureIdentity(ctx context.Context) (Identity, error) {
+	identity, err := r.store.Identity(ctx)
+	if err != nil {
+		return Identity{}, err
+	}
+	if identity == nil {
+		secret, err := newSecret()
+		if err != nil {
+			return Identity{}, err
+		}
+		value := Identity{CredentialID: uuid.Must(uuid.NewV7()), CredentialSecret: secret}
+		if err = r.store.SaveIdentity(ctx, value); err != nil {
+			return Identity{}, err
+		}
+		identity = &value
+	}
+	if identity.Enrolled {
+		return *identity, nil
+	}
+	if r.enrollmentFile == "" {
+		return Identity{}, errors.New("CONNECTOR_ENROLLMENT_SECRET_FILE is required until enrollment completes")
+	}
+	raw, err := os.ReadFile(r.enrollmentFile)
+	if err != nil {
+		return Identity{}, fmt.Errorf("read enrollment secret: %w", err)
+	}
+	enrollment := strings.TrimSpace(string(raw))
+	if enrollment == "" {
+		return Identity{}, errors.New("enrollment secret file is empty")
+	}
+	value, err := r.client.Enroll(ctx, enrollment, *identity, Version)
+	if err != nil {
+		return Identity{}, err
+	}
+	if err = r.store.SaveIdentity(ctx, value); err != nil {
+		return Identity{}, err
+	}
+	return value, nil
+}
+
+func (r *Runtime) syncConfiguration(ctx context.Context, identity Identity) error {
+	value, err := r.client.Configuration(ctx, identity.CredentialSecret)
+	if err != nil {
+		return err
+	}
+	r.mu.Lock()
+	unchanged := r.revision == value.Revision
+	r.mu.Unlock()
+	if unchanged {
+		return r.writeHealth("healthy")
+	}
+	if err = r.store.SaveConfiguration(ctx, value); err != nil {
+		return err
+	}
+	r.apply(ctx, value)
+	return r.writeHealth("healthy")
+}
+
+func (r *Runtime) apply(parent context.Context, value Configuration) {
+	r.stopAdapters()
+	r.mu.Lock()
+	r.revision = value.Revision
+	r.mu.Unlock()
+	for _, raw := range value.Assignments {
+		if !raw.Enabled {
+			continue
+		}
+		id, err := uuid.Parse(raw.ID)
+		if err != nil {
+			continue
+		}
+		var adapter Adapter
+		if raw.AdapterKind == "simulator" {
+			adapter, err = NewSimulator(raw.Settings)
+		} else {
+			err = errors.New("unsupported adapter")
+		}
+		if err != nil {
+			code := "invalid_adapter_configuration"
+			r.mu.Lock()
+			r.health[id] = AssignmentHealth{AssignmentID: raw.ID, AppliedConfigurationVersion: 0, State: "degraded", ErrorCode: &code}
+			r.mu.Unlock()
+			continue
+		}
+		ctx, cancel := context.WithCancel(parent)
+		r.mu.Lock()
+		r.adapters[id] = cancel
+		r.health[id] = AssignmentHealth{AssignmentID: raw.ID, AppliedConfigurationVersion: raw.ConfigurationVersion, State: "connected"}
+		r.mu.Unlock()
+		go func(assignmentID uuid.UUID, configVersion int64, adapter Adapter) {
+			sink := &runtimeSink{store: r.store, assignmentID: assignmentID, configurationVersion: configVersion}
+			if runErr := adapter.Run(ctx, sink); runErr != nil && !errors.Is(runErr, context.Canceled) {
+				r.logger.Warn("adapter stopped", "assignment_id", assignmentID.String(), "error_type", fmt.Sprintf("%T", runErr))
+				code := "adapter_stopped"
+				r.mu.Lock()
+				r.health[assignmentID] = AssignmentHealth{AssignmentID: assignmentID.String(), AppliedConfigurationVersion: configVersion, State: "degraded", ErrorCode: &code}
+				r.mu.Unlock()
+			}
+		}(id, raw.ConfigurationVersion, adapter)
+	}
+}
+
+func (r *Runtime) stopAdapters() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	for id, cancel := range r.adapters {
+		cancel()
+		delete(r.adapters, id)
+	}
+	r.health = map[uuid.UUID]AssignmentHealth{}
+}
+
+type runtimeSink struct {
+	store                *Store
+	assignmentID         uuid.UUID
+	configurationVersion int64
+}
+
+func (s *runtimeSink) Commit(ctx context.Context, observation Observation) error {
+	_, err := s.store.Enqueue(ctx, s.assignmentID, s.configurationVersion, observation.Kind, observation.Payload, observation.RunID, observation.HistoryComplete, observation.ExternalPrintID, observation.ReportRevision)
+	return err
+}
+
+func (r *Runtime) deliver(ctx context.Context, identity Identity) error {
+	events, err := r.store.Pending(ctx, 20)
+	if err != nil || len(events) == 0 {
+		return err
+	}
+	receipts, err := r.client.Send(ctx, identity.CredentialSecret, events)
+	if err != nil {
+		if queueErr := r.store.MarkDeliveryFailure(ctx, events); queueErr != nil {
+			return fmt.Errorf("record delivery failure: %w", queueErr)
+		}
+		return err
+	}
+	return r.store.ApplyReceipts(ctx, receipts)
+}
+
+func (r *Runtime) sendHeartbeat(ctx context.Context, identity Identity) error {
+	// The container remains healthy while its cached assignments are running,
+	// even if Core is temporarily unreachable.
+	if err := r.writeHealth("healthy"); err != nil {
+		return err
+	}
+	pending, quarantined, err := r.store.QueueCounts(ctx)
+	if err != nil {
+		return err
+	}
+	r.mu.Lock()
+	health := make([]AssignmentHealth, 0, len(r.health))
+	state := "connected"
+	for _, value := range r.health {
+		health = append(health, value)
+		if value.State == "degraded" {
+			state = "degraded"
+		}
+	}
+	revision := r.revision
+	r.mu.Unlock()
+	return r.client.Heartbeat(ctx, identity.CredentialSecret, Heartbeat{SoftwareVersion: Version, ProtocolVersion: 1, AppliedConfigurationRevision: revision, HealthState: state, PendingEventCount: pending, QuarantinedEventCount: quarantined, Assignments: health})
+}
+
+func (r *Runtime) writeHealth(status string) error {
+	value, _ := json.Marshal(map[string]any{"status": status, "updatedAt": time.Now().UTC()})
+	path := filepath.Join(r.dataDir, "health.json")
+	temporary := path + ".tmp"
+	if err := os.WriteFile(temporary, value, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(temporary, path)
+}
+
+func CheckHealth(dataDir string) error {
+	value, err := os.ReadFile(filepath.Join(dataDir, "health.json"))
+	if err != nil {
+		return err
+	}
+	var status struct {
+		Status    string    `json:"status"`
+		UpdatedAt time.Time `json:"updatedAt"`
+	}
+	if json.Unmarshal(value, &status) != nil || status.Status != "healthy" || time.Since(status.UpdatedAt) > 2*time.Minute {
+		return errors.New("connector health is stale")
+	}
+	return nil
+}

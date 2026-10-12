@@ -1,3 +1,5 @@
+import './styles.scss';
+import { useLatestCallback } from '../../app/useLatestCallback';
 import { useState } from 'react';
 import { Add, Calendar as CalendarIcon, Edit, TrashCan } from '@carbon/icons-react';
 import {
@@ -20,6 +22,7 @@ import {
   TableToolbarSearch,
   Tag,
   TextInput,
+  Tile,
 } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Navigate, useNavigate } from 'react-router-dom';
@@ -28,6 +31,11 @@ import type { OpenDayPeriod } from '../../api/generated/models';
 import { DateInput } from '../../app/DateInput';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
+import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
+import { useUnsavedChanges } from '../../app/useUnsavedChanges';
+import { UnsavedChangesDialog } from '../../app/UnsavedChangesDialog';
+import { useOpenDaysLayout } from './useOpenDaysLayout';
+import { RowActions } from '../../app/RowActions';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { CreateOpenDayPeriodWizard } from './CreateOpenDayPeriodWizard';
@@ -49,9 +57,11 @@ const periodHeaders = [
 ];
 
 export function OpenDaysPage() {
+  const { isPhone } = useOpenDaysLayout();
   const currentUser = useCurrentUser();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [createDirty, setCreateDirty] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [periodDraft, setPeriodDraft] = useState<PeriodDraft | null>(null);
   const [deletePeriod, setDeletePeriod] = useState<OpenDayPeriod | null>(null);
@@ -59,6 +69,9 @@ export function OpenDaysPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(pageSizes[0]);
   const periodsQuery = useQuery(periodsQueryOptions());
+  const originalPeriod = periodsQuery.data?.items.find((period) => period.id === periodDraft?.id);
+  const periodDirty = Boolean(periodDraft && originalPeriod && ['name', 'startsOn', 'endsOn'].some((key) => periodDraft[key as keyof PeriodDraft] !== originalPeriod[key as keyof PeriodDraft]));
+  const guard = useUnsavedChanges({ isDirty: periodDirty || (createOpen && createDirty), onDiscard: () => { setPeriodDraft(null); setCreateOpen(false); setCreateDirty(false); } });
   const canManage = hasPermission(currentUser, PermissionId.open_daysmanage);
   const periodMutation = useMutation({
     mutationFn: (value: PeriodDraft) => updateOpenDayPeriod(value.id, {
@@ -79,6 +92,7 @@ export function OpenDaysPage() {
       await queryClient.invalidateQueries({ queryKey: openDayKeys.all });
     },
   });
+  const requestFormClose = useLatestCallback(() => { if (!periodMutation.isPending) guard.requestDiscard(() => { setPeriodDraft(null); periodMutation.reset(); }); });
   const periods = periodsQuery.data?.items ?? [];
   const activePeriods = periods.filter((period) => period.status === 'staffing' || period.status === 'published');
   const normalizedSearch = search.trim().toLocaleLowerCase();
@@ -141,7 +155,7 @@ export function OpenDaysPage() {
                     {canManage && <Button renderIcon={Add} onClick={() => setCreateOpen(true)}>Create</Button>}
                   </TableToolbarContent>
                 </TableToolbar>
-                <Table {...getTableProps()} size="lg" aria-label="Open Day periods">
+                {!isPhone && <Table {...getTableProps()} size="lg" aria-label="Open Day periods">
                   <TableHead>
                     <TableRow>
                       {headers.map((header) => <TableHeader {...getHeaderProps({ header })} key={header.key} className={header.key === 'actions' ? 'period-table__actions-column' : undefined}>{header.header}</TableHeader>)}
@@ -164,7 +178,15 @@ export function OpenDaysPage() {
                       </TableRow>;
                     })}
                   </TableBody>
-                </Table>
+                </Table>}
+                {isPhone && <div className="open-day-period-cards" aria-label="Open Day periods">
+                  {visiblePeriods.map((period) => <Tile key={period.id} className="open-day-period-card">
+                    <div className="open-day-period-card__heading"><CarbonLink href={`/open-days/${period.id}`} onClick={(event) => { event.preventDefault(); navigate(`/open-days/${period.id}`); }}>{period.name}</CarbonLink><Tag type={statusTagType(period.status)}>{period.status}</Tag></div>
+                    <p>{periodRange(period)}</p>
+                    <dl><div><dt>Open Days</dt><dd>{period.totalOpenDays}</dd></div><div><dt>Open supervisor positions</dt><dd className={period.openSupervisorPositions > 0 ? 'status-bad' : 'status-good'}>{period.openSupervisorPositions}</dd></div><div><dt>Your assignments</dt><dd>{period.myAssignmentCount}</dd></div><div><dt>Cancelled</dt><dd>{period.cancelledCount}</dd></div></dl>
+                    {canManage && <RowActions label={`Actions for ${period.name}`}><Button kind="ghost" size="sm" renderIcon={Edit} disabled={period.status !== 'draft'} onClick={() => setPeriodDraft(period)}>Edit metadata</Button><Button kind="danger--ghost" size="sm" renderIcon={TrashCan} onClick={() => setDeletePeriod(period)}>Delete</Button></RowActions>}
+                  </Tile>)}
+                </div>}
                 {filteredPeriods.length === 0 && <div className="empty-state">
                   <h2>{search ? 'No matching periods' : canManage ? 'No periods yet' : 'No visible periods'}</h2>
                   <p>{search ? 'Try a different search term.' : canManage ? 'Create a period to start planning Open Days.' : 'Open Day periods will appear here when staffing opens.'}</p>
@@ -182,40 +204,34 @@ export function OpenDaysPage() {
         </section>
       )}
       {createOpen && <CreateOpenDayPeriodWizard
-        open={createOpen}
+        open={createOpen && !guard.dialogOpen}
+        onDirtyChange={setCreateDirty}
         onClose={() => setCreateOpen(false)}
         onCreated={(periodId) => {
           setCreateOpen(false);
-          navigate(openDaySchedulePath(periodId));
+          guard.bypassAfterSubmit(() => navigate(openDaySchedulePath(periodId)));
         }}
       />}
       <Modal
-        open={Boolean(periodDraft)}
+        open={Boolean(periodDraft) && !guard.dialogOpen}
         modalHeading="Edit period metadata"
         primaryButtonText="Save period"
         secondaryButtonText="Cancel"
         primaryButtonDisabled={periodMutation.isPending || !periodDraft?.name.trim() || !periodDraft.startsOn || !periodDraft.endsOn}
-        onRequestClose={() => setPeriodDraft(null)}
-        onRequestSubmit={() => periodDraft && periodMutation.mutate(periodDraft)}
+        onRequestClose={requestFormClose}
+        onRequestSubmit={() => periodDraft && !periodMutation.isPending && periodMutation.mutate(periodDraft)}
       >
         {periodDraft && <Stack gap={5}>
+          {periodMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Period was not saved" subtitle="Your inputs are kept. The period may have changed; review and try again." />}
           <TextInput id="period-name" labelText="Name" value={periodDraft.name} onChange={(event) => setPeriodDraft({ ...periodDraft, name: event.target.value })} />
           <DateInput id="period-start" labelText="Start date" value={periodDraft.startsOn} onChange={(startsOn) => setPeriodDraft({ ...periodDraft, startsOn })} />
           <DateInput id="period-end" labelText="End date" value={periodDraft.endsOn} onChange={(endsOn) => setPeriodDraft({ ...periodDraft, endsOn })} />
         </Stack>}
       </Modal>
-      <Modal
-        open={Boolean(deletePeriod)}
-        danger
-        modalHeading="Delete period?"
-        primaryButtonText="Delete period"
-        secondaryButtonText="Cancel"
-        primaryButtonDisabled={deleteMutation.isPending}
-        onRequestClose={() => setDeletePeriod(null)}
-        onRequestSubmit={() => deletePeriod && deleteMutation.mutate(deletePeriod)}
-      >
-        <p>{deletePeriod?.name}, all of its Open Days, and all assignments will be permanently deleted. This cannot be undone.</p>
-      </Modal>
+      <DestructiveActionDialog open={Boolean(deletePeriod)} title="Delete period?" confirmLabel="Delete period" pending={deleteMutation.isPending} error={deleteMutation.isError ? 'The period may have changed. Reload and try again.' : undefined} onClose={() => { setDeletePeriod(null); deleteMutation.reset(); }} onConfirm={() => deletePeriod && deleteMutation.mutate(deletePeriod)}>
+        <p><strong>{deletePeriod?.name}</strong> and all its Open Days, staffing requirements, eligibility role rules, and assignments will be permanently deleted. Audit history is retained. This cannot be undone.</p>
+      </DestructiveActionDialog>
+      <UnsavedChangesDialog guard={guard} />
     </PageShell>
   );
 }

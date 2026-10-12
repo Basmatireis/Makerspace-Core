@@ -1,139 +1,44 @@
-import {
-  Button,
-  DataTable,
-  InlineNotification,
-  Modal,
-  Select,
-  SelectItem,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableHeader,
-  TableRow,
-  Tag,
-  TextInput,
-  Toggle,
-} from '@carbon/react';
+import './styles.scss';
+import './catalog.scss';
 import { Add } from '@carbon/icons-react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Button, Pagination, Search, Select, SelectItem, StructuredListBody, StructuredListWrapper, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, Tag, Tile } from '@carbon/react';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router-dom';
-import { createMachine, createMachineType } from '../../api/generated/machines/machines';
+import { Link, useSearchParams } from 'react-router-dom';
+import type { Machine, MachineStatus, MachineType } from '../../api/generated/models';
 import { PageShell } from '../../app/PageShell';
-import { ErrorState, FullPageLoading } from '../../app/PageState';
+import { EmptyState, ErrorState, FullPageLoading } from '../../app/PageState';
+import { DetailRow, DetailSection } from '../../app/DetailSection';
+import { RowActions } from '../../app/RowActions';
 import { PermissionId, hasPermission } from '../auth/permissions';
 import { useCurrentUser } from '../auth/auth';
 import { formatDateTime, formatDecimal, formatDuration } from './formatting';
-import { machineLogbookKeys, machineTypesQuery, machinesQuery } from './queries';
-
-type MachineFields = {
-  name: string;
-  machineTypeId: string;
-  status: 'active' | 'maintenance' | 'retired';
-  automaticCollectionEnabled: boolean;
-  externalIdentifier: string;
-};
+import { machineTypesQuery, machinesQuery } from './queries';
+import { MachineEditor, MachineTypeEditor } from './MachineEditor';
 
 export function MachinesPage() {
-  const navigate = useNavigate();
   const currentUser = useCurrentUser();
-  const client = useQueryClient();
-  const machines = useQuery(machinesQuery({ page: 1, pageSize: 100 }));
-  const types = useQuery(machineTypesQuery());
-  const [machineOpen, setMachineOpen] = useState(false);
-  const [typeOpen, setTypeOpen] = useState(false);
-  const machineForm = useForm<MachineFields>({
-    defaultValues: { status: 'active', automaticCollectionEnabled: false },
-  });
-  const typeForm = useForm<{ name: string }>();
-  const refresh = () => client.invalidateQueries({ queryKey: machineLogbookKeys.all });
-  const machineMutation = useMutation({
-    mutationFn: (values: MachineFields) => createMachine({
-      name: values.name,
-      machineTypeId: values.machineTypeId,
-      status: values.status,
-      automaticCollectionEnabled: values.automaticCollectionEnabled,
-      externalIdentifier: values.externalIdentifier || null,
-    }),
-    onSuccess: async () => {
-      setMachineOpen(false);
-      machineForm.reset();
-      await refresh();
-    },
-  });
-  const typeMutation = useMutation({
-    mutationFn: (values: { name: string }) => createMachineType(values),
-    onSuccess: async () => {
-      setTypeOpen(false);
-      typeForm.reset();
-      await refresh();
-    },
-  });
-
-  if (machines.isPending || types.isPending) return <FullPageLoading label="Loading machines" />;
-  if (machines.isError || types.isError) return <ErrorState message="Machines could not be loaded." onRetry={() => { machines.refetch(); types.refetch(); }} />;
-
-  const rows = machines.data.items.map((item) => ({
-    id: item.id,
-    name: item.name,
-    type: item.machineType.name,
-    status: item.status,
-    runtime: formatDuration(item.runtimeSeconds),
-    jobs: String(item.jobCount),
-    failure: `${formatDecimal(item.failureRate)}%`,
-    collection: item.automaticCollectionEnabled ? 'Automatic' : 'Manual only',
-    last: item.lastIngestedAt ? formatDateTime(item.lastIngestedAt) : '—',
-  }));
-  const headers = [
-    { key: 'name', header: 'Machine' },
-    { key: 'type', header: 'Type' },
-    { key: 'status', header: 'Status' },
-    { key: 'runtime', header: 'Total runtime' },
-    { key: 'jobs', header: 'Jobs' },
-    { key: 'failure', header: 'Failure rate' },
-    { key: 'collection', header: 'Collection' },
-    { key: 'last', header: 'Last ingest' },
-  ];
-
-  return (
-    <PageShell
-      title="Machines"
-      description={`${machines.data.total} machines · statuses are administrative, not live telemetry`}
-      breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Machines' }]}
-      actions={hasPermission(currentUser, PermissionId.machinesmanage) && <><Button kind="secondary" onClick={() => setTypeOpen(true)}>Add type</Button><Button renderIcon={Add} onClick={() => setMachineOpen(true)}>Add machine</Button></>}
-      width="wide"
-      className="machine-logbook-page table-page"
-    >
-      <DataTable rows={rows} headers={headers}>
-        {({ rows: tableRows, headers: tableHeaders, getHeaderProps, getRowProps, getTableProps }) => (
-          <TableContainer>
-            <Table {...getTableProps()} tabIndex={0} aria-label="Machines">
-              <TableHead><TableRow>{tableHeaders.map((header) => <TableHeader {...getHeaderProps({ header })} key={header.key}>{header.header}</TableHeader>)}</TableRow></TableHead>
-              <TableBody>{tableRows.map((row) => {
-                const raw = rows.find((item) => item.id === row.id)!;
-                return <TableRow {...getRowProps({ row })} key={row.id} className="clickable-row" onClick={() => navigate(`/machine-logbook/machines/${row.id}/printer`)}>{row.cells.map((cell) => <TableCell key={cell.id}>{cell.info.header === 'status' ? <Tag type={raw.status === 'active' ? 'green' : raw.status === 'maintenance' ? 'warm-gray' : 'gray'}>{raw.status}</Tag> : cell.info.header === 'collection' ? <Tag type={raw.collection === 'Automatic' ? 'green' : 'gray'}>{raw.collection}</Tag> : cell.value as string}</TableCell>)}</TableRow>;
-              })}</TableBody>
-            </Table>
-          </TableContainer>
-        )}
-      </DataTable>
-      <Modal open={machineOpen} modalHeading="Add machine" primaryButtonText={machineMutation.isPending ? 'Adding…' : 'Add machine'} secondaryButtonText="Cancel" primaryButtonDisabled={machineMutation.isPending} onRequestClose={() => setMachineOpen(false)} onRequestSubmit={machineForm.handleSubmit((values) => machineMutation.mutate(values))}>
-        <Stack gap={5}>
-          <TextInput id="machine-name" labelText="Name" {...machineForm.register('name', { required: true })} />
-          <Select id="machine-type" labelText="Machine type" {...machineForm.register('machineTypeId', { required: true })}><SelectItem value="" text="Select a type" />{types.data.items.filter((item) => item.active).map((item) => <SelectItem key={item.id} value={item.id} text={item.name} />)}</Select>
-          <Select id="machine-status" labelText="Administrative status" {...machineForm.register('status')}><SelectItem value="active" text="Active" /><SelectItem value="maintenance" text="Maintenance" /><SelectItem value="retired" text="Retired" /></Select>
-          <Controller control={machineForm.control} name="automaticCollectionEnabled" render={({ field }) => <Toggle id="automatic-collection" labelText="Automatic collection" labelA="Disabled" labelB="Enabled" toggled={field.value} onToggle={field.onChange} />} />
-          <TextInput id="external-identifier" labelText="External identifier" {...machineForm.register('externalIdentifier')} />
-          {machineMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Machine not created" subtitle="Check unique names and automatic collection fields." />}
-        </Stack>
-      </Modal>
-      <Modal open={typeOpen} modalHeading="Add machine type" primaryButtonText={typeMutation.isPending ? 'Adding…' : 'Add type'} secondaryButtonText="Cancel" onRequestClose={() => setTypeOpen(false)} onRequestSubmit={typeForm.handleSubmit((values) => typeMutation.mutate(values))}>
-        <TextInput id="machine-type-name" labelText="Type name" {...typeForm.register('name', { required: true })} />
-      </Modal>
-    </PageShell>
-  );
+  const canManage = hasPermission(currentUser, PermissionId.machinesmanage);
+  const [params, setParams] = useSearchParams();
+  const page = Math.max(1, Number(params.get('page')) || 1);
+  const pageSize = [10, 25, 50].includes(Number(params.get('pageSize'))) ? Number(params.get('pageSize')) : 25;
+  const status = ['active', 'maintenance', 'retired'].includes(params.get('status') ?? '') ? params.get('status') as MachineStatus : undefined;
+  const machines = useQuery({ ...machinesQuery({ search: params.get('search') || undefined, status, page, pageSize }), placeholderData: keepPreviousData });
+  const types = useQuery({ ...machineTypesQuery(), enabled: canManage });
+  const [editor, setEditor] = useState<{ kind: 'machine'; value?: Machine } | { kind: 'type'; value?: MachineType } | null>(null);
+  const update = (key: string, value: string) => setParams((current) => { const next = new URLSearchParams(current); if (value) next.set(key, value); else next.delete(key); next.set('page', '1'); return next; }, { replace: true });
+  if (machines.isPending) return <FullPageLoading label="Loading machines" />;
+  if (!machines.data) return <ErrorState message="Machines could not be loaded." onRetry={() => machines.refetch()} />;
+  const machineLink = (item: Machine) => <Link to={`/machine-logbook/machines/${item.id}`}>{item.name}</Link>;
+  const actions = (item: Machine) => canManage && <RowActions label={`Actions for ${item.name}`}><Button kind="ghost" size="sm" onClick={() => setEditor({ kind: 'machine', value: item })}>Edit</Button></RowActions>;
+  return <PageShell title="Machines" description={`${machines.data.total} machines · statuses are administrative, not live telemetry`} breadcrumbs={[{ label: 'Workshop', to: '/machine-logbook' }, { label: 'Machines' }]} actions={canManage && <><Button kind="secondary" onClick={() => setEditor({ kind: 'type' })}>Add type</Button><Button renderIcon={Add} onClick={() => setEditor({ kind: 'machine' })}>Add machine</Button></>} width="wide" className="machine-logbook-page table-page machine-catalog">
+    <div className="filter-bar"><Search labelText="Search machines" value={params.get('search') || ''} onChange={(event) => update('search', event.currentTarget.value)} /><Select id="machines-status" labelText="Machine status" hideLabel value={status ?? ''} onChange={(event) => update('status', event.target.value)}><SelectItem value="" text="All statuses" /><SelectItem value="active" text="Active" /><SelectItem value="maintenance" text="Maintenance" /><SelectItem value="retired" text="Retired" /></Select></div>
+    {!machines.data.items.length ? <EmptyState title="No machines found" description="Try another search or status filter." /> : <>
+      <div className="catalog-table"><TableContainer><Table aria-label="Machines"><TableHead><TableRow>{['Machine', 'Type', 'Status', 'Total runtime', 'Jobs', 'Failure rate', 'Collection', 'Last ingest', ...(canManage ? ['Actions'] : [])].map((heading) => <TableHeader key={heading}>{heading}</TableHeader>)}</TableRow></TableHead><TableBody>{machines.data.items.map((item) => <TableRow key={item.id}><TableCell>{machineLink(item)}</TableCell><TableCell>{item.machineType.name}</TableCell><TableCell><Tag type={item.status === 'active' ? 'green' : 'gray'}>{item.status}</Tag></TableCell><TableCell>{formatDuration(item.runtimeSeconds)}</TableCell><TableCell>{item.jobCount}</TableCell><TableCell>{formatDecimal(item.failureRate)}%</TableCell><TableCell>{item.automaticCollectionEnabled ? 'Automatic' : 'Manual only'}</TableCell><TableCell>{item.lastIngestedAt ? formatDateTime(item.lastIngestedAt) : '—'}</TableCell>{canManage && <TableCell>{actions(item)}</TableCell>}</TableRow>)}</TableBody></Table></TableContainer></div>
+      <div className="catalog-cards">{machines.data.items.map((item) => <Tile key={item.id}><h2 className="catalog-card-title">{machineLink(item)}</h2><Tag type={item.status === 'active' ? 'green' : 'gray'}>{item.status}</Tag><StructuredListWrapper isCondensed><StructuredListBody><DetailRow label="Type" value={item.machineType.name} /><DetailRow label="Total runtime" value={formatDuration(item.runtimeSeconds)} /><DetailRow label="Jobs" value={item.jobCount} /><DetailRow label="Failure rate" value={`${formatDecimal(item.failureRate)}%`} /><DetailRow label="Collection" value={item.automaticCollectionEnabled ? 'Automatic' : 'Manual only'} /><DetailRow label="Last ingest" value={item.lastIngestedAt ? formatDateTime(item.lastIngestedAt) : '—'} /></StructuredListBody></StructuredListWrapper>{actions(item)}</Tile>)}</div>
+    </>}
+    <Pagination page={page} pageSize={pageSize} pageSizes={[10, 25, 50]} totalItems={machines.data.total} onChange={({ page: nextPage, pageSize: nextSize }) => setParams((current) => { const next = new URLSearchParams(current); next.set('page', String(nextPage)); next.set('pageSize', String(nextSize)); return next; })} />
+    {canManage && <DetailSection title="Machine types" description="Inactive types remain attached to existing machines and are unavailable for new machines.">{types.isPending ? <p>Loading machine types…</p> : types.isError ? <ErrorState message="Machine types could not be loaded." onRetry={() => types.refetch()} /> : <div className="catalog-types">{types.data.items.map((type) => <Tile key={type.id}><h3>{type.name}</h3><Tag type={type.active ? 'green' : 'gray'}>{type.active ? 'Active' : 'Inactive'}</Tag><Button kind="ghost" size="sm" aria-label={`Edit type ${type.name}`} onClick={() => setEditor({ kind: 'type', value: type })}>Edit type</Button></Tile>)}</div>}</DetailSection>}
+    {editor?.kind === 'machine' && <MachineEditor machine={editor.value} onClose={() => setEditor(null)} />}{editor?.kind === 'type' && <MachineTypeEditor type={editor.value} onClose={() => setEditor(null)} />}
+  </PageShell>;
 }

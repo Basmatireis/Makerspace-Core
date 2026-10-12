@@ -15,7 +15,7 @@ import {
   Tag,
   Stack,
 } from "@carbon/react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { createOrder, listOrders } from "../../api/generated/orders/orders";
@@ -41,6 +41,7 @@ export function OrdersPage() {
     status: params.get("status") || undefined,
   };
   const query = useQuery({
+    placeholderData: keepPreviousData,
     queryKey: [...financeKeys, "list", filters],
     queryFn: () => listOrders(filters),
   });
@@ -110,7 +111,7 @@ export function OrdersPage() {
               const next = new URLSearchParams(params);
               next.set("search", e.currentTarget.value);
               next.set("page", "1");
-              setParams(next);
+              setParams(next, { replace: true });
             }}
           />
           <Select
@@ -121,7 +122,7 @@ export function OrdersPage() {
               const next = new URLSearchParams(params);
               next.set("status", e.target.value);
               next.set("page", "1");
-              setParams(next);
+              setParams(next, { replace: true });
             }}
           >
             <SelectItem value="" text="All orders" />

@@ -1,3 +1,4 @@
+import './styles.scss';
 import { Edit, InventoryManagement } from '@carbon/icons-react';
 import {
   Button, InlineNotification, Modal, Pagination, Select, SelectItem, Stack, StructuredListBody,
@@ -51,7 +52,7 @@ export function FilamentSpoolDetailPage() {
   return <PageShell
     title={item.displayId}
     description={`${item.materialName} · ${formatDecimal(item.remainingQuantity, 1)} ${item.unit} remaining`}
-    breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Filament spools', to: '/machine-logbook/spools' }, { label: item.displayId }]}
+    breadcrumbs={[{ label: 'Workshop', to: '/machine-logbook' }, { label: 'Filament spools', to: '/machine-logbook/spools' }, { label: item.displayId }]}
     actions={canManage ? <><Button kind="secondary" renderIcon={Edit} onClick={openEdit}>Edit</Button><Button renderIcon={InventoryManagement} onClick={() => setDialog('consume')}>Record consumption</Button></> : undefined}
     width="wide"
     className="machine-logbook-page detail-page"

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, type RefObject } from 'react';
 import {
   Button,
   Checkbox,
@@ -16,6 +16,7 @@ import {
 } from '@carbon/react';
 import { useForm } from 'react-hook-form';
 import type { CreateRoleRequest, Role, UpdateRoleRequest } from '../../api/generated/models';
+import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { normalizePermissionGrants } from '../auth/permissions';
 
 type RoleForm = {
@@ -189,31 +190,34 @@ export function RoleSettingsDialog({
 
 export function DeleteRoleDialog({
   role,
+  launcherButtonRef,
   isPending,
   error,
   onClose,
   onConfirm,
 }: {
   role?: Role;
+  launcherButtonRef?: RefObject<HTMLElement | null>;
   isPending: boolean;
   error?: Error | null;
   onClose: () => void;
   onConfirm: () => void;
 }) {
+  if (!role) return null;
+
   return (
-    <ComposedModal open={Boolean(role)} danger onClose={onClose} size="sm">
-      <ModalHeader title="Delete role?" closeModal={onClose} />
-      <ModalBody>
-        <Stack gap={5}>
-          <p>{role ? `${role.name} will be removed from every account. This cannot be undone.` : ''}</p>
-          {error && <InlineNotification kind="error" lowContrast hideCloseButton title="Role not deleted" subtitle={error.message} />}
-        </Stack>
-      </ModalBody>
-      <ModalFooter>
-        <Button kind="secondary" disabled={isPending} onClick={onClose}>Cancel</Button>
-        <Button kind="danger" disabled={isPending} onClick={onConfirm}>{isPending ? 'Deleting…' : 'Delete role'}</Button>
-      </ModalFooter>
-    </ComposedModal>
+    <DestructiveActionDialog
+      open
+      title="Delete role?"
+      confirmLabel="Delete role"
+      launcherButtonRef={launcherButtonRef}
+      pending={isPending}
+      error={error?.message}
+      onClose={onClose}
+      onConfirm={onConfirm}
+    >
+      <p>{role.name} will be removed from every person who has it. The role and its permission grants will be permanently deleted. This cannot be undone.</p>
+    </DestructiveActionDialog>
   );
 }
 

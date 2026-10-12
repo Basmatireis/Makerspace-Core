@@ -1,0 +1,34 @@
+name: makerspace-printer-connector-dev
+
+services:
+  connector:
+    build:
+      context: ..
+      dockerfile: printer-connector/Dockerfile
+      target: final
+      args:
+        VERSION: dev
+    environment:
+      CORE_URL: ${CORE_URL:-http://host.docker.internal:8080}
+      CONNECTOR_ALLOW_HTTP: "true"
+      CONNECTOR_DATA_DIR: /var/lib/makerspace-printer-connector
+      CONNECTOR_ENROLLMENT_SECRET_FILE: /run/secrets/printer_connector_enrollment
+      APP_ENV: development
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    secrets:
+      - printer_connector_enrollment
+    volumes:
+      - connector_data:/var/lib/makerspace-printer-connector
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 20s
+    init: true
+
+secrets:
+  printer_connector_enrollment:
+    file: ${CONNECTOR_ENROLLMENT_SECRET_FILE:-./secrets/printer-connector-enrollment}
+
+volumes:
+  connector_data:
+

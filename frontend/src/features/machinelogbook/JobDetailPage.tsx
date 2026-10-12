@@ -1,3 +1,4 @@
+import './styles.scss';
 import { getJobOrderAssociation } from '../../api/generated/orders/orders';
 import { Link } from 'react-router-dom';
 import { Button, DefinitionTooltip, Modal, Stack, StructuredListBody, StructuredListCell, StructuredListHead, StructuredListRow, StructuredListWrapper, Tag, TextInput, Tile } from '@carbon/react';
@@ -31,7 +32,7 @@ export function JobDetailPage() {
   if (query.isPending) return <FullPageLoading label="Loading job" />;
   if (query.isError) return <ErrorState message="This job could not be loaded." onRetry={() => query.refetch()} />;
   const job = query.data;
-  return <PageShell title={job.displayId} description={`${job.machine.name} · ${formatDateTime(job.startsAt)}`} breadcrumbs={[{ label: 'Machines', to: '/machine-logbook' }, { label: 'Jobs', to: '/machine-logbook/jobs' }, { label: job.displayId }]} actions={<><OutcomeTag outcome={job.outcome} />{job.source === 'automatic' && <Tag type="gray">Automatic</Tag>}</>} width="wide" className="machine-logbook-page detail-page">
+  return <PageShell title={job.displayId} description={`${job.machine.name} · ${formatDateTime(job.startsAt)}`} breadcrumbs={[{ label: 'Workshop', to: '/machine-logbook' }, { label: 'Jobs', to: '/machine-logbook/jobs' }, { label: job.displayId }]} actions={<><OutcomeTag outcome={job.outcome} />{job.source === 'automatic' && <Tag type="gray">Automatic</Tag>}</>} width="wide" className="machine-logbook-page detail-page">
     <div className="detail-grid">
       <DetailTile title="Machine & timing" rows={[['Machine', job.machine.name], ['Machine type', job.machine.machineType.name], ['Start', formatDateTime(job.startsAt)], ['End', formatDateTime(job.endsAt)], ['Duration', formatDuration(job.durationSeconds)], ['External ID', job.externalId ?? '—']]} />
       <DetailTile title="Customer & operator" rows={[['Customer', job.customer?.displayName ?? 'Deleted / unassigned'], ['Customer type', job.customer?.kind ?? '—'], ['Pricing group', job.pricingSnapshot?.pricingGroupName ?? '—'], ['Operator', job.operator?.displayName ?? 'Deleted / unassigned']]} />

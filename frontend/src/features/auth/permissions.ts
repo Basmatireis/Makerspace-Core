@@ -42,6 +42,17 @@ export function hasAnyPermission(
   return permissions.some((permission) => hasPermission(currentUser, permission));
 }
 
+// Both billing-party and machine-job-operator searches use this permission set.
+// Keep aligned with machinelogbook/catalog.go: canLookupParties.
+export function canLookupJobParties(currentUser: CurrentUser): boolean {
+  return hasAnyPermission(currentUser, [
+    PermissionId.ordersread,
+    PermissionId.machine_jobscreate,
+    PermissionId.machine_jobsreview,
+    PermissionId.organizationsread,
+  ]);
+}
+
 export function isOwnPerson(currentUser: CurrentUser, personId: string): boolean {
   return currentUser.person.id === personId;
 }
@@ -76,14 +87,13 @@ export const settingsPermissions: readonly PermissionIdType[] = [
   PermissionId.oidcmanage,
   PermissionId.mailmanage,
   PermissionId.brandingmanage,
+  PermissionId.printer_connectorsread,
+  PermissionId.organizationsread,
+  PermissionId.pricingread,
 ];
 
 export function canAccessSettings(currentUser: CurrentUser): boolean {
-  return hasAnyPermission(currentUser, settingsPermissions) || [
-    PermissionId.organizationsread,
-    PermissionId.pricingread,
-    PermissionId.machinesread,
-  ].every((permission) => hasPermission(currentUser, permission));
+  return hasAnyPermission(currentUser, settingsPermissions);
 }
 
 export function canAccessOpenDays(currentUser: CurrentUser): boolean {

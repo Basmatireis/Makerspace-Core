@@ -12,7 +12,7 @@ import {
   StructuredListRow,
   StructuredListCell,
 } from "@carbon/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
@@ -39,6 +39,7 @@ import type {
   InvoiceRequestDetails,
 } from "../../api/generated/models";
 import { PageShell } from "../../app/PageShell";
+import { DestructiveActionDialog } from "../../app/DestructiveActionDialog";
 import { formatDate } from "../../app/dateTime";
 import { DateInput } from "../../app/DateInput";
 import { ErrorState, FullPageLoading } from "../../app/PageState";
@@ -63,6 +64,7 @@ export function ExternalInvoicingPage() {
     pageSize = Number(params.get("pageSize") || 25);
   const filters = { page, pageSize, status: params.get("status") || undefined };
   const query = useQuery({
+    placeholderData: keepPreviousData,
     queryKey: [...financeKeys, "invoice-list", filters],
     queryFn: () => listExternalInvoiceRequests(filters),
   });
@@ -90,7 +92,7 @@ export function ExternalInvoicingPage() {
             const next = new URLSearchParams(params);
             next.set("status", e.target.value);
             next.set("page", "1");
-            setParams(next);
+            setParams(next, { replace: true });
           }}
         >
           <SelectItem value="" text="All requests" />
@@ -153,6 +155,9 @@ function ExternalInvoiceDetailPageContent({
   const [effectiveDate, setEffectiveDate] = useState(
     new Date().toISOString().slice(0, 10),
   );
+  const [confirmation, setConfirmation] = useState<
+    "request-cancel" | "confirm-cancel" | "cancel" | undefined
+  >();
   const query = useQuery({
     queryKey: [...financeKeys, "invoice", requestId],
     queryFn: () => getExternalInvoiceRequest(requestId),
@@ -166,7 +171,10 @@ function ExternalInvoiceDetailPageContent({
   const form = useForm<InvoiceRequestDetails>({ values: query.data?.details });
   const mutation = useMutation({
     mutationFn: (fn: () => Promise<unknown>) => fn(),
-    onSuccess: () => client.invalidateQueries({ queryKey: financeKeys }),
+    onSuccess: async () => {
+      setConfirmation(undefined);
+      await client.invalidateQueries({ queryKey: financeKeys });
+    },
   });
   if (query.isPending) return <FullPageLoading label="Loading request" />;
   if (query.isError)
@@ -417,14 +425,7 @@ function ExternalInvoiceDetailPageContent({
                 <Button
                   kind="danger--tertiary"
                   disabled={mutation.isPending}
-                  onClick={() =>
-                    run(() =>
-                      requestExternalInvoiceCancellation(
-                        r.id,
-                        command("request-cancel"),
-                      ),
-                    )
-                  }
+                  onClick={() => { mutation.reset(); setConfirmation("request-cancel"); }}
                 >
                   Request external correction
                 </Button>
@@ -458,14 +459,7 @@ function ExternalInvoiceDetailPageContent({
                   </Select>
                   <Button
                     disabled={!externalReference || mutation.isPending}
-                    onClick={() =>
-                      run(() =>
-                        confirmExternalInvoiceCancellation(
-                          r.id,
-                          command("confirm-cancel"),
-                        ),
-                      )
-                    }
+                    onClick={() => { mutation.reset(); setConfirmation("confirm-cancel"); }}
                   >
                     Record external reconciliation evidence
                   </Button>
@@ -479,11 +473,8 @@ function ExternalInvoiceDetailPageContent({
               {(r.state === "draft" || r.state === "ready") && (
                 <Button
                   kind="danger--tertiary"
-                  onClick={() =>
-                    run(() =>
-                      cancelExternalInvoiceRequest(r.id, command("cancel")),
-                    )
-                  }
+                  disabled={mutation.isPending}
+                  onClick={() => { mutation.reset(); setConfirmation("cancel"); }}
                 >
                   Cancel request
                 </Button>
@@ -542,6 +533,38 @@ function ExternalInvoiceDetailPageContent({
             </p>
           ))}
         </Tile>
+        <DestructiveActionDialog
+          open={Boolean(confirmation)}
+          title={confirmation === "request-cancel"
+            ? "Request an external correction?"
+            : confirmation === "confirm-cancel"
+              ? "Record external reconciliation?"
+              : "Cancel external invoice request?"}
+          confirmLabel={confirmation === "request-cancel"
+            ? "Request correction"
+            : confirmation === "confirm-cancel"
+              ? "Record reconciliation"
+              : "Cancel request"}
+          pending={mutation.isPending}
+          error={mutation.error?.message}
+          onClose={() => { setConfirmation(undefined); mutation.reset(); }}
+          onConfirm={() => {
+            if (confirmation === "request-cancel") {
+              run(() => requestExternalInvoiceCancellation(r.id, command("request-cancel")));
+            } else if (confirmation === "confirm-cancel") {
+              run(() => confirmExternalInvoiceCancellation(r.id, command("confirm-cancel")));
+            } else if (confirmation === "cancel") {
+              run(() => cancelExternalInvoiceRequest(r.id, command("cancel")));
+            }
+          }}
+        >
+          <p>{confirmation === "request-cancel"
+            ? "This records that the submitted or issued request now requires correction in wiRef. Existing request and external evidence remain in history."
+            : confirmation === "confirm-cancel"
+              ? `This appends ${(reconciliationKind ?? "cancellation").replaceAll("_", " ")} evidence with reference ${externalReference}. It does not erase the invoice request, payment, or accounting history.`
+              : "This cancels the draft or ready request. The order remains and the request record stays in history; no external invoice is changed."}</p>
+          {reason && <p>Reason: {reason}</p>}
+        </DestructiveActionDialog>
       </Stack>
     </PageShell>
   );

@@ -63,7 +63,7 @@ func submissionDTO(v printing.Submission) openapi.PrintSubmission {
 	if v.Customer.ID != uuid.Nil {
 		customer = nullable.NewNullableWithValue(openapi.BillingPartyReference{Kind: openapi.BillingPartyKind(v.Customer.Kind), Id: v.Customer.ID})
 	}
-	return openapi.PrintSubmission{Id: v.ID, DisplayId: v.DisplayID, MachineId: v.MachineID, MachineName: v.MachineName, Customer: customer, Title: v.Title, Notes: nullableString(v.Notes), State: openapi.PrintSubmissionState(v.State), ReprintsSubmissionId: nullableUUIDValue(v.ReprintsSubmissionID), Declarations: d, Attempts: a, Version: v.Version, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
+	return openapi.PrintSubmission{Id: v.ID, DisplayId: v.DisplayID, MachineId: v.MachineID, MachineName: v.MachineName, Customer: customer, CustomerDisplayName: nullableString(v.CustomerDisplayName), Title: v.Title, Notes: nullableString(v.Notes), State: openapi.PrintSubmissionState(v.State), ReprintsSubmissionId: nullableUUIDValue(v.ReprintsSubmissionID), Declarations: d, Attempts: a, Version: v.Version, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt}
 }
 
 func (s *Server) GetPrinterProfile(ctx context.Context, r openapi.GetPrinterProfileRequestObject) (openapi.GetPrinterProfileResponseObject, error) {

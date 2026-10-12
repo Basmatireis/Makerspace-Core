@@ -180,6 +180,8 @@ jobs:
             dockerfile: backend/Dockerfile
           - component: frontend
             dockerfile: frontend/Dockerfile
+          - component: printer-connector
+            dockerfile: printer-connector/Dockerfile
     steps:
       - name: Check out repository
         uses: actions/checkout@v7

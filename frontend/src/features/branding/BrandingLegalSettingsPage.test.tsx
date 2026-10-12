@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import type { BrandingConfiguration } from '../../api/generated/models';
@@ -24,6 +24,50 @@ const configuration: BrandingConfiguration = {
 };
 
 describe('branding and legal settings', () => {
+  it('confirms permanent asset removal and distinguishes it from restoring the default', async () => {
+    const customConfiguration: BrandingConfiguration = {
+      ...configuration,
+      assets: {
+        ...configuration.assets,
+        logo: {
+          slot: 'logo',
+          mode: 'custom',
+          url: '/api/v1/branding/assets/logo',
+          originalFilename: 'logo.png',
+          contentType: 'image/png',
+          sizeBytes: 1200,
+          updatedAt: '2026-10-11T08:00:00Z',
+        },
+      },
+    };
+    let requestBody: unknown;
+    server.use(
+      http.get('*/api/v1/branding/configuration', () => HttpResponse.json(customConfiguration)),
+      http.delete('*/api/v1/branding/assets/logo', async ({ request }) => {
+        requestBody = await request.json();
+        return HttpResponse.json({
+          ...customConfiguration,
+          version: 2,
+          assets: { ...customConfiguration.assets, logo: { slot: 'logo', mode: 'none', url: null, originalFilename: null, contentType: null, sizeBytes: null, updatedAt: '2026-10-11T09:00:00Z' } },
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<BrandingLegalSettingsPage />, '/settings/branding-legal');
+
+    await user.click(await screen.findByRole('tab', { name: 'Assets' }));
+    const logoCard = screen.getByRole('heading', { name: 'Logo' }).closest('.cds--tile') as HTMLElement;
+    await user.click(within(logoCard).getByRole('button', { name: 'Remove' }));
+    const dialog = screen.getByRole('alertdialog', { name: 'Remove logo?' });
+    expect(within(dialog).getByText(/differs from restoring the bundled default/i)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    expect(requestBody).toBeUndefined();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Remove asset' }));
+    await waitFor(() => expect(requestBody).toEqual({ expectedVersion: 1 }));
+    await waitFor(() => expect(within(logoCard).getByText('Removed')).toBeInTheDocument());
+  });
+
   it('tracks unsaved identity values, validates HEX colors, and previews drafts', async () => {
     server.use(http.get('*/api/v1/branding/configuration', () => HttpResponse.json(configuration)));
     const user = userEvent.setup();

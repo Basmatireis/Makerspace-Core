@@ -679,6 +679,17 @@ func (q *Queries) ListProfileImageRequirements(ctx context.Context, personIds []
 	return items, nil
 }
 
+const personHasSCIMProvisioning = `-- name: PersonHasSCIMProvisioning :one
+SELECT EXISTS (SELECT 1 FROM scim_users WHERE person_id = $1)
+`
+
+func (q *Queries) PersonHasSCIMProvisioning(ctx context.Context, personID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, personHasSCIMProvisioning, personID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const personRequiresProfileImage = `-- name: PersonRequiresProfileImage :one
 SELECT COALESCE(bool_or(r.profile_image_required), false)::boolean
 FROM person_roles pr

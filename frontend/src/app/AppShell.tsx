@@ -9,39 +9,23 @@ import {
   HeaderPanel,
   InlineNotification,
   SideNav,
-  SideNavDivider,
-  SideNavItems,
-  SideNavLink,
-  SideNavMenu,
-  SideNavMenuItem,
   SkipToContent,
   Stack,
   Tag,
   Theme,
 } from '@carbon/react';
 import {
-  Dashboard,
-  Receipt,
-  Money,
-  Document,
-  DocumentSecurity,
-  Calendar,
-  Information,
   Logout,
-  Policy,
-  Settings,
-  Tools,
   UserAvatar,
-  UserMultiple,
 } from '@carbon/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { getGetLaborordnungPDFUrl, requestOwnLaborordnungConfirmation } from '../api/generated/laborordnung/laborordnung';
 import { evaluateVisitorAdmission } from '../api/generated/visitor-enrollment/visitor-enrollment';
 import { authQueryKey, useCurrentUser, useLogout } from '../features/auth/auth';
-import { canAccessMachineLogbook, canAccessOpenDays, canAccessSettings, hasAnyPermission, hasPermission, PermissionId } from '../features/auth/permissions';
 import { PersonAvatar } from '../features/users/PersonAvatar';
 import { BrandMark } from './BrandMark';
+import { AppNavigation } from './AppNavigation';
 import { FullPageLoading } from './PageState';
 import { useBranding } from '../features/branding/branding';
 
@@ -102,16 +86,13 @@ export function AppShell() {
     }
   }, [isNarrow, location.pathname]);
 
-  const settingsActive = location.pathname.startsWith('/settings');
-  const machineLogbookActive = location.pathname.startsWith('/machine-logbook');
-  const peopleActive = location.pathname.startsWith('/people');
-  const canAccessPeopleDirectory = hasPermission(currentUser, PermissionId.peoplereadall);
-  const canAccessSupervisorStaffing = hasPermission(currentUser, PermissionId.supervisor_dashboardread);
-  const canAccessPeople = canAccessPeopleDirectory || canAccessSupervisorStaffing;
-  const canReadAuditLog = hasPermission(currentUser, PermissionId.auditread);
-  const canAccessEvents = [PermissionId.eventsread, PermissionId.eventsmanage, PermissionId.eventsstaffingmanage, PermissionId.eventsassign].some((permission) => hasPermission(currentUser, permission));
-	const canAccessAttendance = hasAnyPermission(currentUser, [PermissionId.attendanceread, PermissionId.attendanceassist, PermissionId.attendancestatisticsread]);
-  const showAdministration = canAccessSettings(currentUser) || canReadAuditLog;
+  const handleNavigation = () => {
+    if (!isNarrow) return;
+    setSideNavExpanded(false);
+    window.requestAnimationFrame(() => {
+      document.getElementById('main-content')?.focus();
+    });
+  };
 
   return (
     <div className="app-shell">
@@ -223,118 +204,11 @@ export function AppShell() {
             isPersistent={false}
             onOverlayClick={() => setSideNavExpanded(false)}
           >
-            <SideNavItems className="app-side-nav__primary">
-              <SideNavLink
-                as={Link}
-                to="/dashboard"
-                isActive={location.pathname === '/dashboard'}
-                renderIcon={Dashboard}
-              >
-                Dashboard
-              </SideNavLink>
-              {canAccessOpenDays(currentUser) && (
-                <SideNavLink
-                  as={Link}
-                  to="/open-days"
-                  isActive={location.pathname.startsWith('/open-days')}
-                  renderIcon={Calendar}
-                >
-                  Open Days
-                </SideNavLink>
-              )}
-              {canAccessEvents && (
-                <SideNavLink
-                  as={Link}
-                  to="/events"
-                  isActive={location.pathname === '/events' || location.pathname.startsWith('/events/')}
-                  renderIcon={Calendar}
-                >
-                  Events
-                </SideNavLink>
-              )}
-			  {canAccessAttendance && <SideNavLink as={Link} to="/attendance" isActive={location.pathname.startsWith('/attendance')} renderIcon={UserMultiple}>Attendance</SideNavLink>}
-              {canAccessMachineLogbook(currentUser) && <SideNavMenu title="Machines" defaultExpanded={machineLogbookActive} isActive={machineLogbookActive} renderIcon={Tools}>
-                {(hasPermission(currentUser, PermissionId.machine_jobsread) || hasPermission(currentUser, PermissionId.statisticsread)) && <SideNavMenuItem as={Link} to="/machine-logbook" isActive={location.pathname === '/machine-logbook'}>Overview</SideNavMenuItem>}
-                {hasPermission(currentUser, PermissionId.machine_jobsread) && <SideNavMenuItem as={Link} to="/machine-logbook/jobs" isActive={location.pathname.startsWith('/machine-logbook/jobs')}>Jobs</SideNavMenuItem>}
-                {hasPermission(currentUser, PermissionId.machine_jobsreview) && <SideNavMenuItem as={Link} to="/machine-logbook/review" isActive={location.pathname.startsWith('/machine-logbook/review')}>Review</SideNavMenuItem>}
-                {hasPermission(currentUser, PermissionId.inventoryread) && <SideNavMenuItem as={Link} to="/machine-logbook/inventory" isActive={location.pathname.startsWith('/machine-logbook/inventory')}>Inventory</SideNavMenuItem>}
-                {hasPermission(currentUser, PermissionId.print_submissionsread) && <SideNavMenuItem as={Link} to="/machine-logbook/print-submissions" isActive={location.pathname.startsWith('/machine-logbook/print-submissions')}>Print submissions</SideNavMenuItem>}
-                {hasPermission(currentUser, PermissionId.machinesread) && <SideNavMenuItem as={Link} to="/machine-logbook/machines" isActive={location.pathname.startsWith('/machine-logbook/machines')}>Machines</SideNavMenuItem>}
-                {hasPermission(currentUser, PermissionId.statisticsread) && <SideNavMenuItem as={Link} to="/machine-logbook/statistics" isActive={location.pathname.startsWith('/machine-logbook/statistics')}>Statistics</SideNavMenuItem>}
-              </SideNavMenu>}
-              {canAccessPeople && (
-                <SideNavLink
-                  as={Link}
-                  to={canAccessPeopleDirectory ? '/people' : '/people/staffing'}
-                  isActive={peopleActive}
-                  renderIcon={UserMultiple}
-                >
-                  Directory
-                </SideNavLink>
-              )}
-              {hasPermission(currentUser, PermissionId.ordersread) && (
-                <SideNavLink
-                  as={Link}
-                  to="/orders"
-                  renderIcon={Receipt}
-                  isActive={location.pathname.startsWith('/orders')}
-                >
-                  Orders
-                </SideNavLink>
-              )}
-              {hasPermission(currentUser, PermissionId.paymentsread) && (
-                <SideNavLink
-                  as={Link}
-                  to="/payments"
-                  renderIcon={Money}
-                  isActive={location.pathname.startsWith('/payments')}
-                >
-                  Payments
-                </SideNavLink>
-              )}
-              {hasPermission(
-                currentUser,
-                PermissionId.external_invoice_requestsread,
-              ) && (
-                <SideNavLink
-                  as={Link}
-                  to="/external-invoicing"
-                  renderIcon={Document}
-                  isActive={location.pathname.startsWith('/external-invoicing')}
-                >
-                  External invoicing
-                </SideNavLink>
-              )}
-              {showAdministration && (
-                <>
-                  <SideNavDivider />
-                  <li className="app-side-nav__heading">Administration</li>
-                  {canAccessSettings(currentUser) && <SideNavLink
-                    as={Link}
-                    to="/settings"
-                    isActive={settingsActive}
-                    renderIcon={Settings}
-                  >
-                    Settings
-                  </SideNavLink>}
-                  {canReadAuditLog && <SideNavLink
-                    as={Link}
-                    to="/audit-log"
-                    isActive={location.pathname === '/audit-log'}
-                    renderIcon={DocumentSecurity}
-                  >
-                    Audit Log
-                  </SideNavLink>}
-                </>
-              )}
-            </SideNavItems>
-            <SideNavItems className="app-side-nav__secondary">
-              <SideNavLink as={Link} to="/about" isActive={location.pathname === '/about'} renderIcon={Information}>
-                About
-              </SideNavLink>
-              {branding.legal.imprint.mode === 'external' ? <SideNavLink href={branding.legal.imprint.href} renderIcon={Policy}>Imprint</SideNavLink> : <SideNavLink as={Link} to={branding.legal.imprint.href} isActive={location.pathname === '/legal/imprint'} renderIcon={Policy}>Imprint</SideNavLink>}
-              {branding.legal.privacy.mode === 'external' ? <SideNavLink href={branding.legal.privacy.href} renderIcon={DocumentSecurity}>Privacy policy</SideNavLink> : <SideNavLink as={Link} to={branding.legal.privacy.href} isActive={location.pathname === '/legal/privacy'} renderIcon={DocumentSecurity}>Privacy policy</SideNavLink>}
-            </SideNavItems>
+            <AppNavigation
+              currentUser={currentUser}
+              legal={branding.legal}
+              onNavigate={handleNavigation}
+            />
           </SideNav>
         </Header>
       </Theme>

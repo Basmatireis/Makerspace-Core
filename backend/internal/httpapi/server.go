@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
@@ -25,6 +26,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	scimservice "github.com/Basmatireis/Makerspace-Core/backend/internal/scim"
@@ -43,30 +45,33 @@ const apiBasePath = "/api/v1"
 // service calls. Business validation, authorization, transactions, and audit
 // writes deliberately remain in those services.
 type Server struct {
-	pool           *pgxpool.Pool
-	config         config.Config
-	auth           *auth.Service
-	people         *people.Service
-	accounts       *accounts.Service
-	permissions    *authorization.Service
-	roles          *roles.Service
-	audit          *audit.Service
-	opendays       *opendays.Service
-	events         *events.Service
-	managedDevices *manageddevices.Service
-	mail           *mailservice.Service
-	files          *files.Service
-	laborordnung   *laborordnung.Service
-	orders         *orders.Service
-	machineLogbook *machinelogbook.Service
-	printing       *printing.Service
-	supervisors    *supervisors.Service
-	oidc           *oidcservice.Service
-	scim           *scimservice.Service
-	visitor        *visitor.Service
-	branding       *branding.Service
-	attendance     *attendance.Service
-	surveys        *surveys.Service
+	pool              *pgxpool.Pool
+	config            config.Config
+	auth              *auth.Service
+	people            *people.Service
+	accounts          *accounts.Service
+	permissions       *authorization.Service
+	roles             *roles.Service
+	audit             *audit.Service
+	opendays          *opendays.Service
+	events            *events.Service
+	managedDevices    *manageddevices.Service
+	mail              *mailservice.Service
+	files             *files.Service
+	laborordnung      *laborordnung.Service
+	orders            *orders.Service
+	machineLogbook    *machinelogbook.Service
+	printing          *printing.Service
+	printerConnectors *printerconnectors.Service
+	supervisors       *supervisors.Service
+	oidc              *oidcservice.Service
+	scim              *scimservice.Service
+	visitor           *visitor.Service
+	branding          *branding.Service
+	attendance        *attendance.Service
+	surveys           *surveys.Service
+	connectorRateMu   sync.Mutex
+	connectorRates    map[uuid.UUID]connectorRateWindow
 }
 
 func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
@@ -102,32 +107,39 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	}
 	labRulesService := laborordnung.NewService(pool, fileService)
 	machineLogbook := machinelogbook.NewService(pool)
+	printingService := printing.NewService(pool, machineLogbook)
+	printerConnectorService, err := printerconnectors.NewService(pool, printingService, cfg.EncryptionKeys)
+	if err != nil {
+		return nil, fmt.Errorf("initialize printer connectors: %w", err)
+	}
 	surveyService := surveys.NewService(pool, cfg, notifier)
 	return &Server{
-		pool:           pool,
-		config:         cfg,
-		auth:           authService,
-		people:         people.NewService(pool, fileService),
-		accounts:       accounts.NewService(pool, cfg, notifier),
-		permissions:    authorization.NewService(),
-		roles:          roles.NewService(pool),
-		audit:          audit.NewService(pool),
-		opendays:       openDaysService,
-		events:         eventService,
-		managedDevices: manageddevices.NewService(pool),
-		mail:           mailer,
-		files:          fileService,
-		laborordnung:   labRulesService,
-		machineLogbook: machineLogbook,
-		printing:       printing.NewService(pool, machineLogbook),
-		orders:         orders.NewService(pool, machineLogbook),
-		supervisors:    supervisors.NewService(pool),
-		oidc:           oidcService,
-		scim:           scimservice.NewService(pool),
-		visitor:        visitor.NewService(pool, cfg, fileService, labRulesService, notifier),
-		branding:       brandingService,
-		surveys:        surveyService,
-		attendance:     attendance.NewService(pool, authService, labRulesService, surveyService),
+		pool:              pool,
+		config:            cfg,
+		auth:              authService,
+		people:            people.NewService(pool, fileService),
+		accounts:          accounts.NewService(pool, cfg, notifier),
+		permissions:       authorization.NewService(),
+		roles:             roles.NewService(pool),
+		audit:             audit.NewService(pool),
+		opendays:          openDaysService,
+		events:            eventService,
+		managedDevices:    manageddevices.NewService(pool),
+		mail:              mailer,
+		files:             fileService,
+		laborordnung:      labRulesService,
+		machineLogbook:    machineLogbook,
+		printing:          printingService,
+		printerConnectors: printerConnectorService,
+		orders:            orders.NewService(pool, machineLogbook),
+		supervisors:       supervisors.NewService(pool),
+		oidc:              oidcService,
+		scim:              scimservice.NewService(pool),
+		visitor:           visitor.NewService(pool, cfg, fileService, labRulesService, notifier),
+		branding:          brandingService,
+		surveys:           surveyService,
+		connectorRates:    make(map[uuid.UUID]connectorRateWindow),
+		attendance:        attendance.NewService(pool, authService, labRulesService, surveyService),
 	}, nil
 }
 

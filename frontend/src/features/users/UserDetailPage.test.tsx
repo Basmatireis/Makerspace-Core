@@ -20,6 +20,38 @@ import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 
 describe('User detail page', () => {
+  it('confirms role removal and keeps the role privilege boundary visible', async () => {
+    const role = roleFixture();
+    let person = personFixture({ roles: [{ id: role.id, name: role.name, systemKey: null }] });
+    let removalBody: unknown;
+    server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([
+        PermissionId.peoplereadall,
+        PermissionId.peoplerolesassign,
+        PermissionId.rolesread,
+      ]))),
+      http.get('*/api/v1/roles', () => HttpResponse.json({ items: [role], nextCursor: null })),
+      http.get(`*/api/v1/people/${otherPersonId}`, () => HttpResponse.json(person)),
+      http.delete('*/api/v1/people/:personId/roles/:roleId', async ({ request }) => {
+        removalBody = await request.json();
+        person = { ...person, roles: [], version: 2 };
+        return HttpResponse.json(person);
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/people/${otherPersonId}?tab=roles-permissions`);
+
+    await user.click(await screen.findByRole('button', { name: `Remove ${role.name} role` }));
+    const dialog = screen.getByRole('alertdialog', { name: `Remove ${role.name}?` });
+    expect(within(dialog).getByText(/permissions granted by this role will no longer apply/i)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    expect(removalBody).toBeUndefined();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Remove role' }));
+    await waitFor(() => expect(removalBody).toEqual({ expectedVersion: 1 }));
+    await waitFor(() => expect(screen.getByText('0 assigned')).toBeInTheDocument());
+  });
+
   it('starts person editing from the page header action', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>

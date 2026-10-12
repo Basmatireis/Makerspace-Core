@@ -16,12 +16,12 @@ import {
 import type { AuthenticationAssurance, CheckoutMode, DeviceApplicationMode, DeviceCapability, ManagedDevice, ManagedDeviceCredentialDelivery, ManagedDeviceProvisioning, ManagedDeviceType, SessionPolicy } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
 import { PageShell } from '../../app/PageShell';
+import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { DateTimeInput } from '../../app/DateInput';
 import { formatDateTime, instantToZonedDateTimeValue, isZonedDateTimeValue, zonedDateTimeValueToISO } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
-import { DeviceBridgeConnectionPanel } from '../terminal/DeviceBridgePanel';
 
 const keys = {
   devices: ['managed-devices'] as const,
@@ -31,7 +31,10 @@ const keys = {
 
 type DeviceConfiguration = { sessionPolicyId: string | null; terminalEnabled: boolean; allowedApplicationModes: DeviceApplicationMode[]; checkInAssurance: AuthenticationAssurance; checkOutAssurance: AuthenticationAssurance; checkoutMode: CheckoutMode; capabilities: DeviceCapability[] };
 
-type Confirmation = { kind: 'revoke' | 'delete'; device: ManagedDevice } | null;
+type Confirmation =
+  | { kind: 'revoke' | 'delete'; device: ManagedDevice }
+  | { kind: 'delete-type'; type: ManagedDeviceType }
+  | null;
 
 export function ManagedDevicesPage() {
   const currentUser = useCurrentUser();
@@ -92,6 +95,10 @@ export function ManagedDevicesPage() {
   };
   const lifecycleMutation = useMutation({
     mutationFn: async (value: NonNullable<Confirmation>) => {
+      if (value.kind === 'delete-type') {
+        await deleteManagedDeviceType(value.type.id, { expectedVersion: value.type.version });
+        return;
+      }
       if (value.kind === 'revoke') {
         await revokeManagedDevice(value.device.id, { expectedVersion: value.device.version });
       } else {
@@ -108,12 +115,6 @@ export function ManagedDevicesPage() {
     }),
     onSuccess: async () => { setEditingType(null); await refresh(); },
   });
-  const deleteTypeMutation = useMutation({
-    mutationFn: (type: ManagedDeviceType) =>
-      deleteManagedDeviceType(type.id, { expectedVersion: type.version }),
-    onSuccess: refresh,
-  });
-
   return (
     <PageShell
       title="Managed devices"
@@ -121,7 +122,6 @@ export function ManagedDevicesPage() {
       description="Register trusted local computers and control device-scoped access."
     >
       {secret && <OneTimeToken provisioning={secret} onDismiss={() => setSecret(null)} />}
-      {canManage && <DeviceBridgeConnectionPanel />}
       {devicesQuery.isPending && <InlineLoadingState label="Loading managed devices" />}
       {devicesQuery.isError && (
         <ErrorState title="Unable to load managed devices" message="Check the connection and try again." onRetry={() => void devicesQuery.refetch()} />
@@ -145,9 +145,8 @@ export function ManagedDevicesPage() {
         types={typesQuery.data?.items ?? []}
         loading={typesQuery.isPending}
         canManage={canManage}
-        deleteError={deleteTypeMutation.error}
         onEdit={setEditingType}
-        onDelete={(type) => deleteTypeMutation.mutate(type)}
+        onDelete={(type) => setConfirmation({ kind: 'delete-type', type })}
         onCreated={refresh}
       />
       {editingDevice && typesQuery.data && (
@@ -183,7 +182,7 @@ export function ManagedDevicesPage() {
         value={confirmation}
         pending={lifecycleMutation.isPending}
         error={lifecycleMutation.error}
-        onClose={() => setConfirmation(null)}
+        onClose={() => { setConfirmation(null); lifecycleMutation.reset(); }}
         onConfirm={() => confirmation && lifecycleMutation.mutate(confirmation)}
       />
     </PageShell>
@@ -406,8 +405,8 @@ function OneTimeToken({ provisioning, onDismiss }: { provisioning: ManagedDevice
   );
 }
 
-function DeviceTypesPanel({ types, loading, canManage, deleteError, onEdit, onDelete, onCreated }: {
-  types: ManagedDeviceType[]; loading: boolean; canManage: boolean; deleteError: Error | null;
+function DeviceTypesPanel({ types, loading, canManage, onEdit, onDelete, onCreated }: {
+  types: ManagedDeviceType[]; loading: boolean; canManage: boolean;
   onEdit: (type: ManagedDeviceType) => void; onDelete: (type: ManagedDeviceType) => void;
   onCreated: () => Promise<void>;
 }) {
@@ -421,7 +420,6 @@ function DeviceTypesPanel({ types, loading, canManage, deleteError, onEdit, onDe
     <Tile><Stack gap={5}>
       <h2>Device types</h2>
       {loading && <InlineLoadingState label="Loading device types" />}
-      {deleteError && <MutationError title="Device type not deleted" error={deleteError} conflictMessage="This type is still used by a device or role permission." />}
       {types.map((type) => <div className="section-heading" key={type.id}>
         <div><strong>{type.name}</strong><p className="section-description">{type.description || 'No description'}</p></div>
         {canManage && <div className="button-cluster"><Button kind="ghost" size="sm" onClick={() => onEdit(type)}>Edit</Button><Button kind="danger--ghost" size="sm" onClick={() => onDelete(type)}>Delete</Button></div>}
@@ -459,15 +457,29 @@ function ConfirmationModal({ value, pending, error, onClose, onConfirm }: {
   value: Confirmation; pending: boolean; error: Error | null; onClose: () => void; onConfirm: () => void;
 }) {
   const revoke = value?.kind === 'revoke';
+  const deletingType = value?.kind === 'delete-type';
+  const name = value?.kind === 'delete-type' ? value.type.name : value?.device.name;
+  const errorMessage = error instanceof ApiError && error.status === 409
+    ? deletingType
+      ? 'This type is still used by a device or role permission.'
+      : 'The device changed in another session. Reload and try again.'
+    : error?.message;
   return (
-    <ComposedModal open={Boolean(value)} danger onClose={onClose}>
-      <ModalHeader title={revoke ? `Revoke ${value?.device.name}?` : `Delete ${value?.device.name}?`} />
-      <ModalBody><Stack gap={4}>
-        <p>{revoke ? 'Its token and all device-scoped privileges stop working immediately. Revocation cannot be reversed.' : 'The revoked device record will be permanently deleted. Audit history is retained.'}</p>
-        {error && <MutationError title={revoke ? 'Device not revoked' : 'Device not deleted'} error={error} />}
-      </Stack></ModalBody>
-      <ModalFooter><Button kind="secondary" onClick={onClose}>Cancel</Button><Button kind="danger" disabled={pending} onClick={onConfirm}>{revoke ? 'Revoke device' : 'Delete device'}</Button></ModalFooter>
-    </ComposedModal>
+    <DestructiveActionDialog
+      open={Boolean(value)}
+      title={revoke ? `Revoke ${name}?` : deletingType ? `Delete device type ${name}?` : `Delete ${name}?`}
+      confirmLabel={revoke ? 'Revoke device' : deletingType ? 'Delete device type' : 'Delete device'}
+      pending={pending}
+      error={errorMessage}
+      onClose={onClose}
+      onConfirm={onConfirm}
+    >
+      <p>{revoke
+        ? 'Its token and all device-scoped privileges stop working immediately. Revocation cannot be reversed.'
+        : deletingType
+          ? 'The device type will be permanently deleted. Deletion is blocked while a device or role permission still references it.'
+          : 'The revoked device record, capability configuration, and device reports will be permanently deleted. Audit history is retained.'}</p>
+    </DestructiveActionDialog>
   );
 }
 

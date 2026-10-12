@@ -740,7 +740,7 @@ test('moves Open Days management actions into the table toolbar', async ({ page 
   await expectNoHorizontalPageOverflow(page);
 });
 
-test('renders Open Day periods as an accessible table without narrow-page overflow', async ({ page }) => {
+test('renders Open Day periods as an accessible table and mobile cards without overflow', async ({ page }) => {
   await installApi(page, {
     authenticated: true,
     openDayPeriods: [{
@@ -782,12 +782,20 @@ test('renders Open Day periods as an accessible table without narrow-page overfl
   await expect(page.locator('.app-main')).not.toHaveClass(/app-main--nav-expanded/);
   await expect(page.locator('.app-main')).toHaveCSS('margin-left', '0px');
   await expectNoHorizontalPageOverflow(page);
-  const tableScroller = page.locator('.open-day-periods-table .cds--data-table-content');
-  const dimensions = await tableScroller.evaluate((element) => ({
-    clientWidth: element.clientWidth,
-    scrollWidth: element.scrollWidth,
-  }));
-  expect(dimensions.scrollWidth).toBeGreaterThan(dimensions.clientWidth);
+  await expect(table).toHaveCount(0);
+  const card = page.locator('.open-day-period-card');
+  await expect(card).toHaveCount(1);
+  await expect(card.getByRole('link', { name: 'Winter Semester 2026/27' })).toHaveAttribute('href', `/open-days/${openDayPeriodId}`);
+  await expect(card.getByText('85', { exact: true })).toBeVisible();
+  await expect(card.getByRole('group', { name: 'Actions for Winter Semester 2026/27' }).getByRole('button', { name: 'Delete', exact: true })).toBeEnabled();
+  const [createButton, mobilePeriodLink] = await Promise.all([
+    page.getByRole('button', { name: 'Create', exact: true }).boundingBox(),
+    card.getByRole('link', { name: 'Winter Semester 2026/27' }).boundingBox(),
+  ]);
+  expect(createButton).not.toBeNull();
+  expect(mobilePeriodLink).not.toBeNull();
+  expect(mobilePeriodLink!.y).toBeGreaterThanOrEqual(createButton!.y + createButton!.height);
+  await expectNoSeriousAccessibilityViolations(page);
 });
 
 test('wraps a long breadcrumb title and action menu at 390px without page overflow', async ({ page }) => {
@@ -885,6 +893,9 @@ test('collapses and opens the SideNav at the responsive breakpoint', async ({ pa
   await page.keyboard.press('Enter');
   await expect(page.getByRole('button', { name: 'Close navigation' })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toBeVisible();
+  await page.getByRole('link', { name: 'Dashboard' }).click();
+  await expect(page.getByRole('button', { name: 'Open navigation' })).toBeVisible();
+  await expect(page.locator('#main-content')).toBeFocused();
 });
 
 test('shows an accessible destructive confirmation before deleting a custom role', async ({ page }) => {
@@ -967,12 +978,13 @@ test('shows an accessible destructive confirmation before deleting a custom role
 
   await expect(page.getByRole('heading', { name: 'Delete role?' })).toBeVisible();
   await expect(page.getByText(/This cannot be undone/)).toBeVisible();
-  await expect(page.getByRole('dialog').locator(':focus')).toHaveCount(1);
+  await expect(page.getByRole('alertdialog').getByRole('button', { name: 'Cancel' })).toBeFocused();
   await expectNoSeriousAccessibilityViolations(page);
 
   await page.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByRole('heading', { name: 'Delete role?' })).toBeHidden();
   await expect(page).toHaveURL(/\/settings\/roles$/);
+  await expect(roleActions).toBeFocused();
 });
 
 test('keeps the roles editor usable at a narrow viewport', async ({ page }) => {

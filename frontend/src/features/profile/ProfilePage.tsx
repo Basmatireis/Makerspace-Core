@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Button,
   Column,
@@ -24,11 +24,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 import { PageShell } from '../../app/PageShell';
+import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
+import { useLatestCallback } from '../../app/useLatestCallback';
 import { formatDateTime } from '../../app/dateTime';
 import { changeOwnPassword, enrollOwnPin, removeOwnPassword, removeOwnPin, requestOwnEmailVerification } from '../../api/generated/authentication/authentication';
 import { updatePerson } from '../../api/generated/people/people';
 import { deletePersonProfileImage, getPutPersonProfileImageUrl } from '../../api/generated/people/people';
-import type { OIDCLoginProvider, ProfileImage, UpdatePersonRequest } from '../../api/generated/models';
+import type { AuthIdentitySummary, OIDCLoginProvider, ProfileImage, UpdatePersonRequest } from '../../api/generated/models';
 import { apiFetch } from '../../api/http-client';
 import { listOIDCLoginProviders, startOIDCLink, startOIDCReauthentication, unlinkOwnOIDCIdentity } from '../../api/generated/oidc/oidc';
 import { useSecretMutation } from '../../api/use-secret-mutation';
@@ -65,6 +67,9 @@ export function ProfilePage() {
   const [removePasswordModalOpen, setRemovePasswordModalOpen] = useState(false);
   const [pinModalOpen, setPINModalOpen] = useState(false);
   const [removePINModalOpen, setRemovePINModalOpen] = useState(false);
+  const oidcActionButtons = useRef(new Map<string, HTMLElement>());
+  const oidcUnlinkLauncher = useRef<HTMLElement | null>(null);
+  const [oidcIdentityToUnlink, setOIDCIdentityToUnlink] = useState<AuthIdentitySummary | null>(null);
   const [oidcProviderToLink, setOIDCProviderToLink] = useState<OIDCLoginProvider | null>(null);
   const personForm = useForm<PersonFormValues>({
     defaultValues: {
@@ -123,7 +128,10 @@ export function ProfilePage() {
   });
   const unlinkOIDCMutation = useMutation({
     mutationFn: (identityId: string) => unlinkOwnOIDCIdentity(identityId),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: authQueryKey }),
+    onSuccess: async () => {
+      setOIDCIdentityToUnlink(null);
+      await queryClient.invalidateQueries({ queryKey: authQueryKey });
+    },
   });
 	const profileImageMutation = useMutation({
 		mutationFn: (file: File) => apiFetch<ProfileImage>(
@@ -214,6 +222,9 @@ export function ProfilePage() {
     setOIDCProviderToLink(null);
   };
 
+  const requestCloseRemovePassword = useLatestCallback(() => { if (!removePasswordMutation.isPending) closeRemovePasswordModal(); return false; });
+  const requestCloseRemovePIN = useLatestCallback(() => { if (!removePINMutation.isPending) setRemovePINModalOpen(false); return false; });
+
   return (
     <PageShell
       title="Profile"
@@ -247,6 +258,7 @@ export function ProfilePage() {
                   canRemove={mayRemoveProfileImage}
                   isUploading={profileImageMutation.isPending}
                   isRemoving={removeProfileImageMutation.isPending}
+                  removeError={removeProfileImageMutation.error}
                   trigger="button"
                   onUpload={(file) => profileImageMutation.mutate(file)}
                   onRemove={() => removeProfileImageMutation.mutate()}
@@ -412,9 +424,9 @@ export function ProfilePage() {
                           {identity.providerSlug && <code>{identity.providerSlug}</code>}
                         </div>
                         {(identity.providerSlug && identity.usable) || mayUnlinkOIDC ? (
-                          <OverflowMenu iconDescription={`Actions for ${identity.displayIdentifier ?? 'OIDC identity'}`} size="sm" flipped>
+                          <OverflowMenu ref={(node) => { if (node) oidcActionButtons.current.set(identity.id, node); else oidcActionButtons.current.delete(identity.id); }} iconDescription={`Actions for ${identity.displayIdentifier ?? 'OIDC identity'}`} size="sm" flipped>
                             {identity.providerSlug && identity.usable && <OverflowMenuItem itemText={`Reauthenticate with ${identity.displayIdentifier ?? 'OIDC'}`} onClick={() => reauthenticateOIDCMutation.mutate(identity.providerSlug!)} />}
-                            {mayUnlinkOIDC && <OverflowMenuItem isDelete hasDivider={Boolean(identity.providerSlug && identity.usable)} itemText="Unlink identity" onClick={() => unlinkOIDCMutation.mutate(identity.id)} />}
+                            {mayUnlinkOIDC && <OverflowMenuItem isDelete hasDivider={Boolean(identity.providerSlug && identity.usable)} itemText="Unlink identity" onClick={() => { oidcUnlinkLauncher.current = oidcActionButtons.current.get(identity.id) ?? null; unlinkOIDCMutation.reset(); setOIDCIdentityToUnlink(identity); }} />}
                           </OverflowMenu>
                         ) : null}
                       </div>
@@ -458,7 +470,7 @@ export function ProfilePage() {
         </ModalFooter>
       </ComposedModal>
 
-      <ComposedModal aria-label="Remove password method" open={removePasswordModalOpen} danger onClose={closeRemovePasswordModal}>
+      <ComposedModal aria-label="Remove password method" open={removePasswordModalOpen} danger selectorPrimaryFocus=".cds--btn--secondary" preventCloseOnClickOutside onClose={requestCloseRemovePassword}>
         <ModalHeader title="Remove password method?" />
         <ModalBody>
           <Form id="remove-own-password-form" onSubmit={submitRemovePassword}>
@@ -470,8 +482,8 @@ export function ProfilePage() {
           </Form>
         </ModalBody>
         <ModalFooter>
-          <Button kind="secondary" onClick={closeRemovePasswordModal}>Cancel</Button>
-          <Button kind="danger" type="submit" form="remove-own-password-form" disabled={removePasswordMutation.isPending}>Remove password</Button>
+          <Button kind="secondary" disabled={removePasswordMutation.isPending} onClick={closeRemovePasswordModal}>Cancel</Button>
+          <Button kind="danger" type="submit" form="remove-own-password-form" disabled={removePasswordMutation.isPending}>{removePasswordMutation.isPending ? 'Removing…' : 'Remove password'}</Button>
         </ModalFooter>
       </ComposedModal>
 
@@ -493,7 +505,7 @@ export function ProfilePage() {
         </ModalFooter>
       </ComposedModal>
 
-      <ComposedModal aria-label="Remove PIN method" open={removePINModalOpen} danger onClose={() => setRemovePINModalOpen(false)}>
+      <ComposedModal aria-label="Remove PIN method" open={removePINModalOpen} danger selectorPrimaryFocus=".cds--btn--secondary" preventCloseOnClickOutside onClose={requestCloseRemovePIN}>
         <ModalHeader title="Remove username and PIN?" />
         <ModalBody>
           <Stack gap={5}>
@@ -502,10 +514,23 @@ export function ProfilePage() {
           </Stack>
         </ModalBody>
         <ModalFooter>
-          <Button kind="secondary" onClick={() => setRemovePINModalOpen(false)}>Cancel</Button>
-          <Button kind="danger" disabled={!freshEnoughForMethods || removePINMutation.isPending} onClick={() => removePINMutation.mutate()}>Remove PIN</Button>
+          <Button kind="secondary" disabled={removePINMutation.isPending} onClick={() => setRemovePINModalOpen(false)}>Cancel</Button>
+          <Button kind="danger" disabled={!freshEnoughForMethods || removePINMutation.isPending} onClick={() => removePINMutation.mutate()}>{removePINMutation.isPending ? 'Removing…' : 'Remove PIN'}</Button>
         </ModalFooter>
       </ComposedModal>
+
+      <DestructiveActionDialog
+        open={Boolean(oidcIdentityToUnlink)}
+        title="Unlink external identity?"
+        launcherButtonRef={oidcUnlinkLauncher}
+        confirmLabel="Unlink identity"
+        pending={unlinkOIDCMutation.isPending}
+        error={unlinkOIDCMutation.isError ? 'Try again after reauthenticating.' : undefined}
+        onClose={() => { setOIDCIdentityToUnlink(null); unlinkOIDCMutation.reset(); }}
+        onConfirm={() => oidcIdentityToUnlink && unlinkOIDCMutation.mutate(oidcIdentityToUnlink.id)}
+      >
+        <p>{oidcIdentityToUnlink?.displayIdentifier ?? 'This external identity'} will no longer be usable to sign in. Your account and other authentication methods remain unchanged.</p>
+      </DestructiveActionDialog>
 
       <ComposedModal aria-label={oidcProviderToLink ? `Link ${oidcProviderToLink.displayName}` : 'Link OIDC provider'} open={Boolean(oidcProviderToLink)} onClose={closeOIDCLinkModal}>
         <ModalHeader title={oidcProviderToLink ? `Link ${oidcProviderToLink.displayName}` : 'Link OIDC provider'} />

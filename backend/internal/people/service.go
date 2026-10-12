@@ -344,8 +344,25 @@ func (s *Service) Delete(ctx context.Context, principal authorization.Principal,
 	if current.Version != expectedVersion {
 		return apperror.StaleWrite
 	}
-	if err := accounts.AuthorizePersonDeletion(ctx, tx, principal, id); err != nil {
+	// Collect every business rule that blocks the deletion so the operator
+	// sees all of them at once instead of fixing one per attempt.
+	var blockers []*apperror.Error
+	var appErr *apperror.Error
+	if err := accounts.AuthorizePersonDeletion(ctx, tx, principal, id); errors.As(err, &appErr) && appErr.HTTPStatus == 409 {
+		blockers = append(blockers, appErr)
+	} else if err != nil {
 		return err
+	}
+	// SCIM links restrict deletion; deprovisioning belongs to the identity provider.
+	scimManaged, err := peopleQueries.PersonHasSCIMProvisioning(ctx, id)
+	if err != nil {
+		return err
+	}
+	if scimManaged {
+		blockers = append(blockers, apperror.New(409, "person_scim_managed", "This person is provisioned through SCIM. Remove them in the identity provider instead."))
+	}
+	if len(blockers) > 0 {
+		return personDeletionBlocked(blockers...)
 	}
 	if current.ProfileImageFileID != nil && s.files == nil {
 		return errors.New("file storage is unavailable")
@@ -359,6 +376,8 @@ func (s *Service) Delete(ctx context.Context, principal authorization.Principal,
 	}
 	if _, err := peopleQueries.DeletePerson(ctx, peopledb.DeletePersonParams{ID: id, ExpectedVersion: expectedVersion}); errors.Is(err, pgx.ErrNoRows) {
 		return apperror.StaleWrite
+	} else if blocker := accounts.DeletionReferenceBlocker(err); blocker != nil {
+		return personDeletionBlocked(blocker)
 	} else if err != nil {
 		return err
 	}
@@ -371,6 +390,10 @@ func (s *Service) Delete(ctx context.Context, principal authorization.Principal,
 		return s.files.DeleteSystem(ctx, *current.ProfileImageFileID, requestID)
 	}
 	return nil
+}
+
+func personDeletionBlocked(reasons ...*apperror.Error) *apperror.Error {
+	return apperror.Blocked("person_deletion_blocked", "This person cannot be deleted for several reasons", reasons...)
 }
 
 const maxProfileImageBytes = 8 << 20

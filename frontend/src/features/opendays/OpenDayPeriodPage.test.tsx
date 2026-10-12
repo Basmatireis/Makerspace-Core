@@ -233,12 +233,12 @@ describe('Open Day period management entry points', () => {
     await waitFor(() => expect(submitted).toMatchObject({ name: 'Updated period', expectedVersion: 3 }));
   });
 
-  it('confirms and deletes a draft period from its row action', async () => {
+  it.each(['draft', 'staffing', 'published', 'archived'] as const)('confirms and deletes a %s period from its row action', async (status) => {
     let deleted = false;
     let submitted: unknown;
     server.use(
       http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.open_daysmanage]))),
-      http.get('*/api/v1/open-day-periods', () => HttpResponse.json({ items: deleted ? [] : [period('draft')] })),
+      http.get('*/api/v1/open-day-periods', () => HttpResponse.json({ items: deleted ? [] : [period(status)] })),
       http.delete('*/api/v1/open-day-periods/:periodId', async ({ request }) => {
         submitted = await request.json();
         deleted = true;
@@ -249,8 +249,9 @@ describe('Open Day period management entry points', () => {
     const user = userEvent.setup();
 
     await user.click(await screen.findByRole('button', { name: 'Delete Winter Semester 2026/27' }));
-    const dialog = screen.getByRole('dialog', { name: 'Delete period?' });
-    expect(within(dialog).getByText(/permanently deleted/)).toBeInTheDocument();
+    const dialog = screen.getByRole('alertdialog', { name: 'Delete period?' });
+    expect(within(dialog).getByText(/staffing requirements, eligibility role rules, and assignments will be permanently deleted/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
     await user.click(within(dialog).getByRole('button', { name: 'Delete period' }));
 
     await waitFor(() => expect(submitted).toEqual({ expectedVersion: 3 }));
@@ -564,9 +565,9 @@ describe('Open Day table and calendar filters', () => {
     const openDayFilter = screen.getByRole('combobox', { name: 'Filter Open Days' });
     const sharedToolbar = screen.getByLabelText('Open Days tools');
     expect(openDayFilter).toHaveTextContent('All');
-    expect(within(sharedToolbar).getByRole('button', { name: 'Table view' })).toBeInTheDocument();
+    expect(within(sharedToolbar).getByRole('button', { name: 'List view' })).toBeInTheDocument();
 
-    await user.click(within(sharedToolbar).getByRole('button', { name: 'Table view' }));
+    await user.click(within(sharedToolbar).getByRole('button', { name: 'List view' }));
     expect(screen.getByLabelText('Open Days tools')).toBe(sharedToolbar);
     expect(within(sharedToolbar).getByRole('button', { name: 'Calendar view' })).toBeInTheDocument();
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(5);
@@ -589,7 +590,7 @@ describe('Open Day table and calendar filters', () => {
     await user.click(screen.getByRole('option', { name: 'My Open Days' }));
     expect(within(screen.getByLabelText('Semester calendar')).getAllByTitle('Your assignment')).toHaveLength(2);
 
-    await user.click(within(sharedToolbar).getByRole('button', { name: 'Table view' }));
+    await user.click(within(sharedToolbar).getByRole('button', { name: 'List view' }));
     expect(within(screen.getByRole('table')).getAllByRole('row')).toHaveLength(3);
 
     await user.click(openDayFilter);
@@ -602,7 +603,7 @@ describe('Open Day table and calendar filters', () => {
     renderRoute(<App />, `/open-days/${periodId}`);
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('button', { name: 'Table view' }));
+    await user.click(await screen.findByRole('button', { name: 'List view' }));
     await user.click(screen.getByRole('button', { name: 'Filter' }));
     const weekday = screen.getByRole('combobox', { name: 'Filter by weekday' });
     const startTime = screen.getByRole('combobox', { name: 'Filter by start time' });
@@ -763,7 +764,7 @@ describe('Open Day table and calendar filters', () => {
     await user.click(within(registration).getByRole('button', { name: 'Delete Open Day' }));
 
     const confirmation = await screen.findByRole('dialog', { name: 'Delete Open Day?' });
-    expect(within(confirmation).getByText('This draft Open Day will be permanently removed.')).toBeInTheDocument();
+    expect(within(confirmation).getByText('This draft Open Day and its requirements will be permanently removed. This cannot be undone.')).toBeInTheDocument();
     await user.click(within(confirmation).getByRole('button', { name: 'Delete Open Day' }));
 
     await waitFor(() => expect(submittedVersion).toEqual({ expectedVersion: supervisorVacancy.version }));

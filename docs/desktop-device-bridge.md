@@ -53,12 +53,9 @@ The sidecar binds only to loopback, checks the HTTP `Host` header, permits one e
 
 The PC/SC adapter enumerates readers and uses the common `FF CA 00 00 00` UID APDU. Readers or tags that do not implement it return `uid_read_unsupported`. Concrete USB drivers, reader-specific APDUs, card-sector reads, and identity mapping remain outside this implementation.
 
-For development and diagnostics, the Go sidecar can still run separately from `backend/`:
+The sidecar is not a separately supported deployment. The web application has no manual pairing UI; it uses the bridge only when the desktop shell injects the loopback connection. For protocol development, the sidecar can still be started from `backend/` and queried with the pairing key from its key file:
 
 ```sh
 go run ./cmd/device-bridge --simulator
-go run ./cmd/device-bridge --show-pairing-key
 go build -tags pcsc -o device-bridge ./cmd/device-bridge
 ```
-
-The standalone mode retains manual loopback pairing in the web UI. It is a diagnostic path; the packaged desktop app is the normal desktop deployment.

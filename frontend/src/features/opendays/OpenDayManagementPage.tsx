@@ -1,3 +1,5 @@
+import './styles.scss';
+import { useLatestCallback } from '../../app/useLatestCallback';
 import { useState } from 'react';
 import { Add } from '@carbon/icons-react';
 import {
@@ -21,6 +23,7 @@ import {
   TableToolbar,
   TableToolbarContent,
   TextInput,
+  Tile,
 } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -31,6 +34,11 @@ import {
 import type { AcademicBreak } from '../../api/generated/models';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
+import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
+import { useUnsavedChanges } from '../../app/useUnsavedChanges';
+import { UnsavedChangesDialog } from '../../app/UnsavedChangesDialog';
+import { useOpenDaysLayout } from './useOpenDaysLayout';
+import { RowActions } from '../../app/RowActions';
 import {
   APP_DATE_PLACEHOLDER,
   dateOnlyToPickerDate,
@@ -58,12 +66,16 @@ const academicBreakHeaders = [
 ];
 
 export function OpenDayManagementPage() {
+  const { isPhone } = useOpenDaysLayout();
   const queryClient = useQueryClient();
   const periodsQuery = useQuery(periodsQueryOptions());
   const breaksQuery = useQuery(academicBreaksQueryOptions());
   const [selectedPeriodIds, setSelectedPeriodIds] = useState<string[]>([]);
   const [breakDraft, setBreakDraft] = useState<BreakDraft | null>(null);
   const [deleteBreak, setDeleteBreak] = useState<AcademicBreak | null>(null);
+  const originalBreak = breaksQuery.data?.items.find((item) => item.id === breakDraft?.id) ?? emptyBreak;
+  const dirty = Boolean(breakDraft && ['name', 'startsOn', 'endsOn'].some((key) => breakDraft[key as keyof BreakDraft] !== originalBreak[key as keyof BreakDraft]));
+  const guard = useUnsavedChanges({ isDirty: dirty, onDiscard: () => setBreakDraft(null) });
   const breakMutation = useMutation({
     mutationFn: (value: BreakDraft) =>
       value.id
@@ -92,6 +104,7 @@ export function OpenDayManagementPage() {
     },
   });
 
+  const requestFormClose = useLatestCallback(() => { if (!breakMutation.isPending) guard.requestDiscard(() => { setBreakDraft(null); breakMutation.reset(); }); });
   if (periodsQuery.isPending) {
     return <InlineLoadingState label="Loading Open Day management" />;
   }
@@ -193,7 +206,7 @@ export function OpenDayManagementPage() {
             >
               {({ rows: tableRows, headers, getHeaderProps, getRowProps, getTableProps }) => (
                 <>
-                  <Table {...getTableProps()} size="lg" aria-label="Academic breaks">
+                  {!isPhone && <Table {...getTableProps()} size="lg" aria-label="Academic breaks">
                     <TableHead>
                       <TableRow>
                         {headers.map((header) => (
@@ -252,7 +265,14 @@ export function OpenDayManagementPage() {
                         );
                       })}
                     </TableBody>
-                  </Table>
+                  </Table>}
+                  {isPhone && <div className="academic-break-cards" aria-label="Academic breaks">
+                    {academicBreaks.map((item) => <Tile key={item.id} className="academic-break-card">
+                      <h3>{item.name}</h3>
+                      <p>{formatDate(item.startsOn)} – {formatDate(item.endsOn)}</p>
+                      <RowActions label={`Actions for ${item.name}`}><Button kind="ghost" size="sm" onClick={() => setBreakDraft(item)}>Edit</Button><Button kind="danger--ghost" size="sm" onClick={() => setDeleteBreak(item)}>Delete</Button></RowActions>
+                    </Tile>)}
+                  </div>}
                   {academicBreaks.length === 0 && (
                     <div className="empty-state">
                       <h3>No academic breaks</h3>
@@ -270,17 +290,18 @@ export function OpenDayManagementPage() {
         </TableContainer>
       </section>
       <Modal
-        open={Boolean(breakDraft)}
+        open={Boolean(breakDraft) && !guard.dialogOpen}
         size="xs"
         modalHeading={breakDraft?.id ? 'Edit academic break' : 'Create academic break'}
         primaryButtonText={breakDraft?.id ? 'Save break' : 'Create break'}
         secondaryButtonText="Cancel"
         primaryButtonDisabled={breakMutation.isPending || !breakDraft?.name.trim() || !breakDraft.startsOn || !breakDraft.endsOn}
-        onRequestClose={() => setBreakDraft(null)}
-        onRequestSubmit={() => breakDraft && breakMutation.mutate(breakDraft)}
+        onRequestClose={requestFormClose}
+        onRequestSubmit={() => breakDraft && !breakMutation.isPending && breakMutation.mutate(breakDraft)}
       >
         {breakDraft && (
           <Stack gap={5}>
+            {breakMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Break was not saved" subtitle="Your inputs are kept. The break may have changed; review and try again." />}
             <TextInput id="academic-break-name" labelText="Name" value={breakDraft.name} onChange={(event) => setBreakDraft({ ...breakDraft, name: event.target.value })} />
             <DatePicker
               allowInput
@@ -331,18 +352,10 @@ export function OpenDayManagementPage() {
           </Stack>
         )}
       </Modal>
-      <Modal
-        open={Boolean(deleteBreak)}
-        danger
-        modalHeading="Delete academic break?"
-        primaryButtonText="Delete break"
-        secondaryButtonText="Cancel"
-        primaryButtonDisabled={deleteMutation.isPending}
-        onRequestClose={() => setDeleteBreak(null)}
-        onRequestSubmit={() => deleteBreak && deleteMutation.mutate(deleteBreak)}
-      >
+      <DestructiveActionDialog open={Boolean(deleteBreak)} title="Delete academic break?" confirmLabel="Delete break" pending={deleteMutation.isPending} error={deleteMutation.isError ? 'The break may have changed. Reload and try again.' : undefined} onClose={() => { setDeleteBreak(null); deleteMutation.reset(); }} onConfirm={() => deleteBreak && deleteMutation.mutate(deleteBreak)}>
         <p>{deleteBreak?.name} will no longer appear as calendar context. Existing Open Days are unchanged.</p>
-      </Modal>
+      </DestructiveActionDialog>
+      <UnsavedChangesDialog guard={guard} />
     </PageShell>
   );
 }

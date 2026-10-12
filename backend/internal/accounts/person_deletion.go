@@ -9,7 +9,28 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+var scimDeletionBlockers = map[string]*apperror.Error{
+	"scim_users_person_id_fkey":  apperror.New(409, "person_scim_managed", "This person is provisioned through SCIM. Remove them in the identity provider instead."),
+	"scim_users_account_id_fkey": apperror.New(409, "account_scim_managed", "This account is provisioned through SCIM. Remove it in the identity provider instead."),
+}
+
+// DeletionReferenceBlocker explains a foreign-key violation raised while
+// deleting a Person or Account, so restricting references surface as an
+// actionable conflict instead of an internal error. It returns nil for any
+// other error.
+func DeletionReferenceBlocker(err error) *apperror.Error {
+	var postgresError *pgconn.PgError
+	if !errors.As(err, &postgresError) || postgresError.Code != "23503" {
+		return nil
+	}
+	if blocker, ok := scimDeletionBlockers[postgresError.ConstraintName]; ok {
+		return blocker
+	}
+	return apperror.New(409, "deletion_referenced", "Records in "+postgresError.TableName+" still reference it. Remove or reassign them first.")
+}
 
 // AuthorizePersonDeletion enforces the Account-owned rules that apply when a
 // Person deletion would cascade through an attached Account. The caller passes

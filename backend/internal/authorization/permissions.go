@@ -24,89 +24,92 @@ const (
 	ExternalInvoiceRequestsRead   Permission = Permission(openapi.ExternalInvoiceRequestsRead)
 	ExternalInvoiceRequestsManage Permission = Permission(openapi.ExternalInvoiceRequestsManage)
 
-	PeopleReadSelf               Permission = Permission(openapi.PeopleReadSelf)
-	PeopleReadAll                Permission = Permission(openapi.PeopleReadAll)
-	PeopleCreate                 Permission = Permission(openapi.PeopleCreate)
-	PeopleUpdateSelf             Permission = Permission(openapi.PeopleUpdateSelf)
-	PeopleUpdateAll              Permission = Permission(openapi.PeopleUpdateAll)
-	PeopleDelete                 Permission = Permission(openapi.PeopleDelete)
-	PeopleReadMatriculation      Permission = Permission(openapi.PeopleReadMatriculation)
-	PeopleUpdateMatriculation    Permission = Permission(openapi.PeopleUpdateMatriculation)
-	PeopleProfileImageUpdateSelf Permission = Permission(openapi.PeopleProfileImageUpdateSelf)
-	PeopleProfileImageUpdateAll  Permission = Permission(openapi.PeopleProfileImageUpdateAll)
-	PeopleProfileImageRemoveSelf Permission = Permission(openapi.PeopleProfileImageRemoveSelf)
-	PeopleProfileImageRemoveAll  Permission = Permission(openapi.PeopleProfileImageRemoveAll)
-	AccountsRead                 Permission = Permission(openapi.AccountsRead)
-	AccountsCreate               Permission = Permission(openapi.AccountsCreate)
-	AccountsDelete               Permission = Permission(openapi.AccountsDelete)
-	AccountsEnable               Permission = Permission(openapi.AccountsEnable)
-	AccountsDisable              Permission = Permission(openapi.AccountsDisable)
-	AccountsLoginEmailUpdate     Permission = Permission(openapi.AccountsLoginEmailUpdate)
-	AccountsPasswordSet          Permission = Permission(openapi.AccountsPasswordSet)
-	AccountsPasswordReset        Permission = Permission(openapi.AccountsPasswordReset)
-	AccountsPasswordEnrollSelf   Permission = Permission(openapi.AccountsPasswordEnrollSelf)
-	AccountsPasswordEnrollAll    Permission = Permission(openapi.AccountsPasswordEnrollAll)
-	AccountsPasswordRemoveSelf   Permission = Permission(openapi.AccountsPasswordRemoveSelf)
-	AccountsPasswordRemoveAll    Permission = Permission(openapi.AccountsPasswordRemoveAll)
-	AccountsPINEnrollSelf        Permission = Permission(openapi.AccountsPinEnrollSelf)
-	AccountsPINEnrollAll         Permission = Permission(openapi.AccountsPinEnrollAll)
-	AccountsPINRemoveSelf        Permission = Permission(openapi.AccountsPinRemoveSelf)
-	AccountsPINRemoveAll         Permission = Permission(openapi.AccountsPinRemoveAll)
-	AccountsPINReset             Permission = Permission(openapi.AccountsPinReset)
-	PeopleRolesAssign            Permission = Permission(openapi.PeopleRolesAssign)
-	RolesRead                    Permission = Permission(openapi.RolesRead)
-	RolesManage                  Permission = Permission(openapi.RolesManage)
-	AuditRead                    Permission = Permission(openapi.AuditRead)
-	OpenDaysRead                 Permission = Permission(openapi.OpenDaysRead)
-	OpenDaysReadAssignments      Permission = Permission(openapi.OpenDaysReadAssignments)
-	OpenDaysSignup               Permission = Permission(openapi.OpenDaysSignup)
-	OpenDaysAssign               Permission = Permission(openapi.OpenDaysAssign)
-	OpenDaysManage               Permission = Permission(openapi.OpenDaysManage)
-	EventsRead                   Permission = Permission(openapi.EventsRead)
-	EventsManage                 Permission = Permission(openapi.EventsManage)
-	EventsStaffingManage         Permission = Permission(openapi.EventsStaffingManage)
-	EventsAssign                 Permission = Permission(openapi.EventsAssign)
-	ManagedDevicesRead           Permission = Permission(openapi.ManagedDevicesRead)
-	ManagedDevicesManage         Permission = Permission(openapi.ManagedDevicesManage)
-	SessionPoliciesManage        Permission = Permission(openapi.SessionPoliciesManage)
-	AttendanceRead               Permission = Permission(openapi.AttendanceRead)
-	AttendanceAssist             Permission = Permission(openapi.AttendanceAssist)
-	AttendanceCorrect            Permission = Permission(openapi.AttendanceCorrect)
-	AttendanceStatisticsRead     Permission = Permission(openapi.AttendanceStatisticsRead)
-	SurveysRead                  Permission = Permission(openapi.SurveysRead)
-	SurveysManage                Permission = Permission(openapi.SurveysManage)
-	LaborordnungRead             Permission = Permission(openapi.LaborordnungRead)
-	LaborordnungManage           Permission = Permission(openapi.LaborordnungManage)
-	LaborordnungRequestsRead     Permission = Permission(openapi.LaborordnungRequestsRead)
-	LaborordnungConfirm          Permission = Permission(openapi.LaborordnungConfirm)
-	VisitorEnrollmentManage      Permission = Permission(openapi.VisitorEnrollmentManage)
-	SupervisorDashboardRead      Permission = Permission(openapi.SupervisorDashboardRead)
-	OIDCLinkSelf                 Permission = Permission(openapi.IdentitiesOidcLinkSelf)
-	OIDCLinkAll                  Permission = Permission(openapi.IdentitiesOidcLinkAll)
-	OIDCUnlinkSelf               Permission = Permission(openapi.IdentitiesOidcUnlinkSelf)
-	OIDCUnlinkAll                Permission = Permission(openapi.IdentitiesOidcUnlinkAll)
-	OIDCManage                   Permission = Permission(openapi.OidcManage)
-	SCIMManage                   Permission = Permission(openapi.ScimManage)
-	MailManage                   Permission = Permission(openapi.MailManage)
-	BrandingManage               Permission = Permission(openapi.BrandingManage)
-	MachinesRead                 Permission = Permission(openapi.MachinesRead)
-	MachinesManage               Permission = Permission(openapi.MachinesManage)
-	MachineJobsRead              Permission = Permission(openapi.MachineJobsRead)
-	MachineJobsCreate            Permission = Permission(openapi.MachineJobsCreate)
-	MachineJobsEdit              Permission = Permission(openapi.MachineJobsEdit)
-	MachineJobsReview            Permission = Permission(openapi.MachineJobsReview)
-	MachineJobsOverridePrice     Permission = Permission(openapi.MachineJobsOverridePrice)
-	InventoryRead                Permission = Permission(openapi.InventoryRead)
-	InventoryManage              Permission = Permission(openapi.InventoryManage)
-	FilamentSpoolsManage         Permission = Permission(openapi.FilamentSpoolsManage)
-	PrinterSlotsAssign           Permission = Permission(openapi.PrinterSlotsAssign)
-	PrintSubmissionsRead         Permission = Permission(openapi.PrintSubmissionsRead)
-	PrintSubmissionsManage       Permission = Permission(openapi.PrintSubmissionsManage)
-	OrganizationsRead            Permission = Permission(openapi.OrganizationsRead)
-	OrganizationsManage          Permission = Permission(openapi.OrganizationsManage)
-	PricingRead                  Permission = Permission(openapi.PricingRead)
-	PricingManage                Permission = Permission(openapi.PricingManage)
-	StatisticsRead               Permission = Permission(openapi.StatisticsRead)
+	PeopleReadSelf                     Permission = Permission(openapi.PeopleReadSelf)
+	PeopleReadAll                      Permission = Permission(openapi.PeopleReadAll)
+	PeopleCreate                       Permission = Permission(openapi.PeopleCreate)
+	PeopleUpdateSelf                   Permission = Permission(openapi.PeopleUpdateSelf)
+	PeopleUpdateAll                    Permission = Permission(openapi.PeopleUpdateAll)
+	PeopleDelete                       Permission = Permission(openapi.PeopleDelete)
+	PeopleReadMatriculation            Permission = Permission(openapi.PeopleReadMatriculation)
+	PeopleUpdateMatriculation          Permission = Permission(openapi.PeopleUpdateMatriculation)
+	PeopleProfileImageUpdateSelf       Permission = Permission(openapi.PeopleProfileImageUpdateSelf)
+	PeopleProfileImageUpdateAll        Permission = Permission(openapi.PeopleProfileImageUpdateAll)
+	PeopleProfileImageRemoveSelf       Permission = Permission(openapi.PeopleProfileImageRemoveSelf)
+	PeopleProfileImageRemoveAll        Permission = Permission(openapi.PeopleProfileImageRemoveAll)
+	AccountsRead                       Permission = Permission(openapi.AccountsRead)
+	AccountsCreate                     Permission = Permission(openapi.AccountsCreate)
+	AccountsDelete                     Permission = Permission(openapi.AccountsDelete)
+	AccountsEnable                     Permission = Permission(openapi.AccountsEnable)
+	AccountsDisable                    Permission = Permission(openapi.AccountsDisable)
+	AccountsLoginEmailUpdate           Permission = Permission(openapi.AccountsLoginEmailUpdate)
+	AccountsPasswordSet                Permission = Permission(openapi.AccountsPasswordSet)
+	AccountsPasswordReset              Permission = Permission(openapi.AccountsPasswordReset)
+	AccountsPasswordEnrollSelf         Permission = Permission(openapi.AccountsPasswordEnrollSelf)
+	AccountsPasswordEnrollAll          Permission = Permission(openapi.AccountsPasswordEnrollAll)
+	AccountsPasswordRemoveSelf         Permission = Permission(openapi.AccountsPasswordRemoveSelf)
+	AccountsPasswordRemoveAll          Permission = Permission(openapi.AccountsPasswordRemoveAll)
+	AccountsPINEnrollSelf              Permission = Permission(openapi.AccountsPinEnrollSelf)
+	AccountsPINEnrollAll               Permission = Permission(openapi.AccountsPinEnrollAll)
+	AccountsPINRemoveSelf              Permission = Permission(openapi.AccountsPinRemoveSelf)
+	AccountsPINRemoveAll               Permission = Permission(openapi.AccountsPinRemoveAll)
+	AccountsPINReset                   Permission = Permission(openapi.AccountsPinReset)
+	PeopleRolesAssign                  Permission = Permission(openapi.PeopleRolesAssign)
+	RolesRead                          Permission = Permission(openapi.RolesRead)
+	RolesManage                        Permission = Permission(openapi.RolesManage)
+	AuditRead                          Permission = Permission(openapi.AuditRead)
+	OpenDaysRead                       Permission = Permission(openapi.OpenDaysRead)
+	OpenDaysReadAssignments            Permission = Permission(openapi.OpenDaysReadAssignments)
+	OpenDaysSignup                     Permission = Permission(openapi.OpenDaysSignup)
+	OpenDaysAssign                     Permission = Permission(openapi.OpenDaysAssign)
+	OpenDaysManage                     Permission = Permission(openapi.OpenDaysManage)
+	EventsRead                         Permission = Permission(openapi.EventsRead)
+	EventsManage                       Permission = Permission(openapi.EventsManage)
+	EventsStaffingManage               Permission = Permission(openapi.EventsStaffingManage)
+	EventsAssign                       Permission = Permission(openapi.EventsAssign)
+	ManagedDevicesRead                 Permission = Permission(openapi.ManagedDevicesRead)
+	ManagedDevicesManage               Permission = Permission(openapi.ManagedDevicesManage)
+	SessionPoliciesManage              Permission = Permission(openapi.SessionPoliciesManage)
+	AttendanceRead                     Permission = Permission(openapi.AttendanceRead)
+	AttendanceAssist                   Permission = Permission(openapi.AttendanceAssist)
+	AttendanceCorrect                  Permission = Permission(openapi.AttendanceCorrect)
+	AttendanceStatisticsRead           Permission = Permission(openapi.AttendanceStatisticsRead)
+	SurveysRead                        Permission = Permission(openapi.SurveysRead)
+	SurveysManage                      Permission = Permission(openapi.SurveysManage)
+	LaborordnungRead                   Permission = Permission(openapi.LaborordnungRead)
+	LaborordnungManage                 Permission = Permission(openapi.LaborordnungManage)
+	LaborordnungRequestsRead           Permission = Permission(openapi.LaborordnungRequestsRead)
+	LaborordnungConfirm                Permission = Permission(openapi.LaborordnungConfirm)
+	VisitorEnrollmentManage            Permission = Permission(openapi.VisitorEnrollmentManage)
+	SupervisorDashboardRead            Permission = Permission(openapi.SupervisorDashboardRead)
+	OIDCLinkSelf                       Permission = Permission(openapi.IdentitiesOidcLinkSelf)
+	OIDCLinkAll                        Permission = Permission(openapi.IdentitiesOidcLinkAll)
+	OIDCUnlinkSelf                     Permission = Permission(openapi.IdentitiesOidcUnlinkSelf)
+	OIDCUnlinkAll                      Permission = Permission(openapi.IdentitiesOidcUnlinkAll)
+	OIDCManage                         Permission = Permission(openapi.OidcManage)
+	SCIMManage                         Permission = Permission(openapi.ScimManage)
+	MailManage                         Permission = Permission(openapi.MailManage)
+	BrandingManage                     Permission = Permission(openapi.BrandingManage)
+	MachinesRead                       Permission = Permission(openapi.MachinesRead)
+	MachinesManage                     Permission = Permission(openapi.MachinesManage)
+	MachineJobsRead                    Permission = Permission(openapi.MachineJobsRead)
+	MachineJobsCreate                  Permission = Permission(openapi.MachineJobsCreate)
+	MachineJobsEdit                    Permission = Permission(openapi.MachineJobsEdit)
+	MachineJobsReview                  Permission = Permission(openapi.MachineJobsReview)
+	MachineJobsOverridePrice           Permission = Permission(openapi.MachineJobsOverridePrice)
+	InventoryRead                      Permission = Permission(openapi.InventoryRead)
+	InventoryManage                    Permission = Permission(openapi.InventoryManage)
+	FilamentSpoolsManage               Permission = Permission(openapi.FilamentSpoolsManage)
+	PrinterSlotsAssign                 Permission = Permission(openapi.PrinterSlotsAssign)
+	PrintSubmissionsRead               Permission = Permission(openapi.PrintSubmissionsRead)
+	PrintSubmissionsManage             Permission = Permission(openapi.PrintSubmissionsManage)
+	PrinterConnectorsRead              Permission = Permission(openapi.PrinterConnectorsRead)
+	PrinterConnectorsManage            Permission = Permission(openapi.PrinterConnectorsManage)
+	PrinterConnectorsCredentialsManage Permission = Permission(openapi.PrinterConnectorsCredentialsManage)
+	OrganizationsRead                  Permission = Permission(openapi.OrganizationsRead)
+	OrganizationsManage                Permission = Permission(openapi.OrganizationsManage)
+	PricingRead                        Permission = Permission(openapi.PricingRead)
+	PricingManage                      Permission = Permission(openapi.PricingManage)
+	StatisticsRead                     Permission = Permission(openapi.StatisticsRead)
 )
 
 type Definition struct {
@@ -136,6 +139,7 @@ var registry = []Permission{
 	MachinesRead, MachinesManage,
 	MachineJobsRead, MachineJobsCreate, MachineJobsEdit, MachineJobsReview, MachineJobsOverridePrice,
 	InventoryRead, InventoryManage, FilamentSpoolsManage, PrinterSlotsAssign, PrintSubmissionsRead, PrintSubmissionsManage,
+	PrinterConnectorsRead, PrinterConnectorsManage, PrinterConnectorsCredentialsManage,
 	OrganizationsRead, OrganizationsManage, PricingRead, PricingManage, StatisticsRead,
 }
 
@@ -158,89 +162,92 @@ var descriptions = map[Permission]string{
 	ExternalInvoiceRequestsRead:   "Read external invoicing snapshots and evidence.",
 	ExternalInvoiceRequestsManage: "Prepare and manage external invoicing requests.",
 
-	PeopleReadSelf:               "Read the person record linked to the current account.",
-	PeopleReadAll:                "Read every person record.",
-	PeopleCreate:                 "Create person records.",
-	PeopleUpdateSelf:             "Update the person record linked to the current account.",
-	PeopleUpdateAll:              "Update every person record.",
-	PeopleDelete:                 "Permanently delete person records.",
-	PeopleReadMatriculation:      "Read matriculation numbers on otherwise-readable people.",
-	PeopleUpdateMatriculation:    "Set or clear matriculation numbers on otherwise-writable people.",
-	PeopleProfileImageUpdateSelf: "Upload or replace the current Person's profile image.",
-	PeopleProfileImageUpdateAll:  "Upload or replace any Person's profile image.",
-	PeopleProfileImageRemoveSelf: "Remove the current Person's profile image.",
-	PeopleProfileImageRemoveAll:  "Remove any Person's profile image.",
-	AccountsRead:                 "Read account status and authentication identities.",
-	AccountsCreate:               "Create an active account for a person.",
-	AccountsDelete:               "Permanently delete accounts and authentication data.",
-	AccountsEnable:               "Activate accounts independently of their authentication methods.",
-	AccountsDisable:              "Disable accounts and revoke their sessions.",
-	AccountsLoginEmailUpdate:     "Change an account login email and revoke sessions.",
-	AccountsPasswordSet:          "Administratively set an account password.",
-	AccountsPasswordReset:        "Issue one-time account password reset links.",
-	AccountsPasswordEnrollSelf:   "Enroll a password method for the current account.",
-	AccountsPasswordEnrollAll:    "Invite or enroll password methods for any account.",
-	AccountsPasswordRemoveSelf:   "Remove the current account's password method.",
-	AccountsPasswordRemoveAll:    "Remove another account's password method and revoke its sessions.",
-	AccountsPINEnrollSelf:        "Enroll or replace the current account's PIN method.",
-	AccountsPINEnrollAll:         "Configure or issue PIN enrollment for any account.",
-	AccountsPINRemoveSelf:        "Remove the current account's PIN method.",
-	AccountsPINRemoveAll:         "Remove another account's PIN method and revoke its sessions.",
-	AccountsPINReset:             "Replace or issue a one-time PIN setup challenge for another account.",
-	PeopleRolesAssign:            "Assign or remove permitted roles on people.",
-	RolesRead:                    "Read roles and the application permission registry.",
-	RolesManage:                  "Create, update, and delete permitted configurable roles.",
-	AuditRead:                    "Read privacy-minimized audit events.",
-	OpenDaysRead:                 "Read visible Open Day periods and staffing summaries.",
-	OpenDaysReadAssignments:      "Read the identities assigned to Open Days.",
-	OpenDaysSignup:               "Sign up for and leave eligible Open Day assignments.",
-	OpenDaysAssign:               "Assign and remove eligible people on Open Days.",
-	OpenDaysManage:               "Manage Open Day periods, schedules, calendar context, and lifecycle.",
-	EventsRead:                   "Read internal Event details, planning data, files, and staffing counts.",
-	EventsManage:                 "Create and manage Events, lifecycle, publication, schedules, planning, and files.",
-	EventsStaffingManage:         "Manage Event shifts, staffing requirements, eligibility, and staffing identities.",
-	EventsAssign:                 "Create, move, cancel, link, and conflict-override Event assignments.",
-	ManagedDevicesRead:           "Read managed devices and device types.",
-	ManagedDevicesManage:         "Create, edit, revoke, rotate, and delete managed devices and device types.",
-	SessionPoliciesManage:        "Create and change reusable server-enforced session policies.",
-	AttendanceRead:               "Read identified visit and current-presence records.",
-	AttendanceAssist:             "Check people in or out through a supervised attendance flow.",
-	AttendanceCorrect:            "Correct or void attendance records.",
-	AttendanceStatisticsRead:     "Read attendance statistics and visitor-hour reports.",
-	SurveysRead:                  "Read survey definitions and summarized responses.",
-	SurveysManage:                "Build, publish, close, and trigger surveys.",
-	LaborordnungRead:             "Read Lab Rules versions and exact PDFs.",
-	LaborordnungManage:           "Upload and publish immutable Lab Rules versions.",
-	LaborordnungRequestsRead:     "Read the physical-document confirmation queue.",
-	LaborordnungConfirm:          "Confirm physical Lab Rules evidence.",
-	VisitorEnrollmentManage:      "Configure controlled visitor-terminal enrollment.",
-	SupervisorDashboardRead:      "Read the privacy-minimized supervisor dashboard.",
-	OIDCLinkSelf:                 "Link an OIDC identity to the current Account after recent password or OIDC reauthentication.",
-	OIDCLinkAll:                  "Reserved for a future administrative ownership-proof flow; no operation currently supports this permission.",
-	OIDCUnlinkSelf:               "Unlink an OIDC identity from the current Account.",
-	OIDCUnlinkAll:                "Unlink an OIDC identity from another Account.",
-	OIDCManage:                   "Manage OIDC providers and trusted ACR mappings.",
-	SCIMManage:                   "Manage SCIM connectors and one-time bearer tokens.",
-	MailManage:                   "Configure transactional SMTP delivery and sender identity.",
-	BrandingManage:               "Manage public organization identity, branding, and legal notices.",
-	MachinesRead:                 "Read machine types, machines, and their operational metrics.",
-	MachinesManage:               "Create and update machine types and machines.",
-	MachineJobsRead:              "Read machine jobs and their pricing and usage details.",
-	MachineJobsCreate:            "Create manual jobs and ingest automatically detected jobs.",
-	MachineJobsEdit:              "Correct confirmed machine-job facts and material usage.",
-	MachineJobsReview:            "Review and confirm automatically detected machine jobs.",
-	MachineJobsOverridePrice:     "Set and clear final machine-job price overrides.",
-	InventoryRead:                "Read materials, balances, valuation, and inventory history.",
-	InventoryManage:              "Create materials and record purchases, consumption, corrections, and disposal.",
-	FilamentSpoolsManage:         "Manage physical filament spool records and identifiers.",
-	PrinterSlotsAssign:           "Mount, unmount, and move filament spools in printer slots.",
-	PrintSubmissionsRead:         "Read print submissions, attempts, and printer observations.",
-	PrintSubmissionsManage:       "Create and manage print submissions, attempts, and reconciliation.",
-	OrganizationsRead:            "Read organizations usable as billing parties.",
-	OrganizationsManage:          "Create and update organizations.",
-	PricingRead:                  "Read pricing groups, rules, and billing-party defaults.",
-	PricingManage:                "Create and update pricing groups, rules, and billing-party defaults.",
-	StatisticsRead:               "Read machine-logbook operational and financial statistics.",
+	PeopleReadSelf:                     "Read the person record linked to the current account.",
+	PeopleReadAll:                      "Read every person record.",
+	PeopleCreate:                       "Create person records.",
+	PeopleUpdateSelf:                   "Update the person record linked to the current account.",
+	PeopleUpdateAll:                    "Update every person record.",
+	PeopleDelete:                       "Permanently delete person records.",
+	PeopleReadMatriculation:            "Read matriculation numbers on otherwise-readable people.",
+	PeopleUpdateMatriculation:          "Set or clear matriculation numbers on otherwise-writable people.",
+	PeopleProfileImageUpdateSelf:       "Upload or replace the current Person's profile image.",
+	PeopleProfileImageUpdateAll:        "Upload or replace any Person's profile image.",
+	PeopleProfileImageRemoveSelf:       "Remove the current Person's profile image.",
+	PeopleProfileImageRemoveAll:        "Remove any Person's profile image.",
+	AccountsRead:                       "Read account status and authentication identities.",
+	AccountsCreate:                     "Create an active account for a person.",
+	AccountsDelete:                     "Permanently delete accounts and authentication data.",
+	AccountsEnable:                     "Activate accounts independently of their authentication methods.",
+	AccountsDisable:                    "Disable accounts and revoke their sessions.",
+	AccountsLoginEmailUpdate:           "Change an account login email and revoke sessions.",
+	AccountsPasswordSet:                "Administratively set an account password.",
+	AccountsPasswordReset:              "Issue one-time account password reset links.",
+	AccountsPasswordEnrollSelf:         "Enroll a password method for the current account.",
+	AccountsPasswordEnrollAll:          "Invite or enroll password methods for any account.",
+	AccountsPasswordRemoveSelf:         "Remove the current account's password method.",
+	AccountsPasswordRemoveAll:          "Remove another account's password method and revoke its sessions.",
+	AccountsPINEnrollSelf:              "Enroll or replace the current account's PIN method.",
+	AccountsPINEnrollAll:               "Configure or issue PIN enrollment for any account.",
+	AccountsPINRemoveSelf:              "Remove the current account's PIN method.",
+	AccountsPINRemoveAll:               "Remove another account's PIN method and revoke its sessions.",
+	AccountsPINReset:                   "Replace or issue a one-time PIN setup challenge for another account.",
+	PeopleRolesAssign:                  "Assign or remove permitted roles on people.",
+	RolesRead:                          "Read roles and the application permission registry.",
+	RolesManage:                        "Create, update, and delete permitted configurable roles.",
+	AuditRead:                          "Read privacy-minimized audit events.",
+	OpenDaysRead:                       "Read visible Open Day periods and staffing summaries.",
+	OpenDaysReadAssignments:            "Read the identities assigned to Open Days.",
+	OpenDaysSignup:                     "Sign up for and leave eligible Open Day assignments.",
+	OpenDaysAssign:                     "Assign and remove eligible people on Open Days.",
+	OpenDaysManage:                     "Manage Open Day periods, schedules, calendar context, and lifecycle.",
+	EventsRead:                         "Read internal Event details, planning data, files, and staffing counts.",
+	EventsManage:                       "Create and manage Events, lifecycle, publication, schedules, planning, and files.",
+	EventsStaffingManage:               "Manage Event shifts, staffing requirements, eligibility, and staffing identities.",
+	EventsAssign:                       "Create, move, cancel, link, and conflict-override Event assignments.",
+	ManagedDevicesRead:                 "Read managed devices and device types.",
+	ManagedDevicesManage:               "Create, edit, revoke, rotate, and delete managed devices and device types.",
+	SessionPoliciesManage:              "Create and change reusable server-enforced session policies.",
+	AttendanceRead:                     "Read identified visit and current-presence records.",
+	AttendanceAssist:                   "Check people in or out through a supervised attendance flow.",
+	AttendanceCorrect:                  "Correct or void attendance records.",
+	AttendanceStatisticsRead:           "Read attendance statistics and visitor-hour reports.",
+	SurveysRead:                        "Read survey definitions and summarized responses.",
+	SurveysManage:                      "Build, publish, close, and trigger surveys.",
+	LaborordnungRead:                   "Read Lab Rules versions and exact PDFs.",
+	LaborordnungManage:                 "Upload and publish immutable Lab Rules versions.",
+	LaborordnungRequestsRead:           "Read the physical-document confirmation queue.",
+	LaborordnungConfirm:                "Confirm physical Lab Rules evidence.",
+	VisitorEnrollmentManage:            "Configure controlled visitor-terminal enrollment.",
+	SupervisorDashboardRead:            "Read the privacy-minimized supervisor dashboard.",
+	OIDCLinkSelf:                       "Link an OIDC identity to the current Account after recent password or OIDC reauthentication.",
+	OIDCLinkAll:                        "Reserved for a future administrative ownership-proof flow; no operation currently supports this permission.",
+	OIDCUnlinkSelf:                     "Unlink an OIDC identity from the current Account.",
+	OIDCUnlinkAll:                      "Unlink an OIDC identity from another Account.",
+	OIDCManage:                         "Manage OIDC providers and trusted ACR mappings.",
+	SCIMManage:                         "Manage SCIM connectors and one-time bearer tokens.",
+	MailManage:                         "Configure transactional SMTP delivery and sender identity.",
+	BrandingManage:                     "Manage public organization identity, branding, and legal notices.",
+	MachinesRead:                       "Read machine types, machines, and their operational metrics.",
+	MachinesManage:                     "Create and update machine types and machines.",
+	MachineJobsRead:                    "Read machine jobs and their pricing and usage details.",
+	MachineJobsCreate:                  "Create manual jobs and ingest automatically detected jobs.",
+	MachineJobsEdit:                    "Correct confirmed machine-job facts and material usage.",
+	MachineJobsReview:                  "Review and confirm automatically detected machine jobs.",
+	MachineJobsOverridePrice:           "Set and clear final machine-job price overrides.",
+	InventoryRead:                      "Read materials, balances, valuation, and inventory history.",
+	InventoryManage:                    "Create materials and record purchases, consumption, corrections, and disposal.",
+	FilamentSpoolsManage:               "Manage physical filament spool records and identifiers.",
+	PrinterSlotsAssign:                 "Mount, unmount, and move filament spools in printer slots.",
+	PrintSubmissionsRead:               "Read print submissions, attempts, and printer observations.",
+	PrintSubmissionsManage:             "Create and manage print submissions, attempts, and reconciliation.",
+	PrinterConnectorsRead:              "Read printer connector identity, status, assignments, and diagnostics.",
+	PrinterConnectorsManage:            "Create and configure printer connectors and printer assignments.",
+	PrinterConnectorsCredentialsManage: "Issue enrollment credentials and revoke printer connector access.",
+	OrganizationsRead:                  "Read organizations usable as billing parties.",
+	OrganizationsManage:                "Create and update organizations.",
+	PricingRead:                        "Read pricing groups, rules, and billing-party defaults.",
+	PricingManage:                      "Create and update pricing groups, rules, and billing-party defaults.",
+	StatisticsRead:                     "Read machine-logbook operational and financial statistics.",
 }
 
 type GrantScope string

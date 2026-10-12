@@ -14,6 +14,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	printerconnectorsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors/db"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/printing/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -94,6 +95,7 @@ type Submission struct {
 	ID, MachineID                        uuid.UUID
 	DisplayID, MachineName, Title, State string
 	Customer                             machinelogbook.PartyReference
+	CustomerDisplayName                  *string
 	Notes                                *string
 	ReprintsSubmissionID                 *uuid.UUID
 	Declarations                         []Declaration
@@ -117,6 +119,19 @@ type EventInput struct {
 	SourceSequence           *int64
 	ExternalPrintID          *string
 	Payload                  json.RawMessage
+}
+
+type ConnectorEventInput struct {
+	EventID, ConnectorID, AssignmentID, MachineID uuid.UUID
+	AttemptID, ObservedRunID                      *uuid.UUID
+	ConfigurationVersion, Sequence                int64
+	Kind                                          string
+	OccurredAt                                    time.Time
+	ExternalPrintID                               *string
+	Payload                                       json.RawMessage
+	ReportRevision                                *int64
+	ApplicationState                              string
+	ApplicationReason                             *string
 }
 
 func require(p authorization.Principal, permission authorization.Permission) error {
@@ -512,6 +527,10 @@ func (s *Service) CreateSubmission(ctx context.Context, p authorization.Principa
 func eventFromRow(row db.PrinterEvent) PrinterEvent {
 	return PrinterEvent{ID: row.ID, SourceID: row.SourceID, EventKey: row.EventKey, ProtocolVersion: int(row.ProtocolVersion), Kind: row.Kind, OccurredAt: row.OccurredAt, ReceivedAt: row.ReceivedAt, Payload: row.Payload, ReconciliationState: row.ReconciliationState}
 }
+
+func connectorEventFromRow(row printerconnectorsdb.PrinterEvent) PrinterEvent {
+	return PrinterEvent{ID: row.ID, SourceID: row.SourceID, EventKey: row.EventKey, ProtocolVersion: int(row.ProtocolVersion), Kind: row.Kind, OccurredAt: row.OccurredAt, ReceivedAt: row.ReceivedAt, Payload: row.Payload, ReconciliationState: row.ReconciliationState}
+}
 func (s *Service) loadAttempt(ctx context.Context, q *db.Queries, row db.GetPrintAttemptRow) (Attempt, error) {
 	d, err := q.ListPrintFilamentDeclarations(ctx, db.ListPrintFilamentDeclarationsParams{AttemptID: &row.ID})
 	if err != nil {
@@ -547,8 +566,13 @@ func (s *Service) loadSubmission(ctx context.Context, id uuid.UUID) (Submission,
 	item := Submission{ID: row.ID, DisplayID: row.DisplayID, MachineID: row.MachineID, MachineName: row.MachineName, Title: row.Title, Notes: row.Notes, State: row.State, ReprintsSubmissionID: row.ReprintsSubmissionID, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Declarations: make([]Declaration, 0, len(decls)), Attempts: make([]Attempt, 0, len(attempts))}
 	if row.CustomerPersonID != nil {
 		item.Customer = machinelogbook.PartyReference{Kind: "person", ID: *row.CustomerPersonID}
+		if row.CustomerFirstName != nil && row.CustomerLastName != nil {
+			name := strings.TrimSpace(*row.CustomerFirstName + " " + *row.CustomerLastName)
+			item.CustomerDisplayName = &name
+		}
 	} else if row.CustomerOrganizationID != nil {
 		item.Customer = machinelogbook.PartyReference{Kind: "organization", ID: *row.CustomerOrganizationID}
+		item.CustomerDisplayName = row.CustomerOrganizationName
 	}
 	for _, v := range decls {
 		item.Declarations = append(item.Declarations, declaration(v))
@@ -854,6 +878,160 @@ func (s *Service) IngestEvent(ctx context.Context, input EventInput) (PrinterEve
 	return eventFromRow(row), true, nil
 }
 
+// IngestConnectorEvent is the transaction-aware connector boundary. The caller
+// validates and locks connector ownership in the same transaction before using
+// this method, so event receipt, authorization, and audit cannot commit apart.
+func (s *Service) IngestConnectorEvent(ctx context.Context, tx pgx.Tx, input ConnectorEventInput) (PrinterEvent, bool, error) {
+	if input.EventID == uuid.Nil || input.ConnectorID == uuid.Nil || input.AssignmentID == uuid.Nil || input.MachineID == uuid.Nil ||
+		input.ConfigurationVersion < 1 || input.Sequence < 1 || input.OccurredAt.IsZero() || len(input.Payload) == 0 || len(input.Payload) > 32768 {
+		return PrinterEvent{}, false, validation("invalid printer event")
+	}
+	switch input.Kind {
+	case "identity", "connectivity", "operational_state", "progress", "slot_observation", "consumption_report", "terminal_outcome":
+	default:
+		return PrinterEvent{}, false, validation("invalid printer event kind")
+	}
+	var payloadObject map[string]any
+	if json.Unmarshal(input.Payload, &payloadObject) != nil || payloadObject == nil {
+		return PrinterEvent{}, false, validation("printer event payload must be a JSON object")
+	}
+	if input.ApplicationState != "applied" && input.ApplicationState != "review_required" && input.ApplicationState != "recorded" {
+		return PrinterEvent{}, false, validation("invalid printer event application state")
+	}
+	if input.Kind == "consumption_report" {
+		if input.ReportRevision == nil || *input.ReportRevision < 1 {
+			return PrinterEvent{}, false, validation("consumption reports require a positive report revision")
+		}
+	} else if input.ReportRevision != nil {
+		return PrinterEvent{}, false, validation("only consumption reports may have a report revision")
+	}
+	sourceID := "printer-connector:" + input.AssignmentID.String()
+	eventKey := input.EventID.String()
+	fp := fingerprint(struct {
+		EventID, AssignmentID, MachineID uuid.UUID
+		AttemptID, ObservedRunID         *uuid.UUID
+		ConfigurationVersion, Sequence   int64
+		Kind                             string
+		OccurredAt                       time.Time
+		ExternalPrintID                  *string
+		Payload                          json.RawMessage
+		ReportRevision                   *int64
+	}{input.EventID, input.AssignmentID, input.MachineID, input.AttemptID, input.ObservedRunID, input.ConfigurationVersion, input.Sequence, input.Kind, input.OccurredAt.UTC(), clean(input.ExternalPrintID), input.Payload, input.ReportRevision})
+	q := printerconnectorsdb.New(tx)
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", sourceID+"\n"+eventKey); err != nil {
+		return PrinterEvent{}, false, err
+	}
+	existing, err := q.GetConnectorEventByKey(ctx, printerconnectorsdb.GetConnectorEventByKeyParams{SourceID: sourceID, EventKey: eventKey})
+	if err == nil {
+		if existing.Fingerprint != fp {
+			return PrinterEvent{}, false, conflict("printer_event_mismatch", "Event ID was reused with different facts")
+		}
+		return connectorEventFromRow(existing), false, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return PrinterEvent{}, false, err
+	}
+	bySequence, err := q.GetConnectorEventBySequence(ctx, printerconnectorsdb.GetConnectorEventBySequenceParams{AssignmentID: &input.AssignmentID, SourceSequence: &input.Sequence})
+	if err == nil {
+		if bySequence.EventKey == eventKey && bySequence.Fingerprint == fp {
+			return connectorEventFromRow(bySequence), false, nil
+		}
+		return PrinterEvent{}, false, conflict("printer_event_sequence_conflict", "Event sequence was reused with different facts")
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return PrinterEvent{}, false, err
+	}
+	reconciliation := "not_applicable"
+	if input.Kind == "consumption_report" {
+		reconciliation = "pending"
+	}
+	row, err := q.InsertConnectorEvent(ctx, printerconnectorsdb.InsertConnectorEventParams{ID: input.EventID, SourceID: sourceID, EventKey: eventKey, Fingerprint: fp, ProtocolVersion: 1, MachineID: &input.MachineID, AttemptID: input.AttemptID, Kind: input.Kind, OccurredAt: input.OccurredAt.UTC(), SourceSequence: &input.Sequence, ExternalPrintID: clean(input.ExternalPrintID), Payload: input.Payload, ReconciliationState: reconciliation, ConnectorID: &input.ConnectorID, AssignmentID: &input.AssignmentID, ObservedRunID: input.ObservedRunID, ConfigurationVersion: &input.ConfigurationVersion, ApplicationState: input.ApplicationState, ApplicationReason: input.ApplicationReason, ReportRevision: input.ReportRevision})
+	if err != nil {
+		return PrinterEvent{}, false, dbError(err)
+	}
+	if err = audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: "printer_event.ingested", ResourceType: "printer_event", ResourceID: &input.EventID, ChangedFields: []string{"kind", "state"}, Source: "http"}); err != nil {
+		return PrinterEvent{}, false, err
+	}
+	return connectorEventFromRow(row), true, nil
+}
+
+// ApplyConnectorAttemptEvent advances an explicitly linked Print Attempt using
+// an event already validated in the caller's transaction. It never creates an
+// Attempt or MachineJob, and terminal/out-of-order events cannot move state
+// backwards.
+func (s *Service) ApplyConnectorAttemptEvent(ctx context.Context, tx pgx.Tx, attemptID, machineID uuid.UUID, kind string, payload json.RawMessage, occurredAt time.Time) error {
+	q := db.New(tx)
+	current, err := q.GetPrintAttemptForUpdate(ctx, attemptID)
+	if err != nil {
+		return noRows(err)
+	}
+	if current.MachineID != machineID {
+		return conflict("printer_attempt_machine_mismatch", "Linked Print Attempt belongs to another machine")
+	}
+	target := ""
+	switch kind {
+	case "progress":
+		target = "printing"
+	case "operational_state":
+		var state struct {
+			State string `json:"state"`
+		}
+		if json.Unmarshal(payload, &state) == nil && state.State == "printing" {
+			target = "printing"
+		}
+	case "terminal_outcome":
+		var outcome struct {
+			Outcome string `json:"outcome"`
+		}
+		if json.Unmarshal(payload, &outcome) != nil {
+			return validation("terminal outcome payload is invalid")
+		}
+		switch outcome.Outcome {
+		case "completed", "failed", "cancelled":
+			target = outcome.Outcome
+		default:
+			return validation("terminal outcome is invalid")
+		}
+	}
+	if target == "" || current.State == target || current.State == "completed" || current.State == "failed" || current.State == "cancelled" {
+		return nil
+	}
+	if target == "printing" && current.State != "queued" && current.State != "accepted" {
+		return nil
+	}
+	if target != "printing" && current.State != "queued" && current.State != "accepted" && current.State != "printing" {
+		return nil
+	}
+	now := occurredAt.UTC()
+	accepted, started, ended := current.AcceptedAt, current.StartedAt, current.EndedAt
+	if !accepted.Valid {
+		accepted = pgtype.Timestamptz{Time: now, Valid: true}
+	}
+	if !started.Valid {
+		started = pgtype.Timestamptz{Time: now, Valid: true}
+	}
+	if target != "printing" {
+		ended = pgtype.Timestamptz{Time: now, Valid: true}
+	}
+	if _, err = q.UpdatePrintAttemptState(ctx, db.UpdatePrintAttemptStateParams{State: target, AcceptedAt: accepted, StartedAt: started, EndedAt: ended, ID: attemptID, ExpectedVersion: current.Version}); err != nil {
+		return dbError(err)
+	}
+	submission, err := q.GetPrintSubmissionForUpdate(ctx, current.SubmissionID)
+	if err != nil {
+		return err
+	}
+	submissionState := "in_progress"
+	if target == "completed" {
+		submissionState = "completed"
+	} else if target == "failed" || target == "cancelled" {
+		submissionState = "failed"
+	}
+	if _, err = q.UpdatePrintSubmission(ctx, db.UpdatePrintSubmissionParams{Title: submission.Title, Notes: submission.Notes, State: submissionState, ID: submission.ID, ExpectedVersion: submission.Version}); err != nil {
+		return dbError(err)
+	}
+	return audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: "print_attempt.connector_state_applied", ResourceType: "print_attempt", ResourceID: &attemptID, ChangedFields: []string{"state"}, Source: "http"})
+}
+
 func (s *Service) ReconcileEvent(ctx context.Context, p authorization.Principal, eventID uuid.UUID, decision string, operationKey uuid.UUID, jobID *uuid.UUID, expectedJobVersion *int64, usages []machinelogbook.UsageInput, requestID *uuid.UUID) error {
 	if err := require(p, authorization.PrintSubmissionsManage); err != nil {
 		return err
@@ -901,6 +1079,16 @@ func (s *Service) ReconcileEvent(ctx context.Context, p authorization.Principal,
 		return conflict("event_not_pending", "Printer event is not awaiting reconciliation")
 	}
 	if decision == "accepted" {
+		if event.AttemptID == nil || event.MachineID == nil {
+			return conflict("event_not_correlated", "Consumption must be correlated to a print attempt before approval")
+		}
+		attempt, attemptErr := q.GetPrintAttemptForUpdate(ctx, *event.AttemptID)
+		if attemptErr != nil {
+			return noRows(attemptErr)
+		}
+		if attempt.MachineID != *event.MachineID || attempt.MachineJobID == nil || *attempt.MachineJobID != *jobID {
+			return conflict("event_job_mismatch", "Consumption must be approved against the Machine Job linked to its print attempt")
+		}
 		if _, err = s.jobs.ReplaceJobUsagesInTransaction(ctx, tx, p, *jobID, *expectedJobVersion, usages, &eventID, requestID); err != nil {
 			return err
 		}

@@ -33,6 +33,11 @@ export interface PrintSubmission {
   machineName: string;
   /** @nullable */
   customer?: PrintSubmissionCustomer;
+  /**
+   * Current display name of the assigned customer; null when unassigned.
+   * @nullable
+   */
+  customerDisplayName?: string | null;
   title: string;
   /** @nullable */
   notes?: string | null;

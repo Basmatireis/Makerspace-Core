@@ -111,6 +111,13 @@ async function expectAccessible(page: Page) {
   expect(results.violations).toEqual([]);
 }
 
+async function expectNoHorizontalOverflow(page: Page) {
+  for (const width of [320, 390, 414, 768, 1440]) {
+    await page.setViewportSize({ width, height: width < 768 ? 844 : 900 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
+  }
+}
+
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
 });
@@ -143,9 +150,9 @@ test('uses the standard table toolbar, filters, and pagination for events', asyn
   await expect(page.getByRole('link', { name: 'Autumn exhibition' })).toBeVisible();
   await expectAccessible(page);
 
+  await expectNoHorizontalOverflow(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole('button', { name: 'Open navigation' })).toBeVisible();
-  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
   await expectAccessible(page);
 });
 
@@ -205,7 +212,14 @@ test('supports internal planning and staffing at desktop and narrow widths', asy
   await page.goto(`/events/${eventId}`);
   await expect(page.getByRole('heading', { name: 'Autumn exhibition' })).toBeVisible();
   await page.getByRole('tab', { name: 'Schedule' }).click();
-  await page.getByRole('button', { name: 'Actions for Setup' }).click();
+  const setupActions = page.getByRole('button', { name: 'Actions for Setup' });
+  await setupActions.click();
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
+  const deleteDialog = page.getByRole('alertdialog', { name: 'Delete Setup?' });
+  await expect(deleteDialog.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await deleteDialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(setupActions).toBeFocused();
+  await setupActions.click();
   await page.getByRole('menuitem', { name: 'Edit' }).click();
   await expect(page.getByRole('heading', { name: 'Edit shift' })).toBeVisible();
   await page.getByLabel('Name', { exact: true }).fill('Public setup');
@@ -256,12 +270,15 @@ test('supports internal planning and staffing at desktop and narrow widths', asy
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByText('Add a public shift with at least one requirement before enabling public signup')).toBeVisible();
   await page.getByRole('tab', { name: 'Staffing' }).click();
+  await expect(page.getByRole('heading', { name: 'Discard unsaved changes?' })).toBeVisible();
+  await page.getByRole('button', { name: 'Discard changes' }).click();
+  await expect(page.getByRole('heading', { name: 'Staffing' })).toBeVisible();
   await expectAccessible(page);
 
+  await expectNoHorizontalOverflow(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole('button', { name: 'Open navigation' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Staffing' })).toBeVisible();
-  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(1);
   await expectAccessible(page);
 });
 
@@ -306,6 +323,7 @@ test('creates an anonymous signup and keeps its management token in the URL frag
   const managementURL = await page.getByLabel('One-time management link').inputValue();
   expect(signupBody).toMatchObject({ shiftId, requirementId: openRequirementId, firstName: 'Grace', lastName: 'Hopper', email: 'grace@example.test' });
   expect(managementURL).toContain(`#token=${token}`);
+  await expectNoHorizontalOverflow(page);
   await expectAccessible(page);
 
   await page.goto(managementURL);

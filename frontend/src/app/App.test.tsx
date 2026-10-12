@@ -59,6 +59,22 @@ describe('protected application routing', () => {
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
   });
 
+  it('uses client-side navigation for settings tiles and retains printer connectors', async () => {
+    server.use(http.get('*/api/v1/auth/me', () =>
+      HttpResponse.json(currentUserFixture([
+        PermissionId.rolesread,
+        PermissionId.printer_connectorsread,
+      ])),
+    ));
+    const user = userEvent.setup();
+    const { router } = renderRoute(<App />, '/settings');
+
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Printer connectors/ })).toHaveAttribute('href', '/settings/printer-connectors');
+    await user.click(screen.getByRole('link', { name: /Roles/ }));
+    expect(router.state.location.pathname).toBe('/settings/roles');
+  });
+
 	it('shows a nonblocking Lab Rules warning and creates a request only on explicit action', async () => {
 		const currentUser = currentUserFixture();
 		currentUser.laborordnungStatus = {
@@ -185,7 +201,7 @@ describe('protected application routing', () => {
     expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
   });
 
-  it('links supervisor-only users directly to Directory staffing', async () => {
+  it('shows only the accessible People destination for supervisor-only users', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(currentUserFixture([PermissionId.supervisor_dashboardread])),
@@ -194,7 +210,10 @@ describe('protected application routing', () => {
     renderRoute(<App />, '/dashboard');
 
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Directory' })).toHaveAttribute('href', '/people/staffing');
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'People' }));
+    expect(screen.getByRole('link', { name: 'Staffing' })).toHaveAttribute('href', '/people/staffing');
+    expect(screen.queryByRole('link', { name: 'Directory' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
   });
 
@@ -208,7 +227,14 @@ describe('protected application routing', () => {
           PermissionId.machinesread,
           PermissionId.statisticsread,
           PermissionId.peoplereadall,
+          PermissionId.supervisor_dashboardread,
           PermissionId.open_daysread,
+          PermissionId.eventsread,
+          PermissionId.attendanceread,
+          PermissionId.print_submissionsread,
+          PermissionId.ordersread,
+          PermissionId.paymentsread,
+          PermissionId.external_invoice_requestsread,
           PermissionId.oidcmanage,
           PermissionId.auditread,
         ])),
@@ -218,9 +244,11 @@ describe('protected application routing', () => {
     renderRoute(<App />, '/dashboard');
 
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Machines' }));
     const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
-    for (const name of ['Overview', 'Jobs', 'Review', 'Inventory', 'Machines', 'Statistics']) {
+    for (const group of ['Operations', 'People', 'Machines & inventory', 'Sales & payments']) {
+      await user.click(within(navigation).getByRole('button', { name: group }));
+    }
+    for (const name of ['Open Days', 'Events', 'Attendance', 'Directory', 'Staffing', 'Overview', 'Machines', 'Jobs', 'Review', 'Print submissions', 'Inventory', 'Statistics', 'Orders', 'Payments', 'External invoicing']) {
       expect(within(navigation).getByRole('link', { name })).toBeInTheDocument();
     }
     expect(within(navigation).getByText('Administration')).toBeInTheDocument();
@@ -232,8 +260,6 @@ describe('protected application routing', () => {
 
     for (const name of [
       'Dashboard',
-      'Open Days',
-      'Directory',
       'Settings',
       'Audit Log',
       'About',
@@ -242,7 +268,9 @@ describe('protected application routing', () => {
     ]) {
       expect(within(navigation).getByRole('link', { name }).querySelector('svg')).toBeInTheDocument();
     }
-    expect(within(navigation).getByRole('button', { name: 'Machines' }).querySelectorAll('svg')).toHaveLength(2);
+    for (const group of ['Operations', 'People', 'Machines & inventory', 'Sales & payments']) {
+      expect(within(navigation).getByRole('button', { name: group }).querySelectorAll('svg')).toHaveLength(2);
+    }
   });
 
   it('renders the About information page', async () => {

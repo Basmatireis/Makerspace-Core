@@ -1,4 +1,5 @@
-import { useState, type ChangeEvent } from 'react';
+import { useEffect, useState, type ChangeEvent } from 'react';
+import { useLatestCallback } from '../../app/useLatestCallback';
 import {
   ComposedModal,
   DatePicker,
@@ -23,20 +24,25 @@ type Props = {
   open: boolean;
   onClose: () => void;
   onCreated: (periodId: string) => void;
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
-export function CreateOpenDayPeriodWizard({ open, onClose, onCreated }: Props) {
+export function CreateOpenDayPeriodWizard({ open, onClose, onCreated, onDirtyChange }: Props) {
   const queryClient = useQueryClient();
+  const [discardOpen, setDiscardOpen] = useState(false);
   const [attempted, setAttempted] = useState(false);
   const [wizardError, setWizardError] = useState<WizardError | null>(null);
-  const { register, getValues, reset, setError, setValue, trigger, formState: { errors } } = useForm<PeriodForm>({
+  const { register, getValues, reset, setError, setValue, trigger, formState: { errors, isDirty } } = useForm<PeriodForm>({
     defaultValues: { name: '', startsOn: '', endsOn: '' },
   });
+
+  useEffect(() => { onDirtyChange?.(isDirty); }, [isDirty, onDirtyChange]);
 
   const createMutation = useMutation({
     mutationFn: () => createOpenDayPeriod(getValues()),
     onSuccess: async (period) => {
       await queryClient.invalidateQueries({ queryKey: openDayKeys.periods() });
+      reset();
       onCreated(period.id);
     },
     onError: () => setWizardError({
@@ -48,6 +54,8 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated }: Props) {
   const clearError = () => setWizardError(null);
   const close = () => {
     if (createMutation.isPending) return;
+    if (isDirty && !discardOpen) { setDiscardOpen(true); return; }
+    setDiscardOpen(false);
     reset();
     setAttempted(false);
     setWizardError(null);
@@ -69,13 +77,14 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated }: Props) {
     }
     createMutation.mutate();
   };
+  const requestClose = useLatestCallback(() => { if (discardOpen) setDiscardOpen(false); else close(); return false; });
   const period = getValues();
 
   return (
-    <ComposedModal open={open} size="xs" onClose={() => { close(); return false; }} preventCloseOnClickOutside>
-      <ModalHeader title="Create Period" buttonOnClick={() => close()} />
+    <ComposedModal aria-label={discardOpen ? 'Discard period inputs?' : 'Create Period'} open={open} size="xs" danger={discardOpen} selectorPrimaryFocus={discardOpen ? '.cds--btn--secondary' : undefined} onClose={requestClose} preventCloseOnClickOutside>
+      <ModalHeader title={discardOpen ? 'Discard period inputs?' : 'Create Period'} buttonOnClick={requestClose} />
       <ModalBody>
-        <Stack gap={5}>
+        {discardOpen ? <p>The period has not been created. Your inputs will be discarded.</p> : <Stack gap={5}>
           <TextInput id="period-name" labelText="Name" invalid={attempted && Boolean(errors.name)} invalidText="Enter a name." {...register('name', { required: true, onChange: clearError })} />
           <input type="hidden" {...register('startsOn', { required: true })} />
           <input type="hidden" {...register('endsOn', { required: true })} />
@@ -121,15 +130,15 @@ export function CreateOpenDayPeriodWizard({ open, onClose, onCreated }: Props) {
               }}
             />
           </DatePicker>
-        </Stack>
-        {wizardError && <InlineNotification className="period-wizard__error" kind="error" lowContrast hideCloseButton title={wizardError.title} subtitle={wizardError.subtitle} />}
+        </Stack>}
+        {!discardOpen && wizardError && <InlineNotification className="period-wizard__error" kind="error" lowContrast hideCloseButton title={wizardError.title} subtitle={wizardError.subtitle} />}
       </ModalBody>
       <ModalFooter
-        primaryButtonText={createMutation.isPending ? 'Creating…' : 'Create Period'}
+        primaryButtonText={discardOpen ? 'Discard inputs' : createMutation.isPending ? 'Creating…' : 'Create Period'}
         primaryButtonDisabled={createMutation.isPending}
-        onRequestSubmit={() => void createPeriod()}
-        onRequestClose={close}
-        secondaryButtonText="Cancel"
+        onRequestSubmit={() => { if (discardOpen) close(); else void createPeriod(); }}
+        onRequestClose={() => { if (discardOpen) setDiscardOpen(false); else close(); }}
+        secondaryButtonText={discardOpen ? 'Keep editing' : 'Cancel'}
       >{null}</ModalFooter>
     </ComposedModal>
   );

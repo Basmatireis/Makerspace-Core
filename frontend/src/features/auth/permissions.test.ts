@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PermissionGrant, Role } from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { currentUserFixture } from '../../test/fixtures';
-import { canAccessSettings, canManageRoleMembership, permissionGrantsValid } from './permissions';
+import { canAccessSettings, canLookupJobParties, canManageRoleMembership, permissionGrantsValid } from './permissions';
 
 const role = (permissionIds: PermissionId[], systemKey: Role['systemKey'] = null) => ({
   permissionGrants: permissionIds.map((permissionId) => ({
@@ -19,6 +19,27 @@ const scopedRole = (permissionGrants: PermissionGrant[]) => ({
   systemKey: null,
 });
 
+describe('billing-party and operator lookup authorization UX', () => {
+  it.each([
+    PermissionId.ordersread,
+    PermissionId.machine_jobscreate,
+    PermissionId.machine_jobsreview,
+    PermissionId.organizationsread,
+  ])('allows the backend lookup grant %s independently', (permission) => {
+    expect(canLookupJobParties(currentUserFixture([permission]))).toBe(true);
+  });
+
+  it.each([
+    PermissionId.machine_jobsread,
+    PermissionId.machine_jobsedit,
+    PermissionId.print_submissionsmanage,
+    PermissionId.organizationsmanage,
+    PermissionId.peoplereadall,
+  ])('does not infer lookup access from %s', (permission) => {
+    expect(canLookupJobParties(currentUserFixture([permission]))).toBe(false);
+  });
+});
+
 describe('settings navigation', () => {
   it('excludes promoted People and Audit permissions', () => {
     expect(canAccessSettings(currentUserFixture([PermissionId.peoplereadall]))).toBe(false);
@@ -26,16 +47,11 @@ describe('settings navigation', () => {
     expect(canAccessSettings(currentUserFixture([PermissionId.auditread]))).toBe(false);
   });
 
-  it('requires the complete Machines configuration permission set', () => {
-    expect(canAccessSettings(currentUserFixture([
-      PermissionId.organizationsread,
-      PermissionId.pricingread,
-    ]))).toBe(false);
-    expect(canAccessSettings(currentUserFixture([
-      PermissionId.organizationsread,
-      PermissionId.pricingread,
-      PermissionId.machinesread,
-    ]))).toBe(true);
+  it('allows independently authorized organization and pricing configuration', () => {
+    expect(canAccessSettings(currentUserFixture([PermissionId.organizationsread]))).toBe(true);
+    expect(canAccessSettings(currentUserFixture([PermissionId.pricingread]))).toBe(true);
+    expect(canAccessSettings(currentUserFixture([PermissionId.machinesread]))).toBe(false);
+    expect(canAccessSettings(currentUserFixture([PermissionId.organizationsmanage, PermissionId.pricingmanage]))).toBe(false);
   });
 });
 

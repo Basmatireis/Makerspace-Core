@@ -16,7 +16,8 @@ const supervisorRoleId = '0192f6f8-743e-7c77-a349-cd07c3e8a961';
 const traineeRoleId = '0192f6f8-743e-7c77-a349-cd07c3e8a962';
 const openDayId = '0192f6f8-743e-7c77-a349-cd07c3e8a971';
 
-afterEach(() => vi.restoreAllMocks());
+const defaultMatchMedia = window.matchMedia;
+afterEach(() => { vi.restoreAllMocks(); window.matchMedia = defaultMatchMedia; });
 
 function academicBreak(overrides: Partial<AcademicBreak> = {}): AcademicBreak {
   return {
@@ -54,6 +55,7 @@ type RenderOptions = {
   items?: OpenDay[];
   recurrence?: RecurrenceOccurrence[];
   status?: OpenDayPeriodStatus;
+  search?: string;
 };
 
 function renderEditor(initialBreaks: AcademicBreak[] = [academicBreak()], options: RenderOptions = {}) {
@@ -119,15 +121,16 @@ function renderEditor(initialBreaks: AcademicBreak[] = [academicBreak()], option
   ], {
     initialEntries: [{
       pathname: `/open-days/${periodId}`,
-      search: '?mode=edit',
+      search: options.search ?? '?mode=edit',
     }],
   });
+  const client = testQueryClient();
   const result = render(
-    <QueryClientProvider client={testQueryClient()}>
+    <QueryClientProvider client={client}>
       <RouterProvider router={router} />
     </QueryClientProvider>,
   );
-  return { ...result, router, getSavedBody: () => savedBody, getTransitionTarget: () => transitionTarget };
+  return { ...result, router, client, schedule, getSavedBody: () => savedBody, getTransitionTarget: () => transitionTarget };
 }
 
 describe('schedule editor calendar context', () => {
@@ -144,7 +147,7 @@ describe('schedule editor calendar context', () => {
       within(toolbar).getByRole('button', { name: 'Save' }),
       within(toolbar).getByRole('button', { name: 'Create' }),
       within(toolbar).getByRole('button', { name: 'Preview' }),
-      within(toolbar).getByRole('button', { name: 'Table view' }),
+      within(toolbar).getByRole('button', { name: 'List view' }),
     ];
 
     for (let index = 0; index < controls.length - 1; index += 1) {
@@ -265,7 +268,7 @@ describe('schedule editor calendar context', () => {
     const { getSavedBody } = renderEditor([], { items: [openDay()] });
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('button', { name: 'Table view' }));
+    await user.click(await screen.findByRole('button', { name: 'List view' }));
     const table = screen.getByRole('table', { name: 'Editable Open Days' });
     expect(within(table).getByRole('columnheader', { name: /Date/ })).toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: /Time/ })).toBeInTheDocument();
@@ -295,7 +298,7 @@ describe('schedule editor calendar context', () => {
     renderEditor([], { items: [openDay(), secondOpenDay] });
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('button', { name: 'Table view' }));
+    await user.click(await screen.findByRole('button', { name: 'List view' }));
     await user.click(screen.getByRole('button', { name: 'Filter' }));
     const weekday = screen.getByRole('combobox', { name: 'Filter by weekday' });
     const startTime = screen.getByRole('combobox', { name: 'Filter by start time' });
@@ -336,7 +339,7 @@ describe('schedule editor calendar context', () => {
     const { getSavedBody } = renderEditor([], { items: [openDay(), openDay({ id: secondOpenDayId, startsAt: '2026-10-27T15:00:00Z', endsAt: '2026-10-27T18:00:00Z' })] });
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('button', { name: 'Table view' }));
+    await user.click(await screen.findByRole('button', { name: 'List view' }));
     for (const checkbox of screen.getAllByRole('checkbox', { name: /select row/i })) await user.click(checkbox);
     await user.click(screen.getByRole('button', { name: 'Edit selected' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit 2 selected Open Days' });
@@ -372,7 +375,7 @@ describe('schedule editor calendar context', () => {
     const { getSavedBody } = renderEditor([], { items: [first, second] });
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('button', { name: 'Table view' }));
+    await user.click(await screen.findByRole('button', { name: 'List view' }));
     for (const checkbox of screen.getAllByRole('checkbox', { name: /select row/i })) await user.click(checkbox);
     await user.click(screen.getByRole('button', { name: 'Edit selected' }));
     const dialog = await screen.findByRole('dialog', { name: 'Edit 2 selected Open Days' });
@@ -411,7 +414,7 @@ describe('schedule editor calendar context', () => {
     const { getSavedBody } = renderEditor([], { items: [openDay(), openDay({ id: secondOpenDayId, startsAt: '2026-10-27T15:00:00Z', endsAt: '2026-10-27T18:00:00Z' })] });
     const user = userEvent.setup();
 
-    await user.click(await screen.findByRole('button', { name: 'Table view' }));
+    await user.click(await screen.findByRole('button', { name: 'List view' }));
     for (const checkbox of screen.getAllByRole('checkbox', { name: /select row/i })) await user.click(checkbox);
     await user.click(screen.getByRole('button', { name: 'Delete selected' }));
     const confirmation = await screen.findByRole('dialog', { name: 'Delete selected?' });
@@ -433,13 +436,12 @@ describe('schedule editor calendar context', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Add Open Day on 26.10.2026' }));
     await user.click(within(screen.getByRole('dialog', { name: 'Create Open Day' })).getByRole('button', { name: 'Create' }));
-    const blockerDialog = screen.getByRole('dialog', { name: 'Discard unsaved schedule changes?' });
-    expect(blockerDialog.closest('.cds--modal')).not.toHaveClass('is-visible');
+    expect(screen.queryByRole('alertdialog', { name: 'Discard unsaved schedule changes?' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Preview' }));
     expect(await screen.findByRole('group', { name: 'Open Days tools' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Filter' })).toHaveClass('cds--btn--icon-only');
     expect(screen.getByRole('button', { name: 'Edit' })).toHaveClass('cds--btn--icon-only');
-    expect(blockerDialog.closest('.cds--modal')).not.toHaveClass('is-visible');
+    expect(screen.queryByRole('alertdialog', { name: 'Discard unsaved schedule changes?' })).not.toBeInTheDocument();
     expect(router.state.location.search).toBe('');
     expect(screen.getByRole('button', { name: /Supervisor position open/ })).toBeInTheDocument();
 
@@ -447,7 +449,7 @@ describe('schedule editor calendar context', () => {
     expect(await screen.findByRole('group', { name: 'Schedule editor tools' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^Drag or edit Open Day 16:00 to 19:00/ })).toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: 'Open Days' }));
-    await waitFor(() => expect(blockerDialog.closest('.cds--modal')).toHaveClass('is-visible'));
+    const blockerDialog = await screen.findByRole('alertdialog', { name: 'Discard unsaved schedule changes?' });
     await user.click(within(blockerDialog).getByRole('button', { name: 'Keep editing' }));
   }, 30_000);
 
@@ -506,4 +508,111 @@ describe('schedule editor calendar context', () => {
     expect(await screen.findAllByLabelText('Academic break: Winter break, 27.10.2026 to 28.10.2026')).toHaveLength(2);
     expect(screen.queryByRole('button', { name: 'Manage academic breaks' })).not.toBeInTheDocument();
   });
+});
+
+
+describe('mobile schedule workflow', () => {
+  function usePhoneViewport() {
+    window.matchMedia = (query: string) => ({ media: query, matches: query === '(max-width: 41.98rem)' || query === '(pointer: coarse)', onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() });
+  }
+
+  it('uses an agenda, supports bulk editing and keeps drafts through URL view changes and Back', async () => {
+    usePhoneViewport();
+    const { router, getSavedBody } = renderEditor([], { items: [openDay()], search: '?mode=edit&source=test' });
+    const user = userEvent.setup();
+    expect(await screen.findByRole('checkbox', { name: /Select Open Day/ })).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: /Select Open Day/ }));
+    await user.click(screen.getByRole('button', { name: 'Edit selected' }));
+    const dialog = screen.getByRole('dialog', { name: 'Edit 1 selected Open Day' });
+    await user.type(within(dialog).getByLabelText('Internal note'), ' — mobile');
+    await user.click(within(dialog).getByRole('button', { name: 'Apply to selected' }));
+    await user.click(screen.getByRole('button', { name: 'Calendar view' }));
+    expect(router.state.location.search).toContain('mode=edit');
+    expect(router.state.location.search).toContain('source=test');
+    expect(router.state.location.search).toContain('view=calendar');
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Drag or edit/ })).not.toBeInTheDocument();
+    await router.navigate(-1);
+    expect(await screen.findByText('Keep this setup — mobile')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(getSavedBody()?.updates[0]?.internalNote).toBe('Keep this setup — mobile'));
+  });
+
+  it.each(['Supervisors', 'Trainees'])('protects %s changes made with number step buttons', async (label) => {
+    renderEditor();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Create' }));
+    const dialog = screen.getByRole('dialog', { name: 'Create Open Day' });
+    const input = within(dialog).getByLabelText(label);
+    const control = input.closest('.cds--number') as HTMLElement;
+    await user.click(within(control).getByRole('button', { name: 'Increment number' }));
+    const changedValue = (input as HTMLInputElement).value;
+    await user.keyboard('{Escape}');
+    const discard = screen.getByRole('dialog', { name: 'Discard Open Day inputs?' });
+    await user.click(within(discard).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByLabelText(label)).toHaveValue(Number(changedValue));
+  });
+
+  it('protects create inputs with one dialog and preserves them when keeping editing', async () => {
+    usePhoneViewport();
+    renderEditor([]);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Create' }));
+    const dialog = screen.getByRole('dialog', { name: 'Create Open Day' });
+    fireEvent.change(within(dialog).getByLabelText('Start'), { target: { value: '17:30' } });
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    const discard = screen.getByRole('dialog', { name: 'Discard Open Day inputs?' });
+    expect(document.querySelectorAll('.cds--modal.is-visible')).toHaveLength(1);
+    expect(within(discard).getByRole('button', { name: 'Keep editing' })).toHaveFocus();
+    await user.click(within(discard).getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByLabelText('Start')).toHaveValue('17:30');
+    await user.click(screen.getByRole('dialog', { name: 'Create Open Day' }).querySelector('.cds--modal-close')!);
+    await user.click(screen.getByRole('button', { name: 'Discard inputs' }));
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+  });
+
+  it('preserves reviewed recurrence choices on returning to inputs and prevents an empty selection', async () => {
+    renderEditor([], { recurrence: [
+      { date: '2026-10-26', startsAt: '2026-10-26T15:00:00Z', endsAt: '2026-10-26T18:00:00Z', disposition: 'publicHoliday', reason: 'Public holiday' },
+      { date: '2026-10-28', startsAt: '2026-10-28T15:00:00Z', endsAt: '2026-10-28T18:00:00Z', disposition: 'create' },
+    ] });
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Create' }));
+    await user.click(screen.getByRole('radio', { name: 'Series' }));
+    await user.click(screen.getByRole('button', { name: 'Preview series' }));
+    const review = await screen.findByRole('dialog', { name: 'Review Open Day series' });
+    expect(within(review).queryByRole('radio')).not.toBeInTheDocument();
+    await user.click(within(review).getByRole('checkbox', { name: '28.10.2026 · create' }));
+    expect(within(review).getByRole('button', { name: 'Add selected' })).toBeDisabled();
+    await user.click(within(review).getByRole('checkbox', { name: /26.10.2026.*Public holiday/ }));
+    await user.click(within(review).getByRole('button', { name: 'Back to inputs' }));
+    expect(screen.getByRole('combobox', { name: /^Eligible supervisor roles/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Preview series' }));
+    expect(screen.getByRole('checkbox', { name: '28.10.2026 · create' })).not.toBeChecked();
+    expect(screen.getByRole('checkbox', { name: /26.10.2026.*Public holiday/ })).toBeChecked();
+  });
+});
+
+
+it('retains the working baseline through background refresh and a version conflict', async () => {
+  const { client, schedule } = renderEditor([], { items: [openDay()] });
+  const user = userEvent.setup();
+  fireEvent.click(await screen.findByRole('button', { name: /^Drag or edit Open Day/ }));
+  const edit = screen.getByRole('dialog', { name: 'Edit Open Day' });
+  await user.type(within(edit).getByLabelText('Internal note'), ' — local draft');
+  await user.click(within(edit).getByRole('button', { name: 'Apply' }));
+  schedule.period.version = 2;
+  schedule.items = [openDay({ version: 2 }), openDay({ id: '0192f6f8-743e-7c77-a349-cd07c3e8a999', startsAt: '2026-10-27T15:00:00Z', endsAt: '2026-10-27T18:00:00Z' })];
+  await client.invalidateQueries({ queryKey: ['open-days', 'period', periodId] });
+  let submitted: SaveOpenDayScheduleRequest | undefined;
+  server.use(http.put('*/api/v1/open-day-periods/:periodId/schedule', async ({ request }) => {
+    submitted = await request.json() as SaveOpenDayScheduleRequest;
+    return HttpResponse.json({ code: 'conflict', message: 'Schedule changed' }, { status: 409 });
+  }));
+  await user.click(screen.getByRole('button', { name: 'Save' }));
+  expect(await screen.findByText('Schedule was not saved')).toBeInTheDocument();
+  expect(submitted).toMatchObject({ expectedPeriodVersion: 1, removals: [], updates: [{ id: openDayId, expectedVersion: 1, internalNote: 'Keep this setup — local draft' }] });
+  fireEvent.click(screen.getByRole('button', { name: /^Drag or edit Open Day/ }));
+  expect(screen.getByLabelText('Internal note')).toHaveValue('Keep this setup — local draft');
 });

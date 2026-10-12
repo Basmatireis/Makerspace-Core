@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  Accordion,
+  AccordionItem,
   Button,
   Column,
   ComposedModal,
@@ -9,6 +11,8 @@ import {
   Form,
   Grid,
   InlineNotification,
+  ListItem,
+  UnorderedList,
   MenuButton,
   MenuItem,
   MenuItemDivider,
@@ -71,6 +75,8 @@ import {
 import { apiFetch } from '../../api/http-client';
 import { useSecretMutation } from '../../api/use-secret-mutation';
 import { PageShell } from '../../app/PageShell';
+import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
+import { useLatestCallback } from '../../app/useLatestCallback';
 import { ErrorState, FullPageLoading, InlineLoadingState } from '../../app/PageState';
 import { authQueryKey, useCurrentUser } from '../auth/auth';
 import {
@@ -87,6 +93,7 @@ import {
   type PersonFormValues,
   toPersonPatch,
 } from './PersonForm';
+import { deletionFailureReasons } from './deletionErrors';
 import { peopleKeys, personOptions, refreshPersonData } from './queries';
 import { PersonAvatar } from './PersonAvatar';
 import {
@@ -155,6 +162,7 @@ function UserDetailContent({ person }: { person: Person }) {
   const [confirmKind, setConfirmKind] = useState<ConfirmKind>(null);
   const [authIdentityToRemove, setAuthIdentityToRemove] = useState<AuthIdentitySummary | null>(null);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+  const [roleToRemove, setRoleToRemove] = useState<Person['roles'][number] | null>(null);
   const [resetSent, setResetSent] = useState(false);
   const [resetExpiresAt, setResetExpiresAt] = useState<string | null>(null);
   const [manualSetupUrl, setManualSetupUrl] = useState<string | null>(null);
@@ -363,6 +371,7 @@ function UserDetailContent({ person }: { person: Person }) {
       : assignPersonRole(person.id, roleId, { expectedVersion: person.version }),
     onSuccess: async () => {
       setSelectedRole(null);
+      setRoleToRemove(null);
       setAssignRoleOpen(false);
       await Promise.all([
         refresh(),
@@ -481,9 +490,9 @@ function UserDetailContent({ person }: { person: Person }) {
   };
 
   const confirmation = {
-    'delete-person': ['Delete person permanently?', 'This permanently deletes the person and, if present, their account. This cannot be undone.', 'Delete person'],
-    'delete-account': ['Delete account permanently?', 'The person record and assigned roles remain, but the login account is permanently removed.', 'Delete account'],
-    'disable-account': ['Disable this account?', 'The user will be signed out and will not be able to sign in.', 'Disable account'],
+    'delete-person': ['Delete person permanently?', 'This permanently deletes the person and, if present, their account, authentication methods, and role assignments. Operational links are detached and assignment identity data is scrubbed. Existing order customer and external-invoice recipient snapshots remain as financial records. This cannot be undone.', 'Delete person'],
+    'delete-account': ['Delete account permanently?', 'The login account, authentication methods, and sessions are permanently removed. The person record and assigned roles remain.', 'Delete account'],
+    'disable-account': ['Disable this account?', 'The user will be signed out and will not be able to sign in. The person record, assigned roles, and authentication methods remain.', 'Disable account'],
     'reset-password': ['Send a password reset code?', 'A one-time code will be emailed. The current password remains active until the recipient completes the reset.', 'Send reset code'],
     invite: ['Send an account invitation?', 'A one-time setup code will be emailed. Completing it verifies the email, sets the password, and enables an account that was not explicitly disabled.', 'Send invitation'],
     'pin-setup': [pinIdentity ? 'Create a PIN reset link?' : 'Create a PIN setup link?', 'A one-time setup link will be emailed when a contact address and mail delivery are available. Otherwise, copy the returned link and deliver it through a trusted channel.', pinIdentity ? 'Create PIN reset link' : 'Create PIN setup link'],
@@ -497,6 +506,18 @@ function UserDetailContent({ person }: { person: Person }) {
         ] as const
       : null
     : confirmKind ? confirmation[confirmKind] : null;
+  const confirmationPending = resetPending || deletePersonMutation.isPending || deleteAccountMutation.isPending || disableMutation.isPending || removeAuthIdentityMutation.isPending;
+  const closeConfirmation = useLatestCallback(() => {
+    if (!confirmationPending) { setConfirmKind(null); setAuthIdentityToRemove(null); removeAuthIdentityMutation.reset(); }
+    return false;
+  });
+  const confirmationErrors: string[] = confirmKind === 'delete-person' && deletePersonMutation.isError
+    ? deletionFailureReasons(deletePersonMutation.error, 'person')
+    : confirmKind === 'delete-account' && deleteAccountMutation.isError
+      ? deletionFailureReasons(deleteAccountMutation.error, 'account')
+      : confirmKind === 'disable-account' && disableMutation.isError
+        ? ['The account may have changed or cannot be disabled. Reload and try again.']
+        : [];
   const mutationError = personMutation.isError || createAccountMutation.isError || emailMutation.isError || passwordMutation.isError || pinMutation.isError || enableMutation.isError || disableMutation.isError || deleteAccountMutation.isError || removeAuthIdentityMutation.isError || deletePersonMutation.isError || roleMutation.isError || resetFailed;
   const hasPersonActions = canEditPerson || canEditLoginEmail || canCreateAccount ||
     canAssignRole || canSetPassword || canIssuePasswordReset || canInvite ||
@@ -550,6 +571,7 @@ function UserDetailContent({ person }: { person: Person }) {
           canRemove={canRemoveProfileImage}
           isUploading={profileImageMutation.isPending}
           isRemoving={removeProfileImageMutation.isPending}
+          removeError={removeProfileImageMutation.error}
           trigger="button"
           onUpload={(file) => profileImageMutation.mutate(file)}
           onRemove={() => removeProfileImageMutation.mutate()}
@@ -712,7 +734,7 @@ function UserDetailContent({ person }: { person: Person }) {
           const roleDetails = rolesById.get(role.id);
           const mayRemove = Boolean(roleDetails && canManageRoleMembership(currentUser, roleDetails));
           if (mayRemove) {
-            return <DismissibleTag key={role.id} type={role.systemKey === 'master' ? 'purple' : 'blue'} text={role.name} title={`Remove ${role.name} role`} dismissTooltipLabel={`Remove ${role.name} role`} onClose={() => roleMutation.mutate({ roleId: role.id, remove: true })} />;
+            return <DismissibleTag key={role.id} type={role.systemKey === 'master' ? 'purple' : 'blue'} text={role.name} title={`Remove ${role.name} role`} dismissTooltipLabel={`Remove ${role.name} role`} onClose={() => { roleMutation.reset(); setRoleToRemove(role); }} />;
           }
           return <Tag key={role.id} type={role.systemKey === 'master' ? 'purple' : 'blue'}>{role.name}</Tag>;
         })}
@@ -1032,11 +1054,29 @@ function UserDetailContent({ person }: { person: Person }) {
         </ModalFooter>
       </ComposedModal>
 
-      <ComposedModal open={Boolean(selectedConfirmation)} danger onClose={() => { setConfirmKind(null); setAuthIdentityToRemove(null); removeAuthIdentityMutation.reset(); }}>
+      <ComposedModal open={Boolean(selectedConfirmation)} danger selectorPrimaryFocus=".cds--btn--secondary" preventCloseOnClickOutside onClose={closeConfirmation}>
         <ModalHeader title={selectedConfirmation?.[0] ?? ''} />
-        <ModalBody><p>{selectedConfirmation?.[1]}</p>{resetFailed && (confirmKind === 'reset-password' || confirmKind === 'invite' || confirmKind === 'pin-setup') && <InlineNotification kind="error" lowContrast hideCloseButton title="Message not sent" subtitle="Reload the account and try again." />}{confirmKind === 'remove-auth-method' && removeAuthIdentityMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Authentication method not removed" subtitle="The account may have changed. Reload it and try again." />}</ModalBody>
-        <ModalFooter><Button kind="secondary" onClick={() => { setConfirmKind(null); setAuthIdentityToRemove(null); removeAuthIdentityMutation.reset(); }}>Cancel</Button><Button kind="danger" disabled={resetPending || deletePersonMutation.isPending || deleteAccountMutation.isPending || disableMutation.isPending || removeAuthIdentityMutation.isPending} onClick={() => void confirmAction()}>{selectedConfirmation?.[2] ?? 'Confirm'}</Button></ModalFooter>
+        <ModalBody><Stack gap={5}><p>{selectedConfirmation?.[1]}</p>{confirmationErrors.length === 1 && <InlineNotification kind="error" lowContrast hideCloseButton title="Action failed" subtitle={confirmationErrors[0]} />}{confirmationErrors.length > 1 && <Stack gap={3}>
+          <InlineNotification kind="error" lowContrast hideCloseButton title="Deletion blocked" subtitle={`${confirmationErrors.length} reasons prevent this deletion.`} />
+          <Accordion isFlush size="sm">
+            <AccordionItem title="Show all reasons">
+              <UnorderedList>{confirmationErrors.map((reason) => <ListItem key={reason}>{reason}</ListItem>)}</UnorderedList>
+            </AccordionItem>
+          </Accordion>
+        </Stack>}{resetFailed && (confirmKind === 'reset-password' || confirmKind === 'invite' || confirmKind === 'pin-setup') && <InlineNotification kind="error" lowContrast hideCloseButton title="Message not sent" subtitle="Reload the account and try again." />}{confirmKind === 'remove-auth-method' && removeAuthIdentityMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Authentication method not removed" subtitle="The account may have changed. Reload it and try again." />}</Stack></ModalBody>
+        <ModalFooter><Button kind="secondary" disabled={confirmationPending} onClick={() => { setConfirmKind(null); setAuthIdentityToRemove(null); removeAuthIdentityMutation.reset(); }}>Cancel</Button><Button kind="danger" disabled={confirmationPending} onClick={() => void confirmAction()}>{confirmationPending ? `${selectedConfirmation?.[2] ?? 'Confirm'}…` : selectedConfirmation?.[2] ?? 'Confirm'}</Button></ModalFooter>
       </ComposedModal>
+      <DestructiveActionDialog
+        open={Boolean(roleToRemove)}
+        title={`Remove ${roleToRemove?.name ?? 'role'}?`}
+        confirmLabel="Remove role"
+        pending={roleMutation.isPending}
+        error={roleMutation.isError ? 'The role assignment may have changed, or removing it would violate the last-master or privilege rules.' : undefined}
+        onClose={() => { setRoleToRemove(null); roleMutation.reset(); }}
+        onConfirm={() => roleToRemove && roleMutation.mutate({ roleId: roleToRemove.id, remove: true })}
+      >
+        <p>{roleToRemove?.name ?? 'This role'} will be removed from {person.firstName} {person.lastName}. Permissions granted by this role will no longer apply. The role itself and other members remain unchanged.</p>
+      </DestructiveActionDialog>
       </PageShell>
     </Tabs>
   );
