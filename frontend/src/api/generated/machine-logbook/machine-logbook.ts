@@ -20,8 +20,11 @@ the required session and CSRF credentials.
  */
 import type {
   GetMachineLogbookStatisticsParams,
+  ListMachineLogbookWorkItemsParams,
+  MachineActivityList,
   MachineLogbookOverview,
-  MachineLogbookStatistics
+  MachineLogbookStatistics,
+  WorkItemPage
 } from '.././models';
 
 import { apiFetch } from '../../http-client';
@@ -40,6 +43,69 @@ export const getGetMachineLogbookOverviewUrl = () => {
 export const getMachineLogbookOverview = async ( options?: RequestInit): Promise<MachineLogbookOverview> => {
   
   return apiFetch<MachineLogbookOverview>(getGetMachineLogbookOverviewUrl(),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+/**
+ * Returns every machine job plus every print that is not linked to a job, with a unified status and the billing state of jobs. Array filters are comma-separated.
+ * @summary List machine jobs and unlinked prints in one table
+ */
+export const getListMachineLogbookWorkItemsUrl = (params?: ListMachineLogbookWorkItemsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    const explodeParameters = ["status","machineId","run","materialId","billing"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : v.toString());
+      });
+      return;
+    }
+      
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/machine-logbook/work-items?${stringifiedParams}` : `/api/v1/machine-logbook/work-items`
+}
+
+export const listMachineLogbookWorkItems = async (params?: ListMachineLogbookWorkItemsParams, options?: RequestInit): Promise<WorkItemPage> => {
+  
+  return apiFetch<WorkItemPage>(getListMachineLogbookWorkItemsUrl(params),
+  {      
+    ...options,
+    method: 'GET'
+    
+    
+  }
+);}
+
+
+/**
+ * One entry per machine. current (the running job or printing print) is only included for callers with machine_jobs.read; availability is always derived from it.
+ * @summary Derived availability, current run and connector state per machine
+ */
+export const getListMachineActivityUrl = () => {
+
+
+  
+
+  return `/api/v1/machine-logbook/machine-activity`
+}
+
+export const listMachineActivity = async ( options?: RequestInit): Promise<MachineActivityList> => {
+  
+  return apiFetch<MachineActivityList>(getListMachineActivityUrl(),
   {      
     ...options,
     method: 'GET'

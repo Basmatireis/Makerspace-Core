@@ -18,9 +18,24 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { StatisticTotals } from './statisticTotals';
+import type { StatisticMonth } from './statisticMonth';
+import type { MachineLogbookStatisticsRuntimeGranularity } from './machineLogbookStatisticsRuntimeGranularity';
+import type { StatisticRuntimePoint } from './statisticRuntimePoint';
 import type { StatisticPoint } from './statisticPoint';
+import type { StatisticMachine } from './statisticMachine';
 
 export interface MachineLogbookStatistics {
+  totals: StatisticTotals;
+  /** Totals of the period of equal length that ends the day before from. */
+  previousTotals: StatisticTotals;
+  months: StatisticMonth[];
+  /** week for periods up to 92 days, otherwise month. */
+  runtimeGranularity: MachineLogbookStatisticsRuntimeGranularity;
+  runtime: StatisticRuntimePoint[];
+  /** EUR per material category. */
+  materialCostByCategory: StatisticPoint[];
+  machines: StatisticMachine[];
   materialUsageByCategory: StatisticPoint[];
   machineRuntimeHours: StatisticPoint[];
   machineJobCounts: StatisticPoint[];

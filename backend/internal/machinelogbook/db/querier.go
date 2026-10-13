@@ -6,6 +6,7 @@ package machinelogbookdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -90,8 +91,13 @@ type Querier interface {
 	ListFilamentSpools(ctx context.Context, arg ListFilamentSpoolsParams) ([]ListFilamentSpoolsRow, error)
 	ListInventoryTransactions(ctx context.Context, arg ListInventoryTransactionsParams) ([]ListInventoryTransactionsRow, error)
 	ListLowStockMaterialIDs(ctx context.Context, pageLimit int32) ([]uuid.UUID, error)
+	ListMachineActivityMachines(ctx context.Context) ([]ListMachineActivityMachinesRow, error)
+	ListMachineConnectorStates(ctx context.Context) ([]ListMachineConnectorStatesRow, error)
 	ListMachineJobIDs(ctx context.Context, arg ListMachineJobIDsParams) ([]ListMachineJobIDsRow, error)
 	ListMachineJobUsages(ctx context.Context, machineJobID uuid.UUID) ([]ListMachineJobUsagesRow, error)
+	ListMachineLastJobStarts(ctx context.Context, now time.Time) ([]ListMachineLastJobStartsRow, error)
+	ListMachinePrintingPrints(ctx context.Context) ([]ListMachinePrintingPrintsRow, error)
+	ListMachineRunningManualJobs(ctx context.Context, now time.Time) ([]ListMachineRunningManualJobsRow, error)
 	ListMachineTypes(ctx context.Context) ([]MachineType, error)
 	ListMachines(ctx context.Context, arg ListMachinesParams) ([]ListMachinesRow, error)
 	ListMaterials(ctx context.Context, arg ListMaterialsParams) ([]ListMaterialsRow, error)
@@ -103,6 +109,8 @@ type Querier interface {
 	ListPrints(ctx context.Context, arg ListPrintsParams) ([]ListPrintsRow, error)
 	ListRecentJobIDs(ctx context.Context, pageLimit int32) ([]uuid.UUID, error)
 	ListReviewQueueIDs(ctx context.Context) ([]uuid.UUID, error)
+	ListRunningMachineNames(ctx context.Context, now time.Time) ([]string, error)
+	ListWorkItems(ctx context.Context, arg ListWorkItemsParams) ([]ListWorkItemsRow, error)
 	NextFilamentSpoolSequence(ctx context.Context) (int64, error)
 	NextMachineJobSequence(ctx context.Context) (int64, error)
 	NextPricingSnapshotRevision(ctx context.Context, machineJobID uuid.UUID) (int32, error)
@@ -119,7 +127,12 @@ type Querier interface {
 	StatisticMachineFailureRates(ctx context.Context, arg StatisticMachineFailureRatesParams) ([]StatisticMachineFailureRatesRow, error)
 	StatisticMachineJobCounts(ctx context.Context, arg StatisticMachineJobCountsParams) ([]StatisticMachineJobCountsRow, error)
 	StatisticMachineRuntime(ctx context.Context, arg StatisticMachineRuntimeParams) ([]StatisticMachineRuntimeRow, error)
+	StatisticMachineSummaries(ctx context.Context, arg StatisticMachineSummariesParams) ([]StatisticMachineSummariesRow, error)
+	StatisticMaterialCostByCategory(ctx context.Context, arg StatisticMaterialCostByCategoryParams) ([]StatisticMaterialCostByCategoryRow, error)
 	StatisticMaterialUsage(ctx context.Context, arg StatisticMaterialUsageParams) ([]StatisticMaterialUsageRow, error)
+	StatisticMonths(ctx context.Context, arg StatisticMonthsParams) ([]StatisticMonthsRow, error)
+	StatisticPeriodTotals(ctx context.Context, arg StatisticPeriodTotalsParams) (StatisticPeriodTotalsRow, error)
+	StatisticRuntimePoints(ctx context.Context, arg StatisticRuntimePointsParams) ([]StatisticRuntimePointsRow, error)
 	TotalInventoryValue(ctx context.Context) (pgtype.Numeric, error)
 	UpdateFilamentSpool(ctx context.Context, arg UpdateFilamentSpoolParams) (FilamentSpool, error)
 	UpdateMachine(ctx context.Context, arg UpdateMachineParams) (Machine, error)

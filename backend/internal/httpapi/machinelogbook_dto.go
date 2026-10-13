@@ -115,7 +115,11 @@ func mlOverviewDTO(item machinelogbook.Overview) openapi.MachineLogbookOverview 
 	for _, a := range item.Activity {
 		activity = append(activity, openapi.DailyJobActivity{Date: openapi_types.Date{Time: a.Date}, Count: a.Jobs})
 	}
-	return openapi.MachineLogbookOverview{JobsToday: item.JobsToday, JobsThisWeek: item.JobsThisWeek, UnassignedJobs: item.UnassignedJobs, UnassignedEstimatedAmount: item.UnassignedEstimatedAmount, NeedsReview: item.NeedsReview, FailedOrPartialThisWeek: item.FailedOrPartialThisWeek, LowStockItems: item.LowStockItems, RecentJobs: jobs, LowStockMaterials: materials, Activity: activity}
+	result := openapi.MachineLogbookOverview{JobsToday: item.JobsToday, JobsThisWeek: item.JobsThisWeek, UnassignedJobs: item.UnassignedJobs, UnassignedEstimatedAmount: item.UnassignedEstimatedAmount, NeedsReview: item.NeedsReview, FailedOrPartialThisWeek: item.FailedOrPartialThisWeek, LowStockItems: item.LowStockItems, RecentJobs: jobs, LowStockMaterials: materials, Activity: activity,
+		RunningNow: nullable.NewNullNullable[int64](), RunningMachineNames: nullable.NewNullNullable[[]string](), NeedsOutcome: nullable.NewNullNullable[int64](), UnlinkedPrints: nullable.NewNullNullable[int64](),
+		BillingIssues: nullable.NewNullNullable[int64](), ActiveItems: nullable.NewNullNullable[[]openapi.WorkItem](), ActiveTotal: nullable.NewNullNullable[int64]()}
+	mlOverviewWorkItemsDTO(item, &result)
+	return result
 }
 func mlStatisticPoints(items []machinelogbook.StatisticPoint) []openapi.StatisticPoint {
 	result := make([]openapi.StatisticPoint, 0, len(items))
@@ -125,7 +129,21 @@ func mlStatisticPoints(items []machinelogbook.StatisticPoint) []openapi.Statisti
 	return result
 }
 func mlStatisticsDTO(item machinelogbook.Statistics) openapi.MachineLogbookStatistics {
-	return openapi.MachineLogbookStatistics{MaterialUsageByCategory: mlStatisticPoints(item.MaterialUsageByCategory), MachineRuntimeHours: mlStatisticPoints(item.MachineRuntimeHours), MachineJobCounts: mlStatisticPoints(item.MachineJobCounts), AcquisitionCost: mlStatisticPoints(item.AcquisitionCost), CustomerCharges: mlStatisticPoints(item.CustomerCharges), AdjustmentLoss: mlStatisticPoints(item.AdjustmentLoss), MachineFailureRates: mlStatisticPoints(item.MachineFailureRates)}
+	months := make([]openapi.StatisticMonth, 0, len(item.Months))
+	for _, m := range item.Months {
+		months = append(months, openapi.StatisticMonth{Month: m.Month, Charges: m.Charges, MaterialCost: m.MaterialCost, Losses: m.Losses})
+	}
+	runtime := make([]openapi.StatisticRuntimePoint, 0, len(item.Runtime))
+	for _, r := range item.Runtime {
+		runtime = append(runtime, openapi.StatisticRuntimePoint{BucketStart: openapi_types.Date{Time: r.BucketStart}, MachineId: r.MachineID, Hours: r.Hours})
+	}
+	machines := make([]openapi.StatisticMachine, 0, len(item.Machines))
+	for _, m := range item.Machines {
+		machines = append(machines, openapi.StatisticMachine{MachineId: m.MachineID, Name: m.Name, MachineTypeName: m.MachineTypeName, Jobs: m.Jobs, RuntimeHours: m.RuntimeHours, FailureRate: m.FailureRate, Charges: m.Charges, RuntimeShare: m.RuntimeShare})
+	}
+	return openapi.MachineLogbookStatistics{MaterialUsageByCategory: mlStatisticPoints(item.MaterialUsageByCategory), MachineRuntimeHours: mlStatisticPoints(item.MachineRuntimeHours), MachineJobCounts: mlStatisticPoints(item.MachineJobCounts), AcquisitionCost: mlStatisticPoints(item.AcquisitionCost), CustomerCharges: mlStatisticPoints(item.CustomerCharges), AdjustmentLoss: mlStatisticPoints(item.AdjustmentLoss), MachineFailureRates: mlStatisticPoints(item.MachineFailureRates),
+		Totals: mlStatisticTotalsDTO(item.Totals), PreviousTotals: mlStatisticTotalsDTO(item.PreviousTotals), Months: months, RuntimeGranularity: openapi.MachineLogbookStatisticsRuntimeGranularity(item.RuntimeGranularity),
+		Runtime: runtime, MaterialCostByCategory: mlStatisticPoints(item.MaterialCostByCategory), Machines: machines}
 }
 func nullableValue[T any](value *T) nullable.Nullable[T] {
 	if value == nil {
@@ -207,4 +225,75 @@ func stringEnum[T ~string](value *T) *string {
 }
 func utcDayBounds(from, to time.Time) (time.Time, time.Time) {
 	return from.UTC(), to.UTC().Add(24 * time.Hour)
+}
+
+func mlWorkItemDTO(item machinelogbook.WorkItem) openapi.WorkItem {
+	var customer nullable.Nullable[openapi.BillingParty]
+	if item.Customer == nil {
+		customer = nullable.NewNullNullable[openapi.BillingParty]()
+	} else {
+		customer = nullable.NewNullableWithValue(mlBillingPartyDTO(*item.Customer))
+	}
+	var operator nullable.Nullable[openapi.Operator]
+	if item.Operator == nil {
+		operator = nullable.NewNullNullable[openapi.Operator]()
+	} else {
+		operator = nullable.NewNullableWithValue(mlOperatorDTO(*item.Operator))
+	}
+	var billing nullable.Nullable[openapi.WorkItemBilling]
+	if item.Billing == nil {
+		billing = nullable.NewNullNullable[openapi.WorkItemBilling]()
+	} else {
+		billing = nullable.NewNullableWithValue(openapi.WorkItemBilling{State: openapi.JobBillingState(item.Billing.State), OrderId: nullableUUIDValue(item.Billing.OrderID), OrderReference: nullableString(item.Billing.OrderReference)})
+	}
+	var progress nullable.Nullable[int]
+	if item.ProgressPercent == nil {
+		progress = nullable.NewNullNullable[int]()
+	} else {
+		progress = nullable.NewNullableWithValue(*item.ProgressPercent)
+	}
+	version := openapi.Version(item.Version)
+	return openapi.WorkItem{Kind: openapi.WorkItemKind(item.Kind), Id: item.ID, DisplayId: item.DisplayID, Title: nullableString(item.Title), FileName: nullableString(item.FileName),
+		PrintId: nullableUUIDValue(item.PrintID), PrintDisplayId: nullableString(item.PrintDisplayID), MachineId: item.MachineID, MachineName: item.MachineName,
+		Customer: customer, Operator: operator, Status: openapi.WorkItemStatus(item.Status), Run: openapi.WorkItemRun(item.Run), StartedAt: item.StartedAt,
+		EndsAt: nullableValue(item.EndsAt), EstimatedEndAt: nullableValue(item.EstimatedEndAt), ProgressPercent: progress, EffectivePrice: nullableMoney(item.EffectivePrice),
+		Billing: billing, Version: &version}
+}
+func mlWorkItemDTOs(items []machinelogbook.WorkItem) []openapi.WorkItem {
+	result := make([]openapi.WorkItem, 0, len(items))
+	for _, item := range items {
+		result = append(result, mlWorkItemDTO(item))
+	}
+	return result
+}
+func mlMachineActivityDTO(item machinelogbook.MachineActivity) openapi.MachineActivity {
+	current := nullable.NewNullNullable[openapi.MachineCurrentItem]()
+	if item.Current != nil {
+		current = nullable.NewNullableWithValue(openapi.MachineCurrentItem{Kind: openapi.MachineCurrentItemKind(item.Current.Kind), Id: item.Current.ID, DisplayId: item.Current.DisplayID,
+			Title: nullableString(item.Current.Title), FileName: nullableString(item.Current.FileName), StartedAt: item.Current.StartedAt, EndsAt: nullableValue(item.Current.EndsAt)})
+	}
+	connector := nullable.NewNullNullable[openapi.MachineConnectorState]()
+	if item.Connector != nil {
+		state := nullable.NewNullNullable[openapi.MachineConnectorStateRuntimeState]()
+		if item.Connector.RuntimeState != nil {
+			state = nullable.NewNullableWithValue(openapi.MachineConnectorStateRuntimeState(*item.Connector.RuntimeState))
+		}
+		connector = nullable.NewNullableWithValue(openapi.MachineConnectorState{RuntimeState: state, RuntimeErrorCode: nullableString(item.Connector.RuntimeErrorCode), LastHeartbeatAt: nullableValue(item.Connector.LastHeartbeatAt)})
+	}
+	return openapi.MachineActivity{MachineId: item.MachineID, Availability: openapi.MachineAvailability(item.Availability), Current: current, Connector: connector, LastJobStartedAt: nullableValue(item.LastJobStartedAt)}
+}
+func mlStatisticTotalsDTO(item machinelogbook.StatisticTotals) openapi.StatisticTotals {
+	return openapi.StatisticTotals{Jobs: item.Jobs, RuntimeHours: item.RuntimeHours, Charges: item.Charges, MaterialCost: item.MaterialCost, FailureRate: item.FailureRate}
+}
+func mlOverviewWorkItemsDTO(item machinelogbook.Overview, result *openapi.MachineLogbookOverview) {
+	if item.RunningNow == nil {
+		return // the caller may not read machine jobs
+	}
+	result.RunningNow = nullable.NewNullableWithValue(*item.RunningNow)
+	result.NeedsOutcome = nullable.NewNullableWithValue(*item.NeedsOutcome)
+	result.UnlinkedPrints = nullable.NewNullableWithValue(*item.UnlinkedPrints)
+	result.BillingIssues = nullable.NewNullableWithValue(*item.BillingIssues)
+	result.ActiveTotal = nullable.NewNullableWithValue(*item.ActiveTotal)
+	result.RunningMachineNames = nullable.NewNullableWithValue(append([]string{}, item.RunningMachineNames...))
+	result.ActiveItems = nullable.NewNullableWithValue(mlWorkItemDTOs(item.ActiveItems))
 }

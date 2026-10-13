@@ -19,6 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { Money } from './money';
+import type { WorkItem } from './workItem';
 import type { MachineJob } from './machineJob';
 import type { Material } from './material';
 import type { DailyJobActivity } from './dailyJobActivity';
@@ -35,6 +36,42 @@ export interface MachineLogbookOverview {
   needsReview: number;
   /** @minimum 0 */
   failedOrPartialThisWeek: number;
+  /**
+   * Running jobs plus printing unlinked prints. Null without machine_jobs.read.
+   * @minimum 0
+   * @nullable
+   */
+  runningNow?: number | null;
+  /** @nullable */
+  runningMachineNames?: string[] | null;
+  /**
+   * @minimum 0
+   * @nullable
+   */
+  needsOutcome?: number | null;
+  /**
+   * Ended prints without a job.
+   * @minimum 0
+   * @nullable
+   */
+  unlinkedPrints?: number | null;
+  /**
+   * Jobs with incomplete pricing or an outdated order.
+   * @minimum 0
+   * @nullable
+   */
+  billingIssues?: number | null;
+  /**
+   * Running, printing, unlinked and needs-outcome items in that order, newest first within each.
+   * @maxItems 6
+   * @nullable
+   */
+  activeItems?: WorkItem[] | null;
+  /**
+   * @minimum 0
+   * @nullable
+   */
+  activeTotal?: number | null;
   /** @minimum 0 */
   lowStockItems: number;
   recentJobs: MachineJob[];

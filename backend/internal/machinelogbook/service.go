@@ -277,10 +277,39 @@ type Overview struct {
 	RecentJobs                                                                                   []MachineJob
 	LowStockMaterials                                                                            []Material
 	Activity                                                                                     []DailyActivity
+	// The work-item fields are nil unless the caller may read machine jobs.
+	RunningNow, NeedsOutcome, UnlinkedPrints, BillingIssues, ActiveTotal *int64
+	RunningMachineNames                                                  []string
+	ActiveItems                                                          []WorkItem
 }
 
 type Statistics struct {
 	MaterialUsageByCategory, MachineRuntimeHours, MachineJobCounts, AcquisitionCost, CustomerCharges, AdjustmentLoss, MachineFailureRates []StatisticPoint
+	Totals, PreviousTotals                                                                                                                StatisticTotals
+	Months                                                                                                                                []StatisticMonth
+	RuntimeGranularity                                                                                                                    string
+	Runtime                                                                                                                               []StatisticRuntimePoint
+	MaterialCostByCategory                                                                                                                []StatisticPoint
+	Machines                                                                                                                              []StatisticMachine
+}
+
+type StatisticTotals struct {
+	Jobs                                             int64
+	RuntimeHours, Charges, MaterialCost, FailureRate string
+}
+
+type StatisticMonth struct{ Month, Charges, MaterialCost, Losses string }
+
+type StatisticRuntimePoint struct {
+	BucketStart time.Time
+	MachineID   uuid.UUID
+	Hours       string
+}
+
+type StatisticMachine struct {
+	MachineID                                                               uuid.UUID
+	Name, MachineTypeName, RuntimeHours, FailureRate, Charges, RuntimeShare string
+	Jobs                                                                    int64
 }
 
 func pageBounds(page, pageSize int) (int32, int32, error) {

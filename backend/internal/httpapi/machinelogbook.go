@@ -570,6 +570,48 @@ func (s *Server) CancelMachineJobRun(ctx context.Context, r openapi.CancelMachin
 	}
 	return openapi.CancelMachineJobRun200JSONResponse(mlJobDTO(item)), nil
 }
+func derefSlice[T any](values *[]T) []T {
+	if values == nil {
+		return nil
+	}
+	return *values
+}
+func stringSlice[T ~string](values *[]T) []string {
+	result := make([]string, 0, len(derefSlice(values)))
+	for _, v := range derefSlice(values) {
+		result = append(result, string(v))
+	}
+	return result
+}
+func (s *Server) ListMachineLogbookWorkItems(ctx context.Context, r openapi.ListMachineLogbookWorkItemsRequestObject) (openapi.ListMachineLogbookWorkItemsResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	page, size := defaultInt(r.Params.Page, 1), defaultInt(r.Params.PageSize, 25)
+	items, total, err := s.machineLogbook.ListWorkItems(ctx, p, machinelogbook.WorkItemFilters{Search: defaultString(r.Params.Search), Statuses: stringSlice(r.Params.Status), Runs: stringSlice(r.Params.Run),
+		Billing: stringSlice(r.Params.Billing), MachineIDs: derefSlice(r.Params.MachineId), MaterialIDs: derefSlice(r.Params.MaterialId), CustomerID: r.Params.CustomerId, OperatorID: r.Params.OperatorPersonId,
+		From: r.Params.From, To: r.Params.To, Sort: defaultString(stringEnum(r.Params.Sort)), Direction: defaultString(stringEnum(r.Params.Direction)), Page: page, PageSize: size})
+	if err != nil {
+		return nil, err
+	}
+	return openapi.ListMachineLogbookWorkItems200JSONResponse{Items: mlWorkItemDTOs(items), Page: page, PageSize: size, Total: total}, nil
+}
+func (s *Server) ListMachineActivity(ctx context.Context, _ openapi.ListMachineActivityRequestObject) (openapi.ListMachineActivityResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items, err := s.machineLogbook.MachineActivity(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	dto := make([]openapi.MachineActivity, 0, len(items))
+	for _, item := range items {
+		dto = append(dto, mlMachineActivityDTO(item))
+	}
+	return openapi.ListMachineActivity200JSONResponse{Items: dto}, nil
+}
 func (s *Server) GetMachineLogbookOverview(ctx context.Context, _ openapi.GetMachineLogbookOverviewRequestObject) (openapi.GetMachineLogbookOverviewResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {

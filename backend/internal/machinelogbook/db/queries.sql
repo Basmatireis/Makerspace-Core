@@ -763,3 +763,193 @@ RETURNING *;
 -- name: AcceptPrinterEventReconciliation :execrows
 UPDATE printer_events SET reconciliation_state = 'accepted', reconciled_by_account_id = sqlc.arg(actor_account_id), reconciled_at = now()
 WHERE id = sqlc.arg(id) AND kind = 'consumption_report' AND reconciliation_state = 'pending';
+
+-- name: ListWorkItems :many
+WITH items AS (
+    SELECT 'print'::text AS kind, r.id, r.display_id, NULL::text AS title, r.file_name, NULL::uuid AS print_id, NULL::text AS print_display_id,
+           r.machine_id, m.name AS machine_name,
+           NULL::uuid AS customer_id, NULL::text AS customer_kind, NULL::text AS customer_name, NULL::text AS customer_organization_kind,
+           NULL::uuid AS customer_pricing_group_id, NULL::text AS customer_pricing_group_name, 0::bigint AS customer_pricing_group_assignment_version,
+           NULL::uuid AS operator_person_id, NULL::text AS operator_name,
+           (CASE WHEN r.state IN ('observed', 'printing') THEN 'printing' ELSE 'unlinked' END)::text AS status,
+           'printer'::text AS run,
+           COALESCE(r.started_at, r.first_observed_at) AS started_at, r.ended_at AS ends_at, r.estimated_end_at, r.progress_percent,
+           NULL::numeric AS effective_price,
+           NULL::text AS billing_state, NULL::uuid AS billing_order_id, NULL::text AS billing_order_reference,
+           r.version, sp.material_id AS reported_material_id,
+           COALESCE(r.file_name, r.display_id)::text AS name_key,
+           r.display_id AS print_search_id
+    FROM printer_observed_runs r
+    JOIN machines m ON m.id = r.machine_id
+    LEFT JOIN filament_spools sp ON sp.id = r.reported_spool_id
+    WHERE NOT EXISTS (SELECT 1 FROM machine_jobs lj WHERE lj.print_id = r.id)
+    UNION ALL
+    SELECT 'job'::text, j.id, j.display_id, j.title, r.file_name, r.id, r.display_id,
+           j.machine_id, m.name,
+           COALESCE(j.customer_person_id, j.customer_organization_id),
+           (CASE WHEN j.customer_person_id IS NOT NULL THEN 'person' WHEN j.customer_organization_id IS NOT NULL THEN 'organization' END)::text,
+           COALESCE(btrim(cp.first_name || ' ' || cp.last_name), co.name)::text,
+           co.kind,
+           COALESCE(cpg.id, cog.id),
+           COALESCE(cpg.name, cog.name),
+           COALESCE(cpa.version, coa.version, 0)::bigint,
+           j.operator_person_id, btrim(op.first_name || ' ' || op.last_name)::text,
+           (CASE WHEN j.outcome <> 'unknown' THEN j.outcome WHEN j.ends_at > sqlc.arg(now)::timestamptz THEN 'running' ELSE 'needs_outcome' END)::text,
+           (CASE WHEN r.id IS NULL THEN 'manual' ELSE 'printer' END)::text,
+           j.starts_at, j.ends_at, NULL::timestamptz, NULL::smallint,
+           j.effective_price,
+           (CASE WHEN oc.machine_job_id IS NOT NULL THEN
+                    (CASE WHEN oi.source_job_version IS NOT NULL AND oi.source_job_version <> j.version THEN 'order_outdated' ELSE 'on_order' END)
+                 WHEN j.pricing_status = 'pending' THEN 'pending'
+                 WHEN j.pricing_status = 'incomplete' THEN 'price_incomplete'
+                 ELSE 'not_on_order' END)::text,
+           oo.id, oo.reference,
+           j.version, NULL::uuid,
+           COALESCE(j.title, r.file_name, j.display_id)::text,
+           r.display_id
+    FROM machine_jobs j
+    JOIN machines m ON m.id = j.machine_id
+    LEFT JOIN printer_observed_runs r ON r.id = j.print_id
+    LEFT JOIN people cp ON cp.id = j.customer_person_id
+    LEFT JOIN person_pricing_group_assignments cpa ON cpa.person_id = cp.id
+    LEFT JOIN pricing_groups cpg ON cpg.id = cpa.pricing_group_id
+    LEFT JOIN organizations co ON co.id = j.customer_organization_id
+    LEFT JOIN organization_pricing_group_assignments coa ON coa.organization_id = co.id
+    LEFT JOIN pricing_groups cog ON cog.id = coa.pricing_group_id
+    LEFT JOIN people op ON op.id = j.operator_person_id
+    LEFT JOIN order_job_claims oc ON oc.machine_job_id = j.id
+    LEFT JOIN order_items oi ON oi.id = oc.order_item_id
+    LEFT JOIN orders oo ON oo.id = oi.order_id
+)
+SELECT i.kind, i.id, i.display_id, i.title, i.file_name, i.print_id, i.print_display_id, i.machine_id, i.machine_name,
+       i.customer_id, i.customer_kind, i.customer_name, i.customer_organization_kind, i.customer_pricing_group_id,
+       i.customer_pricing_group_name, i.customer_pricing_group_assignment_version, i.operator_person_id, i.operator_name,
+       i.status, i.run, i.started_at, i.ends_at, i.estimated_end_at, i.progress_percent, i.effective_price,
+       i.billing_state, i.billing_order_id, i.billing_order_reference, i.version,
+       count(*) OVER ()::bigint AS total
+FROM items i
+WHERE (cardinality(sqlc.arg(statuses)::text[]) = 0 OR i.status = ANY(sqlc.arg(statuses)::text[]))
+  AND (cardinality(sqlc.arg(machine_ids)::uuid[]) = 0 OR i.machine_id = ANY(sqlc.arg(machine_ids)::uuid[]))
+  AND (cardinality(sqlc.arg(runs)::text[]) = 0 OR i.run = ANY(sqlc.arg(runs)::text[]))
+  AND (cardinality(sqlc.arg(material_ids)::uuid[]) = 0
+       OR (i.kind = 'job' AND EXISTS (SELECT 1 FROM machine_job_material_usages u WHERE u.machine_job_id = i.id AND u.active AND u.material_id = ANY(sqlc.arg(material_ids)::uuid[])))
+       OR (i.kind = 'print' AND i.reported_material_id = ANY(sqlc.arg(material_ids)::uuid[])))
+  AND (cardinality(sqlc.arg(billing_states)::text[]) = 0 OR i.billing_state = ANY(sqlc.arg(billing_states)::text[]))
+  AND (sqlc.narg(customer_id)::uuid IS NULL OR i.customer_id = sqlc.narg(customer_id)::uuid)
+  AND (sqlc.narg(operator_person_id)::uuid IS NULL OR i.operator_person_id = sqlc.narg(operator_person_id)::uuid)
+  AND (sqlc.narg(from_time)::timestamptz IS NULL OR i.started_at >= sqlc.narg(from_time)::timestamptz)
+  AND (sqlc.narg(to_time)::timestamptz IS NULL OR i.started_at < sqlc.narg(to_time)::timestamptz)
+  AND (sqlc.arg(search)::text = '' OR i.title ILIKE '%' || sqlc.arg(search)::text || '%' OR i.display_id ILIKE '%' || sqlc.arg(search)::text || '%'
+       OR i.print_search_id ILIKE '%' || sqlc.arg(search)::text || '%' OR i.file_name ILIKE '%' || sqlc.arg(search)::text || '%')
+ORDER BY
+    CASE WHEN sqlc.arg(active_order)::boolean THEN (CASE i.status WHEN 'running' THEN 1 WHEN 'printing' THEN 2 WHEN 'unlinked' THEN 3 ELSE 4 END) END ASC,
+    CASE WHEN sqlc.arg(sort_key)::text = 'startedAt' AND sqlc.arg(sort_direction)::text = 'asc' THEN i.started_at END ASC,
+    CASE WHEN sqlc.arg(sort_key)::text = 'startedAt' AND sqlc.arg(sort_direction)::text = 'desc' THEN i.started_at END DESC,
+    CASE WHEN sqlc.arg(sort_key)::text = 'name' AND sqlc.arg(sort_direction)::text = 'asc' THEN lower(i.name_key) END ASC,
+    CASE WHEN sqlc.arg(sort_key)::text = 'name' AND sqlc.arg(sort_direction)::text = 'desc' THEN lower(i.name_key) END DESC,
+    CASE WHEN sqlc.arg(sort_key)::text = 'machine' AND sqlc.arg(sort_direction)::text = 'asc' THEN lower(i.machine_name) END ASC,
+    CASE WHEN sqlc.arg(sort_key)::text = 'machine' AND sqlc.arg(sort_direction)::text = 'desc' THEN lower(i.machine_name) END DESC,
+    CASE WHEN sqlc.arg(sort_key)::text = 'customer' AND sqlc.arg(sort_direction)::text = 'asc' THEN lower(i.customer_name) END ASC NULLS LAST,
+    CASE WHEN sqlc.arg(sort_key)::text = 'customer' AND sqlc.arg(sort_direction)::text = 'desc' THEN lower(i.customer_name) END DESC NULLS LAST,
+    CASE WHEN sqlc.arg(sort_key)::text = 'price' AND sqlc.arg(sort_direction)::text = 'asc' THEN i.effective_price END ASC NULLS LAST,
+    CASE WHEN sqlc.arg(sort_key)::text = 'price' AND sqlc.arg(sort_direction)::text = 'desc' THEN i.effective_price END DESC NULLS LAST,
+    CASE WHEN sqlc.arg(active_order)::boolean THEN i.started_at END DESC,
+    CASE WHEN sqlc.arg(sort_direction)::text = 'asc' THEN i.id END ASC,
+    CASE WHEN sqlc.arg(sort_direction)::text = 'desc' THEN i.id END DESC
+LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+
+-- name: ListRunningMachineNames :many
+SELECT DISTINCT name::text AS name FROM (
+    SELECT m.name FROM machine_jobs j JOIN machines m ON m.id = j.machine_id
+    WHERE j.outcome = 'unknown' AND j.ends_at > sqlc.arg(now)::timestamptz
+    UNION ALL
+    SELECT m.name FROM printer_observed_runs r JOIN machines m ON m.id = r.machine_id
+    WHERE r.state IN ('observed', 'printing') AND NOT EXISTS (SELECT 1 FROM machine_jobs lj WHERE lj.print_id = r.id)
+) running ORDER BY 1;
+
+-- name: ListMachineActivityMachines :many
+SELECT id, status FROM machines ORDER BY lower(name), id;
+
+-- name: ListMachinePrintingPrints :many
+SELECT DISTINCT ON (r.machine_id) r.machine_id, r.id, r.display_id, r.file_name, COALESCE(r.started_at, r.first_observed_at)::timestamptz AS started_at, r.estimated_end_at
+FROM printer_observed_runs r WHERE r.state IN ('observed', 'printing')
+ORDER BY r.machine_id, COALESCE(r.started_at, r.first_observed_at) DESC, r.id DESC;
+
+-- name: ListMachineRunningManualJobs :many
+SELECT DISTINCT ON (j.machine_id) j.machine_id, j.id, j.display_id, j.title, j.starts_at, j.ends_at
+FROM machine_jobs j
+WHERE j.review_state = 'confirmed' AND j.outcome = 'unknown' AND j.print_id IS NULL
+  AND j.starts_at <= sqlc.arg(now)::timestamptz AND j.ends_at > sqlc.arg(now)::timestamptz
+ORDER BY j.machine_id, j.starts_at DESC, j.id DESC;
+
+-- name: ListMachineConnectorStates :many
+SELECT DISTINCT ON (a.machine_id) a.machine_id, a.runtime_state, a.runtime_error_code, c.last_heartbeat_at
+FROM printer_connector_assignments a JOIN printer_connectors c ON c.id = a.connector_id
+WHERE a.ended_at IS NULL
+ORDER BY a.machine_id, a.activated_at DESC, a.id DESC;
+
+-- name: ListMachineLastJobStarts :many
+SELECT machine_id, max(starts_at)::timestamptz AS last_started_at
+FROM machine_jobs WHERE starts_at <= sqlc.arg(now)::timestamptz GROUP BY machine_id;
+
+-- name: StatisticPeriodTotals :one
+WITH jobs AS (
+    SELECT outcome, effective_price, GREATEST(EXTRACT(EPOCH FROM (LEAST(ends_at, sqlc.arg(now)::timestamptz) - starts_at)), 0) AS seconds
+    FROM machine_jobs
+    WHERE review_state = 'confirmed' AND starts_at >= sqlc.arg(from_time) AND starts_at < sqlc.arg(to_time)
+), cost AS (
+    SELECT COALESCE(-sum(inventory_value_delta) FILTER (WHERE kind IN ('machine_job_consumption', 'manual_consumption') OR (kind = 'adjustment' AND adjustment_reason = 'job_corrected')), 0) AS material_cost
+    FROM inventory_transactions WHERE occurred_at >= sqlc.arg(from_time) AND occurred_at < sqlc.arg(to_time)
+)
+SELECT (SELECT count(*) FROM jobs)::bigint AS jobs,
+       (SELECT round(COALESCE(sum(seconds), 0) / 3600.0, 4) FROM jobs)::numeric AS runtime_hours,
+       (SELECT COALESCE(sum(effective_price), 0) FROM jobs)::numeric AS charges,
+       (SELECT material_cost FROM cost)::numeric AS material_cost,
+       (SELECT COALESCE(round(100.0 * count(*) FILTER (WHERE outcome IN ('failed', 'partial_failure')) / NULLIF(count(*) FILTER (WHERE outcome <> 'unknown'), 0), 2), 0) FROM jobs)::numeric AS failure_rate;
+
+-- name: StatisticMonths :many
+WITH months AS (
+    SELECT generate_series(date_trunc('month', sqlc.arg(from_time)::timestamptz AT TIME ZONE 'UTC'),
+                           date_trunc('month', (sqlc.arg(to_time)::timestamptz - interval '1 microsecond') AT TIME ZONE 'UTC'),
+                           interval '1 month') AS month_start
+), job_charges AS (
+    SELECT date_trunc('month', starts_at AT TIME ZONE 'UTC') AS month_start, sum(effective_price) AS charges
+    FROM machine_jobs WHERE review_state = 'confirmed' AND starts_at >= sqlc.arg(from_time) AND starts_at < sqlc.arg(to_time)
+    GROUP BY 1
+), costs AS (
+    SELECT date_trunc('month', occurred_at AT TIME ZONE 'UTC') AS month_start,
+           -sum(inventory_value_delta) FILTER (WHERE kind IN ('machine_job_consumption', 'manual_consumption') OR (kind = 'adjustment' AND adjustment_reason = 'job_corrected')) AS material_cost,
+           -sum(inventory_value_delta) FILTER (WHERE (kind = 'disposal' OR (kind = 'adjustment' AND adjustment_reason <> 'job_corrected')) AND inventory_value_delta < 0) AS losses
+    FROM inventory_transactions WHERE occurred_at >= sqlc.arg(from_time) AND occurred_at < sqlc.arg(to_time)
+    GROUP BY 1
+)
+SELECT to_char(m.month_start, 'YYYY-MM')::text AS month,
+       COALESCE(jc.charges, 0)::numeric AS charges,
+       COALESCE(c.material_cost, 0)::numeric AS material_cost,
+       COALESCE(c.losses, 0)::numeric AS losses
+FROM months m LEFT JOIN job_charges jc ON jc.month_start = m.month_start LEFT JOIN costs c ON c.month_start = m.month_start
+ORDER BY m.month_start;
+
+-- name: StatisticRuntimePoints :many
+SELECT date_trunc(sqlc.arg(unit)::text, j.starts_at AT TIME ZONE 'UTC')::date AS bucket_start, j.machine_id,
+       round(sum(GREATEST(EXTRACT(EPOCH FROM (LEAST(j.ends_at, sqlc.arg(now)::timestamptz) - j.starts_at)), 0)) / 3600.0, 4)::numeric AS hours
+FROM machine_jobs j
+WHERE j.review_state = 'confirmed' AND j.starts_at >= sqlc.arg(from_time) AND j.starts_at < sqlc.arg(to_time)
+GROUP BY 1, 2 ORDER BY 1, 2;
+
+-- name: StatisticMaterialCostByCategory :many
+SELECT m.category AS label, (-sum(t.inventory_value_delta))::numeric AS value
+FROM inventory_transactions t JOIN materials m ON m.id = t.material_id
+WHERE (t.kind IN ('machine_job_consumption', 'manual_consumption') OR (t.kind = 'adjustment' AND t.adjustment_reason = 'job_corrected'))
+  AND t.occurred_at >= sqlc.arg(from_time) AND t.occurred_at < sqlc.arg(to_time)
+GROUP BY m.category ORDER BY m.category;
+
+-- name: StatisticMachineSummaries :many
+SELECT m.id AS machine_id, m.name, mt.name AS machine_type_name, count(j.id)::bigint AS jobs,
+       round(COALESCE(sum(GREATEST(EXTRACT(EPOCH FROM (LEAST(j.ends_at, sqlc.arg(now)::timestamptz) - j.starts_at)), 0)), 0) / 3600.0, 4)::numeric AS runtime_hours,
+       COALESCE(round(100.0 * count(j.id) FILTER (WHERE j.outcome IN ('failed', 'partial_failure')) / NULLIF(count(j.id) FILTER (WHERE j.outcome <> 'unknown'), 0), 2), 0)::numeric AS failure_rate,
+       COALESCE(sum(j.effective_price), 0)::numeric AS charges
+FROM machines m
+JOIN machine_types mt ON mt.id = m.machine_type_id
+JOIN machine_jobs j ON j.machine_id = m.id AND j.review_state = 'confirmed' AND j.starts_at >= sqlc.arg(from_time) AND j.starts_at < sqlc.arg(to_time)
+GROUP BY m.id, m.name, mt.name ORDER BY lower(m.name), m.id;
