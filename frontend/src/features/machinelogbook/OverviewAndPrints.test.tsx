@@ -47,8 +47,8 @@ function jobFixture(overrides: Partial<MachineJob> = {}): MachineJob {
     id: ids.job, displayId: 'J-2026-000010', title: 'Gearbox housing', machine: machineFixture(),
     startsAt: '2026-09-15T08:00:00Z', endsAt: '2026-09-15T09:00:00Z', durationSeconds: 3600,
     source: 'manual', run: 'manual', print: null, reviewState: 'confirmed', customer: { id: ids.job, kind: 'person', displayName: 'Lena Maier' } as MachineJob['customer'], operator: null,
-    outcome: 'successful', status: 'successful', notes: null, usages: [], pricingStatus: 'pending', pricingSnapshot: null, calculatedPrice: null, finalPrice: null, effectivePrice: null,
-    priceOverrideReason: null, priceOverriddenAt: null, version: 5, createdAt: '2026-09-15T08:00:00Z', updatedAt: '2026-09-15T08:00:00Z',
+    outcome: 'successful', status: 'successful', notes: null, usages: [], pricingStatus: 'pending', pricingSnapshot: null, calculatedPrice: null, effectivePrice: null,
+    version: 5, createdAt: '2026-09-15T08:00:00Z', updatedAt: '2026-09-15T08:00:00Z',
     ...overrides,
   };
 }

@@ -36,7 +36,7 @@ export function IdentifierModal({ open, onClose, spool }: { open: boolean; onClo
 
   return (
     <Modal
-      open={open} size="sm" modalHeading="Add identifier" modalLabel={spool.displayId}
+      open={open} size="sm" modalHeading="Add identifier" modalLabel={spool.displayId} aria-label={`Add identifier ${spool.displayId}`}
       primaryButtonText={pending ? 'Adding…' : 'Add identifier'} secondaryButtonText="Cancel" primaryButtonDisabled={pending}
       preventCloseOnClickOutside shouldSubmitOnEnter={false}
       onRequestClose={() => { if (!pending) onClose(); }} onRequestSubmit={() => { void submit(); }}

@@ -100,6 +100,7 @@ func TestFilamentSpoolFillsCleanupAndProductsOverHTTP(t *testing.T) {
 	reader := member("reader", "inventory.read")
 	spoolsOnly := member("spools", "inventory.read", "filament_spools.manage")
 	inventoryOnly := member("inventory", "inventory.read", "inventory.manage")
+	noInventoryRead := member("noread", "filament_spools.manage", "inventory.manage")
 
 	var accountID, personID uuid.UUID
 	if err = pool.QueryRow(ctx, `SELECT a.id, a.person_id FROM accounts a JOIN auth_identities i ON i.account_id = a.id WHERE i.identifier_normalized = $1`, adminLogin).Scan(&accountID, &personID); err != nil {
@@ -242,6 +243,8 @@ func TestFilamentSpoolFillsCleanupAndProductsOverHTTP(t *testing.T) {
 	api(inventoryOnly, http.MethodPost, "/filament-products", http.StatusCreated, product, &created)
 	api(root, http.MethodPost, "/filament-products", http.StatusConflict, product, nil)
 	var fetched openapi.FilamentProduct
+	api(noInventoryRead, http.MethodGet, "/filament-products/"+created.Id.String(), http.StatusForbidden, nil, nil)
+	api(noInventoryRead, http.MethodGet, "/filament-products?search=http", http.StatusForbidden, nil, nil)
 	api(reader, http.MethodGet, "/filament-products/"+created.Id.String(), http.StatusOK, nil, &fetched)
 	if fetched.InUseCount != 0 || !fetched.Active || fetched.MaterialName != "HTTP PLA" {
 		t.Fatalf("product: %+v", fetched)

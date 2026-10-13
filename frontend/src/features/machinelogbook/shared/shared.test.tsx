@@ -23,6 +23,8 @@ import { useLinkPrint } from './useLinkPrint';
 describe('Machines & Jobs shared helpers', () => {
   it('names jobs by title, then readable file name, then job number', () => {
     expect(nameFromFile('gearbox_housing_v3.gcode')).toBe('Gearbox housing v3');
+    expect(nameFromFile('sensor_bracket.gcode.3mf')).toBe('Sensor bracket');
+    expect(nameFromFile('notes.v2.txt')).toBe('Notes.v2');
     expect(displayName({ title: 'Bracket', fileName: 'x.gcode', displayId: 'J-1' })).toBe('Bracket');
     expect(displayName({ title: null, fileName: 'gearbox_housing_v3.gcode', displayId: 'J-1' })).toBe('Gearbox housing v3');
     expect(displayName({ displayId: 'J-1' })).toBe('J-1');

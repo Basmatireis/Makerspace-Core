@@ -93,6 +93,14 @@ Tests must not depend on an existing developer database or bootstrap account. Us
 
 `make test-migrations` runs the complete goose chain up, down to zero, and up again in a separate Compose project, then deletes only that project's volumes. Never run this rollback sequence against developer or deployment data. PL/pgSQL `DO` blocks need goose `StatementBegin`/`StatementEnd` delimiters. The empty-database round trip supplements the data-preservation and guarded-downgrade tests; it does not prove that every populated database can be downgraded.
 
+### Integration tests
+
+`make test-integration` runs against a dedicated database, `makerspace_test` by default, in the Compose PostgreSQL. Override the name with `TEST_POSTGRES_DB=...`. `make test-db` creates the database if it is missing and applies all migrations to it. Tests never write into the development database.
+
+### Demo data
+
+`make seed-dev` fills an empty development database with demo data for a university makerspace, through the `backend/cmd/devseed` program. It refuses to run when machines, materials or machine jobs already exist, and it refuses to run with `APP_ENV=production`.
+
 ## Browser end-to-end checks
 
 The browser suite uses the exact `@playwright/test` 1.63.0 and `@axe-core/playwright` 4.13.0 versions in the frontend lockfile. Its fast UI scenarios start Vite on `http://127.0.0.1:4173` and intercept API calls with deterministic, non-PII fixtures. They cover login to Dashboard, permission-gated Settings/profile behavior, keyboard dismissal, responsive SideNav behavior, session-expiry handling, a custom-Role destructive confirmation, and automated WCAG A/AA scans.

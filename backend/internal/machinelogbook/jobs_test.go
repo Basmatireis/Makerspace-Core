@@ -242,7 +242,7 @@ func TestPriceAdjustmentKinds(t *testing.T) {
 	ctx := t.Context()
 	// 20 minutes at 10/h is 3.333..., calculated as 3.33.
 	job := f.create(t, f.input(-time.Hour, 20*time.Minute, "successful"))
-	if price(job.CalculatedPrice) != "3.33" || price(job.EffectivePrice) != "3.33" || job.PriceAdjustment != nil || job.FinalPrice != nil {
+	if price(job.CalculatedPrice) != "3.33" || price(job.EffectivePrice) != "3.33" || job.PriceAdjustment != nil {
 		t.Fatalf("unadjusted job: %+v", job)
 	}
 	cases := []struct{ kind, value, want string }{
@@ -265,8 +265,8 @@ func TestPriceAdjustmentKinds(t *testing.T) {
 		if price(job.CalculatedPrice) != "3.33" {
 			t.Fatalf("adjustment changed the calculated price: %s", price(job.CalculatedPrice))
 		}
-		if price(job.FinalPrice) != c.want || job.PriceOverrideReason == nil || *job.PriceOverrideReason != "test adjustment" || job.PriceOverriddenAt == nil {
-			t.Fatalf("compat fields: %+v", job)
+		if job.PriceAdjustment.Reason != "test adjustment" || job.PriceAdjustment.AdjustedAt.IsZero() {
+			t.Fatalf("adjustment metadata: %+v", job.PriceAdjustment)
 		}
 	}
 	var stored string
@@ -294,7 +294,7 @@ func TestPriceAdjustmentKinds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if price(cleared.EffectivePrice) != "3.33" || cleared.PriceAdjustment != nil || cleared.FinalPrice != nil || cleared.PriceOverrideReason != nil {
+	if price(cleared.EffectivePrice) != "3.33" || cleared.PriceAdjustment != nil {
 		t.Fatalf("cleared job: %+v", cleared)
 	}
 	for _, action := range []string{"machine_job.price_adjusted", "machine_job.price_adjustment_cleared"} {
@@ -371,7 +371,7 @@ func TestRelativeAdjustmentWithIncompletePricingHasNoEffectivePrice(t *testing.T
 	}
 	for _, kind := range []struct{ kind, value string }{{"discount_percent", "10"}, {"discount_amount", "1"}, {"multiplier", "2"}} {
 		job = f.adjust(t, job, kind.kind, kind.value)
-		if job.EffectivePrice != nil || job.FinalPrice != nil {
+		if job.EffectivePrice != nil {
 			t.Fatalf("%s produced %s without a calculated price", kind.kind, price(job.EffectivePrice))
 		}
 	}

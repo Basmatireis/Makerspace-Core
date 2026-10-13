@@ -4,7 +4,7 @@
 
 // Layout glue for the Statistics screen: period controls, key figures, chart grid, per-machine table.
 
-.mj-stats { display: grid; gap: $spacing-05; min-inline-size: 0; }
+.mj-stats { display: grid; grid-template-columns: minmax(0, 1fr); gap: $spacing-05; min-inline-size: 0; }
 .mj-stats-period { inline-size: min(100%, 30rem); min-inline-size: min(100%, 26rem); }
 .mj-stats-period .cds--content-switcher { inline-size: 100%; }
 .mj-stats-custom { display: grid; grid-template-columns: repeat(2, minmax(0, 12rem)); gap: $spacing-05; align-items: start; }

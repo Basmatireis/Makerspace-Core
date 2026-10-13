@@ -8,9 +8,27 @@ A gram-denominated Material becomes spool-managed when it has a filament diamete
 
 Registering a new purchase writes the purchase directly to its spool. Registering an already-counted spool writes a zero-value `spool_transfer` that attributes existing unassigned material without changing material quantity or value. Transfers between unassigned stock and spools or between two spools preserve the same invariant. Consumption and physical corrections update the material balance, spool attribution, weighted-average valuation, ledger, spool version, and audit event in one transaction.
 
-Spool scan identifiers support barcode, QR, and NFC values. Open assignments prevent one spool from being mounted in multiple printer slots. Retired, missing, or empty spools cannot be mounted. Inventory transactions are immutable after insertion, except that privacy-preserving account and machine-usage references may detach during genuine hard deletion.
+Spool scan identifiers support barcode, QR, and NFC values. Open assignments prevent one spool from being mounted in multiple printer slots. Archived or empty spools cannot be mounted. Inventory transactions are immutable after insertion, except that privacy-preserving account and machine-usage references may detach during genuine hard deletion.
 
 Machine Job usages now distinguish makerspace and external filament. Makerspace usage must reference a Material and may reference a Spool; it consumes inventory and participates in material pricing. External usage carries a description, never references a Spool, does not change inventory, and does not add a makerspace material charge. Every usage records whether its quantity is actual or estimated. Order snapshots use schema version 2 for these facts while readers remain compatible with version 1 snapshots.
+
+## Spools, fills, and kinds
+
+A **spool** is the physical holder; a **fill** is one load of filament on it. Every spool has numbered fills (fill 1, 2, ...) with their own material, product snapshot, initial net weight, identifiers, and, once closed, the leftover and its outcome (used up, returned to stock, or disposed). At most one fill is open. The ledger and job usages record the spool display ID and fill number as snapshots next to the foreign keys.
+
+- **Kind:** **single_use** spools hold one fill and are archived when finished. **reusable** spools can be refilled and may optionally have a label. A reusable spool can be registered **empty** (no fill) and loaded later; single-use spools cannot.
+- **Lifecycle:** **active** or **archived** (`archivedAt` is set exactly when archived; the former `retired` state became `archived` in migration 00038). Whether a spool is loaded follows from its open fill.
+- **Stock split:** the material balance is the sum of filament **on spools** (open fills) and **loose** stock (the unassigned remainder). Signed `spool_transfer` entries move quantity between loose stock and a fill without changing material quantity or value.
+
+All three operations below require `filament_spools.manage` and `inventory.manage`, check the spool's expected version, and commit ledger, spool, identifier, and audit changes in one transaction. The leftover is given as **system** (keep the recorded quantity), **weighed** (gross weight minus the tare; the difference is written as a correction), or **none** (write the remaining quantity off as used up). A remaining quantity above zero needs a disposition of returned to stock or disposed.
+
+- **Change filament** (`POST /filament-spools/{id}/fills`): closes the open fill (correction when weighed or used up, then a transfer of the leftover to loose stock or a disposal), starts the next fill (transfer from loose stock, or a purchase), retires identifiers that are not kept, and adds new ones. Mount state is unchanged.
+- **Finish** (`POST /filament-spools/{id}/finish`): closes the open fill with the same leftover entries, unmounts the spool, and archives it when it is single-use. A reusable spool stays active but empty.
+- **Cleanup** (`POST /filament-spools/cleanup`): previews (`dryRun`) or hard-deletes archived single-use spools older than 1, 3, 6, or 12 months with no open fill. Only listed IDs that are still candidates are deleted. Fills, identifiers, and mount history cascade; ledger entries and job usages keep their spool display ID and fill number snapshots, so material history survives. This is a genuine hard-deletion path.
+
+## Filament product catalog
+
+`/filament-products` holds manufacturer, name, material, net weight, default price, packaging (**refill** or **spool**), notes, and an active flag. Reads need `inventory.read`; writes need `inventory.manage`. Manufacturer and name are unique ignoring case. Products can be edited or deactivated. **Snapshot rule:** a fill copies manufacturer and product name when it starts and keeps an optional product reference that is cleared if the product is removed, so catalog edits never rewrite history. The product's material remains the single source for stock and job pricing.
 
 ## Generic printer topology
 
@@ -19,6 +37,8 @@ A printer profile attaches to an existing Machine. It contains ordered input uni
 The topology is intentionally generic. It stores stable external identifiers for a future connector but contains no Bambu-specific semantics and performs no printer discovery, slicing, scheduling, file transfer, start, pause, or stop operation.
 
 ## Print submissions and attempts
+
+Print submissions are kept unchanged (decision D3): the tables and `/print-submissions` endpoints remain, but the Carbon UI no longer exposes them. Day-to-day work uses [prints and jobs](machine-logbook.md#prints) instead.
 
 Staff with `print_submissions.manage` create a Print Submission for a configured printer and may declare makerspace or external filament estimates. Starting or retrying creates a numbered Print Attempt and copies the declarations as an attempt snapshot. Attempt transitions are explicit and version-checked: queued, accepted, printing, then completed, failed, or cancelled. An attempt may link to one existing Machine Job for operational and charge traceability.
 
@@ -30,6 +50,6 @@ No public connector ingestion route is exposed yet. `printing.Service.IngestEven
 
 The feature adds `filament_spools.manage`, `printer_slots.assign`, `print_submissions.read`, and `print_submissions.manage`. Services enforce these permissions; frontend gating is only presentation.
 
-OpenAPI defines `/filament-spools`, material spool transfers, printer profiles/input units/slots, `/print-submissions`, attempts, job links, and printer-event reconciliation. The Carbon UI exposes spool list/detail flows under Inventory, printer topology from Machines, and staff submissions under Machines. All pages remain route-lazy-loaded.
+OpenAPI defines `/filament-spools`, material spool transfers, printer profiles/input units/slots, `/print-submissions`, attempts, job links, and printer-event reconciliation. The Carbon UI exposes spools, products, change filament, finish, and cleanup under Inventory and printer topology from Machines. All pages remain route-lazy-loaded.
 
-Migrations `00032_filament_spools.sql` and `00033_printing.sql` contain downgrade guards. A downgrade stops when spool, printing, or version-2 financial snapshot history exists rather than silently discarding it.
+Migrations `00032_filament_spools.sql` and `00033_printing.sql` contain downgrade guards. A downgrade stops when spool, printing, or version-2 financial snapshot history exists rather than silently discarding it. The downgrade of `00038_spool_fills_products.sql` restores the single-material spool model from each spool's latest fill; older fills with another material cannot be represented.

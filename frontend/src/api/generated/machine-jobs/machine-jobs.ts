@@ -26,7 +26,6 @@ import type {
   MachineJobList,
   MachineJobPage,
   OperatorList,
-  OverrideMachineJobPriceRequest,
   ReplaceMachineJobUsagesRequest,
   SearchMachineJobOperatorsParams,
   SetMachineJobPriceAdjustmentRequest,
@@ -238,58 +237,6 @@ export const replaceMachineJobUsages = async (machineJobId: UUIDv7,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       replaceMachineJobUsagesRequest,)
-  }
-);}
-
-
-/**
- * @deprecated
- * @summary Set a fixed final job price (deprecated, use price-adjustment)
- */
-export const getOverrideMachineJobPriceUrl = (machineJobId: UUIDv7,) => {
-
-
-  
-
-  return `/api/v1/machine-jobs/${machineJobId}/price-override`
-}
-
-export const overrideMachineJobPrice = async (machineJobId: UUIDv7,
-    overrideMachineJobPriceRequest: OverrideMachineJobPriceRequest, options?: RequestInit): Promise<MachineJob> => {
-  
-  return apiFetch<MachineJob>(getOverrideMachineJobPriceUrl(machineJobId),
-  {      
-    ...options,
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      overrideMachineJobPriceRequest,)
-  }
-);}
-
-
-/**
- * @deprecated
- * @summary Clear the current price adjustment (deprecated, use price-adjustment)
- */
-export const getClearMachineJobPriceOverrideUrl = (machineJobId: UUIDv7,) => {
-
-
-  
-
-  return `/api/v1/machine-jobs/${machineJobId}/price-override`
-}
-
-export const clearMachineJobPriceOverride = async (machineJobId: UUIDv7,
-    versionRequest: VersionRequest, options?: RequestInit): Promise<MachineJob> => {
-  
-  return apiFetch<MachineJob>(getClearMachineJobPriceOverrideUrl(machineJobId),
-  {      
-    ...options,
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      versionRequest,)
   }
 );}
 

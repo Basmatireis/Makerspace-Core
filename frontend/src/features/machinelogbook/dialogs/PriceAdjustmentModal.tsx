@@ -62,7 +62,7 @@ function AdjustmentForm({ onClose, job }: { onClose: () => void; job: MachineJob
 
   return (
     <Modal
-      open size="sm" modalHeading="Adjust price" modalLabel={job.displayId} primaryButtonText={pending ? 'Saving…' : 'Save adjustment'} secondaryButtonText="Cancel"
+      open size="sm" modalHeading="Adjust price" modalLabel={job.displayId} aria-label={`Adjust price ${job.displayId}`} primaryButtonText={pending ? 'Saving…' : 'Save adjustment'} secondaryButtonText="Cancel"
       primaryButtonDisabled={pending} preventCloseOnClickOutside selectorPrimaryFocus={`#adjust-value-${job.displayId}`}
       onRequestClose={() => { if (!pending) onClose(); }} onRequestSubmit={submit}
     >

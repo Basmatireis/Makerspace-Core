@@ -2,6 +2,27 @@
 
 Notable changes to Makerspace Core are documented here. Releases follow Semantic Versioning.
 
+## [Unreleased]
+
+### Added
+
+- Machines & Jobs redesign: navigation is Overview, Jobs, Machines, Inventory, Statistics. A unified work-items list shows jobs and unlinked prints, machines show derived availability and the current run, and the overview and statistics gained running/needs-outcome/unlinked counts, a previous-period comparison, runtime buckets, and material cost versus losses (statistics `to` is exclusive).
+- Optional job title, job start plus runtime with derived running and needs-outcome status, an outcome guard for unfinished runs, and cancel run.
+- Price adjustments (fixed, discount percent, discount amount, multiplier) that are re-applied on recalculation, with a stored effective price.
+- Prints reported by printer connectors (file name, times, progress, reported usage) with link-and-replace, unlink, and create-job-from-print.
+- Filament spool fills and kinds (reusable or single-use), change filament, finish, cleanup of archived single-use spools, registration of empty reusable spools, and a filament product catalog.
+- `make seed-dev` demo data; `make test-integration` uses the dedicated `makerspace_test` database.
+
+### Changed
+
+- Automatic job ingest is gone, so connector data no longer creates unconfirmed jobs. Legacy `needs_review` jobs are confirmed when an outcome is recorded. The final-price override became a price adjustment.
+- Spool lifecycle `retired` became `archived`. Ledger entries and job usages keep spool and fill snapshots.
+- The Review and Print submissions pages were removed and redirect to Jobs. Print submission tables and endpoints are unchanged but have no UI.
+
+### Removed
+
+- `POST /machine-jobs/automatic`, the review-queue UI, and the final-price override endpoint and schemas.
+
 ## [0.4.0] - 2026-10-05
 
 ### Added

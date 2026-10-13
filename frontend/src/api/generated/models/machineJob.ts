@@ -34,7 +34,6 @@ import type { MachineJobPricingSnapshot } from './machineJobPricingSnapshot';
 import type { MachineJobCalculatedPrice } from './machineJobCalculatedPrice';
 import type { MachineJobPriceAdjustment } from './machineJobPriceAdjustment';
 import type { MachineJobEffectivePrice } from './machineJobEffectivePrice';
-import type { MachineJobFinalPrice } from './machineJobFinalPrice';
 import type { Version } from './version';
 
 export interface MachineJob {
@@ -75,22 +74,6 @@ export interface MachineJob {
    * @nullable
    */
   effectivePrice?: MachineJobEffectivePrice;
-  /**
-   * Effective price when an adjustment exists.
-   * @deprecated
-   * @nullable
-   */
-  finalPrice?: MachineJobFinalPrice;
-  /**
-   * @deprecated
-   * @nullable
-   */
-  priceOverrideReason?: string | null;
-  /**
-   * @deprecated
-   * @nullable
-   */
-  priceOverriddenAt?: string | null;
   version: Version;
   createdAt: string;
   updatedAt: string;

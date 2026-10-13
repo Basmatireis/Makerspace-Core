@@ -8,7 +8,7 @@
 .mj-metric__label { @include type-style('label-01'); color: var(--cds-text-secondary); }
 .mj-metric__value { @include type-style('productive-heading-05'); margin-block-start: $spacing-02; }
 
-.mj-tab-panel { display: grid; gap: $spacing-06; padding-block-start: $spacing-05; }
+.mj-tab-panel { display: grid; grid-template-columns: minmax(0, 1fr); gap: $spacing-06; padding-block-start: $spacing-05; }
 .mj-tile-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: $spacing-03; margin-block-end: $spacing-04; }
 .mj-tile-header h3 { @include type-style('heading-compact-02'); }
 

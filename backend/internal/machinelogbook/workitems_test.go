@@ -448,7 +448,6 @@ func TestOverviewWorkItemCountsAndActiveItems(t *testing.T) {
 		}
 		return o
 	}
-	before := read(h.p)
 	w := &workItemFixture{printHarness: h}
 	// Same shape as the work item fixture, rebuilt on this harness.
 	running := h.create(t, h.input(-time.Hour, 3*time.Hour, "unknown"))
@@ -464,17 +463,39 @@ func TestOverviewWorkItemCountsAndActiveItems(t *testing.T) {
 	_ = w
 
 	after := read(h.p)
-	delta := func(label string, got, was *int64, want int64) {
+	// The database is shared with concurrently running tests, so the global overview
+	// counts can only be bounded from below by this fixture's contribution (other
+	// data can add to them but cannot remove ours). Exact counts are asserted
+	// scoped to the machines this test owns.
+	atLeast := func(label string, got *int64, want int64) {
 		t.Helper()
-		if got == nil || was == nil || *got-*was != want {
-			t.Fatalf("%s delta = %v - %v, want %d", label, got, was, want)
+		if got == nil || *got < want {
+			t.Fatalf("overview %s = %v, want at least %d", label, got, want)
 		}
 	}
-	delta("runningNow", after.RunningNow, before.RunningNow, 2)
-	delta("needsOutcome", after.NeedsOutcome, before.NeedsOutcome, 1)
-	delta("unlinkedPrints", after.UnlinkedPrints, before.UnlinkedPrints, 1)
-	delta("billingIssues", after.BillingIssues, before.BillingIssues, 1)
-	delta("activeTotal", after.ActiveTotal, before.ActiveTotal, 4)
+	atLeast("runningNow", after.RunningNow, 2)
+	atLeast("needsOutcome", after.NeedsOutcome, 1)
+	atLeast("unlinkedPrints", after.UnlinkedPrints, 1)
+	atLeast("billingIssues", after.BillingIssues, 1)
+	atLeast("activeTotal", after.ActiveTotal, 4)
+	mine4 := []uuid.UUID{h.machine.ID, h.bareMachine.ID}
+	scoped := func(label string, filters WorkItemFilters, want int64) {
+		t.Helper()
+		filters.MachineIDs = mine4
+		filters.Page, filters.PageSize = 1, 50
+		_, total, err := h.s.ListWorkItems(ctx, h.p, filters)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if total != want {
+			t.Fatalf("%s = %d on this fixture's machines, want %d", label, total, want)
+		}
+	}
+	scoped("running+printing", WorkItemFilters{Statuses: []string{"running", "printing"}}, 2)
+	scoped("needs_outcome", WorkItemFilters{Statuses: []string{"needs_outcome"}}, 1)
+	scoped("unlinked", WorkItemFilters{Statuses: []string{"unlinked"}}, 1)
+	scoped("billing issues", WorkItemFilters{Billing: []string{"price_incomplete", "order_outdated"}}, 1)
+	scoped("active", WorkItemFilters{Statuses: []string{"running", "printing", "unlinked", "needs_outcome"}}, 4)
 	for _, name := range []string{h.machine.Name, h.bareMachine.Name} {
 		if !slices.Contains(after.RunningMachineNames, name) {
 			t.Fatalf("running machine names %v lack %s", after.RunningMachineNames, name)

@@ -32,7 +32,12 @@ func snapshot(job machinelogbook.MachineJob) (*JobChargeSnapshot, error) {
 	for _, u := range job.Usages {
 		usages = append(usages, JobUsage{ID: u.ID, MaterialID: u.MaterialID, SpoolID: u.SpoolID, SpoolDisplayID: u.SpoolDisplayID, Ownership: u.Ownership, MaterialName: u.MaterialName, Category: u.Category, Unit: u.Unit, Quantity: u.Quantity, QuantityBasis: u.QuantityBasis})
 	}
-	return &JobChargeSnapshot{DisplayID: job.DisplayID, MachineID: job.Machine.ID, MachineName: job.Machine.Name, MachineTypeID: job.Machine.MachineType.ID, MachineTypeName: job.Machine.MachineType.Name, StartsAt: job.StartsAt, EndsAt: job.EndsAt, DurationNanoseconds: decimal.NewFromInt(job.EndsAt.Sub(job.StartsAt).Nanoseconds()).String(), Outcome: job.Outcome, Usages: usages, Pricing: pricing, PricingStatus: job.PricingStatus, CalculatedAmount: job.CalculatedPrice, FinalAmount: job.FinalPrice, EffectiveAmount: *job.EffectivePrice, OverrideReason: job.PriceOverrideReason, OverriddenAt: job.PriceOverriddenAt, CapturedAt: time.Now().UTC()}, nil
+	var finalAmount, overrideReason *string
+	var overriddenAt *time.Time
+	if adj := job.PriceAdjustment; adj != nil {
+		finalAmount, overrideReason, overriddenAt = job.EffectivePrice, &adj.Reason, &adj.AdjustedAt
+	}
+	return &JobChargeSnapshot{DisplayID: job.DisplayID, MachineID: job.Machine.ID, MachineName: job.Machine.Name, MachineTypeID: job.Machine.MachineType.ID, MachineTypeName: job.Machine.MachineType.Name, StartsAt: job.StartsAt, EndsAt: job.EndsAt, DurationNanoseconds: decimal.NewFromInt(job.EndsAt.Sub(job.StartsAt).Nanoseconds()).String(), Outcome: job.Outcome, Usages: usages, Pricing: pricing, PricingStatus: job.PricingStatus, CalculatedAmount: job.CalculatedPrice, FinalAmount: finalAmount, EffectiveAmount: *job.EffectivePrice, OverrideReason: overrideReason, OverriddenAt: overriddenAt, CapturedAt: time.Now().UTC()}, nil
 }
 func (s *Service) insertItem(ctx context.Context, tx pgx.Tx, p authorization.Principal, o db.Order, input OrderItemInput, requestID *uuid.UUID) (db.OrderItem, error) {
 	q := db.New(tx)

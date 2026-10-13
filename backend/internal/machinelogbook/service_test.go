@@ -321,7 +321,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	if repriced.PricingSnapshot == nil || repriced.PricingSnapshot.Revision != 2 || repriced.PricingSnapshot.Reason != "customer_changed" {
 		t.Fatalf("unexpected repricing snapshot: %+v", repriced.PricingSnapshot)
 	}
-	if repriced.CalculatedPrice == nil || *repriced.CalculatedPrice != "7.02" || repriced.FinalPrice == nil || *repriced.FinalPrice != "7" || repriced.EffectivePrice == nil || *repriced.EffectivePrice != "7" {
+	if repriced.CalculatedPrice == nil || *repriced.CalculatedPrice != "7.02" || repriced.PriceAdjustment == nil || repriced.EffectivePrice == nil || *repriced.EffectivePrice != "7" {
 		t.Fatalf("reprice did not preserve override: %+v", repriced)
 	}
 	var revisions int

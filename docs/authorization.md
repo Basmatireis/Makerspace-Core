@@ -55,10 +55,10 @@ Authorization is based on application-registered permission identifiers. Backend
 | `mail.manage` | Configure encrypted transactional SMTP settings. |
 | `branding.manage` | Configure the installation-wide organization identity, brand colors and assets, and imprint/privacy delivery. |
 | `machines.read`, `machines.manage` | Read machine catalog/metrics or create and update machine types and machines. |
-| `machine_jobs.read`, `machine_jobs.create` | Read/filter jobs or create confirmed manual jobs and session-authenticated automatic ingests. |
-| `machine_jobs.edit`, `machine_jobs.review` | Correct confirmed operational jobs independently of Order state or confirm the automatic review queue. |
-| `machine_jobs.override_price` | Set and clear final-price overrides while retaining calculated prices. |
-| `inventory.read`, `inventory.manage` | Read material balances/ledger or mutate catalog and stock through ledger-backed operations. |
+| `machine_jobs.read`, `machine_jobs.create` | Read/filter jobs, work items, prints, and current machine activity, or create confirmed manual jobs and jobs from prints. |
+| `machine_jobs.edit`, `machine_jobs.review` | Correct confirmed operational jobs, cancel runs, and link or unlink prints independently of Order state, or confirm legacy `needs_review` jobs. |
+| `machine_jobs.override_price` | Set and clear price adjustments (fixed, discount, multiplier) while retaining calculated prices. |
+| `inventory.read`, `inventory.manage` | Read material balances/ledger and the filament product catalog, or mutate catalog, products, and stock through ledger-backed operations. Changing filament, finishing, and cleaning up spools also need `filament_spools.manage`. |
 | `organizations.read`, `organizations.manage` | Read billing organizations or create/update/deactivate them. |
 | `orders.read`, `orders.write` | Read internal charge snapshots or manage drafts and item claims. Minimal payer/operator lookup accepts Order read. |
 | `orders.finalize`, `orders.reverse` | Freeze charges or append full reversal/linked replacement. Replacement also needs payment read/record. |

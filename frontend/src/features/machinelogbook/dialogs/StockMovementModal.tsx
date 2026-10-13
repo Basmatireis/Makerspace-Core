@@ -95,7 +95,7 @@ export function StockMovementModal({ open, onClose, mode, material, spool }: { o
 
   return (
     <Modal
-      open={open} size="sm" modalHeading={text.title} modalLabel={subject}
+      open={open} size="sm" modalHeading={text.title} modalLabel={subject} aria-label={`${text.title} ${subject}`}
       primaryButtonText={pending ? 'Saving…' : text.submit} secondaryButtonText="Cancel" primaryButtonDisabled={pending}
       preventCloseOnClickOutside shouldSubmitOnEnter={false}
       onRequestClose={() => { if (!pending) onClose(); }} onRequestSubmit={() => { void submit(); }}

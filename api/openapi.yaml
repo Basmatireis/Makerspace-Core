@@ -4676,39 +4676,6 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /machine-jobs/{machineJobId}/price-override:
-    parameters:
-      - {name: machineJobId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
-    put:
-      tags: [Machine Jobs]
-      operationId: overrideMachineJobPrice
-      summary: Set a fixed final job price (deprecated, use price-adjustment)
-      deprecated: true
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/OverrideMachineJobPriceRequest"}}}}
-      responses:
-        "200": {description: Price overridden., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-    delete:
-      tags: [Machine Jobs]
-      operationId: clearMachineJobPriceOverride
-      summary: Clear the current price adjustment (deprecated, use price-adjustment)
-      deprecated: true
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
-      responses:
-        "200": {description: Override cleared., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
   /machine-jobs/{machineJobId}/run-cancellation:
     parameters:
       - {name: machineJobId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
@@ -11213,9 +11180,6 @@ components:
           allOf: [{$ref: "#/components/schemas/Money"}]
           nullable: true
           description: Calculated price with the price adjustment applied, rounded to cents and never below zero.
-        finalPrice: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true, deprecated: true, description: Effective price when an adjustment exists.}
-        priceOverrideReason: {type: string, nullable: true, deprecated: true}
-        priceOverriddenAt: {type: string, format: date-time, nullable: true, deprecated: true}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
@@ -11309,15 +11273,6 @@ components:
       required: [usages, expectedVersion]
       properties:
         usages: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/MachineJobUsageInput"}}
-        expectedVersion: {$ref: "#/components/schemas/Version"}
-
-    OverrideMachineJobPriceRequest:
-      type: object
-      additionalProperties: false
-      required: [finalPrice, reason, expectedVersion]
-      properties:
-        finalPrice: {$ref: "#/components/schemas/Money"}
-        reason: {type: string, minLength: 1, maxLength: 500}
         expectedVersion: {$ref: "#/components/schemas/Version"}
 
     DailyJobActivity:

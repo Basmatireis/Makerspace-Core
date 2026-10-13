@@ -500,34 +500,6 @@ func (s *Server) ReplaceMachineJobUsages(ctx context.Context, r openapi.ReplaceM
 	}
 	return openapi.ReplaceMachineJobUsages200JSONResponse(mlJobDTO(item)), nil
 }
-func (s *Server) OverrideMachineJobPrice(ctx context.Context, r openapi.OverrideMachineJobPriceRequestObject) (openapi.OverrideMachineJobPriceResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if r.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	item, err := s.machineLogbook.SetJobPriceAdjustment(ctx, p, r.MachineJobId, r.Body.ExpectedVersion, "fixed", string(r.Body.FinalPrice), r.Body.Reason, requestIDPointer(ctx))
-	if err != nil {
-		return nil, err
-	}
-	return openapi.OverrideMachineJobPrice200JSONResponse(mlJobDTO(item)), nil
-}
-func (s *Server) ClearMachineJobPriceOverride(ctx context.Context, r openapi.ClearMachineJobPriceOverrideRequestObject) (openapi.ClearMachineJobPriceOverrideResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if r.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	item, err := s.machineLogbook.ClearJobPriceAdjustment(ctx, p, r.MachineJobId, r.Body.ExpectedVersion, requestIDPointer(ctx))
-	if err != nil {
-		return nil, err
-	}
-	return openapi.ClearMachineJobPriceOverride200JSONResponse(mlJobDTO(item)), nil
-}
 func (s *Server) SetMachineJobPriceAdjustment(ctx context.Context, r openapi.SetMachineJobPriceAdjustmentRequestObject) (openapi.SetMachineJobPriceAdjustmentResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {

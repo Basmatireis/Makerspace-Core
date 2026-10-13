@@ -353,33 +353,29 @@ type PricingSnapshot struct {
 }
 
 type MachineJob struct {
-	ID                                          uuid.UUID
-	DisplayID                                   string
-	Title                                       *string
-	Status                                      string
-	Machine                                     Machine
-	StartsAt, EndsAt                            time.Time
-	DurationSeconds                             int64
-	Source                                      string
-	ExternalID                                  *string
-	Run                                         string
-	Print                                       *MachineJobPrint
-	ReviewState                                 string
-	Customer                                    *BillingParty
-	Operator                                    *Operator
-	Outcome                                     string
-	Notes                                       *string
-	Usages                                      []MachineJobUsage
-	PricingStatus                               string
-	PricingSnapshot                             *PricingSnapshot
-	CalculatedPrice, FinalPrice, EffectivePrice *string
-	PriceAdjustment                             *PriceAdjustment
-	// PriceOverrideReason and PriceOverriddenAt are deprecated compatibility
-	// views of the price adjustment.
-	PriceOverrideReason  *string
-	PriceOverriddenAt    *time.Time
-	Version              int64
-	CreatedAt, UpdatedAt time.Time
+	ID                              uuid.UUID
+	DisplayID                       string
+	Title                           *string
+	Status                          string
+	Machine                         Machine
+	StartsAt, EndsAt                time.Time
+	DurationSeconds                 int64
+	Source                          string
+	ExternalID                      *string
+	Run                             string
+	Print                           *MachineJobPrint
+	ReviewState                     string
+	Customer                        *BillingParty
+	Operator                        *Operator
+	Outcome                         string
+	Notes                           *string
+	Usages                          []MachineJobUsage
+	PricingStatus                   string
+	PricingSnapshot                 *PricingSnapshot
+	CalculatedPrice, EffectivePrice *string
+	PriceAdjustment                 *PriceAdjustment
+	Version                         int64
+	CreatedAt, UpdatedAt            time.Time
 }
 
 type StatisticPoint struct{ Key, Label, Value string }

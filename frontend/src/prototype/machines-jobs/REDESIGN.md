@@ -73,7 +73,7 @@ Companion to `DESIGN.md` (structure + screen spec). Prototype: `cd frontend && p
 | Spool `manufacturer` / `productName` free text | Kept as the snapshot of the chosen catalog product (Inventory › Products); empty `productId` for manual entries |
 | **New exposure:** edit confirmed job facts/usage | Job detail *Edit job* / overflow *Edit material usage* |
 
-## 5. Future improvements (not implemented in the backend — proposals only)
+## 5. Future improvements (proposals; items marked implemented are in the backend)
 - **Maintenance log**: dated notes and reason when a machine enters/leaves maintenance (today the status has no
   enforced effect and no history).
 - **Machine status message**: short operator-visible note ("Nozzle clogged, use #2").
@@ -82,7 +82,7 @@ Companion to `DESIGN.md` (structure + screen spec). Prototype: `cd frontend && p
 - **Dismiss an unlinked print** (e.g. test prints): create or link is the only exit in the prototype.
 - **Slot observations applied to slots** (`slot_observation` events are stored but unused).
 - Vendor connector adapters (only the simulator adapter exists in this repo).
-- **Filament product catalog** (prototyped in Inventory › Products, spool registration and Change filament): needs a
+- **Filament product catalog** (**implemented**: `filament_products`, `/filament-products`, migration 00038; prototyped in Inventory › Products, spool registration and Change filament): needs a
   `filament_products` entity (manufacturer, name, material, net weight, default price, packaging `refill|spool`,
   notes, active), CRUD endpoints guarded by `inventory.manage` (reads by `inventory.read`), and a nullable
   `product_id` on spools and spool fills next to the existing `manufacturer` / `product_name` snapshot columns, so
@@ -96,13 +96,13 @@ Companion to `DESIGN.md` (structure + screen spec). Prototype: `cd frontend && p
    functions (`confirmMachineJob`, `updateMachineJob`, `replaceMachineJobUsages`, `overrideMachineJobPrice`,
    `createPrintAttempt`, `transitionPrintAttempt`, `linkPrintAttemptJob`, `reconcilePrinterEvent`, …) with
    `expectedVersion` taken from the loaded record.
-3. **Machine availability** needs per-machine "currently printing" data. Options without schema changes:
+3. **Machine availability** (implemented: `GET /machine-logbook/machine-activity`) needed per-machine "currently printing" data. Options without schema changes:
    list print submissions with `state=in_progress` (attempts embedded) and printer-connector assignments
    (requires `printer_connectors.read`). A small read-only endpoint/field (e.g. `currentAttempt` on Machine)
    would be cleaner — that is an API change and needs a separate decision.
-4. **Overview attention counts** for follow-ups (unlinked finished attempts, pending reports) and incomplete
+4. **Overview attention counts** (implemented in `GET /machine-logbook/overview`) for follow-ups (unlinked finished attempts, pending reports) and incomplete
    prices are not in `GET /machine-logbook/overview` today; either extend that response or derive from lists.
-5. **Billing state per job in lists** requires order association per job; today it is a separate
+5. **Billing state per job in lists** (implemented in `GET /machine-logbook/work-items`) required order association per job; today it is a separate
    per-job request. For the list column either add the order reference to the job list response or omit the
    billing tag in the table.
 6. **Job picker for linking** uses `GET /machine-jobs?machineId=…` (already supported).
@@ -112,7 +112,7 @@ Companion to `DESIGN.md` (structure + screen spec). Prototype: `cd frontend && p
 8. **Tests**: port role-based gating to `MachineLogbookPages.test.tsx` / `ConfigurationAccess.test.tsx`
    (review, edit, override price, print management, printer slots), plus e2e for review and print workflows.
 
-9. **Spool fills and spool deletion (backend gaps)**: the backend has filament spools with identifiers, lifecycle and
+9. **Spool fills and spool deletion (implemented in migrations 00038/00039; original gap notes below)**: the backend has filament spools with identifiers, lifecycle and
    material spool-transfers, but **no fill history and no spool deletion**. The refill and cleanup workflows need
    (a) a *spool fill* entity and endpoint that closes the current fill (leftover outcome used up / returned to stock /
    disposed, with the correction, transfer or disposal ledger entries) and starts the next fill atomically, with the
@@ -123,6 +123,7 @@ Companion to `DESIGN.md` (structure + screen spec). Prototype: `cd frontend && p
    in the ledger, and an authorization decision for cleanup (`filament_spools.manage` is assumed in the prototype).
 
 ### Domain model change: automatic prints, manual runs, link and replace
+**Status: implemented** (a-d below; see `docs/machine-logbook.md`). (a) running/cancel: derived status plus `POST /machine-jobs/{id}/run-cancellation`; (b) prints: observed runs extended in migration 00037, `/prints`; (c) `PUT`/`DELETE`/`POST /prints/{id}/job`; (d) `POST /machine-jobs/automatic` removed, legacy `needs_review` jobs are confirmed when an outcome is recorded. Original notes:
 The prototype now follows this model: nobody creates prints; connectors create them; staff create a job when a
 printer cannot report a print (manual run, simulated run while its end is in the future); a later automatic print
 is linked to the job and replaces the manual run. Backend impact:
@@ -141,11 +142,11 @@ is linked to the job and replaces the manual run. Backend impact:
 
 
 
-- **Price adjustments**: today the backend stores only a fixed `finalPrice` + reason (`PUT /machine-jobs/{id}/price-override`).
+- **Price adjustments** (**implemented**: `PUT`/`DELETE /machine-jobs/{id}/price-adjustment`, migration 00036): previously the backend stores only a fixed `finalPrice` + reason (`PUT /machine-jobs/{id}/price-override`).
   Fixed price maps to that directly. Discount (%/€) and multiplier must stay relative when the calculated price is
   recalculated, so they need a stored adjustment kind + value (e.g. replace the override with
   `priceAdjustment {kind, value, reason}`), applied in the pricing service and audited like the override today.
-- **Job name**: machine jobs have no name field today (only `notes`). Showing an optional job name needs a
+- **Job name** (**implemented**: nullable `title`, migration 00036): machine jobs had no name field (only `notes`). Showing an optional job name needs a
   nullable `title` column on machine jobs, the field in the job create/update/read schemas in `api/openapi.yaml`,
   and regenerated clients. The print name is already the printer-reported value.
 

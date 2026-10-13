@@ -43,7 +43,7 @@ export function FinishSpoolModal({ open, onClose, spool }: { open: boolean; onCl
 
   return (
     <Modal
-      open={open} size="md" modalHeading={title} modalLabel={spoolNameText(spool)}
+      open={open} size="md" modalHeading={title} modalLabel={spoolNameText(spool)} aria-label={`${title} ${spoolNameText(spool)}`}
       primaryButtonText={pending ? 'Saving…' : title} secondaryButtonText="Cancel" primaryButtonDisabled={pending}
       preventCloseOnClickOutside shouldSubmitOnEnter={false}
       onRequestClose={() => { if (!pending) onClose(); }} onRequestSubmit={() => { void submit(); }}

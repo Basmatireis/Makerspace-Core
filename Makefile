@@ -5,8 +5,14 @@ SHELL := /bin/sh
 .PHONY: help dev dev-detached down logs db-up db-shell \
 	migrate-up migrate-down migrate-status \
 	generate generate-openapi-go generate-openapi-ts generate-sqlc \
-	test test-backend test-frontend test-integration test-e2e test-production-compose test-android test-desktop \
-	check check-generated check-backend check-frontend build build-desktop admin bootstrap-master reset-password
+	test test-backend test-frontend test-db test-integration test-e2e test-production-compose test-android test-desktop \
+	check check-generated check-backend check-frontend build build-desktop admin bootstrap-master reset-password seed-dev
+
+# Integration tests use their own database next to the development database so
+# test runs never write into development data.
+TEST_POSTGRES_DB ?= makerspace_test
+# Rewrites the database name of the container's DATABASE_URL to TEST_POSTGRES_DB.
+TEST_DATABASE_URL_EXPR = $$(printf %s "$$DATABASE_URL" | sed "s\#/[^/?]*?\#/$$TEST_POSTGRES_DB?\#")
 
 help: ## Show available targets.
 	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z0-9_-]+:.*## / {printf "%-24s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -70,8 +76,15 @@ test-desktop: ## Build the PC/SC sidecar and run Rust formatting, lint, and unit
 	cd desktop-terminal && pnpm install --frozen-lockfile
 	cd desktop-terminal && pnpm check
 
-test-integration: migrate-up ## Run Go tests against the Compose PostgreSQL instance.
-	docker compose run --rm -e APP_ENV=test backend sh -c 'TEST_DATABASE_URL="$$DATABASE_URL" go test -count=1 ./...'
+test-db: db-up ## Create the dedicated integration-test database if missing and apply all migrations to it.
+	docker compose exec -T db sh -c 'psql -U "$$POSTGRES_USER" -d postgres -Atc "SELECT 1 FROM pg_database WHERE datname = '\''$(TEST_POSTGRES_DB)'\''" | grep -q 1 || createdb -U "$$POSTGRES_USER" "$(TEST_POSTGRES_DB)"'
+	docker compose run --rm --no-deps -e TEST_POSTGRES_DB=$(TEST_POSTGRES_DB) backend sh -c 'goose -dir migrations postgres "$(TEST_DATABASE_URL_EXPR)" up'
+
+test-integration: test-db ## Run Go tests against the dedicated test database (never the development database).
+	docker compose run --rm --no-deps -e APP_ENV=test -e TEST_POSTGRES_DB=$(TEST_POSTGRES_DB) backend sh -c 'TEST_DATABASE_URL="$(TEST_DATABASE_URL_EXPR)" go test -count=1 ./...'
+
+seed-dev: migrate-up ## Fill an empty development database with demo makerspace data (refuses to run on existing data).
+	docker compose run --rm backend go run ./cmd/devseed
 
 .PHONY: test-migrations
 test-migrations: ## Verify goose Up/Down/Up against an isolated empty database.

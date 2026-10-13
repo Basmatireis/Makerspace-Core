@@ -45,11 +45,11 @@ function RuntimeTile({ data }: { data: StatisticsChartsData }) {
             data={lineData}
             options={{ ...baseOptions(`Runtime in hours per ${unit} for ${selected.map((machine) => machine.name).join(', ')}`), legend: { enabled: true }, curve: 'curveMonotoneX' as const }}
           />
-          <table className="visually-hidden">
+          <div className="visually-hidden"><table>
             <caption>Machine runtime in hours per {unit}</caption>
             <thead><tr><th scope="col">{unit === 'week' ? 'Week' : 'Month'}</th>{selected.map((machine) => <th key={machine.id} scope="col">{machine.name}</th>)}</tr></thead>
             <tbody>{data.runtime.map((bucket) => <tr key={bucket.key}><td>{bucket.label}</td>{selected.map((machine) => <td key={machine.id}>{number(bucket.hoursByMachine[machine.id] ?? 0, 1)} h</td>)}</tr>)}</tbody>
-          </table>
+          </table></div>
         </>
       )}
     </Tile>
@@ -75,11 +75,11 @@ function BarTile({ id, title, label, points, format, valueHeader }: {
     <Tile className="mj-stats-chart">
       <h2 id={id} className="mj-stats-chart__title">{title}</h2>
       <SimpleBarChart data={data} options={baseOptions(label)} />
-      <table className="visually-hidden">
+      <div className="visually-hidden"><table>
         <caption>{title}</caption>
         <thead><tr><th scope="col">Category</th><th scope="col">{valueHeader}</th></tr></thead>
         <tbody>{points.map((point) => <tr key={point.label}><td>{point.label}</td><td>{format(point.value)}</td></tr>)}</tbody>
-      </table>
+      </table></div>
     </Tile>
   );
 }
@@ -101,11 +101,11 @@ export default function StatisticsCharts({ data }: { data: StatisticsChartsData 
       <Tile className="mj-stats-chart mj-stats-chart--wide">
         <h2 className="mj-stats-chart__title">Charges vs. material cost (€)</h2>
         <LineChart data={lineData} options={lineOptions} />
-        <table className="visually-hidden">
+        <div className="visually-hidden"><table>
           <caption>Monthly customer charges versus material cost</caption>
           <thead><tr><th scope="col">Month</th><th scope="col">Customer charges</th><th scope="col">Material cost</th></tr></thead>
           <tbody>{months.map((point) => <tr key={point.month}><td>{point.label}</td><td>{formatMoney(point.charges)}</td><td>{formatMoney(point.materialCost)}</td></tr>)}</tbody>
-        </table>
+        </table></div>
       </Tile>
       <RuntimeTile data={data} />
       <BarTile id="stats-material" title="Material usage by category (€ cost)" label="Material cost in euro per category" points={data.materialByCategory} format={formatMoney} valueHeader="Material cost" />

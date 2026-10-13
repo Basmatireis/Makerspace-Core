@@ -14,7 +14,9 @@ import { formatMoney, formatQuantity } from './format';
 
 /** "gearbox_housing_v3.gcode" → "Gearbox housing v3": a readable suggestion for a job name. */
 export function nameFromFile(fileName: string) {
-  const base = fileName.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  // Slicers stack extensions (Bambu: part.gcode.3mf), so strip known print extensions first.
+  const stripped = fileName.replace(/(\.(gcode|bgcode|3mf|stl|step|stp|obj|svg|dxf))+$/i, '');
+  const base = (stripped === fileName ? fileName.replace(/\.[^.]+$/, '') : stripped).replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
   return base ? base.charAt(0).toUpperCase() + base.slice(1) : fileName;
 }
 

@@ -602,9 +602,6 @@ func (s *Service) jobFromRow(ctx context.Context, q *machinelogbookdb.Queries, r
 	}
 	if row.PriceAdjustmentKind != nil {
 		item.PriceAdjustment = &PriceAdjustment{Kind: *row.PriceAdjustmentKind, Value: decimalString(row.PriceAdjustmentValue), Reason: stringValue(row.PriceAdjustmentReason), AdjustedAt: row.PriceAdjustedAt.Time}
-		item.FinalPrice = item.EffectivePrice
-		item.PriceOverrideReason = row.PriceAdjustmentReason
-		item.PriceOverriddenAt = nullableTime(row.PriceAdjustedAt)
 	}
 	for _, u := range usages {
 		item.Usages = append(item.Usages, MachineJobUsage{ID: u.ID, MaterialID: u.MaterialID, SpoolID: u.SpoolID, Ownership: u.Ownership, MaterialName: u.MaterialName, Category: u.Category, Unit: u.Unit, Quantity: decimalString(u.Quantity), QuantityBasis: u.QuantityBasis, SpoolDisplayID: u.SpoolDisplayID, FillNumber: u.FillNumber})
