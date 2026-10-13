@@ -24,6 +24,9 @@ import type { MachineJobOutcome } from './machineJobOutcome';
 import type { UpdateMachineJobRequestPricingGroupId } from './updateMachineJobRequestPricingGroupId';
 import type { Version } from './version';
 
+/**
+ * outcome must be unknown while endsAt lies in the future. Recording an outcome on a job that is still awaiting review (from earlier automatic ingest) confirms it: customer is then required, material usage is consumed and the price is captured.
+ */
 export interface UpdateMachineJobRequest {
   machineId: UUIDv7;
   startsAt: string;
@@ -31,6 +34,12 @@ export interface UpdateMachineJobRequest {
   customer?: BillingPartyReference;
   operatorPersonId: UUIDv7;
   outcome: MachineJobOutcome;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   * @nullable
+   */
+  title?: string | null;
   /**
    * @maxLength 2000
    * @nullable

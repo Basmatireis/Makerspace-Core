@@ -21,6 +21,8 @@ the required session and CSRF credentials.
 import type { Money } from './money';
 
 /**
+ * Effective price when an adjustment exists.
+ * @deprecated
  * @nullable
  */
 export type MachineJobFinalPrice = Money | null;

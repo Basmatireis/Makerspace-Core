@@ -24,6 +24,9 @@ import type { MachineJobOutcome } from './machineJobOutcome';
 import type { CreateMachineJobRequestPricingGroupId } from './createMachineJobRequestPricingGroupId';
 import type { MachineJobUsageInput } from './machineJobUsageInput';
 
+/**
+ * An endsAt in the future starts a simulated manual run that shows as running until then; outcome must then be unknown and is recorded later.
+ */
 export interface CreateMachineJobRequest {
   machineId: UUIDv7;
   startsAt: string;
@@ -31,6 +34,12 @@ export interface CreateMachineJobRequest {
   customer: BillingPartyReference;
   operatorPersonId: UUIDv7;
   outcome: MachineJobOutcome;
+  /**
+   * @minLength 1
+   * @maxLength 200
+   * @nullable
+   */
+  title?: string | null;
   /**
    * @maxLength 2000
    * @nullable

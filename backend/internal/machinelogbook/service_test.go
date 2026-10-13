@@ -32,7 +32,12 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 		{"machine_jobs.create", func() error { _, err := s.CreateManualJob(ctx, p, jobInput, nil); return err }},
 		{"machine_jobs.edit", func() error { _, err := s.UpdateJobFacts(ctx, p, id, 1, jobInput, nil); return err }},
 		{"machine_jobs.review", func() error { _, err := s.ReviewQueue(ctx, p); return err }},
-		{"machine_jobs.override_price", func() error { _, err := s.OverrideJobPrice(ctx, p, id, 1, "1", "test", nil); return err }},
+		{"machine_jobs.edit cancel run", func() error { _, err := s.CancelJobRun(ctx, p, id, 1, nil); return err }},
+		{"machine_jobs.override_price set", func() error {
+			_, err := s.SetJobPriceAdjustment(ctx, p, id, 1, "fixed", "1", "test", nil)
+			return err
+		}},
+		{"machine_jobs.override_price clear", func() error { _, err := s.ClearJobPriceAdjustment(ctx, p, id, 1, nil); return err }},
 		{"inventory.read", func() error { _, _, _, err := s.ListMaterials(ctx, p, "", "", "", 1, 25); return err }},
 		{"inventory.read spools", func() error { _, _, err := s.ListFilamentSpools(ctx, p, "", nil, "", "", 1, 25); return err }},
 		{"inventory.manage", func() error { _, err := s.CreateMaterial(ctx, p, "PLA", "pla", nil, "g", nil, nil); return err }},
@@ -52,17 +57,11 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 	}
 }
 
-func TestPricingHelpersAreExactAndMetadataComparisonIsSemantic(t *testing.T) {
+func TestPricingHelpersAreExact(t *testing.T) {
 	startsAt := time.Unix(0, 0).UTC()
 	endsAt := startsAt.Add(90*time.Minute + 500*time.Millisecond)
 	if got := runtimeHours(startsAt, endsAt).String(); got != "1.5001388888888889" {
 		t.Fatalf("runtime hours = %s", got)
-	}
-	if !metadataEqual([]byte(`{"b":2,"a":1}`), []byte("{\n  \"a\": 1, \"b\": 2\n}")) {
-		t.Fatal("equivalent JSON metadata did not compare equal")
-	}
-	if metadataEqual([]byte(`{"a":1}`), []byte(`{"a":1.0}`)) {
-		t.Fatal("numerically distinct JSON payload spellings were treated as identical")
 	}
 }
 
@@ -207,10 +206,17 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	}
 
 	startsAt := time.Date(2026, time.September, 15, 8, 12, 0, 0, time.UTC)
-	automatic := AutomaticJobInput{MachineID: machine.ID, StartsAt: startsAt, EndsAt: startsAt.Add(3*time.Hour + 14*time.Minute), ExternalID: "job-" + suffix, ExternalMetadata: []byte(`{"b":2,"a":1}`), Usages: []UsageInput{{MaterialID: material.ID, Quantity: "183"}}}
-	pending, created, err := s.IngestAutomaticJob(ctx, p, automatic, &requestID)
-	if err != nil || !created {
-		t.Fatalf("automatic ingest created=%v err=%v", created, err)
+	pendingID := uuid.Must(uuid.NewV7())
+	if _, err = pool.Exec(ctx, `INSERT INTO machine_jobs (id, display_id, machine_id, starts_at, ends_at, source, external_id, review_state, outcome)
+		VALUES ($1, 'J-2026-' || lpad(nextval('machine_job_display_sequence')::text, 6, '0'), $2, $3, $4, 'automatic', $5, 'needs_review', 'unknown')`, pendingID, machine.ID, startsAt, startsAt.Add(3*time.Hour+14*time.Minute), "job-"+suffix); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO machine_job_material_usages (id, machine_job_id, material_id, ownership, quantity_basis, quantity) VALUES ($1, $2, $3, 'makerspace', 'actual', 183)`, uuid.Must(uuid.NewV7()), pendingID, material.ID); err != nil {
+		t.Fatal(err)
+	}
+	pending, err := s.GetJob(ctx, p, pendingID)
+	if err != nil || pending.ReviewState != "needs_review" {
+		t.Fatalf("legacy pending job err=%v job=%+v", err, pending)
 	}
 	beforeReview, err := s.GetMaterial(ctx, p, material.ID)
 	if err != nil {
@@ -218,16 +224,6 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	}
 	if beforeReview.Quantity != "2000" {
 		t.Fatalf("pending job changed inventory to %s", beforeReview.Quantity)
-	}
-	automatic.ExternalMetadata = []byte(`{"a":1,"b":2}`)
-	repeated, created, err := s.IngestAutomaticJob(ctx, p, automatic, &requestID)
-	if err != nil || created || repeated.ID != pending.ID {
-		t.Fatalf("idempotent ingest created=%v id=%s err=%v", created, repeated.ID, err)
-	}
-	conflicting := automatic
-	conflicting.Usages = []UsageInput{{MaterialID: material.ID, Quantity: "184"}}
-	if _, _, err = s.IngestAutomaticJob(ctx, p, conflicting, &requestID); !apperror.IsCode(err, "external_job_mismatch") {
-		t.Fatalf("expected external_job_mismatch, got %v", err)
 	}
 
 	confirmed, err := s.ConfirmJob(ctx, p, pending.ID, pending.Version, PartyReference{Kind: "organization", ID: organization.ID}, personID, "successful", nil, nil, &requestID)
@@ -281,7 +277,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = materialRule
-	overridden, err := s.OverrideJobPrice(ctx, p, correctedJob.ID, correctedJob.Version, "7", "approved exception", &requestID)
+	overridden, err := s.SetJobPriceAdjustment(ctx, p, correctedJob.ID, correctedJob.Version, "fixed", "7", "approved exception", &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}

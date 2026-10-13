@@ -25,17 +25,24 @@ import type { MachineJobReviewState } from './machineJobReviewState';
 import type { MachineJobCustomer } from './machineJobCustomer';
 import type { MachineJobOperator } from './machineJobOperator';
 import type { MachineJobOutcome } from './machineJobOutcome';
+import type { MachineJobStatus } from './machineJobStatus';
 import type { MachineJobUsage } from './machineJobUsage';
 import type { PricingStatus } from './pricingStatus';
 import type { MachineJobPricingSnapshot } from './machineJobPricingSnapshot';
 import type { MachineJobCalculatedPrice } from './machineJobCalculatedPrice';
-import type { MachineJobFinalPrice } from './machineJobFinalPrice';
+import type { MachineJobPriceAdjustment } from './machineJobPriceAdjustment';
 import type { MachineJobEffectivePrice } from './machineJobEffectivePrice';
+import type { MachineJobFinalPrice } from './machineJobFinalPrice';
 import type { Version } from './version';
 
 export interface MachineJob {
   id: UUIDv7;
   displayId: string;
+  /**
+   * Optional staff-chosen name.
+   * @nullable
+   */
+  title?: string | null;
   machine: Machine;
   startsAt: string;
   endsAt: string;
@@ -50,6 +57,7 @@ export interface MachineJob {
   /** @nullable */
   operator?: MachineJobOperator;
   outcome: MachineJobOutcome;
+  status: MachineJobStatus;
   /** @nullable */
   notes?: string | null;
   usages: MachineJobUsage[];
@@ -57,13 +65,27 @@ export interface MachineJob {
   pricingSnapshot?: MachineJobPricingSnapshot;
   /** @nullable */
   calculatedPrice?: MachineJobCalculatedPrice;
-  /** @nullable */
-  finalPrice?: MachineJobFinalPrice;
-  /** @nullable */
+  priceAdjustment?: MachineJobPriceAdjustment;
+  /**
+   * Calculated price with the price adjustment applied, rounded to cents and never below zero.
+   * @nullable
+   */
   effectivePrice?: MachineJobEffectivePrice;
-  /** @nullable */
+  /**
+   * Effective price when an adjustment exists.
+   * @deprecated
+   * @nullable
+   */
+  finalPrice?: MachineJobFinalPrice;
+  /**
+   * @deprecated
+   * @nullable
+   */
   priceOverrideReason?: string | null;
-  /** @nullable */
+  /**
+   * @deprecated
+   * @nullable
+   */
   priceOverriddenAt?: string | null;
   version: Version;
   createdAt: string;

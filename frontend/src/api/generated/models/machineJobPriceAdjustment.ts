@@ -18,5 +18,16 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { PriceAdjustmentKind } from './priceAdjustmentKind';
+import type { Decimal } from './decimal';
 
-export type IngestAutomaticMachineJobRequestExternalMetadata = { [key: string]: unknown };
+/**
+ * @nullable
+ */
+export type MachineJobPriceAdjustment = {
+  kind: PriceAdjustmentKind;
+  /** fixed and discount_amount in EUR, discount_percent in percent (0-100], multiplier as a factor (0-100]. */
+  value: Decimal;
+  reason: string;
+  adjustedAt: string;
+} | null;

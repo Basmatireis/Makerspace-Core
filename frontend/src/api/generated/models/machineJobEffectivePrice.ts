@@ -21,6 +21,7 @@ the required session and CSRF credentials.
 import type { Money } from './money';
 
 /**
+ * Calculated price with the price adjustment applied, rounded to cents and never below zero.
  * @nullable
  */
 export type MachineJobEffectivePrice = Money | null;

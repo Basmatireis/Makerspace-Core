@@ -4470,23 +4470,6 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /machine-jobs/automatic:
-    post:
-      tags: [Machine Jobs]
-      operationId: ingestAutomaticMachineJob
-      summary: Ingest an automatically detected job idempotently
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/IngestAutomaticMachineJobRequest"}}}}
-      responses:
-        "200": {description: Existing identical job., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
-        "201": {description: Automatic job created., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
   /machine-jobs/review-queue:
     get:
       tags: [Machine Jobs]
@@ -4570,7 +4553,8 @@ paths:
     put:
       tags: [Machine Jobs]
       operationId: overrideMachineJobPrice
-      summary: Set a final job price without replacing the calculation
+      summary: Set a fixed final job price (deprecated, use price-adjustment)
+      deprecated: true
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/OverrideMachineJobPriceRequest"}}}}
       responses:
@@ -4584,11 +4568,60 @@ paths:
     delete:
       tags: [Machine Jobs]
       operationId: clearMachineJobPriceOverride
-      summary: Clear the current final-price override
+      summary: Clear the current price adjustment (deprecated, use price-adjustment)
+      deprecated: true
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
       responses:
         "200": {description: Override cleared., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-jobs/{machineJobId}/run-cancellation:
+    parameters:
+      - {name: machineJobId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Machine Jobs]
+      operationId: cancelMachineJobRun
+      summary: End a running manual run now, record it as cancelled and recalculate the price
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Run cancelled., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-jobs/{machineJobId}/price-adjustment:
+    parameters:
+      - {name: machineJobId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Machine Jobs]
+      operationId: setMachineJobPriceAdjustment
+      summary: Set a price adjustment that is re-applied whenever the calculated price changes
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetMachineJobPriceAdjustmentRequest"}}}}
+      responses:
+        "200": {description: Price adjusted., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Machine Jobs]
+      operationId: clearMachineJobPriceAdjustment
+      summary: Remove the price adjustment so the calculated price applies
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Adjustment cleared., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -10430,6 +10463,40 @@ components:
       type: string
       enum: [pending, complete, incomplete]
 
+    MachineJobStatus:
+      type: string
+      description: >-
+        Derived at read time. running: the run's end lies in the future (manual run) and it was not cancelled.
+        needs_outcome: the run has ended and no outcome is recorded yet. Otherwise the recorded outcome.
+      enum: [running, needs_outcome, successful, partial_failure, failed, cancelled]
+
+    PriceAdjustmentKind:
+      type: string
+      enum: [fixed, discount_percent, discount_amount, multiplier]
+
+    MachineJobPriceAdjustment:
+      type: object
+      nullable: true
+      additionalProperties: false
+      required: [kind, value, reason, adjustedAt]
+      properties:
+        kind: {$ref: "#/components/schemas/PriceAdjustmentKind"}
+        value:
+          allOf: [{$ref: "#/components/schemas/Decimal"}]
+          description: fixed and discount_amount in EUR, discount_percent in percent (0-100], multiplier as a factor (0-100].
+        reason: {type: string}
+        adjustedAt: {type: string, format: date-time}
+
+    SetMachineJobPriceAdjustmentRequest:
+      type: object
+      additionalProperties: false
+      required: [kind, value, reason, expectedVersion]
+      properties:
+        kind: {$ref: "#/components/schemas/PriceAdjustmentKind"}
+        value: {$ref: "#/components/schemas/Decimal"}
+        reason: {type: string, minLength: 1, maxLength: 500}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+
     MachineJobUsageInput:
       type: object
       additionalProperties: false
@@ -10498,10 +10565,11 @@ components:
     MachineJob:
       type: object
       additionalProperties: false
-      required: [id, displayId, machine, startsAt, endsAt, durationSeconds, source, reviewState, outcome, usages, pricingStatus, version, createdAt, updatedAt]
+      required: [id, displayId, machine, startsAt, endsAt, durationSeconds, source, reviewState, outcome, status, usages, pricingStatus, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         displayId: {type: string}
+        title: {type: string, nullable: true, description: Optional staff-chosen name.}
         machine: {$ref: "#/components/schemas/Machine"}
         startsAt: {type: string, format: date-time}
         endsAt: {type: string, format: date-time}
@@ -10512,15 +10580,20 @@ components:
         customer: {allOf: [{$ref: "#/components/schemas/BillingParty"}], nullable: true}
         operator: {allOf: [{$ref: "#/components/schemas/Operator"}], nullable: true}
         outcome: {$ref: "#/components/schemas/MachineJobOutcome"}
+        status: {$ref: "#/components/schemas/MachineJobStatus"}
         notes: {type: string, nullable: true}
         usages: {type: array, items: {$ref: "#/components/schemas/MachineJobUsage"}}
         pricingStatus: {$ref: "#/components/schemas/PricingStatus"}
         pricingSnapshot: {$ref: "#/components/schemas/MachineJobPricingSnapshot"}
         calculatedPrice: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true}
-        finalPrice: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true}
-        effectivePrice: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true}
-        priceOverrideReason: {type: string, nullable: true}
-        priceOverriddenAt: {type: string, format: date-time, nullable: true}
+        priceAdjustment: {$ref: "#/components/schemas/MachineJobPriceAdjustment"}
+        effectivePrice:
+          allOf: [{$ref: "#/components/schemas/Money"}]
+          nullable: true
+          description: Calculated price with the price adjustment applied, rounded to cents and never below zero.
+        finalPrice: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true, deprecated: true, description: Effective price when an adjustment exists.}
+        priceOverrideReason: {type: string, nullable: true, deprecated: true}
+        priceOverriddenAt: {type: string, format: date-time, nullable: true, deprecated: true}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
@@ -10544,6 +10617,9 @@ components:
 
     CreateMachineJobRequest:
       type: object
+      description: >-
+        An endsAt in the future starts a simulated manual run that shows as running until then; outcome must then be
+        unknown and is recorded later.
       additionalProperties: false
       required: [machineId, startsAt, endsAt, customer, operatorPersonId, outcome, usages]
       properties:
@@ -10553,6 +10629,7 @@ components:
         customer: {$ref: "#/components/schemas/BillingPartyReference"}
         operatorPersonId: {$ref: "#/components/schemas/UUIDv7"}
         outcome: {$ref: "#/components/schemas/MachineJobOutcome"}
+        title: {type: string, minLength: 1, maxLength: 200, nullable: true}
         notes: {type: string, maxLength: 2000, nullable: true}
         pricingGroupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         usages: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/MachineJobUsageInput"}}
@@ -10572,18 +10649,6 @@ components:
         pricingGroupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         usages: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/MachineJobUsageInput"}}
 
-    IngestAutomaticMachineJobRequest:
-      type: object
-      additionalProperties: false
-      required: [machineId, externalId, startsAt, endsAt, usages]
-      properties:
-        machineId: {$ref: "#/components/schemas/UUIDv7"}
-        externalId: {type: string, minLength: 1, maxLength: 200}
-        startsAt: {type: string, format: date-time}
-        endsAt: {type: string, format: date-time}
-        usages: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/MachineJobUsageInput"}}
-        externalMetadata: {type: object, additionalProperties: true}
-
     ConfirmMachineJobRequest:
       type: object
       additionalProperties: false
@@ -10598,6 +10663,10 @@ components:
 
     UpdateMachineJobRequest:
       type: object
+      description: >-
+        outcome must be unknown while endsAt lies in the future. Recording an outcome on a job that is still awaiting
+        review (from earlier automatic ingest) confirms it: customer is then required, material usage is consumed and
+        the price is captured.
       additionalProperties: false
       required: [machineId, startsAt, endsAt, operatorPersonId, outcome, expectedVersion]
       properties:
@@ -10607,6 +10676,7 @@ components:
         customer: {$ref: "#/components/schemas/BillingPartyReference"}
         operatorPersonId: {$ref: "#/components/schemas/UUIDv7"}
         outcome: {$ref: "#/components/schemas/MachineJobOutcome"}
+        title: {type: string, minLength: 1, maxLength: 200, nullable: true}
         notes: {type: string, maxLength: 2000, nullable: true}
         pricingGroupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         expectedVersion: {$ref: "#/components/schemas/Version"}

@@ -21,9 +21,25 @@ import (
 
 const currency = "EUR"
 
-type Service struct{ pool *pgxpool.Pool }
+type Service struct {
+	pool *pgxpool.Pool
+	now  func() time.Time
+}
 
-func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
+// Option customizes a Service.
+type Option func(*Service)
+
+// WithClock replaces the wall clock, which tests use to make running and
+// finished jobs deterministic.
+func WithClock(now func() time.Time) Option { return func(s *Service) { s.now = now } }
+
+func NewService(pool *pgxpool.Pool, options ...Option) *Service {
+	s := &Service{pool: pool, now: func() time.Time { return time.Now().UTC() }}
+	for _, option := range options {
+		option(s)
+	}
+	return s
+}
 
 type MachineType struct {
 	ID                   uuid.UUID
@@ -136,22 +152,20 @@ type UsageInput struct {
 	Quantity, QuantityBasis string
 }
 
+type PriceAdjustment struct {
+	Kind, Value, Reason string
+	AdjustedAt          time.Time
+}
+
 type JobInput struct {
 	MachineID        uuid.UUID
+	Title            *string
 	StartsAt, EndsAt time.Time
 	Customer         PartyReference
 	OperatorPersonID uuid.UUID
 	Outcome          string
 	Notes            *string
 	PricingGroupID   *uuid.UUID
-	Usages           []UsageInput
-}
-
-type AutomaticJobInput struct {
-	MachineID        uuid.UUID
-	StartsAt, EndsAt time.Time
-	ExternalID       string
-	ExternalMetadata []byte
 	Usages           []UsageInput
 }
 
@@ -223,6 +237,8 @@ type PricingSnapshot struct {
 type MachineJob struct {
 	ID                                          uuid.UUID
 	DisplayID                                   string
+	Title                                       *string
+	Status                                      string
 	Machine                                     Machine
 	StartsAt, EndsAt                            time.Time
 	DurationSeconds                             int64
@@ -237,10 +253,13 @@ type MachineJob struct {
 	PricingStatus                               string
 	PricingSnapshot                             *PricingSnapshot
 	CalculatedPrice, FinalPrice, EffectivePrice *string
-	PriceOverrideReason                         *string
-	PriceOverriddenAt                           *time.Time
-	Version                                     int64
-	CreatedAt, UpdatedAt                        time.Time
+	PriceAdjustment                             *PriceAdjustment
+	// PriceOverrideReason and PriceOverriddenAt are deprecated compatibility
+	// views of the price adjustment.
+	PriceOverrideReason  *string
+	PriceOverriddenAt    *time.Time
+	Version              int64
+	CreatedAt, UpdatedAt time.Time
 }
 
 type StatisticPoint struct{ Key, Label, Value string }

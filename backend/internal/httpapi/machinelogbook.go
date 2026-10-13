@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
@@ -423,35 +422,11 @@ func (s *Server) CreateMachineJob(ctx context.Context, r openapi.CreateMachineJo
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.CreateManualJob(ctx, p, machinelogbook.JobInput{MachineID: r.Body.MachineId, StartsAt: r.Body.StartsAt, EndsAt: r.Body.EndsAt, Customer: partyInput(r.Body.Customer), OperatorPersonID: r.Body.OperatorPersonId, Outcome: string(r.Body.Outcome), Notes: nullableStringPointer(r.Body.Notes), PricingGroupID: uuidNullable(r.Body.PricingGroupId), Usages: usageInputs(r.Body.Usages)}, requestIDPointer(ctx))
+	item, err := s.machineLogbook.CreateManualJob(ctx, p, machinelogbook.JobInput{MachineID: r.Body.MachineId, StartsAt: r.Body.StartsAt, EndsAt: r.Body.EndsAt, Customer: partyInput(r.Body.Customer), OperatorPersonID: r.Body.OperatorPersonId, Outcome: string(r.Body.Outcome), Title: nullableStringPointer(r.Body.Title), Notes: nullableStringPointer(r.Body.Notes), PricingGroupID: uuidNullable(r.Body.PricingGroupId), Usages: usageInputs(r.Body.Usages)}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
 	return openapi.CreateMachineJob201JSONResponse(mlJobDTO(item)), nil
-}
-func (s *Server) IngestAutomaticMachineJob(ctx context.Context, r openapi.IngestAutomaticMachineJobRequestObject) (openapi.IngestAutomaticMachineJobResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if r.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	metadata := []byte("{}")
-	if r.Body.ExternalMetadata != nil {
-		metadata, err = json.Marshal(*r.Body.ExternalMetadata)
-		if err != nil {
-			return nil, invalidRequest("externalMetadata is invalid")
-		}
-	}
-	item, created, err := s.machineLogbook.IngestAutomaticJob(ctx, p, machinelogbook.AutomaticJobInput{MachineID: r.Body.MachineId, StartsAt: r.Body.StartsAt, EndsAt: r.Body.EndsAt, ExternalID: r.Body.ExternalId, ExternalMetadata: metadata, Usages: usageInputs(r.Body.Usages)}, requestIDPointer(ctx))
-	if err != nil {
-		return nil, err
-	}
-	if created {
-		return openapi.IngestAutomaticMachineJob201JSONResponse(mlJobDTO(item)), nil
-	}
-	return openapi.IngestAutomaticMachineJob200JSONResponse(mlJobDTO(item)), nil
 }
 func (s *Server) ListMachineJobReviewQueue(ctx context.Context, _ openapi.ListMachineJobReviewQueueRequestObject) (openapi.ListMachineJobReviewQueueResponseObject, error) {
 	p, err := requirePrincipal(ctx)
@@ -491,7 +466,7 @@ func (s *Server) UpdateMachineJob(ctx context.Context, r openapi.UpdateMachineJo
 	if r.Body.Customer != nil {
 		customer = partyInput(*r.Body.Customer)
 	}
-	item, err := s.machineLogbook.UpdateJobFacts(ctx, p, r.MachineJobId, r.Body.ExpectedVersion, machinelogbook.JobInput{MachineID: r.Body.MachineId, StartsAt: r.Body.StartsAt, EndsAt: r.Body.EndsAt, Customer: customer, OperatorPersonID: r.Body.OperatorPersonId, Outcome: string(r.Body.Outcome), Notes: nullableStringPointer(r.Body.Notes), PricingGroupID: uuidNullable(r.Body.PricingGroupId)}, requestIDPointer(ctx))
+	item, err := s.machineLogbook.UpdateJobFacts(ctx, p, r.MachineJobId, r.Body.ExpectedVersion, machinelogbook.JobInput{MachineID: r.Body.MachineId, StartsAt: r.Body.StartsAt, EndsAt: r.Body.EndsAt, Customer: customer, OperatorPersonID: r.Body.OperatorPersonId, Outcome: string(r.Body.Outcome), Title: nullableStringPointer(r.Body.Title), Notes: nullableStringPointer(r.Body.Notes), PricingGroupID: uuidNullable(r.Body.PricingGroupId)}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -533,7 +508,7 @@ func (s *Server) OverrideMachineJobPrice(ctx context.Context, r openapi.Override
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.OverrideJobPrice(ctx, p, r.MachineJobId, r.Body.ExpectedVersion, string(r.Body.FinalPrice), r.Body.Reason, requestIDPointer(ctx))
+	item, err := s.machineLogbook.SetJobPriceAdjustment(ctx, p, r.MachineJobId, r.Body.ExpectedVersion, "fixed", string(r.Body.FinalPrice), r.Body.Reason, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -547,11 +522,53 @@ func (s *Server) ClearMachineJobPriceOverride(ctx context.Context, r openapi.Cle
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.ClearJobPriceOverride(ctx, p, r.MachineJobId, r.Body.ExpectedVersion, requestIDPointer(ctx))
+	item, err := s.machineLogbook.ClearJobPriceAdjustment(ctx, p, r.MachineJobId, r.Body.ExpectedVersion, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
 	return openapi.ClearMachineJobPriceOverride200JSONResponse(mlJobDTO(item)), nil
+}
+func (s *Server) SetMachineJobPriceAdjustment(ctx context.Context, r openapi.SetMachineJobPriceAdjustmentRequestObject) (openapi.SetMachineJobPriceAdjustmentResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.machineLogbook.SetJobPriceAdjustment(ctx, p, r.MachineJobId, r.Body.ExpectedVersion, string(r.Body.Kind), string(r.Body.Value), r.Body.Reason, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.SetMachineJobPriceAdjustment200JSONResponse(mlJobDTO(item)), nil
+}
+func (s *Server) ClearMachineJobPriceAdjustment(ctx context.Context, r openapi.ClearMachineJobPriceAdjustmentRequestObject) (openapi.ClearMachineJobPriceAdjustmentResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.machineLogbook.ClearJobPriceAdjustment(ctx, p, r.MachineJobId, r.Body.ExpectedVersion, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.ClearMachineJobPriceAdjustment200JSONResponse(mlJobDTO(item)), nil
+}
+func (s *Server) CancelMachineJobRun(ctx context.Context, r openapi.CancelMachineJobRunRequestObject) (openapi.CancelMachineJobRunResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.machineLogbook.CancelJobRun(ctx, p, r.MachineJobId, r.Body.ExpectedVersion, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.CancelMachineJobRun200JSONResponse(mlJobDTO(item)), nil
 }
 func (s *Server) GetMachineLogbookOverview(ctx context.Context, _ openapi.GetMachineLogbookOverviewRequestObject) (openapi.GetMachineLogbookOverviewResponseObject, error) {
 	p, err := requirePrincipal(ctx)

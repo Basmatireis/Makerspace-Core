@@ -18,20 +18,17 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { UUIDv7 } from './uUIDv7';
-import type { MachineJobUsageInput } from './machineJobUsageInput';
-import type { IngestAutomaticMachineJobRequestExternalMetadata } from './ingestAutomaticMachineJobRequestExternalMetadata';
+import type { PriceAdjustmentKind } from './priceAdjustmentKind';
+import type { Decimal } from './decimal';
+import type { Version } from './version';
 
-export interface IngestAutomaticMachineJobRequest {
-  machineId: UUIDv7;
+export interface SetMachineJobPriceAdjustmentRequest {
+  kind: PriceAdjustmentKind;
+  value: Decimal;
   /**
    * @minLength 1
-   * @maxLength 200
+   * @maxLength 500
    */
-  externalId: string;
-  startsAt: string;
-  endsAt: string;
-  /** @maxItems 50 */
-  usages: MachineJobUsageInput[];
-  externalMetadata?: IngestAutomaticMachineJobRequestExternalMetadata;
+  reason: string;
+  expectedVersion: Version;
 }

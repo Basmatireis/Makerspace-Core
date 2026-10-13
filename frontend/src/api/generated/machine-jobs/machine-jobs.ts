@@ -21,7 +21,6 @@ the required session and CSRF credentials.
 import type {
   ConfirmMachineJobRequest,
   CreateMachineJobRequest,
-  IngestAutomaticMachineJobRequest,
   ListMachineJobsParams,
   MachineJob,
   MachineJobList,
@@ -30,6 +29,7 @@ import type {
   OverrideMachineJobPriceRequest,
   ReplaceMachineJobUsagesRequest,
   SearchMachineJobOperatorsParams,
+  SetMachineJobPriceAdjustmentRequest,
   UUIDv7,
   UpdateMachineJobRequest,
   VersionRequest
@@ -117,30 +117,6 @@ export const createMachineJob = async (createMachineJobRequest: CreateMachineJob
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       createMachineJobRequest,)
-  }
-);}
-
-
-/**
- * @summary Ingest an automatically detected job idempotently
- */
-export const getIngestAutomaticMachineJobUrl = () => {
-
-
-  
-
-  return `/api/v1/machine-jobs/automatic`
-}
-
-export const ingestAutomaticMachineJob = async (ingestAutomaticMachineJobRequest: IngestAutomaticMachineJobRequest, options?: RequestInit): Promise<MachineJob | MachineJob> => {
-  
-  return apiFetch<MachineJob | MachineJob>(getIngestAutomaticMachineJobUrl(),
-  {      
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      ingestAutomaticMachineJobRequest,)
   }
 );}
 
@@ -267,7 +243,8 @@ export const replaceMachineJobUsages = async (machineJobId: UUIDv7,
 
 
 /**
- * @summary Set a final job price without replacing the calculation
+ * @deprecated
+ * @summary Set a fixed final job price (deprecated, use price-adjustment)
  */
 export const getOverrideMachineJobPriceUrl = (machineJobId: UUIDv7,) => {
 
@@ -292,7 +269,8 @@ export const overrideMachineJobPrice = async (machineJobId: UUIDv7,
 
 
 /**
- * @summary Clear the current final-price override
+ * @deprecated
+ * @summary Clear the current price adjustment (deprecated, use price-adjustment)
  */
 export const getClearMachineJobPriceOverrideUrl = (machineJobId: UUIDv7,) => {
 
@@ -306,6 +284,81 @@ export const clearMachineJobPriceOverride = async (machineJobId: UUIDv7,
     versionRequest: VersionRequest, options?: RequestInit): Promise<MachineJob> => {
   
   return apiFetch<MachineJob>(getClearMachineJobPriceOverrideUrl(machineJobId),
+  {      
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      versionRequest,)
+  }
+);}
+
+
+/**
+ * @summary End a running manual run now, record it as cancelled and recalculate the price
+ */
+export const getCancelMachineJobRunUrl = (machineJobId: UUIDv7,) => {
+
+
+  
+
+  return `/api/v1/machine-jobs/${machineJobId}/run-cancellation`
+}
+
+export const cancelMachineJobRun = async (machineJobId: UUIDv7,
+    versionRequest: VersionRequest, options?: RequestInit): Promise<MachineJob> => {
+  
+  return apiFetch<MachineJob>(getCancelMachineJobRunUrl(machineJobId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      versionRequest,)
+  }
+);}
+
+
+/**
+ * @summary Set a price adjustment that is re-applied whenever the calculated price changes
+ */
+export const getSetMachineJobPriceAdjustmentUrl = (machineJobId: UUIDv7,) => {
+
+
+  
+
+  return `/api/v1/machine-jobs/${machineJobId}/price-adjustment`
+}
+
+export const setMachineJobPriceAdjustment = async (machineJobId: UUIDv7,
+    setMachineJobPriceAdjustmentRequest: SetMachineJobPriceAdjustmentRequest, options?: RequestInit): Promise<MachineJob> => {
+  
+  return apiFetch<MachineJob>(getSetMachineJobPriceAdjustmentUrl(machineJobId),
+  {      
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      setMachineJobPriceAdjustmentRequest,)
+  }
+);}
+
+
+/**
+ * @summary Remove the price adjustment so the calculated price applies
+ */
+export const getClearMachineJobPriceAdjustmentUrl = (machineJobId: UUIDv7,) => {
+
+
+  
+
+  return `/api/v1/machine-jobs/${machineJobId}/price-adjustment`
+}
+
+export const clearMachineJobPriceAdjustment = async (machineJobId: UUIDv7,
+    versionRequest: VersionRequest, options?: RequestInit): Promise<MachineJob> => {
+  
+  return apiFetch<MachineJob>(getClearMachineJobPriceAdjustmentUrl(machineJobId),
   {      
     ...options,
     method: 'DELETE',

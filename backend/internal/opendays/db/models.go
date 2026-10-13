@@ -420,30 +420,33 @@ type Machine struct {
 }
 
 type MachineJob struct {
-	ID                         uuid.UUID
-	DisplayID                  string
-	MachineID                  uuid.UUID
-	StartsAt                   time.Time
-	EndsAt                     time.Time
-	Source                     string
-	ExternalID                 *string
-	ExternalMetadata           []byte
-	ReviewState                string
-	CustomerPersonID           *uuid.UUID
-	CustomerOrganizationID     *uuid.UUID
-	OperatorPersonID           *uuid.UUID
-	Outcome                    string
-	Notes                      *string
-	PricingStatus              string
-	CalculatedPrice            pgtype.Numeric
-	FinalPrice                 pgtype.Numeric
-	PriceOverrideReason        *string
-	PriceOverriddenByAccountID *uuid.UUID
-	PriceOverriddenAt          pgtype.Timestamptz
-	ActivePricingSnapshotID    *uuid.UUID
-	Version                    int64
-	CreatedAt                  time.Time
-	UpdatedAt                  time.Time
+	ID                       uuid.UUID
+	DisplayID                string
+	MachineID                uuid.UUID
+	StartsAt                 time.Time
+	EndsAt                   time.Time
+	Source                   string
+	ExternalID               *string
+	ExternalMetadata         []byte
+	ReviewState              string
+	CustomerPersonID         *uuid.UUID
+	CustomerOrganizationID   *uuid.UUID
+	OperatorPersonID         *uuid.UUID
+	Outcome                  string
+	Notes                    *string
+	PricingStatus            string
+	CalculatedPrice          pgtype.Numeric
+	PriceAdjustmentReason    *string
+	PriceAdjustedByAccountID *uuid.UUID
+	PriceAdjustedAt          pgtype.Timestamptz
+	ActivePricingSnapshotID  *uuid.UUID
+	Version                  int64
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
+	Title                    *string
+	PriceAdjustmentKind      *string
+	PriceAdjustmentValue     pgtype.Numeric
+	EffectivePrice           pgtype.Numeric
 }
 
 type MachineJobMaterialUsage struct {

@@ -327,8 +327,8 @@ func orderedMigrationFiles(t *testing.T) []string {
 		t.Fatal("cannot locate migration test")
 	}
 	paths, err := filepath.Glob(filepath.Join(filepath.Dir(filename), "..", "..", "migrations", "*.sql"))
-	if err != nil || len(paths) != 34 {
-		t.Fatalf("locate 34 migrations: count=%d err=%v", len(paths), err)
+	if err != nil || len(paths) != 36 {
+		t.Fatalf("locate 36 migrations: count=%d err=%v", len(paths), err)
 	}
 	return paths
 }

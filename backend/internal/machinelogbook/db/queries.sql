@@ -63,10 +63,6 @@ UPDATE machines SET machine_type_id = sqlc.arg(machine_type_id), name = sqlc.arg
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
--- name: TouchMachineIngest :exec
-UPDATE machines SET last_ingested_at = GREATEST(COALESCE(last_ingested_at, sqlc.arg(ingested_at)), sqlc.arg(ingested_at)), updated_at = now()
-WHERE id = sqlc.arg(id);
-
 -- name: CreateOrganization :one
 INSERT INTO organizations (id, name, kind) VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(kind)) RETURNING *;
 
@@ -479,10 +475,10 @@ SELECT nextval('machine_job_display_sequence')::bigint;
 
 -- name: CreateMachineJob :one
 INSERT INTO machine_jobs (id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata,
-    review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes)
+    review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, title, notes)
 VALUES (sqlc.arg(id), sqlc.arg(display_id), sqlc.arg(machine_id), sqlc.arg(starts_at), sqlc.arg(ends_at), sqlc.arg(source),
     sqlc.narg(external_id), sqlc.arg(external_metadata), sqlc.arg(review_state), sqlc.narg(customer_person_id),
-    sqlc.narg(customer_organization_id), sqlc.narg(operator_person_id), sqlc.arg(outcome), sqlc.narg(notes))
+    sqlc.narg(customer_organization_id), sqlc.narg(operator_person_id), sqlc.arg(outcome), sqlc.narg(title), sqlc.narg(notes))
 RETURNING *;
 
 -- name: GetMachineJobBase :one
@@ -490,9 +486,6 @@ SELECT * FROM machine_jobs WHERE id = sqlc.arg(id);
 
 -- name: GetMachineJobForUpdate :one
 SELECT * FROM machine_jobs WHERE id = sqlc.arg(id) FOR UPDATE;
-
--- name: GetAutomaticMachineJob :one
-SELECT * FROM machine_jobs WHERE machine_id = sqlc.arg(machine_id) AND source = 'automatic' AND external_id = sqlc.arg(external_id);
 
 -- name: InsertMachineJobUsage :one
 INSERT INTO machine_job_material_usages (id, machine_job_id, material_id, spool_id, ownership, external_material_name, quantity_basis, quantity, source_printer_event_id)
@@ -576,9 +569,9 @@ RETURNING *;
 -- name: UpdateMachineJobFacts :one
 UPDATE machine_jobs SET machine_id = sqlc.arg(machine_id), starts_at = sqlc.arg(starts_at), ends_at = sqlc.arg(ends_at),
     customer_person_id = sqlc.narg(customer_person_id), customer_organization_id = sqlc.narg(customer_organization_id),
-    operator_person_id = sqlc.arg(operator_person_id), outcome = sqlc.arg(outcome), notes = sqlc.narg(notes),
+    operator_person_id = sqlc.arg(operator_person_id), outcome = sqlc.arg(outcome), title = sqlc.narg(title), notes = sqlc.narg(notes),
     version = version + 1, updated_at = now()
-WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND review_state = 'confirmed'
+WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND review_state IN ('confirmed', 'needs_review')
 RETURNING *;
 
 -- name: BumpMachineJobVersion :one
@@ -608,25 +601,32 @@ SELECT COALESCE(max(revision), 0)::integer + 1 FROM machine_job_pricing_snapshot
 
 -- name: ActivatePricingSnapshot :one
 UPDATE machine_jobs SET active_pricing_snapshot_id = sqlc.arg(snapshot_id), pricing_status = sqlc.arg(pricing_status),
-    calculated_price = sqlc.narg(calculated_price), version = version + 1, updated_at = now()
+    calculated_price = sqlc.narg(calculated_price), effective_price = sqlc.narg(effective_price), version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
 -- name: RecalculateMachineJobPrice :one
 UPDATE machine_jobs SET pricing_status = sqlc.arg(pricing_status), calculated_price = sqlc.narg(calculated_price),
+    effective_price = sqlc.narg(effective_price), version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
+RETURNING *;
+
+-- name: SetMachineJobPriceAdjustment :one
+UPDATE machine_jobs SET price_adjustment_kind = sqlc.arg(kind), price_adjustment_value = sqlc.arg(value),
+    price_adjustment_reason = sqlc.arg(reason), price_adjusted_by_account_id = sqlc.arg(actor_account_id),
+    price_adjusted_at = sqlc.arg(adjusted_at), effective_price = sqlc.narg(effective_price), version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
+RETURNING *;
+
+-- name: ClearMachineJobPriceAdjustment :one
+UPDATE machine_jobs SET price_adjustment_kind = NULL, price_adjustment_value = NULL, price_adjustment_reason = NULL,
+    price_adjusted_by_account_id = NULL, price_adjusted_at = NULL, effective_price = calculated_price,
     version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
--- name: SetMachineJobPriceOverride :one
-UPDATE machine_jobs SET final_price = sqlc.arg(final_price), price_override_reason = sqlc.arg(reason),
-    price_overridden_by_account_id = sqlc.arg(actor_account_id), price_overridden_at = now(), version = version + 1, updated_at = now()
-WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
-RETURNING *;
-
--- name: ClearMachineJobPriceOverride :one
-UPDATE machine_jobs SET final_price = NULL, price_override_reason = NULL, price_overridden_by_account_id = NULL,
-    price_overridden_at = NULL, version = version + 1, updated_at = now()
+-- name: CancelMachineJobRun :one
+UPDATE machine_jobs SET ends_at = sqlc.arg(ends_at), outcome = 'cancelled', version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
@@ -634,7 +634,7 @@ RETURNING *;
 SELECT count(*) FILTER (WHERE starts_at >= date_trunc('day', now()))::bigint AS jobs_today,
        count(*) FILTER (WHERE starts_at >= date_trunc('week', now()))::bigint AS jobs_this_week,
        count(*) FILTER (WHERE review_state = 'confirmed' AND NOT EXISTS(SELECT 1 FROM order_job_claims c WHERE c.machine_job_id=machine_jobs.id))::bigint AS unassigned_jobs,
-       COALESCE(sum(COALESCE(final_price, calculated_price)) FILTER (WHERE review_state = 'confirmed' AND NOT EXISTS(SELECT 1 FROM order_job_claims c WHERE c.machine_job_id=machine_jobs.id)), 0)::numeric AS unassigned_estimated_amount,
+       COALESCE(sum(effective_price) FILTER (WHERE review_state = 'confirmed' AND NOT EXISTS(SELECT 1 FROM order_job_claims c WHERE c.machine_job_id=machine_jobs.id)), 0)::numeric AS unassigned_estimated_amount,
        count(*) FILTER (WHERE review_state = 'needs_review')::bigint AS needs_review,
        count(*) FILTER (WHERE starts_at >= date_trunc('week', now()) AND outcome IN ('failed', 'partial_failure'))::bigint AS failed_or_partial_this_week
 FROM machine_jobs;
@@ -679,7 +679,7 @@ FROM inventory_transactions WHERE occurred_at >= sqlc.arg(from_time) AND occurre
 GROUP BY date_trunc('month', occurred_at) ORDER BY date_trunc('month', occurred_at);
 
 -- name: StatisticCustomerCharges :many
-SELECT to_char(date_trunc('month', starts_at), 'YYYY-MM') AS label, COALESCE(sum(COALESCE(final_price, calculated_price)), 0)::numeric AS value
+SELECT to_char(date_trunc('month', starts_at), 'YYYY-MM') AS label, COALESCE(sum(effective_price), 0)::numeric AS value
 FROM machine_jobs WHERE review_state = 'confirmed' AND starts_at >= sqlc.arg(from_time) AND starts_at < sqlc.arg(to_time)
 GROUP BY date_trunc('month', starts_at) ORDER BY date_trunc('month', starts_at);
 

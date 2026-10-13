@@ -219,7 +219,7 @@ func TestAnonymousPreviewInventoryAndOperationalCorrection(t *testing.T) {
 	if _, e := f.jobs.CreatePricingRule(ctx, f.p, f.group, "material", nil, &category, &unit, "0.1", nil); e != nil {
 		t.Fatal(e)
 	}
-	start := time.Now().UTC().Add(-time.Hour)
+	start := time.Now().UTC().Add(-3 * time.Hour)
 	input := CounterSaleCommand{OperationKey: newID(), ImmediateFulfillmentConfirmed: true, Job: CounterSaleJob{ManualJob: &ManualJob{MachineID: f.machine, StartsAt: start, EndsAt: start.Add(time.Hour), OperatorPersonID: f.person, Outcome: "successful", PricingGroupID: &f.group, Usages: []UsageInput{{MaterialID: materials[0], Quantity: "10"}, {MaterialID: materials[1], Quantity: "20"}}}}}
 	quote, e := f.s.PreviewCounterSale(ctx, f.p, input)
 	if e != nil || quote.TotalAmount != "13.00" {
@@ -288,7 +288,12 @@ func TestAnonymousReviewConfirmationIsAtomic(t *testing.T) {
 		t.Fatal(e)
 	}
 	start := time.Now().UTC().Add(-time.Hour)
-	job, _, e := f.jobs.IngestAutomaticJob(ctx, f.p, machinelogbook.AutomaticJobInput{MachineID: f.machine, StartsAt: start, EndsAt: start.Add(time.Hour), ExternalID: "automatic-counter-sale", ExternalMetadata: []byte(`{}`)}, nil)
+	jobID := newID()
+	if _, e = f.pool.Exec(ctx, `INSERT INTO machine_jobs (id, display_id, machine_id, starts_at, ends_at, source, external_id, review_state, outcome)
+		VALUES ($1, 'J-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('machine_job_display_sequence')::text, 6, '0'), $2, $3, $4, 'automatic', 'automatic-counter-sale', 'needs_review', 'unknown')`, jobID, f.machine, start, start.Add(time.Hour)); e != nil {
+		t.Fatal(e)
+	}
+	job, e := f.jobs.GetJob(ctx, f.p, jobID)
 	if e != nil || job.Customer != nil || job.ReviewState != "needs_review" {
 		t.Fatal(e, job)
 	}
@@ -469,5 +474,33 @@ func TestOrderTotalOverflowBlocksFinalization(t *testing.T) {
 	persisted, err := f.s.Get(ctx, f.p, o.ID)
 	if err != nil || persisted.Status != "draft" || persisted.Version != o.Version || persisted.TotalAmount != o.TotalAmount {
 		t.Fatal("overflow finalization was not rolled back", err, persisted)
+	}
+}
+
+func TestOrderItemSnapshotUsesDiscountedEffectivePrice(t *testing.T) {
+	f := newFixture(t)
+	ctx := t.Context()
+	start := time.Now().UTC().Add(-time.Hour)
+	job, e := f.jobs.CreateManualJob(ctx, f.p, machinelogbook.JobInput{MachineID: f.machine, StartsAt: start, EndsAt: start.Add(time.Hour), Customer: machinelogbook.PartyReference{Kind: "organization", ID: f.organization}, OperatorPersonID: f.person, Outcome: "successful"}, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	job, e = f.jobs.SetJobPriceAdjustment(ctx, f.p, job.ID, job.Version, "discount_percent", "25", "Member discount", nil)
+	if e != nil || job.EffectivePrice == nil || *job.EffectivePrice != "7.5" {
+		t.Fatal(e, job.EffectivePrice)
+	}
+	o := f.draft(t, true, "1")
+	o, e = f.s.ChangeItem(ctx, f.p, o.ID, uuid.Nil, OrderItemInput{Kind: "machine_job", MachineJobID: job.ID, ExpectedJobVersion: job.Version, ExpectedVersion: o.Version}, "add", nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	var snapshot *JobChargeSnapshot
+	for _, item := range o.Items {
+		if item.Snapshot != nil {
+			snapshot = item.Snapshot
+		}
+	}
+	if snapshot == nil || snapshot.EffectiveAmount != "7.5" || snapshot.CalculatedAmount == nil || *snapshot.CalculatedAmount != "10" {
+		t.Fatalf("snapshot did not use the discounted price: %+v", snapshot)
 	}
 }

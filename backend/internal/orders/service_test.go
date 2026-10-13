@@ -349,7 +349,7 @@ func TestJobSnapshotsClaimsAndAnonymousCounterSale(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	job, e = f.jobs.OverrideJobPrice(ctx, f.p, job.ID, job.Version, "12", "Operational correction", &f.request)
+	job, e = f.jobs.SetJobPriceAdjustment(ctx, f.p, job.ID, job.Version, "fixed", "12", "Operational correction", &f.request)
 	if e != nil {
 		t.Fatal(e)
 	}

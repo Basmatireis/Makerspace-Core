@@ -52,6 +52,7 @@ function jobFixture(overrides: Partial<MachineJob> = {}): MachineJob {
     customer: null,
     operator: null,
     outcome: 'unknown',
+    status: 'needs_outcome',
     notes: null,
     usages: [
       { id: '0192f6f8-743e-7c77-a349-cd07c3e8a917', ownership: 'makerspace', materialId, materialName: 'PLA Black', category: 'pla', unit: 'g', quantity: '183', quantityBasis: 'actual' },
