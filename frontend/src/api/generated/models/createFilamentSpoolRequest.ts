@@ -18,6 +18,8 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { FilamentSpoolKind } from './filamentSpoolKind';
+import type { CreateFilamentSpoolRequestProductId } from './createFilamentSpoolRequestProductId';
 import type { UUIDv7 } from './uUIDv7';
 import type { Decimal } from './decimal';
 import type { CreateFilamentSpoolRequestStockMode } from './createFilamentSpoolRequestStockMode';
@@ -26,6 +28,18 @@ import type { CreateFilamentSpoolRequestTareWeightG } from './createFilamentSpoo
 import type { Version } from './version';
 
 export interface CreateFilamentSpoolRequest {
+  kind?: FilamentSpoolKind;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   * @nullable
+   */
+  label?: string | null;
+  /**
+   * When set, materialId must be the product's material.
+   * @nullable
+   */
+  productId?: CreateFilamentSpoolRequestProductId;
   materialId: UUIDv7;
   initialNetWeightG: Decimal;
   stockMode: CreateFilamentSpoolRequestStockMode;

@@ -360,16 +360,19 @@ func (s *Service) Mount(ctx context.Context, p authorization.Principal, slotID, 
 	if slot.Status != "available" {
 		return Slot{}, conflict("slot_unavailable", "Printer slot is not available")
 	}
+	// A spool can be mounted while it is active and its open fill still holds stock.
 	var lifecycle string
 	if err = tx.QueryRow(ctx, "SELECT lifecycle FROM filament_spools WHERE id=$1 FOR UPDATE", spoolID).Scan(&lifecycle); err != nil {
 		return Slot{}, noRows(err)
 	}
 	var remaining pgtype.Numeric
-	if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(CASE WHEN kind='spool_transfer' THEN CASE WHEN to_spool_id=$1 THEN transfer_quantity ELSE -transfer_quantity END ELSE quantity_delta END), 0) FROM inventory_transactions WHERE spool_id=$1 OR from_spool_id=$1 OR to_spool_id=$1`, spoolID).Scan(&remaining); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT COALESCE(sum(CASE WHEN t.kind='spool_transfer' THEN CASE WHEN t.to_fill_id=f.id THEN t.transfer_quantity ELSE -t.transfer_quantity END ELSE t.quantity_delta END), 0)
+		FROM filament_spool_fills f JOIN inventory_transactions t ON t.fill_id=f.id OR t.from_fill_id=f.id OR t.to_fill_id=f.id
+		WHERE f.spool_id=$1 AND f.closed_at IS NULL`, spoolID).Scan(&remaining); err != nil {
 		return Slot{}, err
 	}
 	if lifecycle != "active" || !remaining.Valid || !decimal.NewFromBigInt(remaining.Int, remaining.Exp).IsPositive() {
-		return Slot{}, conflict("spool_unavailable", "Only active nonempty spools can be mounted")
+		return Slot{}, conflict("spool_unavailable", "Only active spools with an open, nonempty fill can be mounted")
 	}
 	if _, err = q.GetOpenAssignmentForSlot(ctx, slotID); err == nil {
 		return Slot{}, conflict("slot_occupied", "Unmount the current spool before mounting another")
@@ -457,6 +460,17 @@ func (s *Service) insertDeclarations(ctx context.Context, q *db.Queries, submiss
 		estimated, err := numeric(item.EstimatedQuantityG)
 		if err != nil {
 			return err
+		}
+		if item.SpoolID != nil {
+			// Declarations no longer carry a database-level spool/material pair, so
+			// the open fill of the spool must hold the declared material.
+			fillMaterial, fillErr := q.GetSpoolOpenFillMaterial(ctx, *item.SpoolID)
+			if errors.Is(fillErr, pgx.ErrNoRows) || (fillErr == nil && (item.MaterialID == nil || fillMaterial != *item.MaterialID)) {
+				return conflict("spool_material_mismatch", "The spool's open fill does not hold the declared material")
+			}
+			if fillErr != nil {
+				return fillErr
+			}
 		}
 		if _, err = q.CreatePrintFilamentDeclaration(ctx, db.CreatePrintFilamentDeclarationParams{ID: newID(), SubmissionID: submissionID, AttemptID: attemptID, Ownership: item.Ownership, MaterialID: item.MaterialID, SpoolID: item.SpoolID, ExternalMaterialName: clean(item.ExternalMaterialName), EstimatedQuantityG: estimated}); err != nil {
 			return dbError(err)

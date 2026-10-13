@@ -20,11 +20,15 @@ the required session and CSRF credentials.
  */
 import type {
   AddFilamentSpoolIdentifierRequest,
+  ChangeFilamentSpoolFillRequest,
+  CleanUpFilamentSpoolsRequest,
+  CleanUpFilamentSpoolsResult,
   CorrectSpoolStockRequest,
   CreateFilamentSpoolRequest,
   FilamentSpool,
   FilamentSpoolIdentifier,
   FilamentSpoolPage,
+  FinishFilamentSpoolRequest,
   InventoryMutationResult,
   InventoryTransaction,
   InventoryTransactionPage,
@@ -71,7 +75,15 @@ export const getListFilamentSpoolsUrl = (params?: ListFilamentSpoolsParams,) => 
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+    const explodeParameters = ["status"];
+
+    if (Array.isArray(value) && explodeParameters.includes(key)) {
+      value.forEach((v) => {
+        normalizedParams.append(key, v === null ? 'null' : v.toString());
+      });
+      return;
+    }
+      
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -300,6 +312,82 @@ export const correctFilamentSpoolStock = async (spoolId: UUIDv7,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       correctSpoolStockRequest,)
+  }
+);}
+
+
+/**
+ * Writes the ledger entries of closing the fill (correction for a weighed or used-up difference, then transfer of the leftover to loose stock or its disposal) and of the new fill (transfer from loose stock or purchase), retires the identifiers that are not kept and adds new ones, all in one transaction. Mount state is unchanged.
+ * @summary Close the current fill of a reusable spool (if any) and start the next fill atomically
+ */
+export const getChangeFilamentSpoolFillUrl = (spoolId: UUIDv7,) => {
+
+
+  
+
+  return `/api/v1/filament-spools/${spoolId}/fills`
+}
+
+export const changeFilamentSpoolFill = async (spoolId: UUIDv7,
+    changeFilamentSpoolFillRequest: ChangeFilamentSpoolFillRequest, options?: RequestInit): Promise<FilamentSpool> => {
+  
+  return apiFetch<FilamentSpool>(getChangeFilamentSpoolFillUrl(spoolId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      changeFilamentSpoolFillRequest,)
+  }
+);}
+
+
+/**
+ * @summary Close the current fill; single-use spools are archived, every spool is unmounted
+ */
+export const getFinishFilamentSpoolUrl = (spoolId: UUIDv7,) => {
+
+
+  
+
+  return `/api/v1/filament-spools/${spoolId}/finish`
+}
+
+export const finishFilamentSpool = async (spoolId: UUIDv7,
+    finishFilamentSpoolRequest: FinishFilamentSpoolRequest, options?: RequestInit): Promise<FilamentSpool> => {
+  
+  return apiFetch<FilamentSpool>(getFinishFilamentSpoolUrl(spoolId),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      finishFilamentSpoolRequest,)
+  }
+);}
+
+
+/**
+ * Candidates are single-use spools archived before now minus olderThanMonths that have no open fill. With dryRun the candidates are returned and nothing changes. Without dryRun only the listed spoolIds that are still candidates are deleted; ledger entries and job usages keep their spool display ID and fill number snapshots.
+ * @summary Preview or hard-delete archived single-use spools older than a cutoff
+ */
+export const getCleanUpArchivedFilamentSpoolsUrl = () => {
+
+
+  
+
+  return `/api/v1/filament-spools/cleanup`
+}
+
+export const cleanUpArchivedFilamentSpools = async (cleanUpFilamentSpoolsRequest: CleanUpFilamentSpoolsRequest, options?: RequestInit): Promise<CleanUpFilamentSpoolsResult> => {
+  
+  return apiFetch<CleanUpFilamentSpoolsResult>(getCleanUpArchivedFilamentSpoolsUrl(),
+  {      
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      cleanUpFilamentSpoolsRequest,)
   }
 );}
 

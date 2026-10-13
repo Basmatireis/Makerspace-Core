@@ -33,8 +33,13 @@ export interface MachineJobUsage {
   materialId?: MachineJobUsageMaterialId;
   /** @nullable */
   spoolId?: MachineJobUsageSpoolId;
-  /** @nullable */
+  /**
+   * Snapshot; kept when the spool was deleted (spoolId null).
+   * @nullable
+   */
   spoolDisplayId?: string | null;
+  /** @nullable */
+  fillNumber?: number | null;
   materialName: string;
   category: string;
   unit: MaterialUnit;

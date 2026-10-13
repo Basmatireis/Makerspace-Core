@@ -18,11 +18,22 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { FilamentSpoolKind } from './filamentSpoolKind';
 import type { UpdateFilamentSpoolRequestTareWeightG } from './updateFilamentSpoolRequestTareWeightG';
 import type { UpdateFilamentSpoolRequestLifecycle } from './updateFilamentSpoolRequestLifecycle';
 import type { Version } from './version';
 
+/**
+ * manufacturer and productName edit the open fill's snapshot. Archiving unmounts the spool.
+ */
 export interface UpdateFilamentSpoolRequest {
+  kind?: FilamentSpoolKind;
+  /**
+   * @minLength 1
+   * @maxLength 120
+   * @nullable
+   */
+  label?: string | null;
   /**
    * @maxLength 150
    * @nullable

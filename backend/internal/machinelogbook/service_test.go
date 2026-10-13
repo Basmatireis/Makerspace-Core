@@ -44,9 +44,29 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 		}},
 		{"machine_jobs.override_price clear", func() error { _, err := s.ClearJobPriceAdjustment(ctx, p, id, 1, nil); return err }},
 		{"inventory.read", func() error { _, _, _, err := s.ListMaterials(ctx, p, "", "", "", 1, 25); return err }},
-		{"inventory.read spools", func() error { _, _, err := s.ListFilamentSpools(ctx, p, "", nil, "", "", 1, 25); return err }},
+		{"inventory.read spools", func() error {
+			_, _, err := s.ListFilamentSpools(ctx, p, SpoolFilters{Page: 1, PageSize: 25})
+			return err
+		}},
 		{"inventory.manage", func() error { _, err := s.CreateMaterial(ctx, p, "PLA", "pla", nil, "g", nil, nil); return err }},
 		{"filament_spools.manage", func() error { _, err := s.CreateFilamentSpool(ctx, p, FilamentSpoolInput{}, nil); return err }},
+		{"filament_spools.manage change fill", func() error {
+			_, err := s.ChangeFilamentSpoolFill(ctx, p, id, ChangeFillInput{}, nil)
+			return err
+		}},
+		{"filament_spools.manage finish", func() error {
+			_, err := s.FinishFilamentSpool(ctx, p, id, FinishSpoolInput{}, nil)
+			return err
+		}},
+		{"filament_spools.manage cleanup", func() error {
+			_, _, err := s.CleanUpFilamentSpools(ctx, p, 3, true, nil, nil)
+			return err
+		}},
+		{"inventory.read products", func() error {
+			_, _, err := s.ListFilamentProducts(ctx, p, FilamentProductFilters{Page: 1, PageSize: 25})
+			return err
+		}},
+		{"inventory.manage products", func() error { _, err := s.CreateFilamentProduct(ctx, p, FilamentProductInput{}, nil); return err }},
 		{"organizations.read", func() error { _, _, err := s.ListOrganizations(ctx, p, "", nil, 1, 25); return err }},
 		{"organizations.manage", func() error { _, err := s.CreateOrganization(ctx, p, "Institute", "institute", nil); return err }},
 		{"pricing.read", func() error { _, err := s.ListPricingGroups(ctx, p); return err }},

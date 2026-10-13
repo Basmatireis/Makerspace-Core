@@ -113,7 +113,7 @@ export function FilamentSpoolsPage() {
     <div className="filter-bar">
       <Search labelText="Search spools" value={params.get('search') || ''} onChange={(event) => update('search', event.currentTarget.value)} />
       <Select id="spool-lifecycle" labelText="Lifecycle" hideLabel value={params.get('lifecycle') || ''} onChange={(event) => update('lifecycle', event.target.value)}>
-        <SelectItem value="" text="All lifecycle states" /><SelectItem value="active" text="Active" /><SelectItem value="retired" text="Retired" />
+        <SelectItem value="" text="All lifecycle states" /><SelectItem value="active" text="Active" /><SelectItem value="archived" text="Archived" />
       </Select>
     </div>
     <DataTable rows={rows} headers={headers}>{({ rows: tableRows, headers: tableHeaders, getHeaderProps, getRowProps, getTableProps }) => <TableContainer>

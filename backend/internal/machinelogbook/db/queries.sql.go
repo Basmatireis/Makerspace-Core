@@ -102,13 +102,14 @@ func (q *Queries) ActiveOrganizationExists(ctx context.Context, id uuid.UUID) (b
 }
 
 const addFilamentSpoolIdentifier = `-- name: AddFilamentSpoolIdentifier :one
-INSERT INTO filament_spool_identifiers (id, spool_id, kind, value)
-VALUES ($1, $2, $3, $4) RETURNING id, spool_id, kind, value, created_at
+INSERT INTO filament_spool_identifiers (id, spool_id, fill_id, kind, value)
+VALUES ($1, $2, $3, $4, $5) RETURNING id, spool_id, kind, value, created_at, fill_id, retired_at
 `
 
 type AddFilamentSpoolIdentifierParams struct {
 	ID      uuid.UUID
 	SpoolID uuid.UUID
+	FillID  uuid.UUID
 	Kind    string
 	Value   string
 }
@@ -117,6 +118,7 @@ func (q *Queries) AddFilamentSpoolIdentifier(ctx context.Context, arg AddFilamen
 	row := q.db.QueryRow(ctx, addFilamentSpoolIdentifier,
 		arg.ID,
 		arg.SpoolID,
+		arg.FillID,
 		arg.Kind,
 		arg.Value,
 	)
@@ -127,21 +129,19 @@ func (q *Queries) AddFilamentSpoolIdentifier(ctx context.Context, arg AddFilamen
 		&i.Kind,
 		&i.Value,
 		&i.CreatedAt,
+		&i.FillID,
+		&i.RetiredAt,
 	)
 	return i, err
 }
 
 const allocatedMaterialQuantity = `-- name: AllocatedMaterialQuantity :one
-SELECT COALESCE(sum(remaining), 0)::numeric FROM (
-    SELECT s.id,
-        COALESCE(sum(t.quantity_delta) FILTER (WHERE t.spool_id=s.id), 0)
-        + COALESCE(sum(t.transfer_quantity) FILTER (WHERE t.to_spool_id=s.id), 0)
-        - COALESCE(sum(t.transfer_quantity) FILTER (WHERE t.from_spool_id=s.id), 0) AS remaining
-    FROM filament_spools s
-    LEFT JOIN inventory_transactions t ON t.spool_id=s.id OR t.from_spool_id=s.id OR t.to_spool_id=s.id
-    WHERE s.material_id=$1
-    GROUP BY s.id
-) spool_balances
+SELECT COALESCE(sum(
+        COALESCE((SELECT sum(t.quantity_delta) FROM inventory_transactions t WHERE t.fill_id=f.id), 0::numeric)
+        + COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.to_fill_id=f.id), 0::numeric)
+        - COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.from_fill_id=f.id), 0::numeric)), 0)::numeric
+FROM filament_spool_fills f
+WHERE f.material_id=$1 AND f.closed_at IS NULL
 `
 
 func (q *Queries) AllocatedMaterialQuantity(ctx context.Context, materialID uuid.UUID) (pgtype.Numeric, error) {
@@ -149,6 +149,39 @@ func (q *Queries) AllocatedMaterialQuantity(ctx context.Context, materialID uuid
 	var column_1 pgtype.Numeric
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const archiveFilamentSpool = `-- name: ArchiveFilamentSpool :one
+UPDATE filament_spools SET lifecycle='archived', archived_at=$1, version=version+1, updated_at=now()
+WHERE id=$2 AND version=$3 RETURNING id, display_id, tare_weight_g, acquired_on, acquisition_reference, storage_location, notes, lifecycle, version, created_at, updated_at, kind, label, archived_at
+`
+
+type ArchiveFilamentSpoolParams struct {
+	ArchivedAt      pgtype.Timestamptz
+	ID              uuid.UUID
+	ExpectedVersion int64
+}
+
+func (q *Queries) ArchiveFilamentSpool(ctx context.Context, arg ArchiveFilamentSpoolParams) (FilamentSpool, error) {
+	row := q.db.QueryRow(ctx, archiveFilamentSpool, arg.ArchivedAt, arg.ID, arg.ExpectedVersion)
+	var i FilamentSpool
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayID,
+		&i.TareWeightG,
+		&i.AcquiredOn,
+		&i.AcquisitionReference,
+		&i.StorageLocation,
+		&i.Notes,
+		&i.Lifecycle,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Kind,
+		&i.Label,
+		&i.ArchivedAt,
+	)
+	return i, err
 }
 
 const billingPersonExists = `-- name: BillingPersonExists :one
@@ -164,7 +197,7 @@ func (q *Queries) BillingPersonExists(ctx context.Context, id uuid.UUID) (bool, 
 
 const bumpFilamentSpoolVersion = `-- name: BumpFilamentSpoolVersion :one
 UPDATE filament_spools SET version=version+1, updated_at=now()
-WHERE id=$1 AND version=$2 RETURNING id, display_id, material_id, manufacturer, product_name, initial_net_weight_g, tare_weight_g, acquired_on, acquisition_reference, storage_location, notes, lifecycle, version, created_at, updated_at
+WHERE id=$1 AND version=$2 RETURNING id, display_id, tare_weight_g, acquired_on, acquisition_reference, storage_location, notes, lifecycle, version, created_at, updated_at, kind, label, archived_at
 `
 
 type BumpFilamentSpoolVersionParams struct {
@@ -178,10 +211,6 @@ func (q *Queries) BumpFilamentSpoolVersion(ctx context.Context, arg BumpFilament
 	err := row.Scan(
 		&i.ID,
 		&i.DisplayID,
-		&i.MaterialID,
-		&i.Manufacturer,
-		&i.ProductName,
-		&i.InitialNetWeightG,
 		&i.TareWeightG,
 		&i.AcquiredOn,
 		&i.AcquisitionReference,
@@ -191,6 +220,9 @@ func (q *Queries) BumpFilamentSpoolVersion(ctx context.Context, arg BumpFilament
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Kind,
+		&i.Label,
+		&i.ArchivedAt,
 	)
 	return i, err
 }
@@ -349,6 +381,45 @@ func (q *Queries) ClearMachineJobPriceAdjustment(ctx context.Context, arg ClearM
 	return i, err
 }
 
+const closeFilamentSpoolFill = `-- name: CloseFilamentSpoolFill :one
+UPDATE filament_spool_fills SET closed_at=$1, leftover_g=$2, leftover_outcome=$3
+WHERE id=$4 AND closed_at IS NULL
+RETURNING id, spool_id, fill_number, material_id, product_id, manufacturer, product_name, initial_net_weight_g, filled_at, closed_at, leftover_g, leftover_outcome, created_at
+`
+
+type CloseFilamentSpoolFillParams struct {
+	ClosedAt        pgtype.Timestamptz
+	LeftoverG       pgtype.Numeric
+	LeftoverOutcome *string
+	ID              uuid.UUID
+}
+
+func (q *Queries) CloseFilamentSpoolFill(ctx context.Context, arg CloseFilamentSpoolFillParams) (FilamentSpoolFill, error) {
+	row := q.db.QueryRow(ctx, closeFilamentSpoolFill,
+		arg.ClosedAt,
+		arg.LeftoverG,
+		arg.LeftoverOutcome,
+		arg.ID,
+	)
+	var i FilamentSpoolFill
+	err := row.Scan(
+		&i.ID,
+		&i.SpoolID,
+		&i.FillNumber,
+		&i.MaterialID,
+		&i.ProductID,
+		&i.Manufacturer,
+		&i.ProductName,
+		&i.InitialNetWeightG,
+		&i.FilledAt,
+		&i.ClosedAt,
+		&i.LeftoverG,
+		&i.LeftoverOutcome,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const confirmMachineJob = `-- name: ConfirmMachineJob :one
 UPDATE machine_jobs SET customer_person_id = $1, customer_organization_id = $2,
     operator_person_id = $3, outcome = $4, notes = $5, review_state = 'confirmed',
@@ -411,6 +482,36 @@ func (q *Queries) ConfirmMachineJob(ctx context.Context, arg ConfirmMachineJobPa
 	return i, err
 }
 
+const countFilamentProducts = `-- name: CountFilamentProducts :one
+SELECT count(*) FROM filament_products p
+WHERE ($1::text='' OR lower(p.manufacturer) LIKE '%'||lower($1::text)||'%' OR lower(p.name) LIKE '%'||lower($1::text)||'%')
+  AND ($2::uuid IS NULL OR p.material_id=$2)
+  AND ($3::text='' OR lower(p.manufacturer)=lower($3::text))
+  AND ($4::text='' OR p.packaging=$4::text)
+  AND ($5::boolean OR p.active)
+`
+
+type CountFilamentProductsParams struct {
+	Search          string
+	MaterialID      *uuid.UUID
+	Manufacturer    string
+	Packaging       string
+	IncludeInactive bool
+}
+
+func (q *Queries) CountFilamentProducts(ctx context.Context, arg CountFilamentProductsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countFilamentProducts,
+		arg.Search,
+		arg.MaterialID,
+		arg.Manufacturer,
+		arg.Packaging,
+		arg.IncludeInactive,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countFilamentSpoolTransactions = `-- name: CountFilamentSpoolTransactions :one
 SELECT count(*) FROM inventory_transactions
 WHERE spool_id=$1 OR from_spool_id=$1 OR to_spool_id=$1
@@ -424,21 +525,38 @@ func (q *Queries) CountFilamentSpoolTransactions(ctx context.Context, spoolID *u
 }
 
 const countFilamentSpools = `-- name: CountFilamentSpools :one
-SELECT count(*) FROM filament_spools s JOIN materials m ON m.id=s.material_id
+SELECT count(*)
+FROM filament_spools s
+LEFT JOIN filament_spool_fills f ON f.spool_id=s.id AND f.closed_at IS NULL
+LEFT JOIN materials m ON m.id=f.material_id
 WHERE ($1::text='' OR lower(s.display_id) LIKE '%'||lower($1::text)||'%'
-    OR lower(m.name) LIKE '%'||lower($1::text)||'%'
-    OR lower(COALESCE(s.manufacturer,'')) LIKE '%'||lower($1::text)||'%'
-    OR lower(COALESCE(s.product_name,'')) LIKE '%'||lower($1::text)||'%')
-  AND ($2::uuid IS NULL OR s.material_id=$2)
+    OR lower(COALESCE(s.label,'')) LIKE '%'||lower($1::text)||'%'
+    OR lower(COALESCE(m.name,'')) LIKE '%'||lower($1::text)||'%'
+    OR lower(COALESCE(f.manufacturer,'')) LIKE '%'||lower($1::text)||'%'
+    OR lower(COALESCE(f.product_name,'')) LIKE '%'||lower($1::text)||'%')
+  AND ($2::uuid IS NULL OR f.material_id=$2)
   AND ($3::text='' OR s.lifecycle=$3::text)
   AND ($4::text='' OR lower(COALESCE(s.storage_location,'')) LIKE '%'||lower($4::text)||'%')
+  AND ($5::text='' OR s.kind=$5::text)
+  AND (cardinality($6::text[])=0 OR
+       (CASE WHEN s.lifecycle='archived' THEN 'archived' WHEN s.kind='single_use' THEN 'active' WHEN f.id IS NOT NULL THEN 'loaded' ELSE 'needs_refill' END) = ANY($6::text[]))
+  AND ($7::boolean IS NULL OR EXISTS(SELECT 1 FROM printer_spool_assignments a WHERE a.spool_id=s.id AND a.unmounted_at IS NULL) = $7::boolean)
+  AND ($8::uuid IS NULL OR f.product_id=$8)
+  AND ($9::text='' OR lower(COALESCE(f.manufacturer,''))=lower($9::text))
+  AND (NOT $10::boolean OR (f.id IS NOT NULL AND s.lifecycle='active'))
 `
 
 type CountFilamentSpoolsParams struct {
-	Search     string
-	MaterialID *uuid.UUID
-	Lifecycle  string
-	Location   string
+	Search       string
+	MaterialID   *uuid.UUID
+	Lifecycle    string
+	Location     string
+	Kind         string
+	Statuses     []string
+	Mounted      *bool
+	ProductID    *uuid.UUID
+	Manufacturer string
+	Consumable   bool
 }
 
 func (q *Queries) CountFilamentSpools(ctx context.Context, arg CountFilamentSpoolsParams) (int64, error) {
@@ -447,6 +565,12 @@ func (q *Queries) CountFilamentSpools(ctx context.Context, arg CountFilamentSpoo
 		arg.MaterialID,
 		arg.Lifecycle,
 		arg.Location,
+		arg.Kind,
+		arg.Statuses,
+		arg.Mounted,
+		arg.ProductID,
+		arg.Manufacturer,
+		arg.Consumable,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -543,6 +667,17 @@ type CountMachinesParams struct {
 
 func (q *Queries) CountMachines(ctx context.Context, arg CountMachinesParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countMachines, arg.Search, arg.Status)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countMaterialFills = `-- name: CountMaterialFills :one
+SELECT count(*) FROM filament_spool_fills WHERE material_id=$1
+`
+
+func (q *Queries) CountMaterialFills(ctx context.Context, materialID uuid.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countMaterialFills, materialID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -656,22 +791,52 @@ func (q *Queries) CountPrints(ctx context.Context, arg CountPrintsParams) (int64
 	return count, err
 }
 
+const createFilamentProduct = `-- name: CreateFilamentProduct :one
+INSERT INTO filament_products (id, manufacturer, name, material_id, net_weight_g, default_price, packaging, notes)
+VALUES ($1, $2, $3, $4, $5, $6,
+    $7, $8)
+RETURNING id
+`
+
+type CreateFilamentProductParams struct {
+	ID           uuid.UUID
+	Manufacturer string
+	Name         string
+	MaterialID   uuid.UUID
+	NetWeightG   pgtype.Numeric
+	DefaultPrice pgtype.Numeric
+	Packaging    string
+	Notes        *string
+}
+
+func (q *Queries) CreateFilamentProduct(ctx context.Context, arg CreateFilamentProductParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, createFilamentProduct,
+		arg.ID,
+		arg.Manufacturer,
+		arg.Name,
+		arg.MaterialID,
+		arg.NetWeightG,
+		arg.DefaultPrice,
+		arg.Packaging,
+		arg.Notes,
+	)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const createFilamentSpool = `-- name: CreateFilamentSpool :one
-INSERT INTO filament_spools (id, display_id, material_id, manufacturer, product_name, initial_net_weight_g,
-    tare_weight_g, acquired_on, acquisition_reference, storage_location, notes)
-VALUES ($1, $2, $3, $4, $5,
-    $6, $7, $8, $9,
-    $10, $11)
-RETURNING id, display_id, material_id, manufacturer, product_name, initial_net_weight_g, tare_weight_g, acquired_on, acquisition_reference, storage_location, notes, lifecycle, version, created_at, updated_at
+INSERT INTO filament_spools (id, display_id, kind, label, tare_weight_g, acquired_on, acquisition_reference, storage_location, notes)
+VALUES ($1, $2, $3, $4, $5, $6,
+    $7, $8, $9)
+RETURNING id, display_id, tare_weight_g, acquired_on, acquisition_reference, storage_location, notes, lifecycle, version, created_at, updated_at, kind, label, archived_at
 `
 
 type CreateFilamentSpoolParams struct {
 	ID                   uuid.UUID
 	DisplayID            string
-	MaterialID           uuid.UUID
-	Manufacturer         *string
-	ProductName          *string
-	InitialNetWeightG    pgtype.Numeric
+	Kind                 string
+	Label                *string
 	TareWeightG          pgtype.Numeric
 	AcquiredOn           pgtype.Date
 	AcquisitionReference *string
@@ -683,10 +848,8 @@ func (q *Queries) CreateFilamentSpool(ctx context.Context, arg CreateFilamentSpo
 	row := q.db.QueryRow(ctx, createFilamentSpool,
 		arg.ID,
 		arg.DisplayID,
-		arg.MaterialID,
-		arg.Manufacturer,
-		arg.ProductName,
-		arg.InitialNetWeightG,
+		arg.Kind,
+		arg.Label,
 		arg.TareWeightG,
 		arg.AcquiredOn,
 		arg.AcquisitionReference,
@@ -697,10 +860,6 @@ func (q *Queries) CreateFilamentSpool(ctx context.Context, arg CreateFilamentSpo
 	err := row.Scan(
 		&i.ID,
 		&i.DisplayID,
-		&i.MaterialID,
-		&i.Manufacturer,
-		&i.ProductName,
-		&i.InitialNetWeightG,
 		&i.TareWeightG,
 		&i.AcquiredOn,
 		&i.AcquisitionReference,
@@ -710,6 +869,9 @@ func (q *Queries) CreateFilamentSpool(ctx context.Context, arg CreateFilamentSpo
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Kind,
+		&i.Label,
+		&i.ArchivedAt,
 	)
 	return i, err
 }
@@ -1072,8 +1234,20 @@ func (q *Queries) DeactivateMachineJobUsages(ctx context.Context, machineJobID u
 	return err
 }
 
+const deleteFilamentSpool = `-- name: DeleteFilamentSpool :execrows
+DELETE FROM filament_spools WHERE id=$1
+`
+
+func (q *Queries) DeleteFilamentSpool(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteFilamentSpool, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteFilamentSpoolIdentifier = `-- name: DeleteFilamentSpoolIdentifier :execrows
-DELETE FROM filament_spool_identifiers WHERE id=$1 AND spool_id=$2
+DELETE FROM filament_spool_identifiers WHERE id=$1 AND spool_id=$2 AND retired_at IS NULL
 `
 
 type DeleteFilamentSpoolIdentifierParams struct {
@@ -1130,6 +1304,22 @@ func (q *Queries) DeletePersonPricingAssignment(ctx context.Context, arg DeleteP
 	return person_id, err
 }
 
+const filamentSpoolIdentifierInUse = `-- name: FilamentSpoolIdentifierInUse :one
+SELECT EXISTS(SELECT 1 FROM filament_spool_identifiers WHERE kind=$1 AND lower(value)=lower($2) AND retired_at IS NULL)
+`
+
+type FilamentSpoolIdentifierInUseParams struct {
+	Kind  string
+	Value string
+}
+
+func (q *Queries) FilamentSpoolIdentifierInUse(ctx context.Context, arg FilamentSpoolIdentifierInUseParams) (bool, error) {
+	row := q.db.QueryRow(ctx, filamentSpoolIdentifierInUse, arg.Kind, arg.Value)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const filamentSpoolMounted = `-- name: FilamentSpoolMounted :one
 SELECT EXISTS(SELECT 1 FROM printer_spool_assignments WHERE spool_id=$1 AND unmounted_at IS NULL)
 `
@@ -1142,7 +1332,7 @@ func (q *Queries) FilamentSpoolMounted(ctx context.Context, spoolID uuid.UUID) (
 }
 
 const findFilamentSpoolByIdentifier = `-- name: FindFilamentSpoolByIdentifier :one
-SELECT spool_id FROM filament_spool_identifiers WHERE kind=$1 AND lower(value)=lower($2)
+SELECT spool_id FROM filament_spool_identifiers WHERE kind=$1 AND lower(value)=lower($2) AND retired_at IS NULL
 `
 
 type FindFilamentSpoolByIdentifierParams struct {
@@ -1278,39 +1468,120 @@ func (q *Queries) GetDefaultPricingGroup(ctx context.Context) (PricingGroup, err
 	return i, err
 }
 
+const getFilamentProduct = `-- name: GetFilamentProduct :one
+SELECT p.id, p.manufacturer, p.name, p.material_id, p.net_weight_g, p.default_price, p.packaging, p.notes, p.active, p.version, p.created_at, p.updated_at, m.name AS material_name,
+       (SELECT count(*) FROM filament_spool_fills f JOIN filament_spools s ON s.id=f.spool_id
+        WHERE f.product_id=p.id AND f.closed_at IS NULL AND s.lifecycle='active')::bigint AS in_use_count
+FROM filament_products p JOIN materials m ON m.id=p.material_id
+WHERE p.id=$1
+`
+
+type GetFilamentProductRow struct {
+	ID           uuid.UUID
+	Manufacturer string
+	Name         string
+	MaterialID   uuid.UUID
+	NetWeightG   pgtype.Numeric
+	DefaultPrice pgtype.Numeric
+	Packaging    string
+	Notes        *string
+	Active       bool
+	Version      int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	MaterialName string
+	InUseCount   int64
+}
+
+func (q *Queries) GetFilamentProduct(ctx context.Context, id uuid.UUID) (GetFilamentProductRow, error) {
+	row := q.db.QueryRow(ctx, getFilamentProduct, id)
+	var i GetFilamentProductRow
+	err := row.Scan(
+		&i.ID,
+		&i.Manufacturer,
+		&i.Name,
+		&i.MaterialID,
+		&i.NetWeightG,
+		&i.DefaultPrice,
+		&i.Packaging,
+		&i.Notes,
+		&i.Active,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.MaterialName,
+		&i.InUseCount,
+	)
+	return i, err
+}
+
+const getFilamentProductForUpdate = `-- name: GetFilamentProductForUpdate :one
+SELECT id, manufacturer, name, material_id, net_weight_g, default_price, packaging, notes, active, version, created_at, updated_at FROM filament_products WHERE id=$1 FOR UPDATE
+`
+
+func (q *Queries) GetFilamentProductForUpdate(ctx context.Context, id uuid.UUID) (FilamentProduct, error) {
+	row := q.db.QueryRow(ctx, getFilamentProductForUpdate, id)
+	var i FilamentProduct
+	err := row.Scan(
+		&i.ID,
+		&i.Manufacturer,
+		&i.Name,
+		&i.MaterialID,
+		&i.NetWeightG,
+		&i.DefaultPrice,
+		&i.Packaging,
+		&i.Notes,
+		&i.Active,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getFilamentSpool = `-- name: GetFilamentSpool :one
-SELECT s.id, s.display_id, s.material_id, s.manufacturer, s.product_name, s.initial_net_weight_g, s.tare_weight_g, s.acquired_on, s.acquisition_reference, s.storage_location, s.notes, s.lifecycle, s.version, s.created_at, s.updated_at, m.name AS material_name, m.category, m.color, m.unit,
-       (COALESCE(sum(t.quantity_delta) FILTER (WHERE t.spool_id=s.id), 0::numeric)
-       + COALESCE(sum(t.transfer_quantity) FILTER (WHERE t.to_spool_id=s.id), 0::numeric)
-       - COALESCE(sum(t.transfer_quantity) FILTER (WHERE t.from_spool_id=s.id), 0::numeric))::numeric AS remaining_quantity,
+SELECT s.id, s.display_id, s.kind, s.label, s.lifecycle, s.archived_at, s.tare_weight_g, s.acquired_on, s.acquisition_reference,
+       s.storage_location, s.notes, s.version, s.created_at, s.updated_at,
+       COALESCE(f.fill_number, (SELECT max(x.fill_number) FROM filament_spool_fills x WHERE x.spool_id=s.id))::integer AS fill_number,
+       f.id AS fill_id, f.filled_at, f.material_id, f.product_id, f.manufacturer, f.product_name, f.initial_net_weight_g,
+       m.name AS material_name, m.category, m.color, m.unit,
+       (COALESCE((SELECT sum(t.quantity_delta) FROM inventory_transactions t WHERE t.fill_id=f.id), 0::numeric)
+       + COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.to_fill_id=f.id), 0::numeric)
+       - COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.from_fill_id=f.id), 0::numeric))::numeric AS remaining_quantity,
        EXISTS(SELECT 1 FROM printer_spool_assignments a WHERE a.spool_id=s.id AND a.unmounted_at IS NULL) AS mounted
 FROM filament_spools s
-JOIN materials m ON m.id=s.material_id
-LEFT JOIN inventory_transactions t ON t.spool_id=s.id OR t.from_spool_id=s.id OR t.to_spool_id=s.id
+LEFT JOIN filament_spool_fills f ON f.spool_id=s.id AND f.closed_at IS NULL
+LEFT JOIN materials m ON m.id=f.material_id
 WHERE s.id=$1
-GROUP BY s.id, m.id
 `
 
 type GetFilamentSpoolRow struct {
 	ID                   uuid.UUID
 	DisplayID            string
-	MaterialID           uuid.UUID
-	Manufacturer         *string
-	ProductName          *string
-	InitialNetWeightG    pgtype.Numeric
+	Kind                 string
+	Label                *string
+	Lifecycle            string
+	ArchivedAt           pgtype.Timestamptz
 	TareWeightG          pgtype.Numeric
 	AcquiredOn           pgtype.Date
 	AcquisitionReference *string
 	StorageLocation      *string
 	Notes                *string
-	Lifecycle            string
 	Version              int64
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
-	MaterialName         string
-	Category             string
+	FillNumber           int32
+	FillID               *uuid.UUID
+	FilledAt             pgtype.Timestamptz
+	MaterialID           *uuid.UUID
+	ProductID            *uuid.UUID
+	Manufacturer         *string
+	ProductName          *string
+	InitialNetWeightG    pgtype.Numeric
+	MaterialName         *string
+	Category             *string
 	Color                *string
-	Unit                 string
+	Unit                 *string
 	RemainingQuantity    pgtype.Numeric
 	Mounted              bool
 }
@@ -1321,19 +1592,26 @@ func (q *Queries) GetFilamentSpool(ctx context.Context, id uuid.UUID) (GetFilame
 	err := row.Scan(
 		&i.ID,
 		&i.DisplayID,
-		&i.MaterialID,
-		&i.Manufacturer,
-		&i.ProductName,
-		&i.InitialNetWeightG,
+		&i.Kind,
+		&i.Label,
+		&i.Lifecycle,
+		&i.ArchivedAt,
 		&i.TareWeightG,
 		&i.AcquiredOn,
 		&i.AcquisitionReference,
 		&i.StorageLocation,
 		&i.Notes,
-		&i.Lifecycle,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.FillNumber,
+		&i.FillID,
+		&i.FilledAt,
+		&i.MaterialID,
+		&i.ProductID,
+		&i.Manufacturer,
+		&i.ProductName,
+		&i.InitialNetWeightG,
 		&i.MaterialName,
 		&i.Category,
 		&i.Color,
@@ -1344,49 +1622,64 @@ func (q *Queries) GetFilamentSpool(ctx context.Context, id uuid.UUID) (GetFilame
 	return i, err
 }
 
-const getFilamentSpoolForUpdate = `-- name: GetFilamentSpoolForUpdate :one
-SELECT s.id, s.display_id, s.material_id, s.manufacturer, s.product_name, s.initial_net_weight_g, s.tare_weight_g, s.acquired_on, s.acquisition_reference, s.storage_location, s.notes, s.lifecycle, s.version, s.created_at, s.updated_at, m.name AS material_name, m.category, m.color, m.unit,
-       (COALESCE((SELECT sum(t.quantity_delta) FROM inventory_transactions t WHERE t.spool_id=s.id), 0::numeric)
-       + COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.to_spool_id=s.id), 0::numeric)
-       - COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.from_spool_id=s.id), 0::numeric))::numeric AS remaining_quantity
-FROM filament_spools s JOIN materials m ON m.id=s.material_id
-WHERE s.id=$1
-FOR UPDATE OF s
+const getFilamentSpoolFill = `-- name: GetFilamentSpoolFill :one
+SELECT f.id, f.spool_id, f.fill_number, f.material_id, f.product_id, f.manufacturer, f.product_name, f.initial_net_weight_g, f.filled_at, f.closed_at, f.leftover_g, f.leftover_outcome, f.created_at,
+       (COALESCE((SELECT sum(t.quantity_delta) FROM inventory_transactions t WHERE t.fill_id=f.id), 0::numeric)
+       + COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.to_fill_id=f.id), 0::numeric)
+       - COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.from_fill_id=f.id), 0::numeric))::numeric AS remaining_quantity
+FROM filament_spool_fills f
+WHERE f.id=$1
 `
 
-type GetFilamentSpoolForUpdateRow struct {
-	ID                   uuid.UUID
-	DisplayID            string
-	MaterialID           uuid.UUID
-	Manufacturer         *string
-	ProductName          *string
-	InitialNetWeightG    pgtype.Numeric
-	TareWeightG          pgtype.Numeric
-	AcquiredOn           pgtype.Date
-	AcquisitionReference *string
-	StorageLocation      *string
-	Notes                *string
-	Lifecycle            string
-	Version              int64
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-	MaterialName         string
-	Category             string
-	Color                *string
-	Unit                 string
-	RemainingQuantity    pgtype.Numeric
+type GetFilamentSpoolFillRow struct {
+	ID                uuid.UUID
+	SpoolID           uuid.UUID
+	FillNumber        int32
+	MaterialID        uuid.UUID
+	ProductID         *uuid.UUID
+	Manufacturer      *string
+	ProductName       *string
+	InitialNetWeightG pgtype.Numeric
+	FilledAt          time.Time
+	ClosedAt          pgtype.Timestamptz
+	LeftoverG         pgtype.Numeric
+	LeftoverOutcome   *string
+	CreatedAt         time.Time
+	RemainingQuantity pgtype.Numeric
 }
 
-func (q *Queries) GetFilamentSpoolForUpdate(ctx context.Context, id uuid.UUID) (GetFilamentSpoolForUpdateRow, error) {
-	row := q.db.QueryRow(ctx, getFilamentSpoolForUpdate, id)
-	var i GetFilamentSpoolForUpdateRow
+func (q *Queries) GetFilamentSpoolFill(ctx context.Context, id uuid.UUID) (GetFilamentSpoolFillRow, error) {
+	row := q.db.QueryRow(ctx, getFilamentSpoolFill, id)
+	var i GetFilamentSpoolFillRow
 	err := row.Scan(
 		&i.ID,
-		&i.DisplayID,
+		&i.SpoolID,
+		&i.FillNumber,
 		&i.MaterialID,
+		&i.ProductID,
 		&i.Manufacturer,
 		&i.ProductName,
 		&i.InitialNetWeightG,
+		&i.FilledAt,
+		&i.ClosedAt,
+		&i.LeftoverG,
+		&i.LeftoverOutcome,
+		&i.CreatedAt,
+		&i.RemainingQuantity,
+	)
+	return i, err
+}
+
+const getFilamentSpoolForUpdate = `-- name: GetFilamentSpoolForUpdate :one
+SELECT id, display_id, tare_weight_g, acquired_on, acquisition_reference, storage_location, notes, lifecycle, version, created_at, updated_at, kind, label, archived_at FROM filament_spools WHERE id=$1 FOR UPDATE
+`
+
+func (q *Queries) GetFilamentSpoolForUpdate(ctx context.Context, id uuid.UUID) (FilamentSpool, error) {
+	row := q.db.QueryRow(ctx, getFilamentSpoolForUpdate, id)
+	var i FilamentSpool
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayID,
 		&i.TareWeightG,
 		&i.AcquiredOn,
 		&i.AcquisitionReference,
@@ -1396,11 +1689,9 @@ func (q *Queries) GetFilamentSpoolForUpdate(ctx context.Context, id uuid.UUID) (
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.MaterialName,
-		&i.Category,
-		&i.Color,
-		&i.Unit,
-		&i.RemainingQuantity,
+		&i.Kind,
+		&i.Label,
+		&i.ArchivedAt,
 	)
 	return i, err
 }
@@ -1676,13 +1967,11 @@ const getMaterial = `-- name: GetMaterial :one
 SELECT m.id, m.name, m.category, m.color, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
        COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.occurred_at >= now() - interval '30 days'), 0)::numeric AS recent_consumption,
        fp.diameter_mm,
-       COALESCE((SELECT sum(x.remaining) FROM (
-           SELECT COALESCE(sum(it.quantity_delta) FILTER (WHERE it.spool_id=fs.id),0)
-                + COALESCE(sum(it.transfer_quantity) FILTER (WHERE it.to_spool_id=fs.id),0)
-                - COALESCE(sum(it.transfer_quantity) FILTER (WHERE it.from_spool_id=fs.id),0) AS remaining
-           FROM filament_spools fs LEFT JOIN inventory_transactions it ON it.spool_id=fs.id OR it.from_spool_id=fs.id OR it.to_spool_id=fs.id
-           WHERE fs.material_id=m.id GROUP BY fs.id
-       ) x),0)::numeric AS assigned_quantity
+       COALESCE((SELECT sum(
+           COALESCE((SELECT sum(it.quantity_delta) FROM inventory_transactions it WHERE it.fill_id=f.id), 0::numeric)
+           + COALESCE((SELECT sum(it.transfer_quantity) FROM inventory_transactions it WHERE it.to_fill_id=f.id), 0::numeric)
+           - COALESCE((SELECT sum(it.transfer_quantity) FROM inventory_transactions it WHERE it.from_fill_id=f.id), 0::numeric))
+           FROM filament_spool_fills f WHERE f.material_id=m.id AND f.closed_at IS NULL),0)::numeric AS assigned_quantity
 FROM materials m JOIN material_balances b ON b.material_id = m.id
 LEFT JOIN material_filament_properties fp ON fp.material_id=m.id
 LEFT JOIN inventory_transactions t ON t.material_id = m.id
@@ -1781,6 +2070,54 @@ func (q *Queries) GetMaterialForUpdate(ctx context.Context, id uuid.UUID) (GetMa
 		&i.AverageUnitCost,
 		&i.InventoryVersion,
 		&i.BalanceUpdatedAt,
+	)
+	return i, err
+}
+
+const getOpenFilamentSpoolFill = `-- name: GetOpenFilamentSpoolFill :one
+SELECT f.id, f.spool_id, f.fill_number, f.material_id, f.product_id, f.manufacturer, f.product_name, f.initial_net_weight_g, f.filled_at, f.closed_at, f.leftover_g, f.leftover_outcome, f.created_at,
+       (COALESCE((SELECT sum(t.quantity_delta) FROM inventory_transactions t WHERE t.fill_id=f.id), 0::numeric)
+       + COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.to_fill_id=f.id), 0::numeric)
+       - COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.from_fill_id=f.id), 0::numeric))::numeric AS remaining_quantity
+FROM filament_spool_fills f
+WHERE f.spool_id=$1 AND f.closed_at IS NULL
+`
+
+type GetOpenFilamentSpoolFillRow struct {
+	ID                uuid.UUID
+	SpoolID           uuid.UUID
+	FillNumber        int32
+	MaterialID        uuid.UUID
+	ProductID         *uuid.UUID
+	Manufacturer      *string
+	ProductName       *string
+	InitialNetWeightG pgtype.Numeric
+	FilledAt          time.Time
+	ClosedAt          pgtype.Timestamptz
+	LeftoverG         pgtype.Numeric
+	LeftoverOutcome   *string
+	CreatedAt         time.Time
+	RemainingQuantity pgtype.Numeric
+}
+
+func (q *Queries) GetOpenFilamentSpoolFill(ctx context.Context, spoolID uuid.UUID) (GetOpenFilamentSpoolFillRow, error) {
+	row := q.db.QueryRow(ctx, getOpenFilamentSpoolFill, spoolID)
+	var i GetOpenFilamentSpoolFillRow
+	err := row.Scan(
+		&i.ID,
+		&i.SpoolID,
+		&i.FillNumber,
+		&i.MaterialID,
+		&i.ProductID,
+		&i.Manufacturer,
+		&i.ProductName,
+		&i.InitialNetWeightG,
+		&i.FilledAt,
+		&i.ClosedAt,
+		&i.LeftoverG,
+		&i.LeftoverOutcome,
+		&i.CreatedAt,
+		&i.RemainingQuantity,
 	)
 	return i, err
 }
@@ -2014,12 +2351,62 @@ func (q *Queries) GetPrintReference(ctx context.Context, id uuid.UUID) (GetPrint
 	return i, err
 }
 
+const insertFilamentSpoolFill = `-- name: InsertFilamentSpoolFill :one
+INSERT INTO filament_spool_fills (id, spool_id, fill_number, material_id, product_id, manufacturer, product_name, initial_net_weight_g, filled_at)
+VALUES ($1, $2, $3, $4, $5, $6,
+    $7, $8, $9)
+RETURNING id, spool_id, fill_number, material_id, product_id, manufacturer, product_name, initial_net_weight_g, filled_at, closed_at, leftover_g, leftover_outcome, created_at
+`
+
+type InsertFilamentSpoolFillParams struct {
+	ID                uuid.UUID
+	SpoolID           uuid.UUID
+	FillNumber        int32
+	MaterialID        uuid.UUID
+	ProductID         *uuid.UUID
+	Manufacturer      *string
+	ProductName       *string
+	InitialNetWeightG pgtype.Numeric
+	FilledAt          time.Time
+}
+
+func (q *Queries) InsertFilamentSpoolFill(ctx context.Context, arg InsertFilamentSpoolFillParams) (FilamentSpoolFill, error) {
+	row := q.db.QueryRow(ctx, insertFilamentSpoolFill,
+		arg.ID,
+		arg.SpoolID,
+		arg.FillNumber,
+		arg.MaterialID,
+		arg.ProductID,
+		arg.Manufacturer,
+		arg.ProductName,
+		arg.InitialNetWeightG,
+		arg.FilledAt,
+	)
+	var i FilamentSpoolFill
+	err := row.Scan(
+		&i.ID,
+		&i.SpoolID,
+		&i.FillNumber,
+		&i.MaterialID,
+		&i.ProductID,
+		&i.Manufacturer,
+		&i.ProductName,
+		&i.InitialNetWeightG,
+		&i.FilledAt,
+		&i.ClosedAt,
+		&i.LeftoverG,
+		&i.LeftoverOutcome,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const insertInventoryTransaction = `-- name: InsertInventoryTransaction :one
 INSERT INTO inventory_transactions (id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta,
     total_purchase_price, occurred_at, supplier, note, adjustment_reason, machine_job_usage_id, actor_account_id)
 VALUES ($1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11, $12, $13)
-RETURNING id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta, total_purchase_price, occurred_at, supplier, note, adjustment_reason, machine_job_usage_id, actor_account_id, created_at, spool_id, from_spool_id, to_spool_id, transfer_quantity
+RETURNING id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta, total_purchase_price, occurred_at, supplier, note, adjustment_reason, machine_job_usage_id, actor_account_id, created_at, spool_id, from_spool_id, to_spool_id, transfer_quantity, fill_id, from_fill_id, to_fill_id, spool_display_id, fill_number, from_spool_display_id, from_fill_number, to_spool_display_id, to_fill_number
 `
 
 type InsertInventoryTransactionParams struct {
@@ -2074,14 +2461,23 @@ func (q *Queries) InsertInventoryTransaction(ctx context.Context, arg InsertInve
 		&i.FromSpoolID,
 		&i.ToSpoolID,
 		&i.TransferQuantity,
+		&i.FillID,
+		&i.FromFillID,
+		&i.ToFillID,
+		&i.SpoolDisplayID,
+		&i.FillNumber,
+		&i.FromSpoolDisplayID,
+		&i.FromFillNumber,
+		&i.ToSpoolDisplayID,
+		&i.ToFillNumber,
 	)
 	return i, err
 }
 
 const insertMachineJobUsage = `-- name: InsertMachineJobUsage :one
-INSERT INTO machine_job_material_usages (id, machine_job_id, material_id, spool_id, ownership, external_material_name, quantity_basis, quantity, source_printer_event_id)
-VALUES ($1, $2, $3, $4, $5,
-    $6, $7, $8, $9) RETURNING id, machine_job_id, material_id, quantity, active, created_at, updated_at, ownership, spool_id, external_material_name, quantity_basis, source_printer_event_id
+INSERT INTO machine_job_material_usages (id, machine_job_id, material_id, spool_id, fill_id, spool_display_id, fill_number, ownership, external_material_name, quantity_basis, quantity, source_printer_event_id)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+    $9, $10, $11, $12) RETURNING id, machine_job_id, material_id, quantity, active, created_at, updated_at, ownership, spool_id, external_material_name, quantity_basis, source_printer_event_id, fill_id, spool_display_id, fill_number
 `
 
 type InsertMachineJobUsageParams struct {
@@ -2089,6 +2485,9 @@ type InsertMachineJobUsageParams struct {
 	MachineJobID         uuid.UUID
 	MaterialID           *uuid.UUID
 	SpoolID              *uuid.UUID
+	FillID               *uuid.UUID
+	SpoolDisplayID       *string
+	FillNumber           *int32
 	Ownership            string
 	ExternalMaterialName *string
 	QuantityBasis        string
@@ -2102,6 +2501,9 @@ func (q *Queries) InsertMachineJobUsage(ctx context.Context, arg InsertMachineJo
 		arg.MachineJobID,
 		arg.MaterialID,
 		arg.SpoolID,
+		arg.FillID,
+		arg.SpoolDisplayID,
+		arg.FillNumber,
 		arg.Ownership,
 		arg.ExternalMaterialName,
 		arg.QuantityBasis,
@@ -2122,6 +2524,9 @@ func (q *Queries) InsertMachineJobUsage(ctx context.Context, arg InsertMachineJo
 		&i.ExternalMaterialName,
 		&i.QuantityBasis,
 		&i.SourcePrinterEventID,
+		&i.FillID,
+		&i.SpoolDisplayID,
+		&i.FillNumber,
 	)
 	return i, err
 }
@@ -2173,11 +2578,13 @@ func (q *Queries) InsertPricingSnapshotRule(ctx context.Context, arg InsertPrici
 
 const insertSpoolInventoryTransaction = `-- name: InsertSpoolInventoryTransaction :one
 INSERT INTO inventory_transactions (id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta,
-    total_purchase_price, occurred_at, supplier, note, adjustment_reason, machine_job_usage_id, actor_account_id, spool_id)
+    total_purchase_price, occurred_at, supplier, note, adjustment_reason, machine_job_usage_id, actor_account_id,
+    spool_id, fill_id, spool_display_id, fill_number)
 VALUES ($1, $2, $3, $4, $5,
     $6, $7, $8, $9,
-    $10, $11, $12, $13, $14)
-RETURNING id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta, total_purchase_price, occurred_at, supplier, note, adjustment_reason, machine_job_usage_id, actor_account_id, created_at, spool_id, from_spool_id, to_spool_id, transfer_quantity
+    $10, $11, $12, $13,
+    $14, $15, $16, $17)
+RETURNING id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta, total_purchase_price, occurred_at, supplier, note, adjustment_reason, machine_job_usage_id, actor_account_id, created_at, spool_id, from_spool_id, to_spool_id, transfer_quantity, fill_id, from_fill_id, to_fill_id, spool_display_id, fill_number, from_spool_display_id, from_fill_number, to_spool_display_id, to_fill_number
 `
 
 type InsertSpoolInventoryTransactionParams struct {
@@ -2195,6 +2602,9 @@ type InsertSpoolInventoryTransactionParams struct {
 	MachineJobUsageID   *uuid.UUID
 	ActorAccountID      *uuid.UUID
 	SpoolID             *uuid.UUID
+	FillID              *uuid.UUID
+	SpoolDisplayID      *string
+	FillNumber          *int32
 }
 
 func (q *Queries) InsertSpoolInventoryTransaction(ctx context.Context, arg InsertSpoolInventoryTransactionParams) (InventoryTransaction, error) {
@@ -2213,6 +2623,9 @@ func (q *Queries) InsertSpoolInventoryTransaction(ctx context.Context, arg Inser
 		arg.MachineJobUsageID,
 		arg.ActorAccountID,
 		arg.SpoolID,
+		arg.FillID,
+		arg.SpoolDisplayID,
+		arg.FillNumber,
 	)
 	var i InventoryTransaction
 	err := row.Scan(
@@ -2234,28 +2647,46 @@ func (q *Queries) InsertSpoolInventoryTransaction(ctx context.Context, arg Inser
 		&i.FromSpoolID,
 		&i.ToSpoolID,
 		&i.TransferQuantity,
+		&i.FillID,
+		&i.FromFillID,
+		&i.ToFillID,
+		&i.SpoolDisplayID,
+		&i.FillNumber,
+		&i.FromSpoolDisplayID,
+		&i.FromFillNumber,
+		&i.ToSpoolDisplayID,
+		&i.ToFillNumber,
 	)
 	return i, err
 }
 
 const insertSpoolTransfer = `-- name: InsertSpoolTransfer :one
 INSERT INTO inventory_transactions (id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta,
-    occurred_at, note, adjustment_reason, actor_account_id, from_spool_id, to_spool_id, transfer_quantity)
+    occurred_at, note, adjustment_reason, actor_account_id, from_spool_id, from_fill_id, from_spool_display_id, from_fill_number,
+    to_spool_id, to_fill_id, to_spool_display_id, to_fill_number, transfer_quantity)
 VALUES ($1, $2, 'spool_transfer', 0, 0, 0, $3, $4,
-    $5, $6, $7, $8, $9)
-RETURNING id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta, total_purchase_price, occurred_at, supplier, note, adjustment_reason, machine_job_usage_id, actor_account_id, created_at, spool_id, from_spool_id, to_spool_id, transfer_quantity
+    $5, $6, $7, $8,
+    $9, $10, $11, $12,
+    $13, $14, $15)
+RETURNING id, material_id, kind, quantity_delta, unit_acquisition_cost, inventory_value_delta, total_purchase_price, occurred_at, supplier, note, adjustment_reason, machine_job_usage_id, actor_account_id, created_at, spool_id, from_spool_id, to_spool_id, transfer_quantity, fill_id, from_fill_id, to_fill_id, spool_display_id, fill_number, from_spool_display_id, from_fill_number, to_spool_display_id, to_fill_number
 `
 
 type InsertSpoolTransferParams struct {
-	ID               uuid.UUID
-	MaterialID       uuid.UUID
-	OccurredAt       time.Time
-	Note             *string
-	AdjustmentReason *string
-	ActorAccountID   *uuid.UUID
-	FromSpoolID      *uuid.UUID
-	ToSpoolID        *uuid.UUID
-	TransferQuantity pgtype.Numeric
+	ID                 uuid.UUID
+	MaterialID         uuid.UUID
+	OccurredAt         time.Time
+	Note               *string
+	AdjustmentReason   *string
+	ActorAccountID     *uuid.UUID
+	FromSpoolID        *uuid.UUID
+	FromFillID         *uuid.UUID
+	FromSpoolDisplayID *string
+	FromFillNumber     *int32
+	ToSpoolID          *uuid.UUID
+	ToFillID           *uuid.UUID
+	ToSpoolDisplayID   *string
+	ToFillNumber       *int32
+	TransferQuantity   pgtype.Numeric
 }
 
 func (q *Queries) InsertSpoolTransfer(ctx context.Context, arg InsertSpoolTransferParams) (InventoryTransaction, error) {
@@ -2267,7 +2698,13 @@ func (q *Queries) InsertSpoolTransfer(ctx context.Context, arg InsertSpoolTransf
 		arg.AdjustmentReason,
 		arg.ActorAccountID,
 		arg.FromSpoolID,
+		arg.FromFillID,
+		arg.FromSpoolDisplayID,
+		arg.FromFillNumber,
 		arg.ToSpoolID,
+		arg.ToFillID,
+		arg.ToSpoolDisplayID,
+		arg.ToFillNumber,
 		arg.TransferQuantity,
 	)
 	var i InventoryTransaction
@@ -2290,6 +2727,15 @@ func (q *Queries) InsertSpoolTransfer(ctx context.Context, arg InsertSpoolTransf
 		&i.FromSpoolID,
 		&i.ToSpoolID,
 		&i.TransferQuantity,
+		&i.FillID,
+		&i.FromFillID,
+		&i.ToFillID,
+		&i.SpoolDisplayID,
+		&i.FillNumber,
+		&i.FromSpoolDisplayID,
+		&i.FromFillNumber,
+		&i.ToSpoolDisplayID,
+		&i.ToFillNumber,
 	)
 	return i, err
 }
@@ -2354,7 +2800,7 @@ func (q *Queries) LinkMachineJobPrint(ctx context.Context, arg LinkMachineJobPri
 }
 
 const listAllMachineJobUsagesForUpdate = `-- name: ListAllMachineJobUsagesForUpdate :many
-SELECT id, machine_job_id, material_id, quantity, active, created_at, updated_at, ownership, spool_id, external_material_name, quantity_basis, source_printer_event_id FROM machine_job_material_usages WHERE machine_job_id = $1 AND active
+SELECT id, machine_job_id, material_id, quantity, active, created_at, updated_at, ownership, spool_id, external_material_name, quantity_basis, source_printer_event_id, fill_id, spool_display_id, fill_number FROM machine_job_material_usages WHERE machine_job_id = $1 AND active
 ORDER BY material_id NULLS LAST, spool_id NULLS LAST, id FOR UPDATE
 `
 
@@ -2380,6 +2826,196 @@ func (q *Queries) ListAllMachineJobUsagesForUpdate(ctx context.Context, machineJ
 			&i.ExternalMaterialName,
 			&i.QuantityBasis,
 			&i.SourcePrinterEventID,
+			&i.FillID,
+			&i.SpoolDisplayID,
+			&i.FillNumber,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listClosedFilamentSpoolFills = `-- name: ListClosedFilamentSpoolFills :many
+SELECT f.id, f.spool_id, f.fill_number, f.material_id, f.product_id, f.manufacturer, f.product_name, f.initial_net_weight_g, f.filled_at, f.closed_at, f.leftover_g, f.leftover_outcome, f.created_at, m.name AS material_name,
+       COALESCE((SELECT -sum(t.quantity_delta) FROM inventory_transactions t
+                 WHERE t.fill_id=f.id AND t.kind IN ('machine_job_consumption', 'manual_consumption')), 0::numeric)::numeric AS used_g
+FROM filament_spool_fills f JOIN materials m ON m.id=f.material_id
+WHERE f.spool_id=$1 AND f.closed_at IS NOT NULL
+ORDER BY f.fill_number DESC
+`
+
+type ListClosedFilamentSpoolFillsRow struct {
+	ID                uuid.UUID
+	SpoolID           uuid.UUID
+	FillNumber        int32
+	MaterialID        uuid.UUID
+	ProductID         *uuid.UUID
+	Manufacturer      *string
+	ProductName       *string
+	InitialNetWeightG pgtype.Numeric
+	FilledAt          time.Time
+	ClosedAt          pgtype.Timestamptz
+	LeftoverG         pgtype.Numeric
+	LeftoverOutcome   *string
+	CreatedAt         time.Time
+	MaterialName      string
+	UsedG             pgtype.Numeric
+}
+
+func (q *Queries) ListClosedFilamentSpoolFills(ctx context.Context, spoolID uuid.UUID) ([]ListClosedFilamentSpoolFillsRow, error) {
+	rows, err := q.db.Query(ctx, listClosedFilamentSpoolFills, spoolID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListClosedFilamentSpoolFillsRow{}
+	for rows.Next() {
+		var i ListClosedFilamentSpoolFillsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SpoolID,
+			&i.FillNumber,
+			&i.MaterialID,
+			&i.ProductID,
+			&i.Manufacturer,
+			&i.ProductName,
+			&i.InitialNetWeightG,
+			&i.FilledAt,
+			&i.ClosedAt,
+			&i.LeftoverG,
+			&i.LeftoverOutcome,
+			&i.CreatedAt,
+			&i.MaterialName,
+			&i.UsedG,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFilamentProducts = `-- name: ListFilamentProducts :many
+SELECT p.id, p.manufacturer, p.name, p.material_id, p.net_weight_g, p.default_price, p.packaging, p.notes, p.active, p.version, p.created_at, p.updated_at, m.name AS material_name,
+       (SELECT count(*) FROM filament_spool_fills f JOIN filament_spools s ON s.id=f.spool_id
+        WHERE f.product_id=p.id AND f.closed_at IS NULL AND s.lifecycle='active')::bigint AS in_use_count
+FROM filament_products p JOIN materials m ON m.id=p.material_id
+WHERE ($1::text='' OR lower(p.manufacturer) LIKE '%'||lower($1::text)||'%' OR lower(p.name) LIKE '%'||lower($1::text)||'%')
+  AND ($2::uuid IS NULL OR p.material_id=$2)
+  AND ($3::text='' OR lower(p.manufacturer)=lower($3::text))
+  AND ($4::text='' OR p.packaging=$4::text)
+  AND ($5::boolean OR p.active)
+ORDER BY p.active DESC, lower(p.manufacturer), lower(p.name), p.id
+LIMIT $7 OFFSET $6
+`
+
+type ListFilamentProductsParams struct {
+	Search          string
+	MaterialID      *uuid.UUID
+	Manufacturer    string
+	Packaging       string
+	IncludeInactive bool
+	PageOffset      int32
+	PageLimit       int32
+}
+
+type ListFilamentProductsRow struct {
+	ID           uuid.UUID
+	Manufacturer string
+	Name         string
+	MaterialID   uuid.UUID
+	NetWeightG   pgtype.Numeric
+	DefaultPrice pgtype.Numeric
+	Packaging    string
+	Notes        *string
+	Active       bool
+	Version      int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	MaterialName string
+	InUseCount   int64
+}
+
+func (q *Queries) ListFilamentProducts(ctx context.Context, arg ListFilamentProductsParams) ([]ListFilamentProductsRow, error) {
+	rows, err := q.db.Query(ctx, listFilamentProducts,
+		arg.Search,
+		arg.MaterialID,
+		arg.Manufacturer,
+		arg.Packaging,
+		arg.IncludeInactive,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListFilamentProductsRow{}
+	for rows.Next() {
+		var i ListFilamentProductsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Manufacturer,
+			&i.Name,
+			&i.MaterialID,
+			&i.NetWeightG,
+			&i.DefaultPrice,
+			&i.Packaging,
+			&i.Notes,
+			&i.Active,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.MaterialName,
+			&i.InUseCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFilamentSpoolCleanupCandidates = `-- name: ListFilamentSpoolCleanupCandidates :many
+SELECT s.id, s.display_id, s.label, s.archived_at
+FROM filament_spools s
+WHERE s.kind='single_use' AND s.lifecycle='archived' AND s.archived_at < $1::timestamptz
+  AND NOT EXISTS(SELECT 1 FROM filament_spool_fills f WHERE f.spool_id=s.id AND f.closed_at IS NULL)
+ORDER BY s.archived_at, s.id
+`
+
+type ListFilamentSpoolCleanupCandidatesRow struct {
+	ID         uuid.UUID
+	DisplayID  string
+	Label      *string
+	ArchivedAt pgtype.Timestamptz
+}
+
+func (q *Queries) ListFilamentSpoolCleanupCandidates(ctx context.Context, cutoff time.Time) ([]ListFilamentSpoolCleanupCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, listFilamentSpoolCleanupCandidates, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListFilamentSpoolCleanupCandidatesRow{}
+	for rows.Next() {
+		var i ListFilamentSpoolCleanupCandidatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayID,
+			&i.Label,
+			&i.ArchivedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -2392,7 +3028,7 @@ func (q *Queries) ListAllMachineJobUsagesForUpdate(ctx context.Context, machineJ
 }
 
 const listFilamentSpoolIdentifiers = `-- name: ListFilamentSpoolIdentifiers :many
-SELECT id, spool_id, kind, value, created_at FROM filament_spool_identifiers WHERE spool_id=$1 ORDER BY kind, id
+SELECT id, spool_id, kind, value, created_at, fill_id, retired_at FROM filament_spool_identifiers WHERE spool_id=$1 AND retired_at IS NULL ORDER BY kind, id
 `
 
 func (q *Queries) ListFilamentSpoolIdentifiers(ctx context.Context, spoolID uuid.UUID) ([]FilamentSpoolIdentifier, error) {
@@ -2410,6 +3046,8 @@ func (q *Queries) ListFilamentSpoolIdentifiers(ctx context.Context, spoolID uuid
 			&i.Kind,
 			&i.Value,
 			&i.CreatedAt,
+			&i.FillID,
+			&i.RetiredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -2422,7 +3060,7 @@ func (q *Queries) ListFilamentSpoolIdentifiers(ctx context.Context, spoolID uuid
 }
 
 const listFilamentSpoolTransactions = `-- name: ListFilamentSpoolTransactions :many
-SELECT t.id, t.material_id, t.kind, t.quantity_delta, t.unit_acquisition_cost, t.inventory_value_delta, t.total_purchase_price, t.occurred_at, t.supplier, t.note, t.adjustment_reason, t.machine_job_usage_id, t.actor_account_id, t.created_at, t.spool_id, t.from_spool_id, t.to_spool_id, t.transfer_quantity, j.id AS machine_job_id, j.display_id AS machine_job_display_id
+SELECT t.id, t.material_id, t.kind, t.quantity_delta, t.unit_acquisition_cost, t.inventory_value_delta, t.total_purchase_price, t.occurred_at, t.supplier, t.note, t.adjustment_reason, t.machine_job_usage_id, t.actor_account_id, t.created_at, t.spool_id, t.from_spool_id, t.to_spool_id, t.transfer_quantity, t.fill_id, t.from_fill_id, t.to_fill_id, t.spool_display_id, t.fill_number, t.from_spool_display_id, t.from_fill_number, t.to_spool_display_id, t.to_fill_number, j.id AS machine_job_id, j.display_id AS machine_job_display_id
 FROM inventory_transactions t
 LEFT JOIN machine_job_material_usages u ON u.id=t.machine_job_usage_id
 LEFT JOIN machine_jobs j ON j.id=u.machine_job_id
@@ -2456,6 +3094,15 @@ type ListFilamentSpoolTransactionsRow struct {
 	FromSpoolID         *uuid.UUID
 	ToSpoolID           *uuid.UUID
 	TransferQuantity    pgtype.Numeric
+	FillID              *uuid.UUID
+	FromFillID          *uuid.UUID
+	ToFillID            *uuid.UUID
+	SpoolDisplayID      *string
+	FillNumber          *int32
+	FromSpoolDisplayID  *string
+	FromFillNumber      *int32
+	ToSpoolDisplayID    *string
+	ToFillNumber        *int32
 	MachineJobID        *uuid.UUID
 	MachineJobDisplayID *string
 }
@@ -2488,6 +3135,15 @@ func (q *Queries) ListFilamentSpoolTransactions(ctx context.Context, arg ListFil
 			&i.FromSpoolID,
 			&i.ToSpoolID,
 			&i.TransferQuantity,
+			&i.FillID,
+			&i.FromFillID,
+			&i.ToFillID,
+			&i.SpoolDisplayID,
+			&i.FillNumber,
+			&i.FromSpoolDisplayID,
+			&i.FromFillNumber,
+			&i.ToSpoolDisplayID,
+			&i.ToFillNumber,
 			&i.MachineJobID,
 			&i.MachineJobDisplayID,
 		); err != nil {
@@ -2502,55 +3158,79 @@ func (q *Queries) ListFilamentSpoolTransactions(ctx context.Context, arg ListFil
 }
 
 const listFilamentSpools = `-- name: ListFilamentSpools :many
-SELECT s.id, s.display_id, s.material_id, s.manufacturer, s.product_name, s.initial_net_weight_g, s.tare_weight_g, s.acquired_on, s.acquisition_reference, s.storage_location, s.notes, s.lifecycle, s.version, s.created_at, s.updated_at, m.name AS material_name, m.category, m.color, m.unit,
-       (COALESCE(sum(t.quantity_delta) FILTER (WHERE t.spool_id=s.id), 0::numeric)
-       + COALESCE(sum(t.transfer_quantity) FILTER (WHERE t.to_spool_id=s.id), 0::numeric)
-       - COALESCE(sum(t.transfer_quantity) FILTER (WHERE t.from_spool_id=s.id), 0::numeric))::numeric AS remaining_quantity,
+SELECT s.id, s.display_id, s.kind, s.label, s.lifecycle, s.archived_at, s.tare_weight_g, s.acquired_on, s.acquisition_reference,
+       s.storage_location, s.notes, s.version, s.created_at, s.updated_at,
+       COALESCE(f.fill_number, (SELECT max(x.fill_number) FROM filament_spool_fills x WHERE x.spool_id=s.id))::integer AS fill_number,
+       f.id AS fill_id, f.filled_at, f.material_id, f.product_id, f.manufacturer, f.product_name, f.initial_net_weight_g,
+       m.name AS material_name, m.category, m.color, m.unit,
+       (COALESCE((SELECT sum(t.quantity_delta) FROM inventory_transactions t WHERE t.fill_id=f.id), 0::numeric)
+       + COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.to_fill_id=f.id), 0::numeric)
+       - COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.from_fill_id=f.id), 0::numeric))::numeric AS remaining_quantity,
        EXISTS(SELECT 1 FROM printer_spool_assignments a WHERE a.spool_id=s.id AND a.unmounted_at IS NULL) AS mounted
 FROM filament_spools s
-JOIN materials m ON m.id=s.material_id
-LEFT JOIN inventory_transactions t ON t.spool_id=s.id OR t.from_spool_id=s.id OR t.to_spool_id=s.id
+LEFT JOIN filament_spool_fills f ON f.spool_id=s.id AND f.closed_at IS NULL
+LEFT JOIN materials m ON m.id=f.material_id
 WHERE ($1::text='' OR lower(s.display_id) LIKE '%'||lower($1::text)||'%'
-    OR lower(m.name) LIKE '%'||lower($1::text)||'%'
-    OR lower(COALESCE(s.manufacturer,'')) LIKE '%'||lower($1::text)||'%'
-    OR lower(COALESCE(s.product_name,'')) LIKE '%'||lower($1::text)||'%')
-  AND ($2::uuid IS NULL OR s.material_id=$2)
+    OR lower(COALESCE(s.label,'')) LIKE '%'||lower($1::text)||'%'
+    OR lower(COALESCE(m.name,'')) LIKE '%'||lower($1::text)||'%'
+    OR lower(COALESCE(f.manufacturer,'')) LIKE '%'||lower($1::text)||'%'
+    OR lower(COALESCE(f.product_name,'')) LIKE '%'||lower($1::text)||'%')
+  AND ($2::uuid IS NULL OR f.material_id=$2)
   AND ($3::text='' OR s.lifecycle=$3::text)
   AND ($4::text='' OR lower(COALESCE(s.storage_location,'')) LIKE '%'||lower($4::text)||'%')
-GROUP BY s.id, m.id
+  AND ($5::text='' OR s.kind=$5::text)
+  AND (cardinality($6::text[])=0 OR
+       (CASE WHEN s.lifecycle='archived' THEN 'archived' WHEN s.kind='single_use' THEN 'active' WHEN f.id IS NOT NULL THEN 'loaded' ELSE 'needs_refill' END) = ANY($6::text[]))
+  AND ($7::boolean IS NULL OR EXISTS(SELECT 1 FROM printer_spool_assignments a WHERE a.spool_id=s.id AND a.unmounted_at IS NULL) = $7::boolean)
+  AND ($8::uuid IS NULL OR f.product_id=$8)
+  AND ($9::text='' OR lower(COALESCE(f.manufacturer,''))=lower($9::text))
+  AND (NOT $10::boolean OR (f.id IS NOT NULL AND s.lifecycle='active'))
 ORDER BY s.lifecycle, lower(s.display_id), s.id
-LIMIT $6 OFFSET $5
+LIMIT $12 OFFSET $11
 `
 
 type ListFilamentSpoolsParams struct {
-	Search     string
-	MaterialID *uuid.UUID
-	Lifecycle  string
-	Location   string
-	PageOffset int32
-	PageLimit  int32
+	Search       string
+	MaterialID   *uuid.UUID
+	Lifecycle    string
+	Location     string
+	Kind         string
+	Statuses     []string
+	Mounted      *bool
+	ProductID    *uuid.UUID
+	Manufacturer string
+	Consumable   bool
+	PageOffset   int32
+	PageLimit    int32
 }
 
 type ListFilamentSpoolsRow struct {
 	ID                   uuid.UUID
 	DisplayID            string
-	MaterialID           uuid.UUID
-	Manufacturer         *string
-	ProductName          *string
-	InitialNetWeightG    pgtype.Numeric
+	Kind                 string
+	Label                *string
+	Lifecycle            string
+	ArchivedAt           pgtype.Timestamptz
 	TareWeightG          pgtype.Numeric
 	AcquiredOn           pgtype.Date
 	AcquisitionReference *string
 	StorageLocation      *string
 	Notes                *string
-	Lifecycle            string
 	Version              int64
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
-	MaterialName         string
-	Category             string
+	FillNumber           int32
+	FillID               *uuid.UUID
+	FilledAt             pgtype.Timestamptz
+	MaterialID           *uuid.UUID
+	ProductID            *uuid.UUID
+	Manufacturer         *string
+	ProductName          *string
+	InitialNetWeightG    pgtype.Numeric
+	MaterialName         *string
+	Category             *string
 	Color                *string
-	Unit                 string
+	Unit                 *string
 	RemainingQuantity    pgtype.Numeric
 	Mounted              bool
 }
@@ -2561,6 +3241,12 @@ func (q *Queries) ListFilamentSpools(ctx context.Context, arg ListFilamentSpools
 		arg.MaterialID,
 		arg.Lifecycle,
 		arg.Location,
+		arg.Kind,
+		arg.Statuses,
+		arg.Mounted,
+		arg.ProductID,
+		arg.Manufacturer,
+		arg.Consumable,
 		arg.PageOffset,
 		arg.PageLimit,
 	)
@@ -2574,19 +3260,26 @@ func (q *Queries) ListFilamentSpools(ctx context.Context, arg ListFilamentSpools
 		if err := rows.Scan(
 			&i.ID,
 			&i.DisplayID,
-			&i.MaterialID,
-			&i.Manufacturer,
-			&i.ProductName,
-			&i.InitialNetWeightG,
+			&i.Kind,
+			&i.Label,
+			&i.Lifecycle,
+			&i.ArchivedAt,
 			&i.TareWeightG,
 			&i.AcquiredOn,
 			&i.AcquisitionReference,
 			&i.StorageLocation,
 			&i.Notes,
-			&i.Lifecycle,
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.FillNumber,
+			&i.FillID,
+			&i.FilledAt,
+			&i.MaterialID,
+			&i.ProductID,
+			&i.Manufacturer,
+			&i.ProductName,
+			&i.InitialNetWeightG,
 			&i.MaterialName,
 			&i.Category,
 			&i.Color,
@@ -2605,7 +3298,7 @@ func (q *Queries) ListFilamentSpools(ctx context.Context, arg ListFilamentSpools
 }
 
 const listInventoryTransactions = `-- name: ListInventoryTransactions :many
-SELECT t.id, t.material_id, t.kind, t.quantity_delta, t.unit_acquisition_cost, t.inventory_value_delta, t.total_purchase_price, t.occurred_at, t.supplier, t.note, t.adjustment_reason, t.machine_job_usage_id, t.actor_account_id, t.created_at, t.spool_id, t.from_spool_id, t.to_spool_id, t.transfer_quantity, j.id AS machine_job_id, j.display_id AS machine_job_display_id
+SELECT t.id, t.material_id, t.kind, t.quantity_delta, t.unit_acquisition_cost, t.inventory_value_delta, t.total_purchase_price, t.occurred_at, t.supplier, t.note, t.adjustment_reason, t.machine_job_usage_id, t.actor_account_id, t.created_at, t.spool_id, t.from_spool_id, t.to_spool_id, t.transfer_quantity, t.fill_id, t.from_fill_id, t.to_fill_id, t.spool_display_id, t.fill_number, t.from_spool_display_id, t.from_fill_number, t.to_spool_display_id, t.to_fill_number, j.id AS machine_job_id, j.display_id AS machine_job_display_id
 FROM inventory_transactions t
 LEFT JOIN machine_job_material_usages u ON u.id = t.machine_job_usage_id
 LEFT JOIN machine_jobs j ON j.id = u.machine_job_id
@@ -2639,6 +3332,15 @@ type ListInventoryTransactionsRow struct {
 	FromSpoolID         *uuid.UUID
 	ToSpoolID           *uuid.UUID
 	TransferQuantity    pgtype.Numeric
+	FillID              *uuid.UUID
+	FromFillID          *uuid.UUID
+	ToFillID            *uuid.UUID
+	SpoolDisplayID      *string
+	FillNumber          *int32
+	FromSpoolDisplayID  *string
+	FromFillNumber      *int32
+	ToSpoolDisplayID    *string
+	ToFillNumber        *int32
 	MachineJobID        *uuid.UUID
 	MachineJobDisplayID *string
 }
@@ -2671,6 +3373,15 @@ func (q *Queries) ListInventoryTransactions(ctx context.Context, arg ListInvento
 			&i.FromSpoolID,
 			&i.ToSpoolID,
 			&i.TransferQuantity,
+			&i.FillID,
+			&i.FromFillID,
+			&i.ToFillID,
+			&i.SpoolDisplayID,
+			&i.FillNumber,
+			&i.FromSpoolDisplayID,
+			&i.FromFillNumber,
+			&i.ToSpoolDisplayID,
+			&i.ToFillNumber,
 			&i.MachineJobID,
 			&i.MachineJobDisplayID,
 		); err != nil {
@@ -2857,12 +3568,10 @@ func (q *Queries) ListMachineJobIDs(ctx context.Context, arg ListMachineJobIDsPa
 }
 
 const listMachineJobUsages = `-- name: ListMachineJobUsages :many
-SELECT u.id, u.machine_job_id, u.material_id, u.quantity, u.active, u.created_at, u.updated_at, u.ownership, u.spool_id, u.external_material_name, u.quantity_basis, u.source_printer_event_id, COALESCE(m.name, u.external_material_name) AS material_name,
-       COALESCE(m.category, 'external') AS category, COALESCE(m.unit, 'g') AS unit,
-       s.display_id AS spool_display_id
+SELECT u.id, u.machine_job_id, u.material_id, u.quantity, u.active, u.created_at, u.updated_at, u.ownership, u.spool_id, u.external_material_name, u.quantity_basis, u.source_printer_event_id, u.fill_id, u.spool_display_id, u.fill_number, COALESCE(m.name, u.external_material_name) AS material_name,
+       COALESCE(m.category, 'external') AS category, COALESCE(m.unit, 'g') AS unit
 FROM machine_job_material_usages u
 LEFT JOIN materials m ON m.id = u.material_id
-LEFT JOIN filament_spools s ON s.id = u.spool_id
 WHERE u.machine_job_id = $1 AND u.active
 ORDER BY lower(COALESCE(m.name, u.external_material_name)), u.id
 `
@@ -2880,10 +3589,12 @@ type ListMachineJobUsagesRow struct {
 	ExternalMaterialName *string
 	QuantityBasis        string
 	SourcePrinterEventID *uuid.UUID
+	FillID               *uuid.UUID
+	SpoolDisplayID       *string
+	FillNumber           *int32
 	MaterialName         string
 	Category             string
 	Unit                 string
-	SpoolDisplayID       *string
 }
 
 func (q *Queries) ListMachineJobUsages(ctx context.Context, machineJobID uuid.UUID) ([]ListMachineJobUsagesRow, error) {
@@ -2908,10 +3619,12 @@ func (q *Queries) ListMachineJobUsages(ctx context.Context, machineJobID uuid.UU
 			&i.ExternalMaterialName,
 			&i.QuantityBasis,
 			&i.SourcePrinterEventID,
+			&i.FillID,
+			&i.SpoolDisplayID,
+			&i.FillNumber,
 			&i.MaterialName,
 			&i.Category,
 			&i.Unit,
-			&i.SpoolDisplayID,
 		); err != nil {
 			return nil, err
 		}
@@ -3162,13 +3875,11 @@ const listMaterials = `-- name: ListMaterials :many
 SELECT m.id, m.name, m.category, m.color, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
        COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.occurred_at >= now() - interval '30 days'), 0)::numeric AS recent_consumption,
        fp.diameter_mm,
-       COALESCE((SELECT sum(x.remaining) FROM (
-           SELECT COALESCE(sum(it.quantity_delta) FILTER (WHERE it.spool_id=fs.id),0)
-                + COALESCE(sum(it.transfer_quantity) FILTER (WHERE it.to_spool_id=fs.id),0)
-                - COALESCE(sum(it.transfer_quantity) FILTER (WHERE it.from_spool_id=fs.id),0) AS remaining
-           FROM filament_spools fs LEFT JOIN inventory_transactions it ON it.spool_id=fs.id OR it.from_spool_id=fs.id OR it.to_spool_id=fs.id
-           WHERE fs.material_id=m.id GROUP BY fs.id
-       ) x),0)::numeric AS assigned_quantity
+       COALESCE((SELECT sum(
+           COALESCE((SELECT sum(it.quantity_delta) FROM inventory_transactions it WHERE it.fill_id=f.id), 0::numeric)
+           + COALESCE((SELECT sum(it.transfer_quantity) FROM inventory_transactions it WHERE it.to_fill_id=f.id), 0::numeric)
+           - COALESCE((SELECT sum(it.transfer_quantity) FROM inventory_transactions it WHERE it.from_fill_id=f.id), 0::numeric))
+           FROM filament_spool_fills f WHERE f.material_id=m.id AND f.closed_at IS NULL),0)::numeric AS assigned_quantity
 FROM materials m JOIN material_balances b ON b.material_id = m.id
 LEFT JOIN material_filament_properties fp ON fp.material_id=m.id
 LEFT JOIN inventory_transactions t ON t.material_id = m.id
@@ -3479,7 +4190,10 @@ JOIN machines m ON m.id = r.machine_id
 JOIN printer_connector_assignments a ON a.id = r.assignment_id
 JOIN printer_connectors c ON c.id = a.connector_id
 LEFT JOIN filament_spools sp ON sp.id = r.reported_spool_id
-LEFT JOIN materials mat ON mat.id = sp.material_id
+LEFT JOIN filament_spool_fills pf ON pf.id = COALESCE(
+    (SELECT x.id FROM filament_spool_fills x WHERE x.spool_id = sp.id AND x.filled_at <= r.last_observed_at ORDER BY x.fill_number DESC LIMIT 1),
+    (SELECT x.id FROM filament_spool_fills x WHERE x.spool_id = sp.id ORDER BY x.fill_number DESC LIMIT 1))
+LEFT JOIN materials mat ON mat.id = pf.material_id
 LEFT JOIN machine_jobs j ON j.print_id = r.id
 WHERE ($1::uuid IS NULL OR r.id = $1::uuid)
   AND ($2::text = '' OR r.display_id ILIKE '%' || $2::text || '%' OR r.file_name ILIKE '%' || $2::text || '%')
@@ -3610,6 +4324,38 @@ func (q *Queries) ListRecentJobIDs(ctx context.Context, pageLimit int32) ([]uuid
 	return items, nil
 }
 
+const listRetiredFilamentSpoolIdentifiers = `-- name: ListRetiredFilamentSpoolIdentifiers :many
+SELECT id, spool_id, kind, value, created_at, fill_id, retired_at FROM filament_spool_identifiers WHERE spool_id=$1 AND retired_at IS NOT NULL ORDER BY fill_id, kind, id
+`
+
+func (q *Queries) ListRetiredFilamentSpoolIdentifiers(ctx context.Context, spoolID uuid.UUID) ([]FilamentSpoolIdentifier, error) {
+	rows, err := q.db.Query(ctx, listRetiredFilamentSpoolIdentifiers, spoolID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FilamentSpoolIdentifier{}
+	for rows.Next() {
+		var i FilamentSpoolIdentifier
+		if err := rows.Scan(
+			&i.ID,
+			&i.SpoolID,
+			&i.Kind,
+			&i.Value,
+			&i.CreatedAt,
+			&i.FillID,
+			&i.RetiredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listReviewQueueIDs = `-- name: ListReviewQueueIDs :many
 SELECT id FROM machine_jobs WHERE review_state = 'needs_review' ORDER BY starts_at, id
 `
@@ -3676,12 +4422,14 @@ WITH items AS (
            COALESCE(r.started_at, r.first_observed_at) AS started_at, r.ended_at AS ends_at, r.estimated_end_at, r.progress_percent,
            NULL::numeric AS effective_price,
            NULL::text AS billing_state, NULL::uuid AS billing_order_id, NULL::text AS billing_order_reference,
-           r.version, sp.material_id AS reported_material_id,
+           r.version, pf.material_id AS reported_material_id,
            COALESCE(r.file_name, r.display_id)::text AS name_key,
            r.display_id AS print_search_id
     FROM printer_observed_runs r
     JOIN machines m ON m.id = r.machine_id
-    LEFT JOIN filament_spools sp ON sp.id = r.reported_spool_id
+    LEFT JOIN filament_spool_fills pf ON pf.id = COALESCE(
+        (SELECT x.id FROM filament_spool_fills x WHERE x.spool_id = r.reported_spool_id AND x.filled_at <= r.last_observed_at ORDER BY x.fill_number DESC LIMIT 1),
+        (SELECT x.id FROM filament_spool_fills x WHERE x.spool_id = r.reported_spool_id ORDER BY x.fill_number DESC LIMIT 1))
     WHERE NOT EXISTS (SELECT 1 FROM machine_jobs lj WHERE lj.print_id = r.id)
     UNION ALL
     SELECT 'job'::text, j.id, j.display_id, j.title, r.file_name, r.id, r.display_id,
@@ -3879,6 +4627,63 @@ func (q *Queries) ListWorkItems(ctx context.Context, arg ListWorkItemsParams) ([
 	return items, nil
 }
 
+const lockFilamentSpoolCleanupCandidates = `-- name: LockFilamentSpoolCleanupCandidates :many
+SELECT s.id, s.display_id, s.label, s.archived_at
+FROM filament_spools s
+WHERE s.id = ANY($1::uuid[]) AND s.kind='single_use' AND s.lifecycle='archived' AND s.archived_at < $2::timestamptz
+  AND NOT EXISTS(SELECT 1 FROM filament_spool_fills f WHERE f.spool_id=s.id AND f.closed_at IS NULL)
+ORDER BY s.id
+FOR UPDATE OF s
+`
+
+type LockFilamentSpoolCleanupCandidatesParams struct {
+	Ids    []uuid.UUID
+	Cutoff time.Time
+}
+
+type LockFilamentSpoolCleanupCandidatesRow struct {
+	ID         uuid.UUID
+	DisplayID  string
+	Label      *string
+	ArchivedAt pgtype.Timestamptz
+}
+
+func (q *Queries) LockFilamentSpoolCleanupCandidates(ctx context.Context, arg LockFilamentSpoolCleanupCandidatesParams) ([]LockFilamentSpoolCleanupCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, lockFilamentSpoolCleanupCandidates, arg.Ids, arg.Cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LockFilamentSpoolCleanupCandidatesRow{}
+	for rows.Next() {
+		var i LockFilamentSpoolCleanupCandidatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayID,
+			&i.Label,
+			&i.ArchivedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const nextFilamentSpoolFillNumber = `-- name: NextFilamentSpoolFillNumber :one
+SELECT (COALESCE(max(fill_number), 0) + 1)::integer FROM filament_spool_fills WHERE spool_id = $1
+`
+
+func (q *Queries) NextFilamentSpoolFillNumber(ctx context.Context, spoolID uuid.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, nextFilamentSpoolFillNumber, spoolID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const nextFilamentSpoolSequence = `-- name: NextFilamentSpoolSequence :one
 SELECT nextval('filament_spool_display_sequence')::bigint
 `
@@ -4010,6 +4815,20 @@ func (q *Queries) RecalculateMachineJobPrice(ctx context.Context, arg Recalculat
 		&i.PrintID,
 	)
 	return i, err
+}
+
+const retireFillIdentifiers = `-- name: RetireFillIdentifiers :exec
+UPDATE filament_spool_identifiers SET retired_at=$1 WHERE fill_id=$2 AND retired_at IS NULL
+`
+
+type RetireFillIdentifiersParams struct {
+	RetiredAt pgtype.Timestamptz
+	FillID    uuid.UUID
+}
+
+func (q *Queries) RetireFillIdentifiers(ctx context.Context, arg RetireFillIdentifiersParams) error {
+	_, err := q.db.Exec(ctx, retireFillIdentifiers, arg.RetiredAt, arg.FillID)
+	return err
 }
 
 const searchBillingParties = `-- name: SearchBillingParties :many
@@ -4739,38 +5558,99 @@ func (q *Queries) TotalInventoryValue(ctx context.Context) (pgtype.Numeric, erro
 	return column_1, err
 }
 
-const updateFilamentSpool = `-- name: UpdateFilamentSpool :one
-UPDATE filament_spools SET manufacturer=$1, product_name=$2,
-    tare_weight_g=$3, acquired_on=$4, acquisition_reference=$5,
-    storage_location=$6, notes=$7, lifecycle=$8,
-    version=version+1, updated_at=now()
+const unmountFilamentSpool = `-- name: UnmountFilamentSpool :execrows
+UPDATE printer_spool_assignments SET unmounted_at=GREATEST($1::timestamptz, mounted_at + interval '1 microsecond'),
+    unmounted_by_account_id=$2
+WHERE spool_id=$3 AND unmounted_at IS NULL
+`
+
+type UnmountFilamentSpoolParams struct {
+	UnmountedAt    time.Time
+	ActorAccountID *uuid.UUID
+	SpoolID        uuid.UUID
+}
+
+func (q *Queries) UnmountFilamentSpool(ctx context.Context, arg UnmountFilamentSpoolParams) (int64, error) {
+	result, err := q.db.Exec(ctx, unmountFilamentSpool, arg.UnmountedAt, arg.ActorAccountID, arg.SpoolID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateFilamentProduct = `-- name: UpdateFilamentProduct :one
+UPDATE filament_products SET manufacturer=$1, name=$2, material_id=$3,
+    net_weight_g=$4, default_price=$5, packaging=$6, notes=$7,
+    active=$8, version=version+1, updated_at=now()
 WHERE id=$9 AND version=$10
-RETURNING id, display_id, material_id, manufacturer, product_name, initial_net_weight_g, tare_weight_g, acquired_on, acquisition_reference, storage_location, notes, lifecycle, version, created_at, updated_at
+RETURNING id
+`
+
+type UpdateFilamentProductParams struct {
+	Manufacturer    string
+	Name            string
+	MaterialID      uuid.UUID
+	NetWeightG      pgtype.Numeric
+	DefaultPrice    pgtype.Numeric
+	Packaging       string
+	Notes           *string
+	Active          bool
+	ID              uuid.UUID
+	ExpectedVersion int64
+}
+
+func (q *Queries) UpdateFilamentProduct(ctx context.Context, arg UpdateFilamentProductParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, updateFilamentProduct,
+		arg.Manufacturer,
+		arg.Name,
+		arg.MaterialID,
+		arg.NetWeightG,
+		arg.DefaultPrice,
+		arg.Packaging,
+		arg.Notes,
+		arg.Active,
+		arg.ID,
+		arg.ExpectedVersion,
+	)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const updateFilamentSpool = `-- name: UpdateFilamentSpool :one
+UPDATE filament_spools SET kind=$1, label=$2,
+    tare_weight_g=$3, acquired_on=$4, acquisition_reference=$5,
+    storage_location=$6, notes=$7, lifecycle=$8, archived_at=$9,
+    version=version+1, updated_at=now()
+WHERE id=$10 AND version=$11
+RETURNING id, display_id, tare_weight_g, acquired_on, acquisition_reference, storage_location, notes, lifecycle, version, created_at, updated_at, kind, label, archived_at
 `
 
 type UpdateFilamentSpoolParams struct {
-	Manufacturer         *string
-	ProductName          *string
+	Kind                 string
+	Label                *string
 	TareWeightG          pgtype.Numeric
 	AcquiredOn           pgtype.Date
 	AcquisitionReference *string
 	StorageLocation      *string
 	Notes                *string
 	Lifecycle            string
+	ArchivedAt           pgtype.Timestamptz
 	ID                   uuid.UUID
 	ExpectedVersion      int64
 }
 
 func (q *Queries) UpdateFilamentSpool(ctx context.Context, arg UpdateFilamentSpoolParams) (FilamentSpool, error) {
 	row := q.db.QueryRow(ctx, updateFilamentSpool,
-		arg.Manufacturer,
-		arg.ProductName,
+		arg.Kind,
+		arg.Label,
 		arg.TareWeightG,
 		arg.AcquiredOn,
 		arg.AcquisitionReference,
 		arg.StorageLocation,
 		arg.Notes,
 		arg.Lifecycle,
+		arg.ArchivedAt,
 		arg.ID,
 		arg.ExpectedVersion,
 	)
@@ -4778,10 +5658,6 @@ func (q *Queries) UpdateFilamentSpool(ctx context.Context, arg UpdateFilamentSpo
 	err := row.Scan(
 		&i.ID,
 		&i.DisplayID,
-		&i.MaterialID,
-		&i.Manufacturer,
-		&i.ProductName,
-		&i.InitialNetWeightG,
 		&i.TareWeightG,
 		&i.AcquiredOn,
 		&i.AcquisitionReference,
@@ -4791,6 +5667,9 @@ func (q *Queries) UpdateFilamentSpool(ctx context.Context, arg UpdateFilamentSpo
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Kind,
+		&i.Label,
+		&i.ArchivedAt,
 	)
 	return i, err
 }
@@ -5021,6 +5900,25 @@ func (q *Queries) UpdateMaterialBalance(ctx context.Context, arg UpdateMaterialB
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const updateOpenFilamentSpoolFillSnapshot = `-- name: UpdateOpenFilamentSpoolFillSnapshot :execrows
+UPDATE filament_spool_fills SET manufacturer=$1, product_name=$2
+WHERE spool_id=$3 AND closed_at IS NULL
+`
+
+type UpdateOpenFilamentSpoolFillSnapshotParams struct {
+	Manufacturer *string
+	ProductName  *string
+	SpoolID      uuid.UUID
+}
+
+func (q *Queries) UpdateOpenFilamentSpoolFillSnapshot(ctx context.Context, arg UpdateOpenFilamentSpoolFillSnapshotParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateOpenFilamentSpoolFillSnapshot, arg.Manufacturer, arg.ProductName, arg.SpoolID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateOrganization = `-- name: UpdateOrganization :one

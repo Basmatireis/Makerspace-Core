@@ -21,6 +21,7 @@ the required session and CSRF credentials.
 import type { UUIDv7 } from './uUIDv7';
 
 /**
+ * Null once the spool was deleted; the snapshot stays.
  * @nullable
  */
 export type InventoryTransactionSpoolId = UUIDv7 | null;

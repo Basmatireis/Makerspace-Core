@@ -33,6 +33,7 @@ type Querier interface {
 	GetPrinterSlot(ctx context.Context, id uuid.UUID) (GetPrinterSlotRow, error)
 	GetPrinterSlotForUpdate(ctx context.Context, id uuid.UUID) (GetPrinterSlotForUpdateRow, error)
 	GetPrintingOperation(ctx context.Context, operationKey uuid.UUID) (PrintingOperation, error)
+	GetSpoolOpenFillMaterial(ctx context.Context, spoolID uuid.UUID) (uuid.UUID, error)
 	InsertPrinterEvent(ctx context.Context, arg InsertPrinterEventParams) (PrinterEvent, error)
 	InsertPrintingOperation(ctx context.Context, arg InsertPrintingOperationParams) (PrintingOperation, error)
 	LinkPrintAttemptJob(ctx context.Context, arg LinkPrintAttemptJobParams) (PrintAttempt, error)

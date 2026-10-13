@@ -186,11 +186,11 @@ func (s *Service) UpdateMaterialWithFilament(ctx context.Context, p authorizatio
 		return Material{}, conflict("material_unit_in_use", "Material unit cannot change while stock exists")
 	}
 	if current.Unit != unit {
-		spoolCount, spoolErr := q.CountFilamentSpools(ctx, machinelogbookdb.CountFilamentSpoolsParams{MaterialID: &id})
-		if spoolErr != nil {
-			return Material{}, spoolErr
+		fillCount, fillErr := q.CountMaterialFills(ctx, id)
+		if fillErr != nil {
+			return Material{}, fillErr
 		}
-		if spoolCount > 0 {
+		if fillCount > 0 {
 			return Material{}, conflict("material_unit_in_use", "Material unit cannot change while filament spools exist")
 		}
 	}
@@ -228,10 +228,12 @@ func (s *Service) UpdateMaterialWithFilament(ctx context.Context, p authorizatio
 }
 
 func transactionFromRow(row machinelogbookdb.InventoryTransaction) InventoryTransaction {
-	return InventoryTransaction{ID: row.ID, MaterialID: row.MaterialID, Kind: row.Kind, QuantityDelta: decimalString(row.QuantityDelta), UnitAcquisitionCost: decimalString(row.UnitAcquisitionCost), InventoryValueDelta: decimalString(row.InventoryValueDelta), TotalPurchasePrice: nullableDecimal(row.TotalPurchasePrice), OccurredAt: row.OccurredAt, Supplier: row.Supplier, Note: row.Note, AdjustmentReason: row.AdjustmentReason, SpoolID: row.SpoolID, FromSpoolID: row.FromSpoolID, ToSpoolID: row.ToSpoolID, TransferQuantity: nullableDecimal(row.TransferQuantity), CreatedAt: row.CreatedAt}
+	return InventoryTransaction{ID: row.ID, MaterialID: row.MaterialID, Kind: row.Kind, QuantityDelta: decimalString(row.QuantityDelta), UnitAcquisitionCost: decimalString(row.UnitAcquisitionCost), InventoryValueDelta: decimalString(row.InventoryValueDelta), TotalPurchasePrice: nullableDecimal(row.TotalPurchasePrice), OccurredAt: row.OccurredAt, Supplier: row.Supplier, Note: row.Note, AdjustmentReason: row.AdjustmentReason, SpoolID: row.SpoolID, SpoolDisplayID: row.SpoolDisplayID, FillNumber: row.FillNumber, FromSpoolID: row.FromSpoolID, FromSpoolDisplayID: row.FromSpoolDisplayID, FromFillNumber: row.FromFillNumber, ToSpoolID: row.ToSpoolID, ToSpoolDisplayID: row.ToSpoolDisplayID, ToFillNumber: row.ToFillNumber, TransferQuantity: nullableDecimal(row.TransferQuantity), CreatedAt: row.CreatedAt}
 }
 func transactionFromList(row machinelogbookdb.ListInventoryTransactionsRow) InventoryTransaction {
-	return InventoryTransaction{ID: row.ID, MaterialID: row.MaterialID, Kind: row.Kind, QuantityDelta: decimalString(row.QuantityDelta), UnitAcquisitionCost: decimalString(row.UnitAcquisitionCost), InventoryValueDelta: decimalString(row.InventoryValueDelta), TotalPurchasePrice: nullableDecimal(row.TotalPurchasePrice), OccurredAt: row.OccurredAt, Supplier: row.Supplier, Note: row.Note, AdjustmentReason: row.AdjustmentReason, MachineJobID: row.MachineJobID, MachineJobDisplayID: row.MachineJobDisplayID, SpoolID: row.SpoolID, FromSpoolID: row.FromSpoolID, ToSpoolID: row.ToSpoolID, TransferQuantity: nullableDecimal(row.TransferQuantity), CreatedAt: row.CreatedAt}
+	item := transactionFromRow(machinelogbookdb.InventoryTransaction{ID: row.ID, MaterialID: row.MaterialID, Kind: row.Kind, QuantityDelta: row.QuantityDelta, UnitAcquisitionCost: row.UnitAcquisitionCost, InventoryValueDelta: row.InventoryValueDelta, TotalPurchasePrice: row.TotalPurchasePrice, OccurredAt: row.OccurredAt, Supplier: row.Supplier, Note: row.Note, AdjustmentReason: row.AdjustmentReason, SpoolID: row.SpoolID, SpoolDisplayID: row.SpoolDisplayID, FillNumber: row.FillNumber, FromSpoolID: row.FromSpoolID, FromSpoolDisplayID: row.FromSpoolDisplayID, FromFillNumber: row.FromFillNumber, ToSpoolID: row.ToSpoolID, ToSpoolDisplayID: row.ToSpoolDisplayID, ToFillNumber: row.ToFillNumber, TransferQuantity: row.TransferQuantity, CreatedAt: row.CreatedAt})
+	item.MachineJobID, item.MachineJobDisplayID = row.MachineJobID, row.MachineJobDisplayID
+	return item
 }
 
 func (s *Service) ListMaterialTransactions(ctx context.Context, p authorization.Principal, id uuid.UUID, page, pageSize int) ([]InventoryTransaction, int64, error) {
@@ -261,6 +263,11 @@ func (s *Service) ListMaterialTransactions(ctx context.Context, p authorization.
 	return items, total, nil
 }
 
+// anyInventoryVersion skips the optimistic inventory-version check. Compound
+// operations that already hold the balance lock use it for their follow-up
+// ledger rows.
+const anyInventoryVersion int64 = -1
+
 type inventoryMutation struct {
 	Kind                                string
 	QuantityDelta, UnitCost, ValueDelta decimal.Decimal
@@ -268,7 +275,10 @@ type inventoryMutation struct {
 	OccurredAt                          time.Time
 	Supplier, Note, Reason              *string
 	UsageID                             *uuid.UUID
-	SpoolID                             *uuid.UUID
+	// Fill attributes the movement to a spool's open fill.
+	Fill *fillRef
+	// KeepSpoolVersion leaves the spool version alone; the caller bumps it once.
+	KeepSpoolVersion bool
 }
 
 func (s *Service) applyInventoryMutation(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, p authorization.Principal, id uuid.UUID, expected int64, m inventoryMutation, requestID *uuid.UUID) (InventoryMutationResult, error) {
@@ -276,9 +286,10 @@ func (s *Service) applyInventoryMutation(ctx context.Context, tx pgx.Tx, q *mach
 	if err != nil {
 		return InventoryMutationResult{}, noRows(err)
 	}
-	if current.InventoryVersion != expected {
+	if expected != anyInventoryVersion && current.InventoryVersion != expected {
 		return InventoryMutationResult{}, apperror.StaleWrite
 	}
+	expected = current.InventoryVersion
 	oldQuantity := decimalFromNumeric(current.Quantity)
 	oldValue := decimalFromNumeric(current.InventoryValue)
 	newQuantity := oldQuantity.Add(m.QuantityDelta)
@@ -287,15 +298,22 @@ func (s *Service) applyInventoryMutation(ctx context.Context, tx pgx.Tx, q *mach
 		return InventoryMutationResult{}, conflict("insufficient_stock", "Inventory would become negative")
 	}
 	var spoolVersion int64
-	if m.SpoolID != nil {
-		spool, spoolErr := q.GetFilamentSpoolForUpdate(ctx, *m.SpoolID)
+	if m.Fill != nil {
+		spool, spoolErr := q.GetFilamentSpoolForUpdate(ctx, m.Fill.SpoolID)
 		if spoolErr != nil {
 			return InventoryMutationResult{}, noRows(spoolErr)
 		}
-		if spool.MaterialID != id {
+		fill, fillErr := q.GetFilamentSpoolFill(ctx, m.Fill.FillID)
+		if fillErr != nil {
+			return InventoryMutationResult{}, noRows(fillErr)
+		}
+		if fill.MaterialID != id {
 			return InventoryMutationResult{}, conflict("spool_material_mismatch", "Spool does not belong to the selected material")
 		}
-		if decimalFromNumeric(spool.RemainingQuantity).Add(m.QuantityDelta).IsNegative() {
+		if fill.ClosedAt.Valid {
+			return InventoryMutationResult{}, conflict("spool_not_consumable", "The spool has no open fill")
+		}
+		if decimalFromNumeric(fill.RemainingQuantity).Add(m.QuantityDelta).IsNegative() {
 			return InventoryMutationResult{}, conflict("insufficient_spool_stock", "Spool inventory would become negative")
 		}
 		spoolVersion = spool.Version
@@ -332,16 +350,16 @@ func (s *Service) applyInventoryMutation(ctx context.Context, tx pgx.Tx, q *mach
 	}
 	actor := p.AccountID
 	var ledger machinelogbookdb.InventoryTransaction
-	if m.SpoolID != nil {
-		ledger, err = q.InsertSpoolInventoryTransaction(ctx, machinelogbookdb.InsertSpoolInventoryTransactionParams{ID: newID(), MaterialID: id, Kind: m.Kind, QuantityDelta: numericFromDecimal(m.QuantityDelta), UnitAcquisitionCost: numericFromDecimal(m.UnitCost), InventoryValueDelta: numericFromDecimal(m.ValueDelta), TotalPurchasePrice: total, OccurredAt: m.OccurredAt.UTC(), Supplier: cleanOptional(m.Supplier), Note: cleanOptional(m.Note), AdjustmentReason: m.Reason, MachineJobUsageID: m.UsageID, ActorAccountID: &actor, SpoolID: m.SpoolID})
+	if m.Fill != nil {
+		ledger, err = q.InsertSpoolInventoryTransaction(ctx, machinelogbookdb.InsertSpoolInventoryTransactionParams{ID: newID(), MaterialID: id, Kind: m.Kind, QuantityDelta: numericFromDecimal(m.QuantityDelta), UnitAcquisitionCost: numericFromDecimal(m.UnitCost), InventoryValueDelta: numericFromDecimal(m.ValueDelta), TotalPurchasePrice: total, OccurredAt: m.OccurredAt.UTC(), Supplier: cleanOptional(m.Supplier), Note: cleanOptional(m.Note), AdjustmentReason: m.Reason, MachineJobUsageID: m.UsageID, ActorAccountID: &actor, SpoolID: &m.Fill.SpoolID, FillID: &m.Fill.FillID, SpoolDisplayID: &m.Fill.SpoolDisplayID, FillNumber: &m.Fill.FillNumber})
 	} else {
 		ledger, err = q.InsertInventoryTransaction(ctx, machinelogbookdb.InsertInventoryTransactionParams{ID: newID(), MaterialID: id, Kind: m.Kind, QuantityDelta: numericFromDecimal(m.QuantityDelta), UnitAcquisitionCost: numericFromDecimal(m.UnitCost), InventoryValueDelta: numericFromDecimal(m.ValueDelta), TotalPurchasePrice: total, OccurredAt: m.OccurredAt.UTC(), Supplier: cleanOptional(m.Supplier), Note: cleanOptional(m.Note), AdjustmentReason: m.Reason, MachineJobUsageID: m.UsageID, ActorAccountID: &actor})
 	}
 	if err != nil {
 		return InventoryMutationResult{}, databaseError(err)
 	}
-	if m.SpoolID != nil {
-		if _, err = q.BumpFilamentSpoolVersion(ctx, machinelogbookdb.BumpFilamentSpoolVersionParams{ID: *m.SpoolID, ExpectedVersion: spoolVersion}); err != nil {
+	if m.Fill != nil && !m.KeepSpoolVersion {
+		if _, err = q.BumpFilamentSpoolVersion(ctx, machinelogbookdb.BumpFilamentSpoolVersionParams{ID: m.Fill.SpoolID, ExpectedVersion: spoolVersion}); err != nil {
 			return InventoryMutationResult{}, err
 		}
 	}

@@ -49,12 +49,27 @@ export interface InventoryTransaction {
   machineJobId?: InventoryTransactionMachineJobId;
   /** @nullable */
   machineJobDisplayId?: string | null;
-  /** @nullable */
+  /**
+   * Null once the spool was deleted; the snapshot stays.
+   * @nullable
+   */
   spoolId?: InventoryTransactionSpoolId;
+  /** @nullable */
+  spoolDisplayId?: string | null;
+  /** @nullable */
+  fillNumber?: number | null;
   /** @nullable */
   fromSpoolId?: InventoryTransactionFromSpoolId;
   /** @nullable */
+  fromSpoolDisplayId?: string | null;
+  /** @nullable */
+  fromFillNumber?: number | null;
+  /** @nullable */
   toSpoolId?: InventoryTransactionToSpoolId;
+  /** @nullable */
+  toSpoolDisplayId?: string | null;
+  /** @nullable */
+  toFillNumber?: number | null;
   /** @nullable */
   transferQuantity?: InventoryTransactionTransferQuantity;
   createdAt: string;

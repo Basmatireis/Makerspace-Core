@@ -20,6 +20,8 @@ the required session and CSRF credentials.
  */
 import type { UUIDv7 } from './uUIDv7';
 import type { ListFilamentSpoolsLifecycle } from './listFilamentSpoolsLifecycle';
+import type { FilamentSpoolKind } from './filamentSpoolKind';
+import type { FilamentSpoolStatus } from './filamentSpoolStatus';
 
 export type ListFilamentSpoolsParams = {
 /**
@@ -32,6 +34,21 @@ lifecycle?: ListFilamentSpoolsLifecycle;
  * @maxLength 200
  */
 location?: string;
+kind?: FilamentSpoolKind;
+/**
+ * @maxItems 4
+ */
+status?: FilamentSpoolStatus[];
+mounted?: boolean;
+productId?: UUIDv7;
+/**
+ * @maxLength 150
+ */
+manufacturer?: string;
+/**
+ * true returns only spools with an open fill that are not archived (usable for mounting and job usage).
+ */
+consumable?: boolean;
 /**
  * @minimum 1
  */

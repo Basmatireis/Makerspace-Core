@@ -120,6 +120,9 @@ INSERT INTO print_filament_declarations (id, submission_id, attempt_id, ownershi
 VALUES (sqlc.arg(id), sqlc.narg(submission_id), sqlc.narg(attempt_id), sqlc.arg(ownership), sqlc.narg(material_id),
     sqlc.narg(spool_id), sqlc.narg(external_material_name), sqlc.narg(estimated_quantity_g)) RETURNING *;
 
+-- name: GetSpoolOpenFillMaterial :one
+SELECT material_id FROM filament_spool_fills WHERE spool_id=sqlc.arg(spool_id) AND closed_at IS NULL;
+
 -- name: DeleteSubmissionFilamentDeclarations :exec
 DELETE FROM print_filament_declarations WHERE submission_id=sqlc.arg(submission_id);
 

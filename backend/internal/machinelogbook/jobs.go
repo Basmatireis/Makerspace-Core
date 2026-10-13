@@ -26,6 +26,9 @@ type parsedUsage struct {
 	Quantity             decimal.Decimal
 	UsageID              uuid.UUID
 	SourcePrinterEventID *uuid.UUID
+	// Fill is the open fill a spool usage draws from; it is resolved inside
+	// the transaction that records the usage.
+	Fill *fillRef
 }
 
 func validateOutcome(value string) error {
@@ -182,9 +185,70 @@ func resolvePricingGroup(ctx context.Context, q *machinelogbookdb.Queries, perso
 	return group, nil
 }
 
+// resolveUsageFills attaches the open fill of every spool usage, locking the
+// spools in id order. Archived spools and spools without an open fill cannot be
+// used.
+func (s *Service) resolveUsageFills(ctx context.Context, q *machinelogbookdb.Queries, items []parsedUsage) error {
+	order := make([]int, 0, len(items))
+	for i := range items {
+		if items[i].Ownership != "external" && items[i].SpoolID != nil {
+			order = append(order, i)
+		}
+	}
+	sort.Slice(order, func(a, b int) bool {
+		return bytes.Compare(items[order[a]].SpoolID[:], items[order[b]].SpoolID[:]) < 0
+	})
+	for _, i := range order {
+		_, ref, _, err := s.lockConsumableFill(ctx, q, *items[i].SpoolID)
+		if err != nil {
+			return err
+		}
+		if items[i].MaterialID == nil || ref.MaterialID != *items[i].MaterialID {
+			return conflict("spool_material_mismatch", "Spool does not belong to the selected material")
+		}
+		items[i].Fill = &ref
+	}
+	return nil
+}
+
+// usageFillRef rebuilds the fill reference stored on a recorded usage.
+func usageFillRef(u machinelogbookdb.MachineJobMaterialUsage) *fillRef {
+	if u.MaterialID == nil || u.SpoolID == nil || u.FillID == nil || u.SpoolDisplayID == nil || u.FillNumber == nil {
+		return nil
+	}
+	return &fillRef{SpoolID: *u.SpoolID, FillID: *u.FillID, SpoolDisplayID: *u.SpoolDisplayID, FillNumber: *u.FillNumber, MaterialID: *u.MaterialID}
+}
+
+// reversalFill returns the fill a usage correction goes back to. A usage whose
+// fill was closed in the meantime, or whose spool was deleted, returns to loose
+// stock instead.
+func (s *Service) reversalFill(ctx context.Context, q *machinelogbookdb.Queries, u machinelogbookdb.MachineJobMaterialUsage) (*fillRef, error) {
+	ref := usageFillRef(u)
+	if ref == nil {
+		return nil, nil
+	}
+	if _, err := q.GetFilamentSpoolForUpdate(ctx, ref.SpoolID); errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
+	open, err := q.GetOpenFilamentSpoolFill(ctx, ref.SpoolID)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && open.ID != ref.FillID) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return ref, nil
+}
+
 func (s *Service) insertUsages(ctx context.Context, q *machinelogbookdb.Queries, jobID uuid.UUID, items []parsedUsage) error {
 	for i := range items {
-		row, err := q.InsertMachineJobUsage(ctx, machinelogbookdb.InsertMachineJobUsageParams{ID: items[i].UsageID, MachineJobID: jobID, MaterialID: items[i].MaterialID, SpoolID: items[i].SpoolID, Ownership: items[i].Ownership, ExternalMaterialName: items[i].ExternalMaterialName, QuantityBasis: items[i].QuantityBasis, Quantity: numericFromDecimal(items[i].Quantity), SourcePrinterEventID: items[i].SourcePrinterEventID})
+		params := machinelogbookdb.InsertMachineJobUsageParams{ID: items[i].UsageID, MachineJobID: jobID, MaterialID: items[i].MaterialID, SpoolID: items[i].SpoolID, Ownership: items[i].Ownership, ExternalMaterialName: items[i].ExternalMaterialName, QuantityBasis: items[i].QuantityBasis, Quantity: numericFromDecimal(items[i].Quantity), SourcePrinterEventID: items[i].SourcePrinterEventID}
+		if fill := items[i].Fill; fill != nil && items[i].SpoolID != nil {
+			params.FillID, params.SpoolDisplayID, params.FillNumber = &fill.FillID, &fill.SpoolDisplayID, &fill.FillNumber
+		}
+		row, err := q.InsertMachineJobUsage(ctx, params)
 		if err != nil {
 			return databaseError(err)
 		}
@@ -206,7 +270,7 @@ func (s *Service) consumeUsages(ctx context.Context, tx pgx.Tx, q *machinelogboo
 			return conflict("material_inactive", "An inactive material cannot be consumed")
 		}
 		average := decimalFromNumeric(current.AverageUnitCost)
-		_, err = s.applyInventoryMutation(ctx, tx, q, p, *item.MaterialID, current.InventoryVersion, inventoryMutation{Kind: "machine_job_consumption", QuantityDelta: item.Quantity.Neg(), UnitCost: average, ValueDelta: item.Quantity.Mul(average).Neg(), OccurredAt: occurredAt, UsageID: &item.UsageID, SpoolID: item.SpoolID}, requestID)
+		_, err = s.applyInventoryMutation(ctx, tx, q, p, *item.MaterialID, current.InventoryVersion, inventoryMutation{Kind: "machine_job_consumption", QuantityDelta: item.Quantity.Neg(), UnitCost: average, ValueDelta: item.Quantity.Mul(average).Neg(), OccurredAt: occurredAt, UsageID: &item.UsageID, Fill: item.Fill}, requestID)
 		if err != nil {
 			return err
 		}
@@ -376,6 +440,9 @@ func (s *Service) CreateManualJobInTransaction(ctx context.Context, tx pgx.Tx, a
 	if err != nil {
 		return MachineJob{}, databaseError(err)
 	}
+	if err = s.resolveUsageFills(ctx, q, parsed); err != nil {
+		return MachineJob{}, err
+	}
 	if err = s.insertUsages(ctx, q, id, parsed); err != nil {
 		return MachineJob{}, err
 	}
@@ -467,7 +534,7 @@ func (s *Service) confirmReviewedJob(ctx context.Context, tx pgx.Tx, q *machinel
 	}
 	parsed := make([]parsedUsage, 0, len(rows))
 	for _, row := range rows {
-		parsed = append(parsed, parsedUsage{MaterialID: row.MaterialID, SpoolID: row.SpoolID, Ownership: row.Ownership, ExternalMaterialName: row.ExternalMaterialName, QuantityBasis: row.QuantityBasis, Quantity: decimalFromNumeric(row.Quantity), UsageID: row.ID, SourcePrinterEventID: row.SourcePrinterEventID})
+		parsed = append(parsed, parsedUsage{MaterialID: row.MaterialID, SpoolID: row.SpoolID, Ownership: row.Ownership, ExternalMaterialName: row.ExternalMaterialName, QuantityBasis: row.QuantityBasis, Quantity: decimalFromNumeric(row.Quantity), UsageID: row.ID, SourcePrinterEventID: row.SourcePrinterEventID, Fill: usageFillRef(row)})
 	}
 	sort.Slice(parsed, func(i, j int) bool { return usageSortKey(parsed[i]) < usageSortKey(parsed[j]) })
 	if err = s.consumeUsages(ctx, tx, q, p, parsed, current.EndsAt, requestID); err != nil {
@@ -540,7 +607,7 @@ func (s *Service) jobFromRow(ctx context.Context, q *machinelogbookdb.Queries, r
 		item.PriceOverriddenAt = nullableTime(row.PriceAdjustedAt)
 	}
 	for _, u := range usages {
-		item.Usages = append(item.Usages, MachineJobUsage{ID: u.ID, MaterialID: u.MaterialID, SpoolID: u.SpoolID, Ownership: u.Ownership, MaterialName: u.MaterialName, Category: u.Category, Unit: u.Unit, Quantity: decimalString(u.Quantity), QuantityBasis: u.QuantityBasis, SpoolDisplayID: u.SpoolDisplayID})
+		item.Usages = append(item.Usages, MachineJobUsage{ID: u.ID, MaterialID: u.MaterialID, SpoolID: u.SpoolID, Ownership: u.Ownership, MaterialName: u.MaterialName, Category: u.Category, Unit: u.Unit, Quantity: decimalString(u.Quantity), QuantityBasis: u.QuantityBasis, SpoolDisplayID: u.SpoolDisplayID, FillNumber: u.FillNumber})
 	}
 	item.Customer, err = s.loadBillingParty(ctx, q, row)
 	if err != nil {
@@ -945,13 +1012,20 @@ func (s *Service) ReplaceJobUsagesInTransaction(ctx context.Context, tx pgx.Tx, 
 		}
 		average := decimalFromNumeric(row.AverageUnitCost)
 		quantity := decimalFromNumeric(u.Quantity)
-		_, err = s.applyInventoryMutation(ctx, tx, q, p, *u.MaterialID, versions[*u.MaterialID], inventoryMutation{Kind: "adjustment", QuantityDelta: quantity, UnitCost: average, ValueDelta: quantity.Mul(average), OccurredAt: time.Now().UTC(), Reason: stringPointer("job_corrected"), UsageID: &u.ID, SpoolID: u.SpoolID}, requestID)
+		reversal, err := s.reversalFill(ctx, q, u)
+		if err != nil {
+			return MachineJob{}, err
+		}
+		_, err = s.applyInventoryMutation(ctx, tx, q, p, *u.MaterialID, versions[*u.MaterialID], inventoryMutation{Kind: "adjustment", QuantityDelta: quantity, UnitCost: average, ValueDelta: quantity.Mul(average), OccurredAt: time.Now().UTC(), Reason: stringPointer("job_corrected"), UsageID: &u.ID, Fill: reversal}, requestID)
 		if err != nil {
 			return MachineJob{}, err
 		}
 		versions[*u.MaterialID]++
 	}
 	if err = q.DeactivateMachineJobUsages(ctx, id); err != nil {
+		return MachineJob{}, err
+	}
+	if err = s.resolveUsageFills(ctx, q, parsed); err != nil {
 		return MachineJob{}, err
 	}
 	if err = s.insertUsages(ctx, q, id, parsed); err != nil {
@@ -966,7 +1040,7 @@ func (s *Service) ReplaceJobUsagesInTransaction(ctx context.Context, tx pgx.Tx, 
 			return MachineJob{}, err
 		}
 		average := decimalFromNumeric(row.AverageUnitCost)
-		_, err = s.applyInventoryMutation(ctx, tx, q, p, *u.MaterialID, versions[*u.MaterialID], inventoryMutation{Kind: "machine_job_consumption", QuantityDelta: u.Quantity.Neg(), UnitCost: average, ValueDelta: u.Quantity.Mul(average).Neg(), OccurredAt: time.Now().UTC(), UsageID: &u.UsageID, SpoolID: u.SpoolID}, requestID)
+		_, err = s.applyInventoryMutation(ctx, tx, q, p, *u.MaterialID, versions[*u.MaterialID], inventoryMutation{Kind: "machine_job_consumption", QuantityDelta: u.Quantity.Neg(), UnitCost: average, ValueDelta: u.Quantity.Mul(average).Neg(), OccurredAt: time.Now().UTC(), UsageID: &u.UsageID, Fill: u.Fill}, requestID)
 		if err != nil {
 			return MachineJob{}, err
 		}

@@ -25,5 +25,5 @@ export type ListFilamentSpoolsLifecycle = typeof ListFilamentSpoolsLifecycle[key
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ListFilamentSpoolsLifecycle = {
   active: 'active',
-  retired: 'retired',
+  archived: 'archived',
 } as const;

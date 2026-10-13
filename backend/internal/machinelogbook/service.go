@@ -132,6 +132,8 @@ type InventoryTransaction struct {
 	MachineJobID                                                  *uuid.UUID
 	MachineJobDisplayID                                           *string
 	SpoolID, FromSpoolID, ToSpoolID                               *uuid.UUID
+	SpoolDisplayID, FromSpoolDisplayID, ToSpoolDisplayID          *string
+	FillNumber, FromFillNumber, ToFillNumber                      *int32
 	TransferQuantity                                              *string
 }
 
@@ -183,6 +185,7 @@ type MachineJobUsage struct {
 	MaterialName, Category, Unit, Quantity string
 	Ownership, QuantityBasis               string
 	SpoolDisplayID                         *string
+	FillNumber                             *int32
 }
 
 type FilamentSpoolIdentifier struct {
@@ -191,22 +194,45 @@ type FilamentSpoolIdentifier struct {
 	CreatedAt   time.Time
 }
 
+// FilamentSpool is a physical spool. Material, product, weights and
+// identifiers describe its open fill; they are empty while no fill is open.
 type FilamentSpool struct {
-	ID, MaterialID                               uuid.UUID
-	DisplayID, MaterialName, Category, Unit      string
+	ID                                           uuid.UUID
+	DisplayID, Kind, Status                      string
+	Label                                        *string
+	FillNumber                                   int32
+	FillID, MaterialID, ProductID                *uuid.UUID
+	FilledAt, ArchivedAt                         *time.Time
+	MaterialName, Category, Unit                 *string
 	Color, Manufacturer, ProductName             *string
-	InitialNetWeightG, RemainingQuantity         string
+	InitialNetWeightG                            *string
+	RemainingQuantity                            string
 	TareWeightG                                  *string
 	AcquiredOn                                   *time.Time
 	AcquisitionReference, StorageLocation, Notes *string
 	Lifecycle                                    string
 	Mounted                                      bool
 	Identifiers                                  []FilamentSpoolIdentifier
+	Fills                                        []FilamentSpoolFill
 	Version                                      int64
 	CreatedAt, UpdatedAt                         time.Time
 }
 
+// FilamentSpoolFill is a closed fill of a spool.
+type FilamentSpoolFill struct {
+	ID, MaterialID                               uuid.UUID
+	ProductID                                    *uuid.UUID
+	FillNumber                                   int32
+	MaterialName                                 string
+	Manufacturer, ProductName                    *string
+	InitialNetWeightG, UsedG, LeftoverG, Outcome string
+	FilledAt, ClosedAt                           time.Time
+	Identifiers                                  []FilamentSpoolIdentifier
+}
+
 type FilamentSpoolInput struct {
+	Kind, Label                                  string
+	ProductID                                    *uuid.UUID
 	MaterialID                                   uuid.UUID
 	InitialNetWeightG, StockMode                 string
 	TotalPrice                                   *string
@@ -215,6 +241,88 @@ type FilamentSpoolInput struct {
 	AcquisitionReference, StorageLocation, Notes *string
 	OccurredAt                                   time.Time
 	ExpectedInventoryVersion                     int64
+}
+
+type FilamentSpoolUpdate struct {
+	ExpectedVersion                               int64
+	Kind                                          *string
+	Label, Manufacturer, ProductName, TareWeightG *string
+	AcquiredOn                                    *time.Time
+	AcquisitionReference, StorageLocation, Notes  *string
+	Lifecycle                                     string
+}
+
+type SpoolFilters struct {
+	Search, Lifecycle, Location, Kind, Manufacturer string
+	MaterialID, ProductID                           *uuid.UUID
+	Statuses                                        []string
+	Mounted                                         *bool
+	Consumable                                      bool
+	Page, PageSize                                  int
+}
+
+// LeftoverInput describes what is left on a fill that is being closed.
+type LeftoverInput struct {
+	Basis                     string
+	GrossWeightG, Disposition *string
+}
+
+type NewFillInput struct {
+	ProductID                 *uuid.UUID
+	MaterialID                uuid.UUID
+	Manufacturer, ProductName *string
+	NetWeightG, Source        string
+	TotalPrice, Supplier      *string
+}
+
+type NewSpoolIdentifier struct{ Kind, Value string }
+
+type ChangeFillInput struct {
+	Leftover          *LeftoverInput
+	Fill              NewFillInput
+	KeepIdentifierIDs []uuid.UUID
+	NewIdentifiers    []NewSpoolIdentifier
+	OccurredAt        time.Time
+	ExpectedVersion   int64
+}
+
+type FinishSpoolInput struct {
+	Leftover        LeftoverInput
+	OccurredAt      time.Time
+	ExpectedVersion int64
+}
+
+type CleanUpCandidate struct {
+	ID         uuid.UUID
+	DisplayID  string
+	Label      *string
+	ArchivedAt time.Time
+}
+
+type FilamentProduct struct {
+	ID, MaterialID           uuid.UUID
+	Manufacturer, Name       string
+	MaterialName, NetWeightG string
+	DefaultPrice, Notes      *string
+	Packaging                string
+	Active                   bool
+	InUseCount, Version      int64
+	CreatedAt, UpdatedAt     time.Time
+}
+
+type FilamentProductInput struct {
+	Manufacturer, Name, NetWeightG, Packaging string
+	MaterialID                                uuid.UUID
+	DefaultPrice, Notes                       *string
+	Active                                    bool
+	ExpectedVersion                           int64
+}
+
+type FilamentProductFilters struct {
+	Search, Manufacturer, Packaging string
+	MaterialID                      *uuid.UUID
+	IncludeInactive                 bool
+	Page, PageSize                  int
 }
 
 type PricingSnapshotRule struct {

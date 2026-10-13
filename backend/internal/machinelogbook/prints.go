@@ -354,7 +354,10 @@ func (s *Service) replaceUsagesFromPrint(ctx context.Context, tx pgx.Tx, q *mach
 	if err != nil {
 		return false, err
 	}
-	usage := UsageInput{MaterialID: spool.MaterialID, SpoolID: print.ReportedSpoolID, Ownership: "makerspace", Quantity: decimalString(print.ReportedQuantityG), QuantityBasis: *print.ReportedQuantityBasis}
+	if spool.MaterialID == nil {
+		return false, nil
+	}
+	usage := UsageInput{MaterialID: *spool.MaterialID, SpoolID: print.ReportedSpoolID, Ownership: "makerspace", Quantity: decimalString(print.ReportedQuantityG), QuantityBasis: *print.ReportedQuantityBasis}
 	if _, err = s.ReplaceJobUsagesInTransaction(ctx, tx, p, job.ID, job.Version, []UsageInput{usage}, print.ReportedEventID, requestID); err != nil {
 		return false, err
 	}

@@ -62,7 +62,7 @@ func mlInventoryTransactionDTO(item machinelogbook.InventoryTransaction) openapi
 	} else {
 		reason = nullable.NewNullableWithValue(openapi.InventoryAdjustmentReason(*item.AdjustmentReason))
 	}
-	return openapi.InventoryTransaction{Id: item.ID, MaterialId: item.MaterialID, Kind: openapi.InventoryTransactionKind(item.Kind), QuantityDelta: item.QuantityDelta, UnitAcquisitionCost: item.UnitAcquisitionCost, InventoryValueDelta: item.InventoryValueDelta, TotalPurchasePrice: nullableMoney(item.TotalPurchasePrice), OccurredAt: item.OccurredAt, Supplier: nullableString(item.Supplier), Note: nullableString(item.Note), AdjustmentReason: reason, MachineJobId: nullableUUIDValue(item.MachineJobID), MachineJobDisplayId: nullableString(item.MachineJobDisplayID), SpoolId: nullableUUIDValue(item.SpoolID), FromSpoolId: nullableUUIDValue(item.FromSpoolID), ToSpoolId: nullableUUIDValue(item.ToSpoolID), TransferQuantity: nullableDecimalValue(item.TransferQuantity), CreatedAt: item.CreatedAt}
+	return openapi.InventoryTransaction{Id: item.ID, MaterialId: item.MaterialID, Kind: openapi.InventoryTransactionKind(item.Kind), QuantityDelta: item.QuantityDelta, UnitAcquisitionCost: item.UnitAcquisitionCost, InventoryValueDelta: item.InventoryValueDelta, TotalPurchasePrice: nullableMoney(item.TotalPurchasePrice), OccurredAt: item.OccurredAt, Supplier: nullableString(item.Supplier), Note: nullableString(item.Note), AdjustmentReason: reason, MachineJobId: nullableUUIDValue(item.MachineJobID), MachineJobDisplayId: nullableString(item.MachineJobDisplayID), SpoolId: nullableUUIDValue(item.SpoolID), SpoolDisplayId: nullableString(item.SpoolDisplayID), FillNumber: nullableInt32Value(item.FillNumber), FromSpoolId: nullableUUIDValue(item.FromSpoolID), FromSpoolDisplayId: nullableString(item.FromSpoolDisplayID), FromFillNumber: nullableInt32Value(item.FromFillNumber), ToSpoolId: nullableUUIDValue(item.ToSpoolID), ToSpoolDisplayId: nullableString(item.ToSpoolDisplayID), ToFillNumber: nullableInt32Value(item.ToFillNumber), TransferQuantity: nullableDecimalValue(item.TransferQuantity), CreatedAt: item.CreatedAt}
 }
 func mlInventoryResultDTO(item machinelogbook.InventoryMutationResult) openapi.InventoryMutationResult {
 	return openapi.InventoryMutationResult{Material: mlMaterialDTO(item.Material), Transaction: mlInventoryTransactionDTO(item.Transaction)}
@@ -70,7 +70,7 @@ func mlInventoryResultDTO(item machinelogbook.InventoryMutationResult) openapi.I
 func mlJobDTO(item machinelogbook.MachineJob) openapi.MachineJob {
 	usages := make([]openapi.MachineJobUsage, 0, len(item.Usages))
 	for _, u := range item.Usages {
-		usages = append(usages, openapi.MachineJobUsage{Id: u.ID, MaterialId: nullableUUIDValue(u.MaterialID), SpoolId: nullableUUIDValue(u.SpoolID), SpoolDisplayId: nullableString(u.SpoolDisplayID), Ownership: openapi.FilamentOwnership(u.Ownership), MaterialName: u.MaterialName, Category: u.Category, Unit: openapi.MaterialUnit(u.Unit), Quantity: u.Quantity, QuantityBasis: openapi.QuantityBasis(u.QuantityBasis)})
+		usages = append(usages, openapi.MachineJobUsage{Id: u.ID, MaterialId: nullableUUIDValue(u.MaterialID), SpoolId: nullableUUIDValue(u.SpoolID), SpoolDisplayId: nullableString(u.SpoolDisplayID), FillNumber: nullableInt32Value(u.FillNumber), Ownership: openapi.FilamentOwnership(u.Ownership), MaterialName: u.MaterialName, Category: u.Category, Unit: openapi.MaterialUnit(u.Unit), Quantity: u.Quantity, QuantityBasis: openapi.QuantityBasis(u.QuantityBasis)})
 	}
 	var customer nullable.Nullable[openapi.BillingParty]
 	if item.Customer == nil {

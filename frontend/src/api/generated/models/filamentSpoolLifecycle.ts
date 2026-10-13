@@ -25,5 +25,5 @@ export type FilamentSpoolLifecycle = typeof FilamentSpoolLifecycle[keyof typeof 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const FilamentSpoolLifecycle = {
   active: 'active',
-  retired: 'retired',
+  archived: 'archived',
 } as const;

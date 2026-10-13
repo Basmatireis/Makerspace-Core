@@ -317,13 +317,24 @@ type ExternalInvoiceRequestEvent struct {
 	ActorAccountID     *uuid.UUID
 }
 
+type FilamentProduct struct {
+	ID           uuid.UUID
+	Manufacturer string
+	Name         string
+	MaterialID   uuid.UUID
+	NetWeightG   pgtype.Numeric
+	DefaultPrice pgtype.Numeric
+	Packaging    string
+	Notes        *string
+	Active       bool
+	Version      int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 type FilamentSpool struct {
 	ID                   uuid.UUID
 	DisplayID            string
-	MaterialID           uuid.UUID
-	Manufacturer         *string
-	ProductName          *string
-	InitialNetWeightG    pgtype.Numeric
 	TareWeightG          pgtype.Numeric
 	AcquiredOn           pgtype.Date
 	AcquisitionReference *string
@@ -333,6 +344,25 @@ type FilamentSpool struct {
 	Version              int64
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
+	Kind                 string
+	Label                *string
+	ArchivedAt           pgtype.Timestamptz
+}
+
+type FilamentSpoolFill struct {
+	ID                uuid.UUID
+	SpoolID           uuid.UUID
+	FillNumber        int32
+	MaterialID        uuid.UUID
+	ProductID         *uuid.UUID
+	Manufacturer      *string
+	ProductName       *string
+	InitialNetWeightG pgtype.Numeric
+	FilledAt          time.Time
+	ClosedAt          pgtype.Timestamptz
+	LeftoverG         pgtype.Numeric
+	LeftoverOutcome   *string
+	CreatedAt         time.Time
 }
 
 type FilamentSpoolIdentifier struct {
@@ -341,6 +371,8 @@ type FilamentSpoolIdentifier struct {
 	Kind      string
 	Value     string
 	CreatedAt time.Time
+	FillID    uuid.UUID
+	RetiredAt pgtype.Timestamptz
 }
 
 type File struct {
@@ -374,6 +406,15 @@ type InventoryTransaction struct {
 	FromSpoolID         *uuid.UUID
 	ToSpoolID           *uuid.UUID
 	TransferQuantity    pgtype.Numeric
+	FillID              *uuid.UUID
+	FromFillID          *uuid.UUID
+	ToFillID            *uuid.UUID
+	SpoolDisplayID      *string
+	FillNumber          *int32
+	FromSpoolDisplayID  *string
+	FromFillNumber      *int32
+	ToSpoolDisplayID    *string
+	ToFillNumber        *int32
 }
 
 type LaborordnungRequest struct {
@@ -463,6 +504,9 @@ type MachineJobMaterialUsage struct {
 	ExternalMaterialName *string
 	QuantityBasis        string
 	SourcePrinterEventID *uuid.UUID
+	FillID               *uuid.UUID
+	SpoolDisplayID       *string
+	FillNumber           *int32
 }
 
 type MachineJobPricingSnapshot struct {

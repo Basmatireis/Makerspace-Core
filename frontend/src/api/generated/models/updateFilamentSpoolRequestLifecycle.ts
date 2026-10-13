@@ -25,5 +25,5 @@ export type UpdateFilamentSpoolRequestLifecycle = typeof UpdateFilamentSpoolRequ
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const UpdateFilamentSpoolRequestLifecycle = {
   active: 'active',
-  retired: 'retired',
+  archived: 'archived',
 } as const;

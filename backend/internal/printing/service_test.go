@@ -141,6 +141,26 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 		t.Fatalf("expected occupied slot conflict, got %v", err)
 	}
 
+	// A spool without an open fill (or an archived one) cannot be mounted.
+	emptyAllocation, err := jobs.GetMaterial(ctx, p, material.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	finishedSpool, err := jobs.CreateFilamentSpool(ctx, p, machinelogbook.FilamentSpoolInput{MaterialID: material.ID, InitialNetWeightG: "100", StockMode: "existing_stock", OccurredAt: time.Now().UTC(), ExpectedInventoryVersion: emptyAllocation.InventoryVersion}, &requestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if finishedSpool, err = jobs.FinishFilamentSpool(ctx, p, finishedSpool.ID, machinelogbook.FinishSpoolInput{Leftover: machinelogbook.LeftoverInput{Basis: "none"}, OccurredAt: time.Now().UTC(), ExpectedVersion: finishedSpool.Version}, &requestID); err != nil {
+		t.Fatal(err)
+	}
+	spareSlot, err := service.CreateSlot(ctx, p, unit.ID, "Slot 2", 1, "available", nil, &requestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = service.Mount(ctx, p, spareSlot.ID, finishedSpool.ID, &requestID); !apperror.IsCode(err, "spool_unavailable") {
+		t.Fatalf("expected a finished spool to be refused, got %v", err)
+	}
+
 	estimate := "120"
 	submission, err := service.CreateSubmission(ctx, p, SubmissionInput{MachineID: machine.ID, Customer: machinelogbook.PartyReference{Kind: "person", ID: personID}, Title: "Bracket " + suffix, Declarations: []DeclarationInput{{Ownership: "makerspace", MaterialID: &material.ID, SpoolID: &spool.ID, EstimatedQuantityG: &estimate}}}, &requestID)
 	if err != nil {

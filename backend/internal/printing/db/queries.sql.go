@@ -742,6 +742,17 @@ func (q *Queries) GetPrintingOperation(ctx context.Context, operationKey uuid.UU
 	return i, err
 }
 
+const getSpoolOpenFillMaterial = `-- name: GetSpoolOpenFillMaterial :one
+SELECT material_id FROM filament_spool_fills WHERE spool_id=$1 AND closed_at IS NULL
+`
+
+func (q *Queries) GetSpoolOpenFillMaterial(ctx context.Context, spoolID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, getSpoolOpenFillMaterial, spoolID)
+	var material_id uuid.UUID
+	err := row.Scan(&material_id)
+	return material_id, err
+}
+
 const insertPrinterEvent = `-- name: InsertPrinterEvent :one
 INSERT INTO printer_events (id, source_id, event_key, fingerprint, protocol_version, machine_id, attempt_id, kind,
     occurred_at, source_sequence, external_print_id, payload, reconciliation_state)

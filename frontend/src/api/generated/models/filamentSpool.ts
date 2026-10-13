@@ -19,27 +19,68 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
-import type { MaterialUnit } from './materialUnit';
+import type { FilamentSpoolKind } from './filamentSpoolKind';
+import type { FilamentSpoolStatus } from './filamentSpoolStatus';
+import type { FilamentSpoolFillId } from './filamentSpoolFillId';
+import type { FilamentSpoolMaterialId } from './filamentSpoolMaterialId';
+import type { FilamentSpoolUnit } from './filamentSpoolUnit';
+import type { FilamentSpoolProductId } from './filamentSpoolProductId';
+import type { FilamentSpoolInitialNetWeightG } from './filamentSpoolInitialNetWeightG';
 import type { Decimal } from './decimal';
 import type { FilamentSpoolTareWeightG } from './filamentSpoolTareWeightG';
 import type { FilamentSpoolLifecycle } from './filamentSpoolLifecycle';
 import type { FilamentSpoolIdentifier } from './filamentSpoolIdentifier';
+import type { FilamentSpoolFill } from './filamentSpoolFill';
 import type { Version } from './version';
 
+/**
+ * Material, product, weights and identifiers describe the current (open) fill. A reusable spool without an open fill needs a refill; its material fields are null and remainingQuantity is 0.
+ */
 export interface FilamentSpool {
   id: UUIDv7;
   displayId: string;
-  materialId: UUIDv7;
-  materialName: string;
-  category: string;
+  kind: FilamentSpoolKind;
+  /** @nullable */
+  label?: string | null;
+  status: FilamentSpoolStatus;
+  /**
+   * The open fill or the most recent closed one.
+   * @minimum 1
+   */
+  fillNumber: number;
+  /**
+   * Open fill.
+   * @nullable
+   */
+  fillId?: FilamentSpoolFillId;
+  /** @nullable */
+  filledAt?: string | null;
+  /** @nullable */
+  archivedAt?: string | null;
+  /** @nullable */
+  materialId?: FilamentSpoolMaterialId;
+  /** @nullable */
+  materialName?: string | null;
+  /** @nullable */
+  category?: string | null;
   /** @nullable */
   color?: string | null;
-  unit: MaterialUnit;
   /** @nullable */
+  unit?: FilamentSpoolUnit;
+  /** @nullable */
+  productId?: FilamentSpoolProductId;
+  /**
+   * Snapshot taken when the fill started.
+   * @nullable
+   */
   manufacturer?: string | null;
-  /** @nullable */
+  /**
+   * Snapshot taken when the fill started.
+   * @nullable
+   */
   productName?: string | null;
-  initialNetWeightG: Decimal;
+  /** @nullable */
+  initialNetWeightG?: FilamentSpoolInitialNetWeightG;
   remainingQuantity: Decimal;
   /** @nullable */
   tareWeightG?: FilamentSpoolTareWeightG;
@@ -53,7 +94,10 @@ export interface FilamentSpool {
   notes?: string | null;
   lifecycle: FilamentSpoolLifecycle;
   mounted: boolean;
+  /** Identifiers of the open fill. */
   identifiers: FilamentSpoolIdentifier[];
+  /** Closed fills, newest first; only returned by GET /filament-spools/{spoolId}. */
+  fills?: FilamentSpoolFill[];
   version: Version;
   createdAt: string;
   updatedAt: string;

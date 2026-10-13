@@ -6,20 +6,68 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
+	"github.com/google/uuid"
 	"github.com/oapi-codegen/nullable"
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
-func spoolDTO(item machinelogbook.FilamentSpool) openapi.FilamentSpool {
-	identifiers := make([]openapi.FilamentSpoolIdentifier, 0, len(item.Identifiers))
-	for _, v := range item.Identifiers {
+func nullableInt32Value(value *int32) nullable.Nullable[int] {
+	if value == nil {
+		return nullable.NewNullNullable[int]()
+	}
+	return nullable.NewNullableWithValue(int(*value))
+}
+
+func nullableTimeValue(value *time.Time) nullable.Nullable[time.Time] {
+	if value == nil {
+		return nullable.NewNullNullable[time.Time]()
+	}
+	return nullable.NewNullableWithValue(*value)
+}
+
+func spoolIdentifiersDTO(items []machinelogbook.FilamentSpoolIdentifier) []openapi.FilamentSpoolIdentifier {
+	identifiers := make([]openapi.FilamentSpoolIdentifier, 0, len(items))
+	for _, v := range items {
 		identifiers = append(identifiers, openapi.FilamentSpoolIdentifier{Id: v.ID, Kind: openapi.FilamentSpoolIdentifierKind(v.Kind), Value: v.Value, CreatedAt: v.CreatedAt})
 	}
+	return identifiers
+}
+
+func spoolDTO(item machinelogbook.FilamentSpool) openapi.FilamentSpool {
 	acquired := nullable.NewNullNullable[openapi_types.Date]()
 	if item.AcquiredOn != nil {
 		acquired = nullable.NewNullableWithValue(openapi_types.Date{Time: *item.AcquiredOn})
 	}
-	return openapi.FilamentSpool{Id: item.ID, DisplayId: item.DisplayID, MaterialId: item.MaterialID, MaterialName: item.MaterialName, Category: item.Category, Color: nullableString(item.Color), Unit: openapi.MaterialUnit(item.Unit), Manufacturer: nullableString(item.Manufacturer), ProductName: nullableString(item.ProductName), InitialNetWeightG: item.InitialNetWeightG, RemainingQuantity: item.RemainingQuantity, TareWeightG: nullableDecimalValue(item.TareWeightG), AcquiredOn: acquired, AcquisitionReference: nullableString(item.AcquisitionReference), StorageLocation: nullableString(item.StorageLocation), Notes: nullableString(item.Notes), Lifecycle: openapi.FilamentSpoolLifecycle(item.Lifecycle), Mounted: item.Mounted, Identifiers: identifiers, Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
+	unit := nullable.NewNullNullable[openapi.MaterialUnit]()
+	if item.Unit != nil {
+		unit = nullable.NewNullableWithValue(openapi.MaterialUnit(*item.Unit))
+	}
+	dto := openapi.FilamentSpool{Id: item.ID, DisplayId: item.DisplayID, Kind: openapi.FilamentSpoolKind(item.Kind), Label: nullableString(item.Label), Status: openapi.FilamentSpoolStatus(item.Status),
+		FillNumber: int(item.FillNumber), FillId: nullableUUIDValue(item.FillID), FilledAt: nullableTimeValue(item.FilledAt), ArchivedAt: nullableTimeValue(item.ArchivedAt),
+		MaterialId: nullableUUIDValue(item.MaterialID), MaterialName: nullableString(item.MaterialName), Category: nullableString(item.Category), Color: nullableString(item.Color), Unit: unit,
+		ProductId: nullableUUIDValue(item.ProductID), Manufacturer: nullableString(item.Manufacturer), ProductName: nullableString(item.ProductName), InitialNetWeightG: nullableDecimalValue(item.InitialNetWeightG),
+		RemainingQuantity: item.RemainingQuantity, TareWeightG: nullableDecimalValue(item.TareWeightG), AcquiredOn: acquired, AcquisitionReference: nullableString(item.AcquisitionReference),
+		StorageLocation: nullableString(item.StorageLocation), Notes: nullableString(item.Notes), Lifecycle: openapi.FilamentSpoolLifecycle(item.Lifecycle), Mounted: item.Mounted,
+		Identifiers: spoolIdentifiersDTO(item.Identifiers), Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
+	if item.Fills != nil {
+		fills := make([]openapi.FilamentSpoolFill, 0, len(item.Fills))
+		for _, f := range item.Fills {
+			fills = append(fills, openapi.FilamentSpoolFill{Id: f.ID, FillNumber: int(f.FillNumber), MaterialId: f.MaterialID, MaterialName: f.MaterialName, ProductId: nullableUUIDValue(f.ProductID),
+				Manufacturer: nullableString(f.Manufacturer), ProductName: nullableString(f.ProductName), InitialNetWeightG: f.InitialNetWeightG, UsedG: f.UsedG, LeftoverG: f.LeftoverG,
+				LeftoverOutcome: openapi.LeftoverOutcome(f.Outcome), FilledAt: f.FilledAt, ClosedAt: f.ClosedAt, Identifiers: spoolIdentifiersDTO(f.Identifiers)})
+		}
+		dto.Fills = &fills
+	}
+	return dto
+}
+
+func leftoverInput(v openapi.FilamentLeftoverInput) machinelogbook.LeftoverInput {
+	var disposition *string
+	if d := v.Disposition; d.IsSpecified() && !d.IsNull() {
+		value := string(d.GetOrEmpty())
+		disposition = &value
+	}
+	return machinelogbook.LeftoverInput{Basis: string(v.Basis), GrossWeightG: decimalNullable(v.GrossWeightG), Disposition: disposition}
 }
 
 func nullableDate(value nullable.Nullable[openapi_types.Date]) *time.Time {
@@ -35,7 +83,16 @@ func (s *Server) ListFilamentSpools(ctx context.Context, r openapi.ListFilamentS
 	if e != nil {
 		return nil, e
 	}
-	items, total, e := s.machineLogbook.ListFilamentSpools(ctx, p, defaultString(r.Params.Search), r.Params.MaterialId, valueString(r.Params.Lifecycle), defaultString(r.Params.Location), defaultInt(r.Params.Page, 1), defaultInt(r.Params.PageSize, 25))
+	params := r.Params
+	filters := machinelogbook.SpoolFilters{Search: defaultString(params.Search), MaterialID: params.MaterialId, Lifecycle: valueString(params.Lifecycle), Location: defaultString(params.Location),
+		Kind: valueString(params.Kind), Mounted: params.Mounted, ProductID: params.ProductId, Manufacturer: defaultString(params.Manufacturer), Consumable: valueBool(params.Consumable),
+		Page: defaultInt(params.Page, 1), PageSize: defaultInt(params.PageSize, 25)}
+	if params.Status != nil {
+		for _, status := range *params.Status {
+			filters.Statuses = append(filters.Statuses, string(status))
+		}
+	}
+	items, total, e := s.machineLogbook.ListFilamentSpools(ctx, p, filters)
 	if e != nil {
 		return nil, e
 	}
@@ -75,7 +132,12 @@ func (s *Server) CreateFilamentSpool(ctx context.Context, r openapi.CreateFilame
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, e := s.machineLogbook.CreateFilamentSpool(ctx, p, machinelogbook.FilamentSpoolInput{MaterialID: r.Body.MaterialId, InitialNetWeightG: string(r.Body.InitialNetWeightG), StockMode: string(r.Body.StockMode), TotalPrice: decimalMoneyNullable(r.Body.TotalPrice), Manufacturer: nullableStringPointer(r.Body.Manufacturer), ProductName: nullableStringPointer(r.Body.ProductName), TareWeightG: decimalNullable(r.Body.TareWeightG), AcquiredOn: nullableDate(r.Body.AcquiredOn), AcquisitionReference: nullableStringPointer(r.Body.AcquisitionReference), StorageLocation: nullableStringPointer(r.Body.StorageLocation), Notes: nullableStringPointer(r.Body.Notes), OccurredAt: r.Body.OccurredAt, ExpectedInventoryVersion: r.Body.ExpectedInventoryVersion}, requestIDPointer(ctx))
+	body := r.Body
+	kind := ""
+	if body.Kind != nil {
+		kind = string(*body.Kind)
+	}
+	item, e := s.machineLogbook.CreateFilamentSpool(ctx, p, machinelogbook.FilamentSpoolInput{Kind: kind, Label: defaultString(nullableStringPointer(body.Label)), ProductID: uuidNullable(body.ProductId), MaterialID: body.MaterialId, InitialNetWeightG: string(body.InitialNetWeightG), StockMode: string(body.StockMode), TotalPrice: decimalMoneyNullable(body.TotalPrice), Manufacturer: nullableStringPointer(body.Manufacturer), ProductName: nullableStringPointer(body.ProductName), TareWeightG: decimalNullable(body.TareWeightG), AcquiredOn: nullableDate(body.AcquiredOn), AcquisitionReference: nullableStringPointer(body.AcquisitionReference), StorageLocation: nullableStringPointer(body.StorageLocation), Notes: nullableStringPointer(body.Notes), OccurredAt: body.OccurredAt, ExpectedInventoryVersion: body.ExpectedInventoryVersion}, requestIDPointer(ctx))
 	if e != nil {
 		return nil, e
 	}
@@ -89,7 +151,8 @@ func (s *Server) UpdateFilamentSpool(ctx context.Context, r openapi.UpdateFilame
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, e := s.machineLogbook.UpdateFilamentSpool(ctx, p, r.SpoolId, r.Body.ExpectedVersion, nullableStringPointer(r.Body.Manufacturer), nullableStringPointer(r.Body.ProductName), decimalNullable(r.Body.TareWeightG), nullableDate(r.Body.AcquiredOn), nullableStringPointer(r.Body.AcquisitionReference), nullableStringPointer(r.Body.StorageLocation), nullableStringPointer(r.Body.Notes), string(r.Body.Lifecycle), requestIDPointer(ctx))
+	body := r.Body
+	item, e := s.machineLogbook.UpdateFilamentSpool(ctx, p, r.SpoolId, machinelogbook.FilamentSpoolUpdate{ExpectedVersion: body.ExpectedVersion, Kind: stringEnum(body.Kind), Label: nullableStringPointer(body.Label), Manufacturer: nullableStringPointer(body.Manufacturer), ProductName: nullableStringPointer(body.ProductName), TareWeightG: decimalNullable(body.TareWeightG), AcquiredOn: nullableDate(body.AcquiredOn), AcquisitionReference: nullableStringPointer(body.AcquisitionReference), StorageLocation: nullableStringPointer(body.StorageLocation), Notes: nullableStringPointer(body.Notes), Lifecycle: string(body.Lifecycle)}, requestIDPointer(ctx))
 	if e != nil {
 		return nil, e
 	}
@@ -185,3 +248,68 @@ func decimalMoneyNullable(value nullable.Nullable[openapi.Money]) *string {
 	return &v
 }
 func valueBool(value *bool) bool { return value != nil && *value }
+
+func (s *Server) ChangeFilamentSpoolFill(ctx context.Context, r openapi.ChangeFilamentSpoolFillRequestObject) (openapi.ChangeFilamentSpoolFillResponseObject, error) {
+	p, e := requirePrincipal(ctx)
+	if e != nil {
+		return nil, e
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	body := r.Body
+	input := machinelogbook.ChangeFillInput{OccurredAt: body.OccurredAt, ExpectedVersion: body.ExpectedVersion,
+		Fill: machinelogbook.NewFillInput{ProductID: uuidNullable(body.Fill.ProductId), MaterialID: body.Fill.MaterialId, Manufacturer: nullableStringPointer(body.Fill.Manufacturer), ProductName: nullableStringPointer(body.Fill.ProductName),
+			NetWeightG: string(body.Fill.NetWeightG), Source: string(body.Fill.Source), TotalPrice: decimalMoneyNullable(body.Fill.TotalPrice), Supplier: nullableStringPointer(body.Fill.Supplier)}}
+	if l := body.Leftover; l.IsSpecified() && !l.IsNull() {
+		leftover := leftoverInput(l.GetOrEmpty())
+		input.Leftover = &leftover
+	}
+	input.KeepIdentifierIDs = append(input.KeepIdentifierIDs, body.KeepIdentifierIds...)
+	for _, identifier := range body.NewIdentifiers {
+		input.NewIdentifiers = append(input.NewIdentifiers, machinelogbook.NewSpoolIdentifier{Kind: string(identifier.Kind), Value: identifier.Value})
+	}
+	item, e := s.machineLogbook.ChangeFilamentSpoolFill(ctx, p, r.SpoolId, input, requestIDPointer(ctx))
+	if e != nil {
+		return nil, e
+	}
+	return openapi.ChangeFilamentSpoolFill201JSONResponse(spoolDTO(item)), nil
+}
+
+func (s *Server) FinishFilamentSpool(ctx context.Context, r openapi.FinishFilamentSpoolRequestObject) (openapi.FinishFilamentSpoolResponseObject, error) {
+	p, e := requirePrincipal(ctx)
+	if e != nil {
+		return nil, e
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, e := s.machineLogbook.FinishFilamentSpool(ctx, p, r.SpoolId, machinelogbook.FinishSpoolInput{Leftover: leftoverInput(r.Body.Leftover), OccurredAt: r.Body.OccurredAt, ExpectedVersion: r.Body.ExpectedVersion}, requestIDPointer(ctx))
+	if e != nil {
+		return nil, e
+	}
+	return openapi.FinishFilamentSpool200JSONResponse(spoolDTO(item)), nil
+}
+
+func (s *Server) CleanUpArchivedFilamentSpools(ctx context.Context, r openapi.CleanUpArchivedFilamentSpoolsRequestObject) (openapi.CleanUpArchivedFilamentSpoolsResponseObject, error) {
+	p, e := requirePrincipal(ctx)
+	if e != nil {
+		return nil, e
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	var ids []uuid.UUID
+	if r.Body.SpoolIds != nil {
+		ids = *r.Body.SpoolIds
+	}
+	items, deleted, e := s.machineLogbook.CleanUpFilamentSpools(ctx, p, int(r.Body.OlderThanMonths), r.Body.DryRun, ids, requestIDPointer(ctx))
+	if e != nil {
+		return nil, e
+	}
+	dto := make([]openapi.CleanUpFilamentSpoolCandidate, 0, len(items))
+	for _, item := range items {
+		dto = append(dto, openapi.CleanUpFilamentSpoolCandidate{Id: item.ID, DisplayId: item.DisplayID, Label: nullableString(item.Label), ArchivedAt: item.ArchivedAt})
+	}
+	return openapi.CleanUpArchivedFilamentSpools200JSONResponse{Items: dto, Deleted: deleted}, nil
+}

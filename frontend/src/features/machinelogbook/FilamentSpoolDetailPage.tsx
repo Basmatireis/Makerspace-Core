@@ -19,7 +19,7 @@ import { formatDateTime, formatDecimal } from './formatting';
 import { machineLogbookKeys, materialQuery, spoolQuery, spoolTransactionsQuery } from './queries';
 
 type Dialog = 'consume' | 'correct' | 'edit' | 'identifier' | null;
-type Fields = { quantity: string; physicalQuantity: string; acquisitionUnitCost: string; note: string; manufacturer: string; productName: string; tareWeightG: string; storageLocation: string; lifecycle: 'active' | 'retired'; identifierKind: 'nfc' | 'barcode' | 'qr'; identifierValue: string };
+type Fields = { quantity: string; physicalQuantity: string; acquisitionUnitCost: string; note: string; manufacturer: string; productName: string; tareWeightG: string; storageLocation: string; lifecycle: 'active' | 'archived'; identifierKind: 'nfc' | 'barcode' | 'qr'; identifierValue: string };
 
 export function FilamentSpoolDetailPage() {
   const { spoolId = '' } = useParams();
@@ -70,7 +70,7 @@ export function FilamentSpoolDetailPage() {
         {dialog === 'consume' && <TextInput id="spool-consume" labelText="Quantity (g)" {...form.register('quantity', { required: true })} />}
         {dialog === 'correct' && <><TextInput id="spool-physical" labelText="Physical quantity (g)" {...form.register('physicalQuantity', { required: true })} /><TextInput id="spool-unit-cost" labelText="Acquisition cost per g (only needed when adding stock without an average)" {...form.register('acquisitionUnitCost')} /></>}
         {dialog === 'identifier' && <><Select id="identifier-kind" labelText="Identifier kind" {...form.register('identifierKind')}><SelectItem value="barcode" text="Barcode" /><SelectItem value="qr" text="QR code" /><SelectItem value="nfc" text="NFC" /></Select><TextInput id="identifier-value" labelText="Value" {...form.register('identifierValue', { required: true })} /></>}
-        {dialog === 'edit' && <><div className="form-grid"><TextInput id="edit-manufacturer" labelText="Manufacturer" {...form.register('manufacturer')} /><TextInput id="edit-product" labelText="Product" {...form.register('productName')} /></div><div className="form-grid"><TextInput id="edit-tare" labelText="Tare weight (g)" {...form.register('tareWeightG')} /><TextInput id="edit-location" labelText="Storage location" {...form.register('storageLocation')} /></div><Select id="edit-lifecycle" labelText="Lifecycle" {...form.register('lifecycle')}><SelectItem value="active" text="Active" /><SelectItem value="retired" text="Retired" /></Select></>}
+        {dialog === 'edit' && <><div className="form-grid"><TextInput id="edit-manufacturer" labelText="Manufacturer" {...form.register('manufacturer')} /><TextInput id="edit-product" labelText="Product" {...form.register('productName')} /></div><div className="form-grid"><TextInput id="edit-tare" labelText="Tare weight (g)" {...form.register('tareWeightG')} /><TextInput id="edit-location" labelText="Storage location" {...form.register('storageLocation')} /></div><Select id="edit-lifecycle" labelText="Lifecycle" {...form.register('lifecycle')}><SelectItem value="active" text="Active" /><SelectItem value="archived" text="Archived" /></Select></>}
         {dialog !== 'identifier' && <TextInput id="spool-dialog-note" labelText={dialog === 'edit' ? 'Notes' : 'Transaction note'} {...form.register('note')} />}
         {mutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Spool was not updated" subtitle="Reload the spool and material balance, then retry." />}
       </Stack>
