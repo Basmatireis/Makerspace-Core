@@ -1,0 +1,21 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+// Layout glue for the Machines pages. Controls and surfaces are Carbon components.
+
+
+.mj-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: $spacing-05; }
+.mj-metric__label { @include type-style('label-01'); color: var(--cds-text-secondary); }
+.mj-metric__value { @include type-style('productive-heading-05'); margin-block-start: $spacing-02; }
+
+.mj-tab-panel { display: grid; gap: $spacing-06; padding-block-start: $spacing-05; }
+.mj-tile-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: $spacing-03; margin-block-end: $spacing-04; }
+.mj-tile-header h3 { @include type-style('heading-compact-02'); }
+
+.mj-type-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: end; gap: $spacing-04; padding-block: $spacing-03; border-block-end: 1px solid var(--cds-border-subtle); }
+.mj-type-row__toggle { min-inline-size: 7rem; }
+
+@media (max-width: 41.98rem) {
+  .mj-metrics { grid-template-columns: 1fr; }
+  .mj-type-row { grid-template-columns: 1fr; align-items: stretch; }
+}

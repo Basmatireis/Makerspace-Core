@@ -1,123 +1,148 @@
-import './styles.scss';
-import { Button, InlineNotification, Modal, Select, SelectItem, Stack, TextArea, TextInput, Tile } from '@carbon/react';
-import { Add, Edit, Subtract, TrashCan } from '@carbon/icons-react';
-import { LineChart, ScaleTypes } from '../../app/charting';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { useParams } from 'react-router-dom';
-import { addMaterialPurchase, correctMaterialStock, markMaterialEmpty, recordMaterialConsumption } from '../../api/generated/inventory/inventory';
-import type { InventoryAdjustmentReason, RecordMaterialConsumptionRequestReason } from '../../api/generated/models';
+import { Button, OverflowMenu, OverflowMenuItem, Tile } from '@carbon/react';
+import { Add } from '@carbon/icons-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useParams } from 'react-router-dom';
+import { markMaterialEmpty } from '../../api/generated/inventory/inventory';
+import type { FilamentProduct, Material } from '../../api/generated/models';
+import { ApiError } from '../../api/http-client';
+import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
-import { ErrorState, FullPageLoading } from '../../app/PageState';
-import { PermissionId, hasPermission } from '../auth/permissions';
-import { useCurrentUser } from '../auth/auth';
-import { StockTag } from './components';
-import { formatDateTime, formatDecimal, formatMoney } from './formatting';
-import { machineLogbookKeys, materialQuery, transactionsQuery } from './queries';
+import { EmptyState } from '../../app/PageState';
+import { InventoryLedgerTable } from './components/InventoryLedgerTable';
+import { InventorySpoolsTable } from './components/InventorySpoolsTable';
+import { ProductsTable } from './components/ProductsTable';
+import { categoryLabel, formatQuantity, formatUnitCost, isFilament, materialUnitCost, NoInventoryAccess, StockTag, unitLabel } from './components/inventoryShared';
+import { MaterialFormModal } from './dialogs/MaterialFormModal';
+import { ProductFormModal } from './dialogs/ProductFormModal';
+import { StockMovementModal, type MovementMode } from './dialogs/StockMovementModal';
+import { allTransactionsQuery } from './inventoryQueries';
+import { machineLogbookKeys, materialQuery } from './queries';
+import { formatMoney } from './shared/format';
+import { machineLogbookPaths } from './shared/paths';
+import { QueryBoundary } from './shared/QueryBoundary';
+import { useNotify } from './shared/toasts';
+import { useCan } from './shared/useCan';
+import './styles/inventory.scss';
 
-type DialogKind = 'purchase' | 'consume' | 'dispose' | 'correct' | 'empty' | null;
-type Fields = {
-  quantity: string;
-  totalPrice: string;
-  physicalQuantity: string;
-  acquisitionUnitCost: string;
-  supplier: string;
-  reason: string;
-  note: string;
-};
+const crumbs = [{ label: 'Workshop', to: machineLogbookPaths.overview() }, { label: 'Inventory', to: machineLogbookPaths.inventory() }];
+type Dialog = 'movement' | 'edit' | 'empty' | 'product' | null;
 
-export function MaterialDetailPage() {
-  const { materialId = '' } = useParams();
-  const currentUser = useCurrentUser();
+function Ledger({ material }: { material: Material }) {
+  const transactions = useQuery(allTransactionsQuery(material.id));
+  return (
+    <QueryBoundary query={transactions} errorMessage="The ledger could not be loaded.">
+      {(items) => <InventoryLedgerTable id="ledger" transactions={items} unit={material.unit} showSpool={isFilament(material)} />}
+    </QueryBoundary>
+  );
+}
+
+function MaterialDetail({ material }: { material: Material }) {
+  const can = useCan();
   const client = useQueryClient();
-  const material = useQuery(materialQuery(materialId));
-  const transactions = useQuery(transactionsQuery(materialId, 1));
-  const [dialog, setDialog] = useState<DialogKind>(null);
-  const form = useForm<Fields>();
-  const invalidate = async () => client.invalidateQueries({ queryKey: machineLogbookKeys.all });
-  const mutation = useMutation({
-    mutationFn: async (values: Fields) => {
-      const current = material.data!;
-      const occurredAt = new Date().toISOString();
-      switch (dialog) {
-        case 'purchase':
-          return addMaterialPurchase(materialId, { expectedInventoryVersion: current.inventoryVersion, quantity: values.quantity, totalPrice: values.totalPrice, occurredAt, supplier: values.supplier || null, note: values.note || null });
-        case 'consume':
-        case 'dispose':
-          return recordMaterialConsumption(materialId, { expectedInventoryVersion: current.inventoryVersion, quantity: values.quantity, occurredAt, disposal: dialog === 'dispose', reason: (values.reason || null) as RecordMaterialConsumptionRequestReason, note: values.note || null });
-        case 'correct':
-          return correctMaterialStock(materialId, { expectedInventoryVersion: current.inventoryVersion, physicalQuantity: values.physicalQuantity, acquisitionUnitCost: values.acquisitionUnitCost || null, occurredAt, reason: (values.reason || 'inventory_count') as InventoryAdjustmentReason, note: values.note || null });
-        case 'empty':
-          return markMaterialEmpty(materialId, { expectedInventoryVersion: current.inventoryVersion, occurredAt, note: values.note || null });
-        default:
-          throw new Error('No inventory action selected');
-      }
-    },
+  const notify = useNotify();
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const [mode, setMode] = useState<MovementMode>('purchase');
+  const [editing, setEditing] = useState<FilamentProduct | undefined>();
+  const openMovement = (next: MovementMode) => { setMode(next); setDialog('movement'); };
+  const close = () => setDialog(null);
+  const canManage = can('inventory.manage');
+  const filament = isFilament(material);
+  const quantity = Number(material.quantity);
+  // Marking empty writes off the whole balance, which is only possible when nothing of it sits on a spool.
+  const onSpools = Number(material.assignedQuantity) > 0;
+  const emptying = useMutation({
+    mutationFn: () => markMaterialEmpty(material.id, { occurredAt: new Date().toISOString(), expectedInventoryVersion: material.inventoryVersion }),
     onSuccess: async () => {
-      setDialog(null);
-      form.reset();
-      await invalidate();
+      await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
+      notify({ kind: 'success', title: 'Marked as empty', subtitle: `${material.name} stock is now 0 ${unitLabel(material.unit)}.` });
+      close();
     },
+    onError: () => { void client.invalidateQueries({ queryKey: machineLogbookKeys.all }); },
   });
 
-  if (material.isPending || transactions.isPending) return <FullPageLoading label="Loading material" />;
-  if (material.isError || transactions.isError) return <ErrorState message="Material details could not be loaded." onRetry={() => { material.refetch(); transactions.refetch(); }} />;
-
-  const item = material.data;
-  const history = [...transactions.data.items].reverse();
-  let quantity = Number(item.quantity) - history.reduce((sum, transaction) => sum + Number(transaction.quantityDelta), 0);
-  const trend = history.map((transaction) => {
-    quantity += Number(transaction.quantityDelta);
-    return { group: item.name, date: transaction.occurredAt, value: quantity };
-  });
-  const options = { title: 'Stock level', axes: { left: { mapsTo: 'value', scaleType: ScaleTypes.LINEAR, title: item.unit }, bottom: { mapsTo: 'date', scaleType: ScaleTypes.TIME } }, height: '280px', legend: { enabled: false }, toolbar: { enabled: false }, accessibility: { svgAriaLabel: `Stock level trend for ${item.name}` } };
-  const open = (kind: DialogKind) => {
-    form.reset({ quantity: '', totalPrice: '', physicalQuantity: item.quantity, acquisitionUnitCost: '', supplier: '', reason: kind === 'correct' ? 'inventory_count' : '', note: '' });
-    setDialog(kind);
-  };
+  const actions = canManage ? (
+    <>
+      <Button renderIcon={Add} onClick={() => openMovement('purchase')}>Add stock</Button>
+      <OverflowMenu aria-label="More material actions" iconDescription="More material actions" flipped>
+        <OverflowMenuItem itemText="Record consumption" disabled={Number(material.unassignedQuantity) <= 0} onClick={() => openMovement('consumption')} />
+        <OverflowMenuItem itemText="Correct stock" onClick={() => openMovement('correction')} />
+        <OverflowMenuItem itemText="Record disposal" disabled={Number(material.unassignedQuantity) <= 0} onClick={() => openMovement('disposal')} />
+        <OverflowMenuItem itemText="Mark as empty" disabled={quantity <= 0 || onSpools} title={onSpools ? 'Part of the stock is on spools. Empty or remove those spools first.' : undefined} onClick={() => setDialog('empty')} />
+        <OverflowMenuItem itemText="Edit material" onClick={() => setDialog('edit')} />
+      </OverflowMenu>
+    </>
+  ) : undefined;
 
   return (
     <PageShell
-      title={item.name}
-      description={`${item.category}${item.color ? ` · ${item.color}` : ''}`}
-      breadcrumbs={[{ label: 'Workshop', to: '/machine-logbook' }, { label: 'Inventory', to: '/machine-logbook/inventory' }, { label: item.name }]}
-      actions={hasPermission(currentUser, PermissionId.inventorymanage) && <><Button kind="secondary" renderIcon={Add} onClick={() => open('purchase')}>Add stock</Button><Button kind="secondary" renderIcon={Subtract} onClick={() => open('consume')}>Record consumption</Button><Button kind="secondary" onClick={() => open('dispose')}>Record disposal</Button><Button kind="secondary" renderIcon={Edit} onClick={() => open('correct')}>Correct stock</Button><Button kind="danger" renderIcon={TrashCan} disabled={Number(item.quantity) === 0} onClick={() => open('empty')}>Mark as empty</Button></>}
-      width="wide"
-      className="machine-logbook-page detail-page"
+      title={material.name} titleAdornment={<StockTag state={material.stockState} />} width="wide"
+      description={`${categoryLabel(material.category)} · ${unitLabel(material.unit)}${material.active ? '' : ' · Inactive'}`}
+      breadcrumbs={[...crumbs, { label: material.name }]} actions={actions}
     >
-      <div className="metric-grid metric-grid--three">
-        <Tile><span>Current stock</span><strong>{formatDecimal(item.quantity, 3)}</strong><small>{item.unit} · <StockTag state={item.stockState} /></small></Tile>
-        <Tile><span>Consumption (30d)</span><strong>{formatDecimal(item.recentConsumption, 3)}</strong><small>{item.unit}</small></Tile>
-        <Tile><span>Acquisition cost</span><strong>€ {formatDecimal(item.averageUnitCost, 4)}</strong><small>per {item.unit} · value {formatMoney(item.inventoryValue)}</small></Tile>
-      </div>
-      <div className="material-layout">
-        <Tile className="chart-tile">
-          <LineChart data={trend} options={options} />
-          <table className="accessible-data-table"><caption>Stock trend</caption><thead><tr><th>Date</th><th>Balance ({item.unit})</th></tr></thead><tbody>{trend.map((point) => <tr key={point.date}><td>{formatDateTime(point.date)}</td><td>{formatDecimal(String(point.value), 3)}</td></tr>)}</tbody></table>
+      <div className="mj-stack">
+        <Tile>
+          <dl className="mj-facts">
+            <div><dt>In stock</dt><dd>{formatQuantity(material.quantity, material.unit)}</dd></div>
+            {filament && <div><dt>On spools</dt><dd>{formatQuantity(material.assignedQuantity, material.unit)}</dd></div>}
+            {filament && <div><dt>Loose stock</dt><dd>{formatQuantity(material.unassignedQuantity, material.unit)}</dd></div>}
+            <div><dt>Low-stock threshold</dt><dd>{material.lowStockThreshold != null ? formatQuantity(material.lowStockThreshold, material.unit) : '—'}</dd></div>
+            <div><dt>Avg. acquisition cost</dt><dd>{formatUnitCost(materialUnitCost(material), material.unit)}</dd></div>
+            <div><dt>Stock value</dt><dd>{formatMoney(material.inventoryValue)}</dd></div>
+            <div><dt>Category</dt><dd>{categoryLabel(material.category)}</dd></div>
+            <div><dt>Unit</dt><dd>{unitLabel(material.unit)}</dd></div>
+            {material.color && <div><dt>Colour</dt><dd>{material.color}</dd></div>}
+            {material.filamentDiameterMm != null && <div><dt>Filament diameter</dt><dd>{Number(material.filamentDiameterMm)} mm</dd></div>}
+          </dl>
         </Tile>
-        <Tile><h2>Transaction history</h2><ul className="transaction-list">{transactions.data.items.map((transaction) => <li key={transaction.id}><div><strong>{transaction.kind.replaceAll('_', ' ')}</strong><small>{formatDateTime(transaction.occurredAt)}{transaction.machineJobDisplayId ? ` · ${transaction.machineJobDisplayId}` : ''}</small></div><span className={Number(transaction.quantityDelta) < 0 ? 'negative' : 'positive'}>{Number(transaction.quantityDelta) > 0 ? '+' : ''}{formatDecimal(transaction.quantityDelta, 3)} {item.unit}</span></li>)}</ul></Tile>
+        <section className="mj-inventory-section" aria-labelledby="material-ledger-title">
+          <h2 id="material-ledger-title" className="mj-section-title">Ledger</h2>
+          <Ledger material={material} />
+        </section>
+        {filament && (
+          <section className="mj-inventory-section" aria-labelledby="material-products-title">
+            <h2 id="material-products-title" className="mj-section-title">Products</h2>
+            <ProductsTable
+              id="products" materialId={material.id} canManage={canManage}
+              onAdd={() => { setEditing(undefined); setDialog('product'); }} onEdit={(product) => { setEditing(product); setDialog('product'); }}
+            />
+          </section>
+        )}
+        {filament && (
+          <section className="mj-inventory-section" aria-labelledby="material-spools-title">
+            <h2 id="material-spools-title" className="mj-section-title">Spools</h2>
+            <InventorySpoolsTable materialId={material.id} compact />
+          </section>
+        )}
       </div>
-      <Modal open={dialog !== null} danger={dialog === 'empty'} modalHeading={dialogTitle(dialog)} primaryButtonText={mutation.isPending ? 'Saving…' : dialog === 'empty' ? 'Mark empty' : 'Save transaction'} secondaryButtonText="Cancel" primaryButtonDisabled={mutation.isPending} onRequestClose={() => setDialog(null)} onRequestSubmit={form.handleSubmit((values) => mutation.mutate(values))}>
-        <Stack gap={5}>
-          {dialog === 'purchase' && <><TextInput id="purchase-quantity" labelText={`Quantity (${item.unit})`} {...form.register('quantity', { required: true })} /><TextInput id="purchase-price" labelText="Total price (€)" {...form.register('totalPrice', { required: true })} /><TextInput id="purchase-supplier" labelText="Supplier" {...form.register('supplier')} /></>}
-          {(dialog === 'consume' || dialog === 'dispose') && <><TextInput id="consumption-quantity" labelText={`Quantity (${item.unit})`} {...form.register('quantity', { required: true })} />{dialog === 'dispose' && <TextInput id="disposal-reason" labelText="Reason" {...form.register('reason', { required: true })} />}</>}
-          {dialog === 'correct' && <><TextInput id="physical-quantity" labelText={`Physical quantity (${item.unit})`} {...form.register('physicalQuantity', { required: true })} /><TextInput id="acquisition-cost" labelText={`Acquisition cost per ${item.unit} (required when adding stock without an average)`} {...form.register('acquisitionUnitCost')} /><Select id="correction-reason" labelText="Reason" {...form.register('reason')}><SelectItem value="inventory_count" text="Inventory count" /><SelectItem value="damaged" text="Damage" /><SelectItem value="unrecorded_consumption" text="Unrecorded consumption" /><SelectItem value="other" text="Other" /></Select></>}
-          <TextArea id="inventory-note" labelText="Note" {...form.register('note')} />
-          {mutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Inventory was not updated" subtitle="The stock may have changed. Close, reload, and retry with the latest balance." />}
-        </Stack>
-      </Modal>
+      {dialog === 'movement' && <StockMovementModal open onClose={close} mode={mode} material={material} />}
+      {dialog === 'edit' && <MaterialFormModal open onClose={close} material={material} />}
+      {dialog === 'product' && <ProductFormModal open onClose={close} product={editing} materialId={material.id} />}
+      <DestructiveActionDialog
+        open={dialog === 'empty'} title="Mark as empty?" confirmLabel="Mark as empty" pending={emptying.isPending} onClose={close}
+        error={emptying.isError ? (emptying.error instanceof ApiError ? emptying.error.message : 'The stock may have changed. Reload the page and try again.') : undefined}
+        onConfirm={() => emptying.mutate()}
+      >
+        <p>
+          The remaining {formatQuantity(material.quantity, material.unit)} of {material.name} is written off as a disposal and stock becomes 0. The ledger keeps every entry.
+        </p>
+      </DestructiveActionDialog>
     </PageShell>
   );
 }
 
-function dialogTitle(kind: DialogKind) {
-  switch (kind) {
-    case 'purchase': return 'Add stock purchase';
-    case 'consume': return 'Record manual consumption';
-    case 'dispose': return 'Record disposal';
-    case 'correct': return 'Correct physical stock';
-    case 'empty': return 'Mark material as empty';
-    default: return 'Inventory transaction';
-  }
+export function MaterialDetailPage() {
+  const { materialId = '' } = useParams();
+  const can = useCan();
+  const query = useQuery({ ...materialQuery(materialId), enabled: can('inventory.read') });
+  if (!can('inventory.read')) return <PageShell title="Material" breadcrumbs={crumbs} width="wide"><NoInventoryAccess /></PageShell>;
+  if (query.status === 'success') return <MaterialDetail material={query.data} />;
+  const missing = query.error instanceof ApiError && query.error.status === 404;
+  return (
+    <PageShell title={missing ? 'Material not found' : 'Material'} breadcrumbs={crumbs} width="wide">
+      {missing
+        ? <EmptyState title="This material does not exist" description="It may have been removed, or the link is incorrect." action={<Button kind="tertiary" as={Link} to={machineLogbookPaths.inventory()}>Back to inventory</Button>} />
+        : <QueryBoundary query={query} errorMessage="The material could not be loaded.">{null}</QueryBoundary>}
+    </PageShell>
+  );
 }

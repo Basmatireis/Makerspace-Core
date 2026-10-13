@@ -185,7 +185,7 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 	}
 
 	var all page
-	fetch(adminClient, "/machine-logbook/work-items?status=successful,cancelled&machineId="+machine.ID.String()+"&run=manual,printer&billing=on_order,order_outdated,not_on_order&sort=startedAt&direction=asc&pageSize=10", http.StatusOK, &all)
+	fetch(adminClient, "/machine-logbook/work-items?status=successful&status=cancelled&machineId="+machine.ID.String()+"&run=manual&run=printer&billing=on_order&billing=order_outdated&billing=not_on_order&sort=startedAt&direction=asc&pageSize=10", http.StatusOK, &all)
 	if all.Total != 3 || all.Page != 1 || all.PageSize != 10 || len(all.Items) != 3 {
 		t.Fatalf("work items = %+v", all)
 	}
@@ -204,13 +204,30 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 	if outdated.Total != 1 || outdated.Items[0].ID != changed.ID {
 		t.Fatalf("billing filter = %+v", outdated)
 	}
+	// Repeated keys are the wire format for array filters; a comma-joined value is one (invalid) item.
+	var repeated page
+	fetch(adminClient, "/machine-logbook/work-items?status=running&status=printing", http.StatusOK, &repeated)
+	if repeated.Total != 0 || len(repeated.Items) != 0 {
+		t.Fatalf("running/printing filter matched finished jobs: %+v", repeated)
+	}
+	var twoStatuses page
+	fetch(adminClient, "/machine-logbook/work-items?status=successful&status=cancelled&machineId="+machine.ID.String(), http.StatusOK, &twoStatuses)
+	if twoStatuses.Total != 3 {
+		t.Fatalf("repeated status keys = %+v", twoStatuses)
+	}
+	var reversed page
+	fetch(adminClient, "/machine-logbook/work-items?status=cancelled&status=successful&machineId="+machine.ID.String(), http.StatusOK, &reversed)
+	if reversed.Total != 3 {
+		t.Fatalf("repeated keys must be ORed regardless of order: %+v", reversed)
+	}
+	fetch(adminClient, "/machine-logbook/work-items?status=running,printing", http.StatusBadRequest, nil)
 	fetch(adminClient, "/machine-logbook/work-items?status=bogus", http.StatusBadRequest, nil)
 	fetch(adminClient, "/machine-logbook/work-items?sort=bogus", http.StatusBadRequest, nil)
 
 	// A reader without orders.read still sees the state but not the order data.
 	jobsReader := member("jobs", "machine_jobs.read")
 	var restricted page
-	fetch(jobsReader, "/machine-logbook/work-items?billing=on_order,order_outdated", http.StatusOK, &restricted)
+	fetch(jobsReader, "/machine-logbook/work-items?billing=on_order&billing=order_outdated", http.StatusOK, &restricted)
 	if restricted.Total != 2 {
 		t.Fatalf("restricted work items = %+v", restricted)
 	}

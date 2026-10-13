@@ -40,9 +40,15 @@ export interface CreateFilamentSpoolRequest {
    * @nullable
    */
   productId?: CreateFilamentSpoolRequestProductId;
-  materialId: UUIDv7;
-  initialNetWeightG: Decimal;
+  materialId?: UUIDv7;
+  initialNetWeightG?: Decimal;
+  /** new_acquisition records a purchase for the first fill, existing_stock moves loose stock onto it, empty registers a reusable spool without a fill (materialId and initialNetWeightG are then ignored). */
   stockMode: CreateFilamentSpoolRequestStockMode;
+  /**
+   * @maxLength 200
+   * @nullable
+   */
+  supplier?: string | null;
   /** @nullable */
   totalPrice?: CreateFilamentSpoolRequestTotalPrice;
   /**
@@ -75,5 +81,5 @@ export interface CreateFilamentSpoolRequest {
    */
   notes?: string | null;
   occurredAt: string;
-  expectedInventoryVersion: Version;
+  expectedInventoryVersion?: Version;
 }

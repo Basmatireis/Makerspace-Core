@@ -259,6 +259,7 @@ export * from './filamentSpoolInitialNetWeightG';
 export * from './filamentSpoolKind';
 export * from './filamentSpoolLifecycle';
 export * from './filamentSpoolMaterialId';
+export * from './filamentSpoolMount';
 export * from './filamentSpoolPage';
 export * from './filamentSpoolProductId';
 export * from './filamentSpoolStatus';

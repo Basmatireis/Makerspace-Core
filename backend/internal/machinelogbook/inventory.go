@@ -233,6 +233,10 @@ func transactionFromRow(row machinelogbookdb.InventoryTransaction) InventoryTran
 func transactionFromList(row machinelogbookdb.ListInventoryTransactionsRow) InventoryTransaction {
 	item := transactionFromRow(machinelogbookdb.InventoryTransaction{ID: row.ID, MaterialID: row.MaterialID, Kind: row.Kind, QuantityDelta: row.QuantityDelta, UnitAcquisitionCost: row.UnitAcquisitionCost, InventoryValueDelta: row.InventoryValueDelta, TotalPurchasePrice: row.TotalPurchasePrice, OccurredAt: row.OccurredAt, Supplier: row.Supplier, Note: row.Note, AdjustmentReason: row.AdjustmentReason, SpoolID: row.SpoolID, SpoolDisplayID: row.SpoolDisplayID, FillNumber: row.FillNumber, FromSpoolID: row.FromSpoolID, FromSpoolDisplayID: row.FromSpoolDisplayID, FromFillNumber: row.FromFillNumber, ToSpoolID: row.ToSpoolID, ToSpoolDisplayID: row.ToSpoolDisplayID, ToFillNumber: row.ToFillNumber, TransferQuantity: row.TransferQuantity, CreatedAt: row.CreatedAt})
 	item.MachineJobID, item.MachineJobDisplayID = row.MachineJobID, row.MachineJobDisplayID
+	if row.ActorFirstName != nil && row.ActorLastName != nil {
+		name := *row.ActorFirstName + " " + *row.ActorLastName
+		item.ActorName = &name
+	}
 	return item
 }
 

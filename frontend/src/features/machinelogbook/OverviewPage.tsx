@@ -1,80 +1,179 @@
-import './styles.scss';
-import { Add, ArrowRight, InventoryManagement } from '@carbon/icons-react';
-import { Button, Column, ContainedList, ContainedListItem, Grid, Tag } from '@carbon/react';
+import { useState } from 'react';
+import { Button, ClickableTile as CarbonClickableTile, ContainedList, ContainedListItem, SkeletonText } from '@carbon/react';
+import { ArrowRight } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
-import type { Machine } from '../../api/generated/models';
+import { Link, useNavigate } from 'react-router-dom';
+import type { ComponentProps, ComponentType } from 'react';
+import type { WorkItem } from '../../api/generated/models';
 import { PageShell } from '../../app/PageShell';
-import { EmptyState, ErrorState, FullPageLoading } from '../../app/PageState';
-import { PermissionId, hasPermission } from '../auth/permissions';
-import { useCurrentUser } from '../auth/auth';
-import { formatDateTime, formatDecimal, formatMoney } from './formatting';
-import { machinesQuery, overviewQuery } from './queries';
+import { EmptyState, ErrorState } from '../../app/PageState';
+import { PermissionId } from '../auth/permissions';
+import { JobFormModal } from './dialogs/JobFormModal';
+import { machineActivityQuery, machinesQuery, overviewQuery } from './queries';
+import { formatDecimal } from './formatting';
+import { formatRelative, formatTime } from './shared/format';
+import { machineLogbookPaths } from './shared/paths';
+import { AvailabilityTag, ConnectorIssueTag, connectorIssue, currentItemName, JobRowStatusTag, workItemName } from './shared/status';
+import { useCan } from './shared/useCan';
+import { useNow } from './shared/useNow';
+import './styles/overview.scss';
 
-type AttentionItem = { key: string; count: number; label: string; tone: 'red' | 'warm-gray'; action?: { label: string; to: string } };
+type RouterClickableTileProps = Omit<ComponentProps<typeof CarbonClickableTile>, 'href'> & { as: typeof Link; to: string };
+// Carbon's ClickableTile forwards polymorphic Link props at runtime, but its public type omits them.
+const ClickableTile = CarbonClickableTile as ComponentType<RouterClickableTileProps>;
 
-function machineStatusTag(machine: Machine) {
-  if (machine.status === 'maintenance') return <Tag size="sm" type="warm-gray">Maintenance</Tag>;
-  if (machine.status === 'retired') return <Tag size="sm" type="gray">Retired</Tag>;
-  return <Tag size="sm" type="green">Active</Tag>;
+const ACTIVE_LIMIT = 6;
+
+type Metric = { key: string; label: string; count: number; detail: string; to: string };
+
+const METRIC_LABELS = ['Running now', 'Needs outcome', 'Unlinked prints', 'Billing issues'];
+
+function MetricTile({ metric }: { metric: Metric }) {
+  return (
+    <ClickableTile as={Link} to={metric.to} renderIcon={ArrowRight} className="mj-metric">
+      <span className="mj-metric__label">{metric.label}</span>
+      <span className={`mj-metric__value${metric.count === 0 ? ' mj-metric__value--zero' : ''}`}>{metric.count}</span>
+      <span className="mj-secondary">{metric.detail}</span>
+    </ClickableTile>
+  );
 }
 
-function ActionLink({ label, to }: { label: string; to: string }) {
-  return <Button as={Link} to={to} kind="ghost" size="sm" renderIcon={ArrowRight}>{label}</Button>;
+const itemPath = (item: WorkItem) => item.kind === 'print' ? machineLogbookPaths.print(item.id) : machineLogbookPaths.job(item.id);
+
+function activeLine(item: WorkItem, now: number) {
+  const end = item.endsAt ?? item.estimatedEndAt;
+  const ended = end !== null && end !== undefined && new Date(end).getTime() <= now;
+  const when = ended ? `ended ${formatRelative(end)}` : end ? `ends ~${formatTime(end)}` : `started ${formatRelative(item.startedAt)}`;
+  return [item.machineName, item.customer?.displayName, when].filter(Boolean).join(' · ');
 }
 
 export function MachineLogbookOverviewPage() {
-  const currentUser = useCurrentUser();
-  const canReadJobs = hasPermission(currentUser, PermissionId.machine_jobsread);
-  const canReadInventory = hasPermission(currentUser, PermissionId.inventoryread);
-  const canReview = hasPermission(currentUser, PermissionId.machine_jobsreview);
-  const canReadMachines = hasPermission(currentUser, PermissionId.machinesread);
-  const canReadOrders = hasPermission(currentUser, PermissionId.ordersread);
+  const can = useCan();
+  const navigate = useNavigate();
+  const [jobOpen, setJobOpen] = useState(false);
+  const now = useNow();
+  const canCreate = can(PermissionId.machine_jobscreate);
+  const canReadJobs = can(PermissionId.machine_jobsread);
+  const canReadMachines = can(PermissionId.machinesread);
+  const canReadInventory = can(PermissionId.inventoryread);
   const query = useQuery(overviewQuery());
-  const machines = useQuery({ ...machinesQuery({ page: 1, pageSize: 25 }), enabled: canReadMachines });
-  if (query.isPending) return <FullPageLoading label="Loading workshop overview" />;
-  if (query.isError) return <ErrorState message="The overview could not be loaded." onRetry={() => query.refetch()} />;
+  const machines = useQuery({ ...machinesQuery({ page: 1, pageSize: 100 }), enabled: canReadMachines });
+  const activity = useQuery({ ...machineActivityQuery(), enabled: canReadMachines });
   const data = query.data;
+  const loading = query.isPending;
 
-  const lowStock = data.lowStockMaterials[0];
-  const candidates: Array<AttentionItem | false> = [
-    canReview && { key: 'review', count: data.needsReview, label: data.needsReview === 1 ? 'Job waiting for review' : 'Jobs waiting for review', tone: 'warm-gray', action: { label: 'Review', to: '/machine-logbook/review' } },
-    canReadJobs && { key: 'orders', count: data.unassignedJobs, label: `${data.unassignedJobs === 1 ? 'Job' : 'Jobs'} without an order · ${formatMoney(data.unassignedEstimatedAmount)} open`, tone: 'warm-gray', action: canReadOrders ? { label: 'Orders', to: '/orders' } : undefined },
-    canReadJobs && { key: 'failed', count: data.failedOrPartialThisWeek, label: 'Failed or partial prints this week', tone: 'red', action: { label: 'Inspect', to: '/machine-logbook/jobs?outcome=failed' } },
-    canReadInventory && { key: 'stock', count: data.lowStockItems, label: data.lowStockItems === 1 && lowStock ? `Low stock · ${lowStock.name} ${formatDecimal(lowStock.quantity)} ${lowStock.unit}` : 'Materials low on stock', tone: 'red', action: { label: 'Restock', to: '/machine-logbook/inventory?stock=low_stock' } },
-  ];
-  const attention = candidates.filter((item): item is AttentionItem => item !== false && item.count > 0);
+  const hasJobFigures = data?.runningNow != null;
+  const running = data?.runningNow ?? 0;
+  const unlinked = data?.unlinkedPrints ?? 0;
+  const runningMachines = data?.runningMachineNames ?? [];
+  const activeItems = data?.activeItems ?? null;
+  const activeTotal = data?.activeTotal ?? activeItems?.length ?? 0;
+  const lowStock = data?.lowStockMaterials[0];
 
-  const actions: ReactNode = <>
-    {canReadInventory && hasPermission(currentUser, PermissionId.inventorymanage) && <Button as={Link} to="/machine-logbook/inventory?new=1" kind="secondary" renderIcon={InventoryManagement}>Add material</Button>}
-    {canReadJobs && hasPermission(currentUser, PermissionId.machine_jobscreate) && <Button as={Link} to="/machine-logbook/jobs?new=1" renderIcon={Add}>New job</Button>}
-  </>;
+  const metrics: Metric[] = hasJobFigures ? [
+    { key: 'running', label: 'Running now', count: running, detail: runningMachines.length ? runningMachines.join(', ') : 'No machine is busy', to: machineLogbookPaths.jobs({ status: 'running,printing' }) },
+    { key: 'outcome', label: 'Needs outcome', count: data.needsOutcome ?? 0, detail: 'Run ended; record how it went', to: machineLogbookPaths.jobs({ status: 'needs_outcome' }) },
+    { key: 'unlinked', label: 'Unlinked prints', count: unlinked, detail: 'Create a job or link to one', to: machineLogbookPaths.jobs({ status: 'unlinked' }) },
+    { key: 'billing', label: 'Billing issues', count: data.billingIssues ?? 0, detail: 'Missing price rule or changed order', to: machineLogbookPaths.jobs({ billing: 'price_incomplete,order_outdated' }) },
+  ] : [];
 
-  return <PageShell title="Workshop" description={`${data.jobsToday} ${data.jobsToday === 1 ? 'job' : 'jobs'} today · ${data.jobsThisWeek} this week`} actions={actions} width="wide" className="machine-logbook-page workshop-overview">
-    <Grid condensed className="machine-logbook-grid">
-      <Column sm={4} md={8} lg={9}>
-        <ContainedList label="Needs attention" kind="on-page" size="lg">
-          {attention.length === 0
-            ? <ContainedListItem>Nothing needs attention right now.</ContainedListItem>
-            : attention.map((item) => <ContainedListItem key={item.key} action={item.action && <ActionLink {...item.action} />}>
-              <span className="workshop-attention"><Tag size="sm" type={item.tone}>{item.count}</Tag>{item.label}</span>
-            </ContainedListItem>)}
-        </ContainedList>
-      </Column>
-      <Column sm={4} md={8} lg={7}>
-        {canReadMachines
-          ? <ContainedList label="Machines" kind="on-page" size="md" action={<ActionLink label="All machines" to="/machine-logbook/machines" />}>
-            {machines.isPending && <ContainedListItem>Loading machines…</ContainedListItem>}
-            {machines.isError && <ContainedListItem>Machines could not be loaded.</ContainedListItem>}
-            {machines.data?.items.length === 0 && <ContainedListItem>No machines yet.</ContainedListItem>}
-            {machines.data?.items.filter((item) => item.status !== 'retired').map((item) => <ContainedListItem key={item.id} action={machineStatusTag(item)}>
-              <Link to={`/machine-logbook/machines/${item.id}`}>{item.name}</Link>
-              <span className="workshop-machine__meta">{item.lastIngestedAt ? `Last job data ${formatDateTime(item.lastIngestedAt)}` : item.machineType.name}</span>
-            </ContainedListItem>)}
-          </ContainedList>
-          : <EmptyState title="Machine list unavailable" description="Machine read permission is required to see machine status." />}
-      </Column>
-    </Grid>
-  </PageShell>;
+  const description = data
+    ? [`${data.jobsToday} ${data.jobsToday === 1 ? 'job' : 'jobs'} today`, ...(hasJobFigures ? [`${running} running`, `${unlinked} unlinked`] : [])].join(' · ')
+    : 'What is running and what needs you.';
+
+  const showMachines = canReadMachines;
+  const showLowStock = canReadInventory && data !== undefined && data.lowStockItems > 0;
+  const nothingToShow = data !== undefined && !hasJobFigures && activeItems === null && !showMachines && !showLowStock;
+
+  const activityByMachine = new Map((activity.data?.items ?? []).map((item) => [item.machineId, item]));
+  const visibleMachines = (machines.data?.items ?? []).filter((machine) => machine.status !== 'retired');
+  const machinesLoading = machines.isPending || activity.isPending;
+
+  return (
+    <PageShell
+      title="Overview" width="wide" breadcrumbs={[{ label: 'Workshop' }]}
+      description={description}
+      actions={canCreate ? <Button kind="primary" onClick={() => setJobOpen(true)}>New job</Button> : undefined}
+    >
+      {query.isError ? <ErrorState message="The overview could not be loaded." onRetry={() => { void query.refetch(); }} /> : nothingToShow ? (
+        <EmptyState title="Nothing to show yet" description="Job, machine and inventory permissions decide which parts of the overview you see." />
+      ) : (
+        <div className="mj-overview">
+          {(loading ? canReadJobs : hasJobFigures) && (
+            <section aria-label="Key figures" className="mj-overview__metrics">
+              {loading ? METRIC_LABELS.map((label) => (
+                <CarbonClickableTile key={label} className="mj-metric"><span className="mj-metric__label">{label}</span><SkeletonText heading width="3rem" /></CarbonClickableTile>
+              )) : metrics.map((metric) => <MetricTile key={metric.key} metric={metric} />)}
+            </section>
+          )}
+
+          <div className="mj-overview__panels">
+            {(loading ? canReadJobs : activeItems !== null) && (
+              <ContainedList
+                label="Active jobs" kind="on-page" className="mj-overview__panel"
+                action={<Button as={Link} to={machineLogbookPaths.jobs()} kind="ghost" size="sm" renderIcon={ArrowRight}>All jobs</Button>}
+              >
+                {loading && <ContainedListItem><SkeletonText paragraph lineCount={3} /></ContainedListItem>}
+                {activeItems?.length === 0 && <ContainedListItem>Nothing is running and no print waits to be linked.</ContainedListItem>}
+                {activeItems?.slice(0, ACTIVE_LIMIT).map((item) => (
+                  <ContainedListItem key={`${item.kind}-${item.id}`} onClick={() => navigate(itemPath(item))} action={<JobRowStatusTag status={item.status} size="sm" />}>
+                    <span className="mj-cell-stack">
+                      <strong>{workItemName(item)}</strong>
+                      <span className="mj-secondary">{activeLine(item, now)}</span>
+                    </span>
+                  </ContainedListItem>
+                ))}
+                {activeItems && activeTotal > ACTIVE_LIMIT && (
+                  <ContainedListItem onClick={() => navigate(machineLogbookPaths.jobs({ status: 'running,printing,unlinked,needs_outcome' }))}>
+                    <span className="mj-secondary">{activeTotal - ACTIVE_LIMIT} more active items</span>
+                  </ContainedListItem>
+                )}
+              </ContainedList>
+            )}
+
+            {showMachines && (
+              <ContainedList
+                label="Machines" kind="on-page" className="mj-overview__panel"
+                action={<Button as={Link} to={machineLogbookPaths.machines()} kind="ghost" size="sm" renderIcon={ArrowRight}>All machines</Button>}
+              >
+                {machinesLoading && !machines.isError && <ContainedListItem><SkeletonText paragraph lineCount={3} /></ContainedListItem>}
+                {machines.isError && <ContainedListItem>Machines could not be loaded.</ContainedListItem>}
+                {!machinesLoading && !machines.isError && visibleMachines.length === 0 && <ContainedListItem>No machines have been added yet.</ContainedListItem>}
+                {!machinesLoading && !machines.isError && visibleMachines.map((machine) => {
+                  const state = activityByMachine.get(machine.id);
+                  const current = state?.current ?? null;
+                  const availability = state?.availability ?? (machine.status === 'maintenance' ? 'maintenance' : 'available');
+                  const detail = current ? `${currentItemName(current)}${current.endsAt ? ` · ends ~${formatTime(current.endsAt)}` : ''}`
+                    : availability === 'maintenance' ? 'Marked for maintenance'
+                      : state?.lastJobStartedAt ? `Last job ${formatRelative(state.lastJobStartedAt)}` : 'No jobs yet';
+                  return (
+                    <ContainedListItem
+                      key={machine.id} onClick={() => navigate(machineLogbookPaths.machine(machine.id))}
+                      action={<span className="mj-inline"><ConnectorIssueTag issue={connectorIssue(state?.connector ?? undefined)} /><AvailabilityTag availability={availability} size="sm" /></span>}
+                    >
+                      <span className="mj-cell-stack">
+                        <strong>{machine.name}</strong>
+                        <span className="mj-secondary">{detail}</span>
+                      </span>
+                    </ContainedListItem>
+                  );
+                })}
+              </ContainedList>
+            )}
+          </div>
+
+          {showLowStock && (
+            <ContainedList label="Stock" kind="on-page" className="mj-overview__panel">
+              <ContainedListItem
+                action={<Button as={Link} to={`${machineLogbookPaths.inventory('materials')}&stock=low_stock`} kind="ghost" size="sm" renderIcon={ArrowRight}>Restock</Button>}
+              >
+                {data.lowStockItems === 1 && lowStock ? `Low stock · ${lowStock.name} ${formatDecimal(lowStock.quantity)} ${lowStock.unit}` : 'Materials low on stock'}
+              </ContainedListItem>
+            </ContainedList>
+          )}
+        </div>
+      )}
+      {canCreate && <JobFormModal open={jobOpen} onClose={() => setJobOpen(false)} mode="create" />}
+    </PageShell>
+  );
 }

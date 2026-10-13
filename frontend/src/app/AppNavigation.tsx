@@ -127,20 +127,14 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
   if (hasAnyPermission(currentUser, [PermissionId.machine_jobsread, PermissionId.statisticsread])) {
     machines.push({ label: 'Overview', to: '/machine-logbook', active: pathname === '/machine-logbook' });
   }
-  if (hasPermission(currentUser, PermissionId.machinesread)) {
-    machines.push({ label: 'Machines', to: '/machine-logbook/machines', active: pathname.startsWith('/machine-logbook/machines') });
-  }
   if (hasPermission(currentUser, PermissionId.machine_jobsread)) {
     machines.push({ label: 'Jobs', to: '/machine-logbook/jobs', active: pathname.startsWith('/machine-logbook/jobs') });
   }
-  if (hasPermission(currentUser, PermissionId.machine_jobsreview)) {
-    machines.push({ label: 'Review', to: '/machine-logbook/review', active: pathname.startsWith('/machine-logbook/review') });
-  }
-  if (hasPermission(currentUser, PermissionId.print_submissionsread)) {
-    machines.push({ label: 'Print submissions', to: '/machine-logbook/print-submissions', active: pathname.startsWith('/machine-logbook/print-submissions') });
+  if (hasPermission(currentUser, PermissionId.machinesread)) {
+    machines.push({ label: 'Machines', to: '/machine-logbook/machines', active: pathname.startsWith('/machine-logbook/machines') });
   }
   if (hasPermission(currentUser, PermissionId.inventoryread)) {
-    machines.push({ label: 'Inventory', to: '/machine-logbook/inventory', active: pathname.startsWith('/machine-logbook/inventory') || pathname.startsWith('/machine-logbook/spools') });
+    machines.push({ label: 'Inventory', to: '/machine-logbook/inventory', active: pathname.startsWith('/machine-logbook/inventory') });
   }
   if (hasPermission(currentUser, PermissionId.statisticsread)) {
     machines.push({ label: 'Statistics', to: '/machine-logbook/statistics', active: pathname.startsWith('/machine-logbook/statistics') });

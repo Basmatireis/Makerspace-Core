@@ -1,0 +1,12 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+// Layout glue for the Inventory pages. Controls and surfaces are Carbon components.
+// Table toolbar, menu button and row-click rules live in shared/shared.scss.
+
+// Tables sit flush in the tab panel, aligned with the tabs like the other list pages.
+.cds--tab-content.mj-tab-panel { padding: $spacing-05 0 0; background: transparent; }
+.cds--tab-content.mj-tab-panel[hidden] { display: none; }
+
+// Name that opens a dialog: a Carbon link rendered as a button.
+.mj-link-button { font: inherit; text-align: start; background: none; border: 0; padding: 0; cursor: pointer; }

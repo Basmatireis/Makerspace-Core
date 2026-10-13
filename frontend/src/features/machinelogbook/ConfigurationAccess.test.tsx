@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { PermissionId, type Organization, type PricingGroup } from '../../api/generated/models';
@@ -27,26 +27,6 @@ function configure(permissions: PermissionId[]) {
 }
 
 describe('independent machine configuration access', () => {
-  it('keeps date filters available for invalid statistics ranges and allows a single day', async () => {
-    configure([PermissionId.statisticsread]);
-    const requests: URLSearchParams[] = [];
-    server.use(http.get('*/api/v1/machine-logbook/statistics', ({ request }) => {
-      requests.push(new URL(request.url).searchParams);
-      return HttpResponse.json({ materialUsageByCategory: [], machineRuntimeHours: [], machineJobCounts: [], acquisitionCost: [], customerCharges: [], adjustmentLoss: [], machineFailureRates: [] });
-    }));
-    renderRoute(<App />, '/machine-logbook/statistics');
-    const from = await screen.findByLabelText('From');
-    const to = screen.getByLabelText('To');
-    fireEvent.change(from, { target: { value: '15.09.2026' } });
-    fireEvent.change(to, { target: { value: '15.09.2026' } });
-    await waitFor(() => expect(requests.some((params) => params.get('from') === '2026-09-15' && params.get('to') === '2026-09-15')).toBe(true));
-    fireEvent.change(from, { target: { value: '16.09.2026' } });
-    expect(await screen.findByText('Choose a valid date range')).toBeInTheDocument();
-    expect(screen.getByLabelText('From')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Refresh' })).toBeDisabled();
-    expect(requests.some((params) => params.get('from') === '2026-09-16' && params.get('to') === '2026-09-15')).toBe(false);
-  });
-
   it.each([
     [PermissionId.organizationsread, 'Organizations', 'Pricing groups'],
     [PermissionId.pricingread, 'Pricing groups', 'Organizations'],

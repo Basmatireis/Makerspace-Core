@@ -325,8 +325,11 @@ VALUES (sqlc.arg(id), sqlc.arg(material_id), sqlc.arg(kind), sqlc.arg(quantity_d
 RETURNING *;
 
 -- name: ListInventoryTransactions :many
-SELECT t.*, j.id AS machine_job_id, j.display_id AS machine_job_display_id
+SELECT t.*, j.id AS machine_job_id, j.display_id AS machine_job_display_id,
+       pe.first_name AS actor_first_name, pe.last_name AS actor_last_name
 FROM inventory_transactions t
+LEFT JOIN accounts ac ON ac.id = t.actor_account_id
+LEFT JOIN people pe ON pe.id = ac.person_id
 LEFT JOIN machine_job_material_usages u ON u.id = t.machine_job_usage_id
 LEFT JOIN machine_jobs j ON j.id = u.machine_job_id
 WHERE t.material_id = sqlc.arg(material_id)
@@ -390,16 +393,22 @@ ORDER BY f.fill_number DESC;
 -- name: GetFilamentSpool :one
 SELECT s.id, s.display_id, s.kind, s.label, s.lifecycle, s.archived_at, s.tare_weight_g, s.acquired_on, s.acquisition_reference,
        s.storage_location, s.notes, s.version, s.created_at, s.updated_at,
-       COALESCE(f.fill_number, (SELECT max(x.fill_number) FROM filament_spool_fills x WHERE x.spool_id=s.id))::integer AS fill_number,
+       COALESCE(f.fill_number, (SELECT max(x.fill_number) FROM filament_spool_fills x WHERE x.spool_id=s.id), 0)::integer AS fill_number,
        f.id AS fill_id, f.filled_at, f.material_id, f.product_id, f.manufacturer, f.product_name, f.initial_net_weight_g,
        m.name AS material_name, m.category, m.color, m.unit,
        (COALESCE((SELECT sum(t.quantity_delta) FROM inventory_transactions t WHERE t.fill_id=f.id), 0::numeric)
        + COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.to_fill_id=f.id), 0::numeric)
        - COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.from_fill_id=f.id), 0::numeric))::numeric AS remaining_quantity,
-       EXISTS(SELECT 1 FROM printer_spool_assignments a WHERE a.spool_id=s.id AND a.unmounted_at IS NULL) AS mounted
+       (pa.id IS NOT NULL)::boolean AS mounted,
+       mu.machine_id AS mount_machine_id, mc.name AS mount_machine_name, mu.name AS mount_input_unit_name,
+       pl.id AS mount_slot_id, pl.name AS mount_slot_name
 FROM filament_spools s
 LEFT JOIN filament_spool_fills f ON f.spool_id=s.id AND f.closed_at IS NULL
 LEFT JOIN materials m ON m.id=f.material_id
+LEFT JOIN printer_spool_assignments pa ON pa.spool_id=s.id AND pa.unmounted_at IS NULL
+LEFT JOIN printer_slots pl ON pl.id=pa.slot_id
+LEFT JOIN printer_input_units mu ON mu.id=pl.input_unit_id
+LEFT JOIN machines mc ON mc.id=mu.machine_id
 WHERE s.id=sqlc.arg(id);
 
 -- name: GetFilamentSpoolForUpdate :one
@@ -408,16 +417,22 @@ SELECT * FROM filament_spools WHERE id=sqlc.arg(id) FOR UPDATE;
 -- name: ListFilamentSpools :many
 SELECT s.id, s.display_id, s.kind, s.label, s.lifecycle, s.archived_at, s.tare_weight_g, s.acquired_on, s.acquisition_reference,
        s.storage_location, s.notes, s.version, s.created_at, s.updated_at,
-       COALESCE(f.fill_number, (SELECT max(x.fill_number) FROM filament_spool_fills x WHERE x.spool_id=s.id))::integer AS fill_number,
+       COALESCE(f.fill_number, (SELECT max(x.fill_number) FROM filament_spool_fills x WHERE x.spool_id=s.id), 0)::integer AS fill_number,
        f.id AS fill_id, f.filled_at, f.material_id, f.product_id, f.manufacturer, f.product_name, f.initial_net_weight_g,
        m.name AS material_name, m.category, m.color, m.unit,
        (COALESCE((SELECT sum(t.quantity_delta) FROM inventory_transactions t WHERE t.fill_id=f.id), 0::numeric)
        + COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.to_fill_id=f.id), 0::numeric)
        - COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.from_fill_id=f.id), 0::numeric))::numeric AS remaining_quantity,
-       EXISTS(SELECT 1 FROM printer_spool_assignments a WHERE a.spool_id=s.id AND a.unmounted_at IS NULL) AS mounted
+       (pa.id IS NOT NULL)::boolean AS mounted,
+       mu.machine_id AS mount_machine_id, mc.name AS mount_machine_name, mu.name AS mount_input_unit_name,
+       pl.id AS mount_slot_id, pl.name AS mount_slot_name
 FROM filament_spools s
 LEFT JOIN filament_spool_fills f ON f.spool_id=s.id AND f.closed_at IS NULL
 LEFT JOIN materials m ON m.id=f.material_id
+LEFT JOIN printer_spool_assignments pa ON pa.spool_id=s.id AND pa.unmounted_at IS NULL
+LEFT JOIN printer_slots pl ON pl.id=pa.slot_id
+LEFT JOIN printer_input_units mu ON mu.id=pl.input_unit_id
+LEFT JOIN machines mc ON mc.id=mu.machine_id
 WHERE (sqlc.arg(search)::text='' OR lower(s.display_id) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
     OR lower(COALESCE(s.label,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
     OR lower(COALESCE(m.name,'')) LIKE '%'||lower(sqlc.arg(search)::text)||'%'
@@ -527,8 +542,11 @@ VALUES (sqlc.arg(id), sqlc.arg(material_id), 'spool_transfer', 0, 0, 0, sqlc.arg
 RETURNING *;
 
 -- name: ListFilamentSpoolTransactions :many
-SELECT t.*, j.id AS machine_job_id, j.display_id AS machine_job_display_id
+SELECT t.*, j.id AS machine_job_id, j.display_id AS machine_job_display_id,
+       pe.first_name AS actor_first_name, pe.last_name AS actor_last_name
 FROM inventory_transactions t
+LEFT JOIN accounts ac ON ac.id = t.actor_account_id
+LEFT JOIN people pe ON pe.id = ac.person_id
 LEFT JOIN machine_job_material_usages u ON u.id=t.machine_job_usage_id
 LEFT JOIN machine_jobs j ON j.id=u.machine_job_id
 WHERE t.spool_id=sqlc.arg(spool_id) OR t.from_spool_id=sqlc.arg(spool_id) OR t.to_spool_id=sqlc.arg(spool_id)

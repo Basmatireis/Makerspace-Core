@@ -29,6 +29,7 @@ import type { FilamentSpoolInitialNetWeightG } from './filamentSpoolInitialNetWe
 import type { Decimal } from './decimal';
 import type { FilamentSpoolTareWeightG } from './filamentSpoolTareWeightG';
 import type { FilamentSpoolLifecycle } from './filamentSpoolLifecycle';
+import type { FilamentSpoolMount } from './filamentSpoolMount';
 import type { FilamentSpoolIdentifier } from './filamentSpoolIdentifier';
 import type { FilamentSpoolFill } from './filamentSpoolFill';
 import type { Version } from './version';
@@ -94,6 +95,7 @@ export interface FilamentSpool {
   notes?: string | null;
   lifecycle: FilamentSpoolLifecycle;
   mounted: boolean;
+  mountedOn?: FilamentSpoolMount;
   /** Identifiers of the open fill. */
   identifiers: FilamentSpoolIdentifier[];
   /** Closed fills, newest first; only returned by GET /filament-spools/{spoolId}. */

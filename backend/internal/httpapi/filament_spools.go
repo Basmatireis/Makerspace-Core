@@ -33,6 +33,21 @@ func spoolIdentifiersDTO(items []machinelogbook.FilamentSpoolIdentifier) []opena
 	return identifiers
 }
 
+func valueOrZero[T any](value *T) T {
+	var zero T
+	if value == nil {
+		return zero
+	}
+	return *value
+}
+
+func spoolMountDTO(item *machinelogbook.SpoolMount) nullable.Nullable[openapi.FilamentSpoolMount] {
+	if item == nil {
+		return nullable.NewNullNullable[openapi.FilamentSpoolMount]()
+	}
+	return nullable.NewNullableWithValue(openapi.FilamentSpoolMount{MachineId: item.MachineID, MachineName: item.MachineName, InputUnitName: nullableString(item.InputUnitName), SlotId: item.SlotID, SlotName: item.SlotName})
+}
+
 func spoolDTO(item machinelogbook.FilamentSpool) openapi.FilamentSpool {
 	acquired := nullable.NewNullNullable[openapi_types.Date]()
 	if item.AcquiredOn != nil {
@@ -47,7 +62,7 @@ func spoolDTO(item machinelogbook.FilamentSpool) openapi.FilamentSpool {
 		MaterialId: nullableUUIDValue(item.MaterialID), MaterialName: nullableString(item.MaterialName), Category: nullableString(item.Category), Color: nullableString(item.Color), Unit: unit,
 		ProductId: nullableUUIDValue(item.ProductID), Manufacturer: nullableString(item.Manufacturer), ProductName: nullableString(item.ProductName), InitialNetWeightG: nullableDecimalValue(item.InitialNetWeightG),
 		RemainingQuantity: item.RemainingQuantity, TareWeightG: nullableDecimalValue(item.TareWeightG), AcquiredOn: acquired, AcquisitionReference: nullableString(item.AcquisitionReference),
-		StorageLocation: nullableString(item.StorageLocation), Notes: nullableString(item.Notes), Lifecycle: openapi.FilamentSpoolLifecycle(item.Lifecycle), Mounted: item.Mounted,
+		StorageLocation: nullableString(item.StorageLocation), Notes: nullableString(item.Notes), Lifecycle: openapi.FilamentSpoolLifecycle(item.Lifecycle), Mounted: item.Mounted, MountedOn: spoolMountDTO(item.MountedOn),
 		Identifiers: spoolIdentifiersDTO(item.Identifiers), Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
 	if item.Fills != nil {
 		fills := make([]openapi.FilamentSpoolFill, 0, len(item.Fills))
@@ -137,7 +152,7 @@ func (s *Server) CreateFilamentSpool(ctx context.Context, r openapi.CreateFilame
 	if body.Kind != nil {
 		kind = string(*body.Kind)
 	}
-	item, e := s.machineLogbook.CreateFilamentSpool(ctx, p, machinelogbook.FilamentSpoolInput{Kind: kind, Label: defaultString(nullableStringPointer(body.Label)), ProductID: uuidNullable(body.ProductId), MaterialID: body.MaterialId, InitialNetWeightG: string(body.InitialNetWeightG), StockMode: string(body.StockMode), TotalPrice: decimalMoneyNullable(body.TotalPrice), Manufacturer: nullableStringPointer(body.Manufacturer), ProductName: nullableStringPointer(body.ProductName), TareWeightG: decimalNullable(body.TareWeightG), AcquiredOn: nullableDate(body.AcquiredOn), AcquisitionReference: nullableStringPointer(body.AcquisitionReference), StorageLocation: nullableStringPointer(body.StorageLocation), Notes: nullableStringPointer(body.Notes), OccurredAt: body.OccurredAt, ExpectedInventoryVersion: body.ExpectedInventoryVersion}, requestIDPointer(ctx))
+	item, e := s.machineLogbook.CreateFilamentSpool(ctx, p, machinelogbook.FilamentSpoolInput{Kind: kind, Label: defaultString(nullableStringPointer(body.Label)), ProductID: uuidNullable(body.ProductId), MaterialID: valueOrZero(body.MaterialId), InitialNetWeightG: valueOrZero(body.InitialNetWeightG), StockMode: string(body.StockMode), Supplier: nullableStringPointer(body.Supplier), TotalPrice: decimalMoneyNullable(body.TotalPrice), Manufacturer: nullableStringPointer(body.Manufacturer), ProductName: nullableStringPointer(body.ProductName), TareWeightG: decimalNullable(body.TareWeightG), AcquiredOn: nullableDate(body.AcquiredOn), AcquisitionReference: nullableStringPointer(body.AcquisitionReference), StorageLocation: nullableStringPointer(body.StorageLocation), Notes: nullableStringPointer(body.Notes), OccurredAt: body.OccurredAt, ExpectedInventoryVersion: valueOrZero(body.ExpectedInventoryVersion)}, requestIDPointer(ctx))
 	if e != nil {
 		return nil, e
 	}

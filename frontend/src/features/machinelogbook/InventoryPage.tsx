@@ -1,172 +1,177 @@
-import './styles.scss';
-import {
-  Button,
-  DataTable,
-  InlineNotification,
-  Modal,
-  Pagination,
-  Search,
-  Select,
-  SelectItem,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TextInput,
-} from '@carbon/react';
-import { Add } from '@carbon/icons-react';
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { createMaterial } from '../../api/generated/inventory/inventory';
-import type { MaterialUnit, StockState } from '../../api/generated/models';
+import { useMemo, useState } from 'react';
+import { Button, Link as CarbonLink, MenuButton, MenuItem, MultiSelect, Tab, TabList, TabPanel, TabPanels, Tabs, Toggle } from '@carbon/react';
+import { useQuery } from '@tanstack/react-query';
+import { Link, useSearchParams } from 'react-router-dom';
+import type { FilamentProduct, Material } from '../../api/generated/models';
 import { PageShell } from '../../app/PageShell';
-import { ErrorState, FullPageLoading } from '../../app/PageState';
-import { PermissionId, hasPermission } from '../auth/permissions';
-import { useCurrentUser } from '../auth/auth';
-import { StockTag } from './components';
-import { formatDecimal, formatMoney } from './formatting';
-import { machineLogbookKeys, materialsQuery } from './queries';
+import { InventorySpoolsTable } from './components/InventorySpoolsTable';
+import { ProductsTable } from './components/ProductsTable';
+import { categoryLabel, formatQuantity, formatUnitCost, isFilament, materialUnitCost, NoInventoryAccess, StockTag, stockStateOptions, unitLabel } from './components/inventoryShared';
+import { MaterialFormModal } from './dialogs/MaterialFormModal';
+import { ProductFormModal } from './dialogs/ProductFormModal';
+import { SpoolFormModal } from './dialogs/SpoolFormModal';
+import { activeSpoolCountsQuery, allMaterialsQuery } from './inventoryQueries';
+import { DirectoryTable, selectedOptions, useUrlState, type Column, type Option } from './shared/DirectoryTable';
+import { machineLogbookPaths, type InventoryTab } from './shared/paths';
+import { QueryBoundary } from './shared/QueryBoundary';
+import { useCan } from './shared/useCan';
+import './styles/inventory.scss';
 
-const headers = [
-  { key: 'name', header: 'Material' },
-  { key: 'category', header: 'Category' },
-  { key: 'color', header: 'Color' },
-  { key: 'quantity', header: 'Current stock' },
-  { key: 'average', header: 'Avg. acquisition cost' },
-  { key: 'value', header: 'Inventory value' },
-  { key: 'recent', header: 'Recent consumption (30d)' },
-  { key: 'status', header: 'Status' },
-];
+const TABS: InventoryTab[] = ['materials', 'spools', 'products'];
+const MATERIAL_FILTERS = ['category', 'stock', 'inactive'];
 
-type MaterialFields = {
-  name: string;
-  category: string;
-  color: string;
-  unit: MaterialUnit;
-  lowStockThreshold: string;
-  filamentDiameterMm: string;
-};
+type MaterialRow = Material & { activeSpools: number | null };
+
+function MaterialsTable({ materials, canAdd, canRegister, onAdd, onRegister }: {
+  materials: Material[]; canAdd: boolean; canRegister: boolean; onAdd: () => void; onRegister: () => void;
+}) {
+  const url = useUrlState('materials');
+  const categoryIds = url.list('category');
+  const stockIds = url.list('stock');
+  const showInactive = url.get('inactive') === '1';
+  const filament = materials.some(isFilament);
+  const counts = useQuery({ ...activeSpoolCountsQuery(), enabled: filament });
+
+  const all: MaterialRow[] = useMemo(() => materials.map((material) => ({
+    ...material, activeSpools: isFilament(material) && counts.data ? counts.data[material.id] ?? 0 : null,
+  })), [materials, counts.data]);
+  const categoryOptions: Option[] = [...new Set(materials.map((material) => material.category))].sort().map((category) => ({ id: category, label: categoryLabel(category) }));
+  const rows = all.filter((row) => (showInactive || row.active)
+    && (categoryIds.length === 0 || categoryIds.includes(row.category))
+    && (stockIds.length === 0 || stockIds.includes(row.stockState)));
+
+  const columns: Column<MaterialRow>[] = [
+    {
+      key: 'material', header: 'Material', sortValue: (row) => row.name,
+      render: (row) => (
+        <div className="mj-cell-stack">
+          <CarbonLink as={Link} to={machineLogbookPaths.material(row.id)}>{row.name}</CarbonLink>
+          <span className="mj-secondary">{[categoryLabel(row.category), unitLabel(row.unit), row.active ? null : 'Inactive'].filter(Boolean).join(' · ')}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'quantity', header: 'In stock', sortValue: (row) => Number(row.quantity), firstDirection: 'DESC',
+      render: (row) => (
+        <div className="mj-cell-stack">
+          <span>{formatQuantity(row.quantity, row.unit)}</span>
+          {isFilament(row) && <span className="mj-secondary">{formatQuantity(row.assignedQuantity, row.unit)} on spools · {formatQuantity(row.unassignedQuantity, row.unit)} loose</span>}
+        </div>
+      ),
+    },
+    { key: 'state', header: 'Stock', sortValue: (row) => row.stockState, render: (row) => <StockTag state={row.stockState} size="sm" /> },
+    {
+      key: 'threshold', header: 'Low-stock threshold', narrow: true, sortValue: (row) => row.lowStockThreshold != null ? Number(row.lowStockThreshold) : -1, firstDirection: 'DESC',
+      render: (row) => row.lowStockThreshold != null ? formatQuantity(row.lowStockThreshold, row.unit) : '—',
+    },
+    {
+      key: 'cost', header: 'Avg. cost', narrow: true, sortValue: (row) => Number(materialUnitCost(row) ?? -1), firstDirection: 'DESC',
+      render: (row) => formatUnitCost(materialUnitCost(row), row.unit),
+    },
+    { key: 'spools', header: 'Spools', narrow: true, sortValue: (row) => row.activeSpools ?? -1, firstDirection: 'DESC', render: (row) => row.activeSpools ?? '—' },
+  ];
+
+  const action = canAdd && canRegister
+    ? (
+      <MenuButton label="New" kind="primary" size="lg" menuAlignment="bottom-end">
+        <MenuItem label="Add material" onClick={onAdd} />
+        <MenuItem label="Register spool" onClick={onRegister} />
+      </MenuButton>
+    )
+    : canAdd ? <Button kind="primary" size="lg" onClick={onAdd}>Add material</Button>
+      : canRegister ? <Button kind="primary" size="lg" onClick={onRegister}>Register spool</Button> : undefined;
+
+  return (
+    <DirectoryTable
+      id="materials" label="Materials" columns={columns} rows={rows} totalCount={materials.length}
+      searchText={(row) => [row.name, row.category, row.color].filter(Boolean).join(' ')}
+      defaultSort={{ key: 'material', direction: 'ASC' }}
+      hasActiveFilters={MATERIAL_FILTERS.some((key) => url.get(key))} onClearFilters={() => url.clear(MATERIAL_FILTERS)}
+      toolbarAction={action}
+      filterFields={(
+        <>
+          <MultiSelect
+            id="materials-category-filter" className="mj-filter-panel__field" titleText="Category" label="All categories" items={categoryOptions}
+            itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(categoryOptions, categoryIds)} onChange={({ selectedItems }) => url.setList('category', selectedItems)}
+          />
+          <MultiSelect
+            id="materials-stock-filter" className="mj-filter-panel__field" titleText="Stock state" label="All states" items={stockStateOptions}
+            itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(stockStateOptions, stockIds) as typeof stockStateOptions} onChange={({ selectedItems }) => url.setList('stock', selectedItems)}
+          />
+          <div className="mj-filter-panel__field">
+            <Toggle id="materials-inactive-filter" size="sm" labelText="Show inactive" labelA="Hidden" labelB="Shown" toggled={showInactive} onToggle={(checked) => url.set({ inactive: checked ? '1' : null })} />
+          </div>
+        </>
+      )}
+      empty={{
+        title: 'No materials yet', description: 'Add the materials the makerspace keeps in stock to track quantities and costs.',
+        action: canAdd ? <Button kind="tertiary" onClick={onAdd}>Add material</Button> : undefined,
+      }}
+    />
+  );
+}
+
+function MaterialsTab({ canAdd, canRegister, onAdd, onRegister }: { canAdd: boolean; canRegister: boolean; onAdd: () => void; onRegister: () => void }) {
+  const query = useQuery(allMaterialsQuery());
+  return (
+    <QueryBoundary query={query} errorMessage="The materials could not be loaded.">
+      {(materials) => <MaterialsTable materials={materials} canAdd={canAdd} canRegister={canRegister} onAdd={onAdd} onRegister={onRegister} />}
+    </QueryBoundary>
+  );
+}
 
 export function InventoryPage() {
-  const currentUser = useCurrentUser();
-  const client = useQueryClient();
-  const navigate = useNavigate();
+  const can = useCan();
   const [params, setParams] = useSearchParams();
-  const [createOpen, setCreateOpen] = useState(params.get('new') === '1' && hasPermission(currentUser, PermissionId.inventorymanage));
-  const closeCreate = () => { setCreateOpen(false); setParams((current) => { const next = new URLSearchParams(current); next.delete('new'); return next; }, { replace: true }); };
-  const form = useForm<MaterialFields>({ defaultValues: { unit: 'g' } });
-  const page = Number(params.get('page') || 1);
-  const pageSize = Number(params.get('pageSize') || 25);
-  const query = useQuery({ ...materialsQuery({
-    search: params.get('search') || undefined,
-    category: params.get('category') || undefined,
-    stockState: (params.get('stock') || undefined) as StockState | undefined,
-    page,
-    pageSize,
-  }), placeholderData: keepPreviousData });
-  const mutation = useMutation({
-    mutationFn: (values: MaterialFields) => createMaterial({
-      name: values.name,
-      category: values.category.trim().toLowerCase(),
-      color: values.color || null,
-      unit: values.unit,
-      lowStockThreshold: values.lowStockThreshold || null,
-      filamentDiameterMm: values.filamentDiameterMm || null,
-    }),
-    onSuccess: async (created) => {
-      closeCreate();
-      form.reset({ name: '', category: '', color: '', unit: 'g', lowStockThreshold: '' });
-      await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
-      navigate(`/machine-logbook/inventory/${created.id}`);
-    },
-  });
-  const update = (key: string, value?: string) => setParams((current) => {
-    const next = new URLSearchParams(current);
-    if (value) next.set(key, value); else next.delete(key);
-    if (key !== 'page') next.set('page', '1');
-    return next;
-  }, { replace: true });
+  const [materialOpen, setMaterialOpen] = useState(false);
+  const [spoolOpen, setSpoolOpen] = useState(false);
+  const [productOpen, setProductOpen] = useState(false);
+  const [editing, setEditing] = useState<FilamentProduct | undefined>();
+  const requested = params.get('tab') as InventoryTab | null;
+  const tab: InventoryTab = requested && TABS.includes(requested) ? requested : 'materials';
+  const canAdd = can('inventory.manage');
+  const canRegister = can('filament_spools.manage') && can('inventory.manage');
 
-  if (query.isPending) return <FullPageLoading label="Loading inventory" />;
-  if (query.isError) return <ErrorState message="Inventory could not be loaded." onRetry={() => query.refetch()} />;
-  const rows = query.data.items.map((item) => ({
-    id: item.id,
-    name: item.name,
-    category: item.category,
-    color: item.color ?? '—',
-    quantity: `${formatDecimal(item.quantity, 3)} ${item.unit}`,
-    average: `€ ${formatDecimal(item.averageUnitCost, 4)} / ${item.unit}`,
-    value: formatMoney(item.inventoryValue),
-    recent: `${formatDecimal(item.recentConsumption, 3)} ${item.unit}`,
-    status: item.stockState,
-  }));
+  const header = { title: 'Inventory', description: 'Materials, filament spools and the filament product catalog.', breadcrumbs: [{ label: 'Workshop', to: machineLogbookPaths.overview() }, { label: 'Inventory' }], width: 'wide' as const };
+  if (!can('inventory.read')) return <PageShell {...header}><NoInventoryAccess /></PageShell>;
 
-  return <PageShell
-    title="Inventory"
-    description={`Total inventory value: ${formatMoney(query.data.totalInventoryValue)}`}
-    breadcrumbs={[{ label: 'Workshop', to: '/machine-logbook' }, { label: 'Inventory' }]}
-    actions={<><Button as={Link} kind="secondary" to="/machine-logbook/spools">Filament spools</Button>{hasPermission(currentUser, PermissionId.inventorymanage) && <Button renderIcon={Add} onClick={() => setCreateOpen(true)}>Add material</Button>}</>}
-    width="wide"
-    className="machine-logbook-page table-page"
-  >
-    <div className="filter-bar">
-      <Search labelText="Search materials" value={params.get('search') || ''} onChange={(event) => update('search', event.currentTarget.value)} />
-      <Select id="stock-filter" labelText="Stock state" hideLabel value={params.get('stock') || ''} onChange={(event) => update('stock', event.target.value)}>
-        <SelectItem value="" text="All stock states" />
-        <SelectItem value="in_stock" text="In stock" />
-        <SelectItem value="low_stock" text="Low stock" />
-        <SelectItem value="empty" text="Empty" />
-      </Select>
-    </div>
-    <DataTable rows={rows} headers={headers}>
-      {({ rows: tableRows, headers: tableHeaders, getHeaderProps, getRowProps, getTableProps }) => <TableContainer>
-        <Table {...getTableProps()} tabIndex={0} aria-label="Materials inventory">
-          <TableHead><TableRow>{tableHeaders.map((header) => <TableHeader {...getHeaderProps({ header })} key={header.key}>{header.header}</TableHeader>)}</TableRow></TableHead>
-          <TableBody>{tableRows.map((row) => {
-            const raw = rows.find((item) => item.id === row.id)!;
-            return <TableRow {...getRowProps({ row })} key={row.id} className="clickable-row" onClick={() => navigate(`/machine-logbook/inventory/${row.id}`)}>
-              {row.cells.map((cell) => <TableCell key={cell.id}>{cell.info.header === 'status' ? <StockTag state={raw.status} /> : cell.value as string}</TableCell>)}
-            </TableRow>;
-          })}</TableBody>
-        </Table>
-      </TableContainer>}
-    </DataTable>
-    <Pagination page={page} pageSize={pageSize} pageSizes={[10, 25, 50, 100]} totalItems={query.data.total} onChange={({ page: nextPage, pageSize: nextSize }) => {
-      const next = new URLSearchParams(params);
-      next.set('page', String(nextPage));
-      next.set('pageSize', String(nextSize));
-      setParams(next);
-    }} />
-    {createOpen && <Modal
-      open={createOpen}
-      modalHeading="Add material"
-      primaryButtonText={mutation.isPending ? 'Adding…' : 'Add material'}
-      secondaryButtonText="Cancel"
-      primaryButtonDisabled={mutation.isPending}
-      onRequestClose={closeCreate}
-      onRequestSubmit={form.handleSubmit((values) => mutation.mutate(values))}
-    >
-      <Stack gap={5}>
-        <TextInput id="material-name" labelText="Name" {...form.register('name', { required: true })} />
-        <TextInput id="material-category" labelText="Normalized category" helperText="For example: pla, petg, plywood" {...form.register('category', { required: true })} />
-        <TextInput id="material-color" labelText="Color (optional)" {...form.register('color')} />
-        <Select id="material-unit" labelText="Unit" {...form.register('unit')}>
-          <SelectItem value="g" text="Grams (g)" />
-          <SelectItem value="m" text="Metres (m)" />
-          <SelectItem value="ml" text="Millilitres (ml)" />
-          <SelectItem value="m2" text="Square metres (m²)" />
-          <SelectItem value="piece" text="Pieces" />
-        </Select>
-        <TextInput id="material-low-stock" labelText="Low-stock threshold (optional)" {...form.register('lowStockThreshold')} />
-        <TextInput id="material-filament-diameter" labelText="Filament diameter (mm, optional)" helperText="Set this for spool-managed filament, for example 1.75." {...form.register('filamentDiameterMm')} />
-        {mutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Material not created" subtitle="Check the values and make sure the name is unique." />}
-      </Stack>
-    </Modal>}
-  </PageShell>;
+  return (
+    <PageShell {...header}>
+      <Tabs
+        selectedIndex={TABS.indexOf(tab)}
+        onChange={({ selectedIndex }) => setParams((current) => { const next = new URLSearchParams(current); next.set('tab', TABS[selectedIndex] ?? 'materials'); return next; }, { replace: true })}
+      >
+        <TabList aria-label="Inventory sections" contained>
+          <Tab>Materials</Tab>
+          <Tab>Spools</Tab>
+          <Tab>Products</Tab>
+        </TabList>
+        <TabPanels>
+          <TabPanel className="mj-tab-panel">
+            <div>
+              {tab === 'materials' && <MaterialsTab canAdd={canAdd} canRegister={canRegister} onAdd={() => setMaterialOpen(true)} onRegister={() => setSpoolOpen(true)} />}
+            </div>
+          </TabPanel>
+          <TabPanel className="mj-tab-panel">
+            <div>
+              {tab === 'spools' && <InventorySpoolsTable />}
+            </div>
+          </TabPanel>
+          <TabPanel className="mj-tab-panel">
+            <div>
+              {tab === 'products' && (
+                <ProductsTable
+                  id="products" canManage={canAdd}
+                  onAdd={() => { setEditing(undefined); setProductOpen(true); }} onEdit={(product) => { setEditing(product); setProductOpen(true); }}
+                />
+              )}
+            </div>
+          </TabPanel>
+        </TabPanels>
+      </Tabs>
+      {materialOpen && <MaterialFormModal open onClose={() => setMaterialOpen(false)} />}
+      {spoolOpen && <SpoolFormModal open onClose={() => setSpoolOpen(false)} />}
+      {productOpen && <ProductFormModal open onClose={() => setProductOpen(false)} product={editing} />}
+    </PageShell>
+  );
 }

@@ -4087,7 +4087,7 @@ paths:
         - {name: lifecycle, in: query, schema: {type: string, enum: [active, archived]}}
         - {name: location, in: query, schema: {type: string, maxLength: 200}}
         - {name: kind, in: query, schema: {$ref: "#/components/schemas/FilamentSpoolKind"}}
-        - {name: status, in: query, style: form, explode: false, schema: {type: array, maxItems: 4, items: {$ref: "#/components/schemas/FilamentSpoolStatus"}}}
+        - {name: status, in: query, style: form, explode: true, schema: {type: array, maxItems: 4, items: {$ref: "#/components/schemas/FilamentSpoolStatus"}}}
         - {name: mounted, in: query, schema: {type: boolean}}
         - {name: productId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
         - {name: manufacturer, in: query, schema: {type: string, maxLength: 150}}
@@ -4869,11 +4869,11 @@ paths:
       security: [{sessionCookie: []}]
       parameters:
         - {name: search, in: query, description: "Matches job name, job and print display IDs and file names.", schema: {type: string, maxLength: 200}}
-        - {name: status, in: query, style: form, explode: false, schema: {type: array, maxItems: 8, items: {$ref: "#/components/schemas/WorkItemStatus"}}}
-        - {name: machineId, in: query, style: form, explode: false, schema: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}}
-        - {name: run, in: query, style: form, explode: false, schema: {type: array, maxItems: 2, items: {$ref: "#/components/schemas/WorkItemRun"}}}
-        - {name: materialId, in: query, style: form, explode: false, schema: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}}
-        - {name: billing, in: query, style: form, explode: false, description: "Matches jobs only; prints have no billing state.", schema: {type: array, maxItems: 5, items: {$ref: "#/components/schemas/JobBillingState"}}}
+        - {name: status, in: query, style: form, explode: true, schema: {type: array, maxItems: 8, items: {$ref: "#/components/schemas/WorkItemStatus"}}}
+        - {name: machineId, in: query, style: form, explode: true, schema: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}}
+        - {name: run, in: query, style: form, explode: true, schema: {type: array, maxItems: 2, items: {$ref: "#/components/schemas/WorkItemRun"}}}
+        - {name: materialId, in: query, style: form, explode: true, schema: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}}
+        - {name: billing, in: query, style: form, explode: true, description: "Matches jobs only; prints have no billing state.", schema: {type: array, maxItems: 5, items: {$ref: "#/components/schemas/JobBillingState"}}}
         - {name: customerId, in: query, description: Person or Organization identifier., schema: {$ref: "#/components/schemas/UUIDv7"}}
         - {name: operatorPersonId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
         - {name: from, in: query, description: Inclusive lower bound on the start time., schema: {type: string, format: date-time}}
@@ -10311,6 +10311,7 @@ components:
         toSpoolDisplayId: {type: string, nullable: true}
         toFillNumber: {type: integer, nullable: true}
         transferQuantity: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        actorName: {type: string, nullable: true, description: Display name of the person who recorded the entry.}
         createdAt: {type: string, format: date-time}
 
     InventoryTransactionPage:
@@ -10420,11 +10421,24 @@ components:
         notes: {type: string, nullable: true}
         lifecycle: {type: string, enum: [active, archived]}
         mounted: {type: boolean}
+        mountedOn: {$ref: "#/components/schemas/FilamentSpoolMount"}
         identifiers: {type: array, items: {$ref: "#/components/schemas/FilamentSpoolIdentifier"}, description: Identifiers of the open fill.}
         fills: {type: array, items: {$ref: "#/components/schemas/FilamentSpoolFill"}, description: "Closed fills, newest first; only returned by GET /filament-spools/{spoolId}."}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+
+    FilamentSpoolMount:
+      type: object
+      nullable: true
+      additionalProperties: false
+      required: [machineId, machineName, slotId, slotName]
+      properties:
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        machineName: {type: string}
+        inputUnitName: {type: string, nullable: true}
+        slotId: {$ref: "#/components/schemas/UUIDv7"}
+        slotName: {type: string}
 
     FilamentSpoolKind:
       type: string
@@ -10619,14 +10633,20 @@ components:
     CreateFilamentSpoolRequest:
       type: object
       additionalProperties: false
-      required: [materialId, initialNetWeightG, stockMode, occurredAt, expectedInventoryVersion]
+      required: [stockMode, occurredAt]
       properties:
         kind: {allOf: [{$ref: "#/components/schemas/FilamentSpoolKind"}], default: single_use}
         label: {type: string, minLength: 1, maxLength: 120, nullable: true}
         productId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "When set, materialId must be the product's material."}
         materialId: {$ref: "#/components/schemas/UUIDv7"}
         initialNetWeightG: {$ref: "#/components/schemas/Decimal"}
-        stockMode: {type: string, enum: [new_acquisition, existing_stock]}
+        stockMode:
+          type: string
+          enum: [new_acquisition, existing_stock, empty]
+          description: >-
+            new_acquisition records a purchase for the first fill, existing_stock moves loose stock onto it, empty
+            registers a reusable spool without a fill (materialId and initialNetWeightG are then ignored).
+        supplier: {type: string, maxLength: 200, nullable: true}
         totalPrice: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true}
         manufacturer: {type: string, maxLength: 150, nullable: true}
         productName: {type: string, maxLength: 200, nullable: true}

@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { PermissionId } from '../api/generated/models';
@@ -245,12 +245,16 @@ describe('protected application routing', () => {
 
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
     const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
-    for (const group of ['Operations', 'People', 'Machines & inventory', 'Sales & payments']) {
+    for (const group of ['Operations', 'People', 'Workshop', 'Sales & payments']) {
       await user.click(within(navigation).getByRole('button', { name: group }));
     }
-    for (const name of ['Open Days', 'Events', 'Attendance', 'Directory', 'Staffing', 'Overview', 'Machines', 'Jobs', 'Review', 'Print submissions', 'Inventory', 'Statistics', 'Orders', 'Payments', 'External invoicing']) {
+    for (const name of ['Open Days', 'Events', 'Attendance', 'Directory', 'Staffing', 'Overview', 'Jobs', 'Machines', 'Inventory', 'Statistics', 'Orders', 'Payments', 'External invoicing']) {
       expect(within(navigation).getByRole('link', { name })).toBeInTheDocument();
     }
+    expect(within(navigation).queryByRole('link', { name: 'Review' })).not.toBeInTheDocument();
+    expect(within(navigation).queryByRole('link', { name: 'Print submissions' })).not.toBeInTheDocument();
+    const workshop = within(navigation).getAllByRole('link').map((link) => link.getAttribute('href')).filter((href) => href?.startsWith('/machine-logbook'));
+    expect(workshop).toEqual(['/machine-logbook', '/machine-logbook/jobs', '/machine-logbook/machines', '/machine-logbook/inventory', '/machine-logbook/statistics']);
     expect(within(navigation).getByText('Administration')).toBeInTheDocument();
     expect(within(navigation).getByRole('link', { name: 'Settings' })).toBeInTheDocument();
     expect(within(navigation).getByRole('link', { name: 'Audit Log' })).toBeInTheDocument();
@@ -268,7 +272,7 @@ describe('protected application routing', () => {
     ]) {
       expect(within(navigation).getByRole('link', { name }).querySelector('svg')).toBeInTheDocument();
     }
-    for (const group of ['Operations', 'People', 'Machines & inventory', 'Sales & payments']) {
+    for (const group of ['Operations', 'People', 'Workshop', 'Sales & payments']) {
       expect(within(navigation).getByRole('button', { name: group }).querySelectorAll('svg')).toHaveLength(2);
     }
   });
@@ -381,5 +385,68 @@ describe('role protection UX', () => {
     expect(screen.getByLabelText('Protected system role')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /delete role/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Actions for Master/ })).toBeInTheDocument();
+  });
+
+  describe('Machines & Jobs routes', () => {
+    const id = '0192f6f8-743e-7c77-a349-cd07c3e8a950';
+    const permissions = [PermissionId.machine_jobsread, PermissionId.inventoryread, PermissionId.machinesread, PermissionId.statisticsread];
+    const signIn = (granted = permissions) => server.use(
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(granted))),
+      // The pages behind these routes are not under test; answer their requests with an error state.
+      http.get('*/api/v1/*', () => HttpResponse.json({ code: 'not_found', message: 'Not found' }, { status: 404 })),
+    );
+
+    it.each([
+      ['/machine-logbook/review', '/machine-logbook/jobs?status=needs_outcome'],
+      ['/machine-logbook/print-submissions', '/machine-logbook/jobs?status=unlinked'],
+      [`/machine-logbook/print-submissions/${id}`, '/machine-logbook/jobs?status=unlinked'],
+      [`/machine-logbook/inventory/${id}`, `/machine-logbook/inventory/materials/${id}`],
+      ['/machine-logbook/spools', '/machine-logbook/inventory?tab=spools'],
+      [`/machine-logbook/spools/${id}`, `/machine-logbook/inventory/spools/${id}`],
+      [`/machine-logbook/machines/${id}/printer`, `/machine-logbook/machines/${id}?tab=printer`],
+      ['/machine-logbook/inventory/materials', '/machine-logbook/inventory?tab=materials'],
+      ['/machine-logbook/inventory/spools', '/machine-logbook/inventory?tab=spools'],
+    ])('redirects the former URL %s to %s', async (from, to) => {
+      signIn();
+      const { router } = renderRoute(<App />, from);
+      await waitFor(() => expect(router.state.location.pathname + router.state.location.search).toBe(to));
+    });
+
+    it('drops the query string of a former URL and keeps the new material and spool URLs as they are', async () => {
+      signIn();
+      const redirected = renderRoute(<App />, `/machine-logbook/spools/${id}?search=ada`);
+      await waitFor(() => expect(redirected.router.state.location.pathname).toBe(`/machine-logbook/inventory/spools/${id}`));
+      expect(redirected.router.state.location.search).toBe('');
+      redirected.unmount();
+      const material = renderRoute(<App />, `/machine-logbook/inventory/materials/${id}`);
+      await screen.findByRole('navigation', { name: 'Primary navigation' });
+      expect(material.router.state.location.pathname).toBe(`/machine-logbook/inventory/materials/${id}`);
+    });
+
+    it('sends a former URL to the dashboard when the person lacks the permission of its new destination', async () => {
+      signIn([PermissionId.inventoryread]);
+      const { router } = renderRoute(<App />, '/machine-logbook/review');
+      expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+      expect(router.state.location.pathname).toBe('/dashboard');
+    });
+
+    it('shows a print by its file name on its own route', async () => {
+      server.use(
+        http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.machine_jobsread]))),
+        http.get(`*/api/v1/prints/${id}`, () => HttpResponse.json({
+          id, displayId: 'P-00001', machineId: id, machineName: 'Prusa MK4', fileName: 'gearbox_housing_v3.gcode', state: 'finished',
+          startedAt: '2026-09-15T08:00:00Z', endedAt: '2026-09-15T09:00:00Z', version: 1, events: [],
+        })),
+      );
+      renderRoute(<App />, `/machine-logbook/jobs/prints/${id}`);
+      expect(await screen.findByRole('heading', { name: 'gearbox_housing_v3.gcode' })).toBeInTheDocument();
+      expect(screen.getByText('Finished')).toBeInTheDocument();
+    });
+
+    it('denies a print without the job permission', async () => {
+      server.use(http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.machinesread]))));
+      renderRoute(<App />, `/machine-logbook/jobs/prints/${id}`);
+      expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+    });
   });
 });

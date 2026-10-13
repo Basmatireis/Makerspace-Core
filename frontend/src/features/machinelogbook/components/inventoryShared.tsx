@@ -1,0 +1,96 @@
+/* eslint-disable react-refresh/only-export-components -- tags and the inventory derivations they render form one module */
+import { Tag } from '@carbon/react';
+import { CheckmarkFilled, ErrorFilled, WarningAltFilled } from '@carbon/icons-react';
+import { EmptyState } from '../../../app/PageState';
+import type { FilamentPackaging, FilamentProduct, InventoryAdjustmentReason, InventoryTransactionKind, Material, MaterialUnit, StockState } from '../../../api/generated/models';
+import { formatMoney } from '../shared/format';
+
+const number = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
+
+export type { StockState };
+
+export const unitLabel = (unit: MaterialUnit) => (unit === 'm2' ? 'm²' : unit === 'piece' ? 'pcs' : unit);
+/** "1,250 g". The API sends decimal strings. */
+export const formatQuantity = (value: string | number, unit: MaterialUnit) => `${number.format(Number(value))} ${unitLabel(unit)}`;
+export const formatSigned = (value: string | number, unit: MaterialUnit) => {
+  const n = Number(value);
+  return `${n > 0 ? '+' : n < 0 ? '−' : ''}${number.format(Math.abs(n))} ${unitLabel(unit)}`;
+};
+export const formatSignedMoney = (value: string | number | null | undefined) => {
+  if (value == null) return '—';
+  const n = Number(value);
+  return `${n > 0 ? '+' : n < 0 ? '−' : ''}${formatMoney(Math.abs(n))}`;
+};
+
+/** Cost per stock unit; grams and millilitres read better per kilogram and litre. */
+export function formatUnitCost(cost: string | number | null | undefined, unit: MaterialUnit) {
+  if (cost == null) return '—';
+  const n = Number(cost);
+  if (unit === 'g') return `${formatMoney(n * 1000)} / kg`;
+  if (unit === 'ml') return `${formatMoney(n * 1000)} / l`;
+  return `${formatMoney(n)} / ${unitLabel(unit)}`;
+}
+
+/** Average acquisition cost of a material; a material that never held stock has none yet. */
+export const materialUnitCost = (material: Pick<Material, 'averageUnitCost' | 'inventoryValue' | 'quantity'>) => Number(material.averageUnitCost) === 0 && Number(material.inventoryValue) === 0 && Number(material.quantity) === 0 ? null : material.averageUnitCost;
+
+/** "filament" → "Filament": the API stores categories in lower case. */
+export const categoryLabel = (category: string) => category.charAt(0).toUpperCase() + category.slice(1);
+
+export const stockStateOptions: { id: StockState; label: string }[] = [{ id: 'in_stock', label: 'In stock' }, { id: 'low_stock', label: 'Low' }, { id: 'empty', label: 'Empty' }];
+
+const stockMeta = {
+  in_stock: { label: 'In stock', type: 'green', icon: CheckmarkFilled },
+  low_stock: { label: 'Low', type: 'warm-gray', icon: WarningAltFilled },
+  empty: { label: 'Empty', type: 'red', icon: ErrorFilled },
+} as const;
+
+export function StockTag({ state, size = 'md' }: { state: StockState; size?: 'sm' | 'md' }) {
+  const meta = stockMeta[state];
+  return <Tag type={meta.type} size={size} renderIcon={meta.icon}>{meta.label}</Tag>;
+}
+
+export const packagingOptions: { id: FilamentPackaging; label: string }[] = [{ id: 'refill', label: 'Refill' }, { id: 'spool', label: 'Spool' }];
+export const packagingLabel = (packaging: FilamentPackaging) => packagingOptions.find((item) => item.id === packaging)?.label ?? packaging;
+export function PackagingTag({ packaging, size = 'sm' }: { packaging: FilamentPackaging; size?: 'sm' | 'md' }) {
+  return <Tag type={packaging === 'refill' ? 'teal' : 'cool-gray'} size={size}>{packagingLabel(packaging)}</Tag>;
+}
+
+export const formatGrams = (value: string | number) => `${number.format(Number(value))} g`;
+/** "Bambu Lab · PLA Basic Black · 1,000 g", the text of a product in pickers. */
+export const productLabel = (product: Pick<FilamentProduct, 'manufacturer' | 'name' | 'netWeightG'>) => `${product.manufacturer} · ${product.name} · ${formatGrams(product.netWeightG)}`;
+
+// The API distinguishes who moved the stock; the table shows one tag per kind.
+export const transactionKindOptions: { id: InventoryTransactionKind; label: string }[] = [
+  { id: 'purchase', label: 'Purchase' }, { id: 'machine_job_consumption', label: 'Job consumption' }, { id: 'manual_consumption', label: 'Manual consumption' },
+  { id: 'adjustment', label: 'Correction' }, { id: 'disposal', label: 'Disposal' }, { id: 'spool_transfer', label: 'Transfer' },
+];
+const kindType = { purchase: 'green', machine_job_consumption: 'blue', manual_consumption: 'blue', adjustment: 'purple', disposal: 'red', spool_transfer: 'teal' } as const;
+export function TransactionKindTag({ kind, size = 'sm' }: { kind: InventoryTransactionKind; size?: 'sm' | 'md' }) {
+  return <Tag type={kindType[kind]} size={size}>{transactionKindOptions.find((item) => item.id === kind)?.label}</Tag>;
+}
+
+export const adjustmentReasonLabels: Record<InventoryAdjustmentReason, string> = {
+  inventory_count: 'Inventory count', unrecorded_consumption: 'Unrecorded consumption', damaged: 'Damaged', disposed: 'Disposed',
+  mark_empty: 'Marked as empty', job_corrected: 'Job corrected', other: 'Other',
+};
+
+export function NoInventoryAccess() {
+  return <EmptyState title="No access to inventory" description="Your role does not include viewing inventory. Ask a workshop supervisor for access." />;
+}
+
+/** Filament is the only material that is tracked per spool. */
+export const isFilament = (material: Pick<Material, 'category'>) => material.category.trim().toLowerCase() === 'filament';
+
+/** Parses a typed decimal ("1,5" or "1.5"); null when empty or not a number. */
+export function parseDecimal(value: string): number | null {
+  const text = value.trim().replace(',', '.');
+  if (!text) return null;
+  const parsed = Number(text);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+/** API decimal (up to six fraction digits, no exponent) from a number. */
+export const toDecimal = (value: number) => String(Number(value.toFixed(6)));
+/** API money (up to two fraction digits). */
+export const toMoney = (value: number) => value.toFixed(2);

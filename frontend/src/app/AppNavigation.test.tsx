@@ -21,12 +21,32 @@ describe('AppNavigation', () => {
     );
 
     expect(screen.queryByRole('button', { name: 'Operations' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Machines & inventory' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Workshop' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Sales & payments' })).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'People' }));
     expect(screen.getByRole('link', { name: 'Staffing' })).toHaveAttribute('href', '/people/staffing');
     expect(screen.queryByRole('link', { name: 'Directory' })).not.toBeInTheDocument();
+  });
+
+  it('lists the Workshop destinations in order and gates each by its permission', () => {
+    renderRoute(
+      <AppNavigation
+        currentUser={currentUserFixture([PermissionId.machinesread, PermissionId.inventoryread, PermissionId.machine_jobsreview, PermissionId.print_submissionsread])}
+        legal={defaultPublicConfiguration.legal}
+        onNavigate={vi.fn()}
+      />,
+      '/machine-logbook/inventory/spools/spool-1',
+    );
+
+    expect(screen.getByRole('button', { name: 'Workshop' })).toHaveAttribute('aria-expanded', 'true');
+    const links = screen.getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('/machine-logbook'));
+    expect(links.map((link) => link.textContent)).toEqual(['Machines', 'Inventory']);
+    expect(screen.getByRole('link', { name: 'Inventory' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Jobs' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Review' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Print submissions' })).not.toBeInTheDocument();
   });
 
   it('opens the active group after client navigation and marks the active destination', async () => {

@@ -1542,16 +1542,22 @@ func (q *Queries) GetFilamentProductForUpdate(ctx context.Context, id uuid.UUID)
 const getFilamentSpool = `-- name: GetFilamentSpool :one
 SELECT s.id, s.display_id, s.kind, s.label, s.lifecycle, s.archived_at, s.tare_weight_g, s.acquired_on, s.acquisition_reference,
        s.storage_location, s.notes, s.version, s.created_at, s.updated_at,
-       COALESCE(f.fill_number, (SELECT max(x.fill_number) FROM filament_spool_fills x WHERE x.spool_id=s.id))::integer AS fill_number,
+       COALESCE(f.fill_number, (SELECT max(x.fill_number) FROM filament_spool_fills x WHERE x.spool_id=s.id), 0)::integer AS fill_number,
        f.id AS fill_id, f.filled_at, f.material_id, f.product_id, f.manufacturer, f.product_name, f.initial_net_weight_g,
        m.name AS material_name, m.category, m.color, m.unit,
        (COALESCE((SELECT sum(t.quantity_delta) FROM inventory_transactions t WHERE t.fill_id=f.id), 0::numeric)
        + COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.to_fill_id=f.id), 0::numeric)
        - COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.from_fill_id=f.id), 0::numeric))::numeric AS remaining_quantity,
-       EXISTS(SELECT 1 FROM printer_spool_assignments a WHERE a.spool_id=s.id AND a.unmounted_at IS NULL) AS mounted
+       (pa.id IS NOT NULL)::boolean AS mounted,
+       mu.machine_id AS mount_machine_id, mc.name AS mount_machine_name, mu.name AS mount_input_unit_name,
+       pl.id AS mount_slot_id, pl.name AS mount_slot_name
 FROM filament_spools s
 LEFT JOIN filament_spool_fills f ON f.spool_id=s.id AND f.closed_at IS NULL
 LEFT JOIN materials m ON m.id=f.material_id
+LEFT JOIN printer_spool_assignments pa ON pa.spool_id=s.id AND pa.unmounted_at IS NULL
+LEFT JOIN printer_slots pl ON pl.id=pa.slot_id
+LEFT JOIN printer_input_units mu ON mu.id=pl.input_unit_id
+LEFT JOIN machines mc ON mc.id=mu.machine_id
 WHERE s.id=$1
 `
 
@@ -1584,6 +1590,11 @@ type GetFilamentSpoolRow struct {
 	Unit                 *string
 	RemainingQuantity    pgtype.Numeric
 	Mounted              bool
+	MountMachineID       *uuid.UUID
+	MountMachineName     *string
+	MountInputUnitName   *string
+	MountSlotID          *uuid.UUID
+	MountSlotName        *string
 }
 
 func (q *Queries) GetFilamentSpool(ctx context.Context, id uuid.UUID) (GetFilamentSpoolRow, error) {
@@ -1618,6 +1629,11 @@ func (q *Queries) GetFilamentSpool(ctx context.Context, id uuid.UUID) (GetFilame
 		&i.Unit,
 		&i.RemainingQuantity,
 		&i.Mounted,
+		&i.MountMachineID,
+		&i.MountMachineName,
+		&i.MountInputUnitName,
+		&i.MountSlotID,
+		&i.MountSlotName,
 	)
 	return i, err
 }
@@ -3060,8 +3076,11 @@ func (q *Queries) ListFilamentSpoolIdentifiers(ctx context.Context, spoolID uuid
 }
 
 const listFilamentSpoolTransactions = `-- name: ListFilamentSpoolTransactions :many
-SELECT t.id, t.material_id, t.kind, t.quantity_delta, t.unit_acquisition_cost, t.inventory_value_delta, t.total_purchase_price, t.occurred_at, t.supplier, t.note, t.adjustment_reason, t.machine_job_usage_id, t.actor_account_id, t.created_at, t.spool_id, t.from_spool_id, t.to_spool_id, t.transfer_quantity, t.fill_id, t.from_fill_id, t.to_fill_id, t.spool_display_id, t.fill_number, t.from_spool_display_id, t.from_fill_number, t.to_spool_display_id, t.to_fill_number, j.id AS machine_job_id, j.display_id AS machine_job_display_id
+SELECT t.id, t.material_id, t.kind, t.quantity_delta, t.unit_acquisition_cost, t.inventory_value_delta, t.total_purchase_price, t.occurred_at, t.supplier, t.note, t.adjustment_reason, t.machine_job_usage_id, t.actor_account_id, t.created_at, t.spool_id, t.from_spool_id, t.to_spool_id, t.transfer_quantity, t.fill_id, t.from_fill_id, t.to_fill_id, t.spool_display_id, t.fill_number, t.from_spool_display_id, t.from_fill_number, t.to_spool_display_id, t.to_fill_number, j.id AS machine_job_id, j.display_id AS machine_job_display_id,
+       pe.first_name AS actor_first_name, pe.last_name AS actor_last_name
 FROM inventory_transactions t
+LEFT JOIN accounts ac ON ac.id = t.actor_account_id
+LEFT JOIN people pe ON pe.id = ac.person_id
 LEFT JOIN machine_job_material_usages u ON u.id=t.machine_job_usage_id
 LEFT JOIN machine_jobs j ON j.id=u.machine_job_id
 WHERE t.spool_id=$1 OR t.from_spool_id=$1 OR t.to_spool_id=$1
@@ -3105,6 +3124,8 @@ type ListFilamentSpoolTransactionsRow struct {
 	ToFillNumber        *int32
 	MachineJobID        *uuid.UUID
 	MachineJobDisplayID *string
+	ActorFirstName      *string
+	ActorLastName       *string
 }
 
 func (q *Queries) ListFilamentSpoolTransactions(ctx context.Context, arg ListFilamentSpoolTransactionsParams) ([]ListFilamentSpoolTransactionsRow, error) {
@@ -3146,6 +3167,8 @@ func (q *Queries) ListFilamentSpoolTransactions(ctx context.Context, arg ListFil
 			&i.ToFillNumber,
 			&i.MachineJobID,
 			&i.MachineJobDisplayID,
+			&i.ActorFirstName,
+			&i.ActorLastName,
 		); err != nil {
 			return nil, err
 		}
@@ -3160,16 +3183,22 @@ func (q *Queries) ListFilamentSpoolTransactions(ctx context.Context, arg ListFil
 const listFilamentSpools = `-- name: ListFilamentSpools :many
 SELECT s.id, s.display_id, s.kind, s.label, s.lifecycle, s.archived_at, s.tare_weight_g, s.acquired_on, s.acquisition_reference,
        s.storage_location, s.notes, s.version, s.created_at, s.updated_at,
-       COALESCE(f.fill_number, (SELECT max(x.fill_number) FROM filament_spool_fills x WHERE x.spool_id=s.id))::integer AS fill_number,
+       COALESCE(f.fill_number, (SELECT max(x.fill_number) FROM filament_spool_fills x WHERE x.spool_id=s.id), 0)::integer AS fill_number,
        f.id AS fill_id, f.filled_at, f.material_id, f.product_id, f.manufacturer, f.product_name, f.initial_net_weight_g,
        m.name AS material_name, m.category, m.color, m.unit,
        (COALESCE((SELECT sum(t.quantity_delta) FROM inventory_transactions t WHERE t.fill_id=f.id), 0::numeric)
        + COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.to_fill_id=f.id), 0::numeric)
        - COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.from_fill_id=f.id), 0::numeric))::numeric AS remaining_quantity,
-       EXISTS(SELECT 1 FROM printer_spool_assignments a WHERE a.spool_id=s.id AND a.unmounted_at IS NULL) AS mounted
+       (pa.id IS NOT NULL)::boolean AS mounted,
+       mu.machine_id AS mount_machine_id, mc.name AS mount_machine_name, mu.name AS mount_input_unit_name,
+       pl.id AS mount_slot_id, pl.name AS mount_slot_name
 FROM filament_spools s
 LEFT JOIN filament_spool_fills f ON f.spool_id=s.id AND f.closed_at IS NULL
 LEFT JOIN materials m ON m.id=f.material_id
+LEFT JOIN printer_spool_assignments pa ON pa.spool_id=s.id AND pa.unmounted_at IS NULL
+LEFT JOIN printer_slots pl ON pl.id=pa.slot_id
+LEFT JOIN printer_input_units mu ON mu.id=pl.input_unit_id
+LEFT JOIN machines mc ON mc.id=mu.machine_id
 WHERE ($1::text='' OR lower(s.display_id) LIKE '%'||lower($1::text)||'%'
     OR lower(COALESCE(s.label,'')) LIKE '%'||lower($1::text)||'%'
     OR lower(COALESCE(m.name,'')) LIKE '%'||lower($1::text)||'%'
@@ -3233,6 +3262,11 @@ type ListFilamentSpoolsRow struct {
 	Unit                 *string
 	RemainingQuantity    pgtype.Numeric
 	Mounted              bool
+	MountMachineID       *uuid.UUID
+	MountMachineName     *string
+	MountInputUnitName   *string
+	MountSlotID          *uuid.UUID
+	MountSlotName        *string
 }
 
 func (q *Queries) ListFilamentSpools(ctx context.Context, arg ListFilamentSpoolsParams) ([]ListFilamentSpoolsRow, error) {
@@ -3286,6 +3320,11 @@ func (q *Queries) ListFilamentSpools(ctx context.Context, arg ListFilamentSpools
 			&i.Unit,
 			&i.RemainingQuantity,
 			&i.Mounted,
+			&i.MountMachineID,
+			&i.MountMachineName,
+			&i.MountInputUnitName,
+			&i.MountSlotID,
+			&i.MountSlotName,
 		); err != nil {
 			return nil, err
 		}
@@ -3298,8 +3337,11 @@ func (q *Queries) ListFilamentSpools(ctx context.Context, arg ListFilamentSpools
 }
 
 const listInventoryTransactions = `-- name: ListInventoryTransactions :many
-SELECT t.id, t.material_id, t.kind, t.quantity_delta, t.unit_acquisition_cost, t.inventory_value_delta, t.total_purchase_price, t.occurred_at, t.supplier, t.note, t.adjustment_reason, t.machine_job_usage_id, t.actor_account_id, t.created_at, t.spool_id, t.from_spool_id, t.to_spool_id, t.transfer_quantity, t.fill_id, t.from_fill_id, t.to_fill_id, t.spool_display_id, t.fill_number, t.from_spool_display_id, t.from_fill_number, t.to_spool_display_id, t.to_fill_number, j.id AS machine_job_id, j.display_id AS machine_job_display_id
+SELECT t.id, t.material_id, t.kind, t.quantity_delta, t.unit_acquisition_cost, t.inventory_value_delta, t.total_purchase_price, t.occurred_at, t.supplier, t.note, t.adjustment_reason, t.machine_job_usage_id, t.actor_account_id, t.created_at, t.spool_id, t.from_spool_id, t.to_spool_id, t.transfer_quantity, t.fill_id, t.from_fill_id, t.to_fill_id, t.spool_display_id, t.fill_number, t.from_spool_display_id, t.from_fill_number, t.to_spool_display_id, t.to_fill_number, j.id AS machine_job_id, j.display_id AS machine_job_display_id,
+       pe.first_name AS actor_first_name, pe.last_name AS actor_last_name
 FROM inventory_transactions t
+LEFT JOIN accounts ac ON ac.id = t.actor_account_id
+LEFT JOIN people pe ON pe.id = ac.person_id
 LEFT JOIN machine_job_material_usages u ON u.id = t.machine_job_usage_id
 LEFT JOIN machine_jobs j ON j.id = u.machine_job_id
 WHERE t.material_id = $1
@@ -3343,6 +3385,8 @@ type ListInventoryTransactionsRow struct {
 	ToFillNumber        *int32
 	MachineJobID        *uuid.UUID
 	MachineJobDisplayID *string
+	ActorFirstName      *string
+	ActorLastName       *string
 }
 
 func (q *Queries) ListInventoryTransactions(ctx context.Context, arg ListInventoryTransactionsParams) ([]ListInventoryTransactionsRow, error) {
@@ -3384,6 +3428,8 @@ func (q *Queries) ListInventoryTransactions(ctx context.Context, arg ListInvento
 			&i.ToFillNumber,
 			&i.MachineJobID,
 			&i.MachineJobDisplayID,
+			&i.ActorFirstName,
+			&i.ActorLastName,
 		); err != nil {
 			return nil, err
 		}

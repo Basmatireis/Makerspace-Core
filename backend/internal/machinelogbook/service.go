@@ -135,6 +135,7 @@ type InventoryTransaction struct {
 	SpoolDisplayID, FromSpoolDisplayID, ToSpoolDisplayID          *string
 	FillNumber, FromFillNumber, ToFillNumber                      *int32
 	TransferQuantity                                              *string
+	ActorName                                                     *string
 }
 
 type InventoryMutationResult struct {
@@ -196,6 +197,13 @@ type FilamentSpoolIdentifier struct {
 
 // FilamentSpool is a physical spool. Material, product, weights and
 // identifiers describe its open fill; they are empty while no fill is open.
+// SpoolMount locates the machine slot a spool is currently mounted in.
+type SpoolMount struct {
+	MachineID, SlotID     uuid.UUID
+	MachineName, SlotName string
+	InputUnitName         *string
+}
+
 type FilamentSpool struct {
 	ID                                           uuid.UUID
 	DisplayID, Kind, Status                      string
@@ -212,6 +220,7 @@ type FilamentSpool struct {
 	AcquisitionReference, StorageLocation, Notes *string
 	Lifecycle                                    string
 	Mounted                                      bool
+	MountedOn                                    *SpoolMount
 	Identifiers                                  []FilamentSpoolIdentifier
 	Fills                                        []FilamentSpoolFill
 	Version                                      int64
@@ -235,6 +244,7 @@ type FilamentSpoolInput struct {
 	ProductID                                    *uuid.UUID
 	MaterialID                                   uuid.UUID
 	InitialNetWeightG, StockMode                 string
+	Supplier                                     *string
 	TotalPrice                                   *string
 	Manufacturer, ProductName, TareWeightG       *string
 	AcquiredOn                                   *time.Time

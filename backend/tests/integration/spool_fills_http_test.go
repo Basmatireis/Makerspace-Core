@@ -170,11 +170,40 @@ func TestFilamentSpoolFillsCleanupAndProductsOverHTTP(t *testing.T) {
 		t.Fatalf("fill history: %+v", detail.Fills)
 	}
 	var page openapi.FilamentSpoolPage
-	api(reader, http.MethodGet, "/filament-spools?status=loaded,needs_refill&consumable=true&kind=reusable&pageSize=100", http.StatusOK, nil, &page)
+	api(reader, http.MethodGet, "/filament-spools?status=loaded&status=needs_refill&consumable=true&kind=reusable&pageSize=100", http.StatusOK, nil, &page)
 	if page.Total < 1 {
 		t.Fatalf("status filter: %+v", page)
 	}
 	api(reader, http.MethodGet, "/filament-spools?status=bogus", http.StatusBadRequest, nil, nil)
+	api(reader, http.MethodGet, "/filament-spools?status=loaded,needs_refill", http.StatusBadRequest, nil, nil)
+
+	// Empty reusable spools, nullable mount and ledger actor over the wire.
+	emptyBody := map[string]any{"kind": "reusable", "label": "Http empty", "stockMode": "empty", "supplier": "Ignored shop", "occurredAt": time.Now().UTC().Format(time.RFC3339)}
+	api(reader, http.MethodPost, "/filament-spools", http.StatusForbidden, emptyBody, nil)
+	api(spoolsOnly, http.MethodPost, "/filament-spools", http.StatusForbidden, emptyBody, nil)
+	api(inventoryOnly, http.MethodPost, "/filament-spools", http.StatusForbidden, emptyBody, nil)
+	var emptyRaw map[string]any
+	api(root, http.MethodPost, "/filament-spools", http.StatusCreated, emptyBody, &emptyRaw)
+	if mountedOn, present := emptyRaw["mountedOn"]; !present || mountedOn != nil || emptyRaw["status"] != "needs_refill" || emptyRaw["fillId"] != nil {
+		t.Fatalf("empty spool: %+v", emptyRaw)
+	}
+	singleEmpty := map[string]any{"label": "Http single empty", "stockMode": "empty", "occurredAt": time.Now().UTC().Format(time.RFC3339)}
+	var problem map[string]any
+	api(root, http.MethodPost, "/filament-spools", http.StatusUnprocessableEntity, singleEmpty, &problem)
+	if problem["code"] != "empty_requires_reusable" {
+		t.Fatalf("problem: %+v", problem)
+	}
+	api(root, http.MethodPost, "/filament-spools", http.StatusUnprocessableEntity, map[string]any{"kind": "reusable", "stockMode": "existing_stock", "occurredAt": time.Now().UTC().Format(time.RFC3339)}, nil)
+	var ledger openapi.InventoryTransactionPage
+	api(reader, http.MethodGet, "/filament-spools/"+spool.ID.String()+"/transactions", http.StatusOK, nil, &ledger)
+	if len(ledger.Items) == 0 {
+		t.Fatal("spool ledger is empty")
+	}
+	for _, item := range ledger.Items {
+		if name, err := item.ActorName.Get(); err != nil || name != "Spool Admin" {
+			t.Fatalf("ledger actor: %+v %v", item.ActorName, err)
+		}
+	}
 
 	// Finish and cleanup.
 	finish := map[string]any{"leftover": map[string]any{"basis": "none"}, "occurredAt": time.Now().UTC().Format(time.RFC3339), "expectedVersion": changed.Version}

@@ -72,5 +72,10 @@ export interface InventoryTransaction {
   toFillNumber?: number | null;
   /** @nullable */
   transferQuantity?: InventoryTransactionTransferQuantity;
+  /**
+   * Display name of the person who recorded the entry.
+   * @nullable
+   */
+  actorName?: string | null;
   createdAt: string;
 }

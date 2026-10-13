@@ -1,6 +1,5 @@
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
-@use '@carbon/styles/scss/components/contained-list';
 
 .machine-logbook-grid { inline-size: 100%; padding: 0; row-gap: $spacing-05; }
 .metric-grid { display: grid; grid-template-columns: repeat(5, minmax(10rem, 1fr)); gap: 1px; background: var(--cds-border-subtle); }
@@ -73,8 +72,3 @@
   .review-detail { padding: $spacing-05; }
   .date-filter { align-items: stretch; flex-direction: column; }
 }
-
-.workshop-overview .cds--contained-list { margin-block-end: $spacing-07; background: var(--cds-layer); }
-.workshop-attention { display: inline-flex; align-items: center; gap: $spacing-03; }
-.workshop-attention .cds--tag { min-inline-size: 2rem; justify-content: center; }
-.workshop-machine__meta { display: block; @include type-style('helper-text-01'); color: var(--cds-text-secondary); }

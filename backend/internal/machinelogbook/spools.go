@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/shopspring/decimal"
 )
 
 func spoolDate(value pgtype.Date) *time.Time {
@@ -51,8 +52,15 @@ func spoolStatus(lifecycle, kind string, hasOpenFill bool) string {
 	}
 }
 
+func spoolMount(machineID *uuid.UUID, machineName *string, inputUnit *string, slotID *uuid.UUID, slotName *string) *SpoolMount {
+	if machineID == nil || machineName == nil || slotID == nil || slotName == nil {
+		return nil
+	}
+	return &SpoolMount{MachineID: *machineID, MachineName: *machineName, InputUnitName: inputUnit, SlotID: *slotID, SlotName: *slotName}
+}
+
 func spoolFromGet(row machinelogbookdb.GetFilamentSpoolRow) FilamentSpool {
-	return FilamentSpool{ID: row.ID, DisplayID: row.DisplayID, Kind: row.Kind, Label: row.Label,
+	return FilamentSpool{MountedOn: spoolMount(row.MountMachineID, row.MountMachineName, row.MountInputUnitName, row.MountSlotID, row.MountSlotName), ID: row.ID, DisplayID: row.DisplayID, Kind: row.Kind, Label: row.Label,
 		Status: spoolStatus(row.Lifecycle, row.Kind, row.FillID != nil), FillNumber: row.FillNumber, FillID: row.FillID,
 		FilledAt: nullableTime(row.FilledAt), ArchivedAt: nullableTime(row.ArchivedAt), MaterialID: row.MaterialID,
 		MaterialName: row.MaterialName, Category: row.Category, Color: row.Color, Unit: row.Unit, ProductID: row.ProductID,
@@ -212,11 +220,7 @@ func (s *Service) CreateFilamentSpool(ctx context.Context, p authorization.Princ
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return FilamentSpool{}, err
 	}
-	weight, err := parseDecimal(input.InitialNetWeightG, true)
-	if err != nil {
-		return FilamentSpool{}, err
-	}
-	if input.StockMode != "new_acquisition" && input.StockMode != "existing_stock" {
+	if input.StockMode != "new_acquisition" && input.StockMode != "existing_stock" && input.StockMode != "empty" {
 		return FilamentSpool{}, validation("invalid stockMode")
 	}
 	kind := input.Kind
@@ -226,12 +230,33 @@ func (s *Service) CreateFilamentSpool(ctx context.Context, p authorization.Princ
 	if !validSpoolKind(kind) {
 		return FilamentSpool{}, validation("invalid spool kind")
 	}
+	empty := input.StockMode == "empty"
+	if empty && kind != "reusable" {
+		return FilamentSpool{}, unprocessable("empty_requires_reusable", "Only reusable spools can be registered without a fill")
+	}
+	var weight decimal.Decimal
+	if !empty {
+		if input.MaterialID == uuid.Nil {
+			return FilamentSpool{}, validation("materialId is required unless the spool is registered empty")
+		}
+		var parseErr error
+		if weight, parseErr = parseDecimal(input.InitialNetWeightG, true); parseErr != nil {
+			return FilamentSpool{}, parseErr
+		}
+		if input.ExpectedInventoryVersion < 1 {
+			return FilamentSpool{}, validation("expectedInventoryVersion is required unless the spool is registered empty")
+		}
+	}
+	supplier, err := validateOptionalText(input.Supplier, "supplier", 200)
+	if err != nil {
+		return FilamentSpool{}, err
+	}
 	label, err := validateOptionalText(&input.Label, "label", 120)
 	if err != nil {
 		return FilamentSpool{}, err
 	}
-	if input.OccurredAt.IsZero() || input.ExpectedInventoryVersion < 1 {
-		return FilamentSpool{}, validation("occurredAt and expectedInventoryVersion are required")
+	if input.OccurredAt.IsZero() {
+		return FilamentSpool{}, validation("occurredAt is required")
 	}
 	tare, err := pgNullableNumeric(input.TareWeightG, false)
 	if err != nil || (tare.Valid && decimalFromNumeric(tare).IsNegative()) {
@@ -251,20 +276,24 @@ func (s *Service) CreateFilamentSpool(ctx context.Context, p authorization.Princ
 	}
 	defer tx.Rollback(ctx)
 	q := machinelogbookdb.New(tx)
-	material, err := q.GetMaterialForUpdate(ctx, input.MaterialID)
-	if err != nil {
-		return FilamentSpool{}, noRows(err)
-	}
-	if material.InventoryVersion != input.ExpectedInventoryVersion {
-		return FilamentSpool{}, apperror.StaleWrite
-	}
-	manufacturer, productName, err = s.checkFillMaterialAndProduct(ctx, q, input.MaterialID, input.ProductID, manufacturer, productName)
-	if err != nil {
-		return FilamentSpool{}, err
-	}
-	detail, err := q.GetMaterial(ctx, input.MaterialID)
-	if err != nil {
-		return FilamentSpool{}, err
+	var material machinelogbookdb.GetMaterialForUpdateRow
+	var detail machinelogbookdb.GetMaterialRow
+	if !empty {
+		material, err = q.GetMaterialForUpdate(ctx, input.MaterialID)
+		if err != nil {
+			return FilamentSpool{}, noRows(err)
+		}
+		if material.InventoryVersion != input.ExpectedInventoryVersion {
+			return FilamentSpool{}, apperror.StaleWrite
+		}
+		manufacturer, productName, err = s.checkFillMaterialAndProduct(ctx, q, input.MaterialID, input.ProductID, manufacturer, productName)
+		if err != nil {
+			return FilamentSpool{}, err
+		}
+		detail, err = q.GetMaterial(ctx, input.MaterialID)
+		if err != nil {
+			return FilamentSpool{}, err
+		}
 	}
 	sequence, err := q.NextFilamentSpoolSequence(ctx)
 	if err != nil {
@@ -276,34 +305,11 @@ func (s *Service) CreateFilamentSpool(ctx context.Context, p authorization.Princ
 	if err != nil {
 		return FilamentSpool{}, databaseError(err)
 	}
-	fillID := newID()
-	fill, err := q.InsertFilamentSpoolFill(ctx, machinelogbookdb.InsertFilamentSpoolFillParams{ID: fillID, SpoolID: id, FillNumber: 1, MaterialID: input.MaterialID, ProductID: input.ProductID,
-		Manufacturer: manufacturer, ProductName: productName, InitialNetWeightG: numericFromDecimal(weight), FilledAt: input.OccurredAt.UTC()})
-	if err != nil {
-		return FilamentSpool{}, databaseError(err)
-	}
-	ref := fillRef{SpoolID: id, FillID: fill.ID, SpoolDisplayID: spool.DisplayID, FillNumber: fill.FillNumber, MaterialID: input.MaterialID}
-	if input.StockMode == "new_acquisition" {
-		if input.TotalPrice == nil {
-			return FilamentSpool{}, validation("totalPrice is required for a new acquisition")
+	if !empty {
+		err = s.fillNewSpool(ctx, tx, q, p, input, spool, material, detail, weight, manufacturer, productName, supplier, requestID)
+		if err != nil {
+			return FilamentSpool{}, err
 		}
-		price, parseErr := parseDecimal(*input.TotalPrice, false)
-		if parseErr != nil || price.IsNegative() {
-			return FilamentSpool{}, validation("totalPrice must be non-negative")
-		}
-		_, err = s.applyInventoryMutation(ctx, tx, q, p, input.MaterialID, input.ExpectedInventoryVersion, inventoryMutation{Kind: "purchase", QuantityDelta: weight, UnitCost: price.Div(weight), ValueDelta: price, TotalPrice: &price, OccurredAt: input.OccurredAt, Note: input.Notes, Fill: &ref}, requestID)
-	} else {
-		unassigned := decimalFromNumeric(material.Quantity).Sub(decimalFromNumeric(detail.AssignedQuantity))
-		if unassigned.LessThan(weight) {
-			return FilamentSpool{}, conflict("insufficient_unassigned_stock", "Not enough unassigned material stock")
-		}
-		err = s.insertFillTransfer(ctx, q, p, input.MaterialID, input.ExpectedInventoryVersion, nil, &ref, weight, input.OccurredAt, input.Notes)
-		if err == nil {
-			_, err = q.BumpFilamentSpoolVersion(ctx, machinelogbookdb.BumpFilamentSpoolVersionParams{ID: id, ExpectedVersion: 1})
-		}
-	}
-	if err != nil {
-		return FilamentSpool{}, databaseError(err)
 	}
 	if err = writeAudit(ctx, tx, p, "filament_spool.created", "filament_spool", id, requestID, []string{"materialId", "kind", "label", "productId", "stockMode", "inventory", "metadata"}); err != nil {
 		return FilamentSpool{}, err
@@ -312,6 +318,37 @@ func (s *Service) CreateFilamentSpool(ctx context.Context, p authorization.Princ
 		return FilamentSpool{}, err
 	}
 	return s.loadSpool(ctx, machinelogbookdb.New(s.pool), id, false)
+}
+
+// fillNewSpool opens the first fill of a freshly created spool and books the
+// matching inventory movement (purchase or transfer from loose stock).
+func (s *Service) fillNewSpool(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, p authorization.Principal, input FilamentSpoolInput, spool machinelogbookdb.FilamentSpool, material machinelogbookdb.GetMaterialForUpdateRow, detail machinelogbookdb.GetMaterialRow, weight decimal.Decimal, manufacturer, productName, supplier *string, requestID *uuid.UUID) error {
+	fill, err := q.InsertFilamentSpoolFill(ctx, machinelogbookdb.InsertFilamentSpoolFillParams{ID: newID(), SpoolID: spool.ID, FillNumber: 1, MaterialID: input.MaterialID, ProductID: input.ProductID,
+		Manufacturer: manufacturer, ProductName: productName, InitialNetWeightG: numericFromDecimal(weight), FilledAt: input.OccurredAt.UTC()})
+	if err != nil {
+		return databaseError(err)
+	}
+	ref := fillRef{SpoolID: spool.ID, FillID: fill.ID, SpoolDisplayID: spool.DisplayID, FillNumber: fill.FillNumber, MaterialID: input.MaterialID}
+	if input.StockMode == "new_acquisition" {
+		if input.TotalPrice == nil {
+			return validation("totalPrice is required for a new acquisition")
+		}
+		price, parseErr := parseDecimal(*input.TotalPrice, false)
+		if parseErr != nil || price.IsNegative() {
+			return validation("totalPrice must be non-negative")
+		}
+		_, err = s.applyInventoryMutation(ctx, tx, q, p, input.MaterialID, input.ExpectedInventoryVersion, inventoryMutation{Kind: "purchase", QuantityDelta: weight, UnitCost: price.Div(weight), ValueDelta: price, TotalPrice: &price, OccurredAt: input.OccurredAt, Supplier: supplier, Note: input.Notes, Fill: &ref}, requestID)
+	} else {
+		unassigned := decimalFromNumeric(material.Quantity).Sub(decimalFromNumeric(detail.AssignedQuantity))
+		if unassigned.LessThan(weight) {
+			return conflict("insufficient_unassigned_stock", "Not enough unassigned material stock")
+		}
+		err = s.insertFillTransfer(ctx, q, p, input.MaterialID, input.ExpectedInventoryVersion, nil, &ref, weight, input.OccurredAt, input.Notes)
+		if err == nil {
+			_, err = q.BumpFilamentSpoolVersion(ctx, machinelogbookdb.BumpFilamentSpoolVersionParams{ID: spool.ID, ExpectedVersion: 1})
+		}
+	}
+	return databaseError(err)
 }
 
 func (s *Service) UpdateFilamentSpool(ctx context.Context, p authorization.Principal, id uuid.UUID, in FilamentSpoolUpdate, requestID *uuid.UUID) (FilamentSpool, error) {

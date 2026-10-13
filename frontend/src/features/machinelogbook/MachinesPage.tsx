@@ -1,44 +1,147 @@
-import './styles.scss';
-import './catalog.scss';
-import { Add } from '@carbon/icons-react';
-import { Button, Pagination, Search, Select, SelectItem, StructuredListBody, StructuredListWrapper, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, Tag, Tile } from '@carbon/react';
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import type { Machine, MachineStatus, MachineType } from '../../api/generated/models';
+import { useMemo, useState } from 'react';
+import { Button, Link as CarbonLink, MultiSelect, TableToolbarAction } from '@carbon/react';
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
+import type { Machine, MachineAvailability, MachineCurrentItem } from '../../api/generated/models';
 import { PageShell } from '../../app/PageShell';
-import { EmptyState, ErrorState, FullPageLoading } from '../../app/PageState';
-import { DetailRow, DetailSection } from '../../app/DetailSection';
-import { RowActions } from '../../app/RowActions';
-import { PermissionId, hasPermission } from '../auth/permissions';
-import { useCurrentUser } from '../auth/auth';
-import { formatDateTime, formatDecimal, formatDuration } from './formatting';
-import { machineTypesQuery, machinesQuery } from './queries';
-import { MachineEditor, MachineTypeEditor } from './MachineEditor';
+import { MachineFormModal } from './dialogs/MachineFormModal';
+import { MachineTypesModal } from './dialogs/MachineTypesModal';
+import { machineActivityQuery, machinesQuery } from './queries';
+import { DirectoryTable, selectedOptions, useUrlState, type Column, type Option } from './shared/DirectoryTable';
+import { formatQuantity, formatRelative } from './shared/format';
+import { machineLogbookPaths } from './shared/paths';
+import { QueryBoundary } from './shared/QueryBoundary';
+import { AvailabilityTag, ConnectorIssueTag, connectorIssue, currentItemName } from './shared/status';
+import { useCan } from './shared/useCan';
+import { useNow } from './shared/useNow';
+import './styles/machines.scss';
+
+type Row = {
+  id: string;
+  machine: Machine;
+  availability: MachineAvailability;
+  current: MachineCurrentItem | undefined;
+  issue: string | null;
+  connectorState: 'connected' | 'issue' | 'none';
+  lastJobAt: string | null;
+};
+
+const statusOptions: Option[] = [
+  { id: 'available', label: 'Available' }, { id: 'in_use', label: 'In use' }, { id: 'maintenance', label: 'Maintenance' }, { id: 'retired', label: 'Retired' },
+];
+const collectionOptions: Option[] = [{ id: 'automatic', label: 'Automatic' }, { id: 'manual', label: 'Manual' }];
+const connectorOptions: Option[] = [{ id: 'connected', label: 'Connected' }, { id: 'issue', label: 'Issue' }, { id: 'none', label: 'None' }];
+const FILTER_KEYS = ['status', 'type', 'collection', 'connector'];
+
+function ActivityText({ row }: { row: Row }) {
+  if (row.current) {
+    const href = row.current.kind === 'print' ? machineLogbookPaths.print(row.current.id) : machineLogbookPaths.job(row.current.id);
+    return <CarbonLink as={Link} to={href}>{currentItemName(row.current)}</CarbonLink>;
+  }
+  if (row.availability === 'maintenance') return <span className="mj-secondary">Marked for maintenance</span>;
+  if (row.availability === 'retired') return <span className="mj-secondary">Retired</span>;
+  return <span className="mj-secondary">{row.lastJobAt ? `Last job ${formatRelative(row.lastJobAt)}` : 'No jobs yet'}</span>;
+}
+
+function AvailabilityTags({ row }: { row: Row }) {
+  return <span className="mj-inline"><AvailabilityTag availability={row.availability} size="sm" /><ConnectorIssueTag issue={row.issue} /></span>;
+}
+
+const columns: Column<Row>[] = [
+  {
+    key: 'machine', header: 'Machine', sortValue: (row) => row.machine.name,
+    render: (row) => (
+      <div className="mj-cell-stack">
+        <CarbonLink as={Link} to={machineLogbookPaths.machine(row.machine.id)}>{row.machine.name}</CarbonLink>
+        <span className="mj-secondary">{row.machine.machineType.name}</span>
+        <span className="mj-show-narrow"><AvailabilityTags row={row} /></span>
+      </div>
+    ),
+  },
+  { key: 'availability', header: 'Availability', render: (row) => <AvailabilityTags row={row} /> },
+  { key: 'activity', header: 'Activity', narrow: true, render: (row) => <ActivityText row={row} /> },
+  { key: 'jobs', header: 'Jobs', narrow: true, firstDirection: 'DESC', sortValue: (row) => row.machine.jobCount, render: (row) => row.machine.jobCount },
+  { key: 'failure', header: 'Failure rate', narrow: true, firstDirection: 'DESC', sortValue: (row) => Number(row.machine.failureRate), render: (row) => `${formatQuantity(row.machine.failureRate, 1)}%` },
+  {
+    key: 'lastData', header: 'Last data', narrow: true, firstDirection: 'DESC', sortValue: (row) => row.machine.lastIngestedAt ?? '',
+    render: (row) => row.machine.lastIngestedAt ? formatRelative(row.machine.lastIngestedAt) : '—',
+  },
+];
 
 export function MachinesPage() {
-  const currentUser = useCurrentUser();
-  const canManage = hasPermission(currentUser, PermissionId.machinesmanage);
-  const [params, setParams] = useSearchParams();
-  const page = Math.max(1, Number(params.get('page')) || 1);
-  const pageSize = [10, 25, 50].includes(Number(params.get('pageSize'))) ? Number(params.get('pageSize')) : 25;
-  const status = ['active', 'maintenance', 'retired'].includes(params.get('status') ?? '') ? params.get('status') as MachineStatus : undefined;
-  const machines = useQuery({ ...machinesQuery({ search: params.get('search') || undefined, status, page, pageSize }), placeholderData: keepPreviousData });
-  const types = useQuery({ ...machineTypesQuery(), enabled: canManage });
-  const [editor, setEditor] = useState<{ kind: 'machine'; value?: Machine } | { kind: 'type'; value?: MachineType } | null>(null);
-  const update = (key: string, value: string) => setParams((current) => { const next = new URLSearchParams(current); if (value) next.set(key, value); else next.delete(key); next.set('page', '1'); return next; }, { replace: true });
-  if (machines.isPending) return <FullPageLoading label="Loading machines" />;
-  if (!machines.data) return <ErrorState message="Machines could not be loaded." onRetry={() => machines.refetch()} />;
-  const machineLink = (item: Machine) => <Link to={`/machine-logbook/machines/${item.id}`}>{item.name}</Link>;
-  const actions = (item: Machine) => canManage && <RowActions label={`Actions for ${item.name}`}><Button kind="ghost" size="sm" onClick={() => setEditor({ kind: 'machine', value: item })}>Edit</Button></RowActions>;
-  return <PageShell title="Machines" description={`${machines.data.total} machines · statuses are administrative, not live telemetry`} breadcrumbs={[{ label: 'Workshop', to: '/machine-logbook' }, { label: 'Machines' }]} actions={canManage && <><Button kind="secondary" onClick={() => setEditor({ kind: 'type' })}>Add type</Button><Button renderIcon={Add} onClick={() => setEditor({ kind: 'machine' })}>Add machine</Button></>} width="wide" className="machine-logbook-page table-page machine-catalog">
-    <div className="filter-bar"><Search labelText="Search machines" value={params.get('search') || ''} onChange={(event) => update('search', event.currentTarget.value)} /><Select id="machines-status" labelText="Machine status" hideLabel value={status ?? ''} onChange={(event) => update('status', event.target.value)}><SelectItem value="" text="All statuses" /><SelectItem value="active" text="Active" /><SelectItem value="maintenance" text="Maintenance" /><SelectItem value="retired" text="Retired" /></Select></div>
-    {!machines.data.items.length ? <EmptyState title="No machines found" description="Try another search or status filter." /> : <>
-      <div className="catalog-table"><TableContainer><Table aria-label="Machines"><TableHead><TableRow>{['Machine', 'Type', 'Status', 'Total runtime', 'Jobs', 'Failure rate', 'Collection', 'Last ingest', ...(canManage ? ['Actions'] : [])].map((heading) => <TableHeader key={heading}>{heading}</TableHeader>)}</TableRow></TableHead><TableBody>{machines.data.items.map((item) => <TableRow key={item.id}><TableCell>{machineLink(item)}</TableCell><TableCell>{item.machineType.name}</TableCell><TableCell><Tag type={item.status === 'active' ? 'green' : 'gray'}>{item.status}</Tag></TableCell><TableCell>{formatDuration(item.runtimeSeconds)}</TableCell><TableCell>{item.jobCount}</TableCell><TableCell>{formatDecimal(item.failureRate)}%</TableCell><TableCell>{item.automaticCollectionEnabled ? 'Automatic' : 'Manual only'}</TableCell><TableCell>{item.lastIngestedAt ? formatDateTime(item.lastIngestedAt) : '—'}</TableCell>{canManage && <TableCell>{actions(item)}</TableCell>}</TableRow>)}</TableBody></Table></TableContainer></div>
-      <div className="catalog-cards">{machines.data.items.map((item) => <Tile key={item.id}><h2 className="catalog-card-title">{machineLink(item)}</h2><Tag type={item.status === 'active' ? 'green' : 'gray'}>{item.status}</Tag><StructuredListWrapper isCondensed><StructuredListBody><DetailRow label="Type" value={item.machineType.name} /><DetailRow label="Total runtime" value={formatDuration(item.runtimeSeconds)} /><DetailRow label="Jobs" value={item.jobCount} /><DetailRow label="Failure rate" value={`${formatDecimal(item.failureRate)}%`} /><DetailRow label="Collection" value={item.automaticCollectionEnabled ? 'Automatic' : 'Manual only'} /><DetailRow label="Last ingest" value={item.lastIngestedAt ? formatDateTime(item.lastIngestedAt) : '—'} /></StructuredListBody></StructuredListWrapper>{actions(item)}</Tile>)}</div>
-    </>}
-    <Pagination page={page} pageSize={pageSize} pageSizes={[10, 25, 50]} totalItems={machines.data.total} onChange={({ page: nextPage, pageSize: nextSize }) => setParams((current) => { const next = new URLSearchParams(current); next.set('page', String(nextPage)); next.set('pageSize', String(nextSize)); return next; })} />
-    {canManage && <DetailSection title="Machine types" description="Inactive types remain attached to existing machines and are unavailable for new machines.">{types.isPending ? <p>Loading machine types…</p> : types.isError ? <ErrorState message="Machine types could not be loaded." onRetry={() => types.refetch()} /> : <div className="catalog-types">{types.data.items.map((type) => <Tile key={type.id}><h3>{type.name}</h3><Tag type={type.active ? 'green' : 'gray'}>{type.active ? 'Active' : 'Inactive'}</Tag><Button kind="ghost" size="sm" aria-label={`Edit type ${type.name}`} onClick={() => setEditor({ kind: 'type', value: type })}>Edit type</Button></Tile>)}</div>}</DetailSection>}
-    {editor?.kind === 'machine' && <MachineEditor machine={editor.value} onClose={() => setEditor(null)} />}{editor?.kind === 'type' && <MachineTypeEditor type={editor.value} onClose={() => setEditor(null)} />}
-  </PageShell>;
+  const can = useCan();
+  const canManage = can('machines.manage');
+  const [formOpen, setFormOpen] = useState(false);
+  const [typesOpen, setTypesOpen] = useState(false);
+  const url = useUrlState('');
+  useNow();
+  // A single makerspace has far fewer machines than one page holds, so the table filters, sorts and pages them in the browser.
+  const machines = useQuery(machinesQuery({ pageSize: 100 }));
+  const activity = useQuery(machineActivityQuery());
+  const query = {
+    status: machines.isError || activity.isError ? 'error' : machines.isPending || activity.isPending ? 'pending' : 'success',
+    data: machines.data,
+    refetch: () => { void activity.refetch(); return machines.refetch(); },
+  } as const;
+
+  const allRows = useMemo<Row[]>(() => {
+    const byMachine = new Map((activity.data?.items ?? []).map((item) => [item.machineId, item]));
+    return (machines.data?.items ?? []).map((machine) => {
+      const item = byMachine.get(machine.id);
+      const availability: MachineAvailability = item?.availability ?? (machine.status === 'active' ? 'available' : machine.status);
+      const connector = item?.connector;
+      const connectorState: Row['connectorState'] = !connector?.runtimeState ? 'none' : ['disconnected', 'degraded'].includes(connector.runtimeState) ? 'issue' : 'connected';
+      return {
+        id: machine.id, machine, availability, current: item?.current, connectorState, lastJobAt: item?.lastJobStartedAt ?? null,
+        issue: availability === 'retired' ? null : connectorIssue(connector ?? undefined),
+      };
+    });
+  }, [machines.data, activity.data]);
+
+  const statusIds = url.list('status');
+  const typeIds = url.list('type');
+  const collectionIds = url.list('collection');
+  const connectorIds = url.list('connector');
+  const hasActiveFilters = FILTER_KEYS.some((key) => url.get(key));
+  const typeOptions = useMemo<Option[]>(() => {
+    const types = new Map(allRows.map((row) => [row.machine.machineType.id, row.machine.machineType.name]));
+    return [...types].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true }));
+  }, [allRows]);
+
+  const rows = allRows.filter((row) => (statusIds.length === 0 ? row.availability !== 'retired' : statusIds.includes(row.availability))
+    && (typeIds.length === 0 || typeIds.includes(row.machine.machineType.id))
+    && (collectionIds.length === 0 || collectionIds.includes(row.machine.automaticCollectionEnabled ? 'automatic' : 'manual'))
+    && (connectorIds.length === 0 || connectorIds.includes(row.connectorState)));
+
+  return (
+    <PageShell
+      title="Machines" description="Machines in the workshop, their availability and recent activity." width="wide"
+      breadcrumbs={[{ label: 'Workshop', to: machineLogbookPaths.overview() }, { label: 'Machines' }]}
+    >
+      <QueryBoundary query={query} errorMessage="The machines could not be loaded.">
+        <DirectoryTable<Row>
+          id="machines" urlPrefix="" label="Machines" columns={columns} rows={rows} totalCount={allRows.length}
+          searchText={(row) => [row.machine.name, row.machine.machineType.name, row.machine.externalIdentifier ?? ''].join(' ')}
+          defaultSort={{ key: 'machine', direction: 'ASC' }}
+          hasActiveFilters={hasActiveFilters} onClearFilters={() => url.clear(FILTER_KEYS)}
+          filterFields={(
+            <>
+              <MultiSelect id="machines-status-filter" className="mj-filter-panel__field" titleText="Status" label="Active machines" helperText="Retired machines only appear when selected." items={statusOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(statusOptions, statusIds)} onChange={({ selectedItems }) => url.setList('status', selectedItems)} />
+              <MultiSelect id="machines-type-filter" className="mj-filter-panel__field" titleText="Type" label="All types" items={typeOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(typeOptions, typeIds)} onChange={({ selectedItems }) => url.setList('type', selectedItems)} />
+              <MultiSelect id="machines-collection-filter" className="mj-filter-panel__field" titleText="Collection" label="All collection modes" items={collectionOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(collectionOptions, collectionIds)} onChange={({ selectedItems }) => url.setList('collection', selectedItems)} />
+              <MultiSelect id="machines-connector-filter" className="mj-filter-panel__field" titleText="Connector" label="All connector states" items={connectorOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(connectorOptions, connectorIds)} onChange={({ selectedItems }) => url.setList('connector', selectedItems)} />
+            </>
+          )}
+          toolbarMenu={canManage ? <TableToolbarAction onClick={() => setTypesOpen(true)}>Manage machine types</TableToolbarAction> : undefined}
+          toolbarAction={canManage ? <Button kind="primary" size="lg" onClick={() => setFormOpen(true)}>Add machine</Button> : undefined}
+          empty={{
+            title: 'No machines yet', description: 'Add a machine to start logging jobs.',
+            action: canManage ? <Button kind="tertiary" onClick={() => setFormOpen(true)}>Add machine</Button> : undefined,
+          }}
+        />
+      </QueryBoundary>
+      {canManage && formOpen && <MachineFormModal open onClose={() => setFormOpen(false)} />}
+      {canManage && typesOpen && <MachineTypesModal open onClose={() => setTypesOpen(false)} />}
+    </PageShell>
+  );
 }
