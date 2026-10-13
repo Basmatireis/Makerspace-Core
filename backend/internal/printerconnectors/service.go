@@ -935,12 +935,14 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 		reason = &v
 	}
 	var attemptID *uuid.UUID
+	var run db.PrinterObservedRun
 	if input.RunID != nil {
 		state, stateErr := observedRunState(input.Kind, input.Payload)
 		if stateErr != nil {
 			return rejected("invalid_event")
 		}
-		run, runErr := db.New(tx).UpsertObservedRun(ctx, db.UpsertObservedRunParams{ID: *input.RunID, AssignmentID: a.ID, MachineID: a.MachineID, VendorJobID: input.ExternalPrintID, State: state, HistoryComplete: input.HistoryComplete, ObservedAt: input.OccurredAt.UTC()})
+		var runErr error
+		run, runErr = recordObservedRun(ctx, db.New(tx), *input.RunID, a.ID, a.MachineID, input.ExternalPrintID, state, input.HistoryComplete, input.OccurredAt)
 		if errors.Is(runErr, pgx.ErrNoRows) {
 			return rejected("observed_run_conflict")
 		}
@@ -962,6 +964,12 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 		}
 		code := "temporarily_unavailable"
 		return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
+	}
+	if inserted && input.RunID != nil {
+		if err = applyPrintFacts(ctx, db.New(tx), run, event.ID, input.Kind, input.Payload, input.OccurredAt, input.ReportRevision); err != nil {
+			code := "temporarily_unavailable"
+			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
+		}
 	}
 	if inserted && attemptID != nil && applicationState == "applied" {
 		if err = s.printing.ApplyConnectorAttemptEvent(ctx, tx, *attemptID, a.MachineID, input.Kind, input.Payload, input.OccurredAt); err != nil {

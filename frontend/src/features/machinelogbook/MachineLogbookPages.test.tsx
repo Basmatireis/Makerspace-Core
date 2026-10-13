@@ -47,6 +47,7 @@ function jobFixture(overrides: Partial<MachineJob> = {}): MachineJob {
     endsAt: '2026-09-15T11:26:00Z',
     durationSeconds: 11640,
     source: 'automatic',
+    run: 'manual',
     externalId: 'BH2D-00441',
     reviewState: 'needs_review',
     customer: null,

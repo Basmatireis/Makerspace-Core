@@ -21,6 +21,8 @@ the required session and CSRF credentials.
 import type { UUIDv7 } from './uUIDv7';
 import type { Machine } from './machine';
 import type { MachineJobSource } from './machineJobSource';
+import type { MachineJobRun } from './machineJobRun';
+import type { MachineJobPrintReference } from './machineJobPrintReference';
 import type { MachineJobReviewState } from './machineJobReviewState';
 import type { MachineJobCustomer } from './machineJobCustomer';
 import type { MachineJobOperator } from './machineJobOperator';
@@ -51,6 +53,8 @@ export interface MachineJob {
   source: MachineJobSource;
   /** @nullable */
   externalId?: string | null;
+  run: MachineJobRun;
+  print?: MachineJobPrintReference;
   reviewState: MachineJobReviewState;
   /** @nullable */
   customer?: MachineJobCustomer;

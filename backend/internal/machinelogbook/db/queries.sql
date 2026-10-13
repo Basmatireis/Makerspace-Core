@@ -693,3 +693,73 @@ SELECT m.id::text AS key, m.name AS label,
        COALESCE(round(100.0 * count(j.id) FILTER (WHERE j.outcome IN ('failed', 'partial_failure')) / NULLIF(count(j.id), 0), 2), 0)::numeric AS value
 FROM machines m LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.review_state = 'confirmed' AND j.starts_at >= sqlc.arg(from_time) AND j.starts_at < sqlc.arg(to_time)
 GROUP BY m.id, m.name ORDER BY value DESC, lower(m.name);
+
+-- name: ListPrints :many
+SELECT r.id, r.display_id, r.machine_id, m.name AS machine_name, c.name AS connector_name, r.file_name, r.state,
+       r.first_observed_at, r.last_observed_at, r.started_at, r.ended_at, r.estimated_end_at, r.progress_percent,
+       r.reported_quantity_g, r.reported_quantity_basis, r.reported_spool_id, sp.display_id AS spool_display_id,
+       mat.id AS material_id, mat.name AS material_name, r.reported_event_id, r.version,
+       j.id AS job_id, j.display_id AS job_display_id, j.title AS job_title
+FROM printer_observed_runs r
+JOIN machines m ON m.id = r.machine_id
+JOIN printer_connector_assignments a ON a.id = r.assignment_id
+JOIN printer_connectors c ON c.id = a.connector_id
+LEFT JOIN filament_spools sp ON sp.id = r.reported_spool_id
+LEFT JOIN materials mat ON mat.id = sp.material_id
+LEFT JOIN machine_jobs j ON j.print_id = r.id
+WHERE (sqlc.narg(print_id)::uuid IS NULL OR r.id = sqlc.narg(print_id)::uuid)
+  AND (sqlc.arg(search)::text = '' OR r.display_id ILIKE '%' || sqlc.arg(search)::text || '%' OR r.file_name ILIKE '%' || sqlc.arg(search)::text || '%')
+  AND (sqlc.narg(machine_id)::uuid IS NULL OR r.machine_id = sqlc.narg(machine_id)::uuid)
+  AND (cardinality(sqlc.arg(states)::text[]) = 0 OR r.state = ANY(sqlc.arg(states)::text[]))
+  AND (sqlc.narg(linked)::boolean IS NULL OR (j.id IS NOT NULL) = sqlc.narg(linked)::boolean)
+  AND (sqlc.narg(from_time)::timestamptz IS NULL OR r.first_observed_at >= sqlc.narg(from_time)::timestamptz)
+  AND (sqlc.narg(to_time)::timestamptz IS NULL OR r.first_observed_at < sqlc.narg(to_time)::timestamptz)
+ORDER BY r.first_observed_at DESC, r.id DESC
+LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+
+-- name: CountPrints :one
+SELECT count(*) FROM printer_observed_runs r
+LEFT JOIN machine_jobs j ON j.print_id = r.id
+WHERE (sqlc.arg(search)::text = '' OR r.display_id ILIKE '%' || sqlc.arg(search)::text || '%' OR r.file_name ILIKE '%' || sqlc.arg(search)::text || '%')
+  AND (sqlc.narg(machine_id)::uuid IS NULL OR r.machine_id = sqlc.narg(machine_id)::uuid)
+  AND (cardinality(sqlc.arg(states)::text[]) = 0 OR r.state = ANY(sqlc.arg(states)::text[]))
+  AND (sqlc.narg(linked)::boolean IS NULL OR (j.id IS NOT NULL) = sqlc.narg(linked)::boolean)
+  AND (sqlc.narg(from_time)::timestamptz IS NULL OR r.first_observed_at >= sqlc.narg(from_time)::timestamptz)
+  AND (sqlc.narg(to_time)::timestamptz IS NULL OR r.first_observed_at < sqlc.narg(to_time)::timestamptz);
+
+-- name: ListPrintEvents :many
+SELECT id, kind, occurred_at, payload FROM printer_events
+WHERE observed_run_id = sqlc.arg(print_id)
+ORDER BY occurred_at, id
+LIMIT 200;
+
+-- name: GetPrintForUpdate :one
+SELECT * FROM printer_observed_runs WHERE id = sqlc.arg(id) FOR UPDATE;
+
+-- name: GetPrintReference :one
+SELECT r.id, r.display_id, r.file_name, r.state, c.name AS connector_name
+FROM printer_observed_runs r
+JOIN printer_connector_assignments a ON a.id = r.assignment_id
+JOIN printer_connectors c ON c.id = a.connector_id
+WHERE r.id = sqlc.arg(id);
+
+-- name: GetMachineJobIDByPrint :one
+SELECT id FROM machine_jobs WHERE print_id = sqlc.arg(print_id);
+
+-- name: GetMachineJobByPrintForUpdate :one
+SELECT * FROM machine_jobs WHERE print_id = sqlc.arg(print_id) FOR UPDATE;
+
+-- name: LinkMachineJobPrint :one
+UPDATE machine_jobs SET print_id = sqlc.arg(print_id), starts_at = sqlc.arg(starts_at), ends_at = sqlc.arg(ends_at),
+    outcome = sqlc.arg(outcome), version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND print_id IS NULL
+RETURNING *;
+
+-- name: SetMachineJobPrint :one
+UPDATE machine_jobs SET print_id = sqlc.narg(print_id), version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
+RETURNING *;
+
+-- name: AcceptPrinterEventReconciliation :execrows
+UPDATE printer_events SET reconciliation_state = 'accepted', reconciled_by_account_id = sqlc.arg(actor_account_id), reconciled_at = now()
+WHERE id = sqlc.arg(id) AND kind = 'consumption_report' AND reconciliation_state = 'pending';

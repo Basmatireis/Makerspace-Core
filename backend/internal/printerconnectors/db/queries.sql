@@ -140,28 +140,64 @@ UPDATE printer_connector_assignments SET applied_configuration_version=sqlc.arg(
     runtime_state=sqlc.arg(runtime_state), runtime_error_code=sqlc.narg(runtime_error_code), updated_at=now()
 WHERE id=sqlc.arg(id) AND connector_id=sqlc.arg(connector_id) AND ended_at IS NULL;
 
--- name: UpsertObservedRun :one
-INSERT INTO printer_observed_runs (id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at)
-VALUES (sqlc.arg(id), sqlc.arg(assignment_id), sqlc.arg(machine_id), sqlc.narg(vendor_job_id), sqlc.arg(state), sqlc.arg(history_complete), sqlc.arg(observed_at), sqlc.arg(observed_at))
-ON CONFLICT (id) DO UPDATE SET
-    vendor_job_id=COALESCE(printer_observed_runs.vendor_job_id, excluded.vendor_job_id),
+-- name: NextPrintSequence :one
+SELECT nextval('print_display_sequence')::bigint;
+
+-- name: InsertObservedRun :one
+INSERT INTO printer_observed_runs (id, display_id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at)
+VALUES (sqlc.arg(id), sqlc.arg(display_id), sqlc.arg(assignment_id), sqlc.arg(machine_id), sqlc.narg(vendor_job_id), sqlc.arg(state), sqlc.arg(history_complete), sqlc.arg(observed_at), sqlc.arg(observed_at))
+ON CONFLICT (id) DO NOTHING
+RETURNING *;
+
+-- name: UpdateObservedRun :one
+UPDATE printer_observed_runs SET
+    vendor_job_id=COALESCE(vendor_job_id, sqlc.narg(vendor_job_id)::text),
     state=CASE
-        WHEN printer_observed_runs.state IN ('completed','failed','cancelled') THEN printer_observed_runs.state
-        WHEN excluded.last_observed_at >= printer_observed_runs.last_observed_at THEN excluded.state
-        ELSE printer_observed_runs.state
+        WHEN state IN ('completed','failed','cancelled') THEN state
+        WHEN sqlc.arg(observed_at)::timestamptz >= last_observed_at THEN sqlc.arg(state)::text
+        ELSE state
     END,
-    history_complete=printer_observed_runs.history_complete AND excluded.history_complete,
-    last_observed_at=GREATEST(printer_observed_runs.last_observed_at, excluded.last_observed_at),
-    version=printer_observed_runs.version + CASE
-        WHEN excluded.last_observed_at > printer_observed_runs.last_observed_at THEN 1
+    history_complete=history_complete AND sqlc.arg(history_complete)::boolean,
+    last_observed_at=GREATEST(last_observed_at, sqlc.arg(observed_at)::timestamptz),
+    version=version + CASE
+        WHEN sqlc.arg(observed_at)::timestamptz > last_observed_at THEN 1
         ELSE 0
     END,
     updated_at=CASE
-        WHEN excluded.last_observed_at > printer_observed_runs.last_observed_at THEN now()
-        ELSE printer_observed_runs.updated_at
+        WHEN sqlc.arg(observed_at)::timestamptz > last_observed_at THEN now()
+        ELSE updated_at
     END
-WHERE printer_observed_runs.assignment_id=excluded.assignment_id AND printer_observed_runs.machine_id=excluded.machine_id
+WHERE id=sqlc.arg(id) AND assignment_id=sqlc.arg(assignment_id) AND machine_id=sqlc.arg(machine_id)
 RETURNING *;
+
+-- name: UpdateObservedRunFacts :exec
+UPDATE printer_observed_runs SET
+    started_at=sqlc.narg(started_at)::timestamptz,
+    ended_at=sqlc.narg(ended_at)::timestamptz,
+    file_name=COALESCE(sqlc.narg(file_name)::text, file_name),
+    progress_percent=COALESCE(sqlc.narg(progress_percent)::smallint, progress_percent),
+    estimated_end_at=COALESCE(sqlc.narg(estimated_end_at)::timestamptz, estimated_end_at)
+WHERE id=sqlc.arg(id);
+
+-- name: SetObservedRunReport :execrows
+UPDATE printer_observed_runs r SET reported_quantity_g=sqlc.arg(quantity_g), reported_quantity_basis=sqlc.arg(quantity_basis),
+    reported_spool_id=sqlc.narg(spool_id), reported_event_id=sqlc.arg(event_id)
+WHERE r.id=sqlc.arg(id) AND (r.reported_event_id IS NULL OR sqlc.arg(report_revision)::bigint >= COALESCE((SELECT e.report_revision FROM printer_events e WHERE e.id=r.reported_event_id), 0));
+
+-- name: ListSlotSpoolsAt :many
+SELECT a.spool_id
+FROM printer_spool_assignments a
+JOIN printer_slots s ON s.id=a.slot_id
+JOIN printer_input_units u ON u.id=s.input_unit_id
+WHERE u.machine_id=sqlc.arg(machine_id) AND s.external_identifier=sqlc.arg(slot_external_id)
+  AND a.mounted_at <= sqlc.arg(at)::timestamptz AND (a.unmounted_at IS NULL OR a.unmounted_at > sqlc.arg(at)::timestamptz);
+
+-- name: ListOpenMachineSpools :many
+SELECT a.spool_id
+FROM printer_spool_assignments a
+JOIN printer_slots s ON s.id=a.slot_id
+JOIN printer_input_units u ON u.id=s.input_unit_id
+WHERE u.machine_id=sqlc.arg(machine_id) AND a.unmounted_at IS NULL;
 
 -- name: ListObservedRuns :many
 SELECT r.*, m.name AS machine_name

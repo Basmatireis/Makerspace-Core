@@ -447,6 +447,7 @@ type MachineJob struct {
 	PriceAdjustmentKind      *string
 	PriceAdjustmentValue     pgtype.Numeric
 	EffectivePrice           pgtype.Numeric
+	PrintID                  *uuid.UUID
 }
 
 type MachineJobMaterialUsage struct {
@@ -1076,18 +1077,28 @@ type PrinterInputUnit struct {
 }
 
 type PrinterObservedRun struct {
-	ID              uuid.UUID
-	AssignmentID    uuid.UUID
-	MachineID       uuid.UUID
-	VendorJobID     *string
-	AttemptID       *uuid.UUID
-	State           string
-	HistoryComplete bool
-	FirstObservedAt time.Time
-	LastObservedAt  time.Time
-	Version         int64
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID                    uuid.UUID
+	AssignmentID          uuid.UUID
+	MachineID             uuid.UUID
+	VendorJobID           *string
+	AttemptID             *uuid.UUID
+	State                 string
+	HistoryComplete       bool
+	FirstObservedAt       time.Time
+	LastObservedAt        time.Time
+	Version               int64
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	DisplayID             string
+	FileName              *string
+	StartedAt             pgtype.Timestamptz
+	EndedAt               pgtype.Timestamptz
+	EstimatedEndAt        pgtype.Timestamptz
+	ProgressPercent       *int16
+	ReportedQuantityG     pgtype.Numeric
+	ReportedQuantityBasis *string
+	ReportedSpoolID       *uuid.UUID
+	ReportedEventID       *uuid.UUID
 }
 
 type PrinterProfile struct {

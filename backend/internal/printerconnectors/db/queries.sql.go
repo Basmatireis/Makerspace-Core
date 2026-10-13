@@ -745,7 +745,7 @@ func (q *Queries) GetEnrollmentByDigestForUpdate(ctx context.Context, tokenDiges
 }
 
 const getObservedRunForUpdate = `-- name: GetObservedRunForUpdate :one
-SELECT id, assignment_id, machine_id, vendor_job_id, attempt_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at FROM printer_observed_runs WHERE id=$1 FOR UPDATE
+SELECT id, assignment_id, machine_id, vendor_job_id, attempt_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id FROM printer_observed_runs WHERE id=$1 FOR UPDATE
 `
 
 func (q *Queries) GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (PrinterObservedRun, error) {
@@ -764,6 +764,16 @@ func (q *Queries) GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (Pr
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DisplayID,
+		&i.FileName,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.EstimatedEndAt,
+		&i.ProgressPercent,
+		&i.ReportedQuantityG,
+		&i.ReportedQuantityBasis,
+		&i.ReportedSpoolID,
+		&i.ReportedEventID,
 	)
 	return i, err
 }
@@ -853,9 +863,66 @@ func (q *Queries) InsertConnectorEvent(ctx context.Context, arg InsertConnectorE
 	return i, err
 }
 
+const insertObservedRun = `-- name: InsertObservedRun :one
+INSERT INTO printer_observed_runs (id, display_id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+ON CONFLICT (id) DO NOTHING
+RETURNING id, assignment_id, machine_id, vendor_job_id, attempt_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id
+`
+
+type InsertObservedRunParams struct {
+	ID              uuid.UUID
+	DisplayID       string
+	AssignmentID    uuid.UUID
+	MachineID       uuid.UUID
+	VendorJobID     *string
+	State           string
+	HistoryComplete bool
+	ObservedAt      time.Time
+}
+
+func (q *Queries) InsertObservedRun(ctx context.Context, arg InsertObservedRunParams) (PrinterObservedRun, error) {
+	row := q.db.QueryRow(ctx, insertObservedRun,
+		arg.ID,
+		arg.DisplayID,
+		arg.AssignmentID,
+		arg.MachineID,
+		arg.VendorJobID,
+		arg.State,
+		arg.HistoryComplete,
+		arg.ObservedAt,
+	)
+	var i PrinterObservedRun
+	err := row.Scan(
+		&i.ID,
+		&i.AssignmentID,
+		&i.MachineID,
+		&i.VendorJobID,
+		&i.AttemptID,
+		&i.State,
+		&i.HistoryComplete,
+		&i.FirstObservedAt,
+		&i.LastObservedAt,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DisplayID,
+		&i.FileName,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.EstimatedEndAt,
+		&i.ProgressPercent,
+		&i.ReportedQuantityG,
+		&i.ReportedQuantityBasis,
+		&i.ReportedSpoolID,
+		&i.ReportedEventID,
+	)
+	return i, err
+}
+
 const linkObservedRun = `-- name: LinkObservedRun :one
 UPDATE printer_observed_runs SET attempt_id=$1, version=version+1, updated_at=now()
-WHERE id=$2 AND version=$3 AND attempt_id IS NULL RETURNING id, assignment_id, machine_id, vendor_job_id, attempt_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at
+WHERE id=$2 AND version=$3 AND attempt_id IS NULL RETURNING id, assignment_id, machine_id, vendor_job_id, attempt_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id
 `
 
 type LinkObservedRunParams struct {
@@ -880,6 +947,16 @@ func (q *Queries) LinkObservedRun(ctx context.Context, arg LinkObservedRunParams
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DisplayID,
+		&i.FileName,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.EstimatedEndAt,
+		&i.ProgressPercent,
+		&i.ReportedQuantityG,
+		&i.ReportedQuantityBasis,
+		&i.ReportedSpoolID,
+		&i.ReportedEventID,
 	)
 	return i, err
 }
@@ -1134,26 +1211,36 @@ func (q *Queries) ListConnectors(ctx context.Context) ([]PrinterConnector, error
 }
 
 const listObservedRuns = `-- name: ListObservedRuns :many
-SELECT r.id, r.assignment_id, r.machine_id, r.vendor_job_id, r.attempt_id, r.state, r.history_complete, r.first_observed_at, r.last_observed_at, r.version, r.created_at, r.updated_at, m.name AS machine_name
+SELECT r.id, r.assignment_id, r.machine_id, r.vendor_job_id, r.attempt_id, r.state, r.history_complete, r.first_observed_at, r.last_observed_at, r.version, r.created_at, r.updated_at, r.display_id, r.file_name, r.started_at, r.ended_at, r.estimated_end_at, r.progress_percent, r.reported_quantity_g, r.reported_quantity_basis, r.reported_spool_id, r.reported_event_id, m.name AS machine_name
 FROM printer_observed_runs r JOIN machines m ON m.id=r.machine_id
 WHERE r.assignment_id IN (SELECT id FROM printer_connector_assignments WHERE connector_id=$1)
 ORDER BY r.last_observed_at DESC, r.id DESC LIMIT 100
 `
 
 type ListObservedRunsRow struct {
-	ID              uuid.UUID
-	AssignmentID    uuid.UUID
-	MachineID       uuid.UUID
-	VendorJobID     *string
-	AttemptID       *uuid.UUID
-	State           string
-	HistoryComplete bool
-	FirstObservedAt time.Time
-	LastObservedAt  time.Time
-	Version         int64
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	MachineName     string
+	ID                    uuid.UUID
+	AssignmentID          uuid.UUID
+	MachineID             uuid.UUID
+	VendorJobID           *string
+	AttemptID             *uuid.UUID
+	State                 string
+	HistoryComplete       bool
+	FirstObservedAt       time.Time
+	LastObservedAt        time.Time
+	Version               int64
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	DisplayID             string
+	FileName              *string
+	StartedAt             pgtype.Timestamptz
+	EndedAt               pgtype.Timestamptz
+	EstimatedEndAt        pgtype.Timestamptz
+	ProgressPercent       *int16
+	ReportedQuantityG     pgtype.Numeric
+	ReportedQuantityBasis *string
+	ReportedSpoolID       *uuid.UUID
+	ReportedEventID       *uuid.UUID
+	MachineName           string
 }
 
 func (q *Queries) ListObservedRuns(ctx context.Context, connectorID uuid.UUID) ([]ListObservedRunsRow, error) {
@@ -1178,6 +1265,16 @@ func (q *Queries) ListObservedRuns(ctx context.Context, connectorID uuid.UUID) (
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DisplayID,
+			&i.FileName,
+			&i.StartedAt,
+			&i.EndedAt,
+			&i.EstimatedEndAt,
+			&i.ProgressPercent,
+			&i.ReportedQuantityG,
+			&i.ReportedQuantityBasis,
+			&i.ReportedSpoolID,
+			&i.ReportedEventID,
 			&i.MachineName,
 		); err != nil {
 			return nil, err
@@ -1188,6 +1285,80 @@ func (q *Queries) ListObservedRuns(ctx context.Context, connectorID uuid.UUID) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const listOpenMachineSpools = `-- name: ListOpenMachineSpools :many
+SELECT a.spool_id
+FROM printer_spool_assignments a
+JOIN printer_slots s ON s.id=a.slot_id
+JOIN printer_input_units u ON u.id=s.input_unit_id
+WHERE u.machine_id=$1 AND a.unmounted_at IS NULL
+`
+
+func (q *Queries) ListOpenMachineSpools(ctx context.Context, machineID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listOpenMachineSpools, machineID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var spool_id uuid.UUID
+		if err := rows.Scan(&spool_id); err != nil {
+			return nil, err
+		}
+		items = append(items, spool_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSlotSpoolsAt = `-- name: ListSlotSpoolsAt :many
+SELECT a.spool_id
+FROM printer_spool_assignments a
+JOIN printer_slots s ON s.id=a.slot_id
+JOIN printer_input_units u ON u.id=s.input_unit_id
+WHERE u.machine_id=$1 AND s.external_identifier=$2
+  AND a.mounted_at <= $3::timestamptz AND (a.unmounted_at IS NULL OR a.unmounted_at > $3::timestamptz)
+`
+
+type ListSlotSpoolsAtParams struct {
+	MachineID      uuid.UUID
+	SlotExternalID *string
+	At             time.Time
+}
+
+func (q *Queries) ListSlotSpoolsAt(ctx context.Context, arg ListSlotSpoolsAtParams) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listSlotSpoolsAt, arg.MachineID, arg.SlotExternalID, arg.At)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []uuid.UUID{}
+	for rows.Next() {
+		var spool_id uuid.UUID
+		if err := rows.Scan(&spool_id); err != nil {
+			return nil, err
+		}
+		items = append(items, spool_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const nextPrintSequence = `-- name: NextPrintSequence :one
+SELECT nextval('print_display_sequence')::bigint
+`
+
+func (q *Queries) NextPrintSequence(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, nextPrintSequence)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const recordHeartbeat = `-- name: RecordHeartbeat :one
@@ -1311,6 +1482,36 @@ WHERE connector_id=$1 AND state='retiring'
 func (q *Queries) RevokeRetiringCredentials(ctx context.Context, connectorID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, revokeRetiringCredentials, connectorID)
 	return err
+}
+
+const setObservedRunReport = `-- name: SetObservedRunReport :execrows
+UPDATE printer_observed_runs r SET reported_quantity_g=$1, reported_quantity_basis=$2,
+    reported_spool_id=$3, reported_event_id=$4
+WHERE r.id=$5 AND (r.reported_event_id IS NULL OR $6::bigint >= COALESCE((SELECT e.report_revision FROM printer_events e WHERE e.id=r.reported_event_id), 0))
+`
+
+type SetObservedRunReportParams struct {
+	QuantityG      pgtype.Numeric
+	QuantityBasis  *string
+	SpoolID        *uuid.UUID
+	EventID        *uuid.UUID
+	ID             uuid.UUID
+	ReportRevision int64
+}
+
+func (q *Queries) SetObservedRunReport(ctx context.Context, arg SetObservedRunReportParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setObservedRunReport,
+		arg.QuantityG,
+		arg.QuantityBasis,
+		arg.SpoolID,
+		arg.EventID,
+		arg.ID,
+		arg.ReportRevision,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const touchCredential = `-- name: TouchCredential :exec
@@ -1457,49 +1658,47 @@ func (q *Queries) UpdateConnector(ctx context.Context, arg UpdateConnectorParams
 	return i, err
 }
 
-const upsertObservedRun = `-- name: UpsertObservedRun :one
-INSERT INTO printer_observed_runs (id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
-ON CONFLICT (id) DO UPDATE SET
-    vendor_job_id=COALESCE(printer_observed_runs.vendor_job_id, excluded.vendor_job_id),
+const updateObservedRun = `-- name: UpdateObservedRun :one
+UPDATE printer_observed_runs SET
+    vendor_job_id=COALESCE(vendor_job_id, $1::text),
     state=CASE
-        WHEN printer_observed_runs.state IN ('completed','failed','cancelled') THEN printer_observed_runs.state
-        WHEN excluded.last_observed_at >= printer_observed_runs.last_observed_at THEN excluded.state
-        ELSE printer_observed_runs.state
+        WHEN state IN ('completed','failed','cancelled') THEN state
+        WHEN $2::timestamptz >= last_observed_at THEN $3::text
+        ELSE state
     END,
-    history_complete=printer_observed_runs.history_complete AND excluded.history_complete,
-    last_observed_at=GREATEST(printer_observed_runs.last_observed_at, excluded.last_observed_at),
-    version=printer_observed_runs.version + CASE
-        WHEN excluded.last_observed_at > printer_observed_runs.last_observed_at THEN 1
+    history_complete=history_complete AND $4::boolean,
+    last_observed_at=GREATEST(last_observed_at, $2::timestamptz),
+    version=version + CASE
+        WHEN $2::timestamptz > last_observed_at THEN 1
         ELSE 0
     END,
     updated_at=CASE
-        WHEN excluded.last_observed_at > printer_observed_runs.last_observed_at THEN now()
-        ELSE printer_observed_runs.updated_at
+        WHEN $2::timestamptz > last_observed_at THEN now()
+        ELSE updated_at
     END
-WHERE printer_observed_runs.assignment_id=excluded.assignment_id AND printer_observed_runs.machine_id=excluded.machine_id
-RETURNING id, assignment_id, machine_id, vendor_job_id, attempt_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at
+WHERE id=$5 AND assignment_id=$6 AND machine_id=$7
+RETURNING id, assignment_id, machine_id, vendor_job_id, attempt_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id
 `
 
-type UpsertObservedRunParams struct {
+type UpdateObservedRunParams struct {
+	VendorJobID     *string
+	ObservedAt      time.Time
+	State           string
+	HistoryComplete bool
 	ID              uuid.UUID
 	AssignmentID    uuid.UUID
 	MachineID       uuid.UUID
-	VendorJobID     *string
-	State           string
-	HistoryComplete bool
-	ObservedAt      time.Time
 }
 
-func (q *Queries) UpsertObservedRun(ctx context.Context, arg UpsertObservedRunParams) (PrinterObservedRun, error) {
-	row := q.db.QueryRow(ctx, upsertObservedRun,
+func (q *Queries) UpdateObservedRun(ctx context.Context, arg UpdateObservedRunParams) (PrinterObservedRun, error) {
+	row := q.db.QueryRow(ctx, updateObservedRun,
+		arg.VendorJobID,
+		arg.ObservedAt,
+		arg.State,
+		arg.HistoryComplete,
 		arg.ID,
 		arg.AssignmentID,
 		arg.MachineID,
-		arg.VendorJobID,
-		arg.State,
-		arg.HistoryComplete,
-		arg.ObservedAt,
 	)
 	var i PrinterObservedRun
 	err := row.Scan(
@@ -1515,6 +1714,47 @@ func (q *Queries) UpsertObservedRun(ctx context.Context, arg UpsertObservedRunPa
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DisplayID,
+		&i.FileName,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.EstimatedEndAt,
+		&i.ProgressPercent,
+		&i.ReportedQuantityG,
+		&i.ReportedQuantityBasis,
+		&i.ReportedSpoolID,
+		&i.ReportedEventID,
 	)
 	return i, err
+}
+
+const updateObservedRunFacts = `-- name: UpdateObservedRunFacts :exec
+UPDATE printer_observed_runs SET
+    started_at=$1::timestamptz,
+    ended_at=$2::timestamptz,
+    file_name=COALESCE($3::text, file_name),
+    progress_percent=COALESCE($4::smallint, progress_percent),
+    estimated_end_at=COALESCE($5::timestamptz, estimated_end_at)
+WHERE id=$6
+`
+
+type UpdateObservedRunFactsParams struct {
+	StartedAt       pgtype.Timestamptz
+	EndedAt         pgtype.Timestamptz
+	FileName        *string
+	ProgressPercent *int16
+	EstimatedEndAt  pgtype.Timestamptz
+	ID              uuid.UUID
+}
+
+func (q *Queries) UpdateObservedRunFacts(ctx context.Context, arg UpdateObservedRunFactsParams) error {
+	_, err := q.db.Exec(ctx, updateObservedRunFacts,
+		arg.StartedAt,
+		arg.EndedAt,
+		arg.FileName,
+		arg.ProgressPercent,
+		arg.EstimatedEndAt,
+		arg.ID,
+	)
+	return err
 }

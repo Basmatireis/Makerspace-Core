@@ -525,6 +525,14 @@ func (s *Service) jobFromRow(ctx context.Context, q *machinelogbookdb.Queries, r
 		return MachineJob{}, err
 	}
 	item := MachineJob{ID: row.ID, DisplayID: row.DisplayID, Title: row.Title, Status: jobStatus(row.Outcome, row.EndsAt, s.now()), Machine: machineFromGet(machineRow), StartsAt: row.StartsAt, EndsAt: row.EndsAt, DurationSeconds: int64(row.EndsAt.Sub(row.StartsAt).Seconds()), Source: row.Source, ExternalID: row.ExternalID, ReviewState: row.ReviewState, Outcome: row.Outcome, Notes: row.Notes, PricingStatus: row.PricingStatus, CalculatedPrice: nullableDecimal(row.CalculatedPrice), EffectivePrice: nullableDecimal(row.EffectivePrice), Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Usages: make([]MachineJobUsage, 0, len(usages))}
+	item.Run = "manual"
+	if row.PrintID != nil {
+		item.Run = "automatic"
+		item.Print, err = s.loadPrintReference(ctx, q, *row.PrintID)
+		if err != nil {
+			return MachineJob{}, err
+		}
+	}
 	if row.PriceAdjustmentKind != nil {
 		item.PriceAdjustment = &PriceAdjustment{Kind: *row.PriceAdjustmentKind, Value: decimalString(row.PriceAdjustmentValue), Reason: stringValue(row.PriceAdjustmentReason), AdjustedAt: row.PriceAdjustedAt.Time}
 		item.FinalPrice = item.EffectivePrice

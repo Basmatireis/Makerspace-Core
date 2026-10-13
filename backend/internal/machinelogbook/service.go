@@ -244,6 +244,8 @@ type MachineJob struct {
 	DurationSeconds                             int64
 	Source                                      string
 	ExternalID                                  *string
+	Run                                         string
+	Print                                       *MachineJobPrint
 	ReviewState                                 string
 	Customer                                    *BillingParty
 	Operator                                    *Operator

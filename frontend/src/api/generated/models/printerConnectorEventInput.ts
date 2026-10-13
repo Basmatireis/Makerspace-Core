@@ -46,5 +46,6 @@ export interface PrinterConnectorEventInput {
    * @nullable
    */
   reportRevision: number | null;
+  /** Kind-specific. Keys read by core: operational_state {state, fileName?}; progress {state?, percent 0-100, remainingSeconds?, fileName?}; terminal_outcome {outcome: completed|failed|cancelled}; consumption_report {quantityGrams (decimal string), quantityBasis: estimated|actual, slotExternalId?}. */
   payload: PrinterConnectorEventInputPayload;
 }

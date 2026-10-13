@@ -31,6 +31,11 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 		{"machine_jobs.read", func() error { _, err := s.GetJob(ctx, p, id); return err }},
 		{"machine_jobs.create", func() error { _, err := s.CreateManualJob(ctx, p, jobInput, nil); return err }},
 		{"machine_jobs.edit", func() error { _, err := s.UpdateJobFacts(ctx, p, id, 1, jobInput, nil); return err }},
+		{"machine_jobs.read list prints", func() error { _, _, err := s.ListPrints(ctx, p, PrintFilters{Page: 1, PageSize: 25}); return err }},
+		{"machine_jobs.read get print", func() error { _, err := s.GetPrint(ctx, p, id); return err }},
+		{"machine_jobs.edit link print", func() error { _, err := s.LinkPrintToJob(ctx, p, id, id, 1, nil); return err }},
+		{"machine_jobs.edit unlink print", func() error { _, err := s.UnlinkPrint(ctx, p, id, 1, nil); return err }},
+		{"machine_jobs.create from print", func() error { _, err := s.CreateJobFromPrint(ctx, p, id, PrintJobInput{}, nil); return err }},
 		{"machine_jobs.review", func() error { _, err := s.ReviewQueue(ctx, p); return err }},
 		{"machine_jobs.edit cancel run", func() error { _, err := s.CancelJobRun(ctx, p, id, 1, nil); return err }},
 		{"machine_jobs.override_price set", func() error {

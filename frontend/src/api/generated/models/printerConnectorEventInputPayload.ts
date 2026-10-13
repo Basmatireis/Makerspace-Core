@@ -19,4 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * Kind-specific. Keys read by core: operational_state {state, fileName?}; progress {state?, percent 0-100, remainingSeconds?, fileName?}; terminal_outcome {outcome: completed|failed|cancelled}; consumption_report {quantityGrams (decimal string), quantityBasis: estimated|actual, slotExternalId?}.
+ */
 export type PrinterConnectorEventInputPayload = { [key: string]: unknown };

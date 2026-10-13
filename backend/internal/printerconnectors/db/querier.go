@@ -34,6 +34,7 @@ type Querier interface {
 	GetEnrollmentByDigestForUpdate(ctx context.Context, tokenDigest []byte) (PrinterConnectorEnrollment, error)
 	GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (PrinterObservedRun, error)
 	InsertConnectorEvent(ctx context.Context, arg InsertConnectorEventParams) (PrinterEvent, error)
+	InsertObservedRun(ctx context.Context, arg InsertObservedRunParams) (PrinterObservedRun, error)
 	LinkObservedRun(ctx context.Context, arg LinkObservedRunParams) (PrinterObservedRun, error)
 	LinkObservedRunEvents(ctx context.Context, arg LinkObservedRunEventsParams) error
 	ListActiveAssignments(ctx context.Context, connectorID uuid.UUID) ([]ListActiveAssignmentsRow, error)
@@ -41,16 +42,21 @@ type Querier interface {
 	ListConnectorEvents(ctx context.Context, connectorID *uuid.UUID) ([]ListConnectorEventsRow, error)
 	ListConnectors(ctx context.Context) ([]PrinterConnector, error)
 	ListObservedRuns(ctx context.Context, connectorID uuid.UUID) ([]ListObservedRunsRow, error)
+	ListOpenMachineSpools(ctx context.Context, machineID uuid.UUID) ([]uuid.UUID, error)
+	ListSlotSpoolsAt(ctx context.Context, arg ListSlotSpoolsAtParams) ([]uuid.UUID, error)
+	NextPrintSequence(ctx context.Context) (int64, error)
 	RecordHeartbeat(ctx context.Context, arg RecordHeartbeatParams) (PrinterConnector, error)
 	RevokeConnector(ctx context.Context, arg RevokeConnectorParams) (PrinterConnector, error)
 	RevokeConnectorCredentials(ctx context.Context, connectorID uuid.UUID) error
 	RevokeOpenEnrollments(ctx context.Context, connectorID uuid.UUID) error
 	RevokeRetiringCredentials(ctx context.Context, connectorID uuid.UUID) error
+	SetObservedRunReport(ctx context.Context, arg SetObservedRunReportParams) (int64, error)
 	TouchCredential(ctx context.Context, id uuid.UUID) error
 	UpdateAssignment(ctx context.Context, arg UpdateAssignmentParams) (PrinterConnectorAssignment, error)
 	UpdateAssignmentRuntime(ctx context.Context, arg UpdateAssignmentRuntimeParams) error
 	UpdateConnector(ctx context.Context, arg UpdateConnectorParams) (PrinterConnector, error)
-	UpsertObservedRun(ctx context.Context, arg UpsertObservedRunParams) (PrinterObservedRun, error)
+	UpdateObservedRun(ctx context.Context, arg UpdateObservedRunParams) (PrinterObservedRun, error)
+	UpdateObservedRunFacts(ctx context.Context, arg UpdateObservedRunFactsParams) error
 }
 
 var _ Querier = (*Queries)(nil)

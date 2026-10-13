@@ -226,7 +226,7 @@ func (s *Service) CancelJobRun(ctx context.Context, p authorization.Principal, i
 		return MachineJob{}, apperror.StaleWrite
 	}
 	now := s.now()
-	if current.ReviewState != "confirmed" || current.Outcome != "unknown" || !current.EndsAt.After(now) {
+	if current.ReviewState != "confirmed" || current.PrintID != nil || current.Outcome != "unknown" || !current.EndsAt.After(now) {
 		return MachineJob{}, conflict("run_not_running", "Only a running job can be cancelled")
 	}
 	endsAt := now.UTC().Truncate(time.Second)

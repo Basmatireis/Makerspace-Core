@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"math"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -55,6 +57,10 @@ type DiscoveryCandidate struct {
 	Observation json.RawMessage
 }
 
+// simulatedPrintCounter numbers the simulated parts so successive prints show
+// different file names.
+var simulatedPrintCounter atomic.Uint64
+
 type simulatorAdapter struct {
 	interval time.Duration
 	scenario string
@@ -94,6 +100,7 @@ func (a *simulatorAdapter) Run(ctx context.Context, sink Sink) error {
 	defer ticker.Stop()
 	progress := 0
 	runID := uuid.Must(uuid.NewV7())
+	fileName := "simulated_part_" + strconv.FormatUint(simulatedPrintCounter.Add(1), 10) + ".gcode"
 	job := "sim-" + runID.String()
 	revision := int64(1)
 	for {
@@ -103,7 +110,8 @@ func (a *simulatorAdapter) Run(ctx context.Context, sink Sink) error {
 		case <-ticker.C:
 			progress += 20
 			if progress < 100 {
-				payload := json.RawMessage(`{"state":"printing","percent":` + strconv.Itoa(progress) + `}`)
+				remaining := int64(math.Ceil(float64(100-progress) / 20 * a.interval.Seconds()))
+				payload, _ := json.Marshal(map[string]any{"state": "printing", "percent": progress, "remainingSeconds": remaining, "fileName": fileName})
 				if err := sink.Commit(ctx, Observation{Kind: "progress", Payload: payload, RunID: &runID, HistoryComplete: true, ExternalPrintID: &job}); err != nil {
 					return err
 				}
