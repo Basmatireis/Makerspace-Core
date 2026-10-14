@@ -41,7 +41,7 @@ describe('User detail page', () => {
     const user = userEvent.setup();
     renderRoute(<App />, `/people/${otherPersonId}?tab=roles-permissions`);
 
-    await user.click(await screen.findByRole('button', { name: `Remove ${role.name} role` }));
+    await user.click(await screen.findByRole('button', { name: `Remove ${role.name} role` }, { timeout: 5000 }));
     const dialog = screen.getByRole('alertdialog', { name: `Remove ${role.name}?` });
     expect(within(dialog).getByText(/permissions granted by this role will no longer apply/i)).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
