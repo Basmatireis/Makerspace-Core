@@ -263,3 +263,23 @@ VALUES (sqlc.arg(id), sqlc.arg(source_id), sqlc.arg(event_key), sqlc.arg(fingerp
     sqlc.arg(kind), sqlc.arg(occurred_at), sqlc.arg(source_sequence), sqlc.narg(external_print_id), sqlc.arg(payload),
     sqlc.arg(connector_id), sqlc.arg(assignment_id), sqlc.narg(run_id),
     sqlc.arg(configuration_version), sqlc.arg(application_state), sqlc.narg(application_reason), sqlc.narg(report_revision)) RETURNING *;
+
+-- name: BumpConnectorsOfMachine :exec
+UPDATE printer_connectors SET configuration_revision=configuration_revision+1, version=version+1, updated_at=now()
+WHERE id IN (SELECT connector_id FROM printer_connector_assignments WHERE machine_id=sqlc.arg(machine_id) AND ended_at IS NULL);
+
+-- name: GetAssignmentForLiveStatus :one
+SELECT a.id, a.machine_id, a.configuration_version, a.enabled, a.ended_at, c.lifecycle AS connector_lifecycle
+FROM printer_connector_assignments a JOIN printer_connectors c ON c.id=a.connector_id
+WHERE a.id=sqlc.arg(id) AND a.connector_id=sqlc.arg(connector_id);
+
+-- name: UpsertPrinterLiveStatus :exec
+INSERT INTO printer_live_statuses (assignment_id, machine_id, observed_at, received_at, configuration_version, snapshot)
+VALUES (sqlc.arg(assignment_id), sqlc.arg(machine_id), sqlc.arg(observed_at), sqlc.arg(received_at), sqlc.arg(configuration_version), sqlc.arg(snapshot))
+ON CONFLICT (assignment_id) DO UPDATE SET machine_id=EXCLUDED.machine_id, observed_at=EXCLUDED.observed_at,
+    received_at=EXCLUDED.received_at, configuration_version=EXCLUDED.configuration_version, snapshot=EXCLUDED.snapshot
+WHERE printer_live_statuses.observed_at <= EXCLUDED.observed_at;
+
+-- name: GetActivePrinterLiveStatus :one
+SELECT s.* FROM printer_live_statuses s JOIN printer_connector_assignments a ON a.id=s.assignment_id
+WHERE s.machine_id=sqlc.arg(machine_id) AND a.ended_at IS NULL;

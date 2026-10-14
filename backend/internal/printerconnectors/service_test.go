@@ -91,7 +91,7 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	if _, err = pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
 		t.Fatal(err)
 	}
-	machineType, err := logbook.CreateMachineType(ctx, principal, "Connector printer "+suffix, &requestID)
+	machineType, err := logbook.CreateMachineType(ctx, principal, "Connector printer "+suffix, true, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}

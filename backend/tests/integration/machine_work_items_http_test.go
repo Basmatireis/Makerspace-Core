@@ -105,7 +105,7 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	logbook := machinelogbook.NewService(pool)
 	orderService := orders.NewService(pool, logbook)
-	machineType, err := logbook.CreateMachineType(ctx, master, "Printer", nil)
+	machineType, err := logbook.CreateMachineType(ctx, master, "Printer", false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -34,6 +34,7 @@ type InputUnit struct {
 	ID, MachineID      uuid.UUID
 	Name               string
 	Position           int
+	Nozzle             *string
 	ExternalIdentifier *string
 	Enabled            bool
 	Version            int64
@@ -53,6 +54,7 @@ type Profile struct {
 	MachineID            uuid.UUID
 	MachineName          string
 	Enabled              bool
+	Model                *string
 	InputUnits           []InputUnit
 	Slots                []Slot
 	Version              int64
@@ -134,7 +136,7 @@ func writeAudit(ctx context.Context, tx pgx.Tx, p authorization.Principal, actio
 }
 
 func inputUnit(row db.PrinterInputUnit) InputUnit {
-	return InputUnit{ID: row.ID, MachineID: row.MachineID, Name: row.Name, Position: int(row.Position), ExternalIdentifier: row.ExternalIdentifier, Enabled: row.Enabled, Version: row.Version}
+	return InputUnit{ID: row.ID, MachineID: row.MachineID, Name: row.Name, Position: int(row.Position), Nozzle: row.Nozzle, ExternalIdentifier: row.ExternalIdentifier, Enabled: row.Enabled, Version: row.Version}
 }
 func slotFromGet(row db.GetPrinterSlotRow) Slot {
 	return Slot{ID: row.ID, InputUnitID: row.InputUnitID, MachineID: row.MachineID, InputUnitName: row.InputUnitName, Name: row.Name, Position: int(row.Position), ExternalIdentifier: row.ExternalIdentifier, Status: row.Status, AssignmentID: row.AssignmentID, SpoolID: row.SpoolID, SpoolDisplayID: row.SpoolDisplayID, MountedAt: nullableTime(row.MountedAt), Version: row.Version}
@@ -147,7 +149,10 @@ func (s *Service) GetProfile(ctx context.Context, p authorization.Principal, mac
 	if err := require(p, authorization.MachinesRead); err != nil {
 		return Profile{}, err
 	}
-	q := db.New(s.pool)
+	return loadProfile(ctx, db.New(s.pool), machineID)
+}
+
+func loadProfile(ctx context.Context, q *db.Queries, machineID uuid.UUID) (Profile, error) {
 	row, err := q.GetPrinterProfile(ctx, machineID)
 	if err != nil {
 		return Profile{}, noRows(err)
@@ -160,7 +165,7 @@ func (s *Service) GetProfile(ctx context.Context, p authorization.Principal, mac
 	if err != nil {
 		return Profile{}, err
 	}
-	item := Profile{MachineID: row.MachineID, MachineName: row.MachineName, Enabled: row.Enabled, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, InputUnits: make([]InputUnit, 0, len(units)), Slots: make([]Slot, 0, len(slots))}
+	item := Profile{MachineID: row.MachineID, MachineName: row.MachineName, Enabled: row.Enabled, Model: row.Model, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, InputUnits: make([]InputUnit, 0, len(units)), Slots: make([]Slot, 0, len(slots))}
 	for _, u := range units {
 		item.InputUnits = append(item.InputUnits, inputUnit(u))
 	}

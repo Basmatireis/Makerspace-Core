@@ -25,6 +25,8 @@ export interface MachineType {
   id: UUIDv7;
   name: string;
   active: boolean;
+  /** Machines of this type have a printer setup (profile, spool inputs, connector). */
+  printer: boolean;
   version: Version;
   createdAt: string;
   updatedAt: string;

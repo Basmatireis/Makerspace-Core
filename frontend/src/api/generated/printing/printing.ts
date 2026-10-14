@@ -24,7 +24,9 @@ import type {
   CreatePrinterSlotRequest,
   MountSpoolRequest,
   PrinterInputUnit,
+  PrinterLiveStatus,
   PrinterProfile,
+  PrinterSetupRequest,
   PrinterSlot,
   UUIDv7,
   UpdatePrinterInputUnitRequest,
@@ -71,6 +73,55 @@ export const configurePrinterProfile = async (machineId: UUIDv7,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       configurePrinterRequest,)
+  }
+);}
+
+
+/**
+ * @summary Latest live status reported by the machine's active connector assignment
+ */
+export const getGetPrinterLiveStatusUrl = (machineId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machines/${machineId}/printer/live-status`
+}
+
+export const getPrinterLiveStatus = async (machineId: UUIDv7, options?: RequestInit): Promise<PrinterLiveStatus> => {
+
+  return apiFetch<PrinterLiveStatus>(getGetPrinterLiveStatusUrl(machineId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+/**
+ * The request is the desired state. Omitted slots are retired and omitted units are disabled; neither is deleted. A slot with a mounted spool cannot be removed (409 slot_occupied). Active positions are renumbered in the given order. The profile is created when the machine has none.
+ * @summary Atomically save the desired printer profile, spool input units, and slots
+ */
+export const getSavePrinterSetupUrl = (machineId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machines/${machineId}/printer/setup`
+}
+
+export const savePrinterSetup = async (machineId: UUIDv7,
+    printerSetupRequest: PrinterSetupRequest, options?: RequestInit): Promise<PrinterProfile> => {
+
+  return apiFetch<PrinterProfile>(getSavePrinterSetupUrl(machineId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      printerSetupRequest,)
   }
 );}
 

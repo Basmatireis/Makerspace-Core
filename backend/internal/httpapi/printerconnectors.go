@@ -335,3 +335,23 @@ func nullableInt64Pointer(value nullable.Nullable[int64]) *int64 {
 	result := value.GetOrEmpty()
 	return &result
 }
+
+func (s *Server) ReportPrinterConnectorLiveStatus(ctx context.Context, request openapi.ReportPrinterConnectorLiveStatusRequestObject) (openapi.ReportPrinterConnectorLiveStatusResponseObject, error) {
+	connector, err := printerConnectorContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if request.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	// Re-encoding the typed snapshot drops every field the contract does not
+	// name, so unknown connector fields are never stored.
+	snapshot, err := json.Marshal(request.Body.Status)
+	if err != nil {
+		return nil, invalidRequest("live status snapshot is invalid")
+	}
+	if err = s.printerConnectors.ReportLiveStatus(ctx, connector, printerconnectors.LiveStatusReport{AssignmentID: request.AssignmentId, ProtocolVersion: request.Body.ProtocolVersion, ConfigurationVersion: request.Body.ConfigurationVersion, ObservedAt: request.Body.ObservedAt, Snapshot: snapshot}); err != nil {
+		return nil, err
+	}
+	return openapi.ReportPrinterConnectorLiveStatus204Response{}, nil
+}

@@ -146,6 +146,16 @@ func (q *Queries) BumpConnectorConfiguration(ctx context.Context, id uuid.UUID) 
 	return i, err
 }
 
+const bumpConnectorsOfMachine = `-- name: BumpConnectorsOfMachine :exec
+UPDATE printer_connectors SET configuration_revision=configuration_revision+1, version=version+1, updated_at=now()
+WHERE id IN (SELECT connector_id FROM printer_connector_assignments WHERE machine_id=$1 AND ended_at IS NULL)
+`
+
+func (q *Queries) BumpConnectorsOfMachine(ctx context.Context, machineID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, bumpConnectorsOfMachine, machineID)
+	return err
+}
+
 const completeEnrollment = `-- name: CompleteEnrollment :one
 UPDATE printer_connector_enrollments
 SET consumed_at=COALESCE(consumed_at, now()), credential_fingerprint=COALESCE(credential_fingerprint, $1),
@@ -380,6 +390,25 @@ func (q *Queries) EndConnectorAssignments(ctx context.Context, connectorID uuid.
 	return err
 }
 
+const getActivePrinterLiveStatus = `-- name: GetActivePrinterLiveStatus :one
+SELECT s.assignment_id, s.machine_id, s.observed_at, s.received_at, s.configuration_version, s.snapshot FROM printer_live_statuses s JOIN printer_connector_assignments a ON a.id=s.assignment_id
+WHERE s.machine_id=$1 AND a.ended_at IS NULL
+`
+
+func (q *Queries) GetActivePrinterLiveStatus(ctx context.Context, machineID uuid.UUID) (PrinterLiveStatus, error) {
+	row := q.db.QueryRow(ctx, getActivePrinterLiveStatus, machineID)
+	var i PrinterLiveStatus
+	err := row.Scan(
+		&i.AssignmentID,
+		&i.MachineID,
+		&i.ObservedAt,
+		&i.ReceivedAt,
+		&i.ConfigurationVersion,
+		&i.Snapshot,
+	)
+	return i, err
+}
+
 const getAssignment = `-- name: GetAssignment :one
 SELECT a.id, a.connector_id, a.machine_id, a.adapter_kind, a.adapter_schema_version, a.settings, a.encrypted_secrets, a.configuration_version, a.enabled, a.applied_configuration_version, a.runtime_state, a.runtime_error_code, a.activated_at, a.ended_at, a.version, a.created_at, a.updated_at, m.name AS machine_name
 FROM printer_connector_assignments a JOIN machines m ON m.id=a.machine_id
@@ -491,6 +520,40 @@ func (q *Queries) GetAssignmentForIngress(ctx context.Context, arg GetAssignment
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ConnectorLifecycle,
+	)
+	return i, err
+}
+
+const getAssignmentForLiveStatus = `-- name: GetAssignmentForLiveStatus :one
+SELECT a.id, a.machine_id, a.configuration_version, a.enabled, a.ended_at, c.lifecycle AS connector_lifecycle
+FROM printer_connector_assignments a JOIN printer_connectors c ON c.id=a.connector_id
+WHERE a.id=$1 AND a.connector_id=$2
+`
+
+type GetAssignmentForLiveStatusParams struct {
+	ID          uuid.UUID
+	ConnectorID uuid.UUID
+}
+
+type GetAssignmentForLiveStatusRow struct {
+	ID                   uuid.UUID
+	MachineID            uuid.UUID
+	ConfigurationVersion int64
+	Enabled              bool
+	EndedAt              pgtype.Timestamptz
+	ConnectorLifecycle   string
+}
+
+func (q *Queries) GetAssignmentForLiveStatus(ctx context.Context, arg GetAssignmentForLiveStatusParams) (GetAssignmentForLiveStatusRow, error) {
+	row := q.db.QueryRow(ctx, getAssignmentForLiveStatus, arg.ID, arg.ConnectorID)
+	var i GetAssignmentForLiveStatusRow
+	err := row.Scan(
+		&i.ID,
+		&i.MachineID,
+		&i.ConfigurationVersion,
+		&i.Enabled,
+		&i.EndedAt,
 		&i.ConnectorLifecycle,
 	)
 	return i, err
@@ -1806,6 +1869,35 @@ func (q *Queries) UpsertPrinterErrorOccurrence(ctx context.Context, arg UpsertPr
 		arg.OriginalCode,
 		arg.ObservedAt,
 		arg.Context,
+	)
+	return err
+}
+
+const upsertPrinterLiveStatus = `-- name: UpsertPrinterLiveStatus :exec
+INSERT INTO printer_live_statuses (assignment_id, machine_id, observed_at, received_at, configuration_version, snapshot)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (assignment_id) DO UPDATE SET machine_id=EXCLUDED.machine_id, observed_at=EXCLUDED.observed_at,
+    received_at=EXCLUDED.received_at, configuration_version=EXCLUDED.configuration_version, snapshot=EXCLUDED.snapshot
+WHERE printer_live_statuses.observed_at <= EXCLUDED.observed_at
+`
+
+type UpsertPrinterLiveStatusParams struct {
+	AssignmentID         uuid.UUID
+	MachineID            uuid.UUID
+	ObservedAt           time.Time
+	ReceivedAt           time.Time
+	ConfigurationVersion int64
+	Snapshot             []byte
+}
+
+func (q *Queries) UpsertPrinterLiveStatus(ctx context.Context, arg UpsertPrinterLiveStatusParams) error {
+	_, err := q.db.Exec(ctx, upsertPrinterLiveStatus,
+		arg.AssignmentID,
+		arg.MachineID,
+		arg.ObservedAt,
+		arg.ReceivedAt,
+		arg.ConfigurationVersion,
+		arg.Snapshot,
 	)
 	return err
 }

@@ -48,7 +48,7 @@ func newIngestHarness(t *testing.T) *ingestHarness {
 	if _, err = pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
 		t.Fatal(err)
 	}
-	machineType, err := h.logbook.CreateMachineType(ctx, h.principal, "Ingest printer "+h.suffix, &requestID)
+	machineType, err := h.logbook.CreateMachineType(ctx, h.principal, "Ingest printer "+h.suffix, true, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}

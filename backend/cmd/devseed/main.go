@@ -520,7 +520,7 @@ func (s *seeder) createOrgsAndPricing() {
 	machineType := func(name string) uuid.UUID {
 		id, create := s.claim("machine_types", name, "active")
 		if create != "" {
-			mt, err := ml.CreateMachineType(s.ctx, s.actor, create, nil)
+			mt, err := ml.CreateMachineType(s.ctx, s.actor, create, strings.Contains(strings.ToLower(create), "printer"), nil)
 			check("mt", err)
 			id = mt.ID
 		}

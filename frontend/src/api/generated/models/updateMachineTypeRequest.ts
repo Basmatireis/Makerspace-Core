@@ -28,4 +28,5 @@ export interface UpdateMachineTypeRequest {
    */
   name?: string;
   active?: boolean;
+  printer?: boolean;
 }

@@ -11,7 +11,7 @@ import (
 )
 
 func mlMachineTypeDTO(item machinelogbook.MachineType) openapi.MachineType {
-	return openapi.MachineType{Id: item.ID, Name: item.Name, Active: item.Active, Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
+	return openapi.MachineType{Id: item.ID, Name: item.Name, Active: item.Active, Printer: item.Printer, Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
 }
 func mlMachineDTO(item machinelogbook.Machine) openapi.Machine {
 	return openapi.Machine{Id: item.ID, MachineType: mlMachineTypeDTO(item.MachineType), Name: item.Name, Status: openapi.MachineStatus(item.Status), ExternalIdentifier: nullableString(item.ExternalIdentifier), AutomaticCollectionEnabled: item.AutomaticCollectionEnabled, LastIngestedAt: nullableValue(item.LastIngestedAt), Version: item.Version, JobCount: item.JobCount, RuntimeSeconds: item.RuntimeSeconds, FailureRate: item.FailureRate, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}

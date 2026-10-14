@@ -20,7 +20,7 @@ export const iso = (offsetMinutes: number) => new Date(Date.now() + offsetMinute
 
 export const machine: Machine = {
   id: ids.machine,
-  machineType: { id: ids.type, name: '3D printer', active: true, version: 1, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z' },
+  machineType: { id: ids.type, name: '3D printer', active: true, printer: true, version: 1, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z' },
   name: 'Bambu H2D #1', status: 'active', externalIdentifier: 'BH2D-1', automaticCollectionEnabled: true, lastIngestedAt: '2026-09-15T11:26:00Z',
   jobCount: 42, runtimeSeconds: 84000, failureRate: '4.2', version: 1, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-15T11:26:00Z',
 };

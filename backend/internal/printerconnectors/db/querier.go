@@ -15,6 +15,7 @@ type Querier interface {
 	AuthenticateConnector(ctx context.Context, tokenDigest []byte) (AuthenticateConnectorRow, error)
 	BeginCredentialRotation(ctx context.Context, connectorID uuid.UUID) error
 	BumpConnectorConfiguration(ctx context.Context, id uuid.UUID) (PrinterConnector, error)
+	BumpConnectorsOfMachine(ctx context.Context, machineID uuid.UUID) error
 	CompleteEnrollment(ctx context.Context, arg CompleteEnrollmentParams) (PrinterConnectorEnrollment, error)
 	CreateAssignment(ctx context.Context, arg CreateAssignmentParams) (PrinterConnectorAssignment, error)
 	CreateConnector(ctx context.Context, arg CreateConnectorParams) (PrinterConnector, error)
@@ -22,8 +23,10 @@ type Querier interface {
 	CreateEnrollment(ctx context.Context, arg CreateEnrollmentParams) (PrinterConnectorEnrollment, error)
 	CreateRotatedCredential(ctx context.Context, arg CreateRotatedCredentialParams) (PrinterConnectorCredential, error)
 	EndConnectorAssignments(ctx context.Context, connectorID uuid.UUID) error
+	GetActivePrinterLiveStatus(ctx context.Context, machineID uuid.UUID) (PrinterLiveStatus, error)
 	GetAssignment(ctx context.Context, arg GetAssignmentParams) (GetAssignmentRow, error)
 	GetAssignmentForIngress(ctx context.Context, arg GetAssignmentForIngressParams) (GetAssignmentForIngressRow, error)
+	GetAssignmentForLiveStatus(ctx context.Context, arg GetAssignmentForLiveStatusParams) (GetAssignmentForLiveStatusRow, error)
 	GetAssignmentForUpdate(ctx context.Context, arg GetAssignmentForUpdateParams) (PrinterConnectorAssignment, error)
 	GetConnector(ctx context.Context, id uuid.UUID) (PrinterConnector, error)
 	GetConnectorCredential(ctx context.Context, arg GetConnectorCredentialParams) (PrinterConnectorCredential, error)
@@ -57,6 +60,7 @@ type Querier interface {
 	UpdateObservedRun(ctx context.Context, arg UpdateObservedRunParams) (MachineRun, error)
 	UpdateObservedRunFacts(ctx context.Context, arg UpdateObservedRunFactsParams) error
 	UpsertPrinterErrorOccurrence(ctx context.Context, arg UpsertPrinterErrorOccurrenceParams) error
+	UpsertPrinterLiveStatus(ctx context.Context, arg UpsertPrinterLiveStatusParams) error
 }
 
 var _ Querier = (*Queries)(nil)

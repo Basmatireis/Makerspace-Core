@@ -76,7 +76,7 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
 		t.Fatal(err)
 	}
-	machineType, err := jobs.CreateMachineType(ctx, p, "Printer "+suffix, &requestID)
+	machineType, err := jobs.CreateMachineType(ctx, p, "Printer "+suffix, true, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -44,7 +44,7 @@ func NewService(pool *pgxpool.Pool, options ...Option) *Service {
 type MachineType struct {
 	ID                   uuid.UUID
 	Name                 string
-	Active               bool
+	Active, Printer      bool
 	Version              int64
 	CreatedAt, UpdatedAt time.Time
 }
@@ -586,7 +586,7 @@ func writeAudit(ctx context.Context, tx pgx.Tx, p authorization.Principal, actio
 }
 
 func machineTypeFromRow(row machinelogbookdb.MachineType) MachineType {
-	return MachineType{ID: row.ID, Name: row.Name, Active: row.Active, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return MachineType{ID: row.ID, Name: row.Name, Active: row.Active, Printer: row.Printer, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
 func formatDisplayID(sequence int64, now time.Time) string {

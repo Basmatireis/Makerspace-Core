@@ -27,7 +27,7 @@ func (s *Service) ListMachineTypes(ctx context.Context, p authorization.Principa
 	return items, nil
 }
 
-func (s *Service) CreateMachineType(ctx context.Context, p authorization.Principal, name string, requestID *uuid.UUID) (MachineType, error) {
+func (s *Service) CreateMachineType(ctx context.Context, p authorization.Principal, name string, printer bool, requestID *uuid.UUID) (MachineType, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return MachineType{}, err
 	}
@@ -41,11 +41,11 @@ func (s *Service) CreateMachineType(ctx context.Context, p authorization.Princip
 	}
 	defer tx.Rollback(ctx)
 	id := newID()
-	row, err := machinelogbookdb.New(tx).CreateMachineType(ctx, machinelogbookdb.CreateMachineTypeParams{ID: id, Name: name})
+	row, err := machinelogbookdb.New(tx).CreateMachineType(ctx, machinelogbookdb.CreateMachineTypeParams{ID: id, Name: name, Printer: printer})
 	if err != nil {
 		return MachineType{}, databaseError(err)
 	}
-	if err = writeAudit(ctx, tx, p, "machine_type.created", "machine_type", id, requestID, []string{"name"}); err != nil {
+	if err = writeAudit(ctx, tx, p, "machine_type.created", "machine_type", id, requestID, []string{"name", "printer"}); err != nil {
 		return MachineType{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -54,7 +54,7 @@ func (s *Service) CreateMachineType(ctx context.Context, p authorization.Princip
 	return machineTypeFromRow(row), nil
 }
 
-func (s *Service) UpdateMachineType(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, name *string, active *bool, requestID *uuid.UUID) (MachineType, error) {
+func (s *Service) UpdateMachineType(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, name *string, active, printer *bool, requestID *uuid.UUID) (MachineType, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return MachineType{}, err
 	}
@@ -83,14 +83,17 @@ func (s *Service) UpdateMachineType(ctx context.Context, p authorization.Princip
 	if active != nil {
 		current.Active = *active
 	}
-	row, err := q.UpdateMachineType(ctx, machinelogbookdb.UpdateMachineTypeParams{Name: current.Name, Active: current.Active, ID: id, ExpectedVersion: expected})
+	if printer != nil {
+		current.Printer = *printer
+	}
+	row, err := q.UpdateMachineType(ctx, machinelogbookdb.UpdateMachineTypeParams{Name: current.Name, Active: current.Active, Printer: current.Printer, ID: id, ExpectedVersion: expected})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return MachineType{}, apperror.StaleWrite
 	}
 	if err != nil {
 		return MachineType{}, databaseError(err)
 	}
-	if err = writeAudit(ctx, tx, p, "machine_type.updated", "machine_type", id, requestID, []string{"name", "active"}); err != nil {
+	if err = writeAudit(ctx, tx, p, "machine_type.updated", "machine_type", id, requestID, []string{"name", "active", "printer"}); err != nil {
 		return MachineType{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -110,11 +113,11 @@ func validateMachine(status string, automatic bool, external *string) error {
 }
 
 func machineFromGet(row machinelogbookdb.GetMachineRow) Machine {
-	return Machine{ID: row.ID, MachineType: MachineType{ID: row.MachineTypeID, Name: row.MachineTypeName, Active: row.MachineTypeActive, Version: row.MachineTypeVersion, CreatedAt: row.MachineTypeCreatedAt, UpdatedAt: row.MachineTypeUpdatedAt}, Name: row.Name, Status: row.Status, ExternalIdentifier: row.ExternalIdentifier, AutomaticCollectionEnabled: row.AutomaticCollectionEnabled, LastIngestedAt: nullableTime(row.LastIngestedAt), Version: row.Version, JobCount: row.JobCount, RuntimeSeconds: row.RuntimeSeconds, FailureRate: decimalString(row.FailureRate), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return Machine{ID: row.ID, MachineType: MachineType{ID: row.MachineTypeID, Name: row.MachineTypeName, Active: row.MachineTypeActive, Printer: row.MachineTypePrinter, Version: row.MachineTypeVersion, CreatedAt: row.MachineTypeCreatedAt, UpdatedAt: row.MachineTypeUpdatedAt}, Name: row.Name, Status: row.Status, ExternalIdentifier: row.ExternalIdentifier, AutomaticCollectionEnabled: row.AutomaticCollectionEnabled, LastIngestedAt: nullableTime(row.LastIngestedAt), Version: row.Version, JobCount: row.JobCount, RuntimeSeconds: row.RuntimeSeconds, FailureRate: decimalString(row.FailureRate), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
 func machineFromList(row machinelogbookdb.ListMachinesRow) Machine {
-	return Machine{ID: row.ID, MachineType: MachineType{ID: row.MachineTypeID, Name: row.MachineTypeName, Active: row.MachineTypeActive, Version: row.MachineTypeVersion, CreatedAt: row.MachineTypeCreatedAt, UpdatedAt: row.MachineTypeUpdatedAt}, Name: row.Name, Status: row.Status, ExternalIdentifier: row.ExternalIdentifier, AutomaticCollectionEnabled: row.AutomaticCollectionEnabled, LastIngestedAt: nullableTime(row.LastIngestedAt), Version: row.Version, JobCount: row.JobCount, RuntimeSeconds: row.RuntimeSeconds, FailureRate: decimalString(row.FailureRate), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return Machine{ID: row.ID, MachineType: MachineType{ID: row.MachineTypeID, Name: row.MachineTypeName, Active: row.MachineTypeActive, Printer: row.MachineTypePrinter, Version: row.MachineTypeVersion, CreatedAt: row.MachineTypeCreatedAt, UpdatedAt: row.MachineTypeUpdatedAt}, Name: row.Name, Status: row.Status, ExternalIdentifier: row.ExternalIdentifier, AutomaticCollectionEnabled: row.AutomaticCollectionEnabled, LastIngestedAt: nullableTime(row.LastIngestedAt), Version: row.Version, JobCount: row.JobCount, RuntimeSeconds: row.RuntimeSeconds, FailureRate: decimalString(row.FailureRate), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
 func (s *Service) GetMachine(ctx context.Context, p authorization.Principal, id uuid.UUID) (Machine, error) {

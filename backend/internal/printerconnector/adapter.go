@@ -85,10 +85,50 @@ func (a *simulatorAdapter) Descriptor() AdapterDescriptor {
 	return AdapterDescriptor{Kind: "simulator", SchemaVersion: 1, Capabilities: []Capability{CapabilityStatus, CapabilityProgress, CapabilityConsumption, CapabilityTerminal}}
 }
 
+// simulatorSnapshot is a plausible fixed machine: one AMS with two spools, one
+// external holder and a single right-hand nozzle.
+func simulatorSnapshot(state string, job *liveJob) json.RawMessage {
+	snapshot := newLiveSnapshot(state)
+	snapshot.Job = job
+	bed, bedTarget, chamber, nozzle, nozzleTarget := 28.0, 0.0, 26.0, 28.0, 0.0
+	diameter, nozzleType, label := 0.4, "HS01", "Simulated PLA"
+	signal := -42
+	if state == "printing" {
+		bed, bedTarget, nozzle, nozzleTarget = 60.0, 60.0, 220.0, 220.0
+	}
+	side := bambuExtruderSide(0)
+	snapshot.Temperatures = liveTemperatures{Extruders: []liveExtruderTemperature{{ExtruderID: 0, Side: side, CurrentC: &nozzle, TargetC: &nozzleTarget}}, BedC: &bed, BedTargetC: &bedTarget, ChamberC: &chamber}
+	snapshot.Nozzles = []liveNozzle{{ExtruderID: 0, Side: side, DiameterMm: &diameter, Type: &nozzleType}}
+	pla, petg, red, grey, humidity := "PLA", "PETG", "D32F2F", "9E9E9E", 18
+	remainRed, remainGrey := 80, 35
+	snapshot.Units = []liveUnit{
+		{ExternalID: "0", Kind: "ams", Label: "AMS 0", HumidityPercent: &humidity, Trays: []liveTray{
+			{ExternalID: "0", MaterialType: &pla, SubBrand: &label, ColorHex: &red, RemainPercent: &remainRed, RFID: true},
+			{ExternalID: "1", MaterialType: &petg, ColorHex: &grey, RemainPercent: &remainGrey},
+			{ExternalID: "2", Empty: true},
+			{ExternalID: "3", Empty: true},
+		}},
+		{ExternalID: "254", Kind: "external", Label: "External spool 254", Trays: []liveTray{{ExternalID: "254", Empty: true}}},
+	}
+	snapshot.ActiveTray = nil
+	if state == "printing" {
+		snapshot.ActiveTray = &liveActiveTray{UnitExternalID: "0", TrayExternalID: "0"}
+	}
+	snapshot.WifiSignalDbm = &signal
+	return mustJSON(snapshot)
+}
+
 func (a *simulatorAdapter) Run(ctx context.Context, sink Sink) error {
 	if err := sink.Commit(ctx, Observation{Kind: "connectivity", Payload: json.RawMessage(`{"state":"online"}`)}); err != nil {
 		return err
 	}
+	live, _ := sink.(LiveStatusSink)
+	report := func(state string, job *liveJob) {
+		if live != nil {
+			live.ReportLiveStatus(simulatorSnapshot(state, job))
+		}
+	}
+	report("idle", nil)
 	if a.scenario == "idle" {
 		if err := sink.Commit(ctx, Observation{Kind: "operational_state", Payload: json.RawMessage(`{"state":"idle"}`)}); err != nil {
 			return err
@@ -111,6 +151,8 @@ func (a *simulatorAdapter) Run(ctx context.Context, sink Sink) error {
 			progress += 20
 			if progress < 100 {
 				remaining := int64(math.Ceil(float64(100-progress) / 20 * a.interval.Seconds()))
+				percent, minutes, layer, layers := progress, int(math.Ceil(float64(remaining)/60)), progress, 100
+				report("printing", &liveJob{FileName: &fileName, ProgressPercent: &percent, RemainingMinutes: &minutes, Layer: &layer, TotalLayers: &layers})
 				payload, _ := json.Marshal(map[string]any{"state": "printing", "percent": progress, "remainingSeconds": remaining, "fileName": fileName})
 				if err := sink.Commit(ctx, Observation{Kind: "progress", Payload: payload, RunID: &runID, HistoryComplete: true, ExternalPrintID: &job}); err != nil {
 					return err
@@ -120,6 +162,11 @@ func (a *simulatorAdapter) Run(ctx context.Context, sink Sink) error {
 			outcome := "completed"
 			if a.scenario == "failed_print" {
 				outcome = "failed"
+			}
+			if outcome == "completed" {
+				report("finished", nil)
+			} else {
+				report("failed", nil)
 			}
 			payload, _ := json.Marshal(map[string]any{"outcome": outcome})
 			if err := sink.Commit(ctx, Observation{Kind: "terminal_outcome", Payload: payload, RunID: &runID, HistoryComplete: true, ExternalPrintID: &job}); err != nil {

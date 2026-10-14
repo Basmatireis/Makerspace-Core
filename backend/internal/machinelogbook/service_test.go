@@ -27,7 +27,7 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 		call func() error
 	}{
 		{"machines.read", func() error { _, err := s.ListMachineTypes(ctx, p); return err }},
-		{"machines.manage", func() error { _, err := s.CreateMachineType(ctx, p, "Printer", nil); return err }},
+		{"machines.manage", func() error { _, err := s.CreateMachineType(ctx, p, "Printer", false, nil); return err }},
 		{"machine_jobs.read", func() error { _, err := s.GetJob(ctx, p, id); return err }},
 		{"machine_jobs.create", func() error { _, err := s.CreateManualJob(ctx, p, jobInput, nil); return err }},
 		{"machine_jobs.edit", func() error { _, err := s.UpdateJobFacts(ctx, p, id, 1, JobUpdate{}, nil); return err }},
@@ -158,7 +158,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM people WHERE id = $1`, personID)
 	})
 
-	machineType, err := s.CreateMachineType(ctx, p, "Test printer "+suffix, &requestID)
+	machineType, err := s.CreateMachineType(ctx, p, "Test printer "+suffix, false, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}

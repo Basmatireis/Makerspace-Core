@@ -30,8 +30,8 @@ const now = '2026-09-15T11:26:00Z';
 const laserTypeId = '0192f6f8-743e-7c77-a349-cd07c3e8b001';
 const printerTypeId = '0192f6f8-743e-7c77-a349-cd07c3e8b002';
 const types = [
-  { id: laserTypeId, name: 'Laser', active: true, version: 3, createdAt: now, updatedAt: now },
-  { id: printerTypeId, name: '3D printer', active: true, version: 1, createdAt: now, updatedAt: now },
+  { id: laserTypeId, name: 'Laser', active: true, printer: false, version: 3, createdAt: now, updatedAt: now },
+  { id: printerTypeId, name: '3D printer', active: true, printer: true, version: 1, createdAt: now, updatedAt: now },
 ];
 
 function machine(id: string, name: string, overrides: Partial<Machine> = {}): Machine {
@@ -57,8 +57,8 @@ const activity: MachineActivity[] = [
 ];
 
 const profile: PrinterProfile = {
-  machineId: bambu.id, machineName: bambu.name, enabled: true, version: 4, createdAt: now, updatedAt: now,
-  inputUnits: [{ id: 'unit-1', machineId: bambu.id, name: 'Direct feed', enabled: true, position: 0, version: 1 }],
+  machineId: bambu.id, machineName: bambu.name, enabled: true, model: null, version: 4, createdAt: now, updatedAt: now,
+  inputUnits: [{ id: 'unit-1', machineId: bambu.id, name: 'Direct feed', enabled: true, position: 0, nozzle: null, version: 1 }],
   slots: [{ id: 'slot-1', machineId: bambu.id, inputUnitId: 'unit-1', inputUnitName: 'Direct feed', name: 'Feed slot', position: 0, status: 'available', version: 1 }],
 };
 

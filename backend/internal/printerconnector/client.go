@@ -64,6 +64,14 @@ type ArtifactUploadResult struct {
 	AutoAttachedJobID *uuid.UUID      `json:"autoAttachedJobId"`
 }
 
+// CoreError is a non-2xx answer from Core.
+type CoreError struct {
+	Status int
+	Code   string
+}
+
+func (e *CoreError) Error() string { return "core request failed: " + e.Code }
+
 type Client struct {
 	base *url.URL
 	http *http.Client
@@ -110,7 +118,7 @@ func (c *Client) do(ctx context.Context, method, path, token string, input, outp
 		if apiError.Code == "" {
 			apiError.Code = response.Status
 		}
-		return fmt.Errorf("core request failed: %s", apiError.Code)
+		return &CoreError{Status: response.StatusCode, Code: apiError.Code}
 	}
 	if output != nil {
 		if err = json.NewDecoder(limited).Decode(output); err != nil {
@@ -141,8 +149,21 @@ func (c *Client) Configuration(ctx context.Context, token string) (Configuration
 	err := c.do(ctx, http.MethodGet, "/printer-connector/self/configuration", token, nil, &output)
 	return output, err
 }
-func (c *Client) Heartbeat(ctx context.Context, token string, input Heartbeat) error {
-	return c.do(ctx, http.MethodPost, "/printer-connector/self/heartbeat", token, input, nil)
+
+// Heartbeat reports health and returns the connector's current configuration
+// revision in Core, so a newer revision can be fetched immediately.
+func (c *Client) Heartbeat(ctx context.Context, token string, input Heartbeat) (int64, error) {
+	var output struct {
+		ConfigurationRevision int64 `json:"configurationRevision"`
+	}
+	err := c.do(ctx, http.MethodPost, "/printer-connector/self/heartbeat", token, input, &output)
+	return output.ConfigurationRevision, err
+}
+
+// PutLiveStatus replaces the latest live status snapshot of one assignment.
+func (c *Client) PutLiveStatus(ctx context.Context, token string, assignmentID uuid.UUID, configurationVersion int64, observedAt time.Time, snapshot json.RawMessage) error {
+	body := map[string]any{"protocolVersion": 1, "configurationVersion": configurationVersion, "observedAt": observedAt.UTC(), "status": snapshot}
+	return c.do(ctx, http.MethodPut, "/printer-connector/self/assignments/"+assignmentID.String()+"/status", token, body, nil)
 }
 func (c *Client) Send(ctx context.Context, token string, events []QueuedEvent) ([]EventReceipt, error) {
 	var output struct {

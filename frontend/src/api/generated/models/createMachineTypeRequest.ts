@@ -25,4 +25,5 @@ export interface CreateMachineTypeRequest {
    * @maxLength 120
    */
   name: string;
+  printer?: boolean;
 }

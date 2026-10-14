@@ -118,7 +118,7 @@ func newFixture(t *testing.T) *fixture {
 		t.Fatal(e)
 	}
 	f.organization = org.ID
-	typ, e := f.jobs.CreateMachineType(ctx, f.p, "Printer", &f.request)
+	typ, e := f.jobs.CreateMachineType(ctx, f.p, "Printer", false, &f.request)
 	if e != nil {
 		t.Fatal(e)
 	}

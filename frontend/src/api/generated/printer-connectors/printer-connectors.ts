@@ -34,6 +34,7 @@ import type {
   PrinterConnectorEventList,
   PrinterConnectorHeartbeat,
   PrinterConnectorList,
+  PrinterLiveStatusReport,
   PrinterObservedRunList,
   RotatePrinterConnectorCredentialRequest,
   UUIDv7,
@@ -423,6 +424,32 @@ export const uploadPrinterConnectorRunArtifact = async (assignmentId: UUIDv7,
     headers: { 'Content-Type': 'application/octet-stream', ...options?.headers },
     body: JSON.stringify(
       uploadPrinterConnectorRunArtifactBody,)
+  }
+);}
+
+
+/**
+ * Live status is telemetry. Core keeps only the newest snapshot per assignment and does not audit or version it. A report for a stale configuration version is rejected with 409 and must be dropped by the connector.
+ * @summary Replace the latest live status snapshot of one assignment
+ */
+export const getReportPrinterConnectorLiveStatusUrl = (assignmentId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/printer-connector/self/assignments/${assignmentId}/status`
+}
+
+export const reportPrinterConnectorLiveStatus = async (assignmentId: UUIDv7,
+    printerLiveStatusReport: PrinterLiveStatusReport, options?: RequestInit): Promise<void> => {
+
+  return apiFetch<void>(getReportPrinterConnectorLiveStatusUrl(assignmentId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      printerLiveStatusReport,)
   }
 );}
 

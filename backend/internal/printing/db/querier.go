@@ -11,21 +11,31 @@ import (
 )
 
 type Querier interface {
+	ApplyPrinterInputUnitSetup(ctx context.Context, arg ApplyPrinterInputUnitSetupParams) error
+	ApplyPrinterSlotSetup(ctx context.Context, arg ApplyPrinterSlotSetupParams) error
 	ClosePrinterSpoolAssignment(ctx context.Context, arg ClosePrinterSpoolAssignmentParams) (PrinterSpoolAssignment, error)
 	CreatePrinterInputUnit(ctx context.Context, arg CreatePrinterInputUnitParams) (PrinterInputUnit, error)
+	CreatePrinterProfile(ctx context.Context, arg CreatePrinterProfileParams) (PrinterProfile, error)
 	CreatePrinterSlot(ctx context.Context, arg CreatePrinterSlotParams) (PrinterSlot, error)
 	CreatePrinterSpoolAssignment(ctx context.Context, arg CreatePrinterSpoolAssignmentParams) (PrinterSpoolAssignment, error)
 	GetOpenAssignmentForSlot(ctx context.Context, slotID uuid.UUID) (PrinterSpoolAssignment, error)
 	GetOpenAssignmentForSpool(ctx context.Context, spoolID uuid.UUID) (PrinterSpoolAssignment, error)
 	GetPrinterInputUnitForUpdate(ctx context.Context, id uuid.UUID) (PrinterInputUnit, error)
 	GetPrinterProfile(ctx context.Context, machineID uuid.UUID) (GetPrinterProfileRow, error)
+	GetPrinterProfileForUpdate(ctx context.Context, machineID uuid.UUID) (PrinterProfile, error)
 	GetPrinterSlot(ctx context.Context, id uuid.UUID) (GetPrinterSlotRow, error)
 	GetPrinterSlotForUpdate(ctx context.Context, id uuid.UUID) (GetPrinterSlotForUpdateRow, error)
+	ListOpenAssignedPrinterSlotIDs(ctx context.Context, machineID uuid.UUID) ([]uuid.UUID, error)
 	ListPrinterInputUnits(ctx context.Context, machineID uuid.UUID) ([]PrinterInputUnit, error)
+	ListPrinterInputUnitsForUpdate(ctx context.Context, machineID uuid.UUID) ([]PrinterInputUnit, error)
 	ListPrinterProfileIDs(ctx context.Context) ([]uuid.UUID, error)
 	ListPrinterSlots(ctx context.Context, machineID uuid.UUID) ([]ListPrinterSlotsRow, error)
+	ListPrinterSlotsForUpdate(ctx context.Context, machineID uuid.UUID) ([]PrinterSlot, error)
 	ListPrinterSpoolAssignmentHistory(ctx context.Context, arg ListPrinterSpoolAssignmentHistoryParams) ([]ListPrinterSpoolAssignmentHistoryRow, error)
+	ShiftPrinterInputUnitsForSetup(ctx context.Context, arg ShiftPrinterInputUnitsForSetupParams) error
+	ShiftPrinterSlotsForSetup(ctx context.Context, arg ShiftPrinterSlotsForSetupParams) error
 	UpdatePrinterInputUnit(ctx context.Context, arg UpdatePrinterInputUnitParams) (PrinterInputUnit, error)
+	UpdatePrinterProfileSetup(ctx context.Context, arg UpdatePrinterProfileSetupParams) (PrinterProfile, error)
 	UpdatePrinterSlot(ctx context.Context, arg UpdatePrinterSlotParams) (PrinterSlot, error)
 	UpsertPrinterProfile(ctx context.Context, arg UpsertPrinterProfileParams) (PrinterProfile, error)
 }

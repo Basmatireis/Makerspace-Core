@@ -84,6 +84,45 @@ H2D lifecycle identity uses the strongest non-zero tuple of LAN task, task, job,
 
 AMS reports do not make printer-reported material, color, remaining weight, or `tray_uuid` authoritative. When exact-RFID auto-detection is disabled, all observations remain read-only. When enabled, Core may create a `connector_reconciled` slot assignment only when the observation identifies an exact configured input-unit/tray pair and its verified `tag_uid` uniquely identifies an active, non-empty Core spool. It never creates spools or identifiers, never replaces a staff/manual assignment, and never acts on material/color similarity. A later exact observation may move only a prior connector-reconciled mount. Two consecutive observations without an RFID tag produce a confirmed-empty transition; that transition closes only a connector-reconciled mount and never a manual assignment. Consumption resolves the historical slot assignment and exact NFC evidence at the report timestamp; disagreement remains unresolved. For a single-filament artifact, the connector carries the last unambiguous active unit/tray/tag into the terminal report. It does not apply the final tray to every line of a multi-material report.
 
+## Live status
+
+Besides events, an adapter may report the printer's current state as a **live status snapshot**. This is telemetry, not history: the connector keeps only the newest snapshot per assignment in memory and sends it with `PUT /printer-connector/self/assignments/{assignmentId}/status` (`PrinterLiveStatusReport`: protocol version, configuration version, observation time, snapshot). It is not part of the SQLite outbox, is never retried as history, and does not survive a restart.
+
+- **Delivery.** A changed snapshot is sent at most once every 5 seconds. An unchanged snapshot is repeated every 60 seconds while the assignment is connected, which refreshes Core's `receivedAt`; nothing is sent while the printer is disconnected. A failed request is retried with the then newest snapshot. A `404` or `409` answer (ended assignment, changed configuration version) discards the snapshot; the restarted adapter reports a fresh one.
+- **Core.** Core keeps exactly one row per assignment in `printer_live_statuses`, does not audit it and never overwrites a newer observation with an older one. The compact snapshot is limited to 32 KiB (the table caps the stored JSON at 64 KiB). Only fields named in the `PrinterLiveStatusSnapshot` schema are stored; unknown fields are dropped. `GET /machines/{machineId}/printer/live-status` returns the snapshot of the machine's active assignment (`machines.read`) or `404`.
+- **Content.** State (`idle`, `preparing`, `printing`, `paused`, `finished`, `failed`, `unknown`), the current job (file name, percent, layer, total layers, remaining minutes), extruder, bed and chamber temperatures, nozzles, spool units with trays (material, sub-brand, `RRGGBB` color, remaining percent, RFID present, empty), the active tray, active errors, firmware version and Wi-Fi signal in dBm. It never contains IP or MAC addresses, serial numbers, camera or RTSP data, or other network identifiers. Every key is always present; unknown values are `null`.
+- **Simulator.** The simulator adapter reports a fixed plausible snapshot (one AMS with two spools, an external holder, one nozzle) so the whole path can be exercised without a printer.
+
+### H2D mapping
+
+The snapshot is built from the merged status document. Fields that are not observed stay `null`.
+
+| Snapshot | H2D field |
+|---|---|
+| `state` | `gcode_state` (`IDLE`, `PREPARE`, `RUNNING`, `PAUSE`, `FINISH`, `FAILED`; anything else is `unknown`) |
+| `job` | `subtask_name` (else the base name of `gcode_file`), `mc_percent`, `layer_num`, `total_layer_num`, `mc_remaining_time` (minutes). `null` while idle or unknown. |
+| temperatures | `device.extruder.info[]` (`id`, `temp`, `htar`), `bed_temper`, `bed_target_temper`, `device.ctc.info.temp` (chamber) |
+| `nozzles` | `device.nozzle.info[]` (`id`, `diameter`, `type`) |
+| `units` | `ams.ams[]` (`id`, `humidity_raw` percent, `temp`, `tray[]`) and `vir_slot[]` |
+| tray | `tray_type`, `tray_sub_brands`, `tray_color` (RRGGBBAA, reported as RRGGBB), `remain` (percent; -1 and 0 mean unknown), `tag_uid` (all-zero means no RFID) |
+| `activeTray` | `ams.tray_now`, only while a job is preparing, printing or paused |
+| `errors` | `print_error` (family `print`) and `hms[].code` (family `hms`); `observedAt` is when this process first saw the code |
+| `wifiSignalDbm` | `wifi_signal`, for example `-39dBm` |
+| `firmwareVersion` | not observed in the captured reports, always `null` |
+
+Unit kinds: AMS IDs below 128 are `ams`, IDs from 128 are `ams_ht`, and `vir_slot` entries are `external`. A tray is `empty` when `tray_exist_bits` (bit `unit index * 4 + tray`, AMS HT 128 is unit index 4) marks it absent and it reports no material; without that bitmask, when it reports neither material nor RFID.
+
+### External spool holders (`vir_slot`)
+
+`vir_slot[]` entries (IDs `254` and `255`) are reported as units of kind `external`. The unit external ID and its single slot external ID are both the `vir_slot` ID, so a printer setup maps them as unit `254` with slot `254`. `tray_now` `254` or `255` resolves to that holder while a job is active (`255` is also the idle "nothing selected" value, which is why an idle printer reports no active tray). External holders also produce `slot_observation` events, so exact-RFID auto-mount works for external spools like for AMS trays, and they are recorded as consumption evidence for a run.
+
+### Assumptions to verify on a real printer
+
+- **Extruder side.** Extruder `0` is reported as the `right` nozzle and extruder `1` as the `left` one. The mapping lives in one function (`bambuExtruderSide`) and is exposed as `side` on nozzles and extruder temperatures.
+- **AMS to nozzle.** The protocol does not say which nozzle an AMS feeds, so detection reports units without a nozzle; staff choose it in the printer setup.
+- **AMS HT `tray_now`.** A bare `tray_now` of 128 or more is treated as the single tray of the AMS HT unit with that ID. Other bare tray numbers that repeat across units stay unresolved.
+- **`humidity_raw`** is the humidity percentage; `humidity` is a coarse level and is not used.
+
 ## Offline artifact and fixture diagnostics
 
 The production connector binary contains read-only offline commands. From a repository checkout, prefix each command with `cd backend && go run ./cmd/printer-connector`; in the connector image use `/app/printer-connector`. They do not need a Core URL, connector identity, database, or printer.
@@ -146,5 +185,5 @@ The container writes structured JSON logs to standard output. Logs contain conne
 
 Use the administration diagnostics panel to compare the applied and desired configuration revisions, inspect assignment runtime states, enable, disable, or end assignments, view queue and quarantine counts. Connectors can be disabled without destroying their identity and enabled again later. Disablement advances the configuration revision and sends an empty assignment snapshot so a reachable connector stops its printer supervisors. A heartbeat older than 90 seconds is displayed as disconnected even when the last reported state was connected.
 
-Configuration is a complete snapshot polled every 30 seconds. The last encrypted snapshot remains active during Core outages. A changed revision cancels the current adapter contexts, applies the new snapshot, and starts fresh supervisors. Graceful shutdown cancels adapters, checkpoints SQLite, and releases the data-directory lock.
+Configuration is a complete snapshot polled every 10 seconds, and the heartbeat is sent every 10 seconds. The heartbeat answer carries Core's current configuration revision; when it is newer than the applied one, the connector fetches the configuration immediately instead of waiting for the next poll, so a new assignment or a changed printer setup takes effect within seconds. The last encrypted snapshot remains active during Core outages. A changed revision cancels the current adapter contexts, applies the new snapshot, and starts fresh supervisors. Graceful shutdown cancels adapters, checkpoints SQLite, and releases the data-directory lock.
 

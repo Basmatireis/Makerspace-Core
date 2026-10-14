@@ -643,7 +643,7 @@ func TestFinishFilamentSpool(t *testing.T) {
 
 	mount := func(spool FilamentSpool) {
 		t.Helper()
-		typ, err := f.s.CreateMachineType(ctx, f.p, f.unique("Finish type"), &f.request)
+		typ, err := f.s.CreateMachineType(ctx, f.p, f.unique("Finish type"), false, &f.request)
 		if err != nil {
 			t.Fatal(err)
 		}

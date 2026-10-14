@@ -6,6 +6,24 @@ The machine logbook records machine usage, material stock, pricing, charge-sourc
 
 Machine types and machines are versioned. A machine status is administrative only: **active**, **maintenance**, or **retired**. Availability is derived separately and never stored (see [Work items and machine activity](#work-items-and-machine-activity)). Printer connector state is shown separately. Referenced types and machines are retired instead of deleted.
 
+A machine type has a **printer** flag: machines of such a type get a printer setup (printer profile, spool inputs, connector assignment). The flag only drives the UI; migration 00043 sets it for types that already had a machine with a printer profile.
+
+### Printer setup
+
+A printer profile holds the printing switch, an optional model (`bambu_h2d`, `bambu_x1c`, `prusa_core_one`, `generic`; the frontend keeps the unit and slot templates per model), spool input units and their slots. A unit may name the nozzle it feeds (`left` or `right`).
+
+`PUT /machines/{machineId}/printer/setup` (`machines.manage`) saves all of it atomically. The body is the *desired state*, not a patch: `expectedVersion` (the profile version, `null` or `0` when the machine has no profile yet), `enabled`, `model` and the ordered `inputUnits`, each with its ordered `slots`. Entries with an `id` update the existing row, entries without one are created. In one transaction Core
+
+- creates the profile when it is missing, otherwise requires `expectedVersion` to match (`409 stale_write` when it does not) and bumps the profile version;
+- renumbers the active units and the active slots of each unit `0..n-1` in the given order;
+- **retires** slots that are not listed (status `retired`, identifier cleared, moved behind the active ones) and **disables** units that are not listed (`enabled=false`, identifier cleared, their slots retired). Nothing is deleted, because mounts and print history reference these rows. A listed id that was retired or disabled earlier is revived;
+- refuses to retire a slot with a mounted spool (`409 slot_occupied`) and rolls everything back;
+- rejects two units, or two slots of one unit, with the same printer identifier up front (`422 duplicate_external_identifier`), rejects ids that do not belong to this machine (`422 validation_failed`), and returns `409 duplicate_external_identifier` should the unique index still fire;
+- bumps the configuration revision of the connector assigned to the machine when `enabled` changes, because the printing switch is part of the connector configuration;
+- writes one audit event `printer_profile.setup_saved` in the same transaction.
+
+Requested slot statuses are `available` or `unavailable`; `retired` only results from omitting a slot. Unchanged rows keep their version. The existing single-row endpoints for units and slots keep working. `GET /machines/{machineId}/printer/live-status` (`machines.read`) returns the latest connector snapshot (see the [printer connector](printer-connector.md#live-status)).
+
 Organizations are versioned billing parties with the type **company**, **institute**, **association**, or **other**. An identified job customer is either a Person or an Organization, represented by two mutually exclusive nullable foreign keys. Anonymous counter-sale jobs may omit both. Operators are People with enabled Accounts. Customer and operator searches return only identifiers and display names needed for assignment.
 
 Person references use ON DELETE SET NULL. Hard-deleting a Person therefore removes their PII without deleting non-PII machine, timing, usage, price, or inventory facts. Jobs do not retain person-name snapshots. Referenced Organizations are deactivated instead of deleted.

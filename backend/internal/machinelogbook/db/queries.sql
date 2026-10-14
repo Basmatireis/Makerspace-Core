@@ -1,5 +1,5 @@
 -- name: CreateMachineType :one
-INSERT INTO machine_types (id, name) VALUES (sqlc.arg(id), sqlc.arg(name)) RETURNING *;
+INSERT INTO machine_types (id, name, printer) VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(printer)) RETURNING *;
 
 -- name: ListMachineTypes :many
 SELECT * FROM machine_types ORDER BY active DESC, lower(name), id;
@@ -11,7 +11,7 @@ SELECT * FROM machine_types WHERE id = sqlc.arg(id);
 SELECT * FROM machine_types WHERE id = sqlc.arg(id) FOR UPDATE;
 
 -- name: UpdateMachineType :one
-UPDATE machine_types SET name = sqlc.arg(name), active = sqlc.arg(active),
+UPDATE machine_types SET name = sqlc.arg(name), active = sqlc.arg(active), printer = sqlc.arg(printer),
     version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
@@ -22,7 +22,7 @@ VALUES (sqlc.arg(id), sqlc.arg(machine_type_id), sqlc.arg(name), sqlc.arg(status
 RETURNING *;
 
 -- name: GetMachine :one
-SELECT m.*, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.version AS machine_type_version,
+SELECT m.*, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.printer AS machine_type_printer, mt.version AS machine_type_version,
        mt.created_at AS machine_type_created_at, mt.updated_at AS machine_type_updated_at,
        count(j.id)::bigint AS job_count,
        COALESCE(sum(s.runtime_seconds)::bigint, 0)::bigint AS runtime_seconds,
@@ -38,7 +38,7 @@ GROUP BY m.id, mt.id;
 SELECT * FROM machines WHERE id = sqlc.arg(id) FOR UPDATE;
 
 -- name: ListMachines :many
-SELECT m.*, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.version AS machine_type_version,
+SELECT m.*, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.printer AS machine_type_printer, mt.version AS machine_type_version,
        mt.created_at AS machine_type_created_at, mt.updated_at AS machine_type_updated_at,
        count(j.id)::bigint AS job_count,
        COALESCE(sum(s.runtime_seconds)::bigint, 0)::bigint AS runtime_seconds,

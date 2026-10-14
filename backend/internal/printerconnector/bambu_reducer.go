@@ -50,6 +50,8 @@ type bambuProcessor struct {
 	state         bambuPersistedState
 	loaded        bool
 	firstSnapshot bool
+	// errorSince is live-status bookkeeping only; it is not persisted.
+	errorSince map[string]time.Time
 }
 
 func newBambuProcessor(ctx context.Context, assignmentID uuid.UUID, store *Store) (*bambuProcessor, error) {
@@ -317,9 +319,51 @@ func bambuFileName(state map[string]any) string {
 	return value
 }
 
-// bambuActiveSlot resolves tray_now only when it identifies exactly one AMS
-// tray in the merged status document. A bare tray number is intentionally not
-// guessed across multiple AMS units because tray numbers repeat.
+// bambuTrayRef is one filament holder in the merged status document: a tray of
+// an AMS unit or an external spool holder from vir_slot[]. An external holder
+// is reported as a unit of its own whose external ID is also its slot ID.
+type bambuTrayRef struct {
+	unitID, trayID string
+	tray           map[string]any
+	external       bool
+	unit           map[string]any
+}
+
+// bambuTrayRefs lists AMS trays first and external holders last. The second
+// result is whether the document contained any AMS unit or external holder.
+func bambuTrayRefs(state map[string]any) ([]bambuTrayRef, bool) {
+	var refs []bambuTrayRef
+	ams := objectAt(state, "ams")
+	units, _ := ams["ams"].([]any)
+	for _, rawUnit := range units {
+		unit, _ := rawUnit.(map[string]any)
+		unitID := firstScalar(unit, "id", "ams_id")
+		trays, _ := unit["tray"].([]any)
+		for _, rawTray := range trays {
+			tray, _ := rawTray.(map[string]any)
+			trayID := firstScalar(tray, "id", "tray_id")
+			if unitID == "" || trayID == "" {
+				continue
+			}
+			refs = append(refs, bambuTrayRef{unitID: unitID, trayID: trayID, tray: tray, unit: unit})
+		}
+	}
+	external, _ := state["vir_slot"].([]any)
+	for _, raw := range external {
+		tray, _ := raw.(map[string]any)
+		if id := firstScalar(tray, "id", "tray_id"); id != "" {
+			refs = append(refs, bambuTrayRef{unitID: id, trayID: id, tray: tray, external: true})
+		}
+	}
+	return refs, len(units) > 0 || len(external) > 0
+}
+
+// bambuActiveSlot resolves tray_now only when it identifies exactly one tray
+// in the merged status document. A bare tray number is intentionally not
+// guessed across multiple AMS units because tray numbers repeat. External
+// spool holders are addressed by their vir_slot ID (254 and 255). A bare
+// tray_now of 128 or more may name a single-tray AMS HT unit by its unit ID;
+// that is an assumption pending real captures.
 func bambuActiveSlot(state map[string]any) (string, string, string, bool) {
 	ams := objectAt(state, "ams")
 	trayNow := firstScalar(state, "tray_now")
@@ -336,28 +380,34 @@ func bambuActiveSlot(state map[string]any) (string, string, string, bool) {
 			return "", "", "", false
 		}
 	}
-	units, _ := ams["ams"].([]any)
-	type match struct{ unit, tray, tag string }
-	var matches []match
-	for _, rawUnit := range units {
-		unit, _ := rawUnit.(map[string]any)
-		unitID := firstScalar(unit, "id", "ams_id")
-		if unitID == "" || (requestedUnit != "" && requestedUnit != unitID) {
+	refs, _ := bambuTrayRefs(state)
+	var matches []bambuTrayRef
+	for _, ref := range refs {
+		if requestedUnit != "" && requestedUnit != ref.unitID {
 			continue
 		}
-		trays, _ := unit["tray"].([]any)
-		for _, rawTray := range trays {
-			tray, _ := rawTray.(map[string]any)
-			trayID := firstScalar(tray, "id", "tray_id")
-			if trayID == requestedTray {
-				matches = append(matches, match{unit: unitID, tray: trayID, tag: firstScalar(tray, "tag_uid")})
+		if ref.trayID == requestedTray {
+			matches = append(matches, ref)
+		}
+	}
+	if len(matches) == 0 && requestedUnit == "" {
+		if number, err := strconv.Atoi(requestedTray); err == nil && number >= 128 && number < 254 {
+			for _, ref := range refs {
+				if !ref.external && ref.unitID == requestedTray {
+					matches = append(matches, ref)
+				}
+			}
+			if len(matches) != 1 {
+				matches = nil
+			} else if trays, _ := matches[0].unit["tray"].([]any); len(trays) != 1 {
+				matches = nil
 			}
 		}
 	}
 	if len(matches) != 1 {
 		return "", "", "", false
 	}
-	return matches[0].unit, matches[0].tray, matches[0].tag, true
+	return matches[0].unitID, matches[0].trayID, firstScalar(matches[0].tray, "tag_uid"), true
 }
 
 func bambuProgress(state map[string]any, observedAt time.Time) json.RawMessage {
@@ -426,67 +476,57 @@ func (p *bambuProcessor) errorTransitions(state map[string]any, at time.Time, ru
 }
 
 func (p *bambuProcessor) slotTransitions(state map[string]any, at time.Time, runID *uuid.UUID, externalID *string, historyComplete bool) []Observation {
-	ams := objectAt(state, "ams")
-	units, _ := ams["ams"].([]any)
+	refs, anyHolder := bambuTrayRefs(state)
 	currentKeys := map[string]bool{}
 	var result []Observation
-	for _, rawUnit := range units {
-		unit, _ := rawUnit.(map[string]any)
-		unitID := firstScalar(unit, "id", "ams_id")
-		trays, _ := unit["tray"].([]any)
-		for _, rawTray := range trays {
-			tray, _ := rawTray.(map[string]any)
-			trayID := firstScalar(tray, "id", "tray_id")
-			if unitID == "" || trayID == "" {
-				continue
-			}
-			slotKey := unitID + ":" + trayID
-			currentKeys[slotKey] = true
-			payload := map[string]any{
-				"inputUnitExternalId": unitID,
-				"slotExternalId":      trayID,
-				"externalSlotKey":     slotKey,
-				"freshness":           "live",
-			}
-			tagUID := firstScalar(tray, "tag_uid")
-			if tagUID == "" {
-				if p.state.EmptySlotCounts[slotKey] < 2 {
-					p.state.EmptySlotCounts[slotKey]++
-				}
-				if p.state.EmptySlotCounts[slotKey] < 2 {
-					// A transient RFID read failure must not unmount a spool. Wait
-					// for the printer to report the same tag absence again.
-					continue
-				}
-				payload["empty"] = true
-			} else {
-				delete(p.state.EmptySlotCounts, slotKey)
-				payload["tagUid"] = tagUID
-			}
-			copyScalar(payload, tray, "trayUuid", "tray_uuid")
-			copyScalar(payload, tray, "trayType", "tray_type")
-			copyScalar(payload, tray, "productName", "tray_sub_brands")
-			copyScalar(payload, tray, "color", "tray_color")
-			copyScalar(payload, tray, "weightGrams", "tray_weight")
-			// Remaining percentage, nozzle temperatures, active-tray state and the
-			// print stage change continuously. They are useful live telemetry but
-			// are not changes to the physical material mounted in a slot. Including
-			// them in this transition payload used to emit one run event per slot on
-			// almost every MQTT report.
-			hash := digestJSON(mustJSON(payload))
-			if p.state.LastSlots[slotKey] == hash {
-				continue
-			}
-			p.state.LastSlots[slotKey] = hash
-			payload["observedAt"] = at
-			// Slot observations belong to the assignment/topology. Filament changes
-			// are emitted separately with the run, so AMS inventory telemetry must
-			// not flood an individual run's lifecycle timeline.
-			result = append(result, Observation{Kind: "slot_observation", Payload: mustJSON(payload), HistoryComplete: historyComplete})
+	for _, ref := range refs {
+		unitID, trayID, tray := ref.unitID, ref.trayID, ref.tray
+		slotKey := unitID + ":" + trayID
+		currentKeys[slotKey] = true
+		payload := map[string]any{
+			"inputUnitExternalId": unitID,
+			"slotExternalId":      trayID,
+			"externalSlotKey":     slotKey,
+			"freshness":           "live",
 		}
+		tagUID := firstScalar(tray, "tag_uid")
+		if tagUID == "" {
+			if p.state.EmptySlotCounts[slotKey] < 2 {
+				p.state.EmptySlotCounts[slotKey]++
+			}
+			if p.state.EmptySlotCounts[slotKey] < 2 {
+				// A transient RFID read failure must not unmount a spool. Wait
+				// for the printer to report the same tag absence again.
+				continue
+			}
+			payload["empty"] = true
+		} else {
+			delete(p.state.EmptySlotCounts, slotKey)
+			payload["tagUid"] = tagUID
+		}
+		copyScalar(payload, tray, "trayUuid", "tray_uuid")
+		copyScalar(payload, tray, "trayType", "tray_type")
+		copyScalar(payload, tray, "productName", "tray_sub_brands")
+		copyScalar(payload, tray, "color", "tray_color")
+		copyScalar(payload, tray, "weightGrams", "tray_weight")
+		// Remaining percentage, nozzle temperatures, active-tray state and the
+		// print stage change continuously. They are useful live telemetry but
+		// are not changes to the physical material mounted in a slot. Including
+		// them in this transition payload used to emit one run event per slot on
+		// almost every MQTT report.
+		hash := digestJSON(mustJSON(payload))
+		if p.state.LastSlots[slotKey] == hash {
+			continue
+		}
+		p.state.LastSlots[slotKey] = hash
+		payload["observedAt"] = at
+		// Slot observations belong to the assignment/topology. Filament changes
+		// are emitted separately with the run, so AMS inventory telemetry must
+		// not flood an individual run's lifecycle timeline.
+		result = append(result, Observation{Kind: "slot_observation", Payload: mustJSON(payload), HistoryComplete: historyComplete})
 	}
 	for key := range p.state.LastSlots {
-		if !currentKeys[key] && len(units) > 0 {
+		if !currentKeys[key] && anyHolder {
 			delete(p.state.LastSlots, key)
 			delete(p.state.EmptySlotCounts, key)
 		}

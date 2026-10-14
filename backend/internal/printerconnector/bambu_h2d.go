@@ -216,6 +216,9 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 					return err
 				}
 			}
+			if live, ok := sink.(LiveStatusSink); ok && processor.ready() {
+				live.ReportLiveStatus(processor.liveSnapshot(time.Now().UTC()))
+			}
 			if scheduleErr := a.scheduleArtifactRetrievals(ctx, observations); scheduleErr != nil {
 				code := classifyAdapterError(scheduleErr)
 				if err = sink.Commit(ctx, Observation{Kind: "connectivity", Payload: mustJSON(map[string]any{"state": "degraded", "errorCode": code})}); err != nil {

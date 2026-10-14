@@ -943,16 +943,17 @@ func (q *Queries) CreateMachineJob(ctx context.Context, arg CreateMachineJobPara
 }
 
 const createMachineType = `-- name: CreateMachineType :one
-INSERT INTO machine_types (id, name) VALUES ($1, $2) RETURNING id, name, active, version, created_at, updated_at
+INSERT INTO machine_types (id, name, printer) VALUES ($1, $2, $3) RETURNING id, name, active, version, created_at, updated_at, printer
 `
 
 type CreateMachineTypeParams struct {
-	ID   uuid.UUID
-	Name string
+	ID      uuid.UUID
+	Name    string
+	Printer bool
 }
 
 func (q *Queries) CreateMachineType(ctx context.Context, arg CreateMachineTypeParams) (MachineType, error) {
-	row := q.db.QueryRow(ctx, createMachineType, arg.ID, arg.Name)
+	row := q.db.QueryRow(ctx, createMachineType, arg.ID, arg.Name, arg.Printer)
 	var i MachineType
 	err := row.Scan(
 		&i.ID,
@@ -961,6 +962,7 @@ func (q *Queries) CreateMachineType(ctx context.Context, arg CreateMachineTypePa
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Printer,
 	)
 	return i, err
 }
@@ -1728,7 +1730,7 @@ func (q *Queries) GetFilamentSpoolForUpdate(ctx context.Context, id uuid.UUID) (
 }
 
 const getMachine = `-- name: GetMachine :one
-SELECT m.id, m.machine_type_id, m.name, m.status, m.external_identifier, m.automatic_collection_enabled, m.last_ingested_at, m.version, m.created_at, m.updated_at, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.version AS machine_type_version,
+SELECT m.id, m.machine_type_id, m.name, m.status, m.external_identifier, m.automatic_collection_enabled, m.last_ingested_at, m.version, m.created_at, m.updated_at, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.printer AS machine_type_printer, mt.version AS machine_type_version,
        mt.created_at AS machine_type_created_at, mt.updated_at AS machine_type_updated_at,
        count(j.id)::bigint AS job_count,
        COALESCE(sum(s.runtime_seconds)::bigint, 0)::bigint AS runtime_seconds,
@@ -1754,6 +1756,7 @@ type GetMachineRow struct {
 	UpdatedAt                  time.Time
 	MachineTypeName            string
 	MachineTypeActive          bool
+	MachineTypePrinter         bool
 	MachineTypeVersion         int64
 	MachineTypeCreatedAt       time.Time
 	MachineTypeUpdatedAt       time.Time
@@ -1778,6 +1781,7 @@ func (q *Queries) GetMachine(ctx context.Context, id uuid.UUID) (GetMachineRow, 
 		&i.UpdatedAt,
 		&i.MachineTypeName,
 		&i.MachineTypeActive,
+		&i.MachineTypePrinter,
 		&i.MachineTypeVersion,
 		&i.MachineTypeCreatedAt,
 		&i.MachineTypeUpdatedAt,
@@ -1929,7 +1933,7 @@ func (q *Queries) GetMachineJobRunSummary(ctx context.Context, jobID *uuid.UUID)
 }
 
 const getMachineType = `-- name: GetMachineType :one
-SELECT id, name, active, version, created_at, updated_at FROM machine_types WHERE id = $1
+SELECT id, name, active, version, created_at, updated_at, printer FROM machine_types WHERE id = $1
 `
 
 func (q *Queries) GetMachineType(ctx context.Context, id uuid.UUID) (MachineType, error) {
@@ -1942,12 +1946,13 @@ func (q *Queries) GetMachineType(ctx context.Context, id uuid.UUID) (MachineType
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Printer,
 	)
 	return i, err
 }
 
 const getMachineTypeForUpdate = `-- name: GetMachineTypeForUpdate :one
-SELECT id, name, active, version, created_at, updated_at FROM machine_types WHERE id = $1 FOR UPDATE
+SELECT id, name, active, version, created_at, updated_at, printer FROM machine_types WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetMachineTypeForUpdate(ctx context.Context, id uuid.UUID) (MachineType, error) {
@@ -1960,6 +1965,7 @@ func (q *Queries) GetMachineTypeForUpdate(ctx context.Context, id uuid.UUID) (Ma
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Printer,
 	)
 	return i, err
 }
@@ -3860,7 +3866,7 @@ func (q *Queries) ListMachineRunningRuns(ctx context.Context, now time.Time) ([]
 }
 
 const listMachineTypes = `-- name: ListMachineTypes :many
-SELECT id, name, active, version, created_at, updated_at FROM machine_types ORDER BY active DESC, lower(name), id
+SELECT id, name, active, version, created_at, updated_at, printer FROM machine_types ORDER BY active DESC, lower(name), id
 `
 
 func (q *Queries) ListMachineTypes(ctx context.Context) ([]MachineType, error) {
@@ -3879,6 +3885,7 @@ func (q *Queries) ListMachineTypes(ctx context.Context) ([]MachineType, error) {
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Printer,
 		); err != nil {
 			return nil, err
 		}
@@ -3891,7 +3898,7 @@ func (q *Queries) ListMachineTypes(ctx context.Context) ([]MachineType, error) {
 }
 
 const listMachines = `-- name: ListMachines :many
-SELECT m.id, m.machine_type_id, m.name, m.status, m.external_identifier, m.automatic_collection_enabled, m.last_ingested_at, m.version, m.created_at, m.updated_at, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.version AS machine_type_version,
+SELECT m.id, m.machine_type_id, m.name, m.status, m.external_identifier, m.automatic_collection_enabled, m.last_ingested_at, m.version, m.created_at, m.updated_at, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.printer AS machine_type_printer, mt.version AS machine_type_version,
        mt.created_at AS machine_type_created_at, mt.updated_at AS machine_type_updated_at,
        count(j.id)::bigint AS job_count,
        COALESCE(sum(s.runtime_seconds)::bigint, 0)::bigint AS runtime_seconds,
@@ -3927,6 +3934,7 @@ type ListMachinesRow struct {
 	UpdatedAt                  time.Time
 	MachineTypeName            string
 	MachineTypeActive          bool
+	MachineTypePrinter         bool
 	MachineTypeVersion         int64
 	MachineTypeCreatedAt       time.Time
 	MachineTypeUpdatedAt       time.Time
@@ -3962,6 +3970,7 @@ func (q *Queries) ListMachines(ctx context.Context, arg ListMachinesParams) ([]L
 			&i.UpdatedAt,
 			&i.MachineTypeName,
 			&i.MachineTypeActive,
+			&i.MachineTypePrinter,
 			&i.MachineTypeVersion,
 			&i.MachineTypeCreatedAt,
 			&i.MachineTypeUpdatedAt,
@@ -6069,15 +6078,16 @@ func (q *Queries) UpdateMachineJobFacts(ctx context.Context, arg UpdateMachineJo
 }
 
 const updateMachineType = `-- name: UpdateMachineType :one
-UPDATE machine_types SET name = $1, active = $2,
+UPDATE machine_types SET name = $1, active = $2, printer = $3,
     version = version + 1, updated_at = now()
-WHERE id = $3 AND version = $4
-RETURNING id, name, active, version, created_at, updated_at
+WHERE id = $4 AND version = $5
+RETURNING id, name, active, version, created_at, updated_at, printer
 `
 
 type UpdateMachineTypeParams struct {
 	Name            string
 	Active          bool
+	Printer         bool
 	ID              uuid.UUID
 	ExpectedVersion int64
 }
@@ -6086,6 +6096,7 @@ func (q *Queries) UpdateMachineType(ctx context.Context, arg UpdateMachineTypePa
 	row := q.db.QueryRow(ctx, updateMachineType,
 		arg.Name,
 		arg.Active,
+		arg.Printer,
 		arg.ID,
 		arg.ExpectedVersion,
 	)
@@ -6097,6 +6108,7 @@ func (q *Queries) UpdateMachineType(ctx context.Context, arg UpdateMachineTypePa
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Printer,
 	)
 	return i, err
 }

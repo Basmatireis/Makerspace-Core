@@ -28,10 +28,17 @@ type Runtime struct {
 	adapters                map[uuid.UUID]context.CancelFunc
 	health                  map[uuid.UUID]AssignmentHealth
 	revision                int64
+	live                    *liveStatusHub
 }
 
+// Configuration and heartbeat are polled every 10 seconds so a change in Core
+// reaches the printer quickly; a newer revision in a heartbeat answer is
+// fetched immediately.
+const configurationInterval = 10 * time.Second
+const heartbeatInterval = 10 * time.Second
+
 func NewRuntime(store *Store, client *Client, dataDir, enrollmentFile string, logger *slog.Logger) *Runtime {
-	return &Runtime{store: store, client: client, dataDir: dataDir, enrollmentFile: enrollmentFile, logger: logger, adapters: map[uuid.UUID]context.CancelFunc{}, health: map[uuid.UUID]AssignmentHealth{}}
+	return &Runtime{store: store, client: client, dataDir: dataDir, enrollmentFile: enrollmentFile, logger: logger, adapters: map[uuid.UUID]context.CancelFunc{}, health: map[uuid.UUID]AssignmentHealth{}, live: newLiveStatusHub()}
 }
 
 func newSecret() (string, error) {
@@ -62,8 +69,10 @@ func (r *Runtime) Run(ctx context.Context) error {
 		return err
 	}
 	delivery := time.NewTicker(2 * time.Second)
-	configuration := time.NewTicker(30 * time.Second)
-	heartbeat := time.NewTicker(30 * time.Second)
+	configuration := time.NewTicker(configurationInterval)
+	heartbeat := time.NewTicker(heartbeatInterval)
+	liveStatus := time.NewTicker(time.Second)
+	defer liveStatus.Stop()
 	defer delivery.Stop()
 	defer configuration.Stop()
 	defer heartbeat.Stop()
@@ -82,6 +91,8 @@ func (r *Runtime) Run(ctx context.Context) error {
 			if err = r.deliverArtifacts(ctx, identity); err != nil {
 				r.logger.Warn("artifact delivery failed", "error_type", fmt.Sprintf("%T", err))
 			}
+		case <-liveStatus.C:
+			r.deliverLiveStatus(ctx, identity)
 		case <-configuration.C:
 			if identity, err = r.rotateCredentialIfNeeded(ctx, identity); err != nil {
 				r.logger.Warn("credential rotation failed", "error_type", fmt.Sprintf("%T", err))
@@ -215,7 +226,7 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 		r.health[id] = AssignmentHealth{AssignmentID: raw.ID, AppliedConfigurationVersion: raw.ConfigurationVersion, State: "connected"}
 		r.mu.Unlock()
 		go func(assignmentID uuid.UUID, configVersion int64, adapter Adapter) {
-			sink := &runtimeSink{store: r.store, assignmentID: assignmentID, configurationVersion: configVersion, reportHealth: func(state string, code *string) {
+			sink := &runtimeSink{store: r.store, live: r.live, assignmentID: assignmentID, configurationVersion: configVersion, reportHealth: func(state string, code *string) {
 				r.mu.Lock()
 				defer r.mu.Unlock()
 				r.health[assignmentID] = AssignmentHealth{AssignmentID: assignmentID.String(), AppliedConfigurationVersion: configVersion, State: state, ErrorCode: code}
@@ -232,6 +243,7 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 }
 
 func (r *Runtime) stopAdapters() {
+	r.live.Reset()
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	for id, cancel := range r.adapters {
@@ -243,6 +255,7 @@ func (r *Runtime) stopAdapters() {
 
 type runtimeSink struct {
 	store                *Store
+	live                 *liveStatusHub
 	assignmentID         uuid.UUID
 	configurationVersion int64
 	reportHealth         func(string, *string)
@@ -264,6 +277,13 @@ func (s *runtimeSink) Commit(ctx context.Context, observation Observation) error
 	}
 	_, err := s.store.Enqueue(ctx, s.assignmentID, s.configurationVersion, observation.Kind, observation.Payload, observation.RunID, observation.HistoryComplete, observation.ExternalPrintID, observation.ReportRevision)
 	return err
+}
+
+// ReportLiveStatus keeps only the newest snapshot; delivery is throttled by the runtime.
+func (s *runtimeSink) ReportLiveStatus(snapshot json.RawMessage) {
+	if s.live != nil {
+		s.live.Report(s.assignmentID, s.configurationVersion, snapshot)
+	}
 }
 
 func (s *runtimeSink) CommitBambuState(ctx context.Context, observations []Observation, state bambuPersistedState) error {
@@ -348,6 +368,30 @@ func (r *Runtime) deliver(ctx context.Context, identity Identity) error {
 	return r.store.ApplyReceipts(ctx, receipts)
 }
 
+// deliverLiveStatus sends due snapshots. Failures are dropped, not queued: the
+// next change or keep-alive sends a fresh snapshot. Core answers 404 or 409
+// when the assignment ended or its configuration changed; the snapshot is then
+// discarded and the restarted adapter reports a new one.
+func (r *Runtime) deliverLiveStatus(ctx context.Context, identity Identity) {
+	due := r.live.Due(func(id uuid.UUID) bool {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		return r.health[id].State == "connected"
+	})
+	for _, item := range due {
+		err := r.client.PutLiveStatus(ctx, identity.CredentialSecret, item.AssignmentID, item.ConfigurationVersion, time.Now().UTC(), item.Snapshot)
+		var coreErr *CoreError
+		switch {
+		case err == nil:
+			r.live.Delivered(item.AssignmentID, item.Snapshot)
+		case errors.As(err, &coreErr) && (coreErr.Status == 404 || coreErr.Status == 409):
+			r.live.Drop(item.AssignmentID)
+		default:
+			r.logger.Warn("live status delivery failed", "error_type", fmt.Sprintf("%T", err))
+		}
+	}
+}
+
 func (r *Runtime) deliverArtifacts(ctx context.Context, identity Identity) error {
 	if err := r.store.QuarantineExpiredArtifactTransfers(ctx); err != nil {
 		return err
@@ -391,7 +435,14 @@ func (r *Runtime) sendHeartbeat(ctx context.Context, identity Identity) error {
 	}
 	revision := r.revision
 	r.mu.Unlock()
-	return r.client.Heartbeat(ctx, identity.CredentialSecret, Heartbeat{SoftwareVersion: Version, ProtocolVersion: 1, AppliedConfigurationRevision: revision, HealthState: state, PendingEventCount: pending, QuarantinedEventCount: quarantined, Assignments: health})
+	coreRevision, err := r.client.Heartbeat(ctx, identity.CredentialSecret, Heartbeat{SoftwareVersion: Version, ProtocolVersion: 1, AppliedConfigurationRevision: revision, HealthState: state, PendingEventCount: pending, QuarantinedEventCount: quarantined, Assignments: health})
+	if err != nil {
+		return err
+	}
+	if coreRevision > revision {
+		return r.syncConfiguration(ctx, identity)
+	}
+	return nil
 }
 
 func (r *Runtime) writeHealth(status string) error {

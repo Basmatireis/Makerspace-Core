@@ -30,7 +30,7 @@ func (s *Server) CreateMachineType(ctx context.Context, r openapi.CreateMachineT
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.CreateMachineType(ctx, p, r.Body.Name, requestIDPointer(ctx))
+	item, err := s.machineLogbook.CreateMachineType(ctx, p, r.Body.Name, r.Body.Printer != nil && *r.Body.Printer, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (s *Server) UpdateMachineType(ctx context.Context, r openapi.UpdateMachineT
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.UpdateMachineType(ctx, p, r.MachineTypeId, r.Body.ExpectedVersion, r.Body.Name, r.Body.Active, requestIDPointer(ctx))
+	item, err := s.machineLogbook.UpdateMachineType(ctx, p, r.MachineTypeId, r.Body.ExpectedVersion, r.Body.Name, r.Body.Active, r.Body.Printer, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}

@@ -3425,6 +3425,26 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /printer-connector/self/assignments/{assignmentId}/status:
+    parameters:
+      - {name: assignmentId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Printer Connectors]
+      operationId: reportPrinterConnectorLiveStatus
+      summary: Replace the latest live status snapshot of one assignment
+      description: "Live status is telemetry. Core keeps only the newest snapshot per assignment and does not audit or version it. A report for a stale configuration version is rejected with 409 and must be dropped by the connector."
+      security: [{printerConnectorBearer: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PrinterLiveStatusReport"}}}}
+      responses:
+        "204": {description: Snapshot stored or ignored because a newer one is already stored.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /printer-connector/self/credential-rotation:
     post:
       tags: [Printer Connectors]
@@ -4473,6 +4493,40 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machines/{machineId}/printer/live-status:
+    parameters:
+      - {name: machineId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Printing]
+      operationId: getPrinterLiveStatus
+      summary: Latest live status reported by the machine's active connector assignment
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Latest live status., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterLiveStatus"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machines/{machineId}/printer/setup:
+    parameters:
+      - {name: machineId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Printing]
+      operationId: savePrinterSetup
+      summary: Atomically save the desired printer profile, spool input units, and slots
+      description: "The request is the desired state. Omitted slots are retired and omitted units are disabled; neither is deleted. A slot with a mounted spool cannot be removed (409 slot_occupied). Active positions are renumbered in the given order. The profile is created when the machine has none."
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PrinterSetupRequest"}}}}
+      responses:
+        "200": {description: Saved printer profile., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterProfile"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /machines/{machineId}/printer/input-units:
@@ -10021,11 +10075,12 @@ components:
     MachineType:
       type: object
       additionalProperties: false
-      required: [id, name, active, version, createdAt, updatedAt]
+      required: [id, name, active, printer, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
         active: {type: boolean}
+        printer: {type: boolean, description: "Machines of this type have a printer setup (profile, spool inputs, connector)."}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
@@ -10043,6 +10098,7 @@ components:
       required: [name]
       properties:
         name: {type: string, minLength: 1, maxLength: 120}
+        printer: {type: boolean}
 
     UpdateMachineTypeRequest:
       type: object
@@ -10052,6 +10108,7 @@ components:
         expectedVersion: {$ref: "#/components/schemas/Version"}
         name: {type: string, minLength: 1, maxLength: 120}
         active: {type: boolean}
+        printer: {type: boolean}
 
     Machine:
       type: object
@@ -10804,11 +10861,12 @@ components:
     PrinterProfile:
       type: object
       additionalProperties: false
-      required: [machineId, machineName, enabled, inputUnits, slots, version, createdAt, updatedAt]
+      required: [machineId, machineName, enabled, model, inputUnits, slots, version, createdAt, updatedAt]
       properties:
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         machineName: {type: string}
         enabled: {type: boolean}
+        model: {allOf: [{$ref: "#/components/schemas/PrinterModel"}], nullable: true}
         inputUnits: {type: array, items: {$ref: "#/components/schemas/PrinterInputUnit"}}
         slots: {type: array, items: {$ref: "#/components/schemas/PrinterSlot"}}
         version: {$ref: "#/components/schemas/Version"}
@@ -10818,15 +10876,179 @@ components:
     PrinterInputUnit:
       type: object
       additionalProperties: false
-      required: [id, machineId, name, position, enabled, version]
+      required: [id, machineId, name, position, nozzle, enabled, version]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
         position: {type: integer, minimum: 0}
+        nozzle: {allOf: [{$ref: "#/components/schemas/PrinterNozzle"}], nullable: true}
         externalIdentifier: {type: string, nullable: true}
         enabled: {type: boolean}
         version: {$ref: "#/components/schemas/Version"}
+
+    PrinterModel:
+      type: string
+      enum: [bambu_h2d, bambu_x1c, prusa_core_one, generic]
+
+    PrinterNozzle:
+      type: string
+      enum: [left, right]
+
+    PrinterSetupRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, enabled, model, inputUnits]
+      properties:
+        expectedVersion: {type: integer, format: int64, minimum: 0, nullable: true, description: "Profile version being edited; null or 0 when the machine has no printer profile yet."}
+        enabled: {type: boolean}
+        model: {allOf: [{$ref: "#/components/schemas/PrinterModel"}], nullable: true}
+        inputUnits: {type: array, maxItems: 32, items: {$ref: "#/components/schemas/PrinterSetupInputUnit"}}
+
+    PrinterSetupInputUnit:
+      type: object
+      additionalProperties: false
+      required: [name, nozzle, externalIdentifier, slots]
+      properties:
+        id: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        name: {type: string, minLength: 1, maxLength: 120}
+        nozzle: {allOf: [{$ref: "#/components/schemas/PrinterNozzle"}], nullable: true}
+        externalIdentifier: {type: string, maxLength: 200, nullable: true}
+        slots: {type: array, maxItems: 16, items: {$ref: "#/components/schemas/PrinterSetupSlot"}}
+
+    PrinterSetupSlot:
+      type: object
+      additionalProperties: false
+      required: [name, status, externalIdentifier]
+      properties:
+        id: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        name: {type: string, minLength: 1, maxLength: 120}
+        status: {type: string, enum: [available, unavailable]}
+        externalIdentifier: {type: string, maxLength: 200, nullable: true}
+
+    PrinterLiveStatusState:
+      type: string
+      enum: [idle, preparing, printing, paused, finished, failed, unknown]
+
+    PrinterLiveStatusJob:
+      type: object
+      additionalProperties: false
+      required: [fileName, progressPercent, layer, totalLayers, remainingMinutes]
+      properties:
+        fileName: {type: string, maxLength: 255, nullable: true}
+        progressPercent: {type: integer, minimum: 0, maximum: 100, nullable: true}
+        layer: {type: integer, minimum: 0, nullable: true}
+        totalLayers: {type: integer, minimum: 0, nullable: true}
+        remainingMinutes: {type: integer, minimum: 0, nullable: true}
+
+    PrinterLiveStatusExtruderTemperature:
+      type: object
+      additionalProperties: false
+      required: [extruderId, side, currentC, targetC]
+      properties:
+        extruderId: {type: integer, minimum: 0, maximum: 15}
+        side: {allOf: [{$ref: "#/components/schemas/PrinterNozzle"}], nullable: true, description: "Print head side of the extruder, as far as the adapter knows it."}
+        currentC: {type: number, format: double, nullable: true}
+        targetC: {type: number, format: double, nullable: true}
+
+    PrinterLiveStatusTemperatures:
+      type: object
+      additionalProperties: false
+      required: [extruders, bedC, bedTargetC, chamberC]
+      properties:
+        extruders: {type: array, maxItems: 8, items: {$ref: "#/components/schemas/PrinterLiveStatusExtruderTemperature"}}
+        bedC: {type: number, format: double, nullable: true}
+        bedTargetC: {type: number, format: double, nullable: true}
+        chamberC: {type: number, format: double, nullable: true}
+
+    PrinterLiveStatusNozzle:
+      type: object
+      additionalProperties: false
+      required: [extruderId, side, diameterMm, type]
+      properties:
+        extruderId: {type: integer, minimum: 0, maximum: 15}
+        side: {allOf: [{$ref: "#/components/schemas/PrinterNozzle"}], nullable: true}
+        diameterMm: {type: number, format: double, nullable: true}
+        type: {type: string, maxLength: 40, nullable: true}
+
+    PrinterLiveStatusTray:
+      type: object
+      additionalProperties: false
+      required: [externalId, materialType, subBrand, colorHex, remainPercent, rfid, empty]
+      properties:
+        externalId: {type: string, minLength: 1, maxLength: 200}
+        materialType: {type: string, maxLength: 40, nullable: true}
+        subBrand: {type: string, maxLength: 80, nullable: true}
+        colorHex: {type: string, pattern: "^[0-9A-Fa-f]{6}$", nullable: true, description: "RRGGBB without alpha."}
+        remainPercent: {type: integer, minimum: 0, maximum: 100, nullable: true}
+        rfid: {type: boolean}
+        empty: {type: boolean}
+
+    PrinterLiveStatusUnit:
+      type: object
+      additionalProperties: false
+      required: [externalId, kind, label, humidityPercent, temperatureC, trays]
+      properties:
+        externalId: {type: string, minLength: 1, maxLength: 200}
+        kind: {type: string, enum: [ams, ams_ht, external, unknown]}
+        label: {type: string, maxLength: 120}
+        humidityPercent: {type: integer, minimum: 0, maximum: 100, nullable: true}
+        temperatureC: {type: number, format: double, nullable: true}
+        trays: {type: array, maxItems: 8, items: {$ref: "#/components/schemas/PrinterLiveStatusTray"}}
+
+    PrinterLiveStatusActiveTray:
+      type: object
+      additionalProperties: false
+      required: [unitExternalId, trayExternalId]
+      properties:
+        unitExternalId: {type: string, minLength: 1, maxLength: 200}
+        trayExternalId: {type: string, minLength: 1, maxLength: 200}
+
+    PrinterLiveStatusError:
+      type: object
+      additionalProperties: false
+      required: [sourceFamily, code, observedAt]
+      properties:
+        sourceFamily: {type: string, enum: [print, hms]}
+        code: {type: string, minLength: 1, maxLength: 120}
+        observedAt: {type: string, format: date-time, nullable: true}
+
+    PrinterLiveStatusSnapshot:
+      type: object
+      additionalProperties: false
+      description: "Normalized printer state. It never contains addresses, serial numbers, camera, or network identifiers."
+      required: [state, job, temperatures, nozzles, units, activeTray, errors, firmwareVersion, wifiSignalDbm]
+      properties:
+        state: {$ref: "#/components/schemas/PrinterLiveStatusState"}
+        job: {allOf: [{$ref: "#/components/schemas/PrinterLiveStatusJob"}], nullable: true}
+        temperatures: {$ref: "#/components/schemas/PrinterLiveStatusTemperatures"}
+        nozzles: {type: array, maxItems: 8, items: {$ref: "#/components/schemas/PrinterLiveStatusNozzle"}}
+        units: {type: array, maxItems: 32, items: {$ref: "#/components/schemas/PrinterLiveStatusUnit"}}
+        activeTray: {allOf: [{$ref: "#/components/schemas/PrinterLiveStatusActiveTray"}], nullable: true}
+        errors: {type: array, maxItems: 64, items: {$ref: "#/components/schemas/PrinterLiveStatusError"}}
+        firmwareVersion: {type: string, maxLength: 80, nullable: true}
+        wifiSignalDbm: {type: integer, minimum: -150, maximum: 0, nullable: true}
+
+    PrinterLiveStatusReport:
+      type: object
+      additionalProperties: false
+      required: [protocolVersion, configurationVersion, observedAt, status]
+      properties:
+        protocolVersion: {type: integer, minimum: 1}
+        configurationVersion: {type: integer, format: int64, minimum: 1}
+        observedAt: {type: string, format: date-time}
+        status: {$ref: "#/components/schemas/PrinterLiveStatusSnapshot"}
+
+    PrinterLiveStatus:
+      type: object
+      additionalProperties: false
+      required: [machineId, assignmentId, receivedAt, observedAt, status]
+      properties:
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        assignmentId: {$ref: "#/components/schemas/UUIDv7"}
+        receivedAt: {type: string, format: date-time}
+        observedAt: {type: string, format: date-time}
+        status: {$ref: "#/components/schemas/PrinterLiveStatusSnapshot"}
 
     PrinterSlot:
       type: object

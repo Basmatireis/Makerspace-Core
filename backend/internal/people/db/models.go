@@ -601,6 +601,7 @@ type MachineType struct {
 	Version   int64
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	Printer   bool
 }
 
 type MailConfiguration struct {
@@ -1184,6 +1185,16 @@ type PrinterInputUnit struct {
 	Version            int64
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+	Nozzle             *string
+}
+
+type PrinterLiveStatus struct {
+	AssignmentID         uuid.UUID
+	MachineID            uuid.UUID
+	ObservedAt           time.Time
+	ReceivedAt           time.Time
+	ConfigurationVersion int64
+	Snapshot             []byte
 }
 
 type PrinterProfile struct {
@@ -1194,6 +1205,7 @@ type PrinterProfile struct {
 	UpdatedAt         time.Time
 	IdentityNamespace *string
 	IdentityValue     *string
+	Model             *string
 }
 
 type PrinterSlot struct {

@@ -19,6 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
+import type { PrinterInputUnitNozzle } from './printerInputUnitNozzle';
 import type { Version } from './version';
 
 export interface PrinterInputUnit {
@@ -27,6 +28,8 @@ export interface PrinterInputUnit {
   name: string;
   /** @minimum 0 */
   position: number;
+  /** @nullable */
+  nozzle: PrinterInputUnitNozzle;
   /** @nullable */
   externalIdentifier?: string | null;
   enabled: boolean;

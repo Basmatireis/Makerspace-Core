@@ -98,7 +98,7 @@ func TestMachineRunOperationsRequireTheirPermissionsOverHTTP(t *testing.T) {
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	logbook := machinelogbook.NewService(pool)
-	machineType, err := logbook.CreateMachineType(ctx, master, "Printer", nil)
+	machineType, err := logbook.CreateMachineType(ctx, master, "Printer", true, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

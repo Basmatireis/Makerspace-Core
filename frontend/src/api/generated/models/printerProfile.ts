@@ -19,6 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
+import type { PrinterProfileModel } from './printerProfileModel';
 import type { PrinterInputUnit } from './printerInputUnit';
 import type { PrinterSlot } from './printerSlot';
 import type { Version } from './version';
@@ -27,6 +28,8 @@ export interface PrinterProfile {
   machineId: UUIDv7;
   machineName: string;
   enabled: boolean;
+  /** @nullable */
+  model: PrinterProfileModel;
   inputUnits: PrinterInputUnit[];
   slots: PrinterSlot[];
   version: Version;
