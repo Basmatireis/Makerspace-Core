@@ -2,7 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import * as seed from './mockData';
 import type {
-  AdapterKind, BillingParty, ConnectorHost, DetectedPrinterState, IdentifierKind, InventoryTransaction, InventoryTransactionKind, FilamentProduct, Job, JobOutcome, JobUsage, Machine, MachineStatus, MachineType, Material, Nozzle, Operator, Print, PrinterModelId, PrinterProfile, SlotStatus,
+  AdapterKind, BillingParty, ConnectorHost, DetectedPrinterState, PrinterLiveStatus, IdentifierKind, InventoryTransaction, InventoryTransactionKind, FilamentProduct, Job, JobOutcome, JobUsage, Machine, MachineStatus, MachineType, Material, Nozzle, Operator, Print, PrinterModelId, PrinterProfile, SlotStatus,
   PriceAdjustment, Spool, SpoolFill, SpoolIdentifier, SpoolKind, SpoolLifecycle, SpoolStockSource,
 } from './types';
 import { leftoverOutcome, planClose, type LeftoverChoice } from './fillPlan';
@@ -41,6 +41,8 @@ type Data = {
   connectorHosts: ConnectorHost[];
   /** Last status the connector reported per machine (live slot contents). */
   detected: Record<string, DetectedPrinterState>;
+  /** Latest status snapshot the connector reported per machine. */
+  liveStatus: Record<string, PrinterLiveStatus>;
   machineTypes: MachineType[];
   jobs: Job[];
   prints: Print[];
@@ -52,7 +54,7 @@ type Data = {
 };
 
 const initialData = (): Data => structuredClone({
-  machines: seed.machines, connectorHosts: seed.connectorHosts, detected: seed.detectedStates, machineTypes: seed.machineTypes, jobs: seed.jobs, prints: seed.prints,
+  machines: seed.machines, connectorHosts: seed.connectorHosts, detected: seed.detectedStates, liveStatus: seed.liveStatuses, machineTypes: seed.machineTypes, jobs: seed.jobs, prints: seed.prints,
   printerProfiles: seed.printerProfiles, spools: seed.spools, materials: seed.materials, products: seed.filamentProducts, transactions: seed.inventoryTransactions,
 });
 
@@ -380,7 +382,7 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
       return reprice({ ...job, endsAt: stamp, outcome: 'cancelled', durationSeconds: secondsBetween(job.startsAt, stamp) });
     }),
     createConnector: (name, location) => {
-      const host: ConnectorHost = { id: uid('ch'), name, locationLabel: location, lifecycle: 'pending', healthState: 'offline', lastHeartbeatAt: null, softwareVersion: null, pendingEventCount: 0, quarantinedEventCount: 0, events: [] };
+      const host: ConnectorHost = { id: uid('ch'), name, locationLabel: location, lifecycle: 'pending', healthState: 'offline', lastHeartbeatAt: null, softwareVersion: null, configRevisionApplied: 0, configRevisionDesired: 0, pendingEventCount: 0, quarantinedEventCount: 0, events: [] };
       setData((d) => ({ ...d, connectorHosts: [...d.connectorHosts, host] }));
       return enrollmentSecret();
     },

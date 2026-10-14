@@ -22,7 +22,21 @@ export type PrinterEventKind = 'operational_state' | 'progress' | 'consumption_r
 export type MachineType = { id: string; name: string; active: boolean };
 
 /** A printer connector host (the agent that runs next to the printers). Printers are assigned to it from the printer, not from here. */
-export type ConnectorHostEvent = { id: string; kind: string; receivedAt: string; summary: string; payload: object };
+export type ConnectorEventKind =
+  | 'operational_state' | 'progress' | 'filament_change' | 'consumption_report' | 'terminal_outcome' | 'hms_error' | 'connectivity'
+  | 'config_applied' | 'heartbeat_restored';
+export type ConnectorHostEvent = {
+  id: string;
+  kind: ConnectorEventKind;
+  receivedAt: string;
+  /** The printer the event belongs to; null for connector-level events (heartbeat, configuration, enrollment). */
+  machineId: string | null;
+  /** Readable one-liner derived from the payload. */
+  summary: string;
+  /** Set when Core quarantined the event instead of accepting it. */
+  quarantine: { reason: string } | null;
+  payload: object;
+};
 export type ConnectorHost = {
   id: string;
   name: string;
@@ -31,6 +45,9 @@ export type ConnectorHost = {
   healthState: ConnectorHealth;
   lastHeartbeatAt: string | null;
   softwareVersion: string | null;
+  /** Configuration revision the connector confirmed vs. the one Core wants it to run. */
+  configRevisionApplied: number;
+  configRevisionDesired: number;
   pendingEventCount: number;
   quarantinedEventCount: number;
   events: ConnectorHostEvent[];
@@ -327,4 +344,24 @@ export type PrinterModel = {
   adapterKind: AdapterKind | null;
   nozzles: number;
   template: PrinterModelTemplate[];
+};
+
+export type PrinterRunState = 'idle' | 'preparing' | 'printing' | 'paused' | 'finished' | 'failed';
+export type HmsEntry = { code: string; attr: string; at: string; meaning: string | null };
+/** Latest status snapshot of one printer, modelled on the Bambu H2D MQTT report (print.*). */
+export type PrinterLiveStatus = {
+  receivedAt: string;
+  /** From `gcode_state`. */
+  state: PrinterRunState;
+  job: { fileName: string; progressPercent: number; layer: number; totalLayers: number; remainingMinutes: number } | null;
+  temperatures: { nozzles: { side: Nozzle; currentC: number; targetC: number }[]; bedC: number; bedTargetC: number; chamberC: number | null };
+  nozzles: { side: Nozzle; diameterMm: number; type: string }[];
+  /** `ams.tray_now`, resolved to its AMS unit and tray. */
+  activeTray: { unitExternalId: string; trayExternalId: string } | null;
+  hms: HmsEntry[];
+  printError: string | null;
+  wifiSignalDbm: number | null;
+  firmware: string;
+  /** Fields the connector could not refresh with the last report. */
+  staleFields?: string[];
 };

@@ -1,4 +1,4 @@
-import type { ConnectorHost, DetectedPrinterState, DetectedTray, MachineConnection, PrinterModel, PrinterModelId, BillingParty, IdentifierKind, InventoryTransaction, InventoryTransactionKind, Job, Machine, MachineType, Material, Operator, FilamentProduct, Print, PrinterProfile, Spool, SpoolFill, LeftoverOutcome } from './types';
+import type { ConnectorHost, PrinterLiveStatus, DetectedPrinterState, DetectedTray, MachineConnection, PrinterModel, PrinterModelId, BillingParty, IdentifierKind, InventoryTransaction, InventoryTransactionKind, Job, Machine, MachineType, Material, Operator, FilamentProduct, Print, PrinterProfile, Spool, SpoolFill, LeftoverOutcome } from './types';
 
 // Timestamps are relative to page load so the prototype always looks "live".
 const now = Date.now();
@@ -35,13 +35,23 @@ export const machines: Machine[] = [
 ];
 
 export const connectorHosts: ConnectorHost[] = [
-  { id: 'ch-workshop', name: 'Workshop Pi', locationLabel: 'Workshop rack', lifecycle: 'active', healthState: 'healthy', lastHeartbeatAt: ago(0.2), softwareVersion: '1.4.0', pendingEventCount: 3, quarantinedEventCount: 0,
+  { id: 'ch-workshop', name: 'Workshop Pi', locationLabel: 'Workshop rack', lifecycle: 'active', healthState: 'degraded', lastHeartbeatAt: ago(0.2), softwareVersion: '1.4.0', configRevisionApplied: 12, configRevisionDesired: 12, pendingEventCount: 3, quarantinedEventCount: 1,
     events: [
-      { id: 'ev-1', kind: 'operational_state', receivedAt: ago(2), summary: 'Bambu H2D is idle', payload: { machine: 'Bambu H2D', state: 'idle', nozzleTempC: [24, 25] } },
-      { id: 'ev-2', kind: 'progress', receivedAt: ago(35), summary: 'Prusa MK4 #2 print at 100 %', payload: { machine: 'Prusa MK4 #2', progressPercent: 100, remainingMinutes: 0 } },
-      { id: 'ev-3', kind: 'connectivity', receivedAt: ago(6), summary: 'Bambu X1C MQTT timeout', payload: { machine: 'Bambu X1C', code: 'MQTT_TIMEOUT', retryInSeconds: 30 } },
+      { id: 'ev-1', kind: 'progress', receivedAt: ago(0.1), machineId: 'm-h2d', quarantine: null, summary: 'Bracket v3 at 47 % (layer 89 of 191), about 38 min left', payload: { gcode_state: 'RUNNING', subtask_name: 'Bracket v3', mc_percent: 47, layer_num: 89, total_layer_num: 191, mc_remaining_time: 38 } },
+      { id: 'ev-2', kind: 'hms_error', receivedAt: ago(9), machineId: 'm-h2d', quarantine: null, summary: 'Warning 0300_0200_0002_0001 reported', payload: { hms: [{ attr: 50332160, code: 131073 }], code: '0300_0200_0002_0001' } },
+      { id: 'ev-3', kind: 'filament_change', receivedAt: ago(14), machineId: 'm-h2d', quarantine: null, summary: 'Now feeding from AMS 2 Pro, slot 2 (PETG HF)', payload: { ams: { tray_now: '1' }, tray_type: 'PETG', tray_sub_brands: 'PETG HF' } },
+      { id: 'ev-4', kind: 'operational_state', receivedAt: ago(47 * 1.6), machineId: 'm-h2d', quarantine: null, summary: 'State changed from preparing to printing', payload: { from: 'PREPARE', to: 'RUNNING', subtask_name: 'Bracket v3' } },
+      { id: 'ev-5', kind: 'connectivity', receivedAt: ago(6), machineId: 'm-x1c', quarantine: null, summary: 'MQTT timeout, retrying in 30 s', payload: { code: 'MQTT_TIMEOUT', retryInSeconds: 30, host: '192.168.20.52:8883' } },
+      { id: 'ev-6', kind: 'operational_state', receivedAt: ago(3 * H), machineId: 'm-x1c', quarantine: null, summary: 'State changed from printing to idle', payload: { from: 'RUNNING', to: 'IDLE' } },
+      { id: 'ev-7', kind: 'terminal_outcome', receivedAt: ago(3 * H + 1), machineId: 'm-x1c', quarantine: null, summary: 'Print "Cable clip" finished', payload: { subtask_name: 'Cable clip', outcome: 'finished', durationSeconds: 3480 } },
+      { id: 'ev-8', kind: 'consumption_report', receivedAt: ago(3 * H + 1), machineId: 'm-x1c', quarantine: null, summary: 'Reported 38 g ASA Grey from AMS unit A, slot A1', payload: { tray: '0', materialType: 'ASA', grams: 38 } },
+      { id: 'ev-9', kind: 'operational_state', receivedAt: ago(2), machineId: 'm-mk4-1', quarantine: null, summary: 'Prusa MK4 #1 is idle', payload: { state: 'idle', nozzleTempC: 24 } },
+      { id: 'ev-10', kind: 'progress', receivedAt: ago(35), machineId: 'm-mk4-2', quarantine: null, summary: 'Print at 100 %', payload: { progressPercent: 100, remainingMinutes: 0 } },
+      { id: 'ev-11', kind: 'config_applied', receivedAt: ago(26), machineId: null, quarantine: null, summary: 'Configuration revision 12 applied (4 printers)', payload: { revision: 12, printers: 4 } },
+      { id: 'ev-12', kind: 'heartbeat_restored', receivedAt: ago(75), machineId: null, quarantine: null, summary: 'Heartbeat restored after 3 min without contact', payload: { gapSeconds: 190 } },
+      { id: 'ev-13', kind: 'operational_state', receivedAt: ago(18), machineId: null, quarantine: { reason: 'unknown_machine_serial' }, summary: 'Status report from serial 01P00A3B1100999', payload: { serial: '01P00A3B1100999', state: 'IDLE' } },
     ] },
-  { id: 'ch-laser', name: 'Laser room Pi', locationLabel: 'Laser room', lifecycle: 'pending', healthState: 'offline', lastHeartbeatAt: null, softwareVersion: null, pendingEventCount: 0, quarantinedEventCount: 0, events: [] },
+  { id: 'ch-laser', name: 'Laser room Pi', locationLabel: 'Laser room', lifecycle: 'pending', healthState: 'offline', lastHeartbeatAt: null, softwareVersion: null, configRevisionApplied: 0, configRevisionDesired: 0, pendingEventCount: 0, quarantinedEventCount: 0, events: [] },
 ];
 
 // Printer model catalog. Template slot external identifiers match what the real H2D adapter reports:
@@ -428,3 +438,29 @@ export const printerProfiles: PrinterProfile[] = [
     ] },
 ];
 
+
+const idleStatus = (receivedAt: string, firmware: string): PrinterLiveStatus => ({
+  receivedAt, state: 'idle', job: null, temperatures: { nozzles: [{ side: 'right', currentC: 24, targetC: 0 }], bedC: 23, bedTargetC: 0, chamberC: null },
+  nozzles: [{ side: 'right', diameterMm: 0.4, type: 'simulated' }], activeTray: null, hms: [], printError: null, wifiSignalDbm: null, firmware,
+});
+
+/** Latest status per printer, as the connector reports it. */
+export const liveStatuses: Record<string, PrinterLiveStatus> = {
+  'm-h2d': {
+    receivedAt: ago(4 / 60), state: 'printing',
+    job: { fileName: 'Bracket v3', progressPercent: 47, layer: 89, totalLayers: 191, remainingMinutes: 38 },
+    temperatures: { nozzles: [{ side: 'left', currentC: 220, targetC: 220 }, { side: 'right', currentC: 24, targetC: 0 }], bedC: 65, bedTargetC: 65, chamberC: 38 },
+    nozzles: [{ side: 'left', diameterMm: 0.4, type: 'HS01' }, { side: 'right', diameterMm: 0.4, type: 'HS01' }],
+    activeTray: { unitExternalId: '0', trayExternalId: '1' },
+    hms: [{ code: '0300_0200_0002_0001', attr: '0x03000200', at: ago(9), meaning: null }],
+    printError: null, wifiSignalDbm: -52, firmware: '01.04.00.00',
+  },
+  'm-x1c': {
+    receivedAt: ago(6), state: 'idle', job: null,
+    temperatures: { nozzles: [{ side: 'right', currentC: 31, targetC: 0 }], bedC: 29, bedTargetC: 0, chamberC: 27 },
+    nozzles: [{ side: 'right', diameterMm: 0.4, type: 'stainless' }], activeTray: null, hms: [], printError: null, wifiSignalDbm: -71, firmware: '01.08.02.00',
+    staleFields: ['temperatures', 'ams', 'wifi_signal'],
+  },
+  'm-mk4-1': idleStatus(ago(2), 'simulator'),
+  'm-mk4-2': { ...idleStatus(ago(0.5), 'simulator'), state: 'finished' },
+};

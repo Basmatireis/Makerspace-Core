@@ -1,15 +1,16 @@
 import { useState } from 'react';
 import {
-  Accordion, AccordionItem, Button, CodeSnippet, ComposedModal, DataTable, InlineNotification, Link as CarbonLink, Modal, ModalBody, ModalFooter, ModalHeader, OverflowMenu, OverflowMenuItem,
+  Button, CodeSnippet, ComposedModal, DataTable, InlineNotification, Link as CarbonLink, Modal, ModalBody, ModalFooter, ModalHeader, OverflowMenu, OverflowMenuItem,
   Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, Tag, TextInput,
 } from '@carbon/react';
 import { Add } from '@carbon/icons-react';
 import { Link } from 'react-router-dom';
 import { DestructiveActionDialog } from '../../../app/DestructiveActionDialog';
 import { EmptyState } from '../../../app/PageState';
-import { connectorStatus, formatDateTime, formatRelative } from '../derived';
+import { connectorStatus, formatRelative } from '../derived';
 import { useSimulatedMutation, useStore } from '../store';
-import type { ConnectorHost, Machine } from '../types';
+import type { ConnectorHost } from '../types';
+import { DiagnosticsModal } from './ConnectorDiagnostics';
 
 const headers = [
   { key: 'name', header: 'Connector' }, { key: 'status', header: 'Status' }, { key: 'heartbeat', header: 'Last heartbeat' },
@@ -50,55 +51,6 @@ function SecretModal({ secret, onClose }: { secret: string; onClose: () => void 
         </Stack>
       </ModalBody>
       <ModalFooter><Button kind="primary" onClick={onClose}>I have stored the secret</Button></ModalFooter>
-    </ComposedModal>
-  );
-}
-
-function DiagnosticsModal({ host, printers, onClose }: { host: ConnectorHost; printers: Machine[]; onClose: () => void }) {
-  const status = connectorStatus(host);
-  const issue = printers.find((machine) => machine.connection?.runtimeErrorCode);
-  return (
-    <ComposedModal open size="lg" onClose={onClose} aria-label={`${host.name} diagnostics`}>
-      <ModalHeader title={`${host.name} diagnostics`} label="Connector" />
-      <ModalBody>
-        <Stack gap={6}>
-          {host.healthState === 'degraded' && host.lifecycle === 'active' && (
-            <InlineNotification kind="warning" lowContrast hideCloseButton title="Connector needs attention" subtitle={issue ? `${issue.name}: ${issue.connection?.runtimeErrorCode}. Printer status is unavailable over MQTT. Check LAN only mode, port 8883 and local network routing.` : 'One of its printers reports a problem.'} />
-          )}
-          <p className="mj-secondary">{status.label} · last heartbeat {host.lastHeartbeatAt ? formatRelative(host.lastHeartbeatAt) : 'never'} · software {host.softwareVersion ?? 'unknown'}. Events stay on the connector until Core accepts them.</p>
-          <div>
-            <h4 className="mj-group-title">Assigned printers</h4>
-            {printers.length === 0 ? <p className="mj-secondary">No printers assigned. Assign a printer from its setup.</p> : (
-              <Stack gap={3}>
-                {printers.map((machine) => (
-                  <div key={machine.id} className="mj-inline">
-                    <CarbonLink as={Link} to={`/machines/${machine.id}?tab=printer`} onClick={onClose}>{machine.name}</CarbonLink>
-                    <Tag size="sm" type={machine.connection?.runtimeState === 'connected' ? 'green' : machine.connection?.runtimeState === 'degraded' ? 'purple' : 'gray'}>{machine.connection?.runtimeState}</Tag>
-                    {machine.connection?.runtimeErrorCode && <span className="mj-secondary">{machine.connection.runtimeErrorCode}</span>}
-                    <CarbonLink as={Link} to={`/machines/${machine.id}?tab=printer`} onClick={onClose}>Open printer setup</CarbonLink>
-                  </div>
-                ))}
-              </Stack>
-            )}
-          </div>
-          <div>
-            <h4 className="mj-group-title">Recent events</h4>
-            {host.events.length === 0 ? <p className="mj-secondary">No events received.</p> : (
-              <Accordion>
-                {host.events.map((event) => (
-                  <AccordionItem key={event.id} title={`${event.kind.replaceAll('_', ' ')} · ${formatDateTime(event.receivedAt)}`}>
-                    <Stack gap={3}>
-                      <p>{event.summary}</p>
-                      <CodeSnippet type="multi" hideCopyButton>{JSON.stringify(event.payload, null, 2)}</CodeSnippet>
-                    </Stack>
-                  </AccordionItem>
-                ))}
-              </Accordion>
-            )}
-          </div>
-        </Stack>
-      </ModalBody>
-      <ModalFooter><Button kind="secondary" onClick={onClose}>Close</Button></ModalFooter>
     </ComposedModal>
   );
 }
