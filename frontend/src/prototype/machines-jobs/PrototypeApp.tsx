@@ -5,7 +5,7 @@ import {
 } from '@carbon/react';
 import { Chemistry, Dashboard, Reset, Tools, Catalog, InventoryManagement, ChartColumn } from '@carbon/icons-react';
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { rolePresets, useStore, type Role, type Scenario } from './store';
+import { rolePresets, useStore, type ConnectionTestMode, type Role, type Scenario } from './store';
 import { OverviewPage } from './pages/OverviewPage';
 import { PrintDetailPage } from './pages/PrintDetailPage';
 import { JobsPage } from './pages/JobsPage';
@@ -55,6 +55,11 @@ function PrototypeControls() {
         <SelectItem value="loading" text="Loading" />
         <SelectItem value="error" text="Request failed" />
         <SelectItem value="empty" text="Empty" />
+      </Select>
+      <Select id="prototype-connection-test" labelText="Connection test" helperText="Result of “Test connection” in the machine setup." value={store.connectionTest} onChange={(event) => store.setConnectionTest(event.target.value as ConnectionTestMode)}>
+        <SelectItem value="success" text="Success" />
+        <SelectItem value="unreachable" text="Printer unreachable" />
+        <SelectItem value="wrong_code" text="Wrong access code" />
       </Select>
       <Button kind="tertiary" size="sm" renderIcon={Reset} onClick={store.reset}>Reset prototype data</Button>
     </Stack>

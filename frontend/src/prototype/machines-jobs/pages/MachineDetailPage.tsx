@@ -8,14 +8,16 @@ import { QueryBoundary } from '../components/QueryBoundary';
 import { JobsTable } from '../components/JobsTable';
 import { PrinterSetup } from '../components/PrinterSetup';
 import { JobFormModal } from '../dialogs/JobFormModal';
-import { MachineFormModal } from '../dialogs/MachineFormModal';
+import { MachineSetupWizard } from '../dialogs/MachineSetupWizard';
+import { modelById } from '../mockData';
+import { isPrinterType } from '../printerSetup';
 import { AvailabilityTag, formatDateTime, formatHours, formatRelative, formatTime, machineActivity } from '../derived';
 import { useNow, useSimulatedQuery, useStore } from '../store';
-import type { Job, Machine, MachineType, Print, PrinterProfile } from '../types';
+import type { ConnectorHost, DetectedPrinterState, Job, Machine, MachineType, Print, PrinterProfile } from '../types';
 import '../styles/machines.scss';
 
-type Data = { machine?: Machine; type?: MachineType; profile?: PrinterProfile; jobs: Job[]; allJobs: Job[]; prints: Print[] };
-const emptyData: Data = { jobs: [], allJobs: [], prints: [] };
+type Data = { machine?: Machine; type?: MachineType; profile?: PrinterProfile; detected: DetectedPrinterState | null; hosts: ConnectorHost[]; jobs: Job[]; allJobs: Job[]; prints: Print[] };
+const emptyData: Data = { detected: null, hosts: [], jobs: [], allJobs: [], prints: [] };
 type TabKey = 'overview' | 'jobs' | 'printer';
 
 const statusLabel = { active: 'Active', maintenance: 'Maintenance', retired: 'Retired' } as const;
@@ -31,11 +33,13 @@ export function MachineDetailPage() {
     machine: d.machines.find((m) => m.id === machineId),
     type: d.machineTypes.find((t) => t.id === d.machines.find((m) => m.id === machineId)?.machineTypeId),
     profile: d.printerProfiles.find((p) => p.machineId === machineId),
+    detected: d.detected[machineId] ?? null,
+    hosts: d.connectorHosts,
     jobs: d.jobs.filter((j) => j.machineId === machineId).sort((a, b) => b.startsAt.localeCompare(a.startsAt)),
     allJobs: d.jobs,
     prints: d.prints,
   }), emptyData);
-  const { machine, type, profile, jobs, allJobs, prints } = query.data;
+  const { machine, type, profile, detected, hosts, jobs, allJobs, prints } = query.data;
 
   const breadcrumbs = [{ label: 'Workshop', to: '/' }, { label: 'Machines', to: '/machines' }];
   if (query.status !== 'success') {
@@ -51,7 +55,7 @@ export function MachineDetailPage() {
 
   const activity = machineActivity(machine, prints, allJobs, now);
   const canManage = store.can('machines.manage');
-  const showPrinterTab = Boolean(profile) || canManage;
+  const showPrinterTab = Boolean(profile) || (canManage && isPrinterType(type));
   const tabs: TabKey[] = showPrinterTab ? ['overview', 'jobs', 'printer'] : ['overview', 'jobs'];
   const requested = params.get('tab') as TabKey | null;
   const tab: TabKey = requested && tabs.includes(requested) ? requested : 'overview';
@@ -85,7 +89,7 @@ export function MachineDetailPage() {
         {activity.connectorIssue && (
           <InlineNotification
             kind="warning" lowContrast hideCloseButton title={activity.connectorIssue}
-            subtitle={`Automatic collection from ${machine.connector?.connectorName ?? 'the connector'} may be delayed. Last ingest: ${lastIngest}.`}
+            subtitle={`Automatic collection from ${hosts.find((host) => host.id === machine.connection?.connectorId)?.name ?? 'the connector'} may be delayed. Last ingest: ${lastIngest}.`}
           />
         )}
         <Tabs selectedIndex={tabs.indexOf(tab)} onChange={({ selectedIndex }) => selectTab(selectedIndex)}>
@@ -101,7 +105,8 @@ export function MachineDetailPage() {
                   <div><dt>Status</dt><dd>{statusLabel[machine.status]}</dd></div>
                   <div><dt>Type</dt><dd>{type?.name ?? '—'} {type && !type.active && <Tag size="sm" type="gray">Inactive type</Tag>}</dd></div>
                   <div><dt>Collection</dt><dd>{machine.automaticCollectionEnabled ? 'Automatic' : 'Manual'}</dd></div>
-                  <div><dt>External identifier</dt><dd>{machine.externalIdentifier ?? '—'}</dd></div>
+                  {machine.modelId && <div><dt>Model</dt><dd>{modelById(machine.modelId)?.label ?? '—'}</dd></div>}
+                  {machine.connection?.serialNumber && <div><dt>Serial number</dt><dd>{machine.connection.serialNumber}</dd></div>}
                   <div><dt>Last ingest</dt><dd>{machine.lastIngestedAt ? formatDateTime(machine.lastIngestedAt) : '—'}</dd></div>
                 </dl>
                 <div className="mj-metrics" role="group" aria-label="Machine activity">
@@ -129,12 +134,12 @@ export function MachineDetailPage() {
               </div>
             </TabPanel>
             {showPrinterTab && (
-              <TabPanel><div className="mj-tab-panel"><PrinterSetup machine={machine} profile={profile} /></div></TabPanel>
+              <TabPanel><div className="mj-tab-panel"><PrinterSetup machine={machine} profile={profile} detected={detected} /></div></TabPanel>
             )}
           </TabPanels>
         </Tabs>
       </div>
-      <MachineFormModal open={editOpen} onClose={() => setEditOpen(false)} machine={machine} />
+      <MachineSetupWizard open={editOpen} onClose={() => setEditOpen(false)} machine={machine} initialStep="machine" />
       <JobFormModal open={jobOpen} onClose={() => setJobOpen(false)} mode="create" initialValues={{ machineId: machine.id }} />
     </PageShell>
   );

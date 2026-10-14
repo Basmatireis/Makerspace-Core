@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- status tags and the derivations they render form one module */
 import { Tag } from '@carbon/react';
 import { CheckmarkFilled, CircleDash, ErrorFilled, Flag, InProgress, Misuse, PauseFilled, WarningAltFilled, WarningFilled } from '@carbon/icons-react';
-import type { Job, JobOutcome, Machine, Print, PrintState, PriceAdjustment, PriceAdjustmentKind } from './types';
+import type { ConnectorHost, Job, JobOutcome, Machine, Print, PrintState, PriceAdjustment, PriceAdjustmentKind } from './types';
 import { formatDateTime, formatTime } from '../../app/dateTime';
 
 // ---------------------------------------------------------------------------
@@ -58,8 +58,8 @@ export type MachineActivity = {
 };
 
 export function machineActivity(machine: Machine, prints: Print[], jobs: Job[], now: number): MachineActivity {
-  const connectorIssue = machine.connector && ['disconnected', 'degraded'].includes(machine.connector.runtimeState)
-    ? `Connector ${machine.connector.runtimeState}${machine.connector.runtimeErrorCode ? ` · ${machine.connector.runtimeErrorCode}` : ''}`
+  const connectorIssue = machine.connection && ['disconnected', 'degraded'].includes(machine.connection.runtimeState)
+    ? `Connector ${machine.connection.runtimeState}${machine.connection.runtimeErrorCode ? ` · ${machine.connection.runtimeErrorCode}` : ''}`
     : null;
   if (machine.status === 'retired') return { availability: 'retired', connectorIssue: null };
   if (machine.status === 'maintenance') return { availability: 'maintenance', connectorIssue };
@@ -82,6 +82,15 @@ const availabilityMeta: Record<MachineAvailability, { label: string; type: 'blue
 export function AvailabilityTag({ availability, size = 'md' }: { availability: MachineAvailability; size?: 'sm' | 'md' }) {
   const meta = availabilityMeta[availability];
   return <Tag type={meta.type} size={size} renderIcon={meta.icon}>{meta.label}</Tag>;
+}
+
+export function connectorStatus(host: ConnectorHost): { label: string; type: 'green' | 'purple' | 'red' | 'blue' | 'warm-gray' } {
+  if (host.lifecycle === 'revoked') return { label: 'Revoked', type: 'red' };
+  if (host.lifecycle === 'disabled') return { label: 'Disabled', type: 'warm-gray' };
+  if (host.lifecycle === 'pending') return { label: 'Pending', type: 'blue' };
+  if (host.healthState === 'degraded') return { label: 'Degraded', type: 'purple' };
+  if (host.healthState === 'offline') return { label: 'Offline', type: 'red' };
+  return { label: 'Healthy', type: 'green' };
 }
 
 export function ConnectorIssueTag({ issue }: { issue: string | null }) {

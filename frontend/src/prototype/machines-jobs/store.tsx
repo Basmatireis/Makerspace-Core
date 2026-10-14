@@ -2,7 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import * as seed from './mockData';
 import type {
-  BillingParty, IdentifierKind, InventoryTransaction, InventoryTransactionKind, FilamentProduct, Job, JobOutcome, JobUsage, Machine, MachineType, Material, Operator, Print, PrinterProfile,
+  AdapterKind, BillingParty, ConnectorHost, DetectedPrinterState, IdentifierKind, InventoryTransaction, InventoryTransactionKind, FilamentProduct, Job, JobOutcome, JobUsage, Machine, MachineStatus, MachineType, Material, Nozzle, Operator, Print, PrinterModelId, PrinterProfile, SlotStatus,
   PriceAdjustment, Spool, SpoolFill, SpoolIdentifier, SpoolKind, SpoolLifecycle, SpoolStockSource,
 } from './types';
 import { leftoverOutcome, planClose, type LeftoverChoice } from './fillPlan';
@@ -16,12 +16,15 @@ export type Permission =
   | 'machines.read' | 'machines.manage' | 'machine_jobs.read' | 'machine_jobs.create'
   | 'machine_jobs.edit' | 'machine_jobs.override_price'
   | 'printer_slots.assign' | 'inventory.read' | 'inventory.manage' | 'filament_spools.manage' | 'orders.read' | 'orders.write' | 'orders.finalize' | 'payments.read' | 'payments.record'
-  | 'pricing.read' | 'statistics.read';
+  | 'pricing.read' | 'statistics.read'
+  | 'printer_connectors.read' | 'printer_connectors.manage' | 'printer_connectors.credentials.manage';
 
 export type Role = 'supervisor' | 'operator' | 'viewer';
 export type Scenario = 'normal' | 'loading' | 'error' | 'empty';
+/** Outcome of the simulated "Test connection" call in the machine setup wizard. */
+export type ConnectionTestMode = 'success' | 'unreachable' | 'wrong_code';
 
-const ALL: Permission[] = ['machines.read', 'machines.manage', 'machine_jobs.read', 'machine_jobs.create', 'machine_jobs.edit', 'machine_jobs.override_price', 'printer_slots.assign', 'inventory.read', 'inventory.manage', 'filament_spools.manage', 'orders.read', 'orders.write', 'orders.finalize', 'payments.read', 'payments.record', 'pricing.read', 'statistics.read'];
+const ALL: Permission[] = ['machines.read', 'machines.manage', 'machine_jobs.read', 'machine_jobs.create', 'machine_jobs.edit', 'machine_jobs.override_price', 'printer_slots.assign', 'inventory.read', 'inventory.manage', 'filament_spools.manage', 'orders.read', 'orders.write', 'orders.finalize', 'payments.read', 'payments.record', 'pricing.read', 'statistics.read', 'printer_connectors.read', 'printer_connectors.manage', 'printer_connectors.credentials.manage'];
 
 export const rolePresets: Record<Role, { label: string; description: string; permissions: Permission[] }> = {
   supervisor: { label: 'Workshop supervisor', description: 'All Machines & Jobs permissions', permissions: ALL },
@@ -35,6 +38,9 @@ export const rolePresets: Record<Role, { label: string; description: string; per
 
 type Data = {
   machines: Machine[];
+  connectorHosts: ConnectorHost[];
+  /** Last status the connector reported per machine (live slot contents). */
+  detected: Record<string, DetectedPrinterState>;
   machineTypes: MachineType[];
   jobs: Job[];
   prints: Print[];
@@ -46,7 +52,7 @@ type Data = {
 };
 
 const initialData = (): Data => structuredClone({
-  machines: seed.machines, machineTypes: seed.machineTypes, jobs: seed.jobs, prints: seed.prints,
+  machines: seed.machines, connectorHosts: seed.connectorHosts, detected: seed.detectedStates, machineTypes: seed.machineTypes, jobs: seed.jobs, prints: seed.prints,
   printerProfiles: seed.printerProfiles, spools: seed.spools, materials: seed.materials, products: seed.filamentProducts, transactions: seed.inventoryTransactions,
 });
 
@@ -78,7 +84,25 @@ export type ChangeFilamentInput = {
   keepIdentifierIds: string[]; added: { kind: IdentifierKind; value: string }[];
 };
 
+export type SetupSlotInput = { id?: string; name: string; externalIdentifier: string | null; status?: SlotStatus };
+export type SetupUnitInput = { id?: string; name: string; externalIdentifier: string | null; nozzle: Nozzle | null; slots: SetupSlotInput[] };
+export type SetupConnectionInput = { connectorId: string; adapterKind: AdapterKind; ipAddress: string | null; serialNumber: string | null; autoMountRfid: boolean };
+/** `undefined` sections are left unchanged (edit mode shows one wizard step at a time). The access code is only used to flip `accessCodeSet`; it is never stored. */
+export type MachineSetupInput = {
+  id?: string; name: string; machineTypeId: string; status: MachineStatus; modelId: PrinterModelId | null;
+  connection?: SetupConnectionInput | null; accessCode?: string; inputUnits?: SetupUnitInput[] | null; detected?: DetectedPrinterState | null;
+};
+
 type Actions = {
+  createConnector: (name: string, location: string | null) => string;
+  /** Issues a fresh enrollment secret for a pending connector. */
+  enrollConnector: (id: string) => string;
+  setConnectorEnabled: (id: string, enabled: boolean) => void;
+  revokeConnector: (id: string) => void;
+  /** Simulated status probe; rejects with an Error whose message is `unreachable` or `wrong_code` depending on the prototype control. */
+  detectPrinter: (connection: Pick<SetupConnectionInput, 'adapterKind'>, modelId?: PrinterModelId | null) => Promise<DetectedPrinterState>;
+  /** Creates or updates a machine, its connection and its printer profile (units and slots) in one step. */
+  saveMachineSetup: (input: MachineSetupInput) => Machine;
   createJob: (facts: JobFactsInput, usages: UsageInput[]) => Job;
   updateJobFacts: (id: string, facts: JobFactsInput) => void;
   replaceUsages: (id: string, usages: UsageInput[]) => void;
@@ -93,12 +117,8 @@ type Actions = {
   cancelRun: (jobId: string) => void;
   /** Records how a finished run ended. */
   setOutcome: (jobId: string, outcome: JobOutcome) => void;
-  saveMachine: (machine: Pick<Machine, 'name' | 'machineTypeId' | 'status' | 'externalIdentifier' | 'automaticCollectionEnabled'> & { id?: string }) => Machine;
-  saveMachineType: (type: Pick<MachineType, 'name' | 'active'> & { id?: string }) => void;
+  saveMachineType: (type: Pick<MachineType, 'name' | 'active'> & { id?: string }) => MachineType;
   setProfileEnabled: (machineId: string, enabled: boolean) => void;
-  createProfile: (machineId: string) => void;
-  addInputUnit: (machineId: string, name: string) => void;
-  addSlot: (machineId: string, inputUnitId: string, name: string) => void;
   mountSpool: (machineId: string, slotId: string, spoolId: string) => void;
   unmountSpool: (machineId: string, slotId: string) => void;
   saveMaterial: (input: MaterialInput) => Material;
@@ -130,6 +150,8 @@ type Store = Data & Actions & {
   can: (permission: Permission) => boolean;
   scenario: Scenario;
   setScenario: (scenario: Scenario) => void;
+  connectionTest: ConnectionTestMode;
+  setConnectionTest: (mode: ConnectionTestMode) => void;
   toasts: Toast[];
   notify: (toast: Omit<Toast, 'id'>) => void;
   dismissToast: (id: number) => void;
@@ -215,6 +237,31 @@ function unmountEverywhere(d: Data, spoolId: string): Data {
   };
 }
 
+const enrollmentSecret = () => `mke_${Array.from({ length: 4 }, () => Math.random().toString(36).slice(2, 10)).join('')}`;
+
+/** Replaces a machine's units and slots, keeping ids (and mounted spools) of those that survive the edit. */
+function applyProfile(d: Data, machineId: string, units: SetupUnitInput[]): Data {
+  const old = d.printerProfiles.find((p) => p.machineId === machineId);
+  const inputUnits: PrinterProfile['inputUnits'] = [];
+  const slots: PrinterProfile['slots'] = [];
+  units.forEach((unit, ui) => {
+    const unitId = unit.id ?? uid('iu');
+    inputUnits.push({ id: unitId, machineId, name: unit.name, position: ui, externalIdentifier: unit.externalIdentifier, nozzle: unit.nozzle });
+    unit.slots.forEach((slot, si) => {
+      const before = old?.slots.find((item) => item.id === slot.id);
+      slots.push({ id: slot.id ?? uid('sl'), inputUnitId: unitId, name: slot.name, position: si, status: slot.status ?? before?.status ?? 'available', spoolId: before?.spoolId ?? null, externalIdentifier: slot.externalIdentifier });
+    });
+  });
+  const kept = new Set(slots.map((slot) => slot.spoolId).filter(Boolean));
+  const freed = (old?.slots ?? []).map((slot) => slot.spoolId).filter((id): id is string => Boolean(id) && !kept.has(id));
+  const profile: PrinterProfile = { machineId, enabled: old?.enabled ?? true, inputUnits, slots };
+  return {
+    ...d,
+    printerProfiles: old ? d.printerProfiles.map((p) => p.machineId === machineId ? profile : p) : [...d.printerProfiles, profile],
+    spools: d.spools.map((spool) => freed.includes(spool.id) ? { ...spool, mounted: false } : spool),
+  };
+}
+
 /** Applies one ledger entry to material stock, average cost and spool remainder, then appends it. */
 function applyTransaction(d: Data, tx: InventoryTransaction): Data {
   const next: Data = {
@@ -279,6 +326,7 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<Data>(initialData);
   const [role, setRole] = useState<Role>('supervisor');
   const [scenario, setScenario] = useState<Scenario>('normal');
+  const [connectionTest, setConnectionTest] = useState<ConnectionTestMode>('success');
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const notify = useCallback((toast: Omit<Toast, 'id'>) => setToasts((current) => [...current, { ...toast, id: Date.now() + Math.random() }]), []);
@@ -331,23 +379,61 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
       if (job.run !== 'manual' || new Date(job.endsAt).getTime() <= Date.now()) return job;
       return reprice({ ...job, endsAt: stamp, outcome: 'cancelled', durationSeconds: secondsBetween(job.startsAt, stamp) });
     }),
-    saveMachine: (input) => {
+    createConnector: (name, location) => {
+      const host: ConnectorHost = { id: uid('ch'), name, locationLabel: location, lifecycle: 'pending', healthState: 'offline', lastHeartbeatAt: null, softwareVersion: null, pendingEventCount: 0, quarantinedEventCount: 0, events: [] };
+      setData((d) => ({ ...d, connectorHosts: [...d.connectorHosts, host] }));
+      return enrollmentSecret();
+    },
+    enrollConnector: () => enrollmentSecret(),
+    setConnectorEnabled: (id, enabled) => setData((d) => ({ ...d, connectorHosts: d.connectorHosts.map((host) => host.id === id ? { ...host, lifecycle: enabled ? 'active' : 'disabled' } : host) })),
+    revokeConnector: (id) => setData((d) => ({
+      ...d,
+      connectorHosts: d.connectorHosts.map((host) => host.id === id ? { ...host, lifecycle: 'revoked', healthState: 'offline' } : host),
+      machines: d.machines.map((m) => m.connection?.connectorId === id ? { ...m, connection: { ...m.connection, enabled: false, runtimeState: 'disabled' } } : m),
+    })),
+    detectPrinter: (connection, modelId) => new Promise((resolve, reject) => {
+      window.setTimeout(() => {
+        if (connectionTest !== 'success') { reject(new Error(connectionTest)); return; }
+        resolve(structuredClone(connection.adapterKind === 'bambu_h2d' ? seed.h2dDetectedState : seed.simulatedDetectedState(modelId ?? null)));
+      }, 1400);
+    }),
+    saveMachineSetup: (input) => {
       const stamp = new Date().toISOString();
       const existing = data.machines.find((m) => m.id === input.id);
+      const id = existing?.id ?? uid('m');
+      let connection = existing?.connection ?? null;
+      let automatic = existing?.automaticCollectionEnabled ?? false;
+      if (input.connection === null) { connection = null; automatic = false; }
+      else if (input.connection) {
+        const live = input.connection.adapterKind === 'bambu_h2d';
+        connection = {
+          ...input.connection, accessCodeSet: live ? Boolean(input.accessCode) || (connection?.accessCodeSet ?? false) : false, enabled: connection?.enabled ?? true,
+          runtimeState: 'connected', runtimeErrorCode: null, lastHeartbeatAt: stamp,
+        };
+        automatic = true;
+      }
       const machine: Machine = existing
-        ? { ...existing, ...input, id: existing.id, updatedAt: stamp, version: existing.version + 1 }
-        : { ...input, id: uid('m'), lastIngestedAt: null, jobCount: 0, runtimeSeconds: 0, failureRate: 0, createdAt: stamp, updatedAt: stamp, connector: null, version: 1 };
-      setData((d) => ({ ...d, machines: existing ? d.machines.map((m) => m.id === machine.id ? machine : m) : [...d.machines, machine] }));
+        ? { ...existing, name: input.name, machineTypeId: input.machineTypeId, status: input.status, modelId: input.modelId, connection, automaticCollectionEnabled: automatic, updatedAt: stamp, version: existing.version + 1 }
+        : {
+          id, name: input.name, machineTypeId: input.machineTypeId, status: input.status, modelId: input.modelId, connection, automaticCollectionEnabled: automatic,
+          lastIngestedAt: null, jobCount: 0, runtimeSeconds: 0, failureRate: 0, createdAt: stamp, updatedAt: stamp, version: 1,
+        };
+      setData((d) => {
+        let next: Data = { ...d, machines: existing ? d.machines.map((m) => m.id === id ? machine : m) : [...d.machines, machine] };
+        if (input.detected) next = { ...next, detected: { ...next.detected, [id]: input.detected } };
+        if (input.connection === null) next = { ...next, detected: Object.fromEntries(Object.entries(next.detected).filter(([key]) => key !== id)) };
+        if (input.inputUnits) next = applyProfile(next, id, input.inputUnits);
+        return next;
+      });
       return machine;
     },
-    saveMachineType: (input) => setData((d) => ({
-      ...d,
-      machineTypes: input.id ? d.machineTypes.map((t) => t.id === input.id ? { ...t, ...input, id: t.id } : t) : [...d.machineTypes, { ...input, id: uid('type') }],
-    })),
+    saveMachineType: (input) => {
+      const existing = data.machineTypes.find((t) => t.id === input.id);
+      const type: MachineType = existing ? { ...existing, ...input, id: existing.id } : { ...input, id: uid('type') };
+      setData((d) => ({ ...d, machineTypes: existing ? d.machineTypes.map((t) => t.id === type.id ? type : t) : [...d.machineTypes, type] }));
+      return type;
+    },
     setProfileEnabled: (machineId, enabled) => patchProfile(machineId, (p) => ({ ...p, enabled })),
-    createProfile: (machineId) => setData((d) => ({ ...d, printerProfiles: [...d.printerProfiles, { machineId, enabled: true, inputUnits: [], slots: [] }] })),
-    addInputUnit: (machineId, name) => patchProfile(machineId, (p) => ({ ...p, inputUnits: [...p.inputUnits, { id: uid('iu'), machineId, name, position: p.inputUnits.length, externalIdentifier: null }] })),
-    addSlot: (machineId, inputUnitId, name) => patchProfile(machineId, (p) => ({ ...p, slots: [...p.slots, { id: uid('sl'), inputUnitId, name, position: p.slots.filter((s) => s.inputUnitId === inputUnitId).length, status: 'available', spoolId: null }] })),
     mountSpool: (machineId, slotId, spoolId) => {
       patchProfile(machineId, (p) => ({ ...p, slots: p.slots.map((s) => s.id === slotId ? { ...s, spoolId } : s) }));
       setData((d) => ({ ...d, spools: d.spools.map((sp) => sp.id === spoolId ? { ...sp, mounted: true } : sp) }));
@@ -487,11 +573,11 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
       }));
       return doomed;
     },
-  }), [data, patchJob, patchProfile]);
+  }), [data, connectionTest, patchJob, patchProfile]);
 
   const permissions = rolePresets[role].permissions;
   const value: Store = {
-    ...data, ...actions, role, setRole, scenario, setScenario, toasts, notify, dismissToast,
+    ...data, ...actions, role, setRole, scenario, setScenario, connectionTest, setConnectionTest, toasts, notify, dismissToast,
     can: (permission) => permissions.includes(permission),
     reset: () => { setData(initialData()); notify({ kind: 'info', title: 'Prototype data reset' }); },
   };

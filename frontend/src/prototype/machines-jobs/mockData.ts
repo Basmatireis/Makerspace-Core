@@ -1,4 +1,4 @@
-import type { BillingParty, IdentifierKind, InventoryTransaction, InventoryTransactionKind, Job, Machine, MachineType, Material, Operator, FilamentProduct, Print, PrinterProfile, Spool, SpoolFill, LeftoverOutcome } from './types';
+import type { ConnectorHost, DetectedPrinterState, DetectedTray, MachineConnection, PrinterModel, PrinterModelId, BillingParty, IdentifierKind, InventoryTransaction, InventoryTransactionKind, Job, Machine, MachineType, Material, Operator, FilamentProduct, Print, PrinterProfile, Spool, SpoolFill, LeftoverOutcome } from './types';
 
 // Timestamps are relative to page load so the prototype always looks "live".
 const now = Date.now();
@@ -14,18 +14,95 @@ export const machineTypes: MachineType[] = [
   { id: 'type-vinyl', name: 'Vinyl cutter', active: false },
 ];
 
+const conn = (over: Partial<MachineConnection>): MachineConnection => ({
+  connectorId: 'ch-workshop', adapterKind: 'simulator', ipAddress: null, serialNumber: null, accessCodeSet: false, autoMountRfid: false, enabled: true,
+  runtimeState: 'connected', runtimeErrorCode: null, lastHeartbeatAt: ago(0.3), ...over,
+});
+
 export const machines: Machine[] = [
-  { id: 'm-mk4-1', name: 'Prusa MK4 #1', machineTypeId: 'type-fdm', status: 'active', externalIdentifier: 'PRUSA-MK4-0193', automaticCollectionEnabled: true, lastIngestedAt: ago(4), jobCount: 412, runtimeSeconds: 1_522_800, failureRate: 6.1, createdAt: ago(400 * D), updatedAt: ago(3 * D), version: 7,
-    connector: { connectorName: 'Workshop Pi', adapterKind: 'simulator', runtimeState: 'connected', runtimeErrorCode: null, lastHeartbeatAt: ago(0.3) } },
-  { id: 'm-mk4-2', name: 'Prusa MK4 #2', machineTypeId: 'type-fdm', status: 'active', externalIdentifier: 'PRUSA-MK4-0207', automaticCollectionEnabled: true, lastIngestedAt: ago(52), jobCount: 377, runtimeSeconds: 1_310_400, failureRate: 4.8, createdAt: ago(380 * D), updatedAt: ago(10 * D), version: 4,
-    connector: { connectorName: 'Workshop Pi', adapterKind: 'simulator', runtimeState: 'connected', runtimeErrorCode: null, lastHeartbeatAt: ago(0.5) } },
-  { id: 'm-x1c', name: 'Bambu X1C', machineTypeId: 'type-fdm', status: 'active', externalIdentifier: '00M09A3B1100123', automaticCollectionEnabled: true, lastIngestedAt: ago(3 * H), jobCount: 268, runtimeSeconds: 902_000, failureRate: 9.7, createdAt: ago(220 * D), updatedAt: ago(1 * D), version: 9,
-    connector: { connectorName: 'Workshop Pi', adapterKind: 'simulator', runtimeState: 'degraded', runtimeErrorCode: 'MQTT_TIMEOUT', lastHeartbeatAt: ago(6) } },
-  { id: 'm-form3', name: 'Formlabs Form 3', machineTypeId: 'type-sla', status: 'maintenance', externalIdentifier: null, automaticCollectionEnabled: false, lastIngestedAt: null, jobCount: 96, runtimeSeconds: 640_800, failureRate: 3.1, createdAt: ago(600 * D), updatedAt: ago(2 * D), version: 12, connector: null },
-  { id: 'm-laser', name: 'Trotec Speedy 300', machineTypeId: 'type-laser', status: 'active', externalIdentifier: null, automaticCollectionEnabled: false, lastIngestedAt: null, jobCount: 731, runtimeSeconds: 820_800, failureRate: 1.2, createdAt: ago(900 * D), updatedAt: ago(30 * D), version: 3, connector: null },
-  { id: 'm-cnc', name: 'Shapeoko Pro', machineTypeId: 'type-cnc', status: 'active', externalIdentifier: null, automaticCollectionEnabled: false, lastIngestedAt: null, jobCount: 58, runtimeSeconds: 288_000, failureRate: 8.6, createdAt: ago(500 * D), updatedAt: ago(90 * D), version: 2, connector: null },
-  { id: 'm-ender', name: 'Ender 3 (legacy)', machineTypeId: 'type-fdm', status: 'retired', externalIdentifier: null, automaticCollectionEnabled: false, lastIngestedAt: null, jobCount: 1024, runtimeSeconds: 3_960_000, failureRate: 14.2, createdAt: ago(1500 * D), updatedAt: ago(200 * D), version: 5, connector: null },
+  { id: 'm-mk4-1', name: 'Prusa MK4 #1', machineTypeId: 'type-fdm', status: 'active', modelId: 'generic', automaticCollectionEnabled: true, lastIngestedAt: ago(4), jobCount: 412, runtimeSeconds: 1_522_800, failureRate: 6.1, createdAt: ago(400 * D), updatedAt: ago(3 * D), version: 7,
+    connection: conn({ lastHeartbeatAt: ago(0.3) }) },
+  { id: 'm-mk4-2', name: 'Prusa MK4 #2', machineTypeId: 'type-fdm', status: 'active', modelId: 'generic', automaticCollectionEnabled: true, lastIngestedAt: ago(52), jobCount: 377, runtimeSeconds: 1_310_400, failureRate: 4.8, createdAt: ago(380 * D), updatedAt: ago(10 * D), version: 4,
+    connection: conn({ lastHeartbeatAt: ago(0.5) }) },
+  { id: 'm-x1c', name: 'Bambu X1C', machineTypeId: 'type-fdm', status: 'active', modelId: 'bambu_x1c', automaticCollectionEnabled: true, lastIngestedAt: ago(3 * H), jobCount: 268, runtimeSeconds: 902_000, failureRate: 9.7, createdAt: ago(220 * D), updatedAt: ago(1 * D), version: 9,
+    connection: conn({ runtimeState: 'degraded', runtimeErrorCode: 'MQTT_TIMEOUT', lastHeartbeatAt: ago(6) }) },
+  { id: 'm-h2d', name: 'Bambu H2D', machineTypeId: 'type-fdm', status: 'active', modelId: 'bambu_h2d', automaticCollectionEnabled: true, lastIngestedAt: ago(35), jobCount: 41, runtimeSeconds: 188_000, failureRate: 4.9, createdAt: ago(60 * D), updatedAt: ago(2 * D), version: 3,
+    connection: conn({ adapterKind: 'bambu_h2d', ipAddress: '192.168.20.41', serialNumber: '0948AD5B2300417', accessCodeSet: true, autoMountRfid: true, lastHeartbeatAt: ago(0.2) }) },
+  { id: 'm-form3', name: 'Formlabs Form 3', machineTypeId: 'type-sla', status: 'maintenance', modelId: null, automaticCollectionEnabled: false, lastIngestedAt: null, jobCount: 96, runtimeSeconds: 640_800, failureRate: 3.1, createdAt: ago(600 * D), updatedAt: ago(2 * D), version: 12, connection: null },
+  { id: 'm-laser', name: 'Trotec Speedy 300', machineTypeId: 'type-laser', status: 'active', modelId: null, automaticCollectionEnabled: false, lastIngestedAt: null, jobCount: 731, runtimeSeconds: 820_800, failureRate: 1.2, createdAt: ago(900 * D), updatedAt: ago(30 * D), version: 3, connection: null },
+  { id: 'm-cnc', name: 'Shapeoko Pro', machineTypeId: 'type-cnc', status: 'active', modelId: null, automaticCollectionEnabled: false, lastIngestedAt: null, jobCount: 58, runtimeSeconds: 288_000, failureRate: 8.6, createdAt: ago(500 * D), updatedAt: ago(90 * D), version: 2, connection: null },
+  { id: 'm-ender', name: 'Ender 3 (legacy)', machineTypeId: 'type-fdm', status: 'retired', modelId: 'generic', automaticCollectionEnabled: false, lastIngestedAt: null, jobCount: 1024, runtimeSeconds: 3_960_000, failureRate: 14.2, createdAt: ago(1500 * D), updatedAt: ago(200 * D), version: 5, connection: null },
 ];
+
+export const connectorHosts: ConnectorHost[] = [
+  { id: 'ch-workshop', name: 'Workshop Pi', locationLabel: 'Workshop rack', lifecycle: 'active', healthState: 'healthy', lastHeartbeatAt: ago(0.2), softwareVersion: '1.4.0', pendingEventCount: 3, quarantinedEventCount: 0,
+    events: [
+      { id: 'ev-1', kind: 'operational_state', receivedAt: ago(2), summary: 'Bambu H2D is idle', payload: { machine: 'Bambu H2D', state: 'idle', nozzleTempC: [24, 25] } },
+      { id: 'ev-2', kind: 'progress', receivedAt: ago(35), summary: 'Prusa MK4 #2 print at 100 %', payload: { machine: 'Prusa MK4 #2', progressPercent: 100, remainingMinutes: 0 } },
+      { id: 'ev-3', kind: 'connectivity', receivedAt: ago(6), summary: 'Bambu X1C MQTT timeout', payload: { machine: 'Bambu X1C', code: 'MQTT_TIMEOUT', retryInSeconds: 30 } },
+    ] },
+  { id: 'ch-laser', name: 'Laser room Pi', locationLabel: 'Laser room', lifecycle: 'pending', healthState: 'offline', lastHeartbeatAt: null, softwareVersion: null, pendingEventCount: 0, quarantinedEventCount: 0, events: [] },
+];
+
+// Printer model catalog. Template slot external identifiers match what the real H2D adapter reports:
+// input-unit external id = AMS `id`, slot external id = tray `id`, external holders "254" (right) and "255" (left).
+export const printerModels: PrinterModel[] = [
+  { id: 'bambu_h2d', label: 'Bambu Lab H2D', description: '2 nozzles · AMS · LAN connector', adapterKind: 'bambu_h2d', nozzles: 2, template: [
+    { name: 'AMS 2 Pro', externalIdentifier: '0', nozzle: 'left', slots: [0, 1, 2, 3].map((i) => ({ name: `Slot ${i + 1}`, externalIdentifier: String(i) })) },
+    { name: 'External spool L', externalIdentifier: '255', nozzle: 'left', slots: [{ name: 'Spool', externalIdentifier: '255' }] },
+    { name: 'External spool R', externalIdentifier: '254', nozzle: 'right', slots: [{ name: 'Spool', externalIdentifier: '254' }] },
+  ] },
+  { id: 'bambu_x1c', label: 'Bambu Lab X1C', description: '1 nozzle · AMS · simulator only', adapterKind: null, nozzles: 1, template: [
+    { name: 'AMS', externalIdentifier: '0', nozzle: null, slots: [0, 1, 2, 3].map((i) => ({ name: `Slot ${i + 1}`, externalIdentifier: String(i) })) },
+    { name: 'External spool', externalIdentifier: '254', nozzle: null, slots: [{ name: 'Spool', externalIdentifier: '254' }] },
+  ] },
+  { id: 'prusa_core_one', label: 'Prusa CORE One', description: '1 nozzle · direct feed · simulator only', adapterKind: null, nozzles: 1, template: [
+    { name: 'Direct feed', externalIdentifier: null, nozzle: null, slots: [{ name: 'Extruder', externalIdentifier: null }] },
+  ] },
+  { id: 'generic', label: 'Other 3D printer', description: 'No template · set up spool inputs yourself', adapterKind: null, nozzles: 1, template: [] },
+];
+export const modelById = (id: PrinterModelId | null) => printerModels.find((model) => model.id === id);
+
+const tray = (externalId: string, over: Partial<DetectedTray> = {}): DetectedTray => ({ externalId, materialType: null, subBrand: null, colorHex: null, remainPercent: null, rfid: false, empty: true, ...over });
+
+/** Observed from a Bambu Lab H2D (print.* status JSON). Extruder 0 = "Right nozzle", 1 = "Left nozzle"; the mapping is to be validated against real data. */
+export const h2dDetectedState: DetectedPrinterState = {
+  firmware: '01.04.00.00',
+  nozzles: [{ id: '0', side: 'right', diameter: 0.4, type: 'HS01' }, { id: '1', side: 'left', diameter: 0.4, type: 'HS01' }],
+  units: [
+    { externalId: '0', kind: 'ams_2_pro', label: 'AMS 2 Pro', nozzle: 'left', humidityPercent: 3, temperatureC: 27, trays: [
+      tray('0', { materialType: 'PLA', subBrand: 'PLA Basic', colorHex: 'FFFFFF', remainPercent: 82, rfid: true, empty: false }),
+      tray('1', { materialType: 'PETG', subBrand: 'PETG HF', colorHex: 'FFF144', remainPercent: 64, rfid: true, empty: false }),
+      tray('2', { materialType: 'PLA', subBrand: 'PLA Basic', colorHex: '000000', remainPercent: null, rfid: false, empty: false }),
+      tray('3'),
+    ] },
+    { externalId: '128', kind: 'ams_ht', label: 'AMS HT', nozzle: 'right', humidityPercent: 12, temperatureC: 31, trays: [
+      tray('0', { materialType: 'PETG-CF', subBrand: 'PETG-CF', colorHex: '1A1A1A', remainPercent: 41, rfid: true, empty: false }),
+    ] },
+    { externalId: '254', kind: 'external', label: 'External spool R', nozzle: 'right', humidityPercent: null, temperatureC: null, trays: [tray('254')] },
+    { externalId: '255', kind: 'external', label: 'External spool L', nozzle: 'left', humidityPercent: null, temperatureC: null, trays: [
+      tray('255', { materialType: 'TPU', subBrand: 'TPU 95A', colorHex: 'E8E8E8', remainPercent: 95, rfid: false, empty: false }),
+    ] },
+  ],
+};
+
+/** What the simulator adapter reports for a model without a live adapter: the template, with a few sample spools. */
+export function simulatedDetectedState(modelId: PrinterModelId | null): DetectedPrinterState {
+  const model = modelById(modelId);
+  const sample = [['PLA', 'FFFFFF', 76], ['PETG', 'C0392B', 52], ['ASA', '808080', 33]] as const;
+  return {
+    firmware: 'simulator',
+    nozzles: Array.from({ length: model?.nozzles ?? 1 }, (_, i) => ({ id: String(i), side: i === 0 ? 'right' as const : 'left' as const, diameter: 0.4, type: 'simulated' })),
+    units: (model?.template ?? []).map((unit, ui) => ({
+      externalId: unit.externalIdentifier ?? String(ui), kind: unit.name.startsWith('External') ? 'external' as const : 'ams_2_pro' as const, label: unit.name, nozzle: unit.nozzle ?? 'left', humidityPercent: null, temperatureC: null,
+      trays: unit.slots.map((slot, si) => {
+        const loaded = sample[(ui + si) % 4];
+        return loaded ? tray(slot.externalIdentifier ?? String(si), { materialType: loaded[0], subBrand: loaded[0], colorHex: loaded[1], remainPercent: loaded[2], empty: false }) : tray(slot.externalIdentifier ?? String(si));
+      }),
+    })),
+  };
+}
+export const detectedStates: Record<string, DetectedPrinterState> = { 'm-h2d': h2dDetectedState, 'm-x1c': simulatedDetectedState('bambu_x1c') };
 
 export const people: BillingParty[] = [
   { kind: 'person', id: 'p-lena', displayName: 'Lena Huber', pricingGroup: 'Students' },
@@ -225,9 +302,9 @@ const spoolSeeds: SpoolSeed[] = [
   { id: 'sp-0141', displayId: 'SP-0141', kind: 'reusable', label: 'Prusa spool 01', fillNumber: 3, filledAt: at(55), fills: fillsOf('sp-0141'), archivedAt: null, materialId: 'mat-pla-black', materialName: 'PLA Black', color: 'Black', mounted: true, initialNetWeightG: 1000, tareWeightG: 230, manufacturer: 'Prusament', productName: 'PLA Galaxy Black', storageLocation: 'Printer', lifecycle: 'active', acquiredOn: day(210), acquisitionReference: 'INV-3411', purchasePrice: null, notes: null, identifiers: [{ id: 'id-141a', kind: 'nfc', value: '04:A2:3B:19:7C:5E:80', addedAt: at(55) }, { id: 'id-141b', kind: 'barcode', value: '8594173690124', addedAt: at(55) }] },
   { id: 'sp-0152', displayId: 'SP-0152', kind: 'reusable', label: 'Prusa spool 02', fillNumber: 4, filledAt: at(44), fills: fillsOf('sp-0152'), archivedAt: null, materialId: 'mat-petg-white', materialName: 'PETG White', color: 'White', mounted: true, initialNetWeightG: 1000, tareWeightG: 245, manufacturer: 'Extrudr', productName: 'PETG Pure White', storageLocation: 'Printer', lifecycle: 'active', acquiredOn: day(210), acquisitionReference: 'INV-3412', purchasePrice: null, notes: null, identifiers: [{ id: 'id-152a', kind: 'barcode', value: '9120098765432', addedAt: at(44) }] },
   { ...closedSingle, id: 'sp-0155', displayId: 'SP-0155', fillNumber: 1, filledAt: at(188), fills: fillsOf('sp-0155'), archivedAt: at(152), materialId: 'mat-petg-white', materialName: 'PETG White', color: 'White', tareWeightG: 245, manufacturer: 'Extrudr', productName: 'PETG Pure White', storageLocation: 'Recycling shelf', acquiredOn: day(190), acquisitionReference: 'INV-3991', purchasePrice: null, notes: null, identifiers: [] },
-  { id: 'sp-0160', displayId: 'SP-0160', kind: 'single_use', label: null, fillNumber: 1, filledAt: at(20), fills: [], archivedAt: null, materialId: 'mat-pla-black', materialName: 'PLA Black', color: 'Black', mounted: false, initialNetWeightG: 1000, tareWeightG: 230, manufacturer: 'Prusament', productName: 'PLA Galaxy Black', storageLocation: 'Shelf A2', lifecycle: 'active', acquiredOn: day(20), acquisitionReference: 'INV-4102', purchasePrice: null, notes: null, identifiers: [{ id: 'id-160a', kind: 'nfc', value: '04:7F:11:C2:90:3A:61', addedAt: at(20) }] },
+  { id: 'sp-0160', displayId: 'SP-0160', kind: 'single_use', label: null, fillNumber: 1, filledAt: at(20), fills: [], archivedAt: null, materialId: 'mat-pla-black', materialName: 'PLA Black', color: 'Black', mounted: true, initialNetWeightG: 1000, tareWeightG: 230, manufacturer: 'Prusament', productName: 'PLA Galaxy Black', storageLocation: 'Shelf A2', lifecycle: 'active', acquiredOn: day(20), acquisitionReference: 'INV-4102', purchasePrice: null, notes: null, identifiers: [{ id: 'id-160a', kind: 'nfc', value: '04:7F:11:C2:90:3A:61', addedAt: at(20) }] },
   { id: 'sp-0163', displayId: 'SP-0163', kind: 'reusable', label: 'Bambu spool 03', fillNumber: 3, filledAt: at(44), fills: fillsOf('sp-0163'), archivedAt: null, materialId: 'mat-asa-grey', materialName: 'ASA Grey', color: 'Grey', mounted: true, initialNetWeightG: 1000, tareWeightG: 250, manufacturer: 'Polymaker', productName: 'ASA Grey', storageLocation: 'Printer', lifecycle: 'active', acquiredOn: day(180), acquisitionReference: 'INV-3702', purchasePrice: null, notes: 'Running low; reorder planned.', identifiers: [{ id: 'id-163a', kind: 'nfc', value: '04:B8:5D:2E:44:19:CC', addedAt: at(44) }] },
-  { id: 'sp-0170', displayId: 'SP-0170', kind: 'single_use', label: null, fillNumber: 1, filledAt: at(10), fills: [], archivedAt: null, materialId: 'mat-petg-white', materialName: 'PETG White', color: 'White', mounted: false, initialNetWeightG: 1000, tareWeightG: 245, manufacturer: 'Extrudr', productName: 'PETG Pure White', storageLocation: 'Shelf B1', lifecycle: 'active', acquiredOn: day(10), acquisitionReference: 'INV-4411', purchasePrice: 24.9, notes: null, identifiers: [{ id: 'id-170a', kind: 'barcode', value: '9120098765449', addedAt: at(10) }] },
+  { id: 'sp-0170', displayId: 'SP-0170', kind: 'single_use', label: null, fillNumber: 1, filledAt: at(10), fills: [], archivedAt: null, materialId: 'mat-petg-white', materialName: 'PETG White', color: 'White', mounted: true, initialNetWeightG: 1000, tareWeightG: 245, manufacturer: 'Extrudr', productName: 'PETG Pure White', storageLocation: 'Shelf B1', lifecycle: 'active', acquiredOn: day(10), acquisitionReference: 'INV-4411', purchasePrice: 24.9, notes: null, identifiers: [{ id: 'id-170a', kind: 'barcode', value: '9120098765449', addedAt: at(10) }] },
   { id: 'sp-0207', displayId: 'SP-0207', kind: 'reusable', label: 'Bambu spool 07', fillNumber: 2, filledAt: null, fills: fillsOf('sp-0207'), archivedAt: null, materialId: '', materialName: '', color: '', mounted: false, initialNetWeightG: 0, tareWeightG: 250, manufacturer: null, productName: null, storageLocation: 'AMS shelf', lifecycle: 'empty', acquiredOn: day(150), acquisitionReference: null, purchasePrice: null, notes: 'Old NFC tag is still on the spool.', identifiers: [{ id: 'id-207a', kind: 'nfc', value: '04:5C:9E:21:B7:03:6A', addedAt: at(94) }] },
 ];
 
@@ -326,13 +403,28 @@ export const prints: Print[] = [
 ];
 
 export const printerProfiles: PrinterProfile[] = [
-  { machineId: 'm-mk4-1', enabled: true, inputUnits: [{ id: 'iu-1', machineId: 'm-mk4-1', name: 'Direct feed', position: 0, externalIdentifier: null }], slots: [{ id: 'sl-1', inputUnitId: 'iu-1', name: 'Extruder', position: 0, status: 'available', spoolId: 'sp-0141' }] },
-  { machineId: 'm-mk4-2', enabled: true, inputUnits: [{ id: 'iu-2', machineId: 'm-mk4-2', name: 'Direct feed', position: 0, externalIdentifier: null }], slots: [{ id: 'sl-2', inputUnitId: 'iu-2', name: 'Extruder', position: 0, status: 'available', spoolId: 'sp-0152' }] },
-  { machineId: 'm-x1c', enabled: true, inputUnits: [{ id: 'iu-3', machineId: 'm-x1c', name: 'AMS unit A', position: 0, externalIdentifier: 'AMS-0' }],
+  { machineId: 'm-mk4-1', enabled: true, inputUnits: [{ id: 'iu-1', machineId: 'm-mk4-1', name: 'Direct feed', position: 0, externalIdentifier: null, nozzle: null }], slots: [{ id: 'sl-1', inputUnitId: 'iu-1', name: 'Extruder', position: 0, status: 'available', spoolId: 'sp-0141', externalIdentifier: null }] },
+  { machineId: 'm-mk4-2', enabled: true, inputUnits: [{ id: 'iu-2', machineId: 'm-mk4-2', name: 'Direct feed', position: 0, externalIdentifier: null, nozzle: null }], slots: [{ id: 'sl-2', inputUnitId: 'iu-2', name: 'Extruder', position: 0, status: 'available', spoolId: 'sp-0152', externalIdentifier: null }] },
+  { machineId: 'm-x1c', enabled: true, inputUnits: [{ id: 'iu-3', machineId: 'm-x1c', name: 'AMS unit A', position: 0, externalIdentifier: '0', nozzle: null }],
     slots: [
-      { id: 'sl-3', inputUnitId: 'iu-3', name: 'Slot A1', position: 0, status: 'available', spoolId: 'sp-0163' },
-      { id: 'sl-4', inputUnitId: 'iu-3', name: 'Slot A2', position: 1, status: 'available', spoolId: null },
-      { id: 'sl-5', inputUnitId: 'iu-3', name: 'Slot A3', position: 2, status: 'unavailable', spoolId: null },
-      { id: 'sl-6', inputUnitId: 'iu-3', name: 'Slot A4', position: 3, status: 'available', spoolId: null },
+      { id: 'sl-3', inputUnitId: 'iu-3', name: 'Slot A1', position: 0, status: 'available', spoolId: 'sp-0163', externalIdentifier: '0' },
+      { id: 'sl-4', inputUnitId: 'iu-3', name: 'Slot A2', position: 1, status: 'available', spoolId: null, externalIdentifier: '1' },
+      { id: 'sl-5', inputUnitId: 'iu-3', name: 'Slot A3', position: 2, status: 'unavailable', spoolId: null, externalIdentifier: '2' },
+      { id: 'sl-6', inputUnitId: 'iu-3', name: 'Slot A4', position: 3, status: 'available', spoolId: null, externalIdentifier: '3' },
+    ] },
+  { machineId: 'm-h2d', enabled: true,
+    inputUnits: [
+      { id: 'iu-h2d-1', machineId: 'm-h2d', name: 'AMS 2 Pro', position: 0, externalIdentifier: '0', nozzle: 'left' },
+      { id: 'iu-h2d-2', machineId: 'm-h2d', name: 'External spool L', position: 1, externalIdentifier: '255', nozzle: 'left' },
+      { id: 'iu-h2d-3', machineId: 'm-h2d', name: 'External spool R', position: 2, externalIdentifier: '254', nozzle: 'right' },
+    ],
+    slots: [
+      { id: 'sl-h2d-1', inputUnitId: 'iu-h2d-1', name: 'Slot 1', position: 0, status: 'available', spoolId: null, externalIdentifier: '0' },
+      { id: 'sl-h2d-2', inputUnitId: 'iu-h2d-1', name: 'Slot 2', position: 1, status: 'available', spoolId: null, externalIdentifier: '1' },
+      { id: 'sl-h2d-3', inputUnitId: 'iu-h2d-1', name: 'Slot 3', position: 2, status: 'available', spoolId: 'sp-0160', externalIdentifier: '2' },
+      { id: 'sl-h2d-4', inputUnitId: 'iu-h2d-1', name: 'Slot 4', position: 3, status: 'available', spoolId: null, externalIdentifier: '3' },
+      { id: 'sl-h2d-5', inputUnitId: 'iu-h2d-2', name: 'Spool', position: 0, status: 'available', spoolId: null, externalIdentifier: '255' },
+      { id: 'sl-h2d-6', inputUnitId: 'iu-h2d-3', name: 'Spool', position: 0, status: 'available', spoolId: 'sp-0170', externalIdentifier: '254' },
     ] },
 ];
+

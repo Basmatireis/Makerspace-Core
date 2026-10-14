@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
 import {
   Button, DataTable, Link as CarbonLink, MultiSelect, Pagination, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader,
-  TableRow, TableToolbar, TableToolbarAction, TableToolbarContent, TableToolbarMenu, TableToolbarSearch,
+  Tab, TabList, TabPanel, TabPanels, Tabs, TableRow, TableToolbar, TableToolbarContent, TableToolbarSearch,
 } from '@carbon/react';
 import { Filter } from '@carbon/icons-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PageShell } from '../../../app/PageShell';
 import { EmptyState } from '../../../app/PageState';
 import { QueryBoundary } from '../components/QueryBoundary';
-import { MachineFormModal } from '../dialogs/MachineFormModal';
-import { MachineTypesModal } from '../dialogs/MachineTypesModal';
+import { ConnectorsTab } from '../components/ConnectorsTab';
+import { MachineTypesTab } from '../components/MachineTypesTab';
+import { MachineSetupWizard } from '../dialogs/MachineSetupWizard';
 import { AvailabilityTag, ConnectorIssueTag, formatRelative, machineActivity, type MachineActivity } from '../derived';
 import { useNow, useSimulatedQuery, useStore } from '../store';
 import type { Job, Machine, MachineType, Print } from '../types';
@@ -27,6 +28,7 @@ const statusOptions: Option[] = [
 const collectionOptions: Option[] = [{ id: 'automatic', label: 'Automatic' }, { id: 'manual', label: 'Manual' }];
 const connectorOptions: Option[] = [{ id: 'connected', label: 'Connected' }, { id: 'issue', label: 'Issue' }, { id: 'none', label: 'None' }];
 const PAGE_SIZES = [10, 25, 50];
+type TabKey = 'machines' | 'connectors' | 'types';
 const FILTER_KEYS = ['status', 'type', 'collection', 'connector'] as const;
 const HEADERS: { key: string; header: string; sort?: SortKey; narrow?: boolean }[] = [
   { key: 'machine', header: 'Machine', sort: 'machine' },
@@ -78,11 +80,18 @@ export function MachinesPage() {
   const [searchKey, setSearchKey] = useState(0);
   const [sort, setSort] = useState<{ key: SortKey; direction: 'ASC' | 'DESC' }>({ key: 'machine', direction: 'ASC' });
   const [formOpen, setFormOpen] = useState(false);
-  const [typesOpen, setTypesOpen] = useState(false);
   const now = useNow();
   const query = useSimulatedQuery<Data>((d) => ({ machines: d.machines, types: d.machineTypes, jobs: d.jobs, prints: d.prints }), emptyData);
 
   const canManage = store.can('machines.manage');
+  const tabs: TabKey[] = store.can('printer_connectors.read') ? ['machines', 'connectors', 'types'] : ['machines', 'types'];
+  const requestedTab = params.get('tab') as TabKey | null;
+  const tab: TabKey = requestedTab && tabs.includes(requestedTab) ? requestedTab : 'machines';
+  const selectTab = (index: number) => setParams((previous) => {
+    const next = new URLSearchParams(previous);
+    if (tabs[index] === 'machines' || !tabs[index]) next.delete('tab'); else next.set('tab', tabs[index]);
+    return next;
+  }, { replace: true });
   const statusIds = listParam(params.get('status'));
   const typeIds = listParam(params.get('type'));
   const collectionIds = listParam(params.get('collection'));
@@ -104,7 +113,7 @@ export function MachinesPage() {
   const allRows = useMemo<Row[]>(() => query.data.machines.map((machine) => {
     const typeName = query.data.types.find((type) => type.id === machine.machineTypeId)?.name ?? 'Unknown type';
     const lastJobAt = query.data.jobs.filter((job) => job.machineId === machine.id).map((job) => job.startsAt).sort().at(-1) ?? null;
-    const connectorState: Row['connectorState'] = !machine.connector ? 'none' : ['disconnected', 'degraded'].includes(machine.connector.runtimeState) ? 'issue' : 'connected';
+    const connectorState: Row['connectorState'] = !machine.connection ? 'none' : ['disconnected', 'degraded'].includes(machine.connection.runtimeState) ? 'issue' : 'connected';
     return { machine, typeName, activity: machineActivity(machine, query.data.prints, query.data.jobs, now), lastJobAt, connectorState };
   }), [query.data, now]);
 
@@ -122,7 +131,7 @@ export function MachinesPage() {
         && (typeIds.length === 0 || typeIds.includes(row.machine.machineTypeId))
         && (collectionIds.length === 0 || collectionIds.includes(row.machine.automaticCollectionEnabled ? 'automatic' : 'manual'))
         && (connectorIds.length === 0 || connectorIds.includes(row.connectorState))
-        && (!term || [row.machine.name, row.typeName, row.machine.externalIdentifier ?? ''].some((value) => value.toLowerCase().includes(term))))
+        && (!term || [row.machine.name, row.typeName, row.machine.connection?.serialNumber ?? ''].some((value) => value.toLowerCase().includes(term))))
       .sort((a, b) => {
         const x = sortValue(a, sort.key);
         const y = sortValue(b, sort.key);
@@ -163,6 +172,14 @@ export function MachinesPage() {
       title="Machines" description="Machines in the workshop, their availability and recent activity." width="wide"
       breadcrumbs={[{ label: 'Workshop', to: '/' }, { label: 'Machines' }]}
     >
+      <Tabs selectedIndex={tabs.indexOf(tab)} onChange={({ selectedIndex }) => selectTab(selectedIndex)}>
+        <TabList aria-label="Machine sections" contained>
+          <Tab>Machines</Tab>
+          {tabs.includes('connectors') && <Tab>Connectors</Tab>}
+          <Tab>Machine types</Tab>
+        </TabList>
+        <TabPanels>
+          <TabPanel><div className="mj-tab-panel">
       <QueryBoundary query={query} errorMessage="The machines could not be loaded.">
         <DataTable key={tableKey} rows={tableRows} headers={headers}>
           {({ rows, headers: tableHeaders, getRowProps, getTableProps }) => (
@@ -188,11 +205,6 @@ export function MachinesPage() {
                     aria-controls="machines-filters"
                     onClick={() => setFiltersOpen((open) => !open)}
                   />
-                  {canManage && (
-                    <TableToolbarMenu iconDescription="More machine actions" aria-label="More machine actions">
-                      <TableToolbarAction onClick={() => setTypesOpen(true)}>Manage machine types</TableToolbarAction>
-                    </TableToolbarMenu>
-                  )}
                   {canManage && <Button kind="primary" size="lg" onClick={() => setFormOpen(true)}>Add machine</Button>}
                 </TableToolbarContent>
               </TableToolbar>
@@ -258,8 +270,12 @@ export function MachinesPage() {
           )}
         </DataTable>
       </QueryBoundary>
-      <MachineFormModal open={formOpen} onClose={() => setFormOpen(false)} />
-      <MachineTypesModal open={typesOpen} onClose={() => setTypesOpen(false)} />
+          </div></TabPanel>
+          {tabs.includes('connectors') && <TabPanel><ConnectorsTab /></TabPanel>}
+          <TabPanel><MachineTypesTab /></TabPanel>
+        </TabPanels>
+      </Tabs>
+      <MachineSetupWizard open={formOpen} onClose={() => setFormOpen(false)} />
     </PageShell>
   );
 }

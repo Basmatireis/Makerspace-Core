@@ -11,14 +11,40 @@ export type Ownership = 'makerspace' | 'external';
 export type QuantityBasis = 'actual' | 'estimated';
 export type PrintState = 'printing' | 'finished' | 'failed' | 'cancelled';
 export type ConnectorRuntimeState = 'connecting' | 'connected' | 'disconnected' | 'degraded' | 'disabled';
+export type ConnectorLifecycle = 'pending' | 'active' | 'disabled' | 'revoked';
+export type ConnectorHealth = 'healthy' | 'degraded' | 'offline';
+export type AdapterKind = 'bambu_h2d' | 'simulator';
+export type PrinterModelId = 'bambu_h2d' | 'bambu_x1c' | 'prusa_core_one' | 'generic';
+export type Nozzle = 'left' | 'right';
 export type SlotStatus = 'available' | 'unavailable' | 'retired';
 export type PrinterEventKind = 'operational_state' | 'progress' | 'consumption_report' | 'terminal_outcome' | 'connectivity';
 
 export type MachineType = { id: string; name: string; active: boolean };
 
-export type ConnectorAssignment = {
-  connectorName: string;
-  adapterKind: string;
+/** A printer connector host (the agent that runs next to the printers). Printers are assigned to it from the printer, not from here. */
+export type ConnectorHostEvent = { id: string; kind: string; receivedAt: string; summary: string; payload: object };
+export type ConnectorHost = {
+  id: string;
+  name: string;
+  locationLabel: string | null;
+  lifecycle: ConnectorLifecycle;
+  healthState: ConnectorHealth;
+  lastHeartbeatAt: string | null;
+  softwareVersion: string | null;
+  pendingEventCount: number;
+  quarantinedEventCount: number;
+  events: ConnectorHostEvent[];
+};
+
+/** How one printer reaches its connector. The LAN access code is a secret: only `accessCodeSet` is ever kept or shown. */
+export type MachineConnection = {
+  connectorId: string;
+  adapterKind: AdapterKind;
+  ipAddress: string | null;
+  serialNumber: string | null;
+  accessCodeSet: boolean;
+  autoMountRfid: boolean;
+  enabled: boolean;
   runtimeState: ConnectorRuntimeState;
   runtimeErrorCode: string | null;
   lastHeartbeatAt: string | null;
@@ -29,7 +55,8 @@ export type Machine = {
   name: string;
   machineTypeId: string;
   status: MachineStatus;
-  externalIdentifier: string | null;
+  /** Printer model for 3D-printer machines; drives the setup template and the available adapter. */
+  modelId: PrinterModelId | null;
   automaticCollectionEnabled: boolean;
   lastIngestedAt: string | null;
   jobCount: number;
@@ -37,7 +64,7 @@ export type Machine = {
   failureRate: number;
   createdAt: string;
   updatedAt: string;
-  connector: ConnectorAssignment | null;
+  connection: MachineConnection | null;
   version: number;
 };
 
@@ -256,6 +283,48 @@ export type Print = {
   connectorName: string;
 };
 
-export type InputUnit = { id: string; machineId: string; name: string; position: number; externalIdentifier: string | null };
-export type Slot = { id: string; inputUnitId: string; name: string; position: number; status: SlotStatus; spoolId: string | null };
+export type InputUnit = { id: string; machineId: string; name: string; position: number; externalIdentifier: string | null; nozzle: Nozzle | null };
+export type Slot = { id: string; inputUnitId: string; name: string; position: number; status: SlotStatus; spoolId: string | null; externalIdentifier: string | null };
 export type PrinterProfile = { machineId: string; enabled: boolean; inputUnits: InputUnit[]; slots: Slot[] };
+
+/** One tray as reported in the printer's status JSON (print.ams.ams[].tray[] or print.vir_slot[]). */
+export type DetectedTray = {
+  externalId: string;
+  materialType: string | null;
+  subBrand: string | null;
+  /** RGB hex without alpha, e.g. "FFF144". */
+  colorHex: string | null;
+  remainPercent: number | null;
+  rfid: boolean;
+  empty: boolean;
+};
+export type DetectedUnit = {
+  externalId: string;
+  kind: 'ams_2_pro' | 'ams_ht' | 'external';
+  label: string;
+  nozzle: Nozzle;
+  humidityPercent: number | null;
+  temperatureC: number | null;
+  trays: DetectedTray[];
+};
+export type DetectedPrinterState = {
+  firmware: string;
+  nozzles: { id: string; side: Nozzle; diameter: number; type: string }[];
+  units: DetectedUnit[];
+};
+
+export type PrinterModelTemplate = {
+  name: string;
+  externalIdentifier: string | null;
+  nozzle: Nozzle | null;
+  slots: { name: string; externalIdentifier: string | null }[];
+};
+export type PrinterModel = {
+  id: PrinterModelId;
+  label: string;
+  description: string;
+  /** Only the H2D has a live adapter; the simulator adapter works with any model for testing. */
+  adapterKind: AdapterKind | null;
+  nozzles: number;
+  template: PrinterModelTemplate[];
+};

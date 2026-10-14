@@ -39,7 +39,7 @@ Companion to `DESIGN.md` (structure + screen spec). Prototype: `cd frontend && p
 | User must type a machine-job **UUID** and **version number** to link/reconcile | Print submission detail | Workflow: job picker, version handled internally |
 | Up to 5 equal-weight buttons per attempt; raw JSON payloads in code snippets | Print submission detail | Hierarchy: one next-step primary, overflow, events collapsed |
 | Machine status is administrative only; "is it busy?" cannot be answered anywhere | Overview, Machines | Layout: derived availability from printing attempts + connector state |
-| Machine types section under the machines table | Machines | Progressive disclosure: overflow → modal |
+| Machine types section under the machines table | Machines | Own tab (Machines › Machine types) instead of a hidden overflow action |
 | Two separate concepts both called "job"-like (submissions vs jobs) with unclear naming | Nav | IA: prints and logbook jobs share one Jobs table |
 | Duplicated table + card markup on every list | All lists | Layout: responsive table/ContainedList |
 | No way to fix a confirmed job | Job detail | Workflow: expose existing edit endpoints |
@@ -56,8 +56,10 @@ Companion to `DESIGN.md` (structure + screen spec). Prototype: `cd frontend && p
 | Attention: low stock | Inventory (unchanged) — row kept on Overview in production |
 | Machine list, search, status filter | Machines table (search, status dropdown, show retired toggle) |
 | Machine runtime / jobs / failure rate / collection / last ingest | Machines table (jobs, failure rate) + expandable row; Machine › Overview |
-| Add / edit machine | Machines primary action; Machine › overflow *Edit machine* |
-| Machine types (add/edit/active) | Machines overflow › *Manage machine types* modal |
+| Add / edit machine | Machines primary action opens the setup wizard; Machine › overflow *Edit machine* opens it on one step |
+| Machine types (add/edit/active) | Machines › *Machine types* tab (table, Add type, Rename, Activate/Deactivate) |
+| Printer connectors (create, enroll, enable, revoke, diagnostics, assignments) | Machines › *Connectors* tab; assignment moved to the printer: Machine › Printer setup › *Connection* and the setup wizard (model, IP, serial, access code, test) |
+| Setting up a printer (profile, input units, slots, external ids typed by hand) | Machine setup wizard (Machine · Connection · Spool inputs · Review): model template, units/slots edited directly and mapped to the slots the printer reports |
 | Printer profile enable/disable, input units, slots, mount/unmount | Machine › *Printer setup* tab |
 | Jobs list + all 10 filters | Jobs › All jobs (search + Filters popover with machine, customer, operator, material, outcome, source, billing, date range; review state = tab) |
 | Manual job creation (facts + usage) | *New job* (Jobs, Overview, Machine, Print › *Create job*); a future end is a simulated run |
@@ -69,7 +71,7 @@ Companion to `DESIGN.md` (structure + screen spec). Prototype: `cd frontend && p
 | Link job to attempt | Print › *Link to job* (picker + comparison) or Job › *Link printer data*; linking replaces the manual run |
 | Reconcile consumption report (accept/reject) | Reported material is applied when a print is linked (basis actual); no separate accept/reject step |
 | Printer events | Print › *Printer events* accordion |
-| Statistics, Inventory, Pricing settings, Printer connectors | Unchanged |
+| Statistics, Inventory, Pricing settings | Unchanged |
 | Spool `manufacturer` / `productName` free text | Kept as the snapshot of the chosen catalog product (Inventory › Products); empty `productId` for manual entries |
 | **New exposure:** edit confirmed job facts/usage | Job detail *Edit job* / overflow *Edit material usage* |
 
@@ -81,7 +83,8 @@ Companion to `DESIGN.md` (structure + screen spec). Prototype: `cd frontend && p
 - **Automatic job creation from finished prints**: today a finished print waits until staff create a job from it or link it.
 - **Dismiss an unlinked print** (e.g. test prints): create or link is the only exit in the prototype.
 - **Slot observations applied to slots** (`slot_observation` events are stored but unused).
-- Vendor connector adapters (only the simulator adapter exists in this repo).
+- Vendor connector adapters (the H2D and simulator adapters exist; other models only get the simulator).
+- **Printer setup wizard needs backend support** (prototype only): a printer model on machines, `nozzle` on input units, `external_identifier` on slots, a "test connection" call returning the printer's reported units/trays (AMS `id`/tray `id`, external holders 254/255, colour, material, remain, RFID), and the last reported state per printer for the drift notice. Extruder 0 = Right nozzle, 1 = Left nozzle is to be validated against real printer data.
 - **Filament product catalog** (**implemented**: `filament_products`, `/filament-products`, migration 00038; prototyped in Inventory › Products, spool registration and Change filament): needs a
   `filament_products` entity (manufacturer, name, material, net weight, default price, packaging `refill|spool`,
   notes, active), CRUD endpoints guarded by `inventory.manage` (reads by `inventory.read`), and a nullable

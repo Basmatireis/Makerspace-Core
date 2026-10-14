@@ -32,7 +32,8 @@ the live, workflow-oriented view on the Overview instead of spreading it across 
 | Print submissions | Replaced by automatic **prints** reported by printer connectors, shown inside **Jobs**. Nobody creates or starts a print by hand. |
 | Inventory | Inventory (unchanged, out of scope) |
 | Statistics | Statistics (unchanged, out of scope) |
-| (Settings › Machine logbook) | unchanged; machine *types* move into Machines overflow menu |
+| (Settings › Machine logbook) | unchanged; machine *types* move into Machines › Machine types tab |
+| Settings › Printer connectors | moved into **Machines › Connectors** tab; printers are assigned from the printer (Connection) |
 
 ## Domain model
 
@@ -135,25 +136,57 @@ run is replaced with the printer's data. Price is recalculated." Primary action 
 when nothing changes). Jobs already linked to another print are not offered. Success shows a toast.
 
 ### Machines `/machines`
-- `DataTable`: Machine (name link + type below), Availability (`AvailabilityTag`), Activity
-  (current print or running job, or "Last job …"), Jobs (count), Failure rate. Expandable row (`TableExpandRow`) reveals:
-  runtime, collection mode, external ID, connector state, last ingest.
-- Toolbar: search, status `Dropdown` (All/Active/Maintenance/Retired; retired hidden by default via
-  "Show retired" `Toggle`), toolbar menu: **Manage machine types**. Page header primary: **Add machine** (machines.manage).
-- Mobile: `ContainedList` of machines with availability tag.
+Contained `Tabs` **Machines** · **Connectors** (printer_connectors.read) · **Machine types**; the tab is in the URL
+(`?tab=connectors`, `?tab=types`; default machines) and the existing filter params keep working.
+- **Machines tab**: `DataTable`: Machine (name link + type below), Availability (`AvailabilityTag`), Activity
+  (current print or running job, or "Last job …"), Jobs (count), Failure rate, Last data. Toolbar: search, filter toggle
+  (status, type, collection, connector state), primary **Add machine** (machines.manage) which opens the setup wizard.
+- **Connectors tab**: `DataTable` Connector (name + location), Status `Tag` (Pending / Healthy / Degraded / Offline /
+  Disabled / Revoked), Last heartbeat, Printers (links to the assigned machines), Software, Event queue
+  ("3 pending · 0 quarantined"). Row `OverflowMenu`: Diagnostics, Enroll (pending; printer_connectors.credentials.manage),
+  Enable / Disable (printer_connectors.manage), Revoke (`DestructiveActionDialog`, credentials.manage). Toolbar
+  **Add connector** (name, location) → second modal with the enrollment secret in a `CodeSnippet`, warning "Copy this
+  enrollment secret now. It expires after 15 minutes and can't be shown again." and **I have stored the secret**.
+  Diagnostics (large modal): health notification when degraded, assigned printers with runtime state and a link
+  "Open printer setup", recent events in an `Accordion` with the JSON collapsed in a `CodeSnippet`. There is no printer
+  assignment form here; assignments are made from the printer.
+- **Machine types tab**: `DataTable` Name, Status `Tag`, Machines (count). Toolbar **Add type** (modal, unique name),
+  row overflow Rename / Activate / Deactivate (machines.manage; read-only otherwise). Helper: inactive types stay on
+  existing machines but can't be chosen for new ones.
+
+### Machine setup wizard (`dialogs/MachineSetupWizard.tsx`)
+`ComposedModal` (lg) with `ProgressIndicator` and footer Back / Next / Create machine (Cancel on step 1).
+1. **Machine**: name, type `Select` (active types; **New type** inline creates the type at once), status radios, and for
+   FDM / 3D-printer types a **Model** `RadioTile` group (H2D, X1C, CORE One, Other). Other types skip steps 2 and 3.
+2. **Connection**: tiles *Connect a connector now* / *Set up later*; connector `Select` (active hosts), adapter from the
+   model (only the H2D has a live LAN adapter; other models offer the Simulator), IPv4, serial number (upper-case,
+   `[A-Z0-9_-]`), LAN access code (`PasswordInput`, optional when editing: blank keeps the code) and the RFID auto-mount
+   `Checkbox`. **Test connection** (`InlineLoading`) reads what the printer reports (firmware, nozzles, AMS units, external
+   holders) or fails with an actionable message (unreachable / wrong code; chosen in the prototype controls). Skipping
+   the test shows a warning that slot mapping uses the model template only.
+3. **Spool inputs**: units and slots prefilled from the model template (or the existing profile), grouped by nozzle for
+   two-nozzle models. Each unit has a name, nozzle and slots; each slot a name, a **Printer slot** `Dropdown` of detected
+   slots not used elsewhere (or the template's expected slots before a test) and a **Detected** cell (swatch, material,
+   remaining %, RFID tag). **Match automatically** maps by printer id, then by position; reported units missing from the
+   setup raise an `ActionableNotification` ("Add as input unit"); a per-slot overflow offers a custom identifier.
+   Duplicate mappings are blocked.
+4. **Review**: `StructuredList` of machine, connection (access code only "Set" / "Not set") and mapping.
+Edit mode opens the same component on one step (no progress indicator, footer Cancel / Save).
 
 ### Machine detail `/machines/:id`
 - Header: name, adornment `AvailabilityTag`, description = type. Primary: **New job** (machine prefilled,
-  machine_jobs.create). Overflow: Edit machine (machines.manage).
+  machine_jobs.create). Overflow: Edit machine (machines.manage) → wizard step *Machine*.
 - Connector issue `InlineNotification` (warning) when degraded/disconnected.
-- `Tabs`: **Overview** · **Jobs** · **Printer setup** (only when a printer profile exists or machines.manage).
-  - Overview: facts (status, type, collection, external ID, last ingest), activity numbers
+- `Tabs`: **Overview** · **Jobs** · **Printer setup** (only when a printer profile exists, or machines.manage on a printer type).
+  - Overview: facts (status, type, model, serial number, collection, last ingest), activity numbers
     (jobs, runtime, failure rate) as a 3-up tile row, current item (print file or running job, with end time) if in use, last 5 jobs.
   - Jobs: `JobsTable` filtered to this machine (+ link "Open in Jobs" with `?machine=`).
-  - Printer setup: profile enabled `Toggle` (disable → `DestructiveActionDialog`), input units as
-    `Tile`s each with a slots table (slot, status, mounted spool, Mount/Unmount actions); Add input unit /
-    Add slot (machines.manage); Mount spool `Modal` with `ComboBox` of unmounted active spools
-    (printer_slots.assign + inventory.read).
+  - Printer setup: **Printing** `Toggle` tile (disable → `DestructiveActionDialog`); **Connection** tile (connector link to
+    Machines › Connectors, adapter, IP, serial, access code Set, auto-mount, runtime state, last heartbeat; **Edit
+    connection**, or an empty state with **Connect printer**); **Spool inputs** tiles grouped by nozzle with columns
+    Slot · Printer slot · Detected · Mounted spool · Actions (Mount/Unmount; printer_slots.assign + inventory.read),
+    **Edit spool inputs** (opens wizard step 3; also **Create profile** when none exists) and the drift notification
+    "The printer reports AMS HT (128), which isn't set up" with **Add as input unit**.
 
 ### Table pattern (all lists)
 Every list uses the production Directory table: `<TableContainer className="mj-table-container">`, toolbar with
