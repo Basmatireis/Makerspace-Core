@@ -1,6 +1,6 @@
 import type { Page, Route } from '@playwright/test';
 import type {
-  BillingParty, FilamentProduct, FilamentSpool, Machine, MachineActivity, MachineJob, MachineLogbookStatistics, Material, Operator, PrintDetail, PrinterProfile, WorkItem,
+  BillingParty, FilamentProduct, FilamentSpool, Machine, MachineActivity, MachineJob, MachineLogbookStatistics, MachineRun, MachineRunDetail, Material, Operator, PrinterProfile, WorkItem,
 } from '../src/api/generated/models';
 import { defaultPublicBrandingConfiguration } from './branding-fixtures';
 
@@ -16,7 +16,8 @@ export const ids = {
   pla: id(30), plywood: id(31),
   customer: id(40), operator: id(41), pricingGroup: id(42),
   jobSuccess: id(50), jobNeedsOutcome: id(51), jobManualBambu: id(52), jobLinked: id(53), jobRunning: id(54),
-  printUnlinked: id(60), printLinked: id(61), printPrinting: id(62),
+  runUnassigned: id(60), runLinked: id(61), runRunning: id(62),
+  runSuccess: id(63), runNeedsOutcome: id(64), runManualBambu: id(65), runLive: id(66), runNew: id(112), runAdded: id(113),
   spoolReusable: id(70), spoolSingle: id(71), spoolArchivedNew: id(72), spoolArchivedOld: id(73), spoolMounted: id(74),
   fillClosed: id(80), fillCurrent: id(81),
   productRefill: id(90), productSpool: id(91),
@@ -84,12 +85,22 @@ const pricingSnapshot = {
   rules: [{ kind: 'machine_runtime', label: '3D printer runtime', selector: '3D printer', unit: 'hour', rate: '5.00', missing: false }],
 };
 
+const usageOf = (n: number, quantity: string) => ({ id: id(n), ownership: 'makerspace' as const, materialId: ids.pla, spoolId: null, spoolDisplayId: null, materialName: 'PLA Black', category: 'filament', unit: 'g' as const, quantity, quantityBasis: 'actual' as const });
+
+type RunInit = Partial<MachineRun> & Pick<MachineRun, 'id' | 'displayId'>;
+/** A manual run. `endedAt` is always the real end here; the API shape (running → estimatedEndAt) is applied when it is served. */
+export function manualRunFixture(overrides: RunInit): MachineRun {
+  return {
+    machineId: ids.laser, machineName: 'Laser cutter', source: 'manual', state: 'finished', connectorName: null, fileName: null, startedAt: minutes(-180), endedAt: minutes(-90), estimatedEndAt: null,
+    durationSeconds: 5400, progressPercent: null, outcome: 'successful', outcomeFromMachine: false, usages: [usageOf(130, '183.000')], usagesFromMachine: false, reportedUsage: null, version: 2, ...overrides,
+  } as MachineRun;
+}
+
 type JobInit = Partial<MachineJob> & Pick<MachineJob, 'id' | 'displayId'>;
 export function jobFixture(overrides: JobInit): MachineJob {
   return {
-    title: null, machine: machine(ids.laser, 'Laser cutter', types[1]), startsAt: minutes(-180), endsAt: minutes(-90), durationSeconds: 5400, run: 'manual', print: null, customer, operator, outcome: 'successful', status: 'successful', notes: 'Print with 0.2 mm layers',
-    usages: [{ id: id(130), ownership: 'makerspace', materialId: ids.pla, spoolId: null, spoolDisplayId: null, materialName: 'PLA Black', category: 'filament', unit: 'g', quantity: '183.000', quantityBasis: 'actual' }],
-    pricingStatus: 'complete', pricingSnapshot, calculatedPrice: '12.50', priceAdjustment: null, effectivePrice: '12.50', version: 3, createdAt: created, updatedAt: created, ...overrides,
+    title: null, machine: machine(ids.laser, 'Laser cutter', types[1]), runs: [], startedAt: null, endedAt: null, expectedEndAt: null, durationSeconds: 0, customer, operator, outcome: 'successful', outcomeOverridden: false, status: 'successful',
+    notes: 'Print with 0.2 mm layers', pricingStatus: 'complete', pricingSnapshot, calculatedPrice: '12.50', priceAdjustment: null, effectivePrice: '12.50', version: 3, createdAt: created, updatedAt: created, ...overrides,
   } as MachineJob;
 }
 
@@ -119,32 +130,43 @@ export function createWorld(permissions: string[] = staffPermissions) {
   ];
 
   const jobs: MachineJob[] = [
-    jobFixture({ id: ids.jobSuccess, displayId: 'J-2026-000001', title: 'Gearbox housing' }),
-    jobFixture({ id: ids.jobNeedsOutcome, displayId: 'J-2026-000002', title: 'Lamp shade', startsAt: minutes(-90), endsAt: minutes(-10), durationSeconds: 4800, outcome: 'unknown', status: 'needs_outcome', calculatedPrice: null, effectivePrice: null, pricingStatus: 'pending', pricingSnapshot: undefined }),
-    jobFixture({ id: ids.jobManualBambu, displayId: 'J-2026-000003', title: 'Prototype bracket', machine: bambu, startsAt: minutes(-200), endsAt: minutes(-140), durationSeconds: 3600 }),
+    jobFixture({ id: ids.jobSuccess, displayId: 'J-2026-000001', title: 'Gearbox housing', runs: [manualRunFixture({ id: ids.runSuccess, displayId: 'RN-2026-000001' })] }),
     jobFixture({
-      id: ids.jobLinked, displayId: 'J-2026-000004', title: null, machine: bambu, run: 'automatic', startsAt: minutes(-600), endsAt: minutes(-500), durationSeconds: 6000,
-      print: { id: ids.printLinked, displayId: 'PR-2026-000007', fileName: 'gearbox_housing_v3.gcode', state: 'finished', connectorName: 'Bambu LAN' },
+      id: ids.jobNeedsOutcome, displayId: 'J-2026-000002', title: 'Lamp shade', calculatedPrice: null, effectivePrice: null, pricingStatus: 'pending', pricingSnapshot: undefined,
+      runs: [manualRunFixture({ id: ids.runNeedsOutcome, displayId: 'RN-2026-000002', startedAt: minutes(-90), endedAt: minutes(-10), durationSeconds: 4800, outcome: null })],
     }),
-    jobFixture({ id: ids.jobRunning, displayId: 'J-2026-000005', title: 'Engraving run', startsAt: minutes(-30), endsAt: minutes(30), durationSeconds: 3600, outcome: 'unknown', status: 'running', calculatedPrice: null, effectivePrice: null, pricingStatus: 'pending', pricingSnapshot: undefined }),
+    jobFixture({
+      id: ids.jobManualBambu, displayId: 'J-2026-000003', title: 'Prototype bracket', machine: bambu,
+      runs: [manualRunFixture({ id: ids.runManualBambu, displayId: 'RN-2026-000003', machineId: ids.bambu, machineName: bambu.name, startedAt: minutes(-200), endedAt: minutes(-140), durationSeconds: 3600 })],
+    }),
+    jobFixture({ id: ids.jobLinked, displayId: 'J-2026-000004', title: null, machine: bambu }),
+    jobFixture({
+      id: ids.jobRunning, displayId: 'J-2026-000005', title: 'Engraving run', calculatedPrice: null, effectivePrice: null, pricingStatus: 'pending', pricingSnapshot: undefined,
+      runs: [manualRunFixture({ id: ids.runLive, displayId: 'RN-2026-000006', startedAt: minutes(-30), endedAt: minutes(30), durationSeconds: 3600, outcome: null, usages: [] })],
+    }),
   ];
 
-  const printDetail = (print: Partial<PrintDetail> & Pick<PrintDetail, 'id' | 'displayId' | 'state'>): PrintDetail => ({
-    machineId: ids.bambu, machineName: bambu.name, connectorName: 'Bambu LAN', fileName: 'bracket_v2.gcode', startedAt: minutes(-180), endedAt: minutes(-120), estimatedEndAt: null, progressPercent: 100,
+  const recordedRun = (run: Partial<MachineRunDetail> & Pick<MachineRunDetail, 'id' | 'displayId' | 'state'>): MachineRunDetail => ({
+    machineId: ids.bambu, machineName: bambu.name, source: 'recorded', connectorName: 'Bambu LAN', fileName: 'bracket_v2.gcode', startedAt: minutes(-180), endedAt: minutes(-120), estimatedEndAt: null,
+    durationSeconds: 3600, progressPercent: 100, outcome: 'successful', outcomeFromMachine: true, usages: [], usagesFromMachine: false,
     reportedUsage: { quantity: '42.000', quantityBasis: 'actual', materialId: ids.pla, materialName: 'PLA Black', spoolId: null, spoolDisplayId: null }, job: null, version: 1,
     events: [
       { id: id(140), kind: 'operational_state', occurredAt: minutes(-180), state: 'printing' },
       { id: id(141), kind: 'terminal_outcome', occurredAt: minutes(-120), state: 'finished' },
-    ], ...print,
-  } as PrintDetail);
-  const prints: PrintDetail[] = [
-    printDetail({ id: ids.printUnlinked, displayId: 'PR-2026-000008', state: 'finished' }),
-    printDetail({ id: ids.printLinked, displayId: 'PR-2026-000007', state: 'finished', fileName: 'gearbox_housing_v3.gcode', startedAt: minutes(-600), endedAt: minutes(-500), job: { id: ids.jobLinked, displayId: 'J-2026-000004', title: null } }),
-    printDetail({ id: ids.printPrinting, displayId: 'PR-2026-000009', state: 'printing', fileName: 'enclosure_lid.gcode', startedAt: minutes(-30), endedAt: null, estimatedEndAt: minutes(60), progressPercent: 45, reportedUsage: null }),
+    ], ...run,
+  } as MachineRunDetail);
+  /** Recorded runs, assigned or not. A job's recorded runs are looked up here by `run.job`. */
+  const runs: MachineRunDetail[] = [
+    recordedRun({ id: ids.runUnassigned, displayId: 'RN-2026-000008', state: 'finished' }),
+    recordedRun({
+      id: ids.runLinked, displayId: 'RN-2026-000007', state: 'finished', fileName: 'gearbox_housing_v3.gcode', startedAt: minutes(-600), endedAt: minutes(-500), durationSeconds: 6000,
+      usages: [usageOf(131, '42.000')], usagesFromMachine: true, job: { id: ids.jobLinked, displayId: 'J-2026-000004', title: null },
+    }),
+    recordedRun({ id: ids.runRunning, displayId: 'RN-2026-000009', state: 'running', fileName: 'enclosure_lid.gcode', startedAt: minutes(-30), endedAt: null, estimatedEndAt: minutes(60), durationSeconds: 5400, progressPercent: 45, outcome: null, outcomeFromMachine: false, reportedUsage: null }),
   ];
 
   const activity: MachineActivity[] = [
-    { machineId: ids.bambu, availability: 'in_use', connector: { runtimeState: 'degraded', runtimeErrorCode: 'E42' }, current: { kind: 'print', id: ids.printPrinting, displayId: 'PR-2026-000009', fileName: 'enclosure_lid.gcode', startedAt: minutes(-30), endsAt: minutes(60) } },
+    { machineId: ids.bambu, availability: 'in_use', connector: { runtimeState: 'degraded', runtimeErrorCode: 'E42' }, current: { kind: 'run', id: ids.runRunning, displayId: 'RN-2026-000009', fileName: 'enclosure_lid.gcode', startedAt: minutes(-30), endsAt: minutes(60) } },
     { machineId: ids.laser, availability: 'available', lastJobStartedAt: minutes(-180) },
     { machineId: ids.saw, availability: 'retired' },
   ];
@@ -177,7 +199,7 @@ export function createWorld(permissions: string[] = staffPermissions) {
   const requests: RecordedRequest[] = [];
   const unhandled: string[] = [];
   const world = {
-    permissions, machines, materials, products, spools, jobs, prints, activity, printerProfile, statistics, statisticsRequests, requests, unhandled,
+    permissions, machines, materials, products, spools, jobs, runs, activity, printerProfile, statistics, statisticsRequests, requests, unhandled,
     /** Requests of one kind, for example `world.sent('POST', '/api/v1/machine-jobs')`. */
     sent: (method: string, path: string | RegExp) => requests.filter((request) => request.method === method && (typeof path === 'string' ? request.path === path : path.test(request.path))),
     bodyOf: (method: string, path: string | RegExp) => world.sent(method, path).at(-1)?.body as Record<string, unknown> | undefined,
@@ -185,11 +207,36 @@ export function createWorld(permissions: string[] = staffPermissions) {
   return world;
 }
 
-const statusOf = (job: MachineJob): MachineJob['status'] => {
-  if (job.outcome === 'unknown') return new Date(job.endsAt).getTime() > Date.now() ? 'running' : 'needs_outcome';
-  return job.outcome as MachineJob['status'];
+/** Presents a stored manual run like the API: a run that has not ended is running and carries its planned end as estimate. */
+function presentRun(run: MachineRun): MachineRun {
+  if (run.source !== 'manual' || run.state === 'replaced') return run;
+  const end = run.endedAt ?? run.estimatedEndAt!;
+  const live = new Date(end).getTime() > Date.now() && run.outcome !== 'cancelled';
+  const state: MachineRun['state'] = live ? 'running' : run.outcome === 'cancelled' ? 'cancelled' : 'finished';
+  return { ...run, state, endedAt: live ? null : end, estimatedEndAt: live ? end : null, outcome: live ? null : run.outcome, durationSeconds: Math.max(0, Math.round((new Date(end).getTime() - new Date(run.startedAt).getTime()) / 1000)) };
+}
+
+const derivedOutcome = (runs: MachineRun[]): MachineJob['outcome'] => {
+  if (runs.some((run) => !run.outcome)) return 'unknown';
+  const set = new Set(runs.map((run) => run.outcome));
+  return set.size === 1 ? runs[0].outcome as MachineJob['outcome'] : 'partial_failure';
 };
-const withStatus = (job: MachineJob): MachineJob => ({ ...job, status: statusOf(job) });
+
+/** The job as the API serves it: runs, totals, outcome and status derived from the runs. */
+function viewJob(world: World, job: MachineJob): MachineJob {
+  const stored = job.runs.filter((run) => run.source === 'manual');
+  const runs = [...stored, ...world.runs.filter((run) => run.job?.id === job.id)].map(presentRun).sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  const active = runs.filter((run) => run.state !== 'replaced');
+  const live = active.some((run) => run.state === 'running');
+  const outcome = job.outcomeOverridden ? job.outcome : derivedOutcome(active);
+  const status: MachineJob['status'] = live ? 'running' : outcome === 'unknown' ? 'needs_outcome' : outcome as MachineJob['status'];
+  const ended = active.every((run) => run.endedAt);
+  return {
+    ...job, runs, startedAt: runs[0]?.startedAt ?? null, endedAt: ended ? active.map((run) => run.endedAt!).sort().at(-1) ?? null : null,
+    expectedEndAt: live ? active.map((run) => run.endedAt ?? run.estimatedEndAt!).sort().at(-1) ?? null : null,
+    durationSeconds: active.reduce((sum, run) => sum + run.durationSeconds, 0), outcome, status,
+  };
+}
 
 function priceOf(job: MachineJob): string | null {
   if (job.calculatedPrice == null) return null;
@@ -202,27 +249,30 @@ function priceOf(job: MachineJob): string | null {
 }
 
 function workItems(world: World): WorkItem[] {
-  const jobItems = world.jobs.map(withStatus).map((job): WorkItem => ({
-    kind: 'job', id: job.id, displayId: job.displayId, title: job.title, fileName: job.print?.fileName ?? null, printId: job.print?.id ?? null, printDisplayId: job.print?.displayId ?? null,
-    machineId: job.machine.id, machineName: job.machine.name, customer: job.customer, operator: job.operator, status: job.status, run: job.run === 'manual' ? 'manual' : 'printer',
-    startedAt: job.startsAt, endsAt: job.endsAt, effectivePrice: job.effectivePrice ?? null, billing: { state: 'not_on_order' }, version: job.version,
+  const jobItems = world.jobs.map((stored) => viewJob(world, stored)).map((job): WorkItem => {
+    const recorded = job.runs.filter((run) => run.source === 'recorded' && run.state !== 'replaced');
+    return {
+      kind: 'job', id: job.id, displayId: job.displayId, title: job.title, fileName: recorded.at(-1)?.fileName ?? null, runCount: job.runs.filter((run) => run.state !== 'replaced').length,
+      machineId: job.machine.id, machineName: job.machine.name, customer: job.customer, operator: job.operator, status: job.status, source: recorded.length ? 'recorded' : 'manual',
+      startedAt: job.startedAt!, endsAt: job.endedAt ?? job.expectedEndAt, effectivePrice: job.effectivePrice ?? null, billing: { state: 'not_on_order' }, version: job.version,
+    } as WorkItem;
+  });
+  const runItems = world.runs.filter((run) => !run.job).map((run): WorkItem => ({
+    kind: 'run', id: run.id, displayId: run.displayId, title: null, fileName: run.fileName, runCount: 1, machineId: run.machineId, machineName: run.machineName,
+    status: run.state === 'running' ? 'running_unassigned' : 'unassigned', source: 'recorded', startedAt: run.startedAt, endsAt: run.endedAt ?? null, estimatedEndAt: run.estimatedEndAt ?? null,
+    progressPercent: run.progressPercent ?? null, effectivePrice: null,
   } as WorkItem));
-  const printItems = world.prints.filter((print) => !print.job).map((print): WorkItem => ({
-    kind: 'print', id: print.id, displayId: print.displayId, title: null, fileName: print.fileName, machineId: print.machineId, machineName: print.machineName, customer: null, operator: null,
-    status: print.state === 'printing' ? 'printing' : 'unlinked', run: 'printer', startedAt: print.startedAt, endsAt: print.endedAt ?? null, estimatedEndAt: print.estimatedEndAt ?? null,
-    progressPercent: print.progressPercent ?? null, effectivePrice: null,
-  } as WorkItem));
-  return [...jobItems, ...printItems].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  return [...jobItems, ...runItems].sort((a, b) => b.startedAt.localeCompare(a.startedAt));
 }
 
 function overview(world: World) {
   const items = workItems(world);
-  const active = items.filter((item) => ['running', 'printing', 'unlinked', 'needs_outcome'].includes(item.status));
+  const active = items.filter((item) => ['running', 'running_unassigned', 'unassigned', 'needs_outcome'].includes(item.status));
   const count = (...statuses: string[]) => items.filter((item) => statuses.includes(item.status)).length;
   return {
     jobsToday: 4, jobsThisWeek: 9, unassignedJobs: 0, unassignedEstimatedAmount: '0.00', failedOrPartialThisWeek: 1,
-    runningNow: count('running', 'printing'), runningMachineNames: [...new Set(items.filter((item) => ['running', 'printing'].includes(item.status)).map((item) => item.machineName))],
-    needsOutcome: count('needs_outcome'), unlinkedPrints: count('unlinked'), billingIssues: 0, activeItems: active.slice(0, 6), activeTotal: active.length,
+    runningNow: count('running', 'running_unassigned'), runningMachineNames: [...new Set(items.filter((item) => ['running', 'running_unassigned'].includes(item.status)).map((item) => item.machineName))],
+    needsOutcome: count('needs_outcome'), unassignedRuns: count('unassigned'), billingIssues: 0, activeItems: active.slice(0, 6), activeTotal: active.length,
     lowStockItems: 0, recentJobs: [], lowStockMaterials: [], activity: [{ date: '2026-09-14', count: 7 }],
   };
 }
@@ -268,21 +318,28 @@ function paginate<T>(items: T[], params: URLSearchParams) {
 function filterWorkItems(world: World, params: URLSearchParams) {
   const statuses = params.getAll('status');
   const machineIds = params.getAll('machineId');
-  const runs = params.getAll('run');
+  const sources = params.getAll('source');
   const search = params.get('search')?.toLowerCase();
   const items = workItems(world).filter((item) => (
-    (statuses.length === 0 || statuses.includes(item.status)) && (machineIds.length === 0 || machineIds.includes(item.machineId)) && (runs.length === 0 || runs.includes(item.run))
+    (statuses.length === 0 || statuses.includes(item.status)) && (machineIds.length === 0 || machineIds.includes(item.machineId)) && (sources.length === 0 || sources.includes(item.source))
     && (!search || `${item.displayId} ${item.title ?? ''} ${item.fileName ?? ''}`.toLowerCase().includes(search))
   ));
   return paginate(items, params);
 }
 
-/** Replaces a job in the world and returns the stored copy (version bumped, status and effective price derived). */
+/** Replaces a job in the world and returns the served copy (version bumped, derived fields and price recomputed). */
 function saveJob(world: World, job: MachineJob): MachineJob {
-  const next = withStatus({ ...job, effectivePrice: priceOf(job), version: job.version + 1, updatedAt: new Date().toISOString() });
+  const next = { ...job, effectivePrice: null, version: job.version + 1, updatedAt: new Date().toISOString() };
+  next.effectivePrice = priceOf(next);
   const index = world.jobs.findIndex((item) => item.id === job.id);
   if (index >= 0) world.jobs[index] = next; else world.jobs.push(next);
-  return next;
+  return viewJob(world, next);
+}
+
+/** Every run in the world as the API serves it, with the job reference filled in. */
+function allRuns(world: World): MachineRunDetail[] {
+  const manual = world.jobs.flatMap((job) => job.runs.filter((run) => run.source === 'manual').map((run) => ({ ...presentRun(run), job: { id: job.id, displayId: job.displayId, title: job.title }, events: [] }) as MachineRunDetail));
+  return [...manual, ...world.runs];
 }
 
 export async function installMachinesJobsApi(page: Page, world: World = createWorld()): Promise<World> {
@@ -341,72 +398,106 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
     }
 
     // Jobs
+    const jobOf = (jobId: string) => world.jobs.find((item) => item.id === jobId);
+    const newManualRun = (input: Record<string, unknown>, job: MachineJob, runId: string, displayId: string): MachineRun => manualRunFixture({
+      id: runId, displayId, machineId: job.machine.id, machineName: job.machine.name, startedAt: String(input.startsAt), endedAt: String(input.endsAt), outcome: (input.outcome as MachineRun['outcome']) ?? null, version: 1,
+      usages: ((input.usages as Record<string, unknown>[]) ?? []).map((usage, index) => usageOf(200 + index, String(usage.quantity))),
+    });
     if ((match = path.match(/^\/api\/v1\/machine-jobs\/([^/]+)\/order-association$/))) return ok(route, { orderId: null, orderReference: null, sourceChanged: false });
-    if ((match = path.match(/^\/api\/v1\/machine-jobs\/([^/]+)\/run-cancellation$/)) && method === 'POST') {
-      const job = world.jobs.find((item) => item.id === match![1]);
-      if (!job) return notFound(route);
-      return ok(route, saveJob(world, { ...job, outcome: 'cancelled', endsAt: new Date().toISOString(), durationSeconds: Math.max(1, Math.round((Date.now() - new Date(job.startsAt).getTime()) / 1000)), calculatedPrice: '3.10' }));
-    }
     if ((match = path.match(/^\/api\/v1\/machine-jobs\/([^/]+)\/price-adjustment$/))) {
-      const job = world.jobs.find((item) => item.id === match![1]);
+      const job = jobOf(match[1]);
       if (!job) return notFound(route);
       if (method === 'PUT') return ok(route, saveJob(world, { ...job, priceAdjustment: { kind: body?.kind as 'fixed', value: String(body?.value), reason: String(body?.reason), adjustedAt: new Date().toISOString() } }));
       if (method === 'DELETE') return ok(route, saveJob(world, { ...job, priceAdjustment: null }));
     }
-    if ((match = path.match(/^\/api\/v1\/machine-jobs\/([^/]+)$/))) {
-      const job = world.jobs.find((item) => item.id === match![1]);
+    if ((match = path.match(/^\/api\/v1\/machine-jobs\/([^/]+)\/runs$/)) && method === 'POST') {
+      const job = jobOf(match[1]);
       if (!job) return notFound(route);
-      if (method === 'PATCH') return ok(route, saveJob(world, { ...job, outcome: body?.outcome as MachineJob['outcome'], title: (body?.title as string | null) ?? null, notes: (body?.notes as string | null) ?? null }));
-      return ok(route, withStatus(job));
+      return ok(route, saveJob(world, { ...job, runs: [...job.runs, newManualRun(body!.run as Record<string, unknown>, job, ids.runAdded, 'RN-2026-000020')] }), 201);
+    }
+    if ((match = path.match(/^\/api\/v1\/machine-jobs\/([^/]+)$/))) {
+      const job = jobOf(match[1]);
+      if (!job) return notFound(route);
+      if (method === 'PATCH') {
+        const override = (body?.outcomeOverride as MachineJob['outcome'] | null) ?? null;
+        return ok(route, saveJob(world, { ...job, outcomeOverridden: override !== null, outcome: override ?? job.outcome, title: (body?.title as string | null) ?? null, notes: (body?.notes as string | null) ?? null }));
+      }
+      return ok(route, viewJob(world, job));
     }
     if (path === '/api/v1/machine-jobs' && method === 'POST') {
       const machineFor = world.machines.find((item) => item.id === body?.machineId) ?? world.machines[0];
-      const startsAt = String(body?.startsAt);
-      const endsAt = String(body?.endsAt);
-      const job = saveJob(world, jobFixture({
-        id: ids.newJob, displayId: 'J-2026-000010', title: (body?.title as string | null) ?? null, machine: machineFor, startsAt, endsAt, durationSeconds: Math.round((new Date(endsAt).getTime() - new Date(startsAt).getTime()) / 1000),
-        outcome: body?.outcome as MachineJob['outcome'], notes: (body?.notes as string | null) ?? null, version: 0, calculatedPrice: '8.00', effectivePrice: '8.00',
-      }));
-      return ok(route, job, 201);
+      const job = jobFixture({ id: ids.newJob, displayId: 'J-2026-000010', title: (body?.title as string | null) ?? null, machine: machineFor, notes: (body?.notes as string | null) ?? null, version: 0, calculatedPrice: '8.00', effectivePrice: '8.00' });
+      return ok(route, saveJob(world, { ...job, runs: [newManualRun(body!.run as Record<string, unknown>, job, ids.runNew, 'RN-2026-000010')] }), 201);
     }
 
-    // Prints
-    if (path === '/api/v1/prints' && method === 'GET') {
-      let items = world.prints as PrintDetail[];
-      if (params.get('machineId')) items = items.filter((print) => print.machineId === params.get('machineId'));
-      if (params.get('linked') === 'false') items = items.filter((print) => !print.job);
+    // Runs
+    if (path === '/api/v1/machine-runs' && method === 'GET') {
+      let items: MachineRun[] = allRuns(world);
+      if (params.get('machineId')) items = items.filter((run) => run.machineId === params.get('machineId'));
+      if (params.get('source')) items = items.filter((run) => run.source === params.get('source'));
+      if (params.get('assigned')) items = items.filter((run) => Boolean(run.job) === (params.get('assigned') === 'true'));
       return ok(route, paginate(items, params));
     }
-    if ((match = path.match(/^\/api\/v1\/prints\/([^/]+)\/job$/))) {
-      const print = world.prints.find((item) => item.id === match![1]);
-      if (!print) return notFound(route);
+    if ((match = path.match(/^\/api\/v1\/machine-runs\/([^/]+)\/job$/))) {
+      const run = world.runs.find((item) => item.id === match![1]);
+      if (!run) return notFound(route);
       if (method === 'POST') {
         const job = saveJob(world, jobFixture({
-          id: ids.newJob, displayId: 'J-2026-000011', title: (body?.title as string | null) ?? null, machine: world.machines.find((item) => item.id === print.machineId)!, run: 'automatic', startsAt: print.startedAt, endsAt: print.endedAt ?? minutes(0), durationSeconds: 3600, outcome: body?.outcome as MachineJob['outcome'], version: 0,
-          print: { id: print.id, displayId: print.displayId, fileName: print.fileName, state: print.state, connectorName: print.connectorName },
+          id: ids.newJob, displayId: 'J-2026-000011', title: (body?.title as string | null) ?? null, machine: world.machines.find((item) => item.id === run.machineId)!, version: 0,
         }));
-        print.job = { id: job.id, displayId: job.displayId, title: job.title };
-        return ok(route, job, 201);
+        run.job = { id: job.id, displayId: job.displayId, title: job.title };
+        return ok(route, viewJob(world, job), 201);
       }
       if (method === 'PUT') {
-        const job = world.jobs.find((item) => item.id === body?.machineJobId);
+        const job = jobOf(String(body?.machineJobId));
         if (!job) return notFound(route);
-        const linked = saveJob(world, {
-          ...job, run: 'automatic', startsAt: print.startedAt, endsAt: print.endedAt ?? job.endsAt,
-          print: { id: print.id, displayId: print.displayId, fileName: print.fileName, state: print.state, connectorName: print.connectorName },
-        });
-        print.job = { id: linked.id, displayId: linked.displayId, title: linked.title };
-        return ok(route, linked);
+        const replace = body?.replaceManualRuns === true;
+        run.job = { id: job.id, displayId: job.displayId, title: job.title };
+        return ok(route, saveJob(world, { ...job, runs: job.runs.map((item) => replace && item.source === 'manual' ? { ...item, state: 'replaced' as const } : item) }));
       }
       if (method === 'DELETE') {
-        const job = world.jobs.find((item) => item.id === print.job?.id);
-        print.job = null;
-        return job ? ok(route, saveJob(world, { ...job, run: 'manual', print: null })) : notFound(route);
+        const job = jobOf(run.job?.id ?? '');
+        run.job = null;
+        if (!job) return notFound(route);
+        const remaining = job.runs.filter((item) => item.state !== 'replaced');
+        // The last run leaves a manual copy with the same times and outcome.
+        const copy = remaining.length === 0 ? [manualRunFixture({ id: id(210), displayId: 'RN-2026-000030', machineId: run.machineId, machineName: run.machineName, startedAt: run.startedAt, endedAt: run.endedAt ?? run.estimatedEndAt, outcome: run.outcome, usages: [] })] : [];
+        return ok(route, saveJob(world, { ...job, runs: [...job.runs, ...copy] }));
       }
     }
-    if ((match = path.match(/^\/api\/v1\/prints\/([^/]+)$/))) {
-      const print = world.prints.find((item) => item.id === match![1]);
-      return print ? ok(route, print) : notFound(route);
+    if ((match = path.match(/^\/api\/v1\/machine-runs\/([^/]+)\/(cancellation|usages)$/))) {
+      const job = world.jobs.find((item) => item.runs.some((run) => run.id === match![1]));
+      const stored = job?.runs.find((run) => run.id === match![1]);
+      if (!job || !stored) return notFound(route);
+      if (match[2] === 'cancellation' && method === 'POST') {
+        const now = new Date().toISOString();
+        const runs = job.runs.map((run) => run.id === stored.id ? { ...run, endedAt: now, outcome: 'cancelled' as const, version: run.version + 1 } : run);
+        return ok(route, saveJob(world, { ...job, runs, calculatedPrice: '3.10' }));
+      }
+      if (match[2] === 'usages' && method === 'PUT') {
+        const usages = ((body?.usages as Record<string, unknown>[]) ?? []).map((usage, index) => usageOf(220 + index, String(usage.quantity)));
+        const runs = job.runs.map((run) => run.id === stored.id ? { ...run, usages, version: run.version + 1 } : run);
+        const saved = saveJob(world, { ...job, runs });
+        return ok(route, { run: saved.runs.find((run) => run.id === stored.id), job: saved });
+      }
+    }
+    if ((match = path.match(/^\/api\/v1\/machine-runs\/([^/]+)$/))) {
+      const job = world.jobs.find((item) => item.runs.some((run) => run.id === match![1]));
+      const stored = job?.runs.find((run) => run.id === match![1]);
+      if (method === 'GET') {
+        const found = allRuns(world).find((run) => run.id === match![1]);
+        return found ? ok(route, found) : notFound(route);
+      }
+      if (!job || !stored) return notFound(route);
+      if (method === 'DELETE') {
+        if (job.runs.filter((run) => run.state !== 'replaced').length <= 1) return ok(route, { code: 'job_needs_run', message: 'A job needs at least one run' }, 409);
+        return ok(route, saveJob(world, { ...job, runs: job.runs.filter((run) => run.id !== stored.id) }));
+      }
+      if (method === 'PATCH') {
+        const runs = job.runs.map((run) => run.id === stored.id ? { ...run, startedAt: String(body?.startsAt ?? run.startedAt), endedAt: String(body?.endsAt ?? run.endedAt), outcome: (body?.outcome as MachineRun['outcome']) ?? null, version: run.version + 1 } : run);
+        const saved = saveJob(world, { ...job, runs });
+        return ok(route, { run: saved.runs.find((run) => run.id === stored.id), job: saved });
+      }
     }
 
     // Inventory
@@ -456,7 +547,7 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
       return ok(route, paginate(items, params));
     }
     if ((match = path.match(/^\/api\/v1\/filament-spools\/([^/]+)\/transactions$/))) {
-      return ok(route, pageOf([{ id: id(172), materialId: ids.pla, kind: 'machine_job_consumption', quantityDelta: '-183', unitAcquisitionCost: '0.018', inventoryValueDelta: '-3.29', occurredAt: '2026-10-03T08:00:00Z', machineJobId: ids.jobSuccess, machineJobDisplayId: 'J-2026-000001', spoolId: match[1], spoolDisplayId: 'S-2026-000001', fillNumber: 3, createdAt: '2026-10-03T08:00:00Z' }]));
+      return ok(route, pageOf([{ id: id(172), materialId: ids.pla, kind: 'machine_run_consumption', quantityDelta: '-183', unitAcquisitionCost: '0.018', inventoryValueDelta: '-3.29', occurredAt: '2026-10-03T08:00:00Z', machineJobId: ids.jobSuccess, machineJobDisplayId: 'J-2026-000001', spoolId: match[1], spoolDisplayId: 'S-2026-000001', fillNumber: 3, createdAt: '2026-10-03T08:00:00Z' }]));
     }
     if ((match = path.match(/^\/api\/v1\/filament-spools\/([^/]+)\/(fills|finish)$/)) && method === 'POST') {
       const found = world.spools.find((item) => item.id === match![1]);

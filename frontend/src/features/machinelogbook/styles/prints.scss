@@ -1,7 +1,0 @@
-@use '@carbon/styles/scss/spacing' as *;
-
-// Layout glue for the Print detail screen.
-
-.mj-prints__events { display: grid; gap: $spacing-03; margin: 0; padding: 0; list-style: none; }
-.mj-prints__event { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: $spacing-03; padding-block: $spacing-03; border-block-end: 1px solid var(--cds-border-subtle); }
-.mj-prints__event:last-child { border-block-end: 0; }

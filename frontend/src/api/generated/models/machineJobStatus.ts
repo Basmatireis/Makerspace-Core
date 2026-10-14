@@ -20,7 +20,7 @@ the required session and CSRF credentials.
  */
 
 /**
- * Derived at read time. running: the run's end lies in the future (manual run) and it was not cancelled. needs_outcome: the run has ended and no outcome is recorded yet. Otherwise the recorded outcome.
+ * Derived at read time. running: at least one of the job's runs is running. needs_outcome: all runs have ended and the job's outcome is neither overridden nor derivable because a run has no outcome. Otherwise the job's outcome.
  */
 export type MachineJobStatus = typeof MachineJobStatus[keyof typeof MachineJobStatus];
 

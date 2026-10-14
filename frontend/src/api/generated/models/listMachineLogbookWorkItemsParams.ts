@@ -20,7 +20,7 @@ the required session and CSRF credentials.
  */
 import type { WorkItemStatus } from './workItemStatus';
 import type { UUIDv7 } from './uUIDv7';
-import type { WorkItemRun } from './workItemRun';
+import type { WorkItemSource } from './workItemSource';
 import type { JobBillingState } from './jobBillingState';
 import type { ListMachineLogbookWorkItemsSort } from './listMachineLogbookWorkItemsSort';
 import type { ListMachineLogbookWorkItemsDirection } from './listMachineLogbookWorkItemsDirection';
@@ -42,7 +42,7 @@ machineId?: UUIDv7[];
 /**
  * @maxItems 2
  */
-run?: WorkItemRun[];
+source?: WorkItemSource[];
 /**
  * @maxItems 100
  */

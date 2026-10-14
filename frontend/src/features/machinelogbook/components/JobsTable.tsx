@@ -14,9 +14,9 @@ const sortRow = (a: unknown, b: unknown, { sortDirection }: { sortDirection: str
   return sortDirection === 'DESC' ? -result : result;
 };
 
-const hrefOf = (item: WorkItem) => item.kind === 'print' ? machineLogbookPaths.print(item.id) : machineLogbookPaths.job(item.id);
+const hrefOf = (item: WorkItem) => item.kind === 'run' ? machineLogbookPaths.run(item.id) : machineLogbookPaths.job(item.id);
 
-/** Plain sortable table of work items (jobs and unlinked prints), for places that embed a short list. */
+/** Plain sortable table of work items (jobs and unassigned runs), for places that embed a short list. */
 export function JobsTable({ jobs, hideMachine = false, size = 'lg', title, emptyState }: Props) {
   const navigate = useNavigate();
   if (jobs.length === 0 && emptyState) return <>{emptyState}</>;

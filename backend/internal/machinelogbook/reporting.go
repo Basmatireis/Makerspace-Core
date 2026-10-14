@@ -77,12 +77,12 @@ func (s *Service) fillOverviewWorkItems(ctx context.Context, q *machinelogbookdb
 			return nil
 		}
 		var total int64
-		total, err = s.countWorkItems(ctx, q, statuses, billing, now)
+		total, err = s.countWorkItems(ctx, q, statuses, billing)
 		return &total
 	}
-	result.RunningNow = count([]string{"running", "printing"}, nil)
+	result.RunningNow = count([]string{"running", "running_unassigned"}, nil)
 	result.NeedsOutcome = count([]string{"needs_outcome"}, nil)
-	result.UnlinkedPrints = count([]string{"unlinked"}, nil)
+	result.UnassignedRuns = count([]string{"unassigned"}, nil)
 	result.BillingIssues = count(nil, []string{"price_incomplete", "order_outdated"})
 	if err != nil {
 		return err
@@ -91,8 +91,8 @@ func (s *Service) fillOverviewWorkItems(ctx context.Context, q *machinelogbookdb
 	if err != nil {
 		return err
 	}
-	rows, err := q.ListWorkItems(ctx, machinelogbookdb.ListWorkItemsParams{Statuses: []string{"running", "printing", "unlinked", "needs_outcome"}, MachineIds: []uuid.UUID{}, Runs: []string{},
-		MaterialIds: []uuid.UUID{}, BillingStates: []string{}, ActiveOrder: true, SortKey: "startedAt", SortDirection: "desc", PageLimit: 6, Now: now})
+	rows, err := q.ListWorkItems(ctx, machinelogbookdb.ListWorkItemsParams{Statuses: []string{"running", "running_unassigned", "unassigned", "needs_outcome"}, MachineIds: []uuid.UUID{}, Sources: []string{},
+		MaterialIds: []uuid.UUID{}, BillingStates: []string{}, ActiveOrder: true, SortKey: "startedAt", SortDirection: "desc", PageLimit: 6})
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func (s *Service) Statistics(ctx context.Context, p authorization.Principal, fro
 	for _, row := range material {
 		result.MaterialUsageByCategory = append(result.MaterialUsageByCategory, StatisticPoint{Key: row.Label, Label: row.Label, Value: decimalString(row.Value)})
 	}
-	runtime, err := q.StatisticMachineRuntime(ctx, machinelogbookdb.StatisticMachineRuntimeParams{FromTime: from.UTC(), ToTime: to.UTC()})
+	runtime, err := q.StatisticMachineRuntime(ctx, machinelogbookdb.StatisticMachineRuntimeParams{Now: s.now().UTC(), FromTime: from.UTC(), ToTime: to.UTC()})
 	if err != nil {
 		return result, err
 	}

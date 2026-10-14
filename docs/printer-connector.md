@@ -6,9 +6,9 @@ The initial build includes a simulator adapter. Manufacturer transports such as 
 
 ## Domain boundaries
 
-Core remains authoritative for Machines, printer profiles, input units, slots, spool assignments, prints, MachineJobs, pricing, inventory, and audit history. A connector assignment binds one enabled printer profile to one connector and one adapter configuration. The active-assignment database constraint prevents two connectors from controlling the same profile.
+Core remains authoritative for Machines, printer profiles, input units, slots, spool assignments, machine runs, Machine Jobs, pricing, inventory, and audit history. A connector assignment binds one enabled printer profile to one connector and one adapter configuration. The active-assignment database constraint prevents two connectors from controlling the same profile.
 
-An observed run represents a physical printer job and is exposed to staff as a **print** (display ID `PR-YYYY-NNNNNN`, see [Machine logbook](machine-logbook.md#prints)). Core derives the print's facts from the events a connector sends: `fileName` (up to 255 characters) from run-start and progress payloads, `percent` (0-100) and `remainingSeconds` from progress payloads (giving progress and estimated end), start and end from event times and the terminal outcome, and, from a `consumption_report`, the reported grams, quantity basis (estimated or actual), and spool. The spool is the one mounted in the reported `slotExternalId` at that time, otherwise the machine's only mounted spool; an ambiguous report leaves the spool unresolved. Missing or invalid keys are ignored. Replayed events never change a print. Staff link an ended print to a Machine Job, or create a job from it, which replaces the manual run's times and usage; a print that is still printing cannot be linked yet. It is also separate from a Print Attempt until a staff member explicitly links the two. After linking, verified progress and terminal events can advance that attempt. The connector never creates a Print Attempt or MachineJob; it only reports prints. Consumption reports enter the existing pending reconciliation workflow and cannot deduct inventory, change pricing, or bill an Order until staff approves them against the linked MachineJob.
+A **recorded run** is a physical printer job reported by a connector. Staff see it as a run of a job (display ID `R-YYYY-NNNNNN`, see [Machine logbook](machine-logbook.md#jobs-and-runs)). Core derives the run's facts from the events a connector sends: `fileName` (up to 255 characters) from run-start and progress payloads, `percent` (0-100) and `remainingSeconds` from progress payloads (giving progress and estimated end), start and end from event times and the terminal outcome, and, from a `consumption_report`, the reported grams, quantity basis (estimated or actual), and spool. The spool is the one mounted in the reported `slotExternalId` at that time, otherwise the machine's only mounted spool; an ambiguous report leaves the spool unresolved. Missing or invalid keys are ignored. Replayed events never change a run. A recorded run may stay unassigned. Staff can create a job from it or attach it to a job on the same machine, also while it is still running. When the run ends, its reported material is consumed automatically, also without a job; a later report revision replaces it without double counting. The connector never creates a Machine Job; it only reports runs.
 
 Printer slot observations remain observations. They do not replace Core spool assignments. Administrators should resolve any discrepancy in the existing printer profile and inventory screens.
 
@@ -16,7 +16,7 @@ Printer slot observations remain observations. They do not replace Core spool as
 
 Connector identities are separate from people, browser sessions, and Managed Devices. The database stores SHA-256 digests of enrollment and runtime tokens. Printer adapter secrets use the configured Core application encryption key and never appear in administration responses.
 
-1. Give the operator `printer_connectors.read`, `printer_connectors.manage`, and `printer_connectors.credentials.manage` as appropriate. Assigning a printer also requires `machines.manage`; linking a print to a job requires `machine_jobs.edit`.
+1. Give the operator `printer_connectors.read`, `printer_connectors.manage`, and `printer_connectors.credentials.manage` as appropriate. Assigning a printer also requires `machines.manage`; attaching a run to a job requires `machine_jobs.edit`.
 2. In **Settings → Printer connectors**, create a connector and choose **Enroll**.
 3. Copy the one-time 43-character secret into the deployment's secret file. The secret expires after 15 minutes and is displayed once.
 4. Start the connector. It generates its runtime credential locally, exchanges the enrollment secret, encrypts the resulting identity in its data volume, and begins polling configuration.
@@ -56,7 +56,7 @@ SQLite runs in WAL mode with full synchronous writes and contains monotonically 
 
 The connector sends at most 20 events per request. Network failures and transient per-event receipts use bounded exponential backoff. An event is deleted locally only after Core returns `accepted` or `duplicate`. Permanent rejections move it to the quarantine count for operator diagnosis.
 
-Core validates connector ownership, assignment ownership, configuration version, event size, event kind, UUID, sequence, and timestamps. It keys idempotency by the connector event UUID and independently protects each assignment sequence. Reusing an event UUID or sequence with different facts is rejected. Events from an ended assignment, an old configuration, or an incomplete run history are retained for review and do not update an Attempt automatically.
+Core validates connector ownership, assignment ownership, configuration version, event size, event kind, UUID, sequence, and timestamps. It keys idempotency by the connector event UUID and independently protects each assignment sequence. Reusing an event UUID or sequence with different facts is rejected. Events from an ended assignment, an old configuration, or an incomplete run history are retained for review and do not update a run automatically.
 
 The connector protocol starts at version 1. Core and connector report their protocol and software versions in configuration and heartbeat payloads. Additive fields can be deployed independently; a connector rejects an unsupported protocol rather than silently interpreting it.
 
@@ -81,7 +81,7 @@ Create an enabled printer profile in Core, assign it to the connector, and selec
 - `successful_print` sends progress, successful completion, and estimated consumption.
 - `failed_print` sends progress, failure, and estimated consumption.
 
-The interval is configurable from 1 to 3600 seconds. These scenarios use the same SQLite outbox, HTTP authentication, Core event ingress, observed-run correlation, and consumption approval paths as future manufacturer adapters.
+The interval is configurable from 1 to 3600 seconds. These scenarios use the same SQLite outbox, HTTP authentication, Core event ingress, run correlation, and machine-reported consumption paths as future manufacturer adapters.
 
 ## Operations
 

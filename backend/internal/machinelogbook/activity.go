@@ -44,11 +44,7 @@ func (s *Service) MachineActivity(ctx context.Context, p authorization.Principal
 	if err != nil {
 		return nil, err
 	}
-	prints, err := q.ListMachinePrintingPrints(ctx)
-	if err != nil {
-		return nil, err
-	}
-	jobs, err := q.ListMachineRunningManualJobs(ctx, now)
+	running, err := q.ListMachineRunningRuns(ctx, now)
 	if err != nil {
 		return nil, err
 	}
@@ -60,13 +56,9 @@ func (s *Service) MachineActivity(ctx context.Context, p authorization.Principal
 	if err != nil {
 		return nil, err
 	}
-	printByMachine := make(map[uuid.UUID]machinelogbookdb.ListMachinePrintingPrintsRow, len(prints))
-	for _, row := range prints {
-		printByMachine[row.MachineID] = row
-	}
-	jobByMachine := make(map[uuid.UUID]machinelogbookdb.ListMachineRunningManualJobsRow, len(jobs))
-	for _, row := range jobs {
-		jobByMachine[row.MachineID] = row
+	runByMachine := make(map[uuid.UUID]machinelogbookdb.ListMachineRunningRunsRow, len(running))
+	for _, row := range running {
+		runByMachine[row.MachineID] = row
 	}
 	connectorByMachine := make(map[uuid.UUID]machinelogbookdb.ListMachineConnectorStatesRow, len(connectors))
 	for _, row := range connectors {
@@ -86,20 +78,18 @@ func (s *Service) MachineActivity(ctx context.Context, p authorization.Principal
 		if row, ok := connectorByMachine[machine.ID]; ok {
 			item.Connector = &MachineConnectorState{RuntimeState: row.RuntimeState, RuntimeErrorCode: row.RuntimeErrorCode, LastHeartbeatAt: nullableTime(row.LastHeartbeatAt)}
 		}
-		printing, hasPrint := printByMachine[machine.ID]
-		running, hasJob := jobByMachine[machine.ID]
+		current, inUse := runByMachine[machine.ID]
 		switch {
 		case machine.Status == "retired" || machine.Status == "maintenance":
 			item.Availability = machine.Status
-		case hasPrint || hasJob:
+		case inUse:
 			item.Availability = "in_use"
 		}
-		if canReadJobs && (hasPrint || hasJob) {
-			if hasPrint {
-				item.Current = &MachineCurrentItem{Kind: "print", ID: printing.ID, DisplayID: printing.DisplayID, FileName: printing.FileName, StartedAt: printing.StartedAt.UTC(), EndsAt: nullableTime(printing.EstimatedEndAt)}
+		if canReadJobs && inUse {
+			if current.JobID != nil && current.JobDisplayID != nil {
+				item.Current = &MachineCurrentItem{Kind: "job", ID: *current.JobID, DisplayID: *current.JobDisplayID, Title: current.JobTitle, FileName: current.FileName, StartedAt: current.StartedAt.UTC(), EndsAt: nullableTime(current.EndsAt)}
 			} else {
-				ends := running.EndsAt.UTC()
-				item.Current = &MachineCurrentItem{Kind: "job", ID: running.ID, DisplayID: running.DisplayID, Title: running.Title, StartedAt: running.StartsAt.UTC(), EndsAt: &ends}
+				item.Current = &MachineCurrentItem{Kind: "run", ID: current.ID, DisplayID: current.DisplayID, FileName: current.FileName, StartedAt: current.StartedAt.UTC(), EndsAt: nullableTime(current.EndsAt)}
 			}
 		}
 		result = append(result, item)

@@ -72,6 +72,7 @@ SELECT ae.*,
            WHEN 'pricing_group' THEN (SELECT pg.name FROM pricing_groups pg WHERE pg.id = ae.resource_id)
            WHEN 'material' THEN (SELECT m.name FROM materials m WHERE m.id = ae.resource_id)
            WHEN 'machine_job' THEN (SELECT mj.display_id FROM machine_jobs mj WHERE mj.id = ae.resource_id)
+           WHEN 'machine_run' THEN (SELECT mr.display_id FROM machine_runs mr WHERE mr.id = ae.resource_id)
            ELSE NULL
        END, '')::text AS resource_display_name,
        jsonb_strip_nulls(jsonb_build_object(

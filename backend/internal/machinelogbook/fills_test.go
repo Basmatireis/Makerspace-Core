@@ -992,16 +992,17 @@ func TestJobUsagesAttachToFillsAndSurviveSpoolDeletion(t *testing.T) {
 	}
 	// Correcting the job returns the old usage to stock and takes the new one from fill 2.
 	before := len(f.ledger(t, m.ID))
-	corrected, err := jf.s.ReplaceJobUsages(ctx, jf.p, job.ID, reloaded.Version, []UsageInput{{MaterialID: m.ID, SpoolID: &refill.ID, Quantity: "30"}, {MaterialID: m.ID, SpoolID: &single.ID, Quantity: "50"}}, &jf.request)
+	correctedResult, err := jf.s.ReplaceRunUsages(ctx, jf.p, reloaded.Runs[0].ID, reloaded.Runs[0].Version, []UsageInput{{MaterialID: m.ID, SpoolID: &refill.ID, Quantity: "30"}, {MaterialID: m.ID, SpoolID: &single.ID, Quantity: "50"}}, &jf.request)
 	if err != nil {
 		t.Fatal(err)
 	}
+	corrected := *correctedResult.Job
 	newest := f.ledger(t, m.ID)[before:]
 	want := []string{
 		fmt.Sprintf("adjustment/job_corrected 100 loose"),
 		fmt.Sprintf("adjustment/job_corrected 50 %s#1", single.DisplayID),
-		fmt.Sprintf("machine_job_consumption -30 %s#2", refill.DisplayID),
-		fmt.Sprintf("machine_job_consumption -50 %s#1", single.DisplayID),
+		fmt.Sprintf("machine_run_consumption -30 %s#2", refill.DisplayID),
+		fmt.Sprintf("machine_run_consumption -50 %s#1", single.DisplayID),
 	}
 	got := summarize(newest)
 	if len(got) != len(want) {

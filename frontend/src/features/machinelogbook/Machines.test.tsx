@@ -44,13 +44,13 @@ const laser = machine('0192f6f8-743e-7c77-a349-cd07c3e8c001', 'Laser cutter');
 const bambu = machine('0192f6f8-743e-7c77-a349-cd07c3e8c002', 'Bambu H2D', { machineType: types[1], automaticCollectionEnabled: true, externalIdentifier: 'BH2D-1', lastIngestedAt: now, jobCount: 40, failureRate: '10' });
 const saw = machine('0192f6f8-743e-7c77-a349-cd07c3e8c003', 'Old saw', { status: 'retired' });
 const mill = machine('0192f6f8-743e-7c77-a349-cd07c3e8c004', 'CNC mill', { status: 'maintenance' });
-const printId = '0192f6f8-743e-7c77-a349-cd07c3e8d001';
+const runId = '0192f6f8-743e-7c77-a349-cd07c3e8d001';
 
 const activity: MachineActivity[] = [
   { machineId: laser.id, availability: 'available', lastJobStartedAt: '2026-01-02T10:00:00Z' },
   {
     machineId: bambu.id, availability: 'in_use', connector: { runtimeState: 'degraded', runtimeErrorCode: 'E42' },
-    current: { kind: 'print', id: printId, displayId: 'P-1', fileName: 'gearbox_housing_v3.gcode', startedAt: now, endsAt: '2099-01-01T12:00:00Z' },
+    current: { kind: 'run', id: runId, displayId: 'RN-1', fileName: 'gearbox_housing_v3.gcode', startedAt: now, endsAt: '2099-01-01T12:00:00Z' },
   },
   { machineId: saw.id, availability: 'retired' },
   { machineId: mill.id, availability: 'maintenance' },
@@ -83,7 +83,7 @@ const menuItem = (label: string) => screen.getByText(label, { selector: '.cds--o
 const rowFor = (name: string) => screen.getByRole('link', { name }).closest('tr') as HTMLElement;
 
 describe('Machines list', () => {
-  it('shows availability, current print, last job and connector issues from machine activity and hides retired machines', async () => {
+  it('shows availability, current run, last job and connector issues from machine activity and hides retired machines', async () => {
     setup([PermissionId.machinesread, PermissionId.machine_jobsread]);
     renderPage('/machine-logbook/machines');
     expect(await screen.findByRole('link', { name: 'Bambu H2D' }, { timeout: 5000 })).toHaveAttribute('href', `/machine-logbook/machines/${bambu.id}`);
@@ -91,7 +91,7 @@ describe('Machines list', () => {
     const bambuRow = within(rowFor('Bambu H2D'));
     expect(bambuRow.getAllByText('In use').length).toBeGreaterThan(0);
     expect(bambuRow.getAllByText('Connector issue').length).toBeGreaterThan(0);
-    expect(bambuRow.getByRole('link', { name: 'Gearbox housing v3' })).toHaveAttribute('href', `/machine-logbook/jobs/prints/${printId}`);
+    expect(bambuRow.getByRole('link', { name: 'Gearbox housing v3' })).toHaveAttribute('href', `/machine-logbook/jobs/runs/${runId}`);
     expect(bambuRow.getByText('3D printer')).toBeInTheDocument();
     expect(bambuRow.getByText('10%')).toBeInTheDocument();
 
@@ -180,7 +180,8 @@ describe('Machine detail', () => {
     expect(await screen.findByRole('heading', { name: 'Bambu H2D' }, { timeout: 5000 })).toBeInTheDocument();
     expect(await screen.findByText('Connector degraded · E42')).toBeInTheDocument();
     expect(screen.getByText('In use now')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Gearbox housing v3' })).toHaveAttribute('href', `/machine-logbook/jobs/prints/${printId}`);
+    expect(screen.getByText(/Unassigned run · started/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Gearbox housing v3' })).toHaveAttribute('href', `/machine-logbook/jobs/runs/${runId}`);
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Jobs' })).toBeInTheDocument();
     expect(screen.getByText('BH2D-1')).toBeInTheDocument();

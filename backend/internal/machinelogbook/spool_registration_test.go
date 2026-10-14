@@ -69,7 +69,8 @@ func TestCreateEmptyReusableSpool(t *testing.T) {
 	if detail := f.get(t, spool.ID); detail.Status != "needs_refill" || detail.FillNumber != 0 || len(detail.Fills) != 0 {
 		t.Fatalf("detail: %+v", detail)
 	}
-	items, _, err := f.s.ListFilamentSpools(ctx, f.p, SpoolFilters{Statuses: []string{"needs_refill"}, Kind: "reusable", Page: 1, PageSize: 100})
+	// Narrow by display ID: the shared test database accumulates empty spools.
+	items, _, err := f.s.ListFilamentSpools(ctx, f.p, SpoolFilters{Search: spool.DisplayID, Statuses: []string{"needs_refill"}, Kind: "reusable", Page: 1, PageSize: 100})
 	if err != nil {
 		t.Fatal(err)
 	}

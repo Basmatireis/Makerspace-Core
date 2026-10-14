@@ -10,11 +10,14 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/shopspring/decimal"
 )
 
-// jobsClock is far from any real data so month-based reports only see the
-// jobs these tests create.
-var jobsClock = time.Date(2031, time.March, 10, 12, 0, 0, 500_000_000, time.UTC)
+// jobsClock lies in the past and far from any real data, so month-based reports
+// only see the jobs these tests create and no manual run is running. Tests that
+// need running runs use newLiveJobFixture: job aggregates come from a database
+// view that compares with the database clock.
+var jobsClock = time.Date(2020, time.March, 10, 12, 0, 0, 500_000_000, time.UTC)
 
 type jobFixture struct {
 	pool        *pgxpool.Pool
@@ -29,11 +32,19 @@ type jobFixture struct {
 	now         time.Time
 }
 
-func newJobFixture(t *testing.T) *jobFixture {
+func newJobFixture(t *testing.T) *jobFixture { return newJobFixtureAt(t, jobsClock) }
+
+// newLiveJobFixture runs on the real clock, so runs ending in the future are
+// running for the service and the database alike.
+func newLiveJobFixture(t *testing.T) *jobFixture {
+	return newJobFixtureAt(t, time.Now().UTC().Truncate(time.Second))
+}
+
+func newJobFixtureAt(t *testing.T, now time.Time) *jobFixture {
 	t.Helper()
 	pool := integrationPool(t)
 	ctx := t.Context()
-	f := &jobFixture{pool: pool, person: uuid.Must(uuid.NewV7()), request: uuid.Must(uuid.NewV7()), now: jobsClock}
+	f := &jobFixture{pool: pool, person: uuid.Must(uuid.NewV7()), request: uuid.Must(uuid.NewV7()), now: now}
 	f.s = NewService(pool, WithClock(func() time.Time { return f.now }))
 	accountID := uuid.Must(uuid.NewV7())
 	suffix := strings.ReplaceAll(f.person.String(), "-", "")[:12]
@@ -53,6 +64,7 @@ func newJobFixture(t *testing.T) *jobFixture {
 			_, _ = pool.Exec(cleanup, `DELETE FROM inventory_transactions WHERE material_id = $1`, f.material.ID)
 		}
 		for _, id := range machineIDs {
+			_, _ = pool.Exec(cleanup, `DELETE FROM machine_runs WHERE machine_id = $1`, id)
 			_, _ = pool.Exec(cleanup, `DELETE FROM machine_jobs WHERE machine_id = $1`, id)
 		}
 		if f.group.ID != uuid.Nil {
@@ -117,13 +129,37 @@ func (f *jobFixture) create(t *testing.T, input JobInput) MachineJob {
 	return job
 }
 
-func (f *jobFixture) update(t *testing.T, job MachineJob, input JobInput) MachineJob {
+// edit changes the staff-editable facts of a job; every field not given keeps
+// its value.
+func (f *jobFixture) edit(t *testing.T, job MachineJob, change func(*JobUpdate)) MachineJob {
 	t.Helper()
-	updated, err := f.s.UpdateJobFacts(t.Context(), f.p, job.ID, job.Version, input, &f.request)
+	update := JobUpdate{MachineID: job.Machine.ID, Title: job.Title, OperatorPersonID: f.person, Notes: job.Notes}
+	if job.Customer != nil {
+		update.Customer = PartyReference{Kind: job.Customer.Kind, ID: job.Customer.ID}
+	}
+	if job.OutcomeOverridden {
+		outcome := job.Outcome
+		update.OutcomeOverride = &outcome
+	}
+	if change != nil {
+		change(&update)
+	}
+	updated, err := f.s.UpdateJobFacts(t.Context(), f.p, job.ID, job.Version, update, &f.request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return updated
+}
+
+// retime moves the first run of the job and returns the updated job.
+func (f *jobFixture) retime(t *testing.T, job MachineJob, startsAt, endsAt time.Time, outcome *string) MachineJob {
+	t.Helper()
+	run := job.Runs[0]
+	result, err := f.s.UpdateRun(t.Context(), f.p, run.ID, run.Version, RunUpdate{StartsAt: &startsAt, EndsAt: &endsAt, Outcome: outcome}, &f.request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return *result.Job
 }
 
 func (f *jobFixture) adjust(t *testing.T, job MachineJob, kind, value string) MachineJob {
@@ -135,6 +171,19 @@ func (f *jobFixture) adjust(t *testing.T, job MachineJob, kind, value string) Ma
 	return adjusted
 }
 
+// addRun adds a manual run starting offset from the fixture clock.
+func (f *jobFixture) addRun(t *testing.T, job MachineJob, offset, duration time.Duration, outcome *string, usages ...UsageInput) MachineJob {
+	t.Helper()
+	start := f.now.Truncate(time.Second).Add(offset)
+	added, err := f.s.AddManualRun(t.Context(), f.p, job.ID, job.Version, ManualRunInput{StartsAt: start, EndsAt: start.Add(duration), Outcome: outcome, Usages: usages}, &f.request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return added
+}
+
+func outcomePtr(value string) *string { return &value }
+
 func price(value *string) string {
 	if value == nil {
 		return "<nil>"
@@ -143,7 +192,7 @@ func price(value *string) string {
 }
 
 func TestJobStatusAndOutcomeGuard(t *testing.T) {
-	f := newJobFixture(t)
+	f := newLiveJobFixture(t)
 	ctx := t.Context()
 
 	if _, err := f.s.CreateManualJob(ctx, f.p, f.input(-time.Hour, 3*time.Hour, "successful"), &f.request); !apperror.IsCode(err, "outcome_before_run_end") {
@@ -158,36 +207,51 @@ func TestJobStatusAndOutcomeGuard(t *testing.T) {
 	if !apperror.IsCode(err, "outcome_before_run_end") {
 		t.Fatalf("counter-sale path allowed an outcome before the run end: %v", err)
 	}
+	if _, err = f.s.CreateManualJob(ctx, f.p, f.input(-time.Hour, time.Hour, "bogus"), &f.request); !apperror.IsCode(err, "validation_failed") {
+		t.Fatalf("invalid outcome: %v", err)
+	}
 
 	running := f.create(t, f.input(-time.Hour, 3*time.Hour, "unknown"))
-	if running.Status != "running" {
-		t.Fatalf("running status = %s", running.Status)
+	if running.Status != "running" || running.Outcome != "unknown" || running.EndedAt != nil || running.ExpectedEndAt == nil || len(running.Runs) != 1 || running.Runs[0].State != "running" || running.Runs[0].Outcome != nil {
+		t.Fatalf("running job: status=%s outcome=%s ended=%v expected=%v runs=%+v", running.Status, running.Outcome, running.EndedAt, running.ExpectedEndAt, running.Runs)
 	}
-	if _, err = f.s.UpdateJobFacts(ctx, f.p, running.ID, running.Version, f.input(-time.Hour, 3*time.Hour, "successful"), &f.request); !apperror.IsCode(err, "outcome_before_run_end") {
-		t.Fatalf("update of running job with outcome: %v", err)
+	run := running.Runs[0]
+	if _, err = f.s.UpdateRun(ctx, f.p, run.ID, run.Version, RunUpdate{Outcome: outcomePtr("successful")}, &f.request); !apperror.IsCode(err, "outcome_before_run_end") {
+		t.Fatalf("outcome of a running run: %v", err)
 	}
-	finished := f.update(t, running, f.input(-3*time.Hour, 2*time.Hour, "unknown"))
-	if finished.Status != "needs_outcome" {
-		t.Fatalf("past end without outcome status = %s", finished.Status)
+	if _, err = f.s.UpdateJobFacts(ctx, f.p, running.ID, running.Version, JobUpdate{MachineID: f.machine.ID, Customer: PartyReference{Kind: "person", ID: f.person}, OperatorPersonID: f.person, OutcomeOverride: outcomePtr("failed")}, &f.request); !apperror.IsCode(err, "outcome_before_run_end") {
+		t.Fatalf("override of a running job: %v", err)
 	}
-	recorded := f.update(t, finished, f.input(-3*time.Hour, 2*time.Hour, "partial_failure"))
-	if recorded.Status != "partial_failure" {
-		t.Fatalf("recorded status = %s", recorded.Status)
+	finished := f.retime(t, running, f.now.Add(-3*time.Hour), f.now.Add(-2*time.Hour), nil)
+	if finished.Status != "needs_outcome" || finished.Outcome != "unknown" || finished.EndedAt == nil {
+		t.Fatalf("past end without outcome: status=%s outcome=%s", finished.Status, finished.Outcome)
+	}
+	recorded := f.retime(t, finished, f.now.Add(-3*time.Hour), f.now.Add(-2*time.Hour), outcomePtr("partial_failure"))
+	if recorded.Status != "partial_failure" || recorded.Outcome != "partial_failure" || recorded.OutcomeOverridden {
+		t.Fatalf("recorded job: status=%s outcome=%s", recorded.Status, recorded.Outcome)
 	}
 	if past := f.create(t, f.input(-3*time.Hour, time.Hour, "unknown")); past.Status != "needs_outcome" {
 		t.Fatalf("past unknown status = %s", past.Status)
 	}
 
-	stillRunning := f.create(t, f.input(-time.Hour, 3*time.Hour, "unknown"))
-	f.now = f.now.Add(4 * time.Hour)
+	// The status is derived at read time: a run that ends within the second
+	// is running at first and waiting for its outcome afterwards.
+	soon := f.input(-time.Hour, time.Hour, "unknown")
+	soon.EndsAt = time.Now().UTC().Add(1500 * time.Millisecond)
+	stillRunning := f.create(t, soon)
+	if stillRunning.Status != "running" {
+		t.Fatalf("status before the end = %s", stillRunning.Status)
+	}
+	time.Sleep(1700 * time.Millisecond)
+	f.now = time.Now().UTC()
 	reread, err := f.s.GetJob(ctx, f.p, stillRunning.ID)
 	if err != nil || reread.Status != "needs_outcome" {
 		t.Fatalf("status is not derived at read time: %v %s", err, reread.Status)
 	}
 }
 
-func TestCancelJobRun(t *testing.T) {
-	f := newJobFixture(t)
+func TestCancelManualRun(t *testing.T) {
+	f := newLiveJobFixture(t)
 	ctx := t.Context()
 	// 4 hours at 10/h from one hour ago until three hours from now.
 	job := f.create(t, f.input(-time.Hour, 4*time.Hour, "unknown"))
@@ -198,42 +262,253 @@ func TestCancelJobRun(t *testing.T) {
 	if price(job.EffectivePrice) != "20" {
 		t.Fatalf("discounted effective = %s", price(job.EffectivePrice))
 	}
+	run := job.Runs[0]
 
-	if _, err := f.s.CancelJobRun(ctx, authorization.Principal{AccountID: f.p.AccountID}, job.ID, job.Version, &f.request); !apperror.IsCode(err, "permission_denied") {
+	if _, err := f.s.CancelRun(ctx, authorization.Principal{AccountID: f.p.AccountID}, run.ID, run.Version, &f.request); !apperror.IsCode(err, "permission_denied") {
 		t.Fatalf("cancel without edit: %v", err)
 	}
-	if _, err := f.s.CancelJobRun(ctx, f.p, job.ID, job.Version-1, &f.request); !apperror.IsCode(err, "stale_write") {
+	if _, err := f.s.CancelRun(ctx, f.p, run.ID, run.Version+1, &f.request); !apperror.IsCode(err, "stale_write") {
 		t.Fatalf("stale cancel: %v", err)
 	}
-	cancelled, err := f.s.CancelJobRun(ctx, f.p, job.ID, job.Version, &f.request)
+	cancelled, err := f.s.CancelRun(ctx, f.p, run.ID, run.Version, &f.request)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if want := f.now.Truncate(time.Second); !cancelled.EndsAt.Equal(want) || cancelled.Outcome != "cancelled" || cancelled.Status != "cancelled" {
-		t.Fatalf("cancelled job: ends=%s want=%s outcome=%s status=%s", cancelled.EndsAt, want, cancelled.Outcome, cancelled.Status)
+	cancelledRun := cancelled.Runs[0]
+	if want := f.now.Truncate(time.Second); cancelledRun.EndedAt == nil || !cancelledRun.EndedAt.Equal(want) || cancelledRun.State != "cancelled" || cancelledRun.Outcome == nil || *cancelledRun.Outcome != "cancelled" || cancelled.Outcome != "cancelled" || cancelled.Status != "cancelled" {
+		t.Fatalf("cancelled job: run=%+v want end %s outcome=%s status=%s", cancelledRun, want, cancelled.Outcome, cancelled.Status)
 	}
 	// One hour of runtime now: 10, halved by the retained discount.
 	if price(cancelled.CalculatedPrice) != "10" || price(cancelled.EffectivePrice) != "5" {
 		t.Fatalf("repriced calculated=%s effective=%s", price(cancelled.CalculatedPrice), price(cancelled.EffectivePrice))
 	}
 	var audited int
-	if err = f.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'machine_job.run_cancelled' AND resource_id = $1 AND request_id = $2`, job.ID, f.request).Scan(&audited); err != nil || audited != 1 {
+	if err = f.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'machine_run.cancelled' AND resource_id = $1 AND request_id = $2`, run.ID, f.request).Scan(&audited); err != nil || audited != 1 {
 		t.Fatalf("cancel audit rows = %d err=%v", audited, err)
 	}
-	if _, err = f.s.CancelJobRun(ctx, f.p, job.ID, cancelled.Version, &f.request); !apperror.IsCode(err, "run_not_running") {
+	if _, err = f.s.CancelRun(ctx, f.p, run.ID, cancelledRun.Version, &f.request); !apperror.IsCode(err, "run_not_running") {
 		t.Fatalf("second cancel: %v", err)
 	}
 
 	finished := f.create(t, f.input(-3*time.Hour, time.Hour, "unknown"))
-	if _, err = f.s.CancelJobRun(ctx, f.p, finished.ID, finished.Version, &f.request); !apperror.IsCode(err, "run_not_running") {
-		t.Fatalf("cancel of finished job: %v", err)
+	if _, err = f.s.CancelRun(ctx, f.p, finished.Runs[0].ID, finished.Runs[0].Version, &f.request); !apperror.IsCode(err, "run_not_running") {
+		t.Fatalf("cancel of finished run: %v", err)
 	}
 	// A run that starts within the current second keeps a positive duration.
-	f.now = jobsClock.Truncate(time.Second).Add(100 * time.Millisecond)
+	f.now = f.now.Truncate(time.Second).Add(100 * time.Millisecond)
 	fresh := f.create(t, f.input(0, time.Hour, "unknown"))
-	freshCancelled, err := f.s.CancelJobRun(ctx, f.p, fresh.ID, fresh.Version, &f.request)
-	if err != nil || !freshCancelled.EndsAt.Equal(fresh.StartsAt.Add(time.Second)) {
-		t.Fatalf("minimum duration: %v ends=%s starts=%s", err, freshCancelled.EndsAt, fresh.StartsAt)
+	freshCancelled, err := f.s.CancelRun(ctx, f.p, fresh.Runs[0].ID, fresh.Runs[0].Version, &f.request)
+	if err != nil || freshCancelled.Runs[0].EndedAt == nil || !freshCancelled.Runs[0].EndedAt.Equal(fresh.Runs[0].StartedAt.Add(time.Second)) {
+		t.Fatalf("minimum duration: %v run=%+v starts=%s", err, freshCancelled.Runs[0], fresh.Runs[0].StartedAt)
+	}
+}
+
+func TestAdditionalRunsSumUpAndDeriveTheOutcome(t *testing.T) {
+	f := newJobFixture(t)
+	input := f.input(-10*time.Hour, time.Hour, "successful")
+	input.Usages = []UsageInput{{MaterialID: f.material.ID, Quantity: "50"}}
+	job := f.create(t, input)
+	if job.Outcome != "successful" || job.Status != "successful" || job.DurationSeconds != 3600 || price(job.CalculatedPrice) != "15" || len(job.Runs) != 1 || job.Runs[0].Source != "manual" || len(job.Runs[0].Usages) != 1 {
+		t.Fatalf("first run: %+v", job)
+	}
+
+	// A reprint: another hour and 20 g, still failed.
+	job = f.addRun(t, job, -5*time.Hour, 2*time.Hour, outcomePtr("failed"), UsageInput{MaterialID: f.material.ID, Quantity: "20"})
+	if len(job.Runs) != 2 || job.DurationSeconds != 3*3600 || job.Outcome != "partial_failure" || job.Status != "partial_failure" {
+		t.Fatalf("after reprint: runs=%d duration=%d outcome=%s", len(job.Runs), job.DurationSeconds, job.Outcome)
+	}
+	// 3 h at 10 plus 70 g at 0.1.
+	if price(job.CalculatedPrice) != "37" || len(job.Usages) != 2 {
+		t.Fatalf("summed price = %s usages=%d", price(job.CalculatedPrice), len(job.Usages))
+	}
+	if job.StartedAt == nil || !job.StartedAt.Equal(job.Runs[0].StartedAt) || job.EndedAt == nil || !job.EndedAt.Equal(*job.Runs[1].EndedAt) {
+		t.Fatalf("job times: %v %v", job.StartedAt, job.EndedAt)
+	}
+	if got := f.quantity(t, f.material.ID); got != decimalMinus("1000", "70") {
+		t.Fatalf("material quantity = %s", got)
+	}
+
+	// Derived outcome rules over the runs' outcomes.
+	cases := []struct{ first, second, want string }{
+		{"successful", "successful", "successful"},
+		{"cancelled", "cancelled", "cancelled"},
+		{"failed", "failed", "failed"},
+		{"successful", "cancelled", "partial_failure"},
+		{"failed", "cancelled", "partial_failure"},
+	}
+	for _, c := range cases {
+		j := f.create(t, f.input(-10*time.Hour, time.Hour, c.first))
+		j = f.addRun(t, j, -5*time.Hour, time.Hour, outcomePtr(c.second))
+		if j.Outcome != c.want || j.Status != c.want {
+			t.Fatalf("%s + %s = %s/%s want %s", c.first, c.second, j.Outcome, j.Status, c.want)
+		}
+	}
+	// A run without outcome leaves the job waiting for one.
+	pending := f.addRun(t, f.create(t, f.input(-10*time.Hour, time.Hour, "successful")), -5*time.Hour, time.Hour, nil)
+	if pending.Status != "needs_outcome" || pending.Outcome != "unknown" {
+		t.Fatalf("pending: %s/%s", pending.Status, pending.Outcome)
+	}
+	// ...until the outcome is recorded on that run.
+	second := pending.Runs[1]
+	result, err := f.s.UpdateRun(t.Context(), f.p, second.ID, second.Version, RunUpdate{Outcome: outcomePtr("failed")}, &f.request)
+	if err != nil || result.Job.Status != "partial_failure" {
+		t.Fatalf("outcome on the second run: %v %+v", err, result.Job)
+	}
+
+	// The outcome override replaces the derived outcome and can be cleared.
+	overridden := f.edit(t, *result.Job, func(u *JobUpdate) { u.OutcomeOverride = outcomePtr("successful") })
+	if overridden.Outcome != "successful" || overridden.Status != "successful" || !overridden.OutcomeOverridden {
+		t.Fatalf("override: %+v", overridden)
+	}
+	cleared := f.edit(t, overridden, func(u *JobUpdate) { u.OutcomeOverride = nil })
+	if cleared.Outcome != "partial_failure" || cleared.OutcomeOverridden {
+		t.Fatalf("cleared override: %s overridden=%v", cleared.Outcome, cleared.OutcomeOverridden)
+	}
+	if _, err = f.s.AddManualRun(t.Context(), authorization.Principal{AccountID: f.p.AccountID}, job.ID, job.Version, ManualRunInput{StartsAt: f.now.Add(-time.Hour), EndsAt: f.now}, &f.request); !apperror.IsCode(err, "permission_denied") {
+		t.Fatalf("add run without edit: %v", err)
+	}
+	if _, err = f.s.AddManualRun(t.Context(), f.p, job.ID, job.Version+1, ManualRunInput{StartsAt: f.now.Add(-time.Hour), EndsAt: f.now}, &f.request); !apperror.IsCode(err, "stale_write") {
+		t.Fatalf("stale add run: %v", err)
+	}
+	if _, err = f.s.AddManualRun(t.Context(), f.p, job.ID, job.Version, ManualRunInput{StartsAt: f.now, EndsAt: f.now}, &f.request); !apperror.IsCode(err, "validation_failed") {
+		t.Fatalf("empty interval: %v", err)
+	}
+}
+
+func (f *jobFixture) quantity(t *testing.T, materialID uuid.UUID) string {
+	t.Helper()
+	var sum string
+	if err := f.pool.QueryRow(t.Context(), `SELECT COALESCE(sum(quantity_delta), 0)::text FROM inventory_transactions WHERE material_id = $1`, materialID).Scan(&sum); err != nil {
+		t.Fatal(err)
+	}
+	value, err := decimal.NewFromString(sum)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return value.String()
+}
+
+func TestUpdateRunTimesAndPermissions(t *testing.T) {
+	f := newLiveJobFixture(t)
+	ctx := t.Context()
+	job := f.create(t, f.input(-3*time.Hour, time.Hour, "successful"))
+	run := job.Runs[0]
+	start, end := f.now.Add(-4*time.Hour), f.now.Add(-time.Hour)
+	if _, err := f.s.UpdateRun(ctx, authorization.Principal{AccountID: f.p.AccountID}, run.ID, run.Version, RunUpdate{StartsAt: &start, EndsAt: &end, Outcome: outcomePtr("successful")}, &f.request); !apperror.IsCode(err, "permission_denied") {
+		t.Fatalf("update without edit: %v", err)
+	}
+	if _, err := f.s.UpdateRun(ctx, f.p, run.ID, run.Version+1, RunUpdate{Outcome: outcomePtr("successful")}, &f.request); !apperror.IsCode(err, "stale_write") {
+		t.Fatalf("stale update: %v", err)
+	}
+	future := f.now.Add(time.Hour)
+	if _, err := f.s.UpdateRun(ctx, f.p, run.ID, run.Version, RunUpdate{EndsAt: &future, Outcome: outcomePtr("successful")}, &f.request); !apperror.IsCode(err, "outcome_before_run_end") {
+		t.Fatalf("future end with outcome: %v", err)
+	}
+	if _, err := f.s.UpdateRun(ctx, f.p, run.ID, run.Version, RunUpdate{StartsAt: &end, EndsAt: &start}, &f.request); !apperror.IsCode(err, "validation_failed") {
+		t.Fatalf("inverted interval: %v", err)
+	}
+	if _, err := f.s.UpdateRun(ctx, f.p, uuid.Must(uuid.NewV7()), 1, RunUpdate{}, &f.request); !apperror.IsCode(err, "not_found") {
+		t.Fatalf("unknown run: %v", err)
+	}
+	result, err := f.s.UpdateRun(ctx, f.p, run.ID, run.Version, RunUpdate{StartsAt: &start, EndsAt: &end, Outcome: outcomePtr("failed")}, &f.request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Three hours now, priced from the snapshot.
+	if result.Run.Version != run.Version+1 || result.Run.DurationSeconds != 3*3600 || price(result.Job.CalculatedPrice) != "30" || result.Job.Status != "failed" || result.Job.Version <= job.Version {
+		t.Fatalf("updated run: %+v job=%+v", result.Run, result.Job)
+	}
+	var fields []string
+	if err = f.pool.QueryRow(ctx, `SELECT changed_fields FROM audit_events WHERE action = 'machine_run.updated' AND resource_id = $1 AND request_id = $2`, run.ID, f.request).Scan(&fields); err != nil || strings.Join(fields, ",") != "outcome,startsAt,endsAt" {
+		t.Fatalf("update audit fields = %v err=%v", fields, err)
+	}
+}
+
+func TestDeleteManualRun(t *testing.T) {
+	f := newJobFixture(t)
+	ctx := t.Context()
+	input := f.input(-10*time.Hour, time.Hour, "successful")
+	input.Usages = []UsageInput{{MaterialID: f.material.ID, Quantity: "50"}}
+	job := f.create(t, input)
+	if _, err := f.s.DeleteRun(ctx, f.p, job.Runs[0].ID, job.Runs[0].Version, &f.request); !apperror.IsCode(err, "job_needs_run") {
+		t.Fatalf("delete of the only run: %v", err)
+	}
+	// Two more runs: one with material, one without.
+	job = f.addRun(t, job, -8*time.Hour, time.Hour, outcomePtr("successful"), UsageInput{MaterialID: f.material.ID, Quantity: "20"})
+	job = f.addRun(t, job, -6*time.Hour, time.Hour, outcomePtr("failed"))
+	if len(job.Runs) != 3 || price(job.CalculatedPrice) != "37" {
+		t.Fatalf("three runs: %d price=%s", len(job.Runs), price(job.CalculatedPrice))
+	}
+	withoutUsage := job.Runs[2]
+	withUsage := job.Runs[1]
+
+	if _, err := f.s.DeleteRun(ctx, authorization.Principal{AccountID: f.p.AccountID}, withoutUsage.ID, withoutUsage.Version, &f.request); !apperror.IsCode(err, "permission_denied") {
+		t.Fatalf("delete without edit: %v", err)
+	}
+	if _, err := f.s.DeleteRun(ctx, f.p, withoutUsage.ID, withoutUsage.Version+1, &f.request); !apperror.IsCode(err, "stale_write") {
+		t.Fatalf("stale delete: %v", err)
+	}
+	// A run that never had material is deleted outright.
+	job, err := f.s.DeleteRun(ctx, f.p, withoutUsage.ID, withoutUsage.Version, &f.request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var exists bool
+	if err = f.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM machine_runs WHERE id = $1)`, withoutUsage.ID).Scan(&exists); err != nil || exists || len(job.Runs) != 2 || job.Outcome != "successful" {
+		t.Fatalf("deleted run: exists=%v runs=%d outcome=%s err=%v", exists, len(job.Runs), job.Outcome, err)
+	}
+	// A run with material keeps its ledger history: its material is reversed
+	// and the run stays with the state "replaced", out of the totals.
+	job, err = f.s.DeleteRun(ctx, f.p, withUsage.ID, withUsage.Version, &f.request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(job.Runs) != 2 || job.Runs[1].State != "replaced" || job.DurationSeconds != 3600 || len(job.Usages) != 1 || price(job.CalculatedPrice) != "15" {
+		t.Fatalf("replaced run: %+v", job)
+	}
+	if got := f.quantity(t, f.material.ID); got != decimalMinus("1000", "50") {
+		t.Fatalf("material quantity after removal = %s", got)
+	}
+	var compensations int
+	if err = f.pool.QueryRow(ctx, `SELECT count(*) FROM inventory_transactions WHERE material_id = $1 AND kind = 'adjustment' AND quantity_delta = 20`, f.material.ID).Scan(&compensations); err != nil || compensations != 1 {
+		t.Fatalf("compensating transactions = %d err=%v", compensations, err)
+	}
+	if _, err = f.s.DeleteRun(ctx, f.p, withUsage.ID, job.Runs[1].Version, &f.request); !apperror.IsCode(err, "run_replaced") {
+		t.Fatalf("second delete: %v", err)
+	}
+	if _, err = f.s.UpdateRun(ctx, f.p, withUsage.ID, job.Runs[1].Version, RunUpdate{Outcome: outcomePtr("failed")}, &f.request); !apperror.IsCode(err, "run_replaced") {
+		t.Fatalf("update of a replaced run: %v", err)
+	}
+	if _, err = f.s.DeleteRun(ctx, f.p, job.Runs[0].ID, job.Runs[0].Version, &f.request); !apperror.IsCode(err, "job_needs_run") {
+		t.Fatalf("delete of the last remaining run: %v", err)
+	}
+}
+
+func TestReplaceRunUsagesCompensatesInventory(t *testing.T) {
+	f := newJobFixture(t)
+	ctx := t.Context()
+	input := f.input(-10*time.Hour, time.Hour, "successful")
+	input.Usages = []UsageInput{{MaterialID: f.material.ID, Quantity: "50"}}
+	job := f.create(t, input)
+	run := job.Runs[0]
+	if _, err := f.s.ReplaceRunUsages(ctx, authorization.Principal{AccountID: f.p.AccountID}, run.ID, run.Version, nil, &f.request); !apperror.IsCode(err, "permission_denied") {
+		t.Fatalf("replace without edit: %v", err)
+	}
+	if _, err := f.s.ReplaceRunUsages(ctx, f.p, run.ID, run.Version+1, nil, &f.request); !apperror.IsCode(err, "stale_write") {
+		t.Fatalf("stale replace: %v", err)
+	}
+	result, err := f.s.ReplaceRunUsages(ctx, f.p, run.ID, run.Version, []UsageInput{{MaterialID: f.material.ID, Quantity: "80"}}, &f.request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Run.Usages) != 1 || result.Run.Usages[0].Quantity != "80" || result.Run.UsagesFromMachine || price(result.Job.CalculatedPrice) != "18" {
+		t.Fatalf("replaced usages: %+v price=%s", result.Run.Usages, price(result.Job.CalculatedPrice))
+	}
+	if got := f.quantity(t, f.material.ID); got != decimalMinus("1000", "80") {
+		t.Fatalf("material quantity = %s", got)
+	}
+	if _, err = f.s.ReplaceRunUsages(ctx, f.p, run.ID, result.Run.Version, []UsageInput{{MaterialID: f.material.ID, Quantity: "0"}}, &f.request); !apperror.IsCode(err, "validation_failed") {
+		t.Fatalf("zero quantity: %v", err)
 	}
 }
 
@@ -283,7 +558,7 @@ func TestPriceAdjustmentKinds(t *testing.T) {
 			t.Fatalf("%+v accepted: %v", invalid, err)
 		}
 	}
-	if _, err := f.s.SetJobPriceAdjustment(ctx, f.p, job.ID, job.Version-1, "fixed", "1", "r", &f.request); !apperror.IsCode(err, "stale_write") {
+	if _, err := f.s.SetJobPriceAdjustment(ctx, f.p, job.ID, job.Version+1, "fixed", "1", "r", &f.request); !apperror.IsCode(err, "stale_write") {
 		t.Fatalf("stale adjustment: %v", err)
 	}
 	if _, err := f.s.SetJobPriceAdjustment(ctx, authorization.Principal{AccountID: f.p.AccountID}, job.ID, job.Version, "fixed", "1", "r", &f.request); !apperror.IsCode(err, "permission_denied") {
@@ -314,43 +589,43 @@ func TestPriceAdjustmentIsReappliedWhenThePriceIsRecalculated(t *testing.T) {
 	if price(job.CalculatedPrice) != "15" {
 		t.Fatalf("calculated = %s", price(job.CalculatedPrice))
 	}
-	// Edits without a pricing group recalculate from the active snapshot.
-	edit := input
-	edit.PricingGroupID = nil
-	edit.Usages = nil
-	longer := edit
-	longer.EndsAt = input.StartsAt.Add(2 * time.Hour)
+	start := job.Runs[0].StartedAt
+	longer := func(j MachineJob) MachineJob {
+		return f.retime(t, j, start, start.Add(2*time.Hour), outcomePtr("successful"))
+	}
+	shorter := func(j MachineJob) MachineJob {
+		return f.retime(t, j, start, start.Add(time.Hour), outcomePtr("successful"))
+	}
 
 	discounted := f.adjust(t, job, "discount_percent", "50")
 	if price(discounted.EffectivePrice) != "7.5" {
 		t.Fatalf("discounted = %s", price(discounted.EffectivePrice))
 	}
-	discounted = f.update(t, discounted, longer)
+	discounted = longer(discounted)
 	if discounted.PricingSnapshot.Revision != 1 || price(discounted.CalculatedPrice) != "25" || price(discounted.EffectivePrice) != "12.5" {
 		t.Fatalf("percent after runtime change: calculated=%s effective=%s", price(discounted.CalculatedPrice), price(discounted.EffectivePrice))
 	}
-	discounted = f.update(t, discounted, edit)
+	discounted = shorter(discounted)
 	if price(discounted.EffectivePrice) != "7.5" {
 		t.Fatalf("percent after shortening: %s", price(discounted.EffectivePrice))
 	}
 
 	fixed := f.adjust(t, discounted, "fixed", "7")
-	fixed = f.update(t, fixed, longer)
+	fixed = longer(fixed)
 	if price(fixed.CalculatedPrice) != "25" || price(fixed.EffectivePrice) != "7" {
 		t.Fatalf("fixed after runtime change: calculated=%s effective=%s", price(fixed.CalculatedPrice), price(fixed.EffectivePrice))
 	}
 
 	// Usage replacement recalculates as well: 2 h at 10 plus 100 g at 0.1.
 	multiplied := f.adjust(t, fixed, "multiplier", "2")
-	replaced, err := f.s.ReplaceJobUsages(t.Context(), f.p, multiplied.ID, multiplied.Version, []UsageInput{{MaterialID: f.material.ID, Quantity: "100"}}, &f.request)
-	if err != nil || price(replaced.CalculatedPrice) != "30" || price(replaced.EffectivePrice) != "60" {
-		t.Fatalf("multiplier after usage change: %v calculated=%s effective=%s", err, price(replaced.CalculatedPrice), price(replaced.EffectivePrice))
+	run := multiplied.Runs[0]
+	result, err := f.s.ReplaceRunUsages(t.Context(), f.p, run.ID, run.Version, []UsageInput{{MaterialID: f.material.ID, Quantity: "100"}}, &f.request)
+	if err != nil || price(result.Job.CalculatedPrice) != "30" || price(result.Job.EffectivePrice) != "60" {
+		t.Fatalf("multiplier after usage change: %v calculated=%s effective=%s", err, price(result.Job.CalculatedPrice), price(result.Job.EffectivePrice))
 	}
 
 	// An explicit pricing group captures a new snapshot and keeps the adjustment.
-	reprice := longer
-	reprice.PricingGroupID = &f.group.ID
-	repriced := f.update(t, replaced, reprice)
+	repriced := f.edit(t, *result.Job, func(u *JobUpdate) { u.PricingGroupID = &f.group.ID })
 	if repriced.PricingSnapshot.Revision != 2 || price(repriced.CalculatedPrice) != "30" || price(repriced.EffectivePrice) != "60" {
 		t.Fatalf("multiplier after new snapshot: revision=%d calculated=%s effective=%s", repriced.PricingSnapshot.Revision, price(repriced.CalculatedPrice), price(repriced.EffectivePrice))
 	}
@@ -395,22 +670,20 @@ func TestJobTitleRoundTrip(t *testing.T) {
 		t.Fatalf("loaded title: %v %v", err, loaded.Title)
 	}
 	renamed := "Gears"
-	input.Title = &renamed
-	job = f.update(t, job, input)
+	job = f.edit(t, job, func(u *JobUpdate) { u.Title = &renamed })
 	if job.Title == nil || *job.Title != "Gears" {
 		t.Fatalf("updated title = %v", job.Title)
 	}
 	blank := "   "
-	input.Title = &blank
-	job = f.update(t, job, input)
+	job = f.edit(t, job, func(u *JobUpdate) { u.Title = &blank })
 	if job.Title != nil {
 		t.Fatalf("blank title stored as %q", *job.Title)
 	}
 	tooLong := strings.Repeat("x", 201)
-	input.Title = &tooLong
-	if _, err = f.s.UpdateJobFacts(t.Context(), f.p, job.ID, job.Version, input, &f.request); !apperror.IsCode(err, "validation_failed") {
+	if _, err = f.s.UpdateJobFacts(t.Context(), f.p, job.ID, job.Version, JobUpdate{MachineID: f.machine.ID, Customer: PartyReference{Kind: "person", ID: f.person}, OperatorPersonID: f.person, Title: &tooLong}, &f.request); !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("long title: %v", err)
 	}
+	input.Title = &tooLong
 	if _, err = f.s.CreateManualJob(t.Context(), f.p, input, &f.request); !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("long title on create: %v", err)
 	}
@@ -429,14 +702,14 @@ func decimalMinus(quantity, amount string) string {
 func TestReportsUseTheEffectivePrice(t *testing.T) {
 	f := newJobFixture(t)
 	ctx := t.Context()
-	from, to := time.Date(2031, time.March, 1, 0, 0, 0, 0, time.UTC), time.Date(2031, time.April, 1, 0, 0, 0, 0, time.UTC)
+	from, to := time.Date(2020, time.March, 1, 0, 0, 0, 0, time.UTC), time.Date(2020, time.April, 1, 0, 0, 0, 0, time.UTC)
 	charges := func() string {
 		stats, err := f.s.Statistics(ctx, f.p, from, to)
 		if err != nil {
 			t.Fatal(err)
 		}
 		for _, point := range stats.CustomerCharges {
-			if point.Label == "2031-03" {
+			if point.Label == "2020-03" {
 				return point.Value
 			}
 		}

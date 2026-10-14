@@ -25,7 +25,7 @@ export type InventoryTransactionKind = typeof InventoryTransactionKind[keyof typ
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const InventoryTransactionKind = {
   purchase: 'purchase',
-  machine_job_consumption: 'machine_job_consumption',
+  machine_run_consumption: 'machine_run_consumption',
   manual_consumption: 'manual_consumption',
   adjustment: 'adjustment',
   disposal: 'disposal',

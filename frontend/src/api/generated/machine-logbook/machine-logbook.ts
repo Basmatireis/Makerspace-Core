@@ -60,7 +60,7 @@ export const getListMachineLogbookWorkItemsUrl = (params?: ListMachineLogbookWor
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    const explodeParameters = ["status","machineId","run","materialId","billing"];
+    const explodeParameters = ["status","machineId","source","materialId","billing"];
 
     if (Array.isArray(value) && explodeParameters.includes(key)) {
       value.forEach((v) => {

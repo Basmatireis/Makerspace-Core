@@ -6,10 +6,10 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Added
 
-- Machines & Jobs redesign: navigation is Overview, Jobs, Machines, Inventory, Statistics. A unified work-items list shows jobs and unlinked prints, machines show derived availability and the current run, and the overview and statistics gained running/needs-outcome/unlinked counts, a previous-period comparison, runtime buckets, and material cost versus losses (statistics `to` is exclusive).
-- Optional job title, job start plus runtime with derived running and needs-outcome status, an outcome guard for unfinished runs, and cancel run.
+- Machines & Jobs redesign: navigation is Overview, Jobs, Machines, Inventory, Statistics. A a unified work-items list shows jobs and unassigned recorded runs, machines show derived availability and the current run, and the overview and statistics gained running/needs-outcome/unlinked counts, a previous-period comparison, runtime buckets, and material cost versus losses (statistics `to` is exclusive).
+- Optional job title. Start, end, runtime, running status, and outcome are derived from the job's runs.
 - Price adjustments (fixed, discount percent, discount amount, multiplier) that are re-applied on recalculation, with a stored effective price.
-- Prints reported by printer connectors (file name, times, progress, reported usage) with link-and-replace, unlink, and create-job-from-print.
+- Machine runs replace prints: a job consists of one or more runs (manual, or recorded by a machine connector with display IDs `R-YYYY-NNNNNN`) for any machine type. Recorded runs can be created into jobs, attached to or detached from jobs on the same machine (also while running), and several runs per job are supported. Connector-reported material is consumed automatically when a run ends.
 - Filament spool fills and kinds (reusable or single-use), change filament, finish, cleanup of archived single-use spools, registration of empty reusable spools, and a filament product catalog.
 - `make seed-dev` demo data, repeatable on top of existing data: it reuses compatible shared records, creates missing roles, an open day period and a master when needed, and accepts `SEED_ARGS` (`-seed`, `-actor-email`); `make test-integration` uses the dedicated `makerspace_test` database.
 
@@ -18,10 +18,13 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - Automatic job ingest is gone, so connector data no longer creates unconfirmed jobs. The final-price override became a price adjustment.
 - Spool lifecycle `retired` became `archived`. Ledger entries and job usages keep spool and fill snapshots.
 - Counter sales always create a new manual job; confirming an existing review job is gone.
+- Job timing, runtime, material usage, and outcome are derived from runs; material usage moved from jobs to runs. Concurrent run operations return 409 `retry_conflict` on rare conflicts. Migration 00041 contains the schema change.
+- API: `/machine-runs` (list, detail, patch, delete, usages, cancellation, job attach/detach/create) and `POST /machine-jobs/{id}/runs`; the overview response adds `unassignedRuns`; the ledger kind is `machine_run_consumption`.
 
 ### Removed
 
 - `POST /machine-jobs/automatic`, the review-queue UI, and the final-price override endpoint and schemas.
+- `/prints` and its subresources, `/machine-jobs/{id}/usages`, and `/machine-jobs/{id}/run-cancellation`, replaced by runs.
 - Print submissions, print attempts, filament declarations, printer-event reconciliation, linking observed runs to attempts, and the review queue with job confirmation, including their tables, endpoints, and the `print_submissions.read`, `print_submissions.manage`, and `machine_jobs.review` permissions.
 
 ## [0.4.0] - 2026-10-05

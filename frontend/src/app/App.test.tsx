@@ -423,22 +423,35 @@ describe('role protection UX', () => {
       expect(router.state.location.pathname).toBe('/dashboard');
     });
 
-    it('shows a print by its file name on its own route', async () => {
+    it('shows a run by its readable file name on its own route', async () => {
       server.use(
         http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.machine_jobsread]))),
-        http.get(`*/api/v1/prints/${id}`, () => HttpResponse.json({
-          id, displayId: 'P-00001', machineId: id, machineName: 'Prusa MK4', fileName: 'gearbox_housing_v3.gcode', state: 'finished',
-          startedAt: '2026-09-15T08:00:00Z', endedAt: '2026-09-15T09:00:00Z', version: 1, events: [],
+        http.get(`*/api/v1/machine-runs/${id}`, () => HttpResponse.json({
+          id, displayId: 'RN-00001', machineId: id, machineName: 'Prusa MK4', source: 'recorded', state: 'finished', fileName: 'gearbox_housing_v3.gcode', connectorName: 'Prusa Link',
+          startedAt: '2026-09-15T08:00:00Z', endedAt: '2026-09-15T09:00:00Z', durationSeconds: 3600, outcome: 'successful', outcomeFromMachine: true, usages: [], usagesFromMachine: false, version: 1, events: [],
         })),
       );
-      renderRoute(<App />, `/machine-logbook/jobs/prints/${id}`);
-      expect(await screen.findByRole('heading', { name: 'gearbox_housing_v3.gcode' })).toBeInTheDocument();
+      renderRoute(<App />, `/machine-logbook/jobs/runs/${id}`);
+      expect(await screen.findByRole('heading', { name: 'Gearbox housing v3' })).toBeInTheDocument();
       expect(screen.getByText('Finished')).toBeInTheDocument();
     });
 
-    it('denies a print without the job permission', async () => {
+    it('sends the former print URL to the run', async () => {
+      server.use(
+        http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.machine_jobsread]))),
+        http.get(`*/api/v1/machine-runs/${id}`, () => HttpResponse.json({
+          id, displayId: 'RN-00001', machineId: id, machineName: 'Prusa MK4', source: 'recorded', state: 'finished', fileName: 'bracket.gcode', startedAt: '2026-09-15T08:00:00Z', endedAt: '2026-09-15T09:00:00Z',
+          durationSeconds: 3600, outcome: null, outcomeFromMachine: false, usages: [], usagesFromMachine: false, version: 1, events: [],
+        })),
+      );
+      const { router } = renderRoute(<App />, `/machine-logbook/jobs/prints/${id}`);
+      expect(await screen.findByRole('heading', { name: 'Bracket' })).toBeInTheDocument();
+      expect(router.state.location.pathname).toBe(`/machine-logbook/jobs/runs/${id}`);
+    });
+
+    it('denies a run without the job permission', async () => {
       server.use(http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.machinesread]))));
-      renderRoute(<App />, `/machine-logbook/jobs/prints/${id}`);
+      renderRoute(<App />, `/machine-logbook/jobs/runs/${id}`);
       expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
     });
   });

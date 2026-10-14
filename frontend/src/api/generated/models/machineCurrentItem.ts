@@ -34,7 +34,7 @@ export type MachineCurrentItem = {
   fileName?: string | null;
   startedAt: string;
   /**
-   * Job end or the print's estimated end.
+   * Planned or estimated end of the running job or unassigned run.
    * @nullable
    */
   endsAt?: string | null;

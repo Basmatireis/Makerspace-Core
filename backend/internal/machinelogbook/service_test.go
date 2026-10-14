@@ -30,13 +30,17 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 		{"machines.manage", func() error { _, err := s.CreateMachineType(ctx, p, "Printer", nil); return err }},
 		{"machine_jobs.read", func() error { _, err := s.GetJob(ctx, p, id); return err }},
 		{"machine_jobs.create", func() error { _, err := s.CreateManualJob(ctx, p, jobInput, nil); return err }},
-		{"machine_jobs.edit", func() error { _, err := s.UpdateJobFacts(ctx, p, id, 1, jobInput, nil); return err }},
-		{"machine_jobs.read list prints", func() error { _, _, err := s.ListPrints(ctx, p, PrintFilters{Page: 1, PageSize: 25}); return err }},
-		{"machine_jobs.read get print", func() error { _, err := s.GetPrint(ctx, p, id); return err }},
-		{"machine_jobs.edit link print", func() error { _, err := s.LinkPrintToJob(ctx, p, id, id, 1, nil); return err }},
-		{"machine_jobs.edit unlink print", func() error { _, err := s.UnlinkPrint(ctx, p, id, 1, nil); return err }},
-		{"machine_jobs.create from print", func() error { _, err := s.CreateJobFromPrint(ctx, p, id, PrintJobInput{}, nil); return err }},
-		{"machine_jobs.edit cancel run", func() error { _, err := s.CancelJobRun(ctx, p, id, 1, nil); return err }},
+		{"machine_jobs.edit", func() error { _, err := s.UpdateJobFacts(ctx, p, id, 1, JobUpdate{}, nil); return err }},
+		{"machine_jobs.read list runs", func() error { _, _, err := s.ListRuns(ctx, p, RunFilters{Page: 1, PageSize: 25}); return err }},
+		{"machine_jobs.read get run", func() error { _, err := s.GetRun(ctx, p, id); return err }},
+		{"machine_jobs.edit update run", func() error { _, err := s.UpdateRun(ctx, p, id, 1, RunUpdate{}, nil); return err }},
+		{"machine_jobs.edit replace run usages", func() error { _, err := s.ReplaceRunUsages(ctx, p, id, 1, nil, nil); return err }},
+		{"machine_jobs.edit cancel run", func() error { _, err := s.CancelRun(ctx, p, id, 1, nil); return err }},
+		{"machine_jobs.edit delete run", func() error { _, err := s.DeleteRun(ctx, p, id, 1, nil); return err }},
+		{"machine_jobs.edit add run", func() error { _, err := s.AddManualRun(ctx, p, id, 1, ManualRunInput{}, nil); return err }},
+		{"machine_jobs.edit attach run", func() error { _, err := s.AttachRun(ctx, p, id, id, false, 1, nil); return err }},
+		{"machine_jobs.edit detach run", func() error { _, err := s.DetachRun(ctx, p, id, 1, nil); return err }},
+		{"machine_jobs.create from run", func() error { _, err := s.CreateJobFromRun(ctx, p, id, RunJobInput{}, nil); return err }},
 		{"machine_jobs.override_price set", func() error {
 			_, err := s.SetJobPriceAdjustment(ctx, p, id, 1, "fixed", "1", "test", nil)
 			return err
@@ -82,9 +86,7 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 }
 
 func TestPricingHelpersAreExact(t *testing.T) {
-	startsAt := time.Unix(0, 0).UTC()
-	endsAt := startsAt.Add(90*time.Minute + 500*time.Millisecond)
-	if got := runtimeHours(startsAt, endsAt).String(); got != "1.5001388888888889" {
+	if got := runtimeHours(5400).String(); got != "1.5" {
 		t.Fatalf("runtime hours = %s", got)
 	}
 }
@@ -134,6 +136,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 			_, _ = pool.Exec(cleanupCtx, `DELETE FROM inventory_transactions WHERE material_id = $1`, materialID)
 		}
 		if machineID != uuid.Nil {
+			_, _ = pool.Exec(cleanupCtx, `DELETE FROM machine_runs WHERE machine_id = $1`, machineID)
 			_, _ = pool.Exec(cleanupCtx, `DELETE FROM machine_jobs WHERE machine_id = $1`, machineID)
 		}
 		for _, id := range organizationIDs {
@@ -253,10 +256,11 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatalf("job creation did not atomically consume stock: %+v", afterCreate)
 	}
 
-	correctedJob, err := s.ReplaceJobUsages(ctx, p, confirmed.ID, confirmed.Version, []UsageInput{{MaterialID: material.ID, Quantity: "180"}}, &requestID)
+	correctedResult, err := s.ReplaceRunUsages(ctx, p, confirmed.Runs[0].ID, confirmed.Runs[0].Version, []UsageInput{{MaterialID: material.ID, Quantity: "180"}}, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
+	correctedJob := *correctedResult.Job
 	if correctedJob.CalculatedPrice == nil || *correctedJob.CalculatedPrice != "6.12" {
 		t.Fatalf("usage correction price = %v", correctedJob.CalculatedPrice)
 	}
@@ -293,7 +297,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	if _, err = s.SetPartyPricingGroup(ctx, p, PartyReference{Kind: "organization", ID: organization2.ID}, &group.ID, 0, &requestID); err != nil {
 		t.Fatal(err)
 	}
-	repriced, err := s.UpdateJobFacts(ctx, p, overridden.ID, overridden.Version, JobInput{MachineID: machine.ID, StartsAt: startsAt, EndsAt: startsAt.Add(3*time.Hour + 14*time.Minute), Customer: PartyReference{Kind: "organization", ID: organization2.ID}, OperatorPersonID: personID, Outcome: "successful"}, &requestID)
+	repriced, err := s.UpdateJobFacts(ctx, p, overridden.ID, overridden.Version, JobUpdate{MachineID: machine.ID, Customer: PartyReference{Kind: "organization", ID: organization2.ID}, OperatorPersonID: personID}, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}

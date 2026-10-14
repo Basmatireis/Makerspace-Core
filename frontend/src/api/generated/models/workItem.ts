@@ -20,18 +20,17 @@ the required session and CSRF credentials.
  */
 import type { WorkItemKind } from './workItemKind';
 import type { UUIDv7 } from './uUIDv7';
-import type { WorkItemPrintId } from './workItemPrintId';
 import type { WorkItemCustomer } from './workItemCustomer';
 import type { WorkItemOperator } from './workItemOperator';
 import type { WorkItemStatus } from './workItemStatus';
-import type { WorkItemRun } from './workItemRun';
+import type { WorkItemSource } from './workItemSource';
 import type { WorkItemEffectivePrice } from './workItemEffectivePrice';
 import type { WorkItemBilling } from './workItemBilling';
 import type { Version } from './version';
 
 export interface WorkItem {
   kind: WorkItemKind;
-  /** Job ID for kind job; print ID for kind print. */
+  /** Job ID for kind job; run ID for kind run. */
   id: UUIDv7;
   displayId: string;
   /**
@@ -40,14 +39,15 @@ export interface WorkItem {
    */
   title?: string | null;
   /**
-   * Printer-reported file name of the print or the job's linked print.
+   * File name of the run, or of the job's latest recorded run.
    * @nullable
    */
   fileName?: string | null;
-  /** @nullable */
-  printId?: WorkItemPrintId;
-  /** @nullable */
-  printDisplayId?: string | null;
+  /**
+   * Runs of the job (1 for an unassigned run).
+   * @minimum 0
+   */
+  runCount: number;
   machineId: UUIDv7;
   machineName: string;
   /** @nullable */
@@ -55,10 +55,10 @@ export interface WorkItem {
   /** @nullable */
   operator?: WorkItemOperator;
   status: WorkItemStatus;
-  run: WorkItemRun;
+  source: WorkItemSource;
   startedAt: string;
   /**
-   * Job end, or the print end once it has ended.
+   * End once ended; the planned or estimated end while running.
    * @nullable
    */
   endsAt?: string | null;

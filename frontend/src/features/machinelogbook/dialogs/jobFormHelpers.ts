@@ -2,7 +2,7 @@ import { queryOptions } from '@tanstack/react-query';
 import { getJobOrderAssociation } from '../../../api/generated/orders/orders';
 import { ApiError } from '../../../api/http-client';
 import type {
-  BillingParty, FilamentOwnership, ListPrintsParams, MachineJobOutcome, MachineJobUsage, MachineJobUsageInput, Operator, Print, PrintReportedUsage, QuantityBasis,
+  BillingParty, FilamentOwnership, ListMachineRunsParams, MachineJobUsage, MachineJobUsageInput, Operator, QuantityBasis,
 } from '../../../api/generated/models';
 import { machineLogbookKeys } from '../queries';
 
@@ -18,11 +18,11 @@ export type UsageRow = {
   spoolLabel?: string;
 };
 export type UsagesValues = { usages: UsageRow[] };
-export type PartyValues = { customer: BillingParty | null; operator: Operator | null; outcome: MachineJobOutcome | ''; notes: string };
+export type PartyValues = { customer: BillingParty | null; operator: Operator | null; notes: string };
 
 export const blankUsage = (): UsageRow => ({ ownership: 'makerspace', materialId: '', spoolId: '', externalName: '', quantity: '', quantityBasis: 'actual' });
 
-export const usageRowsFromJob = (usages: MachineJobUsage[]): UsageRow[] => usages.map((usage) => ({
+export const usageRowsFromUsages = (usages: MachineJobUsage[]): UsageRow[] => usages.map((usage) => ({
   ownership: usage.ownership,
   materialId: usage.materialId ?? '',
   spoolId: usage.spoolId ?? '',
@@ -46,39 +46,18 @@ export const toUsageInputs = (rows: UsageRow[]): MachineJobUsageInput[] => rows.
 export const matchesName = <T extends { displayName: string }>({ item, inputValue }: { item: T | null; inputValue: string | null }) =>
   !inputValue || !item || item.displayName.toLowerCase().includes(inputValue.toLowerCase());
 
-/** Prefilled material row for a job created from a print: what the printer reported. */
-export const usageRowFromPrint = (usage: NonNullable<PrintReportedUsage>): UsageRow => ({
-  ownership: usage.materialId ? 'makerspace' : 'external',
-  materialId: usage.materialId ?? '',
-  spoolId: usage.spoolId ?? '',
-  externalName: usage.materialId ? '' : usage.materialName ?? '',
-  quantity: Number(usage.quantity),
-  quantityBasis: 'actual',
-  materialLabel: usage.materialName ?? undefined,
-  spoolLabel: usage.spoolDisplayId ?? undefined,
-});
-
 export type JobInitialValues = {
   machineId?: string;
-  startsAt?: string;
-  endsAt?: string;
   title?: string | null;
-  outcome?: MachineJobOutcome;
   customer?: BillingParty | null;
   operator?: Operator | null;
   notes?: string | null;
-  /** Prefilled material rows (for a print: what the printer reported). */
-  usages?: UsageRow[];
-  /** File name of the print the job is created from; the form offers it as the job's name. */
-  printFileName?: string;
 };
 
-/** Unlinked prints on one machine, the candidates for linking to a job. */
-export const unlinkedPrintsParams = (machineId: string): ListPrintsParams => ({ machineId, linked: false, pageSize: 100 });
-/** Only ended prints can be linked. */
-export const linkablePrints = (prints: Print[] | undefined) => (prints ?? []).filter((print) => print.state !== 'printing');
+/** Unassigned recorded runs on one machine (running ones included), the candidates for attaching to a job. */
+export const unassignedRunsParams = (machineId: string): ListMachineRunsParams => ({ machineId, assigned: false, source: 'recorded', pageSize: 100 });
 
-export type SaveError = { message: string; field?: 'customer' | 'outcome' };
+export type SaveError = { message: string; field?: 'customer' | 'outcome' | 'machine' };
 
 /** Translates API failures of job mutations into text for the person using the form. */
 export function saveError(error: unknown, fallback = 'The job could not be saved.'): SaveError {
@@ -87,7 +66,11 @@ export function saveError(error: unknown, fallback = 'The job could not be saved
     case 'outcome_before_run_end': return { message: 'The outcome can only be recorded once the run has ended.', field: 'outcome' };
     case 'customer_required': return { message: 'Choose a customer before this job can be saved.', field: 'customer' };
     case 'outcome_required': return { message: 'Choose how the run ended before this job can be saved.', field: 'outcome' };
-    case 'stale_write': return { message: 'Someone else changed this job. Reload the page and try again.' };
+    case 'job_needs_run': return { message: 'A job needs at least one run. Add another run before removing this one.' };
+    case 'machine_change_not_allowed': return { message: 'The machine cannot change while the job has a recorded run.', field: 'machine' };
+    case 'run_machine_mismatch': return { message: 'The run was recorded on another machine than the job.' };
+    case 'run_already_assigned': return { message: 'The run already belongs to a job. Reload the page.' };
+    case 'stale_write': return { message: 'Someone else changed this. Reload the page and try again.' };
     default: return { message: [400, 409, 422].includes(error.status) && error.data?.message ? error.data.message : fallback };
   }
 }

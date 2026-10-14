@@ -7,9 +7,9 @@ import { listOrganizations, searchBillingParties } from '../../api/generated/org
 import { listPricingGroups } from '../../api/generated/pricing/pricing';
 import { getFilamentSpool, listFilamentSpoolTransactions, listFilamentSpools } from '../../api/generated/filament-spools/filament-spools';
 import { getFilamentProduct, listFilamentProducts } from '../../api/generated/filament-products/filament-products';
-import { getPrint, listPrints } from '../../api/generated/prints/prints';
+import { getMachineRun, listMachineRuns } from '../../api/generated/machine-runs/machine-runs';
 import { getPrinterProfile } from '../../api/generated/printing/printing';
-import type { GetMachineLogbookStatisticsParams, ListFilamentProductsParams, ListFilamentSpoolsParams, ListMachineJobsParams, ListMachineLogbookWorkItemsParams, ListMachinesParams, ListMaterialsParams, ListOrganizationsParams, ListPrintsParams } from '../../api/generated/models';
+import type { GetMachineLogbookStatisticsParams, ListFilamentProductsParams, ListFilamentSpoolsParams, ListMachineJobsParams, ListMachineLogbookWorkItemsParams, ListMachinesParams, ListMaterialsParams, ListOrganizationsParams, ListMachineRunsParams } from '../../api/generated/models';
 
 export const machineLogbookKeys = {
   all: ['machine-logbook'] as const,
@@ -28,8 +28,8 @@ export const machineLogbookKeys = {
   printer: (machineId: string) => [...machineLogbookKeys.all, 'printer', machineId] as const,
   workItems: (params: ListMachineLogbookWorkItemsParams) => [...machineLogbookKeys.all, 'work-items', params] as const,
   machineActivity: () => [...machineLogbookKeys.all, 'machine-activity'] as const,
-  prints: (params: ListPrintsParams) => [...machineLogbookKeys.all, 'prints', params] as const,
-  print: (id: string) => [...machineLogbookKeys.all, 'print', id] as const,
+  runs: (params: ListMachineRunsParams) => [...machineLogbookKeys.all, 'runs', params] as const,
+  run: (id: string) => [...machineLogbookKeys.all, 'run', id] as const,
   products: (params: ListFilamentProductsParams) => [...machineLogbookKeys.all, 'products', params] as const,
   product: (id: string) => [...machineLogbookKeys.all, 'product', id] as const,
   organizations: (params: ListOrganizationsParams) => [...machineLogbookKeys.all, 'organizations', params] as const,
@@ -52,8 +52,8 @@ export const spoolTransactionsQuery = (id: string, page: number) => queryOptions
 export const printerQuery = (machineId: string) => queryOptions({ queryKey: machineLogbookKeys.printer(machineId), queryFn: () => getPrinterProfile(machineId) });
 export const workItemsQuery = (params: ListMachineLogbookWorkItemsParams) => queryOptions({ queryKey: machineLogbookKeys.workItems(params), queryFn: ({ signal }) => listMachineLogbookWorkItems(params, { signal }) });
 export const machineActivityQuery = () => queryOptions({ queryKey: machineLogbookKeys.machineActivity(), queryFn: ({ signal }) => listMachineActivity({ signal }) });
-export const printsQuery = (params: ListPrintsParams) => queryOptions({ queryKey: machineLogbookKeys.prints(params), queryFn: ({ signal }) => listPrints(params, { signal }) });
-export const printQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.print(id), queryFn: ({ signal }) => getPrint(id, { signal }) });
+export const runsQuery = (params: ListMachineRunsParams) => queryOptions({ queryKey: machineLogbookKeys.runs(params), queryFn: ({ signal }) => listMachineRuns(params, { signal }) });
+export const runQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.run(id), queryFn: ({ signal }) => getMachineRun(id, { signal }) });
 export const productsQuery = (params: ListFilamentProductsParams) => queryOptions({ queryKey: machineLogbookKeys.products(params), queryFn: ({ signal }) => listFilamentProducts(params, { signal }) });
 export const productQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.product(id), queryFn: ({ signal }) => getFilamentProduct(id, { signal }) });
 export const organizationsQuery = (params: ListOrganizationsParams) => queryOptions({ queryKey: machineLogbookKeys.organizations(params), queryFn: () => listOrganizations(params) });

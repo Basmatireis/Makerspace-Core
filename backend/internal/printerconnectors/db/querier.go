@@ -31,9 +31,9 @@ type Querier interface {
 	GetConnectorEventBySequence(ctx context.Context, arg GetConnectorEventBySequenceParams) (PrinterEvent, error)
 	GetConnectorForUpdate(ctx context.Context, id uuid.UUID) (PrinterConnector, error)
 	GetEnrollmentByDigestForUpdate(ctx context.Context, tokenDigest []byte) (PrinterConnectorEnrollment, error)
-	GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (PrinterObservedRun, error)
+	GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	InsertConnectorEvent(ctx context.Context, arg InsertConnectorEventParams) (PrinterEvent, error)
-	InsertObservedRun(ctx context.Context, arg InsertObservedRunParams) (PrinterObservedRun, error)
+	InsertObservedRun(ctx context.Context, arg InsertObservedRunParams) (MachineRun, error)
 	ListActiveAssignments(ctx context.Context, connectorID uuid.UUID) ([]ListActiveAssignmentsRow, error)
 	ListConnectorAssignments(ctx context.Context, connectorID uuid.UUID) ([]ListConnectorAssignmentsRow, error)
 	ListConnectorEvents(ctx context.Context, connectorID *uuid.UUID) ([]ListConnectorEventsRow, error)
@@ -52,7 +52,7 @@ type Querier interface {
 	UpdateAssignment(ctx context.Context, arg UpdateAssignmentParams) (PrinterConnectorAssignment, error)
 	UpdateAssignmentRuntime(ctx context.Context, arg UpdateAssignmentRuntimeParams) error
 	UpdateConnector(ctx context.Context, arg UpdateConnectorParams) (PrinterConnector, error)
-	UpdateObservedRun(ctx context.Context, arg UpdateObservedRunParams) (PrinterObservedRun, error)
+	UpdateObservedRun(ctx context.Context, arg UpdateObservedRunParams) (MachineRun, error)
 	UpdateObservedRunFacts(ctx context.Context, arg UpdateObservedRunFactsParams) error
 }
 

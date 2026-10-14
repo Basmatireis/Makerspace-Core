@@ -25,5 +25,5 @@ export type MachineCurrentItemKind = typeof MachineCurrentItemKind[keyof typeof 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const MachineCurrentItemKind = {
   job: 'job',
-  print: 'print',
+  run: 'run',
 } as const;

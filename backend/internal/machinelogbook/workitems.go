@@ -18,20 +18,19 @@ type WorkItemBilling struct {
 	OrderReference *string
 }
 
-// WorkItem is one row of the unified table: a machine job, or a print that no
-// job is linked to.
+// WorkItem is one row of the unified table: a machine job, or a recorded run
+// that no job is assigned to.
 type WorkItem struct {
 	Kind                   string
 	ID                     uuid.UUID
 	DisplayID              string
 	Title, FileName        *string
-	PrintID                *uuid.UUID
-	PrintDisplayID         *string
+	RunCount               int
 	MachineID              uuid.UUID
 	MachineName            string
 	Customer               *BillingParty
 	Operator               *Operator
-	Status, Run            string
+	Status, Source         string
 	StartedAt              time.Time
 	EndsAt, EstimatedEndAt *time.Time
 	ProgressPercent        *int
@@ -41,18 +40,18 @@ type WorkItem struct {
 }
 
 type WorkItemFilters struct {
-	Search                  string
-	Statuses, Runs, Billing []string
-	MachineIDs, MaterialIDs []uuid.UUID
-	CustomerID, OperatorID  *uuid.UUID
-	From, To                *time.Time
-	Sort, Direction         string
-	Page, PageSize          int
+	Search                     string
+	Statuses, Sources, Billing []string
+	MachineIDs, MaterialIDs    []uuid.UUID
+	CustomerID, OperatorID     *uuid.UUID
+	From, To                   *time.Time
+	Sort, Direction            string
+	Page, PageSize             int
 }
 
 var (
-	workItemStatuses = []string{"running", "printing", "unlinked", "needs_outcome", "successful", "partial_failure", "failed", "cancelled"}
-	workItemRuns     = []string{"manual", "printer"}
+	workItemStatuses = []string{"running", "running_unassigned", "unassigned", "needs_outcome", "successful", "partial_failure", "failed", "cancelled"}
+	workItemSources  = []string{"manual", "recorded"}
 	billingStates    = []string{"on_order", "order_outdated", "not_on_order", "price_incomplete", "pending"}
 	workItemSorts    = []string{"startedAt", "name", "machine", "customer", "price"}
 )
@@ -95,14 +94,14 @@ func (s *Service) ListWorkItems(ctx context.Context, p authorization.Principal, 
 		filters.Direction = "desc"
 	}
 	if !containsAll(workItemSorts, []string{filters.Sort}) || (filters.Direction != "asc" && filters.Direction != "desc") ||
-		!containsAll(workItemStatuses, filters.Statuses) || !containsAll(workItemRuns, filters.Runs) || !containsAll(billingStates, filters.Billing) {
+		!containsAll(workItemStatuses, filters.Statuses) || !containsAll(workItemSources, filters.Sources) || !containsAll(billingStates, filters.Billing) {
 		return nil, 0, validation("unsupported work item filter or sort")
 	}
 	params := machinelogbookdb.ListWorkItemsParams{
-		Statuses: nonNil(filters.Statuses), MachineIds: nonNil(filters.MachineIDs), Runs: nonNil(filters.Runs), MaterialIds: nonNil(filters.MaterialIDs),
+		Statuses: nonNil(filters.Statuses), MachineIds: nonNil(filters.MachineIDs), Sources: nonNil(filters.Sources), MaterialIds: nonNil(filters.MaterialIDs),
 		BillingStates: nonNil(filters.Billing), CustomerID: filters.CustomerID, OperatorPersonID: filters.OperatorID,
 		FromTime: pgTime(filters.From), ToTime: pgTime(filters.To), Search: escapeLike(strings.TrimSpace(filters.Search)),
-		SortKey: filters.Sort, SortDirection: filters.Direction, PageOffset: offset, PageLimit: limit, Now: s.now().UTC(),
+		SortKey: filters.Sort, SortDirection: filters.Direction, PageOffset: offset, PageLimit: limit,
 	}
 	q := machinelogbookdb.New(s.pool)
 	rows, err := q.ListWorkItems(ctx, params)
@@ -135,8 +134,8 @@ func workItemsFromRows(rows []machinelogbookdb.ListWorkItemsRow, includeOrder bo
 }
 
 func workItemFromRow(row machinelogbookdb.ListWorkItemsRow, includeOrder bool) WorkItem {
-	item := WorkItem{Kind: row.Kind, ID: row.ID, DisplayID: row.DisplayID, Title: row.Title, FileName: row.FileName, PrintID: row.PrintID, PrintDisplayID: row.PrintDisplayID,
-		MachineID: row.MachineID, MachineName: row.MachineName, Status: row.Status, Run: row.Run, StartedAt: row.StartedAt.UTC(),
+	item := WorkItem{Kind: row.Kind, ID: row.ID, DisplayID: row.DisplayID, Title: row.Title, FileName: row.FileName, RunCount: int(row.RunCount),
+		MachineID: row.MachineID, MachineName: row.MachineName, Status: row.Status, Source: row.Source, StartedAt: row.StartedAt.UTC(),
 		EndsAt: nullableTime(row.EndsAt), EstimatedEndAt: nullableTime(row.EstimatedEndAt), EffectivePrice: nullableDecimal(row.EffectivePrice), Version: row.Version}
 	if row.ProgressPercent != nil {
 		percent := int(*row.ProgressPercent)
@@ -163,9 +162,9 @@ func workItemFromRow(row machinelogbookdb.ListWorkItemsRow, includeOrder bool) W
 }
 
 // countWorkItems counts the items matching a filter without loading them.
-func (s *Service) countWorkItems(ctx context.Context, q *machinelogbookdb.Queries, statuses, billing []string, now time.Time) (int64, error) {
-	rows, err := q.ListWorkItems(ctx, machinelogbookdb.ListWorkItemsParams{Statuses: nonNil(statuses), BillingStates: nonNil(billing), MachineIds: []uuid.UUID{}, Runs: []string{}, MaterialIds: []uuid.UUID{},
-		SortKey: "startedAt", SortDirection: "desc", PageLimit: 1, Now: now})
+func (s *Service) countWorkItems(ctx context.Context, q *machinelogbookdb.Queries, statuses, billing []string) (int64, error) {
+	rows, err := q.ListWorkItems(ctx, machinelogbookdb.ListWorkItemsParams{Statuses: nonNil(statuses), BillingStates: nonNil(billing), MachineIds: []uuid.UUID{}, Sources: []string{}, MaterialIds: []uuid.UUID{},
+		SortKey: "startedAt", SortDirection: "desc", PageLimit: 1})
 	if err != nil || len(rows) == 0 {
 		return 0, err
 	}

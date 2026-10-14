@@ -5,20 +5,21 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { useQuery } from '@tanstack/react-query';
 import { PermissionId } from '../../../api/generated/models';
-import type { MachineJob, Print } from '../../../api/generated/models';
+import type { MachineRun } from '../../../api/generated/models';
+import { jobFixture, manualRun, recordedRun, usage } from '../../../test/machineRuns';
 import { server } from '../../../test/server';
 import { renderRoute } from '../../../test/render';
 import { DirectoryTable, useServerTableState, type Column } from './DirectoryTable';
 import { machineLogbookPaths } from './paths';
 import { QueryBoundary } from './QueryBoundary';
-import { adjustmentSummary, billingStateOptions, connectorIssue, displayName, jobRowStatusOptions, nameFromFile, replaceChangesAnything, workItemName, workItemSecondaryIds } from './status';
+import { activeRuns, adjustmentSummary, billingStateOptions, connectorIssue, displayName, isRunLive, jobRowStatusOptions, machineJobName, nameFromFile, replaceChangesAnything, runName, runProgress, runStateNow, usagesText, workItemName, workItemSecondaryIds } from './status';
 import { formatDuration, formatMoney } from './format';
 import { ToastProvider } from './toasts';
 import { useCan } from './useCan';
 
 const auth = vi.hoisted(() => ({ permissions: [] as string[] }));
 vi.mock('../../auth/auth', () => ({ useCurrentUser: () => ({ permissions: auth.permissions }) }));
-import { useLinkPrint } from './useLinkPrint';
+import { useAttachRun } from './useAttachRun';
 
 describe('Machines & Jobs shared helpers', () => {
   it('names jobs by title, then readable file name, then job number', () => {
@@ -28,9 +29,39 @@ describe('Machines & Jobs shared helpers', () => {
     expect(displayName({ title: 'Bracket', fileName: 'x.gcode', displayId: 'J-1' })).toBe('Bracket');
     expect(displayName({ title: null, fileName: 'gearbox_housing_v3.gcode', displayId: 'J-1' })).toBe('Gearbox housing v3');
     expect(displayName({ displayId: 'J-1' })).toBe('J-1');
-    expect(workItemName({ kind: 'print', fileName: 'gearbox_housing_v3.gcode', displayId: 'P-1' })).toBe('gearbox_housing_v3.gcode');
-    expect(workItemSecondaryIds({ kind: 'print', fileName: 'a.gcode', displayId: 'P-1' })).toEqual(['P-1', 'Unlinked']);
-    expect(workItemSecondaryIds({ kind: 'job', title: null, fileName: 'gearbox_housing_v3.gcode', displayId: 'J-1' })).toEqual(['J-1', 'gearbox_housing_v3.gcode']);
+    expect(workItemName({ kind: 'run', title: null, fileName: 'gearbox_housing_v3.gcode', displayId: 'RN-1' })).toBe('gearbox_housing_v3.gcode');
+    expect(workItemSecondaryIds({ kind: 'run', title: null, fileName: 'a.gcode', displayId: 'RN-1', runCount: 1 })).toEqual(['RN-1', 'Unassigned']);
+    expect(workItemSecondaryIds({ kind: 'job', title: null, fileName: 'gearbox_housing_v3.gcode', displayId: 'J-1', runCount: 1 })).toEqual(['J-1', 'gearbox_housing_v3.gcode']);
+    expect(workItemSecondaryIds({ kind: 'job', title: 'Bracket', fileName: null, displayId: 'J-1', runCount: 3 })).toEqual(['J-1', '3 runs']);
+  });
+
+  it('names a job after its latest recorded run that still counts and a run after its readable file name', () => {
+    const replaced = recordedRun({ id: 'r-0', displayId: 'RN-0', fileName: 'old_design.gcode', state: 'replaced' });
+    const later = recordedRun({ id: 'r-2', displayId: 'RN-2', fileName: 'new_design.gcode', startedAt: '2026-09-16T08:00:00Z', endedAt: '2026-09-16T09:00:00Z' });
+    expect(machineJobName({ title: null, displayId: 'J-1', runs: [manualRun(), recordedRun(), later, replaced] })).toBe('New design');
+    expect(machineJobName({ title: null, displayId: 'J-1', runs: [manualRun()] })).toBe('J-1');
+    expect(machineJobName({ title: 'Named', displayId: 'J-1', runs: [later] })).toBe('Named');
+    expect(runName({ fileName: 'gearbox_housing_v3.gcode', displayId: 'RN-1' })).toBe('Gearbox housing v3');
+    expect(runName({ fileName: null, displayId: 'RN-1' })).toBe('RN-1');
+    expect(activeRuns({ runs: [manualRun(), replaced] })).toHaveLength(1);
+  });
+
+  it('lets a manual run end on screen when its planned end passes, and derives progress', () => {
+    const planned = manualRun({ state: 'running', startedAt: '2026-09-15T08:00:00Z', endedAt: null, estimatedEndAt: '2026-09-15T09:00:00Z', progressPercent: null });
+    const at = (iso: string) => new Date(iso).getTime();
+    expect(runStateNow(planned, at('2026-09-15T08:30:00Z'))).toBe('running');
+    expect(isRunLive(planned, at('2026-09-15T08:30:00Z'))).toBe(true);
+    expect(runProgress(planned, at('2026-09-15T08:30:00Z'))).toBe(50);
+    expect(runStateNow(planned, at('2026-09-15T09:00:01Z'))).toBe('finished');
+    // A recorded run stays running until the machine says otherwise.
+    const recorded = recordedRun({ state: 'running', endedAt: null, estimatedEndAt: '2026-09-15T09:00:00Z', progressPercent: 45 });
+    expect(runStateNow(recorded, at('2026-09-15T10:00:00Z'))).toBe('running');
+    expect(runProgress(recorded, at('2026-09-15T10:00:00Z'))).toBe(45);
+  });
+
+  it('summarises material usage', () => {
+    expect(usagesText([])).toBe('None recorded');
+    expect(usagesText([usage(), usage({ materialName: 'Insert', unit: 'm', quantity: '4.000' })])).toBe('183 g PLA Black, 4 m Insert');
   });
 
   it('formats prices, durations and adjustments like the prototype', () => {
@@ -50,14 +81,14 @@ describe('Machines & Jobs shared helpers', () => {
   });
 
   it('offers every unified status and billing state as a filter option', () => {
-    expect(jobRowStatusOptions.map((option) => option.id)).toEqual(['running', 'printing', 'unlinked', 'needs_outcome', 'successful', 'partial_failure', 'failed', 'cancelled']);
+    expect(jobRowStatusOptions.map((option) => option.id)).toEqual(['running', 'running_unassigned', 'unassigned', 'needs_outcome', 'successful', 'partial_failure', 'failed', 'cancelled']);
     expect(billingStateOptions.map((option) => option.id)).toEqual(['on_order', 'order_outdated', 'not_on_order', 'price_incomplete', 'pending']);
   });
 
   it('builds production paths for the prototype links', () => {
     expect(machineLogbookPaths.jobs()).toBe('/machine-logbook/jobs');
-    expect(machineLogbookPaths.jobs({ status: 'unlinked', q: undefined })).toBe('/machine-logbook/jobs?status=unlinked');
-    expect(machineLogbookPaths.print('p1')).toBe('/machine-logbook/jobs/prints/p1');
+    expect(machineLogbookPaths.jobs({ status: 'unassigned', q: undefined })).toBe('/machine-logbook/jobs?status=unassigned');
+    expect(machineLogbookPaths.run('p1')).toBe('/machine-logbook/jobs/runs/p1');
     expect(machineLogbookPaths.machine('m1', 'printer')).toBe('/machine-logbook/machines/m1?tab=printer');
     expect(machineLogbookPaths.inventory('spools')).toBe('/machine-logbook/inventory?tab=spools');
     expect(machineLogbookPaths.material('a')).toBe('/machine-logbook/inventory/materials/a');
@@ -65,11 +96,15 @@ describe('Machines & Jobs shared helpers', () => {
     expect(machineLogbookPaths.statistics()).toBe('/machine-logbook/statistics');
   });
 
-  it('detects whether linking a print changes the manual run', () => {
-    const job = { startsAt: '2026-09-15T08:00:00Z', durationSeconds: 3600, usages: [{ quantity: '20.000', materialName: 'PLA' }] } as MachineJob;
-    const print = { startedAt: '2026-09-15T08:00:00Z', endedAt: '2026-09-15T09:00:00Z', reportedUsage: { quantity: '20', quantityBasis: 'actual', materialName: 'PLA' } } as Print;
-    expect(replaceChangesAnything(job, print)).toBe(false);
-    expect(replaceChangesAnything(job, { ...print, endedAt: '2026-09-15T09:30:00Z' })).toBe(true);
+  it('detects whether attaching a recorded run changes what the manual runs recorded', () => {
+    const job = jobFixture({ runs: [manualRun({ startedAt: '2026-09-15T08:00:00Z', durationSeconds: 3600, usages: [usage({ quantity: '20.000', materialName: 'PLA' })] })] });
+    const run: Pick<MachineRun, 'startedAt' | 'durationSeconds' | 'usages' | 'reportedUsage'> = {
+      startedAt: '2026-09-15T08:00:00Z', durationSeconds: 3600, usages: [], reportedUsage: { quantity: '20', quantityBasis: 'actual', materialName: 'PLA' },
+    };
+    expect(replaceChangesAnything(job, run)).toBe(false);
+    expect(replaceChangesAnything(job, { ...run, durationSeconds: 5400 })).toBe(true);
+    // Nothing to replace when the job has no manual run.
+    expect(replaceChangesAnything(jobFixture({ runs: [recordedRun()] }), run)).toBe(false);
   });
 });
 
@@ -167,27 +202,37 @@ describe('DirectoryTable', () => {
   });
 });
 
-function LinkHarness({ job, print }: { job: Pick<MachineJob, 'id' | 'displayId' | 'run' | 'version'>; print: Pick<Print, 'id' | 'displayId'> }) {
+function AttachHarness({ job, run, replace }: { job: { id: string; displayId: string; version: number }; run: { id: string; displayId: string }; replace: boolean }) {
   const [done, setDone] = useState(false);
-  const { link, pending } = useLinkPrint(() => setDone(true));
+  const { attach, pending } = useAttachRun(() => setDone(true));
   return (
     <>
-      <button type="button" disabled={pending} onClick={() => { void link(print, job); }}>Link</button>
+      <button type="button" disabled={pending} onClick={() => { void attach(run, job, replace); }}>Attach</button>
       {done && <p>done</p>}
     </>
   );
 }
 
-describe('useLinkPrint', () => {
-  it('links with the loaded job version, confirms with a toast and then reports done', async () => {
+describe('useAttachRun', () => {
+  it('attaches with the loaded job version, confirms with a toast and then reports done', async () => {
     let body: unknown;
-    server.use(http.put('*/api/v1/prints/print-1/job', async ({ request }) => { body = await request.json(); return HttpResponse.json({}); }));
+    server.use(http.put('*/api/v1/machine-runs/run-1/job', async ({ request }) => { body = await request.json(); return HttpResponse.json({}); }));
     const user = userEvent.setup();
-    renderRoute(<ToastProvider><LinkHarness print={{ id: 'print-1', displayId: 'P-00001' }} job={{ id: 'job-1', displayId: 'J-00001', run: 'manual', version: 7 }} /></ToastProvider>);
-    await user.click(screen.getByRole('button', { name: 'Link' }));
+    renderRoute(<ToastProvider><AttachHarness run={{ id: 'run-1', displayId: 'RN-00001' }} job={{ id: 'job-1', displayId: 'J-00001', version: 7 }} replace /></ToastProvider>);
+    await user.click(screen.getByRole('button', { name: 'Attach' }));
     expect(await screen.findByText('done')).toBeInTheDocument();
-    expect(body).toEqual({ machineJobId: 'job-1', expectedJobVersion: 7 });
-    expect(screen.getByText('Manual run replaced')).toBeInTheDocument();
-    expect(screen.getByText('J-00001 now uses the data from P-00001.')).toBeInTheDocument();
+    expect(body).toEqual({ machineJobId: 'job-1', replaceManualRuns: true, expectedJobVersion: 7 });
+    expect(screen.getByText('Manual runs replaced')).toBeInTheDocument();
+    expect(screen.getByText('J-00001 now uses the data from RN-00001.')).toBeInTheDocument();
+  });
+
+  it('says the run was attached when the manual runs stay', async () => {
+    let body: unknown;
+    server.use(http.put('*/api/v1/machine-runs/run-1/job', async ({ request }) => { body = await request.json(); return HttpResponse.json({}); }));
+    const user = userEvent.setup();
+    renderRoute(<ToastProvider><AttachHarness run={{ id: 'run-1', displayId: 'RN-00001' }} job={{ id: 'job-1', displayId: 'J-00001', version: 7 }} replace={false} /></ToastProvider>);
+    await user.click(screen.getByRole('button', { name: 'Attach' }));
+    expect(await screen.findByText('Run attached')).toBeInTheDocument();
+    expect(body).toEqual({ machineJobId: 'job-1', replaceManualRuns: false, expectedJobVersion: 7 });
   });
 });

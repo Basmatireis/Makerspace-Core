@@ -587,7 +587,7 @@ func (q *Queries) GetConnectorCredential(ctx context.Context, arg GetConnectorCr
 }
 
 const getConnectorEventByKey = `-- name: GetConnectorEventByKey :one
-SELECT id, source_id, event_key, fingerprint, protocol_version, machine_id, kind, occurred_at, received_at, source_sequence, external_print_id, payload, connector_id, connector_assignment_id, observed_run_id, configuration_version, application_state, application_reason, report_revision FROM printer_events WHERE source_id=$1 AND event_key=$2
+SELECT id, source_id, event_key, fingerprint, protocol_version, machine_id, kind, occurred_at, received_at, source_sequence, external_print_id, payload, connector_id, connector_assignment_id, run_id, configuration_version, application_state, application_reason, report_revision FROM printer_events WHERE source_id=$1 AND event_key=$2
 `
 
 type GetConnectorEventByKeyParams struct {
@@ -613,7 +613,7 @@ func (q *Queries) GetConnectorEventByKey(ctx context.Context, arg GetConnectorEv
 		&i.Payload,
 		&i.ConnectorID,
 		&i.ConnectorAssignmentID,
-		&i.ObservedRunID,
+		&i.RunID,
 		&i.ConfigurationVersion,
 		&i.ApplicationState,
 		&i.ApplicationReason,
@@ -623,7 +623,7 @@ func (q *Queries) GetConnectorEventByKey(ctx context.Context, arg GetConnectorEv
 }
 
 const getConnectorEventBySequence = `-- name: GetConnectorEventBySequence :one
-SELECT id, source_id, event_key, fingerprint, protocol_version, machine_id, kind, occurred_at, received_at, source_sequence, external_print_id, payload, connector_id, connector_assignment_id, observed_run_id, configuration_version, application_state, application_reason, report_revision FROM printer_events WHERE connector_assignment_id=$1 AND source_sequence=$2
+SELECT id, source_id, event_key, fingerprint, protocol_version, machine_id, kind, occurred_at, received_at, source_sequence, external_print_id, payload, connector_id, connector_assignment_id, run_id, configuration_version, application_state, application_reason, report_revision FROM printer_events WHERE connector_assignment_id=$1 AND source_sequence=$2
 `
 
 type GetConnectorEventBySequenceParams struct {
@@ -649,7 +649,7 @@ func (q *Queries) GetConnectorEventBySequence(ctx context.Context, arg GetConnec
 		&i.Payload,
 		&i.ConnectorID,
 		&i.ConnectorAssignmentID,
-		&i.ObservedRunID,
+		&i.RunID,
 		&i.ConfigurationVersion,
 		&i.ApplicationState,
 		&i.ApplicationReason,
@@ -712,12 +712,12 @@ func (q *Queries) GetEnrollmentByDigestForUpdate(ctx context.Context, tokenDiges
 }
 
 const getObservedRunForUpdate = `-- name: GetObservedRunForUpdate :one
-SELECT id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id FROM printer_observed_runs WHERE id=$1 FOR UPDATE
+SELECT id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome FROM machine_runs WHERE id=$1 AND source='recorded' FOR UPDATE
 `
 
-func (q *Queries) GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (PrinterObservedRun, error) {
+func (q *Queries) GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error) {
 	row := q.db.QueryRow(ctx, getObservedRunForUpdate, id)
-	var i PrinterObservedRun
+	var i MachineRun
 	err := row.Scan(
 		&i.ID,
 		&i.AssignmentID,
@@ -740,6 +740,9 @@ func (q *Queries) GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (Pr
 		&i.ReportedQuantityBasis,
 		&i.ReportedSpoolID,
 		&i.ReportedEventID,
+		&i.Source,
+		&i.JobID,
+		&i.Outcome,
 	)
 	return i, err
 }
@@ -747,11 +750,11 @@ func (q *Queries) GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (Pr
 const insertConnectorEvent = `-- name: InsertConnectorEvent :one
 INSERT INTO printer_events (id, source_id, event_key, fingerprint, protocol_version, machine_id, kind, occurred_at,
     source_sequence, external_print_id, payload, connector_id, connector_assignment_id,
-    observed_run_id, configuration_version, application_state, application_reason, report_revision)
+    run_id, configuration_version, application_state, application_reason, report_revision)
 VALUES ($1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11,
     $12, $13, $14,
-    $15, $16, $17, $18) RETURNING id, source_id, event_key, fingerprint, protocol_version, machine_id, kind, occurred_at, received_at, source_sequence, external_print_id, payload, connector_id, connector_assignment_id, observed_run_id, configuration_version, application_state, application_reason, report_revision
+    $15, $16, $17, $18) RETURNING id, source_id, event_key, fingerprint, protocol_version, machine_id, kind, occurred_at, received_at, source_sequence, external_print_id, payload, connector_id, connector_assignment_id, run_id, configuration_version, application_state, application_reason, report_revision
 `
 
 type InsertConnectorEventParams struct {
@@ -768,7 +771,7 @@ type InsertConnectorEventParams struct {
 	Payload              []byte
 	ConnectorID          *uuid.UUID
 	AssignmentID         *uuid.UUID
-	ObservedRunID        *uuid.UUID
+	RunID                *uuid.UUID
 	ConfigurationVersion *int64
 	ApplicationState     string
 	ApplicationReason    *string
@@ -790,7 +793,7 @@ func (q *Queries) InsertConnectorEvent(ctx context.Context, arg InsertConnectorE
 		arg.Payload,
 		arg.ConnectorID,
 		arg.AssignmentID,
-		arg.ObservedRunID,
+		arg.RunID,
 		arg.ConfigurationVersion,
 		arg.ApplicationState,
 		arg.ApplicationReason,
@@ -812,7 +815,7 @@ func (q *Queries) InsertConnectorEvent(ctx context.Context, arg InsertConnectorE
 		&i.Payload,
 		&i.ConnectorID,
 		&i.ConnectorAssignmentID,
-		&i.ObservedRunID,
+		&i.RunID,
 		&i.ConfigurationVersion,
 		&i.ApplicationState,
 		&i.ApplicationReason,
@@ -822,24 +825,24 @@ func (q *Queries) InsertConnectorEvent(ctx context.Context, arg InsertConnectorE
 }
 
 const insertObservedRun = `-- name: InsertObservedRun :one
-INSERT INTO printer_observed_runs (id, display_id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+INSERT INTO machine_runs (id, display_id, source, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at)
+VALUES ($1, $2, 'recorded', $3, $4, $5, $6, $7, $8, $8)
 ON CONFLICT (id) DO NOTHING
-RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id
+RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome
 `
 
 type InsertObservedRunParams struct {
 	ID              uuid.UUID
 	DisplayID       string
-	AssignmentID    uuid.UUID
+	AssignmentID    *uuid.UUID
 	MachineID       uuid.UUID
 	VendorJobID     *string
-	State           string
+	State           *string
 	HistoryComplete bool
-	ObservedAt      time.Time
+	ObservedAt      pgtype.Timestamptz
 }
 
-func (q *Queries) InsertObservedRun(ctx context.Context, arg InsertObservedRunParams) (PrinterObservedRun, error) {
+func (q *Queries) InsertObservedRun(ctx context.Context, arg InsertObservedRunParams) (MachineRun, error) {
 	row := q.db.QueryRow(ctx, insertObservedRun,
 		arg.ID,
 		arg.DisplayID,
@@ -850,7 +853,7 @@ func (q *Queries) InsertObservedRun(ctx context.Context, arg InsertObservedRunPa
 		arg.HistoryComplete,
 		arg.ObservedAt,
 	)
-	var i PrinterObservedRun
+	var i MachineRun
 	err := row.Scan(
 		&i.ID,
 		&i.AssignmentID,
@@ -873,6 +876,9 @@ func (q *Queries) InsertObservedRun(ctx context.Context, arg InsertObservedRunPa
 		&i.ReportedQuantityBasis,
 		&i.ReportedSpoolID,
 		&i.ReportedEventID,
+		&i.Source,
+		&i.JobID,
+		&i.Outcome,
 	)
 	return i, err
 }
@@ -1110,21 +1116,21 @@ func (q *Queries) ListConnectors(ctx context.Context) ([]PrinterConnector, error
 }
 
 const listObservedRuns = `-- name: ListObservedRuns :many
-SELECT r.id, r.assignment_id, r.machine_id, r.vendor_job_id, r.state, r.history_complete, r.first_observed_at, r.last_observed_at, r.version, r.created_at, r.updated_at, r.display_id, r.file_name, r.started_at, r.ended_at, r.estimated_end_at, r.progress_percent, r.reported_quantity_g, r.reported_quantity_basis, r.reported_spool_id, r.reported_event_id, m.name AS machine_name
-FROM printer_observed_runs r JOIN machines m ON m.id=r.machine_id
+SELECT r.id, r.assignment_id, r.machine_id, r.vendor_job_id, r.state, r.history_complete, r.first_observed_at, r.last_observed_at, r.version, r.created_at, r.updated_at, r.display_id, r.file_name, r.started_at, r.ended_at, r.estimated_end_at, r.progress_percent, r.reported_quantity_g, r.reported_quantity_basis, r.reported_spool_id, r.reported_event_id, r.source, r.job_id, r.outcome, m.name AS machine_name
+FROM machine_runs r JOIN machines m ON m.id=r.machine_id
 WHERE r.assignment_id IN (SELECT id FROM printer_connector_assignments WHERE connector_id=$1)
 ORDER BY r.last_observed_at DESC, r.id DESC LIMIT 100
 `
 
 type ListObservedRunsRow struct {
 	ID                    uuid.UUID
-	AssignmentID          uuid.UUID
+	AssignmentID          *uuid.UUID
 	MachineID             uuid.UUID
 	VendorJobID           *string
-	State                 string
+	State                 *string
 	HistoryComplete       bool
-	FirstObservedAt       time.Time
-	LastObservedAt        time.Time
+	FirstObservedAt       pgtype.Timestamptz
+	LastObservedAt        pgtype.Timestamptz
 	Version               int64
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
@@ -1138,6 +1144,9 @@ type ListObservedRunsRow struct {
 	ReportedQuantityBasis *string
 	ReportedSpoolID       *uuid.UUID
 	ReportedEventID       *uuid.UUID
+	Source                string
+	JobID                 *uuid.UUID
+	Outcome               *string
 	MachineName           string
 }
 
@@ -1172,6 +1181,9 @@ func (q *Queries) ListObservedRuns(ctx context.Context, connectorID uuid.UUID) (
 			&i.ReportedQuantityBasis,
 			&i.ReportedSpoolID,
 			&i.ReportedEventID,
+			&i.Source,
+			&i.JobID,
+			&i.Outcome,
 			&i.MachineName,
 		); err != nil {
 			return nil, err
@@ -1248,7 +1260,7 @@ func (q *Queries) ListSlotSpoolsAt(ctx context.Context, arg ListSlotSpoolsAtPara
 }
 
 const nextPrintSequence = `-- name: NextPrintSequence :one
-SELECT nextval('print_display_sequence')::bigint
+SELECT nextval('machine_run_display_sequence')::bigint
 `
 
 func (q *Queries) NextPrintSequence(ctx context.Context) (int64, error) {
@@ -1382,7 +1394,7 @@ func (q *Queries) RevokeRetiringCredentials(ctx context.Context, connectorID uui
 }
 
 const setObservedRunReport = `-- name: SetObservedRunReport :execrows
-UPDATE printer_observed_runs r SET reported_quantity_g=$1, reported_quantity_basis=$2,
+UPDATE machine_runs r SET reported_quantity_g=$1, reported_quantity_basis=$2,
     reported_spool_id=$3, reported_event_id=$4
 WHERE r.id=$5 AND (r.reported_event_id IS NULL OR $6::bigint >= COALESCE((SELECT e.report_revision FROM printer_events e WHERE e.id=r.reported_event_id), 0))
 `
@@ -1556,10 +1568,10 @@ func (q *Queries) UpdateConnector(ctx context.Context, arg UpdateConnectorParams
 }
 
 const updateObservedRun = `-- name: UpdateObservedRun :one
-UPDATE printer_observed_runs SET
+UPDATE machine_runs SET
     vendor_job_id=COALESCE(vendor_job_id, $1::text),
     state=CASE
-        WHEN state IN ('completed','failed','cancelled') THEN state
+        WHEN state IN ('finished','failed','cancelled') THEN state
         WHEN $2::timestamptz >= last_observed_at THEN $3::text
         ELSE state
     END,
@@ -1574,7 +1586,7 @@ UPDATE printer_observed_runs SET
         ELSE updated_at
     END
 WHERE id=$5 AND assignment_id=$6 AND machine_id=$7
-RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id
+RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome
 `
 
 type UpdateObservedRunParams struct {
@@ -1583,11 +1595,11 @@ type UpdateObservedRunParams struct {
 	State           string
 	HistoryComplete bool
 	ID              uuid.UUID
-	AssignmentID    uuid.UUID
+	AssignmentID    *uuid.UUID
 	MachineID       uuid.UUID
 }
 
-func (q *Queries) UpdateObservedRun(ctx context.Context, arg UpdateObservedRunParams) (PrinterObservedRun, error) {
+func (q *Queries) UpdateObservedRun(ctx context.Context, arg UpdateObservedRunParams) (MachineRun, error) {
 	row := q.db.QueryRow(ctx, updateObservedRun,
 		arg.VendorJobID,
 		arg.ObservedAt,
@@ -1597,7 +1609,7 @@ func (q *Queries) UpdateObservedRun(ctx context.Context, arg UpdateObservedRunPa
 		arg.AssignmentID,
 		arg.MachineID,
 	)
-	var i PrinterObservedRun
+	var i MachineRun
 	err := row.Scan(
 		&i.ID,
 		&i.AssignmentID,
@@ -1620,12 +1632,15 @@ func (q *Queries) UpdateObservedRun(ctx context.Context, arg UpdateObservedRunPa
 		&i.ReportedQuantityBasis,
 		&i.ReportedSpoolID,
 		&i.ReportedEventID,
+		&i.Source,
+		&i.JobID,
+		&i.Outcome,
 	)
 	return i, err
 }
 
 const updateObservedRunFacts = `-- name: UpdateObservedRunFacts :exec
-UPDATE printer_observed_runs SET
+UPDATE machine_runs SET
     started_at=$1::timestamptz,
     ended_at=$2::timestamptz,
     file_name=COALESCE($3::text, file_name),

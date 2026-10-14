@@ -62,10 +62,10 @@ export const productLabel = (product: Pick<FilamentProduct, 'manufacturer' | 'na
 
 // The API distinguishes who moved the stock; the table shows one tag per kind.
 export const transactionKindOptions: { id: InventoryTransactionKind; label: string }[] = [
-  { id: 'purchase', label: 'Purchase' }, { id: 'machine_job_consumption', label: 'Job consumption' }, { id: 'manual_consumption', label: 'Manual consumption' },
+  { id: 'purchase', label: 'Purchase' }, { id: 'machine_run_consumption', label: 'Run consumption' }, { id: 'manual_consumption', label: 'Manual consumption' },
   { id: 'adjustment', label: 'Correction' }, { id: 'disposal', label: 'Disposal' }, { id: 'spool_transfer', label: 'Transfer' },
 ];
-const kindType = { purchase: 'green', machine_job_consumption: 'blue', manual_consumption: 'blue', adjustment: 'purple', disposal: 'red', spool_transfer: 'teal' } as const;
+const kindType = { purchase: 'green', machine_run_consumption: 'blue', manual_consumption: 'blue', adjustment: 'purple', disposal: 'red', spool_transfer: 'teal' } as const;
 export function TransactionKindTag({ kind, size = 'sm' }: { kind: InventoryTransactionKind; size?: 'sm' | 'md' }) {
   return <Tag type={kindType[kind]} size={size}>{transactionKindOptions.find((item) => item.id === kind)?.label}</Tag>;
 }

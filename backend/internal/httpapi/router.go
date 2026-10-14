@@ -655,6 +655,13 @@ func writeAPIError(w http.ResponseWriter, r *http.Request, err error, logger *sl
 		RequestId: requestIDString(r.Context()),
 	}
 	var appError *apperror.Error
+	var abort *pgconn.PgError
+	if !errors.As(err, &appError) && errors.As(err, &abort) && (abort.Code == "40P01" || abort.Code == "40001") {
+		// A deadlock or serialization abort rolled the transaction back; the
+		// client can repeat the request unchanged.
+		appError = apperror.New(http.StatusConflict, "retry_conflict", "The request conflicted with a concurrent change; try again")
+		err = appError
+	}
 	if errors.As(err, &appError) {
 		status = appError.HTTPStatus
 		response.Code = appError.Code

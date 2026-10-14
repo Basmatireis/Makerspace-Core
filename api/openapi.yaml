@@ -37,7 +37,7 @@ tags:
   - name: Organizations
   - name: Pricing
   - name: Machine Jobs
-  - name: Prints
+  - name: Machine Runs
   - name: Inventory
   - name: Filament Spools
   - name: Filament Products
@@ -4500,41 +4500,6 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /machine-jobs/{machineJobId}/usages:
-    parameters:
-      - {name: machineJobId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
-    put:
-      tags: [Machine Jobs]
-      operationId: replaceMachineJobUsages
-      summary: Replace job usages using compensating inventory transactions
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReplaceMachineJobUsagesRequest"}}}}
-      responses:
-        "200": {description: Usages replaced., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /machine-jobs/{machineJobId}/run-cancellation:
-    parameters:
-      - {name: machineJobId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
-    post:
-      tags: [Machine Jobs]
-      operationId: cancelMachineJobRun
-      summary: End a running manual run now, record it as cancelled and recalculate the price
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
-      responses:
-        "200": {description: Run cancelled., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
   /machine-jobs/{machineJobId}/price-adjustment:
     parameters:
       - {name: machineJobId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
@@ -4566,75 +4531,51 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /prints:
+  /machine-runs:
     get:
-      tags: [Prints]
-      operationId: listPrints
-      summary: List prints reported by printer connectors
+      tags: [Machine Runs]
+      operationId: listMachineRuns
+      summary: List machine runs, manual and recorded by machine connectors
       security: [{sessionCookie: []}]
       parameters:
-        - {name: search, in: query, description: Matches display ID and file name., schema: {type: string, maxLength: 200}}
+        - {name: search, in: query, description: Matches run display ID and file name., schema: {type: string, maxLength: 200}}
         - {name: machineId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
-        - {name: state, in: query, schema: {$ref: "#/components/schemas/PrintState"}}
-        - {name: linked, in: query, description: "true returns only prints linked to a job; false only unlinked prints.", schema: {type: boolean}}
+        - {name: state, in: query, style: form, explode: true, schema: {type: array, maxItems: 6, items: {$ref: "#/components/schemas/MachineRunState"}}}
+        - {name: source, in: query, schema: {$ref: "#/components/schemas/MachineRunSource"}}
+        - {name: assigned, in: query, description: "true returns only runs that belong to a job; false only unassigned runs.", schema: {type: boolean}}
         - {name: from, in: query, schema: {type: string, format: date-time}}
         - {name: to, in: query, schema: {type: string, format: date-time}}
         - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
         - {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 25}}
       responses:
-        "200": {description: Prints., content: {application/json: {schema: {$ref: "#/components/schemas/PrintPage"}}}}
+        "200": {description: Runs., content: {application/json: {schema: {$ref: "#/components/schemas/MachineRunPage"}}}}
         "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /prints/{printId}:
+  /machine-runs/{runId}:
     parameters:
-      - {name: printId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
     get:
-      tags: [Prints]
-      operationId: getPrint
-      summary: Get a print with its printer events
+      tags: [Machine Runs]
+      operationId: getMachineRun
+      summary: Get a run with its machine events
       security: [{sessionCookie: []}]
       responses:
-        "200": {description: Print., content: {application/json: {schema: {$ref: "#/components/schemas/PrintDetail"}}}}
+        "200": {description: Run., content: {application/json: {schema: {$ref: "#/components/schemas/MachineRunDetail"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /prints/{printId}/job:
-    parameters:
-      - {name: printId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
-    post:
-      tags: [Prints]
-      operationId: createMachineJobFromPrint
-      summary: Create a job from an ended, unlinked print and link it
-      description: >-
-        Machine, start and end come from the print. When outcome is omitted it follows the print state
-        (finished: successful, failed: failed, cancelled: cancelled, unknown: unknown).
+    patch:
+      tags: [Machine Runs]
+      operationId: updateMachineRun
+      summary: Correct a run; start and end can only be changed on manual runs
       security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateMachineJobFromPrintRequest"}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateMachineRunRequest"}}}}
       responses:
-        "201": {description: Job created and linked., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-    put:
-      tags: [Prints]
-      operationId: linkPrintToMachineJob
-      summary: Link an ended print to a job, replacing the job's run with the printer data
-      description: >-
-        Atomically sets the job's start and end to the print's, replaces the material usage with the reported usage
-        when the printer reported a resolvable spool (compensating inventory transactions), records the outcome from
-        the print state when the job has none yet, and recalculates the price.
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/LinkPrintToMachineJobRequest"}}}}
-      responses:
-        "200": {description: Print linked., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
+        "200": {description: Run updated; returns its job when it has one., content: {application/json: {schema: {$ref: "#/components/schemas/MachineRunUpdateResult"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -4642,17 +4583,126 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
     delete:
-      tags: [Prints]
-      operationId: unlinkPrintFromMachineJob
-      summary: Unlink a print; the job keeps its values and its run becomes manual again
+      tags: [Machine Runs]
+      operationId: deleteMachineRun
+      summary: Remove a manual run from its job (the job keeps at least one run)
       security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UnlinkPrintRequest"}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
       responses:
-        "200": {description: Print unlinked., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
+        "200": {description: Run removed; returns the job., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-runs/{runId}/usages:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Machine Runs]
+      operationId: replaceMachineRunUsages
+      summary: Replace the material usage of a run with compensating inventory transactions
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReplaceMachineRunUsagesRequest"}}}}
+      responses:
+        "200": {description: Usage replaced., content: {application/json: {schema: {$ref: "#/components/schemas/MachineRunUpdateResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-runs/{runId}/cancellation:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Machine Runs]
+      operationId: cancelMachineRun
+      summary: End a running manual run now and record it as cancelled
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Run cancelled; returns its job., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-runs/{runId}/job:
+    parameters:
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Machine Runs]
+      operationId: createMachineJobFromRun
+      summary: Create a job from an unassigned recorded run
+      description: The run may still be running; the job is running until the run ends.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateMachineJobFromRunRequest"}}}}
+      responses:
+        "201": {description: Job created with the run., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Machine Runs]
+      operationId: attachMachineRun
+      summary: Attach an unassigned recorded run to a job on the same machine
+      description: >-
+        replaceManualRuns marks the job's manual runs as replaced (their material usage is reversed with compensating
+        inventory transactions), so the recorded run stands in for the manually entered work. The run may still be
+        running.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AttachMachineRunRequest"}}}}
+      responses:
+        "200": {description: Run attached., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Machine Runs]
+      operationId: detachMachineRun
+      summary: Detach a recorded run from its job
+      description: >-
+        The run keeps its material usage and consumption. When it was the job's last run, the job gets a manual run
+        with the same start, end and outcome but no material usage.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/DetachMachineRunRequest"}}}}
+      responses:
+        "200": {description: Run detached; returns the job., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-jobs/{machineJobId}/runs:
+    parameters:
+      - {name: machineJobId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Machine Runs]
+      operationId: addManualMachineRun
+      summary: Add a manual run to a job (for example a reprint)
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/AddManualMachineRunRequest"}}}}
+      responses:
+        "201": {description: Run added; returns the job., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /machine-logbook/overview:
@@ -4680,7 +4730,7 @@ paths:
         - {name: search, in: query, description: "Matches job name, job and print display IDs and file names.", schema: {type: string, maxLength: 200}}
         - {name: status, in: query, style: form, explode: true, schema: {type: array, maxItems: 8, items: {$ref: "#/components/schemas/WorkItemStatus"}}}
         - {name: machineId, in: query, style: form, explode: true, schema: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}}
-        - {name: run, in: query, style: form, explode: true, schema: {type: array, maxItems: 2, items: {$ref: "#/components/schemas/WorkItemRun"}}}
+        - {name: source, in: query, style: form, explode: true, schema: {type: array, maxItems: 2, items: {$ref: "#/components/schemas/WorkItemSource"}}}
         - {name: materialId, in: query, style: form, explode: true, schema: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}}
         - {name: billing, in: query, style: form, explode: true, description: "Matches jobs only; prints have no billing state.", schema: {type: array, maxItems: 5, items: {$ref: "#/components/schemas/JobBillingState"}}}
         - {name: customerId, in: query, description: Person or Organization identifier., schema: {$ref: "#/components/schemas/UUIDv7"}}
@@ -9379,7 +9429,7 @@ components:
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         machineName: {type: string}
         vendorJobId: {type: string, maxLength: 200, nullable: true}
-        state: {type: string, enum: [observed, printing, completed, failed, cancelled, uncertain]}
+        state: {$ref: "#/components/schemas/MachineRunState"}
         historyComplete: {type: boolean}
         firstObservedAt: {type: string, format: date-time}
         lastObservedAt: {type: string, format: date-time}
@@ -10073,7 +10123,7 @@ components:
 
     InventoryTransactionKind:
       type: string
-      enum: [purchase, machine_job_consumption, manual_consumption, adjustment, disposal, spool_transfer]
+      enum: [purchase, machine_run_consumption, manual_consumption, adjustment, disposal, spool_transfer]
 
     InventoryAdjustmentReason:
       type: string
@@ -10606,27 +10656,23 @@ components:
       type: string
       enum: [pending, complete, incomplete]
 
-    PrintState:
+    MachineRunSource:
+      type: string
+      description: manual runs are entered by staff; recorded runs are reported by a machine connector.
+      enum: [manual, recorded]
+
+    MachineRunState:
       type: string
       description: >-
-        printing while the printer reports the run; finished, failed or cancelled from the terminal outcome;
-        unknown when the connector lost track of the run.
-      enum: [printing, finished, failed, cancelled, unknown]
+        running while a recorded run is reported as running or a manual run's end lies in the future. replaced: a
+        manual run that a recorded run stands in for (kept for history; excluded from the job's totals).
+      enum: [running, finished, failed, cancelled, unknown, replaced]
 
-    PrintReportedUsage:
-      type: object
-      nullable: true
-      additionalProperties: false
-      required: [quantity, quantityBasis]
-      properties:
-        quantity: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: Grams.}
-        quantityBasis: {$ref: "#/components/schemas/QuantityBasis"}
-        spoolId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        spoolDisplayId: {type: string, nullable: true}
-        materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        materialName: {type: string, nullable: true}
+    MachineRunOutcome:
+      type: string
+      enum: [successful, partial_failure, failed, cancelled]
 
-    PrintJobReference:
+    MachineRunJobReference:
       type: object
       nullable: true
       additionalProperties: false
@@ -10636,27 +10682,46 @@ components:
         displayId: {type: string}
         title: {type: string, nullable: true}
 
-    Print:
+    MachineRunReportedUsage:
+      type: object
+      nullable: true
+      additionalProperties: false
+      required: [quantity, quantityBasis]
+      properties:
+        quantity: {allOf: [{$ref: "#/components/schemas/Decimal"}], description: Grams reported by the machine.}
+        quantityBasis: {$ref: "#/components/schemas/QuantityBasis"}
+        spoolId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        spoolDisplayId: {type: string, nullable: true}
+        materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        materialName: {type: string, nullable: true}
+
+    MachineRun:
       type: object
       additionalProperties: false
-      required: [id, displayId, machineId, machineName, state, startedAt, version]
+      required: [id, displayId, machineId, machineName, source, state, startedAt, durationSeconds, usages, usagesFromMachine, outcomeFromMachine, version]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         displayId: {type: string}
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         machineName: {type: string}
+        source: {$ref: "#/components/schemas/MachineRunSource"}
+        state: {$ref: "#/components/schemas/MachineRunState"}
+        job: {$ref: "#/components/schemas/MachineRunJobReference"}
         connectorName: {type: string, nullable: true}
-        fileName: {type: string, nullable: true, description: Name reported by the printer; read-only.}
-        state: {$ref: "#/components/schemas/PrintState"}
+        fileName: {type: string, nullable: true, description: File or program name reported by the machine; read-only.}
         startedAt: {type: string, format: date-time}
         endedAt: {type: string, format: date-time, nullable: true}
         estimatedEndAt: {type: string, format: date-time, nullable: true}
+        durationSeconds: {type: integer, format: int64, minimum: 0, description: Until now or the estimated end while running.}
         progressPercent: {type: integer, minimum: 0, maximum: 100, nullable: true}
-        reportedUsage: {$ref: "#/components/schemas/PrintReportedUsage"}
-        job: {$ref: "#/components/schemas/PrintJobReference"}
+        outcome: {allOf: [{$ref: "#/components/schemas/MachineRunOutcome"}], nullable: true, description: Null until recorded.}
+        outcomeFromMachine: {type: boolean, description: The outcome was set from the machine's final state and not changed by staff.}
+        usages: {type: array, items: {$ref: "#/components/schemas/MachineJobUsage"}}
+        usagesFromMachine: {type: boolean, description: The usage was consumed automatically from the machine's report.}
+        reportedUsage: {$ref: "#/components/schemas/MachineRunReportedUsage"}
         version: {$ref: "#/components/schemas/Version"}
 
-    PrintEvent:
+    MachineRunEvent:
       type: object
       additionalProperties: false
       required: [id, kind, occurredAt]
@@ -10664,67 +10729,96 @@ components:
         id: {$ref: "#/components/schemas/UUIDv7"}
         kind: {type: string, enum: [identity, connectivity, operational_state, progress, slot_observation, consumption_report, terminal_outcome]}
         occurredAt: {type: string, format: date-time}
-        state: {type: string, nullable: true, description: Operational state or terminal outcome reported by the printer.}
+        state: {type: string, nullable: true, description: Operational state or terminal outcome reported by the machine.}
         progressPercent: {type: integer, minimum: 0, maximum: 100, nullable: true}
         quantity: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true, description: Reported grams (consumption reports).}
 
-    PrintDetail:
+    MachineRunDetail:
       allOf:
-        - {$ref: "#/components/schemas/Print"}
+        - {$ref: "#/components/schemas/MachineRun"}
         - type: object
           required: [events]
           properties:
-            events: {type: array, maxItems: 200, items: {$ref: "#/components/schemas/PrintEvent"}}
+            events: {type: array, maxItems: 200, items: {$ref: "#/components/schemas/MachineRunEvent"}}
 
-    PrintPage:
+    MachineRunPage:
       type: object
       additionalProperties: false
       required: [items, page, pageSize, total]
       properties:
-        items: {type: array, items: {$ref: "#/components/schemas/Print"}}
+        items: {type: array, items: {$ref: "#/components/schemas/MachineRun"}}
         page: {type: integer, minimum: 1}
         pageSize: {type: integer, minimum: 1}
         total: {type: integer, format: int64, minimum: 0}
 
-    MachineJobRun:
-      type: string
-      description: manual when staff entered the run; automatic when a printer print is linked.
-      enum: [manual, automatic]
-
-    MachineJobPrintReference:
+    MachineRunUpdateResult:
       type: object
-      nullable: true
       additionalProperties: false
-      required: [id, displayId, state]
+      required: [run]
       properties:
-        id: {$ref: "#/components/schemas/UUIDv7"}
-        displayId: {type: string}
-        fileName: {type: string, nullable: true}
-        state: {$ref: "#/components/schemas/PrintState"}
-        connectorName: {type: string, nullable: true}
+        run: {$ref: "#/components/schemas/MachineRun"}
+        job: {allOf: [{$ref: "#/components/schemas/MachineJob"}], nullable: true}
 
-    CreateMachineJobFromPrintRequest:
+    ManualRunInput:
+      type: object
+      description: >-
+        An endsAt in the future starts a run that shows as running until then; outcome must then be null and is
+        recorded later.
+      additionalProperties: false
+      required: [startsAt, endsAt, usages]
+      properties:
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        outcome: {allOf: [{$ref: "#/components/schemas/MachineRunOutcome"}], nullable: true}
+        usages: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/MachineJobUsageInput"}}
+
+    UpdateMachineRunRequest:
       type: object
       additionalProperties: false
-      required: [customer, operatorPersonId, usages]
+      required: [outcome, expectedVersion]
+      properties:
+        startsAt: {type: string, format: date-time, description: Manual runs only.}
+        endsAt: {type: string, format: date-time, description: Manual runs only.}
+        outcome: {allOf: [{$ref: "#/components/schemas/MachineRunOutcome"}], nullable: true, description: "Must be null while the run is running."}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    ReplaceMachineRunUsagesRequest:
+      type: object
+      additionalProperties: false
+      required: [usages, expectedVersion]
+      properties:
+        usages: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/MachineJobUsageInput"}}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    AddManualMachineRunRequest:
+      type: object
+      additionalProperties: false
+      required: [run, expectedJobVersion]
+      properties:
+        run: {$ref: "#/components/schemas/ManualRunInput"}
+        expectedJobVersion: {$ref: "#/components/schemas/Version"}
+
+    CreateMachineJobFromRunRequest:
+      type: object
+      additionalProperties: false
+      required: [customer, operatorPersonId]
       properties:
         title: {type: string, minLength: 1, maxLength: 200, nullable: true}
         customer: {$ref: "#/components/schemas/BillingPartyReference"}
         operatorPersonId: {$ref: "#/components/schemas/UUIDv7"}
-        outcome: {allOf: [{$ref: "#/components/schemas/MachineJobOutcome"}], nullable: true}
         notes: {type: string, maxLength: 2000, nullable: true}
         pricingGroupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        usages: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/MachineJobUsageInput"}}
 
-    LinkPrintToMachineJobRequest:
+    AttachMachineRunRequest:
       type: object
       additionalProperties: false
-      required: [machineJobId, expectedJobVersion]
+      required: [machineJobId, replaceManualRuns, expectedJobVersion]
       properties:
         machineJobId: {$ref: "#/components/schemas/UUIDv7"}
+        replaceManualRuns: {type: boolean}
         expectedJobVersion: {$ref: "#/components/schemas/Version"}
 
-    UnlinkPrintRequest:
+    DetachMachineRunRequest:
       type: object
       additionalProperties: false
       required: [expectedJobVersion]
@@ -10734,8 +10828,9 @@ components:
     MachineJobStatus:
       type: string
       description: >-
-        Derived at read time. running: the run's end lies in the future (manual run) and it was not cancelled.
-        needs_outcome: the run has ended and no outcome is recorded yet. Otherwise the recorded outcome.
+        Derived at read time. running: at least one of the job's runs is running. needs_outcome: all runs have ended
+        and the job's outcome is neither overridden nor derivable because a run has no outcome. Otherwise the job's
+        outcome.
       enum: [running, needs_outcome, successful, partial_failure, failed, cancelled]
 
     PriceAdjustmentKind:
@@ -10834,23 +10929,27 @@ components:
     MachineJob:
       type: object
       additionalProperties: false
-      required: [id, displayId, machine, startsAt, endsAt, durationSeconds, run, outcome, status, usages, pricingStatus, version, createdAt, updatedAt]
+      required: [id, displayId, machine, runs, durationSeconds, outcome, outcomeOverridden, status, pricingStatus, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         displayId: {type: string}
         title: {type: string, nullable: true, description: Optional staff-chosen name.}
         machine: {$ref: "#/components/schemas/Machine"}
-        startsAt: {type: string, format: date-time}
-        endsAt: {type: string, format: date-time}
-        durationSeconds: {type: integer, format: int64, minimum: 1}
-        run: {$ref: "#/components/schemas/MachineJobRun"}
-        print: {$ref: "#/components/schemas/MachineJobPrintReference"}
+        runs: {type: array, items: {$ref: "#/components/schemas/MachineRun"}, description: "Oldest first, including replaced manual runs."}
+        startedAt: {type: string, format: date-time, nullable: true, description: Start of the earliest run.}
+        endedAt: {type: string, format: date-time, nullable: true, description: End of the latest run; null while a run is running.}
+        expectedEndAt: {type: string, format: date-time, nullable: true, description: Planned or estimated end while running.}
+        durationSeconds: {type: integer, format: int64, minimum: 0, description: Sum of the runtime of all runs that are not replaced.}
         customer: {allOf: [{$ref: "#/components/schemas/BillingParty"}], nullable: true}
         operator: {allOf: [{$ref: "#/components/schemas/Operator"}], nullable: true}
-        outcome: {$ref: "#/components/schemas/MachineJobOutcome"}
+        outcome:
+          allOf: [{$ref: "#/components/schemas/MachineJobOutcome"}]
+          description: >-
+            The staff override, otherwise derived from the runs (all successful, cancelled or failed gives that outcome;
+            a mix gives partial_failure; unknown while a run has no outcome).
+        outcomeOverridden: {type: boolean}
         status: {$ref: "#/components/schemas/MachineJobStatus"}
         notes: {type: string, nullable: true}
-        usages: {type: array, items: {$ref: "#/components/schemas/MachineJobUsage"}}
         pricingStatus: {$ref: "#/components/schemas/PricingStatus"}
         pricingSnapshot: {$ref: "#/components/schemas/MachineJobPricingSnapshot"}
         calculatedPrice: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true}
@@ -10882,22 +10981,16 @@ components:
 
     CreateMachineJobRequest:
       type: object
-      description: >-
-        An endsAt in the future starts a simulated manual run that shows as running until then; outcome must then be
-        unknown and is recorded later.
       additionalProperties: false
-      required: [machineId, startsAt, endsAt, customer, operatorPersonId, outcome, usages]
+      required: [machineId, customer, operatorPersonId, run]
       properties:
         machineId: {$ref: "#/components/schemas/UUIDv7"}
-        startsAt: {type: string, format: date-time}
-        endsAt: {type: string, format: date-time}
         customer: {$ref: "#/components/schemas/BillingPartyReference"}
         operatorPersonId: {$ref: "#/components/schemas/UUIDv7"}
-        outcome: {$ref: "#/components/schemas/MachineJobOutcome"}
         title: {type: string, minLength: 1, maxLength: 200, nullable: true}
         notes: {type: string, maxLength: 2000, nullable: true}
         pricingGroupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        usages: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/MachineJobUsageInput"}}
+        run: {$ref: "#/components/schemas/ManualRunInput"}
 
     CounterSaleManualJob:
       type: object
@@ -10916,28 +11009,17 @@ components:
 
     UpdateMachineJobRequest:
       type: object
-      description: >-
-        outcome must be unknown while endsAt lies in the future.
+      description: The machine can only change while all of the job's runs are manual; they move with the job.
       additionalProperties: false
-      required: [machineId, startsAt, endsAt, operatorPersonId, outcome, expectedVersion]
+      required: [machineId, operatorPersonId, outcomeOverride, expectedVersion]
       properties:
         machineId: {$ref: "#/components/schemas/UUIDv7"}
-        startsAt: {type: string, format: date-time}
-        endsAt: {type: string, format: date-time}
         customer: {$ref: "#/components/schemas/BillingPartyReference"}
         operatorPersonId: {$ref: "#/components/schemas/UUIDv7"}
-        outcome: {$ref: "#/components/schemas/MachineJobOutcome"}
         title: {type: string, minLength: 1, maxLength: 200, nullable: true}
         notes: {type: string, maxLength: 2000, nullable: true}
         pricingGroupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        expectedVersion: {$ref: "#/components/schemas/Version"}
-
-    ReplaceMachineJobUsagesRequest:
-      type: object
-      additionalProperties: false
-      required: [usages, expectedVersion]
-      properties:
-        usages: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/MachineJobUsageInput"}}
+        outcomeOverride: {allOf: [{$ref: "#/components/schemas/MachineRunOutcome"}], nullable: true, description: "Null derives the outcome from the runs."}
         expectedVersion: {$ref: "#/components/schemas/Version"}
 
     DailyJobActivity:
@@ -10961,7 +11043,7 @@ components:
         runningNow: {type: integer, format: int64, minimum: 0, nullable: true, description: Running jobs plus printing unlinked prints. Null without machine_jobs.read.}
         runningMachineNames: {type: array, nullable: true, items: {type: string}}
         needsOutcome: {type: integer, format: int64, minimum: 0, nullable: true}
-        unlinkedPrints: {type: integer, format: int64, minimum: 0, nullable: true, description: Ended prints without a job.}
+        unassignedRuns: {type: integer, format: int64, minimum: 0, nullable: true, description: Ended recorded runs without a job.}
         billingIssues: {type: integer, format: int64, minimum: 0, nullable: true, description: Jobs with incomplete pricing or an outdated order.}
         activeItems: {type: array, nullable: true, maxItems: 6, items: {$ref: "#/components/schemas/WorkItem"}, description: "Running, printing, unlinked and needs-outcome items in that order, newest first within each."}
         activeTotal: {type: integer, format: int64, minimum: 0, nullable: true}
@@ -10973,14 +11055,14 @@ components:
     WorkItemStatus:
       type: string
       description: >-
-        Jobs: running, needs_outcome or the recorded outcome (see MachineJobStatus). Unlinked prints: printing while
-        the printer reports the run, unlinked once it has ended.
-      enum: [running, printing, unlinked, needs_outcome, successful, partial_failure, failed, cancelled]
+        Jobs: running, needs_outcome or the outcome (see MachineJobStatus). Unassigned recorded runs: running_unassigned
+        while the machine reports the run, unassigned once it has ended.
+      enum: [running, running_unassigned, unassigned, needs_outcome, successful, partial_failure, failed, cancelled]
 
-    WorkItemRun:
+    WorkItemSource:
       type: string
-      description: manual (job entered by staff) or printer (job with a linked print, or an unlinked print).
-      enum: [manual, printer]
+      description: manual for jobs with only manual runs; recorded for jobs with a recorded run and for unassigned runs.
+      enum: [manual, recorded]
 
     JobBillingState:
       type: string
@@ -11002,23 +11084,22 @@ components:
     WorkItem:
       type: object
       additionalProperties: false
-      required: [kind, id, displayId, machineId, machineName, status, run, startedAt]
+      required: [kind, id, displayId, machineId, machineName, status, source, runCount, startedAt]
       properties:
-        kind: {type: string, enum: [job, print]}
-        id: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: "Job ID for kind job; print ID for kind print."}
+        kind: {type: string, enum: [job, run]}
+        id: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], description: "Job ID for kind job; run ID for kind run."}
         displayId: {type: string}
         title: {type: string, nullable: true, description: Job name (jobs only).}
-        fileName: {type: string, nullable: true, description: Printer-reported file name of the print or the job's linked print.}
-        printId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        printDisplayId: {type: string, nullable: true}
+        fileName: {type: string, nullable: true, description: "File name of the run, or of the job's latest recorded run."}
+        runCount: {type: integer, minimum: 0, description: "Runs of the job (1 for an unassigned run)."}
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         machineName: {type: string}
         customer: {allOf: [{$ref: "#/components/schemas/BillingParty"}], nullable: true}
         operator: {allOf: [{$ref: "#/components/schemas/Operator"}], nullable: true}
         status: {$ref: "#/components/schemas/WorkItemStatus"}
-        run: {$ref: "#/components/schemas/WorkItemRun"}
+        source: {$ref: "#/components/schemas/WorkItemSource"}
         startedAt: {type: string, format: date-time}
-        endsAt: {type: string, format: date-time, nullable: true, description: "Job end, or the print end once it has ended."}
+        endsAt: {type: string, format: date-time, nullable: true, description: "End once ended; the planned or estimated end while running."}
         estimatedEndAt: {type: string, format: date-time, nullable: true}
         progressPercent: {type: integer, minimum: 0, maximum: 100, nullable: true}
         effectivePrice: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true}
@@ -11037,7 +11118,7 @@ components:
 
     MachineAvailability:
       type: string
-      description: retired and maintenance come from the machine status; in_use when a job is running or a print is printing.
+      description: retired and maintenance come from the machine status; in_use while a run is running on the machine.
       enum: [in_use, available, maintenance, retired]
 
     MachineCurrentItem:
@@ -11046,13 +11127,13 @@ components:
       additionalProperties: false
       required: [kind, id, displayId, startedAt]
       properties:
-        kind: {type: string, enum: [job, print]}
+        kind: {type: string, enum: [job, run]}
         id: {$ref: "#/components/schemas/UUIDv7"}
         displayId: {type: string}
         title: {type: string, nullable: true}
         fileName: {type: string, nullable: true}
         startedAt: {type: string, format: date-time}
-        endsAt: {type: string, format: date-time, nullable: true, description: Job end or the print's estimated end.}
+        endsAt: {type: string, format: date-time, nullable: true, description: "Planned or estimated end of the running job or unassigned run."}
 
     MachineConnectorState:
       type: object

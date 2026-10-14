@@ -2,20 +2,20 @@
 import { Tag } from '@carbon/react';
 import { CheckmarkFilled, CircleDash, ErrorFilled, Flag, InProgress, Misuse, PauseFilled, WarningAltFilled, WarningFilled } from '@carbon/icons-react';
 import type {
-  JobBillingState, MachineAvailability, MachineConnectorState, MachineCurrentItem, MachineJob, MachineJobOutcome, PriceAdjustmentKind, Print, PrintState, WorkItem, WorkItemBilling, WorkItemStatus,
+  JobBillingState, MachineAvailability, MachineConnectorState, MachineCurrentItem, MachineJob, MachineJobOutcome, MachineJobUsage, MachineRun, MachineRunState, PriceAdjustmentKind, WorkItem, WorkItemBilling, WorkItemStatus,
 } from '../../../api/generated/models';
 import { formatMoney, formatQuantity } from './format';
 
 // ---------------------------------------------------------------------------
 // Display names
-// Only a job has an editable name. A print keeps the name its printer reported. A job without a name reads as its
-// linked print's file name, made readable, else as its job number.
+// Only a job has an editable name. A recorded run keeps the file name its machine reported. A job without a name
+// reads as the file name of its latest recorded run, made readable, else as its job number.
 // ---------------------------------------------------------------------------
 
 /** "gearbox_housing_v3.gcode" → "Gearbox housing v3": a readable suggestion for a job name. */
 export function nameFromFile(fileName: string) {
-  // Slicers stack extensions (Bambu: part.gcode.3mf), so strip known print extensions first.
-  const stripped = fileName.replace(/(\.(gcode|bgcode|3mf|stl|step|stp|obj|svg|dxf))+$/i, '');
+  // Slicers stack extensions (Bambu: part.gcode.3mf), so strip known file extensions first.
+  const stripped = fileName.replace(/(\.(gcode|bgcode|3mf|stl|step|stp|obj|svg|dxf|ai|pes|dst|exp|jef|xxx))+$/i, '');
   const base = (stripped === fileName ? fileName.replace(/\.[^.]+$/, '') : stripped).replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
   return base ? base.charAt(0).toUpperCase() + base.slice(1) : fileName;
 }
@@ -23,34 +23,104 @@ export function nameFromFile(fileName: string) {
 /** Title → readable file name → display ID. Works for anything that carries these three values. */
 export const displayName = (item: { title?: string | null; fileName?: string | null; displayId: string }) => item.title || (item.fileName ? nameFromFile(item.fileName) : item.displayId);
 
-/** The job's name, else its linked print's printer name, else the job number. */
-export const machineJobName = (job: Pick<MachineJob, 'title' | 'displayId' | 'print'>) => displayName({ title: job.title, fileName: job.print?.fileName, displayId: job.displayId });
+/** Runs that count towards a job (replaced manual runs are history only). */
+export const activeRuns = (job: Pick<MachineJob, 'runs'>) => job.runs.filter((run) => run.state !== 'replaced');
 
-/** A work item row: a job reads by its display name, an unlinked print by the name its printer reported. */
-export const workItemName = (item: Pick<WorkItem, 'kind' | 'title' | 'fileName' | 'displayId'>) => item.kind === 'print' ? item.fileName || item.displayId : displayName(item);
+/** File name of the job's latest recorded run that is still part of the job. */
+export const jobFileName = (job: Pick<MachineJob, 'runs'>) => activeRuns(job).filter((run) => run.source === 'recorded' && run.fileName)
+  .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())[0]?.fileName ?? null;
 
-/** Other identifiers shown under the name (job number, file name; "Unlinked" for prints). */
-export function workItemSecondaryIds(item: Pick<WorkItem, 'kind' | 'title' | 'fileName' | 'displayId' | 'printDisplayId'>) {
-  if (item.kind === 'print') return [item.displayId, 'Unlinked'];
+/** The job's name, else its latest recorded run's machine name, else the job number. */
+export const machineJobName = (job: Pick<MachineJob, 'title' | 'displayId' | 'runs'>) => displayName({ title: job.title, fileName: jobFileName(job), displayId: job.displayId });
+
+/** A run reads by its readable file name, else its run ID. */
+export const runName = (run: Pick<MachineRun, 'fileName' | 'displayId'>) => run.fileName ? nameFromFile(run.fileName) : run.displayId;
+
+/** A work item row: a job reads by its display name, an unassigned run by the name its machine reported. */
+export const workItemName = (item: Pick<WorkItem, 'kind' | 'title' | 'fileName' | 'displayId'>) => item.kind === 'run' ? item.fileName || item.displayId : displayName(item);
+
+/** Other identifiers shown under the name (job number, file name, run count; "Unassigned" for runs). */
+export function workItemSecondaryIds(item: Pick<WorkItem, 'kind' | 'title' | 'fileName' | 'displayId' | 'runCount'>) {
+  if (item.kind === 'run') return [item.displayId, 'Unassigned'];
   const name = workItemName(item);
-  return [item.displayId, ...(item.fileName ? [item.fileName] : [])].filter((value) => value !== name);
+  return [item.displayId, ...(item.fileName ? [item.fileName] : []), ...(item.runCount > 1 ? [`${item.runCount} runs`] : [])].filter((value) => value !== name);
 }
 
 /** Name of the item a machine is currently working on. */
-export const currentItemName = (current: NonNullable<MachineCurrentItem>) => current.kind === 'print' ? (current.fileName ? nameFromFile(current.fileName) : current.displayId) : displayName(current);
+export const currentItemName = (current: NonNullable<MachineCurrentItem>) => current.kind === 'run' ? (current.fileName ? nameFromFile(current.fileName) : current.displayId) : displayName(current);
 
 // ---------------------------------------------------------------------------
 // Runs
+// A run is one machine run: entered by hand (manual) or reported by a machine connector (recorded).
 // ---------------------------------------------------------------------------
 
-export const isManualRunning = (job: Pick<MachineJob, 'run' | 'outcome' | 'endsAt'>, now: number) => job.run === 'manual' && job.outcome !== 'cancelled' && new Date(job.endsAt).getTime() > now;
+/** End of a run: the real end, otherwise the planned or estimated end. */
+export const runEnd = (run: Pick<MachineRun, 'endedAt' | 'estimatedEndAt'>) => run.endedAt ?? run.estimatedEndAt ?? null;
 
-/** 0-100 progress of a manual run. */
-export function runProgress(job: Pick<MachineJob, 'startsAt' | 'endsAt'>, now: number) {
-  const start = new Date(job.startsAt).getTime();
-  const end = new Date(job.endsAt).getTime();
+/**
+ * State of a run now. A manual run is `running` until its planned end; the clock moves on between refreshes, so a
+ * manual run whose planned end has passed already reads as finished.
+ */
+export function runStateNow(run: Pick<MachineRun, 'source' | 'state' | 'estimatedEndAt'>, now: number): MachineRunState {
+  return run.source === 'manual' && run.state === 'running' && run.estimatedEndAt && new Date(run.estimatedEndAt).getTime() <= now ? 'finished' : run.state;
+}
+
+export const isRunLive = (run: Pick<MachineRun, 'source' | 'state' | 'estimatedEndAt'>, now: number) => runStateNow(run, now) === 'running';
+
+/** 0-100 progress: the machine's figure, else the elapsed share of a planned runtime. */
+export function runProgress(run: Pick<MachineRun, 'startedAt' | 'estimatedEndAt' | 'endedAt' | 'progressPercent'>, now: number) {
+  if (run.progressPercent != null) return run.progressPercent;
+  const start = new Date(run.startedAt).getTime();
+  const end = new Date(run.endedAt ?? run.estimatedEndAt ?? run.startedAt).getTime();
   if (end <= start) return 100;
   return Math.max(0, Math.min(100, Math.round(((now - start) / (end - start)) * 100)));
+}
+
+const runStateMeta: Record<MachineRunState, { label: string; type: 'blue' | 'green' | 'red' | 'gray' | 'outline'; icon: typeof InProgress }> = {
+  running: { label: 'Running', type: 'blue', icon: InProgress },
+  finished: { label: 'Finished', type: 'green', icon: CheckmarkFilled },
+  failed: { label: 'Failed', type: 'red', icon: ErrorFilled },
+  cancelled: { label: 'Cancelled', type: 'gray', icon: Misuse },
+  unknown: { label: 'Unknown', type: 'gray', icon: CircleDash },
+  replaced: { label: 'Replaced', type: 'outline', icon: CircleDash },
+};
+
+export function RunStateTag({ state, size = 'md' }: { state: MachineRunState; size?: 'sm' | 'md' }) {
+  const meta = runStateMeta[state];
+  return <Tag type={meta.type} size={size} renderIcon={meta.icon}>{meta.label}</Tag>;
+}
+
+export function RunSourceTag({ source, size = 'md' }: { source: MachineRun['source']; size?: 'sm' | 'md' }) {
+  return source === 'recorded' ? <Tag type="teal" size={size}>Recorded</Tag> : <Tag type="gray" size={size}>Manual</Tag>;
+}
+
+/** Marks a value that the machine reported (material, outcome) rather than a person. */
+export function FromMachineTag({ size = 'sm' }: { size?: 'sm' | 'md' }) {
+  return <Tag type="outline" size={size}>From machine</Tag>;
+}
+
+/** "12.5 g PLA Black, 3 pcs Insert", or "None recorded". */
+export const usagesText = (usages: Pick<MachineJobUsage, 'quantity' | 'unit' | 'materialName'>[]) => usages.length
+  ? usages.map((usage) => `${formatQuantity(usage.quantity)} ${usage.unit} ${usage.materialName}`).join(', ') : 'None recorded';
+
+/** What a machine reported for a run (grams). */
+export const reportedUsageText = (run: Pick<MachineRun, 'reportedUsage'>) => run.reportedUsage
+  ? `${formatQuantity(run.reportedUsage.quantity)} g ${run.reportedUsage.materialName ?? 'unknown material'}${run.reportedUsage.spoolDisplayId ? ` (${run.reportedUsage.spoolDisplayId})` : ''}`
+  : 'Nothing reported';
+
+/** The manual runs a recorded run would replace: still part of the job and entered by hand. */
+export const manualRuns = (job: Pick<MachineJob, 'runs'>) => activeRuns(job).filter((run) => run.source === 'manual');
+
+/** True when replacing the job's manual runs changes anything they recorded. */
+export function replaceChangesAnything(job: Pick<MachineJob, 'runs'>, run: Pick<MachineRun, 'startedAt' | 'durationSeconds' | 'usages' | 'reportedUsage'>) {
+  const manual = manualRuns(job);
+  if (manual.length === 0) return false;
+  const start = Math.min(...manual.map((item) => new Date(item.startedAt).getTime()));
+  const duration = manual.reduce((sum, item) => sum + item.durationSeconds, 0);
+  const usages = manual.flatMap((item) => item.usages);
+  const reported = run.reportedUsage;
+  const sameUsage = !reported || (usages.length === 1 && Number(usages[0].quantity) === Number(reported.quantity) && usages[0].materialName === reported.materialName);
+  return start !== new Date(run.startedAt).getTime() || duration !== run.durationSeconds || !sameUsage;
 }
 
 // ---------------------------------------------------------------------------
@@ -95,6 +165,11 @@ const outcomeMeta: Record<MachineJobOutcome, { label: string; type: 'green' | 'r
 export const outcomeLabel = (outcome: MachineJobOutcome) => outcomeMeta[outcome].label;
 export const outcomeOptions = (Object.keys(outcomeMeta) as MachineJobOutcome[]).map((id) => ({ id, label: outcomeMeta[id].label }));
 
+/** Outcome of a run, "Not recorded" while it is missing. */
+export function RunOutcomeTag({ outcome, size = 'md' }: { outcome: MachineJobOutcome | null | undefined; size?: 'sm' | 'md' }) {
+  return outcome ? <OutcomeTag outcome={outcome} size={size} /> : <Tag type="gray" size={size}>Not recorded</Tag>;
+}
+
 export function OutcomeTag({ outcome, size = 'md' }: { outcome: MachineJobOutcome; size?: 'sm' | 'md' }) {
   const meta = outcomeMeta[outcome];
   return <Tag type={meta.type} size={size} renderIcon={meta.icon}>{meta.label}</Tag>;
@@ -106,8 +181,8 @@ export function OutcomeTag({ outcome, size = 'md' }: { outcome: MachineJobOutcom
 
 const rowStatusMeta: Record<WorkItemStatus, { label: string; type: 'blue' | 'green' | 'red' | 'warm-gray' | 'gray' | 'cyan' | 'magenta'; icon: typeof InProgress }> = {
   running: { label: 'Running', type: 'blue', icon: InProgress },
-  printing: { label: 'Printing (unlinked)', type: 'cyan', icon: InProgress },
-  unlinked: { label: 'Unlinked print', type: 'magenta', icon: Flag },
+  running_unassigned: { label: 'Running (unassigned)', type: 'cyan', icon: InProgress },
+  unassigned: { label: 'Unassigned run', type: 'magenta', icon: Flag },
   needs_outcome: { label: 'Needs outcome', type: 'magenta', icon: WarningAltFilled },
   successful: outcomeMeta.successful,
   partial_failure: outcomeMeta.partial_failure,
@@ -172,43 +247,4 @@ export function BillingTag({ billing }: { billing: WorkItemBilling | undefined }
   if (billing.state === 'price_incomplete') return <Tag type="red" size="sm">Price incomplete</Tag>;
   if (billing.state === 'not_on_order') return <Tag type="outline" size="sm">Not on order</Tag>;
   return null;
-}
-
-// ---------------------------------------------------------------------------
-// Prints
-// ---------------------------------------------------------------------------
-
-const printMeta: Record<PrintState, { label: string; type: 'blue' | 'green' | 'red' | 'gray' }> = {
-  printing: { label: 'Printing', type: 'blue' },
-  finished: { label: 'Finished', type: 'green' },
-  failed: { label: 'Failed', type: 'red' },
-  cancelled: { label: 'Cancelled', type: 'gray' },
-  unknown: { label: 'Unknown', type: 'gray' },
-};
-
-export function PrintStateTag({ state, size = 'md' }: { state: PrintState; size?: 'sm' | 'md' }) {
-  return <Tag type={printMeta[state].type} size={size}>{printMeta[state].label}</Tag>;
-}
-
-/** End of a print: the real end, otherwise the printer's estimate. */
-export const printEnd = (print: Pick<Print, 'endedAt' | 'estimatedEndAt'>) => print.endedAt ?? print.estimatedEndAt ?? null;
-
-export function printDurationSeconds(print: Pick<Print, 'startedAt' | 'endedAt' | 'estimatedEndAt'>) {
-  const end = printEnd(print);
-  return end ? Math.max(0, Math.round((new Date(end).getTime() - new Date(print.startedAt).getTime()) / 1000)) : null;
-}
-
-/** Reported usage is in grams. */
-export const printUsageText = (print: Pick<Print, 'reportedUsage'>) => print.reportedUsage
-  ? `${formatQuantity(print.reportedUsage.quantity)} g ${print.reportedUsage.materialName ?? 'unknown material'}${print.reportedUsage.spoolDisplayId ? ` (${print.reportedUsage.spoolDisplayId})` : ''}`
-  : 'Nothing reported';
-
-export const jobUsageText = (job: Pick<MachineJob, 'usages'>) => job.usages.length ? job.usages.map((usage) => `${formatQuantity(usage.quantity)} ${usage.unit} ${usage.materialName}`).join(', ') : 'None recorded';
-
-/** True when linking the print changes anything the manual run recorded. */
-export function replaceChangesAnything(job: Pick<MachineJob, 'startsAt' | 'durationSeconds' | 'usages'>, print: Pick<Print, 'startedAt' | 'endedAt' | 'estimatedEndAt' | 'reportedUsage'>) {
-  const duration = printDurationSeconds(print);
-  const reported = print.reportedUsage;
-  const sameUsage = !reported || (job.usages.length === 1 && Number(job.usages[0].quantity) === Number(reported.quantity) && job.usages[0].materialName === reported.materialName);
-  return new Date(job.startsAt).getTime() !== new Date(print.startedAt).getTime() || (duration !== null && duration !== job.durationSeconds) || !sameUsage;
 }

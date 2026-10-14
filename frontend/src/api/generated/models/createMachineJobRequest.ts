@@ -20,20 +20,13 @@ the required session and CSRF credentials.
  */
 import type { UUIDv7 } from './uUIDv7';
 import type { BillingPartyReference } from './billingPartyReference';
-import type { MachineJobOutcome } from './machineJobOutcome';
 import type { CreateMachineJobRequestPricingGroupId } from './createMachineJobRequestPricingGroupId';
-import type { MachineJobUsageInput } from './machineJobUsageInput';
+import type { ManualRunInput } from './manualRunInput';
 
-/**
- * An endsAt in the future starts a simulated manual run that shows as running until then; outcome must then be unknown and is recorded later.
- */
 export interface CreateMachineJobRequest {
   machineId: UUIDv7;
-  startsAt: string;
-  endsAt: string;
   customer: BillingPartyReference;
   operatorPersonId: UUIDv7;
-  outcome: MachineJobOutcome;
   /**
    * @minLength 1
    * @maxLength 200
@@ -47,6 +40,5 @@ export interface CreateMachineJobRequest {
   notes?: string | null;
   /** @nullable */
   pricingGroupId?: CreateMachineJobRequestPricingGroupId;
-  /** @maxItems 50 */
-  usages: MachineJobUsageInput[];
+  run: ManualRunInput;
 }

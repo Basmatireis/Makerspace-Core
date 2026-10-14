@@ -3,6 +3,7 @@ package httpapi
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/visitor"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestGrantDTOAlwaysSerializesDeviceTypeIDsAsArray(t *testing.T) {
@@ -679,5 +681,16 @@ func testConfig(t *testing.T) config.Config {
 	return config.Config{
 		PublicBaseURL: base, SessionCookieName: "makerspace_session", CSRFCookieName: "makerspace_csrf",
 		SessionIdleTTL: 6 * time.Hour, SessionAbsoluteTTL: 72 * time.Hour, PasswordResetTTL: 30 * time.Minute,
+	}
+}
+
+func TestDeadlockAndSerializationAbortsAreRetryableConflicts(t *testing.T) {
+	for _, code := range []string{"40P01", "40001"} {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "/", nil)
+		writeAPIError(recorder, request, fmt.Errorf("wrapped: %w", &pgconn.PgError{Code: code}), slog.New(slog.NewJSONHandler(io.Discard, nil)))
+		if recorder.Code != http.StatusConflict || !strings.Contains(recorder.Body.String(), `"retry_conflict"`) {
+			t.Fatalf("%s mapped to %d %s", code, recorder.Code, recorder.Body.String())
+		}
 	}
 }

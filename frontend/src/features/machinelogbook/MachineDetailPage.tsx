@@ -104,12 +104,12 @@ export function MachineDetailPage() {
           <Tile>
             <div className="mj-metric__label">In use now</div>
             <p>
-              <CarbonLink as={Link} to={current.kind === 'print' ? machineLogbookPaths.print(current.id) : machineLogbookPaths.job(current.id)}>
+              <CarbonLink as={Link} to={current.kind === 'run' ? machineLogbookPaths.run(current.id) : machineLogbookPaths.job(current.id)}>
                 {currentItemName(current)}
               </CarbonLink>
             </p>
             <p className="mj-secondary">
-              {current.kind === 'print' ? 'Reported by the printer' : 'Manual run'} · started {formatRelative(current.startedAt)}
+              {current.kind === 'run' ? 'Unassigned run' : 'Job'} · started {formatRelative(current.startedAt)}
               {current.endsAt ? ` · ends ~${formatTime(current.endsAt)}` : ''}
             </p>
           </Tile>

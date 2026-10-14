@@ -21,7 +21,7 @@ async function chooseCustomerAndOperator(page: Page, dialog = page.getByRole('di
 }
 
 test.describe('jobs', () => {
-  test('a new job that ends in the future runs, is cancelled early and ends as Cancelled', async ({ page, world }) => {
+  test('a new job whose first run ends in the future runs, the run is cancelled early and the job ends as Cancelled', async ({ page, world }) => {
     await page.goto(`${base}/jobs`);
     await page.getByRole('button', { name: 'New job' }).first().click();
     const dialog = page.getByRole('dialog', { name: 'New job' });
@@ -38,28 +38,30 @@ test.describe('jobs', () => {
 
     await expect(page).toHaveURL(`${base}/jobs/${ids.newJob}`);
     await expect(page.getByRole('heading', { name: 'Lamp prototype' })).toBeVisible();
-    await expect(page.getByText('Running · manual')).toBeVisible();
     await expect(page.getByRole('progressbar', { name: 'Run progress' })).toBeVisible();
 
-    const created = world.bodyOf('POST', '/api/v1/machine-jobs');
+    // The first run carries start, end, outcome and material; the job itself carries none of them.
+    const created = world.bodyOf('POST', '/api/v1/machine-jobs') as { run: Record<string, unknown> } & Record<string, unknown>;
     expect(created).toMatchObject({
-      machineId: ids.laser, title: 'Lamp prototype', customer: { kind: 'organization', id: customer.id }, operatorPersonId: operator.personId, outcome: 'unknown',
-      usages: [{ ownership: 'makerspace', materialId: ids.pla, quantity: '25', quantityBasis: 'actual' }],
+      machineId: ids.laser, title: 'Lamp prototype', customer: { kind: 'organization', id: customer.id }, operatorPersonId: operator.personId,
+      run: { outcome: null, usages: [{ ownership: 'makerspace', materialId: ids.pla, quantity: '25', quantityBasis: 'actual' }] },
     });
-    expect(new Date(String(created!.endsAt)).getTime()).toBeGreaterThan(Date.now() + 3_600_000);
+    expect(new Date(String(created.run.endsAt)).getTime()).toBeGreaterThan(Date.now() + 3_600_000);
 
-    await page.getByRole('button', { name: 'Cancel run' }).click();
+    const runs = page.getByRole('table', { name: 'Runs' });
+    await runs.locator('.cds--overflow-menu').click();
+    await page.getByRole('menuitem', { name: 'Cancel run' }).click();
     const confirm = page.getByRole('alertdialog');
     await expect(confirm).toBeVisible();
-    expect(world.sent('POST', `/api/v1/machine-jobs/${ids.newJob}/run-cancellation`)).toHaveLength(0);
+    expect(world.sent('POST', `/api/v1/machine-runs/${ids.runNew}/cancellation`)).toHaveLength(0);
     await confirm.getByRole('button', { name: 'Cancel run' }).click();
 
     await expect(page.getByText('Run cancelled', { exact: true })).toBeVisible();
-    expect(world.bodyOf('POST', `/api/v1/machine-jobs/${ids.newJob}/run-cancellation`)).toEqual({ expectedVersion: 1 });
+    expect(world.bodyOf('POST', `/api/v1/machine-runs/${ids.runNew}/cancellation`)).toEqual({ expectedVersion: 1 });
     // The job reads as finished: the outcome tag says Cancelled and the run can no longer be cancelled.
-    await expect(page.getByText('Cancelled', { exact: true }).first()).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Cancel run' })).toHaveCount(0);
-    await expect(page.getByText('Running · manual')).toHaveCount(0);
+    await expect(runs.getByText('Cancelled', { exact: true }).first()).toBeVisible();
+    await expect(runs.locator('.cds--overflow-menu').first()).toBeVisible();
+    await expect(runs.getByRole('progressbar')).toHaveCount(0);
   });
 
   test('keeps unsaved input of the job form until the person discards it', async ({ page, world }) => {
@@ -85,12 +87,10 @@ test.describe('jobs', () => {
     await expect(page.getByText('Record the outcome', { exact: true })).toBeVisible();
     const save = page.getByRole('button', { name: 'Save outcome' });
     await expect(save).toBeDisabled();
-    await page.getByLabel('Outcome').selectOption('failed');
+    await page.getByLabel('Outcome of RN-2026-000002').selectOption('failed');
     await save.click();
     await expect(page.getByText('Outcome recorded', { exact: true })).toBeVisible();
-    expect(world.bodyOf('PATCH', `/api/v1/machine-jobs/${ids.jobNeedsOutcome}`)).toMatchObject({
-      outcome: 'failed', machineId: ids.laser, operatorPersonId: operator.personId, customer: { kind: 'organization', id: customer.id }, expectedVersion: 3,
-    });
+    expect(world.bodyOf('PATCH', `/api/v1/machine-runs/${ids.runNeedsOutcome}`)).toEqual({ outcome: 'failed', expectedVersion: 2 });
     await expect(page.getByText('Record the outcome', { exact: true })).toHaveCount(0);
     await expect(page.getByText('Failed', { exact: true }).first()).toBeVisible();
   });
@@ -125,57 +125,107 @@ test.describe('jobs', () => {
   });
 });
 
-test.describe('printer prints', () => {
-  test('creates a job from an unlinked print with the print data prefilled', async ({ page, world }) => {
-    await page.goto(`${base}/jobs?status=unlinked`);
+test.describe('runs', () => {
+  test('adds a run (a reprint) to a job and sums the runtime', async ({ page, world }) => {
+    await page.goto(`${base}/jobs/${ids.jobSuccess}`);
+    await expect(page.getByRole('heading', { name: 'Gearbox housing' })).toBeVisible();
+    await expect(page.getByText('Runtime', { exact: true }).locator('xpath=following-sibling::dd')).toContainText('1 h 30 min');
+    await page.getByRole('button', { name: 'Add run' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Add run' });
+    await expect(dialog.getByLabel('Outcome')).toHaveValue('successful');
+    await dialog.getByLabel('Material', { exact: true }).selectOption({ label: 'PLA Black (g)' });
+    await dialog.getByLabel('Quantity (g)').fill('25');
+    await dialog.getByRole('button', { name: 'Add run' }).click();
+
+    await expect(page.getByText('Run added', { exact: true })).toBeVisible();
+    expect(world.bodyOf('POST', `/api/v1/machine-jobs/${ids.jobSuccess}/runs`)).toMatchObject({
+      expectedJobVersion: 3, run: { outcome: 'successful', usages: [{ ownership: 'makerspace', materialId: ids.pla, quantity: '25', quantityBasis: 'actual' }] },
+    });
+    const runs = page.getByRole('table', { name: 'Runs' });
+    await expect(runs.getByRole('link', { name: 'RN-2026-000020' })).toBeVisible();
+    await expect(runs.getByRole('link', { name: 'RN-2026-000001' })).toBeVisible();
+    await expect(page.getByText('Runtime', { exact: true }).locator('xpath=following-sibling::dd')).toContainText('2 h 30 min');
+  });
+
+  test('creates a job from an unassigned recorded run', async ({ page, world }) => {
+    await page.goto(`${base}/jobs?status=unassigned`);
     await page.getByRole('link', { name: 'bracket_v2.gcode' }).click();
-    await expect(page).toHaveURL(`${base}/jobs/prints/${ids.printUnlinked}`);
-    await expect(page.getByRole('heading', { name: /bracket_v2\.gcode/ })).toBeVisible();
+    await expect(page).toHaveURL(`${base}/jobs/runs/${ids.runUnassigned}`);
+    await expect(page.getByRole('heading', { name: 'Bracket v2' })).toBeVisible();
     await page.getByRole('button', { name: 'Create job' }).click();
 
     const dialog = page.getByRole('dialog', { name: 'New job' });
     await expect(dialog.getByLabel('Name (optional)')).toHaveValue('Bracket v2');
     await expect(dialog.getByLabel('Machine')).toHaveValue('Bambu H2D #1');
-    await expect(dialog.getByLabel('Outcome')).toHaveValue('successful');
-    await expect(dialog.getByLabel('Material', { exact: true })).toHaveValue(ids.pla);
-    await expect(dialog.getByLabel('Quantity (g)')).toHaveValue('42');
     await dialog.getByLabel('Name (optional)').fill('Bracket for Jonas');
     await chooseCustomerAndOperator(page, dialog);
     await dialog.getByRole('button', { name: 'Create job' }).click();
 
-    await expect(page.getByText('Job created and linked', { exact: true })).toBeVisible();
-    expect(world.bodyOf('POST', `/api/v1/prints/${ids.printUnlinked}/job`)).toMatchObject({
-      title: 'Bracket for Jonas', customer: { kind: 'organization', id: customer.id }, operatorPersonId: operator.personId, outcome: 'successful',
-      usages: [{ ownership: 'makerspace', materialId: ids.pla, quantity: '42', quantityBasis: 'actual' }],
+    await expect(page.getByText('Job created', { exact: true })).toBeVisible();
+    expect(world.bodyOf('POST', `/api/v1/machine-runs/${ids.runUnassigned}/job`)).toMatchObject({
+      title: 'Bracket for Jonas', customer: { kind: 'organization', id: customer.id }, operatorPersonId: operator.personId,
     });
-    // The page stays open and now shows the job the print is linked to.
-    await expect(page).toHaveURL(`${base}/jobs/prints/${ids.printUnlinked}`);
+    // The page stays open and now shows the job the run belongs to.
+    await expect(page).toHaveURL(`${base}/jobs/runs/${ids.runUnassigned}`);
     await expect(page.getByRole('link', { name: /J-2026-000011/ })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Create job' })).toHaveCount(0);
   });
 
-  test('links an unlinked print to a manual job after comparing both runs', async ({ page, world }) => {
-    await page.goto(`${base}/jobs/prints/${ids.printUnlinked}`);
-    await page.getByRole('button', { name: 'Link to job' }).click();
+  test('attaches an unassigned run to a manual job and replaces the manual run', async ({ page, world }) => {
+    await page.goto(`${base}/jobs/runs/${ids.runUnassigned}`);
+    await page.getByRole('button', { name: 'Attach to job' }).click();
     const dialog = page.getByRole('dialog');
-    const link = dialog.getByRole('button', { name: /^Link (print|and replace)$/ });
-    await expect(link).toBeDisabled();
+    const attach = dialog.getByRole('button', { name: /^Attach (run|and replace)$/ });
+    await expect(attach).toBeDisabled();
     await dialog.getByRole('combobox', { name: /Job/ }).click();
-    // Jobs that already have printer data are not offered.
-    await expect(page.getByRole('option', { name: /Gearbox/ })).toHaveCount(0);
     await page.getByRole('option', { name: /J-2026-000003 Prototype bracket/ }).click();
 
-    await expect(dialog.getByText('Manual entry')).toBeVisible();
-    await expect(dialog.getByText('From printer', { exact: true })).toBeVisible();
-    await expect(dialog.getByText(/The manual run is replaced with the printer's data\. Price is recalculated\./)).toBeVisible();
-    await dialog.getByRole('button', { name: 'Link and replace' }).click();
+    await expect(dialog.getByText('Manual run', { exact: true })).toBeVisible();
+    await expect(dialog.getByRole('checkbox', { name: 'Replace manual runs' })).toBeChecked();
+    await expect(dialog.getByText('Manual runs replaced', { exact: true })).toBeVisible();
+    await dialog.getByRole('button', { name: 'Attach and replace' }).click();
 
-    await expect(page.getByText('J-2026-000003 now uses the data from PR-2026-000008.')).toBeVisible();
-    expect(world.bodyOf('PUT', `/api/v1/prints/${ids.printUnlinked}/job`)).toEqual({ machineJobId: ids.jobManualBambu, expectedJobVersion: 3 });
-    // The print is linked now, so it offers neither action any more.
+    await expect(page.getByText('J-2026-000003 now uses the data from RN-2026-000008.')).toBeVisible();
+    expect(world.bodyOf('PUT', `/api/v1/machine-runs/${ids.runUnassigned}/job`)).toEqual({ machineJobId: ids.jobManualBambu, replaceManualRuns: true, expectedJobVersion: 3 });
     await expect(page.getByRole('link', { name: /J-2026-000003/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Create job' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Link to job' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Attach to job' })).toHaveCount(0);
+  });
+
+  test('attaches a running recorded run from the job and detaches it again', async ({ page, world }) => {
+    await page.goto(`${base}/jobs/${ids.jobManualBambu}`);
+    await page.getByRole('button', { name: 'Attach recorded run' }).click();
+    const dialog = page.getByRole('dialog');
+    await dialog.getByRole('combobox', { name: /Recorded run/ }).click();
+    await page.getByRole('option', { name: /Enclosure lid/ }).click();
+    await dialog.getByRole('checkbox', { name: 'Replace manual runs' }).uncheck({ force: true });
+    await dialog.getByRole('button', { name: 'Attach run' }).click();
+    await expect(page.getByText('RN-2026-000009 is part of J-2026-000003.')).toBeVisible();
+    expect(world.bodyOf('PUT', `/api/v1/machine-runs/${ids.runRunning}/job`)).toEqual({ machineJobId: ids.jobManualBambu, replaceManualRuns: false, expectedJobVersion: 3 });
+    const runs = page.getByRole('table', { name: 'Runs' });
+    await expect(runs.getByRole('link', { name: 'RN-2026-000009' })).toBeVisible();
+    await expect(runs.getByRole('progressbar')).toBeVisible();
+
+    await runs.getByRole('row', { name: /RN-2026-000009/ }).locator('.cds--overflow-menu').click();
+    await page.getByRole('menuitem', { name: 'Detach from job' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Detach' }).click();
+    await expect(page.getByText('Run detached', { exact: true })).toBeVisible();
+    expect(world.sent('DELETE', `/api/v1/machine-runs/${ids.runRunning}/job`)).toHaveLength(1);
+    await expect(runs.getByRole('link', { name: 'RN-2026-000009' })).toHaveCount(0);
+  });
+
+  test('shows the recorded run of a job with the "From machine" labels', async ({ page }) => {
+    await page.goto(`${base}/jobs/${ids.jobLinked}`);
+    const runs = page.getByRole('table', { name: 'Runs' });
+    await expect(runs.getByRole('link', { name: 'RN-2026-000007' })).toBeVisible();
+    await expect(runs.getByText('From machine', { exact: true })).toHaveCount(2);
+    await runs.getByRole('link', { name: 'RN-2026-000007' }).click();
+    await expect(page).toHaveURL(`${base}/jobs/runs/${ids.runLinked}`);
+    await expect(page.getByRole('heading', { name: 'Gearbox housing v3' })).toBeVisible();
+  });
+
+  test('redirects the former print URL to the run', async ({ page }) => {
+    await page.goto(`${base}/jobs/prints/${ids.runUnassigned}`);
+    await expect(page).toHaveURL(`${base}/jobs/runs/${ids.runUnassigned}`);
   });
 });
 

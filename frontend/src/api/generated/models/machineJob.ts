@@ -20,13 +20,11 @@ the required session and CSRF credentials.
  */
 import type { UUIDv7 } from './uUIDv7';
 import type { Machine } from './machine';
-import type { MachineJobRun } from './machineJobRun';
-import type { MachineJobPrintReference } from './machineJobPrintReference';
+import type { MachineRun } from './machineRun';
 import type { MachineJobCustomer } from './machineJobCustomer';
 import type { MachineJobOperator } from './machineJobOperator';
 import type { MachineJobOutcome } from './machineJobOutcome';
 import type { MachineJobStatus } from './machineJobStatus';
-import type { MachineJobUsage } from './machineJobUsage';
 import type { PricingStatus } from './pricingStatus';
 import type { MachineJobPricingSnapshot } from './machineJobPricingSnapshot';
 import type { MachineJobCalculatedPrice } from './machineJobCalculatedPrice';
@@ -43,21 +41,38 @@ export interface MachineJob {
    */
   title?: string | null;
   machine: Machine;
-  startsAt: string;
-  endsAt: string;
-  /** @minimum 1 */
+  /** Oldest first, including replaced manual runs. */
+  runs: MachineRun[];
+  /**
+   * Start of the earliest run.
+   * @nullable
+   */
+  startedAt?: string | null;
+  /**
+   * End of the latest run; null while a run is running.
+   * @nullable
+   */
+  endedAt?: string | null;
+  /**
+   * Planned or estimated end while running.
+   * @nullable
+   */
+  expectedEndAt?: string | null;
+  /**
+   * Sum of the runtime of all runs that are not replaced.
+   * @minimum 0
+   */
   durationSeconds: number;
-  run: MachineJobRun;
-  print?: MachineJobPrintReference;
   /** @nullable */
   customer?: MachineJobCustomer;
   /** @nullable */
   operator?: MachineJobOperator;
+  /** The staff override, otherwise derived from the runs (all successful, cancelled or failed gives that outcome; a mix gives partial_failure; unknown while a run has no outcome). */
   outcome: MachineJobOutcome;
+  outcomeOverridden: boolean;
   status: MachineJobStatus;
   /** @nullable */
   notes?: string | null;
-  usages: MachineJobUsage[];
   pricingStatus: PricingStatus;
   pricingSnapshot?: MachineJobPricingSnapshot;
   /** @nullable */

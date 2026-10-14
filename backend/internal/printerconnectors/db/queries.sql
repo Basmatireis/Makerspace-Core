@@ -141,19 +141,19 @@ UPDATE printer_connector_assignments SET applied_configuration_version=sqlc.arg(
 WHERE id=sqlc.arg(id) AND connector_id=sqlc.arg(connector_id) AND ended_at IS NULL;
 
 -- name: NextPrintSequence :one
-SELECT nextval('print_display_sequence')::bigint;
+SELECT nextval('machine_run_display_sequence')::bigint;
 
 -- name: InsertObservedRun :one
-INSERT INTO printer_observed_runs (id, display_id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at)
-VALUES (sqlc.arg(id), sqlc.arg(display_id), sqlc.arg(assignment_id), sqlc.arg(machine_id), sqlc.narg(vendor_job_id), sqlc.arg(state), sqlc.arg(history_complete), sqlc.arg(observed_at), sqlc.arg(observed_at))
+INSERT INTO machine_runs (id, display_id, source, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at)
+VALUES (sqlc.arg(id), sqlc.arg(display_id), 'recorded', sqlc.arg(assignment_id), sqlc.arg(machine_id), sqlc.narg(vendor_job_id), sqlc.arg(state), sqlc.arg(history_complete), sqlc.arg(observed_at), sqlc.arg(observed_at))
 ON CONFLICT (id) DO NOTHING
 RETURNING *;
 
 -- name: UpdateObservedRun :one
-UPDATE printer_observed_runs SET
+UPDATE machine_runs SET
     vendor_job_id=COALESCE(vendor_job_id, sqlc.narg(vendor_job_id)::text),
     state=CASE
-        WHEN state IN ('completed','failed','cancelled') THEN state
+        WHEN state IN ('finished','failed','cancelled') THEN state
         WHEN sqlc.arg(observed_at)::timestamptz >= last_observed_at THEN sqlc.arg(state)::text
         ELSE state
     END,
@@ -171,7 +171,7 @@ WHERE id=sqlc.arg(id) AND assignment_id=sqlc.arg(assignment_id) AND machine_id=s
 RETURNING *;
 
 -- name: UpdateObservedRunFacts :exec
-UPDATE printer_observed_runs SET
+UPDATE machine_runs SET
     started_at=sqlc.narg(started_at)::timestamptz,
     ended_at=sqlc.narg(ended_at)::timestamptz,
     file_name=COALESCE(sqlc.narg(file_name)::text, file_name),
@@ -180,7 +180,7 @@ UPDATE printer_observed_runs SET
 WHERE id=sqlc.arg(id);
 
 -- name: SetObservedRunReport :execrows
-UPDATE printer_observed_runs r SET reported_quantity_g=sqlc.arg(quantity_g), reported_quantity_basis=sqlc.arg(quantity_basis),
+UPDATE machine_runs r SET reported_quantity_g=sqlc.arg(quantity_g), reported_quantity_basis=sqlc.arg(quantity_basis),
     reported_spool_id=sqlc.narg(spool_id), reported_event_id=sqlc.arg(event_id)
 WHERE r.id=sqlc.arg(id) AND (r.reported_event_id IS NULL OR sqlc.arg(report_revision)::bigint >= COALESCE((SELECT e.report_revision FROM printer_events e WHERE e.id=r.reported_event_id), 0));
 
@@ -201,7 +201,7 @@ WHERE u.machine_id=sqlc.arg(machine_id) AND a.unmounted_at IS NULL;
 
 -- name: ListObservedRuns :many
 SELECT r.*, m.name AS machine_name
-FROM printer_observed_runs r JOIN machines m ON m.id=r.machine_id
+FROM machine_runs r JOIN machines m ON m.id=r.machine_id
 WHERE r.assignment_id IN (SELECT id FROM printer_connector_assignments WHERE connector_id=sqlc.arg(connector_id))
 ORDER BY r.last_observed_at DESC, r.id DESC LIMIT 100;
 
@@ -213,7 +213,7 @@ WHERE connector_id=sqlc.arg(connector_id)
 ORDER BY received_at DESC, id DESC LIMIT 100;
 
 -- name: GetObservedRunForUpdate :one
-SELECT * FROM printer_observed_runs WHERE id=sqlc.arg(id) FOR UPDATE;
+SELECT * FROM machine_runs WHERE id=sqlc.arg(id) AND source='recorded' FOR UPDATE;
 
 -- name: GetConnectorEventByKey :one
 SELECT * FROM printer_events WHERE source_id=sqlc.arg(source_id) AND event_key=sqlc.arg(event_key);
@@ -224,8 +224,8 @@ SELECT * FROM printer_events WHERE connector_assignment_id=sqlc.arg(assignment_i
 -- name: InsertConnectorEvent :one
 INSERT INTO printer_events (id, source_id, event_key, fingerprint, protocol_version, machine_id, kind, occurred_at,
     source_sequence, external_print_id, payload, connector_id, connector_assignment_id,
-    observed_run_id, configuration_version, application_state, application_reason, report_revision)
+    run_id, configuration_version, application_state, application_reason, report_revision)
 VALUES (sqlc.arg(id), sqlc.arg(source_id), sqlc.arg(event_key), sqlc.arg(fingerprint), sqlc.arg(protocol_version), sqlc.arg(machine_id),
     sqlc.arg(kind), sqlc.arg(occurred_at), sqlc.arg(source_sequence), sqlc.narg(external_print_id), sqlc.arg(payload),
-    sqlc.arg(connector_id), sqlc.arg(assignment_id), sqlc.narg(observed_run_id),
+    sqlc.arg(connector_id), sqlc.arg(assignment_id), sqlc.narg(run_id),
     sqlc.arg(configuration_version), sqlc.arg(application_state), sqlc.narg(application_reason), sqlc.narg(report_revision)) RETURNING *;

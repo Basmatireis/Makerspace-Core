@@ -19,7 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
-import type { PrinterObservedRunState } from './printerObservedRunState';
+import type { MachineRunState } from './machineRunState';
 import type { Version } from './version';
 
 export interface PrinterObservedRun {
@@ -32,7 +32,7 @@ export interface PrinterObservedRun {
    * @nullable
    */
   vendorJobId: string | null;
-  state: PrinterObservedRunState;
+  state: MachineRunState;
   historyComplete: boolean;
   firstObservedAt: string;
   lastObservedAt: string;

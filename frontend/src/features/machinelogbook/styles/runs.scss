@@ -1,0 +1,7 @@
+@use '@carbon/styles/scss/spacing' as *;
+
+// Layout glue for the Run detail screen.
+
+.mj-runs__events { display: grid; gap: $spacing-03; margin: 0; padding: 0; list-style: none; }
+.mj-runs__event { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: $spacing-03; padding-block: $spacing-03; border-block-end: 1px solid var(--cds-border-subtle); }
+.mj-runs__event:last-child { border-block-end: 0; }

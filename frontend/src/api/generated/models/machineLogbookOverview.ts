@@ -48,11 +48,11 @@ export interface MachineLogbookOverview {
    */
   needsOutcome?: number | null;
   /**
-   * Ended prints without a job.
+   * Ended recorded runs without a job.
    * @minimum 0
    * @nullable
    */
-  unlinkedPrints?: number | null;
+  unassignedRuns?: number | null;
   /**
    * Jobs with incomplete pricing or an outdated order.
    * @minimum 0

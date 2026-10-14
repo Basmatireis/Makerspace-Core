@@ -2,26 +2,14 @@ import { http, HttpResponse } from 'msw';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { CreateMachineJobFromPrintRequest, MachineJob, Print, UpdateMachineJobRequest } from '../../api/generated/models';
+import type { CreateMachineJobFromRunRequest, MachineJob, UpdateMachineJobRequest } from '../../api/generated/models';
+import { customer, ids, jobFixture, machine, manualRun, operator, recordedRun } from '../../test/machineRuns';
 import { renderRoute } from '../../test/render';
 import { server } from '../../test/server';
 import { JobFormModal } from './dialogs/JobFormModal';
-import { usageRowFromPrint } from './dialogs/jobFormHelpers';
 import { ToastProvider } from './shared/toasts';
 
 vi.mock('../auth/auth', () => ({ useCurrentUser: () => ({ permissions: ['machine_jobs.create', 'machine_jobs.edit', 'machines.read'] }) }));
-
-const ids = {
-  type: '0192f6f8-743e-7c77-a349-cd07c3e8a910', machine: '0192f6f8-743e-7c77-a349-cd07c3e8a911', material: '0192f6f8-743e-7c77-a349-cd07c3e8a912',
-  job: '0192f6f8-743e-7c77-a349-cd07c3e8a914', org: '0192f6f8-743e-7c77-a349-cd07c3e8a915', operator: '0192f6f8-743e-7c77-a349-cd07c3e8a916', print: '0192f6f8-743e-7c77-a349-cd07c3e8a917',
-  spool: '0192f6f8-743e-7c77-a349-cd07c3e8a918',
-};
-const machine = {
-  id: ids.machine, machineType: { id: ids.type, name: '3D printer', active: true, version: 1, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z' }, name: 'Bambu H2D #1', status: 'active' as const,
-  externalIdentifier: null, automaticCollectionEnabled: true, lastIngestedAt: null, jobCount: 1, runtimeSeconds: 1, failureRate: '0', version: 1, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z',
-};
-const customer = { kind: 'organization' as const, id: ids.org, displayName: 'TU Berlin', organizationKind: 'institute' as const, pricingGroup: null, pricingGroupAssignmentVersion: 1 };
-const operator = { personId: ids.operator, displayName: 'Maria Hoffmann' };
 
 const lookups = [
   http.get('*/api/v1/machines', () => HttpResponse.json({ items: [machine], page: 1, pageSize: 100, total: 1 })),
@@ -30,82 +18,78 @@ const lookups = [
   http.get('*/api/v1/materials', () => HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0, totalInventoryValue: '0' })),
 ];
 
-const printFixture: Print = {
-  id: ids.print, displayId: 'PR-2026-000008', machineId: ids.machine, machineName: machine.name, connectorName: 'Bambu LAN', fileName: 'bracket_v2.gcode', state: 'finished',
-  startedAt: '2026-09-16T09:00:00Z', endedAt: '2026-09-16T10:00:00Z', estimatedEndAt: null, progressPercent: 100, job: null, version: 1,
-  reportedUsage: { quantity: '42.500', quantityBasis: 'actual', materialId: ids.material, materialName: 'PLA Black', spoolId: ids.spool, spoolDisplayId: 'SP-0141' },
-};
-
-const editable = {
-  id: ids.job, displayId: 'J-2026-000001', title: null, machine, startsAt: '2026-09-15T08:12:34Z', endsAt: '2026-09-15T11:26:10Z', durationSeconds: 11616, run: 'manual', print: null,
-  customer, operator, outcome: 'unknown', status: 'needs_outcome', notes: null, usages: [], pricingStatus: 'complete', version: 5, createdAt: '2026-09-15T11:26:00Z', updatedAt: '2026-09-15T11:26:00Z',
-} as MachineJob;
+const editable: MachineJob = jobFixture({ title: null, runs: [manualRun({ outcome: null })], outcome: 'unknown', status: 'needs_outcome', notes: null, version: 5 });
 
 describe('JobFormModal', () => {
-  it('creates a job from a print without sending machine or times and keeps the reported material', async () => {
-    let body: CreateMachineJobFromPrintRequest | undefined;
+  it('creates a job from a recorded run without sending machine, times or material', async () => {
+    let body: CreateMachineJobFromRunRequest | undefined;
     const onSaved = vi.fn();
     server.use(
       ...lookups,
-      http.get(`*/api/v1/prints/${ids.print}`, () => HttpResponse.json({ ...printFixture, events: [] })),
-      http.post(`*/api/v1/prints/${ids.print}/job`, async ({ request }) => {
-        body = await request.json() as CreateMachineJobFromPrintRequest;
-        return HttpResponse.json({ ...editable, outcome: 'successful', status: 'successful' }, { status: 201 });
+      http.post(`*/api/v1/machine-runs/${ids.recordedRun}/job`, async ({ request }) => {
+        body = await request.json() as CreateMachineJobFromRunRequest;
+        return HttpResponse.json(jobFixture({ title: 'Gearbox housing v3' }), { status: 201 });
       }),
     );
     const user = userEvent.setup();
     renderRoute(
       <ToastProvider>
-        <JobFormModal
-          open mode="create" onClose={() => undefined} printId={ids.print} onSaved={onSaved}
-          initialValues={{ title: 'Bracket v2', printFileName: 'bracket_v2.gcode', machineId: ids.machine, startsAt: printFixture.startedAt, endsAt: printFixture.endedAt!, outcome: 'successful', usages: [usageRowFromPrint(printFixture.reportedUsage!)] }}
-        />
+        <JobFormModal open mode="create" onClose={() => undefined} run={recordedRun()} onSaved={onSaved} />
       </ToastProvider>,
     );
     const dialog = await screen.findByRole('dialog');
-    expect(await within(dialog).findByDisplayValue('Bambu H2D #1')).toHaveAttribute('readonly');
-    expect(within(dialog).getByDisplayValue('Bracket v2')).toBeInTheDocument();
-    expect(within(dialog).getByText('SP-0141')).toBeInTheDocument();
+    // The machine and the run's times come from the machine; the name starts as the readable file name.
+    expect(within(dialog).getByDisplayValue('Bambu H2D #1')).toHaveAttribute('readonly');
+    expect(within(dialog).getByDisplayValue('Gearbox housing v3')).toBeInTheDocument();
+    expect(within(dialog).getByDisplayValue('RN-2026-000007 · gearbox_housing_v3.gcode')).toBeInTheDocument();
+    expect(within(dialog).queryByLabelText('Hours')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('Material usage')).not.toBeInTheDocument();
     await user.click(within(dialog).getByPlaceholderText('Search people or organizations'));
     await user.click(await screen.findByText('TU Berlin'));
     await user.click(within(dialog).getByPlaceholderText('Search operators'));
     await user.click(await screen.findByText('Maria Hoffmann'));
     await user.click(within(dialog).getByRole('button', { name: 'Create job' }));
     await waitFor(() => expect(body).toBeDefined());
-    expect(body).toMatchObject({
-      title: 'Bracket v2', customer: { kind: 'organization', id: ids.org }, operatorPersonId: ids.operator, outcome: 'successful',
-      usages: [{ ownership: 'makerspace', materialId: ids.material, spoolId: ids.spool, quantity: '42.5', quantityBasis: 'actual' }],
-    });
-    expect(body).not.toHaveProperty('machineId');
-    expect(body).not.toHaveProperty('startsAt');
-    expect(body).not.toHaveProperty('endsAt');
+    expect(body).toEqual({ title: 'Gearbox housing v3', customer: { kind: 'organization', id: ids.organization }, operatorPersonId: ids.operator, notes: null });
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
   });
 
-  it('starts an unrecorded outcome empty, requires a choice and keeps the exact times when they are untouched', async () => {
+  it('edits the job facts and an outcome override, never times or material, and keeps an empty override as null', async () => {
     let body: UpdateMachineJobRequest | undefined;
     server.use(
       ...lookups,
       http.patch(`*/api/v1/machine-jobs/${ids.job}`, async ({ request }) => {
         body = await request.json() as UpdateMachineJobRequest;
-        return HttpResponse.json({ ...editable, outcome: 'partial_failure', status: 'partial_failure', version: 6 });
+        return HttpResponse.json({ ...editable, outcome: 'partial_failure', outcomeOverridden: true, status: 'partial_failure', version: 6 });
       }),
     );
     const user = userEvent.setup();
     renderRoute(<ToastProvider><JobFormModal open mode="edit" job={editable} onClose={() => undefined} /></ToastProvider>);
     const dialog = await screen.findByRole('dialog');
-    const outcome = within(dialog).getByLabelText('Outcome');
-    expect(outcome).toHaveValue('');
-    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
-    expect(await within(dialog).findByText('Select how the run ended.')).toBeInTheDocument();
-    expect(body).toBeUndefined();
-
-    await user.selectOptions(outcome, 'partial_failure');
+    expect(within(dialog).queryByLabelText('Hours')).not.toBeInTheDocument();
+    expect(within(dialog).queryByText('Material usage')).not.toBeInTheDocument();
+    const override = within(dialog).getByLabelText('Outcome override');
+    expect(override).toHaveValue('');
     await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(body).toBeDefined());
     expect(body).toEqual({
-      machineId: ids.machine, startsAt: editable.startsAt, endsAt: editable.endsAt, customer: { kind: 'organization', id: ids.org }, operatorPersonId: ids.operator,
-      outcome: 'partial_failure', title: null, notes: null, expectedVersion: 5,
+      machineId: ids.machine, customer: { kind: 'organization', id: ids.organization }, operatorPersonId: ids.operator, outcomeOverride: null, title: null, notes: null, expectedVersion: 5,
     });
+
+    body = undefined;
+    await user.selectOptions(override, 'partial_failure');
+    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(body).toMatchObject({ outcomeOverride: 'partial_failure', expectedVersion: 5 }));
+  });
+
+  it('starts from the override a job already has and locks the machine while a recorded run belongs to it', async () => {
+    const overridden = jobFixture({ runs: [manualRun(), recordedRun({ job: { id: ids.job, displayId: 'J-2026-000001', title: null } })], outcome: 'failed', outcomeOverridden: true });
+    server.use(...lookups);
+    renderRoute(<ToastProvider><JobFormModal open mode="edit" job={overridden} onClose={() => undefined} /></ToastProvider>);
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByLabelText('Outcome override')).toHaveValue('failed');
+    expect(within(dialog).getByText('Set by staff; the outcomes of the runs are ignored.')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Machine')).toBeDisabled();
+    expect(within(dialog).getByText('The machine cannot change while the job has a recorded run.')).toBeInTheDocument();
   });
 });

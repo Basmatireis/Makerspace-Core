@@ -13,6 +13,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
@@ -31,6 +32,7 @@ const (
 type Service struct {
 	pool     *pgxpool.Pool
 	printing *printing.Service
+	logbook  *machinelogbook.Service
 	keyring  *security.Keyring
 }
 
@@ -43,7 +45,7 @@ func NewService(pool *pgxpool.Pool, printingService *printing.Service, encryptio
 			return nil, err
 		}
 	}
-	return &Service{pool: pool, printing: printingService, keyring: keyring}, nil
+	return &Service{pool: pool, printing: printingService, logbook: machinelogbook.NewService(pool), keyring: keyring}, nil
 }
 
 type Connector struct {
@@ -650,7 +652,10 @@ func (s *Service) ListObservedRuns(ctx context.Context, principal authorization.
 	}
 	result := make([]ObservedRun, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, ObservedRun{ID: row.ID, AssignmentID: row.AssignmentID, MachineID: row.MachineID, MachineName: row.MachineName, VendorJobID: row.VendorJobID, State: row.State, HistoryComplete: row.HistoryComplete, FirstObservedAt: row.FirstObservedAt, LastObservedAt: row.LastObservedAt, Version: row.Version})
+		if row.AssignmentID == nil || row.State == nil || !row.FirstObservedAt.Valid || !row.LastObservedAt.Valid {
+			continue
+		}
+		result = append(result, ObservedRun{ID: row.ID, AssignmentID: *row.AssignmentID, MachineID: row.MachineID, MachineName: row.MachineName, VendorJobID: row.VendorJobID, State: *row.State, HistoryComplete: row.HistoryComplete, FirstObservedAt: row.FirstObservedAt.Time, LastObservedAt: row.LastObservedAt.Time, Version: row.Version})
 	}
 	return result, nil
 }
@@ -882,11 +887,17 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 		v := "configuration_version_mismatch"
 		reason = &v
 	}
-	var run db.PrinterObservedRun
+	var run db.MachineRun
 	if input.RunID != nil {
-		state, stateErr := observedRunState(input.Kind, input.Payload)
+		state, stateErr := recordedRunState(input.Kind, input.Payload)
 		if stateErr != nil {
 			return rejected("invalid_event")
+		}
+		// Lock the run's job before the run, the order of every job operation.
+		// An unknown run is created below and needs no lock.
+		if _, _, lockErr := machinelogbook.LockRunChain(ctx, tx, *input.RunID); lockErr != nil && !apperror.IsCode(lockErr, "not_found") {
+			code := "temporarily_unavailable"
+			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
 		}
 		var runErr error
 		run, runErr = recordObservedRun(ctx, db.New(tx), *input.RunID, a.ID, a.MachineID, input.ExternalPrintID, state, input.HistoryComplete, input.OccurredAt)
@@ -903,7 +914,7 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 			reason = &v
 		}
 	}
-	event, inserted, err := s.printing.IngestConnectorEvent(ctx, tx, printing.ConnectorEventInput{EventID: input.EventID, ConnectorID: connector.ID, AssignmentID: a.ID, MachineID: a.MachineID, ObservedRunID: input.RunID, ConfigurationVersion: input.ConfigurationVersion, Sequence: input.Sequence, Kind: input.Kind, OccurredAt: input.OccurredAt, ExternalPrintID: input.ExternalPrintID, Payload: input.Payload, ReportRevision: input.ReportRevision, ApplicationState: applicationState, ApplicationReason: reason})
+	event, inserted, err := s.printing.IngestConnectorEvent(ctx, tx, printing.ConnectorEventInput{EventID: input.EventID, ConnectorID: connector.ID, AssignmentID: a.ID, MachineID: a.MachineID, RunID: input.RunID, ConfigurationVersion: input.ConfigurationVersion, Sequence: input.Sequence, Kind: input.Kind, OccurredAt: input.OccurredAt, ExternalPrintID: input.ExternalPrintID, Payload: input.Payload, ReportRevision: input.ReportRevision, ApplicationState: applicationState, ApplicationReason: reason})
 	if err != nil {
 		if apperror.IsCode(err, "printer_event_mismatch") || apperror.IsCode(err, "printer_event_sequence_conflict") || apperror.IsCode(err, "validation_failed") {
 			return rejected(apperrorCode(err))
@@ -913,6 +924,12 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 	}
 	if inserted && input.RunID != nil {
 		if err = applyPrintFacts(ctx, db.New(tx), run, event.ID, input.Kind, input.Payload, input.OccurredAt, input.ReportRevision); err != nil {
+			code := "temporarily_unavailable"
+			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
+		}
+		// The recorded run's outcome, material usage and job price follow the
+		// event in the same transaction.
+		if err = s.logbook.ApplyRecordedRunEvent(ctx, tx, machinelogbook.RecordedRunEvent{RunID: run.ID, ConnectorID: connector.ID, Kind: input.Kind}); err != nil {
 			code := "temporarily_unavailable"
 			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
 		}
@@ -929,10 +946,10 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 	return EventReceipt{EventID: input.EventID, CoreEventID: &id, Status: status}
 }
 
-func observedRunState(kind string, payload json.RawMessage) (string, error) {
+func recordedRunState(kind string, payload json.RawMessage) (string, error) {
 	switch kind {
 	case "progress":
-		return "printing", nil
+		return "running", nil
 	case "terminal_outcome":
 		var value struct {
 			Outcome string `json:"outcome"`
@@ -941,7 +958,9 @@ func observedRunState(kind string, payload json.RawMessage) (string, error) {
 			return "", errors.New("invalid terminal outcome")
 		}
 		switch value.Outcome {
-		case "completed", "failed", "cancelled":
+		case "completed":
+			return "finished", nil
+		case "failed", "cancelled":
 			return value.Outcome, nil
 		default:
 			return "", errors.New("invalid terminal outcome")
@@ -951,10 +970,10 @@ func observedRunState(kind string, payload json.RawMessage) (string, error) {
 			State string `json:"state"`
 		}
 		if json.Unmarshal(payload, &value) == nil && value.State == "printing" {
-			return "printing", nil
+			return "running", nil
 		}
 	}
-	return "observed", nil
+	return "running", nil
 }
 
 func apperrorCode(err error) string {

@@ -68,7 +68,7 @@ type PrinterEvent struct {
 
 type ConnectorEventInput struct {
 	EventID, ConnectorID, AssignmentID, MachineID uuid.UUID
-	ObservedRunID                                 *uuid.UUID
+	RunID                                         *uuid.UUID
 	ConfigurationVersion, Sequence                int64
 	Kind                                          string
 	OccurredAt                                    time.Time
@@ -394,14 +394,14 @@ func (s *Service) IngestConnectorEvent(ctx context.Context, tx pgx.Tx, input Con
 	eventKey := input.EventID.String()
 	fp := fingerprint(struct {
 		EventID, AssignmentID, MachineID uuid.UUID
-		ObservedRunID                    *uuid.UUID
+		RunID                            *uuid.UUID
 		ConfigurationVersion, Sequence   int64
 		Kind                             string
 		OccurredAt                       time.Time
 		ExternalPrintID                  *string
 		Payload                          json.RawMessage
 		ReportRevision                   *int64
-	}{input.EventID, input.AssignmentID, input.MachineID, input.ObservedRunID, input.ConfigurationVersion, input.Sequence, input.Kind, input.OccurredAt.UTC(), clean(input.ExternalPrintID), input.Payload, input.ReportRevision})
+	}{input.EventID, input.AssignmentID, input.MachineID, input.RunID, input.ConfigurationVersion, input.Sequence, input.Kind, input.OccurredAt.UTC(), clean(input.ExternalPrintID), input.Payload, input.ReportRevision})
 	q := printerconnectorsdb.New(tx)
 	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", sourceID+"\n"+eventKey); err != nil {
 		return PrinterEvent{}, false, err
@@ -426,7 +426,7 @@ func (s *Service) IngestConnectorEvent(ctx context.Context, tx pgx.Tx, input Con
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return PrinterEvent{}, false, err
 	}
-	row, err := q.InsertConnectorEvent(ctx, printerconnectorsdb.InsertConnectorEventParams{ID: input.EventID, SourceID: sourceID, EventKey: eventKey, Fingerprint: fp, ProtocolVersion: 1, MachineID: &input.MachineID, Kind: input.Kind, OccurredAt: input.OccurredAt.UTC(), SourceSequence: &input.Sequence, ExternalPrintID: clean(input.ExternalPrintID), Payload: input.Payload, ConnectorID: &input.ConnectorID, AssignmentID: &input.AssignmentID, ObservedRunID: input.ObservedRunID, ConfigurationVersion: &input.ConfigurationVersion, ApplicationState: input.ApplicationState, ApplicationReason: input.ApplicationReason, ReportRevision: input.ReportRevision})
+	row, err := q.InsertConnectorEvent(ctx, printerconnectorsdb.InsertConnectorEventParams{ID: input.EventID, SourceID: sourceID, EventKey: eventKey, Fingerprint: fp, ProtocolVersion: 1, MachineID: &input.MachineID, Kind: input.Kind, OccurredAt: input.OccurredAt.UTC(), SourceSequence: &input.Sequence, ExternalPrintID: clean(input.ExternalPrintID), Payload: input.Payload, ConnectorID: &input.ConnectorID, AssignmentID: &input.AssignmentID, RunID: input.RunID, ConfigurationVersion: &input.ConfigurationVersion, ApplicationState: input.ApplicationState, ApplicationReason: input.ApplicationReason, ReportRevision: input.ReportRevision})
 	if err != nil {
 		return PrinterEvent{}, false, dbError(err)
 	}

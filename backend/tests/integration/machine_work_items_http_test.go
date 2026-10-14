@@ -140,7 +140,7 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 		}
 	}
 	title := "Edited after ordering"
-	edit := machinelogbook.JobInput{MachineID: machine.ID, Title: &title, StartsAt: changed.StartsAt, EndsAt: changed.EndsAt, Customer: machinelogbook.PartyReference{Kind: "person", ID: personID}, OperatorPersonID: personID, Outcome: "successful"}
+	edit := machinelogbook.JobUpdate{MachineID: machine.ID, Title: &title, Customer: machinelogbook.PartyReference{Kind: "person", ID: personID}, OperatorPersonID: personID}
 	if _, err = logbook.UpdateJobFacts(ctx, master, changed.ID, changed.Version, edit, nil); err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 		ID      uuid.UUID `json:"id"`
 		Kind    string    `json:"kind"`
 		Status  string    `json:"status"`
-		Run     string    `json:"run"`
+		Source  string    `json:"source"`
 		Billing *billing  `json:"billing"`
 	}
 	type page struct {
@@ -185,7 +185,7 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 	}
 
 	var all page
-	fetch(adminClient, "/machine-logbook/work-items?status=successful&status=cancelled&machineId="+machine.ID.String()+"&run=manual&run=printer&billing=on_order&billing=order_outdated&billing=not_on_order&sort=startedAt&direction=asc&pageSize=10", http.StatusOK, &all)
+	fetch(adminClient, "/machine-logbook/work-items?status=successful&status=cancelled&machineId="+machine.ID.String()+"&source=manual&source=recorded&billing=on_order&billing=order_outdated&billing=not_on_order&sort=startedAt&direction=asc&pageSize=10", http.StatusOK, &all)
 	if all.Total != 3 || all.Page != 1 || all.PageSize != 10 || len(all.Items) != 3 {
 		t.Fatalf("work items = %+v", all)
 	}
@@ -206,7 +206,7 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 	}
 	// Repeated keys are the wire format for array filters; a comma-joined value is one (invalid) item.
 	var repeated page
-	fetch(adminClient, "/machine-logbook/work-items?status=running&status=printing", http.StatusOK, &repeated)
+	fetch(adminClient, "/machine-logbook/work-items?status=running&status=running_unassigned", http.StatusOK, &repeated)
 	if repeated.Total != 0 || len(repeated.Items) != 0 {
 		t.Fatalf("running/printing filter matched finished jobs: %+v", repeated)
 	}
@@ -220,7 +220,7 @@ func TestMachineWorkItemsBillingAndPermissionsOverHTTP(t *testing.T) {
 	if reversed.Total != 3 {
 		t.Fatalf("repeated keys must be ORed regardless of order: %+v", reversed)
 	}
-	fetch(adminClient, "/machine-logbook/work-items?status=running,printing", http.StatusBadRequest, nil)
+	fetch(adminClient, "/machine-logbook/work-items?status=running,running_unassigned", http.StatusBadRequest, nil)
 	fetch(adminClient, "/machine-logbook/work-items?status=bogus", http.StatusBadRequest, nil)
 	fetch(adminClient, "/machine-logbook/work-items?sort=bogus", http.StatusBadRequest, nil)
 

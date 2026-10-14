@@ -48,7 +48,7 @@ func TestEmbeddedSpecificationIsValidAndOperationIDsAreStableStyle(t *testing.T)
 			seen[operation.OperationID] = method + " " + path
 		}
 	}
-	if operationCount != 349 {
-		t.Fatalf("operation count = %d, want 349", operationCount)
+	if operationCount != 352 {
+		t.Fatalf("operation count = %d, want 352", operationCount)
 	}
 }

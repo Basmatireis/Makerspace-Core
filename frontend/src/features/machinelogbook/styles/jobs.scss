@@ -20,10 +20,14 @@
   .mj-form-grid { grid-template-columns: 1fr; }
 }
 
-// Inline prompt shown once a run has ended without a recorded outcome.
+// Inline prompt shown once runs have ended without a recorded outcome (one row per run).
 .mj-outcome-prompt.cds--tile { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: $spacing-05; border-inline-start: 3px solid var(--cds-support-warning); }
 .mj-outcome-prompt .mj-section-title { margin-block-end: $spacing-03; }
+.mj-outcome-prompt__rows { display: grid; gap: $spacing-05; }
 .mj-outcome-prompt__form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: $spacing-03; }
 .mj-outcome-prompt__form .cds--form-item { inline-size: 14rem; }
 
 .mj-price-preview { margin: 0; padding: $spacing-04; background: var(--cds-layer-accent); }
+
+// Replaced runs stay on the job as history; they read muted.
+.mj-run-row--replaced td { color: var(--cds-text-secondary); }

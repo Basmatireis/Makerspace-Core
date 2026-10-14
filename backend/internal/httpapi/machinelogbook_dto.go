@@ -68,10 +68,6 @@ func mlInventoryResultDTO(item machinelogbook.InventoryMutationResult) openapi.I
 	return openapi.InventoryMutationResult{Material: mlMaterialDTO(item.Material), Transaction: mlInventoryTransactionDTO(item.Transaction)}
 }
 func mlJobDTO(item machinelogbook.MachineJob) openapi.MachineJob {
-	usages := make([]openapi.MachineJobUsage, 0, len(item.Usages))
-	for _, u := range item.Usages {
-		usages = append(usages, openapi.MachineJobUsage{Id: u.ID, MaterialId: nullableUUIDValue(u.MaterialID), SpoolId: nullableUUIDValue(u.SpoolID), SpoolDisplayId: nullableString(u.SpoolDisplayID), FillNumber: nullableInt32Value(u.FillNumber), Ownership: openapi.FilamentOwnership(u.Ownership), MaterialName: u.MaterialName, Category: u.Category, Unit: openapi.MaterialUnit(u.Unit), Quantity: u.Quantity, QuantityBasis: openapi.QuantityBasis(u.QuantityBasis)})
-	}
 	var customer nullable.Nullable[openapi.BillingParty]
 	if item.Customer == nil {
 		customer = nullable.NewNullNullable[openapi.BillingParty]()
@@ -100,7 +96,7 @@ func mlJobDTO(item machinelogbook.MachineJob) openapi.MachineJob {
 	} else {
 		adjustment = nullable.NewNullableWithValue(openapi.MachineJobPriceAdjustment{Kind: openapi.PriceAdjustmentKind(item.PriceAdjustment.Kind), Value: openapi.Decimal(item.PriceAdjustment.Value), Reason: item.PriceAdjustment.Reason, AdjustedAt: item.PriceAdjustment.AdjustedAt})
 	}
-	return openapi.MachineJob{Id: item.ID, DisplayId: item.DisplayID, Title: nullableString(item.Title), Status: openapi.MachineJobStatus(item.Status), PriceAdjustment: adjustment, Machine: mlMachineDTO(item.Machine), StartsAt: item.StartsAt, EndsAt: item.EndsAt, DurationSeconds: item.DurationSeconds, Run: openapi.MachineJobRun(item.Run), Print: mlJobPrintDTO(item.Print), Customer: customer, Operator: operator, Outcome: openapi.MachineJobOutcome(item.Outcome), Notes: nullableString(item.Notes), Usages: usages, PricingStatus: openapi.PricingStatus(item.PricingStatus), PricingSnapshot: snapshot, CalculatedPrice: nullableMoney(item.CalculatedPrice), EffectivePrice: nullableMoney(item.EffectivePrice), Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
+	return openapi.MachineJob{Id: item.ID, DisplayId: item.DisplayID, Title: nullableString(item.Title), Status: openapi.MachineJobStatus(item.Status), PriceAdjustment: adjustment, Machine: mlMachineDTO(item.Machine), Runs: mlRunDTOs(item.Runs), StartedAt: nullableValue(item.StartedAt), EndedAt: nullableValue(item.EndedAt), ExpectedEndAt: nullableValue(item.ExpectedEndAt), DurationSeconds: item.DurationSeconds, Customer: customer, Operator: operator, Outcome: openapi.MachineJobOutcome(item.Outcome), OutcomeOverridden: item.OutcomeOverridden, Notes: nullableString(item.Notes), PricingStatus: openapi.PricingStatus(item.PricingStatus), PricingSnapshot: snapshot, CalculatedPrice: nullableMoney(item.CalculatedPrice), EffectivePrice: nullableMoney(item.EffectivePrice), Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
 }
 func mlOverviewDTO(item machinelogbook.Overview) openapi.MachineLogbookOverview {
 	jobs := make([]openapi.MachineJob, 0, len(item.RecentJobs))
@@ -116,7 +112,7 @@ func mlOverviewDTO(item machinelogbook.Overview) openapi.MachineLogbookOverview 
 		activity = append(activity, openapi.DailyJobActivity{Date: openapi_types.Date{Time: a.Date}, Count: a.Jobs})
 	}
 	result := openapi.MachineLogbookOverview{JobsToday: item.JobsToday, JobsThisWeek: item.JobsThisWeek, UnassignedJobs: item.UnassignedJobs, UnassignedEstimatedAmount: item.UnassignedEstimatedAmount, FailedOrPartialThisWeek: item.FailedOrPartialThisWeek, LowStockItems: item.LowStockItems, RecentJobs: jobs, LowStockMaterials: materials, Activity: activity,
-		RunningNow: nullable.NewNullNullable[int64](), RunningMachineNames: nullable.NewNullNullable[[]string](), NeedsOutcome: nullable.NewNullNullable[int64](), UnlinkedPrints: nullable.NewNullNullable[int64](),
+		RunningNow: nullable.NewNullNullable[int64](), RunningMachineNames: nullable.NewNullNullable[[]string](), NeedsOutcome: nullable.NewNullNullable[int64](), UnassignedRuns: nullable.NewNullNullable[int64](),
 		BillingIssues: nullable.NewNullNullable[int64](), ActiveItems: nullable.NewNullNullable[[]openapi.WorkItem](), ActiveTotal: nullable.NewNullNullable[int64]()}
 	mlOverviewWorkItemsDTO(item, &result)
 	return result
@@ -254,8 +250,8 @@ func mlWorkItemDTO(item machinelogbook.WorkItem) openapi.WorkItem {
 	}
 	version := openapi.Version(item.Version)
 	return openapi.WorkItem{Kind: openapi.WorkItemKind(item.Kind), Id: item.ID, DisplayId: item.DisplayID, Title: nullableString(item.Title), FileName: nullableString(item.FileName),
-		PrintId: nullableUUIDValue(item.PrintID), PrintDisplayId: nullableString(item.PrintDisplayID), MachineId: item.MachineID, MachineName: item.MachineName,
-		Customer: customer, Operator: operator, Status: openapi.WorkItemStatus(item.Status), Run: openapi.WorkItemRun(item.Run), StartedAt: item.StartedAt,
+		RunCount: item.RunCount, MachineId: item.MachineID, MachineName: item.MachineName,
+		Customer: customer, Operator: operator, Status: openapi.WorkItemStatus(item.Status), Source: openapi.WorkItemSource(item.Source), StartedAt: item.StartedAt,
 		EndsAt: nullableValue(item.EndsAt), EstimatedEndAt: nullableValue(item.EstimatedEndAt), ProgressPercent: progress, EffectivePrice: nullableMoney(item.EffectivePrice),
 		Billing: billing, Version: &version}
 }
@@ -291,7 +287,7 @@ func mlOverviewWorkItemsDTO(item machinelogbook.Overview, result *openapi.Machin
 	}
 	result.RunningNow = nullable.NewNullableWithValue(*item.RunningNow)
 	result.NeedsOutcome = nullable.NewNullableWithValue(*item.NeedsOutcome)
-	result.UnlinkedPrints = nullable.NewNullableWithValue(*item.UnlinkedPrints)
+	result.UnassignedRuns = nullable.NewNullableWithValue(*item.UnassignedRuns)
 	result.BillingIssues = nullable.NewNullableWithValue(*item.BillingIssues)
 	result.ActiveTotal = nullable.NewNullableWithValue(*item.ActiveTotal)
 	result.RunningMachineNames = nullable.NewNullableWithValue(append([]string{}, item.RunningMachineNames...))

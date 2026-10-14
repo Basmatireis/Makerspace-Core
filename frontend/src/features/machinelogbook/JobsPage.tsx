@@ -3,7 +3,7 @@ import { Button, ComboBox, Link as CarbonLink, MultiSelect } from '@carbon/react
 import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { listMachineLogbookWorkItems } from '../../api/generated/machine-logbook/machine-logbook';
-import type { JobBillingState, ListMachineLogbookWorkItemsParams, ListMachineLogbookWorkItemsSort, WorkItem, WorkItemRun, WorkItemStatus } from '../../api/generated/models';
+import type { JobBillingState, ListMachineLogbookWorkItemsParams, ListMachineLogbookWorkItemsSort, WorkItem, WorkItemSource, WorkItemStatus } from '../../api/generated/models';
 import { addCalendarDays, zonedDateTimeToISO } from '../../app/dateTime';
 import { DateInput } from '../../app/DateInput';
 import { PageShell } from '../../app/PageShell';
@@ -20,12 +20,12 @@ import { billingStateOptions, jobRowStatusOptions, JobRowStatusTag, workItemName
 import { useCan } from './shared/useCan';
 import './styles/jobs.scss';
 
-const runOptions: Option[] = [{ id: 'manual', label: 'Manual' }, { id: 'printer', label: 'Printer' }];
-const FILTER_KEYS = ['status', 'machine', 'run', 'customer', 'operator', 'material', 'billing', 'from', 'to'];
+const sourceOptions: Option[] = [{ id: 'manual', label: 'Manual' }, { id: 'recorded', label: 'Recorded' }];
+const FILTER_KEYS = ['status', 'machine', 'source', 'customer', 'operator', 'material', 'billing', 'from', 'to'];
 const SORT_KEYS = ['startedAt', 'name', 'machine', 'customer', 'price'];
 const statusIds = jobRowStatusOptions.map((option) => option.id as string);
 const billingIds = billingStateOptions.map((option) => option.id as string);
-const runIds = runOptions.map((option) => option.id);
+const sourceIds = sourceOptions.map((option) => option.id);
 
 /** The generated client repeats the parameter per item (`status=a&status=b`); an empty list sends nothing. */
 const nonEmpty = <T extends string>(items: T[]) => (items.length ? items : undefined);
@@ -40,8 +40,8 @@ const columns: Column<WorkItem>[] = [
       const seconds = item.endsAt ? Math.max(0, Math.round((new Date(item.endsAt).getTime() - new Date(item.startedAt).getTime()) / 1000)) : null;
       return (
         <div className="mj-cell-stack">
-          <CarbonLink as={Link} to={item.kind === 'print' ? machineLogbookPaths.print(item.id) : machineLogbookPaths.job(item.id)}>{workItemName(item)}</CarbonLink>
-          <span className="mj-secondary">{secondary.length ? secondary.join(' · ') : seconds !== null ? `${formatDuration(seconds)}${item.run === 'manual' ? ' · manual run' : ''}` : ''}</span>
+          <CarbonLink as={Link} to={item.kind === 'run' ? machineLogbookPaths.run(item.id) : machineLogbookPaths.job(item.id)}>{workItemName(item)}</CarbonLink>
+          <span className="mj-secondary">{secondary.length ? secondary.join(' · ') : seconds !== null ? `${formatDuration(seconds)}${item.source === 'manual' ? ' · manual' : ''}` : ''}</span>
           <span className="mj-secondary mj-show-narrow">{item.machineName}</span>
         </div>
       );
@@ -96,7 +96,7 @@ function JobsFilters({ rows }: { rows: WorkItem[] }) {
     <>
       <MultiSelect id="jobs-status-filter" className="mj-filter-panel__field" titleText="Status" label="All statuses" items={statusOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(statusOptions, url.list('status'))} onChange={({ selectedItems }) => url.setList('status', selectedItems)} />
       <MultiSelect id="jobs-machine-filter" className="mj-filter-panel__field" titleText="Machine" label="All machines" items={machineOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(machineOptions, url.list('machine'))} onChange={({ selectedItems }) => url.setList('machine', selectedItems)} />
-      <MultiSelect id="jobs-run-filter" className="mj-filter-panel__field" titleText="Run" label="All runs" items={runOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(runOptions, url.list('run'))} onChange={({ selectedItems }) => url.setList('run', selectedItems)} />
+      <MultiSelect id="jobs-source-filter" className="mj-filter-panel__field" titleText="Source" label="All sources" items={sourceOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(sourceOptions, url.list('source'))} onChange={({ selectedItems }) => url.setList('source', selectedItems)} />
       {canLookup && (
         <>
           <ComboBox id="jobs-customer-filter" className="mj-filter-panel__field" titleText="Customer" placeholder="Any customer" items={people} itemToString={(item) => item?.displayName ?? ''} shouldFilterItem={matchesName} selectedItem={customerId ? people.find((person) => person.id === customerId) ?? { id: customerId, displayName: 'Selected customer' } : null} onInputChange={setCustomerSearch} onChange={({ selectedItem }) => url.set({ customer: selectedItem?.id ?? null })} />
@@ -128,7 +128,7 @@ export function JobsPage() {
     search: table.search || undefined,
     status: nonEmpty(url.list('status').filter((id) => statusIds.includes(id)) as WorkItemStatus[]),
     machineId: nonEmpty(url.list('machine')),
-    run: nonEmpty(url.list('run').filter((id) => runIds.includes(id)) as WorkItemRun[]),
+    source: nonEmpty(url.list('source').filter((id) => sourceIds.includes(id)) as WorkItemSource[]),
     materialId: nonEmpty(url.list('material')),
     billing: nonEmpty(url.list('billing').filter((id) => billingIds.includes(id)) as JobBillingState[]),
     customerId: url.get('customer') || undefined,
@@ -148,7 +148,7 @@ export function JobsPage() {
 
   return (
     <PageShell
-      title="Jobs" description="Running and finished jobs, and prints reported by printers." width="wide"
+      title="Jobs" description="Running and finished jobs, and runs reported by machines." width="wide"
       breadcrumbs={[{ label: 'Workshop', to: machineLogbookPaths.overview() }, { label: 'Jobs' }]}
     >
       <QueryBoundary query={query} errorMessage="Jobs could not be loaded.">
@@ -161,7 +161,7 @@ export function JobsPage() {
             hasActiveFilters={hasActiveFilters} onClearFilters={() => url.clear(FILTER_KEYS)}
             toolbarAction={canCreate ? <Button kind="primary" size="lg" onClick={() => setJobOpen(true)}>New job</Button> : undefined}
             empty={{
-              title: 'No jobs yet', description: 'Jobs appear here when staff create them or when a printer reports a print.',
+              title: 'No jobs yet', description: 'Jobs appear here when staff create them or when a machine reports a run.',
               action: canCreate ? <Button kind="tertiary" onClick={() => setJobOpen(true)}>New job</Button> : undefined,
             }}
           />

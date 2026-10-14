@@ -1,34 +1,37 @@
 import { useState } from 'react';
 import {
-  Accordion, AccordionItem, Button, Select, SelectItem, DataTable, Link as CarbonLink, InlineNotification, OverflowMenu, OverflowMenuItem, ProgressBar, Table, TableBody, TableCell, TableContainer,
+  Accordion, AccordionItem, Button, Select, SelectItem, DataTable, Link as CarbonLink, InlineNotification, OverflowMenu, OverflowMenuItem, Table, TableBody, TableCell, TableContainer,
   TableHead, TableHeader, TableRow, Tag, Tile,
 } from '@carbon/react';
-import { Edit, InProgress, Link as LinkIcon, StopOutline } from '@carbon/icons-react';
+import { Edit } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import { cancelMachineJobRun, clearMachineJobPriceAdjustment, updateMachineJob } from '../../api/generated/machine-jobs/machine-jobs';
-import { unlinkPrintFromMachineJob } from '../../api/generated/prints/prints';
-import type { JobOrderAssociation, MachineJob, MachineJobOutcome, WorkItemBilling } from '../../api/generated/models';
+import { clearMachineJobPriceAdjustment } from '../../api/generated/machine-jobs/machine-jobs';
+import { cancelMachineRun, deleteMachineRun, detachMachineRun, updateMachineRun } from '../../api/generated/machine-runs/machine-runs';
+import type { JobOrderAssociation, MachineJob, MachineRun, MachineRunOutcome, WorkItemBilling } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
+import { JobRunsTable, type RunAction } from './components/JobRunsTable';
+import { AttachRunModal } from './dialogs/AttachRunModal';
 import { JobFormModal } from './dialogs/JobFormModal';
-import { jobOrderQuery, linkablePrints, saveError, unlinkedPrintsParams } from './dialogs/jobFormHelpers';
-import { LinkPrintModal } from './dialogs/LinkPrintModal';
+import { jobOrderQuery, saveError, unassignedRunsParams } from './dialogs/jobFormHelpers';
 import { PriceAdjustmentModal } from './dialogs/PriceAdjustmentModal';
+import { runOutcomeChoices } from './dialogs/runFormHelpers';
+import { RunFormModal } from './dialogs/RunFormModal';
 import { UsageFormModal } from './dialogs/UsageFormModal';
-import { jobQuery, machineLogbookKeys, printQuery, printsQuery } from './queries';
-import { formatDateTime, formatDuration, formatMoney, formatQuantity, formatTime } from './shared/format';
+import { jobQuery, machineLogbookKeys, runsQuery } from './queries';
+import { formatDateTime, formatDuration, formatMoney, formatQuantity } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
-import { adjustmentSummary, BillingTag, isManualRunning, JobRowStatusTag, machineJobName, outcomeLabel, outcomeOptions, PrintStateTag, runProgress, type JobRowStatus } from './shared/status';
+import { activeRuns, adjustmentSummary, BillingTag, FromMachineTag, isRunLive, JobRowStatusTag, machineJobName, OutcomeTag, outcomeLabel, type JobRowStatus } from './shared/status';
 import { useNotify } from './shared/toasts';
 import { useCan } from './shared/useCan';
 import { useNow } from './shared/useNow';
 import './styles/jobs.scss';
 
-const usageHeaders = [{ key: 'material', header: 'Material' }, { key: 'source', header: 'Source' }, { key: 'quantity', header: 'Quantity' }];
+const usageHeaders = [{ key: 'material', header: 'Material' }, { key: 'run', header: 'Run' }, { key: 'source', header: 'Source' }, { key: 'quantity', header: 'Quantity' }];
 
 /** What the job list shows as billing state; the job itself carries no billing field, only price status and the order association. */
 function jobBilling(job: MachineJob, association: JobOrderAssociation | undefined): WorkItemBilling | undefined {
@@ -40,100 +43,129 @@ function jobBilling(job: MachineJob, association: JobOrderAssociation | undefine
 
 const errorText = (error: unknown, fallback: string) => saveError(error, fallback).message;
 
+/** Status of the job now: a run whose planned end has passed since the last refresh no longer counts as running. */
+function statusNow(job: MachineJob, now: number): JobRowStatus {
+  if (job.status !== 'running') return job.status;
+  if (activeRuns(job).some((run) => isRunLive(run, now))) return 'running';
+  if (job.outcomeOverridden) return job.outcome === 'unknown' ? 'needs_outcome' : job.outcome;
+  return activeRuns(job).some((run) => !run.outcome) || job.outcome === 'unknown' ? 'needs_outcome' : job.outcome;
+}
+
+/** Runs that have ended without a recorded outcome. */
+const runsNeedingOutcome = (job: MachineJob, now: number) => activeRuns(job).filter((run) => !run.outcome && !isRunLive(run, now));
+
+function RunOutcomeRow({ run }: { run: MachineRun }) {
+  const client = useQueryClient();
+  const notify = useNotify();
+  const [choice, setChoice] = useState<MachineRunOutcome | ''>('');
+  const save = useMutation({
+    mutationFn: (outcome: MachineRunOutcome) => updateMachineRun(run.id, { outcome, expectedVersion: run.version }),
+    onSuccess: async (_saved, outcome) => {
+      await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
+      notify({ kind: 'success', title: 'Outcome recorded', subtitle: `${run.displayId} is marked ${outcomeLabel(outcome).toLowerCase()}.` });
+    },
+  });
+  return (
+    <div>
+      {save.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Outcome not saved" subtitle={errorText(save.error, 'The outcome could not be saved.')} />}
+      <form
+        className="mj-outcome-prompt__form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (choice) save.mutate(choice);
+        }}
+      >
+        <Select id={`run-outcome-${run.id}`} labelText={`Outcome of ${run.displayId}`} helperText={`Ended ${run.endedAt ? formatDateTime(run.endedAt) : 'earlier'}`} value={choice} onChange={(event) => setChoice(event.target.value as MachineRunOutcome)}>
+          <SelectItem value="" text="Select an outcome" hidden />
+          {runOutcomeChoices.map((option) => <SelectItem key={option.id} value={option.id} text={option.label} />)}
+        </Select>
+        <Button type="submit" disabled={!choice || save.isPending}>{save.isPending ? 'Saving…' : 'Save outcome'}</Button>
+      </form>
+    </div>
+  );
+}
+
+type JobDialog = 'edit' | 'override' | 'clear' | 'add-run' | 'attach' | null;
+
 function JobDetail({ job }: { job: MachineJob }) {
   const can = useCan();
   const notify = useNotify();
   const client = useQueryClient();
-  const [dialog, setDialog] = useState<'edit' | 'usage' | 'override' | 'clear' | 'cancel' | 'link' | 'unlink' | null>(null);
+  const [dialog, setDialog] = useState<JobDialog>(null);
+  const [runDialog, setRunDialog] = useState<{ action: RunAction; runId: string } | null>(null);
   const now = useNow();
-  const print = job.print ?? undefined;
   const canEdit = can('machine_jobs.edit');
   const canOverride = can('machine_jobs.override_price');
   const canReadOrders = can('orders.read');
-  const manualRunning = isManualRunning(job, now);
-  const status: JobRowStatus = job.status === 'running' && !manualRunning && new Date(job.endsAt).getTime() <= now ? 'needs_outcome' : job.status;
+  const status = statusNow(job, now);
   const missingRules = job.pricingSnapshot?.rules.filter((rule) => rule.missing) ?? [];
   const price = job.effectivePrice == null ? null : Number(job.effectivePrice);
   const calculated = job.calculatedPrice == null ? null : Number(job.calculatedPrice);
+  const runs = activeRuns(job);
+  const replacedCount = job.runs.length - runs.length;
+  const pendingOutcomes = status === 'needs_outcome' ? runsNeedingOutcome(job, now) : [];
 
-  const unlinked = useQuery({ ...printsQuery(unlinkedPrintsParams(job.machine.id)), enabled: canEdit && job.run === 'manual' });
-  const canLinkPrint = canEdit && linkablePrints(unlinked.data?.items).length > 0;
-  const printing = useQuery({ ...printQuery(print?.id ?? ''), enabled: print?.state === 'printing' });
+  const unassigned = useQuery({ ...runsQuery(unassignedRunsParams(job.machine.id)), enabled: canEdit });
+  const canAttach = (unassigned.data?.items.length ?? 0) > 0;
   const association = useQuery({ ...jobOrderQuery(job.id), enabled: canReadOrders });
 
   const refresh = () => client.invalidateQueries({ queryKey: machineLogbookKeys.all });
-  const close = () => setDialog(null);
-  const cancelRun = useMutation({
-    mutationFn: () => cancelMachineJobRun(job.id, { expectedVersion: job.version }),
-    onSuccess: async () => { await refresh(); notify({ kind: 'success', title: 'Run cancelled', subtitle: `${job.displayId} ended now and its price was recalculated.` }); close(); },
-  });
+  const close = () => { setDialog(null); setRunDialog(null); };
+  const targetRun = runDialog ? job.runs.find((run) => run.id === runDialog.runId) : undefined;
   const clearAdjustment = useMutation({
     mutationFn: () => clearMachineJobPriceAdjustment(job.id, { expectedVersion: job.version }),
     onSuccess: async () => { await refresh(); notify({ kind: 'success', title: 'Price adjustment removed', subtitle: `${job.displayId} uses the calculated price again.` }); close(); },
   });
-  const unlinkPrint = useMutation({
-    mutationFn: () => unlinkPrintFromMachineJob(print!.id, { expectedJobVersion: job.version }),
-    onSuccess: async () => { await refresh(); notify({ kind: 'success', title: 'Print unlinked', subtitle: `${job.displayId} keeps its values and is a manual run again.` }); close(); },
+  const cancelRun = useMutation({
+    mutationFn: (run: MachineRun) => cancelMachineRun(run.id, { expectedVersion: run.version }),
+    onSuccess: async (_saved, run) => { await refresh(); notify({ kind: 'success', title: 'Run cancelled', subtitle: `${run.displayId} ended now and the price of ${job.displayId} was recalculated.` }); close(); },
   });
-  const [outcomeChoice, setOutcomeChoice] = useState<MachineJobOutcome | ''>('');
-  const saveOutcome = useMutation({
-    mutationFn: (outcome: MachineJobOutcome) => updateMachineJob(job.id, {
-      machineId: job.machine.id, startsAt: job.startsAt, endsAt: job.endsAt, customer: job.customer ? { kind: job.customer.kind, id: job.customer.id } : undefined,
-      operatorPersonId: job.operator!.personId, outcome, title: job.title ?? null, notes: job.notes ?? null, expectedVersion: job.version,
-    }),
-    onSuccess: async (_saved, outcome) => { await refresh(); notify({ kind: 'success', title: 'Outcome recorded', subtitle: `${job.displayId} is marked ${outcomeLabel(outcome).toLowerCase()}.` }); },
+  const removeRun = useMutation({
+    mutationFn: (run: MachineRun) => deleteMachineRun(run.id, { expectedVersion: run.version }),
+    onSuccess: async (_saved, run) => { await refresh(); notify({ kind: 'success', title: 'Run removed', subtitle: `${run.displayId} was removed from ${job.displayId}.` }); close(); },
   });
-  const open = (next: NonNullable<typeof dialog>) => { cancelRun.reset(); clearAdjustment.reset(); unlinkPrint.reset(); setDialog(next); };
+  const detachRun = useMutation({
+    mutationFn: (run: MachineRun) => detachMachineRun(run.id, { expectedJobVersion: job.version }),
+    onSuccess: async (_saved, run) => { await refresh(); notify({ kind: 'success', title: 'Run detached', subtitle: `${run.displayId} is an unassigned run again.` }); close(); },
+  });
+  const resetMutations = () => { clearAdjustment.reset(); cancelRun.reset(); removeRun.reset(); detachRun.reset(); };
+  const open = (next: NonNullable<JobDialog>) => { resetMutations(); setDialog(next); };
+  const openRun = (action: RunAction, run: MachineRun) => { resetMutations(); setRunDialog({ action, runId: run.id }); };
 
   const primary = canEdit ? <Button renderIcon={Edit} onClick={() => open('edit')}>Edit job</Button> : null;
   const menuItems = [
-    canEdit && <OverflowMenuItem key="usage" itemText="Edit material usage" onClick={() => open('usage')} />,
     canOverride && <OverflowMenuItem key="override" itemText={job.priceAdjustment ? 'Change price adjustment' : 'Adjust price'} onClick={() => open('override')} />,
     canOverride && job.priceAdjustment && <OverflowMenuItem key="clear" itemText="Remove price adjustment" onClick={() => open('clear')} />,
-    canEdit && job.run === 'automatic' && print && <OverflowMenuItem key="unlink" itemText="Unlink print" onClick={() => open('unlink')} />,
   ].filter(Boolean);
 
-  const usageRows = job.usages.map((usage) => ({
-    id: usage.id, material: usage.materialName,
+  const usageRows = runs.flatMap((run) => run.usages.map((usage) => ({
+    id: `${run.id}-${usage.id}`, run, usage, material: usage.materialName,
     source: usage.ownership === 'external' ? 'Customer material' : usage.spoolDisplayId ? `Spool ${usage.spoolDisplayId}${usage.spoolId ? '' : ' (deleted)'}` : 'Makerspace stock',
     quantity: `${formatQuantity(usage.quantity)} ${usage.unit}`,
-  }));
+  })));
   const name = machineJobName(job);
-  const progress = runProgress(job, now);
   const adjustmentDifference = price != null && calculated != null ? price - calculated : null;
+  const running = status === 'running';
 
   return (
     <PageShell
       title={name} titleAdornment={<JobRowStatusTag status={status} />} width="wide"
-      description={[name !== job.displayId && job.displayId, job.machine.name, formatDateTime(job.startsAt)].filter(Boolean).join(' · ')}
+      description={[name !== job.displayId && job.displayId, job.machine.name, job.startedAt && formatDateTime(job.startedAt)].filter(Boolean).join(' · ')}
       breadcrumbs={[{ label: 'Workshop', to: machineLogbookPaths.overview() }, { label: 'Jobs', to: machineLogbookPaths.jobs() }]}
       actions={<>{primary}{menuItems.length > 0 && <OverflowMenu aria-label="More job actions" iconDescription="More job actions" flipped>{menuItems}</OverflowMenu>}</>}
     >
       <div className="mj-stack">
-        {status === 'needs_outcome' && (canEdit ? (
+        {pendingOutcomes.length > 0 && (canEdit ? (
           <Tile className="mj-outcome-prompt">
             <div>
               <h2 className="mj-section-title">Record the outcome</h2>
-              <p>The run ended {formatDateTime(job.endsAt)}. How did it go?</p>
-              {saveOutcome.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Outcome not saved" subtitle={errorText(saveOutcome.error, 'The outcome could not be saved.')} />}
+              <p>{pendingOutcomes.length === 1 ? 'A run of this job has ended. How did it go?' : `${pendingOutcomes.length} runs of this job have ended. How did each one go?`}</p>
             </div>
-            {job.operator ? (
-              <form
-                className="mj-outcome-prompt__form"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (outcomeChoice) saveOutcome.mutate(outcomeChoice);
-                }}
-              >
-                <Select id="job-outcome-prompt" labelText="Outcome" value={outcomeChoice} onChange={(event) => setOutcomeChoice(event.target.value as MachineJobOutcome)}>
-                  <SelectItem value="" text="Select an outcome" hidden />
-                  {outcomeOptions.filter((option) => option.id !== 'unknown').map((option) => <SelectItem key={option.id} value={option.id} text={option.label} />)}
-                </Select>
-                <Button type="submit" disabled={!outcomeChoice || saveOutcome.isPending}>{saveOutcome.isPending ? 'Saving…' : 'Save outcome'}</Button>
-              </form>
-            ) : <Button kind="tertiary" onClick={() => open('edit')}>Choose an operator</Button>}
+            <div className="mj-outcome-prompt__rows">
+              {pendingOutcomes.map((run) => <RunOutcomeRow key={run.id} run={run} />)}
+            </div>
           </Tile>
-        ) : <InlineNotification kind="info" lowContrast hideCloseButton title="Outcome not recorded yet" subtitle="The run has ended; someone with job edit access records how it went." />)}
+        ) : <InlineNotification kind="info" lowContrast hideCloseButton title="Outcome not recorded yet" subtitle="A run has ended; someone with job edit access records how it went." />)}
         {job.pricingStatus === 'incomplete' && (
           <InlineNotification
             kind="error" lowContrast hideCloseButton title="Price incomplete"
@@ -144,68 +176,50 @@ function JobDetail({ job }: { job: MachineJob }) {
           <dl className="mj-facts">
             <div><dt>Customer</dt><dd>{job.customer ? <>{job.customer.displayName}{job.customer.pricingGroup && <><br /><span className="mj-secondary">{job.customer.pricingGroup.name}</span></>}</> : '—'}</dd></div>
             <div><dt>Operator</dt><dd>{job.operator?.displayName ?? '—'}</dd></div>
-            <div><dt>Start</dt><dd>{formatDateTime(job.startsAt)}</dd></div>
-            <div><dt>Runtime</dt><dd className="mj-cell-stack"><span>{formatDuration(job.durationSeconds)}</span><span className="mj-secondary">Ends {formatDateTime(job.endsAt)}</span></dd></div>
-            <div><dt>Source</dt><dd>{job.run === 'automatic' ? 'From printer' : 'Manual'}</dd></div>
+            <div><dt>Start</dt><dd>{job.startedAt ? formatDateTime(job.startedAt) : '—'}</dd></div>
+            <div><dt>Runtime</dt><dd className="mj-cell-stack"><span>{formatDuration(job.durationSeconds)}</span>{runs.length > 1 && <span className="mj-secondary">All runs together</span>}</dd></div>
+            <div><dt>{running && !job.endedAt ? 'Expected end' : 'End'}</dt><dd>{job.endedAt ? formatDateTime(job.endedAt) : job.expectedEndAt ? formatDateTime(job.expectedEndAt) : '—'}</dd></div>
+            <div><dt>Runs</dt><dd className="mj-cell-stack"><span>{runs.length}</span>{replacedCount > 0 && <span className="mj-secondary">{replacedCount} replaced</span>}</dd></div>
+            <div>
+              <dt>Outcome</dt>
+              <dd className="mj-cell-stack">
+                {status === 'running' || status === 'needs_outcome' ? <span className="mj-secondary">Not recorded yet</span> : <span><OutcomeTag outcome={job.outcome} size="sm" /></span>}
+                {job.outcomeOverridden ? <span className="mj-secondary">Set by staff</span> : status !== 'running' && status !== 'needs_outcome' ? <span className="mj-secondary">Derived from the runs</span> : null}
+              </dd>
+            </div>
           </dl>
         </Tile>
-        <Tile>
-          <h2 className="mj-section-title">Run</h2>
-          <div className="mj-stack">
-            {job.run === 'automatic' && print ? (
-              <>
-                <div className="mj-inline">
-                  <Tag type="green" size="md">From printer</Tag>
-                  <PrintStateTag state={print.state} size="md" />
-                </div>
-                <p>
-                  <CarbonLink as={Link} to={machineLogbookPaths.print(print.id)}>{print.displayId}</CarbonLink>
-                  <span className="mj-secondary">{[print.fileName && ` · ${print.fileName}`, print.connectorName && ` · via ${print.connectorName}`].filter(Boolean).join('')}</span>
-                </p>
-                {print.state === 'printing' && printing.data && (
-                  <ProgressBar label="Print progress" value={printing.data.progressPercent ?? 0} max={100} helperText={`${printing.data.progressPercent ?? 0} %${printing.data.estimatedEndAt ? ` · ends ~${formatTime(printing.data.estimatedEndAt)}` : ''}`} />
-                )}
-              </>
-            ) : manualRunning ? (
-              <>
-                <div className="mj-inline"><Tag type="blue" size="md" renderIcon={InProgress}>Running · manual</Tag></div>
-                <ProgressBar label="Run progress" value={progress} max={100} helperText={`${progress} % · Ends ${formatTime(job.endsAt)}`} />
-                <p className="mj-secondary">The run ends at the defined time, or earlier if it is cancelled.</p>
-              </>
-            ) : (
-              <>
-                <div className="mj-inline"><Tag type="gray" size="md">Manual run</Tag></div>
-                <p className="mj-secondary">{job.outcome === 'cancelled' ? 'Cancelled' : 'Recorded by hand'}; ended {formatDateTime(job.endsAt)}. No printer data is linked.</p>
-              </>
-            )}
-            {job.run === 'manual' && (canEdit && (manualRunning || canLinkPrint)) && (
-              <div className="mj-inline">
-                {manualRunning && <Button kind="danger--tertiary" size="md" renderIcon={StopOutline} onClick={() => open('cancel')}>Cancel run</Button>}
-                {canLinkPrint && <Button kind="tertiary" size="md" renderIcon={LinkIcon} onClick={() => open('link')}>Link printer data</Button>}
-              </div>
-            )}
-          </div>
-        </Tile>
+        <JobRunsTable
+          job={job} now={now} canEdit={canEdit} canAttach={canAttach}
+          onAction={openRun} onAdd={() => open('add-run')} onAttach={() => open('attach')}
+        />
         <div className="mj-detail-layout">
           <div className="mj-stack">
             <DataTable rows={usageRows} headers={usageHeaders} size="md">
               {({ rows, headers, getTableProps, getHeaderProps, getRowProps }) => (
-                <TableContainer title="Material usage" description="Everything consumed by this job.">
+                <TableContainer title="Material usage" description="Everything consumed by the runs of this job.">
                   <Table {...getTableProps()} aria-label="Material usage">
                     <TableHead>
                       <TableRow>{headers.map((header) => { const { key, ...props } = getHeaderProps({ header }); return <TableHeader key={key} {...props}>{header.header}</TableHeader>; })}</TableRow>
                     </TableHead>
                     <TableBody>
-                      {rows.length === 0 && <TableRow><TableCell colSpan={3}>No material recorded.</TableCell></TableRow>}
+                      {rows.length === 0 && <TableRow><TableCell colSpan={4}>No material recorded.</TableCell></TableRow>}
                       {rows.map((row) => {
-                        const usage = job.usages.find((item) => item.id === row.id);
-                        if (!usage) return null;
+                        const entry = usageRows.find((item) => item.id === row.id);
+                        if (!entry) return null;
+                        const { usage, run } = entry;
                         const { key, ...props } = getRowProps({ row });
                         return (
                           <TableRow key={key} {...props}>
                             <TableCell><div className="mj-cell-stack"><span>{usage.materialName}</span><span className="mj-secondary">{usage.category}</span></div></TableCell>
-                            <TableCell>{row.cells[1].value}</TableCell>
-                            <TableCell>{row.cells[2].value} {usage.quantityBasis === 'estimated' && <Tag type="outline" size="sm">Estimated</Tag>}</TableCell>
+                            <TableCell>
+                              <div className="mj-cell-stack">
+                                <CarbonLink as={Link} to={machineLogbookPaths.run(run.id)}>{run.displayId}</CarbonLink>
+                                {run.usagesFromMachine && <span><FromMachineTag /></span>}
+                              </div>
+                            </TableCell>
+                            <TableCell>{row.cells[2].value}</TableCell>
+                            <TableCell>{row.cells[3].value} {usage.quantityBasis === 'estimated' && <Tag type="outline" size="sm">Estimated</Tag>}</TableCell>
                           </TableRow>
                         );
                       })}
@@ -264,14 +278,33 @@ function JobDetail({ job }: { job: MachineJob }) {
         </div>
       </div>
       <JobFormModal open={dialog === 'edit'} onClose={close} mode="edit" job={job} />
-      <UsageFormModal open={dialog === 'usage'} onClose={close} job={job} />
-      <LinkPrintModal open={dialog === 'link'} onClose={close} job={job} />
+      <RunFormModal open={dialog === 'add-run'} onClose={close} mode="add" job={job} />
+      <AttachRunModal open={dialog === 'attach'} onClose={close} job={job} />
+      {targetRun && runDialog?.action === 'edit' && <RunFormModal open onClose={close} mode="edit" run={targetRun} />}
+      {targetRun && runDialog?.action === 'usage' && <UsageFormModal open onClose={close} run={targetRun} />}
       <DestructiveActionDialog
-        open={dialog === 'cancel'} title="Cancel this run?" confirmLabel="Cancel run" cancelLabel="Keep running" pending={cancelRun.isPending} onClose={close}
+        open={runDialog?.action === 'cancel' && !!targetRun} title="Cancel this run?" confirmLabel="Cancel run" cancelLabel="Keep running" pending={cancelRun.isPending} onClose={close}
         error={cancelRun.isError ? errorText(cancelRun.error, 'The run could not be cancelled. Reload the page and try again.') : undefined}
-        onConfirm={() => cancelRun.mutate()}
+        onConfirm={() => { if (targetRun) cancelRun.mutate(targetRun); }}
       >
-        <p>The run ends now and the job is marked cancelled. The price is recalculated for the shortened runtime.</p>
+        <p>{targetRun?.displayId} ends now and is marked cancelled. Runtime and price of {job.displayId} are recalculated for the shortened run.</p>
+      </DestructiveActionDialog>
+      <DestructiveActionDialog
+        open={runDialog?.action === 'remove' && !!targetRun} title="Remove this run?" confirmLabel="Remove run" pending={removeRun.isPending} onClose={close}
+        error={removeRun.isError ? errorText(removeRun.error, 'The run could not be removed. Reload the page and try again.') : undefined}
+        onConfirm={() => { if (targetRun) removeRun.mutate(targetRun); }}
+      >
+        <p>{targetRun?.displayId} is deleted from {job.displayId}. Its material usage goes back to stock and the price is recalculated. A job always keeps at least one run.</p>
+      </DestructiveActionDialog>
+      <DestructiveActionDialog
+        open={runDialog?.action === 'detach' && !!targetRun} title="Detach this run?" confirmLabel="Detach" pending={detachRun.isPending} onClose={close}
+        error={detachRun.isError ? errorText(detachRun.error, 'The run could not be detached. Reload the page and try again.') : undefined}
+        onConfirm={() => { if (targetRun) detachRun.mutate(targetRun); }}
+      >
+        <p>
+          {targetRun?.displayId} is no longer part of {job.displayId} and shows as an unassigned run again. It keeps its material usage and the stock it consumed.
+          {runs.length === 1 && ` Because it is the only run, ${job.displayId} gets a manual run with the same start, end and outcome, but without material.`}
+        </p>
       </DestructiveActionDialog>
       <PriceAdjustmentModal open={dialog === 'override'} onClose={close} job={job} />
       <DestructiveActionDialog
@@ -280,13 +313,6 @@ function JobDetail({ job }: { job: MachineJob }) {
         onConfirm={() => clearAdjustment.mutate()}
       >
         <p>{job.priceAdjustment ? adjustmentSummary(job.priceAdjustment) : 'The adjustment'} is removed and the calculated price of {formatMoney(calculated)} applies again. Existing order charges stay unchanged.</p>
-      </DestructiveActionDialog>
-      <DestructiveActionDialog
-        open={dialog === 'unlink'} title="Unlink this print?" confirmLabel="Unlink" pending={unlinkPrint.isPending} onClose={close}
-        error={unlinkPrint.isError ? errorText(unlinkPrint.error, 'The print could not be unlinked. Reload the page and try again.') : undefined}
-        onConfirm={() => unlinkPrint.mutate()}
-      >
-        <p>{job.displayId} keeps its current times and material, but becomes a manual run again. {print?.displayId ?? 'The print'} shows as unlinked.</p>
       </DestructiveActionDialog>
     </PageShell>
   );

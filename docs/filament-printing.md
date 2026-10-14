@@ -10,7 +10,7 @@ Registering a new purchase writes the purchase directly to its spool. Registerin
 
 Spool scan identifiers support barcode, QR, and NFC values. Open assignments prevent one spool from being mounted in multiple printer slots. Archived or empty spools cannot be mounted. Inventory transactions are immutable after insertion, except that privacy-preserving account and machine-usage references may detach during genuine hard deletion.
 
-Machine Job usages now distinguish makerspace and external filament. Makerspace usage must reference a Material and may reference a Spool; it consumes inventory and participates in material pricing. External usage carries a description, never references a Spool, does not change inventory, and does not add a makerspace material charge. Every usage records whether its quantity is actual or estimated. Order snapshots use schema version 2 for these facts while readers remain compatible with version 1 snapshots.
+Material usage on a machine run now distinguishes makerspace and external filament. Makerspace usage must reference a Material and may reference a Spool; it consumes inventory and participates in material pricing. External usage carries a description, never references a Spool, does not change inventory, and does not add a makerspace material charge. Every usage records whether its quantity is actual or estimated. Order snapshots use schema version 2 for these facts while readers remain compatible with version 1 snapshots.
 
 ## Spools, fills, and kinds
 
@@ -38,9 +38,9 @@ The topology is intentionally generic. It stores stable external identifiers for
 
 ## Print submissions and attempts removed
 
-Print submissions, print attempts, filament declarations, printer-event reconciliation, and the printing-operation idempotency records were removed with their tables and `/print-submissions` and `/print-attempts` endpoints. Printer connectors report physical prints, which staff handle as [prints and jobs](machine-logbook.md#prints).
+Print submissions, print attempts, filament declarations, printer-event reconciliation, and the printing-operation idempotency records were removed with their tables and `/print-submissions` and `/print-attempts` endpoints. Printer connectors report recorded runs, which staff attach to or create [jobs](machine-logbook.md#jobs-and-runs) from.
 
-Normalized connector events use a versioned source ID and event key. Repeating identical facts is idempotent; reusing the key for different facts is rejected. A consumption report becomes the print's reported usage; linking the print to a job replaces the job's usages with it, keeping the source-event reference on the usage. The inventory entries, pricing recalculation, and audits commit in one database transaction.
+Normalized connector events use a versioned source ID and event key. Repeating identical facts is idempotent; reusing the key for different facts is rejected. A consumption report becomes the run's reported usage and is consumed when the run ends; a later revision replaces it without double counting, keeping the source-event reference on the usage. The inventory entries, pricing recalculation, and audits commit in one database transaction.
 
 ## Permissions and routes
 

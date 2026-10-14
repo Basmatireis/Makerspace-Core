@@ -253,6 +253,18 @@ describe('Material detail page', () => {
     expect(within(ledger).getAllByRole('link', { name: /S-2026-000008/ })[0]).toHaveAttribute('href', machineLogbookPaths.spool(ids.spool));
   });
 
+  it('labels the stock a machine run consumed and names the job it belongs to', async () => {
+    auth.permissions = [PermissionId.inventoryread, PermissionId.machine_jobsread];
+    serveMaterial(filament, [
+      transaction({ id: ids.spool + 'e', kind: 'machine_run_consumption', quantityDelta: '-183', machineJobId: ids.spool, machineJobDisplayId: 'J-2026-000001', occurredAt: '2026-09-12T10:00:00Z' }),
+    ]);
+    renderPage(<MaterialDetailPage />, machineLogbookPaths.material(ids.pla), route);
+
+    const ledger = await screen.findByRole('table', { name: 'Ledger' });
+    expect(await within(ledger).findByText('Run consumption')).toBeInTheDocument();
+    expect(within(ledger).getByRole('link', { name: 'J-2026-000001' })).toHaveAttribute('href', machineLogbookPaths.job(ids.spool));
+  });
+
   it('asks for confirmation and sends the latest inventory version when marking a material empty', async () => {
     auth.permissions = [PermissionId.inventoryread, PermissionId.inventorymanage];
     serveMaterial(sheet);

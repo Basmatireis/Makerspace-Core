@@ -24,7 +24,6 @@ import type {
   MachineJob,
   MachineJobPage,
   OperatorList,
-  ReplaceMachineJobUsagesRequest,
   SearchMachineJobOperatorsParams,
   SetMachineJobPriceAdjustmentRequest,
   UUIDv7,
@@ -162,56 +161,6 @@ export const updateMachineJob = async (machineJobId: UUIDv7,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       updateMachineJobRequest,)
-  }
-);}
-
-
-/**
- * @summary Replace job usages using compensating inventory transactions
- */
-export const getReplaceMachineJobUsagesUrl = (machineJobId: UUIDv7,) => {
-
-
-  
-
-  return `/api/v1/machine-jobs/${machineJobId}/usages`
-}
-
-export const replaceMachineJobUsages = async (machineJobId: UUIDv7,
-    replaceMachineJobUsagesRequest: ReplaceMachineJobUsagesRequest, options?: RequestInit): Promise<MachineJob> => {
-  
-  return apiFetch<MachineJob>(getReplaceMachineJobUsagesUrl(machineJobId),
-  {      
-    ...options,
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      replaceMachineJobUsagesRequest,)
-  }
-);}
-
-
-/**
- * @summary End a running manual run now, record it as cancelled and recalculate the price
- */
-export const getCancelMachineJobRunUrl = (machineJobId: UUIDv7,) => {
-
-
-  
-
-  return `/api/v1/machine-jobs/${machineJobId}/run-cancellation`
-}
-
-export const cancelMachineJobRun = async (machineJobId: UUIDv7,
-    versionRequest: VersionRequest, options?: RequestInit): Promise<MachineJob> => {
-  
-  return apiFetch<MachineJob>(getCancelMachineJobRunUrl(machineJobId),
-  {      
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      versionRequest,)
   }
 );}
 

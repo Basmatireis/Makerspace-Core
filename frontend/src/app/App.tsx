@@ -58,7 +58,7 @@ const MachineLogbookLayout = lazy(() => import('../features/machinelogbook/share
 const MachineLogbookOverviewPage = lazy(() => import('../features/machinelogbook/OverviewPage').then(({ MachineLogbookOverviewPage }) => ({ default: MachineLogbookOverviewPage })));
 const JobsPage = lazy(() => import('../features/machinelogbook/JobsPage').then(({ JobsPage }) => ({ default: JobsPage })));
 const JobDetailPage = lazy(() => import('../features/machinelogbook/JobDetailPage').then(({ JobDetailPage }) => ({ default: JobDetailPage })));
-const PrintDetailPage = lazy(() => import('../features/machinelogbook/PrintDetailPage').then(({ PrintDetailPage }) => ({ default: PrintDetailPage })));
+const RunDetailPage = lazy(() => import('../features/machinelogbook/RunDetailPage').then(({ RunDetailPage }) => ({ default: RunDetailPage })));
 const InventoryPage = lazy(() => import('../features/machinelogbook/InventoryPage').then(({ InventoryPage }) => ({ default: InventoryPage })));
 const MaterialDetailPage = lazy(() => import('../features/machinelogbook/MaterialDetailPage').then(({ MaterialDetailPage }) => ({ default: MaterialDetailPage })));
 const FilamentSpoolDetailPage = lazy(() => import('../features/machinelogbook/FilamentSpoolDetailPage').then(({ FilamentSpoolDetailPage }) => ({ default: FilamentSpoolDetailPage })));
@@ -165,7 +165,8 @@ export function App() {
 		<Route path="machine-logbook" element={<MachineLogbookLayout />}>
 			<Route index element={<PermissionRoute anyOf={[PermissionId.machine_jobsread, PermissionId.statisticsread]}><MachineLogbookOverviewPage /></PermissionRoute>} />
 			<Route path="jobs" element={<PermissionRoute allOf={[PermissionId.machine_jobsread]}><JobsPage /></PermissionRoute>} />
-			<Route path="jobs/prints/:printId" element={<PermissionRoute allOf={[PermissionId.machine_jobsread]}><PrintDetailPage /></PermissionRoute>} />
+			<Route path="jobs/runs/:runId" element={<PermissionRoute allOf={[PermissionId.machine_jobsread]}><RunDetailPage /></PermissionRoute>} />
+			<Route path="jobs/prints/:printId" element={<IdRedirect param="printId" to={machineLogbookPaths.run} />} />
 			<Route path="jobs/:jobId" element={<PermissionRoute allOf={[PermissionId.machine_jobsread]}><JobDetailPage /></PermissionRoute>} />
 			<Route path="machines" element={<PermissionRoute allOf={[PermissionId.machinesread]}><MachinesPage /></PermissionRoute>} />
 			<Route path="machines/:machineId" element={<PermissionRoute allOf={[PermissionId.machinesread]}><MachineDetailPage /></PermissionRoute>} />

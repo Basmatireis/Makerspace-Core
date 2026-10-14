@@ -20,7 +20,7 @@ the required session and CSRF credentials.
  */
 
 /**
- * retired and maintenance come from the machine status; in_use when a job is running or a print is printing.
+ * retired and maintenance come from the machine status; in_use while a run is running on the machine.
  */
 export type MachineAvailability = typeof MachineAvailability[keyof typeof MachineAvailability];
 

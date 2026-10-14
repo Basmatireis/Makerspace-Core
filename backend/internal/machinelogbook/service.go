@@ -160,6 +160,8 @@ type PriceAdjustment struct {
 	AdjustedAt          time.Time
 }
 
+// JobInput creates a job together with its first, manual run. Outcome "" or
+// "unknown" records no outcome yet.
 type JobInput struct {
 	MachineID        uuid.UUID
 	Title            *string
@@ -169,6 +171,26 @@ type JobInput struct {
 	Outcome          string
 	Notes            *string
 	PricingGroupID   *uuid.UUID
+	Usages           []UsageInput
+}
+
+// JobUpdate carries the staff-editable facts of a job. The times, material and
+// outcome of a job come from its runs; OutcomeOverride replaces the derived
+// outcome and nil derives it again.
+type JobUpdate struct {
+	MachineID        uuid.UUID
+	Title            *string
+	Customer         PartyReference
+	OperatorPersonID uuid.UUID
+	Notes            *string
+	PricingGroupID   *uuid.UUID
+	OutcomeOverride  *string
+}
+
+// ManualRunInput is a manually entered run. A nil Outcome records none yet.
+type ManualRunInput struct {
+	StartsAt, EndsAt time.Time
+	Outcome          *string
 	Usages           []UsageInput
 }
 
@@ -353,19 +375,21 @@ type PricingSnapshot struct {
 }
 
 type MachineJob struct {
-	ID                              uuid.UUID
-	DisplayID                       string
-	Title                           *string
-	Status                          string
-	Machine                         Machine
-	StartsAt, EndsAt                time.Time
-	DurationSeconds                 int64
-	Run                             string
-	Print                           *MachineJobPrint
-	Customer                        *BillingParty
-	Operator                        *Operator
-	Outcome                         string
-	Notes                           *string
+	ID                                uuid.UUID
+	DisplayID                         string
+	Title                             *string
+	Status                            string
+	Machine                           Machine
+	Runs                              []MachineRun
+	StartedAt, EndedAt, ExpectedEndAt *time.Time
+	DurationSeconds                   int64
+	Customer                          *BillingParty
+	Operator                          *Operator
+	Outcome                           string
+	OutcomeOverridden                 bool
+	Notes                             *string
+	// Usages is the material of all runs that are not replaced. It feeds order
+	// snapshots and is not part of the API representation.
 	Usages                          []MachineJobUsage
 	PricingStatus                   string
 	PricingSnapshot                 *PricingSnapshot
@@ -389,7 +413,7 @@ type Overview struct {
 	LowStockMaterials                                                               []Material
 	Activity                                                                        []DailyActivity
 	// The work-item fields are nil unless the caller may read machine jobs.
-	RunningNow, NeedsOutcome, UnlinkedPrints, BillingIssues, ActiveTotal *int64
+	RunningNow, NeedsOutcome, UnassignedRuns, BillingIssues, ActiveTotal *int64
 	RunningMachineNames                                                  []string
 	ActiveItems                                                          []WorkItem
 }
@@ -533,9 +557,22 @@ func noRows(err error) error {
 	return err
 }
 
+// accountPointer is the account behind a principal. Changes made by a machine
+// connector run with an empty principal and have no account.
+func accountPointer(p authorization.Principal) *uuid.UUID {
+	if p.AccountID == uuid.Nil {
+		return nil
+	}
+	account := p.AccountID
+	return &account
+}
+
 func writeAudit(ctx context.Context, tx pgx.Tx, p authorization.Principal, action, resource string, id uuid.UUID, requestID *uuid.UUID, fields []string) error {
-	actor := p.AccountID
-	return audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: action, ResourceType: resource, ResourceID: &id, RequestID: requestID, ChangedFields: fields})
+	event := audit.Event{ActorAccountID: accountPointer(p), Action: action, ResourceType: resource, ResourceID: &id, RequestID: requestID, ChangedFields: fields}
+	if event.ActorAccountID == nil {
+		event.ActorType = "system"
+	}
+	return audit.Write(ctx, tx, event)
 }
 
 func machineTypeFromRow(row machinelogbookdb.MachineType) MachineType {
@@ -544,4 +581,8 @@ func machineTypeFromRow(row machinelogbookdb.MachineType) MachineType {
 
 func formatDisplayID(sequence int64, now time.Time) string {
 	return fmt.Sprintf("J-%04d-%06d", now.UTC().Year(), sequence)
+}
+
+func formatRunDisplayID(sequence int64, at time.Time) string {
+	return fmt.Sprintf("R-%04d-%06d", at.UTC().Year(), sequence)
 }

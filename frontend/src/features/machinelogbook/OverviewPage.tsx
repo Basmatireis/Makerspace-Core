@@ -26,7 +26,7 @@ const ACTIVE_LIMIT = 6;
 
 type Metric = { key: string; label: string; count: number; detail: string; to: string };
 
-const METRIC_LABELS = ['Running now', 'Needs outcome', 'Unlinked prints', 'Billing issues'];
+const METRIC_LABELS = ['Running now', 'Needs outcome', 'Unassigned runs', 'Billing issues'];
 
 function MetricTile({ metric }: { metric: Metric }) {
   return (
@@ -38,7 +38,7 @@ function MetricTile({ metric }: { metric: Metric }) {
   );
 }
 
-const itemPath = (item: WorkItem) => item.kind === 'print' ? machineLogbookPaths.print(item.id) : machineLogbookPaths.job(item.id);
+const itemPath = (item: WorkItem) => item.kind === 'run' ? machineLogbookPaths.run(item.id) : machineLogbookPaths.job(item.id);
 
 function activeLine(item: WorkItem, now: number) {
   const end = item.endsAt ?? item.estimatedEndAt;
@@ -64,21 +64,22 @@ export function MachineLogbookOverviewPage() {
 
   const hasJobFigures = data?.runningNow != null;
   const running = data?.runningNow ?? 0;
-  const unlinked = data?.unlinkedPrints ?? 0;
+  // The API still names this figure unassignedRuns; it counts ended recorded runs without a job.
+  const unassigned = data?.unassignedRuns ?? 0;
   const runningMachines = data?.runningMachineNames ?? [];
   const activeItems = data?.activeItems ?? null;
   const activeTotal = data?.activeTotal ?? activeItems?.length ?? 0;
   const lowStock = data?.lowStockMaterials[0];
 
   const metrics: Metric[] = hasJobFigures ? [
-    { key: 'running', label: 'Running now', count: running, detail: runningMachines.length ? runningMachines.join(', ') : 'No machine is busy', to: machineLogbookPaths.jobs({ status: 'running,printing' }) },
+    { key: 'running', label: 'Running now', count: running, detail: runningMachines.length ? runningMachines.join(', ') : 'No machine is busy', to: machineLogbookPaths.jobs({ status: 'running,running_unassigned' }) },
     { key: 'outcome', label: 'Needs outcome', count: data.needsOutcome ?? 0, detail: 'Run ended; record how it went', to: machineLogbookPaths.jobs({ status: 'needs_outcome' }) },
-    { key: 'unlinked', label: 'Unlinked prints', count: unlinked, detail: 'Create a job or link to one', to: machineLogbookPaths.jobs({ status: 'unlinked' }) },
+    { key: 'unassigned', label: 'Unassigned runs', count: unassigned, detail: 'Create a job or attach to one', to: machineLogbookPaths.jobs({ status: 'unassigned' }) },
     { key: 'billing', label: 'Billing issues', count: data.billingIssues ?? 0, detail: 'Missing price rule or changed order', to: machineLogbookPaths.jobs({ billing: 'price_incomplete,order_outdated' }) },
   ] : [];
 
   const description = data
-    ? [`${data.jobsToday} ${data.jobsToday === 1 ? 'job' : 'jobs'} today`, ...(hasJobFigures ? [`${running} running`, `${unlinked} unlinked`] : [])].join(' · ')
+    ? [`${data.jobsToday} ${data.jobsToday === 1 ? 'job' : 'jobs'} today`, ...(hasJobFigures ? [`${running} running`, `${unassigned} unassigned`] : [])].join(' · ')
     : 'What is running and what needs you.';
 
   const showMachines = canReadMachines;
@@ -114,7 +115,7 @@ export function MachineLogbookOverviewPage() {
                 action={<Button as={Link} to={machineLogbookPaths.jobs()} kind="ghost" size="sm" renderIcon={ArrowRight}>All jobs</Button>}
               >
                 {loading && <ContainedListItem><SkeletonText paragraph lineCount={3} /></ContainedListItem>}
-                {activeItems?.length === 0 && <ContainedListItem>Nothing is running and no print waits to be linked.</ContainedListItem>}
+                {activeItems?.length === 0 && <ContainedListItem>Nothing is running and no run waits for a job.</ContainedListItem>}
                 {activeItems?.slice(0, ACTIVE_LIMIT).map((item) => (
                   <ContainedListItem key={`${item.kind}-${item.id}`} onClick={() => navigate(itemPath(item))} action={<JobRowStatusTag status={item.status} size="sm" />}>
                     <span className="mj-cell-stack">
@@ -124,7 +125,7 @@ export function MachineLogbookOverviewPage() {
                   </ContainedListItem>
                 ))}
                 {activeItems && activeTotal > ACTIVE_LIMIT && (
-                  <ContainedListItem onClick={() => navigate(machineLogbookPaths.jobs({ status: 'running,printing,unlinked,needs_outcome' }))}>
+                  <ContainedListItem onClick={() => navigate(machineLogbookPaths.jobs({ status: 'running,running_unassigned,unassigned,needs_outcome' }))}>
                     <span className="mj-secondary">{activeTotal - ACTIVE_LIMIT} more active items</span>
                   </ContainedListItem>
                 )}

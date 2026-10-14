@@ -352,12 +352,12 @@ func (s *Service) applyInventoryMutation(ctx context.Context, tx pgx.Tx, q *mach
 	if m.TotalPrice != nil {
 		total = numericFromDecimal(*m.TotalPrice)
 	}
-	actor := p.AccountID
+	actor := accountPointer(p)
 	var ledger machinelogbookdb.InventoryTransaction
 	if m.Fill != nil {
-		ledger, err = q.InsertSpoolInventoryTransaction(ctx, machinelogbookdb.InsertSpoolInventoryTransactionParams{ID: newID(), MaterialID: id, Kind: m.Kind, QuantityDelta: numericFromDecimal(m.QuantityDelta), UnitAcquisitionCost: numericFromDecimal(m.UnitCost), InventoryValueDelta: numericFromDecimal(m.ValueDelta), TotalPurchasePrice: total, OccurredAt: m.OccurredAt.UTC(), Supplier: cleanOptional(m.Supplier), Note: cleanOptional(m.Note), AdjustmentReason: m.Reason, MachineJobUsageID: m.UsageID, ActorAccountID: &actor, SpoolID: &m.Fill.SpoolID, FillID: &m.Fill.FillID, SpoolDisplayID: &m.Fill.SpoolDisplayID, FillNumber: &m.Fill.FillNumber})
+		ledger, err = q.InsertSpoolInventoryTransaction(ctx, machinelogbookdb.InsertSpoolInventoryTransactionParams{ID: newID(), MaterialID: id, Kind: m.Kind, QuantityDelta: numericFromDecimal(m.QuantityDelta), UnitAcquisitionCost: numericFromDecimal(m.UnitCost), InventoryValueDelta: numericFromDecimal(m.ValueDelta), TotalPurchasePrice: total, OccurredAt: m.OccurredAt.UTC(), Supplier: cleanOptional(m.Supplier), Note: cleanOptional(m.Note), AdjustmentReason: m.Reason, RunUsageID: m.UsageID, ActorAccountID: actor, SpoolID: &m.Fill.SpoolID, FillID: &m.Fill.FillID, SpoolDisplayID: &m.Fill.SpoolDisplayID, FillNumber: &m.Fill.FillNumber})
 	} else {
-		ledger, err = q.InsertInventoryTransaction(ctx, machinelogbookdb.InsertInventoryTransactionParams{ID: newID(), MaterialID: id, Kind: m.Kind, QuantityDelta: numericFromDecimal(m.QuantityDelta), UnitAcquisitionCost: numericFromDecimal(m.UnitCost), InventoryValueDelta: numericFromDecimal(m.ValueDelta), TotalPurchasePrice: total, OccurredAt: m.OccurredAt.UTC(), Supplier: cleanOptional(m.Supplier), Note: cleanOptional(m.Note), AdjustmentReason: m.Reason, MachineJobUsageID: m.UsageID, ActorAccountID: &actor})
+		ledger, err = q.InsertInventoryTransaction(ctx, machinelogbookdb.InsertInventoryTransactionParams{ID: newID(), MaterialID: id, Kind: m.Kind, QuantityDelta: numericFromDecimal(m.QuantityDelta), UnitAcquisitionCost: numericFromDecimal(m.UnitCost), InventoryValueDelta: numericFromDecimal(m.ValueDelta), TotalPurchasePrice: total, OccurredAt: m.OccurredAt.UTC(), Supplier: cleanOptional(m.Supplier), Note: cleanOptional(m.Note), AdjustmentReason: m.Reason, RunUsageID: m.UsageID, ActorAccountID: actor})
 	}
 	if err != nil {
 		return InventoryMutationResult{}, databaseError(err)

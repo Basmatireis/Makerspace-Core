@@ -34,7 +34,18 @@ func snapshot(job machinelogbook.MachineJob) (*JobChargeSnapshot, error) {
 	if adj := job.PriceAdjustment; adj != nil {
 		finalAmount, overrideReason, overriddenAt = job.EffectivePrice, &adj.Reason, &adj.AdjustedAt
 	}
-	return &JobChargeSnapshot{DisplayID: job.DisplayID, MachineID: job.Machine.ID, MachineName: job.Machine.Name, MachineTypeID: job.Machine.MachineType.ID, MachineTypeName: job.Machine.MachineType.Name, StartsAt: job.StartsAt, EndsAt: job.EndsAt, DurationNanoseconds: decimal.NewFromInt(job.EndsAt.Sub(job.StartsAt).Nanoseconds()).String(), Outcome: job.Outcome, Usages: usages, Pricing: pricing, PricingStatus: job.PricingStatus, CalculatedAmount: job.CalculatedPrice, FinalAmount: finalAmount, EffectiveAmount: *job.EffectivePrice, OverrideReason: overrideReason, OverriddenAt: overriddenAt, CapturedAt: time.Now().UTC()}, nil
+	// The job's times are those of its runs; a running job is captured up to its planned end.
+	startsAt := time.Time{}
+	if job.StartedAt != nil {
+		startsAt = *job.StartedAt
+	}
+	endsAt := startsAt
+	if job.EndedAt != nil {
+		endsAt = *job.EndedAt
+	} else if job.ExpectedEndAt != nil {
+		endsAt = *job.ExpectedEndAt
+	}
+	return &JobChargeSnapshot{DisplayID: job.DisplayID, MachineID: job.Machine.ID, MachineName: job.Machine.Name, MachineTypeID: job.Machine.MachineType.ID, MachineTypeName: job.Machine.MachineType.Name, StartsAt: startsAt, EndsAt: endsAt, DurationNanoseconds: decimal.NewFromInt(job.DurationSeconds).Mul(decimal.NewFromInt(int64(time.Second))).String(), Outcome: job.Outcome, Usages: usages, Pricing: pricing, PricingStatus: job.PricingStatus, CalculatedAmount: job.CalculatedPrice, FinalAmount: finalAmount, EffectiveAmount: *job.EffectivePrice, OverrideReason: overrideReason, OverriddenAt: overriddenAt, CapturedAt: time.Now().UTC()}, nil
 }
 func (s *Service) insertItem(ctx context.Context, tx pgx.Tx, p authorization.Principal, o db.Order, input OrderItemInput, requestID *uuid.UUID) (db.OrderItem, error) {
 	q := db.New(tx)

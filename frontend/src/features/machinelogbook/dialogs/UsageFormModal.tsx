@@ -3,15 +3,15 @@ import { Button, ComposedModal, InlineNotification, ModalBody, ModalFooter, Moda
 import { Add, TrashCan } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, FormProvider, useFieldArray, useForm, useFormContext } from 'react-hook-form';
-import { replaceMachineJobUsages } from '../../../api/generated/machine-jobs/machine-jobs';
-import type { MachineJob } from '../../../api/generated/models';
+import { replaceMachineRunUsages } from '../../../api/generated/machine-runs/machine-runs';
+import type { MachineRun } from '../../../api/generated/models';
 import { UnsavedChangesDialog } from '../../../app/UnsavedChangesDialog';
 import { useUnsavedChanges } from '../../../app/useUnsavedChanges';
 import { machineLogbookKeys, materialsQuery, spoolsQuery } from '../queries';
 import { formatQuantity } from '../shared/format';
 import { useCan } from '../shared/useCan';
 import { useNotify } from '../shared/toasts';
-import { blankUsage, jobOrderQuery, saveError, toUsageInputs, usageRowsFromJob, type UsagesValues } from './jobFormHelpers';
+import { blankUsage, jobOrderQuery, saveError, toUsageInputs, usageRowsFromUsages, type UsagesValues } from './jobFormHelpers';
 import '../styles/jobs.scss';
 
 function UsageRowFields({ idPrefix, index, onRemove, canReadInventory }: { idPrefix: string; index: number; onRemove: () => void; canReadInventory: boolean }) {
@@ -80,7 +80,7 @@ export function UsageRowsEditor({ idPrefix }: { idPrefix: string }) {
   return (
     <Stack gap={5}>
       {!canReadInventory && <InlineNotification kind="info" lowContrast hideCloseButton title="Inventory lookup unavailable" subtitle="Inventory read access is needed to choose other materials or spools. Existing rows keep their material." />}
-      {fields.length === 0 && <p className="mj-secondary">No material recorded. The job will be priced for machine time only.</p>}
+      {fields.length === 0 && <p className="mj-secondary">No material recorded. The run is priced for machine time only.</p>}
       {fields.map((field, index) => (
         <UsageRowFields key={field.id} idPrefix={`${idPrefix}-${field.id}`} index={index} canReadInventory={canReadInventory} onRemove={() => remove(index)} />
       ))}
@@ -89,19 +89,19 @@ export function UsageRowsEditor({ idPrefix }: { idPrefix: string }) {
   );
 }
 
-function UsageForm({ onClose, job }: { onClose: () => void; job: MachineJob }) {
+function UsageForm({ onClose, run }: { onClose: () => void; run: MachineRun }) {
   const client = useQueryClient();
   const notify = useNotify();
   const can = useCan();
-  const association = useQuery({ ...jobOrderQuery(job.id), enabled: can('orders.read') });
-  const form = useForm<UsagesValues>({ defaultValues: { usages: usageRowsFromJob(job.usages) } });
+  const association = useQuery({ ...jobOrderQuery(run.job?.id ?? ''), enabled: can('orders.read') && !!run.job });
+  const form = useForm<UsagesValues>({ defaultValues: { usages: usageRowsFromUsages(run.usages) } });
   const guard = useUnsavedChanges({ isDirty: form.formState.isDirty });
   const [error, setError] = useState<string | null>(null);
   const mutation = useMutation({
-    mutationFn: (values: UsagesValues) => replaceMachineJobUsages(job.id, { usages: toUsageInputs(values.usages), expectedVersion: job.version }),
+    mutationFn: (values: UsagesValues) => replaceMachineRunUsages(run.id, { usages: toUsageInputs(values.usages), expectedVersion: run.version }),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
-      notify({ kind: 'success', title: 'Material usage updated', subtitle: `${job.displayId} price recalculated.` });
+      notify({ kind: 'success', title: 'Material usage updated', subtitle: run.job ? `${run.displayId} saved; ${run.job.displayId} price recalculated.` : `${run.displayId} saved.` });
       guard.bypassAfterSubmit(onClose);
     },
     onError: (cause) => setError(saveError(cause, 'The material usage could not be saved.').message),
@@ -112,14 +112,15 @@ function UsageForm({ onClose, job }: { onClose: () => void; job: MachineJob }) {
   return (
     <>
       <ComposedModal open={!guard.dialogOpen} size="lg" preventCloseOnClickOutside onClose={() => { if (!pending) guard.requestDiscard(onClose); return false; }} aria-label="Edit material usage">
-        <ModalHeader title="Edit material usage" label={job.displayId} />
+        <ModalHeader title="Edit material usage" label={run.displayId} />
         <ModalBody hasForm>
           <FormProvider {...form}>
             <Stack gap={6}>
-              <p>Saving replaces the full list of consumed material. Stock is adjusted and the calculated price is recalculated. Existing order charges stay unchanged.</p>
+              <p>Saving replaces the full list of material consumed by this run. Stock is adjusted and the calculated price is recalculated. Existing order charges stay unchanged.</p>
+              {run.usagesFromMachine && <InlineNotification kind="info" lowContrast hideCloseButton title="Reported by the machine" subtitle="This material was consumed automatically from the machine's report. Saving replaces it with your entries." />}
               {association.data?.orderId && <InlineNotification kind="warning" lowContrast hideCloseButton title={`On ${association.data.orderReference}`} subtitle="Correct the order separately after changing usage." />}
               {error && <InlineNotification kind="error" lowContrast hideCloseButton title="Material usage not saved" subtitle={error} />}
-              <UsageRowsEditor idPrefix={`usage-${job.displayId}`} />
+              <UsageRowsEditor idPrefix={`usage-${run.displayId}`} />
             </Stack>
           </FormProvider>
         </ModalBody>
@@ -133,6 +134,7 @@ function UsageForm({ onClose, job }: { onClose: () => void; job: MachineJob }) {
   );
 }
 
-export function UsageFormModal({ open, onClose, job }: { open: boolean; onClose: () => void; job: MachineJob }) {
-  return open ? <UsageForm onClose={onClose} job={job} /> : null;
+/** Replaces the material usage of one run (manual or recorded). */
+export function UsageFormModal({ open, onClose, run }: { open: boolean; onClose: () => void; run: MachineRun }) {
+  return open ? <UsageForm onClose={onClose} run={run} /> : null;
 }

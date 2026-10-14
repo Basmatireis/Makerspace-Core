@@ -53,15 +53,15 @@ func restrictedPrincipal(t *testing.T, pool *pgxpool.Pool, permissions ...author
 }
 
 type workItemFixture struct {
-	*printHarness
+	*runHarness
 	running, needsOutcome, recorded, linked, noPrice MachineJob
-	linkedPrint, printing, ended                     uuid.UUID
+	linkedRun, printing, ended                       uuid.UUID
 }
 
 func newWorkItemFixture(t *testing.T) *workItemFixture {
 	t.Helper()
-	h := newPrintHarness(t)
-	w := &workItemFixture{printHarness: h}
+	h := newLiveRunHarness(t)
+	w := &workItemFixture{runHarness: h}
 	gearUnderscore, gearPlain := "Gear_100%", "Gear1100x"
 
 	running := h.input(-time.Hour, 3*time.Hour, "unknown")
@@ -74,17 +74,23 @@ func newWorkItemFixture(t *testing.T) *workItemFixture {
 	recorded.Usages = []UsageInput{{MaterialID: h.jobFixture.material.ID, Quantity: "30"}}
 	w.recorded = h.create(t, recorded)
 
-	w.linkedPrint = h.insertRun(t, runSpec{machine: h.machine.ID, started: at(h.now, -20*time.Hour), ended: at(h.now, -19*time.Hour), fileName: "benchy.gcode"})
+	w.linkedRun = h.insertRun(t, runSpec{machine: h.machine.ID, started: at(h.now, -20*time.Hour), ended: at(h.now, -19*time.Hour), fileName: "benchy.gcode"})
+	h.finish(t, w.linkedRun, "finished", *at(h.now, -19*time.Hour))
 	manual := h.input(-30*time.Hour, time.Hour, "unknown")
-	w.linked = h.link(t, w.linkedPrint, h.create(t, manual))
+	w.linked = h.attach(t, w.linkedRun, h.create(t, manual), true)
+	if _, err := h.s.UpdateRun(t.Context(), h.p, w.linkedRun, h.run(t, w.linkedRun).Version, RunUpdate{Outcome: outcomePtr("successful")}, &h.request); err != nil {
+		t.Fatal(err)
+	}
+	w.linked, _ = h.s.GetJob(t.Context(), h.p, w.linked.ID)
 
 	noPrice := h.input(-12*time.Hour, time.Hour, "successful")
 	noPrice.MachineID = h.bareMachine.ID
 	w.noPrice = h.create(t, noPrice)
 
 	percent := 40
-	w.printing = h.insertRun(t, runSpec{machine: h.bareMachine.ID, state: "printing", started: at(h.now, -30*time.Minute), fileName: "vase.gcode", percent: &percent})
+	w.printing = h.insertRun(t, runSpec{machine: h.bareMachine.ID, state: "running", started: at(h.now, -30*time.Minute), fileName: "vase.gcode", percent: &percent})
 	w.ended = h.insertRun(t, runSpec{machine: h.bareMachine.ID, started: at(h.now, -6*time.Hour), ended: at(h.now, -5*time.Hour), fileName: "lid.gcode", grams: "10", basis: "actual", spool: &h.spool.ID})
+	h.finish(t, w.ended, "finished", *at(h.now, -5*time.Hour))
 	return w
 }
 
@@ -121,7 +127,7 @@ func sameIDs(t *testing.T, label string, items []WorkItem, want ...uuid.UUID) {
 	}
 }
 
-func TestWorkItemsUnifyJobsAndUnlinkedPrints(t *testing.T) {
+func TestWorkItemsUnifyJobsAndUnassignedRuns(t *testing.T) {
 	w := newWorkItemFixture(t)
 	items, total := w.list(t, WorkItemFilters{})
 	if total != 7 {
@@ -132,25 +138,25 @@ func TestWorkItemsUnifyJobsAndUnlinkedPrints(t *testing.T) {
 	for _, item := range items {
 		byID[item.ID] = item
 	}
-	if _, listed := byID[w.linkedPrint]; listed {
-		t.Fatal("a print linked to a job must only appear through the job")
+	if _, listed := byID[w.linkedRun]; listed {
+		t.Fatal("a run assigned to a job must only appear through the job")
 	}
-	type expectation struct{ kind, status, run string }
+	type expectation struct{ kind, status, source string }
 	for id, want := range map[uuid.UUID]expectation{
 		w.running.ID: {"job", "running", "manual"}, w.needsOutcome.ID: {"job", "needs_outcome", "manual"}, w.recorded.ID: {"job", "successful", "manual"},
-		w.linked.ID: {"job", "successful", "printer"}, w.noPrice.ID: {"job", "successful", "manual"}, w.printing: {"print", "printing", "printer"}, w.ended: {"print", "unlinked", "printer"},
+		w.linked.ID: {"job", "successful", "recorded"}, w.noPrice.ID: {"job", "successful", "manual"}, w.printing: {"run", "running_unassigned", "recorded"}, w.ended: {"run", "unassigned", "recorded"},
 	} {
 		got := byID[id]
-		if got.Kind != want.kind || got.Status != want.status || got.Run != want.run {
-			t.Fatalf("%s = %s/%s/%s, want %+v", id, got.Kind, got.Status, got.Run, want)
+		if got.Kind != want.kind || got.Status != want.status || got.Source != want.source {
+			t.Fatalf("%s = %s/%s/%s, want %+v", id, got.Kind, got.Status, got.Source, want)
 		}
 	}
 	linked := byID[w.linked.ID]
-	if linked.PrintID == nil || *linked.PrintID != w.linkedPrint || linked.PrintDisplayID == nil || linked.FileName == nil || *linked.FileName != "benchy.gcode" {
-		t.Fatalf("linked job print data = %+v", linked)
+	if linked.RunCount != 1 || linked.FileName == nil || *linked.FileName != "benchy.gcode" {
+		t.Fatalf("linked job run data = %+v", linked)
 	}
 	printing := byID[w.printing]
-	if printing.EndsAt != nil || printing.ProgressPercent == nil || *printing.ProgressPercent != 40 || printing.Customer != nil || printing.Operator != nil || printing.Billing != nil || printing.EffectivePrice != nil || printing.Title != nil {
+	if printing.ProgressPercent == nil || *printing.ProgressPercent != 40 || printing.Customer != nil || printing.Operator != nil || printing.Billing != nil || printing.EffectivePrice != nil || printing.Title != nil {
 		t.Fatalf("printing print = %+v", printing)
 	}
 	if ended := byID[w.ended]; ended.EndsAt == nil || ended.Billing != nil {
@@ -178,22 +184,22 @@ func TestWorkItemFilters(t *testing.T) {
 		}
 		sameIDs(t, label, items, want...)
 	}
-	only("status", WorkItemFilters{Statuses: []string{"running", "printing"}}, w.running.ID, w.printing)
-	only("status unlinked", WorkItemFilters{Statuses: []string{"unlinked"}}, w.ended)
+	only("status", WorkItemFilters{Statuses: []string{"running", "running_unassigned"}}, w.running.ID, w.printing)
+	only("status unlinked", WorkItemFilters{Statuses: []string{"unassigned"}}, w.ended)
 	only("status needs_outcome", WorkItemFilters{Statuses: []string{"needs_outcome", "cancelled"}}, w.needsOutcome.ID)
 	only("machine", WorkItemFilters{MachineIDs: []uuid.UUID{w.bareMachine.ID}}, w.noPrice.ID, w.printing, w.ended)
-	only("run manual", WorkItemFilters{Runs: []string{"manual"}}, w.running.ID, w.needsOutcome.ID, w.recorded.ID, w.noPrice.ID)
-	only("run printer", WorkItemFilters{Runs: []string{"printer"}}, w.linked.ID, w.printing, w.ended)
+	only("source manual", WorkItemFilters{Sources: []string{"manual"}}, w.running.ID, w.needsOutcome.ID, w.recorded.ID, w.noPrice.ID)
+	only("source recorded", WorkItemFilters{Sources: []string{"recorded"}}, w.linked.ID, w.printing, w.ended)
 	only("job material", WorkItemFilters{MaterialIDs: []uuid.UUID{w.jobFixture.material.ID}}, w.recorded.ID)
-	only("print material", WorkItemFilters{MaterialIDs: []uuid.UUID{w.printHarness.material.ID}}, w.ended)
+	only("print material", WorkItemFilters{MaterialIDs: []uuid.UUID{w.runHarness.material.ID}}, w.ended)
 	only("billing excludes prints", WorkItemFilters{Billing: []string{"price_incomplete"}}, w.noPrice.ID)
 	only("billing none match", WorkItemFilters{Billing: []string{"on_order", "order_outdated"}})
 	only("customer excludes prints", WorkItemFilters{CustomerID: &w.person, Statuses: []string{"successful"}}, w.recorded.ID, w.linked.ID, w.noPrice.ID)
-	only("operator", WorkItemFilters{OperatorID: &w.person, Statuses: []string{"unlinked", "printing", "running"}}, w.running.ID)
+	only("operator", WorkItemFilters{OperatorID: &w.person, Statuses: []string{"unassigned", "running_unassigned", "running"}}, w.running.ID)
 	stranger := uuid.Must(uuid.NewV7())
 	only("unknown customer", WorkItemFilters{CustomerID: &stranger})
 
-	from, to := w.recorded.StartsAt, w.running.StartsAt
+	from, to := *w.recorded.StartedAt, *w.running.StartedAt
 	only("from inclusive to exclusive", WorkItemFilters{From: &from, To: &to}, w.recorded.ID, w.needsOutcome.ID, w.ended)
 	only("from is inclusive", WorkItemFilters{From: &to, To: ptr(to.Add(time.Microsecond))}, w.running.ID)
 	only("to is exclusive", WorkItemFilters{From: ptr(to.Add(-time.Microsecond)), To: &to})
@@ -205,8 +211,8 @@ func TestWorkItemFilters(t *testing.T) {
 	only("search file name", WorkItemFilters{Search: "BENCHY"}, w.linked.ID)
 	only("search unlinked file name", WorkItemFilters{Search: "vase"}, w.printing)
 	only("search job display id", WorkItemFilters{Search: w.needsOutcome.DisplayID}, w.needsOutcome.ID)
-	only("search linked print display id", WorkItemFilters{Search: w.linked.Print.DisplayID}, w.linked.ID)
-	only("search unlinked print display id", WorkItemFilters{Search: w.printingDisplayID(t)}, w.printing)
+	only("search run display id of a job", WorkItemFilters{Search: w.linked.Runs[len(w.linked.Runs)-1].DisplayID}, w.linked.ID)
+	only("search unassigned run display id", WorkItemFilters{Search: w.printingDisplayID(t)}, w.printing)
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -214,7 +220,7 @@ func ptr[T any](v T) *T { return &v }
 func (w *workItemFixture) printingDisplayID(t *testing.T) string {
 	t.Helper()
 	var display string
-	if err := w.pool.QueryRow(t.Context(), `SELECT display_id FROM printer_observed_runs WHERE id = $1`, w.printing).Scan(&display); err != nil {
+	if err := w.pool.QueryRow(t.Context(), `SELECT display_id FROM machine_runs WHERE id = $1`, w.printing).Scan(&display); err != nil {
 		t.Fatal(err)
 	}
 	return display
@@ -338,7 +344,7 @@ func TestWorkItemsAndActivityRequireTheirPermissions(t *testing.T) {
 }
 
 func TestMachineActivityAvailabilityAndConnector(t *testing.T) {
-	h := newPrintHarness(t)
+	h := newLiveRunHarness(t)
 	ctx := t.Context()
 	extra := func(name, status string) Machine {
 		t.Helper()
@@ -349,6 +355,7 @@ func TestMachineActivityAvailabilityAndConnector(t *testing.T) {
 		t.Cleanup(func() {
 			cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
+			_, _ = h.pool.Exec(cleanup, `DELETE FROM machine_runs WHERE machine_id = $1`, m.ID)
 			_, _ = h.pool.Exec(cleanup, `DELETE FROM machine_jobs WHERE machine_id = $1`, m.ID)
 			_, _ = h.pool.Exec(cleanup, `DELETE FROM machines WHERE id = $1`, m.ID)
 		})
@@ -356,9 +363,9 @@ func TestMachineActivityAvailabilityAndConnector(t *testing.T) {
 	}
 	retired, maintenance, future, free := extra("Retired", "active"), extra("Maintenance", "maintenance"), extra("Future", "active"), extra("Free", "active")
 	// h.machine has a printing print, h.bareMachine a running manual job.
-	printID := h.insertRun(t, runSpec{machine: h.machine.ID, state: "printing", started: at(h.now, -time.Hour), fileName: "live.gcode"})
+	printID := h.insertRun(t, runSpec{machine: h.machine.ID, state: "running", started: at(h.now, -time.Hour), fileName: "live.gcode"})
 	estimated := h.now.Truncate(time.Second).Add(2 * time.Hour)
-	if _, err := h.pool.Exec(ctx, `UPDATE printer_observed_runs SET estimated_end_at = $2 WHERE id = $1`, printID, estimated); err != nil {
+	if _, err := h.pool.Exec(ctx, `UPDATE machine_runs SET estimated_end_at = $2 WHERE id = $1`, printID, estimated); err != nil {
 		t.Fatal(err)
 	}
 	title := "Running now"
@@ -396,27 +403,28 @@ func TestMachineActivityAvailabilityAndConnector(t *testing.T) {
 		return result
 	}
 	all := fetch(h.p)
-	for id, want := range map[uuid.UUID]string{h.machine.ID: "in_use", h.bareMachine.ID: "in_use", retired.ID: "retired", maintenance.ID: "maintenance", future.ID: "available", free.ID: "available"} {
+	// A run is running until its planned end, as the job aggregates see it.
+	for id, want := range map[uuid.UUID]string{h.machine.ID: "in_use", h.bareMachine.ID: "in_use", retired.ID: "retired", maintenance.ID: "maintenance", future.ID: "in_use", free.ID: "available"} {
 		if got := all[id].Availability; got != want {
 			t.Fatalf("machine %s availability = %q, want %q", id, got, want)
 		}
 	}
 	printing := all[h.machine.ID]
-	if printing.Current == nil || printing.Current.Kind != "print" || printing.Current.ID != printID || printing.Current.FileName == nil || *printing.Current.FileName != "live.gcode" || printing.Current.EndsAt == nil || !printing.Current.EndsAt.Equal(estimated) {
+	if printing.Current == nil || printing.Current.Kind != "run" || printing.Current.ID != printID || printing.Current.FileName == nil || *printing.Current.FileName != "live.gcode" || printing.Current.EndsAt == nil || !printing.Current.EndsAt.Equal(estimated) {
 		t.Fatalf("printing current = %+v", printing.Current)
 	}
 	if c := printing.Connector; c == nil || c.RuntimeState == nil || *c.RuntimeState != "degraded" || c.RuntimeErrorCode == nil || *c.RuntimeErrorCode != "auth_failed" || c.LastHeartbeatAt == nil || !c.LastHeartbeatAt.Equal(heartbeat) {
 		t.Fatalf("connector = %+v", printing.Connector)
 	}
 	manual := all[h.bareMachine.ID]
-	if manual.Current == nil || manual.Current.Kind != "job" || manual.Current.ID != running.ID || manual.Current.Title == nil || *manual.Current.Title != title || manual.Current.EndsAt == nil || !manual.Current.EndsAt.Equal(running.EndsAt) {
+	if manual.Current == nil || manual.Current.Kind != "job" || manual.Current.ID != running.ID || manual.Current.Title == nil || *manual.Current.Title != title || manual.Current.EndsAt == nil || !manual.Current.EndsAt.Equal(*running.ExpectedEndAt) {
 		t.Fatalf("running job current = %+v", manual.Current)
 	}
-	if manual.LastJobStartedAt == nil || !manual.LastJobStartedAt.Equal(running.StartsAt) {
+	if manual.LastJobStartedAt == nil || !manual.LastJobStartedAt.Equal(*running.StartedAt) {
 		t.Fatalf("lastJobStartedAt = %v", manual.LastJobStartedAt)
 	}
-	if got := all[future.ID]; got.Current != nil || got.Connector != nil || got.LastJobStartedAt != nil {
-		t.Fatalf("a job that has not started must not count: %+v", got)
+	if got := all[future.ID]; got.Connector != nil || got.LastJobStartedAt != nil {
+		t.Fatalf("a job that has not started has no last start: %+v", got)
 	}
 	if all[free.ID].Current != nil || all[free.ID].LastJobStartedAt != nil {
 		t.Fatalf("free machine = %+v", all[free.ID])
@@ -438,7 +446,7 @@ func TestMachineActivityAvailabilityAndConnector(t *testing.T) {
 }
 
 func TestOverviewWorkItemCountsAndActiveItems(t *testing.T) {
-	h := newPrintHarness(t)
+	h := newLiveRunHarness(t)
 	ctx := t.Context()
 	read := func(p authorization.Principal) Overview {
 		t.Helper()
@@ -448,7 +456,7 @@ func TestOverviewWorkItemCountsAndActiveItems(t *testing.T) {
 		}
 		return o
 	}
-	w := &workItemFixture{printHarness: h}
+	w := &workItemFixture{runHarness: h}
 	// Same shape as the work item fixture, rebuilt on this harness.
 	running := h.create(t, h.input(-time.Hour, 3*time.Hour, "unknown"))
 	needs := h.create(t, h.input(-5*time.Hour, time.Hour, "unknown"))
@@ -456,10 +464,10 @@ func TestOverviewWorkItemCountsAndActiveItems(t *testing.T) {
 	bare.MachineID = h.bareMachine.ID
 	bare.Customer = PartyReference{Kind: "person", ID: h.person}
 	incomplete := h.create(t, bare)
-	printing := h.insertRun(t, runSpec{machine: h.bareMachine.ID, state: "printing", started: at(h.now, -30*time.Minute), fileName: "vase.gcode"})
+	printing := h.insertRun(t, runSpec{machine: h.bareMachine.ID, state: "running", started: at(h.now, -30*time.Minute), fileName: "vase.gcode"})
 	ended := h.insertRun(t, runSpec{machine: h.bareMachine.ID, started: at(h.now, -6*time.Hour), ended: at(h.now, -5*time.Hour), fileName: "lid.gcode"})
-	linkedPrint := h.insertRun(t, runSpec{machine: h.machine.ID, started: at(h.now, -20*time.Hour), ended: at(h.now, -19*time.Hour)})
-	h.link(t, linkedPrint, h.create(t, h.input(-30*time.Hour, time.Hour, "unknown")))
+	linkedRun := h.insertRun(t, runSpec{machine: h.machine.ID, started: at(h.now, -20*time.Hour), ended: at(h.now, -19*time.Hour)})
+	h.attach(t, linkedRun, h.create(t, h.input(-30*time.Hour, time.Hour, "unknown")), true)
 	_ = w
 
 	after := read(h.p)
@@ -475,9 +483,9 @@ func TestOverviewWorkItemCountsAndActiveItems(t *testing.T) {
 	}
 	atLeast("runningNow", after.RunningNow, 2)
 	atLeast("needsOutcome", after.NeedsOutcome, 1)
-	atLeast("unlinkedPrints", after.UnlinkedPrints, 1)
+	atLeast("unassignedRuns", after.UnassignedRuns, 1)
 	atLeast("billingIssues", after.BillingIssues, 1)
-	atLeast("activeTotal", after.ActiveTotal, 4)
+	atLeast("activeTotal", after.ActiveTotal, 5)
 	mine4 := []uuid.UUID{h.machine.ID, h.bareMachine.ID}
 	scoped := func(label string, filters WorkItemFilters, want int64) {
 		t.Helper()
@@ -491,11 +499,12 @@ func TestOverviewWorkItemCountsAndActiveItems(t *testing.T) {
 			t.Fatalf("%s = %d on this fixture's machines, want %d", label, total, want)
 		}
 	}
-	scoped("running+printing", WorkItemFilters{Statuses: []string{"running", "printing"}}, 2)
-	scoped("needs_outcome", WorkItemFilters{Statuses: []string{"needs_outcome"}}, 1)
-	scoped("unlinked", WorkItemFilters{Statuses: []string{"unlinked"}}, 1)
+	scoped("running+printing", WorkItemFilters{Statuses: []string{"running", "running_unassigned"}}, 2)
+	// The attached run has no outcome yet, so its job waits for one as well.
+	scoped("needs_outcome", WorkItemFilters{Statuses: []string{"needs_outcome"}}, 2)
+	scoped("unlinked", WorkItemFilters{Statuses: []string{"unassigned"}}, 1)
 	scoped("billing issues", WorkItemFilters{Billing: []string{"price_incomplete", "order_outdated"}}, 1)
-	scoped("active", WorkItemFilters{Statuses: []string{"running", "printing", "unlinked", "needs_outcome"}}, 4)
+	scoped("active", WorkItemFilters{Statuses: []string{"running", "running_unassigned", "unassigned", "needs_outcome"}}, 5)
 	for _, name := range []string{h.machine.Name, h.bareMachine.Name} {
 		if !slices.Contains(after.RunningMachineNames, name) {
 			t.Fatalf("running machine names %v lack %s", after.RunningMachineNames, name)
@@ -504,7 +513,7 @@ func TestOverviewWorkItemCountsAndActiveItems(t *testing.T) {
 	if len(after.ActiveItems) == 0 || len(after.ActiveItems) > 6 {
 		t.Fatalf("active items = %d", len(after.ActiveItems))
 	}
-	rank := map[string]int{"running": 1, "printing": 2, "unlinked": 3, "needs_outcome": 4}
+	rank := map[string]int{"running": 1, "running_unassigned": 2, "unassigned": 3, "needs_outcome": 4}
 	var mine []uuid.UUID
 	for i, item := range after.ActiveItems {
 		if rank[item.Status] == 0 {
@@ -522,17 +531,14 @@ func TestOverviewWorkItemCountsAndActiveItems(t *testing.T) {
 	}
 	// The fixture is newer than any other data, so it leads inside each status.
 	want := []uuid.UUID{running.ID, printing, ended, needs.ID}
-	if len(mine) == 0 || !slices.Equal(mine, want[:len(mine)]) {
+	if !slices.Equal(mine, want[:len(mine)]) {
 		t.Fatalf("active items of this fixture = %v, want a prefix of %v", mine, want)
-	}
-	if after.ActiveItems[0].ID != running.ID {
-		t.Fatalf("running item must lead, got %s/%s", after.ActiveItems[0].Status, after.ActiveItems[0].ID)
 	}
 	_ = incomplete
 
 	// The new fields are hidden from a caller who may only read statistics.
 	statsOnly := read(restrictedPrincipal(t, h.pool, authorization.StatisticsRead))
-	if statsOnly.RunningNow != nil || statsOnly.NeedsOutcome != nil || statsOnly.UnlinkedPrints != nil || statsOnly.BillingIssues != nil || statsOnly.ActiveTotal != nil || statsOnly.ActiveItems != nil || statsOnly.RunningMachineNames != nil {
+	if statsOnly.RunningNow != nil || statsOnly.NeedsOutcome != nil || statsOnly.UnassignedRuns != nil || statsOnly.BillingIssues != nil || statsOnly.ActiveTotal != nil || statsOnly.ActiveItems != nil || statsOnly.RunningMachineNames != nil {
 		t.Fatalf("statistics-only overview exposes work items: %+v", statsOnly)
 	}
 	if statsOnly.JobsThisWeek < 0 {

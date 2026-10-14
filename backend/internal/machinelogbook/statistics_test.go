@@ -11,11 +11,11 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// uniqueYear picks a far-away year per test run. Inventory history is immutable, so rows
+// uniqueYear picks a far-away year in the past per test run (job aggregates treat future runs as running). Inventory history is immutable, so rows
 // written by a run cannot be cleaned up and must never be seen by the next run's reports.
 func uniqueYear() int {
 	id := uuid.Must(uuid.NewV7())
-	return 3000 + (int(id[14])<<8|int(id[15]))%6000
+	return 1000 + (int(id[14])<<8|int(id[15]))%900
 }
 
 func dec(t *testing.T, value string) decimal.Decimal {
@@ -152,7 +152,7 @@ func TestStatisticsTotalsRuntimeAndCostSplit(t *testing.T) {
 		machine uuid.UUID
 		start   time.Time
 		hours   int64
-	}{{f.machine.ID, a.StartsAt, 2}, {f.machine.ID, b.StartsAt, 3}, {f.machine.ID, c.StartsAt, 1}, {f.machine.ID, running.StartsAt, 1}, {f.bareMachine.ID, e.StartsAt, 2}} {
+	}{{f.machine.ID, *a.StartedAt, 2}, {f.machine.ID, *b.StartedAt, 3}, {f.machine.ID, *c.StartedAt, 1}, {f.machine.ID, *running.StartedAt, 1}, {f.bareMachine.ID, *e.StartedAt, 2}} {
 		key := monday(item.start).Format("2006-01-02") + "/" + item.machine.String()
 		want[key] = want[key].Add(decimal.NewFromInt(item.hours))
 	}

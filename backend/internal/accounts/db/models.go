@@ -399,7 +399,7 @@ type InventoryTransaction struct {
 	Supplier            *string
 	Note                *string
 	AdjustmentReason    *string
-	MachineJobUsageID   *uuid.UUID
+	RunUsageID          *uuid.UUID
 	ActorAccountID      *uuid.UUID
 	CreatedAt           time.Time
 	SpoolID             *uuid.UUID
@@ -464,12 +464,9 @@ type MachineJob struct {
 	ID                       uuid.UUID
 	DisplayID                string
 	MachineID                uuid.UUID
-	StartsAt                 time.Time
-	EndsAt                   time.Time
 	CustomerPersonID         *uuid.UUID
 	CustomerOrganizationID   *uuid.UUID
 	OperatorPersonID         *uuid.UUID
-	Outcome                  string
 	Notes                    *string
 	PricingStatus            string
 	CalculatedPrice          pgtype.Numeric
@@ -484,25 +481,7 @@ type MachineJob struct {
 	PriceAdjustmentKind      *string
 	PriceAdjustmentValue     pgtype.Numeric
 	EffectivePrice           pgtype.Numeric
-	PrintID                  *uuid.UUID
-}
-
-type MachineJobMaterialUsage struct {
-	ID                   uuid.UUID
-	MachineJobID         uuid.UUID
-	MaterialID           *uuid.UUID
-	Quantity             pgtype.Numeric
-	Active               bool
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
-	Ownership            string
-	SpoolID              *uuid.UUID
-	ExternalMaterialName *string
-	QuantityBasis        string
-	SourcePrinterEventID *uuid.UUID
-	FillID               *uuid.UUID
-	SpoolDisplayID       *string
-	FillNumber           *int32
+	OutcomeOverride          *string
 }
 
 type MachineJobPricingSnapshot struct {
@@ -529,6 +508,62 @@ type MachineJobPricingSnapshotRule struct {
 	Unit         string
 	Rate         pgtype.Numeric
 	Missing      bool
+}
+
+type MachineJobRunSummary struct {
+	JobID          *uuid.UUID
+	RunCount       int64
+	StartedAt      interface{}
+	EndedAt        interface{}
+	ExpectedEndAt  interface{}
+	Running        bool
+	RuntimeSeconds int64
+	DerivedOutcome string
+}
+
+type MachineRun struct {
+	ID                    uuid.UUID
+	AssignmentID          *uuid.UUID
+	MachineID             uuid.UUID
+	VendorJobID           *string
+	State                 *string
+	HistoryComplete       bool
+	FirstObservedAt       pgtype.Timestamptz
+	LastObservedAt        pgtype.Timestamptz
+	Version               int64
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	DisplayID             string
+	FileName              *string
+	StartedAt             pgtype.Timestamptz
+	EndedAt               pgtype.Timestamptz
+	EstimatedEndAt        pgtype.Timestamptz
+	ProgressPercent       *int16
+	ReportedQuantityG     pgtype.Numeric
+	ReportedQuantityBasis *string
+	ReportedSpoolID       *uuid.UUID
+	ReportedEventID       *uuid.UUID
+	Source                string
+	JobID                 *uuid.UUID
+	Outcome               *string
+}
+
+type MachineRunUsage struct {
+	ID                   uuid.UUID
+	MaterialID           *uuid.UUID
+	Quantity             pgtype.Numeric
+	Active               bool
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	Ownership            string
+	SpoolID              *uuid.UUID
+	ExternalMaterialName *string
+	QuantityBasis        string
+	SourcePrinterEventID *uuid.UUID
+	FillID               *uuid.UUID
+	SpoolDisplayID       *string
+	FillNumber           *int32
+	RunID                uuid.UUID
 }
 
 type MachineType struct {
@@ -1049,7 +1084,7 @@ type PrinterEvent struct {
 	Payload               []byte
 	ConnectorID           *uuid.UUID
 	ConnectorAssignmentID *uuid.UUID
-	ObservedRunID         *uuid.UUID
+	RunID                 *uuid.UUID
 	ConfigurationVersion  *int64
 	ApplicationState      string
 	ApplicationReason     *string
@@ -1066,30 +1101,6 @@ type PrinterInputUnit struct {
 	Version            int64
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
-}
-
-type PrinterObservedRun struct {
-	ID                    uuid.UUID
-	AssignmentID          uuid.UUID
-	MachineID             uuid.UUID
-	VendorJobID           *string
-	State                 string
-	HistoryComplete       bool
-	FirstObservedAt       time.Time
-	LastObservedAt        time.Time
-	Version               int64
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
-	DisplayID             string
-	FileName              *string
-	StartedAt             pgtype.Timestamptz
-	EndedAt               pgtype.Timestamptz
-	EstimatedEndAt        pgtype.Timestamptz
-	ProgressPercent       *int16
-	ReportedQuantityG     pgtype.Numeric
-	ReportedQuantityBasis *string
-	ReportedSpoolID       *uuid.UUID
-	ReportedEventID       *uuid.UUID
 }
 
 type PrinterProfile struct {

@@ -11,15 +11,15 @@ type Target = { name: string; path: string; ready: (page: Page) => Locator };
 const targets: Target[] = [
   { name: 'Overview', path: base, ready: heading('Overview', 1) },
   { name: 'Jobs', path: `${base}/jobs`, ready: (page) => page.getByRole('table', { name: 'Jobs' }) },
-  { name: 'Jobs filtered to unlinked prints', path: `${base}/jobs?status=unlinked`, ready: (page) => page.getByRole('link', { name: 'bracket_v2.gcode' }) },
+  { name: 'Jobs filtered to unassigned runs', path: `${base}/jobs?status=unassigned`, ready: (page) => page.getByRole('link', { name: 'bracket_v2.gcode' }) },
   { name: 'Job detail (finished)', path: `${base}/jobs/${ids.jobSuccess}`, ready: heading('Gearbox housing', 1) },
   { name: 'Job detail (running)', path: `${base}/jobs/${ids.jobRunning}`, ready: heading('Engraving run', 1) },
   { name: 'Job detail (needs outcome)', path: `${base}/jobs/${ids.jobNeedsOutcome}`, ready: text('Record the outcome') },
-  { name: 'Job detail (manual, printer data available)', path: `${base}/jobs/${ids.jobManualBambu}`, ready: (page) => page.getByRole('button', { name: 'Link printer data' }) },
-  { name: 'Job detail (from printer)', path: `${base}/jobs/${ids.jobLinked}`, ready: text('From printer') },
-  { name: 'Print detail (unlinked)', path: `${base}/jobs/prints/${ids.printUnlinked}`, ready: (page) => page.getByRole('button', { name: 'Create job' }) },
-  { name: 'Print detail (printing)', path: `${base}/jobs/prints/${ids.printPrinting}`, ready: text('Print in progress') },
-  { name: 'Print detail (linked)', path: `${base}/jobs/prints/${ids.printLinked}`, ready: (page) => page.getByRole('link', { name: /J-2026-000004/ }) },
+  { name: 'Job detail (manual run, recorded runs available)', path: `${base}/jobs/${ids.jobManualBambu}`, ready: (page) => page.getByRole('button', { name: 'Attach recorded run' }) },
+  { name: 'Job detail (recorded run)', path: `${base}/jobs/${ids.jobLinked}`, ready: (page) => page.getByRole('table', { name: 'Runs' }).getByText('From machine').first() },
+  { name: 'Run detail (unassigned)', path: `${base}/jobs/runs/${ids.runUnassigned}`, ready: (page) => page.getByRole('button', { name: 'Create job' }) },
+  { name: 'Run detail (running)', path: `${base}/jobs/runs/${ids.runRunning}`, ready: text('Run in progress') },
+  { name: 'Run detail (in a job)', path: `${base}/jobs/runs/${ids.runLinked}`, ready: (page) => page.getByRole('link', { name: /J-2026-000004/ }) },
   { name: 'Machines', path: `${base}/machines`, ready: (page) => page.getByRole('link', { name: 'Bambu H2D #1' }) },
   { name: 'Machine detail, Overview tab', path: `${base}/machines/${ids.bambu}`, ready: text('Connector degraded · E42') },
   { name: 'Machine detail, Jobs tab', path: `${base}/machines/${ids.bambu}?tab=jobs`, ready: (page) => page.getByRole('link', { name: 'Open in Jobs' }) },
@@ -84,8 +84,8 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
     await checkDialog(page, page.getByRole('dialog', { name: 'New job' }));
   });
 
-  test('new job from a print', async ({ page }) => {
-    await page.goto(`${base}/jobs/prints/${ids.printUnlinked}`);
+  test('new job from a run', async ({ page }) => {
+    await page.goto(`${base}/jobs/runs/${ids.runUnassigned}`);
     await page.getByRole('button', { name: 'Create job' }).click();
     await checkDialog(page, page.getByRole('dialog', { name: 'New job' }));
   });
@@ -105,34 +105,41 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
 
   test('cancel run confirmation', async ({ page }) => {
     await page.goto(`${base}/jobs/${ids.jobRunning}`);
-    await page.getByRole('button', { name: 'Cancel run' }).click();
+    await page.getByRole('table', { name: 'Runs' }).locator('.cds--overflow-menu').click();
+    await page.getByRole('menuitem', { name: 'Cancel run' }).click();
     await checkDialog(page, page.getByRole('alertdialog'));
   });
 
-  test('link print to job (from a print, with the comparison)', async ({ page }) => {
-    await page.goto(`${base}/jobs/prints/${ids.printUnlinked}`);
-    await page.getByRole('button', { name: 'Link to job' }).click();
+  test('attach run to job (from a run, with the comparison)', async ({ page }) => {
+    await page.goto(`${base}/jobs/runs/${ids.runUnassigned}`);
+    await page.getByRole('button', { name: 'Attach to job' }).click();
     const dialog = page.getByRole('dialog');
     await dialog.getByRole('combobox', { name: /Job/ }).click();
     await page.getByRole('option', { name: /J-2026-000003/ }).click();
-    await expect(dialog.getByText('Manual entry')).toBeVisible();
+    await expect(dialog.getByText('Manual run', { exact: true })).toBeVisible();
     await checkDialog(page, dialog);
   });
 
-  test('link printer data to a job (from a job, with the comparison)', async ({ page }) => {
+  test('attach recorded run to a job (from a job, with the comparison)', async ({ page }) => {
     await page.goto(`${base}/jobs/${ids.jobManualBambu}`);
-    await page.getByRole('button', { name: 'Link printer data' }).click();
+    await page.getByRole('button', { name: 'Attach recorded run' }).click();
     const dialog = page.getByRole('dialog');
-    await dialog.getByRole('combobox', { name: /Print/ }).click();
-    await page.getByRole('option', { name: /bracket_v2\.gcode/ }).click();
-    await expect(dialog.getByText('From printer', { exact: true })).toBeVisible();
+    await dialog.getByRole('combobox', { name: /Recorded run/ }).click();
+    await page.getByRole('option', { name: /Bracket v2/ }).click();
+    await expect(dialog.getByText('Manual run', { exact: true })).toBeVisible();
     await checkDialog(page, dialog);
   });
 
-  test('unlink print confirmation', async ({ page }) => {
+  test('add run', async ({ page }) => {
+    await page.goto(`${base}/jobs/${ids.jobSuccess}`);
+    await page.getByRole('button', { name: 'Add run' }).click();
+    await checkDialog(page, page.getByRole('dialog', { name: 'Add run' }));
+  });
+
+  test('detach run confirmation', async ({ page }) => {
     await page.goto(`${base}/jobs/${ids.jobLinked}`);
-    await page.locator('.page-header__actions .cds--overflow-menu').click();
-    await page.getByRole('menuitem', { name: 'Unlink print' }).click();
+    await page.getByRole('table', { name: 'Runs' }).locator('.cds--overflow-menu').click();
+    await page.getByRole('menuitem', { name: 'Detach from job' }).click();
     await checkDialog(page, page.getByRole('alertdialog'));
   });
 
@@ -231,7 +238,7 @@ test.describe('navigation and former URLs', () => {
 test.describe('read-only role', () => {
   test.use({ userPermissions: readerPermissions });
 
-  test('offers no job actions on Overview, Jobs, job detail and print detail', async ({ page, world }) => {
+  test('offers no job actions on Overview, Jobs, job detail and run detail', async ({ page, world }) => {
     await page.goto(`${base}/jobs`);
     await expect(page.getByRole('table', { name: 'Jobs' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'New job' })).toHaveCount(0);
@@ -241,8 +248,9 @@ test.describe('read-only role', () => {
     await expect(page.getByRole('button', { name: 'New job' })).toHaveCount(0);
 
     await page.goto(`${base}/jobs/${ids.jobRunning}`);
-    await expect(page.getByText('Running · manual')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Cancel run' })).toHaveCount(0);
+    await expect(page.getByRole('progressbar', { name: 'Run progress' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Add run' })).toHaveCount(0);
+    await expect(page.getByRole('table', { name: 'Runs' }).locator('.cds--overflow-menu')).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Edit job' })).toHaveCount(0);
     await expect(page.locator('.page-header__actions .cds--overflow-menu')).toHaveCount(0);
 
@@ -255,10 +263,10 @@ test.describe('read-only role', () => {
     await expect(page.getByText('Outcome not recorded yet')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Save outcome' })).toHaveCount(0);
 
-    await page.goto(`${base}/jobs/prints/${ids.printUnlinked}`);
-    await expect(page.getByRole('heading', { name: /bracket_v2\.gcode/ })).toBeVisible();
+    await page.goto(`${base}/jobs/runs/${ids.runUnassigned}`);
+    await expect(page.getByRole('heading', { name: 'Bracket v2' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Create job' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Link to job' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Attach to job' })).toHaveCount(0);
     expect(world.requests).toEqual([]);
   });
 

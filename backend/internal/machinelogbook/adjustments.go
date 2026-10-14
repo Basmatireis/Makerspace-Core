@@ -22,19 +22,9 @@ var maxAdjustmentValue = decimal.NewFromInt(1_000_000_000_000)
 
 // jobStatus derives the display status of a job: a recorded outcome wins,
 // otherwise the job is running until its end and then waits for an outcome.
-func jobStatus(outcome string, endsAt, now time.Time) string {
-	if outcome != "unknown" {
-		return outcome
-	}
-	if endsAt.After(now) {
-		return "running"
-	}
-	return "needs_outcome"
-}
-
 // validateOutcomeTiming rejects outcomes recorded before the run has ended.
-func validateOutcomeTiming(endsAt time.Time, outcome string, now time.Time) error {
-	if outcome != "unknown" && endsAt.After(now) {
+func validateOutcomeTiming(endsAt time.Time, outcome *string, now time.Time) error {
+	if outcome != nil && endsAt.After(now) {
 		return apperror.New(422, "outcome_before_run_end", "An outcome cannot be recorded before the run has ended")
 	}
 	return nil
@@ -195,55 +185,6 @@ func (s *Service) ClearJobPriceAdjustment(ctx context.Context, p authorization.P
 		return MachineJob{}, noRows(err)
 	}
 	if err = writeAudit(ctx, tx, p, "machine_job.price_adjustment_cleared", "machine_job", id, requestID, []string{"priceAdjustment", "effectivePrice"}); err != nil {
-		return MachineJob{}, err
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return MachineJob{}, err
-	}
-	return s.loadJob(ctx, id)
-}
-
-// CancelJobRun ends a running manual run now, records it as cancelled and
-// reprices it from the active snapshot with the price adjustment re-applied.
-func (s *Service) CancelJobRun(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) (MachineJob, error) {
-	if err := require(p, authorization.MachineJobsEdit); err != nil {
-		return MachineJob{}, err
-	}
-	if expected < 1 {
-		return MachineJob{}, validation("expectedVersion must be positive")
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return MachineJob{}, err
-	}
-	defer tx.Rollback(ctx)
-	q := machinelogbookdb.New(tx)
-	current, err := q.GetMachineJobForUpdate(ctx, id)
-	if err != nil {
-		return MachineJob{}, noRows(err)
-	}
-	if current.Version != expected {
-		return MachineJob{}, apperror.StaleWrite
-	}
-	now := s.now()
-	if current.PrintID != nil || current.Outcome != "unknown" || !current.EndsAt.After(now) {
-		return MachineJob{}, conflict("run_not_running", "Only a running job can be cancelled")
-	}
-	endsAt := now.UTC().Truncate(time.Second)
-	if earliest := current.StartsAt.Add(time.Second); endsAt.Before(earliest) {
-		endsAt = earliest
-	}
-	updated, err := q.CancelMachineJobRun(ctx, machinelogbookdb.CancelMachineJobRunParams{EndsAt: endsAt, ID: id, ExpectedVersion: expected})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return MachineJob{}, apperror.StaleWrite
-	}
-	if err != nil {
-		return MachineJob{}, err
-	}
-	if _, err = s.recalculateFromSnapshot(ctx, q, updated); err != nil {
-		return MachineJob{}, err
-	}
-	if err = writeAudit(ctx, tx, p, "machine_job.run_cancelled", "machine_job", id, requestID, []string{"endsAt", "outcome", "effectivePrice"}); err != nil {
 		return MachineJob{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {

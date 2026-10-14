@@ -31,12 +31,26 @@ type parsedUsage struct {
 	Fill *fillRef
 }
 
-func validateOutcome(value string) error {
+// parseOutcome validates a run outcome. An empty value or "unknown" records no
+// outcome yet.
+func parseOutcome(value string) (*string, error) {
 	switch value {
-	case "successful", "partial_failure", "failed", "cancelled", "unknown":
-		return nil
+	case "", "unknown":
+		return nil, nil
+	case "successful", "partial_failure", "failed", "cancelled":
+		return &value, nil
 	}
-	return validation("invalid outcome")
+	return nil, validation("invalid outcome")
+}
+
+func validateOptionalOutcome(value *string) (*string, error) {
+	if value == nil {
+		return nil, nil
+	}
+	if *value == "unknown" || *value == "" {
+		return nil, validation("invalid outcome")
+	}
+	return parseOutcome(*value)
 }
 func validateInterval(startsAt, endsAt time.Time) error {
 	if startsAt.IsZero() || endsAt.IsZero() || !endsAt.After(startsAt) {
@@ -212,7 +226,7 @@ func (s *Service) resolveUsageFills(ctx context.Context, q *machinelogbookdb.Que
 }
 
 // usageFillRef rebuilds the fill reference stored on a recorded usage.
-func usageFillRef(u machinelogbookdb.MachineJobMaterialUsage) *fillRef {
+func usageFillRef(u machinelogbookdb.MachineRunUsage) *fillRef {
 	if u.MaterialID == nil || u.SpoolID == nil || u.FillID == nil || u.SpoolDisplayID == nil || u.FillNumber == nil {
 		return nil
 	}
@@ -222,7 +236,7 @@ func usageFillRef(u machinelogbookdb.MachineJobMaterialUsage) *fillRef {
 // reversalFill returns the fill a usage correction goes back to. A usage whose
 // fill was closed in the meantime, or whose spool was deleted, returns to loose
 // stock instead.
-func (s *Service) reversalFill(ctx context.Context, q *machinelogbookdb.Queries, u machinelogbookdb.MachineJobMaterialUsage) (*fillRef, error) {
+func (s *Service) reversalFill(ctx context.Context, q *machinelogbookdb.Queries, u machinelogbookdb.MachineRunUsage) (*fillRef, error) {
 	ref := usageFillRef(u)
 	if ref == nil {
 		return nil, nil
@@ -242,13 +256,13 @@ func (s *Service) reversalFill(ctx context.Context, q *machinelogbookdb.Queries,
 	return ref, nil
 }
 
-func (s *Service) insertUsages(ctx context.Context, q *machinelogbookdb.Queries, jobID uuid.UUID, items []parsedUsage) error {
+func (s *Service) insertUsages(ctx context.Context, q *machinelogbookdb.Queries, runID uuid.UUID, items []parsedUsage) error {
 	for i := range items {
-		params := machinelogbookdb.InsertMachineJobUsageParams{ID: items[i].UsageID, MachineJobID: jobID, MaterialID: items[i].MaterialID, SpoolID: items[i].SpoolID, Ownership: items[i].Ownership, ExternalMaterialName: items[i].ExternalMaterialName, QuantityBasis: items[i].QuantityBasis, Quantity: numericFromDecimal(items[i].Quantity), SourcePrinterEventID: items[i].SourcePrinterEventID}
+		params := machinelogbookdb.InsertRunUsageParams{ID: items[i].UsageID, RunID: runID, MaterialID: items[i].MaterialID, SpoolID: items[i].SpoolID, Ownership: items[i].Ownership, ExternalMaterialName: items[i].ExternalMaterialName, QuantityBasis: items[i].QuantityBasis, Quantity: numericFromDecimal(items[i].Quantity), SourcePrinterEventID: items[i].SourcePrinterEventID}
 		if fill := items[i].Fill; fill != nil && items[i].SpoolID != nil {
 			params.FillID, params.SpoolDisplayID, params.FillNumber = &fill.FillID, &fill.SpoolDisplayID, &fill.FillNumber
 		}
-		row, err := q.InsertMachineJobUsage(ctx, params)
+		row, err := q.InsertRunUsage(ctx, params)
 		if err != nil {
 			return databaseError(err)
 		}
@@ -270,7 +284,7 @@ func (s *Service) consumeUsages(ctx context.Context, tx pgx.Tx, q *machinelogboo
 			return conflict("material_inactive", "An inactive material cannot be consumed")
 		}
 		average := decimalFromNumeric(current.AverageUnitCost)
-		_, err = s.applyInventoryMutation(ctx, tx, q, p, *item.MaterialID, current.InventoryVersion, inventoryMutation{Kind: "machine_job_consumption", QuantityDelta: item.Quantity.Neg(), UnitCost: average, ValueDelta: item.Quantity.Mul(average).Neg(), OccurredAt: occurredAt, UsageID: &item.UsageID, Fill: item.Fill}, requestID)
+		_, err = s.applyInventoryMutation(ctx, tx, q, p, *item.MaterialID, current.InventoryVersion, inventoryMutation{Kind: "machine_run_consumption", QuantityDelta: item.Quantity.Neg(), UnitCost: average, ValueDelta: item.Quantity.Mul(average).Neg(), OccurredAt: occurredAt, UsageID: &item.UsageID, Fill: item.Fill}, requestID)
 		if err != nil {
 			return err
 		}
@@ -282,9 +296,30 @@ func snapshotRuleFromRow(row machinelogbookdb.MachineJobPricingSnapshotRule) Pri
 	return PricingSnapshotRule{SourceRuleID: row.SourceRuleID, Kind: row.Kind, Label: row.Label, Selector: row.Selector, Unit: row.Unit, Rate: nullableDecimal(row.Rate), Missing: row.Missing}
 }
 
-func runtimeHours(startsAt, endsAt time.Time) decimal.Decimal {
-	nanoseconds := decimal.NewFromInt(endsAt.Sub(startsAt).Nanoseconds())
-	return nanoseconds.Div(decimal.NewFromInt(int64(time.Hour)))
+func runtimeHours(seconds int64) decimal.Decimal {
+	return decimal.NewFromInt(seconds).Div(decimal.NewFromInt(3600))
+}
+
+// jobPricingInputs returns the runtime and the material a job is priced from:
+// the sum of its runs' runtime and the active usages of its runs that are not
+// replaced.
+func (s *Service) jobPricingInputs(ctx context.Context, q *machinelogbookdb.Queries, jobID uuid.UUID) (int64, []machinelogbookdb.ListRunUsagesForRunsRow, error) {
+	runIDs, err := q.ListActiveJobRunIDs(ctx, &jobID)
+	if err != nil {
+		return 0, nil, err
+	}
+	var runtime int64
+	summary, err := q.GetMachineJobRunSummary(ctx, &jobID)
+	if err == nil {
+		runtime = summary.RuntimeSeconds
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return 0, nil, err
+	}
+	usages, err := q.ListRunUsagesForRuns(ctx, runIDs)
+	if err != nil {
+		return 0, nil, err
+	}
+	return runtime, usages, nil
 }
 
 func (s *Service) capturePricingSnapshot(ctx context.Context, q *machinelogbookdb.Queries, p authorization.Principal, job machinelogbookdb.MachineJob, group machinelogbookdb.PricingGroup, reason string) (machinelogbookdb.MachineJob, error) {
@@ -296,7 +331,7 @@ func (s *Service) capturePricingSnapshot(ctx context.Context, q *machinelogbookd
 	if err != nil {
 		return job, noRows(err)
 	}
-	usages, err := q.ListMachineJobUsages(ctx, job.ID)
+	runtimeSeconds, usages, err := s.jobPricingInputs(ctx, q, job.ID)
 	if err != nil {
 		return job, err
 	}
@@ -318,7 +353,7 @@ func (s *Service) capturePricingSnapshot(ctx context.Context, q *machinelogbookd
 	} else {
 		runtimeEntry.SourceRuleID = &runtime.ID
 		runtimeEntry.Rate = runtime.Rate
-		hours := runtimeHours(job.StartsAt, job.EndsAt)
+		hours := runtimeHours(runtimeSeconds)
 		total = total.Add(hours.Mul(decimalFromNumeric(runtime.Rate)))
 	}
 	snapshotRules = append(snapshotRules, runtimeEntry)
@@ -357,8 +392,7 @@ func (s *Service) capturePricingSnapshot(ctx context.Context, q *machinelogbookd
 		calculated = numericFromDecimal(total)
 		status = "complete"
 	}
-	actor := p.AccountID
-	_, err = q.CreatePricingSnapshot(ctx, machinelogbookdb.CreatePricingSnapshotParams{ID: snapshotID, MachineJobID: job.ID, Revision: revision, PricingGroupID: &group.ID, PricingGroupName: group.Name, Reason: reason, Complete: complete, CalculatedAmount: calculated, CapturedByAccountID: &actor})
+	_, err = q.CreatePricingSnapshot(ctx, machinelogbookdb.CreatePricingSnapshotParams{ID: snapshotID, MachineJobID: job.ID, Revision: revision, PricingGroupID: &group.ID, PricingGroupName: group.Name, Reason: reason, Complete: complete, CalculatedAmount: calculated, CapturedByAccountID: accountPointer(p)})
 	if err != nil {
 		return job, err
 	}
@@ -373,6 +407,54 @@ func (s *Service) capturePricingSnapshot(ctx context.Context, q *machinelogbookd
 		return job, apperror.StaleWrite
 	}
 	return updated, err
+}
+
+// manualRunPlan is a validated manual run that is ready to be stored.
+type manualRunPlan struct {
+	StartsAt, EndsAt time.Time
+	Outcome          *string
+	Usages           []parsedUsage
+}
+
+func planManualRun(input ManualRunInput, now time.Time) (manualRunPlan, error) {
+	if err := validateInterval(input.StartsAt, input.EndsAt); err != nil {
+		return manualRunPlan{}, err
+	}
+	outcome, err := validateOptionalOutcome(input.Outcome)
+	if err != nil {
+		return manualRunPlan{}, err
+	}
+	if err = validateOutcomeTiming(input.EndsAt, outcome, now); err != nil {
+		return manualRunPlan{}, err
+	}
+	parsed, err := parseUsages(input.Usages)
+	if err != nil {
+		return manualRunPlan{}, err
+	}
+	return manualRunPlan{StartsAt: input.StartsAt.UTC(), EndsAt: input.EndsAt.UTC(), Outcome: outcome, Usages: parsed}, nil
+}
+
+// storeManualRun inserts a manual run on the job's machine together with its
+// material usage, consuming inventory for it.
+func (s *Service) storeManualRun(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, p authorization.Principal, job machinelogbookdb.MachineJob, plan manualRunPlan, requestID *uuid.UUID) (machinelogbookdb.MachineRun, error) {
+	sequence, err := q.NextMachineRunSequence(ctx)
+	if err != nil {
+		return machinelogbookdb.MachineRun{}, err
+	}
+	run, err := q.InsertManualRun(ctx, machinelogbookdb.InsertManualRunParams{ID: newID(), DisplayID: formatRunDisplayID(sequence, s.now()), MachineID: job.MachineID, JobID: &job.ID, StartedAt: pgTime(&plan.StartsAt), EndedAt: pgTime(&plan.EndsAt), Outcome: plan.Outcome})
+	if err != nil {
+		return run, databaseError(err)
+	}
+	if err = s.resolveUsageFills(ctx, q, plan.Usages); err != nil {
+		return run, err
+	}
+	if err = s.insertUsages(ctx, q, run.ID, plan.Usages); err != nil {
+		return run, err
+	}
+	if err = s.consumeUsages(ctx, tx, q, p, plan.Usages, plan.EndsAt, requestID); err != nil {
+		return run, err
+	}
+	return run, nil
 }
 
 func (s *Service) CreateManualJob(ctx context.Context, p authorization.Principal, input JobInput, requestID *uuid.UUID) (MachineJob, error) {
@@ -391,27 +473,24 @@ func (s *Service) CreateManualJob(ctx context.Context, p authorization.Principal
 	if err = tx.Commit(ctx); err != nil {
 		return MachineJob{}, err
 	}
-	return job, nil
+	return s.loadJob(ctx, job.ID)
 }
+
+// CreateManualJobInTransaction creates a job with one manual run.
 func (s *Service) CreateManualJobInTransaction(ctx context.Context, tx pgx.Tx, anonymous bool, p authorization.Principal, input JobInput, requestID *uuid.UUID) (MachineJob, error) {
 	if err := require(p, authorization.MachineJobsCreate); err != nil {
 		return MachineJob{}, err
 	}
-	if err := validateInterval(input.StartsAt, input.EndsAt); err != nil {
-		return MachineJob{}, err
-	}
-	if err := validateOutcome(input.Outcome); err != nil {
-		return MachineJob{}, err
-	}
 	now := s.now()
-	if err := validateOutcomeTiming(input.EndsAt, input.Outcome, now); err != nil {
-		return MachineJob{}, err
-	}
-	title, err := cleanTitle(input.Title)
+	outcome, err := parseOutcome(input.Outcome)
 	if err != nil {
 		return MachineJob{}, err
 	}
-	parsed, err := parseUsages(input.Usages)
+	plan, err := planManualRun(ManualRunInput{StartsAt: input.StartsAt, EndsAt: input.EndsAt, Outcome: outcome, Usages: input.Usages}, now)
+	if err != nil {
+		return MachineJob{}, err
+	}
+	title, err := cleanTitle(input.Title)
 	if err != nil {
 		return MachineJob{}, err
 	}
@@ -431,32 +510,33 @@ func (s *Service) CreateManualJobInTransaction(ctx context.Context, tx pgx.Tx, a
 	if err != nil {
 		return MachineJob{}, err
 	}
-	sequence, err := q.NextMachineJobSequence(ctx)
+	job, err := s.insertJob(ctx, q, now, input.MachineID, personID, organizationID, input.OperatorPersonID, title, cleanOptional(input.Notes))
 	if err != nil {
 		return MachineJob{}, err
 	}
-	id := newID()
-	job, err := q.CreateMachineJob(ctx, machinelogbookdb.CreateMachineJobParams{ID: id, DisplayID: formatDisplayID(sequence, now), MachineID: input.MachineID, StartsAt: input.StartsAt.UTC(), EndsAt: input.EndsAt.UTC(), CustomerPersonID: personID, CustomerOrganizationID: organizationID, OperatorPersonID: &input.OperatorPersonID, Outcome: input.Outcome, Title: title, Notes: cleanOptional(input.Notes)})
-	if err != nil {
-		return MachineJob{}, databaseError(err)
-	}
-	if err = s.resolveUsageFills(ctx, q, parsed); err != nil {
-		return MachineJob{}, err
-	}
-	if err = s.insertUsages(ctx, q, id, parsed); err != nil {
-		return MachineJob{}, err
-	}
-	if err = s.consumeUsages(ctx, tx, q, p, parsed, input.EndsAt.UTC(), requestID); err != nil {
+	if _, err = s.storeManualRun(ctx, tx, q, p, job, plan, requestID); err != nil {
 		return MachineJob{}, err
 	}
 	job, err = s.capturePricingSnapshot(ctx, q, p, job, group, "initial")
 	if err != nil {
 		return MachineJob{}, err
 	}
-	if err = writeAudit(ctx, tx, p, "machine_job.created", "machine_job", id, requestID, []string{"machineId", "title", "startsAt", "endsAt", "customer", "operatorPersonId", "outcome", "notes", "usages", "pricingSnapshot"}); err != nil {
+	if err = writeAudit(ctx, tx, p, "machine_job.created", "machine_job", job.ID, requestID, []string{"machineId", "title", "customer", "operatorPersonId", "notes", "runs", "usages", "pricingSnapshot"}); err != nil {
 		return MachineJob{}, err
 	}
 	return s.jobFromRow(ctx, q, job)
+}
+
+func (s *Service) insertJob(ctx context.Context, q *machinelogbookdb.Queries, now time.Time, machineID uuid.UUID, personID, organizationID *uuid.UUID, operatorID uuid.UUID, title, notes *string) (machinelogbookdb.MachineJob, error) {
+	sequence, err := q.NextMachineJobSequence(ctx)
+	if err != nil {
+		return machinelogbookdb.MachineJob{}, err
+	}
+	job, err := q.CreateMachineJob(ctx, machinelogbookdb.CreateMachineJobParams{ID: newID(), DisplayID: formatDisplayID(sequence, now), MachineID: machineID, CustomerPersonID: personID, CustomerOrganizationID: organizationID, OperatorPersonID: &operatorID, Title: title, Notes: notes})
+	if err != nil {
+		return job, databaseError(err)
+	}
+	return job, nil
 }
 
 func (s *Service) loadBillingParty(ctx context.Context, q *machinelogbookdb.Queries, job machinelogbookdb.MachineJob) (*BillingParty, error) {
@@ -491,29 +571,55 @@ func (s *Service) loadBillingParty(ctx context.Context, q *machinelogbookdb.Quer
 	return nil, nil
 }
 
+// anyTime reads a timestamp from a view column that sqlc cannot type.
+func anyTime(value any) *time.Time {
+	if t, ok := value.(time.Time); ok {
+		t = t.UTC()
+		return &t
+	}
+	return nil
+}
+
 func (s *Service) jobFromRow(ctx context.Context, q *machinelogbookdb.Queries, row machinelogbookdb.MachineJob) (MachineJob, error) {
 	machineRow, err := q.GetMachine(ctx, row.MachineID)
 	if err != nil {
 		return MachineJob{}, err
 	}
-	usages, err := q.ListMachineJobUsages(ctx, row.ID)
+	runs, err := s.runsForJob(ctx, q, row.ID)
 	if err != nil {
 		return MachineJob{}, err
 	}
-	item := MachineJob{ID: row.ID, DisplayID: row.DisplayID, Title: row.Title, Status: jobStatus(row.Outcome, row.EndsAt, s.now()), Machine: machineFromGet(machineRow), StartsAt: row.StartsAt, EndsAt: row.EndsAt, DurationSeconds: int64(row.EndsAt.Sub(row.StartsAt).Seconds()), Outcome: row.Outcome, Notes: row.Notes, PricingStatus: row.PricingStatus, CalculatedPrice: nullableDecimal(row.CalculatedPrice), EffectivePrice: nullableDecimal(row.EffectivePrice), Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Usages: make([]MachineJobUsage, 0, len(usages))}
-	item.Run = "manual"
-	if row.PrintID != nil {
-		item.Run = "automatic"
-		item.Print, err = s.loadPrintReference(ctx, q, *row.PrintID)
-		if err != nil {
-			return MachineJob{}, err
+	item := MachineJob{ID: row.ID, DisplayID: row.DisplayID, Title: row.Title, Machine: machineFromGet(machineRow), Runs: runs, Outcome: "unknown", OutcomeOverridden: row.OutcomeOverride != nil, Notes: row.Notes, PricingStatus: row.PricingStatus, CalculatedPrice: nullableDecimal(row.CalculatedPrice), EffectivePrice: nullableDecimal(row.EffectivePrice), Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Usages: []MachineJobUsage{}}
+	for _, run := range runs {
+		if run.State != "replaced" {
+			item.Usages = append(item.Usages, run.Usages...)
 		}
+	}
+	summary, err := q.GetMachineJobRunSummary(ctx, &row.ID)
+	hasSummary := err == nil
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return MachineJob{}, err
+	}
+	derived := "unknown"
+	if hasSummary {
+		item.StartedAt, item.EndedAt, item.ExpectedEndAt = anyTime(summary.StartedAt), anyTime(summary.EndedAt), anyTime(summary.ExpectedEndAt)
+		item.DurationSeconds = summary.RuntimeSeconds
+		derived = summary.DerivedOutcome
+	}
+	effective := derived
+	if row.OutcomeOverride != nil {
+		effective = *row.OutcomeOverride
+	}
+	switch {
+	case hasSummary && summary.Running:
+		item.Status = "running"
+	case effective == "unknown":
+		item.Status, item.Outcome = "needs_outcome", "unknown"
+	default:
+		item.Status, item.Outcome = effective, effective
 	}
 	if row.PriceAdjustmentKind != nil {
 		item.PriceAdjustment = &PriceAdjustment{Kind: *row.PriceAdjustmentKind, Value: decimalString(row.PriceAdjustmentValue), Reason: stringValue(row.PriceAdjustmentReason), AdjustedAt: row.PriceAdjustedAt.Time}
-	}
-	for _, u := range usages {
-		item.Usages = append(item.Usages, MachineJobUsage{ID: u.ID, MaterialID: u.MaterialID, SpoolID: u.SpoolID, Ownership: u.Ownership, MaterialName: u.MaterialName, Category: u.Category, Unit: u.Unit, Quantity: decimalString(u.Quantity), QuantityBasis: u.QuantityBasis, SpoolDisplayID: u.SpoolDisplayID, FillNumber: u.FillNumber})
 	}
 	item.Customer, err = s.loadBillingParty(ctx, q, row)
 	if err != nil {
@@ -567,6 +673,7 @@ func pgTime(value *time.Time) pgtype.Timestamptz {
 	}
 	return pgtype.Timestamptz{Time: value.UTC(), Valid: true}
 }
+
 func (s *Service) ListJobs(ctx context.Context, p authorization.Principal, filters JobFilters) ([]MachineJob, int64, error) {
 	if err := require(p, authorization.MachineJobsRead); err != nil {
 		return nil, 0, err
@@ -580,7 +687,7 @@ func (s *Service) ListJobs(ctx context.Context, p authorization.Principal, filte
 	}
 	params := machinelogbookdb.ListMachineJobIDsParams{Search: strings.TrimSpace(filters.Search), MachineID: filters.MachineID, CustomerID: filters.CustomerID, OperatorID: filters.OperatorID, MaterialID: filters.MaterialID, Outcome: filters.Outcome, FromTime: pgTime(filters.From), ToTime: pgTime(filters.To), PageOffset: offset, PageLimit: limit}
 	q := machinelogbookdb.New(s.pool)
-	rows, err := q.ListMachineJobIDs(ctx, params)
+	ids, err := q.ListMachineJobIDs(ctx, params)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -588,9 +695,9 @@ func (s *Service) ListJobs(ctx context.Context, p authorization.Principal, filte
 	if err != nil {
 		return nil, 0, err
 	}
-	items := make([]MachineJob, 0, len(rows))
-	for _, row := range rows {
-		base, err := q.GetMachineJobBase(ctx, row.ID)
+	items := make([]MachineJob, 0, len(ids))
+	for _, id := range ids {
+		base, err := q.GetMachineJobBase(ctx, id)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -603,20 +710,18 @@ func (s *Service) ListJobs(ctx context.Context, p authorization.Principal, filte
 	return items, total, nil
 }
 
-func (s *Service) UpdateJobFacts(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, input JobInput, requestID *uuid.UUID) (MachineJob, error) {
+// UpdateJobFacts changes the facts staff own: machine, customer, operator,
+// title, notes, the pricing group and the outcome override. Times, material and
+// the derived outcome come from the job's runs.
+func (s *Service) UpdateJobFacts(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, input JobUpdate, requestID *uuid.UUID) (MachineJob, error) {
 	if err := require(p, authorization.MachineJobsEdit); err != nil {
 		return MachineJob{}, err
 	}
 	if expected < 1 {
 		return MachineJob{}, validation("expectedVersion must be positive")
 	}
-	if err := validateInterval(input.StartsAt, input.EndsAt); err != nil {
-		return MachineJob{}, err
-	}
-	if err := validateOutcome(input.Outcome); err != nil {
-		return MachineJob{}, err
-	}
-	if err := validateOutcomeTiming(input.EndsAt, input.Outcome, s.now()); err != nil {
+	override, err := validateOptionalOutcome(input.OutcomeOverride)
+	if err != nil {
 		return MachineJob{}, err
 	}
 	title, err := cleanTitle(input.Title)
@@ -644,8 +749,26 @@ func (s *Service) UpdateJobFacts(ctx context.Context, p authorization.Principal,
 	if err != nil {
 		return MachineJob{}, noRows(err)
 	}
-	if newMachine.Status == "retired" && newMachine.ID != oldMachine.ID {
-		return MachineJob{}, conflict("machine_retired", "Retired machines cannot receive jobs")
+	if newMachine.ID != oldMachine.ID {
+		if newMachine.Status == "retired" {
+			return MachineJob{}, conflict("machine_retired", "Retired machines cannot receive jobs")
+		}
+		recorded, err := q.CountJobRecordedRuns(ctx, &id)
+		if err != nil {
+			return MachineJob{}, err
+		}
+		if recorded > 0 {
+			return MachineJob{}, conflict("machine_change_not_allowed", "The machine of a job with recorded runs cannot change")
+		}
+	}
+	if override != nil {
+		summary, err := q.GetMachineJobRunSummary(ctx, &id)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return MachineJob{}, err
+		}
+		if err == nil && summary.Running {
+			return MachineJob{}, apperror.New(422, "outcome_before_run_end", "An outcome cannot be recorded before the runs have ended")
+		}
 	}
 	if input.Customer.Kind == "" {
 		if current.CustomerPersonID != nil {
@@ -658,12 +781,12 @@ func (s *Service) UpdateJobFacts(ctx context.Context, p authorization.Principal,
 	if err != nil {
 		return MachineJob{}, err
 	}
-	updated, err := q.UpdateMachineJobFacts(ctx, machinelogbookdb.UpdateMachineJobFactsParams{MachineID: input.MachineID, StartsAt: input.StartsAt.UTC(), EndsAt: input.EndsAt.UTC(), CustomerPersonID: personID, CustomerOrganizationID: organizationID, OperatorPersonID: &input.OperatorPersonID, Outcome: input.Outcome, Title: title, Notes: cleanOptional(input.Notes), ID: id, ExpectedVersion: expected})
+	updated, err := q.UpdateMachineJobFacts(ctx, machinelogbookdb.UpdateMachineJobFactsParams{MachineID: input.MachineID, CustomerPersonID: personID, CustomerOrganizationID: organizationID, OperatorPersonID: &input.OperatorPersonID, OutcomeOverride: override, Title: title, Notes: cleanOptional(input.Notes), ID: id, ExpectedVersion: expected})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return MachineJob{}, apperror.StaleWrite
 	}
 	if err != nil {
-		return MachineJob{}, err
+		return MachineJob{}, databaseError(err)
 	}
 	partyChanged := !sameUUID(current.CustomerPersonID, personID) || !sameUUID(current.CustomerOrganizationID, organizationID)
 	if partyChanged || oldMachine.MachineTypeID != newMachine.MachineTypeID || input.PricingGroupID != nil {
@@ -688,7 +811,7 @@ func (s *Service) UpdateJobFacts(ctx context.Context, p authorization.Principal,
 			return MachineJob{}, err
 		}
 	}
-	if err = writeAudit(ctx, tx, p, "machine_job.updated", "machine_job", id, requestID, []string{"machineId", "title", "startsAt", "endsAt", "customer", "operatorPersonId", "outcome", "notes", "pricing"}); err != nil {
+	if err = writeAudit(ctx, tx, p, "machine_job.updated", "machine_job", id, requestID, []string{"machineId", "title", "customer", "operatorPersonId", "outcomeOverride", "notes", "pricing"}); err != nil {
 		return MachineJob{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -704,17 +827,17 @@ func sameUUID(a, b *uuid.UUID) bool {
 	return *a == *b
 }
 
-func (s *Service) recalculateFromSnapshot(ctx context.Context, q *machinelogbookdb.Queries, job machinelogbookdb.MachineJob) (machinelogbookdb.MachineJob, error) {
-	if job.ActivePricingSnapshotID == nil {
-		return job, nil
-	}
+// computeFromSnapshot prices the job from its active snapshot's rates, its
+// runs' runtime and its runs' current material, re-applying the price
+// adjustment.
+func (s *Service) computeFromSnapshot(ctx context.Context, q *machinelogbookdb.Queries, job machinelogbookdb.MachineJob) (string, pgtype.Numeric, error) {
 	rules, err := q.ListPricingSnapshotRules(ctx, *job.ActivePricingSnapshotID)
 	if err != nil {
-		return job, err
+		return "", pgtype.Numeric{}, err
 	}
-	usages, err := q.ListMachineJobUsages(ctx, job.ID)
+	runtimeSeconds, usages, err := s.jobPricingInputs(ctx, q, job.ID)
 	if err != nil {
-		return job, err
+		return "", pgtype.Numeric{}, err
 	}
 	complete := true
 	total := decimal.Zero
@@ -743,18 +866,14 @@ func (s *Service) recalculateFromSnapshot(ctx context.Context, q *machinelogbook
 		rate := decimalFromNumeric(rule.Rate)
 		if rule.Kind == "machine_runtime" {
 			runtimeFound = true
-			hours := runtimeHours(job.StartsAt, job.EndsAt)
-			total = total.Add(hours.Mul(rate))
+			total = total.Add(runtimeHours(runtimeSeconds).Mul(rate))
 			continue
 		}
-		matched := false
 		for _, usage := range usages {
 			if usage.Ownership == "makerspace" && rule.Kind == "material" && rule.Selector == usage.Category && rule.Unit == usage.Unit {
-				matched = true
 				total = total.Add(decimalFromNumeric(usage.Quantity).Mul(rate))
 			}
 		}
-		_ = matched
 	}
 	if !runtimeFound {
 		complete = false
@@ -774,11 +893,20 @@ func (s *Service) recalculateFromSnapshot(ctx context.Context, q *machinelogbook
 			complete = false
 		}
 	}
-	status := "incomplete"
-	amount := pgtype.Numeric{}
-	if complete {
-		status = "complete"
-		amount = numericFromDecimal(total.Round(2))
+	if !complete {
+		return "incomplete", pgtype.Numeric{}, nil
+	}
+	return "complete", numericFromDecimal(total.Round(2)), nil
+}
+
+// recalculateFromSnapshot reprices the job and bumps its version.
+func (s *Service) recalculateFromSnapshot(ctx context.Context, q *machinelogbookdb.Queries, job machinelogbookdb.MachineJob) (machinelogbookdb.MachineJob, error) {
+	if job.ActivePricingSnapshotID == nil {
+		return job, nil
+	}
+	status, amount, err := s.computeFromSnapshot(ctx, q, job)
+	if err != nil {
+		return job, err
 	}
 	updated, err := q.RecalculateMachineJobPrice(ctx, machinelogbookdb.RecalculateMachineJobPriceParams{PricingStatus: status, CalculatedPrice: amount, EffectivePrice: effectivePriceForRow(job, amount), ID: job.ID, ExpectedVersion: job.Version})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -787,134 +915,79 @@ func (s *Service) recalculateFromSnapshot(ctx context.Context, q *machinelogbook
 	return updated, err
 }
 
-func (s *Service) ReplaceJobUsages(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, inputs []UsageInput, requestID *uuid.UUID) (MachineJob, error) {
-	tx, err := s.pool.Begin(ctx)
+// refreshPriceKeepingVersion reprices the job without a new version; connector
+// progress keeps the price of a running job current this way.
+func (s *Service) refreshPriceKeepingVersion(ctx context.Context, q *machinelogbookdb.Queries, job machinelogbookdb.MachineJob) (machinelogbookdb.MachineJob, error) {
+	if job.ActivePricingSnapshotID == nil {
+		return job, nil
+	}
+	status, amount, err := s.computeFromSnapshot(ctx, q, job)
 	if err != nil {
-		return MachineJob{}, err
+		return job, err
 	}
-	defer tx.Rollback(ctx)
-	if _, err = s.ReplaceJobUsagesInTransaction(ctx, tx, p, id, expected, inputs, nil, requestID); err != nil {
-		return MachineJob{}, err
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return MachineJob{}, err
-	}
-	return s.loadJob(ctx, id)
+	return q.RefreshMachineJobPrice(ctx, machinelogbookdb.RefreshMachineJobPriceParams{PricingStatus: status, CalculatedPrice: amount, EffectivePrice: effectivePriceForRow(job, amount), ID: job.ID})
 }
 
-// ReplaceJobUsagesInTransaction applies a usage correction inside the
-// caller's transaction. Print linking uses this entry point so the source
-// event, inventory movements, job update, and audit records commit as a single
-// unit.
-func (s *Service) ReplaceJobUsagesInTransaction(ctx context.Context, tx pgx.Tx, p authorization.Principal, id uuid.UUID, expected int64, inputs []UsageInput, sourcePrinterEventID *uuid.UUID, requestID *uuid.UUID) (MachineJob, error) {
-	if err := require(p, authorization.MachineJobsEdit); err != nil {
-		return MachineJob{}, err
+// coverUsages captures a new snapshot of the job's pricing group when a run
+// brought material of a category the active snapshot has no rule for, for
+// example material a machine reported after the job was created.
+func (s *Service) coverUsages(ctx context.Context, q *machinelogbookdb.Queries, job machinelogbookdb.MachineJob) (machinelogbookdb.MachineJob, error) {
+	if job.ActivePricingSnapshotID == nil {
+		return job, nil
 	}
-	if expected < 1 {
-		return MachineJob{}, validation("expectedVersion must be positive")
-	}
-	parsed, err := parseUsages(inputs)
+	rules, err := q.ListPricingSnapshotRules(ctx, *job.ActivePricingSnapshotID)
 	if err != nil {
-		return MachineJob{}, err
+		return job, err
 	}
-	for i := range parsed {
-		parsed[i].SourcePrinterEventID = sourcePrinterEventID
-	}
-	q := machinelogbookdb.New(tx)
-	job, err := q.GetMachineJobForUpdate(ctx, id)
+	_, usages, err := s.jobPricingInputs(ctx, q, job.ID)
 	if err != nil {
-		return MachineJob{}, noRows(err)
+		return job, err
 	}
-	if job.Version != expected {
-		return MachineJob{}, apperror.StaleWrite
-	}
-	old, err := q.ListAllMachineJobUsagesForUpdate(ctx, id)
-	if err != nil {
-		return MachineJob{}, err
-	}
-	materialIDs := map[uuid.UUID]bool{}
-	for _, u := range old {
-		if u.Ownership == "makerspace" && u.MaterialID != nil {
-			materialIDs[*u.MaterialID] = true
-		}
-	}
-	for _, u := range parsed {
-		if u.Ownership == "makerspace" && u.MaterialID != nil {
-			materialIDs[*u.MaterialID] = true
-		}
-	}
-	ordered := make([]uuid.UUID, 0, len(materialIDs))
-	for materialID := range materialIDs {
-		ordered = append(ordered, materialID)
-	}
-	sort.Slice(ordered, func(i, j int) bool { return bytes.Compare(ordered[i][:], ordered[j][:]) < 0 })
-	versions := map[uuid.UUID]int64{}
-	for _, materialID := range ordered {
-		row, err := q.GetMaterialForUpdate(ctx, materialID)
-		if err != nil {
-			return MachineJob{}, noRows(err)
-		}
-		versions[materialID] = row.InventoryVersion
-	}
-	for _, u := range old {
-		if u.Ownership == "external" {
+	covered := true
+	for _, usage := range usages {
+		if usage.Ownership == "external" {
 			continue
 		}
-		row, err := q.GetMaterialForUpdate(ctx, *u.MaterialID)
-		if err != nil {
-			return MachineJob{}, err
+		found := false
+		for _, rule := range rules {
+			if rule.Kind == "material" && rule.Selector == usage.Category && rule.Unit == usage.Unit {
+				found = true
+				break
+			}
 		}
-		average := decimalFromNumeric(row.AverageUnitCost)
-		quantity := decimalFromNumeric(u.Quantity)
-		reversal, err := s.reversalFill(ctx, q, u)
-		if err != nil {
-			return MachineJob{}, err
-		}
-		_, err = s.applyInventoryMutation(ctx, tx, q, p, *u.MaterialID, versions[*u.MaterialID], inventoryMutation{Kind: "adjustment", QuantityDelta: quantity, UnitCost: average, ValueDelta: quantity.Mul(average), OccurredAt: time.Now().UTC(), Reason: stringPointer("job_corrected"), UsageID: &u.ID, Fill: reversal}, requestID)
-		if err != nil {
-			return MachineJob{}, err
-		}
-		versions[*u.MaterialID]++
+		covered = covered && found
 	}
-	if err = q.DeactivateMachineJobUsages(ctx, id); err != nil {
-		return MachineJob{}, err
+	if covered {
+		return job, nil
 	}
-	if err = s.resolveUsageFills(ctx, q, parsed); err != nil {
-		return MachineJob{}, err
+	snapshot, err := q.GetPricingSnapshot(ctx, *job.ActivePricingSnapshotID)
+	if err != nil || snapshot.PricingGroupID == nil {
+		return job, err
 	}
-	if err = s.insertUsages(ctx, q, id, parsed); err != nil {
-		return MachineJob{}, err
-	}
-	for _, u := range parsed {
-		if u.Ownership == "external" {
-			continue
-		}
-		row, err := q.GetMaterialForUpdate(ctx, *u.MaterialID)
-		if err != nil {
-			return MachineJob{}, err
-		}
-		average := decimalFromNumeric(row.AverageUnitCost)
-		_, err = s.applyInventoryMutation(ctx, tx, q, p, *u.MaterialID, versions[*u.MaterialID], inventoryMutation{Kind: "machine_job_consumption", QuantityDelta: u.Quantity.Neg(), UnitCost: average, ValueDelta: u.Quantity.Mul(average).Neg(), OccurredAt: time.Now().UTC(), UsageID: &u.UsageID, Fill: u.Fill}, requestID)
-		if err != nil {
-			return MachineJob{}, err
-		}
-		versions[*u.MaterialID]++
-	}
-	job, err = q.BumpMachineJobVersion(ctx, machinelogbookdb.BumpMachineJobVersionParams{ID: id, ExpectedVersion: expected})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return MachineJob{}, apperror.StaleWrite
+	group, err := q.GetPricingGroup(ctx, *snapshot.PricingGroupID)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && !group.Active) {
+		return job, nil
 	}
 	if err != nil {
-		return MachineJob{}, err
+		return job, err
 	}
-	job, err = s.recalculateFromSnapshot(ctx, q, job)
+	return s.capturePricingSnapshot(ctx, q, authorization.Principal{}, job, group, "manual_reprice")
+}
+
+// settleJob reprices a locked job after its runs or their material changed.
+// The job version always advances so orders notice the change.
+func (s *Service) settleJob(ctx context.Context, q *machinelogbookdb.Queries, jobID uuid.UUID) (machinelogbookdb.MachineJob, error) {
+	job, err := q.GetMachineJobForUpdate(ctx, jobID)
 	if err != nil {
-		return MachineJob{}, err
+		return job, noRows(err)
 	}
-	if err = writeAudit(ctx, tx, p, "machine_job.usages_replaced", "machine_job", id, requestID, []string{"usages", "inventory", "calculatedPrice"}); err != nil {
-		return MachineJob{}, err
+	if job, err = s.coverUsages(ctx, q, job); err != nil {
+		return job, err
 	}
-	return s.jobFromRow(ctx, q, job)
+	if job.ActivePricingSnapshotID == nil {
+		return q.BumpMachineJobVersion(ctx, machinelogbookdb.BumpMachineJobVersionParams{ID: jobID, ExpectedVersion: job.Version})
+	}
+	return s.recalculateFromSnapshot(ctx, q, job)
 }
 
 func stringPointer(value string) *string { return &value }
@@ -929,8 +1002,18 @@ func (s *Service) ChargeSource(ctx context.Context, tx pgx.Tx, p authorization.P
 	if err != nil {
 		return MachineJob{}, noRows(err)
 	}
-	return s.jobFromRow(ctx, q, row)
+	job, err := s.jobFromRow(ctx, q, row)
+	if err != nil {
+		return MachineJob{}, err
+	}
+	// Progress events reprice a running job without a version bump, so a
+	// charge snapshot of it could not be kept in step.
+	if job.Status == "running" {
+		return MachineJob{}, conflict("job_running", "A job with a running run cannot be ordered until its runs have ended")
+	}
+	return job, nil
 }
+
 func validateJobAssignments(ctx context.Context, q *machinelogbookdb.Queries, party PartyReference, operator uuid.UUID, anonymous bool) (*uuid.UUID, *uuid.UUID, error) {
 	if operator == uuid.Nil {
 		return nil, nil, validation("operatorPersonId is required")

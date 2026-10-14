@@ -20,20 +20,17 @@ the required session and CSRF credentials.
  */
 import type { UUIDv7 } from './uUIDv7';
 import type { BillingPartyReference } from './billingPartyReference';
-import type { MachineJobOutcome } from './machineJobOutcome';
 import type { UpdateMachineJobRequestPricingGroupId } from './updateMachineJobRequestPricingGroupId';
+import type { UpdateMachineJobRequestOutcomeOverride } from './updateMachineJobRequestOutcomeOverride';
 import type { Version } from './version';
 
 /**
- * outcome must be unknown while endsAt lies in the future.
+ * The machine can only change while all of the job's runs are manual; they move with the job.
  */
 export interface UpdateMachineJobRequest {
   machineId: UUIDv7;
-  startsAt: string;
-  endsAt: string;
   customer?: BillingPartyReference;
   operatorPersonId: UUIDv7;
-  outcome: MachineJobOutcome;
   /**
    * @minLength 1
    * @maxLength 200
@@ -47,5 +44,10 @@ export interface UpdateMachineJobRequest {
   notes?: string | null;
   /** @nullable */
   pricingGroupId?: UpdateMachineJobRequestPricingGroupId;
+  /**
+   * Null derives the outcome from the runs.
+   * @nullable
+   */
+  outcomeOverride: UpdateMachineJobRequestOutcomeOverride;
   expectedVersion: Version;
 }

@@ -35,7 +35,7 @@ const FILTER_KEYS = ['status', 'type', 'collection', 'connector'];
 
 function ActivityText({ row }: { row: Row }) {
   if (row.current) {
-    const href = row.current.kind === 'print' ? machineLogbookPaths.print(row.current.id) : machineLogbookPaths.job(row.current.id);
+    const href = row.current.kind === 'run' ? machineLogbookPaths.run(row.current.id) : machineLogbookPaths.job(row.current.id);
     return <CarbonLink as={Link} to={href}>{currentItemName(row.current)}</CarbonLink>;
   }
   if (row.availability === 'maintenance') return <span className="mj-secondary">Marked for maintenance</span>;

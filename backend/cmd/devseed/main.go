@@ -1403,7 +1403,7 @@ func (s *seeder) runPlan(p *plan) {
 			slotExt = prim.ext
 		}
 		run := s.printRun(p.m, p.start, p.end, "completed", file, rep, slotExt)
-		job, err = s.ml.CreateJobFromPrint(s.ctx, s.actor, run, machinelogbook.PrintJobInput{Title: p.title, Customer: p.customer.ref(), OperatorPersonID: p.operator, Notes: p.notes, Usages: usages[:min(1, len(usages))]}, nil)
+		job, err = s.ml.CreateJobFromRun(s.ctx, s.actor, run, machinelogbook.RunJobInput{Title: p.title, Customer: p.customer.ref(), OperatorPersonID: p.operator, Notes: p.notes}, nil)
 		check("create from print", err)
 	case "link":
 		in.Usages = usages[:min(1, len(usages))]
@@ -1420,7 +1420,7 @@ func (s *seeder) runPlan(p *plan) {
 			slotExt = prim.ext
 		}
 		run := s.printRun(p.m, p.start, p.end, "completed", file, rep, slotExt)
-		job, err = s.ml.LinkPrintToJob(s.ctx, s.actor, run, job.ID, job.Version, nil)
+		job, err = s.ml.AttachRun(s.ctx, s.actor, run, job.ID, true, job.Version, nil)
 		check("link print", err)
 	default:
 		job, err = s.ml.CreateManualJob(s.ctx, s.actor, in, nil)

@@ -19,13 +19,13 @@ type MachineJob = Identified & {
   displayId: string;
   status: string;
   outcome: string;
-  run: string;
+  runs: { id: string; version: number; source: string }[];
   calculatedPrice: string | null;
   effectivePrice: string | null;
   priceAdjustment: { kind: string; value: string; reason: string } | null;
   pricingStatus: string;
 };
-type WorkItemPage = { items: { kind: string; id: string; status: string; run: string }[]; total: number };
+type WorkItemPage = { items: { kind: string; id: string; status: string; source: string }[]; total: number };
 
 async function signIn(page: Page) {
   await page.goto('/login');
@@ -134,17 +134,15 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
     await post('/machine-jobs', {
       machineId: machine.id,
       title: 'E2E gearbox housing',
-      startsAt,
-      endsAt,
       customer: { kind: 'organization', id: organization.id },
       operatorPersonId: me.person.id,
-      outcome: 'successful',
       notes: 'Created by the live Playwright slice.',
-      usages: [{ ownership: 'makerspace', materialId: material.id, quantity: '50', quantityBasis: 'actual' }],
+      run: { startsAt, endsAt, outcome: 'successful', usages: [{ ownership: 'makerspace', materialId: material.id, quantity: '50', quantityBasis: 'actual' }] },
     }),
     'create finished manual job',
   );
-  expect(finished.run).toBe('manual');
+  expect(finished.runs).toHaveLength(1);
+  expect(finished.runs[0].source).toBe('manual');
   expect(finished.status).toBe('successful');
   expect(finished.pricingStatus).toBe('complete');
   expect(Number(finished.calculatedPrice)).toBeCloseTo(15, 2);
@@ -158,12 +156,14 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
     await post('/machine-jobs', {
       machineId: machine.id,
       title: 'E2E long run',
-      startsAt: new Date(second - 10 * 60_000).toISOString(),
-      endsAt: new Date(second + 110 * 60_000).toISOString(),
       customer: { kind: 'organization', id: organization.id },
       operatorPersonId: me.person.id,
-      outcome: 'unknown',
-      usages: [{ ownership: 'makerspace', materialId: material.id, quantity: '10', quantityBasis: 'actual' }],
+      run: {
+        startsAt: new Date(second - 10 * 60_000).toISOString(),
+        endsAt: new Date(second + 110 * 60_000).toISOString(),
+        outcome: null,
+        usages: [{ ownership: 'makerspace', materialId: material.id, quantity: '10', quantityBasis: 'actual' }],
+      },
     }),
     'create running manual job',
   );
@@ -172,7 +172,7 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
   expect(runningItems.items.map((item) => item.id)).toContain(running.id);
 
   const cancelled = await parse<MachineJob>(
-    await post(`/machine-jobs/${running.id}/run-cancellation`, { expectedVersion: running.version }),
+    await post(`/machine-runs/${running.runs[0].id}/cancellation`, { expectedVersion: running.runs[0].version }),
     'cancel run',
   );
   expect(cancelled.status).toBe('cancelled');
@@ -195,9 +195,9 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
   expect(adjusted.effectivePrice).toBe('12.34');
   expect(adjusted.calculatedPrice).toBe(finished.calculatedPrice);
 
-  // The area has no prints yet (they come from printer connectors); the list answers an empty page.
-  const prints = await parse<{ items: unknown[] }>(await get(`/prints?machineId=${machine.id}`), 'list prints');
-  expect(prints.items).toEqual([]);
+  // No machine has reported a run yet (they come from connectors); the unassigned recorded runs list is empty.
+  const recorded = await parse<{ items: unknown[] }>(await get(`/machine-runs?machineId=${machine.id}&assigned=false&source=recorded`), 'list unassigned runs');
+  expect(recorded.items).toEqual([]);
 
   // Statistics take a half-open range, so the end is the day after today.
   const from = startsAt.slice(0, 10);
@@ -219,6 +219,6 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
   await page.goto(`/machine-logbook/jobs/${running.id}`);
   await expect(page.getByRole('heading', { name: 'E2E long run', level: 1 })).toBeVisible();
   await expect(page.getByText('Cancelled', { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Cancel run' })).toHaveCount(0);
+  await expect(page.getByRole('table', { name: 'Runs' }).getByRole('progressbar')).toHaveCount(0);
 
 });

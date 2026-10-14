@@ -20,7 +20,7 @@ the required session and CSRF credentials.
  */
 
 /**
- * Jobs: running, needs_outcome or the recorded outcome (see MachineJobStatus). Unlinked prints: printing while the printer reports the run, unlinked once it has ended.
+ * Jobs: running, needs_outcome or the outcome (see MachineJobStatus). Unassigned recorded runs: running_unassigned while the machine reports the run, unassigned once it has ended.
  */
 export type WorkItemStatus = typeof WorkItemStatus[keyof typeof WorkItemStatus];
 
@@ -28,8 +28,8 @@ export type WorkItemStatus = typeof WorkItemStatus[keyof typeof WorkItemStatus];
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const WorkItemStatus = {
   running: 'running',
-  printing: 'printing',
-  unlinked: 'unlinked',
+  running_unassigned: 'running_unassigned',
+  unassigned: 'unassigned',
   needs_outcome: 'needs_outcome',
   successful: 'successful',
   partial_failure: 'partial_failure',

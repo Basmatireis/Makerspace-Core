@@ -41,7 +41,7 @@ func printerConnectorAssignmentDTO(value printerconnectors.Assignment) openapi.P
 
 func printerObservedRunDTO(value printerconnectors.ObservedRun) openapi.PrinterObservedRun {
 	return openapi.PrinterObservedRun{Id: value.ID, AssignmentId: value.AssignmentID, MachineId: value.MachineID, MachineName: value.MachineName,
-		VendorJobId: nullableString(value.VendorJobID), State: openapi.PrinterObservedRunState(value.State),
+		VendorJobId: nullableString(value.VendorJobID), State: openapi.MachineRunState(value.State),
 		HistoryComplete: value.HistoryComplete, FirstObservedAt: value.FirstObservedAt, LastObservedAt: value.LastObservedAt, Version: value.Version}
 }
 

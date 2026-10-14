@@ -244,14 +244,16 @@ func TestAnonymousPreviewInventoryAndOperationalCorrection(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	job, e = f.jobs.UpdateJobFacts(ctx, f.p, job.ID, job.Version, machinelogbook.JobInput{MachineID: f.machine, StartsAt: start, EndsAt: start.Add(2 * time.Hour), OperatorPersonID: f.person, Outcome: "successful"}, nil)
-	if e != nil || job.Customer != nil {
+	endsAt, successful := start.Add(2*time.Hour), "successful"
+	runResult, e := f.jobs.UpdateRun(ctx, f.p, job.Runs[0].ID, job.Runs[0].Version, machinelogbook.RunUpdate{EndsAt: &endsAt, Outcome: &successful}, nil)
+	if e != nil || runResult.Job.Customer != nil {
 		t.Fatal("anonymous operational correction failed", e)
 	}
-	job, e = f.jobs.ReplaceJobUsages(ctx, f.p, job.ID, job.Version, []machinelogbook.UsageInput{{MaterialID: materials[0], Quantity: "5"}, {MaterialID: materials[1], Quantity: "20"}}, nil)
+	runResult, e = f.jobs.ReplaceRunUsages(ctx, f.p, runResult.Run.ID, runResult.Run.Version, []machinelogbook.UsageInput{{MaterialID: materials[0], Quantity: "5"}, {MaterialID: materials[1], Quantity: "20"}}, nil)
 	if e != nil {
 		t.Fatal(e)
 	}
+	job = *runResult.Job
 	retained, e := f.s.Get(ctx, f.p, o.ID)
 	if e != nil || retained.TotalAmount != "13.00" || !retained.Items[0].SourceChanged {
 		t.Fatal(e, retained)
