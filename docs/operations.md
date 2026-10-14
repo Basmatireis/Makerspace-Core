@@ -129,7 +129,7 @@ docker compose run --rm --entrypoint /app/admin backend verify-files
 
 The command is read-only. It exits unsuccessfully and prints only opaque File IDs when an object is missing or corrupt; it does not expose storage keys, filenames, or creator data.
 
-Back up the private file store alongside PostgreSQL. New local-storage volumes are owned by the unprivileged API user. Existing volumes retain their permissions when images change; verify their ownership and write access during an upgrade. Custom S3 endpoints must use HTTPS in production. The bundled nginx allows the API's 26 MiB maximum request envelope; any external ingress must also allow it for PDF uploads, while the API still enforces individual feature limits.
+Back up the private file store alongside PostgreSQL. New local-storage volumes are owned by the unprivileged API user. Existing volumes retain their permissions when images change; verify their ownership and write access during an upgrade. Custom S3 endpoints must use HTTPS in production. The bundled nginx allows the API's 513 MiB maximum request envelope for connector-streamed 3MF archives; any external ingress must allow the same endpoint size. The API still enforces 512 MiB for connector artifacts and the smaller feature-specific JSON, image, and PDF limits.
 
 ## SCIM connectors
 

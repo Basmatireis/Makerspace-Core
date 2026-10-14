@@ -27,7 +27,7 @@ func snapshot(job machinelogbook.MachineJob) (*JobChargeSnapshot, error) {
 	}
 	usages := []JobUsage{}
 	for _, u := range job.Usages {
-		usages = append(usages, JobUsage{ID: u.ID, MaterialID: u.MaterialID, SpoolID: u.SpoolID, SpoolDisplayID: u.SpoolDisplayID, Ownership: u.Ownership, MaterialName: u.MaterialName, Category: u.Category, Unit: u.Unit, Quantity: u.Quantity, QuantityBasis: u.QuantityBasis})
+		usages = append(usages, JobUsage{ID: u.ID, MaterialID: u.MaterialID, SpoolID: u.SpoolID, SpoolDisplayID: u.SpoolDisplayID, Ownership: u.Ownership, MaterialName: u.MaterialName, Category: u.Category, Unit: u.Unit, Quantity: u.Quantity, QuantityBasis: u.QuantityBasis, EstimationMethod: u.EstimationMethod, CalculationVersion: u.CalculationVersion, EstimateQuality: u.EstimateQuality, ReportRevision: u.ReportRevision, StaffCorrected: u.StaffCorrected})
 	}
 	var finalAmount, overrideReason *string
 	var overriddenAt *time.Time

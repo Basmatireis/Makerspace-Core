@@ -38,7 +38,7 @@ export const getListOrdersUrl = (params?: ListOrdersParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -50,13 +50,13 @@ export const getListOrdersUrl = (params?: ListOrdersParams,) => {
 }
 
 export const listOrders = async (params?: ListOrdersParams, options?: RequestInit): Promise<OrderPage> => {
-  
+
   return apiFetch<OrderPage>(getListOrdersUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -64,15 +64,15 @@ export const listOrders = async (params?: ListOrdersParams, options?: RequestIni
 export const getCreateOrderUrl = () => {
 
 
-  
+
 
   return `/api/v1/orders`
 }
 
 export const createOrder = async (orderDraftInput: OrderDraftInput, options?: RequestInit): Promise<Order> => {
-  
+
   return apiFetch<Order>(getCreateOrderUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -85,19 +85,19 @@ export const createOrder = async (orderDraftInput: OrderDraftInput, options?: Re
 export const getGetOrderUrl = (orderId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/orders/${orderId}`
 }
 
 export const getOrder = async (orderId: UUIDv7, options?: RequestInit): Promise<Order> => {
-  
+
   return apiFetch<Order>(getGetOrderUrl(orderId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -105,16 +105,16 @@ export const getOrder = async (orderId: UUIDv7, options?: RequestInit): Promise<
 export const getUpdateOrderUrl = (orderId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/orders/${orderId}`
 }
 
 export const updateOrder = async (orderId: UUIDv7,
     updateOrderDraftInput: UpdateOrderDraftInput, options?: RequestInit): Promise<Order> => {
-  
+
   return apiFetch<Order>(getUpdateOrderUrl(orderId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -127,16 +127,16 @@ export const updateOrder = async (orderId: UUIDv7,
 export const getAddOrderItemUrl = (orderId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/orders/${orderId}/items`
 }
 
 export const addOrderItem = async (orderId: UUIDv7,
     orderItemInput: OrderItemInput, options?: RequestInit): Promise<Order> => {
-  
+
   return apiFetch<Order>(getAddOrderItemUrl(orderId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -150,7 +150,7 @@ export const getUpdateOrderItemUrl = (orderId: UUIDv7,
     itemId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/orders/${orderId}/items/${itemId}`
 }
@@ -158,9 +158,9 @@ export const getUpdateOrderItemUrl = (orderId: UUIDv7,
 export const updateOrderItem = async (orderId: UUIDv7,
     itemId: UUIDv7,
     orderItemInput: OrderItemInput, options?: RequestInit): Promise<Order> => {
-  
+
   return apiFetch<Order>(getUpdateOrderItemUrl(orderId,itemId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -174,7 +174,7 @@ export const getRemoveOrderItemUrl = (orderId: UUIDv7,
     itemId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/orders/${orderId}/items/${itemId}`
 }
@@ -182,9 +182,9 @@ export const getRemoveOrderItemUrl = (orderId: UUIDv7,
 export const removeOrderItem = async (orderId: UUIDv7,
     itemId: UUIDv7,
     orderCommand: OrderCommand, options?: RequestInit): Promise<Order> => {
-  
+
   return apiFetch<Order>(getRemoveOrderItemUrl(orderId,itemId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -198,7 +198,7 @@ export const getRefreshOrderItemUrl = (orderId: UUIDv7,
     itemId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/orders/${orderId}/items/${itemId}/refresh`
 }
@@ -206,9 +206,9 @@ export const getRefreshOrderItemUrl = (orderId: UUIDv7,
 export const refreshOrderItem = async (orderId: UUIDv7,
     itemId: UUIDv7,
     orderCommand: OrderCommand, options?: RequestInit): Promise<Order> => {
-  
+
   return apiFetch<Order>(getRefreshOrderItemUrl(orderId,itemId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -221,16 +221,16 @@ export const refreshOrderItem = async (orderId: UUIDv7,
 export const getFinalizeOrderUrl = (orderId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/orders/${orderId}/finalize`
 }
 
 export const finalizeOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: RequestInit): Promise<Order> => {
-  
+
   return apiFetch<Order>(getFinalizeOrderUrl(orderId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -243,16 +243,16 @@ export const finalizeOrder = async (orderId: UUIDv7,
 export const getCheckoutOrderUrl = (orderId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/orders/${orderId}/checkout`
 }
 
 export const checkoutOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: RequestInit): Promise<Order> => {
-  
+
   return apiFetch<Order>(getCheckoutOrderUrl(orderId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -265,16 +265,16 @@ export const checkoutOrder = async (orderId: UUIDv7,
 export const getCancelOrderUrl = (orderId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/orders/${orderId}/cancel`
 }
 
 export const cancelOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: RequestInit): Promise<Order> => {
-  
+
   return apiFetch<Order>(getCancelOrderUrl(orderId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -287,16 +287,16 @@ export const cancelOrder = async (orderId: UUIDv7,
 export const getReverseOrderUrl = (orderId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/orders/${orderId}/reverse`
 }
 
 export const reverseOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: RequestInit): Promise<Order> => {
-  
+
   return apiFetch<Order>(getReverseOrderUrl(orderId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -309,16 +309,16 @@ export const reverseOrder = async (orderId: UUIDv7,
 export const getCreateReplacementOrderUrl = (orderId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/orders/${orderId}/replacements`
 }
 
 export const createReplacementOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: RequestInit): Promise<Order> => {
-  
+
   return apiFetch<Order>(getCreateReplacementOrderUrl(orderId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -331,16 +331,16 @@ export const createReplacementOrder = async (orderId: UUIDv7,
 export const getReplaceOrderUrl = (orderId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/orders/${orderId}/replace`
 }
 
 export const replaceOrder = async (orderId: UUIDv7,
     orderCommand: OrderCommand, options?: RequestInit): Promise<Order> => {
-  
+
   return apiFetch<Order>(getReplaceOrderUrl(orderId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -353,15 +353,15 @@ export const replaceOrder = async (orderId: UUIDv7,
 export const getCompleteCounterSaleUrl = () => {
 
 
-  
+
 
   return `/api/v1/counter-sales`
 }
 
 export const completeCounterSale = async (counterSaleCommand: CounterSaleCommand, options?: RequestInit): Promise<Order> => {
-  
+
   return apiFetch<Order>(getCompleteCounterSaleUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -374,19 +374,19 @@ export const completeCounterSale = async (counterSaleCommand: CounterSaleCommand
 export const getGetJobOrderAssociationUrl = (machineJobId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machine-jobs/${machineJobId}/order-association`
 }
 
 export const getJobOrderAssociation = async (machineJobId: UUIDv7, options?: RequestInit): Promise<JobOrderAssociation> => {
-  
+
   return apiFetch<JobOrderAssociation>(getGetJobOrderAssociationUrl(machineJobId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -394,15 +394,15 @@ export const getJobOrderAssociation = async (machineJobId: UUIDv7, options?: Req
 export const getPreviewCounterSaleUrl = () => {
 
 
-  
+
 
   return `/api/v1/counter-sales/preview`
 }
 
 export const previewCounterSale = async (counterSaleCommand: CounterSaleCommand, options?: RequestInit): Promise<CounterSaleQuote> => {
-  
+
   return apiFetch<CounterSaleQuote>(getPreviewCounterSaleUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

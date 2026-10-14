@@ -79,7 +79,7 @@ func newIngestHarness(t *testing.T) *ingestHarness {
 		t.Fatalf("authenticate: %v", err)
 	}
 	h.connector = *connectorContext
-	h.assignment, err = h.service.CreateAssignment(ctx, h.principal, connector.ID, AssignmentInput{MachineID: h.machine.ID, AdapterKind: "simulator", AdapterSchemaVersion: 1, Settings: json.RawMessage(`{"scenario":"idle"}`)}, &requestID)
+	h.assignment, err = h.service.CreateAssignment(ctx, h.principal, connector.ID, AssignmentInput{MachineID: h.machine.ID, AdapterKind: "simulator", AdapterSchemaVersion: 1, Settings: json.RawMessage(`{"scenario":"idle"}`), Enabled: true}, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func (h *ingestHarness) mountSpool(name string, externalSlot *string, mountedAt 
 	if err = h.pool.QueryRow(ctx, `SELECT COALESCE(max(position) + 1, 0) FROM printer_input_units WHERE machine_id = $1`, h.machine.ID).Scan(&position); err != nil {
 		h.t.Fatal(err)
 	}
-	if _, err = h.pool.Exec(ctx, `INSERT INTO printer_input_units (id, machine_id, name, position) VALUES ($1, $2, $3, $4)`, unitID, h.machine.ID, "Unit "+name, position); err != nil {
+	if _, err = h.pool.Exec(ctx, `INSERT INTO printer_input_units (id, machine_id, name, position, external_identifier) VALUES ($1, $2, $3, $4, $5)`, unitID, h.machine.ID, "Unit "+name, position, h.unitExternal(name)); err != nil {
 		h.t.Fatal(err)
 	}
 	if _, err = h.pool.Exec(ctx, `INSERT INTO printer_slots (id, input_unit_id, name, position, external_identifier) VALUES ($1, $2, $3, 0, $4)`, slotID, unitID, "Slot "+name, externalSlot); err != nil {
@@ -187,11 +187,16 @@ func (h *ingestHarness) mountSpool(name string, externalSlot *string, mountedAt 
 	return spool.ID
 }
 
+func (h *ingestHarness) unitExternal(name string) string {
+	return "unit-" + name + "-" + h.suffix
+}
+
 func TestIngestRecordsPrintFacts(t *testing.T) {
 	h := newIngestHarness(t)
 	runID := uuid.Must(uuid.NewV7())
 	t0 := time.Now().UTC().Truncate(time.Second).Add(-2 * time.Hour)
-	spoolID := h.mountSpool("A", nil, t0.Add(-time.Hour))
+	slot := "slot-a-" + h.suffix
+	spoolID := h.mountSpool("A", &slot, t0.Add(-time.Hour))
 
 	before := h.sequenceValue()
 	h.accepted(runID, "operational_state", t0, `{"state":"printing","fileName":"  part.gcode  "}`)
@@ -233,16 +238,16 @@ func TestIngestRecordsPrintFacts(t *testing.T) {
 	}
 
 	// Reports resolve their spool and only a newer or equal revision replaces the current one.
-	h.report(runID, t0.Add(6*time.Minute), `{"quantityGrams":"20","quantityBasis":"estimated"}`, 2)
+	h.report(runID, t0.Add(6*time.Minute), `{"quantityGrams":"20","quantityBasis":"estimated","inputUnitExternalId":"`+h.unitExternal("A")+`","slotExternalId":"`+slot+`"}`, 2)
 	first := h.run(runID)
 	if first.grams == nil || *first.grams != "20.000000" || first.basis == nil || *first.basis != "estimated" || first.spoolID == nil || *first.spoolID != spoolID || first.reportedEventID == nil {
 		t.Fatalf("first report: %+v", first)
 	}
-	h.report(runID, t0.Add(7*time.Minute), `{"quantityGrams":"15","quantityBasis":"actual"}`, 1)
+	h.report(runID, t0.Add(7*time.Minute), `{"quantityGrams":"15","quantityBasis":"actual","inputUnitExternalId":"`+h.unitExternal("A")+`","slotExternalId":"`+slot+`"}`, 1)
 	if stale := h.run(runID); *stale.grams != "20.000000" || *stale.reportedEventID != *first.reportedEventID {
 		t.Fatalf("older revision replaced the report: %+v", stale)
 	}
-	h.report(runID, t0.Add(8*time.Minute), `{"quantityGrams":"21.5","quantityBasis":"actual"}`, 3)
+	h.report(runID, t0.Add(8*time.Minute), `{"quantityGrams":"21.5","quantityBasis":"actual","inputUnitExternalId":"`+h.unitExternal("A")+`","slotExternalId":"`+slot+`"}`, 3)
 	if newer := h.run(runID); *newer.grams != "21.500000" || *newer.basis != "actual" || *newer.reportedEventID == *first.reportedEventID {
 		t.Fatalf("newer revision was not applied: %+v", newer)
 	}
@@ -275,8 +280,8 @@ func TestIngestResolvesTheReportedSpool(t *testing.T) {
 	one := uuid.Must(uuid.NewV7())
 	h.accepted(one, "progress", t0, `{"percent":10}`)
 	h.report(one, t0.Add(time.Minute), `{"quantityGrams":"5","quantityBasis":"actual"}`, 1)
-	if run := h.run(one); run.spoolID == nil || *run.spoolID != spoolA {
-		t.Fatalf("single mounted spool not used: %+v", run)
+	if run := h.run(one); run.spoolID != nil {
+		t.Fatalf("report without exact slot evidence resolved a spool: %+v", run)
 	}
 	spoolB := h.mountSpool("B", &slotB, t0.Add(-time.Hour))
 
@@ -286,12 +291,15 @@ func TestIngestResolvesTheReportedSpool(t *testing.T) {
 	if run := h.run(ambiguous); run.grams == nil || run.spoolID != nil {
 		t.Fatalf("ambiguous mounts must stay unresolved: %+v", run)
 	}
-	for slot, want := range map[string]uuid.UUID{slotA: spoolA, slotB: spoolB} {
+	for slot, test := range map[string]struct {
+		spool uuid.UUID
+		unit  string
+	}{slotA: {spoolA, h.unitExternal("A")}, slotB: {spoolB, h.unitExternal("B")}} {
 		runID := uuid.Must(uuid.NewV7())
 		h.accepted(runID, "progress", t0, `{"percent":10}`)
-		h.report(runID, t0.Add(time.Minute), `{"quantityGrams":"5","quantityBasis":"actual","slotExternalId":"`+slot+`"}`, 1)
-		if run := h.run(runID); run.spoolID == nil || *run.spoolID != want {
-			t.Fatalf("slot %s resolved to %v, want %s", slot, run.spoolID, want)
+		h.report(runID, t0.Add(time.Minute), `{"quantityGrams":"5","quantityBasis":"actual","inputUnitExternalId":"`+test.unit+`","slotExternalId":"`+slot+`"}`, 1)
+		if run := h.run(runID); run.spoolID == nil || *run.spoolID != test.spool {
+			t.Fatalf("slot %s resolved to %v, want %s", slot, run.spoolID, test.spool)
 		}
 	}
 	// A slot id that is unknown on this machine falls back to the mount count.
@@ -304,9 +312,85 @@ func TestIngestResolvesTheReportedSpool(t *testing.T) {
 	// A spool that was mounted only after the report is not used for the slot.
 	early := uuid.Must(uuid.NewV7())
 	h.accepted(early, "progress", t0.Add(-3*time.Hour), `{"percent":10}`)
-	h.report(early, t0.Add(-2*time.Hour-30*time.Minute), `{"quantityGrams":"5","quantityBasis":"actual","slotExternalId":"`+slotA+`"}`, 1)
+	h.report(early, t0.Add(-2*time.Hour-30*time.Minute), `{"quantityGrams":"5","quantityBasis":"actual","inputUnitExternalId":"`+h.unitExternal("A")+`","slotExternalId":"`+slotA+`"}`, 1)
 	if run := h.run(early); run.spoolID != nil {
 		t.Fatalf("slot resolved to a spool mounted later: %+v", run)
+	}
+}
+
+func TestIngestAutoMountsExactBambuRFIDWithoutReplacingManualMounts(t *testing.T) {
+	h := newIngestHarness(t)
+	ctx := t.Context()
+	at := time.Now().UTC().Truncate(time.Second).Add(-10 * time.Minute)
+	slotExternal := "tray-auto-" + h.suffix
+	spoolID := h.mountSpool("Auto", &slotExternal, at.Add(-time.Hour))
+	tag := "E2C92C29" + strings.ToUpper(h.suffix[:8])
+	if _, err := h.logbook.AddFilamentSpoolIdentifier(ctx, h.principal, spoolID, "nfc", tag, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.pool.Exec(ctx, `UPDATE printer_spool_assignments SET unmounted_at=$2 WHERE spool_id=$1 AND unmounted_at IS NULL`, spoolID, at.Add(-30*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	settings := `{"ipAddress":"192.168.1.42","serialNumber":"01P00A123456789","autoDetectSpools":true}`
+	if _, err := h.pool.Exec(ctx, `UPDATE printer_connector_assignments SET adapter_kind='bambu_h2d',settings=$2::jsonb WHERE id=$1`, h.assignment.ID, settings); err != nil {
+		t.Fatal(err)
+	}
+	h.sequence++
+	receipt := h.sendEvent(EventInput{EventID: uuid.Must(uuid.NewV7()), AssignmentID: h.assignment.ID, ConfigurationVersion: h.assignment.ConfigurationVersion, Sequence: h.sequence, OccurredAt: at, Kind: "slot_observation", Payload: json.RawMessage(`{"inputUnitExternalId":"` + h.unitExternal("Auto") + `","slotExternalId":"` + slotExternal + `","tagUid":"` + tag + `"}`)})
+	if receipt.Status != "accepted" {
+		t.Fatalf("auto mount receipt = %+v", receipt)
+	}
+	var mounted uuid.UUID
+	var source string
+	if err := h.pool.QueryRow(ctx, `SELECT spool_id,source FROM printer_spool_assignments WHERE spool_id=$1 AND unmounted_at IS NULL`, spoolID).Scan(&mounted, &source); err != nil || mounted != spoolID || source != "connector_reconciled" {
+		t.Fatalf("auto mount spool=%s source=%q err=%v", mounted, source, err)
+	}
+
+	// Once staff replace the connector mount manually, an old or conflicting
+	// RFID observation may not take the slot back.
+	var slotID uuid.UUID
+	if err := h.pool.QueryRow(ctx, `SELECT slot_id FROM printer_spool_assignments WHERE spool_id=$1 AND unmounted_at IS NULL`, spoolID).Scan(&slotID); err != nil {
+		t.Fatal(err)
+	}
+	h.sequence++
+	receipt = h.sendEvent(EventInput{EventID: uuid.Must(uuid.NewV7()), AssignmentID: h.assignment.ID, ConfigurationVersion: h.assignment.ConfigurationVersion, Sequence: h.sequence, OccurredAt: at.Add(time.Minute), Kind: "slot_observation", Payload: json.RawMessage(`{"inputUnitExternalId":"` + h.unitExternal("Auto") + `","slotExternalId":"` + slotExternal + `","empty":true}`)})
+	if receipt.Status != "accepted" {
+		t.Fatalf("auto unmount receipt = %+v", receipt)
+	}
+	var openCount int
+	if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL`, slotID).Scan(&openCount); err != nil || openCount != 0 {
+		t.Fatalf("confirmed empty tray kept connector mount: count=%d err=%v", openCount, err)
+	}
+	h.sequence++
+	receipt = h.sendEvent(EventInput{EventID: uuid.Must(uuid.NewV7()), AssignmentID: h.assignment.ID, ConfigurationVersion: h.assignment.ConfigurationVersion, Sequence: h.sequence, OccurredAt: at.Add(2 * time.Minute), Kind: "slot_observation", Payload: json.RawMessage(`{"inputUnitExternalId":"` + h.unitExternal("Auto") + `","slotExternalId":"` + slotExternal + `","tagUid":"` + tag + `"}`)})
+	if receipt.Status != "accepted" {
+		t.Fatalf("automatic remount receipt = %+v", receipt)
+	}
+	if _, err := h.pool.Exec(ctx, `UPDATE printer_spool_assignments SET unmounted_at=$2 WHERE spool_id=$1 AND unmounted_at IS NULL`, spoolID, at.Add(3*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	manualSpool := h.mountSpool("ManualConflict", nil, at.Add(-time.Hour))
+	if _, err := h.pool.Exec(ctx, `UPDATE printer_spool_assignments SET unmounted_at=$2 WHERE spool_id=$1 AND unmounted_at IS NULL`, manualSpool, at.Add(-30*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.pool.Exec(ctx, `INSERT INTO printer_spool_assignments (id,slot_id,spool_id,mounted_at,source) VALUES ($1,$2,$3,$4,'manual')`, uuid.Must(uuid.NewV7()), slotID, manualSpool, at.Add(4*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	h.sequence++
+	receipt = h.sendEvent(EventInput{EventID: uuid.Must(uuid.NewV7()), AssignmentID: h.assignment.ID, ConfigurationVersion: h.assignment.ConfigurationVersion, Sequence: h.sequence, OccurredAt: at.Add(5 * time.Minute), Kind: "slot_observation", Payload: json.RawMessage(`{"inputUnitExternalId":"` + h.unitExternal("Auto") + `","slotExternalId":"` + slotExternal + `","empty":true}`)})
+	if receipt.Status != "accepted" {
+		t.Fatalf("manual empty conflict receipt = %+v", receipt)
+	}
+	if err := h.pool.QueryRow(ctx, `SELECT spool_id,source FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL`, slotID).Scan(&mounted, &source); err != nil || mounted != manualSpool || source != "manual" {
+		t.Fatalf("manual mount was auto-unmounted: spool=%s source=%q err=%v", mounted, source, err)
+	}
+	h.sequence++
+	receipt = h.sendEvent(EventInput{EventID: uuid.Must(uuid.NewV7()), AssignmentID: h.assignment.ID, ConfigurationVersion: h.assignment.ConfigurationVersion, Sequence: h.sequence, OccurredAt: at.Add(6 * time.Minute), Kind: "slot_observation", Payload: json.RawMessage(`{"inputUnitExternalId":"` + h.unitExternal("Auto") + `","slotExternalId":"` + slotExternal + `","tagUid":"` + tag + `"}`)})
+	if receipt.Status != "accepted" {
+		t.Fatalf("conflict receipt = %+v", receipt)
+	}
+	if err := h.pool.QueryRow(ctx, `SELECT spool_id,source FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL`, slotID).Scan(&mounted, &source); err != nil || mounted != manualSpool || source != "manual" {
+		t.Fatalf("manual mount was replaced: spool=%s source=%q err=%v", mounted, source, err)
 	}
 }
 
@@ -352,7 +436,7 @@ func TestIngestSettlesTheJobOfAnAttachedRunAndConsumesUnassignedRuns(t *testing.
 		t.Fatalf("job status = %s", job.Status)
 	}
 	h.accepted(runID, "terminal_outcome", t0.Add(30*time.Minute), `{"outcome":"completed"}`)
-	h.report(runID, t0.Add(31*time.Minute), `{"quantityGrams":"25","quantityBasis":"actual","slotExternalId":"`+slot+`"}`, 1)
+	h.report(runID, t0.Add(31*time.Minute), `{"quantityGrams":"25","quantityBasis":"actual","inputUnitExternalId":"`+h.unitExternal("J")+`","slotExternalId":"`+slot+`"}`, 1)
 	settled, err := h.logbook.GetJob(ctx, h.principal, job.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -370,7 +454,7 @@ func TestIngestSettlesTheJobOfAnAttachedRunAndConsumesUnassignedRuns(t *testing.
 		t.Fatalf("audit actor = %q err=%v", actorType, err)
 	}
 	// A later report replaces the machine's usage without double counting.
-	h.report(runID, t0.Add(32*time.Minute), `{"quantityGrams":"20","quantityBasis":"actual","slotExternalId":"`+slot+`"}`, 2)
+	h.report(runID, t0.Add(32*time.Minute), `{"quantityGrams":"20","quantityBasis":"actual","inputUnitExternalId":"`+h.unitExternal("J")+`","slotExternalId":"`+slot+`"}`, 2)
 	again, _ := h.logbook.GetJob(ctx, h.principal, job.ID)
 	if len(again.Runs[0].Usages) != 1 || again.Runs[0].Usages[0].Quantity != "20" {
 		t.Fatalf("usage after the second report: %+v", again.Runs[0].Usages)
@@ -384,7 +468,7 @@ func TestIngestSettlesTheJobOfAnAttachedRunAndConsumesUnassignedRuns(t *testing.
 	free := uuid.Must(uuid.NewV7())
 	h.accepted(free, "progress", t0, `{"percent":10}`)
 	h.accepted(free, "terminal_outcome", t0.Add(10*time.Minute), `{"outcome":"failed"}`)
-	h.report(free, t0.Add(11*time.Minute), `{"quantityGrams":"5","quantityBasis":"actual","slotExternalId":"`+slot+`"}`, 1)
+	h.report(free, t0.Add(11*time.Minute), `{"quantityGrams":"5","quantityBasis":"actual","inputUnitExternalId":"`+h.unitExternal("J")+`","slotExternalId":"`+slot+`"}`, 1)
 	detail, err := h.logbook.GetRun(ctx, h.principal, free)
 	if err != nil || detail.Job != nil || len(detail.Usages) != 1 || detail.Usages[0].Quantity != "5" || detail.Outcome == nil || *detail.Outcome != "failed" {
 		t.Fatalf("unassigned run: %+v err=%v", detail, err)
@@ -416,7 +500,7 @@ func (h *ingestHarness) endedRunWithReport(name string) (runID, spoolID uuid.UUI
 	runID = uuid.Must(uuid.NewV7())
 	h.accepted(runID, "progress", at, `{"state":"printing","percent":10}`)
 	h.accepted(runID, "terminal_outcome", at.Add(30*time.Minute), `{"outcome":"completed"}`)
-	h.report(runID, at.Add(31*time.Minute), `{"quantityGrams":"25","quantityBasis":"actual","slotExternalId":"`+slot+`"}`, 1)
+	h.report(runID, at.Add(31*time.Minute), `{"quantityGrams":"25","quantityBasis":"actual","inputUnitExternalId":"`+h.unitExternal(name)+`","slotExternalId":"`+slot+`"}`, 1)
 	if rows, active, ledger, net := h.runUsageState(runID); rows != 1 || active != 1 || ledger != 1 || net != "25.000" {
 		h.t.Fatalf("setup usage rows=%d active=%d ledger=%d net=%s", rows, active, ledger, net)
 	}
@@ -448,7 +532,7 @@ func TestIngestDoesNotRebookUsageStaffCleared(t *testing.T) {
 	h.accepted(runID, "progress", at.Add(32*time.Minute), `{"percent":100}`)
 	h.accepted(runID, "terminal_outcome", at.Add(33*time.Minute), `{"outcome":"completed"}`)
 	// A newer report revision must not resurrect the cleared usage either.
-	h.report(runID, at.Add(35*time.Minute), `{"quantityGrams":"30","quantityBasis":"actual","slotExternalId":"`+slot+`"}`, 2)
+	h.report(runID, at.Add(35*time.Minute), `{"quantityGrams":"30","quantityBasis":"actual","inputUnitExternalId":"`+h.unitExternal("Clear")+`","slotExternalId":"`+slot+`"}`, 2)
 	rows2, active2, ledger2, net2 := h.runUsageState(runID)
 	if rows2 != rows || active2 != 0 || ledger2 != ledger || net2 != "0.000" {
 		t.Fatalf("usage re-booked: rows %d->%d active=%d ledger %d->%d net=%s", rows, rows2, active2, ledger, ledger2, net2)
@@ -469,7 +553,7 @@ func TestIngestKeepsStaffUsageOverNewerReports(t *testing.T) {
 	if active != 1 || net != "12.000" {
 		t.Fatalf("after staff usage rows=%d active=%d ledger=%d net=%s", rows, active, ledger, net)
 	}
-	h.report(runID, at.Add(40*time.Minute), `{"quantityGrams":"40","quantityBasis":"actual","slotExternalId":"`+slot+`"}`, 2)
+	h.report(runID, at.Add(40*time.Minute), `{"quantityGrams":"40","quantityBasis":"actual","inputUnitExternalId":"`+h.unitExternal("Staff")+`","slotExternalId":"`+slot+`"}`, 2)
 	rows2, active2, ledger2, net2 := h.runUsageState(runID)
 	if rows2 != rows || active2 != 1 || ledger2 != ledger || net2 != "12.000" {
 		t.Fatalf("staff usage overridden: rows %d->%d active=%d ledger %d->%d net=%s", rows, rows2, active2, ledger, ledger2, net2)
@@ -484,7 +568,7 @@ func TestIngestKeepsStaffUsageOverNewerReports(t *testing.T) {
 func TestIngestReplacesActiveMachineUsageOnce(t *testing.T) {
 	h := newIngestHarness(t)
 	runID, _, slot, at := h.endedRunWithReport("Once")
-	payload := `{"quantityGrams":"18","quantityBasis":"actual","slotExternalId":"` + slot + `"}`
+	payload := `{"quantityGrams":"18","quantityBasis":"actual","inputUnitExternalId":"` + h.unitExternal("Once") + `","slotExternalId":"` + slot + `"}`
 	h.report(runID, at.Add(40*time.Minute), payload, 2)
 	rows, active, _, net := h.runUsageState(runID)
 	if rows != 2 || active != 1 || net != "18.000" {

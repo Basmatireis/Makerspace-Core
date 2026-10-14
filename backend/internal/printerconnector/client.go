@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -53,6 +55,13 @@ type EventReceipt struct {
 	CoreEventID *uuid.UUID `json:"coreEventId"`
 	Status      string     `json:"status"`
 	ReasonCode  *string    `json:"reasonCode"`
+}
+
+type ArtifactUploadResult struct {
+	Artifact          json.RawMessage `json:"artifact"`
+	Disposition       string          `json:"disposition"`
+	RunID             uuid.UUID       `json:"runId"`
+	AutoAttachedJobID *uuid.UUID      `json:"autoAttachedJobId"`
 }
 
 type Client struct {
@@ -156,4 +165,55 @@ func (c *Client) RotateCredential(ctx context.Context, token string, identity Id
 	identity.ConnectorID = output.ConnectorID
 	identity.CredentialExpiresAt = output.CredentialExpiresAt
 	return identity, nil
+}
+
+func (c *Client) UploadArtifact(ctx context.Context, token string, transfer ArtifactTransfer) (ArtifactUploadResult, error) {
+	if transfer.AssignmentID == uuid.Nil || transfer.RunID == uuid.Nil || transfer.ConfigurationVersion < 1 || transfer.SizeBytes < 1 || len(transfer.SHA256) != 64 {
+		return ArtifactUploadResult{}, errors.New("invalid queued artifact transfer")
+	}
+	file, err := os.Open(transfer.StagedPath)
+	if err != nil {
+		return ArtifactUploadResult{}, err
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return ArtifactUploadResult{}, err
+	}
+	if info.Size() != transfer.SizeBytes {
+		return ArtifactUploadResult{}, errors.New("staged artifact size changed")
+	}
+	requestPath := fmt.Sprintf("/api/v1/printer-connector/self/assignments/%s/runs/%s/artifact", transfer.AssignmentID, transfer.RunID)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPut, c.base.String()+requestPath, file)
+	if err != nil {
+		return ArtifactUploadResult{}, err
+	}
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("Content-Type", "application/octet-stream")
+	request.Header.Set("X-Configuration-Version", strconv.FormatInt(transfer.ConfigurationVersion, 10))
+	request.Header.Set("X-Artifact-Filename", transfer.FileName)
+	request.Header.Set("X-Artifact-SHA256", transfer.SHA256)
+	request.ContentLength = transfer.SizeBytes
+	response, err := c.http.Do(request)
+	if err != nil {
+		return ArtifactUploadResult{}, err
+	}
+	defer response.Body.Close()
+	limited := io.LimitReader(response.Body, 1<<20)
+	if response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusOK {
+		var apiError struct{ Code, Message string }
+		_ = json.NewDecoder(limited).Decode(&apiError)
+		if apiError.Code == "" {
+			apiError.Code = response.Status
+		}
+		return ArtifactUploadResult{}, fmt.Errorf("core artifact upload failed: %s", apiError.Code)
+	}
+	var result ArtifactUploadResult
+	if err = json.NewDecoder(limited).Decode(&result); err != nil {
+		return ArtifactUploadResult{}, err
+	}
+	if (response.StatusCode == http.StatusCreated && result.Disposition != "created") || (response.StatusCode == http.StatusOK && result.Disposition != "deduplicated") || result.RunID != transfer.RunID {
+		return ArtifactUploadResult{}, errors.New("core artifact upload returned an invalid receipt")
+	}
+	return result, nil
 }

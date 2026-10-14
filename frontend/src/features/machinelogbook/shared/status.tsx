@@ -179,7 +179,10 @@ export function OutcomeTag({ outcome, size = 'md' }: { outcome: MachineJobOutcom
 // Job / work item status: one primary status per row, from the API.
 // ---------------------------------------------------------------------------
 
-const rowStatusMeta: Record<WorkItemStatus, { label: string; type: 'blue' | 'green' | 'red' | 'warm-gray' | 'gray' | 'cyan' | 'magenta'; icon: typeof InProgress }> = {
+export type JobRowStatus = WorkItemStatus | 'planned';
+
+const rowStatusMeta: Record<JobRowStatus, { label: string; type: 'blue' | 'green' | 'red' | 'warm-gray' | 'gray' | 'cyan' | 'magenta'; icon: typeof InProgress }> = {
+  planned: { label: 'Planned', type: 'gray', icon: CircleDash },
   running: { label: 'Running', type: 'blue', icon: InProgress },
   running_unassigned: { label: 'Running (unassigned)', type: 'cyan', icon: InProgress },
   unassigned: { label: 'Unassigned run', type: 'magenta', icon: Flag },
@@ -189,9 +192,6 @@ const rowStatusMeta: Record<WorkItemStatus, { label: string; type: 'blue' | 'gre
   failed: outcomeMeta.failed,
   cancelled: outcomeMeta.cancelled,
 };
-
-/** Status of a jobs list row: a work item's status, which also covers `MachineJob.status`. */
-export type JobRowStatus = WorkItemStatus;
 
 export const jobRowStatusLabel = (status: JobRowStatus) => rowStatusMeta[status].label;
 export const jobRowStatusOptions = (Object.keys(rowStatusMeta) as JobRowStatus[]).map((id) => ({ id, label: rowStatusMeta[id].label }));

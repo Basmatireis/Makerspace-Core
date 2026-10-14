@@ -33,4 +33,5 @@ export interface CreatePrinterConnectorAssignmentRequest {
   adapterSchemaVersion: number;
   settings: CreatePrinterConnectorAssignmentRequestSettings;
   secrets: CreatePrinterConnectorAssignmentRequestSecrets;
+  enabled: boolean;
 }

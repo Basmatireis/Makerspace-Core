@@ -122,7 +122,7 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	if err != nil || connectorContext == nil || connectorContext.ID != connector.ID {
 		t.Fatalf("authenticate connector=%+v err=%v", connectorContext, err)
 	}
-	assignment, err := service.CreateAssignment(ctx, principal, connector.ID, AssignmentInput{MachineID: machine.ID, AdapterKind: "simulator", AdapterSchemaVersion: 1, Settings: json.RawMessage(`{"scenario":"idle"}`)}, &requestID)
+	assignment, err := service.CreateAssignment(ctx, principal, connector.ID, AssignmentInput{MachineID: machine.ID, AdapterKind: "simulator", AdapterSchemaVersion: 1, Settings: json.RawMessage(`{"scenario":"idle"}`), Enabled: true}, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}

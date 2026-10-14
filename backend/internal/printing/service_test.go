@@ -26,7 +26,9 @@ func TestPrinterOperationsRequireTheirPermissions(t *testing.T) {
 		{"machines.read printer profile", func() error { _, err := s.GetProfile(ctx, p, id); return err }},
 		{"machines.manage printer profile", func() error { _, err := s.ConfigureProfile(ctx, p, id, true, 0, nil); return err }},
 		{"machines.manage input unit", func() error { _, err := s.CreateInputUnit(ctx, p, id, "Direct", 0, nil, nil); return err }},
+		{"machines.manage update input unit", func() error { _, err := s.UpdateInputUnit(ctx, p, id, "Direct", 0, nil, true, 1, nil); return err }},
 		{"machines.manage slot", func() error { _, err := s.CreateSlot(ctx, p, id, "Slot", 0, "available", nil, nil); return err }},
+		{"machines.manage update slot", func() error { _, err := s.UpdateSlot(ctx, p, id, "Slot", 0, "available", nil, 1, nil); return err }},
 		{"printer_slots.assign mount", func() error { _, err := s.Mount(ctx, p, id, id, nil); return err }},
 		{"printer_slots.assign unmount", func() error { _, err := s.Unmount(ctx, p, id, nil); return err }},
 	}
@@ -125,6 +127,19 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 	slot, err := service.CreateSlot(ctx, p, unit.ID, "Slot 1", 0, "available", nil, &requestID)
 	if err != nil {
 		t.Fatal(err)
+	}
+	unitExternalID := "0"
+	unit, err = service.UpdateInputUnit(ctx, p, unit.ID, "AMS 2 Pro", unit.Position, &unitExternalID, true, unit.Version, &requestID)
+	if err != nil || unit.ExternalIdentifier == nil || *unit.ExternalIdentifier != "0" || unit.Name != "AMS 2 Pro" {
+		t.Fatalf("update input unit: unit=%+v err=%v", unit, err)
+	}
+	if _, err = service.UpdateInputUnit(ctx, p, unit.ID, unit.Name, unit.Position, &unitExternalID, true, unit.Version-1, &requestID); !apperror.IsCode(err, "stale_write") {
+		t.Fatalf("expected stale input-unit update, got %v", err)
+	}
+	slotExternalID := "0"
+	slot, err = service.UpdateSlot(ctx, p, slot.ID, "Slot 1", slot.Position, slot.Status, &slotExternalID, slot.Version, &requestID)
+	if err != nil || slot.ExternalIdentifier == nil || *slot.ExternalIdentifier != "0" {
+		t.Fatalf("update slot: slot=%+v err=%v", slot, err)
 	}
 	mounted, err := service.Mount(ctx, p, slot.ID, spool.ID, &requestID)
 	if err != nil || mounted.SpoolID == nil || *mounted.SpoolID != spool.ID {

@@ -38,19 +38,19 @@ import { apiFetch } from '../../http-client';
 export const getListPricingGroupsUrl = () => {
 
 
-  
+
 
   return `/api/v1/pricing-groups`
 }
 
 export const listPricingGroups = async ( options?: RequestInit): Promise<PricingGroupList> => {
-  
+
   return apiFetch<PricingGroupList>(getListPricingGroupsUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -61,15 +61,15 @@ export const listPricingGroups = async ( options?: RequestInit): Promise<Pricing
 export const getCreatePricingGroupUrl = () => {
 
 
-  
+
 
   return `/api/v1/pricing-groups`
 }
 
 export const createPricingGroup = async (createPricingGroupRequest: CreatePricingGroupRequest, options?: RequestInit): Promise<PricingGroup> => {
-  
+
   return apiFetch<PricingGroup>(getCreatePricingGroupUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -85,16 +85,16 @@ export const createPricingGroup = async (createPricingGroupRequest: CreatePricin
 export const getUpdatePricingGroupUrl = (pricingGroupId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/pricing-groups/${pricingGroupId}`
 }
 
 export const updatePricingGroup = async (pricingGroupId: UUIDv7,
     updatePricingGroupRequest: UpdatePricingGroupRequest, options?: RequestInit): Promise<PricingGroup> => {
-  
+
   return apiFetch<PricingGroup>(getUpdatePricingGroupUrl(pricingGroupId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -110,16 +110,16 @@ export const updatePricingGroup = async (pricingGroupId: UUIDv7,
 export const getCreatePricingRuleUrl = (pricingGroupId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/pricing-groups/${pricingGroupId}/rules`
 }
 
 export const createPricingRule = async (pricingGroupId: UUIDv7,
     createPricingRuleRequest: CreatePricingRuleRequest, options?: RequestInit): Promise<PricingRule> => {
-  
+
   return apiFetch<PricingRule>(getCreatePricingRuleUrl(pricingGroupId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -135,16 +135,16 @@ export const createPricingRule = async (pricingGroupId: UUIDv7,
 export const getUpdatePricingRuleUrl = (pricingRuleId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/pricing-rules/${pricingRuleId}`
 }
 
 export const updatePricingRule = async (pricingRuleId: UUIDv7,
     updatePricingRuleRequest: UpdatePricingRuleRequest, options?: RequestInit): Promise<PricingRule> => {
-  
+
   return apiFetch<PricingRule>(getUpdatePricingRuleUrl(pricingRuleId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -160,15 +160,15 @@ export const updatePricingRule = async (pricingRuleId: UUIDv7,
 export const getSetBillingPartyPricingGroupUrl = () => {
 
 
-  
+
 
   return `/api/v1/billing-party-pricing-group`
 }
 
 export const setBillingPartyPricingGroup = async (setBillingPartyPricingGroupRequest: SetBillingPartyPricingGroupRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getSetBillingPartyPricingGroupUrl(),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

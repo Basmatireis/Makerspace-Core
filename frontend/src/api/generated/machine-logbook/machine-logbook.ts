@@ -35,19 +35,19 @@ import { apiFetch } from '../../http-client';
 export const getGetMachineLogbookOverviewUrl = () => {
 
 
-  
+
 
   return `/api/v1/machine-logbook/overview`
 }
 
 export const getMachineLogbookOverview = async ( options?: RequestInit): Promise<MachineLogbookOverview> => {
-  
+
   return apiFetch<MachineLogbookOverview>(getGetMachineLogbookOverviewUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -68,7 +68,7 @@ export const getListMachineLogbookWorkItemsUrl = (params?: ListMachineLogbookWor
       });
       return;
     }
-      
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -80,13 +80,13 @@ export const getListMachineLogbookWorkItemsUrl = (params?: ListMachineLogbookWor
 }
 
 export const listMachineLogbookWorkItems = async (params?: ListMachineLogbookWorkItemsParams, options?: RequestInit): Promise<WorkItemPage> => {
-  
+
   return apiFetch<WorkItemPage>(getListMachineLogbookWorkItemsUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -98,19 +98,19 @@ export const listMachineLogbookWorkItems = async (params?: ListMachineLogbookWor
 export const getListMachineActivityUrl = () => {
 
 
-  
+
 
   return `/api/v1/machine-logbook/machine-activity`
 }
 
 export const listMachineActivity = async ( options?: RequestInit): Promise<MachineActivityList> => {
-  
+
   return apiFetch<MachineActivityList>(getListMachineActivityUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -122,7 +122,7 @@ export const getGetMachineLogbookStatisticsUrl = (params: GetMachineLogbookStati
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -134,13 +134,13 @@ export const getGetMachineLogbookStatisticsUrl = (params: GetMachineLogbookStati
 }
 
 export const getMachineLogbookStatistics = async (params: GetMachineLogbookStatisticsParams, options?: RequestInit): Promise<MachineLogbookStatistics> => {
-  
+
   return apiFetch<MachineLogbookStatistics>(getGetMachineLogbookStatisticsUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 

@@ -31,19 +31,19 @@ import { apiFetch } from '../../http-client';
 export const getGetMailConfigurationUrl = () => {
 
 
-  
+
 
   return `/api/v1/mail/configuration`
 }
 
 export const getMailConfiguration = async ( options?: RequestInit): Promise<MailConfiguration> => {
-  
+
   return apiFetch<MailConfiguration>(getGetMailConfigurationUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -54,15 +54,15 @@ export const getMailConfiguration = async ( options?: RequestInit): Promise<Mail
 export const getUpdateMailConfigurationUrl = () => {
 
 
-  
+
 
   return `/api/v1/mail/configuration`
 }
 
 export const updateMailConfiguration = async (updateMailConfigurationRequest: UpdateMailConfigurationRequest, options?: RequestInit): Promise<MailConfiguration> => {
-  
+
   return apiFetch<MailConfiguration>(getUpdateMailConfigurationUrl(),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

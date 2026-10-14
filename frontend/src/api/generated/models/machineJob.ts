@@ -19,6 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
+import type { PrintArtifactReference } from './printArtifactReference';
 import type { Machine } from './machine';
 import type { MachineRun } from './machineRun';
 import type { MachineJobCustomer } from './machineJobCustomer';
@@ -40,6 +41,7 @@ export interface MachineJob {
    * @nullable
    */
   title?: string | null;
+  artifact?: PrintArtifactReference;
   machine: Machine;
   /** Oldest first, including replaced manual runs. */
   runs: MachineRun[];

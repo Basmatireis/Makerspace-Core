@@ -43,6 +43,7 @@ tags:
   - name: Filament Products
   - name: Printing
   - name: Printer Connectors
+  - name: Print Artifacts
   - name: Machine Logbook
   - name: Branding
 
@@ -3396,6 +3397,34 @@ paths:
         "429": {$ref: "#/components/responses/TooManyRequests"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /printer-connector/self/assignments/{assignmentId}/runs/{runId}/artifact:
+    parameters:
+      - {name: assignmentId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+      - {name: runId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Printer Connectors]
+      operationId: uploadPrinterConnectorRunArtifact
+      summary: Stream an archived 3MF for a recorded run
+      security: [{printerConnectorBearer: []}]
+      parameters:
+        - {name: X-Configuration-Version, in: header, required: true, schema: {type: integer, format: int64, minimum: 1}}
+        - {name: X-Artifact-Filename, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 255}}
+        - {name: X-Artifact-SHA256, in: header, required: true, schema: {type: string, pattern: "^[0-9a-f]{64}$"}}
+        - {name: Content-Length, in: header, required: true, schema: {type: integer, format: int64, minimum: 1, maximum: 536870912}}
+      requestBody:
+        required: true
+        content: {application/octet-stream: {schema: {type: string, format: binary}}}
+      responses:
+        "200": {description: Artifact bytes already existed and are now attached., content: {application/json: {schema: {$ref: "#/components/schemas/PrintArtifactUploadResult"}}}}
+        "201": {description: Artifact created and attached., content: {application/json: {schema: {$ref: "#/components/schemas/PrintArtifactUploadResult"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "413": {$ref: "#/components/responses/PayloadTooLarge"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /printer-connector/self/credential-rotation:
     post:
       tags: [Printer Connectors]
@@ -3407,6 +3436,83 @@ paths:
         "200": {description: Rotated connector credential., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorEnrollmentResult"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /print-artifacts/{artifactId}:
+    parameters: [{name: artifactId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    get:
+      tags: [Print Artifacts]
+      operationId: getPrintArtifact
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Protected print artifact metadata., content: {application/json: {schema: {$ref: "#/components/schemas/PrintArtifact"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /print-artifacts/{artifactId}/content:
+    parameters: [{name: artifactId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    get:
+      tags: [Print Artifacts]
+      operationId: downloadPrintArtifact
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Original archived printer job bytes.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}}
+          content: {application/octet-stream: {schema: {type: string, format: binary}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /print-artifacts/{artifactId}/previews:
+    parameters: [{name: artifactId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    get:
+      tags: [Print Artifacts]
+      operationId: listPrintArtifactPreviews
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Validated embedded previews., content: {application/json: {schema: {$ref: "#/components/schemas/PrintArtifactPreviewList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /print-artifact-previews/{previewId}/content:
+    parameters: [{name: previewId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    get:
+      tags: [Print Artifacts]
+      operationId: downloadPrintArtifactPreview
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Original validated embedded PNG or JPEG bytes.
+          headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Content-Disposition: {schema: {type: string}}, X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}}
+          content:
+            image/png: {schema: {type: string, format: binary}}
+            image/jpeg: {schema: {type: string, format: binary}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /print-artifacts/{artifactId}/machine-jobs:
+    parameters: [{name: artifactId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    post:
+      tags: [Print Artifacts]
+      operationId: createMachineJobFromArtifact
+      summary: Create a planned job without contacting a printer
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateMachineJobFromArtifactRequest"}}}}
+      responses:
+        "201": {description: Planned machine job., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
@@ -4395,6 +4501,40 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreatePrinterSlotRequest"}}}}
       responses:
         "201": {description: Slot created., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterSlot"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-input-units/{inputUnitId}:
+    parameters:
+      - {name: inputUnitId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Printing]
+      operationId: updatePrinterInputUnit
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdatePrinterInputUnitRequest"}}}}
+      responses:
+        "200": {description: Input unit updated., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterInputUnit"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-slots/{slotId}:
+    parameters:
+      - {name: slotId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    put:
+      tags: [Printing]
+      operationId: updatePrinterSlot
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdatePrinterSlotRequest"}}}}
+      responses:
+        "200": {description: Slot updated., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterSlot"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -6915,6 +7055,7 @@ components:
         - printer_connectors.read
         - printer_connectors.manage
         - printer_connectors.credentials.manage
+        - print_artifacts.read
         - organizations.read
         - organizations.manage
         - pricing.read
@@ -9365,13 +9506,14 @@ components:
     CreatePrinterConnectorAssignmentRequest:
       type: object
       additionalProperties: false
-      required: [machineId, adapterKind, adapterSchemaVersion, settings, secrets]
+      required: [machineId, adapterKind, adapterSchemaVersion, settings, secrets, enabled]
       properties:
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         adapterKind: {type: string, minLength: 1, maxLength: 80}
         adapterSchemaVersion: {type: integer, minimum: 1}
         settings: {type: object, additionalProperties: true}
         secrets: {type: object, additionalProperties: {type: string, maxLength: 2048}, writeOnly: true}
+        enabled: {type: boolean}
 
     UpdatePrinterConnectorAssignmentRequest:
       type: object
@@ -9449,7 +9591,7 @@ components:
         id: {$ref: "#/components/schemas/UUIDv7"}
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         assignmentId: {$ref: "#/components/schemas/UUIDv7"}
-        kind: {type: string, enum: [identity, connectivity, operational_state, progress, slot_observation, consumption_report, terminal_outcome]}
+        kind: {type: string, enum: [identity, connectivity, operational_state, progress, slot_observation, consumption_report, terminal_outcome, printer_error, filament_change]}
         occurredAt: {type: string, format: date-time}
         receivedAt: {type: string, format: date-time}
         applicationState: {type: string, enum: [recorded, applied, review_required]}
@@ -9461,6 +9603,96 @@ components:
       additionalProperties: false
       required: [items]
       properties: {items: {type: array, items: {$ref: "#/components/schemas/PrinterConnectorEvent"}}}
+
+    PrintArtifactParserStatus:
+      type: string
+      enum: [complete, partial, failed]
+
+    PrintArtifactFilament:
+      type: object
+      additionalProperties: false
+      required: [filamentKey]
+      properties:
+        filamentKey: {type: string, maxLength: 120}
+        filamentType: {type: string, maxLength: 120, nullable: true}
+        color: {type: string, maxLength: 80, nullable: true}
+        extruder: {type: integer, minimum: 0, nullable: true}
+        plannedWeightGrams: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        plannedLengthMillimeters: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        densityGramsPerCubicCentimeter: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        diameterMillimeters: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+
+    PrintArtifact:
+      type: object
+      additionalProperties: false
+      required: [id, originalFilename, sizeBytes, sha256, parserStatus, parserVersion, metadata, filaments, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        originalFilename: {type: string, maxLength: 255}
+        sizeBytes: {type: integer, format: int64, minimum: 1}
+        sha256: {type: string, pattern: "^[0-9a-f]{64}$"}
+        parserStatus: {$ref: "#/components/schemas/PrintArtifactParserStatus"}
+        parserVersion: {type: string, maxLength: 80}
+        metadata: {type: object, additionalProperties: true}
+        primaryPreviewId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        filaments: {type: array, items: {$ref: "#/components/schemas/PrintArtifactFilament"}}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+
+    PrintArtifactReference:
+      type: object
+      nullable: true
+      additionalProperties: false
+      required: [id, sha256, parserStatus]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        sha256: {type: string, pattern: "^[0-9a-f]{64}$"}
+        parserStatus: {$ref: "#/components/schemas/PrintArtifactParserStatus"}
+
+    PrintArtifactPreview:
+      type: object
+      additionalProperties: false
+      required: [id, artifactId, archivePath, role, width, height, mimeType, sizeBytes, sha256, primary]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        artifactId: {$ref: "#/components/schemas/UUIDv7"}
+        archivePath: {type: string, maxLength: 1024}
+        role: {type: string, enum: [plate, model, other]}
+        plateNumber: {type: integer, minimum: 0, nullable: true}
+        width: {type: integer, minimum: 1}
+        height: {type: integer, minimum: 1}
+        mimeType: {type: string, enum: [image/png, image/jpeg]}
+        sizeBytes: {type: integer, format: int64, minimum: 1}
+        sha256: {type: string, pattern: "^[0-9a-f]{64}$"}
+        primary: {type: boolean}
+
+    PrintArtifactPreviewList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/PrintArtifactPreview"}}}
+
+    PrintArtifactUploadResult:
+      type: object
+      additionalProperties: false
+      required: [artifact, disposition, runId, autoAttachedJobId]
+      properties:
+        artifact: {$ref: "#/components/schemas/PrintArtifact"}
+        disposition: {type: string, enum: [created, deduplicated]}
+        runId: {$ref: "#/components/schemas/UUIDv7"}
+        autoAttachedJobId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+
+    CreateMachineJobFromArtifactRequest:
+      type: object
+      additionalProperties: false
+      required: [machineId, customer, operatorPersonId]
+      properties:
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        customer: {$ref: "#/components/schemas/BillingPartyReference"}
+        operatorPersonId: {$ref: "#/components/schemas/UUIDv7"}
+        title: {type: string, minLength: 1, maxLength: 200, nullable: true}
+        notes: {type: string, maxLength: 2000, nullable: true}
+        pricingGroupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
 
     PrinterConnectorRuntimeAssignment:
       type: object
@@ -9522,7 +9754,7 @@ components:
         configurationVersion: {type: integer, format: int64, minimum: 1}
         sequence: {type: integer, format: int64, minimum: 1}
         occurredAt: {type: string, format: date-time}
-        kind: {type: string, enum: [identity, connectivity, operational_state, progress, slot_observation, consumption_report, terminal_outcome]}
+        kind: {type: string, enum: [identity, connectivity, operational_state, progress, slot_observation, consumption_report, terminal_outcome, printer_error, filament_change]}
         externalPrintId: {type: string, minLength: 1, maxLength: 200, nullable: true}
         reportRevision: {type: integer, format: int64, minimum: 1, nullable: true}
         payload:
@@ -9531,7 +9763,8 @@ components:
           description: >-
             Kind-specific. Keys read by core: operational_state {state, fileName?}; progress {state?, percent 0-100,
             remainingSeconds?, fileName?}; terminal_outcome {outcome: completed|failed|cancelled};
-            consumption_report {quantityGrams (decimal string), quantityBasis: estimated|actual, slotExternalId?}.
+            consumption_report accepts legacy {quantityGrams, quantityBasis, slotExternalId?} or itemized {items:[...]};
+            printer_error {transition: appeared|cleared, sourceFamily, code, context?}. Unknown vendor fields are ignored.
 
     PrinterConnectorEventBatch:
       type: object
@@ -10631,6 +10864,17 @@ components:
         position: {type: integer, minimum: 0}
         externalIdentifier: {type: string, maxLength: 200, nullable: true}
 
+    UpdatePrinterInputUnitRequest:
+      type: object
+      additionalProperties: false
+      required: [name, position, enabled, expectedVersion]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 120}
+        position: {type: integer, minimum: 0}
+        externalIdentifier: {type: string, maxLength: 200, nullable: true}
+        enabled: {type: boolean}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+
     CreatePrinterSlotRequest:
       type: object
       additionalProperties: false
@@ -10640,6 +10884,17 @@ components:
         position: {type: integer, minimum: 0}
         status: {type: string, enum: [available, unavailable, retired]}
         externalIdentifier: {type: string, maxLength: 200, nullable: true}
+
+    UpdatePrinterSlotRequest:
+      type: object
+      additionalProperties: false
+      required: [name, position, status, expectedVersion]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 120}
+        position: {type: integer, minimum: 0}
+        status: {type: string, enum: [available, unavailable, retired]}
+        externalIdentifier: {type: string, maxLength: 200, nullable: true}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
 
     MountSpoolRequest:
       type: object
@@ -10695,10 +10950,30 @@ components:
         materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         materialName: {type: string, nullable: true}
 
+    MachineRunReportedUsageItem:
+      type: object
+      additionalProperties: false
+      required: [lineNumber, reportRevision, method, calculationVersion, quality]
+      properties:
+        lineNumber: {type: integer, minimum: 0}
+        reportRevision: {type: integer, format: int64, minimum: 1}
+        slicerFilamentId: {type: string, maxLength: 120, nullable: true}
+        extruder: {type: integer, minimum: 0, nullable: true}
+        inputUnitExternalId: {type: string, maxLength: 200, nullable: true}
+        slotExternalId: {type: string, maxLength: 200, nullable: true}
+        plannedQuantityGrams: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        plannedLengthMillimeters: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        estimatedQuantityGrams: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        spoolId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        method: {type: string, maxLength: 80}
+        calculationVersion: {type: string, maxLength: 80}
+        quality: {type: string, enum: [high, medium, low, unresolved]}
+
     MachineRun:
       type: object
       additionalProperties: false
-      required: [id, displayId, machineId, machineName, source, state, startedAt, durationSeconds, usages, usagesFromMachine, outcomeFromMachine, version]
+      required: [id, displayId, machineId, machineName, source, state, startedAt, durationSeconds, usages, usagesFromMachine, reportedUsageItems, outcomeFromMachine, version]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         displayId: {type: string}
@@ -10719,6 +10994,8 @@ components:
         usages: {type: array, items: {$ref: "#/components/schemas/MachineJobUsage"}}
         usagesFromMachine: {type: boolean, description: The usage was consumed automatically from the machine's report.}
         reportedUsage: {$ref: "#/components/schemas/MachineRunReportedUsage"}
+        reportedUsageItems: {type: array, items: {$ref: "#/components/schemas/MachineRunReportedUsageItem"}}
+        artifact: {$ref: "#/components/schemas/PrintArtifactReference"}
         version: {$ref: "#/components/schemas/Version"}
 
     MachineRunEvent:
@@ -10727,7 +11004,7 @@ components:
       required: [id, kind, occurredAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
-        kind: {type: string, enum: [identity, connectivity, operational_state, progress, slot_observation, consumption_report, terminal_outcome]}
+        kind: {type: string, enum: [identity, connectivity, operational_state, progress, slot_observation, consumption_report, terminal_outcome, printer_error, filament_change]}
         occurredAt: {type: string, format: date-time}
         state: {type: string, nullable: true, description: Operational state or terminal outcome reported by the machine.}
         progressPercent: {type: integer, minimum: 0, maximum: 100, nullable: true}
@@ -10831,7 +11108,7 @@ components:
         Derived at read time. running: at least one of the job's runs is running. needs_outcome: all runs have ended
         and the job's outcome is neither overridden nor derivable because a run has no outcome. Otherwise the job's
         outcome.
-      enum: [running, needs_outcome, successful, partial_failure, failed, cancelled]
+      enum: [planned, running, needs_outcome, successful, partial_failure, failed, cancelled]
 
     PriceAdjustmentKind:
       type: string
@@ -10875,7 +11152,7 @@ components:
     MachineJobUsage:
       type: object
       additionalProperties: false
-      required: [id, ownership, materialName, category, unit, quantity, quantityBasis]
+      required: [id, ownership, materialName, category, unit, quantity, quantityBasis, staffCorrected]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         ownership: {$ref: "#/components/schemas/FilamentOwnership"}
@@ -10888,6 +11165,11 @@ components:
         unit: {$ref: "#/components/schemas/MaterialUnit"}
         quantity: {$ref: "#/components/schemas/Decimal"}
         quantityBasis: {$ref: "#/components/schemas/QuantityBasis"}
+        estimationMethod: {type: string, maxLength: 80, nullable: true}
+        calculationVersion: {type: string, maxLength: 80, nullable: true}
+        estimateQuality: {type: string, enum: [high, medium, low], nullable: true}
+        reportRevision: {type: integer, format: int64, minimum: 1, nullable: true}
+        staffCorrected: {type: boolean}
 
     FilamentOwnership:
       type: string
@@ -10934,6 +11216,7 @@ components:
         id: {$ref: "#/components/schemas/UUIDv7"}
         displayId: {type: string}
         title: {type: string, nullable: true, description: Optional staff-chosen name.}
+        artifact: {$ref: "#/components/schemas/PrintArtifactReference"}
         machine: {$ref: "#/components/schemas/Machine"}
         runs: {type: array, items: {$ref: "#/components/schemas/MachineRun"}, description: "Oldest first, including replaced manual runs."}
         startedAt: {type: string, format: date-time, nullable: true, description: Start of the earliest run.}
@@ -11057,7 +11340,7 @@ components:
       description: >-
         Jobs: running, needs_outcome or the outcome (see MachineJobStatus). Unassigned recorded runs: running_unassigned
         while the machine reports the run, unassigned once it has ended.
-      enum: [running, running_unassigned, unassigned, needs_outcome, successful, partial_failure, failed, cancelled]
+      enum: [planned, running, running_unassigned, unassigned, needs_outcome, successful, partial_failure, failed, cancelled]
 
     WorkItemSource:
       type: string

@@ -40,7 +40,7 @@ export const getListOrganizationsUrl = (params?: ListOrganizationsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -52,13 +52,13 @@ export const getListOrganizationsUrl = (params?: ListOrganizationsParams,) => {
 }
 
 export const listOrganizations = async (params?: ListOrganizationsParams, options?: RequestInit): Promise<OrganizationPage> => {
-  
+
   return apiFetch<OrganizationPage>(getListOrganizationsUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -69,15 +69,15 @@ export const listOrganizations = async (params?: ListOrganizationsParams, option
 export const getCreateOrganizationUrl = () => {
 
 
-  
+
 
   return `/api/v1/organizations`
 }
 
 export const createOrganization = async (createOrganizationRequest: CreateOrganizationRequest, options?: RequestInit): Promise<Organization> => {
-  
+
   return apiFetch<Organization>(getCreateOrganizationUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -93,16 +93,16 @@ export const createOrganization = async (createOrganizationRequest: CreateOrgani
 export const getUpdateOrganizationUrl = (organizationId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/organizations/${organizationId}`
 }
 
 export const updateOrganization = async (organizationId: UUIDv7,
     updateOrganizationRequest: UpdateOrganizationRequest, options?: RequestInit): Promise<Organization> => {
-  
+
   return apiFetch<Organization>(getUpdateOrganizationUrl(organizationId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -119,7 +119,7 @@ export const getSearchBillingPartiesUrl = (params?: SearchBillingPartiesParams,)
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -131,13 +131,13 @@ export const getSearchBillingPartiesUrl = (params?: SearchBillingPartiesParams,)
 }
 
 export const searchBillingParties = async (params?: SearchBillingPartiesParams, options?: RequestInit): Promise<BillingPartyList> => {
-  
+
   return apiFetch<BillingPartyList>(getSearchBillingPartiesUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -145,19 +145,19 @@ export const searchBillingParties = async (params?: SearchBillingPartiesParams, 
 export const getGetOrganizationInvoicingRequirementsUrl = (organizationId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/organizations/${organizationId}/invoicing-requirements`
 }
 
 export const getOrganizationInvoicingRequirements = async (organizationId: UUIDv7, options?: RequestInit): Promise<InvoicingRequirements> => {
-  
+
   return apiFetch<InvoicingRequirements>(getGetOrganizationInvoicingRequirementsUrl(organizationId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -165,16 +165,16 @@ export const getOrganizationInvoicingRequirements = async (organizationId: UUIDv
 export const getUpdateOrganizationInvoicingRequirementsUrl = (organizationId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/organizations/${organizationId}/invoicing-requirements`
 }
 
 export const updateOrganizationInvoicingRequirements = async (organizationId: UUIDv7,
     updateInvoicingRequirements: UpdateInvoicingRequirements, options?: RequestInit): Promise<InvoicingRequirements> => {
-  
+
   return apiFetch<InvoicingRequirements>(getUpdateOrganizationInvoicingRequirementsUrl(organizationId),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

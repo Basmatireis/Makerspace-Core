@@ -10,6 +10,7 @@ require (
 	github.com/aws/smithy-go v1.28.1
 	github.com/coredds/GoHoliday v0.6.4
 	github.com/coreos/go-oidc/v3 v3.21.0
+	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/emersion/go-ical v0.0.0-20250609112844-439c63cef608
 	github.com/getkin/kin-openapi v0.149.0
 	github.com/go-chi/chi/v5 v5.2.3
@@ -54,6 +55,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v1.0.0 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect

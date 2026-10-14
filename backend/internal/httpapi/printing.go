@@ -63,6 +63,20 @@ func (s *Server) CreatePrinterInputUnit(ctx context.Context, r openapi.CreatePri
 	}
 	return openapi.CreatePrinterInputUnit201JSONResponse(inputUnitDTO(item)), nil
 }
+func (s *Server) UpdatePrinterInputUnit(ctx context.Context, r openapi.UpdatePrinterInputUnitRequestObject) (openapi.UpdatePrinterInputUnitResponseObject, error) {
+	p, e := requirePrincipal(ctx)
+	if e != nil {
+		return nil, e
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, e := s.printing.UpdateInputUnit(ctx, p, r.InputUnitId, r.Body.Name, r.Body.Position, nullableStringPointer(r.Body.ExternalIdentifier), r.Body.Enabled, r.Body.ExpectedVersion, requestIDPointer(ctx))
+	if e != nil {
+		return nil, e
+	}
+	return openapi.UpdatePrinterInputUnit200JSONResponse(inputUnitDTO(item)), nil
+}
 func (s *Server) CreatePrinterSlot(ctx context.Context, r openapi.CreatePrinterSlotRequestObject) (openapi.CreatePrinterSlotResponseObject, error) {
 	p, e := requirePrincipal(ctx)
 	if e != nil {
@@ -76,6 +90,20 @@ func (s *Server) CreatePrinterSlot(ctx context.Context, r openapi.CreatePrinterS
 		return nil, e
 	}
 	return openapi.CreatePrinterSlot201JSONResponse(slotDTO(item)), nil
+}
+func (s *Server) UpdatePrinterSlot(ctx context.Context, r openapi.UpdatePrinterSlotRequestObject) (openapi.UpdatePrinterSlotResponseObject, error) {
+	p, e := requirePrincipal(ctx)
+	if e != nil {
+		return nil, e
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, e := s.printing.UpdateSlot(ctx, p, r.SlotId, r.Body.Name, r.Body.Position, string(r.Body.Status), nullableStringPointer(r.Body.ExternalIdentifier), r.Body.ExpectedVersion, requestIDPointer(ctx))
+	if e != nil {
+		return nil, e
+	}
+	return openapi.UpdatePrinterSlot200JSONResponse(slotDTO(item)), nil
 }
 func (s *Server) MountPrinterSpool(ctx context.Context, r openapi.MountPrinterSpoolRequestObject) (openapi.MountPrinterSpoolResponseObject, error) {
 	p, e := requirePrincipal(ctx)

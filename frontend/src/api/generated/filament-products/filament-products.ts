@@ -36,7 +36,7 @@ export const getListFilamentProductsUrl = (params?: ListFilamentProductsParams,)
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -48,13 +48,13 @@ export const getListFilamentProductsUrl = (params?: ListFilamentProductsParams,)
 }
 
 export const listFilamentProducts = async (params?: ListFilamentProductsParams, options?: RequestInit): Promise<FilamentProductPage> => {
-  
+
   return apiFetch<FilamentProductPage>(getListFilamentProductsUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -65,15 +65,15 @@ export const listFilamentProducts = async (params?: ListFilamentProductsParams, 
 export const getCreateFilamentProductUrl = () => {
 
 
-  
+
 
   return `/api/v1/filament-products`
 }
 
 export const createFilamentProduct = async (filamentProductInput: FilamentProductInput, options?: RequestInit): Promise<FilamentProduct> => {
-  
+
   return apiFetch<FilamentProduct>(getCreateFilamentProductUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -86,19 +86,19 @@ export const createFilamentProduct = async (filamentProductInput: FilamentProduc
 export const getGetFilamentProductUrl = (productId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/filament-products/${productId}`
 }
 
 export const getFilamentProduct = async (productId: UUIDv7, options?: RequestInit): Promise<FilamentProduct> => {
-  
+
   return apiFetch<FilamentProduct>(getGetFilamentProductUrl(productId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -109,16 +109,16 @@ export const getFilamentProduct = async (productId: UUIDv7, options?: RequestIni
 export const getUpdateFilamentProductUrl = (productId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/filament-products/${productId}`
 }
 
 export const updateFilamentProduct = async (productId: UUIDv7,
     updateFilamentProductRequest: UpdateFilamentProductRequest, options?: RequestInit): Promise<FilamentProduct> => {
-  
+
   return apiFetch<FilamentProduct>(getUpdateFilamentProductUrl(productId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

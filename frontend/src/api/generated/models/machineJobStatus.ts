@@ -27,6 +27,7 @@ export type MachineJobStatus = typeof MachineJobStatus[keyof typeof MachineJobSt
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const MachineJobStatus = {
+  planned: 'planned',
   running: 'running',
   needs_outcome: 'needs_outcome',
   successful: 'successful',

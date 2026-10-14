@@ -183,8 +183,8 @@ function JobDetail({ job }: { job: MachineJob }) {
             <div>
               <dt>Outcome</dt>
               <dd className="mj-cell-stack">
-                {status === 'running' || status === 'needs_outcome' ? <span className="mj-secondary">Not recorded yet</span> : <span><OutcomeTag outcome={job.outcome} size="sm" /></span>}
-                {job.outcomeOverridden ? <span className="mj-secondary">Set by staff</span> : status !== 'running' && status !== 'needs_outcome' ? <span className="mj-secondary">Derived from the runs</span> : null}
+                {status === 'planned' ? <span className="mj-secondary">No run yet</span> : status === 'running' || status === 'needs_outcome' ? <span className="mj-secondary">Not recorded yet</span> : <span><OutcomeTag outcome={job.outcome} size="sm" /></span>}
+                {job.outcomeOverridden ? <span className="mj-secondary">Set by staff</span> : !['planned', 'running', 'needs_outcome'].includes(status) ? <span className="mj-secondary">Derived from the runs</span> : null}
               </dd>
             </div>
           </dl>

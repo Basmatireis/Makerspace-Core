@@ -111,6 +111,7 @@ export const PermissionId = {
   printer_connectorsread: 'printer_connectors.read',
   printer_connectorsmanage: 'printer_connectors.manage',
   printer_connectorscredentialsmanage: 'printer_connectors.credentials.manage',
+  print_artifactsread: 'print_artifacts.read',
   organizationsread: 'organizations.read',
   organizationsmanage: 'organizations.manage',
   pricingread: 'pricing.read',

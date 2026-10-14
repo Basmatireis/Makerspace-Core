@@ -234,6 +234,40 @@ func (s *Service) CreateInputUnit(ctx context.Context, p authorization.Principal
 	return inputUnit(row), nil
 }
 
+func (s *Service) UpdateInputUnit(ctx context.Context, p authorization.Principal, inputUnitID uuid.UUID, name string, position int, external *string, enabled bool, expected int64, requestID *uuid.UUID) (InputUnit, error) {
+	if err := require(p, authorization.MachinesManage); err != nil {
+		return InputUnit{}, err
+	}
+	name = strings.TrimSpace(name)
+	external = clean(external)
+	if name == "" || len(name) > 120 || position < 0 || expected < 1 || (external != nil && len(*external) > 200) {
+		return InputUnit{}, validation("invalid input unit")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return InputUnit{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := db.New(tx)
+	if _, err = q.GetPrinterInputUnitForUpdate(ctx, inputUnitID); err != nil {
+		return InputUnit{}, noRows(err)
+	}
+	row, err := q.UpdatePrinterInputUnit(ctx, db.UpdatePrinterInputUnitParams{ID: inputUnitID, Name: name, Position: int32(position), ExternalIdentifier: external, Enabled: enabled, ExpectedVersion: expected})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return InputUnit{}, apperror.StaleWrite
+	}
+	if err != nil {
+		return InputUnit{}, dbError(err)
+	}
+	if err = writeAudit(ctx, tx, p, "printer_input_unit.updated", "printer_input_unit", inputUnitID, requestID, []string{"name", "position", "externalIdentifier", "enabled"}); err != nil {
+		return InputUnit{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return InputUnit{}, err
+	}
+	return inputUnit(row), nil
+}
+
 func (s *Service) CreateSlot(ctx context.Context, p authorization.Principal, inputUnitID uuid.UUID, name string, position int, status string, external *string, requestID *uuid.UUID) (Slot, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return Slot{}, err
@@ -262,6 +296,39 @@ func (s *Service) CreateSlot(ctx context.Context, p authorization.Principal, inp
 		return Slot{}, err
 	}
 	row, err := db.New(s.pool).GetPrinterSlot(ctx, id)
+	return slotFromGet(row), err
+}
+
+func (s *Service) UpdateSlot(ctx context.Context, p authorization.Principal, slotID uuid.UUID, name string, position int, status string, external *string, expected int64, requestID *uuid.UUID) (Slot, error) {
+	if err := require(p, authorization.MachinesManage); err != nil {
+		return Slot{}, err
+	}
+	name = strings.TrimSpace(name)
+	external = clean(external)
+	if name == "" || len(name) > 120 || position < 0 || expected < 1 || (external != nil && len(*external) > 200) || (status != "available" && status != "unavailable" && status != "retired") {
+		return Slot{}, validation("invalid printer slot")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Slot{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := db.New(tx)
+	if _, err = q.GetPrinterSlotForUpdate(ctx, slotID); err != nil {
+		return Slot{}, noRows(err)
+	}
+	if _, err = q.UpdatePrinterSlot(ctx, db.UpdatePrinterSlotParams{ID: slotID, Name: name, Position: int32(position), ExternalIdentifier: external, Status: status, ExpectedVersion: expected}); errors.Is(err, pgx.ErrNoRows) {
+		return Slot{}, apperror.StaleWrite
+	} else if err != nil {
+		return Slot{}, dbError(err)
+	}
+	if err = writeAudit(ctx, tx, p, "printer_slot.updated", "printer_slot", slotID, requestID, []string{"name", "position", "externalIdentifier", "status"}); err != nil {
+		return Slot{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return Slot{}, err
+	}
+	row, err := db.New(s.pool).GetPrinterSlot(ctx, slotID)
 	return slotFromGet(row), err
 }
 

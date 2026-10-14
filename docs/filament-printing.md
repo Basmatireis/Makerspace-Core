@@ -32,9 +32,11 @@ All three operations below require `filament_spools.manage` and `inventory.manag
 
 ## Generic printer topology
 
-A printer profile attaches to an existing Machine. It contains ordered input units and slots, such as a direct feed or multi-material unit. Staff explicitly mount and unmount spools. The assignment table retains mount history and enforces one open assignment per slot and spool.
+A printer profile attaches to an existing Machine. It contains ordered input units and slots, such as a direct feed or multi-material unit. Staff can explicitly mount and unmount spools. The assignment table retains mount history and enforces one open assignment per slot and spool.
 
-The topology is intentionally generic. It stores stable external identifiers for a future connector but contains no Bambu-specific semantics and performs no printer discovery, slicing, scheduling, file transfer, start, pause, or stop operation.
+The topology remains intentionally generic. It stores stable external identifiers without putting Bambu-specific semantics into Core. The H2D connector maps observational AMS unit/tray identifiers onto this topology. Exact-RFID auto-detection is disabled by default; when enabled on an assignment, an exact configured unit/tray plus an existing active NFC identifier may create or move only a connector-reconciled mount. Two consecutive tag-absent observations may close that connector-created mount. It never changes a manual mount or creates a spool/tag from telemetry, and material, color, `tray_uuid`, and remaining percentage are never identity or stock authority. Core performs no printer discovery, slicing, scheduling, or physical start/pause/stop operation.
+
+Artifact filament quantities remain plans until a recorded run reaches a terminal outcome. The active run page can present `~used / planned` from parsed planned grams and live printer progress, but that approximation is display-only and never reaches the ledger. Successful runs may use complete slicer-estimated grams. Interrupted runs use the latest conservative parsed G-code checkpoint consistent with reliable layer/progress evidence; they never multiply total weight by MQTT percentage for inventory. Model, purge/loading, and unclassified extrusion remain separate provenance while inventory uses their defensible total. Missing density/diameter and missing slicer normalization data produce an unresolved estimate for staff correction rather than invented stock use. A later connector revision compensates once, while a staff correction remains authoritative.
 
 ## Print submissions and attempts removed
 

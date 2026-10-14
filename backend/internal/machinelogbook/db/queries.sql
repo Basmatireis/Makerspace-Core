@@ -646,6 +646,10 @@ RETURNING *;
 -- name: GetMachineJobBase :one
 SELECT * FROM machine_jobs WHERE id = sqlc.arg(id);
 
+-- name: GetArtifactReference :one
+SELECT id, encode(sha256, 'hex')::text AS sha256, parser_status
+FROM print_artifacts WHERE id = sqlc.arg(id);
+
 -- name: GetMachineJobForUpdate :one
 SELECT * FROM machine_jobs WHERE id = sqlc.arg(id) FOR UPDATE;
 
@@ -654,9 +658,11 @@ SELECT job_id, run_count, started_at, ended_at, expected_end_at, running, runtim
 FROM machine_job_run_summaries WHERE job_id = sqlc.arg(job_id);
 
 -- name: InsertRunUsage :one
-INSERT INTO machine_run_usages (id, run_id, material_id, spool_id, fill_id, spool_display_id, fill_number, ownership, external_material_name, quantity_basis, quantity, source_printer_event_id)
+INSERT INTO machine_run_usages (id, run_id, material_id, spool_id, fill_id, spool_display_id, fill_number, ownership, external_material_name, quantity_basis, quantity, source_printer_event_id,
+    estimation_method, calculation_version, estimate_quality, report_revision, staff_corrected)
 VALUES (sqlc.arg(id), sqlc.arg(run_id), sqlc.narg(material_id), sqlc.narg(spool_id), sqlc.narg(fill_id), sqlc.narg(spool_display_id), sqlc.narg(fill_number), sqlc.arg(ownership),
-    sqlc.narg(external_material_name), sqlc.arg(quantity_basis), sqlc.arg(quantity), sqlc.narg(source_printer_event_id)) RETURNING *;
+    sqlc.narg(external_material_name), sqlc.arg(quantity_basis), sqlc.arg(quantity), sqlc.narg(source_printer_event_id),
+    sqlc.narg(estimation_method), sqlc.narg(calculation_version), sqlc.narg(estimate_quality), sqlc.narg(report_revision), sqlc.arg(staff_corrected)) RETURNING *;
 
 -- name: ListRunUsagesForRuns :many
 SELECT u.*, COALESCE(m.name, u.external_material_name) AS material_name,
@@ -665,6 +671,12 @@ FROM machine_run_usages u
 LEFT JOIN materials m ON m.id = u.material_id
 WHERE u.run_id = ANY(sqlc.arg(run_ids)::uuid[]) AND u.active
 ORDER BY lower(COALESCE(m.name, u.external_material_name)), u.id;
+
+-- name: ListLatestReportedUsageItemsForRuns :many
+SELECT i.* FROM machine_run_reported_usage_items i
+WHERE i.run_id = ANY(sqlc.arg(run_ids)::uuid[])
+  AND i.report_revision = (SELECT max(x.report_revision) FROM machine_run_reported_usage_items x WHERE x.run_id = i.run_id)
+ORDER BY i.run_id, i.line_number;
 
 -- name: ListActiveRunUsagesForUpdate :many
 SELECT * FROM machine_run_usages WHERE run_id = sqlc.arg(run_id) AND active
@@ -756,6 +768,7 @@ WITH runs AS (
            COALESCE(r.started_at, r.first_observed_at)::timestamptz AS run_started_at, r.ended_at, r.estimated_end_at, r.progress_percent, r.outcome,
            r.reported_quantity_g, r.reported_quantity_basis, r.reported_spool_id, sp.display_id AS spool_display_id,
            mat.id AS material_id, mat.name AS material_name, r.version,
+           r.artifact_id, COALESCE(encode(pa.sha256, 'hex'), '')::text AS artifact_sha256, pa.parser_status AS artifact_parser_status,
            EXISTS (SELECT 1 FROM machine_run_usages u WHERE u.run_id = r.id AND u.active AND u.source_printer_event_id IS NOT NULL) AS usages_from_machine
     FROM machine_runs r
     JOIN machines m ON m.id = r.machine_id
@@ -767,6 +780,7 @@ WITH runs AS (
         (SELECT x.id FROM filament_spool_fills x WHERE x.spool_id = sp.id AND x.filled_at <= COALESCE(r.last_observed_at, r.ended_at) ORDER BY x.fill_number DESC LIMIT 1),
         (SELECT x.id FROM filament_spool_fills x WHERE x.spool_id = sp.id ORDER BY x.fill_number DESC LIMIT 1))
     LEFT JOIN materials mat ON mat.id = pf.material_id
+    LEFT JOIN print_artifacts pa ON pa.id = r.artifact_id
     WHERE (sqlc.narg(run_id)::uuid IS NULL OR r.id = sqlc.narg(run_id)::uuid)
       AND (sqlc.narg(job_id)::uuid IS NULL OR r.job_id = sqlc.narg(job_id)::uuid)
       AND (sqlc.arg(search)::text = '' OR r.display_id ILIKE '%' || sqlc.arg(search)::text || '%' OR r.file_name ILIKE '%' || sqlc.arg(search)::text || '%')
@@ -787,6 +801,7 @@ LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 -- name: ListRunEvents :many
 SELECT id, kind, occurred_at, payload FROM printer_events
 WHERE run_id = sqlc.arg(run_id)
+  AND kind NOT IN ('slot_observation', 'progress')
 ORDER BY occurred_at, id
 LIMIT 200;
 

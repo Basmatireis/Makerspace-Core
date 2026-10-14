@@ -39,19 +39,19 @@ import { apiFetch } from '../../http-client';
 export const getListSCIMConnectorsUrl = () => {
 
 
-  
+
 
   return `/api/v1/scim/connectors`
 }
 
 export const listSCIMConnectors = async ( options?: RequestInit): Promise<SCIMConnectorList> => {
-  
+
   return apiFetch<SCIMConnectorList>(getListSCIMConnectorsUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -62,15 +62,15 @@ export const listSCIMConnectors = async ( options?: RequestInit): Promise<SCIMCo
 export const getCreateSCIMConnectorUrl = () => {
 
 
-  
+
 
   return `/api/v1/scim/connectors`
 }
 
 export const createSCIMConnector = async (createSCIMConnectorRequest: CreateSCIMConnectorRequest, options?: RequestInit): Promise<SCIMConnectorTokenIssue> => {
-  
+
   return apiFetch<SCIMConnectorTokenIssue>(getCreateSCIMConnectorUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -86,16 +86,16 @@ export const createSCIMConnector = async (createSCIMConnectorRequest: CreateSCIM
 export const getUpdateSCIMConnectorUrl = (scimConnectorId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/scim/connectors/${scimConnectorId}`
 }
 
 export const updateSCIMConnector = async (scimConnectorId: UUIDv7,
     updateSCIMConnectorRequest: UpdateSCIMConnectorRequest, options?: RequestInit): Promise<SCIMConnector> => {
-  
+
   return apiFetch<SCIMConnector>(getUpdateSCIMConnectorUrl(scimConnectorId),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -111,16 +111,16 @@ export const updateSCIMConnector = async (scimConnectorId: UUIDv7,
 export const getRotateSCIMConnectorTokenUrl = (scimConnectorId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/scim/connectors/${scimConnectorId}/token`
 }
 
 export const rotateSCIMConnectorToken = async (scimConnectorId: UUIDv7,
     rotateSCIMTokenRequest: RotateSCIMTokenRequest, options?: RequestInit): Promise<SCIMConnectorTokenIssue> => {
-  
+
   return apiFetch<SCIMConnectorTokenIssue>(getRotateSCIMConnectorTokenUrl(scimConnectorId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -136,16 +136,16 @@ export const rotateSCIMConnectorToken = async (scimConnectorId: UUIDv7,
 export const getRevokeSCIMConnectorTokenUrl = (scimConnectorId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/scim/connectors/${scimConnectorId}/token`
 }
 
 export const revokeSCIMConnectorToken = async (scimConnectorId: UUIDv7,
     versionRequest: VersionRequest, options?: RequestInit): Promise<SCIMConnector> => {
-  
+
   return apiFetch<SCIMConnector>(getRevokeSCIMConnectorTokenUrl(scimConnectorId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -162,15 +162,15 @@ export const revokeSCIMConnectorToken = async (scimConnectorId: UUIDv7,
 export const getPreflightSCIMReconciliationUrl = () => {
 
 
-  
+
 
   return `/api/v1/scim/reconciliation/preflight`
 }
 
 export const preflightSCIMReconciliation = async (sCIMReconciliationRequest: SCIMReconciliationRequest, options?: RequestInit): Promise<SCIMReconciliationReport> => {
-  
+
   return apiFetch<SCIMReconciliationReport>(getPreflightSCIMReconciliationUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -187,15 +187,15 @@ export const preflightSCIMReconciliation = async (sCIMReconciliationRequest: SCI
 export const getReconcileSCIMAccountUrl = () => {
 
 
-  
+
 
   return `/api/v1/scim/reconciliation`
 }
 
 export const reconcileSCIMAccount = async (sCIMReconciliationRequest: SCIMReconciliationRequest, options?: RequestInit): Promise<SCIMReconciliationReport> => {
-  
+
   return apiFetch<SCIMReconciliationReport>(getReconcileSCIMAccountUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

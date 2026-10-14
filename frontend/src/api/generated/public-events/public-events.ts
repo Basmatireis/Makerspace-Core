@@ -34,19 +34,19 @@ import { apiFetch } from '../../http-client';
 export const getGetPublicEventUrl = (publicId: string,) => {
 
 
-  
+
 
   return `/api/v1/public/events/${publicId}`
 }
 
 export const getPublicEvent = async (publicId: string, options?: RequestInit): Promise<PublicEvent> => {
-  
+
   return apiFetch<PublicEvent>(getGetPublicEventUrl(publicId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -54,16 +54,16 @@ export const getPublicEvent = async (publicId: string, options?: RequestInit): P
 export const getCreatePublicEventSignupUrl = (publicId: string,) => {
 
 
-  
+
 
   return `/api/v1/public/events/${publicId}/signups`
 }
 
 export const createPublicEventSignup = async (publicId: string,
     eventSignupRequest: EventSignupRequest, options?: RequestInit): Promise<EventSignupResult> => {
-  
+
   return apiFetch<EventSignupResult>(getCreatePublicEventSignupUrl(publicId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -77,20 +77,20 @@ export const getDownloadPublicEventFileUrl = (publicId: string,
     eventFileId: string,) => {
 
 
-  
+
 
   return `/api/v1/public/events/${publicId}/files/${eventFileId}`
 }
 
 export const downloadPublicEventFile = async (publicId: string,
     eventFileId: string, options?: RequestInit): Promise<Blob> => {
-  
+
   return apiFetch<Blob>(getDownloadPublicEventFileUrl(publicId,eventFileId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -98,19 +98,19 @@ export const downloadPublicEventFile = async (publicId: string,
 export const getGetPublicEventBannerUrl = (publicId: string,) => {
 
 
-  
+
 
   return `/api/v1/public/events/${publicId}/banner`
 }
 
 export const getPublicEventBanner = async (publicId: string, options?: RequestInit): Promise<Blob> => {
-  
+
   return apiFetch<Blob>(getGetPublicEventBannerUrl(publicId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -118,19 +118,19 @@ export const getPublicEventBanner = async (publicId: string, options?: RequestIn
 export const getGetCurrentEventSignupUrl = () => {
 
 
-  
+
 
   return `/api/v1/public/event-signups/current`
 }
 
 export const getCurrentEventSignup = async ( options?: RequestInit): Promise<EventSignup> => {
-  
+
   return apiFetch<EventSignup>(getGetCurrentEventSignupUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -138,15 +138,15 @@ export const getCurrentEventSignup = async ( options?: RequestInit): Promise<Eve
 export const getUpdateCurrentEventSignupUrl = () => {
 
 
-  
+
 
   return `/api/v1/public/event-signups/current`
 }
 
 export const updateCurrentEventSignup = async (updateEventSignupRequest: UpdateEventSignupRequest, options?: RequestInit): Promise<EventSignup> => {
-  
+
   return apiFetch<EventSignup>(getUpdateCurrentEventSignupUrl(),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -159,15 +159,15 @@ export const updateCurrentEventSignup = async (updateEventSignupRequest: UpdateE
 export const getCancelCurrentEventSignupUrl = () => {
 
 
-  
+
 
   return `/api/v1/public/event-signups/current/cancel`
 }
 
 export const cancelCurrentEventSignup = async (versionRequest: VersionRequest, options?: RequestInit): Promise<EventSignup> => {
-  
+
   return apiFetch<EventSignup>(getCancelCurrentEventSignupUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -180,16 +180,16 @@ export const cancelCurrentEventSignup = async (versionRequest: VersionRequest, o
 export const getCreateAuthenticatedEventSignupUrl = (publicId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/public/${publicId}/signups`
 }
 
 export const createAuthenticatedEventSignup = async (publicId: string,
     authenticatedEventSignupRequest: AuthenticatedEventSignupRequest, options?: RequestInit): Promise<EventSignupResult> => {
-  
+
   return apiFetch<EventSignupResult>(getCreateAuthenticatedEventSignupUrl(publicId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -202,19 +202,19 @@ export const createAuthenticatedEventSignup = async (publicId: string,
 export const getListOwnPublicEventAssignmentsUrl = (publicId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/public/${publicId}/assignments/me`
 }
 
 export const listOwnPublicEventAssignments = async (publicId: string, options?: RequestInit): Promise<EventSignupList> => {
-  
+
   return apiFetch<EventSignupList>(getListOwnPublicEventAssignmentsUrl(publicId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -223,7 +223,7 @@ export const getUpdateOwnPublicEventAssignmentUrl = (publicId: string,
     eventAssignmentId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/public/${publicId}/assignments/me/${eventAssignmentId}`
 }
@@ -231,9 +231,9 @@ export const getUpdateOwnPublicEventAssignmentUrl = (publicId: string,
 export const updateOwnPublicEventAssignment = async (publicId: string,
     eventAssignmentId: string,
     updateEventSignupRequest: UpdateEventSignupRequest, options?: RequestInit): Promise<EventSignup> => {
-  
+
   return apiFetch<EventSignup>(getUpdateOwnPublicEventAssignmentUrl(publicId,eventAssignmentId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -247,7 +247,7 @@ export const getCancelOwnPublicEventAssignmentUrl = (publicId: string,
     eventAssignmentId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/public/${publicId}/assignments/me/${eventAssignmentId}/cancel`
 }
@@ -255,9 +255,9 @@ export const getCancelOwnPublicEventAssignmentUrl = (publicId: string,
 export const cancelOwnPublicEventAssignment = async (publicId: string,
     eventAssignmentId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<EventSignup> => {
-  
+
   return apiFetch<EventSignup>(getCancelOwnPublicEventAssignmentUrl(publicId,eventAssignmentId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

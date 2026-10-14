@@ -1,5 +1,6 @@
 import {
   Button,
+  Checkbox,
   CodeSnippet,
   DataTable,
   Form,
@@ -20,6 +21,7 @@ import {
 } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
+import { useForm } from 'react-hook-form';
 import type { PrinterConnector, PrinterConnectorAssignment, PrinterObservedRun } from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { listMachines } from '../../api/generated/machines/machines';
@@ -40,6 +42,7 @@ import { ErrorState, InlineLoadingState } from '../../app/PageState';
 import { formatDateTime } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission } from '../auth/permissions';
+import { connectorDiagnostic, isIPv4Unicast } from './connectorHelpers';
 
 type Status = 'Connected' | 'Disconnected' | 'Degraded' | 'Disabled' | 'Never connected' | 'Pending' | 'Revoked';
 
@@ -59,6 +62,10 @@ function statusTagType(status: Status): 'green' | 'red' | 'warm-gray' | 'purple'
   if (status === 'Pending') return 'blue';
   return 'warm-gray';
 }
+
+const setting = (assignment: PrinterConnectorAssignment, key: string) => typeof assignment.settings[key] === 'string' ? assignment.settings[key] : '';
+const numberSetting = (assignment: PrinterConnectorAssignment, key: string, fallback: string) => typeof assignment.settings[key] === 'number' ? String(assignment.settings[key]) : fallback;
+const booleanSetting = (assignment: PrinterConnectorAssignment, key: string) => assignment.settings[key] === true;
 
 export function PrinterConnectorsPage() {
   const currentUser = useCurrentUser();
@@ -115,6 +122,7 @@ export function PrinterConnectorsPage() {
 
 function DiagnosticsPanel({ connector, canManage, onClose }: { connector: PrinterConnector; canManage: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const [editingAssignment, setEditingAssignment] = useState<PrinterConnectorAssignment>();
   const assignments = useQuery({ queryKey: ['printer-connectors', connector.id, 'assignments'], queryFn: ({ signal }) => listPrinterConnectorAssignments(connector.id, { signal }) });
   const events = useQuery({ queryKey: ['printer-connectors', connector.id, 'events'], queryFn: ({ signal }) => listPrinterConnectorEvents(connector.id, { signal }) });
   const runs = useQuery({ queryKey: ['printer-connectors', connector.id, 'observed-runs'], queryFn: ({ signal }) => listPrinterObservedRuns(connector.id, { signal }) });
@@ -123,7 +131,7 @@ function DiagnosticsPanel({ connector, canManage, onClose }: { connector: Printe
     mutationFn: ({ assignment, enabled, end }: { assignment: PrinterConnectorAssignment; enabled: boolean; end: boolean }) => updatePrinterConnectorAssignment(connector.id, assignment.id, { adapterKind: assignment.adapterKind, adapterSchemaVersion: assignment.adapterSchemaVersion, settings: assignment.settings, enabled, end, expectedVersion: assignment.version }),
     onSuccess: refresh,
   });
-  return <Tile><Stack gap={5}><div><h2>{connector.name} diagnostics</h2><p>Configuration revision {connector.appliedConfigurationRevision} of {connector.configurationRevision} applied. Events remain on the connector until Core accepts or identifies them as duplicates.</p></div>{updateAssignment.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Assignment not updated" subtitle="Reload the connector and try again." />}<h3>Printer assignments</h3>{assignments.isPending && <InlineLoadingState label="Loading assignments" />}{assignments.data?.items.length === 0 && <p>No printers assigned.</p>}{assignments.data?.items.map((assignment) => <div key={assignment.id}><strong>{assignment.machineName}</strong><p>{assignment.adapterKind} · configuration {assignment.appliedConfigurationVersion} of {assignment.configurationVersion} · {assignment.runtimeState ?? (assignment.endedAt ? 'ended' : 'not reported')}</p>{assignment.runtimeErrorCode && <p>Error: <code>{assignment.runtimeErrorCode}</code></p>}{canManage && !assignment.endedAt && <Stack orientation="horizontal" gap={3}><Button size="sm" kind="ghost" disabled={updateAssignment.isPending} onClick={() => updateAssignment.mutate({ assignment, enabled: !assignment.enabled, end: false })}>{assignment.enabled ? 'Disable assignment' : 'Enable assignment'}</Button><Button size="sm" kind="danger--ghost" disabled={updateAssignment.isPending} onClick={() => updateAssignment.mutate({ assignment, enabled: false, end: true })}>End assignment</Button></Stack>}</div>)}<h3>Recent observed print runs</h3>{runs.isPending && <InlineLoadingState label="Loading observed runs" />}{runs.data?.items.length === 0 && <p>No physical print runs observed.</p>}{runs.data?.items.map((run) => <ObservedRunRow key={run.id} run={run} />)}<h3>Recent normalized events</h3>{events.isPending && <InlineLoadingState label="Loading connector events" />}{events.data?.items.length === 0 && <p>No events received.</p>}{events.data?.items.map((event) => <div key={event.id}><strong>{event.kind.replaceAll('_', ' ')}</strong><p>{formatDateTime(event.receivedAt)} · {event.applicationState.replaceAll('_', ' ')}</p>{event.applicationReason && <p>Review reason: <code>{event.applicationReason}</code></p>}<CodeSnippet type="multi" hideCopyButton>{JSON.stringify(event.payload, null, 2)}</CodeSnippet></div>)}<div><Button kind="secondary" onClick={onClose}>Close diagnostics</Button></div></Stack></Tile>;
+  return <Tile><Stack gap={5}><div><h2>{connector.name} diagnostics</h2><p>Configuration revision {connector.appliedConfigurationRevision} of {connector.configurationRevision} applied. Events remain on the connector until Core accepts or identifies them as duplicates.</p></div>{connector.healthState === 'degraded' && connector.healthSummary && <InlineNotification kind="warning" lowContrast hideCloseButton title="Connector needs attention" subtitle={`${connectorDiagnostic(connector.healthSummary)} (${connector.healthSummary})`} />}{updateAssignment.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Assignment not updated" subtitle="Reload the connector and try again." />}{editingAssignment && <AssignmentForm connector={connector} assignment={editingAssignment} onCancel={() => setEditingAssignment(undefined)} onCreated={async () => { setEditingAssignment(undefined); await refresh(); }} />}<h3>Printer assignments</h3>{assignments.isPending && <InlineLoadingState label="Loading assignments" />}{assignments.data?.items.length === 0 && <p>No printers assigned.</p>}{assignments.data?.items.map((assignment) => <div key={assignment.id}><strong>{assignment.machineName}</strong><p>{assignment.adapterKind} · configuration {assignment.appliedConfigurationVersion} of {assignment.configurationVersion} · {assignment.runtimeState ?? (assignment.endedAt ? 'ended' : 'not reported')}</p>{assignment.runtimeErrorCode && <InlineNotification kind="warning" lowContrast hideCloseButton title={assignment.runtimeErrorCode} subtitle={connectorDiagnostic(assignment.runtimeErrorCode)} />}{canManage && !assignment.endedAt && <Stack orientation="horizontal" gap={3}><Button size="sm" kind="ghost" onClick={() => setEditingAssignment(assignment)}>Edit settings</Button><Button size="sm" kind="ghost" disabled={updateAssignment.isPending} onClick={() => updateAssignment.mutate({ assignment, enabled: !assignment.enabled, end: false })}>{assignment.enabled ? 'Disable assignment' : 'Enable assignment'}</Button><Button size="sm" kind="danger--ghost" disabled={updateAssignment.isPending} onClick={() => updateAssignment.mutate({ assignment, enabled: false, end: true })}>End assignment</Button></Stack>}</div>)}<h3>Recent observed print runs</h3>{runs.isPending && <InlineLoadingState label="Loading observed runs" />}{runs.data?.items.length === 0 && <p>No physical print runs observed.</p>}{runs.data?.items.map((run) => <ObservedRunRow key={run.id} run={run} />)}<h3>Recent normalized events</h3>{events.isPending && <InlineLoadingState label="Loading connector events" />}{events.data?.items.length === 0 && <p>No events received.</p>}{events.data?.items.map((event) => <div key={event.id}><strong>{event.kind.replaceAll('_', ' ')}</strong><p>{formatDateTime(event.receivedAt)} · {event.applicationState.replaceAll('_', ' ')}</p>{event.applicationReason && <p>Review reason: <code>{event.applicationReason}</code></p>}<CodeSnippet type="multi" hideCopyButton>{JSON.stringify(event.payload, null, 2)}</CodeSnippet></div>)}<div><Button kind="secondary" onClick={onClose}>Close diagnostics</Button></div></Stack></Tile>;
 }
 
 function ObservedRunRow({ run }: { run: PrinterObservedRun }) {
@@ -138,12 +146,51 @@ function CreateConnectorForm({ onCancel, onCreated }: { onCancel: () => void; on
   return <Tile><Form onSubmit={submit}><Stack gap={5}><h2>Add connector</h2>{mutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Connector not created" subtitle="Review the values and try again." />}<TextInput id="printer-connector-name" labelText="Connector name" value={name} required maxLength={120} onChange={(event) => setName(event.target.value)} /><TextInput id="printer-connector-location" labelText="Location (optional)" value={location} maxLength={200} onChange={(event) => setLocation(event.target.value)} /><div className="form-actions"><Button type="button" kind="secondary" onClick={onCancel}>Cancel</Button><Button type="submit" disabled={!name.trim() || mutation.isPending}>Create</Button></div></Stack></Form></Tile>;
 }
 
-function AssignmentForm({ connector, onCancel, onCreated }: { connector: PrinterConnector; onCancel: () => void; onCreated: () => Promise<unknown> }) {
-  const [machineId, setMachineId] = useState('');
-  const [scenario, setScenario] = useState('idle');
-  const [intervalSeconds, setIntervalSeconds] = useState('5');
+type AssignmentValues = {
+  machineId: string;
+  adapterKind: 'simulator' | 'bambu_h2d';
+  scenario: string;
+  intervalSeconds: string;
+  ipAddress: string;
+  serialNumber: string;
+  lanAccessCode: string;
+  autoDetectSpools: boolean;
+  enabled: boolean;
+};
+
+function AssignmentForm({ connector, assignment, onCancel, onCreated }: { connector: PrinterConnector; assignment?: PrinterConnectorAssignment; onCancel: () => void; onCreated: () => Promise<unknown> }) {
+  const editing = Boolean(assignment);
   const machines = useQuery({ queryKey: ['machines', 'printer-connector-options'], queryFn: ({ signal }) => listMachines({ page: 1, pageSize: 100 }, { signal }) });
-  const mutation = useMutation({ mutationFn: () => createPrinterConnectorAssignment(connector.id, { machineId, adapterKind: 'simulator', adapterSchemaVersion: 1, settings: { scenario, intervalSeconds: Number(intervalSeconds) }, secrets: {} }), onSuccess: onCreated });
-  const submit = (event: FormEvent) => { event.preventDefault(); mutation.mutate(); };
-  return <Tile><Form onSubmit={submit}><Stack gap={5}><div><h2>Assign a simulated printer</h2><p>The simulator uses the production connector runtime and event ingress path. Real manufacturer adapters can use the same assignment contract later.</p></div>{mutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Printer not assigned" subtitle="The machine must have an enabled printer profile and cannot already have an active connector assignment." />}<Select id="printer-connector-machine" labelText="Machine" value={machineId} required onChange={(event) => setMachineId(event.target.value)}><SelectItem value="" text="Select a printer" />{machines.data?.items.map((machine) => <SelectItem key={machine.id} value={machine.id} text={machine.name} />)}</Select><Select id="printer-connector-scenario" labelText="Simulator scenario" value={scenario} onChange={(event) => setScenario(event.target.value)}><SelectItem value="idle" text="Idle"/><SelectItem value="successful_print" text="Successful print"/><SelectItem value="failed_print" text="Failed print"/></Select><TextInput id="printer-connector-interval" labelText="Simulator step interval (seconds)" type="number" min={1} max={3600} value={intervalSeconds} onChange={(event) => setIntervalSeconds(event.target.value)} /><div className="form-actions"><Button type="button" kind="secondary" onClick={onCancel}>Cancel</Button><Button type="submit" disabled={!machineId || mutation.isPending}>Assign printer</Button></div></Stack></Form></Tile>;
+  const { register, watch, setValue, handleSubmit, formState: { errors } } = useForm<AssignmentValues>({
+    defaultValues: {
+      machineId: assignment?.machineId ?? '',
+      adapterKind: assignment?.adapterKind === 'bambu_h2d' ? 'bambu_h2d' : 'simulator',
+      scenario: assignment ? setting(assignment, 'scenario') || 'idle' : 'idle',
+      intervalSeconds: assignment ? numberSetting(assignment, 'intervalSeconds', '5') : '5',
+      ipAddress: assignment ? setting(assignment, 'ipAddress') : '',
+      serialNumber: assignment ? setting(assignment, 'serialNumber') : '',
+      lanAccessCode: '',
+      autoDetectSpools: assignment ? booleanSetting(assignment, 'autoDetectSpools') : false,
+      enabled: assignment?.enabled ?? true,
+    },
+  });
+  const adapterKind = watch('adapterKind');
+  const enabled = watch('enabled');
+  const mutation = useMutation({
+    mutationFn: (values: AssignmentValues) => {
+      const settings = values.adapterKind === 'bambu_h2d'
+		? { ipAddress: values.ipAddress.trim(), serialNumber: values.serialNumber.trim().toUpperCase(), autoDetectSpools: values.autoDetectSpools }
+        : { scenario: values.scenario, intervalSeconds: Number(values.intervalSeconds) };
+      const secrets: Record<string, string> = values.adapterKind === 'bambu_h2d' && values.lanAccessCode ? { lanAccessCode: values.lanAccessCode } : {};
+      if (assignment) return updatePrinterConnectorAssignment(connector.id, assignment.id, {
+        adapterKind: values.adapterKind, adapterSchemaVersion: 1, settings, enabled: values.enabled, end: false, expectedVersion: assignment.version,
+        ...(values.lanAccessCode ? { secrets } : {}),
+      });
+      const request = { machineId: values.machineId, adapterKind: values.adapterKind, adapterSchemaVersion: 1, settings, secrets, enabled: values.enabled };
+      return createPrinterConnectorAssignment(connector.id, request);
+    },
+    onSuccess: onCreated,
+  });
+  const submit = handleSubmit((values) => mutation.mutate(values));
+  return <Tile><Form onSubmit={submit}><Stack gap={5}><div><h2>{editing ? `Edit ${assignment?.machineName ?? 'printer'} assignment` : 'Assign a printer'}</h2><p>{adapterKind === 'bambu_h2d' ? 'The connector observes this H2D over its LAN-only MQTT and FTPS interfaces. It does not send print-control commands.' : 'The simulator exercises the production connector runtime and event-ingress path without a physical printer.'}</p></div>{mutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title={editing ? 'Assignment not updated' : 'Printer not assigned'} subtitle="Review the values. The machine must have an enabled printer profile and no other active connector assignment." />}{!editing && <Select id="printer-connector-machine" labelText="Machine" invalid={Boolean(errors.machineId)} invalidText="Select a printer." {...register('machineId', { required: true })}><SelectItem value="" text="Select a printer" />{machines.data?.items.map((machine) => <SelectItem key={machine.id} value={machine.id} text={machine.name} />)}</Select>}<Select id="printer-connector-adapter" labelText="Adapter" disabled={editing} {...register('adapterKind')}><SelectItem value="simulator" text="Simulator"/><SelectItem value="bambu_h2d" text="Bambu Lab H2D"/></Select>{adapterKind === 'simulator' ? <><Select id="printer-connector-scenario" labelText="Simulator scenario" {...register('scenario')}><SelectItem value="idle" text="Idle"/><SelectItem value="successful_print" text="Successful print"/><SelectItem value="failed_print" text="Failed print"/></Select><TextInput id="printer-connector-interval" labelText="Simulator step interval (seconds)" type="number" min={1} max={3600} invalid={Boolean(errors.intervalSeconds)} invalidText="Enter a value from 1 to 3600 seconds." {...register('intervalSeconds', { required: true, min: 1, max: 3600 })} /></> : <><TextInput id="printer-connector-ip" labelText="Printer IPv4 address" placeholder="192.168.1.42" invalid={Boolean(errors.ipAddress)} invalidText="Enter an IPv4 unicast address." {...register('ipAddress', { required: true, validate: isIPv4Unicast })} /><TextInput id="printer-connector-serial" labelText="Printer serial number" invalid={Boolean(errors.serialNumber)} invalidText="Enter the serial number shown by the printer." {...register('serialNumber', { required: true, maxLength: 80, pattern: /^[A-Z0-9][A-Z0-9_-]*$/, onChange: (event) => setValue('serialNumber', String(event.target.value).toUpperCase(), { shouldValidate: true }) })} /><TextInput id="printer-connector-access-code" labelText={editing ? 'New LAN access code (optional)' : 'LAN access code'} helperText={editing ? 'Leave blank to preserve the current code. Enter a value only to rotate it.' : 'Stored encrypted and never returned by Core.'} type="password" autoComplete="new-password" invalid={Boolean(errors.lanAccessCode)} invalidText="Enter the LAN access code." {...register('lanAccessCode', { required: !editing })} /><Checkbox id="printer-connector-auto-spools" labelText="Automatically mount spools identified by exact Bambu RFID" helperText="Only existing Core spools with a matching NFC tag are mounted. Manual conflicts are never replaced." {...register('autoDetectSpools')} /></>}<Checkbox id="printer-connector-assignment-enabled" labelText="Assignment enabled" checked={enabled} onChange={(_event, state) => setValue('enabled', state.checked, { shouldDirty: true })} /><div className="form-actions"><Button type="button" kind="secondary" onClick={onCancel}>Cancel</Button><Button type="submit" disabled={mutation.isPending}>{editing ? 'Save assignment' : 'Assign printer'}</Button></div></Stack></Form></Tile>;
 }

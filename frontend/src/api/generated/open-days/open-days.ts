@@ -52,19 +52,19 @@ import { apiFetch } from '../../http-client';
 export const getListOpenDayPeriodsUrl = () => {
 
 
-  
+
 
   return `/api/v1/open-day-periods`
 }
 
 export const listOpenDayPeriods = async ( options?: RequestInit): Promise<OpenDayPeriodList> => {
-  
+
   return apiFetch<OpenDayPeriodList>(getListOpenDayPeriodsUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -75,15 +75,15 @@ export const listOpenDayPeriods = async ( options?: RequestInit): Promise<OpenDa
 export const getCreateOpenDayPeriodUrl = () => {
 
 
-  
+
 
   return `/api/v1/open-day-periods`
 }
 
 export const createOpenDayPeriod = async (createOpenDayPeriodRequest: CreateOpenDayPeriodRequest, options?: RequestInit): Promise<OpenDayPeriod> => {
-  
+
   return apiFetch<OpenDayPeriod>(getCreateOpenDayPeriodUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -99,19 +99,19 @@ export const createOpenDayPeriod = async (createOpenDayPeriodRequest: CreateOpen
 export const getGetOpenDayPeriodUrl = (periodId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-day-periods/${periodId}`
 }
 
 export const getOpenDayPeriod = async (periodId: string, options?: RequestInit): Promise<OpenDayPeriod> => {
-  
+
   return apiFetch<OpenDayPeriod>(getGetOpenDayPeriodUrl(periodId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -122,16 +122,16 @@ export const getOpenDayPeriod = async (periodId: string, options?: RequestInit):
 export const getUpdateOpenDayPeriodUrl = (periodId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-day-periods/${periodId}`
 }
 
 export const updateOpenDayPeriod = async (periodId: string,
     updateOpenDayPeriodRequest: UpdateOpenDayPeriodRequest, options?: RequestInit): Promise<OpenDayPeriod> => {
-  
+
   return apiFetch<OpenDayPeriod>(getUpdateOpenDayPeriodUrl(periodId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -147,16 +147,16 @@ export const updateOpenDayPeriod = async (periodId: string,
 export const getDeleteOpenDayPeriodUrl = (periodId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-day-periods/${periodId}`
 }
 
 export const deleteOpenDayPeriod = async (periodId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getDeleteOpenDayPeriodUrl(periodId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -172,16 +172,16 @@ export const deleteOpenDayPeriod = async (periodId: string,
 export const getOpenOpenDayPeriodForStaffingUrl = (periodId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-day-periods/${periodId}/open-for-staffing`
 }
 
 export const openOpenDayPeriodForStaffing = async (periodId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<OpenDayPeriod> => {
-  
+
   return apiFetch<OpenDayPeriod>(getOpenOpenDayPeriodForStaffingUrl(periodId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -197,16 +197,16 @@ export const openOpenDayPeriodForStaffing = async (periodId: string,
 export const getReturnOpenDayPeriodToDraftUrl = (periodId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-day-periods/${periodId}/return-to-draft`
 }
 
 export const returnOpenDayPeriodToDraft = async (periodId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<OpenDayPeriod> => {
-  
+
   return apiFetch<OpenDayPeriod>(getReturnOpenDayPeriodToDraftUrl(periodId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -222,16 +222,16 @@ export const returnOpenDayPeriodToDraft = async (periodId: string,
 export const getPublishOpenDayPeriodUrl = (periodId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-day-periods/${periodId}/publish`
 }
 
 export const publishOpenDayPeriod = async (periodId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<OpenDayPeriod> => {
-  
+
   return apiFetch<OpenDayPeriod>(getPublishOpenDayPeriodUrl(periodId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -247,16 +247,16 @@ export const publishOpenDayPeriod = async (periodId: string,
 export const getReturnOpenDayPeriodToStaffingUrl = (periodId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-day-periods/${periodId}/return-to-staffing`
 }
 
 export const returnOpenDayPeriodToStaffing = async (periodId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<OpenDayPeriod> => {
-  
+
   return apiFetch<OpenDayPeriod>(getReturnOpenDayPeriodToStaffingUrl(periodId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -272,16 +272,16 @@ export const returnOpenDayPeriodToStaffing = async (periodId: string,
 export const getArchiveOpenDayPeriodUrl = (periodId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-day-periods/${periodId}/archive`
 }
 
 export const archiveOpenDayPeriod = async (periodId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<OpenDayPeriod> => {
-  
+
   return apiFetch<OpenDayPeriod>(getArchiveOpenDayPeriodUrl(periodId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -297,19 +297,19 @@ export const archiveOpenDayPeriod = async (periodId: string,
 export const getListOpenDaysUrl = (periodId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-day-periods/${periodId}/open-days`
 }
 
 export const listOpenDays = async (periodId: string, options?: RequestInit): Promise<OpenDaySchedule> => {
-  
+
   return apiFetch<OpenDaySchedule>(getListOpenDaysUrl(periodId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -320,16 +320,16 @@ export const listOpenDays = async (periodId: string, options?: RequestInit): Pro
 export const getCreateOpenDayUrl = (periodId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-day-periods/${periodId}/open-days`
 }
 
 export const createOpenDay = async (periodId: string,
     createOpenDayRequest: CreateOpenDayRequest, options?: RequestInit): Promise<OpenDay> => {
-  
+
   return apiFetch<OpenDay>(getCreateOpenDayUrl(periodId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -345,19 +345,19 @@ export const createOpenDay = async (periodId: string,
 export const getGetOpenDayUrl = (openDayId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-days/${openDayId}`
 }
 
 export const getOpenDay = async (openDayId: string, options?: RequestInit): Promise<OpenDay> => {
-  
+
   return apiFetch<OpenDay>(getGetOpenDayUrl(openDayId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -368,16 +368,16 @@ export const getOpenDay = async (openDayId: string, options?: RequestInit): Prom
 export const getUpdateOpenDayUrl = (openDayId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-days/${openDayId}`
 }
 
 export const updateOpenDay = async (openDayId: string,
     updateOpenDayRequest: UpdateOpenDayRequest, options?: RequestInit): Promise<OpenDay> => {
-  
+
   return apiFetch<OpenDay>(getUpdateOpenDayUrl(openDayId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -393,16 +393,16 @@ export const updateOpenDay = async (openDayId: string,
 export const getDeleteOpenDayUrl = (openDayId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-days/${openDayId}`
 }
 
 export const deleteOpenDay = async (openDayId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getDeleteOpenDayUrl(openDayId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -418,16 +418,16 @@ export const deleteOpenDay = async (openDayId: string,
 export const getCancelOpenDayUrl = (openDayId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-days/${openDayId}/cancel`
 }
 
 export const cancelOpenDay = async (openDayId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<OpenDay> => {
-  
+
   return apiFetch<OpenDay>(getCancelOpenDayUrl(openDayId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -443,16 +443,16 @@ export const cancelOpenDay = async (openDayId: string,
 export const getSaveOpenDayScheduleUrl = (periodId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-day-periods/${periodId}/schedule`
 }
 
 export const saveOpenDaySchedule = async (periodId: string,
     saveOpenDayScheduleRequest: SaveOpenDayScheduleRequest, options?: RequestInit): Promise<OpenDaySchedule> => {
-  
+
   return apiFetch<OpenDaySchedule>(getSaveOpenDayScheduleUrl(periodId),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -468,16 +468,16 @@ export const saveOpenDaySchedule = async (periodId: string,
 export const getPreviewOpenDayRecurrenceUrl = (periodId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-day-periods/${periodId}/schedule/recurrence-preview`
 }
 
 export const previewOpenDayRecurrence = async (periodId: string,
     recurrencePreviewRequest: RecurrencePreviewRequest, options?: RequestInit): Promise<RecurrencePreview> => {
-  
+
   return apiFetch<RecurrencePreview>(getPreviewOpenDayRecurrenceUrl(periodId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -493,16 +493,16 @@ export const previewOpenDayRecurrence = async (periodId: string,
 export const getJoinOpenDayUrl = (openDayId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-days/${openDayId}/assignments/me`
 }
 
 export const joinOpenDay = async (openDayId: string,
     joinOpenDayRequest: JoinOpenDayRequest, options?: RequestInit): Promise<OpenDayAssignment> => {
-  
+
   return apiFetch<OpenDayAssignment>(getJoinOpenDayUrl(openDayId),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -518,19 +518,19 @@ export const joinOpenDay = async (openDayId: string,
 export const getLeaveOpenDayUrl = (openDayId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-days/${openDayId}/assignments/me`
 }
 
 export const leaveOpenDay = async (openDayId: string, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getLeaveOpenDayUrl(openDayId),
-  {      
+  {
     ...options,
     method: 'DELETE'
-    
-    
+
+
   }
 );}
 
@@ -541,16 +541,16 @@ export const leaveOpenDay = async (openDayId: string, options?: RequestInit): Pr
 export const getAssignOpenDayPersonUrl = (openDayId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-days/${openDayId}/assignments`
 }
 
 export const assignOpenDayPerson = async (openDayId: string,
     assignOpenDayPersonRequest: AssignOpenDayPersonRequest, options?: RequestInit): Promise<OpenDayAssignment> => {
-  
+
   return apiFetch<OpenDayAssignment>(getAssignOpenDayPersonUrl(openDayId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -567,20 +567,20 @@ export const getRemoveOpenDayAssignmentUrl = (openDayId: string,
     assignmentId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-days/${openDayId}/assignments/${assignmentId}`
 }
 
 export const removeOpenDayAssignment = async (openDayId: string,
     assignmentId: string, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getRemoveOpenDayAssignmentUrl(openDayId,assignmentId),
-  {      
+  {
     ...options,
     method: 'DELETE'
-    
-    
+
+
   }
 );}
 
@@ -593,7 +593,7 @@ export const getListOpenDayEligiblePeopleUrl = (requirementId: string,
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -606,13 +606,13 @@ export const getListOpenDayEligiblePeopleUrl = (requirementId: string,
 
 export const listOpenDayEligiblePeople = async (requirementId: string,
     params?: ListOpenDayEligiblePeopleParams, options?: RequestInit): Promise<EligiblePersonList> => {
-  
+
   return apiFetch<EligiblePersonList>(getListOpenDayEligiblePeopleUrl(requirementId,params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -623,19 +623,19 @@ export const listOpenDayEligiblePeople = async (requirementId: string,
 export const getListOpenDayEligibilityRolesUrl = () => {
 
 
-  
+
 
   return `/api/v1/open-day-eligibility-roles`
 }
 
 export const listOpenDayEligibilityRoles = async ( options?: RequestInit): Promise<EligibilityRoleList> => {
-  
+
   return apiFetch<EligibilityRoleList>(getListOpenDayEligibilityRolesUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -646,19 +646,19 @@ export const listOpenDayEligibilityRoles = async ( options?: RequestInit): Promi
 export const getGetOpenDayCalendarContextUrl = (periodId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-day-periods/${periodId}/calendar-context`
 }
 
 export const getOpenDayCalendarContext = async (periodId: string, options?: RequestInit): Promise<OpenDayCalendarContext> => {
-  
+
   return apiFetch<OpenDayCalendarContext>(getGetOpenDayCalendarContextUrl(periodId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -670,19 +670,19 @@ export const getOpenDayCalendarContext = async (periodId: string, options?: Requ
 export const getListOpenDayAcademicBreaksUrl = () => {
 
 
-  
+
 
   return `/api/v1/open-day-academic-breaks`
 }
 
 export const listOpenDayAcademicBreaks = async ( options?: RequestInit): Promise<AcademicBreakList> => {
-  
+
   return apiFetch<AcademicBreakList>(getListOpenDayAcademicBreaksUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -693,15 +693,15 @@ export const listOpenDayAcademicBreaks = async ( options?: RequestInit): Promise
 export const getCreateOpenDayAcademicBreakUrl = () => {
 
 
-  
+
 
   return `/api/v1/open-day-academic-breaks`
 }
 
 export const createOpenDayAcademicBreak = async (createAcademicBreakRequest: CreateAcademicBreakRequest, options?: RequestInit): Promise<AcademicBreak> => {
-  
+
   return apiFetch<AcademicBreak>(getCreateOpenDayAcademicBreakUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -717,16 +717,16 @@ export const createOpenDayAcademicBreak = async (createAcademicBreakRequest: Cre
 export const getUpdateOpenDayAcademicBreakUrl = (academicBreakId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-day-academic-breaks/${academicBreakId}`
 }
 
 export const updateOpenDayAcademicBreak = async (academicBreakId: string,
     updateAcademicBreakRequest: UpdateAcademicBreakRequest, options?: RequestInit): Promise<AcademicBreak> => {
-  
+
   return apiFetch<AcademicBreak>(getUpdateOpenDayAcademicBreakUrl(academicBreakId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -742,16 +742,16 @@ export const updateOpenDayAcademicBreak = async (academicBreakId: string,
 export const getDeleteOpenDayAcademicBreakUrl = (academicBreakId: string,) => {
 
 
-  
+
 
   return `/api/v1/open-day-academic-breaks/${academicBreakId}`
 }
 
 export const deleteOpenDayAcademicBreak = async (academicBreakId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getDeleteOpenDayAcademicBreakUrl(academicBreakId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

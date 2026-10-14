@@ -225,6 +225,25 @@ describe('Run detail page', () => {
     expect(screen.getByRole('button', { name: 'Attach to job' })).toBeInTheDocument();
   });
 
+  it('shows a display-only live filament estimate from the parsed artifact', async () => {
+    auth.permissions = [PermissionId.machine_jobsread, PermissionId.print_artifactsread];
+    const artifactId = '0192f6f8-743e-7c77-a349-cd07c3e8d001';
+    serveRun({ ...runningRecorded(), artifact: { id: artifactId, sha256: 'a'.repeat(64), parserStatus: 'complete' } });
+    server.use(http.get(`*/api/v1/print-artifacts/${artifactId}`, () => HttpResponse.json({
+      id: artifactId, originalFilename: 'part.3mf', sizeBytes: 1024, sha256: 'a'.repeat(64), parserStatus: 'complete', parserVersion: 'bambu-3mf-v1',
+      metadata: {}, primaryPreviewId: null, filaments: [
+        { filamentKey: '1', filamentType: 'PLA', color: '#ffffff', plannedWeightGrams: '120' },
+        { filamentKey: '2', filamentType: 'PETG', color: '#000000', plannedWeightGrams: '80' },
+      ], createdAt: '2026-09-15T08:00:00Z', updatedAt: '2026-09-15T08:00:00Z',
+    })));
+    renderRun();
+
+    expect(await screen.findByRole('heading', { name: 'Filament estimate' })).toBeInTheDocument();
+    expect(await screen.findByText('~90 g / 200 g planned · based on 45 % print progress')).toBeInTheDocument();
+    expect(screen.getByText('PLA · #ffffff: 120 g planned')).toBeInTheDocument();
+    expect(screen.getByText(/Inventory is updated only after the run ends/)).toBeInTheDocument();
+  });
+
   it('creates a job from the run and passes the run to the form', async () => {
     auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobscreate];
     serveRun(recordedRun({ state: 'failed', outcome: 'failed' }));

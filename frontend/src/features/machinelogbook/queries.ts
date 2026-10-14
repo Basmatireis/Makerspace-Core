@@ -9,6 +9,7 @@ import { getFilamentSpool, listFilamentSpoolTransactions, listFilamentSpools } f
 import { getFilamentProduct, listFilamentProducts } from '../../api/generated/filament-products/filament-products';
 import { getMachineRun, listMachineRuns } from '../../api/generated/machine-runs/machine-runs';
 import { getPrinterProfile } from '../../api/generated/printing/printing';
+import { getPrintArtifact } from '../../api/generated/print-artifacts/print-artifacts';
 import type { GetMachineLogbookStatisticsParams, ListFilamentProductsParams, ListFilamentSpoolsParams, ListMachineJobsParams, ListMachineLogbookWorkItemsParams, ListMachinesParams, ListMaterialsParams, ListOrganizationsParams, ListMachineRunsParams } from '../../api/generated/models';
 
 export const machineLogbookKeys = {
@@ -30,6 +31,7 @@ export const machineLogbookKeys = {
   machineActivity: () => [...machineLogbookKeys.all, 'machine-activity'] as const,
   runs: (params: ListMachineRunsParams) => [...machineLogbookKeys.all, 'runs', params] as const,
   run: (id: string) => [...machineLogbookKeys.all, 'run', id] as const,
+  artifact: (id: string) => [...machineLogbookKeys.all, 'artifact', id] as const,
   products: (params: ListFilamentProductsParams) => [...machineLogbookKeys.all, 'products', params] as const,
   product: (id: string) => [...machineLogbookKeys.all, 'product', id] as const,
   organizations: (params: ListOrganizationsParams) => [...machineLogbookKeys.all, 'organizations', params] as const,
@@ -54,6 +56,7 @@ export const workItemsQuery = (params: ListMachineLogbookWorkItemsParams) => que
 export const machineActivityQuery = () => queryOptions({ queryKey: machineLogbookKeys.machineActivity(), queryFn: ({ signal }) => listMachineActivity({ signal }) });
 export const runsQuery = (params: ListMachineRunsParams) => queryOptions({ queryKey: machineLogbookKeys.runs(params), queryFn: ({ signal }) => listMachineRuns(params, { signal }) });
 export const runQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.run(id), queryFn: ({ signal }) => getMachineRun(id, { signal }) });
+export const artifactQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.artifact(id), queryFn: ({ signal }) => getPrintArtifact(id, { signal }) });
 export const productsQuery = (params: ListFilamentProductsParams) => queryOptions({ queryKey: machineLogbookKeys.products(params), queryFn: ({ signal }) => listFilamentProducts(params, { signal }) });
 export const productQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.product(id), queryFn: ({ signal }) => getFilamentProduct(id, { signal }) });
 export const organizationsQuery = (params: ListOrganizationsParams) => queryOptions({ queryKey: machineLogbookKeys.organizations(params), queryFn: () => listOrganizations(params) });

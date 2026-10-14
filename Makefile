@@ -5,7 +5,7 @@ SHELL := /bin/sh
 .PHONY: help dev dev-detached down logs db-up db-shell \
 	migrate-up migrate-down migrate-status \
 	generate generate-openapi-go generate-openapi-ts generate-sqlc \
-	test test-backend test-frontend test-db test-integration test-e2e test-production-compose test-android test-desktop \
+	test test-backend test-frontend test-db test-integration test-e2e test-production-compose test-printer-connector-compose test-android test-desktop \
 	check check-generated check-backend check-frontend build build-desktop admin bootstrap-master reset-password seed-dev
 
 # Integration tests use their own database next to the development database so
@@ -68,6 +68,9 @@ test-e2e: ## Run all Playwright checks against an isolated live Go/PostgreSQL st
 
 test-production-compose: ## Smoke-test the standalone production Compose release bundle.
 	./scripts/test-production-compose.sh
+
+test-printer-connector-compose: ## Package and validate the standalone printer-connector Compose bundle.
+	./scripts/test-printer-connector-compose.sh
 
 test-android: ## Build and unit-test the Android terminal in a pinned SDK container.
 	./scripts/test-android-terminal.sh

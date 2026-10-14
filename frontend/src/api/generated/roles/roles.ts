@@ -40,7 +40,7 @@ export const getListRolesUrl = (params?: ListRolesParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -52,13 +52,13 @@ export const getListRolesUrl = (params?: ListRolesParams,) => {
 }
 
 export const listRoles = async (params?: ListRolesParams, options?: RequestInit): Promise<RolePage> => {
-  
+
   return apiFetch<RolePage>(getListRolesUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -70,15 +70,15 @@ export const listRoles = async (params?: ListRolesParams, options?: RequestInit)
 export const getCreateRoleUrl = () => {
 
 
-  
+
 
   return `/api/v1/roles`
 }
 
 export const createRole = async (createRoleRequest: CreateRoleRequest, options?: RequestInit): Promise<Role> => {
-  
+
   return apiFetch<Role>(getCreateRoleUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -99,7 +99,7 @@ export const getEvaluateRolePermissionsUrl = (params: EvaluateRolePermissionsPar
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -111,13 +111,13 @@ export const getEvaluateRolePermissionsUrl = (params: EvaluateRolePermissionsPar
 }
 
 export const evaluateRolePermissions = async (params: EvaluateRolePermissionsParams, options?: RequestInit): Promise<RoleEffectivePermissionEvaluationList> => {
-  
+
   return apiFetch<RoleEffectivePermissionEvaluationList>(getEvaluateRolePermissionsUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -129,19 +129,19 @@ export const evaluateRolePermissions = async (params: EvaluateRolePermissionsPar
 export const getGetRoleUrl = (roleId: string,) => {
 
 
-  
+
 
   return `/api/v1/roles/${roleId}`
 }
 
 export const getRole = async (roleId: string, options?: RequestInit): Promise<Role> => {
-  
+
   return apiFetch<Role>(getGetRoleUrl(roleId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -153,16 +153,16 @@ export const getRole = async (roleId: string, options?: RequestInit): Promise<Ro
 export const getUpdateRoleUrl = (roleId: string,) => {
 
 
-  
+
 
   return `/api/v1/roles/${roleId}`
 }
 
 export const updateRole = async (roleId: string,
     updateRoleRequest: UpdateRoleRequest, options?: RequestInit): Promise<Role> => {
-  
+
   return apiFetch<Role>(getUpdateRoleUrl(roleId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -179,16 +179,16 @@ export const updateRole = async (roleId: string,
 export const getDeleteRoleUrl = (roleId: string,) => {
 
 
-  
+
 
   return `/api/v1/roles/${roleId}`
 }
 
 export const deleteRole = async (roleId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getDeleteRoleUrl(roleId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -209,16 +209,16 @@ be edited here.
 export const getReplaceRolePermissionsUrl = (roleId: string,) => {
 
 
-  
+
 
   return `/api/v1/roles/${roleId}/permissions`
 }
 
 export const replaceRolePermissions = async (roleId: string,
     replaceRolePermissionsRequest: ReplaceRolePermissionsRequest, options?: RequestInit): Promise<Role> => {
-  
+
   return apiFetch<Role>(getReplaceRolePermissionsUrl(roleId),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

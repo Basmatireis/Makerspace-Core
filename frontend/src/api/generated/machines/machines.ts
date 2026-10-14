@@ -39,19 +39,19 @@ import { apiFetch } from '../../http-client';
 export const getListMachineTypesUrl = () => {
 
 
-  
+
 
   return `/api/v1/machine-types`
 }
 
 export const listMachineTypes = async ( options?: RequestInit): Promise<MachineTypeList> => {
-  
+
   return apiFetch<MachineTypeList>(getListMachineTypesUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -62,15 +62,15 @@ export const listMachineTypes = async ( options?: RequestInit): Promise<MachineT
 export const getCreateMachineTypeUrl = () => {
 
 
-  
+
 
   return `/api/v1/machine-types`
 }
 
 export const createMachineType = async (createMachineTypeRequest: CreateMachineTypeRequest, options?: RequestInit): Promise<MachineType> => {
-  
+
   return apiFetch<MachineType>(getCreateMachineTypeUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -86,16 +86,16 @@ export const createMachineType = async (createMachineTypeRequest: CreateMachineT
 export const getUpdateMachineTypeUrl = (machineTypeId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machine-types/${machineTypeId}`
 }
 
 export const updateMachineType = async (machineTypeId: UUIDv7,
     updateMachineTypeRequest: UpdateMachineTypeRequest, options?: RequestInit): Promise<MachineType> => {
-  
+
   return apiFetch<MachineType>(getUpdateMachineTypeUrl(machineTypeId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -112,7 +112,7 @@ export const getListMachinesUrl = (params?: ListMachinesParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -124,13 +124,13 @@ export const getListMachinesUrl = (params?: ListMachinesParams,) => {
 }
 
 export const listMachines = async (params?: ListMachinesParams, options?: RequestInit): Promise<MachinePage> => {
-  
+
   return apiFetch<MachinePage>(getListMachinesUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -141,15 +141,15 @@ export const listMachines = async (params?: ListMachinesParams, options?: Reques
 export const getCreateMachineUrl = () => {
 
 
-  
+
 
   return `/api/v1/machines`
 }
 
 export const createMachine = async (createMachineRequest: CreateMachineRequest, options?: RequestInit): Promise<Machine> => {
-  
+
   return apiFetch<Machine>(getCreateMachineUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -165,19 +165,19 @@ export const createMachine = async (createMachineRequest: CreateMachineRequest, 
 export const getGetMachineUrl = (machineId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machines/${machineId}`
 }
 
 export const getMachine = async (machineId: UUIDv7, options?: RequestInit): Promise<Machine> => {
-  
+
   return apiFetch<Machine>(getGetMachineUrl(machineId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -188,16 +188,16 @@ export const getMachine = async (machineId: UUIDv7, options?: RequestInit): Prom
 export const getUpdateMachineUrl = (machineId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machines/${machineId}`
 }
 
 export const updateMachine = async (machineId: UUIDv7,
     updateMachineRequest: UpdateMachineRequest, options?: RequestInit): Promise<Machine> => {
-  
+
   return apiFetch<Machine>(getUpdateMachineUrl(machineId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

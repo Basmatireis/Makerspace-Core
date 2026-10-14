@@ -27,6 +27,7 @@ export type WorkItemStatus = typeof WorkItemStatus[keyof typeof WorkItemStatus];
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const WorkItemStatus = {
+  planned: 'planned',
   running: 'running',
   running_unassigned: 'running_unassigned',
   unassigned: 'unassigned',

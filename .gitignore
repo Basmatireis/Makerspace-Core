@@ -44,3 +44,6 @@ desktop-terminal/src-tauri/gen/
 .postgres-data/
 
 # Generated OpenAPI and sqlc sources are intentionally committed; do not ignore them.
+
+# Local printer connector secrets
+printer-connector/secrets/

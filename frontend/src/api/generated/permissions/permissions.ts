@@ -31,19 +31,19 @@ import { apiFetch } from '../../http-client';
 export const getListPermissionsUrl = () => {
 
 
-  
+
 
   return `/api/v1/permissions`
 }
 
 export const listPermissions = async ( options?: RequestInit): Promise<ListPermissions200> => {
-  
+
   return apiFetch<ListPermissions200>(getListPermissionsUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 

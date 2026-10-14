@@ -34,15 +34,17 @@ type Querier interface {
 	GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	InsertConnectorEvent(ctx context.Context, arg InsertConnectorEventParams) (PrinterEvent, error)
 	InsertObservedRun(ctx context.Context, arg InsertObservedRunParams) (MachineRun, error)
+	InsertReportedUsageItem(ctx context.Context, arg InsertReportedUsageItemParams) error
 	ListActiveAssignments(ctx context.Context, connectorID uuid.UUID) ([]ListActiveAssignmentsRow, error)
 	ListConnectorAssignments(ctx context.Context, connectorID uuid.UUID) ([]ListConnectorAssignmentsRow, error)
 	ListConnectorEvents(ctx context.Context, connectorID *uuid.UUID) ([]ListConnectorEventsRow, error)
 	ListConnectors(ctx context.Context) ([]PrinterConnector, error)
+	ListNFCSpoolsAt(ctx context.Context, arg ListNFCSpoolsAtParams) ([]uuid.UUID, error)
 	ListObservedRuns(ctx context.Context, connectorID uuid.UUID) ([]ListObservedRunsRow, error)
-	ListOpenMachineSpools(ctx context.Context, machineID uuid.UUID) ([]uuid.UUID, error)
 	ListSlotSpoolsAt(ctx context.Context, arg ListSlotSpoolsAtParams) ([]uuid.UUID, error)
 	NextPrintSequence(ctx context.Context) (int64, error)
 	RecordHeartbeat(ctx context.Context, arg RecordHeartbeatParams) (PrinterConnector, error)
+	ResolvePrinterErrorOccurrence(ctx context.Context, arg ResolvePrinterErrorOccurrenceParams) error
 	RevokeConnector(ctx context.Context, arg RevokeConnectorParams) (PrinterConnector, error)
 	RevokeConnectorCredentials(ctx context.Context, connectorID uuid.UUID) error
 	RevokeOpenEnrollments(ctx context.Context, connectorID uuid.UUID) error
@@ -54,6 +56,7 @@ type Querier interface {
 	UpdateConnector(ctx context.Context, arg UpdateConnectorParams) (PrinterConnector, error)
 	UpdateObservedRun(ctx context.Context, arg UpdateObservedRunParams) (MachineRun, error)
 	UpdateObservedRunFacts(ctx context.Context, arg UpdateObservedRunFactsParams) error
+	UpsertPrinterErrorOccurrence(ctx context.Context, arg UpsertPrinterErrorOccurrenceParams) error
 }
 
 var _ Querier = (*Queries)(nil)

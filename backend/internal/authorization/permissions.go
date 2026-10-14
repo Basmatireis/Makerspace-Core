@@ -102,6 +102,7 @@ const (
 	PrinterConnectorsRead              Permission = Permission(openapi.PrinterConnectorsRead)
 	PrinterConnectorsManage            Permission = Permission(openapi.PrinterConnectorsManage)
 	PrinterConnectorsCredentialsManage Permission = Permission(openapi.PrinterConnectorsCredentialsManage)
+	PrintArtifactsRead                 Permission = Permission(openapi.PrintArtifactsRead)
 	OrganizationsRead                  Permission = Permission(openapi.OrganizationsRead)
 	OrganizationsManage                Permission = Permission(openapi.OrganizationsManage)
 	PricingRead                        Permission = Permission(openapi.PricingRead)
@@ -136,7 +137,7 @@ var registry = []Permission{
 	MachinesRead, MachinesManage,
 	MachineJobsRead, MachineJobsCreate, MachineJobsEdit, MachineJobsOverridePrice,
 	InventoryRead, InventoryManage, FilamentSpoolsManage, PrinterSlotsAssign,
-	PrinterConnectorsRead, PrinterConnectorsManage, PrinterConnectorsCredentialsManage,
+	PrinterConnectorsRead, PrinterConnectorsManage, PrinterConnectorsCredentialsManage, PrintArtifactsRead,
 	OrganizationsRead, OrganizationsManage, PricingRead, PricingManage, StatisticsRead,
 }
 
@@ -237,6 +238,7 @@ var descriptions = map[Permission]string{
 	PrinterConnectorsRead:              "Read printer connector identity, status, assignments, and diagnostics.",
 	PrinterConnectorsManage:            "Create and configure printer connectors and printer assignments.",
 	PrinterConnectorsCredentialsManage: "Issue enrollment credentials and revoke printer connector access.",
+	PrintArtifactsRead:                 "Read protected print artifact metadata, previews, and original archived files.",
 	OrganizationsRead:                  "Read organizations usable as billing parties.",
 	OrganizationsManage:                "Create and update organizations.",
 	PricingRead:                        "Read pricing groups, rules, and billing-party defaults.",

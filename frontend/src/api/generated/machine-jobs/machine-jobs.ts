@@ -40,7 +40,7 @@ export const getSearchMachineJobOperatorsUrl = (params?: SearchMachineJobOperato
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -52,13 +52,13 @@ export const getSearchMachineJobOperatorsUrl = (params?: SearchMachineJobOperato
 }
 
 export const searchMachineJobOperators = async (params?: SearchMachineJobOperatorsParams, options?: RequestInit): Promise<OperatorList> => {
-  
+
   return apiFetch<OperatorList>(getSearchMachineJobOperatorsUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -70,7 +70,7 @@ export const getListMachineJobsUrl = (params?: ListMachineJobsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -82,13 +82,13 @@ export const getListMachineJobsUrl = (params?: ListMachineJobsParams,) => {
 }
 
 export const listMachineJobs = async (params?: ListMachineJobsParams, options?: RequestInit): Promise<MachineJobPage> => {
-  
+
   return apiFetch<MachineJobPage>(getListMachineJobsUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -99,15 +99,15 @@ export const listMachineJobs = async (params?: ListMachineJobsParams, options?: 
 export const getCreateMachineJobUrl = () => {
 
 
-  
+
 
   return `/api/v1/machine-jobs`
 }
 
 export const createMachineJob = async (createMachineJobRequest: CreateMachineJobRequest, options?: RequestInit): Promise<MachineJob> => {
-  
+
   return apiFetch<MachineJob>(getCreateMachineJobUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -123,19 +123,19 @@ export const createMachineJob = async (createMachineJobRequest: CreateMachineJob
 export const getGetMachineJobUrl = (machineJobId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machine-jobs/${machineJobId}`
 }
 
 export const getMachineJob = async (machineJobId: UUIDv7, options?: RequestInit): Promise<MachineJob> => {
-  
+
   return apiFetch<MachineJob>(getGetMachineJobUrl(machineJobId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -146,16 +146,16 @@ export const getMachineJob = async (machineJobId: UUIDv7, options?: RequestInit)
 export const getUpdateMachineJobUrl = (machineJobId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machine-jobs/${machineJobId}`
 }
 
 export const updateMachineJob = async (machineJobId: UUIDv7,
     updateMachineJobRequest: UpdateMachineJobRequest, options?: RequestInit): Promise<MachineJob> => {
-  
+
   return apiFetch<MachineJob>(getUpdateMachineJobUrl(machineJobId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -171,16 +171,16 @@ export const updateMachineJob = async (machineJobId: UUIDv7,
 export const getSetMachineJobPriceAdjustmentUrl = (machineJobId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machine-jobs/${machineJobId}/price-adjustment`
 }
 
 export const setMachineJobPriceAdjustment = async (machineJobId: UUIDv7,
     setMachineJobPriceAdjustmentRequest: SetMachineJobPriceAdjustmentRequest, options?: RequestInit): Promise<MachineJob> => {
-  
+
   return apiFetch<MachineJob>(getSetMachineJobPriceAdjustmentUrl(machineJobId),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -196,16 +196,16 @@ export const setMachineJobPriceAdjustment = async (machineJobId: UUIDv7,
 export const getClearMachineJobPriceAdjustmentUrl = (machineJobId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machine-jobs/${machineJobId}/price-adjustment`
 }
 
 export const clearMachineJobPriceAdjustment = async (machineJobId: UUIDv7,
     versionRequest: VersionRequest, options?: RequestInit): Promise<MachineJob> => {
-  
+
   return apiFetch<MachineJob>(getClearMachineJobPriceAdjustmentUrl(machineJobId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

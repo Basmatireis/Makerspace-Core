@@ -25,6 +25,9 @@ func run() error {
 	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
 		return printerconnector.CheckHealth(dataDir)
 	}
+	if handled, err := runOfflineCommand(os.Args[1:], os.Stdout); handled {
+		return err
+	}
 	logger := logging.New(os.Stdout, env("APP_ENV", "production"))
 	slog.SetDefault(logger)
 	client, err := printerconnector.NewClient(os.Getenv("CORE_URL"), strings.EqualFold(os.Getenv("CONNECTOR_ALLOW_HTTP"), "true"))

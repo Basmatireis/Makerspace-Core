@@ -482,6 +482,7 @@ type MachineJob struct {
 	PriceAdjustmentValue     pgtype.Numeric
 	EffectivePrice           pgtype.Numeric
 	OutcomeOverride          *string
+	ArtifactID               *uuid.UUID
 }
 
 type MachineJobPricingSnapshot struct {
@@ -546,6 +547,28 @@ type MachineRun struct {
 	Source                string
 	JobID                 *uuid.UUID
 	Outcome               *string
+	ArtifactID            *uuid.UUID
+}
+
+type MachineRunReportedUsageItem struct {
+	ID                   uuid.UUID
+	RunID                uuid.UUID
+	SourcePrinterEventID uuid.UUID
+	ReportRevision       int64
+	LineNumber           int32
+	SlicerFilamentID     *string
+	Extruder             *int32
+	InputUnitExternalID  *string
+	SlotExternalID       *string
+	PlannedQuantityG     pgtype.Numeric
+	PlannedLengthMm      pgtype.Numeric
+	EstimatedQuantityG   pgtype.Numeric
+	MaterialID           *uuid.UUID
+	SpoolID              *uuid.UUID
+	Method               string
+	CalculationVersion   string
+	Quality              string
+	CreatedAt            time.Time
 }
 
 type MachineRunUsage struct {
@@ -564,6 +587,11 @@ type MachineRunUsage struct {
 	SpoolDisplayID       *string
 	FillNumber           *int32
 	RunID                uuid.UUID
+	EstimationMethod     *string
+	CalculationVersion   *string
+	EstimateQuality      *string
+	ReportRevision       *int64
+	StaffCorrected       bool
 }
 
 type MachineType struct {
@@ -977,6 +1005,45 @@ type PricingRule struct {
 	UpdatedAt        time.Time
 }
 
+type PrintArtifact struct {
+	ID               uuid.UUID
+	OriginalFileID   uuid.UUID
+	Sha256           []byte
+	ParserStatus     string
+	ParserVersion    string
+	Metadata         []byte
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	PrimaryPreviewID *uuid.UUID
+}
+
+type PrintArtifactFilament struct {
+	ArtifactID      uuid.UUID
+	FilamentKey     string
+	FilamentType    *string
+	Color           *string
+	Extruder        *int32
+	PlannedWeightG  pgtype.Numeric
+	PlannedLengthMm pgtype.Numeric
+	DensityGCm3     pgtype.Numeric
+	DiameterMm      pgtype.Numeric
+}
+
+type PrintArtifactPreview struct {
+	ID          uuid.UUID
+	ArtifactID  uuid.UUID
+	FileID      uuid.UUID
+	ArchivePath string
+	Role        string
+	PlateNumber *int32
+	Width       int32
+	Height      int32
+	MimeType    string
+	SizeBytes   int64
+	Sha256      []byte
+	CreatedAt   time.Time
+}
+
 type PrinterConnector struct {
 	ID                           uuid.UUID
 	Name                         string
@@ -1067,6 +1134,22 @@ type PrinterDiscoveryRequest struct {
 	Version              int64
 	CreatedAt            time.Time
 	UpdatedAt            time.Time
+}
+
+type PrinterErrorOccurrence struct {
+	ID                  uuid.UUID
+	MachineID           uuid.UUID
+	AssignmentID        uuid.UUID
+	RunID               *uuid.UUID
+	SourceFamily        string
+	OriginalCode        string
+	FirstObservedAt     time.Time
+	LastObservedAt      time.Time
+	ResolvedAt          pgtype.Timestamptz
+	Context             []byte
+	VerifiedDescription *string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
 }
 
 type PrinterEvent struct {

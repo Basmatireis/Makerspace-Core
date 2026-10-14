@@ -303,16 +303,21 @@ type CounterSaleCommand struct {
 }
 
 type JobUsage struct {
-	ID             uuid.UUID  `json:"id"`
-	MaterialID     *uuid.UUID `json:"materialId,omitempty"`
-	SpoolID        *uuid.UUID `json:"spoolId,omitempty"`
-	SpoolDisplayID *string    `json:"spoolDisplayId,omitempty"`
-	Ownership      string     `json:"ownership"`
-	MaterialName   string     `json:"materialName"`
-	Category       string     `json:"category"`
-	Unit           string     `json:"unit"`
-	Quantity       string     `json:"quantity"`
-	QuantityBasis  string     `json:"quantityBasis"`
+	ID                 uuid.UUID  `json:"id"`
+	MaterialID         *uuid.UUID `json:"materialId,omitempty"`
+	SpoolID            *uuid.UUID `json:"spoolId,omitempty"`
+	SpoolDisplayID     *string    `json:"spoolDisplayId,omitempty"`
+	Ownership          string     `json:"ownership"`
+	MaterialName       string     `json:"materialName"`
+	Category           string     `json:"category"`
+	Unit               string     `json:"unit"`
+	Quantity           string     `json:"quantity"`
+	QuantityBasis      string     `json:"quantityBasis"`
+	EstimationMethod   *string    `json:"estimationMethod,omitempty"`
+	CalculationVersion *string    `json:"calculationVersion,omitempty"`
+	EstimateQuality    *string    `json:"estimateQuality,omitempty"`
+	ReportRevision     *int64     `json:"reportRevision,omitempty"`
+	StaffCorrected     bool       `json:"staffCorrected,omitempty"`
 }
 type PricingEvidence struct {
 	ID               uuid.UUID   `json:"id"`

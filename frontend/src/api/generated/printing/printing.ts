@@ -26,7 +26,9 @@ import type {
   PrinterInputUnit,
   PrinterProfile,
   PrinterSlot,
-  UUIDv7
+  UUIDv7,
+  UpdatePrinterInputUnitRequest,
+  UpdatePrinterSlotRequest
 } from '.././models';
 
 import { apiFetch } from '../../http-client';
@@ -34,19 +36,19 @@ import { apiFetch } from '../../http-client';
 export const getGetPrinterProfileUrl = (machineId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machines/${machineId}/printer`
 }
 
 export const getPrinterProfile = async (machineId: UUIDv7, options?: RequestInit): Promise<PrinterProfile> => {
-  
+
   return apiFetch<PrinterProfile>(getGetPrinterProfileUrl(machineId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -54,16 +56,16 @@ export const getPrinterProfile = async (machineId: UUIDv7, options?: RequestInit
 export const getConfigurePrinterProfileUrl = (machineId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machines/${machineId}/printer`
 }
 
 export const configurePrinterProfile = async (machineId: UUIDv7,
     configurePrinterRequest: ConfigurePrinterRequest, options?: RequestInit): Promise<PrinterProfile> => {
-  
+
   return apiFetch<PrinterProfile>(getConfigurePrinterProfileUrl(machineId),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -76,16 +78,16 @@ export const configurePrinterProfile = async (machineId: UUIDv7,
 export const getCreatePrinterInputUnitUrl = (machineId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machines/${machineId}/printer/input-units`
 }
 
 export const createPrinterInputUnit = async (machineId: UUIDv7,
     createPrinterInputUnitRequest: CreatePrinterInputUnitRequest, options?: RequestInit): Promise<PrinterInputUnit> => {
-  
+
   return apiFetch<PrinterInputUnit>(getCreatePrinterInputUnitUrl(machineId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -98,16 +100,16 @@ export const createPrinterInputUnit = async (machineId: UUIDv7,
 export const getCreatePrinterSlotUrl = (inputUnitId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/printer-input-units/${inputUnitId}/slots`
 }
 
 export const createPrinterSlot = async (inputUnitId: UUIDv7,
     createPrinterSlotRequest: CreatePrinterSlotRequest, options?: RequestInit): Promise<PrinterSlot> => {
-  
+
   return apiFetch<PrinterSlot>(getCreatePrinterSlotUrl(inputUnitId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -117,19 +119,63 @@ export const createPrinterSlot = async (inputUnitId: UUIDv7,
 );}
 
 
+export const getUpdatePrinterInputUnitUrl = (inputUnitId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/printer-input-units/${inputUnitId}`
+}
+
+export const updatePrinterInputUnit = async (inputUnitId: UUIDv7,
+    updatePrinterInputUnitRequest: UpdatePrinterInputUnitRequest, options?: RequestInit): Promise<PrinterInputUnit> => {
+
+  return apiFetch<PrinterInputUnit>(getUpdatePrinterInputUnitUrl(inputUnitId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updatePrinterInputUnitRequest,)
+  }
+);}
+
+
+export const getUpdatePrinterSlotUrl = (slotId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/printer-slots/${slotId}`
+}
+
+export const updatePrinterSlot = async (slotId: UUIDv7,
+    updatePrinterSlotRequest: UpdatePrinterSlotRequest, options?: RequestInit): Promise<PrinterSlot> => {
+
+  return apiFetch<PrinterSlot>(getUpdatePrinterSlotUrl(slotId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updatePrinterSlotRequest,)
+  }
+);}
+
+
 export const getMountPrinterSpoolUrl = (slotId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/printer-slots/${slotId}/mount`
 }
 
 export const mountPrinterSpool = async (slotId: UUIDv7,
     mountSpoolRequest: MountSpoolRequest, options?: RequestInit): Promise<PrinterSlot> => {
-  
+
   return apiFetch<PrinterSlot>(getMountPrinterSpoolUrl(slotId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -142,19 +188,19 @@ export const mountPrinterSpool = async (slotId: UUIDv7,
 export const getUnmountPrinterSpoolUrl = (slotId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/printer-slots/${slotId}/unmount`
 }
 
 export const unmountPrinterSpool = async (slotId: UUIDv7, options?: RequestInit): Promise<PrinterSlot> => {
-  
+
   return apiFetch<PrinterSlot>(getUnmountPrinterSpoolUrl(slotId),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
 

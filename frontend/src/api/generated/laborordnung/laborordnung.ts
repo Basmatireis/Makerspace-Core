@@ -36,19 +36,19 @@ import { apiFetch } from '../../http-client';
 export const getGetOwnLaborordnungStatusUrl = () => {
 
 
-  
+
 
   return `/api/v1/laborordnung/status/me`
 }
 
 export const getOwnLaborordnungStatus = async ( options?: RequestInit): Promise<LaborordnungStatus> => {
-  
+
   return apiFetch<LaborordnungStatus>(getGetOwnLaborordnungStatusUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -59,19 +59,19 @@ export const getOwnLaborordnungStatus = async ( options?: RequestInit): Promise<
 export const getRequestOwnLaborordnungConfirmationUrl = () => {
 
 
-  
+
 
   return `/api/v1/laborordnung/requests/me`
 }
 
 export const requestOwnLaborordnungConfirmation = async ( options?: RequestInit): Promise<LaborordnungRequest | LaborordnungRequest> => {
-  
+
   return apiFetch<LaborordnungRequest | LaborordnungRequest>(getRequestOwnLaborordnungConfirmationUrl(),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
 
@@ -82,19 +82,19 @@ export const requestOwnLaborordnungConfirmation = async ( options?: RequestInit)
 export const getListLaborordnungVersionsUrl = () => {
 
 
-  
+
 
   return `/api/v1/laborordnung/versions`
 }
 
 export const listLaborordnungVersions = async ( options?: RequestInit): Promise<LaborordnungVersionList> => {
-  
+
   return apiFetch<LaborordnungVersionList>(getListLaborordnungVersionsUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -105,15 +105,15 @@ export const listLaborordnungVersions = async ( options?: RequestInit): Promise<
 export const getCreateLaborordnungVersionUrl = () => {
 
 
-  
+
 
   return `/api/v1/laborordnung/versions`
 }
 
 export const createLaborordnungVersion = async (createLaborordnungVersionBody: Blob, options?: RequestInit): Promise<LaborordnungVersion> => {
-  
+
   return apiFetch<LaborordnungVersion>(getCreateLaborordnungVersionUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/pdf', ...options?.headers },
@@ -129,16 +129,16 @@ export const createLaborordnungVersion = async (createLaborordnungVersionBody: B
 export const getPublishLaborordnungVersionUrl = (laborordnungVersionId: string,) => {
 
 
-  
+
 
   return `/api/v1/laborordnung/versions/${laborordnungVersionId}/publish`
 }
 
 export const publishLaborordnungVersion = async (laborordnungVersionId: string,
     publishLaborordnungRequest: PublishLaborordnungRequest, options?: RequestInit): Promise<LaborordnungVersion> => {
-  
+
   return apiFetch<LaborordnungVersion>(getPublishLaborordnungVersionUrl(laborordnungVersionId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -154,19 +154,19 @@ export const publishLaborordnungVersion = async (laborordnungVersionId: string,
 export const getGetLaborordnungPDFUrl = (laborordnungVersionId: string,) => {
 
 
-  
+
 
   return `/api/v1/laborordnung/versions/${laborordnungVersionId}/pdf`
 }
 
 export const getLaborordnungPDF = async (laborordnungVersionId: string, options?: RequestInit): Promise<Blob> => {
-  
+
   return apiFetch<Blob>(getGetLaborordnungPDFUrl(laborordnungVersionId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -177,19 +177,19 @@ export const getLaborordnungPDF = async (laborordnungVersionId: string, options?
 export const getListLaborordnungRequestsUrl = () => {
 
 
-  
+
 
   return `/api/v1/laborordnung/requests`
 }
 
 export const listLaborordnungRequests = async ( options?: RequestInit): Promise<LaborordnungRequestList> => {
-  
+
   return apiFetch<LaborordnungRequestList>(getListLaborordnungRequestsUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -200,16 +200,16 @@ export const listLaborordnungRequests = async ( options?: RequestInit): Promise<
 export const getConfirmLaborordnungRequestUrl = (laborordnungRequestId: string,) => {
 
 
-  
+
 
   return `/api/v1/laborordnung/requests/${laborordnungRequestId}/confirm`
 }
 
 export const confirmLaborordnungRequest = async (laborordnungRequestId: string,
     confirmLaborordnungRequest: ConfirmLaborordnungRequest, options?: RequestInit): Promise<LaborordnungRequest> => {
-  
+
   return apiFetch<LaborordnungRequest>(getConfirmLaborordnungRequestUrl(laborordnungRequestId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

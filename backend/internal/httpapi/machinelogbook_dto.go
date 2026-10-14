@@ -96,7 +96,15 @@ func mlJobDTO(item machinelogbook.MachineJob) openapi.MachineJob {
 	} else {
 		adjustment = nullable.NewNullableWithValue(openapi.MachineJobPriceAdjustment{Kind: openapi.PriceAdjustmentKind(item.PriceAdjustment.Kind), Value: openapi.Decimal(item.PriceAdjustment.Value), Reason: item.PriceAdjustment.Reason, AdjustedAt: item.PriceAdjustment.AdjustedAt})
 	}
-	return openapi.MachineJob{Id: item.ID, DisplayId: item.DisplayID, Title: nullableString(item.Title), Status: openapi.MachineJobStatus(item.Status), PriceAdjustment: adjustment, Machine: mlMachineDTO(item.Machine), Runs: mlRunDTOs(item.Runs), StartedAt: nullableValue(item.StartedAt), EndedAt: nullableValue(item.EndedAt), ExpectedEndAt: nullableValue(item.ExpectedEndAt), DurationSeconds: item.DurationSeconds, Customer: customer, Operator: operator, Outcome: openapi.MachineJobOutcome(item.Outcome), OutcomeOverridden: item.OutcomeOverridden, Notes: nullableString(item.Notes), PricingStatus: openapi.PricingStatus(item.PricingStatus), PricingSnapshot: snapshot, CalculatedPrice: nullableMoney(item.CalculatedPrice), EffectivePrice: nullableMoney(item.EffectivePrice), Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
+	artifact := nullable.NewNullNullable[openapi.PrintArtifactReference]()
+	if item.Artifact != nil {
+		artifact = nullable.NewNullableWithValue(mlArtifactReferenceDTO(*item.Artifact))
+	}
+	return openapi.MachineJob{Id: item.ID, DisplayId: item.DisplayID, Title: nullableString(item.Title), Status: openapi.MachineJobStatus(item.Status), Artifact: artifact, PriceAdjustment: adjustment, Machine: mlMachineDTO(item.Machine), Runs: mlRunDTOs(item.Runs), StartedAt: nullableValue(item.StartedAt), EndedAt: nullableValue(item.EndedAt), ExpectedEndAt: nullableValue(item.ExpectedEndAt), DurationSeconds: item.DurationSeconds, Customer: customer, Operator: operator, Outcome: openapi.MachineJobOutcome(item.Outcome), OutcomeOverridden: item.OutcomeOverridden, Notes: nullableString(item.Notes), PricingStatus: openapi.PricingStatus(item.PricingStatus), PricingSnapshot: snapshot, CalculatedPrice: nullableMoney(item.CalculatedPrice), EffectivePrice: nullableMoney(item.EffectivePrice), Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
+}
+
+func mlArtifactReferenceDTO(item machinelogbook.ArtifactReference) openapi.PrintArtifactReference {
+	return openapi.PrintArtifactReference{Id: item.ID, Sha256: item.SHA256, ParserStatus: openapi.PrintArtifactParserStatus(item.ParserStatus)}
 }
 func mlOverviewDTO(item machinelogbook.Overview) openapi.MachineLogbookOverview {
 	jobs := make([]openapi.MachineJob, 0, len(item.RecentJobs))

@@ -33,7 +33,7 @@ export const getListAuditEventsUrl = (params?: ListAuditEventsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -45,13 +45,13 @@ export const getListAuditEventsUrl = (params?: ListAuditEventsParams,) => {
 }
 
 export const listAuditEvents = async (params?: ListAuditEventsParams, options?: RequestInit): Promise<AuditEventPage> => {
-  
+
   return apiFetch<AuditEventPage>(getListAuditEventsUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 

@@ -209,6 +209,15 @@ type MachineJobUsage struct {
 	Ownership, QuantityBasis               string
 	SpoolDisplayID                         *string
 	FillNumber                             *int32
+	EstimationMethod, CalculationVersion   *string
+	EstimateQuality                        *string
+	ReportRevision                         *int64
+	StaffCorrected                         bool
+}
+
+type ArtifactReference struct {
+	ID                   uuid.UUID
+	SHA256, ParserStatus string
 }
 
 type FilamentSpoolIdentifier struct {
@@ -378,6 +387,7 @@ type MachineJob struct {
 	ID                                uuid.UUID
 	DisplayID                         string
 	Title                             *string
+	Artifact                          *ArtifactReference
 	Status                            string
 	Machine                           Machine
 	Runs                              []MachineRun

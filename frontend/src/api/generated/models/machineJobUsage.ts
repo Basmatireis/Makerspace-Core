@@ -25,6 +25,7 @@ import type { MachineJobUsageSpoolId } from './machineJobUsageSpoolId';
 import type { MaterialUnit } from './materialUnit';
 import type { Decimal } from './decimal';
 import type { QuantityBasis } from './quantityBasis';
+import type { MachineJobUsageEstimateQuality } from './machineJobUsageEstimateQuality';
 
 export interface MachineJobUsage {
   id: UUIDv7;
@@ -45,4 +46,22 @@ export interface MachineJobUsage {
   unit: MaterialUnit;
   quantity: Decimal;
   quantityBasis: QuantityBasis;
+  /**
+   * @maxLength 80
+   * @nullable
+   */
+  estimationMethod?: string | null;
+  /**
+   * @maxLength 80
+   * @nullable
+   */
+  calculationVersion?: string | null;
+  /** @nullable */
+  estimateQuality?: MachineJobUsageEstimateQuality;
+  /**
+   * @minimum 1
+   * @nullable
+   */
+  reportRevision?: number | null;
+  staffCorrected: boolean;
 }

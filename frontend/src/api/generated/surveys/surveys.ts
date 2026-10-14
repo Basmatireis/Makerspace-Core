@@ -36,19 +36,19 @@ import { apiFetch } from '../../http-client';
 export const getListSurveysUrl = () => {
 
 
-  
+
 
   return `/api/v1/surveys`
 }
 
 export const listSurveys = async ( options?: RequestInit): Promise<SurveyList> => {
-  
+
   return apiFetch<SurveyList>(getListSurveysUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -56,15 +56,15 @@ export const listSurveys = async ( options?: RequestInit): Promise<SurveyList> =
 export const getCreateSurveyUrl = () => {
 
 
-  
+
 
   return `/api/v1/surveys`
 }
 
 export const createSurvey = async (createSurveyRequest: CreateSurveyRequest, options?: RequestInit): Promise<Survey> => {
-  
+
   return apiFetch<Survey>(getCreateSurveyUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -77,19 +77,19 @@ export const createSurvey = async (createSurveyRequest: CreateSurveyRequest, opt
 export const getGetSurveyUrl = (surveyId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/surveys/${surveyId}`
 }
 
 export const getSurvey = async (surveyId: UUIDv7, options?: RequestInit): Promise<Survey> => {
-  
+
   return apiFetch<Survey>(getGetSurveyUrl(surveyId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -97,16 +97,16 @@ export const getSurvey = async (surveyId: UUIDv7, options?: RequestInit): Promis
 export const getUpdateSurveyUrl = (surveyId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/surveys/${surveyId}`
 }
 
 export const updateSurvey = async (surveyId: UUIDv7,
     updateSurveyRequest: UpdateSurveyRequest, options?: RequestInit): Promise<Survey> => {
-  
+
   return apiFetch<Survey>(getUpdateSurveyUrl(surveyId),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -119,16 +119,16 @@ export const updateSurvey = async (surveyId: UUIDv7,
 export const getPublishSurveyUrl = (surveyId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/surveys/${surveyId}/publish`
 }
 
 export const publishSurvey = async (surveyId: UUIDv7,
     versionRequest: VersionRequest, options?: RequestInit): Promise<Survey> => {
-  
+
   return apiFetch<Survey>(getPublishSurveyUrl(surveyId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -141,16 +141,16 @@ export const publishSurvey = async (surveyId: UUIDv7,
 export const getCloseSurveyUrl = (surveyId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/surveys/${surveyId}/close`
 }
 
 export const closeSurvey = async (surveyId: UUIDv7,
     versionRequest: VersionRequest, options?: RequestInit): Promise<Survey> => {
-  
+
   return apiFetch<Survey>(getCloseSurveyUrl(surveyId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -163,16 +163,16 @@ export const closeSurvey = async (surveyId: UUIDv7,
 export const getUpdateSurveyTriggerUrl = (surveyId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/surveys/${surveyId}/trigger`
 }
 
 export const updateSurveyTrigger = async (surveyId: UUIDv7,
     surveyTriggerInput: SurveyTriggerInput, options?: RequestInit): Promise<SurveyTrigger> => {
-  
+
   return apiFetch<SurveyTrigger>(getUpdateSurveyTriggerUrl(surveyId),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -185,19 +185,19 @@ export const updateSurveyTrigger = async (surveyId: UUIDv7,
 export const getGetPublicSurveyUrl = (token: string,) => {
 
 
-  
+
 
   return `/api/v1/public/surveys/${token}`
 }
 
 export const getPublicSurvey = async (token: string, options?: RequestInit): Promise<PublicSurvey> => {
-  
+
   return apiFetch<PublicSurvey>(getGetPublicSurveyUrl(token),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -205,16 +205,16 @@ export const getPublicSurvey = async (token: string, options?: RequestInit): Pro
 export const getSubmitPublicSurveyUrl = (token: string,) => {
 
 
-  
+
 
   return `/api/v1/public/surveys/${token}`
 }
 
 export const submitPublicSurvey = async (token: string,
     submitSurveyResponse: SubmitSurveyResponse, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getSubmitPublicSurveyUrl(token),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

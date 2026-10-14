@@ -35,19 +35,19 @@ import { apiFetch } from '../../http-client';
 export const getGetPublicConfigurationUrl = () => {
 
 
-  
+
 
   return `/api/v1/public/config`
 }
 
 export const getPublicConfiguration = async ( options?: RequestInit): Promise<PublicConfiguration> => {
-  
+
   return apiFetch<PublicConfiguration>(getGetPublicConfigurationUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -58,19 +58,19 @@ export const getPublicConfiguration = async ( options?: RequestInit): Promise<Pu
 export const getGetPublicLegalDocumentUrl = (document: 'imprint' | 'privacy',) => {
 
 
-  
+
 
   return `/api/v1/public/legal/${document}`
 }
 
 export const getPublicLegalDocument = async (document: 'imprint' | 'privacy', options?: RequestInit): Promise<PublicLegalDocument> => {
-  
+
   return apiFetch<PublicLegalDocument>(getGetPublicLegalDocumentUrl(document),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -82,20 +82,20 @@ export const getGetPublicBrandingAssetUrl = (slot: 'logo' | 'compact_logo' | 'fa
     sha256: string,) => {
 
 
-  
+
 
   return `/api/v1/public/branding/assets/${slot}/${sha256}`
 }
 
 export const getPublicBrandingAsset = async (slot: 'logo' | 'compact_logo' | 'favicon' | 'application_background' | 'authentication_background',
     sha256: string, options?: RequestInit): Promise<Blob> => {
-  
+
   return apiFetch<Blob>(getGetPublicBrandingAssetUrl(slot,sha256),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -106,19 +106,19 @@ export const getPublicBrandingAsset = async (slot: 'logo' | 'compact_logo' | 'fa
 export const getGetBrandingConfigurationUrl = () => {
 
 
-  
+
 
   return `/api/v1/branding/configuration`
 }
 
 export const getBrandingConfiguration = async ( options?: RequestInit): Promise<BrandingConfiguration> => {
-  
+
   return apiFetch<BrandingConfiguration>(getGetBrandingConfigurationUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -129,15 +129,15 @@ export const getBrandingConfiguration = async ( options?: RequestInit): Promise<
 export const getUpdateBrandingConfigurationUrl = () => {
 
 
-  
+
 
   return `/api/v1/branding/configuration`
 }
 
 export const updateBrandingConfiguration = async (updateBrandingConfigurationRequest: UpdateBrandingConfigurationRequest, options?: RequestInit): Promise<BrandingConfiguration> => {
-  
+
   return apiFetch<BrandingConfiguration>(getUpdateBrandingConfigurationUrl(),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -155,7 +155,7 @@ export const getPutBrandingAssetUrl = (slot: 'logo' | 'compact_logo' | 'favicon'
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -169,9 +169,9 @@ export const getPutBrandingAssetUrl = (slot: 'logo' | 'compact_logo' | 'favicon'
 export const putBrandingAsset = async (slot: 'logo' | 'compact_logo' | 'favicon' | 'application_background' | 'authentication_background',
     putBrandingAssetBody: Blob,
     params: PutBrandingAssetParams, options?: RequestInit): Promise<BrandingConfiguration> => {
-  
+
   return apiFetch<BrandingConfiguration>(getPutBrandingAssetUrl(slot,params),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/octet-stream', ...options?.headers },
@@ -187,16 +187,16 @@ export const putBrandingAsset = async (slot: 'logo' | 'compact_logo' | 'favicon'
 export const getRemoveBrandingAssetUrl = (slot: 'logo' | 'compact_logo' | 'favicon' | 'application_background' | 'authentication_background',) => {
 
 
-  
+
 
   return `/api/v1/branding/assets/${slot}`
 }
 
 export const removeBrandingAsset = async (slot: 'logo' | 'compact_logo' | 'favicon' | 'application_background' | 'authentication_background',
     versionRequest: VersionRequest, options?: RequestInit): Promise<BrandingConfiguration> => {
-  
+
   return apiFetch<BrandingConfiguration>(getRemoveBrandingAssetUrl(slot),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -212,16 +212,16 @@ export const removeBrandingAsset = async (slot: 'logo' | 'compact_logo' | 'favic
 export const getRestoreDefaultBrandingAssetUrl = (slot: 'logo' | 'compact_logo' | 'favicon' | 'application_background' | 'authentication_background',) => {
 
 
-  
+
 
   return `/api/v1/branding/assets/${slot}/restore-default`
 }
 
 export const restoreDefaultBrandingAsset = async (slot: 'logo' | 'compact_logo' | 'favicon' | 'application_background' | 'authentication_background',
     versionRequest: VersionRequest, options?: RequestInit): Promise<BrandingConfiguration> => {
-  
+
   return apiFetch<BrandingConfiguration>(getRestoreDefaultBrandingAssetUrl(slot),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

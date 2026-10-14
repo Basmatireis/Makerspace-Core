@@ -329,4 +329,36 @@ describe('Printer setup', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Add slot' }));
     await waitFor(() => expect(slot).toEqual({ name: 'Slot 2', position: 1, status: 'available', externalIdentifier: null }));
   });
+
+  it('edits connector external identifiers for input units and slots', async () => {
+    setup([PermissionId.machinesread, PermissionId.machinesmanage]);
+    let unitUpdate: unknown;
+    let slotUpdate: unknown;
+    server.use(
+      http.put('*/api/v1/printer-input-units/unit-1', async ({ request }) => {
+        unitUpdate = await request.json();
+        return HttpResponse.json({ ...profile.inputUnits[0], name: 'AMS 2 Pro', externalIdentifier: '0', version: 2 });
+      }),
+      http.put('*/api/v1/printer-slots/slot-1', async ({ request }) => {
+        slotUpdate = await request.json();
+        return HttpResponse.json({ ...profile.slots[0], externalIdentifier: '0', version: 2 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage(`/machine-logbook/machines/${bambu.id}?tab=printer`);
+
+    await user.click(await screen.findByRole('button', { name: 'Edit input unit' }, { timeout: 5000 }));
+    const unitDialog = await screen.findByRole('dialog', { name: 'Edit input unit' });
+    await user.clear(within(unitDialog).getByLabelText('Name'));
+    await user.type(within(unitDialog).getByLabelText('Name'), 'AMS 2 Pro');
+    await user.type(within(unitDialog).getByLabelText('External identifier'), '0');
+    await user.click(within(unitDialog).getByRole('button', { name: 'Save input unit' }));
+    await waitFor(() => expect(unitUpdate).toEqual({ name: 'AMS 2 Pro', position: 0, externalIdentifier: '0', enabled: true, expectedVersion: 1 }));
+
+    await user.click(screen.getByRole('button', { name: 'Edit slot' }));
+    const slotDialog = await screen.findByRole('dialog', { name: 'Edit slot' });
+    await user.type(within(slotDialog).getByLabelText('External identifier'), '0');
+    await user.click(within(slotDialog).getByRole('button', { name: 'Save slot' }));
+    await waitFor(() => expect(slotUpdate).toEqual({ name: 'Feed slot', position: 0, status: 'available', externalIdentifier: '0', expectedVersion: 1 }));
+  });
 });

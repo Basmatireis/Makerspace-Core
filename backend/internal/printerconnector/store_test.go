@@ -99,3 +99,45 @@ func TestStoreQuarantinesRejectedEventsAndLocksDataDirectory(t *testing.T) {
 		t.Fatalf("unexpected queue counts: pending=%d quarantined=%d err=%v", pending, quarantined, err)
 	}
 }
+
+func TestArtifactRetrievalPersistsAndRequiresStableCandidate(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	dir := t.TempDir()
+	store, err := OpenStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assignmentID, runID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	if err = store.ScheduleArtifactRetrieval(ctx, assignmentID, runID, 4, "plate.3mf", time.Now().UTC().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	retrieval, err := store.PendingArtifactRetrieval(ctx, assignmentID)
+	if err != nil || retrieval == nil || retrieval.ReportedPath != "plate.3mf" {
+		t.Fatalf("unexpected retrieval: %#v err=%v", retrieval, err)
+	}
+	candidate := ArtifactCandidate{RemotePath: "/cache/plate.3mf", Name: "plate.3mf", Size: 1234}
+	stable, err := store.ObserveArtifactCandidate(ctx, *retrieval, candidate)
+	if err != nil || stable {
+		t.Fatalf("first observation must not be stable: stable=%v err=%v", stable, err)
+	}
+	if err = store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = OpenStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	if _, err = store.db.ExecContext(ctx, `UPDATE artifact_retrievals SET next_attempt_at=? WHERE assignment_id=? AND run_id=?`, time.Now().UTC().Add(-time.Second).Format(time.RFC3339Nano), assignmentID.String(), runID.String()); err != nil {
+		t.Fatal(err)
+	}
+	retrieval, err = store.PendingArtifactRetrieval(ctx, assignmentID)
+	if err != nil || retrieval == nil {
+		t.Fatalf("retrieval did not survive restart: %#v err=%v", retrieval, err)
+	}
+	stable, err = store.ObserveArtifactCandidate(ctx, *retrieval, candidate)
+	if err != nil || !stable {
+		t.Fatalf("matching observation should be stable: stable=%v err=%v", stable, err)
+	}
+}

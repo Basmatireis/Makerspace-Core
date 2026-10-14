@@ -31,4 +31,6 @@ export const MachineRunEventKind = {
   slot_observation: 'slot_observation',
   consumption_report: 'consumption_report',
   terminal_outcome: 'terminal_outcome',
+  printer_error: 'printer_error',
+  filament_change: 'filament_change',
 } as const;

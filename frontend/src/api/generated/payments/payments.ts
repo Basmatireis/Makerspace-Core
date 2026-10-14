@@ -36,7 +36,7 @@ export const getListOrderPaymentsUrl = (params?: ListOrderPaymentsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -48,13 +48,13 @@ export const getListOrderPaymentsUrl = (params?: ListOrderPaymentsParams,) => {
 }
 
 export const listOrderPayments = async (params?: ListOrderPaymentsParams, options?: RequestInit): Promise<OrderPaymentPage> => {
-  
+
   return apiFetch<OrderPaymentPage>(getListOrderPaymentsUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -62,19 +62,19 @@ export const listOrderPayments = async (params?: ListOrderPaymentsParams, option
 export const getGetOrderPaymentUrl = (paymentId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/payments/${paymentId}`
 }
 
 export const getOrderPayment = async (paymentId: UUIDv7, options?: RequestInit): Promise<OrderPayment> => {
-  
+
   return apiFetch<OrderPayment>(getGetOrderPaymentUrl(paymentId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -82,16 +82,16 @@ export const getOrderPayment = async (paymentId: UUIDv7, options?: RequestInit):
 export const getRecordOrderPaymentUrl = (orderId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/orders/${orderId}/payments`
 }
 
 export const recordOrderPayment = async (orderId: UUIDv7,
     recordOrderPayment: RecordOrderPayment, options?: RequestInit): Promise<Order> => {
-  
+
   return apiFetch<Order>(getRecordOrderPaymentUrl(orderId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -104,16 +104,16 @@ export const recordOrderPayment = async (orderId: UUIDv7,
 export const getReverseOrderPaymentUrl = (paymentId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/payments/${paymentId}/reverse`
 }
 
 export const reverseOrderPayment = async (paymentId: UUIDv7,
     reversePaymentCommand: ReversePaymentCommand, options?: RequestInit): Promise<Order> => {
-  
+
   return apiFetch<Order>(getReverseOrderPaymentUrl(paymentId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -127,7 +127,7 @@ export const getGetPaymentReconciliationUrl = (params?: GetPaymentReconciliation
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -139,13 +139,13 @@ export const getGetPaymentReconciliationUrl = (params?: GetPaymentReconciliation
 }
 
 export const getPaymentReconciliation = async (params?: GetPaymentReconciliationParams, options?: RequestInit): Promise<PaymentReconciliation> => {
-  
+
   return apiFetch<PaymentReconciliation>(getGetPaymentReconciliationUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 

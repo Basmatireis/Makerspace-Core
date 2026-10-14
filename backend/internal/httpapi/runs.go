@@ -174,10 +174,22 @@ func mlRunBase(item machinelogbook.MachineRun) openapi.MachineRun {
 	if u := item.ReportedUsage; u != nil {
 		reported = nullable.NewNullableWithValue(openapi.MachineRunReportedUsage{Quantity: u.Quantity, QuantityBasis: openapi.QuantityBasis(u.QuantityBasis), SpoolId: nullableUUIDValue(u.SpoolID), SpoolDisplayId: nullableString(u.SpoolDisplayID), MaterialId: nullableUUIDValue(u.MaterialID), MaterialName: nullableString(u.MaterialName)})
 	}
+	reportedItems := make([]openapi.MachineRunReportedUsageItem, 0, len(item.ReportedUsageItems))
+	for _, u := range item.ReportedUsageItems {
+		lineNumber := 0
+		if u.LineNumber != nil {
+			lineNumber = *u.LineNumber
+		}
+		reportedItems = append(reportedItems, openapi.MachineRunReportedUsageItem{LineNumber: lineNumber, Extruder: nullableValue(u.Extruder), ReportRevision: u.ReportRevision, SlicerFilamentId: nullableString(u.SlicerFilamentID), InputUnitExternalId: nullableString(u.InputUnitExternalID), SlotExternalId: nullableString(u.SlotExternalID), PlannedQuantityGrams: nullableDecimalValue(u.PlannedQuantityGrams), PlannedLengthMillimeters: nullableDecimalValue(u.PlannedLengthMillimeters), EstimatedQuantityGrams: nullableDecimalValue(u.EstimatedQuantityGrams), MaterialId: nullableUUIDValue(u.MaterialID), SpoolId: nullableUUIDValue(u.SpoolID), Method: u.Method, CalculationVersion: u.CalculationVersion, Quality: openapi.MachineRunReportedUsageItemQuality(u.Quality)})
+	}
+	artifact := nullable.NewNullNullable[openapi.PrintArtifactReference]()
+	if item.Artifact != nil {
+		artifact = nullable.NewNullableWithValue(mlArtifactReferenceDTO(*item.Artifact))
+	}
 	return openapi.MachineRun{Id: item.ID, DisplayId: item.DisplayID, MachineId: item.MachineID, MachineName: item.MachineName, Source: openapi.MachineRunSource(item.Source), State: openapi.MachineRunState(item.State), Job: job,
 		ConnectorName: nullableString(item.ConnectorName), FileName: nullableString(item.FileName), StartedAt: item.StartedAt, EndedAt: nullableValue(item.EndedAt), EstimatedEndAt: nullableValue(item.EstimatedEndAt),
 		DurationSeconds: item.DurationSeconds, ProgressPercent: nullableInt(item.ProgressPercent), Outcome: outcome, OutcomeFromMachine: item.OutcomeFromMachine, Usages: usages, UsagesFromMachine: item.UsagesFromMachine,
-		ReportedUsage: reported, Version: item.Version}
+		ReportedUsage: reported, ReportedUsageItems: reportedItems, Artifact: artifact, Version: item.Version}
 }
 
 func mlRunDTO(item machinelogbook.MachineRun) openapi.MachineRun { return mlRunBase(item) }
@@ -198,7 +210,7 @@ func mlRunDetailDTO(item machinelogbook.RunDetail) openapi.MachineRunDetail {
 	}
 	return openapi.MachineRunDetail{Id: base.Id, DisplayId: base.DisplayId, MachineId: base.MachineId, MachineName: base.MachineName, Source: base.Source, State: base.State, Job: base.Job, ConnectorName: base.ConnectorName, FileName: base.FileName,
 		StartedAt: base.StartedAt, EndedAt: base.EndedAt, EstimatedEndAt: base.EstimatedEndAt, DurationSeconds: base.DurationSeconds, ProgressPercent: base.ProgressPercent, Outcome: base.Outcome, OutcomeFromMachine: base.OutcomeFromMachine,
-		Usages: base.Usages, UsagesFromMachine: base.UsagesFromMachine, ReportedUsage: base.ReportedUsage, Version: base.Version, Events: events}
+		Usages: base.Usages, UsagesFromMachine: base.UsagesFromMachine, ReportedUsage: base.ReportedUsage, ReportedUsageItems: base.ReportedUsageItems, Artifact: base.Artifact, Version: base.Version, Events: events}
 }
 
 func mlRunResultDTO(item machinelogbook.RunUpdateResult) openapi.MachineRunUpdateResult {
@@ -217,5 +229,9 @@ func nullableInt(value *int) nullable.Nullable[int] {
 }
 
 func mlUsageDTO(u machinelogbook.MachineJobUsage) openapi.MachineJobUsage {
-	return openapi.MachineJobUsage{Id: u.ID, MaterialId: nullableUUIDValue(u.MaterialID), SpoolId: nullableUUIDValue(u.SpoolID), SpoolDisplayId: nullableString(u.SpoolDisplayID), FillNumber: nullableInt32Value(u.FillNumber), Ownership: openapi.FilamentOwnership(u.Ownership), MaterialName: u.MaterialName, Category: u.Category, Unit: openapi.MaterialUnit(u.Unit), Quantity: u.Quantity, QuantityBasis: openapi.QuantityBasis(u.QuantityBasis)}
+	quality := nullable.NewNullNullable[openapi.MachineJobUsageEstimateQuality]()
+	if u.EstimateQuality != nil {
+		quality = nullable.NewNullableWithValue(openapi.MachineJobUsageEstimateQuality(*u.EstimateQuality))
+	}
+	return openapi.MachineJobUsage{Id: u.ID, MaterialId: nullableUUIDValue(u.MaterialID), SpoolId: nullableUUIDValue(u.SpoolID), SpoolDisplayId: nullableString(u.SpoolDisplayID), FillNumber: nullableInt32Value(u.FillNumber), Ownership: openapi.FilamentOwnership(u.Ownership), MaterialName: u.MaterialName, Category: u.Category, Unit: openapi.MaterialUnit(u.Unit), Quantity: u.Quantity, QuantityBasis: openapi.QuantityBasis(u.QuantityBasis), EstimationMethod: nullableString(u.EstimationMethod), CalculationVersion: nullableString(u.CalculationVersion), EstimateQuality: quality, ReportRevision: nullableValue(u.ReportRevision), StaffCorrected: u.StaffCorrected}
 }

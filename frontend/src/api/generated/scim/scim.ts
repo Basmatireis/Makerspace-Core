@@ -34,19 +34,19 @@ import { apiFetch } from '../../http-client';
 export const getGetSCIMServiceProviderConfigUrl = () => {
 
 
-  
+
 
   return `/api/v1/scim/v2/ServiceProviderConfig`
 }
 
 export const getSCIMServiceProviderConfig = async ( options?: RequestInit): Promise<SCIMServiceProviderConfig> => {
-  
+
   return apiFetch<SCIMServiceProviderConfig>(getGetSCIMServiceProviderConfigUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -54,19 +54,19 @@ export const getSCIMServiceProviderConfig = async ( options?: RequestInit): Prom
 export const getListSCIMResourceTypesUrl = () => {
 
 
-  
+
 
   return `/api/v1/scim/v2/ResourceTypes`
 }
 
 export const listSCIMResourceTypes = async ( options?: RequestInit): Promise<SCIMListResponse> => {
-  
+
   return apiFetch<SCIMListResponse>(getListSCIMResourceTypesUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -74,19 +74,19 @@ export const listSCIMResourceTypes = async ( options?: RequestInit): Promise<SCI
 export const getListSCIMSchemasUrl = () => {
 
 
-  
+
 
   return `/api/v1/scim/v2/Schemas`
 }
 
 export const listSCIMSchemas = async ( options?: RequestInit): Promise<SCIMListResponse> => {
-  
+
   return apiFetch<SCIMListResponse>(getListSCIMSchemasUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -95,7 +95,7 @@ export const getListSCIMUsersUrl = (params?: ListSCIMUsersParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -107,13 +107,13 @@ export const getListSCIMUsersUrl = (params?: ListSCIMUsersParams,) => {
 }
 
 export const listSCIMUsers = async (params?: ListSCIMUsersParams, options?: RequestInit): Promise<SCIMUserListResponse> => {
-  
+
   return apiFetch<SCIMUserListResponse>(getListSCIMUsersUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -121,15 +121,15 @@ export const listSCIMUsers = async (params?: ListSCIMUsersParams, options?: Requ
 export const getCreateSCIMUserUrl = () => {
 
 
-  
+
 
   return `/api/v1/scim/v2/Users`
 }
 
 export const createSCIMUser = async (sCIMUserWrite: SCIMUserWrite, options?: RequestInit): Promise<SCIMUser> => {
-  
+
   return apiFetch<SCIMUser>(getCreateSCIMUserUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/scim+json', ...options?.headers },
@@ -142,19 +142,19 @@ export const createSCIMUser = async (sCIMUserWrite: SCIMUserWrite, options?: Req
 export const getGetSCIMUserUrl = (scimUserId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/scim/v2/Users/${scimUserId}`
 }
 
 export const getSCIMUser = async (scimUserId: UUIDv7, options?: RequestInit): Promise<SCIMUser> => {
-  
+
   return apiFetch<SCIMUser>(getGetSCIMUserUrl(scimUserId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -162,16 +162,16 @@ export const getSCIMUser = async (scimUserId: UUIDv7, options?: RequestInit): Pr
 export const getReplaceSCIMUserUrl = (scimUserId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/scim/v2/Users/${scimUserId}`
 }
 
 export const replaceSCIMUser = async (scimUserId: UUIDv7,
     sCIMUserWrite: SCIMUserWrite, options?: RequestInit): Promise<SCIMUser> => {
-  
+
   return apiFetch<SCIMUser>(getReplaceSCIMUserUrl(scimUserId),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/scim+json', ...options?.headers },
@@ -184,16 +184,16 @@ export const replaceSCIMUser = async (scimUserId: UUIDv7,
 export const getPatchSCIMUserUrl = (scimUserId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/scim/v2/Users/${scimUserId}`
 }
 
 export const patchSCIMUser = async (scimUserId: UUIDv7,
     sCIMPatchRequest: SCIMPatchRequest, options?: RequestInit): Promise<SCIMUser> => {
-  
+
   return apiFetch<SCIMUser>(getPatchSCIMUserUrl(scimUserId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/scim+json', ...options?.headers },
@@ -209,19 +209,19 @@ export const patchSCIMUser = async (scimUserId: UUIDv7,
 export const getDeleteSCIMUserUrl = (scimUserId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/scim/v2/Users/${scimUserId}`
 }
 
 export const deleteSCIMUser = async (scimUserId: UUIDv7, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getDeleteSCIMUserUrl(scimUserId),
-  {      
+  {
     ...options,
     method: 'DELETE'
-    
-    
+
+
   }
 );}
 

@@ -48,19 +48,19 @@ import { apiFetch } from '../../http-client';
 export const getListManagedDeviceTypesUrl = () => {
 
 
-  
+
 
   return `/api/v1/managed-device-types`
 }
 
 export const listManagedDeviceTypes = async ( options?: RequestInit): Promise<ManagedDeviceTypeList> => {
-  
+
   return apiFetch<ManagedDeviceTypeList>(getListManagedDeviceTypesUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -71,15 +71,15 @@ export const listManagedDeviceTypes = async ( options?: RequestInit): Promise<Ma
 export const getCreateManagedDeviceTypeUrl = () => {
 
 
-  
+
 
   return `/api/v1/managed-device-types`
 }
 
 export const createManagedDeviceType = async (createManagedDeviceTypeRequest: CreateManagedDeviceTypeRequest, options?: RequestInit): Promise<ManagedDeviceType> => {
-  
+
   return apiFetch<ManagedDeviceType>(getCreateManagedDeviceTypeUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -95,19 +95,19 @@ export const createManagedDeviceType = async (createManagedDeviceTypeRequest: Cr
 export const getGetManagedDeviceTypeUrl = (deviceTypeId: string,) => {
 
 
-  
+
 
   return `/api/v1/managed-device-types/${deviceTypeId}`
 }
 
 export const getManagedDeviceType = async (deviceTypeId: string, options?: RequestInit): Promise<ManagedDeviceType> => {
-  
+
   return apiFetch<ManagedDeviceType>(getGetManagedDeviceTypeUrl(deviceTypeId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -118,16 +118,16 @@ export const getManagedDeviceType = async (deviceTypeId: string, options?: Reque
 export const getUpdateManagedDeviceTypeUrl = (deviceTypeId: string,) => {
 
 
-  
+
 
   return `/api/v1/managed-device-types/${deviceTypeId}`
 }
 
 export const updateManagedDeviceType = async (deviceTypeId: string,
     updateManagedDeviceTypeRequest: UpdateManagedDeviceTypeRequest, options?: RequestInit): Promise<ManagedDeviceType> => {
-  
+
   return apiFetch<ManagedDeviceType>(getUpdateManagedDeviceTypeUrl(deviceTypeId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -143,16 +143,16 @@ export const updateManagedDeviceType = async (deviceTypeId: string,
 export const getDeleteManagedDeviceTypeUrl = (deviceTypeId: string,) => {
 
 
-  
+
 
   return `/api/v1/managed-device-types/${deviceTypeId}`
 }
 
 export const deleteManagedDeviceType = async (deviceTypeId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getDeleteManagedDeviceTypeUrl(deviceTypeId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -169,7 +169,7 @@ export const getListManagedDevicesUrl = (params?: ListManagedDevicesParams,) => 
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -181,13 +181,13 @@ export const getListManagedDevicesUrl = (params?: ListManagedDevicesParams,) => 
 }
 
 export const listManagedDevices = async (params?: ListManagedDevicesParams, options?: RequestInit): Promise<ManagedDeviceList> => {
-  
+
   return apiFetch<ManagedDeviceList>(getListManagedDevicesUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -198,15 +198,15 @@ export const listManagedDevices = async (params?: ListManagedDevicesParams, opti
 export const getCreateManagedDeviceUrl = () => {
 
 
-  
+
 
   return `/api/v1/managed-devices`
 }
 
 export const createManagedDevice = async (createManagedDeviceRequest: CreateManagedDeviceRequest, options?: RequestInit): Promise<ManagedDeviceProvisioning> => {
-  
+
   return apiFetch<ManagedDeviceProvisioning>(getCreateManagedDeviceUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -222,19 +222,19 @@ export const createManagedDevice = async (createManagedDeviceRequest: CreateMana
 export const getGetOwnManagedDeviceHardwareUrl = () => {
 
 
-  
+
 
   return `/api/v1/managed-devices/self/hardware`
 }
 
 export const getOwnManagedDeviceHardware = async ( options?: RequestInit): Promise<DeviceHardwareContext> => {
-  
+
   return apiFetch<DeviceHardwareContext>(getGetOwnManagedDeviceHardwareUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -246,15 +246,15 @@ export const getOwnManagedDeviceHardware = async ( options?: RequestInit): Promi
 export const getReportOwnManagedDeviceHardwareUrl = () => {
 
 
-  
+
 
   return `/api/v1/managed-devices/self/hardware`
 }
 
 export const reportOwnManagedDeviceHardware = async (deviceHardwareReport: DeviceHardwareReport, options?: RequestInit): Promise<DeviceHardwareContext> => {
-  
+
   return apiFetch<DeviceHardwareContext>(getReportOwnManagedDeviceHardwareUrl(),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -270,19 +270,19 @@ export const reportOwnManagedDeviceHardware = async (deviceHardwareReport: Devic
 export const getGetManagedDeviceUrl = (managedDeviceId: string,) => {
 
 
-  
+
 
   return `/api/v1/managed-devices/${managedDeviceId}`
 }
 
 export const getManagedDevice = async (managedDeviceId: string, options?: RequestInit): Promise<ManagedDevice> => {
-  
+
   return apiFetch<ManagedDevice>(getGetManagedDeviceUrl(managedDeviceId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -293,16 +293,16 @@ export const getManagedDevice = async (managedDeviceId: string, options?: Reques
 export const getUpdateManagedDeviceUrl = (managedDeviceId: string,) => {
 
 
-  
+
 
   return `/api/v1/managed-devices/${managedDeviceId}`
 }
 
 export const updateManagedDevice = async (managedDeviceId: string,
     updateManagedDeviceRequest: UpdateManagedDeviceRequest, options?: RequestInit): Promise<ManagedDevice> => {
-  
+
   return apiFetch<ManagedDevice>(getUpdateManagedDeviceUrl(managedDeviceId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -318,16 +318,16 @@ export const updateManagedDevice = async (managedDeviceId: string,
 export const getDeleteManagedDeviceUrl = (managedDeviceId: string,) => {
 
 
-  
+
 
   return `/api/v1/managed-devices/${managedDeviceId}`
 }
 
 export const deleteManagedDevice = async (managedDeviceId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getDeleteManagedDeviceUrl(managedDeviceId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -343,16 +343,16 @@ export const deleteManagedDevice = async (managedDeviceId: string,
 export const getRevokeManagedDeviceUrl = (managedDeviceId: string,) => {
 
 
-  
+
 
   return `/api/v1/managed-devices/${managedDeviceId}/revoke`
 }
 
 export const revokeManagedDevice = async (managedDeviceId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<ManagedDevice> => {
-  
+
   return apiFetch<ManagedDevice>(getRevokeManagedDeviceUrl(managedDeviceId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -368,16 +368,16 @@ export const revokeManagedDevice = async (managedDeviceId: string,
 export const getRotateManagedDeviceTokenUrl = (managedDeviceId: string,) => {
 
 
-  
+
 
   return `/api/v1/managed-devices/${managedDeviceId}/token`
 }
 
 export const rotateManagedDeviceToken = async (managedDeviceId: string,
     rotateManagedDeviceTokenRequest: RotateManagedDeviceTokenRequest, options?: RequestInit): Promise<ManagedDeviceProvisioning> => {
-  
+
   return apiFetch<ManagedDeviceProvisioning>(getRotateManagedDeviceTokenUrl(managedDeviceId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -390,19 +390,19 @@ export const rotateManagedDeviceToken = async (managedDeviceId: string,
 export const getListSessionPoliciesUrl = () => {
 
 
-  
+
 
   return `/api/v1/session-policies`
 }
 
 export const listSessionPolicies = async ( options?: RequestInit): Promise<SessionPolicyList> => {
-  
+
   return apiFetch<SessionPolicyList>(getListSessionPoliciesUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -410,15 +410,15 @@ export const listSessionPolicies = async ( options?: RequestInit): Promise<Sessi
 export const getCreateSessionPolicyUrl = () => {
 
 
-  
+
 
   return `/api/v1/session-policies`
 }
 
 export const createSessionPolicy = async (sessionPolicyInput: SessionPolicyInput, options?: RequestInit): Promise<SessionPolicy> => {
-  
+
   return apiFetch<SessionPolicy>(getCreateSessionPolicyUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -431,16 +431,16 @@ export const createSessionPolicy = async (sessionPolicyInput: SessionPolicyInput
 export const getUpdateSessionPolicyUrl = (sessionPolicyId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/session-policies/${sessionPolicyId}`
 }
 
 export const updateSessionPolicy = async (sessionPolicyId: UUIDv7,
     updateSessionPolicyRequest: UpdateSessionPolicyRequest, options?: RequestInit): Promise<SessionPolicy> => {
-  
+
   return apiFetch<SessionPolicy>(getUpdateSessionPolicyUrl(sessionPolicyId),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

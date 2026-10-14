@@ -26,6 +26,11 @@ type parsedUsage struct {
 	Quantity             decimal.Decimal
 	UsageID              uuid.UUID
 	SourcePrinterEventID *uuid.UUID
+	EstimationMethod     *string
+	CalculationVersion   *string
+	EstimateQuality      *string
+	ReportRevision       *int64
+	StaffCorrected       bool
 	// Fill is the open fill a spool usage draws from; it is resolved inside
 	// the transaction that records the usage.
 	Fill *fillRef
@@ -258,7 +263,7 @@ func (s *Service) reversalFill(ctx context.Context, q *machinelogbookdb.Queries,
 
 func (s *Service) insertUsages(ctx context.Context, q *machinelogbookdb.Queries, runID uuid.UUID, items []parsedUsage) error {
 	for i := range items {
-		params := machinelogbookdb.InsertRunUsageParams{ID: items[i].UsageID, RunID: runID, MaterialID: items[i].MaterialID, SpoolID: items[i].SpoolID, Ownership: items[i].Ownership, ExternalMaterialName: items[i].ExternalMaterialName, QuantityBasis: items[i].QuantityBasis, Quantity: numericFromDecimal(items[i].Quantity), SourcePrinterEventID: items[i].SourcePrinterEventID}
+		params := machinelogbookdb.InsertRunUsageParams{ID: items[i].UsageID, RunID: runID, MaterialID: items[i].MaterialID, SpoolID: items[i].SpoolID, Ownership: items[i].Ownership, ExternalMaterialName: items[i].ExternalMaterialName, QuantityBasis: items[i].QuantityBasis, Quantity: numericFromDecimal(items[i].Quantity), SourcePrinterEventID: items[i].SourcePrinterEventID, EstimationMethod: items[i].EstimationMethod, CalculationVersion: items[i].CalculationVersion, EstimateQuality: items[i].EstimateQuality, ReportRevision: items[i].ReportRevision, StaffCorrected: items[i].StaffCorrected}
 		if fill := items[i].Fill; fill != nil && items[i].SpoolID != nil {
 			params.FillID, params.SpoolDisplayID, params.FillNumber = &fill.FillID, &fill.SpoolDisplayID, &fill.FillNumber
 		}
@@ -590,6 +595,13 @@ func (s *Service) jobFromRow(ctx context.Context, q *machinelogbookdb.Queries, r
 		return MachineJob{}, err
 	}
 	item := MachineJob{ID: row.ID, DisplayID: row.DisplayID, Title: row.Title, Machine: machineFromGet(machineRow), Runs: runs, Outcome: "unknown", OutcomeOverridden: row.OutcomeOverride != nil, Notes: row.Notes, PricingStatus: row.PricingStatus, CalculatedPrice: nullableDecimal(row.CalculatedPrice), EffectivePrice: nullableDecimal(row.EffectivePrice), Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Usages: []MachineJobUsage{}}
+	if row.ArtifactID != nil {
+		artifact, artifactErr := q.GetArtifactReference(ctx, *row.ArtifactID)
+		if artifactErr != nil {
+			return MachineJob{}, artifactErr
+		}
+		item.Artifact = &ArtifactReference{ID: artifact.ID, SHA256: artifact.Sha256, ParserStatus: artifact.ParserStatus}
+	}
 	for _, run := range runs {
 		if run.State != "replaced" {
 			item.Usages = append(item.Usages, run.Usages...)
@@ -611,6 +623,8 @@ func (s *Service) jobFromRow(ctx context.Context, q *machinelogbookdb.Queries, r
 		effective = *row.OutcomeOverride
 	}
 	switch {
+	case !hasSummary && row.ArtifactID != nil:
+		item.Status = "planned"
 	case hasSummary && summary.Running:
 		item.Status = "running"
 	case effective == "unknown":
@@ -1010,6 +1024,9 @@ func (s *Service) ChargeSource(ctx context.Context, tx pgx.Tx, p authorization.P
 	// charge snapshot of it could not be kept in step.
 	if job.Status == "running" {
 		return MachineJob{}, conflict("job_running", "A job with a running run cannot be ordered until its runs have ended")
+	}
+	if job.Status == "planned" {
+		return MachineJob{}, conflict("job_planned", "A planned job cannot be ordered until it has a run")
 	}
 	return job, nil
 }

@@ -30,6 +30,7 @@ export const operator = { personId: ids.operator, displayName: 'Maria Hoffmann' 
 
 export const usage = (overrides: Partial<MachineRun['usages'][number]> = {}): MachineRun['usages'][number] => ({
   id: ids.usage, ownership: 'makerspace', materialId: ids.material, spoolId: null, spoolDisplayId: null, materialName: 'PLA Black', category: 'pla', unit: 'g', quantity: '183.000', quantityBasis: 'actual',
+  staffCorrected: false,
   ...overrides,
 });
 
@@ -39,7 +40,7 @@ export function manualRun(overrides: Partial<MachineRun> = {}): MachineRun {
     id: ids.manualRun, displayId: 'RN-2026-000001', machineId: ids.machine, machineName: machine.name, source: 'manual', state: 'finished',
     job: { id: ids.job, displayId: 'J-2026-000001', title: 'Gearbox housing' }, connectorName: null, fileName: null,
     startedAt: iso(-120), endedAt: iso(-30), estimatedEndAt: null, durationSeconds: 5400, progressPercent: null, outcome: 'successful', outcomeFromMachine: false,
-    usages: [usage()], usagesFromMachine: false, reportedUsage: null, version: 2,
+    usages: [usage()], usagesFromMachine: false, reportedUsage: null, reportedUsageItems: [], artifact: null, version: 2,
     ...overrides,
   };
 }
@@ -50,7 +51,7 @@ export function recordedRun(overrides: Partial<MachineRunDetail> = {}): MachineR
     id: ids.recordedRun, displayId: 'RN-2026-000007', machineId: ids.machine, machineName: machine.name, source: 'recorded', state: 'finished',
     job: null, connectorName: 'Bambu LAN', fileName: 'gearbox_housing_v3.gcode',
     startedAt: '2026-09-15T08:00:00Z', endedAt: '2026-09-15T09:00:00Z', estimatedEndAt: null, durationSeconds: 3600, progressPercent: 100, outcome: 'successful', outcomeFromMachine: true,
-    usages: [], usagesFromMachine: false,
+    usages: [], usagesFromMachine: false, reportedUsageItems: [], artifact: null,
     reportedUsage: { quantity: '42.000', quantityBasis: 'actual', materialId: ids.material, materialName: 'PLA Black', spoolId: null, spoolDisplayId: null },
     version: 1,
     events: [

@@ -9,11 +9,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/shopspring/decimal"
 )
 
@@ -22,6 +24,15 @@ type RunReportedUsage struct {
 	Quantity, QuantityBasis      string
 	SpoolID, MaterialID          *uuid.UUID
 	SpoolDisplayID, MaterialName *string
+}
+
+type RunReportedUsageItem struct {
+	LineNumber, Extruder                                                   *int
+	ReportRevision                                                         int64
+	SlicerFilamentID, InputUnitExternalID, SlotExternalID                  *string
+	PlannedQuantityGrams, PlannedLengthMillimeters, EstimatedQuantityGrams *string
+	MaterialID, SpoolID                                                    *uuid.UUID
+	Method, CalculationVersion, Quality                                    string
 }
 
 type RunJobReference struct {
@@ -48,6 +59,8 @@ type MachineRun struct {
 	Usages                  []MachineJobUsage
 	UsagesFromMachine       bool
 	ReportedUsage           *RunReportedUsage
+	ReportedUsageItems      []RunReportedUsageItem
+	Artifact                *ArtifactReference
 	Version                 int64
 }
 
@@ -118,13 +131,16 @@ func escapeLike(value string) string {
 }
 
 func usageFromRow(u machinelogbookdb.ListRunUsagesForRunsRow) MachineJobUsage {
-	return MachineJobUsage{ID: u.ID, MaterialID: u.MaterialID, SpoolID: u.SpoolID, Ownership: u.Ownership, MaterialName: u.MaterialName, Category: u.Category, Unit: u.Unit, Quantity: decimalString(u.Quantity), QuantityBasis: u.QuantityBasis, SpoolDisplayID: u.SpoolDisplayID, FillNumber: u.FillNumber}
+	return MachineJobUsage{ID: u.ID, MaterialID: u.MaterialID, SpoolID: u.SpoolID, Ownership: u.Ownership, MaterialName: u.MaterialName, Category: u.Category, Unit: u.Unit, Quantity: decimalString(u.Quantity), QuantityBasis: u.QuantityBasis, SpoolDisplayID: u.SpoolDisplayID, FillNumber: u.FillNumber, EstimationMethod: u.EstimationMethod, CalculationVersion: u.CalculationVersion, EstimateQuality: u.EstimateQuality, ReportRevision: u.ReportRevision, StaffCorrected: u.StaffCorrected}
 }
 
 func runFromRow(row machinelogbookdb.ListRunsRow, now time.Time) MachineRun {
 	started := row.RunStartedAt.UTC()
 	run := MachineRun{ID: row.ID, DisplayID: row.DisplayID, MachineID: row.MachineID, MachineName: row.MachineName, Source: row.Source, State: row.RunState, ConnectorName: row.ConnectorName, FileName: row.FileName,
-		StartedAt: started, Outcome: row.Outcome, UsagesFromMachine: row.UsagesFromMachine, Version: row.Version, Usages: []MachineJobUsage{}}
+		StartedAt: started, Outcome: row.Outcome, UsagesFromMachine: row.UsagesFromMachine, Version: row.Version, Usages: []MachineJobUsage{}, ReportedUsageItems: []RunReportedUsageItem{}}
+	if row.ArtifactID != nil && row.ArtifactParserStatus != nil {
+		run.Artifact = &ArtifactReference{ID: *row.ArtifactID, SHA256: row.ArtifactSha256, ParserStatus: *row.ArtifactParserStatus}
+	}
 	if row.JobID != nil && row.JobDisplayID != nil {
 		run.Job = &RunJobReference{ID: *row.JobID, DisplayID: *row.JobDisplayID, Title: row.JobTitle}
 	}
@@ -191,6 +207,32 @@ func (s *Service) queryRuns(ctx context.Context, q *machinelogbookdb.Queries, pa
 	for i := range runs {
 		if list := byRun[runs[i].ID]; list != nil {
 			runs[i].Usages = list
+		}
+	}
+	reported, err := q.ListLatestReportedUsageItemsForRuns(ctx, ids)
+	if err != nil {
+		return nil, 0, err
+	}
+	byReported := map[uuid.UUID][]RunReportedUsageItem{}
+	for _, item := range reported {
+		line := int(item.LineNumber)
+		var extruder *int
+		if item.Extruder != nil {
+			v := int(*item.Extruder)
+			extruder = &v
+		}
+		toString := func(n pgtype.Numeric) *string {
+			if !n.Valid {
+				return nil
+			}
+			v := decimalString(n)
+			return &v
+		}
+		byReported[item.RunID] = append(byReported[item.RunID], RunReportedUsageItem{LineNumber: &line, Extruder: extruder, ReportRevision: item.ReportRevision, SlicerFilamentID: item.SlicerFilamentID, InputUnitExternalID: item.InputUnitExternalID, SlotExternalID: item.SlotExternalID, PlannedQuantityGrams: toString(item.PlannedQuantityG), PlannedLengthMillimeters: toString(item.PlannedLengthMm), EstimatedQuantityGrams: toString(item.EstimatedQuantityG), MaterialID: item.MaterialID, SpoolID: item.SpoolID, Method: item.Method, CalculationVersion: item.CalculationVersion, Quality: item.Quality})
+	}
+	for i := range runs {
+		if list := byReported[runs[i].ID]; list != nil {
+			runs[i].ReportedUsageItems = list
 		}
 	}
 	return runs, total, nil
@@ -544,6 +586,9 @@ func (s *Service) ReplaceRunUsages(ctx context.Context, p authorization.Principa
 	if err != nil {
 		return RunUpdateResult{}, err
 	}
+	for i := range parsed {
+		parsed[i].StaffCorrected = true
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return RunUpdateResult{}, err
@@ -833,6 +878,9 @@ func (s *Service) AttachRun(ctx context.Context, p authorization.Principal, runI
 	if job.MachineID != run.MachineID {
 		return MachineJob{}, conflict("run_machine_mismatch", "The run was recorded on another machine than the job")
 	}
+	if job.ArtifactID != nil && run.ArtifactID != nil && *job.ArtifactID != *run.ArtifactID {
+		return MachineJob{}, conflict("artifact_mismatch", "Run and job reference different print artifacts")
+	}
 	if job.Version != expectedJobVersion {
 		return MachineJob{}, apperror.StaleWrite
 	}
@@ -877,6 +925,47 @@ func (s *Service) AttachRun(ctx context.Context, p authorization.Principal, runI
 		return MachineJob{}, err
 	}
 	return s.loadJob(ctx, jobID)
+}
+
+// AttachPlannedRunSystem performs the connector-only exact-artifact attach in
+// the caller's transaction. It never replaces a staff assignment and only
+// accepts a job that still has no active runs and references the same artifact.
+func (s *Service) AttachPlannedRunSystem(ctx context.Context, tx pgx.Tx, connectorID, assignmentID, runID, jobID, artifactID uuid.UUID, requestID *uuid.UUID) (bool, error) {
+	q := machinelogbookdb.New(tx)
+	job, err := q.GetMachineJobForUpdate(ctx, jobID)
+	if err != nil {
+		return false, noRows(err)
+	}
+	run, err := q.GetRunForUpdate(ctx, runID)
+	if err != nil {
+		return false, noRows(err)
+	}
+	if run.JobID != nil {
+		return false, nil
+	}
+	if job.ArtifactID == nil || run.ArtifactID == nil || *job.ArtifactID != artifactID || *run.ArtifactID != artifactID || job.MachineID != run.MachineID {
+		return false, conflict("artifact_mismatch", "Run and planned job artifacts must match exactly")
+	}
+	active, err := q.ListActiveJobRunIDs(ctx, &jobID)
+	if err != nil {
+		return false, err
+	}
+	if len(active) != 0 {
+		return false, nil
+	}
+	if _, err = q.AssignRunToJob(ctx, machinelogbookdb.AssignRunToJobParams{JobID: &jobID, ID: runID, MachineID: job.MachineID}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	if _, err = s.settleJob(ctx, q, jobID); err != nil {
+		return false, err
+	}
+	if err = audit.Write(ctx, tx, audit.Event{ActorType: "system", Action: "machine_run.artifact_auto_attached", ResourceType: "machine_run", ResourceID: &runID, RequestID: requestID, Source: "system", ChangedFields: []string{"jobId"}, Metadata: map[string]any{"connectorId": connectorID.String(), "assignmentId": assignmentID.String(), "runId": runID.String(), "jobId": jobID.String(), "artifactId": artifactID.String()}}); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func dedupe(values []string) []string {

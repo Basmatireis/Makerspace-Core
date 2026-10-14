@@ -79,6 +79,9 @@ func (r *Runtime) Run(ctx context.Context) error {
 			if err = r.deliver(ctx, identity); err != nil {
 				r.logger.Warn("event delivery failed", "error_type", fmt.Sprintf("%T", err))
 			}
+			if err = r.deliverArtifacts(ctx, identity); err != nil {
+				r.logger.Warn("artifact delivery failed", "error_type", fmt.Sprintf("%T", err))
+			}
 		case <-configuration.C:
 			if identity, err = r.rotateCredentialIfNeeded(ctx, identity); err != nil {
 				r.logger.Warn("credential rotation failed", "error_type", fmt.Sprintf("%T", err))
@@ -189,7 +192,13 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 		}
 		var adapter Adapter
 		if raw.AdapterKind == "simulator" {
-			adapter, err = NewSimulator(raw.Settings)
+			if raw.AdapterSchemaVersion != 1 {
+				err = fmt.Errorf("unsupported simulator schema version %d", raw.AdapterSchemaVersion)
+			} else {
+				adapter, err = NewSimulator(raw.Settings)
+			}
+		} else if raw.AdapterKind == "bambu_h2d" {
+			adapter, err = NewBambuH2D(id, raw.ConfigurationVersion, raw.AdapterSchemaVersion, raw.Settings, raw.Secrets, r.store)
 		} else {
 			err = errors.New("unsupported adapter")
 		}
@@ -206,10 +215,14 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 		r.health[id] = AssignmentHealth{AssignmentID: raw.ID, AppliedConfigurationVersion: raw.ConfigurationVersion, State: "connected"}
 		r.mu.Unlock()
 		go func(assignmentID uuid.UUID, configVersion int64, adapter Adapter) {
-			sink := &runtimeSink{store: r.store, assignmentID: assignmentID, configurationVersion: configVersion}
+			sink := &runtimeSink{store: r.store, assignmentID: assignmentID, configurationVersion: configVersion, reportHealth: func(state string, code *string) {
+				r.mu.Lock()
+				defer r.mu.Unlock()
+				r.health[assignmentID] = AssignmentHealth{AssignmentID: assignmentID.String(), AppliedConfigurationVersion: configVersion, State: state, ErrorCode: code}
+			}}
 			if runErr := adapter.Run(ctx, sink); runErr != nil && !errors.Is(runErr, context.Canceled) {
 				r.logger.Warn("adapter stopped", "assignment_id", assignmentID.String(), "error_type", fmt.Sprintf("%T", runErr))
-				code := "adapter_stopped"
+				code := classifyAdapterError(runErr)
 				r.mu.Lock()
 				r.health[assignmentID] = AssignmentHealth{AssignmentID: assignmentID.String(), AppliedConfigurationVersion: configVersion, State: "degraded", ErrorCode: &code}
 				r.mu.Unlock()
@@ -232,11 +245,92 @@ type runtimeSink struct {
 	store                *Store
 	assignmentID         uuid.UUID
 	configurationVersion int64
+	reportHealth         func(string, *string)
 }
 
 func (s *runtimeSink) Commit(ctx context.Context, observation Observation) error {
+	if observation.Kind == "connectivity" && s.reportHealth != nil {
+		var value struct {
+			State     string  `json:"state"`
+			ErrorCode *string `json:"errorCode"`
+		}
+		if json.Unmarshal(observation.Payload, &value) == nil {
+			if value.State == "online" {
+				s.reportHealth("connected", nil)
+			} else if value.State == "offline" || value.State == "degraded" {
+				s.reportHealth("degraded", value.ErrorCode)
+			}
+		}
+	}
 	_, err := s.store.Enqueue(ctx, s.assignmentID, s.configurationVersion, observation.Kind, observation.Payload, observation.RunID, observation.HistoryComplete, observation.ExternalPrintID, observation.ReportRevision)
 	return err
+}
+
+func (s *runtimeSink) CommitBambuState(ctx context.Context, observations []Observation, state bambuPersistedState) error {
+	for _, observation := range observations {
+		if observation.Kind == "connectivity" && s.reportHealth != nil {
+			var value struct {
+				State     string  `json:"state"`
+				ErrorCode *string `json:"errorCode"`
+			}
+			if json.Unmarshal(observation.Payload, &value) == nil {
+				if value.State == "online" {
+					s.reportHealth("connected", nil)
+				} else if value.State == "offline" || value.State == "degraded" {
+					s.reportHealth("degraded", value.ErrorCode)
+				}
+			}
+		}
+	}
+	return s.store.EnqueueBambuState(ctx, s.assignmentID, s.configurationVersion, observations, state)
+}
+
+func classifyAdapterError(err error) string {
+	message := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(message, "serial mismatch"):
+		return "tls_serial_mismatch"
+	case strings.Contains(message, "expired") || strings.Contains(message, "not yet valid"):
+		return "tls_certificate_expired"
+	case strings.Contains(message, "unknown authority"):
+		return "tls_unknown_ca"
+	case strings.Contains(message, "ftps") && (strings.Contains(message, "auth") || strings.Contains(message, "password") || strings.Contains(message, "login")):
+		return "ftps_authentication_failed"
+	case strings.Contains(message, "not authorized") || strings.Contains(message, "bad user name or password") || strings.Contains(message, "bad username or password"):
+		return "mqtt_authentication_failed"
+	case strings.Contains(message, "mqtt"):
+		return "mqtt_unavailable"
+	case strings.Contains(message, "queue is full") || strings.Contains(message, "exceeds 2 gib"):
+		return "artifact_backlog_full"
+	case strings.Contains(message, "ambiguous"):
+		return "artifact_ambiguous"
+	case strings.Contains(message, "not available"):
+		return "artifact_not_available"
+	case strings.Contains(message, "negotiate bambu ftps data tls"):
+		return "ftps_data_tls_failed"
+	case strings.Contains(message, "negotiate bambu ftps control tls"):
+		return "ftps_control_tls_failed"
+	case strings.Contains(message, "certificate") || strings.Contains(message, "tls"):
+		return "tls_certificate_error"
+	case strings.Contains(message, "connect bambu ftps data channel"):
+		return "ftps_data_connect_failed"
+	case strings.Contains(message, "passive") || strings.Contains(message, "pasv"):
+		return "ftps_passive_failed"
+	case strings.Contains(message, "start bambu ftps transfer"):
+		return "ftps_transfer_start_failed"
+	case strings.Contains(message, "finish bambu ftps transfer"):
+		return "ftps_transfer_finish_failed"
+	case strings.Contains(message, "listing") || strings.Contains(message, "list line"):
+		return "ftps_listing_failed"
+	case strings.Contains(message, "connect to bambu ftps"):
+		return "ftps_control_connect_failed"
+	case strings.Contains(message, "ftps greeting") || strings.Contains(message, "initialize bambu ftps"):
+		return "ftps_protocol_failed"
+	case strings.Contains(message, "ftps"):
+		return "ftps_unavailable"
+	default:
+		return "adapter_stopped"
+	}
 }
 
 func (r *Runtime) deliver(ctx context.Context, identity Identity) error {
@@ -252,6 +346,28 @@ func (r *Runtime) deliver(ctx context.Context, identity Identity) error {
 		return err
 	}
 	return r.store.ApplyReceipts(ctx, receipts)
+}
+
+func (r *Runtime) deliverArtifacts(ctx context.Context, identity Identity) error {
+	if err := r.store.QuarantineExpiredArtifactTransfers(ctx); err != nil {
+		return err
+	}
+	transfers, err := r.store.PendingArtifactTransfers(ctx, 2)
+	if err != nil {
+		return err
+	}
+	for _, transfer := range transfers {
+		if _, uploadErr := r.client.UploadArtifact(ctx, identity.CredentialSecret, transfer); uploadErr != nil {
+			if queueErr := r.store.MarkArtifactTransferFailure(ctx, transfer.ID, classifyAdapterError(uploadErr)); queueErr != nil {
+				return fmt.Errorf("record artifact delivery failure: %w", queueErr)
+			}
+			return uploadErr
+		}
+		if err = r.store.CompleteArtifactTransfer(ctx, transfer.ID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (r *Runtime) sendHeartbeat(ctx context.Context, identity Identity) error {

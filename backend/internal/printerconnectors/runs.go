@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -19,6 +20,156 @@ import (
 
 // maxReportedGrams keeps reported usage inside numeric(20, 6).
 var maxReportedGrams = decimal.NewFromInt(1_000_000_000_000)
+
+func bambuAutoDetectSpools(settings json.RawMessage) bool {
+	var value struct {
+		AutoDetectSpools bool `json:"autoDetectSpools"`
+	}
+	return json.Unmarshal(settings, &value) == nil && value.AutoDetectSpools
+}
+
+// reconcileBambuSlotObservation applies only positive, exact RFID evidence or
+// a connector-confirmed empty tray. Manual assignments are authoritative and
+// are never displaced or automatically unmounted. A connector assignment may
+// be moved or closed because that history was established by the same class of
+// machine evidence.
+func reconcileBambuSlotObservation(ctx context.Context, tx pgx.Tx, connectorID, assignmentID, machineID, eventID uuid.UUID, payload json.RawMessage, observedAt time.Time) error {
+	var value struct {
+		InputUnitExternalID string `json:"inputUnitExternalId"`
+		SlotExternalID      string `json:"slotExternalId"`
+		TagUID              string `json:"tagUid"`
+		Empty               bool   `json:"empty"`
+	}
+	if json.Unmarshal(payload, &value) != nil {
+		return nil
+	}
+	value.InputUnitExternalID = strings.TrimSpace(value.InputUnitExternalID)
+	value.SlotExternalID = strings.TrimSpace(value.SlotExternalID)
+	value.TagUID = strings.TrimSpace(value.TagUID)
+	if value.InputUnitExternalID == "" || value.SlotExternalID == "" || utf8.RuneCountInString(value.TagUID) > 255 || (value.Empty && value.TagUID != "") {
+		return nil
+	}
+
+	var slotID uuid.UUID
+	if err := tx.QueryRow(ctx, `SELECT s.id
+		FROM printer_slots s JOIN printer_input_units u ON u.id=s.input_unit_id
+		WHERE u.machine_id=$1 AND u.enabled AND s.status='available'
+		  AND u.external_identifier=$2 AND s.external_identifier=$3
+		FOR UPDATE OF s`, machineID, value.InputUnitExternalID, value.SlotExternalID).Scan(&slotID); errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	if value.Empty {
+		var mountID uuid.UUID
+		var source string
+		var mountedAt time.Time
+		err := tx.QueryRow(ctx, `SELECT id,source,mounted_at FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL FOR UPDATE`, slotID).Scan(&mountID, &source, &mountedAt)
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && source != "connector_reconciled") {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		unmountedAt := observedAt.UTC()
+		if unmountedAt.IsZero() {
+			unmountedAt = time.Now().UTC()
+		}
+		if !unmountedAt.After(mountedAt) {
+			unmountedAt = mountedAt.Add(time.Microsecond)
+		}
+		if _, err = tx.Exec(ctx, `UPDATE printer_spool_assignments SET unmounted_at=$2 WHERE id=$1 AND unmounted_at IS NULL`, mountID, unmountedAt); err != nil {
+			return err
+		}
+		return audit.Write(ctx, tx, audit.Event{ActorType: "system", Source: "system", Action: "printer_slot.spool_auto_unmounted", ResourceType: "printer_slot", ResourceID: &slotID, ChangedFields: []string{"assignment", "spoolId"}, Metadata: map[string]any{"connectorId": connectorID.String(), "assignmentId": assignmentID.String(), "eventId": eventID.String()}})
+	}
+	if value.TagUID == "" {
+		return nil
+	}
+
+	var spoolID uuid.UUID
+	if err := tx.QueryRow(ctx, `SELECT s.id
+		FROM filament_spool_identifiers i
+		JOIN filament_spools s ON s.id=i.spool_id
+		JOIN filament_spool_fills f ON f.id=i.fill_id AND f.spool_id=s.id
+		WHERE i.kind='nfc' AND lower(i.value)=lower($1) AND i.retired_at IS NULL
+		  AND f.closed_at IS NULL AND s.lifecycle='active'
+		FOR UPDATE OF s`, value.TagUID).Scan(&spoolID); errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	var remaining pgtype.Numeric
+	if err := tx.QueryRow(ctx, `SELECT COALESCE(sum(CASE WHEN t.kind='spool_transfer' THEN CASE WHEN t.to_fill_id=f.id THEN t.transfer_quantity ELSE -t.transfer_quantity END ELSE t.quantity_delta END), 0)
+		FROM filament_spool_fills f JOIN inventory_transactions t ON t.fill_id=f.id OR t.from_fill_id=f.id OR t.to_fill_id=f.id
+		WHERE f.spool_id=$1 AND f.closed_at IS NULL`, spoolID).Scan(&remaining); err != nil {
+		return err
+	}
+	if !remaining.Valid || !decimal.NewFromBigInt(remaining.Int, remaining.Exp).IsPositive() {
+		return nil
+	}
+
+	type openMount struct {
+		ID, SlotID, SpoolID uuid.UUID
+		Source              string
+		MountedAt           time.Time
+	}
+	readMount := func(query string, id uuid.UUID) (*openMount, error) {
+		var mount openMount
+		err := tx.QueryRow(ctx, query, id).Scan(&mount.ID, &mount.SlotID, &mount.SpoolID, &mount.Source, &mount.MountedAt)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return &mount, err
+	}
+	slotMount, err := readMount(`SELECT id,slot_id,spool_id,source,mounted_at FROM printer_spool_assignments WHERE slot_id=$1 AND unmounted_at IS NULL FOR UPDATE`, slotID)
+	if err != nil {
+		return err
+	}
+	if slotMount != nil && slotMount.SpoolID == spoolID {
+		return nil
+	}
+	spoolMount, err := readMount(`SELECT id,slot_id,spool_id,source,mounted_at FROM printer_spool_assignments WHERE spool_id=$1 AND unmounted_at IS NULL FOR UPDATE`, spoolID)
+	if err != nil {
+		return err
+	}
+	if (slotMount != nil && slotMount.Source != "connector_reconciled") || (spoolMount != nil && spoolMount.Source != "connector_reconciled") {
+		return nil
+	}
+
+	mountedAt := observedAt.UTC()
+	if mountedAt.IsZero() {
+		mountedAt = time.Now().UTC()
+	}
+	// Delayed telemetry must not create an assignment that overlaps the
+	// histories it replaces. Advance the new mount just past any newer open
+	// connector-derived mount before closing those histories.
+	for _, mount := range []*openMount{slotMount, spoolMount} {
+		if mount != nil && !mountedAt.After(mount.MountedAt) {
+			mountedAt = mount.MountedAt.Add(time.Microsecond)
+		}
+	}
+	closeMount := func(mount *openMount) error {
+		if mount == nil {
+			return nil
+		}
+		_, err := tx.Exec(ctx, `UPDATE printer_spool_assignments SET unmounted_at=$2 WHERE id=$1 AND unmounted_at IS NULL`, mount.ID, mountedAt)
+		return err
+	}
+	if err = closeMount(slotMount); err != nil {
+		return err
+	}
+	if spoolMount != nil && (slotMount == nil || spoolMount.ID != slotMount.ID) {
+		if err = closeMount(spoolMount); err != nil {
+			return err
+		}
+	}
+	if _, err = tx.Exec(ctx, `INSERT INTO printer_spool_assignments (id,slot_id,spool_id,mounted_at,source,source_event_id) VALUES ($1,$2,$3,$4,'connector_reconciled',$5)`, uuid.Must(uuid.NewV7()), slotID, spoolID, mountedAt, eventID); err != nil {
+		return err
+	}
+	return audit.Write(ctx, tx, audit.Event{ActorType: "system", Source: "system", Action: "printer_slot.spool_auto_mounted", ResourceType: "printer_slot", ResourceID: &slotID, ChangedFields: []string{"assignment", "spoolId"}, Metadata: map[string]any{"connectorId": connectorID.String(), "assignmentId": assignmentID.String(), "eventId": eventID.String()}})
+}
 
 func formatRunDisplayID(sequence int64, observedAt time.Time) string {
 	return fmt.Sprintf("R-%04d-%06d", observedAt.UTC().Year(), sequence)
@@ -154,6 +305,9 @@ func applyReportedUsage(ctx context.Context, q *db.Queries, run db.MachineRun, e
 	if reportRevision == nil {
 		return nil
 	}
+	if rawItems, ok := values["items"].([]any); ok {
+		return applyReportedUsageItems(ctx, q, run, eventID, rawItems, at, *reportRevision)
+	}
 	grams, _ := payloadString(values, "quantityGrams")
 	quantity, err := decimal.NewFromString(strings.TrimSpace(grams))
 	if err != nil {
@@ -168,30 +322,145 @@ func applyReportedUsage(ctx context.Context, q *db.Queries, run db.MachineRun, e
 	if err != nil {
 		return err
 	}
+	if err = q.InsertReportedUsageItem(ctx, db.InsertReportedUsageItemParams{ID: uuid.Must(uuid.NewV7()), RunID: run.ID, SourcePrinterEventID: eventID, ReportRevision: *reportRevision, LineNumber: 0, EstimatedQuantityG: pgNumeric(quantity), SpoolID: spoolID, Method: "legacy_report", CalculationVersion: "legacy-v1", Quality: "low"}); err != nil {
+		return err
+	}
 	_, err = q.SetObservedRunReport(ctx, db.SetObservedRunReportParams{ID: run.ID, QuantityG: pgtype.Numeric{Int: quantity.Coefficient(), Exp: quantity.Exponent(), Valid: true}, QuantityBasis: &basis, SpoolID: spoolID, EventID: &eventID, ReportRevision: *reportRevision})
 	return err
 }
 
-// resolveReportedSpool maps a consumption report to the spool that fed it: the
-// spool open in the reported slot at the time of the report, otherwise the
-// machine's only mounted spool. Anything ambiguous stays unresolved so staff
-// choose the spool themselves.
+func applyReportedUsageItems(ctx context.Context, q *db.Queries, run db.MachineRun, eventID uuid.UUID, rawItems []any, at time.Time, revision int64) error {
+	if len(rawItems) == 0 || len(rawItems) > 100 {
+		return nil
+	}
+	valid := 0
+	var onlyQuantity decimal.Decimal
+	var onlySpool *uuid.UUID
+	for index, raw := range rawItems {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		method, _ := payloadString(item, "method")
+		calculationVersion, _ := payloadString(item, "calculationVersion")
+		quality, _ := payloadString(item, "quality")
+		if strings.TrimSpace(method) == "" || utf8.RuneCountInString(method) > 80 || strings.TrimSpace(calculationVersion) == "" || utf8.RuneCountInString(calculationVersion) > 80 || (quality != "high" && quality != "medium" && quality != "low" && quality != "unresolved") {
+			continue
+		}
+		estimated, estimatedOK := optionalReportedDecimal(item, "estimatedQuantityGrams")
+		planned, plannedOK := optionalReportedDecimal(item, "plannedQuantityGrams")
+		length, lengthOK := optionalReportedDecimal(item, "plannedLengthMillimeters")
+		if !estimatedOK || !plannedOK || !lengthOK {
+			continue
+		}
+		spoolID, err := resolveReportedSpool(ctx, q, run.MachineID, item, at)
+		if err != nil {
+			return err
+		}
+		materialID := optionalUUID(item, "materialId")
+		var extruder *int32
+		if value, ok := item["extruder"].(float64); ok && value >= 0 && value == math.Trunc(value) && value <= math.MaxInt32 {
+			converted := int32(value)
+			extruder = &converted
+		}
+		slicerID := boundedPayloadString(item, "slicerFilamentId", 120)
+		inputUnit := boundedPayloadString(item, "inputUnitExternalId", 200)
+		slot := boundedPayloadString(item, "slotExternalId", 200)
+		if err = q.InsertReportedUsageItem(ctx, db.InsertReportedUsageItemParams{ID: uuid.Must(uuid.NewV7()), RunID: run.ID, SourcePrinterEventID: eventID, ReportRevision: revision, LineNumber: int32(index), SlicerFilamentID: slicerID, Extruder: extruder, InputUnitExternalID: inputUnit, SlotExternalID: slot, PlannedQuantityG: pgNumericOptional(planned), PlannedLengthMm: pgNumericOptional(length), EstimatedQuantityG: pgNumericOptional(estimated), MaterialID: materialID, SpoolID: spoolID, Method: method, CalculationVersion: calculationVersion, Quality: quality}); err != nil {
+			return err
+		}
+		valid++
+		if estimated != nil {
+			onlyQuantity = *estimated
+		}
+		onlySpool = spoolID
+	}
+	if valid == 1 && onlyQuantity.IsPositive() {
+		basis := "estimated"
+		_, err := q.SetObservedRunReport(ctx, db.SetObservedRunReportParams{ID: run.ID, QuantityG: pgNumeric(onlyQuantity), QuantityBasis: &basis, SpoolID: onlySpool, EventID: &eventID, ReportRevision: revision})
+		return err
+	}
+	return nil
+}
+
+func optionalReportedDecimal(values map[string]any, key string) (*decimal.Decimal, bool) {
+	value, exists := values[key]
+	if !exists || value == nil {
+		return nil, true
+	}
+	text, ok := value.(string)
+	if !ok {
+		return nil, false
+	}
+	parsed, err := decimal.NewFromString(strings.TrimSpace(text))
+	if err != nil || parsed.IsNegative() || !parsed.LessThan(maxReportedGrams) {
+		return nil, false
+	}
+	parsed = parsed.Round(6)
+	return &parsed, true
+}
+
+func optionalUUID(values map[string]any, key string) *uuid.UUID {
+	text, ok := payloadString(values, key)
+	if !ok {
+		return nil
+	}
+	value, err := uuid.Parse(text)
+	if err != nil || value.Version() != 7 {
+		return nil
+	}
+	return &value
+}
+
+func boundedPayloadString(values map[string]any, key string, max int) *string {
+	value, ok := payloadString(values, key)
+	value = strings.TrimSpace(value)
+	if !ok || value == "" || utf8.RuneCountInString(value) > max {
+		return nil
+	}
+	return &value
+}
+
+func pgNumeric(value decimal.Decimal) pgtype.Numeric {
+	return pgtype.Numeric{Int: value.Coefficient(), Exp: value.Exponent(), Valid: true}
+}
+
+func pgNumericOptional(value *decimal.Decimal) pgtype.Numeric {
+	if value == nil {
+		return pgtype.Numeric{}
+	}
+	return pgNumeric(*value)
+}
+
+// resolveReportedSpool uses only authoritative historical slot assignments and
+// exact historical NFC identifiers. A disagreement or ambiguity is unresolved.
 func resolveReportedSpool(ctx context.Context, q *db.Queries, machineID uuid.UUID, values map[string]any, at time.Time) (*uuid.UUID, error) {
-	if slot, ok := payloadString(values, "slotExternalId"); ok && slot != "" && utf8.RuneCountInString(slot) <= 200 {
-		ids, err := q.ListSlotSpoolsAt(ctx, db.ListSlotSpoolsAtParams{MachineID: machineID, SlotExternalID: &slot, At: at})
+	var slotSpool, tagSpool *uuid.UUID
+	unit, unitOK := payloadString(values, "inputUnitExternalId")
+	slot, slotOK := payloadString(values, "slotExternalId")
+	if unitOK && slotOK && unit != "" && slot != "" && utf8.RuneCountInString(unit) <= 200 && utf8.RuneCountInString(slot) <= 200 {
+		ids, err := q.ListSlotSpoolsAt(ctx, db.ListSlotSpoolsAtParams{MachineID: machineID, SlotExternalID: &slot, InputUnitExternalID: &unit, At: at})
 		if err != nil {
 			return nil, err
 		}
 		if len(ids) == 1 {
-			return &ids[0], nil
+			slotSpool = &ids[0]
 		}
 	}
-	ids, err := q.ListOpenMachineSpools(ctx, machineID)
-	if err != nil {
-		return nil, err
+	if tag, ok := payloadString(values, "tagUid"); ok && tag != "" && utf8.RuneCountInString(tag) <= 255 {
+		ids, err := q.ListNFCSpoolsAt(ctx, db.ListNFCSpoolsAtParams{TagUid: tag, At: at})
+		if err != nil {
+			return nil, err
+		}
+		if len(ids) == 1 {
+			tagSpool = &ids[0]
+		}
 	}
-	if len(ids) == 1 {
-		return &ids[0], nil
+	if slotSpool != nil && tagSpool != nil && *slotSpool != *tagSpool {
+		return nil, nil
 	}
-	return nil, nil
+	if slotSpool != nil {
+		return slotSpool, nil
+	}
+	return tagSpool, nil
 }

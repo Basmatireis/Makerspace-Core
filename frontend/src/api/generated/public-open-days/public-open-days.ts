@@ -30,19 +30,19 @@ import { apiFetch } from '../../http-client';
 export const getListPublicOpenDaysUrl = () => {
 
 
-  
+
 
   return `/api/v1/public/open-days`
 }
 
 export const listPublicOpenDays = async ( options?: RequestInit): Promise<PublicOpenDayList> => {
-  
+
   return apiFetch<PublicOpenDayList>(getListPublicOpenDaysUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -53,19 +53,19 @@ export const listPublicOpenDays = async ( options?: RequestInit): Promise<Public
 export const getGetPublicOpenDaysCalendarUrl = () => {
 
 
-  
+
 
   return `/api/v1/public/open-days/calendar.ics`
 }
 
 export const getPublicOpenDaysCalendar = async ( options?: RequestInit): Promise<string> => {
-  
+
   return apiFetch<string>(getGetPublicOpenDaysCalendarUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 

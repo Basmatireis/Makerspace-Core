@@ -12,7 +12,7 @@ import { PermissionId } from '../auth/permissions';
 import { AttachToJobModal } from './dialogs/AttachToJobModal';
 import { JobFormModal } from './dialogs/JobFormModal';
 import { saveError } from './dialogs/jobFormHelpers';
-import { jobQuery, machineLogbookKeys, runQuery } from './queries';
+import { artifactQuery, jobQuery, machineLogbookKeys, runQuery } from './queries';
 import { formatDateTime, formatDuration, formatQuantity, formatTime } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
@@ -34,6 +34,8 @@ function eventSummary(event: MachineRunEvent) {
     case 'slot_observation': return 'Material slot observed';
     case 'consumption_report': return event.quantity != null ? `Consumption reported: ${formatQuantity(event.quantity)} g` : 'Consumption reported';
     case 'terminal_outcome': return event.state ? `Outcome: ${words(event.state)}` : 'Outcome reported';
+    case 'printer_error': return 'Printer error changed';
+    case 'filament_change': return 'Filament changed';
   }
 }
 
@@ -45,6 +47,7 @@ export function RunDetailPage() {
   const notify = useNotify();
   const query = useQuery(runQuery(runId));
   const run = query.data;
+  const artifact = useQuery({ ...artifactQuery(run?.artifact?.id ?? ''), enabled: Boolean(run?.artifact?.id) && can(PermissionId.print_artifactsread) });
   const [dialog, setDialog] = useState<'create' | 'attach' | 'detach' | null>(null);
   const close = () => setDialog(null);
 
@@ -71,6 +74,10 @@ export function RunDetailPage() {
   const live = run !== undefined && isRunLive(run, now);
   const state = run ? runStateNow(run, now) : undefined;
   const end = run ? runEnd(run) : null;
+  const progress = run ? runProgress(run, now) : 0;
+  const plannedFilaments = artifact.data?.filaments.filter((filament) => filament.plannedWeightGrams != null && Number(filament.plannedWeightGrams) >= 0) ?? [];
+  const plannedGrams = plannedFilaments.reduce((total, filament) => total + Number(filament.plannedWeightGrams), 0);
+  const approximateUsedGrams = plannedGrams * progress / 100;
   const title = run ? runName(run) : 'Run';
   const onlyRun = job !== undefined && job.runs.filter((item) => item.state !== 'replaced').length === 1;
 
@@ -114,9 +121,32 @@ export function RunDetailPage() {
             {live && (
               <Tile>
                 <ProgressBar
-                  label="Run progress" value={runProgress(run, now)} max={100}
-                  helperText={`${runProgress(run, now)} %${end ? ` · ends ~${formatTime(end)}` : ''}`}
+                  label="Run progress" value={progress} max={100}
+                  helperText={`${progress} %${end ? ` · ends ~${formatTime(end)}` : ''}`}
                 />
+              </Tile>
+            )}
+            {live && run.source === 'recorded' && can(PermissionId.print_artifactsread) && (
+              <Tile>
+                <h2 className="mj-section-title">Filament estimate</h2>
+                {!run.artifact && <p className="mj-secondary">Waiting for the printer’s 3MF file. The estimate appears after the connector retrieves and parses it.</p>}
+                {run.artifact && artifact.isPending && <p className="mj-secondary">Reading the filament plan…</p>}
+                {artifact.isError && <InlineNotification kind="warning" lowContrast hideCloseButton title="Filament plan unavailable" subtitle="The run continues normally. Check the connector’s FTPS diagnostics." />}
+                {artifact.isSuccess && plannedGrams <= 0 && <p className="mj-secondary">The 3MF does not contain a defensible planned filament weight.</p>}
+                {artifact.isSuccess && plannedGrams > 0 && (
+                  <>
+                    <ProgressBar
+                      label="Approximate filament used" value={approximateUsedGrams} max={plannedGrams}
+                      helperText={`~${formatQuantity(approximateUsedGrams)} g / ${formatQuantity(plannedGrams)} g planned · based on ${progress} % print progress`}
+                    />
+                    {plannedFilaments.length > 1 && (
+                      <ul>
+                        {plannedFilaments.map((filament) => <li key={filament.filamentKey}>{[filament.filamentType, filament.color].filter(Boolean).join(' · ') || `Filament ${filament.filamentKey}`}: {formatQuantity(filament.plannedWeightGrams!)} g planned</li>)}
+                      </ul>
+                    )}
+                    <p className="mj-secondary">This is a display-only approximation. Inventory is updated only after the run ends and the final report is accepted.</p>
+                  </>
+                )}
               </Tile>
             )}
             {jobRef && (

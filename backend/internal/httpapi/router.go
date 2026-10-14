@@ -385,6 +385,8 @@ func maxBodyMiddleware(next http.Handler) http.Handler {
 			limit := int64(maxJSONRequestBodyBytes)
 			if r.URL.Path == apiBasePath+"/printer-connector/self/events" {
 				limit = 512 << 10
+			} else if r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, apiBasePath+"/printer-connector/self/assignments/") && strings.HasSuffix(r.URL.Path, "/artifact") {
+				limit = (512 << 20) + 1
 			} else if strings.HasSuffix(r.URL.Path, "/profile-image") {
 				limit = maxImageRequestBodyBytes
 			} else if strings.HasPrefix(r.URL.Path, apiBasePath+"/branding/assets/") {

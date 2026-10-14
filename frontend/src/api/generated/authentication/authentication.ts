@@ -46,15 +46,15 @@ whether the email exists.
 export const getLoginUrl = () => {
 
 
-  
+
 
   return `/api/v1/auth/login`
 }
 
 export const login = async (loginRequest: LoginRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getLoginUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -70,15 +70,15 @@ export const login = async (loginRequest: LoginRequest, options?: RequestInit): 
 export const getLoginWithPinUrl = () => {
 
 
-  
+
 
   return `/api/v1/auth/pin/login`
 }
 
 export const loginWithPin = async (pinLoginRequest: PinLoginRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getLoginWithPinUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -94,15 +94,15 @@ export const loginWithPin = async (pinLoginRequest: PinLoginRequest, options?: R
 export const getEnrollOwnPinUrl = () => {
 
 
-  
+
 
   return `/api/v1/auth/methods/pin`
 }
 
 export const enrollOwnPin = async (enrollPinRequest: EnrollPinRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getEnrollOwnPinUrl(),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -118,15 +118,15 @@ export const enrollOwnPin = async (enrollPinRequest: EnrollPinRequest, options?:
 export const getCompletePinEnrollmentUrl = () => {
 
 
-  
+
 
   return `/api/v1/auth/pin/enrollment/complete`
 }
 
 export const completePinEnrollment = async (completePinEnrollmentRequest: CompletePinEnrollmentRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getCompletePinEnrollmentUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -142,19 +142,19 @@ export const completePinEnrollment = async (completePinEnrollmentRequest: Comple
 export const getRemoveOwnPinUrl = () => {
 
 
-  
+
 
   return `/api/v1/auth/pin/enrollment/complete`
 }
 
 export const removeOwnPin = async ( options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getRemoveOwnPinUrl(),
-  {      
+  {
     ...options,
     method: 'DELETE'
-    
-    
+
+
   }
 );}
 
@@ -165,19 +165,19 @@ export const removeOwnPin = async ( options?: RequestInit): Promise<void> => {
 export const getLogoutUrl = () => {
 
 
-  
+
 
   return `/api/v1/auth/logout`
 }
 
 export const logout = async ( options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getLogoutUrl(),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
 
@@ -189,19 +189,19 @@ export const logout = async ( options?: RequestInit): Promise<void> => {
 export const getGetCurrentUserUrl = () => {
 
 
-  
+
 
   return `/api/v1/auth/me`
 }
 
 export const getCurrentUser = async ( options?: RequestInit): Promise<CurrentUser> => {
-  
+
   return apiFetch<CurrentUser>(getGetCurrentUserUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -213,15 +213,15 @@ export const getCurrentUser = async ( options?: RequestInit): Promise<CurrentUse
 export const getChangeOwnPasswordUrl = () => {
 
 
-  
+
 
   return `/api/v1/auth/password`
 }
 
 export const changeOwnPassword = async (changeOwnPasswordRequest: ChangeOwnPasswordRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getChangeOwnPasswordUrl(),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -237,15 +237,15 @@ export const changeOwnPassword = async (changeOwnPasswordRequest: ChangeOwnPassw
 export const getRemoveOwnPasswordUrl = () => {
 
 
-  
+
 
   return `/api/v1/auth/password`
 }
 
 export const removeOwnPassword = async (removeOwnPasswordRequest: RemoveOwnPasswordRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getRemoveOwnPasswordUrl(),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -262,15 +262,15 @@ export const removeOwnPassword = async (removeOwnPasswordRequest: RemoveOwnPassw
 export const getRequestPasswordResetUrl = () => {
 
 
-  
+
 
   return `/api/v1/auth/password-reset/request`
 }
 
 export const requestPasswordReset = async (requestPasswordResetRequest: RequestPasswordResetRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getRequestPasswordResetUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -286,15 +286,15 @@ export const requestPasswordReset = async (requestPasswordResetRequest: RequestP
 export const getCompletePasswordResetCodeUrl = () => {
 
 
-  
+
 
   return `/api/v1/auth/password-reset/complete-code`
 }
 
 export const completePasswordResetCode = async (completePasswordResetCodeRequest: CompletePasswordResetCodeRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getCompletePasswordResetCodeUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -311,15 +311,15 @@ export const completePasswordResetCode = async (completePasswordResetCodeRequest
 export const getCompletePasswordResetUrl = () => {
 
 
-  
+
 
   return `/api/v1/auth/password-reset/complete`
 }
 
 export const completePasswordReset = async (completePasswordResetRequest: CompletePasswordResetRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getCompletePasswordResetUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -335,15 +335,15 @@ export const completePasswordReset = async (completePasswordResetRequest: Comple
 export const getCompleteInvitationUrl = () => {
 
 
-  
+
 
   return `/api/v1/auth/invitations/complete`
 }
 
 export const completeInvitation = async (completeInvitationRequest: CompleteInvitationRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getCompleteInvitationUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -360,19 +360,19 @@ export const completeInvitation = async (completeInvitationRequest: CompleteInvi
 export const getRequestOwnEmailVerificationUrl = () => {
 
 
-  
+
 
   return `/api/v1/auth/email-verification/request`
 }
 
 export const requestOwnEmailVerification = async ( options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getRequestOwnEmailVerificationUrl(),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
 
@@ -383,15 +383,15 @@ export const requestOwnEmailVerification = async ( options?: RequestInit): Promi
 export const getCompleteEmailVerificationUrl = () => {
 
 
-  
+
 
   return `/api/v1/auth/email-verification/complete`
 }
 
 export const completeEmailVerification = async (completeEmailVerificationRequest: CompleteEmailVerificationRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getCompleteEmailVerificationUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -404,19 +404,19 @@ export const completeEmailVerification = async (completeEmailVerificationRequest
 export const getRecordSessionActivityUrl = () => {
 
 
-  
+
 
   return `/api/v1/auth/activity`
 }
 
 export const recordSessionActivity = async ( options?: RequestInit): Promise<SessionContext> => {
-  
+
   return apiFetch<SessionContext>(getRecordSessionActivityUrl(),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
 

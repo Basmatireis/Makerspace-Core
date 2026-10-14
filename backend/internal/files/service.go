@@ -51,6 +51,54 @@ func (s *Service) StoreSystemBytes(ctx context.Context, originalFilename, conten
 	return s.storeBytes(ctx, nil, originalFilename, contentType, data, requestID)
 }
 
+// StoreSystemReaderInTransaction writes a verified private blob and inserts
+// its metadata and audit record into the caller's transaction. The returned
+// cleanup must be called when the outer transaction does not commit. Keeping
+// this boundary explicit lets artifact metadata and the file row commit
+// atomically without teaching the storage backend about PostgreSQL.
+func (s *Service) StoreSystemReaderInTransaction(ctx context.Context, tx pgx.Tx, originalFilename, contentType string, reader io.Reader, expected storage.Metadata, requestID *uuid.UUID) (File, func(), error) {
+	filename := strings.TrimSpace(originalFilename)
+	contentType = strings.TrimSpace(contentType)
+	if filename == "" || len(filename) > 255 || contentType == "" || len(contentType) > 255 || expected.Size < 0 {
+		return File{}, func() {}, apperror.New(422, "file_metadata_invalid", "File name or content type is invalid")
+	}
+	id := uuid.Must(uuid.NewV7())
+	key := strings.ReplaceAll(id.String()[:2]+"/"+id.String(), "..", "")
+	hasher := sha256.New()
+	var read int64
+	verified := io.TeeReader(reader, io.MultiWriter(hasher, countWriter{add: func(n int) { read += int64(n) }}))
+	if err := s.store.Put(ctx, key, verified, expected); err != nil {
+		return File{}, func() {}, err
+	}
+	cleanup := func() { _ = s.store.Delete(context.Background(), key) }
+	var actual [sha256.Size]byte
+	copy(actual[:], hasher.Sum(nil))
+	if read != expected.Size || actual != expected.SHA256 {
+		cleanup()
+		return File{}, func() {}, apperror.New(422, "file_integrity_mismatch", "File size or SHA-256 does not match the declared content")
+	}
+	row, err := filesdb.New(tx).CreateFile(ctx, filesdb.CreateFileParams{
+		ID: id, StorageKey: key, OriginalFilename: filename, ContentType: contentType,
+		SizeBytes: expected.Size, Sha256: expected.SHA256[:], CreatedByAccountID: nil,
+	})
+	if err != nil {
+		cleanup()
+		return File{}, func() {}, err
+	}
+	if err := audit.Write(ctx, tx, audit.Event{Action: "file.created", ResourceType: "file", ResourceID: &id, RequestID: requestID, ActorType: "system"}); err != nil {
+		cleanup()
+		return File{}, func() {}, err
+	}
+	return fromRow(row), cleanup, nil
+}
+
+type countWriter struct{ add func(int) }
+
+func (w countWriter) Write(p []byte) (int, error) {
+	w.add(len(p))
+	return len(p), nil
+}
+
 func (s *Service) storeBytes(ctx context.Context, actor *uuid.UUID, originalFilename, contentType string, data []byte, requestID *uuid.UUID) (File, error) {
 	filename := strings.TrimSpace(originalFilename)
 	contentType = strings.TrimSpace(contentType)

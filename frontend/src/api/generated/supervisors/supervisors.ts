@@ -30,19 +30,19 @@ import { apiFetch } from '../../http-client';
 export const getGetSupervisorDashboardUrl = () => {
 
 
-  
+
 
   return `/api/v1/supervisor-dashboard`
 }
 
 export const getSupervisorDashboard = async ( options?: RequestInit): Promise<SupervisorDashboard> => {
-  
+
   return apiFetch<SupervisorDashboard>(getGetSupervisorDashboardUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 

@@ -205,3 +205,5 @@ jobs:
         uses: actions/checkout@v7
       - name: Test standalone production deployment
         run: make test-production-compose
+      - name: Test printer connector deployment bundle
+        run: make test-printer-connector-compose

@@ -38,19 +38,19 @@ import { apiFetch } from '../../http-client';
 export const getListOIDCLoginProvidersUrl = () => {
 
 
-  
+
 
   return `/api/v1/auth/oidc/providers`
 }
 
 export const listOIDCLoginProviders = async ( options?: RequestInit): Promise<OIDCLoginProviderList> => {
-  
+
   return apiFetch<OIDCLoginProviderList>(getListOIDCLoginProvidersUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -61,19 +61,19 @@ export const listOIDCLoginProviders = async ( options?: RequestInit): Promise<OI
 export const getListOIDCProvidersUrl = () => {
 
 
-  
+
 
   return `/api/v1/oidc/providers`
 }
 
 export const listOIDCProviders = async ( options?: RequestInit): Promise<OIDCProviderList> => {
-  
+
   return apiFetch<OIDCProviderList>(getListOIDCProvidersUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -84,15 +84,15 @@ export const listOIDCProviders = async ( options?: RequestInit): Promise<OIDCPro
 export const getCreateOIDCProviderUrl = () => {
 
 
-  
+
 
   return `/api/v1/oidc/providers`
 }
 
 export const createOIDCProvider = async (createOIDCProviderRequest: CreateOIDCProviderRequest, options?: RequestInit): Promise<OIDCProvider> => {
-  
+
   return apiFetch<OIDCProvider>(getCreateOIDCProviderUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -108,16 +108,16 @@ export const createOIDCProvider = async (createOIDCProviderRequest: CreateOIDCPr
 export const getUpdateOIDCProviderUrl = (oidcProviderId: string,) => {
 
 
-  
+
 
   return `/api/v1/oidc/providers/${oidcProviderId}`
 }
 
 export const updateOIDCProvider = async (oidcProviderId: string,
     updateOIDCProviderRequest: UpdateOIDCProviderRequest, options?: RequestInit): Promise<OIDCProvider> => {
-  
+
   return apiFetch<OIDCProvider>(getUpdateOIDCProviderUrl(oidcProviderId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -133,19 +133,19 @@ export const updateOIDCProvider = async (oidcProviderId: string,
 export const getStartOIDCLoginUrl = (providerSlug: string,) => {
 
 
-  
+
 
   return `/api/v1/auth/oidc/${providerSlug}/start`
 }
 
 export const startOIDCLogin = async (providerSlug: string, options?: RequestInit): Promise<unknown> => {
-  
+
   return apiFetch<unknown>(getStartOIDCLoginUrl(providerSlug),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -157,7 +157,7 @@ export const getCompleteOIDCCallbackUrl = (params: CompleteOIDCCallbackParams,) 
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -169,13 +169,13 @@ export const getCompleteOIDCCallbackUrl = (params: CompleteOIDCCallbackParams,) 
 }
 
 export const completeOIDCCallback = async (params: CompleteOIDCCallbackParams, options?: RequestInit): Promise<unknown> => {
-  
+
   return apiFetch<unknown>(getCompleteOIDCCallbackUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -187,16 +187,16 @@ export const completeOIDCCallback = async (params: CompleteOIDCCallbackParams, o
 export const getStartOIDCLinkUrl = (providerSlug: string,) => {
 
 
-  
+
 
   return `/api/v1/auth/oidc/${providerSlug}/link`
 }
 
 export const startOIDCLink = async (providerSlug: string,
     oIDCLinkRequest: OIDCLinkRequest, options?: RequestInit): Promise<OIDCFlowStart> => {
-  
+
   return apiFetch<OIDCFlowStart>(getStartOIDCLinkUrl(providerSlug),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -213,19 +213,19 @@ export const startOIDCLink = async (providerSlug: string,
 export const getStartOIDCReauthenticationUrl = (providerSlug: string,) => {
 
 
-  
+
 
   return `/api/v1/auth/oidc/${providerSlug}/reauthenticate`
 }
 
 export const startOIDCReauthentication = async (providerSlug: string, options?: RequestInit): Promise<OIDCFlowStart> => {
-  
+
   return apiFetch<OIDCFlowStart>(getStartOIDCReauthenticationUrl(providerSlug),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
 
@@ -236,19 +236,19 @@ export const startOIDCReauthentication = async (providerSlug: string, options?: 
 export const getUnlinkOwnOIDCIdentityUrl = (identityId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/auth/methods/oidc/${identityId}`
 }
 
 export const unlinkOwnOIDCIdentity = async (identityId: UUIDv7, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getUnlinkOwnOIDCIdentityUrl(identityId),
-  {      
+  {
     ...options,
     method: 'DELETE'
-    
-    
+
+
   }
 );}
 

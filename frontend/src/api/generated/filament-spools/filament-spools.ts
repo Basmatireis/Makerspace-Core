@@ -49,16 +49,16 @@ import { apiFetch } from '../../http-client';
 export const getTransferSpoolStockUrl = (materialId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/materials/${materialId}/spool-transfers`
 }
 
 export const transferSpoolStock = async (materialId: UUIDv7,
     transferSpoolStockRequest: TransferSpoolStockRequest, options?: RequestInit): Promise<InventoryTransaction> => {
-  
+
   return apiFetch<InventoryTransaction>(getTransferSpoolStockUrl(materialId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -83,7 +83,7 @@ export const getListFilamentSpoolsUrl = (params?: ListFilamentSpoolsParams,) => 
       });
       return;
     }
-      
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -95,13 +95,13 @@ export const getListFilamentSpoolsUrl = (params?: ListFilamentSpoolsParams,) => 
 }
 
 export const listFilamentSpools = async (params?: ListFilamentSpoolsParams, options?: RequestInit): Promise<FilamentSpoolPage> => {
-  
+
   return apiFetch<FilamentSpoolPage>(getListFilamentSpoolsUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -112,15 +112,15 @@ export const listFilamentSpools = async (params?: ListFilamentSpoolsParams, opti
 export const getCreateFilamentSpoolUrl = () => {
 
 
-  
+
 
   return `/api/v1/filament-spools`
 }
 
 export const createFilamentSpool = async (createFilamentSpoolRequest: CreateFilamentSpoolRequest, options?: RequestInit): Promise<FilamentSpool> => {
-  
+
   return apiFetch<FilamentSpool>(getCreateFilamentSpoolUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -134,7 +134,7 @@ export const getLookupFilamentSpoolUrl = (params: LookupFilamentSpoolParams,) =>
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -146,13 +146,13 @@ export const getLookupFilamentSpoolUrl = (params: LookupFilamentSpoolParams,) =>
 }
 
 export const lookupFilamentSpool = async (params: LookupFilamentSpoolParams, options?: RequestInit): Promise<FilamentSpool> => {
-  
+
   return apiFetch<FilamentSpool>(getLookupFilamentSpoolUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -160,19 +160,19 @@ export const lookupFilamentSpool = async (params: LookupFilamentSpoolParams, opt
 export const getGetFilamentSpoolUrl = (spoolId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/filament-spools/${spoolId}`
 }
 
 export const getFilamentSpool = async (spoolId: UUIDv7, options?: RequestInit): Promise<FilamentSpool> => {
-  
+
   return apiFetch<FilamentSpool>(getGetFilamentSpoolUrl(spoolId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -180,16 +180,16 @@ export const getFilamentSpool = async (spoolId: UUIDv7, options?: RequestInit): 
 export const getUpdateFilamentSpoolUrl = (spoolId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/filament-spools/${spoolId}`
 }
 
 export const updateFilamentSpool = async (spoolId: UUIDv7,
     updateFilamentSpoolRequest: UpdateFilamentSpoolRequest, options?: RequestInit): Promise<FilamentSpool> => {
-  
+
   return apiFetch<FilamentSpool>(getUpdateFilamentSpoolUrl(spoolId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -202,16 +202,16 @@ export const updateFilamentSpool = async (spoolId: UUIDv7,
 export const getAddFilamentSpoolIdentifierUrl = (spoolId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/filament-spools/${spoolId}/identifiers`
 }
 
 export const addFilamentSpoolIdentifier = async (spoolId: UUIDv7,
     addFilamentSpoolIdentifierRequest: AddFilamentSpoolIdentifierRequest, options?: RequestInit): Promise<FilamentSpoolIdentifier> => {
-  
+
   return apiFetch<FilamentSpoolIdentifier>(getAddFilamentSpoolIdentifierUrl(spoolId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -225,20 +225,20 @@ export const getDeleteFilamentSpoolIdentifierUrl = (spoolId: UUIDv7,
     identifierId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/filament-spools/${spoolId}/identifiers/${identifierId}`
 }
 
 export const deleteFilamentSpoolIdentifier = async (spoolId: UUIDv7,
     identifierId: UUIDv7, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getDeleteFilamentSpoolIdentifierUrl(spoolId,identifierId),
-  {      
+  {
     ...options,
     method: 'DELETE'
-    
-    
+
+
   }
 );}
 
@@ -248,7 +248,7 @@ export const getListFilamentSpoolTransactionsUrl = (spoolId: UUIDv7,
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -261,13 +261,13 @@ export const getListFilamentSpoolTransactionsUrl = (spoolId: UUIDv7,
 
 export const listFilamentSpoolTransactions = async (spoolId: UUIDv7,
     params?: ListFilamentSpoolTransactionsParams, options?: RequestInit): Promise<InventoryTransactionPage> => {
-  
+
   return apiFetch<InventoryTransactionPage>(getListFilamentSpoolTransactionsUrl(spoolId,params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -275,16 +275,16 @@ export const listFilamentSpoolTransactions = async (spoolId: UUIDv7,
 export const getConsumeFilamentSpoolUrl = (spoolId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/filament-spools/${spoolId}/consumptions`
 }
 
 export const consumeFilamentSpool = async (spoolId: UUIDv7,
     spoolInventoryCommand: SpoolInventoryCommand, options?: RequestInit): Promise<InventoryMutationResult> => {
-  
+
   return apiFetch<InventoryMutationResult>(getConsumeFilamentSpoolUrl(spoolId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -297,16 +297,16 @@ export const consumeFilamentSpool = async (spoolId: UUIDv7,
 export const getCorrectFilamentSpoolStockUrl = (spoolId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/filament-spools/${spoolId}/corrections`
 }
 
 export const correctFilamentSpoolStock = async (spoolId: UUIDv7,
     correctSpoolStockRequest: CorrectSpoolStockRequest, options?: RequestInit): Promise<InventoryMutationResult> => {
-  
+
   return apiFetch<InventoryMutationResult>(getCorrectFilamentSpoolStockUrl(spoolId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -323,16 +323,16 @@ export const correctFilamentSpoolStock = async (spoolId: UUIDv7,
 export const getChangeFilamentSpoolFillUrl = (spoolId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/filament-spools/${spoolId}/fills`
 }
 
 export const changeFilamentSpoolFill = async (spoolId: UUIDv7,
     changeFilamentSpoolFillRequest: ChangeFilamentSpoolFillRequest, options?: RequestInit): Promise<FilamentSpool> => {
-  
+
   return apiFetch<FilamentSpool>(getChangeFilamentSpoolFillUrl(spoolId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -348,16 +348,16 @@ export const changeFilamentSpoolFill = async (spoolId: UUIDv7,
 export const getFinishFilamentSpoolUrl = (spoolId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/filament-spools/${spoolId}/finish`
 }
 
 export const finishFilamentSpool = async (spoolId: UUIDv7,
     finishFilamentSpoolRequest: FinishFilamentSpoolRequest, options?: RequestInit): Promise<FilamentSpool> => {
-  
+
   return apiFetch<FilamentSpool>(getFinishFilamentSpoolUrl(spoolId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -374,15 +374,15 @@ export const finishFilamentSpool = async (spoolId: UUIDv7,
 export const getCleanUpArchivedFilamentSpoolsUrl = () => {
 
 
-  
+
 
   return `/api/v1/filament-spools/cleanup`
 }
 
 export const cleanUpArchivedFilamentSpools = async (cleanUpFilamentSpoolsRequest: CleanUpFilamentSpoolsRequest, options?: RequestInit): Promise<CleanUpFilamentSpoolsResult> => {
-  
+
   return apiFetch<CleanUpFilamentSpoolsResult>(getCleanUpArchivedFilamentSpoolsUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

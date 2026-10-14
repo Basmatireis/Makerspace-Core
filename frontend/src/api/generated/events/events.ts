@@ -62,19 +62,19 @@ import { apiFetch } from '../../http-client';
 export const getListEventsUrl = () => {
 
 
-  
+
 
   return `/api/v1/events`
 }
 
 export const listEvents = async ( options?: RequestInit): Promise<EventList> => {
-  
+
   return apiFetch<EventList>(getListEventsUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -82,15 +82,15 @@ export const listEvents = async ( options?: RequestInit): Promise<EventList> => 
 export const getCreateEventUrl = () => {
 
 
-  
+
 
   return `/api/v1/events`
 }
 
 export const createEvent = async (createEventRequest: CreateEventRequest, options?: RequestInit): Promise<Event> => {
-  
+
   return apiFetch<Event>(getCreateEventUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -103,19 +103,19 @@ export const createEvent = async (createEventRequest: CreateEventRequest, option
 export const getGetEventUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}`
 }
 
 export const getEvent = async (eventId: string, options?: RequestInit): Promise<Event> => {
-  
+
   return apiFetch<Event>(getGetEventUrl(eventId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -123,16 +123,16 @@ export const getEvent = async (eventId: string, options?: RequestInit): Promise<
 export const getUpdateEventUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}`
 }
 
 export const updateEvent = async (eventId: string,
     updateEventRequest: UpdateEventRequest, options?: RequestInit): Promise<Event> => {
-  
+
   return apiFetch<Event>(getUpdateEventUrl(eventId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -145,16 +145,16 @@ export const updateEvent = async (eventId: string,
 export const getDeleteEventUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}`
 }
 
 export const deleteEvent = async (eventId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getDeleteEventUrl(eventId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -167,16 +167,16 @@ export const deleteEvent = async (eventId: string,
 export const getStartEventPlanningUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/start-planning`
 }
 
 export const startEventPlanning = async (eventId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<Event> => {
-  
+
   return apiFetch<Event>(getStartEventPlanningUrl(eventId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -189,16 +189,16 @@ export const startEventPlanning = async (eventId: string,
 export const getReturnEventToDraftUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/return-to-draft`
 }
 
 export const returnEventToDraft = async (eventId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<Event> => {
-  
+
   return apiFetch<Event>(getReturnEventToDraftUrl(eventId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -211,16 +211,16 @@ export const returnEventToDraft = async (eventId: string,
 export const getConfirmEventUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/confirm`
 }
 
 export const confirmEvent = async (eventId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<Event> => {
-  
+
   return apiFetch<Event>(getConfirmEventUrl(eventId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -233,16 +233,16 @@ export const confirmEvent = async (eventId: string,
 export const getReturnEventToPlanningUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/return-to-planning`
 }
 
 export const returnEventToPlanning = async (eventId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<Event> => {
-  
+
   return apiFetch<Event>(getReturnEventToPlanningUrl(eventId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -255,16 +255,16 @@ export const returnEventToPlanning = async (eventId: string,
 export const getCompleteEventUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/complete`
 }
 
 export const completeEvent = async (eventId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<Event> => {
-  
+
   return apiFetch<Event>(getCompleteEventUrl(eventId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -277,16 +277,16 @@ export const completeEvent = async (eventId: string,
 export const getCancelEventUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/cancel`
 }
 
 export const cancelEvent = async (eventId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<Event> => {
-  
+
   return apiFetch<Event>(getCancelEventUrl(eventId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -299,16 +299,16 @@ export const cancelEvent = async (eventId: string,
 export const getArchiveEventUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/archive`
 }
 
 export const archiveEvent = async (eventId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<Event> => {
-  
+
   return apiFetch<Event>(getArchiveEventUrl(eventId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -321,16 +321,16 @@ export const archiveEvent = async (eventId: string,
 export const getPublishEventUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/publish`
 }
 
 export const publishEvent = async (eventId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<Event> => {
-  
+
   return apiFetch<Event>(getPublishEventUrl(eventId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -343,16 +343,16 @@ export const publishEvent = async (eventId: string,
 export const getUnpublishEventUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/unpublish`
 }
 
 export const unpublishEvent = async (eventId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<Event> => {
-  
+
   return apiFetch<Event>(getUnpublishEventUrl(eventId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -365,16 +365,16 @@ export const unpublishEvent = async (eventId: string,
 export const getRotateEventPublicIdUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/rotate-public-id`
 }
 
 export const rotateEventPublicId = async (eventId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<Event> => {
-  
+
   return apiFetch<Event>(getRotateEventPublicIdUrl(eventId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -387,19 +387,19 @@ export const rotateEventPublicId = async (eventId: string,
 export const getListEventSessionsUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/sessions`
 }
 
 export const listEventSessions = async (eventId: string, options?: RequestInit): Promise<EventSessionList> => {
-  
+
   return apiFetch<EventSessionList>(getListEventSessionsUrl(eventId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -407,16 +407,16 @@ export const listEventSessions = async (eventId: string, options?: RequestInit):
 export const getCreateEventSessionUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/sessions`
 }
 
 export const createEventSession = async (eventId: string,
     eventSessionInput: EventSessionInput, options?: RequestInit): Promise<EventSession> => {
-  
+
   return apiFetch<EventSession>(getCreateEventSessionUrl(eventId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -430,7 +430,7 @@ export const getUpdateEventSessionUrl = (eventId: string,
     eventSessionId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/sessions/${eventSessionId}`
 }
@@ -438,9 +438,9 @@ export const getUpdateEventSessionUrl = (eventId: string,
 export const updateEventSession = async (eventId: string,
     eventSessionId: string,
     updateEventSessionRequest: UpdateEventSessionRequest, options?: RequestInit): Promise<EventSession> => {
-  
+
   return apiFetch<EventSession>(getUpdateEventSessionUrl(eventId,eventSessionId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -454,7 +454,7 @@ export const getDeleteEventSessionUrl = (eventId: string,
     eventSessionId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/sessions/${eventSessionId}`
 }
@@ -462,9 +462,9 @@ export const getDeleteEventSessionUrl = (eventId: string,
 export const deleteEventSession = async (eventId: string,
     eventSessionId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getDeleteEventSessionUrl(eventId,eventSessionId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -477,19 +477,19 @@ export const deleteEventSession = async (eventId: string,
 export const getListEventTaskListsUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/task-lists`
 }
 
 export const listEventTaskLists = async (eventId: string, options?: RequestInit): Promise<EventTaskListList> => {
-  
+
   return apiFetch<EventTaskListList>(getListEventTaskListsUrl(eventId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -497,16 +497,16 @@ export const listEventTaskLists = async (eventId: string, options?: RequestInit)
 export const getCreateEventTaskListUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/task-lists`
 }
 
 export const createEventTaskList = async (eventId: string,
     eventTaskListInput: EventTaskListInput, options?: RequestInit): Promise<EventTaskList> => {
-  
+
   return apiFetch<EventTaskList>(getCreateEventTaskListUrl(eventId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -520,7 +520,7 @@ export const getUpdateEventTaskListUrl = (eventId: string,
     eventTaskListId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/task-lists/${eventTaskListId}`
 }
@@ -528,9 +528,9 @@ export const getUpdateEventTaskListUrl = (eventId: string,
 export const updateEventTaskList = async (eventId: string,
     eventTaskListId: string,
     updateEventTaskListRequest: UpdateEventTaskListRequest, options?: RequestInit): Promise<EventTaskList> => {
-  
+
   return apiFetch<EventTaskList>(getUpdateEventTaskListUrl(eventId,eventTaskListId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -544,7 +544,7 @@ export const getDeleteEventTaskListUrl = (eventId: string,
     eventTaskListId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/task-lists/${eventTaskListId}`
 }
@@ -552,9 +552,9 @@ export const getDeleteEventTaskListUrl = (eventId: string,
 export const deleteEventTaskList = async (eventId: string,
     eventTaskListId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getDeleteEventTaskListUrl(eventId,eventTaskListId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -567,19 +567,19 @@ export const deleteEventTaskList = async (eventId: string,
 export const getListEventTasksUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/tasks`
 }
 
 export const listEventTasks = async (eventId: string, options?: RequestInit): Promise<EventTaskCollection> => {
-  
+
   return apiFetch<EventTaskCollection>(getListEventTasksUrl(eventId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -587,16 +587,16 @@ export const listEventTasks = async (eventId: string, options?: RequestInit): Pr
 export const getCreateEventTaskUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/tasks`
 }
 
 export const createEventTask = async (eventId: string,
     eventTaskInput: EventTaskInput, options?: RequestInit): Promise<EventTask> => {
-  
+
   return apiFetch<EventTask>(getCreateEventTaskUrl(eventId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -610,7 +610,7 @@ export const getUpdateEventTaskUrl = (eventId: string,
     eventTaskId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/tasks/${eventTaskId}`
 }
@@ -618,9 +618,9 @@ export const getUpdateEventTaskUrl = (eventId: string,
 export const updateEventTask = async (eventId: string,
     eventTaskId: string,
     updateEventTaskRequest: UpdateEventTaskRequest, options?: RequestInit): Promise<EventTask> => {
-  
+
   return apiFetch<EventTask>(getUpdateEventTaskUrl(eventId,eventTaskId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -634,7 +634,7 @@ export const getDeleteEventTaskUrl = (eventId: string,
     eventTaskId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/tasks/${eventTaskId}`
 }
@@ -642,9 +642,9 @@ export const getDeleteEventTaskUrl = (eventId: string,
 export const deleteEventTask = async (eventId: string,
     eventTaskId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getDeleteEventTaskUrl(eventId,eventTaskId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -657,19 +657,19 @@ export const deleteEventTask = async (eventId: string,
 export const getListEventShiftsUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/shifts`
 }
 
 export const listEventShifts = async (eventId: string, options?: RequestInit): Promise<EventShiftList> => {
-  
+
   return apiFetch<EventShiftList>(getListEventShiftsUrl(eventId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -677,16 +677,16 @@ export const listEventShifts = async (eventId: string, options?: RequestInit): P
 export const getCreateEventShiftUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/shifts`
 }
 
 export const createEventShift = async (eventId: string,
     eventShiftInput: EventShiftInput, options?: RequestInit): Promise<EventShift> => {
-  
+
   return apiFetch<EventShift>(getCreateEventShiftUrl(eventId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -700,7 +700,7 @@ export const getUpdateEventShiftUrl = (eventId: string,
     eventShiftId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/shifts/${eventShiftId}`
 }
@@ -708,9 +708,9 @@ export const getUpdateEventShiftUrl = (eventId: string,
 export const updateEventShift = async (eventId: string,
     eventShiftId: string,
     updateEventShiftRequest: UpdateEventShiftRequest, options?: RequestInit): Promise<EventShift> => {
-  
+
   return apiFetch<EventShift>(getUpdateEventShiftUrl(eventId,eventShiftId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -724,7 +724,7 @@ export const getDeleteEventShiftUrl = (eventId: string,
     eventShiftId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/shifts/${eventShiftId}`
 }
@@ -732,9 +732,9 @@ export const getDeleteEventShiftUrl = (eventId: string,
 export const deleteEventShift = async (eventId: string,
     eventShiftId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getDeleteEventShiftUrl(eventId,eventShiftId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -748,20 +748,20 @@ export const getListEventShiftRequirementsUrl = (eventId: string,
     eventShiftId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/shifts/${eventShiftId}/requirements`
 }
 
 export const listEventShiftRequirements = async (eventId: string,
     eventShiftId: string, options?: RequestInit): Promise<EventRequirementList> => {
-  
+
   return apiFetch<EventRequirementList>(getListEventShiftRequirementsUrl(eventId,eventShiftId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -770,7 +770,7 @@ export const getCreateEventShiftRequirementUrl = (eventId: string,
     eventShiftId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/shifts/${eventShiftId}/requirements`
 }
@@ -778,9 +778,9 @@ export const getCreateEventShiftRequirementUrl = (eventId: string,
 export const createEventShiftRequirement = async (eventId: string,
     eventShiftId: string,
     eventRequirementInput: EventRequirementInput, options?: RequestInit): Promise<EventRequirement> => {
-  
+
   return apiFetch<EventRequirement>(getCreateEventShiftRequirementUrl(eventId,eventShiftId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -795,7 +795,7 @@ export const getUpdateEventShiftRequirementUrl = (eventId: string,
     eventRequirementId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/shifts/${eventShiftId}/requirements/${eventRequirementId}`
 }
@@ -804,9 +804,9 @@ export const updateEventShiftRequirement = async (eventId: string,
     eventShiftId: string,
     eventRequirementId: string,
     updateEventRequirementRequest: UpdateEventRequirementRequest, options?: RequestInit): Promise<EventRequirement> => {
-  
+
   return apiFetch<EventRequirement>(getUpdateEventShiftRequirementUrl(eventId,eventShiftId,eventRequirementId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -821,7 +821,7 @@ export const getDeleteEventShiftRequirementUrl = (eventId: string,
     eventRequirementId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/shifts/${eventShiftId}/requirements/${eventRequirementId}`
 }
@@ -830,9 +830,9 @@ export const deleteEventShiftRequirement = async (eventId: string,
     eventShiftId: string,
     eventRequirementId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getDeleteEventShiftRequirementUrl(eventId,eventShiftId,eventRequirementId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -845,19 +845,19 @@ export const deleteEventShiftRequirement = async (eventId: string,
 export const getListEventAssignmentsUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/assignments`
 }
 
 export const listEventAssignments = async (eventId: string, options?: RequestInit): Promise<EventAssignmentList> => {
-  
+
   return apiFetch<EventAssignmentList>(getListEventAssignmentsUrl(eventId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -865,16 +865,16 @@ export const listEventAssignments = async (eventId: string, options?: RequestIni
 export const getCreateEventAssignmentUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/assignments`
 }
 
 export const createEventAssignment = async (eventId: string,
     eventAssignmentInput: EventAssignmentInput, options?: RequestInit): Promise<EventAssignment> => {
-  
+
   return apiFetch<EventAssignment>(getCreateEventAssignmentUrl(eventId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -888,7 +888,7 @@ export const getMoveEventAssignmentUrl = (eventId: string,
     eventAssignmentId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/assignments/${eventAssignmentId}`
 }
@@ -896,9 +896,9 @@ export const getMoveEventAssignmentUrl = (eventId: string,
 export const moveEventAssignment = async (eventId: string,
     eventAssignmentId: string,
     moveEventAssignmentRequest: MoveEventAssignmentRequest, options?: RequestInit): Promise<EventAssignment> => {
-  
+
   return apiFetch<EventAssignment>(getMoveEventAssignmentUrl(eventId,eventAssignmentId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -912,7 +912,7 @@ export const getCancelEventAssignmentUrl = (eventId: string,
     eventAssignmentId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/assignments/${eventAssignmentId}/cancel`
 }
@@ -920,9 +920,9 @@ export const getCancelEventAssignmentUrl = (eventId: string,
 export const cancelEventAssignment = async (eventId: string,
     eventAssignmentId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<EventAssignment> => {
-  
+
   return apiFetch<EventAssignment>(getCancelEventAssignmentUrl(eventId,eventAssignmentId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -936,20 +936,20 @@ export const getListEventAssignmentPersonMatchesUrl = (eventId: string,
     eventAssignmentId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/assignments/${eventAssignmentId}/person-matches`
 }
 
 export const listEventAssignmentPersonMatches = async (eventId: string,
     eventAssignmentId: string, options?: RequestInit): Promise<EventPersonOptionList> => {
-  
+
   return apiFetch<EventPersonOptionList>(getListEventAssignmentPersonMatchesUrl(eventId,eventAssignmentId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -958,7 +958,7 @@ export const getLinkEventAssignmentPersonUrl = (eventId: string,
     eventAssignmentId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/assignments/${eventAssignmentId}/link-person`
 }
@@ -966,9 +966,9 @@ export const getLinkEventAssignmentPersonUrl = (eventId: string,
 export const linkEventAssignmentPerson = async (eventId: string,
     eventAssignmentId: string,
     linkEventAssignmentPersonRequest: LinkEventAssignmentPersonRequest, options?: RequestInit): Promise<EventAssignment> => {
-  
+
   return apiFetch<EventAssignment>(getLinkEventAssignmentPersonUrl(eventId,eventAssignmentId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -981,19 +981,19 @@ export const linkEventAssignmentPerson = async (eventId: string,
 export const getListEventEligibilityRolesUrl = () => {
 
 
-  
+
 
   return `/api/v1/event-eligibility-roles`
 }
 
 export const listEventEligibilityRoles = async ( options?: RequestInit): Promise<EventRoleList> => {
-  
+
   return apiFetch<EventRoleList>(getListEventEligibilityRolesUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -1002,7 +1002,7 @@ export const getListEventPeopleUrl = (params?: ListEventPeopleParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -1014,13 +1014,13 @@ export const getListEventPeopleUrl = (params?: ListEventPeopleParams,) => {
 }
 
 export const listEventPeople = async (params?: ListEventPeopleParams, options?: RequestInit): Promise<EventPersonOptionList> => {
-  
+
   return apiFetch<EventPersonOptionList>(getListEventPeopleUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -1028,19 +1028,19 @@ export const listEventPeople = async (params?: ListEventPeopleParams, options?: 
 export const getListEventFilesUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/files`
 }
 
 export const listEventFiles = async (eventId: string, options?: RequestInit): Promise<EventFileList> => {
-  
+
   return apiFetch<EventFileList>(getListEventFilesUrl(eventId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -1048,16 +1048,16 @@ export const listEventFiles = async (eventId: string, options?: RequestInit): Pr
 export const getUploadEventFileUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/files`
 }
 
 export const uploadEventFile = async (eventId: string,
     uploadEventFileBody: Blob, options?: RequestInit): Promise<EventFile> => {
-  
+
   return apiFetch<EventFile>(getUploadEventFileUrl(eventId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/octet-stream', ...options?.headers },
@@ -1071,7 +1071,7 @@ export const getUpdateEventFileUrl = (eventId: string,
     eventFileId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/files/${eventFileId}`
 }
@@ -1079,9 +1079,9 @@ export const getUpdateEventFileUrl = (eventId: string,
 export const updateEventFile = async (eventId: string,
     eventFileId: string,
     updateEventFileRequest: UpdateEventFileRequest, options?: RequestInit): Promise<EventFile> => {
-  
+
   return apiFetch<EventFile>(getUpdateEventFileUrl(eventId,eventFileId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -1095,7 +1095,7 @@ export const getRemoveEventFileUrl = (eventId: string,
     eventFileId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/files/${eventFileId}`
 }
@@ -1103,9 +1103,9 @@ export const getRemoveEventFileUrl = (eventId: string,
 export const removeEventFile = async (eventId: string,
     eventFileId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getRemoveEventFileUrl(eventId,eventFileId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -1119,20 +1119,20 @@ export const getDownloadEventFileUrl = (eventId: string,
     eventFileId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/files/${eventFileId}/content`
 }
 
 export const downloadEventFile = async (eventId: string,
     eventFileId: string, options?: RequestInit): Promise<Blob> => {
-  
+
   return apiFetch<Blob>(getDownloadEventFileUrl(eventId,eventFileId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -1140,19 +1140,19 @@ export const downloadEventFile = async (eventId: string,
 export const getGetEventBannerUrl = (eventId: string,) => {
 
 
-  
+
 
   return `/api/v1/events/${eventId}/banner`
 }
 
 export const getEventBanner = async (eventId: string, options?: RequestInit): Promise<Blob> => {
-  
+
   return apiFetch<Blob>(getGetEventBannerUrl(eventId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 

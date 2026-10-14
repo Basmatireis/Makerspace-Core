@@ -327,10 +327,19 @@ func orderedMigrationFiles(t *testing.T) []string {
 		t.Fatal("cannot locate migration test")
 	}
 	paths, err := filepath.Glob(filepath.Join(filepath.Dir(filename), "..", "..", "migrations", "*.sql"))
-	if err != nil || len(paths) != 41 {
-		t.Fatalf("locate 41 migrations: count=%d err=%v", len(paths), err)
+	if err != nil {
+		t.Fatalf("locate migrations through 41: %v", err)
 	}
-	return paths
+	through41 := make([]string, 0, 41)
+	for _, path := range paths {
+		if filepath.Base(path) <= "00041_"+strings.Repeat("z", 200) {
+			through41 = append(through41, path)
+		}
+	}
+	if len(through41) != 41 {
+		t.Fatalf("locate migrations through 41: count=%d", len(through41))
+	}
+	return through41
 }
 
 func applyMigrationFiles(t *testing.T, pool *pgxpool.Pool, paths []string) {

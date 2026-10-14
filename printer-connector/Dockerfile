@@ -9,7 +9,7 @@ FROM dependencies AS build
 
 ARG VERSION=dev
 COPY backend/ ./
-RUN go test ./internal/printerconnector ./cmd/printer-connector \
+RUN go test ./internal/printartifacts/parser ./internal/printerconnector ./cmd/printer-connector \
     && go build -trimpath -ldflags="-s -w -X github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnector.Version=${VERSION}" -o /out/printer-connector ./cmd/printer-connector
 
 FROM alpine:3.24.1 AS final

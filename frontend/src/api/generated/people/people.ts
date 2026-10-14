@@ -48,7 +48,7 @@ export const getListPeopleUrl = (params?: ListPeopleParams,) => {
       });
       return;
     }
-      
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -60,13 +60,13 @@ export const getListPeopleUrl = (params?: ListPeopleParams,) => {
 }
 
 export const listPeople = async (params?: ListPeopleParams, options?: RequestInit): Promise<PersonPage> => {
-  
+
   return apiFetch<PersonPage>(getListPeopleUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -78,15 +78,15 @@ export const listPeople = async (params?: ListPeopleParams, options?: RequestIni
 export const getCreatePersonUrl = () => {
 
 
-  
+
 
   return `/api/v1/people`
 }
 
 export const createPerson = async (createPersonRequest: CreatePersonRequest, options?: RequestInit): Promise<Person> => {
-  
+
   return apiFetch<Person>(getCreatePersonUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -103,19 +103,19 @@ export const createPerson = async (createPersonRequest: CreatePersonRequest, opt
 export const getGetPersonUrl = (personId: string,) => {
 
 
-  
+
 
   return `/api/v1/people/${personId}`
 }
 
 export const getPerson = async (personId: string, options?: RequestInit): Promise<Person> => {
-  
+
   return apiFetch<Person>(getGetPersonUrl(personId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -131,16 +131,16 @@ fields sent as `null` are cleared.
 export const getUpdatePersonUrl = (personId: string,) => {
 
 
-  
+
 
   return `/api/v1/people/${personId}`
 }
 
 export const updatePerson = async (personId: string,
     updatePersonRequest: UpdatePersonRequest, options?: RequestInit): Promise<Person> => {
-  
+
   return apiFetch<Person>(getUpdatePersonUrl(personId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -167,16 +167,16 @@ Other records that still restrict deletion return
 export const getDeletePersonUrl = (personId: string,) => {
 
 
-  
+
 
   return `/api/v1/people/${personId}`
 }
 
 export const deletePerson = async (personId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getDeletePersonUrl(personId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -192,19 +192,19 @@ export const deletePerson = async (personId: string,
 export const getGetPersonProfileImageUrl = (personId: string,) => {
 
 
-  
+
 
   return `/api/v1/people/${personId}/profile-image`
 }
 
 export const getPersonProfileImage = async (personId: string, options?: RequestInit): Promise<Blob> => {
-  
+
   return apiFetch<Blob>(getGetPersonProfileImageUrl(personId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -217,7 +217,7 @@ export const getPutPersonProfileImageUrl = (personId: string,
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -231,9 +231,9 @@ export const getPutPersonProfileImageUrl = (personId: string,
 export const putPersonProfileImage = async (personId: string,
     putPersonProfileImageBody: Blob,
     params: PutPersonProfileImageParams, options?: RequestInit): Promise<ProfileImage> => {
-  
+
   return apiFetch<ProfileImage>(getPutPersonProfileImageUrl(personId,params),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/octet-stream', ...options?.headers },
@@ -249,16 +249,16 @@ export const putPersonProfileImage = async (personId: string,
 export const getDeletePersonProfileImageUrl = (personId: string,) => {
 
 
-  
+
 
   return `/api/v1/people/${personId}/profile-image`
 }
 
 export const deletePersonProfileImage = async (personId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getDeletePersonProfileImageUrl(personId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -279,19 +279,19 @@ permission. Upcoming Open Day assignments are omitted without
 export const getGetPersonMakerspaceStatusUrl = (personId: string,) => {
 
 
-  
+
 
   return `/api/v1/people/${personId}/makerspace-status`
 }
 
 export const getPersonMakerspaceStatus = async (personId: string, options?: RequestInit): Promise<PersonMakerspaceStatus> => {
-  
+
   return apiFetch<PersonMakerspaceStatus>(getGetPersonMakerspaceStatusUrl(personId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -307,7 +307,7 @@ export const getAssignPersonRoleUrl = (personId: string,
     roleId: string,) => {
 
 
-  
+
 
   return `/api/v1/people/${personId}/roles/${roleId}`
 }
@@ -315,9 +315,9 @@ export const getAssignPersonRoleUrl = (personId: string,
 export const assignPersonRole = async (personId: string,
     roleId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<Person> => {
-  
+
   return apiFetch<Person>(getAssignPersonRoleUrl(personId,roleId),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -335,7 +335,7 @@ export const getRemovePersonRoleUrl = (personId: string,
     roleId: string,) => {
 
 
-  
+
 
   return `/api/v1/people/${personId}/roles/${roleId}`
 }
@@ -343,9 +343,9 @@ export const getRemovePersonRoleUrl = (personId: string,
 export const removePersonRole = async (personId: string,
     roleId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<Person> => {
-  
+
   return apiFetch<Person>(getRemovePersonRoleUrl(personId,roleId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

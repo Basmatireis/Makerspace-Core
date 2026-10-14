@@ -81,7 +81,7 @@ describe('Machines & Jobs shared helpers', () => {
   });
 
   it('offers every unified status and billing state as a filter option', () => {
-    expect(jobRowStatusOptions.map((option) => option.id)).toEqual(['running', 'running_unassigned', 'unassigned', 'needs_outcome', 'successful', 'partial_failure', 'failed', 'cancelled']);
+    expect(jobRowStatusOptions.map((option) => option.id)).toEqual(['planned', 'running', 'running_unassigned', 'unassigned', 'needs_outcome', 'successful', 'partial_failure', 'failed', 'cancelled']);
     expect(billingStateOptions.map((option) => option.id)).toEqual(['on_order', 'order_outdated', 'not_on_order', 'price_incomplete', 'pending']);
   });
 

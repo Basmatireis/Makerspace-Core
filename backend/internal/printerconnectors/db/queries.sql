@@ -82,8 +82,8 @@ UPDATE printer_connector_assignments SET ended_at=COALESCE(ended_at, now()), ena
 WHERE connector_id=sqlc.arg(connector_id) AND ended_at IS NULL;
 
 -- name: CreateAssignment :one
-INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind, adapter_schema_version, settings, encrypted_secrets)
-VALUES (sqlc.arg(id), sqlc.arg(connector_id), sqlc.arg(machine_id), sqlc.arg(adapter_kind), sqlc.arg(adapter_schema_version), sqlc.arg(settings), sqlc.narg(encrypted_secrets)) RETURNING *;
+INSERT INTO printer_connector_assignments (id, connector_id, machine_id, adapter_kind, adapter_schema_version, settings, encrypted_secrets, enabled)
+VALUES (sqlc.arg(id), sqlc.arg(connector_id), sqlc.arg(machine_id), sqlc.arg(adapter_kind), sqlc.arg(adapter_schema_version), sqlc.arg(settings), sqlc.narg(encrypted_secrets), sqlc.arg(enabled)) RETURNING *;
 
 -- name: GetAssignmentForUpdate :one
 SELECT * FROM printer_connector_assignments
@@ -184,20 +184,54 @@ UPDATE machine_runs r SET reported_quantity_g=sqlc.arg(quantity_g), reported_qua
     reported_spool_id=sqlc.narg(spool_id), reported_event_id=sqlc.arg(event_id)
 WHERE r.id=sqlc.arg(id) AND (r.reported_event_id IS NULL OR sqlc.arg(report_revision)::bigint >= COALESCE((SELECT e.report_revision FROM printer_events e WHERE e.id=r.reported_event_id), 0));
 
+-- name: InsertReportedUsageItem :exec
+INSERT INTO machine_run_reported_usage_items (
+    id, run_id, source_printer_event_id, report_revision, line_number,
+    slicer_filament_id, extruder, input_unit_external_id, slot_external_id,
+    planned_quantity_g, planned_length_mm, estimated_quantity_g, material_id, spool_id,
+    method, calculation_version, quality
+) VALUES (
+    sqlc.arg(id), sqlc.arg(run_id), sqlc.arg(source_printer_event_id), sqlc.arg(report_revision), sqlc.arg(line_number),
+    sqlc.narg(slicer_filament_id), sqlc.narg(extruder), sqlc.narg(input_unit_external_id), sqlc.narg(slot_external_id),
+    sqlc.narg(planned_quantity_g), sqlc.narg(planned_length_mm), sqlc.narg(estimated_quantity_g), sqlc.narg(material_id), sqlc.narg(spool_id),
+    sqlc.arg(method), sqlc.arg(calculation_version), sqlc.arg(quality)
+) ON CONFLICT (run_id, report_revision, line_number) DO NOTHING;
+
+-- name: UpsertPrinterErrorOccurrence :exec
+INSERT INTO printer_error_occurrences (
+    id, machine_id, assignment_id, run_id, source_family, original_code,
+    first_observed_at, last_observed_at, context
+) VALUES (
+    sqlc.arg(id), sqlc.arg(machine_id), sqlc.arg(assignment_id), sqlc.narg(run_id),
+    sqlc.arg(source_family), sqlc.arg(original_code), sqlc.arg(observed_at), sqlc.arg(observed_at), sqlc.arg(context)
+)
+ON CONFLICT (assignment_id, source_family, original_code) WHERE resolved_at IS NULL
+DO UPDATE SET last_observed_at=GREATEST(printer_error_occurrences.last_observed_at, EXCLUDED.last_observed_at),
+              run_id=COALESCE(printer_error_occurrences.run_id, EXCLUDED.run_id),
+              context=EXCLUDED.context, updated_at=now();
+
+-- name: ResolvePrinterErrorOccurrence :exec
+UPDATE printer_error_occurrences
+SET last_observed_at=GREATEST(last_observed_at, sqlc.arg(observed_at)::timestamptz),
+    resolved_at=GREATEST(first_observed_at, sqlc.arg(observed_at)::timestamptz), updated_at=now()
+WHERE assignment_id=sqlc.arg(assignment_id) AND source_family=sqlc.arg(source_family)
+  AND original_code=sqlc.arg(original_code) AND resolved_at IS NULL;
+
 -- name: ListSlotSpoolsAt :many
 SELECT a.spool_id
 FROM printer_spool_assignments a
 JOIN printer_slots s ON s.id=a.slot_id
 JOIN printer_input_units u ON u.id=s.input_unit_id
 WHERE u.machine_id=sqlc.arg(machine_id) AND s.external_identifier=sqlc.arg(slot_external_id)
+  AND (sqlc.narg(input_unit_external_id)::text IS NULL OR u.external_identifier=sqlc.narg(input_unit_external_id))
   AND a.mounted_at <= sqlc.arg(at)::timestamptz AND (a.unmounted_at IS NULL OR a.unmounted_at > sqlc.arg(at)::timestamptz);
 
--- name: ListOpenMachineSpools :many
-SELECT a.spool_id
-FROM printer_spool_assignments a
-JOIN printer_slots s ON s.id=a.slot_id
-JOIN printer_input_units u ON u.id=s.input_unit_id
-WHERE u.machine_id=sqlc.arg(machine_id) AND a.unmounted_at IS NULL;
+-- name: ListNFCSpoolsAt :many
+SELECT i.spool_id
+FROM filament_spool_identifiers i
+WHERE i.kind='nfc' AND lower(i.value)=lower(sqlc.arg(tag_uid))
+  AND i.created_at <= sqlc.arg(at)::timestamptz
+  AND (i.retired_at IS NULL OR i.retired_at > sqlc.arg(at)::timestamptz);
 
 -- name: ListObservedRuns :many
 SELECT r.*, m.name AS machine_name

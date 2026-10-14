@@ -38,19 +38,19 @@ import { apiFetch } from '../../http-client';
 export const getGetTerminalContextUrl = () => {
 
 
-  
+
 
   return `/api/v1/terminal/context`
 }
 
 export const getTerminalContext = async ( options?: RequestInit): Promise<TerminalContext> => {
-  
+
   return apiFetch<TerminalContext>(getGetTerminalContextUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -58,19 +58,19 @@ export const getTerminalContext = async ( options?: RequestInit): Promise<Termin
 export const getListTerminalPresenceUrl = () => {
 
 
-  
+
 
   return `/api/v1/terminal/presence`
 }
 
 export const listTerminalPresence = async ( options?: RequestInit): Promise<PublicPresenceList> => {
-  
+
   return apiFetch<PublicPresenceList>(getListTerminalPresenceUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -78,15 +78,15 @@ export const listTerminalPresence = async ( options?: RequestInit): Promise<Publ
 export const getTerminalPasswordCheckInUrl = () => {
 
 
-  
+
 
   return `/api/v1/terminal/check-in/password`
 }
 
 export const terminalPasswordCheckIn = async (attendancePasswordRequest: AttendancePasswordRequest, options?: RequestInit): Promise<Visit> => {
-  
+
   return apiFetch<Visit>(getTerminalPasswordCheckInUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -99,15 +99,15 @@ export const terminalPasswordCheckIn = async (attendancePasswordRequest: Attenda
 export const getTerminalPinCheckInUrl = () => {
 
 
-  
+
 
   return `/api/v1/terminal/check-in/pin`
 }
 
 export const terminalPinCheckIn = async (attendancePinRequest: AttendancePinRequest, options?: RequestInit): Promise<Visit> => {
-  
+
   return apiFetch<Visit>(getTerminalPinCheckInUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -120,15 +120,15 @@ export const terminalPinCheckIn = async (attendancePinRequest: AttendancePinRequ
 export const getTerminalPasswordCheckOutUrl = () => {
 
 
-  
+
 
   return `/api/v1/terminal/check-out/password`
 }
 
 export const terminalPasswordCheckOut = async (attendancePasswordRequest: AttendancePasswordRequest, options?: RequestInit): Promise<Visit> => {
-  
+
   return apiFetch<Visit>(getTerminalPasswordCheckOutUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -141,15 +141,15 @@ export const terminalPasswordCheckOut = async (attendancePasswordRequest: Attend
 export const getTerminalPinCheckOutUrl = () => {
 
 
-  
+
 
   return `/api/v1/terminal/check-out/pin`
 }
 
 export const terminalPinCheckOut = async (attendancePinRequest: AttendancePinRequest, options?: RequestInit): Promise<Visit> => {
-  
+
   return apiFetch<Visit>(getTerminalPinCheckOutUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -162,19 +162,19 @@ export const terminalPinCheckOut = async (attendancePinRequest: AttendancePinReq
 export const getTerminalPublicCheckOutUrl = (visitId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/terminal/presence/${visitId}/check-out`
 }
 
 export const terminalPublicCheckOut = async (visitId: UUIDv7, options?: RequestInit): Promise<Visit> => {
-  
+
   return apiFetch<Visit>(getTerminalPublicCheckOutUrl(visitId),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
 
@@ -183,7 +183,7 @@ export const getListVisitsUrl = (params?: ListVisitsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -195,13 +195,13 @@ export const getListVisitsUrl = (params?: ListVisitsParams,) => {
 }
 
 export const listVisits = async (params?: ListVisitsParams, options?: RequestInit): Promise<VisitList> => {
-  
+
   return apiFetch<VisitList>(getListVisitsUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -209,15 +209,15 @@ export const listVisits = async (params?: ListVisitsParams, options?: RequestIni
 export const getSupervisedVisitCheckInUrl = () => {
 
 
-  
+
 
   return `/api/v1/visits`
 }
 
 export const supervisedVisitCheckIn = async (supervisedCheckInRequest: SupervisedCheckInRequest, options?: RequestInit): Promise<Visit> => {
-  
+
   return apiFetch<Visit>(getSupervisedVisitCheckInUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -230,19 +230,19 @@ export const supervisedVisitCheckIn = async (supervisedCheckInRequest: Supervise
 export const getSupervisedVisitCheckOutUrl = (visitId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/visits/${visitId}/check-out`
 }
 
 export const supervisedVisitCheckOut = async (visitId: UUIDv7, options?: RequestInit): Promise<Visit> => {
-  
+
   return apiFetch<Visit>(getSupervisedVisitCheckOutUrl(visitId),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
 
@@ -250,16 +250,16 @@ export const supervisedVisitCheckOut = async (visitId: UUIDv7, options?: Request
 export const getVoidVisitUrl = (visitId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/visits/${visitId}/void`
 }
 
 export const voidVisit = async (visitId: UUIDv7,
     voidVisitRequest: VoidVisitRequest, options?: RequestInit): Promise<Visit> => {
-  
+
   return apiFetch<Visit>(getVoidVisitUrl(visitId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -273,7 +273,7 @@ export const getGetAttendanceStatisticsUrl = (params: GetAttendanceStatisticsPar
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -285,13 +285,13 @@ export const getGetAttendanceStatisticsUrl = (params: GetAttendanceStatisticsPar
 }
 
 export const getAttendanceStatistics = async (params: GetAttendanceStatisticsParams, options?: RequestInit): Promise<AttendanceStatistics> => {
-  
+
   return apiFetch<AttendanceStatistics>(getGetAttendanceStatisticsUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 

@@ -35,19 +35,19 @@ import { apiFetch } from '../../http-client';
 export const getGetVisitorEnrollmentConfigurationUrl = () => {
 
 
-  
+
 
   return `/api/v1/visitor-enrollment/configuration`
 }
 
 export const getVisitorEnrollmentConfiguration = async ( options?: RequestInit): Promise<VisitorEnrollmentConfiguration> => {
-  
+
   return apiFetch<VisitorEnrollmentConfiguration>(getGetVisitorEnrollmentConfigurationUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -58,15 +58,15 @@ export const getVisitorEnrollmentConfiguration = async ( options?: RequestInit):
 export const getUpdateVisitorEnrollmentConfigurationUrl = () => {
 
 
-  
+
 
   return `/api/v1/visitor-enrollment/configuration`
 }
 
 export const updateVisitorEnrollmentConfiguration = async (updateVisitorEnrollmentConfigurationRequest: UpdateVisitorEnrollmentConfigurationRequest, options?: RequestInit): Promise<VisitorEnrollmentConfiguration> => {
-  
+
   return apiFetch<VisitorEnrollmentConfiguration>(getUpdateVisitorEnrollmentConfigurationUrl(),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -82,19 +82,19 @@ export const updateVisitorEnrollmentConfiguration = async (updateVisitorEnrollme
 export const getBeginVisitorEnrollmentUrl = () => {
 
 
-  
+
 
   return `/api/v1/visitor-enrollment/context`
 }
 
 export const beginVisitorEnrollment = async ( options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getBeginVisitorEnrollmentUrl(),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
 
@@ -105,19 +105,19 @@ export const beginVisitorEnrollment = async ( options?: RequestInit): Promise<vo
 export const getGetVisitorEnrollmentStateUrl = () => {
 
 
-  
+
 
   return `/api/v1/visitor-enrollment/state`
 }
 
 export const getVisitorEnrollmentState = async ( options?: RequestInit): Promise<VisitorEnrollmentState> => {
-  
+
   return apiFetch<VisitorEnrollmentState>(getGetVisitorEnrollmentStateUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -128,19 +128,19 @@ export const getVisitorEnrollmentState = async ( options?: RequestInit): Promise
 export const getGetVisitorEnrollmentLabRulesPDFUrl = () => {
 
 
-  
+
 
   return `/api/v1/visitor-enrollment/lab-rules.pdf`
 }
 
 export const getVisitorEnrollmentLabRulesPDF = async ( options?: RequestInit): Promise<Blob> => {
-  
+
   return apiFetch<Blob>(getGetVisitorEnrollmentLabRulesPDFUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -152,15 +152,15 @@ export const getVisitorEnrollmentLabRulesPDF = async ( options?: RequestInit): P
 export const getSubmitVisitorEnrollmentUrl = () => {
 
 
-  
+
 
   return `/api/v1/visitor-enrollment/submissions`
 }
 
 export const submitVisitorEnrollment = async (visitorEnrollmentSubmission: VisitorEnrollmentSubmission, options?: RequestInit): Promise<VisitorEnrollmentResult> => {
-  
+
   return apiFetch<VisitorEnrollmentResult>(getSubmitVisitorEnrollmentUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -176,19 +176,19 @@ export const submitVisitorEnrollment = async (visitorEnrollmentSubmission: Visit
 export const getEvaluateVisitorAdmissionUrl = () => {
 
 
-  
+
 
   return `/api/v1/visitor-admission`
 }
 
 export const evaluateVisitorAdmission = async ( options?: RequestInit): Promise<VisitorAdmissionResult> => {
-  
+
   return apiFetch<VisitorAdmissionResult>(getEvaluateVisitorAdmissionUrl(),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
 

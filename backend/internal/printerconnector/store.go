@@ -44,6 +44,7 @@ type Store struct {
 	db       *sql.DB
 	aead     cipher.AEAD
 	lockFile *os.File
+	dataDir  string
 }
 
 const maxOutboxEvents = 100000
@@ -77,7 +78,7 @@ func OpenStore(dataDir string) (*Store, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	store := &Store{db: db, aead: aead, lockFile: lockFile}
+	store := &Store{db: db, aead: aead, lockFile: lockFile, dataDir: dataDir}
 	if err = store.migrate(context.Background()); err != nil {
 		_ = store.Close()
 		return nil, err
@@ -122,6 +123,37 @@ func (s *Store) migrate(ctx context.Context) error {
 			attempt_count INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT NOT NULL, reason_code TEXT,
 			created_at TEXT NOT NULL, UNIQUE(assignment_id, sequence)) STRICT`,
 		`CREATE INDEX IF NOT EXISTS outbox_pending_idx ON outbox(state, next_attempt_at, created_at)`,
+		`CREATE TABLE IF NOT EXISTS adapter_state (
+			assignment_id TEXT PRIMARY KEY, adapter_kind TEXT NOT NULL, encrypted_value BLOB NOT NULL, updated_at TEXT NOT NULL
+		) STRICT`,
+		`CREATE TABLE IF NOT EXISTS artifact_transfers (
+			id TEXT PRIMARY KEY, assignment_id TEXT NOT NULL, run_id TEXT NOT NULL, configuration_version INTEGER NOT NULL CHECK(configuration_version > 0),
+			remote_path TEXT NOT NULL, file_name TEXT NOT NULL, staged_path TEXT NOT NULL UNIQUE,
+			size_bytes INTEGER NOT NULL CHECK(size_bytes > 0), sha256 TEXT NOT NULL CHECK(length(sha256)=64),
+			state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','quarantined')),
+			attempt_count INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT NOT NULL, expires_at TEXT NOT NULL,
+			reason_code TEXT, created_at TEXT NOT NULL
+		) STRICT`,
+		`CREATE INDEX IF NOT EXISTS artifact_transfers_pending_idx ON artifact_transfers(state,next_attempt_at,created_at)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS artifact_transfers_run_hash_idx ON artifact_transfers(assignment_id,run_id,sha256)`,
+		`CREATE TABLE IF NOT EXISTS artifact_retrievals (
+			assignment_id TEXT NOT NULL, run_id TEXT NOT NULL, configuration_version INTEGER NOT NULL CHECK(configuration_version > 0),
+			reported_path TEXT NOT NULL, candidate_path TEXT, candidate_size INTEGER,
+			state TEXT NOT NULL DEFAULT 'pending' CHECK(state IN ('pending','staged','quarantined')),
+			attempt_count INTEGER NOT NULL DEFAULT 0, next_attempt_at TEXT NOT NULL, expires_at TEXT NOT NULL,
+			reason_code TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+			PRIMARY KEY(assignment_id,run_id)
+		) STRICT`,
+		`CREATE INDEX IF NOT EXISTS artifact_retrievals_pending_idx ON artifact_retrievals(state,next_attempt_at,created_at)`,
+		`CREATE TABLE IF NOT EXISTS artifact_consumption_reports (
+			assignment_id TEXT NOT NULL, run_id TEXT NOT NULL, artifact_sha256 TEXT NOT NULL CHECK(length(artifact_sha256)=64),
+			report_revision INTEGER NOT NULL CHECK(report_revision > 0), created_at TEXT NOT NULL,
+			PRIMARY KEY(assignment_id,run_id,artifact_sha256)
+		) STRICT`,
+		`CREATE TABLE IF NOT EXISTS artifact_upload_receipts (
+			transfer_id TEXT PRIMARY KEY, acknowledged_at TEXT NOT NULL,
+			FOREIGN KEY(transfer_id) REFERENCES artifact_transfers(id) ON DELETE CASCADE
+		) STRICT`,
 	} {
 		if _, err := s.db.ExecContext(ctx, statement); err != nil {
 			return fmt.Errorf("initialize connector state: %w", err)

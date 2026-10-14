@@ -25,6 +25,8 @@ import type { MachineRunJobReference } from './machineRunJobReference';
 import type { MachineRunOutcomeProperty } from './machineRunOutcomeProperty';
 import type { MachineJobUsage } from './machineJobUsage';
 import type { MachineRunReportedUsage } from './machineRunReportedUsage';
+import type { MachineRunReportedUsageItem } from './machineRunReportedUsageItem';
+import type { PrintArtifactReference } from './printArtifactReference';
 import type { Version } from './version';
 
 export interface MachineRun {
@@ -69,5 +71,7 @@ export interface MachineRun {
   /** The usage was consumed automatically from the machine's report. */
   usagesFromMachine: boolean;
   reportedUsage?: MachineRunReportedUsage;
+  reportedUsageItems: MachineRunReportedUsageItem[];
+  artifact?: PrintArtifactReference;
   version: Version;
 }

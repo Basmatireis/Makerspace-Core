@@ -26,6 +26,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/config"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/printartifacts"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
@@ -61,6 +62,7 @@ type Server struct {
 	laborordnung      *laborordnung.Service
 	orders            *orders.Service
 	machineLogbook    *machinelogbook.Service
+	printArtifacts    *printartifacts.Service
 	printing          *printing.Service
 	printerConnectors *printerconnectors.Service
 	supervisors       *supervisors.Service
@@ -129,6 +131,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		files:             fileService,
 		laborordnung:      labRulesService,
 		machineLogbook:    machineLogbook,
+		printArtifacts:    printartifacts.NewService(pool, fileService, machineLogbook),
 		printing:          printingService,
 		printerConnectors: printerConnectorService,
 		orders:            orders.NewService(pool, machineLogbook),

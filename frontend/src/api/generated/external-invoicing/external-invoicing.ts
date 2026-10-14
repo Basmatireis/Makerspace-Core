@@ -33,16 +33,16 @@ import { apiFetch } from '../../http-client';
 export const getCreateExternalInvoiceRequestUrl = (orderId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/orders/${orderId}/external-invoice-requests`
 }
 
 export const createExternalInvoiceRequest = async (orderId: UUIDv7,
     createInvoiceRequest: CreateInvoiceRequest, options?: RequestInit): Promise<ExternalInvoiceRequest> => {
-  
+
   return apiFetch<ExternalInvoiceRequest>(getCreateExternalInvoiceRequestUrl(orderId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -56,7 +56,7 @@ export const getListExternalInvoiceRequestsUrl = (params?: ListExternalInvoiceRe
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -68,13 +68,13 @@ export const getListExternalInvoiceRequestsUrl = (params?: ListExternalInvoiceRe
 }
 
 export const listExternalInvoiceRequests = async (params?: ListExternalInvoiceRequestsParams, options?: RequestInit): Promise<ExternalInvoiceRequestPage> => {
-  
+
   return apiFetch<ExternalInvoiceRequestPage>(getListExternalInvoiceRequestsUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -82,19 +82,19 @@ export const listExternalInvoiceRequests = async (params?: ListExternalInvoiceRe
 export const getGetExternalInvoiceRequestUrl = (requestId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/external-invoice-requests/${requestId}`
 }
 
 export const getExternalInvoiceRequest = async (requestId: UUIDv7, options?: RequestInit): Promise<ExternalInvoiceRequest> => {
-  
+
   return apiFetch<ExternalInvoiceRequest>(getGetExternalInvoiceRequestUrl(requestId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -102,16 +102,16 @@ export const getExternalInvoiceRequest = async (requestId: UUIDv7, options?: Req
 export const getUpdateExternalInvoiceRequestUrl = (requestId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/external-invoice-requests/${requestId}`
 }
 
 export const updateExternalInvoiceRequest = async (requestId: UUIDv7,
     updateInvoiceRequest: UpdateInvoiceRequest, options?: RequestInit): Promise<ExternalInvoiceRequest> => {
-  
+
   return apiFetch<ExternalInvoiceRequest>(getUpdateExternalInvoiceRequestUrl(requestId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -124,16 +124,16 @@ export const updateExternalInvoiceRequest = async (requestId: UUIDv7,
 export const getMarkExternalInvoiceRequestReadyUrl = (requestId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/external-invoice-requests/${requestId}/ready`
 }
 
 export const markExternalInvoiceRequestReady = async (requestId: UUIDv7,
     invoiceRequestCommand: InvoiceRequestCommand, options?: RequestInit): Promise<ExternalInvoiceRequest> => {
-  
+
   return apiFetch<ExternalInvoiceRequest>(getMarkExternalInvoiceRequestReadyUrl(requestId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -146,16 +146,16 @@ export const markExternalInvoiceRequestReady = async (requestId: UUIDv7,
 export const getSubmitExternalInvoiceRequestUrl = (requestId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/external-invoice-requests/${requestId}/submit`
 }
 
 export const submitExternalInvoiceRequest = async (requestId: UUIDv7,
     invoiceRequestCommand: InvoiceRequestCommand, options?: RequestInit): Promise<ExternalInvoiceRequest> => {
-  
+
   return apiFetch<ExternalInvoiceRequest>(getSubmitExternalInvoiceRequestUrl(requestId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -168,16 +168,16 @@ export const submitExternalInvoiceRequest = async (requestId: UUIDv7,
 export const getRecordExternalInvoiceIssuedUrl = (requestId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/external-invoice-requests/${requestId}/record-issued`
 }
 
 export const recordExternalInvoiceIssued = async (requestId: UUIDv7,
     invoiceRequestCommand: InvoiceRequestCommand, options?: RequestInit): Promise<ExternalInvoiceRequest> => {
-  
+
   return apiFetch<ExternalInvoiceRequest>(getRecordExternalInvoiceIssuedUrl(requestId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -190,16 +190,16 @@ export const recordExternalInvoiceIssued = async (requestId: UUIDv7,
 export const getRequestExternalInvoiceCancellationUrl = (requestId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/external-invoice-requests/${requestId}/request-cancellation`
 }
 
 export const requestExternalInvoiceCancellation = async (requestId: UUIDv7,
     invoiceRequestCommand: InvoiceRequestCommand, options?: RequestInit): Promise<ExternalInvoiceRequest> => {
-  
+
   return apiFetch<ExternalInvoiceRequest>(getRequestExternalInvoiceCancellationUrl(requestId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -212,16 +212,16 @@ export const requestExternalInvoiceCancellation = async (requestId: UUIDv7,
 export const getConfirmExternalInvoiceCancellationUrl = (requestId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/external-invoice-requests/${requestId}/confirm-cancellation`
 }
 
 export const confirmExternalInvoiceCancellation = async (requestId: UUIDv7,
     invoiceRequestCommand: InvoiceRequestCommand, options?: RequestInit): Promise<ExternalInvoiceRequest> => {
-  
+
   return apiFetch<ExternalInvoiceRequest>(getConfirmExternalInvoiceCancellationUrl(requestId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -234,16 +234,16 @@ export const confirmExternalInvoiceCancellation = async (requestId: UUIDv7,
 export const getCancelExternalInvoiceRequestUrl = (requestId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/external-invoice-requests/${requestId}/cancel`
 }
 
 export const cancelExternalInvoiceRequest = async (requestId: UUIDv7,
     invoiceRequestCommand: InvoiceRequestCommand, options?: RequestInit): Promise<ExternalInvoiceRequest> => {
-  
+
   return apiFetch<ExternalInvoiceRequest>(getCancelExternalInvoiceRequestUrl(requestId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -256,16 +256,16 @@ export const cancelExternalInvoiceRequest = async (requestId: UUIDv7,
 export const getCorrectExternalInvoiceReferenceUrl = (requestId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/external-invoice-requests/${requestId}/reference-corrections`
 }
 
 export const correctExternalInvoiceReference = async (requestId: UUIDv7,
     invoiceRequestCommand: InvoiceRequestCommand, options?: RequestInit): Promise<ExternalInvoiceRequest> => {
-  
+
   return apiFetch<ExternalInvoiceRequest>(getCorrectExternalInvoiceReferenceUrl(requestId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

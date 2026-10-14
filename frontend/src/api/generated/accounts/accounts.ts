@@ -38,16 +38,16 @@ import { apiFetch } from '../../http-client';
 export const getCreatePersonAccountUrl = (personId: string,) => {
 
 
-  
+
 
   return `/api/v1/people/${personId}/account`
 }
 
 export const createPersonAccount = async (personId: string,
     createAccountRequest: CreateAccountRequest, options?: RequestInit): Promise<Account> => {
-  
+
   return apiFetch<Account>(getCreatePersonAccountUrl(personId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -64,19 +64,19 @@ export const createPersonAccount = async (personId: string,
 export const getGetAccountUrl = (accountId: string,) => {
 
 
-  
+
 
   return `/api/v1/accounts/${accountId}`
 }
 
 export const getAccount = async (accountId: string, options?: RequestInit): Promise<Account> => {
-  
+
   return apiFetch<Account>(getGetAccountUrl(accountId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -94,16 +94,16 @@ objects. A single reason keeps its own code, such as
 export const getDeleteAccountUrl = (accountId: string,) => {
 
 
-  
+
 
   return `/api/v1/accounts/${accountId}`
 }
 
 export const deleteAccount = async (accountId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getDeleteAccountUrl(accountId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -120,16 +120,16 @@ export const deleteAccount = async (accountId: string,
 export const getEnableAccountUrl = (accountId: string,) => {
 
 
-  
+
 
   return `/api/v1/accounts/${accountId}/enable`
 }
 
 export const enableAccount = async (accountId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<Account> => {
-  
+
   return apiFetch<Account>(getEnableAccountUrl(accountId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -146,16 +146,16 @@ export const enableAccount = async (accountId: string,
 export const getDisableAccountUrl = (accountId: string,) => {
 
 
-  
+
 
   return `/api/v1/accounts/${accountId}/disable`
 }
 
 export const disableAccount = async (accountId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<Account> => {
-  
+
   return apiFetch<Account>(getDisableAccountUrl(accountId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -172,16 +172,16 @@ export const disableAccount = async (accountId: string,
 export const getUpdateAccountLoginEmailUrl = (accountId: string,) => {
 
 
-  
+
 
   return `/api/v1/accounts/${accountId}/login-email`
 }
 
 export const updateAccountLoginEmail = async (accountId: string,
     updateLoginEmailRequest: UpdateLoginEmailRequest, options?: RequestInit): Promise<Account> => {
-  
+
   return apiFetch<Account>(getUpdateAccountLoginEmailUrl(accountId),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -198,16 +198,16 @@ export const updateAccountLoginEmail = async (accountId: string,
 export const getSetAccountPasswordUrl = (accountId: string,) => {
 
 
-  
+
 
   return `/api/v1/accounts/${accountId}/password`
 }
 
 export const setAccountPassword = async (accountId: string,
     setAccountPasswordRequest: SetAccountPasswordRequest, options?: RequestInit): Promise<Account> => {
-  
+
   return apiFetch<Account>(getSetAccountPasswordUrl(accountId),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -228,16 +228,16 @@ operation does not enable the Account automatically.
 export const getSetAccountPinUrl = (accountId: string,) => {
 
 
-  
+
 
   return `/api/v1/accounts/${accountId}/pin`
 }
 
 export const setAccountPin = async (accountId: string,
     setAccountPinRequest: SetAccountPinRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getSetAccountPinUrl(accountId),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -260,7 +260,7 @@ export const getRemoveAccountAuthIdentityUrl = (accountId: string,
     identityId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/accounts/${accountId}/auth-identities/${identityId}`
 }
@@ -268,9 +268,9 @@ export const getRemoveAccountAuthIdentityUrl = (accountId: string,
 export const removeAccountAuthIdentity = async (accountId: string,
     identityId: UUIDv7,
     versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
-  
+
   return apiFetch<void>(getRemoveAccountAuthIdentityUrl(accountId,identityId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -291,16 +291,16 @@ one-time setup URL for delivery through a trusted channel.
 export const getIssueAccountPasswordResetUrl = (accountId: string,) => {
 
 
-  
+
 
   return `/api/v1/accounts/${accountId}/password-reset`
 }
 
 export const issueAccountPasswordReset = async (accountId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<PasswordResetIssue> => {
-  
+
   return apiFetch<PasswordResetIssue>(getIssueAccountPasswordResetUrl(accountId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -316,16 +316,16 @@ export const issueAccountPasswordReset = async (accountId: string,
 export const getIssueAccountInvitationUrl = (accountId: string,) => {
 
 
-  
+
 
   return `/api/v1/accounts/${accountId}/invitations`
 }
 
 export const issueAccountInvitation = async (accountId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<PasswordResetIssue> => {
-  
+
   return apiFetch<PasswordResetIssue>(getIssueAccountInvitationUrl(accountId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -347,16 +347,16 @@ one-time setup URL instead.
 export const getIssueAccountPinEnrollmentUrl = (accountId: string,) => {
 
 
-  
+
 
   return `/api/v1/accounts/${accountId}/pin-enrollment`
 }
 
 export const issueAccountPinEnrollment = async (accountId: string,
     versionRequest: VersionRequest, options?: RequestInit): Promise<PasswordResetIssue> => {
-  
+
   return apiFetch<PasswordResetIssue>(getIssueAccountPinEnrollmentUrl(accountId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

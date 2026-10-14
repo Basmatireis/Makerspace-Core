@@ -22,6 +22,7 @@ import type {
   CreatePrinterConnectorAssignmentRequest,
   CreatePrinterConnectorRequest,
   EnrollPrinterConnectorRequest,
+  PrintArtifactUploadResult,
   PrinterConnector,
   PrinterConnectorAssignment,
   PrinterConnectorAssignmentList,
@@ -49,19 +50,19 @@ import { apiFetch } from '../../http-client';
 export const getListPrinterConnectorsUrl = () => {
 
 
-  
+
 
   return `/api/v1/printer-connectors`
 }
 
 export const listPrinterConnectors = async ( options?: RequestInit): Promise<PrinterConnectorList> => {
-  
+
   return apiFetch<PrinterConnectorList>(getListPrinterConnectorsUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -72,15 +73,15 @@ export const listPrinterConnectors = async ( options?: RequestInit): Promise<Pri
 export const getCreatePrinterConnectorUrl = () => {
 
 
-  
+
 
   return `/api/v1/printer-connectors`
 }
 
 export const createPrinterConnector = async (createPrinterConnectorRequest: CreatePrinterConnectorRequest, options?: RequestInit): Promise<PrinterConnector> => {
-  
+
   return apiFetch<PrinterConnector>(getCreatePrinterConnectorUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -93,19 +94,19 @@ export const createPrinterConnector = async (createPrinterConnectorRequest: Crea
 export const getGetPrinterConnectorUrl = (printerConnectorId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/printer-connectors/${printerConnectorId}`
 }
 
 export const getPrinterConnector = async (printerConnectorId: UUIDv7, options?: RequestInit): Promise<PrinterConnector> => {
-  
+
   return apiFetch<PrinterConnector>(getGetPrinterConnectorUrl(printerConnectorId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -116,16 +117,16 @@ export const getPrinterConnector = async (printerConnectorId: UUIDv7, options?: 
 export const getUpdatePrinterConnectorUrl = (printerConnectorId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/printer-connectors/${printerConnectorId}`
 }
 
 export const updatePrinterConnector = async (printerConnectorId: UUIDv7,
     updatePrinterConnectorRequest: UpdatePrinterConnectorRequest, options?: RequestInit): Promise<PrinterConnector> => {
-  
+
   return apiFetch<PrinterConnector>(getUpdatePrinterConnectorUrl(printerConnectorId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -141,19 +142,19 @@ export const updatePrinterConnector = async (printerConnectorId: UUIDv7,
 export const getCreatePrinterConnectorEnrollmentUrl = (printerConnectorId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/printer-connectors/${printerConnectorId}/enrollments`
 }
 
 export const createPrinterConnectorEnrollment = async (printerConnectorId: UUIDv7, options?: RequestInit): Promise<PrinterConnectorEnrollmentIssue> => {
-  
+
   return apiFetch<PrinterConnectorEnrollmentIssue>(getCreatePrinterConnectorEnrollmentUrl(printerConnectorId),
-  {      
+  {
     ...options,
     method: 'POST'
-    
-    
+
+
   }
 );}
 
@@ -164,16 +165,16 @@ export const createPrinterConnectorEnrollment = async (printerConnectorId: UUIDv
 export const getRevokePrinterConnectorUrl = (printerConnectorId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/printer-connectors/${printerConnectorId}/revocation`
 }
 
 export const revokePrinterConnector = async (printerConnectorId: UUIDv7,
     versionRequest: VersionRequest, options?: RequestInit): Promise<PrinterConnector> => {
-  
+
   return apiFetch<PrinterConnector>(getRevokePrinterConnectorUrl(printerConnectorId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -189,16 +190,16 @@ export const revokePrinterConnector = async (printerConnectorId: UUIDv7,
 export const getCreatePrinterConnectorAssignmentUrl = (printerConnectorId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/printer-connectors/${printerConnectorId}/assignments`
 }
 
 export const createPrinterConnectorAssignment = async (printerConnectorId: UUIDv7,
     createPrinterConnectorAssignmentRequest: CreatePrinterConnectorAssignmentRequest, options?: RequestInit): Promise<PrinterConnectorAssignment> => {
-  
+
   return apiFetch<PrinterConnectorAssignment>(getCreatePrinterConnectorAssignmentUrl(printerConnectorId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -214,19 +215,19 @@ export const createPrinterConnectorAssignment = async (printerConnectorId: UUIDv
 export const getListPrinterConnectorAssignmentsUrl = (printerConnectorId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/printer-connectors/${printerConnectorId}/assignments`
 }
 
 export const listPrinterConnectorAssignments = async (printerConnectorId: UUIDv7, options?: RequestInit): Promise<PrinterConnectorAssignmentList> => {
-  
+
   return apiFetch<PrinterConnectorAssignmentList>(getListPrinterConnectorAssignmentsUrl(printerConnectorId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -238,7 +239,7 @@ export const getUpdatePrinterConnectorAssignmentUrl = (printerConnectorId: UUIDv
     assignmentId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/printer-connectors/${printerConnectorId}/assignments/${assignmentId}`
 }
@@ -246,9 +247,9 @@ export const getUpdatePrinterConnectorAssignmentUrl = (printerConnectorId: UUIDv
 export const updatePrinterConnectorAssignment = async (printerConnectorId: UUIDv7,
     assignmentId: UUIDv7,
     updatePrinterConnectorAssignmentRequest: UpdatePrinterConnectorAssignmentRequest, options?: RequestInit): Promise<PrinterConnectorAssignment> => {
-  
+
   return apiFetch<PrinterConnectorAssignment>(getUpdatePrinterConnectorAssignmentUrl(printerConnectorId,assignmentId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -264,19 +265,19 @@ export const updatePrinterConnectorAssignment = async (printerConnectorId: UUIDv
 export const getListPrinterObservedRunsUrl = (printerConnectorId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/printer-connectors/${printerConnectorId}/observed-runs`
 }
 
 export const listPrinterObservedRuns = async (printerConnectorId: UUIDv7, options?: RequestInit): Promise<PrinterObservedRunList> => {
-  
+
   return apiFetch<PrinterObservedRunList>(getListPrinterObservedRunsUrl(printerConnectorId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -287,19 +288,19 @@ export const listPrinterObservedRuns = async (printerConnectorId: UUIDv7, option
 export const getListPrinterConnectorEventsUrl = (printerConnectorId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/printer-connectors/${printerConnectorId}/events`
 }
 
 export const listPrinterConnectorEvents = async (printerConnectorId: UUIDv7, options?: RequestInit): Promise<PrinterConnectorEventList> => {
-  
+
   return apiFetch<PrinterConnectorEventList>(getListPrinterConnectorEventsUrl(printerConnectorId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -310,15 +311,15 @@ export const listPrinterConnectorEvents = async (printerConnectorId: UUIDv7, opt
 export const getEnrollPrinterConnectorUrl = () => {
 
 
-  
+
 
   return `/api/v1/printer-connector/enroll`
 }
 
 export const enrollPrinterConnector = async (enrollPrinterConnectorRequest: EnrollPrinterConnectorRequest, options?: RequestInit): Promise<PrinterConnectorEnrollmentResult> => {
-  
+
   return apiFetch<PrinterConnectorEnrollmentResult>(getEnrollPrinterConnectorUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -334,19 +335,19 @@ export const enrollPrinterConnector = async (enrollPrinterConnectorRequest: Enro
 export const getGetPrinterConnectorConfigurationUrl = () => {
 
 
-  
+
 
   return `/api/v1/printer-connector/self/configuration`
 }
 
 export const getPrinterConnectorConfiguration = async ( options?: RequestInit): Promise<PrinterConnectorConfiguration> => {
-  
+
   return apiFetch<PrinterConnectorConfiguration>(getGetPrinterConnectorConfigurationUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -357,15 +358,15 @@ export const getPrinterConnectorConfiguration = async ( options?: RequestInit): 
 export const getReportPrinterConnectorHeartbeatUrl = () => {
 
 
-  
+
 
   return `/api/v1/printer-connector/self/heartbeat`
 }
 
 export const reportPrinterConnectorHeartbeat = async (printerConnectorHeartbeat: PrinterConnectorHeartbeat, options?: RequestInit): Promise<PrinterConnector> => {
-  
+
   return apiFetch<PrinterConnector>(getReportPrinterConnectorHeartbeatUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -381,15 +382,15 @@ export const reportPrinterConnectorHeartbeat = async (printerConnectorHeartbeat:
 export const getIngestPrinterConnectorEventsUrl = () => {
 
 
-  
+
 
   return `/api/v1/printer-connector/self/events`
 }
 
 export const ingestPrinterConnectorEvents = async (printerConnectorEventBatch: PrinterConnectorEventBatch, options?: RequestInit): Promise<PrinterConnectorEventBatchReceipt> => {
-  
+
   return apiFetch<PrinterConnectorEventBatchReceipt>(getIngestPrinterConnectorEventsUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -400,20 +401,47 @@ export const ingestPrinterConnectorEvents = async (printerConnectorEventBatch: P
 
 
 /**
+ * @summary Stream an archived 3MF for a recorded run
+ */
+export const getUploadPrinterConnectorRunArtifactUrl = (assignmentId: UUIDv7,
+    runId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/printer-connector/self/assignments/${assignmentId}/runs/${runId}/artifact`
+}
+
+export const uploadPrinterConnectorRunArtifact = async (assignmentId: UUIDv7,
+    runId: UUIDv7,
+    uploadPrinterConnectorRunArtifactBody: Blob, options?: RequestInit): Promise<PrintArtifactUploadResult | PrintArtifactUploadResult> => {
+
+  return apiFetch<PrintArtifactUploadResult | PrintArtifactUploadResult>(getUploadPrinterConnectorRunArtifactUrl(assignmentId,runId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/octet-stream', ...options?.headers },
+    body: JSON.stringify(
+      uploadPrinterConnectorRunArtifactBody,)
+  }
+);}
+
+
+/**
  * @summary Replace the current connector credential with a connector-generated secret
  */
 export const getRotatePrinterConnectorCredentialUrl = () => {
 
 
-  
+
 
   return `/api/v1/printer-connector/self/credential-rotation`
 }
 
 export const rotatePrinterConnectorCredential = async (rotatePrinterConnectorCredentialRequest: RotatePrinterConnectorCredentialRequest, options?: RequestInit): Promise<PrinterConnectorEnrollmentResult> => {
-  
+
   return apiFetch<PrinterConnectorEnrollmentResult>(getRotatePrinterConnectorCredentialUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

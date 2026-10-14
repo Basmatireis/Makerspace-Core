@@ -8,6 +8,8 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"net/netip"
+	"regexp"
 	"strings"
 	"time"
 
@@ -28,6 +30,8 @@ const (
 	enrollmentTTL = 15 * time.Minute
 	credentialTTL = 90 * 24 * time.Hour
 )
+
+var bambuSerialPattern = regexp.MustCompile(`^[A-Z0-9]{8,32}$`)
 
 type Service struct {
 	pool     *pgxpool.Pool
@@ -100,6 +104,7 @@ type AssignmentInput struct {
 	AdapterSchemaVersion int
 	Settings             json.RawMessage
 	Secrets              map[string]string
+	Enabled              bool
 }
 
 type AssignmentUpdate struct {
@@ -191,6 +196,78 @@ func nullableTime(value pgtype.Timestamptz) *time.Time {
 	}
 	v := value.Time.UTC()
 	return &v
+}
+
+func validateAssignmentContract(kind string, version int, settings json.RawMessage, secrets map[string]string, creating bool) (json.RawMessage, map[string]string, error) {
+	if version != 1 {
+		return nil, nil, validation("unsupported adapter schema version")
+	}
+	if len(settings) == 0 {
+		settings = json.RawMessage(`{}`)
+	}
+	if len(settings) > 32768 {
+		return nil, nil, validation("settings must be a bounded JSON object")
+	}
+	if kind != "bambu_h2d" {
+		var object map[string]any
+		if json.Unmarshal(settings, &object) != nil || object == nil {
+			return nil, nil, validation("settings must be a bounded JSON object")
+		}
+		return settings, secrets, nil
+	}
+	var value struct {
+		IPAddress        string `json:"ipAddress"`
+		SerialNumber     string `json:"serialNumber"`
+		AutoDetectSpools bool   `json:"autoDetectSpools"`
+	}
+	var raw map[string]json.RawMessage
+	if json.Unmarshal(settings, &value) != nil || json.Unmarshal(settings, &raw) != nil || len(raw) < 2 || len(raw) > 3 {
+		return nil, nil, validation("bambu_h2d settings require ipAddress, serialNumber, and optional autoDetectSpools")
+	}
+	for key := range raw {
+		if key != "ipAddress" && key != "serialNumber" && key != "autoDetectSpools" {
+			return nil, nil, validation("bambu_h2d settings contain an unsupported field")
+		}
+	}
+	if encoded, ok := raw["autoDetectSpools"]; ok {
+		var enabled bool
+		if json.Unmarshal(encoded, &enabled) != nil {
+			return nil, nil, validation("autoDetectSpools must be a boolean")
+		}
+	}
+	addr, err := netip.ParseAddr(strings.TrimSpace(value.IPAddress))
+	if err != nil || !addr.Is4() || !(addr.IsGlobalUnicast() || addr.IsLinkLocalUnicast()) {
+		return nil, nil, validation("ipAddress must be an IPv4 unicast literal")
+	}
+	serial := strings.ToUpper(strings.TrimSpace(value.SerialNumber))
+	if !bambuSerialPattern.MatchString(serial) {
+		return nil, nil, validation("serialNumber must be an 8 to 32 character Bambu serial")
+	}
+	for key := range secrets {
+		if key != "lanAccessCode" {
+			return nil, nil, validation("bambu_h2d secrets contain only lanAccessCode")
+		}
+	}
+	code := strings.TrimSpace(secrets["lanAccessCode"])
+	if creating && code == "" {
+		return nil, nil, validation("lanAccessCode is required")
+	}
+	if len(code) > 128 {
+		return nil, nil, validation("lanAccessCode is invalid")
+	}
+	normalized, err := json.Marshal(struct {
+		IPAddress        string `json:"ipAddress"`
+		SerialNumber     string `json:"serialNumber"`
+		AutoDetectSpools bool   `json:"autoDetectSpools"`
+	}{IPAddress: addr.String(), SerialNumber: serial, AutoDetectSpools: value.AutoDetectSpools})
+	if err != nil {
+		return nil, nil, err
+	}
+	normalizedSecrets := map[string]string{}
+	if code != "" {
+		normalizedSecrets["lanAccessCode"] = code
+	}
+	return normalized, normalizedSecrets, nil
 }
 
 func timestamptz(value *time.Time) pgtype.Timestamptz {
@@ -519,15 +596,13 @@ func (s *Service) CreateAssignment(ctx context.Context, principal authorization.
 		return Assignment{}, apperror.PermissionDenied
 	}
 	input.AdapterKind = strings.TrimSpace(input.AdapterKind)
-	if input.AdapterKind == "" || len(input.AdapterKind) > 80 || input.AdapterSchemaVersion != 1 {
+	if input.AdapterKind == "" || len(input.AdapterKind) > 80 {
 		return Assignment{}, validation("adapterKind and supported schema version are required")
 	}
-	if len(input.Settings) == 0 {
-		input.Settings = json.RawMessage(`{}`)
-	}
-	var settings map[string]any
-	if len(input.Settings) > 32768 || json.Unmarshal(input.Settings, &settings) != nil {
-		return Assignment{}, validation("settings must be a bounded JSON object")
+	var err error
+	input.Settings, input.Secrets, err = validateAssignmentContract(input.AdapterKind, input.AdapterSchemaVersion, input.Settings, input.Secrets, true)
+	if err != nil {
+		return Assignment{}, err
 	}
 	var encrypted []byte
 	if len(input.Secrets) != 0 {
@@ -573,12 +648,17 @@ func (s *Service) UpdateAssignment(ctx context.Context, principal authorization.
 		return Assignment{}, apperror.PermissionDenied
 	}
 	input.AdapterKind = strings.TrimSpace(input.AdapterKind)
-	if input.AdapterKind == "" || len(input.AdapterKind) > 80 || input.AdapterSchemaVersion != 1 {
+	if input.AdapterKind == "" || len(input.AdapterKind) > 80 {
 		return Assignment{}, validation("adapterKind and supported schema version are required")
 	}
-	var settings map[string]any
-	if len(input.Settings) == 0 || len(input.Settings) > 32768 || json.Unmarshal(input.Settings, &settings) != nil {
-		return Assignment{}, validation("settings must be a bounded JSON object")
+	providedSecrets := map[string]string{}
+	if input.Secrets != nil {
+		providedSecrets = *input.Secrets
+	}
+	var contractErr error
+	input.Settings, providedSecrets, contractErr = validateAssignmentContract(input.AdapterKind, input.AdapterSchemaVersion, input.Settings, providedSecrets, false)
+	if contractErr != nil {
+		return Assignment{}, contractErr
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -597,13 +677,13 @@ func (s *Service) UpdateAssignment(ctx context.Context, principal authorization.
 		return Assignment{}, conflict("printer_connector_assignment_ended", "An ended assignment cannot be updated")
 	}
 	encrypted := current.EncryptedSecrets
-	if input.Secrets != nil {
+	if input.Secrets != nil && (input.AdapterKind != "bambu_h2d" || len(providedSecrets) != 0) {
 		encrypted = nil
-		if len(*input.Secrets) != 0 {
+		if len(providedSecrets) != 0 {
 			if s.keyring == nil {
 				return Assignment{}, conflict("encryption_not_configured", "Application encryption must be configured before storing printer credentials")
 			}
-			plain, marshalErr := json.Marshal(*input.Secrets)
+			plain, marshalErr := json.Marshal(providedSecrets)
 			if marshalErr != nil {
 				return Assignment{}, validation("invalid printer secrets")
 			}
@@ -743,7 +823,7 @@ func (s *Service) createAssignment(ctx context.Context, principal authorization.
 	if connector.Lifecycle == "revoked" {
 		return Assignment{}, conflict("printer_connector_revoked", "A revoked connector cannot receive printers")
 	}
-	row, err := q.CreateAssignment(ctx, db.CreateAssignmentParams{ID: assignmentID, ConnectorID: connectorID, MachineID: input.MachineID, AdapterKind: input.AdapterKind, AdapterSchemaVersion: int32(input.AdapterSchemaVersion), Settings: input.Settings, EncryptedSecrets: encrypted})
+	row, err := q.CreateAssignment(ctx, db.CreateAssignmentParams{ID: assignmentID, ConnectorID: connectorID, MachineID: input.MachineID, AdapterKind: input.AdapterKind, AdapterSchemaVersion: int32(input.AdapterSchemaVersion), Settings: input.Settings, EncryptedSecrets: encrypted, Enabled: input.Enabled})
 	if err != nil {
 		return Assignment{}, databaseError(err)
 	}
@@ -934,6 +1014,18 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
 		}
 	}
+	if inserted && input.Kind == "printer_error" {
+		if err = applyPrinterError(ctx, db.New(tx), a.MachineID, a.ID, input.RunID, input.Payload, input.OccurredAt); err != nil {
+			code := "temporarily_unavailable"
+			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
+		}
+	}
+	if inserted && input.Kind == "slot_observation" && applicationState == "applied" && a.AdapterKind == "bambu_h2d" && bambuAutoDetectSpools(a.Settings) {
+		if err = reconcileBambuSlotObservation(ctx, tx, connector.ID, a.ID, a.MachineID, event.ID, input.Payload, input.OccurredAt); err != nil {
+			code := "temporarily_unavailable"
+			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
+		}
+	}
 	if err = tx.Commit(ctx); err != nil {
 		code := "temporarily_unavailable"
 		return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
@@ -944,6 +1036,27 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 	}
 	id := event.ID
 	return EventReceipt{EventID: input.EventID, CoreEventID: &id, Status: status}
+}
+
+func applyPrinterError(ctx context.Context, q *db.Queries, machineID, assignmentID uuid.UUID, runID *uuid.UUID, payload json.RawMessage, observedAt time.Time) error {
+	var value struct {
+		Transition   string `json:"transition"`
+		SourceFamily string `json:"sourceFamily"`
+		Code         string `json:"code"`
+	}
+	if json.Unmarshal(payload, &value) != nil {
+		return nil
+	}
+	value.Transition = strings.TrimSpace(value.Transition)
+	value.SourceFamily = strings.TrimSpace(value.SourceFamily)
+	value.Code = strings.TrimSpace(value.Code)
+	if (value.Transition != "appeared" && value.Transition != "cleared") || value.SourceFamily == "" || len(value.SourceFamily) > 80 || value.Code == "" || len(value.Code) > 120 {
+		return nil
+	}
+	if value.Transition == "cleared" {
+		return q.ResolvePrinterErrorOccurrence(ctx, db.ResolvePrinterErrorOccurrenceParams{AssignmentID: assignmentID, SourceFamily: value.SourceFamily, OriginalCode: value.Code, ObservedAt: observedAt.UTC()})
+	}
+	return q.UpsertPrinterErrorOccurrence(ctx, db.UpsertPrinterErrorOccurrenceParams{ID: uuid.Must(uuid.NewV7()), MachineID: machineID, AssignmentID: assignmentID, RunID: runID, SourceFamily: value.SourceFamily, OriginalCode: value.Code, ObservedAt: observedAt.UTC(), Context: json.RawMessage(`{}`)})
 }
 
 func recordedRunState(kind string, payload json.RawMessage) (string, error) {
@@ -960,7 +1073,7 @@ func recordedRunState(kind string, payload json.RawMessage) (string, error) {
 		switch value.Outcome {
 		case "completed":
 			return "finished", nil
-		case "failed", "cancelled":
+		case "failed", "cancelled", "unknown":
 			return value.Outcome, nil
 		default:
 			return "", errors.New("invalid terminal outcome")

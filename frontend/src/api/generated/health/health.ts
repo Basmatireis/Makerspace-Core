@@ -30,19 +30,19 @@ import { apiFetch } from '../../http-client';
 export const getGetLivenessUrl = () => {
 
 
-  
+
 
   return `/api/v1/health/live`
 }
 
 export const getLiveness = async ( options?: RequestInit): Promise<HealthStatus> => {
-  
+
   return apiFetch<HealthStatus>(getGetLivenessUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -53,19 +53,19 @@ export const getLiveness = async ( options?: RequestInit): Promise<HealthStatus>
 export const getGetReadinessUrl = () => {
 
 
-  
+
 
   return `/api/v1/health/ready`
 }
 
 export const getReadiness = async ( options?: RequestInit): Promise<HealthStatus> => {
-  
+
   return apiFetch<HealthStatus>(getGetReadinessUrl(),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 

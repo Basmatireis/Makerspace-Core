@@ -51,7 +51,7 @@ export const getListMachineRunsUrl = (params?: ListMachineRunsParams,) => {
       });
       return;
     }
-      
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -63,13 +63,13 @@ export const getListMachineRunsUrl = (params?: ListMachineRunsParams,) => {
 }
 
 export const listMachineRuns = async (params?: ListMachineRunsParams, options?: RequestInit): Promise<MachineRunPage> => {
-  
+
   return apiFetch<MachineRunPage>(getListMachineRunsUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -80,19 +80,19 @@ export const listMachineRuns = async (params?: ListMachineRunsParams, options?: 
 export const getGetMachineRunUrl = (runId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machine-runs/${runId}`
 }
 
 export const getMachineRun = async (runId: UUIDv7, options?: RequestInit): Promise<MachineRunDetail> => {
-  
+
   return apiFetch<MachineRunDetail>(getGetMachineRunUrl(runId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -103,16 +103,16 @@ export const getMachineRun = async (runId: UUIDv7, options?: RequestInit): Promi
 export const getUpdateMachineRunUrl = (runId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machine-runs/${runId}`
 }
 
 export const updateMachineRun = async (runId: UUIDv7,
     updateMachineRunRequest: UpdateMachineRunRequest, options?: RequestInit): Promise<MachineRunUpdateResult> => {
-  
+
   return apiFetch<MachineRunUpdateResult>(getUpdateMachineRunUrl(runId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -128,16 +128,16 @@ export const updateMachineRun = async (runId: UUIDv7,
 export const getDeleteMachineRunUrl = (runId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machine-runs/${runId}`
 }
 
 export const deleteMachineRun = async (runId: UUIDv7,
     versionRequest: VersionRequest, options?: RequestInit): Promise<MachineJob> => {
-  
+
   return apiFetch<MachineJob>(getDeleteMachineRunUrl(runId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -153,16 +153,16 @@ export const deleteMachineRun = async (runId: UUIDv7,
 export const getReplaceMachineRunUsagesUrl = (runId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machine-runs/${runId}/usages`
 }
 
 export const replaceMachineRunUsages = async (runId: UUIDv7,
     replaceMachineRunUsagesRequest: ReplaceMachineRunUsagesRequest, options?: RequestInit): Promise<MachineRunUpdateResult> => {
-  
+
   return apiFetch<MachineRunUpdateResult>(getReplaceMachineRunUsagesUrl(runId),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -178,16 +178,16 @@ export const replaceMachineRunUsages = async (runId: UUIDv7,
 export const getCancelMachineRunUrl = (runId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machine-runs/${runId}/cancellation`
 }
 
 export const cancelMachineRun = async (runId: UUIDv7,
     versionRequest: VersionRequest, options?: RequestInit): Promise<MachineJob> => {
-  
+
   return apiFetch<MachineJob>(getCancelMachineRunUrl(runId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -204,16 +204,16 @@ export const cancelMachineRun = async (runId: UUIDv7,
 export const getCreateMachineJobFromRunUrl = (runId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machine-runs/${runId}/job`
 }
 
 export const createMachineJobFromRun = async (runId: UUIDv7,
     createMachineJobFromRunRequest: CreateMachineJobFromRunRequest, options?: RequestInit): Promise<MachineJob> => {
-  
+
   return apiFetch<MachineJob>(getCreateMachineJobFromRunUrl(runId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -230,16 +230,16 @@ export const createMachineJobFromRun = async (runId: UUIDv7,
 export const getAttachMachineRunUrl = (runId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machine-runs/${runId}/job`
 }
 
 export const attachMachineRun = async (runId: UUIDv7,
     attachMachineRunRequest: AttachMachineRunRequest, options?: RequestInit): Promise<MachineJob> => {
-  
+
   return apiFetch<MachineJob>(getAttachMachineRunUrl(runId),
-  {      
+  {
     ...options,
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -256,16 +256,16 @@ export const attachMachineRun = async (runId: UUIDv7,
 export const getDetachMachineRunUrl = (runId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machine-runs/${runId}/job`
 }
 
 export const detachMachineRun = async (runId: UUIDv7,
     detachMachineRunRequest: DetachMachineRunRequest, options?: RequestInit): Promise<MachineJob> => {
-  
+
   return apiFetch<MachineJob>(getDetachMachineRunUrl(runId),
-  {      
+  {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -281,16 +281,16 @@ export const detachMachineRun = async (runId: UUIDv7,
 export const getAddManualMachineRunUrl = (machineJobId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/machine-jobs/${machineJobId}/runs`
 }
 
 export const addManualMachineRun = async (machineJobId: UUIDv7,
     addManualMachineRunRequest: AddManualMachineRunRequest, options?: RequestInit): Promise<MachineJob> => {
-  
+
   return apiFetch<MachineJob>(getAddManualMachineRunUrl(machineJobId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

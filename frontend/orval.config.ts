@@ -23,5 +23,8 @@ export default defineConfig({
         },
       },
     },
+    hooks: {
+      afterAllFilesWrite: 'node ./scripts/trim-generated-whitespace.mjs',
+    },
   },
 });

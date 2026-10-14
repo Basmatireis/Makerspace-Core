@@ -43,7 +43,7 @@ export const getListMaterialsUrl = (params?: ListMaterialsParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -55,13 +55,13 @@ export const getListMaterialsUrl = (params?: ListMaterialsParams,) => {
 }
 
 export const listMaterials = async (params?: ListMaterialsParams, options?: RequestInit): Promise<MaterialPage> => {
-  
+
   return apiFetch<MaterialPage>(getListMaterialsUrl(params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -72,15 +72,15 @@ export const listMaterials = async (params?: ListMaterialsParams, options?: Requ
 export const getCreateMaterialUrl = () => {
 
 
-  
+
 
   return `/api/v1/materials`
 }
 
 export const createMaterial = async (createMaterialRequest: CreateMaterialRequest, options?: RequestInit): Promise<Material> => {
-  
+
   return apiFetch<Material>(getCreateMaterialUrl(),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -96,19 +96,19 @@ export const createMaterial = async (createMaterialRequest: CreateMaterialReques
 export const getGetMaterialUrl = (materialId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/materials/${materialId}`
 }
 
 export const getMaterial = async (materialId: UUIDv7, options?: RequestInit): Promise<Material> => {
-  
+
   return apiFetch<Material>(getGetMaterialUrl(materialId),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -119,16 +119,16 @@ export const getMaterial = async (materialId: UUIDv7, options?: RequestInit): Pr
 export const getUpdateMaterialUrl = (materialId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/materials/${materialId}`
 }
 
 export const updateMaterial = async (materialId: UUIDv7,
     updateMaterialRequest: UpdateMaterialRequest, options?: RequestInit): Promise<Material> => {
-  
+
   return apiFetch<Material>(getUpdateMaterialUrl(materialId),
-  {      
+  {
     ...options,
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -146,7 +146,7 @@ export const getListMaterialTransactionsUrl = (materialId: UUIDv7,
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
-    
+
     if (value !== undefined) {
       normalizedParams.append(key, value === null ? 'null' : value.toString())
     }
@@ -159,13 +159,13 @@ export const getListMaterialTransactionsUrl = (materialId: UUIDv7,
 
 export const listMaterialTransactions = async (materialId: UUIDv7,
     params?: ListMaterialTransactionsParams, options?: RequestInit): Promise<InventoryTransactionPage> => {
-  
+
   return apiFetch<InventoryTransactionPage>(getListMaterialTransactionsUrl(materialId,params),
-  {      
+  {
     ...options,
     method: 'GET'
-    
-    
+
+
   }
 );}
 
@@ -176,16 +176,16 @@ export const listMaterialTransactions = async (materialId: UUIDv7,
 export const getAddMaterialPurchaseUrl = (materialId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/materials/${materialId}/purchases`
 }
 
 export const addMaterialPurchase = async (materialId: UUIDv7,
     addMaterialPurchaseRequest: AddMaterialPurchaseRequest, options?: RequestInit): Promise<InventoryMutationResult> => {
-  
+
   return apiFetch<InventoryMutationResult>(getAddMaterialPurchaseUrl(materialId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -201,16 +201,16 @@ export const addMaterialPurchase = async (materialId: UUIDv7,
 export const getRecordMaterialConsumptionUrl = (materialId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/materials/${materialId}/consumptions`
 }
 
 export const recordMaterialConsumption = async (materialId: UUIDv7,
     recordMaterialConsumptionRequest: RecordMaterialConsumptionRequest, options?: RequestInit): Promise<InventoryMutationResult> => {
-  
+
   return apiFetch<InventoryMutationResult>(getRecordMaterialConsumptionUrl(materialId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -226,16 +226,16 @@ export const recordMaterialConsumption = async (materialId: UUIDv7,
 export const getCorrectMaterialStockUrl = (materialId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/materials/${materialId}/corrections`
 }
 
 export const correctMaterialStock = async (materialId: UUIDv7,
     correctMaterialStockRequest: CorrectMaterialStockRequest, options?: RequestInit): Promise<InventoryMutationResult> => {
-  
+
   return apiFetch<InventoryMutationResult>(getCorrectMaterialStockUrl(materialId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
@@ -251,16 +251,16 @@ export const correctMaterialStock = async (materialId: UUIDv7,
 export const getMarkMaterialEmptyUrl = (materialId: UUIDv7,) => {
 
 
-  
+
 
   return `/api/v1/materials/${materialId}/mark-empty`
 }
 
 export const markMaterialEmpty = async (materialId: UUIDv7,
     markMaterialEmptyRequest: MarkMaterialEmptyRequest, options?: RequestInit): Promise<InventoryMutationResult> => {
-  
+
   return apiFetch<InventoryMutationResult>(getMarkMaterialEmptyUrl(materialId),
-  {      
+  {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },

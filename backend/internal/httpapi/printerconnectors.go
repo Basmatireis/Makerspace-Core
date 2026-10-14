@@ -153,7 +153,7 @@ func (s *Server) CreatePrinterConnectorAssignment(ctx context.Context, request o
 	if request.Body.Secrets != nil {
 		secrets = *request.Body.Secrets
 	}
-	item, err := s.printerConnectors.CreateAssignment(ctx, principal, request.PrinterConnectorId, printerconnectors.AssignmentInput{MachineID: request.Body.MachineId, AdapterKind: request.Body.AdapterKind, AdapterSchemaVersion: request.Body.AdapterSchemaVersion, Settings: settings, Secrets: secrets}, requestIDPointer(ctx))
+	item, err := s.printerConnectors.CreateAssignment(ctx, principal, request.PrinterConnectorId, printerconnectors.AssignmentInput{MachineID: request.Body.MachineId, AdapterKind: request.Body.AdapterKind, AdapterSchemaVersion: request.Body.AdapterSchemaVersion, Settings: settings, Secrets: secrets, Enabled: request.Body.Enabled}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
