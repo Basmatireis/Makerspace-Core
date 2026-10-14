@@ -99,7 +99,13 @@ Tests must not depend on an existing developer database or bootstrap account. Us
 
 ### Demo data
 
-`make seed-dev` fills an empty development database with demo data for a university makerspace, through the `backend/cmd/devseed` program. It refuses to run when machines, materials or machine jobs already exist, and it refuses to run with `APP_ENV=production`.
+`make seed-dev` adds demo data for a university makerspace to the development database through the `backend/cmd/devseed` program. It writes through the service layer, runs on top of existing data, and can be repeated; it refuses to run with `APP_ENV=production`.
+
+- It acts as the oldest enabled master account, or the one given with `SEED_ARGS="-actor-email ..."`. Without any master it bootstraps `Devseed Admin` (`devseed-admin@makerspace.example.org`) with a random password that is never shown. `make bootstrap-master` then refuses to run because a master exists; set a password for that account with `make reset-password`, or use `make admin ARGS=recover-master`.
+- The `supervisor`, `trainee` and `Visitor` roles, organizations, pricing groups, machine types, materials and filament products are reused by name when compatible and created otherwise. Pricing rules, organization pricing assignments and low-stock thresholds are only set on records the run created.
+- Every run creates its own people, machines, printer connector, jobs, prints and orders. Names that must be unique get a ` · demo <tag>` suffix when already taken.
+- Open days are staffed in a staffing or published period covering the coming week; when none exists, the run creates and publishes one and adds Tuesday/Thursday open days until six are upcoming.
+- The random seed defaults to the current time; pass `SEED_ARGS="-seed 42"` for a reproducible structure. All dates are relative to today.
 
 ## Browser end-to-end checks
 

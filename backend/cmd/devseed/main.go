@@ -1,22 +1,31 @@
-// Command devseed fills an EMPTY development database with demo data for a
-// small/medium university makerspace: people, machines, materials, spools,
-// jobs, prints, orders and open day assignments. It writes exclusively through
-// the service layer so business rules and audit events apply as they would in
-// normal use.
+// Command devseed adds demo data for a small/medium university makerspace to
+// the development database: people, machines, materials, spools, jobs, prints,
+// orders and open day assignments. It writes exclusively through the service
+// layer so business rules and audit events apply as they would in normal use.
 //
-// The program refuses to run when machines, materials or machine jobs already
-// exist, and it refuses to run when APP_ENV is "production" or "prod".
+// It runs on top of existing data and can be run repeatedly. Shared catalog
+// records (roles, organizations, pricing groups, machine types, materials,
+// filament products) are reused by name when a compatible one exists; every
+// run creates its own people, machines, connector, jobs and orders, with a
+// short run tag in the names that must be unique. When no master account
+// exists, it bootstraps a "Devseed Admin" master without a usable password.
+//
+// The program refuses to run when APP_ENV is "production" or "prod".
 //
 // Run it against the development database with:
 //
 //	make seed-dev
+//	make seed-dev SEED_ARGS="-seed 42 -actor-email someone@example.org"
 package main
 
 import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"flag"
 	"fmt"
 	"log"
 	"math"
@@ -29,6 +38,7 @@ import (
 	_ "time/tzdata"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/accounts"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/opendays"
@@ -38,7 +48,9 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/database"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shopspring/decimal"
 )
@@ -164,6 +176,7 @@ type seeder struct {
 	rng      *mrand.Rand
 	actor    authorization.Principal
 	people   *people.Service
+	rolesSvc *roles.Service
 	accounts *accounts.Service
 	ml       *ML
 	printing *printing.Service
@@ -172,6 +185,8 @@ type seeder struct {
 	od       *opendays.Service
 	loc      *time.Location
 	now      time.Time
+	tag      string        // short per-run tag for names that must be unique
+	shift    time.Duration // moves the fixed stock timeline so it ends today
 
 	roles       map[string]uuid.UUID
 	supervisors []uuid.UUID
@@ -179,18 +194,25 @@ type seeder struct {
 	custs       []party
 	orgs        map[string]party
 	mats        map[string]*mat
+	newMats     map[string]bool // materials created by this run
 	prods       map[string]*product
 	machines    map[string]*mach
 	reus        []*reusable
 	connCtx     printerconnectors.Context
 	events      []event
 	jobs        []jobRec
-	idCounter   int
 	opWeights   []float64
 	spoolSeq    int
 }
 
+// timelineAnchor is the day the fixed stock and spool timeline (dateOf) was
+// written for. dateOf shifts those dates so the timeline always ends today.
+var timelineAnchor = time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC)
+
 func main() {
+	seed := flag.Int64("seed", time.Now().UnixNano(), "random seed; the same seed produces the same structure")
+	actorEmail := flag.String("actor-email", "", "contact email of the master person to act as (default: first master)")
+	flag.Parse()
 	if env := os.Getenv("APP_ENV"); env == "production" || env == "prod" {
 		fmt.Fprintln(os.Stderr, "devseed refuses to run with APP_ENV=production")
 		os.Exit(1)
@@ -202,17 +224,24 @@ func main() {
 	check("db", err)
 	defer pool.Close()
 
-	var n int
-	check("guard", pool.QueryRow(ctx, "SELECT (SELECT count(*) FROM machines)+(SELECT count(*) FROM materials)+(SELECT count(*) FROM machine_jobs)").Scan(&n))
-	if n > 0 {
-		log.Fatal("data already exists; refusing to seed")
+	tz := cfg.MakerspaceTimeZone
+	if tz == "" {
+		tz = "Europe/Vienna"
 	}
-	loc, err := time.LoadLocation("Europe/Berlin")
+	loc, err := time.LoadLocation(tz)
 	check("tz", err)
-
-	s := &seeder{ctx: ctx, pool: pool, cfg: cfg, rng: mrand.New(mrand.NewSource(42)), loc: loc, now: time.Now().UTC(),
-		orgs: map[string]party{}, mats: map[string]*mat{}, prods: map[string]*product{}, machines: map[string]*mach{}, roles: map[string]uuid.UUID{}}
+	tagBytes := make([]byte, 2)
+	_, _ = rand.Read(tagBytes)
+	now := time.Now().UTC()
+	anchor := time.Date(timelineAnchor.Year(), timelineAnchor.Month(), timelineAnchor.Day(), 0, 0, 0, 0, loc)
+	today := now.In(loc)
+	s := &seeder{ctx: ctx, pool: pool, cfg: cfg, rng: mrand.New(mrand.NewSource(*seed)), loc: loc, now: now,
+		tag:   hex.EncodeToString(tagBytes),
+		shift: time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, loc).Sub(anchor),
+		orgs:  map[string]party{}, mats: map[string]*mat{}, newMats: map[string]bool{}, prods: map[string]*product{}, machines: map[string]*mach{}, roles: map[string]uuid.UUID{}}
+	log.Printf("devseed run %s (seed %d)", s.tag, *seed)
 	s.people = people.NewService(pool)
+	s.rolesSvc = roles.NewService(pool)
 	s.accounts = accounts.NewService(pool, cfg)
 	s.ml = machinelogbook.NewService(pool)
 	s.printing = printing.NewService(pool, s.ml)
@@ -222,7 +251,8 @@ func main() {
 	s.od, err = opendays.NewService(pool, cfg)
 	check("opendays", err)
 
-	s.setupActor()
+	s.setupActor(*actorEmail)
+	s.ensureRoles()
 	s.createPeople()
 	s.createOrgsAndPricing()
 	s.createCatalog()
@@ -235,7 +265,7 @@ func main() {
 	s.createOrders()
 	s.assignOpenDays()
 	s.setThresholds()
-	log.Println("DONE")
+	log.Printf("DONE (run %s)", s.tag)
 }
 
 func (s *seeder) mlAt(t time.Time) *ML {
@@ -244,27 +274,99 @@ func (s *seeder) mlAt(t time.Time) *ML {
 
 func (s *seeder) ago(d time.Duration) time.Time { return s.now.Add(-d) }
 
-func (s *seeder) setupActor() {
+const masterQuery = `SELECT a.id, p.id, p.first_name, p.last_name FROM accounts a
+JOIN people p ON p.id = a.person_id
+JOIN person_roles pr ON pr.person_id = p.id
+JOIN roles r ON r.id = pr.role_id
+WHERE r.system_key = 'master' AND a.status = 'enabled' AND ($1 = '' OR lower(p.email) = lower($1))
+ORDER BY a.created_at, a.id LIMIT 1`
+
+// setupActor acts as the requested master, else the oldest master. Without
+// any master it bootstraps "Devseed Admin" with a random password that is
+// never shown, so the account exists only to own the seeded changes.
+func (s *seeder) setupActor(email string) {
 	var acc, person uuid.UUID
 	var fn, ln string
-	check("actor", s.pool.QueryRow(s.ctx, `SELECT a.id, p.id, p.first_name, p.last_name FROM accounts a JOIN people p ON p.id=a.person_id WHERE p.email='hauke.noel@icloud.com'`).Scan(&acc, &person, &fn, &ln))
+	err := s.pool.QueryRow(s.ctx, masterQuery, email).Scan(&acc, &person, &fn, &ln)
+	if errors.Is(err, pgx.ErrNoRows) && email != "" {
+		log.Fatalf("no enabled master account with contact email %q", email)
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		pw := make([]byte, 32)
+		_, _ = rand.Read(pw)
+		_, err = admin.NewService(s.pool).BootstrapMaster(s.ctx, admin.BootstrapInput{FirstName: "Devseed", LastName: "Admin",
+			ContactEmail: "devseed-admin@makerspace.example.org", LoginEmail: "devseed-admin@makerspace.example.org", Password: base64.RawURLEncoding.EncodeToString(pw)})
+		check("bootstrap devseed master", err)
+		log.Println("no master found; created Devseed Admin (devseed-admin@makerspace.example.org) without a usable password")
+		err = s.pool.QueryRow(s.ctx, masterQuery, "").Scan(&acc, &person, &fn, &ln)
+	}
+	check("actor", err)
 	pr, err := authorization.LoadPermissionsFrom(s.ctx, s.pool, authorization.Principal{AccountID: acc, PersonID: person, FirstName: fn, LastName: ln, Assurance: authorization.AssuranceNormal, AuthenticatedAt: s.now})
 	check("principal", err)
 	if !pr.Master {
 		log.Fatal("actor is not master")
 	}
 	s.actor = pr
+	log.Printf("acting as %s %s", fn, ln)
+}
+
+// ensureRoles reuses the supervisor, trainee and Visitor roles by name and
+// creates the ones that are missing.
+func (s *seeder) ensureRoles() {
 	rows, err := s.pool.Query(s.ctx, "SELECT id, name FROM roles")
 	check("roles", err)
-	defer rows.Close()
 	for rows.Next() {
 		var id uuid.UUID
 		var name string
 		check("scan", rows.Scan(&id, &name))
-		s.roles[name] = id
+		s.roles[strings.ToLower(name)] = id
 	}
-	s.supervisors = nil
+	rows.Close()
+	check("roles", rows.Err())
+	grants := func(ps ...authorization.Permission) []authorization.PermissionGrant {
+		var out []authorization.PermissionGrant
+		for _, p := range ps {
+			out = append(out, authorization.PermissionGrant{PermissionID: p, Scope: authorization.GrantEverywhere})
+		}
+		return out
+	}
+	for _, r := range []struct {
+		name, desc string
+		grants     []authorization.PermissionGrant
+		dashboard  bool
+	}{
+		{"supervisor", "Runs the workshop during open hours (created by devseed)", grants(
+			authorization.SupervisorDashboardRead, authorization.OpenDaysRead, authorization.OpenDaysSignup,
+			authorization.MachinesRead, authorization.MachineJobsRead, authorization.MachineJobsCreate, authorization.MachineJobsEdit, authorization.MachineJobsReview,
+			authorization.InventoryRead, authorization.FilamentSpoolsManage, authorization.PrinterSlotsAssign, authorization.PrintSubmissionsRead,
+			authorization.OrganizationsRead, authorization.PricingRead), true},
+		{"trainee", "Supervisor in training (created by devseed)", grants(
+			authorization.OpenDaysRead, authorization.OpenDaysSignup, authorization.MachinesRead, authorization.MachineJobsRead, authorization.InventoryRead), false},
+		{"Visitor", "External visitor without permissions (created by devseed)", nil, false},
+	} {
+		if _, ok := s.roles[strings.ToLower(r.name)]; ok {
+			continue
+		}
+		role, err := s.rolesSvc.CreateWithBehaviors(s.ctx, s.actor, r.name, ptr(r.desc), r.grants, false, "not_required", r.dashboard, nil)
+		check("role "+r.name, err)
+		s.roles[strings.ToLower(r.name)] = role.ID
+		log.Printf("created role %s", r.name)
+	}
 }
+
+// existing returns the id of the row the query finds, if any.
+func (s *seeder) existing(query string, args ...any) (uuid.UUID, bool) {
+	var id uuid.UUID
+	err := s.pool.QueryRow(s.ctx, query, args...).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, false
+	}
+	check("lookup", err)
+	return id, true
+}
+
+// tagged marks a name with the run tag to keep it unique.
+func (s *seeder) tagged(name string) string { return name + " · demo " + s.tag }
 
 var firstNames = []string{"Lukas", "Leon", "Finn", "Jonas", "Paul", "Felix", "Maximilian", "Noah", "Elias", "Tim", "Jan", "Niklas", "Moritz", "Philipp", "Sebastian", "Tobias", "David", "Simon", "Julian", "Fabian", "Anna", "Lena", "Marie", "Sophie", "Laura", "Hannah", "Julia", "Katharina", "Lisa", "Johanna", "Clara", "Emma", "Mia", "Leonie", "Franziska", "Carolin", "Sarah", "Nina", "Eva", "Jana", "Mehmet", "Emre", "Aylin", "Marta", "Piotr", "Ioana", "Luca", "Giulia", "Ravi", "Mei", "Amira", "Karim", "Tomas", "Elif", "Ben", "Henrik", "Greta", "Ole", "Merle", "Jannik"}
 var lastNames = []string{"Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker", "Schulz", "Hoffmann", "Schäfer", "Koch", "Bauer", "Richter", "Klein", "Wolf", "Schröder", "Neumann", "Schwarz", "Zimmermann", "Braun", "Krüger", "Hartmann", "Lange", "Schmitt", "Werner", "Krause", "Lehmann", "Köhler", "Herrmann", "König", "Walter", "Huber", "Kaiser", "Fuchs", "Peters", "Scholz", "Möller", "Weiß", "Jung", "Hahn", "Schubert", "Vogel", "Friedrich", "Keller", "Günther", "Frank", "Berger", "Winkler", "Roth", "Beck", "Lorenz", "Baumann", "Franke", "Albrecht", "Schuster", "Ludwig", "Böhm", "Winter", "Kraus", "Schumacher", "Krämer", "Vogt", "Stein", "Jäger", "Otto", "Sommer", "Seidel", "Brandt", "Haas", "Graf", "Ziegler", "Kuhn", "Engel", "Pohl", "Horn", "Busch", "Bergmann", "Voigt", "Sauer", "Arnold", "Pfeiffer", "Yilmaz", "Kaya", "Nowak", "Kowalski", "Rossi", "Nguyen", "Petrov", "Okafor", "Chen", "Singh", "Haddad", "Popescu"}
@@ -283,9 +385,23 @@ func (s *seeder) createPeople() {
 	fi := s.rng.Perm(len(firstNames))
 	li := s.rng.Perm(len(lastNames))
 	idx := 0
-	usedEmail := map[string]bool{"hauke.noel@icloud.com": true}
+	// Emails need not be unique, but repeated runs read better without
+	// duplicates. Matriculation numbers are unique, so continue after the
+	// highest existing one.
+	usedEmail := map[string]bool{}
+	rows, err := s.pool.Query(s.ctx, "SELECT lower(email) FROM people WHERE email IS NOT NULL")
+	check("emails", err)
+	for rows.Next() {
+		var e string
+		check("scan", rows.Scan(&e))
+		usedEmail[e] = true
+	}
+	rows.Close()
+	check("emails", rows.Err())
 	usedName := map[string]bool{}
-	mat := 3000000 + s.rng.Intn(500000)
+	var maxMat int64
+	check("matriculation", s.pool.QueryRow(s.ctx, "SELECT coalesce(max(matriculation_number::bigint), 0) FROM people WHERE matriculation_number ~ '^[0-9]{1,15}$'").Scan(&maxMat))
+	mat := max(3000000+s.rng.Intn(500000), int(maxMat))
 	next := func(domain string) (string, string, string) {
 		for {
 			f := firstNames[fi[(idx*7)%len(fi)]]
@@ -296,8 +412,8 @@ func (s *seeder) createPeople() {
 			}
 			usedName[f+l] = true
 			email := translit(f) + "." + translit(l) + "@" + domain
-			if usedEmail[email] {
-				continue
+			for n := 2; usedEmail[email]; n++ {
+				email = fmt.Sprintf("%s.%s%d@%s", translit(f), translit(l), n, domain)
 			}
 			usedEmail[email] = true
 			return f, l, email
@@ -321,7 +437,7 @@ func (s *seeder) createPeople() {
 			check("account "+email, err)
 		}
 		if role != "" {
-			p, err = s.people.ChangeRole(s.ctx, s.actor, p.ID, s.roles[role], ver, true, nil)
+			p, err = s.people.ChangeRole(s.ctx, s.actor, p.ID, s.roles[strings.ToLower(role)], ver, true, nil)
 			check("role "+email, err)
 		}
 		return p.ID
@@ -351,48 +467,86 @@ func (s *seeder) createPeople() {
 	for i := range s.supervisors {
 		s.opWeights = append(s.opWeights, 1/math.Pow(float64(i+1), 0.8))
 	}
-	// Noel does a few jobs too
+	// the acting master does a few jobs too
 	s.supervisors = append(s.supervisors, s.actor.PersonID)
 	s.opWeights = append(s.opWeights, 0.5)
 	log.Printf("people created: %d supervisors, %d trainees, %d customers", 40, 4, len(s.custs))
 }
 
+// claim returns the id of a reusable row named name in table, where
+// compatible ($2...) decides reusability. Otherwise it returns the name to
+// create: name itself, or a tagged variant when an incompatible row holds it.
+func (s *seeder) claim(table, name, compatible string, args ...any) (uuid.UUID, string) {
+	if id, ok := s.existing("SELECT id FROM "+table+" WHERE lower(name) = lower($1) AND "+compatible, append([]any{name}, args...)...); ok {
+		return id, ""
+	}
+	if _, ok := s.existing("SELECT id FROM "+table+" WHERE lower(name) = lower($1)", name); ok {
+		return uuid.Nil, s.tagged(name)
+	}
+	return uuid.Nil, name
+}
+
 func (s *seeder) createOrgsAndPricing() {
 	ml := s.ml
-	mk := func(name, kind, key, cat string) {
-		o, err := ml.CreateOrganization(s.ctx, s.actor, name, kind, nil)
-		check("org", err)
-		s.orgs[key] = party{"organization", o.ID, "org", name}
-		_ = cat
+	newOrgs := map[string]bool{}
+	mk := func(name, kind, key string) {
+		id, create := s.claim("organizations", name, "active")
+		if create != "" {
+			o, err := ml.CreateOrganization(s.ctx, s.actor, create, kind, nil)
+			check("org", err)
+			id, name = o.ID, create
+			newOrgs[key] = true
+		}
+		s.orgs[key] = party{"organization", id, "org", name}
 	}
-	mk("Lehrstuhl für Produktentwicklung", "institute", "chair", "staff")
-	mk("Fachschaft Maschinenbau", "association", "fs", "student")
-	mk("Startup Kleinteil GmbH", "company", "startup", "external")
+	mk("Lehrstuhl für Produktentwicklung", "institute", "chair")
+	mk("Fachschaft Maschinenbau", "association", "fs")
+	mk("Startup Kleinteil GmbH", "company", "startup")
 
-	students, err := ml.CreatePricingGroup(s.ctx, s.actor, "Students", ptr("Default rates for enrolled students"), true, nil)
-	check("pg", err)
-	staff, err := ml.CreatePricingGroup(s.ctx, s.actor, "University staff", ptr("Employees of the university and its institutes"), false, nil)
-	check("pg", err)
-	ext, err := ml.CreatePricingGroup(s.ctx, s.actor, "External", ptr("Companies and private persons"), false, nil)
-	check("pg", err)
+	_, hasDefault := s.existing("SELECT id FROM pricing_groups WHERE is_default")
+	group := func(name, desc string, isDefault bool) (uuid.UUID, bool) {
+		id, create := s.claim("pricing_groups", name, "active")
+		if create == "" {
+			return id, false
+		}
+		g, err := ml.CreatePricingGroup(s.ctx, s.actor, create, ptr(desc), isDefault && !hasDefault, nil)
+		check("pg", err)
+		return g.ID, true
+	}
+	students, studentsNew := group("Students", "Default rates for enrolled students", true)
+	staff, staffNew := group("University staff", "Employees of the university and its institutes", false)
+	ext, extNew := group("External", "Companies and private persons", false)
 
-	ftype, err := ml.CreateMachineType(s.ctx, s.actor, "FDM 3D printer", nil)
-	check("mt", err)
-	ltype, err := ml.CreateMachineType(s.ctx, s.actor, "Laser cutter", nil)
-	check("mt", err)
+	machineType := func(name string) uuid.UUID {
+		id, create := s.claim("machine_types", name, "active")
+		if create != "" {
+			mt, err := ml.CreateMachineType(s.ctx, s.actor, create, nil)
+			check("mt", err)
+			id = mt.ID
+		}
+		return id
+	}
+	ftype := machineType("FDM 3D printer")
+	ltype := machineType("Laser cutter")
 
+	// Rules are only added to groups this run created; reused groups keep
+	// their pricing.
 	type rates struct{ fdm, laser, fil, ply, acr, mdf float64 }
 	for _, g := range []struct {
-		g *machinelogbook.PricingGroup
-		r rates
-		x bool
-	}{{&students, rates{0.5, 6, 0.03, 12, 35, 8}, false}, {&staff, rates{1, 12, 0.04, 18, 50, 12}, false}, {&ext, rates{3, 30, 0.08, 40, 0, 28}, true}} {
+		id  uuid.UUID
+		new bool
+		r   rates
+		x   bool
+	}{{students, studentsNew, rates{0.5, 6, 0.03, 12, 35, 8}, false}, {staff, staffNew, rates{1, 12, 0.04, 18, 50, 12}, false}, {ext, extNew, rates{3, 30, 0.08, 40, 0, 28}, true}} {
+		if !g.new {
+			continue
+		}
 		rule := func(kind string, mt *uuid.UUID, cat, unit *string, rate float64) {
-			_, err := ml.CreatePricingRule(s.ctx, s.actor, g.g.ID, kind, mt, cat, unit, f2(rate), nil)
+			_, err := ml.CreatePricingRule(s.ctx, s.actor, g.id, kind, mt, cat, unit, f2(rate), nil)
 			check("rule", err)
 		}
-		rule("machine_runtime", &ftype.ID, nil, nil, g.r.fdm)
-		rule("machine_runtime", &ltype.ID, nil, nil, g.r.laser)
+		rule("machine_runtime", &ftype, nil, nil, g.r.fdm)
+		rule("machine_runtime", &ltype, nil, nil, g.r.laser)
 		rule("material", nil, ptr("filament"), ptr("g"), g.r.fil)
 		rule("material", nil, ptr("plywood"), ptr("m2"), g.r.ply)
 		if !g.x { // External deliberately has no acrylic rule (incomplete pricing demo)
@@ -400,8 +554,8 @@ func (s *seeder) createOrgsAndPricing() {
 		}
 		rule("material", nil, ptr("mdf"), ptr("m2"), g.r.mdf)
 	}
-	assign := func(p party, g machinelogbook.PricingGroup) {
-		_, err := ml.SetPartyPricingGroup(s.ctx, s.actor, p.ref(), &g.ID, 0, nil)
+	assign := func(p party, g uuid.UUID) {
+		_, err := ml.SetPartyPricingGroup(s.ctx, s.actor, p.ref(), &g, 0, nil)
 		check("assign pg", err)
 	}
 	for _, c := range s.custs {
@@ -412,37 +566,63 @@ func (s *seeder) createOrgsAndPricing() {
 			assign(c, ext)
 		}
 	}
-	assign(s.orgs["chair"], staff)
-	assign(s.orgs["fs"], students)
-	assign(s.orgs["startup"], ext)
-	s.machines["_ftype"] = &mach{id: ftype.ID}
-	s.machines["_ltype"] = &mach{id: ltype.ID}
+	// Reused organizations keep their pricing group.
+	for key, g := range map[string]uuid.UUID{"chair": staff, "fs": students, "startup": ext} {
+		if newOrgs[key] {
+			assign(s.orgs[key], g)
+		}
+	}
+	s.machines["_ftype"] = &mach{id: ftype}
+	s.machines["_ltype"] = &mach{id: ltype}
 	s.custs = append(s.custs, s.orgs["chair"], s.orgs["fs"], s.orgs["startup"])
 }
 
 func (s *seeder) createCatalog() {
 	ml := s.ml
-	fil := func(name, color string) {
-		m, err := ml.CreateMaterialWithFilament(s.ctx, s.actor, name, "filament", ptr(color), "g", nil, ptr("1.75"), nil)
-		check("mat", err)
-		s.mats[name] = &mat{m.ID, name, "filament"}
+	// Materials are reused when name, category and unit match.
+	material := func(name, cat, unit string, color *string) {
+		id, create := s.claim("materials", name, "active AND category = $2 AND unit = $3", cat, unit)
+		if create != "" {
+			var m machinelogbook.Material
+			var err error
+			if unit == "g" {
+				m, err = ml.CreateMaterialWithFilament(s.ctx, s.actor, create, cat, color, unit, nil, ptr("1.75"), nil)
+			} else {
+				m, err = ml.CreateMaterial(s.ctx, s.actor, create, cat, color, unit, nil, nil)
+			}
+			check("mat", err)
+			id = m.ID
+			s.newMats[name] = true
+		}
+		s.mats[name] = &mat{id, name, cat}
 	}
 	for _, f := range [][2]string{{"PLA Black", "#1a1a1a"}, {"PLA White", "#f2f2f2"}, {"PLA Grey", "#8c8c8c"}, {"PLA Red", "#c62828"}, {"PETG Black", "#222222"}, {"PETG Clear", "#dde8ee"}, {"TPU 95A Black", "#111111"}, {"ASA White", "#fafafa"}} {
-		fil(f[0], f[1])
+		material(f[0], "filament", "g", ptr(f[1]))
 	}
 	for _, f := range [][2]string{{"Plywood 3 mm", "plywood"}, {"Plywood 4 mm", "plywood"}, {"Acrylic 3 mm clear", "acrylic"}, {"MDF 3 mm", "mdf"}} {
-		m, err := ml.CreateMaterial(s.ctx, s.actor, f[0], f[1], nil, "m2", nil, nil)
-		check("mat", err)
-		s.mats[f[0]] = &mat{m.ID, f[0], f[1]}
+		material(f[0], f[1], "m2", nil)
 	}
+	// Products are reused when they belong to the same material.
 	prod := func(key, maker, name, matName, pack string, weight, price float64, active bool) {
-		p, err := ml.CreateFilamentProduct(s.ctx, s.actor, machinelogbook.FilamentProductInput{Manufacturer: maker, Name: name, NetWeightG: f1(weight), Packaging: pack, MaterialID: s.mats[matName].id, DefaultPrice: ptr(f2(price)), Active: true}, nil)
-		check("product", err)
-		if !active {
-			_, err = ml.UpdateFilamentProduct(s.ctx, s.actor, p.ID, machinelogbook.FilamentProductInput{Manufacturer: maker, Name: name, NetWeightG: f1(weight), Packaging: pack, MaterialID: s.mats[matName].id, DefaultPrice: ptr(f2(price)), Active: false, ExpectedVersion: p.Version}, nil)
-			check("product deactivate", err)
+		matID := s.mats[matName].id
+		const byName = "SELECT id FROM filament_products WHERE lower(manufacturer) = lower($1) AND lower(name) = lower($2)"
+		id, ok := s.existing(byName+" AND material_id = $3 AND (active OR NOT $4)", maker, name, matID, active)
+		if !ok {
+			createName := name
+			if _, taken := s.existing(byName, maker, name); taken {
+				createName = s.tagged(name)
+			}
+			in := machinelogbook.FilamentProductInput{Manufacturer: maker, Name: createName, NetWeightG: f1(weight), Packaging: pack, MaterialID: matID, DefaultPrice: ptr(f2(price)), Active: true}
+			p, err := ml.CreateFilamentProduct(s.ctx, s.actor, in, nil)
+			check("product", err)
+			if !active {
+				in.Active, in.ExpectedVersion = false, p.Version
+				_, err = ml.UpdateFilamentProduct(s.ctx, s.actor, p.ID, in, nil)
+				check("product deactivate", err)
+			}
+			id = p.ID
 		}
-		s.prods[key] = &product{p.ID, matName, name, maker, weight, price}
+		s.prods[key] = &product{id, matName, name, maker, weight, price}
 	}
 	prod("bl-black", "Bambu Lab", "PLA Basic Black (refill)", "PLA Black", "refill", 1000, 17.49, true)
 	prod("bl-white", "Bambu Lab", "PLA Basic White (refill)", "PLA White", "refill", 1000, 17.49, true)
@@ -458,9 +638,23 @@ func (s *seeder) createCatalog() {
 	prod("pm-asa", "Polymaker", "ASA White", "ASA White", "spool", 1000, 24.99, true)
 }
 
+// freeName returns name, or its tagged variant when table already uses it.
+func (s *seeder) freeName(table, name string) string {
+	if _, taken := s.existing("SELECT id FROM "+table+" WHERE lower(name) = lower($1)", name); taken {
+		return s.tagged(name)
+	}
+	return name
+}
+
 func (s *seeder) setupPrinters() {
 	ml := s.ml
 	mk := func(key, name, typeKey string, fdm, bambu bool, ext *string) *mach {
+		name = s.freeName("machines", name)
+		if ext != nil {
+			if _, taken := s.existing("SELECT id FROM machines WHERE external_identifier = $1", *ext); taken {
+				ext = ptr((*ext)[:7] + strings.ToUpper(s.randHex(4))) // crypto/rand: same -seed reruns must not collide
+			}
+		}
 		m, err := ml.CreateMachine(s.ctx, s.actor, s.machines[typeKey].id, name, "active", ext, ext != nil, nil)
 		check("machine", err)
 		mm := &mach{id: m.ID, name: name, fdm: fdm, bambu: bambu}
@@ -509,8 +703,10 @@ func (s *seeder) setupPrinters() {
 	x1c.slots[4].gens = []gen{{"ex-tpu", time.Time{}}}
 }
 
+// dateOf places a date of the fixed stock timeline (written for
+// timelineAnchor) relative to today.
 func (s *seeder) dateOf(month time.Month, day int) time.Time {
-	return time.Date(2026, month, day, 12, 0, 0, 0, s.loc).UTC()
+	return time.Date(timelineAnchor.Year(), month, day, 12, 0, 0, 0, s.loc).Add(s.shift).UTC()
 }
 
 func (s *seeder) mat(name string) machinelogbook.Material {
@@ -533,9 +729,22 @@ func (s *seeder) purchase(name string, qty float64, price float64, at time.Time,
 	check("purchase "+name, err)
 }
 
+func (s *seeder) randHex(bytes int) string {
+	b := make([]byte, bytes)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// nextBarcode draws from crypto/rand: barcodes are unique across runs, and
+// repeated runs with the same -seed must not collide.
 func (s *seeder) nextBarcode() string {
-	s.idCounter++
-	return fmt.Sprintf("42%011d", 60000000000+int64(s.idCounter)*7919+int64(s.rng.Intn(1000)))
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	n := int64(0)
+	for _, v := range b {
+		n = (n<<8 | int64(v)) % 100000000000
+	}
+	return fmt.Sprintf("42%011d", n)
 }
 
 func (s *seeder) nfc() string {
@@ -665,7 +874,7 @@ func (s *seeder) changeFill(r *reusable, at time.Time, matName, source string, e
 }
 
 func (s *seeder) setupConnector() {
-	c, err := s.pc.Create(s.ctx, s.actor, "Workshop printer connector", ptr("Print lab, bench 2"), nil)
+	c, err := s.pc.Create(s.ctx, s.actor, s.freeName("printer_connectors", "Workshop printer connector"), ptr("Print lab, bench 2"), nil)
 	check("connector", err)
 	enr, err := s.pc.IssueEnrollment(s.ctx, s.actor, c.ID, nil)
 	check("enrollment", err)
@@ -878,7 +1087,7 @@ func (s *seeder) planEverything() {
 			if s.rng.Float64() < 0.12 {
 				p.notes = ptr(notesList[s.rng.Intn(len(notesList))])
 			}
-			if p.customer.cat == "org" && p.customer.name == "Fachschaft Maschinenbau" && p.title == nil && !m.fdm {
+			if p.customer.id == s.orgs["fs"].id && p.title == nil && !m.fdm {
 				p.title = ptr("Fachschaft Schild")
 			}
 			if i == 0 && key == "pr1" {
@@ -1271,10 +1480,10 @@ func (s *seeder) priceAdjustments() {
 		r.used = true
 	}
 	apply(get(func(r jobRec) bool { return r.failedRun && r.ends.Before(s.ago(24*time.Hour)) }), "discount_percent", "100", "Print failed due to machine fault; no charge")
-	apply(get(func(r jobRec) bool { return r.customer.name == "Fachschaft Maschinenbau" && r.outcome == "successful" }), "discount_percent", "50", "Student council sponsorship")
+	apply(get(func(r jobRec) bool { return r.customer.id == s.orgs["fs"].id && r.outcome == "successful" }), "discount_percent", "50", "Student council sponsorship")
 	apply(get(func(r jobRec) bool { return r.customer.cat == "student" && r.outcome == "partial_failure" }), "discount_amount", "1.00", "Goodwill after partial failure")
 	apply(get(func(r jobRec) bool {
-		return r.customer.cat == "student" && r.outcome == "successful" && r.machine == "Trotec Speedy 300"
+		return r.customer.cat == "student" && r.outcome == "successful" && r.machine == s.machines["laser"].name
 	}), "fixed", "5.00", "Flat rate for class project")
 	for i := range s.jobs {
 		s.jobs[i].used = false
@@ -1340,7 +1549,7 @@ func (s *seeder) createOrders() {
 	o = build(s.orgs["fs"], take(s.orgs["fs"], 3), "deferred", false)
 	o = finalize(o, nil)
 	if d := decimal.RequireFromString(o.TotalAmount); d.GreaterThan(decimal.RequireFromString("1.00")) {
-		_, err := s.orders.RecordPayment(s.ctx, s.actor, o.ID, orders.RecordOrderPayment{OperationKey: uuid.Must(uuid.NewV7()), ExpectedVersion: o.Version, Payment: orders.PaymentInput{Method: "card", Amount: "1.00", OccurredAt: s.ago(30 * time.Hour), ExternalSource: "terminal-1", ExternalReference: "TX-884213"}}, nil)
+		_, err := s.orders.RecordPayment(s.ctx, s.actor, o.ID, orders.RecordOrderPayment{OperationKey: uuid.Must(uuid.NewV7()), ExpectedVersion: o.Version, Payment: orders.PaymentInput{Method: "card", Amount: "1.00", OccurredAt: s.ago(30 * time.Hour), ExternalSource: "terminal-1", ExternalReference: "TX-" + s.randHex(6)}}, nil)
 		check("partial payment", err)
 	}
 	// O3: Lehrstuhl, unpaid, with manual item
@@ -1367,11 +1576,61 @@ func (s *seeder) createOrders() {
 	finalize(o, []orders.PaymentInput{{Method: "cash", Amount: sumItems(o), OccurredAt: s.ago(8 * time.Hour)}})
 }
 
-func (s *seeder) assignOpenDays() {
+// openDaySchedule returns a staffing or published period that covers the
+// coming week, creating and publishing one when none exists, and tops it up
+// to six upcoming open days on Tuesday and Thursday afternoons.
+func (s *seeder) openDaySchedule() opendays.Schedule {
+	local := s.now.In(s.loc)
+	today := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, time.UTC)
+	nextWeek := today.AddDate(0, 0, 7)
 	periods, err := s.od.ListPeriods(s.ctx, s.actor)
 	check("periods", err)
-	sched, err := s.od.GetSchedule(s.ctx, s.actor, periods[0].ID)
+	var periodID uuid.UUID
+	for _, p := range periods {
+		if (p.Status == "staffing" || p.Status == "published") && !p.StartsOn.After(nextWeek) && !p.EndsOn.Before(nextWeek) {
+			periodID = p.ID
+			break
+		}
+	}
+	if periodID == uuid.Nil {
+		end := today.AddDate(0, 0, 120)
+		p, err := s.od.CreatePeriod(s.ctx, s.actor, fmt.Sprintf("Open Days %s – %s", today.Format("02.01."), end.Format("02.01.2006")), today, end, nil)
+		check("create period", err)
+		for _, target := range []string{"staffing", "published"} {
+			p, err = s.od.TransitionPeriod(s.ctx, s.actor, p.ID, p.Version, target, nil)
+			check("period "+target, err)
+		}
+		periodID = p.ID
+		log.Printf("created open day period %q", p.Name)
+	}
+	sched, err := s.od.GetSchedule(s.ctx, s.actor, periodID)
 	check("schedule", err)
+	upcoming := 0
+	usedDates := map[string]bool{}
+	for _, day := range sched.Items {
+		usedDates[day.StartsAt.In(s.loc).Format(time.DateOnly)] = true
+		if day.EndsAt.After(s.now) && day.Status == "scheduled" {
+			upcoming++
+		}
+	}
+	reqs := []opendays.RequirementInput{
+		{Kind: "supervisor", RequiredCount: 2, EligibleRoleIDs: []uuid.UUID{s.roles["supervisor"]}},
+		{Kind: "trainee", RequiredCount: 1, EligibleRoleIDs: []uuid.UUID{s.roles["trainee"]}},
+	}
+	for d := today.AddDate(0, 0, 1); upcoming < 6 && !d.After(sched.Period.EndsOn); d = d.AddDate(0, 0, 1) {
+		if wd := d.Weekday(); (wd != time.Tuesday && wd != time.Thursday) || usedDates[d.Format(time.DateOnly)] {
+			continue
+		}
+		start := time.Date(d.Year(), d.Month(), d.Day(), 16, 0, 0, 0, s.loc)
+		sched, err = s.od.CreateOpenDay(s.ctx, s.actor, periodID, sched.Period.Version, opendays.ScheduleInput{StartsAt: start.UTC(), EndsAt: start.Add(3 * time.Hour).UTC(), Requirements: reqs}, nil)
+		check("create open day", err)
+		upcoming++
+	}
+	return sched
+}
+
+func (s *seeder) assignOpenDays() {
+	sched := s.openDaySchedule()
 	n := 0
 	for di, day := range sched.Items {
 		if day.EndsAt.Before(s.now) || day.Status != "scheduled" {
@@ -1413,7 +1672,7 @@ func (s *seeder) assignOpenDays() {
 func (s *seeder) setThresholds() {
 	cands := []float64{250, 500, 1000, 1500}
 	scands := []float64{0.25, 0.5, 1.0}
-	for name := range s.mats {
+	for name := range s.newMats { // reused materials keep their thresholds
 		m := s.mat(name)
 		q := dnum(m.Quantity)
 		c := cands

@@ -11,7 +11,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 - Price adjustments (fixed, discount percent, discount amount, multiplier) that are re-applied on recalculation, with a stored effective price.
 - Prints reported by printer connectors (file name, times, progress, reported usage) with link-and-replace, unlink, and create-job-from-print.
 - Filament spool fills and kinds (reusable or single-use), change filament, finish, cleanup of archived single-use spools, registration of empty reusable spools, and a filament product catalog.
-- `make seed-dev` demo data; `make test-integration` uses the dedicated `makerspace_test` database.
+- `make seed-dev` demo data, repeatable on top of existing data: it reuses compatible shared records, creates missing roles, an open day period and a master when needed, and accepts `SEED_ARGS` (`-seed`, `-actor-email`); `make test-integration` uses the dedicated `makerspace_test` database.
 
 ### Changed
 
