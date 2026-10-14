@@ -161,9 +161,20 @@ if compose up -d; then
 fi
 
 failed_backend_container=$(compose ps --all --quiet backend)
-case "$(docker inspect --format '{{.State.Status}}' "$failed_backend_container")" in
-    exited|restarting) ;;
-    *) exit 1 ;;
+# A restarting container is briefly "running" between attempts, so wait for a
+# settled failed state instead of sampling it once.
+failed_backend_state=
+attempt=0
+while [ "$attempt" -lt 30 ]; do
+    failed_backend_state=$(docker inspect --format '{{.State.Status}} {{.State.ExitCode}}' "$failed_backend_container")
+    case "$failed_backend_state" in
+        "exited "[1-9]*|"restarting "[1-9]*) break ;;
+    esac
+    attempt=$((attempt + 1))
+    sleep 1
+done
+case "$failed_backend_state" in
+    "exited "[1-9]*|"restarting "[1-9]*) ;;
+    *) printf 'backend did not stay failed after a failed migration: %s\n' "$failed_backend_state" >&2; exit 1 ;;
 esac
-test "$(docker inspect --format '{{.State.ExitCode}}' "$failed_backend_container")" -ne 0
 test -z "$(compose ps --quiet frontend)"
