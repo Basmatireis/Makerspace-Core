@@ -32,7 +32,7 @@ describe('AppNavigation', () => {
   it('lists the Workshop destinations in order and gates each by its permission', () => {
     renderRoute(
       <AppNavigation
-        currentUser={currentUserFixture([PermissionId.machinesread, PermissionId.inventoryread, PermissionId.machine_jobsreview, PermissionId.print_submissionsread])}
+        currentUser={currentUserFixture([PermissionId.machinesread, PermissionId.inventoryread])}
         legal={defaultPublicConfiguration.legal}
         onNavigate={vi.fn()}
       />,
@@ -45,8 +45,6 @@ describe('AppNavigation', () => {
     expect(screen.getByRole('link', { name: 'Inventory' })).toHaveAttribute('aria-current', 'page');
     expect(screen.queryByRole('link', { name: 'Overview' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Jobs' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Review' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Print submissions' })).not.toBeInTheDocument();
   });
 
   it('opens the active group after client navigation and marks the active destination', async () => {

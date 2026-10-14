@@ -39,7 +39,7 @@ Feature workers own only package component paths, isolated styles and newly name
 - `app/useLatestCallback.ts`: stable event callback that reads the latest committed state. Carbon Modal captures Escape handlers when open changes; use this for close handlers that inspect dirty/pending state. Controlled ComposedModal onClose must also return false so its internal state does not hide a pending/discarded editor independently of the parent.
 - DestructiveActionDialog accepts launcherButtonRef for disappearing overflow items and restores focus on actual unmount. Machine catalog/configuration forms use CatalogFormModal to retain launcher focus across a discard view.
 - `machinelogbook/queries.ts`: machineQuery(id) and machineLogbookKeys.machine(id), integrated by lead using existing getMachine client.
-- `features/auth/permissions.ts`: canLookupJobParties(user) mirrors the shared backend authorization for billing-party and operator searches: orders.read OR machine_jobs.create OR machine_jobs.review OR organizations.read. Job read/edit and print-submission manage alone do not authorize these lookups.
+- `features/auth/permissions.ts`: canLookupJobParties(user) mirrors the shared backend authorization for billing-party and operator searches: orders.read OR machine_jobs.create OR organizations.read. Job read/edit alone do not authorize these lookups.
 - `useUnsavedChanges` optionally accepts shouldBlockNavigation(currentLocation,nextLocation). Editors whose view/mode URL changes preserve the draft may allow those changes while guarding real exits; beforeunload and explicit discard requests still protect dirty work.
 
 ## Production budget command

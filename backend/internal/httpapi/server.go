@@ -107,7 +107,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	}
 	labRulesService := laborordnung.NewService(pool, fileService)
 	machineLogbook := machinelogbook.NewService(pool)
-	printingService := printing.NewService(pool, machineLogbook)
+	printingService := printing.NewService(pool)
 	printerConnectorService, err := printerconnectors.NewService(pool, printingService, cfg.EncryptionKeys)
 	if err != nil {
 		return nil, fmt.Errorf("initialize printer connectors: %w", err)

@@ -29,7 +29,7 @@ SELECT m.*, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.v
        COALESCE(round(100.0 * count(j.id) FILTER (WHERE j.outcome IN ('failed', 'partial_failure')) / NULLIF(count(j.id), 0), 2), 0)::numeric AS failure_rate
 FROM machines m
 JOIN machine_types mt ON mt.id = m.machine_type_id
-LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.review_state = 'confirmed'
+LEFT JOIN machine_jobs j ON j.machine_id = m.id
 WHERE m.id = sqlc.arg(id)
 GROUP BY m.id, mt.id;
 
@@ -44,7 +44,7 @@ SELECT m.*, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.v
        COALESCE(round(100.0 * count(j.id) FILTER (WHERE j.outcome IN ('failed', 'partial_failure')) / NULLIF(count(j.id), 0), 2), 0)::numeric AS failure_rate
 FROM machines m
 JOIN machine_types mt ON mt.id = m.machine_type_id
-LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.review_state = 'confirmed'
+LEFT JOIN machine_jobs j ON j.machine_id = m.id
 WHERE (sqlc.arg(search)::text = '' OR lower(m.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(mt.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
   AND (sqlc.narg(status)::text IS NULL OR m.status = sqlc.narg(status)::text)
 GROUP BY m.id, mt.id
@@ -631,11 +631,10 @@ RETURNING id;
 SELECT nextval('machine_job_display_sequence')::bigint;
 
 -- name: CreateMachineJob :one
-INSERT INTO machine_jobs (id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata,
-    review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, title, notes)
-VALUES (sqlc.arg(id), sqlc.arg(display_id), sqlc.arg(machine_id), sqlc.arg(starts_at), sqlc.arg(ends_at), sqlc.arg(source),
-    sqlc.narg(external_id), sqlc.arg(external_metadata), sqlc.arg(review_state), sqlc.narg(customer_person_id),
-    sqlc.narg(customer_organization_id), sqlc.narg(operator_person_id), sqlc.arg(outcome), sqlc.narg(title), sqlc.narg(notes))
+INSERT INTO machine_jobs (id, display_id, machine_id, starts_at, ends_at,
+    customer_person_id, customer_organization_id, operator_person_id, outcome, title, notes)
+VALUES (sqlc.arg(id), sqlc.arg(display_id), sqlc.arg(machine_id), sqlc.arg(starts_at), sqlc.arg(ends_at),
+    sqlc.narg(customer_person_id), sqlc.narg(customer_organization_id), sqlc.narg(operator_person_id), sqlc.arg(outcome), sqlc.narg(title), sqlc.narg(notes))
 RETURNING *;
 
 -- name: GetMachineJobBase :one
@@ -682,8 +681,6 @@ WHERE (sqlc.arg(search)::text = '' OR lower(j.display_id) LIKE '%' || lower(sqlc
   AND (sqlc.narg(operator_id)::uuid IS NULL OR j.operator_person_id = sqlc.narg(operator_id)::uuid)
   AND (sqlc.narg(material_id)::uuid IS NULL OR u.material_id = sqlc.narg(material_id)::uuid)
   AND (sqlc.narg(outcome)::text IS NULL OR j.outcome = sqlc.narg(outcome)::text)
-  AND (sqlc.narg(source)::text IS NULL OR j.source = sqlc.narg(source)::text)
-  AND (sqlc.narg(review_state)::text IS NULL OR j.review_state = sqlc.narg(review_state)::text)
   AND (sqlc.narg(from_time)::timestamptz IS NULL OR j.starts_at >= sqlc.narg(from_time)::timestamptz)
   AND (sqlc.narg(to_time)::timestamptz IS NULL OR j.starts_at < sqlc.narg(to_time)::timestamptz)
 ORDER BY j.starts_at DESC, j.id DESC
@@ -706,27 +703,15 @@ WHERE (sqlc.arg(search)::text = '' OR lower(j.display_id) LIKE '%' || lower(sqlc
   AND (sqlc.narg(operator_id)::uuid IS NULL OR j.operator_person_id = sqlc.narg(operator_id)::uuid)
   AND (sqlc.narg(material_id)::uuid IS NULL OR u.material_id = sqlc.narg(material_id)::uuid)
   AND (sqlc.narg(outcome)::text IS NULL OR j.outcome = sqlc.narg(outcome)::text)
-  AND (sqlc.narg(source)::text IS NULL OR j.source = sqlc.narg(source)::text)
-  AND (sqlc.narg(review_state)::text IS NULL OR j.review_state = sqlc.narg(review_state)::text)
   AND (sqlc.narg(from_time)::timestamptz IS NULL OR j.starts_at >= sqlc.narg(from_time)::timestamptz)
   AND (sqlc.narg(to_time)::timestamptz IS NULL OR j.starts_at < sqlc.narg(to_time)::timestamptz);
-
--- name: ListReviewQueueIDs :many
-SELECT id FROM machine_jobs WHERE review_state = 'needs_review' ORDER BY starts_at, id;
-
--- name: ConfirmMachineJob :one
-UPDATE machine_jobs SET customer_person_id = sqlc.narg(customer_person_id), customer_organization_id = sqlc.narg(customer_organization_id),
-    operator_person_id = sqlc.arg(operator_person_id), outcome = sqlc.arg(outcome), notes = sqlc.narg(notes), review_state = 'confirmed',
-    version = version + 1, updated_at = now()
-WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND review_state = 'needs_review'
-RETURNING *;
 
 -- name: UpdateMachineJobFacts :one
 UPDATE machine_jobs SET machine_id = sqlc.arg(machine_id), starts_at = sqlc.arg(starts_at), ends_at = sqlc.arg(ends_at),
     customer_person_id = sqlc.narg(customer_person_id), customer_organization_id = sqlc.narg(customer_organization_id),
     operator_person_id = sqlc.arg(operator_person_id), outcome = sqlc.arg(outcome), title = sqlc.narg(title), notes = sqlc.narg(notes),
     version = version + 1, updated_at = now()
-WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version) AND review_state IN ('confirmed', 'needs_review')
+WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
 -- name: BumpMachineJobVersion :one
@@ -788,9 +773,8 @@ RETURNING *;
 -- name: CountOverviewJobs :one
 SELECT count(*) FILTER (WHERE starts_at >= date_trunc('day', now()))::bigint AS jobs_today,
        count(*) FILTER (WHERE starts_at >= date_trunc('week', now()))::bigint AS jobs_this_week,
-       count(*) FILTER (WHERE review_state = 'confirmed' AND NOT EXISTS(SELECT 1 FROM order_job_claims c WHERE c.machine_job_id=machine_jobs.id))::bigint AS unassigned_jobs,
-       COALESCE(sum(effective_price) FILTER (WHERE review_state = 'confirmed' AND NOT EXISTS(SELECT 1 FROM order_job_claims c WHERE c.machine_job_id=machine_jobs.id)), 0)::numeric AS unassigned_estimated_amount,
-       count(*) FILTER (WHERE review_state = 'needs_review')::bigint AS needs_review,
+       count(*) FILTER (WHERE NOT EXISTS(SELECT 1 FROM order_job_claims c WHERE c.machine_job_id=machine_jobs.id))::bigint AS unassigned_jobs,
+       COALESCE(sum(effective_price) FILTER (WHERE NOT EXISTS(SELECT 1 FROM order_job_claims c WHERE c.machine_job_id=machine_jobs.id)), 0)::numeric AS unassigned_estimated_amount,
        count(*) FILTER (WHERE starts_at >= date_trunc('week', now()) AND outcome IN ('failed', 'partial_failure'))::bigint AS failed_or_partial_this_week
 FROM machine_jobs;
 
@@ -820,12 +804,12 @@ GROUP BY m.category ORDER BY m.category;
 
 -- name: StatisticMachineRuntime :many
 SELECT m.id::text AS key, m.name AS label, COALESCE(sum(EXTRACT(EPOCH FROM (j.ends_at - j.starts_at))) / 3600.0, 0)::numeric AS value
-FROM machines m LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.review_state = 'confirmed' AND j.starts_at >= sqlc.arg(from_time) AND j.starts_at < sqlc.arg(to_time)
+FROM machines m LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.starts_at >= sqlc.arg(from_time) AND j.starts_at < sqlc.arg(to_time)
 GROUP BY m.id, m.name ORDER BY value DESC, lower(m.name);
 
 -- name: StatisticMachineJobCounts :many
 SELECT m.id::text AS key, m.name AS label, count(j.id)::numeric AS value
-FROM machines m LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.review_state = 'confirmed' AND j.starts_at >= sqlc.arg(from_time) AND j.starts_at < sqlc.arg(to_time)
+FROM machines m LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.starts_at >= sqlc.arg(from_time) AND j.starts_at < sqlc.arg(to_time)
 GROUP BY m.id, m.name ORDER BY value DESC, lower(m.name);
 
 -- name: StatisticAcquisitionCost :many
@@ -835,7 +819,7 @@ GROUP BY date_trunc('month', occurred_at) ORDER BY date_trunc('month', occurred_
 
 -- name: StatisticCustomerCharges :many
 SELECT to_char(date_trunc('month', starts_at), 'YYYY-MM') AS label, COALESCE(sum(effective_price), 0)::numeric AS value
-FROM machine_jobs WHERE review_state = 'confirmed' AND starts_at >= sqlc.arg(from_time) AND starts_at < sqlc.arg(to_time)
+FROM machine_jobs WHERE starts_at >= sqlc.arg(from_time) AND starts_at < sqlc.arg(to_time)
 GROUP BY date_trunc('month', starts_at) ORDER BY date_trunc('month', starts_at);
 
 -- name: StatisticAdjustmentLoss :many
@@ -846,7 +830,7 @@ GROUP BY date_trunc('month', occurred_at) ORDER BY date_trunc('month', occurred_
 -- name: StatisticMachineFailureRates :many
 SELECT m.id::text AS key, m.name AS label,
        COALESCE(round(100.0 * count(j.id) FILTER (WHERE j.outcome IN ('failed', 'partial_failure')) / NULLIF(count(j.id), 0), 2), 0)::numeric AS value
-FROM machines m LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.review_state = 'confirmed' AND j.starts_at >= sqlc.arg(from_time) AND j.starts_at < sqlc.arg(to_time)
+FROM machines m LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.starts_at >= sqlc.arg(from_time) AND j.starts_at < sqlc.arg(to_time)
 GROUP BY m.id, m.name ORDER BY value DESC, lower(m.name);
 
 -- name: ListPrints :many
@@ -917,10 +901,6 @@ RETURNING *;
 UPDATE machine_jobs SET print_id = sqlc.narg(print_id), version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
-
--- name: AcceptPrinterEventReconciliation :execrows
-UPDATE printer_events SET reconciliation_state = 'accepted', reconciled_by_account_id = sqlc.arg(actor_account_id), reconciled_at = now()
-WHERE id = sqlc.arg(id) AND kind = 'consumption_report' AND reconciliation_state = 'pending';
 
 -- name: ListWorkItems :many
 WITH items AS (
@@ -1038,7 +1018,7 @@ ORDER BY r.machine_id, COALESCE(r.started_at, r.first_observed_at) DESC, r.id DE
 -- name: ListMachineRunningManualJobs :many
 SELECT DISTINCT ON (j.machine_id) j.machine_id, j.id, j.display_id, j.title, j.starts_at, j.ends_at
 FROM machine_jobs j
-WHERE j.review_state = 'confirmed' AND j.outcome = 'unknown' AND j.print_id IS NULL
+WHERE j.outcome = 'unknown' AND j.print_id IS NULL
   AND j.starts_at <= sqlc.arg(now)::timestamptz AND j.ends_at > sqlc.arg(now)::timestamptz
 ORDER BY j.machine_id, j.starts_at DESC, j.id DESC;
 
@@ -1056,7 +1036,7 @@ FROM machine_jobs WHERE starts_at <= sqlc.arg(now)::timestamptz GROUP BY machine
 WITH jobs AS (
     SELECT outcome, effective_price, GREATEST(EXTRACT(EPOCH FROM (LEAST(ends_at, sqlc.arg(now)::timestamptz) - starts_at)), 0) AS seconds
     FROM machine_jobs
-    WHERE review_state = 'confirmed' AND starts_at >= sqlc.arg(from_time) AND starts_at < sqlc.arg(to_time)
+    WHERE starts_at >= sqlc.arg(from_time) AND starts_at < sqlc.arg(to_time)
 ), cost AS (
     SELECT COALESCE(-sum(inventory_value_delta) FILTER (WHERE kind IN ('machine_job_consumption', 'manual_consumption') OR (kind = 'adjustment' AND adjustment_reason = 'job_corrected')), 0) AS material_cost
     FROM inventory_transactions WHERE occurred_at >= sqlc.arg(from_time) AND occurred_at < sqlc.arg(to_time)
@@ -1074,7 +1054,7 @@ WITH months AS (
                            interval '1 month') AS month_start
 ), job_charges AS (
     SELECT date_trunc('month', starts_at AT TIME ZONE 'UTC') AS month_start, sum(effective_price) AS charges
-    FROM machine_jobs WHERE review_state = 'confirmed' AND starts_at >= sqlc.arg(from_time) AND starts_at < sqlc.arg(to_time)
+    FROM machine_jobs WHERE starts_at >= sqlc.arg(from_time) AND starts_at < sqlc.arg(to_time)
     GROUP BY 1
 ), costs AS (
     SELECT date_trunc('month', occurred_at AT TIME ZONE 'UTC') AS month_start,
@@ -1094,7 +1074,7 @@ ORDER BY m.month_start;
 SELECT date_trunc(sqlc.arg(unit)::text, j.starts_at AT TIME ZONE 'UTC')::date AS bucket_start, j.machine_id,
        round(sum(GREATEST(EXTRACT(EPOCH FROM (LEAST(j.ends_at, sqlc.arg(now)::timestamptz) - j.starts_at)), 0)) / 3600.0, 4)::numeric AS hours
 FROM machine_jobs j
-WHERE j.review_state = 'confirmed' AND j.starts_at >= sqlc.arg(from_time) AND j.starts_at < sqlc.arg(to_time)
+WHERE j.starts_at >= sqlc.arg(from_time) AND j.starts_at < sqlc.arg(to_time)
 GROUP BY 1, 2 ORDER BY 1, 2;
 
 -- name: StatisticMaterialCostByCategory :many
@@ -1111,5 +1091,5 @@ SELECT m.id AS machine_id, m.name, mt.name AS machine_type_name, count(j.id)::bi
        COALESCE(sum(j.effective_price), 0)::numeric AS charges
 FROM machines m
 JOIN machine_types mt ON mt.id = m.machine_type_id
-JOIN machine_jobs j ON j.machine_id = m.id AND j.review_state = 'confirmed' AND j.starts_at >= sqlc.arg(from_time) AND j.starts_at < sqlc.arg(to_time)
+JOIN machine_jobs j ON j.machine_id = m.id AND j.starts_at >= sqlc.arg(from_time) AND j.starts_at < sqlc.arg(to_time)
 GROUP BY m.id, m.name, mt.name ORDER BY lower(m.name), m.id;

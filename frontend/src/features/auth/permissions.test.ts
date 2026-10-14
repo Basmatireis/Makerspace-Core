@@ -23,7 +23,6 @@ describe('billing-party and operator lookup authorization UX', () => {
   it.each([
     PermissionId.ordersread,
     PermissionId.machine_jobscreate,
-    PermissionId.machine_jobsreview,
     PermissionId.organizationsread,
   ])('allows the backend lookup grant %s independently', (permission) => {
     expect(canLookupJobParties(currentUserFixture([permission]))).toBe(true);
@@ -32,7 +31,6 @@ describe('billing-party and operator lookup authorization UX', () => {
   it.each([
     PermissionId.machine_jobsread,
     PermissionId.machine_jobsedit,
-    PermissionId.print_submissionsmanage,
     PermissionId.organizationsmanage,
     PermissionId.peoplereadall,
   ])('does not infer lookup access from %s', (permission) => {

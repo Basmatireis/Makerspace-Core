@@ -19,11 +19,9 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type {
-  ConfirmMachineJobRequest,
   CreateMachineJobRequest,
   ListMachineJobsParams,
   MachineJob,
-  MachineJobList,
   MachineJobPage,
   OperatorList,
   ReplaceMachineJobUsagesRequest,
@@ -121,29 +119,6 @@ export const createMachineJob = async (createMachineJobRequest: CreateMachineJob
 
 
 /**
- * @summary List jobs needing review
- */
-export const getListMachineJobReviewQueueUrl = () => {
-
-
-  
-
-  return `/api/v1/machine-jobs/review-queue`
-}
-
-export const listMachineJobReviewQueue = async ( options?: RequestInit): Promise<MachineJobList> => {
-  
-  return apiFetch<MachineJobList>(getListMachineJobReviewQueueUrl(),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-
-
-/**
  * @summary Get machine job detail
  */
 export const getGetMachineJobUrl = (machineJobId: UUIDv7,) => {
@@ -187,31 +162,6 @@ export const updateMachineJob = async (machineJobId: UUIDv7,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       updateMachineJobRequest,)
-  }
-);}
-
-
-/**
- * @summary Confirm an automatically detected job
- */
-export const getConfirmMachineJobUrl = (machineJobId: UUIDv7,) => {
-
-
-  
-
-  return `/api/v1/machine-jobs/${machineJobId}/confirm`
-}
-
-export const confirmMachineJob = async (machineJobId: UUIDv7,
-    confirmMachineJobRequest: ConfirmMachineJobRequest, options?: RequestInit): Promise<MachineJob> => {
-  
-  return apiFetch<MachineJob>(getConfirmMachineJobUrl(machineJobId),
-  {      
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      confirmMachineJobRequest,)
   }
 );}
 

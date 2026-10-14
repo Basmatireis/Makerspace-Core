@@ -36,7 +36,6 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 		{"machine_jobs.edit link print", func() error { _, err := s.LinkPrintToJob(ctx, p, id, id, 1, nil); return err }},
 		{"machine_jobs.edit unlink print", func() error { _, err := s.UnlinkPrint(ctx, p, id, 1, nil); return err }},
 		{"machine_jobs.create from print", func() error { _, err := s.CreateJobFromPrint(ctx, p, id, PrintJobInput{}, nil); return err }},
-		{"machine_jobs.review", func() error { _, err := s.ReviewQueue(ctx, p); return err }},
 		{"machine_jobs.edit cancel run", func() error { _, err := s.CancelJobRun(ctx, p, id, 1, nil); return err }},
 		{"machine_jobs.override_price set", func() error {
 			_, err := s.SetJobPriceAdjustment(ctx, p, id, 1, "fixed", "1", "test", nil)
@@ -231,27 +230,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	}
 
 	startsAt := time.Date(2026, time.September, 15, 8, 12, 0, 0, time.UTC)
-	pendingID := uuid.Must(uuid.NewV7())
-	if _, err = pool.Exec(ctx, `INSERT INTO machine_jobs (id, display_id, machine_id, starts_at, ends_at, source, external_id, review_state, outcome)
-		VALUES ($1, 'J-2026-' || lpad(nextval('machine_job_display_sequence')::text, 6, '0'), $2, $3, $4, 'automatic', $5, 'needs_review', 'unknown')`, pendingID, machine.ID, startsAt, startsAt.Add(3*time.Hour+14*time.Minute), "job-"+suffix); err != nil {
-		t.Fatal(err)
-	}
-	if _, err = pool.Exec(ctx, `INSERT INTO machine_job_material_usages (id, machine_job_id, material_id, ownership, quantity_basis, quantity) VALUES ($1, $2, $3, 'makerspace', 'actual', 183)`, uuid.Must(uuid.NewV7()), pendingID, material.ID); err != nil {
-		t.Fatal(err)
-	}
-	pending, err := s.GetJob(ctx, p, pendingID)
-	if err != nil || pending.ReviewState != "needs_review" {
-		t.Fatalf("legacy pending job err=%v job=%+v", err, pending)
-	}
-	beforeReview, err := s.GetMaterial(ctx, p, material.ID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if beforeReview.Quantity != "2000" {
-		t.Fatalf("pending job changed inventory to %s", beforeReview.Quantity)
-	}
-
-	confirmed, err := s.ConfirmJob(ctx, p, pending.ID, pending.Version, PartyReference{Kind: "organization", ID: organization.ID}, personID, "successful", nil, nil, &requestID)
+	confirmed, err := s.CreateManualJob(ctx, p, JobInput{MachineID: machine.ID, StartsAt: startsAt, EndsAt: startsAt.Add(3*time.Hour + 14*time.Minute), Customer: PartyReference{Kind: "organization", ID: organization.ID}, OperatorPersonID: personID, Outcome: "successful", Usages: []UsageInput{{MaterialID: material.ID, Quantity: "183"}}}, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,12 +245,12 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 			t.Fatalf("complete snapshot rule lacks source ID: %+v", rule)
 		}
 	}
-	afterReview, err := s.GetMaterial(ctx, p, material.ID)
+	afterCreate, err := s.GetMaterial(ctx, p, material.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if afterReview.Quantity != "1817" || afterReview.InventoryValue != "36.34" {
-		t.Fatalf("review did not atomically consume stock: %+v", afterReview)
+	if afterCreate.Quantity != "1817" || afterCreate.InventoryValue != "36.34" {
+		t.Fatalf("job creation did not atomically consume stock: %+v", afterCreate)
 	}
 
 	correctedJob, err := s.ReplaceJobUsages(ctx, p, confirmed.ID, confirmed.Version, []UsageInput{{MaterialID: material.ID, Quantity: "180"}}, &requestID)
@@ -399,7 +378,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatalf("latest transaction is not mark-empty: %+v", transactions[0])
 	}
 
-	filtered, total, err := s.ListJobs(ctx, p, JobFilters{MachineID: &machine.ID, CustomerID: &organization2.ID, OperatorID: &personID, MaterialID: &material.ID, Outcome: stringPointer("successful"), Source: stringPointer("automatic"), ReviewState: stringPointer("confirmed"), From: timePointer(startsAt.Add(-time.Minute)), To: timePointer(startsAt.Add(24 * time.Hour)), Page: 1, PageSize: 25})
+	filtered, total, err := s.ListJobs(ctx, p, JobFilters{MachineID: &machine.ID, CustomerID: &organization2.ID, OperatorID: &personID, MaterialID: &material.ID, Outcome: stringPointer("successful"), From: timePointer(startsAt.Add(-time.Minute)), To: timePointer(startsAt.Add(24 * time.Hour)), Page: 1, PageSize: 25})
 	if err != nil {
 		t.Fatal(err)
 	}

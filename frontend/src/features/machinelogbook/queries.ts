@@ -1,6 +1,6 @@
 import { queryOptions } from '@tanstack/react-query';
 import { getMachineLogbookOverview, getMachineLogbookStatistics, listMachineActivity, listMachineLogbookWorkItems } from '../../api/generated/machine-logbook/machine-logbook';
-import { getMachineJob, listMachineJobReviewQueue, listMachineJobs, searchMachineJobOperators } from '../../api/generated/machine-jobs/machine-jobs';
+import { getMachineJob, listMachineJobs, searchMachineJobOperators } from '../../api/generated/machine-jobs/machine-jobs';
 import { getMachine, listMachineTypes, listMachines } from '../../api/generated/machines/machines';
 import { getMaterial, listMaterials, listMaterialTransactions } from '../../api/generated/inventory/inventory';
 import { listOrganizations, searchBillingParties } from '../../api/generated/organizations/organizations';
@@ -16,7 +16,6 @@ export const machineLogbookKeys = {
   overview: () => [...machineLogbookKeys.all, 'overview'] as const,
   jobs: (params: ListMachineJobsParams) => [...machineLogbookKeys.all, 'jobs', params] as const,
   job: (id: string) => [...machineLogbookKeys.all, 'job', id] as const,
-  review: () => [...machineLogbookKeys.all, 'review'] as const,
   machines: (params: ListMachinesParams) => [...machineLogbookKeys.all, 'machines', params] as const,
   machine: (id: string) => [...machineLogbookKeys.all, 'machine', id] as const,
   machineTypes: () => [...machineLogbookKeys.all, 'machine-types'] as const,
@@ -41,7 +40,6 @@ export const machineLogbookKeys = {
 export const overviewQuery = () => queryOptions({ queryKey: machineLogbookKeys.overview(), queryFn: () => getMachineLogbookOverview() });
 export const jobsQuery = (params: ListMachineJobsParams) => queryOptions({ queryKey: machineLogbookKeys.jobs(params), queryFn: () => listMachineJobs(params) });
 export const jobQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.job(id), queryFn: () => getMachineJob(id) });
-export const reviewQuery = () => queryOptions({ queryKey: machineLogbookKeys.review(), queryFn: () => listMachineJobReviewQueue() });
 export const machinesQuery = (params: ListMachinesParams) => queryOptions({ queryKey: machineLogbookKeys.machines(params), queryFn: () => listMachines(params) });
 export const machineQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.machine(id), queryFn: () => getMachine(id) });
 export const machineTypesQuery = () => queryOptions({ queryKey: machineLogbookKeys.machineTypes(), queryFn: () => listMachineTypes() });

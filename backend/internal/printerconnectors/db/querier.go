@@ -25,7 +25,6 @@ type Querier interface {
 	GetAssignment(ctx context.Context, arg GetAssignmentParams) (GetAssignmentRow, error)
 	GetAssignmentForIngress(ctx context.Context, arg GetAssignmentForIngressParams) (GetAssignmentForIngressRow, error)
 	GetAssignmentForUpdate(ctx context.Context, arg GetAssignmentForUpdateParams) (PrinterConnectorAssignment, error)
-	GetAttemptForRunLink(ctx context.Context, id uuid.UUID) (PrintAttempt, error)
 	GetConnector(ctx context.Context, id uuid.UUID) (PrinterConnector, error)
 	GetConnectorCredential(ctx context.Context, arg GetConnectorCredentialParams) (PrinterConnectorCredential, error)
 	GetConnectorEventByKey(ctx context.Context, arg GetConnectorEventByKeyParams) (PrinterEvent, error)
@@ -35,8 +34,6 @@ type Querier interface {
 	GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (PrinterObservedRun, error)
 	InsertConnectorEvent(ctx context.Context, arg InsertConnectorEventParams) (PrinterEvent, error)
 	InsertObservedRun(ctx context.Context, arg InsertObservedRunParams) (PrinterObservedRun, error)
-	LinkObservedRun(ctx context.Context, arg LinkObservedRunParams) (PrinterObservedRun, error)
-	LinkObservedRunEvents(ctx context.Context, arg LinkObservedRunEventsParams) error
 	ListActiveAssignments(ctx context.Context, connectorID uuid.UUID) ([]ListActiveAssignmentsRow, error)
 	ListConnectorAssignments(ctx context.Context, connectorID uuid.UUID) ([]ListConnectorAssignmentsRow, error)
 	ListConnectorEvents(ctx context.Context, connectorID *uuid.UUID) ([]ListConnectorEventsRow, error)

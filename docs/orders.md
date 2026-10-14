@@ -37,7 +37,7 @@ Commands use caller-generated UUIDv7 `operationKey`s. The service serializes ret
 
 ## Anonymous immediate sales
 
-No fake Anonymous Person is created. Ordinary manual-job creation/review confirmation still requires an identified customer. Automatic `needs_review` jobs may omit customer/operator assignments. The `/counter-sales` command is the anonymous exception: new manual job or review confirmation, pricing capture, inventory consumption, Order/item creation, finalization, complete cash/card settlement, and audit events share one PostgreSQL transaction. A deferred/later-pickup sale or any remaining debt is rejected. Operator identity remains independently required.
+No fake Anonymous Person is created. Ordinary manual-job creation still requires an identified customer. The `/counter-sales` command is the anonymous exception: new manual job, pricing capture, inventory consumption, Order/item creation, finalization, complete cash/card settlement, and audit events share one PostgreSQL transaction. A deferred/later-pickup sale or any remaining debt is rejected. Operator identity remains independently required.
 
 Pricing resolves from an explicit selected group or the active global default. Anonymous identity does not supply an arbitrary price. Missing pricing prevents completion. `/counter-sales/preview` computes the exact charge through the same transaction-aware path and always rolls back its temporary rows, inventory changes, and audit data. The UI requires a current preview before recording payment; completion recalculates and verifies full settlement.
 

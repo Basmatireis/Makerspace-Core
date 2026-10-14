@@ -137,14 +137,13 @@ func (h *printHarness) insertEvent(t *testing.T, runID, machineID uuid.UUID, kin
 	id := uuid.Must(uuid.NewV7())
 	assignmentID := h.assignments[machineID]
 	var revision any
-	reconciliation := "not_applicable"
 	if kind == "consumption_report" {
-		revision, reconciliation = 1, "pending"
+		revision = 1
 	}
 	if _, err := h.pool.Exec(t.Context(), `INSERT INTO printer_events (id, source_id, event_key, fingerprint, protocol_version, machine_id, kind, occurred_at, source_sequence, payload,
-		reconciliation_state, connector_id, connector_assignment_id, observed_run_id, configuration_version, application_state, report_revision)
-		VALUES ($1, $2, $3, $4, 1, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, $13, 1, 'applied', $14)`,
-		id, "printer-connector:"+assignmentID.String(), id.String(), strings.Repeat("a", 64), machineID, kind, occurredAt, h.sequence, payload, reconciliation, h.connectorID, assignmentID, runID, revision); err != nil {
+		connector_id, connector_assignment_id, observed_run_id, configuration_version, application_state, report_revision)
+		VALUES ($1, $2, $3, $4, 1, $5, $6, $7, $8, $9::jsonb, $10, $11, $12, 1, 'applied', $13)`,
+		id, "printer-connector:"+assignmentID.String(), id.String(), strings.Repeat("a", 64), machineID, kind, occurredAt, h.sequence, payload, h.connectorID, assignmentID, runID, revision); err != nil {
 		t.Fatal(err)
 	}
 	return id
@@ -223,10 +222,9 @@ func TestLinkPrintReplacesTheManualRun(t *testing.T) {
 	if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM inventory_transactions WHERE material_id = $1 AND kind = 'adjustment' AND quantity_delta = 30`, h.jobFixture.material.ID).Scan(&compensations); err != nil || compensations != 1 {
 		t.Fatalf("compensating transactions = %d err=%v", compensations, err)
 	}
-	var state string
-	var reconciledBy *uuid.UUID
-	if err := h.pool.QueryRow(ctx, `SELECT e.reconciliation_state, e.reconciled_by_account_id FROM printer_events e JOIN printer_observed_runs r ON r.reported_event_id = e.id WHERE r.id = $1`, printID).Scan(&state, &reconciledBy); err != nil || state != "accepted" || reconciledBy == nil || *reconciledBy != h.p.AccountID {
-		t.Fatalf("reconciliation state=%s by=%v err=%v", state, reconciledBy, err)
+	var sourceEvents int
+	if err := h.pool.QueryRow(ctx, `SELECT count(*) FROM machine_job_material_usages u JOIN printer_observed_runs r ON r.reported_event_id = u.source_printer_event_id WHERE u.machine_job_id = $1 AND u.active AND r.id = $2`, job.ID, printID).Scan(&sourceEvents); err != nil || sourceEvents != 1 {
+		t.Fatalf("usages referencing the reported event = %d err=%v", sourceEvents, err)
 	}
 	if h.auditCount(t, "machine_job.print_linked", job.ID) != 1 || h.auditCount(t, "machine_job.usages_replaced", job.ID) != 1 {
 		t.Fatal("link audit events are missing")
@@ -243,7 +241,6 @@ func TestLinkPrintReplacesTheManualRun(t *testing.T) {
 
 func TestLinkPrintKeepsUsagesWithoutAResolvableSpoolAndKeepsARecordedOutcome(t *testing.T) {
 	h := newPrintHarness(t)
-	ctx := t.Context()
 	started, ended := at(h.now, -3*time.Hour), at(h.now, -2*time.Hour)
 	printID := h.insertRun(t, runSpec{machine: h.machine.ID, state: "failed", started: started, ended: ended, grams: "40", basis: "estimated"})
 
@@ -264,11 +261,6 @@ func TestLinkPrintKeepsUsagesWithoutAResolvableSpoolAndKeepsARecordedOutcome(t *
 	if price(linked.CalculatedPrice) != "13" {
 		t.Fatalf("calculated = %s", price(linked.CalculatedPrice))
 	}
-	var state string
-	if err := h.pool.QueryRow(ctx, `SELECT e.reconciliation_state FROM printer_events e JOIN printer_observed_runs r ON r.reported_event_id = e.id WHERE r.id = $1`, printID).Scan(&state); err != nil || state != "pending" {
-		t.Fatalf("consumption report state = %s err=%v", state, err)
-	}
-
 	// An unknown outcome follows the print state.
 	cancelledPrint := h.insertRun(t, runSpec{machine: h.machine.ID, state: "cancelled", started: at(h.now, -6*time.Hour), ended: at(h.now, -5*time.Hour)})
 	followed := h.link(t, cancelledPrint, h.create(t, h.input(-8*time.Hour, time.Hour, "unknown")))
@@ -306,10 +298,6 @@ func TestLinkPrintConflictsAndPermissions(t *testing.T) {
 	otherMachine := h.insertRun(t, runSpec{machine: h.bareMachine.ID, started: started, ended: ended})
 	if _, err := h.s.LinkPrintToJob(ctx, h.p, otherMachine, job.ID, job.Version, &h.request); !apperror.IsCode(err, "print_machine_mismatch") {
 		t.Fatalf("machine mismatch: %v", err)
-	}
-	review := h.insertLegacyReviewJob(t, "10")
-	if _, err := h.s.LinkPrintToJob(ctx, h.p, printID, review.ID, review.Version, &h.request); !apperror.IsCode(err, "job_not_confirmed") {
-		t.Fatalf("unconfirmed job: %v", err)
 	}
 	// No partial change survives a rejected link.
 	unchanged, err := h.s.GetJob(ctx, h.p, job.ID)
@@ -381,7 +369,7 @@ func TestCreateJobFromPrint(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if job.Machine.ID != h.machine.ID || job.Outcome != "failed" || job.Run != "automatic" || job.Print == nil || job.Print.ID != printID || job.DurationSeconds != 3600 || job.Title == nil || *job.Title != title || job.ReviewState != "confirmed" {
+	if job.Machine.ID != h.machine.ID || job.Outcome != "failed" || job.Run != "automatic" || job.Print == nil || job.Print.ID != printID || job.DurationSeconds != 3600 || job.Title == nil || *job.Title != title {
 		t.Fatalf("created job: %+v", job)
 	}
 	// 1 h at 10/h plus 10 g at 0.1/g.

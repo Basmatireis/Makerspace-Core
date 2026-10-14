@@ -1,7 +1,6 @@
 package printing
 
 import (
-	"encoding/json"
 	"os"
 	"strings"
 	"testing"
@@ -14,8 +13,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func TestPrintingOperationsRequireTheirPermissions(t *testing.T) {
-	s := NewService(nil, machinelogbook.NewService(nil))
+func TestPrinterOperationsRequireTheirPermissions(t *testing.T) {
+	s := NewService(nil)
 	ctx := t.Context()
 	p := authorization.Principal{}
 	id := uuid.Must(uuid.NewV7())
@@ -30,12 +29,6 @@ func TestPrintingOperationsRequireTheirPermissions(t *testing.T) {
 		{"machines.manage slot", func() error { _, err := s.CreateSlot(ctx, p, id, "Slot", 0, "available", nil, nil); return err }},
 		{"printer_slots.assign mount", func() error { _, err := s.Mount(ctx, p, id, id, nil); return err }},
 		{"printer_slots.assign unmount", func() error { _, err := s.Unmount(ctx, p, id, nil); return err }},
-		{"print_submissions.read get", func() error { _, err := s.GetSubmission(ctx, p, id); return err }},
-		{"print_submissions.read list", func() error { _, _, err := s.ListSubmissions(ctx, p, "", "", nil, 1, 25); return err }},
-		{"print_submissions.manage create", func() error { _, err := s.CreateSubmission(ctx, p, SubmissionInput{}, nil); return err }},
-		{"print_submissions.manage attempt", func() error { _, _, err := s.CreateAttempt(ctx, p, id, id, id, 1, nil); return err }},
-		{"print_submissions.manage transition", func() error { _, err := s.TransitionAttempt(ctx, p, id, "accepted", 1, nil); return err }},
-		{"print_submissions.manage reconciliation", func() error { return s.ReconcileEvent(ctx, p, id, "rejected", id, nil, nil, nil, nil) }},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -68,7 +61,7 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 	pool := printingIntegrationPool(t)
 	ctx := t.Context()
 	jobs := machinelogbook.NewService(pool)
-	service := NewService(pool, jobs)
+	service := NewService(pool)
 	personID := uuid.Must(uuid.NewV7())
 	accountID := uuid.Must(uuid.NewV7())
 	requestID := uuid.Must(uuid.NewV7())
@@ -161,45 +154,6 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 		t.Fatalf("expected a finished spool to be refused, got %v", err)
 	}
 
-	estimate := "120"
-	submission, err := service.CreateSubmission(ctx, p, SubmissionInput{MachineID: machine.ID, Customer: machinelogbook.PartyReference{Kind: "person", ID: personID}, Title: "Bracket " + suffix, Declarations: []DeclarationInput{{Ownership: "makerspace", MaterialID: &material.ID, SpoolID: &spool.ID, EstimatedQuantityG: &estimate}}}, &requestID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	operationKey := uuid.Must(uuid.NewV7())
-	attempt, created, err := service.CreateAttempt(ctx, p, submission.ID, machine.ID, operationKey, submission.Version, &requestID)
-	if err != nil || !created {
-		t.Fatalf("create attempt created=%v err=%v", created, err)
-	}
-	repeated, created, err := service.CreateAttempt(ctx, p, submission.ID, machine.ID, operationKey, submission.Version, &requestID)
-	if err != nil || created || repeated.ID != attempt.ID {
-		t.Fatalf("repeat attempt created=%v repeated=%+v err=%v", created, repeated, err)
-	}
-	if _, err = service.TransitionAttempt(ctx, p, attempt.ID, "completed", attempt.Version, &requestID); !apperror.IsCode(err, "invalid_attempt_transition") {
-		t.Fatalf("expected invalid transition, got %v", err)
-	}
-
-	eventInput := EventInput{SourceID: " connector-" + suffix + " ", EventKey: " consumption-1 ", ProtocolVersion: 1, MachineID: &machine.ID, AttemptID: &attempt.ID, Kind: "consumption_report", OccurredAt: time.Now().UTC(), Payload: json.RawMessage(`{"quantity":"118"}`)}
-	event, inserted, err := service.IngestEvent(ctx, eventInput)
-	if err != nil || !inserted || event.ReconciliationState != "pending" {
-		t.Fatalf("ingest event inserted=%v event=%+v err=%v", inserted, event, err)
-	}
-	repeatedEvent, inserted, err := service.IngestEvent(ctx, eventInput)
-	if err != nil || inserted || repeatedEvent.ID != event.ID {
-		t.Fatalf("repeat event inserted=%v event=%+v err=%v", inserted, repeatedEvent, err)
-	}
-	conflictingEvent := eventInput
-	conflictingEvent.Payload = json.RawMessage(`{"quantity":"119"}`)
-	if _, _, err = service.IngestEvent(ctx, conflictingEvent); !apperror.IsCode(err, "printer_event_mismatch") {
-		t.Fatalf("expected event mismatch, got %v", err)
-	}
-	reconcileKey := uuid.Must(uuid.NewV7())
-	if err = service.ReconcileEvent(ctx, p, event.ID, "rejected", reconcileKey, nil, nil, nil, &requestID); err != nil {
-		t.Fatal(err)
-	}
-	if err = service.ReconcileEvent(ctx, p, event.ID, "rejected", reconcileKey, nil, nil, nil, &requestID); err != nil {
-		t.Fatalf("idempotent reconciliation failed: %v", err)
-	}
 	if _, err = service.Unmount(ctx, p, slot.ID, &requestID); err != nil {
 		t.Fatal(err)
 	}

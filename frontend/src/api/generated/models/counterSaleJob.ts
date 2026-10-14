@@ -18,18 +18,8 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { UUIDv7 } from './uUIDv7';
-import type { Version } from './version';
 import type { CounterSaleManualJob } from './counterSaleManualJob';
-import type { MachineJobOutcome } from './machineJobOutcome';
 
 export interface CounterSaleJob {
-  existingJobId?: UUIDv7;
-  expectedJobVersion?: Version;
-  manualJob?: CounterSaleManualJob;
-  operatorPersonId?: UUIDv7;
-  outcome?: MachineJobOutcome;
-  pricingGroupId?: UUIDv7;
-  /** @maxLength 2000 */
-  notes?: string;
+  manualJob: CounterSaleManualJob;
 }

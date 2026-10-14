@@ -20,21 +20,12 @@ the required session and CSRF credentials.
  */
 import type {
   ConfigurePrinterRequest,
-  CreatePrintAttemptRequest,
-  CreatePrintSubmissionRequest,
   CreatePrinterInputUnitRequest,
   CreatePrinterSlotRequest,
-  LinkPrintAttemptJobRequest,
-  ListPrintSubmissionsParams,
   MountSpoolRequest,
-  PrintAttempt,
-  PrintSubmission,
-  PrintSubmissionPage,
   PrinterInputUnit,
   PrinterProfile,
   PrinterSlot,
-  ReconcilePrinterEventRequest,
-  TransitionPrintAttemptRequest,
   UUIDv7
 } from '.././models';
 
@@ -164,162 +155,6 @@ export const unmountPrinterSpool = async (slotId: UUIDv7, options?: RequestInit)
     method: 'POST'
     
     
-  }
-);}
-
-
-export const getListPrintSubmissionsUrl = (params?: ListPrintSubmissionsParams,) => {
-  const normalizedParams = new URLSearchParams();
-
-  Object.entries(params || {}).forEach(([key, value]) => {
-    
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : value.toString())
-    }
-  });
-
-  const stringifiedParams = normalizedParams.toString();
-
-  return stringifiedParams.length > 0 ? `/api/v1/print-submissions?${stringifiedParams}` : `/api/v1/print-submissions`
-}
-
-export const listPrintSubmissions = async (params?: ListPrintSubmissionsParams, options?: RequestInit): Promise<PrintSubmissionPage> => {
-  
-  return apiFetch<PrintSubmissionPage>(getListPrintSubmissionsUrl(params),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-
-
-export const getCreatePrintSubmissionUrl = () => {
-
-
-  
-
-  return `/api/v1/print-submissions`
-}
-
-export const createPrintSubmission = async (createPrintSubmissionRequest: CreatePrintSubmissionRequest, options?: RequestInit): Promise<PrintSubmission> => {
-  
-  return apiFetch<PrintSubmission>(getCreatePrintSubmissionUrl(),
-  {      
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      createPrintSubmissionRequest,)
-  }
-);}
-
-
-export const getGetPrintSubmissionUrl = (submissionId: UUIDv7,) => {
-
-
-  
-
-  return `/api/v1/print-submissions/${submissionId}`
-}
-
-export const getPrintSubmission = async (submissionId: UUIDv7, options?: RequestInit): Promise<PrintSubmission> => {
-  
-  return apiFetch<PrintSubmission>(getGetPrintSubmissionUrl(submissionId),
-  {      
-    ...options,
-    method: 'GET'
-    
-    
-  }
-);}
-
-
-export const getCreatePrintAttemptUrl = (submissionId: UUIDv7,) => {
-
-
-  
-
-  return `/api/v1/print-submissions/${submissionId}/attempts`
-}
-
-export const createPrintAttempt = async (submissionId: UUIDv7,
-    createPrintAttemptRequest: CreatePrintAttemptRequest, options?: RequestInit): Promise<PrintAttempt | PrintAttempt> => {
-  
-  return apiFetch<PrintAttempt | PrintAttempt>(getCreatePrintAttemptUrl(submissionId),
-  {      
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      createPrintAttemptRequest,)
-  }
-);}
-
-
-export const getTransitionPrintAttemptUrl = (attemptId: UUIDv7,) => {
-
-
-  
-
-  return `/api/v1/print-attempts/${attemptId}`
-}
-
-export const transitionPrintAttempt = async (attemptId: UUIDv7,
-    transitionPrintAttemptRequest: TransitionPrintAttemptRequest, options?: RequestInit): Promise<PrintAttempt> => {
-  
-  return apiFetch<PrintAttempt>(getTransitionPrintAttemptUrl(attemptId),
-  {      
-    ...options,
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      transitionPrintAttemptRequest,)
-  }
-);}
-
-
-export const getLinkPrintAttemptJobUrl = (attemptId: UUIDv7,) => {
-
-
-  
-
-  return `/api/v1/print-attempts/${attemptId}/machine-job`
-}
-
-export const linkPrintAttemptJob = async (attemptId: UUIDv7,
-    linkPrintAttemptJobRequest: LinkPrintAttemptJobRequest, options?: RequestInit): Promise<PrintAttempt> => {
-  
-  return apiFetch<PrintAttempt>(getLinkPrintAttemptJobUrl(attemptId),
-  {      
-    ...options,
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      linkPrintAttemptJobRequest,)
-  }
-);}
-
-
-export const getReconcilePrinterEventUrl = (eventId: UUIDv7,) => {
-
-
-  
-
-  return `/api/v1/printer-events/${eventId}/reconciliation`
-}
-
-export const reconcilePrinterEvent = async (eventId: UUIDv7,
-    reconcilePrinterEventRequest: ReconcilePrinterEventRequest, options?: RequestInit): Promise<void> => {
-  
-  return apiFetch<void>(getReconcilePrinterEventUrl(eventId),
-  {      
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      reconcilePrinterEventRequest,)
   }
 );}
 

@@ -3340,22 +3340,6 @@ paths:
         "404": {$ref: "#/components/responses/NotFound"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /printer-observed-runs/{printerObservedRunId}/attempt:
-    parameters: [{name: printerObservedRunId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
-    post:
-      tags: [Printer Connectors]
-      operationId: linkPrinterObservedRunAttempt
-      summary: Explicitly correlate a physical run with an existing Print Attempt
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/LinkPrinterObservedRunAttemptRequest"}}}}
-      responses:
-        "200": {description: Linked observed run., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterObservedRun"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
   /printer-connector/enroll:
     post:
       tags: [Printer Connectors]
@@ -4449,116 +4433,6 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /print-submissions:
-    get:
-      tags: [Printing]
-      operationId: listPrintSubmissions
-      security: [{sessionCookie: []}]
-      parameters:
-        - {name: search, in: query, schema: {type: string, maxLength: 200}}
-        - {name: state, in: query, schema: {type: string, enum: [queued, in_progress, completed, failed, cancelled]}}
-        - {name: machineId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
-        - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
-        - {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 25}}
-      responses:
-        "200": {description: Submissions., content: {application/json: {schema: {$ref: "#/components/schemas/PrintSubmissionPage"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-    post:
-      tags: [Printing]
-      operationId: createPrintSubmission
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreatePrintSubmissionRequest"}}}}
-      responses:
-        "201": {description: Submission created., content: {application/json: {schema: {$ref: "#/components/schemas/PrintSubmission"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /print-submissions/{submissionId}:
-    parameters:
-      - {name: submissionId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
-    get:
-      tags: [Printing]
-      operationId: getPrintSubmission
-      security: [{sessionCookie: []}]
-      responses:
-        "200": {description: Submission., content: {application/json: {schema: {$ref: "#/components/schemas/PrintSubmission"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /print-submissions/{submissionId}/attempts:
-    parameters:
-      - {name: submissionId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
-    post:
-      tags: [Printing]
-      operationId: createPrintAttempt
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreatePrintAttemptRequest"}}}}
-      responses:
-        "201": {description: Attempt created., content: {application/json: {schema: {$ref: "#/components/schemas/PrintAttempt"}}}}
-        "200": {description: Idempotent replay., content: {application/json: {schema: {$ref: "#/components/schemas/PrintAttempt"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /print-attempts/{attemptId}:
-    parameters:
-      - {name: attemptId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
-    patch:
-      tags: [Printing]
-      operationId: transitionPrintAttempt
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/TransitionPrintAttemptRequest"}}}}
-      responses:
-        "200": {description: Attempt updated., content: {application/json: {schema: {$ref: "#/components/schemas/PrintAttempt"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /print-attempts/{attemptId}/machine-job:
-    parameters:
-      - {name: attemptId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
-    put:
-      tags: [Printing]
-      operationId: linkPrintAttemptJob
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/LinkPrintAttemptJobRequest"}}}}
-      responses:
-        "200": {description: Attempt linked., content: {application/json: {schema: {$ref: "#/components/schemas/PrintAttempt"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /printer-events/{eventId}/reconciliation:
-    parameters:
-      - {name: eventId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
-    post:
-      tags: [Printing]
-      operationId: reconcilePrinterEvent
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReconcilePrinterEventRequest"}}}}
-      responses:
-        "204": {description: Reconciliation recorded.}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
   /machine-jobs:
     get:
       tags: [Machine Jobs]
@@ -4572,8 +4446,6 @@ paths:
         - {name: operatorPersonId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
         - {name: materialId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
         - {name: outcome, in: query, schema: {$ref: "#/components/schemas/MachineJobOutcome"}}
-        - {name: source, in: query, schema: {$ref: "#/components/schemas/MachineJobSource"}}
-        - {name: reviewState, in: query, schema: {$ref: "#/components/schemas/MachineJobReviewState"}}
         - {name: from, in: query, schema: {type: string, format: date-time}}
         - {name: to, in: query, schema: {type: string, format: date-time}}
         - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
@@ -4599,18 +4471,6 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
-  /machine-jobs/review-queue:
-    get:
-      tags: [Machine Jobs]
-      operationId: listMachineJobReviewQueue
-      summary: List jobs needing review
-      security: [{sessionCookie: []}]
-      responses:
-        "200": {description: Review queue., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJobList"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
   /machine-jobs/{machineJobId}:
     parameters:
       - {name: machineJobId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
@@ -4633,24 +4493,6 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateMachineJobRequest"}}}}
       responses:
         "200": {description: Machine job updated., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
-        "401": {$ref: "#/components/responses/Unauthorized"}
-        "403": {$ref: "#/components/responses/Forbidden"}
-        "404": {$ref: "#/components/responses/NotFound"}
-        "409": {$ref: "#/components/responses/Conflict"}
-        "422": {$ref: "#/components/responses/UnprocessableEntity"}
-        "500": {$ref: "#/components/responses/InternalServerError"}
-
-  /machine-jobs/{machineJobId}/confirm:
-    parameters:
-      - {name: machineJobId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
-    post:
-      tags: [Machine Jobs]
-      operationId: confirmMachineJob
-      summary: Confirm an automatically detected job
-      security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ConfirmMachineJobRequest"}}}}
-      responses:
-        "200": {description: Job confirmed., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -7015,14 +6857,11 @@ components:
         - payments.reverse
         - external_invoice_requests.read
         - external_invoice_requests.manage
-        - machine_jobs.review
         - machine_jobs.override_price
         - inventory.read
         - inventory.manage
         - filament_spools.manage
         - printer_slots.assign
-        - print_submissions.read
-        - print_submissions.manage
         - printer_connectors.read
         - printer_connectors.manage
         - printer_connectors.credentials.manage
@@ -9533,14 +9372,13 @@ components:
     PrinterObservedRun:
       type: object
       additionalProperties: false
-      required: [id, assignmentId, machineId, machineName, vendorJobId, attemptId, state, historyComplete, firstObservedAt, lastObservedAt, version]
+      required: [id, assignmentId, machineId, machineName, vendorJobId, state, historyComplete, firstObservedAt, lastObservedAt, version]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         assignmentId: {$ref: "#/components/schemas/UUIDv7"}
         machineId: {$ref: "#/components/schemas/UUIDv7"}
         machineName: {type: string}
         vendorJobId: {type: string, maxLength: 200, nullable: true}
-        attemptId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         state: {type: string, enum: [observed, printing, completed, failed, cancelled, uncertain]}
         historyComplete: {type: boolean}
         firstObservedAt: {type: string, format: date-time}
@@ -9556,7 +9394,7 @@ components:
     PrinterConnectorEvent:
       type: object
       additionalProperties: false
-      required: [id, machineId, assignmentId, kind, occurredAt, receivedAt, applicationState, applicationReason, reconciliationState, payload]
+      required: [id, machineId, assignmentId, kind, occurredAt, receivedAt, applicationState, applicationReason, payload]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         machineId: {$ref: "#/components/schemas/UUIDv7"}
@@ -9566,7 +9404,6 @@ components:
         receivedAt: {type: string, format: date-time}
         applicationState: {type: string, enum: [recorded, applied, review_required]}
         applicationReason: {type: string, maxLength: 200, nullable: true}
-        reconciliationState: {type: string, enum: [not_applicable, pending, accepted, rejected]}
         payload: {type: object, additionalProperties: true}
 
     PrinterConnectorEventList:
@@ -9574,14 +9411,6 @@ components:
       additionalProperties: false
       required: [items]
       properties: {items: {type: array, items: {$ref: "#/components/schemas/PrinterConnectorEvent"}}}
-
-    LinkPrinterObservedRunAttemptRequest:
-      type: object
-      additionalProperties: false
-      required: [attemptId, expectedVersion]
-      properties:
-        attemptId: {$ref: "#/components/schemas/UUIDv7"}
-        expectedVersion: {$ref: "#/components/schemas/Version"}
 
     PrinterConnectorRuntimeAssignment:
       type: object
@@ -10769,153 +10598,6 @@ components:
       properties:
         spoolId: {$ref: "#/components/schemas/UUIDv7"}
 
-    FilamentDeclarationInput:
-      type: object
-      additionalProperties: false
-      required: [ownership]
-      properties:
-        ownership: {$ref: "#/components/schemas/FilamentOwnership"}
-        materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        spoolId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        externalMaterialName: {type: string, maxLength: 200, nullable: true}
-        estimatedQuantityG: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
-
-    FilamentDeclaration:
-      allOf:
-        - $ref: "#/components/schemas/FilamentDeclarationInput"
-        - type: object
-          required: [id, materialName]
-          properties:
-            id: {$ref: "#/components/schemas/UUIDv7"}
-            materialName: {type: string}
-            spoolDisplayId: {type: string, nullable: true}
-
-    PrintAttempt:
-      type: object
-      additionalProperties: false
-      required: [id, submissionId, attemptNumber, machineId, machineName, state, declarations, events, version, createdAt, updatedAt]
-      properties:
-        id: {$ref: "#/components/schemas/UUIDv7"}
-        submissionId: {$ref: "#/components/schemas/UUIDv7"}
-        attemptNumber: {type: integer, minimum: 1}
-        machineId: {$ref: "#/components/schemas/UUIDv7"}
-        machineName: {type: string}
-        state: {type: string, enum: [queued, accepted, printing, completed, failed, cancelled]}
-        machineJobId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        acceptedAt: {type: string, format: date-time, nullable: true}
-        startedAt: {type: string, format: date-time, nullable: true}
-        endedAt: {type: string, format: date-time, nullable: true}
-        declarations: {type: array, items: {$ref: "#/components/schemas/FilamentDeclaration"}}
-        events: {type: array, items: {$ref: "#/components/schemas/PrinterEvent"}}
-        version: {$ref: "#/components/schemas/Version"}
-        createdAt: {type: string, format: date-time}
-        updatedAt: {type: string, format: date-time}
-
-    PrintSubmission:
-      type: object
-      additionalProperties: false
-      required: [id, displayId, machineId, machineName, title, state, declarations, attempts, version, createdAt, updatedAt]
-      properties:
-        id: {$ref: "#/components/schemas/UUIDv7"}
-        displayId: {type: string}
-        machineId: {$ref: "#/components/schemas/UUIDv7"}
-        machineName: {type: string}
-        customer: {allOf: [{$ref: "#/components/schemas/BillingPartyReference"}], nullable: true}
-        customerDisplayName:
-          type: string
-          nullable: true
-          description: Current display name of the assigned customer; null when unassigned.
-        title: {type: string}
-        notes: {type: string, nullable: true}
-        state: {type: string, enum: [queued, in_progress, completed, failed, cancelled]}
-        reprintsSubmissionId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        declarations: {type: array, items: {$ref: "#/components/schemas/FilamentDeclaration"}}
-        attempts: {type: array, items: {$ref: "#/components/schemas/PrintAttempt"}}
-        version: {$ref: "#/components/schemas/Version"}
-        createdAt: {type: string, format: date-time}
-        updatedAt: {type: string, format: date-time}
-
-    PrintSubmissionPage:
-      type: object
-      additionalProperties: false
-      required: [items, page, pageSize, total]
-      properties:
-        items: {type: array, items: {$ref: "#/components/schemas/PrintSubmission"}}
-        page: {type: integer, minimum: 1}
-        pageSize: {type: integer, minimum: 1}
-        total: {type: integer, format: int64, minimum: 0}
-
-    CreatePrintSubmissionRequest:
-      type: object
-      additionalProperties: false
-      required: [machineId, title, declarations]
-      properties:
-        machineId: {$ref: "#/components/schemas/UUIDv7"}
-        customer: {allOf: [{$ref: "#/components/schemas/BillingPartyReference"}], nullable: true}
-        title: {type: string, minLength: 1, maxLength: 200}
-        notes: {type: string, maxLength: 2000, nullable: true}
-        reprintsSubmissionId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        declarations: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/FilamentDeclarationInput"}}
-
-    CreatePrintAttemptRequest:
-      type: object
-      additionalProperties: false
-      required: [machineId, operationKey, expectedSubmissionVersion]
-      properties:
-        machineId: {$ref: "#/components/schemas/UUIDv7"}
-        operationKey: {$ref: "#/components/schemas/UUIDv7"}
-        expectedSubmissionVersion: {$ref: "#/components/schemas/Version"}
-
-    TransitionPrintAttemptRequest:
-      type: object
-      additionalProperties: false
-      required: [state, expectedVersion]
-      properties:
-        state: {type: string, enum: [accepted, printing, completed, failed, cancelled]}
-        expectedVersion: {$ref: "#/components/schemas/Version"}
-
-    LinkPrintAttemptJobRequest:
-      type: object
-      additionalProperties: false
-      required: [machineJobId, expectedVersion]
-      properties:
-        machineJobId: {$ref: "#/components/schemas/UUIDv7"}
-        expectedVersion: {$ref: "#/components/schemas/Version"}
-
-    PrinterEvent:
-      type: object
-      additionalProperties: false
-      required: [id, sourceId, eventKey, protocolVersion, kind, occurredAt, receivedAt, payload, reconciliationState]
-      properties:
-        id: {$ref: "#/components/schemas/UUIDv7"}
-        sourceId: {type: string}
-        eventKey: {type: string}
-        protocolVersion: {type: integer}
-        kind: {type: string, enum: [identity, connectivity, operational_state, progress, slot_observation, consumption_report, terminal_outcome]}
-        occurredAt: {type: string, format: date-time}
-        receivedAt: {type: string, format: date-time}
-        payload: {type: object, additionalProperties: true}
-        reconciliationState: {type: string, enum: [not_applicable, pending, accepted, rejected]}
-
-    ReconcilePrinterEventRequest:
-      type: object
-      additionalProperties: false
-      required: [decision, operationKey]
-      properties:
-        decision: {type: string, enum: [accepted, rejected]}
-        operationKey: {$ref: "#/components/schemas/UUIDv7"}
-        machineJobId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        expectedJobVersion: {type: integer, format: int64, nullable: true}
-        usages: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/MachineJobUsageInput"}}
-
-    MachineJobSource:
-      type: string
-      enum: [manual, automatic]
-
-    MachineJobReviewState:
-      type: string
-      enum: [needs_review, confirmed]
-
     MachineJobOutcome:
       type: string
       enum: [successful, partial_failure, failed, cancelled, unknown]
@@ -11152,7 +10834,7 @@ components:
     MachineJob:
       type: object
       additionalProperties: false
-      required: [id, displayId, machine, startsAt, endsAt, durationSeconds, source, run, reviewState, outcome, status, usages, pricingStatus, version, createdAt, updatedAt]
+      required: [id, displayId, machine, startsAt, endsAt, durationSeconds, run, outcome, status, usages, pricingStatus, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         displayId: {type: string}
@@ -11161,11 +10843,8 @@ components:
         startsAt: {type: string, format: date-time}
         endsAt: {type: string, format: date-time}
         durationSeconds: {type: integer, format: int64, minimum: 1}
-        source: {$ref: "#/components/schemas/MachineJobSource"}
-        externalId: {type: string, nullable: true}
         run: {$ref: "#/components/schemas/MachineJobRun"}
         print: {$ref: "#/components/schemas/MachineJobPrintReference"}
-        reviewState: {$ref: "#/components/schemas/MachineJobReviewState"}
         customer: {allOf: [{$ref: "#/components/schemas/BillingParty"}], nullable: true}
         operator: {allOf: [{$ref: "#/components/schemas/Operator"}], nullable: true}
         outcome: {$ref: "#/components/schemas/MachineJobOutcome"}
@@ -11235,24 +10914,10 @@ components:
         pricingGroupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         usages: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/MachineJobUsageInput"}}
 
-    ConfirmMachineJobRequest:
-      type: object
-      additionalProperties: false
-      required: [customer, operatorPersonId, outcome, expectedVersion]
-      properties:
-        customer: {$ref: "#/components/schemas/BillingPartyReference"}
-        operatorPersonId: {$ref: "#/components/schemas/UUIDv7"}
-        outcome: {$ref: "#/components/schemas/MachineJobOutcome"}
-        notes: {type: string, maxLength: 2000, nullable: true}
-        pricingGroupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        expectedVersion: {$ref: "#/components/schemas/Version"}
-
     UpdateMachineJobRequest:
       type: object
       description: >-
-        outcome must be unknown while endsAt lies in the future. Recording an outcome on a job that is still awaiting
-        review (from earlier automatic ingest) confirms it: customer is then required, material usage is consumed and
-        the price is captured.
+        outcome must be unknown while endsAt lies in the future.
       additionalProperties: false
       required: [machineId, startsAt, endsAt, operatorPersonId, outcome, expectedVersion]
       properties:
@@ -11286,13 +10951,12 @@ components:
     MachineLogbookOverview:
       type: object
       additionalProperties: false
-      required: [jobsToday, jobsThisWeek, unassignedJobs, unassignedEstimatedAmount, needsReview, failedOrPartialThisWeek, lowStockItems, recentJobs, lowStockMaterials, activity]
+      required: [jobsToday, jobsThisWeek, unassignedJobs, unassignedEstimatedAmount, failedOrPartialThisWeek, lowStockItems, recentJobs, lowStockMaterials, activity]
       properties:
         jobsToday: {type: integer, format: int64, minimum: 0}
         jobsThisWeek: {type: integer, format: int64, minimum: 0}
         unassignedJobs: {type: integer, format: int64, minimum: 0}
         unassignedEstimatedAmount: {$ref: "#/components/schemas/Money"}
-        needsReview: {type: integer, format: int64, minimum: 0}
         failedOrPartialThisWeek: {type: integer, format: int64, minimum: 0}
         runningNow: {type: integer, format: int64, minimum: 0, nullable: true, description: Running jobs plus printing unlinked prints. Null without machine_jobs.read.}
         runningMachineNames: {type: array, nullable: true, items: {type: string}}
@@ -12397,21 +12061,10 @@ components:
       type: "object"
       additionalProperties: false
       properties:
-        existingJobId:
-          $ref: "#/components/schemas/UUIDv7"
-        expectedJobVersion:
-          $ref: "#/components/schemas/Version"
         manualJob:
           $ref: "#/components/schemas/CounterSaleManualJob"
-        operatorPersonId:
-          $ref: "#/components/schemas/UUIDv7"
-        outcome:
-          $ref: "#/components/schemas/MachineJobOutcome"
-        pricingGroupId:
-          $ref: "#/components/schemas/UUIDv7"
-        notes:
-          type: "string"
-          maxLength: 2000
+      required:
+        - "manualJob"
     CounterSaleCommand:
       type: "object"
       additionalProperties: false

@@ -22,7 +22,6 @@ import type {
   CreatePrinterConnectorAssignmentRequest,
   CreatePrinterConnectorRequest,
   EnrollPrinterConnectorRequest,
-  LinkPrinterObservedRunAttemptRequest,
   PrinterConnector,
   PrinterConnectorAssignment,
   PrinterConnectorAssignmentList,
@@ -34,7 +33,6 @@ import type {
   PrinterConnectorEventList,
   PrinterConnectorHeartbeat,
   PrinterConnectorList,
-  PrinterObservedRun,
   PrinterObservedRunList,
   RotatePrinterConnectorCredentialRequest,
   UUIDv7,
@@ -302,31 +300,6 @@ export const listPrinterConnectorEvents = async (printerConnectorId: UUIDv7, opt
     method: 'GET'
     
     
-  }
-);}
-
-
-/**
- * @summary Explicitly correlate a physical run with an existing Print Attempt
- */
-export const getLinkPrinterObservedRunAttemptUrl = (printerObservedRunId: UUIDv7,) => {
-
-
-  
-
-  return `/api/v1/printer-observed-runs/${printerObservedRunId}/attempt`
-}
-
-export const linkPrinterObservedRunAttempt = async (printerObservedRunId: UUIDv7,
-    linkPrinterObservedRunAttemptRequest: LinkPrinterObservedRunAttemptRequest, options?: RequestInit): Promise<PrinterObservedRun> => {
-  
-  return apiFetch<PrinterObservedRun>(getLinkPrinterObservedRunAttemptUrl(printerObservedRunId),
-  {      
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      linkPrinterObservedRunAttemptRequest,)
   }
 );}
 

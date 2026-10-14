@@ -46,7 +46,7 @@ function jobFixture(overrides: Partial<MachineJob> = {}): MachineJob {
   return {
     id: ids.job, displayId: 'J-2026-000010', title: 'Gearbox housing', machine: machineFixture(),
     startsAt: '2026-09-15T08:00:00Z', endsAt: '2026-09-15T09:00:00Z', durationSeconds: 3600,
-    source: 'manual', run: 'manual', print: null, reviewState: 'confirmed', customer: { id: ids.job, kind: 'person', displayName: 'Lena Maier' } as MachineJob['customer'], operator: null,
+    run: 'manual', print: null, customer: { id: ids.job, kind: 'person', displayName: 'Lena Maier' } as MachineJob['customer'], operator: null,
     outcome: 'successful', status: 'successful', notes: null, usages: [], pricingStatus: 'pending', pricingSnapshot: null, calculatedPrice: null, effectivePrice: null,
     version: 5, createdAt: '2026-09-15T08:00:00Z', updatedAt: '2026-09-15T08:00:00Z',
     ...overrides,
@@ -63,7 +63,7 @@ function workItem(index: number, overrides: Partial<WorkItem> = {}): WorkItem {
 
 function overviewFixture(overrides: Partial<MachineLogbookOverview> = {}): MachineLogbookOverview {
   return {
-    jobsToday: 4, jobsThisWeek: 9, unassignedJobs: 0, unassignedEstimatedAmount: '0.00', needsReview: 0, failedOrPartialThisWeek: 0,
+    jobsToday: 4, jobsThisWeek: 9, unassignedJobs: 0, unassignedEstimatedAmount: '0.00', failedOrPartialThisWeek: 0,
     runningNow: 2, runningMachineNames: ['Bambu H2D #1', 'Prusa MK4'], needsOutcome: 0, unlinkedPrints: 1, billingIssues: 3,
     activeItems: [workItem(1)], activeTotal: 1,
     lowStockItems: 0, recentJobs: [], lowStockMaterials: [], activity: [],

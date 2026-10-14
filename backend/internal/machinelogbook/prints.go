@@ -300,9 +300,6 @@ func (s *Service) LinkPrintToJob(ctx context.Context, p authorization.Principal,
 	if job.PrintID != nil {
 		return MachineJob{}, conflict("job_already_linked", "The job is already linked to a print")
 	}
-	if job.ReviewState != "confirmed" {
-		return MachineJob{}, conflict("job_not_confirmed", "Only confirmed jobs can be edited")
-	}
 	if job.MachineID != print.MachineID {
 		return MachineJob{}, conflict("print_machine_mismatch", "The print ran on another machine than the job")
 	}
@@ -360,16 +357,6 @@ func (s *Service) replaceUsagesFromPrint(ctx context.Context, tx pgx.Tx, q *mach
 	usage := UsageInput{MaterialID: *spool.MaterialID, SpoolID: print.ReportedSpoolID, Ownership: "makerspace", Quantity: decimalString(print.ReportedQuantityG), QuantityBasis: *print.ReportedQuantityBasis}
 	if _, err = s.ReplaceJobUsagesInTransaction(ctx, tx, p, job.ID, job.Version, []UsageInput{usage}, print.ReportedEventID, requestID); err != nil {
 		return false, err
-	}
-	actor := p.AccountID
-	accepted, err := q.AcceptPrinterEventReconciliation(ctx, machinelogbookdb.AcceptPrinterEventReconciliationParams{ID: *print.ReportedEventID, ActorAccountID: &actor})
-	if err != nil {
-		return false, err
-	}
-	if accepted > 0 {
-		if err = writeAudit(ctx, tx, p, "printer_event.reconciled", "printer_event", *print.ReportedEventID, requestID, []string{"reconciliationState"}); err != nil {
-			return false, err
-		}
 	}
 	return true, nil
 }

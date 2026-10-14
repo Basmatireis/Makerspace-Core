@@ -22,7 +22,7 @@ Material usage is a set of typed material/quantity rows. Supported units are **g
 
 Job creation requires a machine, customer, enabled-account operator, interval, outcome, and valid usages, and is confirmed atomically. Anonymous creation is permitted only through the Orders counter-sale transaction, which must fully settle an immediately fulfilled cash/card charge. Pricing is captured, every material is consumed, and audit events are written in the same transaction.
 
-**Automatic ingest removed.** `POST /machine-jobs/automatic` and the review UI no longer exist (`GET /machine-jobs/review-queue` remains for legacy jobs); connector data creates [prints](#prints), not jobs. Staff create a job from a print or link a print to a job. Jobs left in the legacy `needs_review` state are confirmed when an outcome is recorded on them (job update or confirm), which captures pricing and consumes stock as before. This path requires `machine_jobs.review`.
+**Automatic ingest removed.** `POST /machine-jobs/automatic` and the review UI no longer exist; connector data creates [prints](#prints), not jobs. Staff create a job from a print or link a print to a job. Print submissions, print attempts, printer-event reconciliation, and the review queue were removed; every job is a normal job.
 
 Confirmed corrections use optimistic concurrency. Source and external identifiers remain immutable. Usage replacement creates compensating inventory transactions; immutable ledger history is never rewritten. A finalized Order does not lock operational job corrections: its immutable item snapshot remains unchanged and the UI/API reports source changes. Omitted customer on a factual correction preserves the current identity, including an anonymous job.
 
@@ -38,17 +38,17 @@ A print is a physical printer run reported by a [printer connector](printer-conn
 
 Link, unlink, and create write their audit event in the same transaction. Permissions: reading prints needs `machine_jobs.read`; link and unlink need `machine_jobs.edit`; create-job-from-print needs `machine_jobs.create`.
 
-**Print submissions** (tables and `/print-submissions` endpoints, see [Filament spools and generic printer integration](filament-printing.md)) are kept unchanged but have no UI. Review and Print submissions pages were removed; their former URLs redirect to Jobs.
+Print submissions and attempts no longer exist (see [Filament spools and generic printer integration](filament-printing.md)).
 
 ## Pricing snapshots
 
 Pricing groups are independent of Roles. Resolution order is:
 
-1. the explicit group on the create, review, or reassignment request;
+1. the explicit group on the create or reassignment request;
 2. the billing party's default group;
 3. the one active global default.
 
-If none resolves, manual creation or review fails until a group is selected. A group contains exact-decimal machine-runtime rules per machine type/hour and material rules per normalized category/material unit. Missing matched rules make pricing **incomplete** and leave the calculated total unset. An explicit zero rate is intentionally free.
+If none resolves, manual creation fails until a group is selected. A group contains exact-decimal machine-runtime rules per machine type/hour and material rules per normalized category/material unit. Missing matched rules make pricing **incomplete** and leave the calculated total unset. An explicit zero rate is intentionally free.
 
 Every confirmed job receives an immutable snapshot revision containing the group name, EUR currency, capture time, matched rate and unit, missing-rule markers, and source rule IDs for traceability. Customer or machine-type correction creates a new revision and retains older revisions. Timing and usage corrections recalculate against the active snapshot. The exact component sum is rounded half-up to cents only at the final total.
 
@@ -69,15 +69,14 @@ Purchases add their total acquisition price and recalculate weighted-average cos
 The module registers:
 
 - **machines.read**, **machines.manage**
-- **machine_jobs.read**, **machine_jobs.create**, **machine_jobs.edit**, **machine_jobs.review** (confirming legacy `needs_review` jobs), **machine_jobs.override_price** (price adjustments)
+- **machine_jobs.read**, **machine_jobs.create**, **machine_jobs.edit**, **machine_jobs.override_price** (price adjustments)
 - **inventory.read**, **inventory.manage**
 - **filament_spools.manage**, **printer_slots.assign**
-- **print_submissions.read**, **print_submissions.manage**
 - **organizations.read**, **organizations.manage**
 - **pricing.read**, **pricing.manage**
 - **statistics.read**
 
-Frontend gates are presentation only. Services authorize every operation, including the minimal party/operator lookups used for create/review and Order payer selection. Minimal lookups also accept `orders.read`.
+Frontend gates are presentation only. Services authorize every operation, including the minimal party/operator lookups used for create and Order payer selection. Minimal lookups also accept `orders.read`.
 
 Catalog, organization, pricing, job/cancel/link/unlink/reassignment/correction, price adjustment, purchase, consumption, adjustment, disposal, and mark-empty mutations write an audit event in the same transaction. Audit metadata contains changed field names and non-sensitive identifiers only. It does not duplicate names, free-text notes, search text, external metadata, or override reasons.
 
@@ -104,7 +103,7 @@ The OpenAPI resource groups are:
 - **/filament-spools** (fills, finish, cleanup) and **/filament-products**
 - **/machine-logbook/overview**, **/machine-logbook/work-items**, **/machine-logbook/machine-activity**, **/machine-logbook/statistics**
 
-The Carbon navigation is **Overview · Jobs · Machines · Inventory · Statistics**, plus a Settings configuration page. Job detail, material detail, and spool detail are sub-pages of Jobs and Inventory. Review and Print submissions are removed: `/machine-logbook/review` redirects to Jobs filtered by `needs_outcome`, and `/machine-logbook/print-submissions` to Jobs filtered by `unlinked`. Former spool and printer URLs redirect into Inventory and Machines. Lists use URL-backed filters and bounded pagination. Charts have textual table equivalents.
+The Carbon navigation is **Overview · Jobs · Machines · Inventory · Statistics**, plus a Settings configuration page. Job detail, material detail, and spool detail are sub-pages of Jobs and Inventory.  Former spool and printer URLs redirect into Inventory and Machines. Lists use URL-backed filters and bounded pagination. Charts have textual table equivalents.
 
 ## Verification
 

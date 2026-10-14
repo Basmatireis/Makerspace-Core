@@ -33,7 +33,6 @@ Approved 2026-10-11. Paths below refer to the current source, never manually edi
 | Printer profile | PUT enabled flag; machines.manage | ADD disable/re-enable using current version | printing/service.go; distinguish GET404 from errors |
 | Printer input unit/slot | Create only; machines.manage | No invented edit/delete/retire-after-create endpoint | api/openapi.yaml printer topology; slot creation supports status, persisted edit absent |
 | Spool mount assignment | mount/unmount; printer_slots.assign | Existing unmount with clear consequences; no history delete | printing/service.go; mounted spool history preserved; selector also needs inventory.read |
-| Print submission/attempt | lifecycle transition; print_submissions.manage | ADD current attempt Cancel when valid | PrintSubmissionDetailPage; declarations/attempts retained; no aggregate delete |
 | Printer event/observed run | reconcile/link; existing grants | Preserve records and existing reconciliation | printing/service.go; dirty printer connector implementation compatibility-only |
 | Order/position | cancel/reverse; draft item removal; orders.write/finalize/reverse plus read | Existing workflows, consistent confirmations | docs/orders.md; removed_at on draft item, immutable finalized snapshots |
 | Payment/allocations | full receipt reversal; payments.reverse plus read | Keep reverse, no delete | docs/orders.md; immutable financial journal |

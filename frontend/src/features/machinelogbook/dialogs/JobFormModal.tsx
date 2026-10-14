@@ -34,7 +34,7 @@ function JobPartyFields({ idPrefix, showOutcome, current }: { idPrefix: string; 
   const operators = useQuery({ ...operatorSearchQuery(operatorSearch), enabled: canLookup, placeholderData: keepPreviousData });
   const lookupFailed = parties.isError || operators.isError;
   // A confirmed job whose customer was deleted keeps no customer unless one is chosen; everything else needs one.
-  const customerRequired = !current || !!current.customer || current.reviewState === 'needs_review';
+  const customerRequired = !current || !!current.customer;
   return (
     <Stack gap={6}>
       {!canLookup && <p className="mj-secondary">Customer and operator lookups are unavailable with your permissions. Existing assignments are kept.</p>}

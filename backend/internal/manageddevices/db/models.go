@@ -466,10 +466,6 @@ type MachineJob struct {
 	MachineID                uuid.UUID
 	StartsAt                 time.Time
 	EndsAt                   time.Time
-	Source                   string
-	ExternalID               *string
-	ExternalMetadata         []byte
-	ReviewState              string
 	CustomerPersonID         *uuid.UUID
 	CustomerOrganizationID   *uuid.UUID
 	OperatorPersonID         *uuid.UUID
@@ -946,50 +942,6 @@ type PricingRule struct {
 	UpdatedAt        time.Time
 }
 
-type PrintAttempt struct {
-	ID              uuid.UUID
-	SubmissionID    uuid.UUID
-	AttemptNumber   int32
-	MachineID       uuid.UUID
-	State           string
-	ExternalPrintID *string
-	AcceptedAt      pgtype.Timestamptz
-	StartedAt       pgtype.Timestamptz
-	EndedAt         pgtype.Timestamptz
-	MachineJobID    *uuid.UUID
-	Version         int64
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-}
-
-type PrintFilamentDeclaration struct {
-	ID                   uuid.UUID
-	SubmissionID         *uuid.UUID
-	AttemptID            *uuid.UUID
-	Ownership            string
-	MaterialID           *uuid.UUID
-	SpoolID              *uuid.UUID
-	ExternalMaterialName *string
-	EstimatedQuantityG   pgtype.Numeric
-	CreatedAt            time.Time
-}
-
-type PrintSubmission struct {
-	ID                     uuid.UUID
-	DisplayID              string
-	MachineID              uuid.UUID
-	CustomerPersonID       *uuid.UUID
-	CustomerOrganizationID *uuid.UUID
-	Title                  string
-	Notes                  *string
-	State                  string
-	ReprintsSubmissionID   *uuid.UUID
-	Version                int64
-	CreatedByAccountID     *uuid.UUID
-	CreatedAt              time.Time
-	UpdatedAt              time.Time
-}
-
 type PrinterConnector struct {
 	ID                           uuid.UUID
 	Name                         string
@@ -1089,16 +1041,12 @@ type PrinterEvent struct {
 	Fingerprint           string
 	ProtocolVersion       int32
 	MachineID             *uuid.UUID
-	AttemptID             *uuid.UUID
 	Kind                  string
 	OccurredAt            time.Time
 	ReceivedAt            time.Time
 	SourceSequence        *int64
 	ExternalPrintID       *string
 	Payload               []byte
-	ReconciliationState   string
-	ReconciledByAccountID *uuid.UUID
-	ReconciledAt          pgtype.Timestamptz
 	ConnectorID           *uuid.UUID
 	ConnectorAssignmentID *uuid.UUID
 	ObservedRunID         *uuid.UUID
@@ -1125,7 +1073,6 @@ type PrinterObservedRun struct {
 	AssignmentID          uuid.UUID
 	MachineID             uuid.UUID
 	VendorJobID           *string
-	AttemptID             *uuid.UUID
 	State                 string
 	HistoryComplete       bool
 	FirstObservedAt       time.Time
@@ -1178,15 +1125,6 @@ type PrinterSpoolAssignment struct {
 	Source               string
 	SourceEventID        *uuid.UUID
 	CreatedAt            time.Time
-}
-
-type PrintingOperation struct {
-	OperationKey   uuid.UUID
-	ActorAccountID uuid.UUID
-	Kind           string
-	Fingerprint    string
-	ResultID       uuid.UUID
-	CreatedAt      time.Time
 }
 
 type Role struct {

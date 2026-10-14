@@ -41,7 +41,7 @@ func printerConnectorAssignmentDTO(value printerconnectors.Assignment) openapi.P
 
 func printerObservedRunDTO(value printerconnectors.ObservedRun) openapi.PrinterObservedRun {
 	return openapi.PrinterObservedRun{Id: value.ID, AssignmentId: value.AssignmentID, MachineId: value.MachineID, MachineName: value.MachineName,
-		VendorJobId: nullableString(value.VendorJobID), AttemptId: nullableValue(value.AttemptID), State: openapi.PrinterObservedRunState(value.State),
+		VendorJobId: nullableString(value.VendorJobID), State: openapi.PrinterObservedRunState(value.State),
 		HistoryComplete: value.HistoryComplete, FirstObservedAt: value.FirstObservedAt, LastObservedAt: value.LastObservedAt, Version: value.Version}
 }
 
@@ -51,7 +51,7 @@ func printerConnectorEventDTO(value printerconnectors.ConnectorEvent) openapi.Pr
 	return openapi.PrinterConnectorEvent{Id: value.ID, MachineId: value.MachineID, AssignmentId: value.AssignmentID,
 		Kind: openapi.PrinterConnectorEventKind(value.Kind), OccurredAt: value.OccurredAt, ReceivedAt: value.ReceivedAt,
 		ApplicationState: openapi.PrinterConnectorEventApplicationState(value.ApplicationState), ApplicationReason: nullableString(value.ApplicationReason),
-		ReconciliationState: openapi.PrinterConnectorEventReconciliationState(value.ReconciliationState), Payload: payload}
+		Payload: payload}
 }
 
 func (s *Server) ListPrinterConnectors(ctx context.Context, _ openapi.ListPrinterConnectorsRequestObject) (openapi.ListPrinterConnectorsResponseObject, error) {
@@ -226,21 +226,6 @@ func (s *Server) ListPrinterConnectorEvents(ctx context.Context, request openapi
 		result = append(result, printerConnectorEventDTO(item))
 	}
 	return openapi.ListPrinterConnectorEvents200JSONResponse{Items: result}, nil
-}
-
-func (s *Server) LinkPrinterObservedRunAttempt(ctx context.Context, request openapi.LinkPrinterObservedRunAttemptRequestObject) (openapi.LinkPrinterObservedRunAttemptResponseObject, error) {
-	principal, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if request.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	item, err := s.printerConnectors.LinkObservedRun(ctx, principal, request.PrinterObservedRunId, request.Body.AttemptId, request.Body.ExpectedVersion, requestIDPointer(ctx))
-	if err != nil {
-		return nil, err
-	}
-	return openapi.LinkPrinterObservedRunAttempt200JSONResponse(printerObservedRunDTO(item)), nil
 }
 
 func (s *Server) EnrollPrinterConnector(ctx context.Context, request openapi.EnrollPrinterConnectorRequestObject) (openapi.EnrollPrinterConnectorResponseObject, error) {

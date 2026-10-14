@@ -12,7 +12,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   completeCounterSale,
   previewCounterSale,
@@ -23,7 +23,6 @@ import type {
   Operator,
 } from "../../api/generated/models";
 import {
-  reviewQuery,
   machinesQuery,
   materialsQuery,
   pricingQuery,
@@ -42,9 +41,7 @@ import { FinancialError } from "./shared";
 import { financeKeys, useOperationKeys } from "./operations";
 
 type Fields = {
-  source: "manual" | "review";
   machineId: string;
-  existingJobId: string;
   operatorPersonId: string;
   outcome: MachineJobOutcome;
   pricingGroupId: string;
@@ -59,7 +56,6 @@ type Fields = {
 };
 export function CounterSalePage() {
   const user = useCurrentUser();
-  const [params] = useSearchParams();
   const client = useQueryClient();
   const navigate = useNavigate();
   const key = useOperationKeys();
@@ -70,9 +66,7 @@ export function CounterSalePage() {
   const [occurredAt] = useState(() => new Date().toISOString());
   const form = useForm<Fields>({
     defaultValues: {
-      source: params.get("job") ? "review" : "manual",
       machineId: "",
-      existingJobId: params.get("job") || "",
       operatorPersonId: user.person.id,
       outcome: "successful",
       pricingGroupId: "",
@@ -87,7 +81,6 @@ export function CounterSalePage() {
     },
   });
   const usages = useFieldArray({ control: form.control, name: "usages" });
-  const source = form.watch("source");
   const method = form.watch("method");
   const machines = useQuery({
     ...machinesQuery({ page: 1, pageSize: 100 }),
@@ -101,41 +94,23 @@ export function CounterSalePage() {
     ...pricingQuery(),
     enabled: hasPermission(user, PermissionId.pricingread),
   });
-  const review = useQuery({
-    ...reviewQuery(),
-    enabled: hasPermission(user, PermissionId.machine_jobsreview),
-  });
   const operators = useQuery(operatorSearchQuery(operatorSearch));
-  const jobInput = (v: Fields): CounterSaleCommand["job"] => {
-    const job = review.data?.items.find((j) => j.id === v.existingJobId);
-    return v.source === "manual"
-      ? {
-          manualJob: {
-            machineId: v.machineId,
-            startsAt: zonedDateTimeValueToISO(v.startsAt),
-            endsAt: zonedDateTimeValueToISO(v.endsAt),
-            operatorPersonId: v.operatorPersonId,
-            outcome: v.outcome,
-            pricingGroupId: v.pricingGroupId || undefined,
-            usages: v.usages.map((usage) => ({ ...usage, ownership: 'makerspace', spoolId: null, externalMaterialName: null, quantityBasis: 'actual' })),
-          },
-        }
-      : {
-          existingJobId: v.existingJobId,
-          expectedJobVersion: job?.version,
-          operatorPersonId: v.operatorPersonId,
-          outcome: v.outcome,
-          pricingGroupId: v.pricingGroupId || undefined,
-        };
-  };
+  const jobInput = (v: Fields): CounterSaleCommand["job"] => ({
+    manualJob: {
+      machineId: v.machineId,
+      startsAt: zonedDateTimeValueToISO(v.startsAt),
+      endsAt: zonedDateTimeValueToISO(v.endsAt),
+      operatorPersonId: v.operatorPersonId,
+      outcome: v.outcome,
+      pricingGroupId: v.pricingGroupId || undefined,
+      usages: v.usages.map((usage) => ({ ...usage, ownership: 'makerspace', spoolId: null, externalMaterialName: null, quantityBasis: 'actual' })),
+    },
+  });
   const [quote, setQuote] = useState<{ fingerprint: string; amount: string }>();
   const values = form.watch();
   const jobFingerprint = (v: Fields) =>
     JSON.stringify([
-      v.source,
       v.machineId,
-      v.existingJobId,
-      review.data?.items.find((j) => j.id === v.existingJobId)?.version,
       v.operatorPersonId,
       v.outcome,
       v.pricingGroupId,
@@ -196,7 +171,7 @@ export function CounterSalePage() {
   return (
     <PageShell
       title="Immediate counter sale"
-      description="Anonymous sale: confirm the job, capture pricing, finalize the Order, and record full payment together."
+      description="Anonymous sale: record the job, capture pricing, finalize the Order, and record full payment together."
       breadcrumbs={[
         { label: "Orders", to: "/orders" },
         { label: "Counter sale" },
@@ -206,24 +181,12 @@ export function CounterSalePage() {
         <Stack gap={6}>
           <Tile>
             <Stack gap={5}>
-              <Select
-                id="sale-source"
-                labelText="Job source"
-                {...form.register("source")}
-              >
-                <SelectItem value="manual" text="New manual Machine Job" />
-                <SelectItem
-                  value="review"
-                  text="Confirm an imported review job"
-                />
-              </Select>
-              {source === "manual" ? (
-                <>
+              <>
                   <Select
                     id="sale-machine"
                     labelText="Machine"
                     {...form.register("machineId", {
-                      required: source === "manual",
+                      required: true,
                     })}
                   >
                     <SelectItem value="" text="Select machine" />
@@ -249,25 +212,7 @@ export function CounterSalePage() {
                       )}
                     />
                   ))}
-                </>
-              ) : (
-                <Select
-                  id="sale-review-job"
-                  labelText="Imported job"
-                  {...form.register("existingJobId", {
-                    required: source === "review",
-                  })}
-                >
-                  <SelectItem value="" text="Select review job" />
-                  {review.data?.items.map((j) => (
-                    <SelectItem
-                      key={j.id}
-                      value={j.id}
-                      text={`${j.displayId} · ${j.machine.name}`}
-                    />
-                  ))}
-                </Select>
-              )}
+              </>
               <ComboBox
                 id="sale-operator"
                 titleText="Operator (defaults to you)"
@@ -314,8 +259,7 @@ export function CounterSalePage() {
                 Customer identity is separate from operator identity and
                 pricing. No Person record is created.
               </p>
-              {source === "manual" && (
-                <>
+              <>
                   <h3>Material usage</h3>
                   {usages.fields.map((f, index) => (
                     <Stack key={f.id} gap={4}>
@@ -358,8 +302,7 @@ export function CounterSalePage() {
                   >
                     Add material usage
                   </Button>
-                </>
-              )}
+              </>
               <Button
                 kind="secondary"
                 disabled={preview.isPending || mutation.isPending}

@@ -87,8 +87,7 @@ const pricingSnapshot = {
 type JobInit = Partial<MachineJob> & Pick<MachineJob, 'id' | 'displayId'>;
 export function jobFixture(overrides: JobInit): MachineJob {
   return {
-    title: null, machine: machine(ids.laser, 'Laser cutter', types[1]), startsAt: minutes(-180), endsAt: minutes(-90), durationSeconds: 5400, source: 'manual', run: 'manual', externalId: null,
-    print: null, reviewState: 'confirmed', customer, operator, outcome: 'successful', status: 'successful', notes: 'Print with 0.2 mm layers',
+    title: null, machine: machine(ids.laser, 'Laser cutter', types[1]), startsAt: minutes(-180), endsAt: minutes(-90), durationSeconds: 5400, run: 'manual', print: null, customer, operator, outcome: 'successful', status: 'successful', notes: 'Print with 0.2 mm layers',
     usages: [{ id: id(130), ownership: 'makerspace', materialId: ids.pla, spoolId: null, spoolDisplayId: null, materialName: 'PLA Black', category: 'filament', unit: 'g', quantity: '183.000', quantityBasis: 'actual' }],
     pricingStatus: 'complete', pricingSnapshot, calculatedPrice: '12.50', priceAdjustment: null, effectivePrice: '12.50', version: 3, createdAt: created, updatedAt: created, ...overrides,
   } as MachineJob;
@@ -124,7 +123,7 @@ export function createWorld(permissions: string[] = staffPermissions) {
     jobFixture({ id: ids.jobNeedsOutcome, displayId: 'J-2026-000002', title: 'Lamp shade', startsAt: minutes(-90), endsAt: minutes(-10), durationSeconds: 4800, outcome: 'unknown', status: 'needs_outcome', calculatedPrice: null, effectivePrice: null, pricingStatus: 'pending', pricingSnapshot: undefined }),
     jobFixture({ id: ids.jobManualBambu, displayId: 'J-2026-000003', title: 'Prototype bracket', machine: bambu, startsAt: minutes(-200), endsAt: minutes(-140), durationSeconds: 3600 }),
     jobFixture({
-      id: ids.jobLinked, displayId: 'J-2026-000004', title: null, machine: bambu, run: 'automatic', source: 'automatic', startsAt: minutes(-600), endsAt: minutes(-500), durationSeconds: 6000,
+      id: ids.jobLinked, displayId: 'J-2026-000004', title: null, machine: bambu, run: 'automatic', startsAt: minutes(-600), endsAt: minutes(-500), durationSeconds: 6000,
       print: { id: ids.printLinked, displayId: 'PR-2026-000007', fileName: 'gearbox_housing_v3.gcode', state: 'finished', connectorName: 'Bambu LAN' },
     }),
     jobFixture({ id: ids.jobRunning, displayId: 'J-2026-000005', title: 'Engraving run', startsAt: minutes(-30), endsAt: minutes(30), durationSeconds: 3600, outcome: 'unknown', status: 'running', calculatedPrice: null, effectivePrice: null, pricingStatus: 'pending', pricingSnapshot: undefined }),
@@ -221,7 +220,7 @@ function overview(world: World) {
   const active = items.filter((item) => ['running', 'printing', 'unlinked', 'needs_outcome'].includes(item.status));
   const count = (...statuses: string[]) => items.filter((item) => statuses.includes(item.status)).length;
   return {
-    jobsToday: 4, jobsThisWeek: 9, unassignedJobs: 0, unassignedEstimatedAmount: '0.00', needsReview: 0, failedOrPartialThisWeek: 1,
+    jobsToday: 4, jobsThisWeek: 9, unassignedJobs: 0, unassignedEstimatedAmount: '0.00', failedOrPartialThisWeek: 1,
     runningNow: count('running', 'printing'), runningMachineNames: [...new Set(items.filter((item) => ['running', 'printing'].includes(item.status)).map((item) => item.machineName))],
     needsOutcome: count('needs_outcome'), unlinkedPrints: count('unlinked'), billingIssues: 0, activeItems: active.slice(0, 6), activeTotal: active.length,
     lowStockItems: 0, recentJobs: [], lowStockMaterials: [], activity: [{ date: '2026-09-14', count: 7 }],
@@ -383,8 +382,7 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
       if (!print) return notFound(route);
       if (method === 'POST') {
         const job = saveJob(world, jobFixture({
-          id: ids.newJob, displayId: 'J-2026-000011', title: (body?.title as string | null) ?? null, machine: world.machines.find((item) => item.id === print.machineId)!, run: 'automatic', source: 'automatic',
-          startsAt: print.startedAt, endsAt: print.endedAt ?? minutes(0), durationSeconds: 3600, outcome: body?.outcome as MachineJob['outcome'], version: 0,
+          id: ids.newJob, displayId: 'J-2026-000011', title: (body?.title as string | null) ?? null, machine: world.machines.find((item) => item.id === print.machineId)!, run: 'automatic', startsAt: print.startedAt, endsAt: print.endedAt ?? minutes(0), durationSeconds: 3600, outcome: body?.outcome as MachineJob['outcome'], version: 0,
           print: { id: print.id, displayId: print.displayId, fileName: print.fileName, state: print.state, connectorName: print.connectorName },
         }));
         print.job = { id: job.id, displayId: job.displayId, title: job.title };
@@ -394,7 +392,7 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
         const job = world.jobs.find((item) => item.id === body?.machineJobId);
         if (!job) return notFound(route);
         const linked = saveJob(world, {
-          ...job, run: 'automatic', source: 'automatic', startsAt: print.startedAt, endsAt: print.endedAt ?? job.endsAt,
+          ...job, run: 'automatic', startsAt: print.startedAt, endsAt: print.endedAt ?? job.endsAt,
           print: { id: print.id, displayId: print.displayId, fileName: print.fileName, state: print.state, connectorName: print.connectorName },
         });
         print.job = { id: linked.id, displayId: linked.displayId, title: linked.title };
@@ -403,7 +401,7 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
       if (method === 'DELETE') {
         const job = world.jobs.find((item) => item.id === print.job?.id);
         print.job = null;
-        return job ? ok(route, saveJob(world, { ...job, run: 'manual', source: 'manual', print: null })) : notFound(route);
+        return job ? ok(route, saveJob(world, { ...job, run: 'manual', print: null })) : notFound(route);
       }
     }
     if ((match = path.match(/^\/api\/v1\/prints\/([^/]+)$/))) {

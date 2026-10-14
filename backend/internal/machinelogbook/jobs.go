@@ -436,7 +436,7 @@ func (s *Service) CreateManualJobInTransaction(ctx context.Context, tx pgx.Tx, a
 		return MachineJob{}, err
 	}
 	id := newID()
-	job, err := q.CreateMachineJob(ctx, machinelogbookdb.CreateMachineJobParams{ID: id, DisplayID: formatDisplayID(sequence, now), MachineID: input.MachineID, StartsAt: input.StartsAt.UTC(), EndsAt: input.EndsAt.UTC(), Source: "manual", ReviewState: "confirmed", CustomerPersonID: personID, CustomerOrganizationID: organizationID, OperatorPersonID: &input.OperatorPersonID, Outcome: input.Outcome, Title: title, Notes: cleanOptional(input.Notes), ExternalMetadata: []byte("{}")})
+	job, err := q.CreateMachineJob(ctx, machinelogbookdb.CreateMachineJobParams{ID: id, DisplayID: formatDisplayID(sequence, now), MachineID: input.MachineID, StartsAt: input.StartsAt.UTC(), EndsAt: input.EndsAt.UTC(), CustomerPersonID: personID, CustomerOrganizationID: organizationID, OperatorPersonID: &input.OperatorPersonID, Outcome: input.Outcome, Title: title, Notes: cleanOptional(input.Notes)})
 	if err != nil {
 		return MachineJob{}, databaseError(err)
 	}
@@ -457,97 +457,6 @@ func (s *Service) CreateManualJobInTransaction(ctx context.Context, tx pgx.Tx, a
 		return MachineJob{}, err
 	}
 	return s.jobFromRow(ctx, q, job)
-}
-
-func (s *Service) ConfirmJob(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, party PartyReference, operator uuid.UUID, outcome string, notes *string, pricingGroupID *uuid.UUID, requestID *uuid.UUID) (MachineJob, error) {
-	if err := require(p, authorization.MachineJobsReview); err != nil {
-		return MachineJob{}, err
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return MachineJob{}, err
-	}
-	defer tx.Rollback(ctx)
-	job, err := s.ConfirmJobInTransaction(ctx, tx, false, p, id, expected, party, operator, outcome, notes, pricingGroupID, requestID)
-	if err != nil {
-		return MachineJob{}, err
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return MachineJob{}, err
-	}
-	return job, nil
-}
-func (s *Service) ConfirmJobInTransaction(ctx context.Context, tx pgx.Tx, anonymous bool, p authorization.Principal, id uuid.UUID, expected int64, party PartyReference, operator uuid.UUID, outcome string, notes *string, pricingGroupID *uuid.UUID, requestID *uuid.UUID) (MachineJob, error) {
-	if err := require(p, authorization.MachineJobsReview); err != nil {
-		return MachineJob{}, err
-	}
-	if expected < 1 {
-		return MachineJob{}, validation("expectedVersion must be positive")
-	}
-	if err := validateOutcome(outcome); err != nil {
-		return MachineJob{}, err
-	}
-	var err error
-	q := machinelogbookdb.New(tx)
-	current, err := q.GetMachineJobForUpdate(ctx, id)
-	if err != nil {
-		return MachineJob{}, noRows(err)
-	}
-	if current.Version != expected {
-		return MachineJob{}, apperror.StaleWrite
-	}
-	if current.ReviewState != "needs_review" {
-		return MachineJob{}, conflict("job_not_pending_review", "Job is not awaiting review")
-	}
-	personID, organizationID, err := validateJobAssignments(ctx, q, party, operator, anonymous)
-	if err != nil {
-		return MachineJob{}, err
-	}
-	group, err := resolvePricingGroup(ctx, q, personID, organizationID, pricingGroupID)
-	if err != nil {
-		return MachineJob{}, err
-	}
-	job, err := s.confirmReviewedJob(ctx, tx, q, p, current, machinelogbookdb.ConfirmMachineJobParams{CustomerPersonID: personID, CustomerOrganizationID: organizationID, OperatorPersonID: &operator, Outcome: outcome, Notes: cleanOptional(notes)}, group, requestID, []string{"customer", "operatorPersonId", "outcome", "notes", "reviewState", "pricingSnapshot", "inventory"})
-	if err != nil {
-		return MachineJob{}, err
-	}
-	return s.jobFromRow(ctx, q, job)
-}
-
-// confirmReviewedJob moves a locked needs_review job to confirmed: it records
-// the reviewed facts, consumes the job's material usage, captures the initial
-// pricing snapshot and writes the audit event. Review confirmation and the
-// legacy confirm-by-edit path share it so both behave identically.
-func (s *Service) confirmReviewedJob(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, p authorization.Principal, current machinelogbookdb.MachineJob, facts machinelogbookdb.ConfirmMachineJobParams, group machinelogbookdb.PricingGroup, requestID *uuid.UUID, auditFields []string) (machinelogbookdb.MachineJob, error) {
-	facts.ID = current.ID
-	facts.ExpectedVersion = current.Version
-	job, err := q.ConfirmMachineJob(ctx, facts)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return job, apperror.StaleWrite
-	}
-	if err != nil {
-		return job, err
-	}
-	rows, err := q.ListAllMachineJobUsagesForUpdate(ctx, current.ID)
-	if err != nil {
-		return job, err
-	}
-	parsed := make([]parsedUsage, 0, len(rows))
-	for _, row := range rows {
-		parsed = append(parsed, parsedUsage{MaterialID: row.MaterialID, SpoolID: row.SpoolID, Ownership: row.Ownership, ExternalMaterialName: row.ExternalMaterialName, QuantityBasis: row.QuantityBasis, Quantity: decimalFromNumeric(row.Quantity), UsageID: row.ID, SourcePrinterEventID: row.SourcePrinterEventID, Fill: usageFillRef(row)})
-	}
-	sort.Slice(parsed, func(i, j int) bool { return usageSortKey(parsed[i]) < usageSortKey(parsed[j]) })
-	if err = s.consumeUsages(ctx, tx, q, p, parsed, current.EndsAt, requestID); err != nil {
-		return job, err
-	}
-	job, err = s.capturePricingSnapshot(ctx, q, p, job, group, "initial")
-	if err != nil {
-		return job, err
-	}
-	if err = writeAudit(ctx, tx, p, "machine_job.confirmed", "machine_job", current.ID, requestID, auditFields); err != nil {
-		return job, err
-	}
-	return job, nil
 }
 
 func (s *Service) loadBillingParty(ctx context.Context, q *machinelogbookdb.Queries, job machinelogbookdb.MachineJob) (*BillingParty, error) {
@@ -591,7 +500,7 @@ func (s *Service) jobFromRow(ctx context.Context, q *machinelogbookdb.Queries, r
 	if err != nil {
 		return MachineJob{}, err
 	}
-	item := MachineJob{ID: row.ID, DisplayID: row.DisplayID, Title: row.Title, Status: jobStatus(row.Outcome, row.EndsAt, s.now()), Machine: machineFromGet(machineRow), StartsAt: row.StartsAt, EndsAt: row.EndsAt, DurationSeconds: int64(row.EndsAt.Sub(row.StartsAt).Seconds()), Source: row.Source, ExternalID: row.ExternalID, ReviewState: row.ReviewState, Outcome: row.Outcome, Notes: row.Notes, PricingStatus: row.PricingStatus, CalculatedPrice: nullableDecimal(row.CalculatedPrice), EffectivePrice: nullableDecimal(row.EffectivePrice), Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Usages: make([]MachineJobUsage, 0, len(usages))}
+	item := MachineJob{ID: row.ID, DisplayID: row.DisplayID, Title: row.Title, Status: jobStatus(row.Outcome, row.EndsAt, s.now()), Machine: machineFromGet(machineRow), StartsAt: row.StartsAt, EndsAt: row.EndsAt, DurationSeconds: int64(row.EndsAt.Sub(row.StartsAt).Seconds()), Outcome: row.Outcome, Notes: row.Notes, PricingStatus: row.PricingStatus, CalculatedPrice: nullableDecimal(row.CalculatedPrice), EffectivePrice: nullableDecimal(row.EffectivePrice), Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Usages: make([]MachineJobUsage, 0, len(usages))}
 	item.Run = "manual"
 	if row.PrintID != nil {
 		item.Run = "automatic"
@@ -669,13 +578,13 @@ func (s *Service) ListJobs(ctx context.Context, p authorization.Principal, filte
 	if filters.From != nil && filters.To != nil && !filters.To.After(*filters.From) {
 		return nil, 0, validation("to must be after from")
 	}
-	params := machinelogbookdb.ListMachineJobIDsParams{Search: strings.TrimSpace(filters.Search), MachineID: filters.MachineID, CustomerID: filters.CustomerID, OperatorID: filters.OperatorID, MaterialID: filters.MaterialID, Outcome: filters.Outcome, Source: filters.Source, ReviewState: filters.ReviewState, FromTime: pgTime(filters.From), ToTime: pgTime(filters.To), PageOffset: offset, PageLimit: limit}
+	params := machinelogbookdb.ListMachineJobIDsParams{Search: strings.TrimSpace(filters.Search), MachineID: filters.MachineID, CustomerID: filters.CustomerID, OperatorID: filters.OperatorID, MaterialID: filters.MaterialID, Outcome: filters.Outcome, FromTime: pgTime(filters.From), ToTime: pgTime(filters.To), PageOffset: offset, PageLimit: limit}
 	q := machinelogbookdb.New(s.pool)
 	rows, err := q.ListMachineJobIDs(ctx, params)
 	if err != nil {
 		return nil, 0, err
 	}
-	total, err := q.CountMachineJobs(ctx, machinelogbookdb.CountMachineJobsParams{Search: params.Search, MachineID: params.MachineID, CustomerID: params.CustomerID, OperatorID: params.OperatorID, MaterialID: params.MaterialID, Outcome: params.Outcome, Source: params.Source, ReviewState: params.ReviewState, FromTime: params.FromTime, ToTime: params.ToTime})
+	total, err := q.CountMachineJobs(ctx, machinelogbookdb.CountMachineJobsParams{Search: params.Search, MachineID: params.MachineID, CustomerID: params.CustomerID, OperatorID: params.OperatorID, MaterialID: params.MaterialID, Outcome: params.Outcome, FromTime: params.FromTime, ToTime: params.ToTime})
 	if err != nil {
 		return nil, 0, err
 	}
@@ -692,30 +601,6 @@ func (s *Service) ListJobs(ctx context.Context, p authorization.Principal, filte
 		items = append(items, item)
 	}
 	return items, total, nil
-}
-
-func (s *Service) ReviewQueue(ctx context.Context, p authorization.Principal) ([]MachineJob, error) {
-	if err := require(p, authorization.MachineJobsReview); err != nil {
-		return nil, err
-	}
-	q := machinelogbookdb.New(s.pool)
-	ids, err := q.ListReviewQueueIDs(ctx)
-	if err != nil {
-		return nil, err
-	}
-	items := make([]MachineJob, 0, len(ids))
-	for _, id := range ids {
-		row, err := q.GetMachineJobBase(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-		item, err := s.jobFromRow(ctx, q, row)
-		if err != nil {
-			return nil, err
-		}
-		items = append(items, item)
-	}
-	return items, nil
 }
 
 func (s *Service) UpdateJobFacts(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, input JobInput, requestID *uuid.UUID) (MachineJob, error) {
@@ -751,18 +636,6 @@ func (s *Service) UpdateJobFacts(ctx context.Context, p authorization.Principal,
 	if current.Version != expected {
 		return MachineJob{}, apperror.StaleWrite
 	}
-	legacyReview := current.ReviewState == "needs_review"
-	if current.ReviewState != "confirmed" && !legacyReview {
-		return MachineJob{}, conflict("job_not_confirmed", "Only confirmed jobs can be edited")
-	}
-	if legacyReview {
-		if input.Outcome == "unknown" {
-			return MachineJob{}, apperror.New(422, "outcome_required", "An outcome is required to confirm a job awaiting review")
-		}
-		if input.Customer.Kind == "" {
-			return MachineJob{}, apperror.New(422, "customer_required", "A customer is required to confirm a job awaiting review")
-		}
-	}
 	oldMachine, err := q.GetMachineForUpdate(ctx, current.MachineID)
 	if err != nil {
 		return MachineJob{}, err
@@ -791,19 +664,6 @@ func (s *Service) UpdateJobFacts(ctx context.Context, p authorization.Principal,
 	}
 	if err != nil {
 		return MachineJob{}, err
-	}
-	if legacyReview {
-		group, err := resolvePricingGroup(ctx, q, personID, organizationID, input.PricingGroupID)
-		if err != nil {
-			return MachineJob{}, err
-		}
-		if _, err = s.confirmReviewedJob(ctx, tx, q, p, updated, machinelogbookdb.ConfirmMachineJobParams{CustomerPersonID: personID, CustomerOrganizationID: organizationID, OperatorPersonID: &input.OperatorPersonID, Outcome: input.Outcome, Notes: cleanOptional(input.Notes)}, group, requestID, []string{"machineId", "title", "startsAt", "endsAt", "customer", "operatorPersonId", "outcome", "notes", "reviewState", "pricingSnapshot", "inventory"}); err != nil {
-			return MachineJob{}, err
-		}
-		if err = tx.Commit(ctx); err != nil {
-			return MachineJob{}, err
-		}
-		return s.loadJob(ctx, id)
 	}
 	partyChanged := !sameUUID(current.CustomerPersonID, personID) || !sameUUID(current.CustomerOrganizationID, organizationID)
 	if partyChanged || oldMachine.MachineTypeID != newMachine.MachineTypeID || input.PricingGroupID != nil {
@@ -942,10 +802,10 @@ func (s *Service) ReplaceJobUsages(ctx context.Context, p authorization.Principa
 	return s.loadJob(ctx, id)
 }
 
-// ReplaceJobUsagesInTransaction applies a reviewed usage correction inside the
-// caller's transaction. Printing reconciliation uses this entry point so the
-// source event, inventory movements, job update, and audit records commit as a
-// single unit.
+// ReplaceJobUsagesInTransaction applies a usage correction inside the
+// caller's transaction. Print linking uses this entry point so the source
+// event, inventory movements, job update, and audit records commit as a single
+// unit.
 func (s *Service) ReplaceJobUsagesInTransaction(ctx context.Context, tx pgx.Tx, p authorization.Principal, id uuid.UUID, expected int64, inputs []UsageInput, sourcePrinterEventID *uuid.UUID, requestID *uuid.UUID) (MachineJob, error) {
 	if err := require(p, authorization.MachineJobsEdit); err != nil {
 		return MachineJob{}, err
@@ -967,9 +827,6 @@ func (s *Service) ReplaceJobUsagesInTransaction(ctx context.Context, tx pgx.Tx, 
 	}
 	if job.Version != expected {
 		return MachineJob{}, apperror.StaleWrite
-	}
-	if job.ReviewState != "confirmed" {
-		return MachineJob{}, conflict("job_not_confirmed", "Only confirmed jobs can be edited")
 	}
 	old, err := q.ListAllMachineJobUsagesForUpdate(ctx, id)
 	if err != nil {

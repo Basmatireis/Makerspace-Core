@@ -175,7 +175,7 @@ type JobInput struct {
 type JobFilters struct {
 	Search                                        string
 	MachineID, CustomerID, OperatorID, MaterialID *uuid.UUID
-	Outcome, Source, ReviewState                  *string
+	Outcome                                       *string
 	From, To                                      *time.Time
 	Page, PageSize                                int
 }
@@ -360,11 +360,8 @@ type MachineJob struct {
 	Machine                         Machine
 	StartsAt, EndsAt                time.Time
 	DurationSeconds                 int64
-	Source                          string
-	ExternalID                      *string
 	Run                             string
 	Print                           *MachineJobPrint
-	ReviewState                     string
 	Customer                        *BillingParty
 	Operator                        *Operator
 	Outcome                         string
@@ -386,11 +383,11 @@ type DailyActivity struct {
 }
 
 type Overview struct {
-	JobsToday, JobsThisWeek, UnassignedJobs, NeedsReview, FailedOrPartialThisWeek, LowStockItems int64
-	UnassignedEstimatedAmount                                                                    string
-	RecentJobs                                                                                   []MachineJob
-	LowStockMaterials                                                                            []Material
-	Activity                                                                                     []DailyActivity
+	JobsToday, JobsThisWeek, UnassignedJobs, FailedOrPartialThisWeek, LowStockItems int64
+	UnassignedEstimatedAmount                                                       string
+	RecentJobs                                                                      []MachineJob
+	LowStockMaterials                                                               []Material
+	Activity                                                                        []DailyActivity
 	// The work-item fields are nil unless the caller may read machine jobs.
 	RunningNow, NeedsOutcome, UnlinkedPrints, BillingIssues, ActiveTotal *int64
 	RunningMachineNames                                                  []string

@@ -291,13 +291,7 @@ type JobOrderAssociation struct {
 }
 
 type CounterSaleJob struct {
-	ExistingJobID      uuid.UUID  `json:"existingJobId,omitempty"`
-	ExpectedJobVersion int64      `json:"expectedJobVersion,omitempty"`
-	ManualJob          *ManualJob `json:"manualJob,omitempty"`
-	OperatorPersonID   uuid.UUID  `json:"operatorPersonId,omitempty"`
-	Outcome            string     `json:"outcome,omitempty"`
-	PricingGroupID     uuid.UUID  `json:"pricingGroupId,omitempty"`
-	Notes              string     `json:"notes,omitempty"`
+	ManualJob *ManualJob `json:"manualJob,omitempty"`
 }
 
 type CounterSaleCommand struct {

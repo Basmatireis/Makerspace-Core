@@ -15,13 +15,14 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 
 ### Changed
 
-- Automatic job ingest is gone, so connector data no longer creates unconfirmed jobs. Legacy `needs_review` jobs are confirmed when an outcome is recorded. The final-price override became a price adjustment.
+- Automatic job ingest is gone, so connector data no longer creates unconfirmed jobs. The final-price override became a price adjustment.
 - Spool lifecycle `retired` became `archived`. Ledger entries and job usages keep spool and fill snapshots.
-- The Review and Print submissions pages were removed and redirect to Jobs. Print submission tables and endpoints are unchanged but have no UI.
+- Counter sales always create a new manual job; confirming an existing review job is gone.
 
 ### Removed
 
 - `POST /machine-jobs/automatic`, the review-queue UI, and the final-price override endpoint and schemas.
+- Print submissions, print attempts, filament declarations, printer-event reconciliation, linking observed runs to attempts, and the review queue with job confirmation, including their tables, endpoints, and the `print_submissions.read`, `print_submissions.manage`, and `machine_jobs.review` permissions.
 
 ## [0.4.0] - 2026-10-05
 

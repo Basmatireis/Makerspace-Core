@@ -94,14 +94,11 @@ const (
 	MachineJobsRead                    Permission = Permission(openapi.MachineJobsRead)
 	MachineJobsCreate                  Permission = Permission(openapi.MachineJobsCreate)
 	MachineJobsEdit                    Permission = Permission(openapi.MachineJobsEdit)
-	MachineJobsReview                  Permission = Permission(openapi.MachineJobsReview)
 	MachineJobsOverridePrice           Permission = Permission(openapi.MachineJobsOverridePrice)
 	InventoryRead                      Permission = Permission(openapi.InventoryRead)
 	InventoryManage                    Permission = Permission(openapi.InventoryManage)
 	FilamentSpoolsManage               Permission = Permission(openapi.FilamentSpoolsManage)
 	PrinterSlotsAssign                 Permission = Permission(openapi.PrinterSlotsAssign)
-	PrintSubmissionsRead               Permission = Permission(openapi.PrintSubmissionsRead)
-	PrintSubmissionsManage             Permission = Permission(openapi.PrintSubmissionsManage)
 	PrinterConnectorsRead              Permission = Permission(openapi.PrinterConnectorsRead)
 	PrinterConnectorsManage            Permission = Permission(openapi.PrinterConnectorsManage)
 	PrinterConnectorsCredentialsManage Permission = Permission(openapi.PrinterConnectorsCredentialsManage)
@@ -137,8 +134,8 @@ var registry = []Permission{
 	VisitorEnrollmentManage, SupervisorDashboardRead,
 	OIDCLinkSelf, OIDCLinkAll, OIDCUnlinkSelf, OIDCUnlinkAll, OIDCManage, SCIMManage, MailManage, BrandingManage,
 	MachinesRead, MachinesManage,
-	MachineJobsRead, MachineJobsCreate, MachineJobsEdit, MachineJobsReview, MachineJobsOverridePrice,
-	InventoryRead, InventoryManage, FilamentSpoolsManage, PrinterSlotsAssign, PrintSubmissionsRead, PrintSubmissionsManage,
+	MachineJobsRead, MachineJobsCreate, MachineJobsEdit, MachineJobsOverridePrice,
+	InventoryRead, InventoryManage, FilamentSpoolsManage, PrinterSlotsAssign,
 	PrinterConnectorsRead, PrinterConnectorsManage, PrinterConnectorsCredentialsManage,
 	OrganizationsRead, OrganizationsManage, PricingRead, PricingManage, StatisticsRead,
 }
@@ -232,14 +229,11 @@ var descriptions = map[Permission]string{
 	MachineJobsRead:                    "Read machine jobs and their pricing and usage details.",
 	MachineJobsCreate:                  "Create manual jobs and ingest automatically detected jobs.",
 	MachineJobsEdit:                    "Correct confirmed machine-job facts and material usage.",
-	MachineJobsReview:                  "Review and confirm automatically detected machine jobs.",
 	MachineJobsOverridePrice:           "Set and clear final machine-job price overrides.",
 	InventoryRead:                      "Read materials, balances, valuation, and inventory history.",
 	InventoryManage:                    "Create materials and record purchases, consumption, corrections, and disposal.",
 	FilamentSpoolsManage:               "Manage physical filament spool records and identifiers.",
 	PrinterSlotsAssign:                 "Mount, unmount, and move filament spools in printer slots.",
-	PrintSubmissionsRead:               "Read print submissions, attempts, and printer observations.",
-	PrintSubmissionsManage:             "Create and manage print submissions, attempts, and reconciliation.",
 	PrinterConnectorsRead:              "Read printer connector identity, status, assignments, and diagnostics.",
 	PrinterConnectorsManage:            "Create and configure printer connectors and printer assignments.",
 	PrinterConnectorsCredentialsManage: "Issue enrollment credentials and revoke printer connector access.",

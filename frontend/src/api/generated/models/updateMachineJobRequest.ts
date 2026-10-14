@@ -25,7 +25,7 @@ import type { UpdateMachineJobRequestPricingGroupId } from './updateMachineJobRe
 import type { Version } from './version';
 
 /**
- * outcome must be unknown while endsAt lies in the future. Recording an outcome on a job that is still awaiting review (from earlier automatic ingest) confirms it: customer is then required, material usage is consumed and the price is captured.
+ * outcome must be unknown while endsAt lies in the future.
  */
 export interface UpdateMachineJobRequest {
   machineId: UUIDv7;

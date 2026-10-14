@@ -76,7 +76,6 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
     queryFn: () =>
       listMachineJobs({
         search: jobSearch,
-        reviewState: "confirmed",
         page: 1,
         pageSize: 25,
       }),

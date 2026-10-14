@@ -17,9 +17,6 @@ import (
 )
 
 func snapshot(job machinelogbook.MachineJob) (*JobChargeSnapshot, error) {
-	if job.ReviewState != "confirmed" {
-		return nil, conflict("job_not_confirmed", "Only confirmed jobs can be ordered")
-	}
 	if job.EffectivePrice == nil || job.PricingSnapshot == nil {
 		return nil, conflict("pricing_incomplete", "A calculated charge or explicit final override is required")
 	}

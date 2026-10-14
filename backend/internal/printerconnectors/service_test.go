@@ -17,7 +17,7 @@ import (
 )
 
 func TestAdministrationRequiresRegisteredPermissions(t *testing.T) {
-	service, err := NewService(nil, printing.NewService(nil, machinelogbook.NewService(nil)), nil)
+	service, err := NewService(nil, printing.NewService(nil), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,6 @@ func TestAdministrationRequiresRegisteredPermissions(t *testing.T) {
 			_, err := service.UpdateAssignment(ctx, principal, id, id, AssignmentUpdate{}, nil)
 			return err
 		}},
-		{"link observed run", func() error { _, err := service.LinkObservedRun(ctx, principal, id, id, 1, nil); return err }},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -76,7 +75,7 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	pool := printerConnectorIntegrationPool(t)
 	ctx := t.Context()
 	logbook := machinelogbook.NewService(pool)
-	printingService := printing.NewService(pool, logbook)
+	printingService := printing.NewService(pool)
 	service, err := NewService(pool, printingService, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -127,14 +126,6 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	submission, err := printingService.CreateSubmission(ctx, principal, printing.SubmissionInput{MachineID: machine.ID, Customer: machinelogbook.PartyReference{Kind: "person", ID: personID}, Title: "Connector print " + suffix}, &requestID)
-	if err != nil {
-		t.Fatal(err)
-	}
-	attempt, created, err := printingService.CreateAttempt(ctx, principal, submission.ID, machine.ID, uuid.Must(uuid.NewV7()), submission.Version, &requestID)
-	if err != nil || !created {
-		t.Fatalf("create attempt created=%v err=%v", created, err)
-	}
 	runID := uuid.Must(uuid.NewV7())
 	vendorJobID := "sim-" + suffix
 	firstID := uuid.Must(uuid.NewV7())
@@ -143,12 +134,8 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 		t.Fatalf("first event receipts=%+v err=%v", receipts, err)
 	}
 	runs, err := service.ListObservedRuns(ctx, principal, connector.ID)
-	if err != nil || len(runs) != 1 || runs[0].AttemptID != nil {
+	if err != nil || len(runs) != 1 {
 		t.Fatalf("observed runs=%+v err=%v", runs, err)
-	}
-	linked, err := service.LinkObservedRun(ctx, principal, runID, attempt.ID, runs[0].Version, &requestID)
-	if err != nil || linked.AttemptID == nil || *linked.AttemptID != attempt.ID {
-		t.Fatalf("linked run=%+v err=%v", linked, err)
 	}
 	secondID := uuid.Must(uuid.NewV7())
 	second := EventInput{EventID: secondID, AssignmentID: assignment.ID, RunID: &runID, HistoryComplete: true, ConfigurationVersion: assignment.ConfigurationVersion, Sequence: 2, OccurredAt: time.Now().UTC(), Kind: "progress", ExternalPrintID: &vendorJobID, Payload: json.RawMessage(`{"percent":40}`)}
@@ -163,10 +150,6 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	runsBeforeDuplicate, err := service.ListObservedRuns(ctx, principal, connector.ID)
 	if err != nil || len(runsBeforeDuplicate) != 1 {
 		t.Fatalf("observed runs before duplicate=%+v err=%v", runsBeforeDuplicate, err)
-	}
-	loaded, err := printingService.GetSubmission(ctx, principal, submission.ID)
-	if err != nil || len(loaded.Attempts) != 1 || loaded.Attempts[0].State != "printing" {
-		t.Fatalf("connector did not advance linked attempt: %+v err=%v", loaded.Attempts, err)
 	}
 	receipts, err = service.IngestEvents(ctx, *connectorContext, []EventInput{second})
 	if err != nil || receipts[0].Status != "duplicate" {

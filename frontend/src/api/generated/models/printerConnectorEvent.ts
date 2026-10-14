@@ -21,7 +21,6 @@ the required session and CSRF credentials.
 import type { UUIDv7 } from './uUIDv7';
 import type { PrinterConnectorEventKind } from './printerConnectorEventKind';
 import type { PrinterConnectorEventApplicationState } from './printerConnectorEventApplicationState';
-import type { PrinterConnectorEventReconciliationState } from './printerConnectorEventReconciliationState';
 import type { PrinterConnectorEventPayload } from './printerConnectorEventPayload';
 
 export interface PrinterConnectorEvent {
@@ -37,6 +36,5 @@ export interface PrinterConnectorEvent {
    * @nullable
    */
   applicationReason: string | null;
-  reconciliationState: PrinterConnectorEventReconciliationState;
   payload: PrinterConnectorEventPayload;
 }

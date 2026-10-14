@@ -404,7 +404,7 @@ func (s *Server) ListMachineJobs(ctx context.Context, r openapi.ListMachineJobsR
 	if err != nil {
 		return nil, err
 	}
-	items, total, err := s.machineLogbook.ListJobs(ctx, p, machinelogbook.JobFilters{Search: defaultString(r.Params.Search), MachineID: r.Params.MachineId, CustomerID: r.Params.CustomerId, OperatorID: r.Params.OperatorPersonId, MaterialID: r.Params.MaterialId, Outcome: stringEnum(r.Params.Outcome), Source: stringEnum(r.Params.Source), ReviewState: stringEnum(r.Params.ReviewState), From: r.Params.From, To: r.Params.To, Page: defaultInt(r.Params.Page, 1), PageSize: defaultInt(r.Params.PageSize, 25)})
+	items, total, err := s.machineLogbook.ListJobs(ctx, p, machinelogbook.JobFilters{Search: defaultString(r.Params.Search), MachineID: r.Params.MachineId, CustomerID: r.Params.CustomerId, OperatorID: r.Params.OperatorPersonId, MaterialID: r.Params.MaterialId, Outcome: stringEnum(r.Params.Outcome), From: r.Params.From, To: r.Params.To, Page: defaultInt(r.Params.Page, 1), PageSize: defaultInt(r.Params.PageSize, 25)})
 	if err != nil {
 		return nil, err
 	}
@@ -427,21 +427,6 @@ func (s *Server) CreateMachineJob(ctx context.Context, r openapi.CreateMachineJo
 		return nil, err
 	}
 	return openapi.CreateMachineJob201JSONResponse(mlJobDTO(item)), nil
-}
-func (s *Server) ListMachineJobReviewQueue(ctx context.Context, _ openapi.ListMachineJobReviewQueueRequestObject) (openapi.ListMachineJobReviewQueueResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	items, err := s.machineLogbook.ReviewQueue(ctx, p)
-	if err != nil {
-		return nil, err
-	}
-	dto := make([]openapi.MachineJob, 0, len(items))
-	for _, item := range items {
-		dto = append(dto, mlJobDTO(item))
-	}
-	return openapi.ListMachineJobReviewQueue200JSONResponse{Items: dto}, nil
 }
 func (s *Server) GetMachineJob(ctx context.Context, r openapi.GetMachineJobRequestObject) (openapi.GetMachineJobResponseObject, error) {
 	p, err := requirePrincipal(ctx)
@@ -471,20 +456,6 @@ func (s *Server) UpdateMachineJob(ctx context.Context, r openapi.UpdateMachineJo
 		return nil, err
 	}
 	return openapi.UpdateMachineJob200JSONResponse(mlJobDTO(item)), nil
-}
-func (s *Server) ConfirmMachineJob(ctx context.Context, r openapi.ConfirmMachineJobRequestObject) (openapi.ConfirmMachineJobResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if r.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	item, err := s.machineLogbook.ConfirmJob(ctx, p, r.MachineJobId, r.Body.ExpectedVersion, partyInput(r.Body.Customer), r.Body.OperatorPersonId, string(r.Body.Outcome), nullableStringPointer(r.Body.Notes), uuidNullable(r.Body.PricingGroupId), requestIDPointer(ctx))
-	if err != nil {
-		return nil, err
-	}
-	return openapi.ConfirmMachineJob200JSONResponse(mlJobDTO(item)), nil
 }
 func (s *Server) ReplaceMachineJobUsages(ctx context.Context, r openapi.ReplaceMachineJobUsagesRequestObject) (openapi.ReplaceMachineJobUsagesResponseObject, error) {
 	p, err := requirePrincipal(ctx)

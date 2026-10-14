@@ -2,7 +2,6 @@ package integration_test
 
 import (
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
@@ -12,33 +11,6 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/scim"
 	"github.com/google/uuid"
 )
-
-func TestPersonDeletionCascadesPrintingOperations(t *testing.T) {
-	pool := migratedPool(t)
-	ctx := testContext(t)
-	operator := seedAccount(t, pool, "printing-delete-operator", false)
-	target := seedAccount(t, pool, "printing-delete-target", false)
-	operationKey := uuid.Must(uuid.NewV7())
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO printing_operations (operation_key, actor_account_id, kind, fingerprint, result_id)
-		VALUES ($1, $2, 'attempt_create', $3, $4)`,
-		operationKey, target.accountID, strings.Repeat("a", 64), uuid.Must(uuid.NewV7())); err != nil {
-		t.Fatal(err)
-	}
-	principal := authorization.Principal{AccountID: operator.accountID, Master: true}
-	var version int64
-	if err := pool.QueryRow(ctx, `SELECT version FROM people WHERE id=$1`, target.personID).Scan(&version); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := people.NewService(pool, nil).Delete(ctx, principal, target.personID, version, nil); err != nil {
-		t.Fatalf("deleting a person with printing operations returned %v", err)
-	}
-	assertCount(t, pool, `SELECT count(*) FROM people WHERE id=$1`, 0, target.personID)
-	assertCount(t, pool, `SELECT count(*) FROM accounts WHERE id=$1`, 0, target.accountID)
-	assertCount(t, pool, `SELECT count(*) FROM printing_operations WHERE operation_key=$1`, 0, operationKey)
-	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='person.deleted' AND resource_id=$1`, 1, target.personID)
-}
 
 func TestPersonDeletionReportsEveryBlocker(t *testing.T) {
 	pool := migratedPool(t)

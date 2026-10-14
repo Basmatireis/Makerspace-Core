@@ -221,9 +221,4 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
   await expect(page.getByText('Cancelled', { exact: true }).first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Cancel run' })).toHaveCount(0);
 
-  // The former review and print-submission URLs open Jobs with the matching filter.
-  await page.goto('/machine-logbook/review');
-  await expect(page).toHaveURL(/\/machine-logbook\/jobs\?status=needs_outcome$/);
-  await page.goto('/machine-logbook/print-submissions');
-  await expect(page).toHaveURL(/\/machine-logbook\/jobs\?status=unlinked$/);
 });

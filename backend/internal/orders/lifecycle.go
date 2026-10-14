@@ -409,9 +409,6 @@ func (s *Service) counterSale(ctx context.Context, p authorization.Principal, in
 	if !input.ImmediateFulfillmentConfirmed {
 		return Order{}, validation("Confirm immediate fulfillment and no future follow-up")
 	}
-	if input.Job.ManualJob != nil && input.Job.ExistingJobID != uuid.Nil {
-		return Order{}, validation("Choose an existing review job or a manual job")
-	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Order{}, err
@@ -440,16 +437,6 @@ func (s *Service) counterSale(ctx context.Context, p authorization.Principal, in
 			usages = append(usages, machinelogbook.UsageInput{MaterialID: u.MaterialID, SpoolID: u.SpoolID, Ownership: u.Ownership, ExternalMaterialName: u.ExternalMaterialName, Quantity: u.Quantity, QuantityBasis: u.QuantityBasis})
 		}
 		job, err = s.jobs.CreateManualJobInTransaction(ctx, tx, true, p, machinelogbook.JobInput{MachineID: v.MachineID, StartsAt: v.StartsAt, EndsAt: v.EndsAt, OperatorPersonID: v.OperatorPersonID, Outcome: v.Outcome, Notes: v.Notes, PricingGroupID: v.PricingGroupID, Usages: usages}, requestID)
-	} else if input.Job.ExistingJobID != uuid.Nil {
-		var group *uuid.UUID
-		if input.Job.PricingGroupID != uuid.Nil {
-			group = &input.Job.PricingGroupID
-		}
-		var note *string
-		if input.Job.Notes != "" {
-			note = &input.Job.Notes
-		}
-		job, err = s.jobs.ConfirmJobInTransaction(ctx, tx, true, p, input.Job.ExistingJobID, input.Job.ExpectedJobVersion, machinelogbook.PartyReference{}, input.Job.OperatorPersonID, input.Job.Outcome, note, group, requestID)
 	} else {
 		return Order{}, validation("A machine job is required")
 	}

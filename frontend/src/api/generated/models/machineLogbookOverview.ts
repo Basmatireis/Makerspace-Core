@@ -33,8 +33,6 @@ export interface MachineLogbookOverview {
   unassignedJobs: number;
   unassignedEstimatedAmount: Money;
   /** @minimum 0 */
-  needsReview: number;
-  /** @minimum 0 */
   failedOrPartialThisWeek: number;
   /**
    * Running jobs plus printing unlinked prints. Null without machine_jobs.read.

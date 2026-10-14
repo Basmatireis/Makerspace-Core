@@ -158,7 +158,6 @@ type ObservedRun struct {
 	ID, AssignmentID, MachineID     uuid.UUID
 	MachineName                     string
 	VendorJobID                     *string
-	AttemptID                       *uuid.UUID
 	State                           string
 	HistoryComplete                 bool
 	FirstObservedAt, LastObservedAt time.Time
@@ -171,7 +170,6 @@ type ConnectorEvent struct {
 	OccurredAt, ReceivedAt      time.Time
 	ApplicationState            string
 	ApplicationReason           *string
-	ReconciliationState         string
 	Payload                     json.RawMessage
 }
 
@@ -652,7 +650,7 @@ func (s *Service) ListObservedRuns(ctx context.Context, principal authorization.
 	}
 	result := make([]ObservedRun, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, ObservedRun{ID: row.ID, AssignmentID: row.AssignmentID, MachineID: row.MachineID, MachineName: row.MachineName, VendorJobID: row.VendorJobID, AttemptID: row.AttemptID, State: row.State, HistoryComplete: row.HistoryComplete, FirstObservedAt: row.FirstObservedAt, LastObservedAt: row.LastObservedAt, Version: row.Version})
+		result = append(result, ObservedRun{ID: row.ID, AssignmentID: row.AssignmentID, MachineID: row.MachineID, MachineName: row.MachineName, VendorJobID: row.VendorJobID, State: row.State, HistoryComplete: row.HistoryComplete, FirstObservedAt: row.FirstObservedAt, LastObservedAt: row.LastObservedAt, Version: row.Version})
 	}
 	return result, nil
 }
@@ -676,59 +674,9 @@ func (s *Service) ListEvents(ctx context.Context, principal authorization.Princi
 		if row.MachineID == nil || row.ConnectorAssignmentID == nil {
 			return nil, errors.New("connector event is missing assignment metadata")
 		}
-		result = append(result, ConnectorEvent{ID: row.ID, MachineID: *row.MachineID, AssignmentID: *row.ConnectorAssignmentID, Kind: row.Kind, OccurredAt: row.OccurredAt, ReceivedAt: row.ReceivedAt, ApplicationState: row.ApplicationState, ApplicationReason: row.ApplicationReason, ReconciliationState: row.ReconciliationState, Payload: row.Payload})
+		result = append(result, ConnectorEvent{ID: row.ID, MachineID: *row.MachineID, AssignmentID: *row.ConnectorAssignmentID, Kind: row.Kind, OccurredAt: row.OccurredAt, ReceivedAt: row.ReceivedAt, ApplicationState: row.ApplicationState, ApplicationReason: row.ApplicationReason, Payload: row.Payload})
 	}
 	return result, nil
-}
-
-func (s *Service) LinkObservedRun(ctx context.Context, principal authorization.Principal, runID, attemptID uuid.UUID, expected int64, requestID *uuid.UUID) (ObservedRun, error) {
-	if !principal.Has(authorization.PrinterConnectorsManage) || !principal.Has(authorization.PrintSubmissionsManage) {
-		return ObservedRun{}, apperror.PermissionDenied
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return ObservedRun{}, err
-	}
-	defer tx.Rollback(ctx)
-	q := db.New(tx)
-	run, err := q.GetObservedRunForUpdate(ctx, runID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ObservedRun{}, apperror.NotFound
-	}
-	if err != nil {
-		return ObservedRun{}, err
-	}
-	if run.AttemptID != nil {
-		return ObservedRun{}, conflict("observed_run_already_linked", "Observed run is already linked to a Print Attempt")
-	}
-	attempt, err := q.GetAttemptForRunLink(ctx, attemptID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ObservedRun{}, apperror.NotFound
-	}
-	if err != nil {
-		return ObservedRun{}, err
-	}
-	if attempt.MachineID != run.MachineID {
-		return ObservedRun{}, conflict("observed_run_machine_mismatch", "Observed run and Print Attempt belong to different machines")
-	}
-	linked, err := q.LinkObservedRun(ctx, db.LinkObservedRunParams{AttemptID: &attemptID, ID: runID, ExpectedVersion: expected})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return ObservedRun{}, apperror.StaleWrite
-	}
-	if err != nil {
-		return ObservedRun{}, databaseError(err)
-	}
-	if err = q.LinkObservedRunEvents(ctx, db.LinkObservedRunEventsParams{AttemptID: &attemptID, ObservedRunID: &runID}); err != nil {
-		return ObservedRun{}, err
-	}
-	actor := principal.AccountID
-	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "printer_observed_run.linked", ResourceType: "printer_observed_run", ResourceID: &runID, RequestID: requestID, ChangedFields: []string{"attemptId"}}); err != nil {
-		return ObservedRun{}, err
-	}
-	if err = tx.Commit(ctx); err != nil {
-		return ObservedRun{}, err
-	}
-	return ObservedRun{ID: linked.ID, AssignmentID: linked.AssignmentID, MachineID: linked.MachineID, VendorJobID: linked.VendorJobID, AttemptID: linked.AttemptID, State: linked.State, HistoryComplete: linked.HistoryComplete, FirstObservedAt: linked.FirstObservedAt, LastObservedAt: linked.LastObservedAt, Version: linked.Version}, nil
 }
 
 func (s *Service) RotateCredential(ctx context.Context, connector Context, credentialID uuid.UUID, credentialSecret string) (time.Time, error) {
@@ -934,7 +882,6 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 		v := "configuration_version_mismatch"
 		reason = &v
 	}
-	var attemptID *uuid.UUID
 	var run db.PrinterObservedRun
 	if input.RunID != nil {
 		state, stateErr := observedRunState(input.Kind, input.Payload)
@@ -950,14 +897,13 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 			code := "temporarily_unavailable"
 			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
 		}
-		attemptID = run.AttemptID
 		if !run.HistoryComplete && applicationState == "applied" {
 			applicationState = "review_required"
 			v := "incomplete_run_history"
 			reason = &v
 		}
 	}
-	event, inserted, err := s.printing.IngestConnectorEvent(ctx, tx, printing.ConnectorEventInput{EventID: input.EventID, ConnectorID: connector.ID, AssignmentID: a.ID, MachineID: a.MachineID, AttemptID: attemptID, ObservedRunID: input.RunID, ConfigurationVersion: input.ConfigurationVersion, Sequence: input.Sequence, Kind: input.Kind, OccurredAt: input.OccurredAt, ExternalPrintID: input.ExternalPrintID, Payload: input.Payload, ReportRevision: input.ReportRevision, ApplicationState: applicationState, ApplicationReason: reason})
+	event, inserted, err := s.printing.IngestConnectorEvent(ctx, tx, printing.ConnectorEventInput{EventID: input.EventID, ConnectorID: connector.ID, AssignmentID: a.ID, MachineID: a.MachineID, ObservedRunID: input.RunID, ConfigurationVersion: input.ConfigurationVersion, Sequence: input.Sequence, Kind: input.Kind, OccurredAt: input.OccurredAt, ExternalPrintID: input.ExternalPrintID, Payload: input.Payload, ReportRevision: input.ReportRevision, ApplicationState: applicationState, ApplicationReason: reason})
 	if err != nil {
 		if apperror.IsCode(err, "printer_event_mismatch") || apperror.IsCode(err, "printer_event_sequence_conflict") || apperror.IsCode(err, "validation_failed") {
 			return rejected(apperrorCode(err))
@@ -967,15 +913,6 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 	}
 	if inserted && input.RunID != nil {
 		if err = applyPrintFacts(ctx, db.New(tx), run, event.ID, input.Kind, input.Payload, input.OccurredAt, input.ReportRevision); err != nil {
-			code := "temporarily_unavailable"
-			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
-		}
-	}
-	if inserted && attemptID != nil && applicationState == "applied" {
-		if err = s.printing.ApplyConnectorAttemptEvent(ctx, tx, *attemptID, a.MachineID, input.Kind, input.Payload, input.OccurredAt); err != nil {
-			if apperror.IsCode(err, "validation_failed") || apperror.IsCode(err, "printer_attempt_machine_mismatch") {
-				return rejected(apperrorCode(err))
-			}
 			code := "temporarily_unavailable"
 			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
 		}
@@ -1021,7 +958,7 @@ func observedRunState(kind string, payload json.RawMessage) (string, error) {
 }
 
 func apperrorCode(err error) string {
-	for _, code := range []string{"printer_event_mismatch", "printer_event_sequence_conflict", "printer_attempt_machine_mismatch", "validation_failed"} {
+	for _, code := range []string{"printer_event_mismatch", "printer_event_sequence_conflict", "validation_failed"} {
 		if apperror.IsCode(err, code) {
 			return code
 		}

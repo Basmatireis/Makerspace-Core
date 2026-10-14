@@ -217,24 +217,6 @@ test.describe('navigation and former URLs', () => {
     await expect(page.getByRole('heading', { name: 'Machines', level: 1 })).toBeVisible();
   });
 
-  test('the former review queue opens Jobs filtered to jobs that need an outcome', async ({ page }) => {
-    await page.goto(`${base}/review`);
-    await expect(page).toHaveURL(`${base}/jobs?status=needs_outcome`);
-    await expect(page.getByRole('heading', { name: 'Jobs', level: 1 })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Lamp shade' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Gearbox housing' })).toHaveCount(0);
-  });
-
-  test('the former print submissions open Jobs filtered to unlinked prints', async ({ page }) => {
-    for (const path of [`${base}/print-submissions`, `${base}/print-submissions/${ids.printLinked}`]) {
-      await page.goto(path);
-      await expect(page).toHaveURL(`${base}/jobs?status=unlinked`);
-      await expect(page.getByRole('heading', { name: 'Jobs', level: 1 })).toBeVisible();
-      await expect(page.getByRole('link', { name: 'bracket_v2.gcode' })).toBeVisible();
-      await expect(page.getByRole('link', { name: 'Gearbox housing' })).toHaveCount(0);
-    }
-  });
-
   test('older inventory and printer URLs land on the new pages', async ({ page }) => {
     await page.goto(`${base}/inventory/${ids.pla}`);
     await expect(page).toHaveURL(`${base}/inventory/materials/${ids.pla}`);

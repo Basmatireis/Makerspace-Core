@@ -48,7 +48,6 @@ export function canLookupJobParties(currentUser: CurrentUser): boolean {
   return hasAnyPermission(currentUser, [
     PermissionId.ordersread,
     PermissionId.machine_jobscreate,
-    PermissionId.machine_jobsreview,
     PermissionId.organizationsread,
   ]);
 }
@@ -106,9 +105,7 @@ export function canAccessOpenDays(currentUser: CurrentUser): boolean {
 export const machineLogbookPermissions: readonly PermissionIdType[] = [
   PermissionId.machinesread,
   PermissionId.machine_jobsread,
-  PermissionId.machine_jobsreview,
   PermissionId.inventoryread,
-  PermissionId.print_submissionsread,
   PermissionId.statisticsread,
 ];
 

@@ -80,7 +80,6 @@ describe('printer connector administration', () => {
         receivedAt: '2026-10-11T12:00:01Z',
         applicationState: 'review_required',
         applicationReason: 'configuration_version_mismatch',
-        reconciliationState: 'not_applicable',
         payload: { slot: 1, material: 'PLA' },
       }] })),
     );

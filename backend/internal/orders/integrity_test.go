@@ -277,7 +277,7 @@ func TestAnonymousPreviewInventoryAndOperationalCorrection(t *testing.T) {
 	}
 }
 
-func TestAnonymousReviewConfirmationIsAtomic(t *testing.T) {
+func TestAnonymousCounterSaleIsAtomic(t *testing.T) {
 	f := newFixture(t)
 	ctx := t.Context()
 	machine, e := f.jobs.GetMachine(ctx, f.p, f.machine)
@@ -288,31 +288,29 @@ func TestAnonymousReviewConfirmationIsAtomic(t *testing.T) {
 		t.Fatal(e)
 	}
 	start := time.Now().UTC().Add(-time.Hour)
-	jobID := newID()
-	if _, e = f.pool.Exec(ctx, `INSERT INTO machine_jobs (id, display_id, machine_id, starts_at, ends_at, source, external_id, review_state, outcome)
-		VALUES ($1, 'J-' || to_char(now(), 'YYYY') || '-' || lpad(nextval('machine_job_display_sequence')::text, 6, '0'), $2, $3, $4, 'automatic', 'automatic-counter-sale', 'needs_review', 'unknown')`, jobID, f.machine, start, start.Add(time.Hour)); e != nil {
-		t.Fatal(e)
+	countJobs := func() int {
+		var n int
+		if e := f.pool.QueryRow(ctx, "SELECT count(*) FROM machine_jobs WHERE machine_id=$1", f.machine).Scan(&n); e != nil {
+			t.Fatal(e)
+		}
+		return n
 	}
-	job, e := f.jobs.GetJob(ctx, f.p, jobID)
-	if e != nil || job.Customer != nil || job.ReviewState != "needs_review" {
-		t.Fatal(e, job)
-	}
-	if _, e = f.jobs.ConfirmJob(ctx, f.p, job.ID, job.Version, machinelogbook.PartyReference{}, f.person, "successful", nil, &f.group, nil); e == nil {
-		t.Fatal("ordinary confirmation allowed unpaid anonymous job")
-	}
-	input := CounterSaleCommand{OperationKey: newID(), ImmediateFulfillmentConfirmed: true, Job: CounterSaleJob{ExistingJobID: job.ID, ExpectedJobVersion: job.Version, OperatorPersonID: f.person, Outcome: "successful", PricingGroupID: f.group}, Payments: []PaymentInput{receipt("card", "9")}}
+	before := countJobs()
+	input := CounterSaleCommand{OperationKey: newID(), ImmediateFulfillmentConfirmed: true, Job: CounterSaleJob{ManualJob: &ManualJob{MachineID: f.machine, StartsAt: start, EndsAt: start.Add(time.Hour), OperatorPersonID: f.person, Outcome: "successful", PricingGroupID: &f.group, Usages: []UsageInput{}}}, Payments: []PaymentInput{receipt("card", "9")}}
 	if _, e = f.s.CounterSale(ctx, f.p, input, nil); e == nil {
-		t.Fatal("partial review counter sale accepted")
+		t.Fatal("partial counter sale accepted")
 	}
-	job, e = f.jobs.GetJob(ctx, f.p, job.ID)
-	if e != nil || job.ReviewState != "needs_review" {
-		t.Fatal("failed payment left confirmed job", e, job)
+	if countJobs() != before {
+		t.Fatal("failed payment left a machine job behind")
 	}
 	input.OperationKey = newID()
 	input.Payments = []PaymentInput{receipt("card", "10")}
 	o, e := f.s.CounterSale(ctx, f.p, input, nil)
 	if e != nil || o.SettlementState != "paid" {
 		t.Fatal(e, o)
+	}
+	if countJobs() != before+1 {
+		t.Fatal("counter sale did not create exactly one machine job")
 	}
 	if _, e = f.pool.Exec(ctx, "UPDATE orders SET fulfillment_mode='deferred' WHERE id=$1", o.ID); e == nil {
 		t.Fatal("anonymous deferred history accepted")

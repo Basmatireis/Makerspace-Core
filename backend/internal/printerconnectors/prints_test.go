@@ -33,7 +33,7 @@ func newIngestHarness(t *testing.T) *ingestHarness {
 	pool := printerConnectorIntegrationPool(t)
 	ctx := t.Context()
 	h := &ingestHarness{t: t, pool: pool, logbook: machinelogbook.NewService(pool)}
-	printingService := printing.NewService(pool, h.logbook)
+	printingService := printing.NewService(pool)
 	var err error
 	h.service, err = NewService(pool, printingService, nil)
 	if err != nil {

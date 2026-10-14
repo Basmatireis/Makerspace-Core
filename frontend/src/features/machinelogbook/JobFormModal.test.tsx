@@ -37,8 +37,8 @@ const printFixture: Print = {
 };
 
 const editable = {
-  id: ids.job, displayId: 'J-2026-000001', title: null, machine, startsAt: '2026-09-15T08:12:34Z', endsAt: '2026-09-15T11:26:10Z', durationSeconds: 11616, source: 'manual', run: 'manual', print: null,
-  reviewState: 'confirmed', customer, operator, outcome: 'unknown', status: 'needs_outcome', notes: null, usages: [], pricingStatus: 'complete', version: 5, createdAt: '2026-09-15T11:26:00Z', updatedAt: '2026-09-15T11:26:00Z',
+  id: ids.job, displayId: 'J-2026-000001', title: null, machine, startsAt: '2026-09-15T08:12:34Z', endsAt: '2026-09-15T11:26:10Z', durationSeconds: 11616, run: 'manual', print: null,
+  customer, operator, outcome: 'unknown', status: 'needs_outcome', notes: null, usages: [], pricingStatus: 'complete', version: 5, createdAt: '2026-09-15T11:26:00Z', updatedAt: '2026-09-15T11:26:00Z',
 } as MachineJob;
 
 describe('JobFormModal', () => {
@@ -107,19 +107,5 @@ describe('JobFormModal', () => {
       machineId: ids.machine, startsAt: editable.startsAt, endsAt: editable.endsAt, customer: { kind: 'organization', id: ids.org }, operatorPersonId: ids.operator,
       outcome: 'partial_failure', title: null, notes: null, expectedVersion: 5,
     });
-  });
-
-  it('asks for a customer when a legacy review job without one is saved with an outcome', async () => {
-    server.use(
-      ...lookups,
-      http.patch(`*/api/v1/machine-jobs/${ids.job}`, () => HttpResponse.json({ code: 'customer_required', message: 'A customer is required to confirm a job awaiting review' }, { status: 422 })),
-    );
-    const user = userEvent.setup();
-    const legacy = { ...editable, reviewState: 'needs_review', customer: null } as MachineJob;
-    renderRoute(<ToastProvider><JobFormModal open mode="edit" job={legacy} onClose={() => undefined} /></ToastProvider>);
-    const dialog = await screen.findByRole('dialog');
-    await user.selectOptions(within(dialog).getByLabelText('Outcome'), 'successful');
-    await user.click(within(dialog).getByRole('button', { name: 'Save changes' }));
-    expect(await within(dialog).findByText('Select a customer.')).toBeInTheDocument();
   });
 });

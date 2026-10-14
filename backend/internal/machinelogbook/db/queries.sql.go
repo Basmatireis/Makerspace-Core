@@ -13,29 +13,11 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const acceptPrinterEventReconciliation = `-- name: AcceptPrinterEventReconciliation :execrows
-UPDATE printer_events SET reconciliation_state = 'accepted', reconciled_by_account_id = $1, reconciled_at = now()
-WHERE id = $2 AND kind = 'consumption_report' AND reconciliation_state = 'pending'
-`
-
-type AcceptPrinterEventReconciliationParams struct {
-	ActorAccountID *uuid.UUID
-	ID             uuid.UUID
-}
-
-func (q *Queries) AcceptPrinterEventReconciliation(ctx context.Context, arg AcceptPrinterEventReconciliationParams) (int64, error) {
-	result, err := q.db.Exec(ctx, acceptPrinterEventReconciliation, arg.ActorAccountID, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const activatePricingSnapshot = `-- name: ActivatePricingSnapshot :one
 UPDATE machine_jobs SET active_pricing_snapshot_id = $1, pricing_status = $2,
     calculated_price = $3, effective_price = $4, version = version + 1, updated_at = now()
 WHERE id = $5 AND version = $6
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
+RETURNING id, display_id, machine_id, starts_at, ends_at, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
 `
 
 type ActivatePricingSnapshotParams struct {
@@ -63,10 +45,6 @@ func (q *Queries) ActivatePricingSnapshot(ctx context.Context, arg ActivatePrici
 		&i.MachineID,
 		&i.StartsAt,
 		&i.EndsAt,
-		&i.Source,
-		&i.ExternalID,
-		&i.ExternalMetadata,
-		&i.ReviewState,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
 		&i.OperatorPersonID,
@@ -230,7 +208,7 @@ func (q *Queries) BumpFilamentSpoolVersion(ctx context.Context, arg BumpFilament
 const bumpMachineJobVersion = `-- name: BumpMachineJobVersion :one
 UPDATE machine_jobs SET version = version + 1, updated_at = now()
 WHERE id = $1 AND version = $2
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
+RETURNING id, display_id, machine_id, starts_at, ends_at, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
 `
 
 type BumpMachineJobVersionParams struct {
@@ -247,10 +225,6 @@ func (q *Queries) BumpMachineJobVersion(ctx context.Context, arg BumpMachineJobV
 		&i.MachineID,
 		&i.StartsAt,
 		&i.EndsAt,
-		&i.Source,
-		&i.ExternalID,
-		&i.ExternalMetadata,
-		&i.ReviewState,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
 		&i.OperatorPersonID,
@@ -277,7 +251,7 @@ func (q *Queries) BumpMachineJobVersion(ctx context.Context, arg BumpMachineJobV
 const cancelMachineJobRun = `-- name: CancelMachineJobRun :one
 UPDATE machine_jobs SET ends_at = $1, outcome = 'cancelled', version = version + 1, updated_at = now()
 WHERE id = $2 AND version = $3
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
+RETURNING id, display_id, machine_id, starts_at, ends_at, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
 `
 
 type CancelMachineJobRunParams struct {
@@ -295,10 +269,6 @@ func (q *Queries) CancelMachineJobRun(ctx context.Context, arg CancelMachineJobR
 		&i.MachineID,
 		&i.StartsAt,
 		&i.EndsAt,
-		&i.Source,
-		&i.ExternalID,
-		&i.ExternalMetadata,
-		&i.ReviewState,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
 		&i.OperatorPersonID,
@@ -337,7 +307,7 @@ UPDATE machine_jobs SET price_adjustment_kind = NULL, price_adjustment_value = N
     price_adjusted_by_account_id = NULL, price_adjusted_at = NULL, effective_price = calculated_price,
     version = version + 1, updated_at = now()
 WHERE id = $1 AND version = $2
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
+RETURNING id, display_id, machine_id, starts_at, ends_at, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
 `
 
 type ClearMachineJobPriceAdjustmentParams struct {
@@ -354,10 +324,6 @@ func (q *Queries) ClearMachineJobPriceAdjustment(ctx context.Context, arg ClearM
 		&i.MachineID,
 		&i.StartsAt,
 		&i.EndsAt,
-		&i.Source,
-		&i.ExternalID,
-		&i.ExternalMetadata,
-		&i.ReviewState,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
 		&i.OperatorPersonID,
@@ -416,68 +382,6 @@ func (q *Queries) CloseFilamentSpoolFill(ctx context.Context, arg CloseFilamentS
 		&i.LeftoverG,
 		&i.LeftoverOutcome,
 		&i.CreatedAt,
-	)
-	return i, err
-}
-
-const confirmMachineJob = `-- name: ConfirmMachineJob :one
-UPDATE machine_jobs SET customer_person_id = $1, customer_organization_id = $2,
-    operator_person_id = $3, outcome = $4, notes = $5, review_state = 'confirmed',
-    version = version + 1, updated_at = now()
-WHERE id = $6 AND version = $7 AND review_state = 'needs_review'
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
-`
-
-type ConfirmMachineJobParams struct {
-	CustomerPersonID       *uuid.UUID
-	CustomerOrganizationID *uuid.UUID
-	OperatorPersonID       *uuid.UUID
-	Outcome                string
-	Notes                  *string
-	ID                     uuid.UUID
-	ExpectedVersion        int64
-}
-
-func (q *Queries) ConfirmMachineJob(ctx context.Context, arg ConfirmMachineJobParams) (MachineJob, error) {
-	row := q.db.QueryRow(ctx, confirmMachineJob,
-		arg.CustomerPersonID,
-		arg.CustomerOrganizationID,
-		arg.OperatorPersonID,
-		arg.Outcome,
-		arg.Notes,
-		arg.ID,
-		arg.ExpectedVersion,
-	)
-	var i MachineJob
-	err := row.Scan(
-		&i.ID,
-		&i.DisplayID,
-		&i.MachineID,
-		&i.StartsAt,
-		&i.EndsAt,
-		&i.Source,
-		&i.ExternalID,
-		&i.ExternalMetadata,
-		&i.ReviewState,
-		&i.CustomerPersonID,
-		&i.CustomerOrganizationID,
-		&i.OperatorPersonID,
-		&i.Outcome,
-		&i.Notes,
-		&i.PricingStatus,
-		&i.CalculatedPrice,
-		&i.PriceAdjustmentReason,
-		&i.PriceAdjustedByAccountID,
-		&i.PriceAdjustedAt,
-		&i.ActivePricingSnapshotID,
-		&i.Version,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Title,
-		&i.PriceAdjustmentKind,
-		&i.PriceAdjustmentValue,
-		&i.EffectivePrice,
-		&i.PrintID,
 	)
 	return i, err
 }
@@ -617,23 +521,19 @@ WHERE ($1::text = '' OR lower(j.display_id) LIKE '%' || lower($1::text) || '%' O
   AND ($4::uuid IS NULL OR j.operator_person_id = $4::uuid)
   AND ($5::uuid IS NULL OR u.material_id = $5::uuid)
   AND ($6::text IS NULL OR j.outcome = $6::text)
-  AND ($7::text IS NULL OR j.source = $7::text)
-  AND ($8::text IS NULL OR j.review_state = $8::text)
-  AND ($9::timestamptz IS NULL OR j.starts_at >= $9::timestamptz)
-  AND ($10::timestamptz IS NULL OR j.starts_at < $10::timestamptz)
+  AND ($7::timestamptz IS NULL OR j.starts_at >= $7::timestamptz)
+  AND ($8::timestamptz IS NULL OR j.starts_at < $8::timestamptz)
 `
 
 type CountMachineJobsParams struct {
-	Search      string
-	MachineID   *uuid.UUID
-	CustomerID  *uuid.UUID
-	OperatorID  *uuid.UUID
-	MaterialID  *uuid.UUID
-	Outcome     *string
-	Source      *string
-	ReviewState *string
-	FromTime    pgtype.Timestamptz
-	ToTime      pgtype.Timestamptz
+	Search     string
+	MachineID  *uuid.UUID
+	CustomerID *uuid.UUID
+	OperatorID *uuid.UUID
+	MaterialID *uuid.UUID
+	Outcome    *string
+	FromTime   pgtype.Timestamptz
+	ToTime     pgtype.Timestamptz
 }
 
 func (q *Queries) CountMachineJobs(ctx context.Context, arg CountMachineJobsParams) (int64, error) {
@@ -644,8 +544,6 @@ func (q *Queries) CountMachineJobs(ctx context.Context, arg CountMachineJobsPara
 		arg.OperatorID,
 		arg.MaterialID,
 		arg.Outcome,
-		arg.Source,
-		arg.ReviewState,
 		arg.FromTime,
 		arg.ToTime,
 	)
@@ -727,9 +625,8 @@ func (q *Queries) CountOrganizations(ctx context.Context, arg CountOrganizations
 const countOverviewJobs = `-- name: CountOverviewJobs :one
 SELECT count(*) FILTER (WHERE starts_at >= date_trunc('day', now()))::bigint AS jobs_today,
        count(*) FILTER (WHERE starts_at >= date_trunc('week', now()))::bigint AS jobs_this_week,
-       count(*) FILTER (WHERE review_state = 'confirmed' AND NOT EXISTS(SELECT 1 FROM order_job_claims c WHERE c.machine_job_id=machine_jobs.id))::bigint AS unassigned_jobs,
-       COALESCE(sum(effective_price) FILTER (WHERE review_state = 'confirmed' AND NOT EXISTS(SELECT 1 FROM order_job_claims c WHERE c.machine_job_id=machine_jobs.id)), 0)::numeric AS unassigned_estimated_amount,
-       count(*) FILTER (WHERE review_state = 'needs_review')::bigint AS needs_review,
+       count(*) FILTER (WHERE NOT EXISTS(SELECT 1 FROM order_job_claims c WHERE c.machine_job_id=machine_jobs.id))::bigint AS unassigned_jobs,
+       COALESCE(sum(effective_price) FILTER (WHERE NOT EXISTS(SELECT 1 FROM order_job_claims c WHERE c.machine_job_id=machine_jobs.id)), 0)::numeric AS unassigned_estimated_amount,
        count(*) FILTER (WHERE starts_at >= date_trunc('week', now()) AND outcome IN ('failed', 'partial_failure'))::bigint AS failed_or_partial_this_week
 FROM machine_jobs
 `
@@ -739,7 +636,6 @@ type CountOverviewJobsRow struct {
 	JobsThisWeek              int64
 	UnassignedJobs            int64
 	UnassignedEstimatedAmount pgtype.Numeric
-	NeedsReview               int64
 	FailedOrPartialThisWeek   int64
 }
 
@@ -751,7 +647,6 @@ func (q *Queries) CountOverviewJobs(ctx context.Context) (CountOverviewJobsRow, 
 		&i.JobsThisWeek,
 		&i.UnassignedJobs,
 		&i.UnassignedEstimatedAmount,
-		&i.NeedsReview,
 		&i.FailedOrPartialThisWeek,
 	)
 	return i, err
@@ -917,12 +812,11 @@ func (q *Queries) CreateMachine(ctx context.Context, arg CreateMachineParams) (M
 }
 
 const createMachineJob = `-- name: CreateMachineJob :one
-INSERT INTO machine_jobs (id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata,
-    review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, title, notes)
-VALUES ($1, $2, $3, $4, $5, $6,
-    $7, $8, $9, $10,
-    $11, $12, $13, $14, $15)
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
+INSERT INTO machine_jobs (id, display_id, machine_id, starts_at, ends_at,
+    customer_person_id, customer_organization_id, operator_person_id, outcome, title, notes)
+VALUES ($1, $2, $3, $4, $5,
+    $6, $7, $8, $9, $10, $11)
+RETURNING id, display_id, machine_id, starts_at, ends_at, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
 `
 
 type CreateMachineJobParams struct {
@@ -931,10 +825,6 @@ type CreateMachineJobParams struct {
 	MachineID              uuid.UUID
 	StartsAt               time.Time
 	EndsAt                 time.Time
-	Source                 string
-	ExternalID             *string
-	ExternalMetadata       []byte
-	ReviewState            string
 	CustomerPersonID       *uuid.UUID
 	CustomerOrganizationID *uuid.UUID
 	OperatorPersonID       *uuid.UUID
@@ -950,10 +840,6 @@ func (q *Queries) CreateMachineJob(ctx context.Context, arg CreateMachineJobPara
 		arg.MachineID,
 		arg.StartsAt,
 		arg.EndsAt,
-		arg.Source,
-		arg.ExternalID,
-		arg.ExternalMetadata,
-		arg.ReviewState,
 		arg.CustomerPersonID,
 		arg.CustomerOrganizationID,
 		arg.OperatorPersonID,
@@ -968,10 +854,6 @@ func (q *Queries) CreateMachineJob(ctx context.Context, arg CreateMachineJobPara
 		&i.MachineID,
 		&i.StartsAt,
 		&i.EndsAt,
-		&i.Source,
-		&i.ExternalID,
-		&i.ExternalMetadata,
-		&i.ReviewState,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
 		&i.OperatorPersonID,
@@ -1720,7 +1602,7 @@ SELECT m.id, m.machine_type_id, m.name, m.status, m.external_identifier, m.autom
        COALESCE(round(100.0 * count(j.id) FILTER (WHERE j.outcome IN ('failed', 'partial_failure')) / NULLIF(count(j.id), 0), 2), 0)::numeric AS failure_rate
 FROM machines m
 JOIN machine_types mt ON mt.id = m.machine_type_id
-LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.review_state = 'confirmed'
+LEFT JOIN machine_jobs j ON j.machine_id = m.id
 WHERE m.id = $1
 GROUP BY m.id, mt.id
 `
@@ -1795,7 +1677,7 @@ func (q *Queries) GetMachineForUpdate(ctx context.Context, id uuid.UUID) (Machin
 }
 
 const getMachineJobBase = `-- name: GetMachineJobBase :one
-SELECT id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id FROM machine_jobs WHERE id = $1
+SELECT id, display_id, machine_id, starts_at, ends_at, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id FROM machine_jobs WHERE id = $1
 `
 
 func (q *Queries) GetMachineJobBase(ctx context.Context, id uuid.UUID) (MachineJob, error) {
@@ -1807,10 +1689,6 @@ func (q *Queries) GetMachineJobBase(ctx context.Context, id uuid.UUID) (MachineJ
 		&i.MachineID,
 		&i.StartsAt,
 		&i.EndsAt,
-		&i.Source,
-		&i.ExternalID,
-		&i.ExternalMetadata,
-		&i.ReviewState,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
 		&i.OperatorPersonID,
@@ -1835,7 +1713,7 @@ func (q *Queries) GetMachineJobBase(ctx context.Context, id uuid.UUID) (MachineJ
 }
 
 const getMachineJobByPrintForUpdate = `-- name: GetMachineJobByPrintForUpdate :one
-SELECT id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id FROM machine_jobs WHERE print_id = $1 FOR UPDATE
+SELECT id, display_id, machine_id, starts_at, ends_at, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id FROM machine_jobs WHERE print_id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetMachineJobByPrintForUpdate(ctx context.Context, printID *uuid.UUID) (MachineJob, error) {
@@ -1847,10 +1725,6 @@ func (q *Queries) GetMachineJobByPrintForUpdate(ctx context.Context, printID *uu
 		&i.MachineID,
 		&i.StartsAt,
 		&i.EndsAt,
-		&i.Source,
-		&i.ExternalID,
-		&i.ExternalMetadata,
-		&i.ReviewState,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
 		&i.OperatorPersonID,
@@ -1875,7 +1749,7 @@ func (q *Queries) GetMachineJobByPrintForUpdate(ctx context.Context, printID *uu
 }
 
 const getMachineJobForUpdate = `-- name: GetMachineJobForUpdate :one
-SELECT id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id FROM machine_jobs WHERE id = $1 FOR UPDATE
+SELECT id, display_id, machine_id, starts_at, ends_at, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id FROM machine_jobs WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetMachineJobForUpdate(ctx context.Context, id uuid.UUID) (MachineJob, error) {
@@ -1887,10 +1761,6 @@ func (q *Queries) GetMachineJobForUpdate(ctx context.Context, id uuid.UUID) (Mac
 		&i.MachineID,
 		&i.StartsAt,
 		&i.EndsAt,
-		&i.Source,
-		&i.ExternalID,
-		&i.ExternalMetadata,
-		&i.ReviewState,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
 		&i.OperatorPersonID,
@@ -2305,7 +2175,7 @@ func (q *Queries) GetPricingSnapshot(ctx context.Context, id uuid.UUID) (Machine
 }
 
 const getPrintForUpdate = `-- name: GetPrintForUpdate :one
-SELECT id, assignment_id, machine_id, vendor_job_id, attempt_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id FROM printer_observed_runs WHERE id = $1 FOR UPDATE
+SELECT id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id FROM printer_observed_runs WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetPrintForUpdate(ctx context.Context, id uuid.UUID) (PrinterObservedRun, error) {
@@ -2316,7 +2186,6 @@ func (q *Queries) GetPrintForUpdate(ctx context.Context, id uuid.UUID) (PrinterO
 		&i.AssignmentID,
 		&i.MachineID,
 		&i.VendorJobID,
-		&i.AttemptID,
 		&i.State,
 		&i.HistoryComplete,
 		&i.FirstObservedAt,
@@ -2760,7 +2629,7 @@ const linkMachineJobPrint = `-- name: LinkMachineJobPrint :one
 UPDATE machine_jobs SET print_id = $1, starts_at = $2, ends_at = $3,
     outcome = $4, version = version + 1, updated_at = now()
 WHERE id = $5 AND version = $6 AND print_id IS NULL
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
+RETURNING id, display_id, machine_id, starts_at, ends_at, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
 `
 
 type LinkMachineJobPrintParams struct {
@@ -2788,10 +2657,6 @@ func (q *Queries) LinkMachineJobPrint(ctx context.Context, arg LinkMachineJobPri
 		&i.MachineID,
 		&i.StartsAt,
 		&i.EndsAt,
-		&i.Source,
-		&i.ExternalID,
-		&i.ExternalMetadata,
-		&i.ReviewState,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
 		&i.OperatorPersonID,
@@ -3552,27 +3417,23 @@ WHERE ($1::text = '' OR lower(j.display_id) LIKE '%' || lower($1::text) || '%' O
   AND ($4::uuid IS NULL OR j.operator_person_id = $4::uuid)
   AND ($5::uuid IS NULL OR u.material_id = $5::uuid)
   AND ($6::text IS NULL OR j.outcome = $6::text)
-  AND ($7::text IS NULL OR j.source = $7::text)
-  AND ($8::text IS NULL OR j.review_state = $8::text)
-  AND ($9::timestamptz IS NULL OR j.starts_at >= $9::timestamptz)
-  AND ($10::timestamptz IS NULL OR j.starts_at < $10::timestamptz)
+  AND ($7::timestamptz IS NULL OR j.starts_at >= $7::timestamptz)
+  AND ($8::timestamptz IS NULL OR j.starts_at < $8::timestamptz)
 ORDER BY j.starts_at DESC, j.id DESC
-LIMIT $12 OFFSET $11
+LIMIT $10 OFFSET $9
 `
 
 type ListMachineJobIDsParams struct {
-	Search      string
-	MachineID   *uuid.UUID
-	CustomerID  *uuid.UUID
-	OperatorID  *uuid.UUID
-	MaterialID  *uuid.UUID
-	Outcome     *string
-	Source      *string
-	ReviewState *string
-	FromTime    pgtype.Timestamptz
-	ToTime      pgtype.Timestamptz
-	PageOffset  int32
-	PageLimit   int32
+	Search     string
+	MachineID  *uuid.UUID
+	CustomerID *uuid.UUID
+	OperatorID *uuid.UUID
+	MaterialID *uuid.UUID
+	Outcome    *string
+	FromTime   pgtype.Timestamptz
+	ToTime     pgtype.Timestamptz
+	PageOffset int32
+	PageLimit  int32
 }
 
 type ListMachineJobIDsRow struct {
@@ -3588,8 +3449,6 @@ func (q *Queries) ListMachineJobIDs(ctx context.Context, arg ListMachineJobIDsPa
 		arg.OperatorID,
 		arg.MaterialID,
 		arg.Outcome,
-		arg.Source,
-		arg.ReviewState,
 		arg.FromTime,
 		arg.ToTime,
 		arg.PageOffset,
@@ -3757,7 +3616,7 @@ func (q *Queries) ListMachinePrintingPrints(ctx context.Context) ([]ListMachineP
 const listMachineRunningManualJobs = `-- name: ListMachineRunningManualJobs :many
 SELECT DISTINCT ON (j.machine_id) j.machine_id, j.id, j.display_id, j.title, j.starts_at, j.ends_at
 FROM machine_jobs j
-WHERE j.review_state = 'confirmed' AND j.outcome = 'unknown' AND j.print_id IS NULL
+WHERE j.outcome = 'unknown' AND j.print_id IS NULL
   AND j.starts_at <= $1::timestamptz AND j.ends_at > $1::timestamptz
 ORDER BY j.machine_id, j.starts_at DESC, j.id DESC
 `
@@ -3837,7 +3696,7 @@ SELECT m.id, m.machine_type_id, m.name, m.status, m.external_identifier, m.autom
        COALESCE(round(100.0 * count(j.id) FILTER (WHERE j.outcome IN ('failed', 'partial_failure')) / NULLIF(count(j.id), 0), 2), 0)::numeric AS failure_rate
 FROM machines m
 JOIN machine_types mt ON mt.id = m.machine_type_id
-LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.review_state = 'confirmed'
+LEFT JOIN machine_jobs j ON j.machine_id = m.id
 WHERE ($1::text = '' OR lower(m.name) LIKE '%' || lower($1::text) || '%' OR lower(mt.name) LIKE '%' || lower($1::text) || '%')
   AND ($2::text IS NULL OR m.status = $2::text)
 GROUP BY m.id, mt.id
@@ -4402,30 +4261,6 @@ func (q *Queries) ListRetiredFilamentSpoolIdentifiers(ctx context.Context, spool
 	return items, nil
 }
 
-const listReviewQueueIDs = `-- name: ListReviewQueueIDs :many
-SELECT id FROM machine_jobs WHERE review_state = 'needs_review' ORDER BY starts_at, id
-`
-
-func (q *Queries) ListReviewQueueIDs(ctx context.Context) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, listReviewQueueIDs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []uuid.UUID{}
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listRunningMachineNames = `-- name: ListRunningMachineNames :many
 SELECT DISTINCT name::text AS name FROM (
     SELECT m.name FROM machine_jobs j JOIN machines m ON m.id = j.machine_id
@@ -4810,7 +4645,7 @@ const recalculateMachineJobPrice = `-- name: RecalculateMachineJobPrice :one
 UPDATE machine_jobs SET pricing_status = $1, calculated_price = $2,
     effective_price = $3, version = version + 1, updated_at = now()
 WHERE id = $4 AND version = $5
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
+RETURNING id, display_id, machine_id, starts_at, ends_at, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
 `
 
 type RecalculateMachineJobPriceParams struct {
@@ -4836,10 +4671,6 @@ func (q *Queries) RecalculateMachineJobPrice(ctx context.Context, arg Recalculat
 		&i.MachineID,
 		&i.StartsAt,
 		&i.EndsAt,
-		&i.Source,
-		&i.ExternalID,
-		&i.ExternalMetadata,
-		&i.ReviewState,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
 		&i.OperatorPersonID,
@@ -4986,7 +4817,7 @@ UPDATE machine_jobs SET price_adjustment_kind = $1, price_adjustment_value = $2,
     price_adjustment_reason = $3, price_adjusted_by_account_id = $4,
     price_adjusted_at = $5, effective_price = $6, version = version + 1, updated_at = now()
 WHERE id = $7 AND version = $8
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
+RETURNING id, display_id, machine_id, starts_at, ends_at, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
 `
 
 type SetMachineJobPriceAdjustmentParams struct {
@@ -5018,10 +4849,6 @@ func (q *Queries) SetMachineJobPriceAdjustment(ctx context.Context, arg SetMachi
 		&i.MachineID,
 		&i.StartsAt,
 		&i.EndsAt,
-		&i.Source,
-		&i.ExternalID,
-		&i.ExternalMetadata,
-		&i.ReviewState,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
 		&i.OperatorPersonID,
@@ -5048,7 +4875,7 @@ func (q *Queries) SetMachineJobPriceAdjustment(ctx context.Context, arg SetMachi
 const setMachineJobPrint = `-- name: SetMachineJobPrint :one
 UPDATE machine_jobs SET print_id = $1, version = version + 1, updated_at = now()
 WHERE id = $2 AND version = $3
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
+RETURNING id, display_id, machine_id, starts_at, ends_at, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
 `
 
 type SetMachineJobPrintParams struct {
@@ -5066,10 +4893,6 @@ func (q *Queries) SetMachineJobPrint(ctx context.Context, arg SetMachineJobPrint
 		&i.MachineID,
 		&i.StartsAt,
 		&i.EndsAt,
-		&i.Source,
-		&i.ExternalID,
-		&i.ExternalMetadata,
-		&i.ReviewState,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
 		&i.OperatorPersonID,
@@ -5167,7 +4990,7 @@ func (q *Queries) StatisticAdjustmentLoss(ctx context.Context, arg StatisticAdju
 
 const statisticCustomerCharges = `-- name: StatisticCustomerCharges :many
 SELECT to_char(date_trunc('month', starts_at), 'YYYY-MM') AS label, COALESCE(sum(effective_price), 0)::numeric AS value
-FROM machine_jobs WHERE review_state = 'confirmed' AND starts_at >= $1 AND starts_at < $2
+FROM machine_jobs WHERE starts_at >= $1 AND starts_at < $2
 GROUP BY date_trunc('month', starts_at) ORDER BY date_trunc('month', starts_at)
 `
 
@@ -5204,7 +5027,7 @@ func (q *Queries) StatisticCustomerCharges(ctx context.Context, arg StatisticCus
 const statisticMachineFailureRates = `-- name: StatisticMachineFailureRates :many
 SELECT m.id::text AS key, m.name AS label,
        COALESCE(round(100.0 * count(j.id) FILTER (WHERE j.outcome IN ('failed', 'partial_failure')) / NULLIF(count(j.id), 0), 2), 0)::numeric AS value
-FROM machines m LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.review_state = 'confirmed' AND j.starts_at >= $1 AND j.starts_at < $2
+FROM machines m LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.starts_at >= $1 AND j.starts_at < $2
 GROUP BY m.id, m.name ORDER BY value DESC, lower(m.name)
 `
 
@@ -5241,7 +5064,7 @@ func (q *Queries) StatisticMachineFailureRates(ctx context.Context, arg Statisti
 
 const statisticMachineJobCounts = `-- name: StatisticMachineJobCounts :many
 SELECT m.id::text AS key, m.name AS label, count(j.id)::numeric AS value
-FROM machines m LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.review_state = 'confirmed' AND j.starts_at >= $1 AND j.starts_at < $2
+FROM machines m LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.starts_at >= $1 AND j.starts_at < $2
 GROUP BY m.id, m.name ORDER BY value DESC, lower(m.name)
 `
 
@@ -5278,7 +5101,7 @@ func (q *Queries) StatisticMachineJobCounts(ctx context.Context, arg StatisticMa
 
 const statisticMachineRuntime = `-- name: StatisticMachineRuntime :many
 SELECT m.id::text AS key, m.name AS label, COALESCE(sum(EXTRACT(EPOCH FROM (j.ends_at - j.starts_at))) / 3600.0, 0)::numeric AS value
-FROM machines m LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.review_state = 'confirmed' AND j.starts_at >= $1 AND j.starts_at < $2
+FROM machines m LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.starts_at >= $1 AND j.starts_at < $2
 GROUP BY m.id, m.name ORDER BY value DESC, lower(m.name)
 `
 
@@ -5320,7 +5143,7 @@ SELECT m.id AS machine_id, m.name, mt.name AS machine_type_name, count(j.id)::bi
        COALESCE(sum(j.effective_price), 0)::numeric AS charges
 FROM machines m
 JOIN machine_types mt ON mt.id = m.machine_type_id
-JOIN machine_jobs j ON j.machine_id = m.id AND j.review_state = 'confirmed' AND j.starts_at >= $2 AND j.starts_at < $3
+JOIN machine_jobs j ON j.machine_id = m.id AND j.starts_at >= $2 AND j.starts_at < $3
 GROUP BY m.id, m.name, mt.name ORDER BY lower(m.name), m.id
 `
 
@@ -5450,7 +5273,7 @@ WITH months AS (
                            interval '1 month') AS month_start
 ), job_charges AS (
     SELECT date_trunc('month', starts_at AT TIME ZONE 'UTC') AS month_start, sum(effective_price) AS charges
-    FROM machine_jobs WHERE review_state = 'confirmed' AND starts_at >= $1 AND starts_at < $2
+    FROM machine_jobs WHERE starts_at >= $1 AND starts_at < $2
     GROUP BY 1
 ), costs AS (
     SELECT date_trunc('month', occurred_at AT TIME ZONE 'UTC') AS month_start,
@@ -5508,7 +5331,7 @@ const statisticPeriodTotals = `-- name: StatisticPeriodTotals :one
 WITH jobs AS (
     SELECT outcome, effective_price, GREATEST(EXTRACT(EPOCH FROM (LEAST(ends_at, $1::timestamptz) - starts_at)), 0) AS seconds
     FROM machine_jobs
-    WHERE review_state = 'confirmed' AND starts_at >= $2 AND starts_at < $3
+    WHERE starts_at >= $2 AND starts_at < $3
 ), cost AS (
     SELECT COALESCE(-sum(inventory_value_delta) FILTER (WHERE kind IN ('machine_job_consumption', 'manual_consumption') OR (kind = 'adjustment' AND adjustment_reason = 'job_corrected')), 0) AS material_cost
     FROM inventory_transactions WHERE occurred_at >= $2 AND occurred_at < $3
@@ -5551,7 +5374,7 @@ const statisticRuntimePoints = `-- name: StatisticRuntimePoints :many
 SELECT date_trunc($1::text, j.starts_at AT TIME ZONE 'UTC')::date AS bucket_start, j.machine_id,
        round(sum(GREATEST(EXTRACT(EPOCH FROM (LEAST(j.ends_at, $2::timestamptz) - j.starts_at)), 0)) / 3600.0, 4)::numeric AS hours
 FROM machine_jobs j
-WHERE j.review_state = 'confirmed' AND j.starts_at >= $3 AND j.starts_at < $4
+WHERE j.starts_at >= $3 AND j.starts_at < $4
 GROUP BY 1, 2 ORDER BY 1, 2
 `
 
@@ -5769,8 +5592,8 @@ UPDATE machine_jobs SET machine_id = $1, starts_at = $2, ends_at = $3,
     customer_person_id = $4, customer_organization_id = $5,
     operator_person_id = $6, outcome = $7, title = $8, notes = $9,
     version = version + 1, updated_at = now()
-WHERE id = $10 AND version = $11 AND review_state IN ('confirmed', 'needs_review')
-RETURNING id, display_id, machine_id, starts_at, ends_at, source, external_id, external_metadata, review_state, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
+WHERE id = $10 AND version = $11
+RETURNING id, display_id, machine_id, starts_at, ends_at, customer_person_id, customer_organization_id, operator_person_id, outcome, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, print_id
 `
 
 type UpdateMachineJobFactsParams struct {
@@ -5808,10 +5631,6 @@ func (q *Queries) UpdateMachineJobFacts(ctx context.Context, arg UpdateMachineJo
 		&i.MachineID,
 		&i.StartsAt,
 		&i.EndsAt,
-		&i.Source,
-		&i.ExternalID,
-		&i.ExternalMetadata,
-		&i.ReviewState,
 		&i.CustomerPersonID,
 		&i.CustomerOrganizationID,
 		&i.OperatorPersonID,

@@ -222,7 +222,6 @@ describe('protected application routing', () => {
       http.get('*/api/v1/auth/me', () =>
         HttpResponse.json(currentUserFixture([
           PermissionId.machine_jobsread,
-          PermissionId.machine_jobsreview,
           PermissionId.inventoryread,
           PermissionId.machinesread,
           PermissionId.statisticsread,
@@ -231,7 +230,6 @@ describe('protected application routing', () => {
           PermissionId.open_daysread,
           PermissionId.eventsread,
           PermissionId.attendanceread,
-          PermissionId.print_submissionsread,
           PermissionId.ordersread,
           PermissionId.paymentsread,
           PermissionId.external_invoice_requestsread,
@@ -251,8 +249,6 @@ describe('protected application routing', () => {
     for (const name of ['Open Days', 'Events', 'Attendance', 'Directory', 'Staffing', 'Overview', 'Jobs', 'Machines', 'Inventory', 'Statistics', 'Orders', 'Payments', 'External invoicing']) {
       expect(within(navigation).getByRole('link', { name })).toBeInTheDocument();
     }
-    expect(within(navigation).queryByRole('link', { name: 'Review' })).not.toBeInTheDocument();
-    expect(within(navigation).queryByRole('link', { name: 'Print submissions' })).not.toBeInTheDocument();
     const workshop = within(navigation).getAllByRole('link').map((link) => link.getAttribute('href')).filter((href) => href?.startsWith('/machine-logbook'));
     expect(workshop).toEqual(['/machine-logbook', '/machine-logbook/jobs', '/machine-logbook/machines', '/machine-logbook/inventory', '/machine-logbook/statistics']);
     expect(within(navigation).getByText('Administration')).toBeInTheDocument();
@@ -397,9 +393,6 @@ describe('role protection UX', () => {
     );
 
     it.each([
-      ['/machine-logbook/review', '/machine-logbook/jobs?status=needs_outcome'],
-      ['/machine-logbook/print-submissions', '/machine-logbook/jobs?status=unlinked'],
-      [`/machine-logbook/print-submissions/${id}`, '/machine-logbook/jobs?status=unlinked'],
       [`/machine-logbook/inventory/${id}`, `/machine-logbook/inventory/materials/${id}`],
       ['/machine-logbook/spools', '/machine-logbook/inventory?tab=spools'],
       [`/machine-logbook/spools/${id}`, `/machine-logbook/inventory/spools/${id}`],
@@ -425,7 +418,7 @@ describe('role protection UX', () => {
 
     it('sends a former URL to the dashboard when the person lacks the permission of its new destination', async () => {
       signIn([PermissionId.inventoryread]);
-      const { router } = renderRoute(<App />, '/machine-logbook/review');
+      const { router } = renderRoute(<App />, `/machine-logbook/machines/${id}/printer`);
       expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
       expect(router.state.location.pathname).toBe('/dashboard');
     });

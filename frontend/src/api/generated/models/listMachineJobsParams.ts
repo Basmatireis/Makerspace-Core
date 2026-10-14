@@ -20,8 +20,6 @@ the required session and CSRF credentials.
  */
 import type { UUIDv7 } from './uUIDv7';
 import type { MachineJobOutcome } from './machineJobOutcome';
-import type { MachineJobSource } from './machineJobSource';
-import type { MachineJobReviewState } from './machineJobReviewState';
 
 export type ListMachineJobsParams = {
 /**
@@ -36,8 +34,6 @@ customerId?: UUIDv7;
 operatorPersonId?: UUIDv7;
 materialId?: UUIDv7;
 outcome?: MachineJobOutcome;
-source?: MachineJobSource;
-reviewState?: MachineJobReviewState;
 from?: string;
 to?: string;
 /**

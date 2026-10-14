@@ -244,7 +244,7 @@ func main() {
 	s.rolesSvc = roles.NewService(pool)
 	s.accounts = accounts.NewService(pool, cfg)
 	s.ml = machinelogbook.NewService(pool)
-	s.printing = printing.NewService(pool, s.ml)
+	s.printing = printing.NewService(pool)
 	s.pc, err = printerconnectors.NewService(pool, s.printing, cfg.EncryptionKeys)
 	check("pc", err)
 	s.orders = orders.NewService(pool, s.ml)
@@ -337,8 +337,8 @@ func (s *seeder) ensureRoles() {
 	}{
 		{"supervisor", "Runs the workshop during open hours (created by devseed)", grants(
 			authorization.SupervisorDashboardRead, authorization.OpenDaysRead, authorization.OpenDaysSignup,
-			authorization.MachinesRead, authorization.MachineJobsRead, authorization.MachineJobsCreate, authorization.MachineJobsEdit, authorization.MachineJobsReview,
-			authorization.InventoryRead, authorization.FilamentSpoolsManage, authorization.PrinterSlotsAssign, authorization.PrintSubmissionsRead,
+			authorization.MachinesRead, authorization.MachineJobsRead, authorization.MachineJobsCreate, authorization.MachineJobsEdit,
+			authorization.InventoryRead, authorization.FilamentSpoolsManage, authorization.PrinterSlotsAssign,
 			authorization.OrganizationsRead, authorization.PricingRead), true},
 		{"trainee", "Supervisor in training (created by devseed)", grants(
 			authorization.OpenDaysRead, authorization.OpenDaysSignup, authorization.MachinesRead, authorization.MachineJobsRead, authorization.InventoryRead), false},

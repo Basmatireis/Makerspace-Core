@@ -36,20 +36,16 @@ A printer profile attaches to an existing Machine. It contains ordered input uni
 
 The topology is intentionally generic. It stores stable external identifiers for a future connector but contains no Bambu-specific semantics and performs no printer discovery, slicing, scheduling, file transfer, start, pause, or stop operation.
 
-## Print submissions and attempts
+## Print submissions and attempts removed
 
-Print submissions are kept unchanged (decision D3): the tables and `/print-submissions` endpoints remain, but the Carbon UI no longer exposes them. Day-to-day work uses [prints and jobs](machine-logbook.md#prints) instead.
+Print submissions, print attempts, filament declarations, printer-event reconciliation, and the printing-operation idempotency records were removed with their tables and `/print-submissions` and `/print-attempts` endpoints. Printer connectors report physical prints, which staff handle as [prints and jobs](machine-logbook.md#prints).
 
-Staff with `print_submissions.manage` create a Print Submission for a configured printer and may declare makerspace or external filament estimates. Starting or retrying creates a numbered Print Attempt and copies the declarations as an attempt snapshot. Attempt transitions are explicit and version-checked: queued, accepted, printing, then completed, failed, or cancelled. An attempt may link to one existing Machine Job for operational and charge traceability.
-
-Normalized connector events use a versioned source ID and event key. Repeating identical facts is idempotent; reusing the key for different facts is rejected. Consumption reports remain pending until staff accepts or rejects them. Acceptance replaces the linked confirmed Machine Job usages. The event decision, compensating and new inventory entries, pricing recalculation, source-event references, operation idempotency record, and audits commit in one database transaction.
-
-No public connector ingestion route is exposed yet. `printing.Service.IngestEvent` is the internal boundary for a future authenticated connector. Adding one requires a deliberate service/device identity and protocol design without weakening the staff session endpoints.
+Normalized connector events use a versioned source ID and event key. Repeating identical facts is idempotent; reusing the key for different facts is rejected. A consumption report becomes the print's reported usage; linking the print to a job replaces the job's usages with it, keeping the source-event reference on the usage. The inventory entries, pricing recalculation, and audits commit in one database transaction.
 
 ## Permissions and routes
 
-The feature adds `filament_spools.manage`, `printer_slots.assign`, `print_submissions.read`, and `print_submissions.manage`. Services enforce these permissions; frontend gating is only presentation.
+The feature adds `filament_spools.manage` and `printer_slots.assign`. Services enforce these permissions; frontend gating is only presentation.
 
-OpenAPI defines `/filament-spools`, material spool transfers, printer profiles/input units/slots, `/print-submissions`, attempts, job links, and printer-event reconciliation. The Carbon UI exposes spools, products, change filament, finish, and cleanup under Inventory and printer topology from Machines. All pages remain route-lazy-loaded.
+OpenAPI defines `/filament-spools`, material spool transfers, printer profiles/input units/slots. The Carbon UI exposes spools, products, change filament, finish, and cleanup under Inventory and printer topology from Machines. All pages remain route-lazy-loaded.
 
 Migrations `00032_filament_spools.sql` and `00033_printing.sql` contain downgrade guards. A downgrade stops when spool, printing, or version-2 financial snapshot history exists rather than silently discarding it. The downgrade of `00038_spool_fills_products.sql` restores the single-material spool model from each spool's latest fill; older fills with another material cannot be represented.

@@ -13,7 +13,6 @@ import (
 )
 
 type Querier interface {
-	AcceptPrinterEventReconciliation(ctx context.Context, arg AcceptPrinterEventReconciliationParams) (int64, error)
 	ActivatePricingSnapshot(ctx context.Context, arg ActivatePricingSnapshotParams) (MachineJob, error)
 	ActiveOrganizationExists(ctx context.Context, id uuid.UUID) (bool, error)
 	AddFilamentSpoolIdentifier(ctx context.Context, arg AddFilamentSpoolIdentifierParams) (FilamentSpoolIdentifier, error)
@@ -26,7 +25,6 @@ type Querier interface {
 	ClearDefaultPricingGroup(ctx context.Context, exceptID uuid.UUID) error
 	ClearMachineJobPriceAdjustment(ctx context.Context, arg ClearMachineJobPriceAdjustmentParams) (MachineJob, error)
 	CloseFilamentSpoolFill(ctx context.Context, arg CloseFilamentSpoolFillParams) (FilamentSpoolFill, error)
-	ConfirmMachineJob(ctx context.Context, arg ConfirmMachineJobParams) (MachineJob, error)
 	CountFilamentProducts(ctx context.Context, arg CountFilamentProductsParams) (int64, error)
 	CountFilamentSpoolTransactions(ctx context.Context, spoolID *uuid.UUID) (int64, error)
 	CountFilamentSpools(ctx context.Context, arg CountFilamentSpoolsParams) (int64, error)
@@ -124,7 +122,6 @@ type Querier interface {
 	ListPrints(ctx context.Context, arg ListPrintsParams) ([]ListPrintsRow, error)
 	ListRecentJobIDs(ctx context.Context, pageLimit int32) ([]uuid.UUID, error)
 	ListRetiredFilamentSpoolIdentifiers(ctx context.Context, spoolID uuid.UUID) ([]FilamentSpoolIdentifier, error)
-	ListReviewQueueIDs(ctx context.Context) ([]uuid.UUID, error)
 	ListRunningMachineNames(ctx context.Context, now time.Time) ([]string, error)
 	ListWorkItems(ctx context.Context, arg ListWorkItemsParams) ([]ListWorkItemsRow, error)
 	LockFilamentSpoolCleanupCandidates(ctx context.Context, arg LockFilamentSpoolCleanupCandidatesParams) ([]LockFilamentSpoolCleanupCandidatesRow, error)

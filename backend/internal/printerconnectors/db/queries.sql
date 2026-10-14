@@ -207,24 +207,13 @@ ORDER BY r.last_observed_at DESC, r.id DESC LIMIT 100;
 
 -- name: ListConnectorEvents :many
 SELECT id, machine_id, connector_assignment_id, kind, occurred_at, received_at,
-    application_state, application_reason, reconciliation_state, payload
+    application_state, application_reason, payload
 FROM printer_events
 WHERE connector_id=sqlc.arg(connector_id)
 ORDER BY received_at DESC, id DESC LIMIT 100;
 
 -- name: GetObservedRunForUpdate :one
 SELECT * FROM printer_observed_runs WHERE id=sqlc.arg(id) FOR UPDATE;
-
--- name: GetAttemptForRunLink :one
-SELECT * FROM print_attempts WHERE id=sqlc.arg(id) FOR UPDATE;
-
--- name: LinkObservedRun :one
-UPDATE printer_observed_runs SET attempt_id=sqlc.arg(attempt_id), version=version+1, updated_at=now()
-WHERE id=sqlc.arg(id) AND version=sqlc.arg(expected_version) AND attempt_id IS NULL RETURNING *;
-
--- name: LinkObservedRunEvents :exec
-UPDATE printer_events SET attempt_id=sqlc.arg(attempt_id)
-WHERE observed_run_id=sqlc.arg(observed_run_id) AND attempt_id IS NULL;
 
 -- name: GetConnectorEventByKey :one
 SELECT * FROM printer_events WHERE source_id=sqlc.arg(source_id) AND event_key=sqlc.arg(event_key);
@@ -233,10 +222,10 @@ SELECT * FROM printer_events WHERE source_id=sqlc.arg(source_id) AND event_key=s
 SELECT * FROM printer_events WHERE connector_assignment_id=sqlc.arg(assignment_id) AND source_sequence=sqlc.arg(source_sequence);
 
 -- name: InsertConnectorEvent :one
-INSERT INTO printer_events (id, source_id, event_key, fingerprint, protocol_version, machine_id, attempt_id, kind, occurred_at,
-    source_sequence, external_print_id, payload, reconciliation_state, connector_id, connector_assignment_id,
+INSERT INTO printer_events (id, source_id, event_key, fingerprint, protocol_version, machine_id, kind, occurred_at,
+    source_sequence, external_print_id, payload, connector_id, connector_assignment_id,
     observed_run_id, configuration_version, application_state, application_reason, report_revision)
-VALUES (sqlc.arg(id), sqlc.arg(source_id), sqlc.arg(event_key), sqlc.arg(fingerprint), sqlc.arg(protocol_version), sqlc.arg(machine_id), sqlc.narg(attempt_id),
+VALUES (sqlc.arg(id), sqlc.arg(source_id), sqlc.arg(event_key), sqlc.arg(fingerprint), sqlc.arg(protocol_version), sqlc.arg(machine_id),
     sqlc.arg(kind), sqlc.arg(occurred_at), sqlc.arg(source_sequence), sqlc.narg(external_print_id), sqlc.arg(payload),
-    sqlc.arg(reconciliation_state), sqlc.arg(connector_id), sqlc.arg(assignment_id), sqlc.narg(observed_run_id),
+    sqlc.arg(connector_id), sqlc.arg(assignment_id), sqlc.narg(observed_run_id),
     sqlc.arg(configuration_version), sqlc.arg(application_state), sqlc.narg(application_reason), sqlc.narg(report_revision)) RETURNING *;

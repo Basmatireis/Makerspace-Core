@@ -57,11 +57,8 @@ function jobFixture(overrides: Partial<MachineJob> = {}): MachineJob {
     startsAt: iso(-120),
     endsAt: iso(-30),
     durationSeconds: 5400,
-    source: 'manual',
     run: 'manual',
-    externalId: null,
     print: null,
-    reviewState: 'confirmed',
     customer,
     operator,
     outcome: 'successful',
@@ -370,7 +367,7 @@ describe('Job detail page', () => {
 
   it('shows the printer data of an automatic run and unlinks it', async () => {
     let unlinked: { expectedJobVersion: number } | undefined;
-    const linked = jobFixture({ run: 'automatic', source: 'automatic', print: { id: printId, displayId: 'PR-2026-000007', fileName: 'gearbox_housing_v3.gcode', state: 'finished', connectorName: 'Bambu LAN' } });
+    const linked = jobFixture({ run: 'automatic', print: { id: printId, displayId: 'PR-2026-000007', fileName: 'gearbox_housing_v3.gcode', state: 'finished', connectorName: 'Bambu LAN' } });
     server.use(
       as(PermissionId.machine_jobsread, PermissionId.machine_jobsedit),
       http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(linked)),

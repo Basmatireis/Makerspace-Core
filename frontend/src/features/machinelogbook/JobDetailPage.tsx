@@ -146,7 +146,7 @@ function JobDetail({ job }: { job: MachineJob }) {
             <div><dt>Operator</dt><dd>{job.operator?.displayName ?? '—'}</dd></div>
             <div><dt>Start</dt><dd>{formatDateTime(job.startsAt)}</dd></div>
             <div><dt>Runtime</dt><dd className="mj-cell-stack"><span>{formatDuration(job.durationSeconds)}</span><span className="mj-secondary">Ends {formatDateTime(job.endsAt)}</span></dd></div>
-            <div><dt>Source</dt><dd>{job.run === 'automatic' ? 'From printer' : 'Manual'}{job.externalId && <><br /><span className="mj-secondary">{job.externalId}</span></>}</dd></div>
+            <div><dt>Source</dt><dd>{job.run === 'automatic' ? 'From printer' : 'Manual'}</dd></div>
           </dl>
         </Tile>
         <Tile>
