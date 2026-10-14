@@ -376,12 +376,12 @@ export function ScheduleEditorPage({ canManage = true }: { canManage?: boolean }
           </RadioButtonGroup>
           {timeError && <InlineNotification kind="error" lowContrast hideCloseButton title="Open Day was not created" subtitle={timeError} />}
           {createMode === 'single' ? (
-            <DateInput id="create-open-day-date" labelText="Date" value={createDate} onChange={(date) => { setCreateDate(date); setTimeError(null); }} />
+            <DateInput id="create-open-day-date" labelText="Date" value={createDate} onChange={(date) => { setCreateTouched(true); setCreateDate(date); setTimeError(null); }} />
           ) : (
             <Stack gap={4}>
               <Select id="recurrence-weekday" labelText="Weekday" value={recurrence.weekday} onChange={(event) => { setRecurrence({ ...recurrence, weekday: Number(event.target.value) }); setPreview([]); }}>{['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map((name,index) => <SelectItem key={name} value={index+1} text={name} />)}</Select>
-              <DateInput id="recurrence-start" labelText="From" value={recurrence.startsOn} onChange={(startsOn) => { setRecurrence({ ...recurrence, startsOn }); setPreview([]); }} />
-              <DateInput id="recurrence-end" labelText="Until" value={recurrence.endsOn} onChange={(endsOn) => { setRecurrence({ ...recurrence, endsOn }); setPreview([]); }} />
+              <DateInput id="recurrence-start" labelText="From" value={recurrence.startsOn} onChange={(startsOn) => { setCreateTouched(true); setRecurrence({ ...recurrence, startsOn }); setPreview([]); }} />
+              <DateInput id="recurrence-end" labelText="Until" value={recurrence.endsOn} onChange={(endsOn) => { setCreateTouched(true); setRecurrence({ ...recurrence, endsOn }); setPreview([]); }} />
               <NumberInput id="recurrence-weeks" label="Every number of weeks" min={1} max={52} value={recurrence.everyWeeks} onChange={(_, value) => { setCreateTouched(true); setRecurrence({ ...recurrence, everyWeeks: Number(value.value) }); setPreview([]); }} />
               <Checkbox id="skip-holidays" labelText="Skip public holidays" checked={recurrence.skipPublicHolidays} onChange={(_, value) => { setRecurrence({ ...recurrence, skipPublicHolidays: value.checked }); setPreview([]); }} />
               <Checkbox id="skip-breaks" labelText="Skip academic breaks" checked={recurrence.skipAcademicBreaks} onChange={(_, value) => { setRecurrence({ ...recurrence, skipAcademicBreaks: value.checked }); setPreview([]); }} />

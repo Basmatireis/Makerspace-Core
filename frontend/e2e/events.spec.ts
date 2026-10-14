@@ -237,8 +237,9 @@ test('supports internal planning and staffing at desktop and narrow widths', asy
     expectedVersion: 1,
   });
   await page.getByRole('tab', { name: 'Staffing' }).click();
+  await page.getByRole('button', { name: 'Requirements for Setup' }).click();
   await page.getByRole('button', { name: 'Actions for Helper' }).click();
-  await page.getByRole('menuitem', { name: 'Edit' }).click();
+  await page.getByRole('menuitem', { name: 'Edit requirement' }).click();
   await expect(page.getByRole('heading', { name: 'Edit requirement' })).toBeVisible();
   await page.getByLabel('Required people').fill('3');
   await page.getByRole('button', { name: 'Save changes' }).click();
@@ -254,10 +255,15 @@ test('supports internal planning and staffing at desktop and narrow widths', asy
   await page.getByLabel('Mark Prepare exhibits complete').evaluate((checkbox: HTMLInputElement) => checkbox.click());
   await expect.poll(() => taskPatch).toEqual({ taskListId, title: 'Prepare exhibits', description: null, status: 'done', priority: 'high', assigneePersonId: null, dueAt: '2026-10-30T12:00:00Z', sortOrder: 0, expectedVersion: 1 });
   await page.getByRole('tab', { name: 'Staffing' }).click();
-  await expect(page.getByLabel('Helper staffing')).toBeVisible();
-  await expect(page.getByText('Grace Hopper')).toBeVisible();
+  await page.getByRole('button', { name: 'Requirements for Setup' }).click();
+  await page.getByRole('button', { name: 'Helper', exact: true }).click();
+  const requirementDetail = page.locator('.event-staffing__detail');
+  await expect(requirementDetail.getByLabel('Helper staffing')).toBeVisible();
+  await expect(requirementDetail.getByText('Grace Hopper')).toBeVisible();
   await page.getByRole('button', { name: 'Assign helper' }).click();
   await expect(page.getByLabel('Override a scheduling conflict (audited)')).toBeVisible();
+  await page.getByRole('dialog').filter({ hasText: 'Assign helper' }).getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByLabel('Override a scheduling conflict (audited)')).toHaveCount(0);
   await page.getByRole('tab', { name: 'Settings' }).click();
   await expect(page.getByText(/Before enabling signup, add a public shift in Schedule/)).toBeVisible();
   await page.locator('#event-banner-upload').setInputFiles({ name: 'banner.png', mimeType: 'image/png', buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64') });
@@ -272,13 +278,15 @@ test('supports internal planning and staffing at desktop and narrow widths', asy
   await page.getByRole('tab', { name: 'Staffing' }).click();
   await expect(page.getByRole('heading', { name: 'Discard unsaved changes?' })).toBeVisible();
   await page.getByRole('button', { name: 'Discard changes' }).click();
-  await expect(page.getByRole('heading', { name: 'Staffing' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Staffing' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('heading', { name: 'Shifts' })).toBeVisible();
   await expectAccessible(page);
 
   await expectNoHorizontalOverflow(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole('button', { name: 'Open navigation' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Staffing' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Staffing' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('heading', { name: 'Shifts' })).toBeVisible();
   await expectAccessible(page);
 });
 

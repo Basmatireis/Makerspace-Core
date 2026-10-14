@@ -134,6 +134,10 @@ test("persists Orders, payment carry-forward, anonymous checkout and wiRef recon
   await page
     .getByRole("button", { name: "Commit replacement and carry payments" })
     .click();
+  await page
+    .getByRole("alertdialog", { name: "Commit replacement order?" })
+    .getByRole("button", { name: "Commit replacement" })
+    .click();
   await expect(page.getByText(/Replaced by/)).toBeVisible();
   const next = await parse<Order>(
     await page.request.get(`${origin}/api/v1/orders/${nextId}`),
@@ -311,6 +315,10 @@ test("persists Orders, payment carry-forward, anonymous checkout and wiRef recon
     .getByRole("button", { name: "Request external correction" })
     .click();
   await page
+    .getByRole("alertdialog", { name: "Request an external correction?" })
+    .getByRole("button", { name: "Request correction" })
+    .click();
+  await page
     .getByLabel("External accounting procedure")
     .selectOption("credit_note");
   await page
@@ -318,6 +326,10 @@ test("persists Orders, payment carry-forward, anonymous checkout and wiRef recon
     .fill("credit-note-E2E");
   await page
     .getByRole("button", { name: "Record external reconciliation evidence" })
+    .click();
+  await page
+    .getByRole("alertdialog", { name: "Record external reconciliation?" })
+    .getByRole("button", { name: "Record reconciliation" })
     .click();
   await expect(
     page.getByText("Cancelled / externally reconciled", { exact: true }),
@@ -347,6 +359,10 @@ test("persists Orders, payment carry-forward, anonymous checkout and wiRef recon
     .getByLabel("Card/external correction reference")
     .fill("credit-note-E2E");
   await page.getByRole("button", { name: "Reverse all charges" }).click();
+  await page
+    .getByRole("alertdialog", { name: "Reverse all order charges?" })
+    .getByRole("button", { name: "Reverse charges" })
+    .click();
   await expect(page.getByText(/full reversal/)).toBeVisible();
   const reversed = await parse<Order>(
     await page.request.get(`${origin}/api/v1/orders/${externalOrder.id}`),

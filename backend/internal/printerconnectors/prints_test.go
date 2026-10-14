@@ -145,6 +145,18 @@ func (h *ingestHarness) sequenceValue() int64 {
 	return value
 }
 
+// burnedDisplayNumbers counts sequence values taken since before that did not
+// become a print. Other tests may create prints concurrently, so the sequence
+// itself only proves anything relative to the prints that exist.
+func (h *ingestHarness) burnedDisplayNumbers(before int64) int64 {
+	h.t.Helper()
+	var created int64
+	if err := h.pool.QueryRow(h.t.Context(), `SELECT count(*) FROM printer_observed_runs WHERE substring(display_id from '[0-9]+$')::bigint > $1`, before).Scan(&created); err != nil {
+		h.t.Fatal(err)
+	}
+	return h.sequenceValue() - before - created
+}
+
 // mountSpool creates a spool of a fresh filament material and mounts it in a new slot.
 func (h *ingestHarness) mountSpool(name string, externalSlot *string, mountedAt time.Time) uuid.UUID {
 	h.t.Helper()
@@ -184,8 +196,8 @@ func TestIngestRecordsPrintFacts(t *testing.T) {
 	before := h.sequenceValue()
 	h.accepted(runID, "operational_state", t0, `{"state":"printing","fileName":"  part.gcode  "}`)
 	created := h.run(runID)
-	if want := fmt.Sprintf("PR-%04d-", t0.Year()); !strings.HasPrefix(created.displayID, want) || h.sequenceValue() != before+1 {
-		t.Fatalf("display id %q sequence %d -> %d", created.displayID, before, h.sequenceValue())
+	if want := fmt.Sprintf("PR-%04d-", t0.Year()); !strings.HasPrefix(created.displayID, want) || h.burnedDisplayNumbers(before) != 0 {
+		t.Fatalf("display id %q: %d display numbers burned since %d", created.displayID, h.burnedDisplayNumbers(before), before)
 	}
 	if created.state != "printing" || created.started == nil || !created.started.Equal(t0) || created.fileName == nil || *created.fileName != "part.gcode" {
 		t.Fatalf("created run: %+v", created)
@@ -216,8 +228,8 @@ func TestIngestRecordsPrintFacts(t *testing.T) {
 	if again := h.run(runID); again.version != snapshot.version || *again.percent != *snapshot.percent || !again.estimatedEnd.Equal(*snapshot.estimatedEnd) {
 		t.Fatalf("duplicate changed the run: %+v -> %+v", snapshot, again)
 	}
-	if h.sequenceValue() != before+1 {
-		t.Fatalf("updates burned display numbers: %d -> %d", before, h.sequenceValue())
+	if burned := h.burnedDisplayNumbers(before); burned != 0 {
+		t.Fatalf("updates burned %d display numbers", burned)
 	}
 
 	// Reports resolve their spool and only a newer or equal revision replaces the current one.
@@ -249,8 +261,8 @@ func TestIngestRecordsPrintFacts(t *testing.T) {
 	if sticky := h.run(runID); sticky.state != "completed" || !sticky.ended.Equal(t0.Add(10*time.Minute)) {
 		t.Fatalf("terminal state moved: %+v", sticky)
 	}
-	if h.sequenceValue() != before+1 {
-		t.Fatalf("display numbers burned: %d -> %d", before, h.sequenceValue())
+	if burned := h.burnedDisplayNumbers(before); burned != 0 {
+		t.Fatalf("%d display numbers burned", burned)
 	}
 }
 

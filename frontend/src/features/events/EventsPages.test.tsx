@@ -42,6 +42,14 @@ const publicEvent = {
 
 afterEach(() => window.history.replaceState(null, '', '/'));
 
+// Carbon hides the label of a collapsed toolbar search with visibility:hidden. Browsers still use that native
+// label as the accessible name (see e2e/events.spec.ts), but jsdom drops it, so find the control by its label.
+async function findEventSearch() {
+  const search = await screen.findByLabelText('Search events', { selector: 'input' });
+  expect(screen.getByRole('searchbox')).toBe(search);
+  return search;
+}
+
 describe('Event pages', () => {
   it('shows actionable Event validation and stale-write messages', () => {
     expect(eventMutationMessage(new ApiError(422, {
@@ -76,8 +84,9 @@ describe('Event pages', () => {
     expect(screen.getByText('2 Nov 2026')).toBeInTheDocument();
     expect(screen.getByText('17:00–23:00')).toBeInTheDocument();
     expect(screen.getByText('2 / 4')).toBeInTheDocument();
-    expect(screen.getByLabelText('Events table toolbar')).toContainElement(screen.getByRole('searchbox', { name: 'Search events' }));
-    expect(screen.getByRole('button', { name: 'Filters' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Events table toolbar')).toContainElement(await findEventSearch());
+    // Icon-only Carbon buttons are named by a CSS-hidden tooltip, which jsdom ignores; use the label lookup.
+    expect(screen.getByLabelText('Filters', { selector: 'button' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create event' })).not.toBeInTheDocument();
   });
 
@@ -88,14 +97,14 @@ describe('Event pages', () => {
     );
     const user = userEvent.setup();
     const { router } = renderRoute(<App />, '/events');
-    const search = await screen.findByRole('searchbox', { name: 'Search events' });
+    const search = await findEventSearch();
     await user.type(search, 'Autumn');
     await user.click(screen.getByRole('button', { name: 'Create event' }));
     expect(await screen.findByRole('heading', { name: 'Create event' })).toBeInTheDocument();
-    expect(screen.getByRole('searchbox', { name: 'Search events' })).toHaveValue('Autumn');
+    expect(await findEventSearch()).toHaveValue('Autumn');
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/events'));
-    expect(screen.getByRole('searchbox', { name: 'Search events' })).toHaveValue('Autumn');
+    expect(await findEventSearch()).toHaveValue('Autumn');
     await waitFor(() => expect(screen.getByRole('button', { name: 'Create event' })).toHaveFocus());
   });
 
@@ -224,7 +233,8 @@ describe('Event pages', () => {
     expect(await screen.findByText('Your changes have not been saved.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Discard changes' }));
 
-    await user.click(await screen.findByRole('button', { name: 'Add requirement' }));
+    await user.click(await screen.findByLabelText('Actions for Setup', { selector: 'button' }));
+    await user.click(await screen.findByText('Add requirement', { exact: true }));
     await user.type(screen.getByLabelText('Name', { exact: true }), 'Welcome desk');
     await user.click(screen.getByRole('tab', { name: 'Files' }));
     expect(await screen.findByText('Your changes have not been saved.')).toBeInTheDocument();

@@ -38,8 +38,9 @@ describe('Event draft guards', () => {
     mockStaffing();
     const user = userEvent.setup();
     renderRoute(<EventStaffingPanel eventId={eventId} canStaff canAssign archived={false} />);
+    await user.click(await screen.findByRole('button', { name: 'Requirements for Setup' }));
     await user.click(await screen.findByRole('button', { name: 'Actions for Helper' }));
-    await user.click(await screen.findByText('Edit', { exact: true }));
+    await user.click(await screen.findByText('Edit requirement', { exact: true }));
     await user.click(screen.getByLabelText('Workshop helper'));
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(await screen.findByRole('alertdialog')).toHaveTextContent('Discard unsaved changes?');
@@ -50,21 +51,26 @@ describe('Event draft guards', () => {
     expect(screen.queryByRole('heading', { name: 'Edit requirement' })).not.toBeInTheDocument();
   });
 
-  it('protects requirement and assignment drafts when their toolbar toggles close them', async () => {
+  it('protects requirement and assignment drafts when their dialogs are cancelled', async () => {
     mockStaffing();
     const user = userEvent.setup();
     renderRoute(<EventStaffingPanel eventId={eventId} canStaff canAssign archived={false} />);
-    await user.click(await screen.findByRole('button', { name: 'Add requirement' }));
+    await user.click(await screen.findByRole('button', { name: 'Actions for Setup' }));
+    await user.click(await screen.findByText('Add requirement', { exact: true }));
     await user.type(screen.getByLabelText('Name', { exact: true }), 'Welcome desk');
-    await user.click(screen.getAllByRole('button', { name: 'Add requirement' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(await screen.findByRole('alertdialog')).toHaveTextContent('Discard unsaved changes?');
     await user.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByLabelText('Name', { exact: true })).toHaveValue('Welcome desk');
-    await user.click(screen.getAllByRole('button', { name: 'Add requirement' })[0]);
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
     await user.click(screen.getByRole('button', { name: 'Discard changes' }));
-    await user.click(screen.getByRole('button', { name: 'Assign helper' }));
+    expect(screen.queryByLabelText('Name', { exact: true })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Requirements for Setup' }));
+    await user.click(await screen.findByRole('button', { name: 'Helper' }));
+    await user.click(await screen.findByRole('button', { name: 'Assign helper' }));
     await user.type(screen.getByLabelText('First name'), 'Grace');
-    await user.click(screen.getByRole('button', { name: 'Assign helper' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(await screen.findByRole('alertdialog')).toHaveTextContent('Discard unsaved changes?');
     await user.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(screen.getByLabelText('First name')).toHaveValue('Grace');

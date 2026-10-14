@@ -654,7 +654,7 @@ test('protects a creation date chosen through the calendar picker', async ({ pag
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   const create = page.getByRole('dialog', { name: 'Create Open Day' });
   await create.getByLabel('Date', { exact: true }).click();
-  await page.locator('.flatpickr-calendar.open [aria-label="October 2, 2026"]').click();
+  await page.locator('.flatpickr-calendar.open [aria-label="Friday, October 2, 2026"]').click();
   await expect(create.getByLabel('Date', { exact: true })).toHaveValue('02.10.2026');
   await create.getByRole('button', { name: 'Cancel', exact: true }).click();
   const discard = page.getByRole('dialog', { name: 'Discard Open Day inputs?' });

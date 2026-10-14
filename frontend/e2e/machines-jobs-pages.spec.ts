@@ -309,6 +309,7 @@ test.describe('read-only role', () => {
   });
 
   test('every page of the area stays readable and passes axe', async ({ page, world }) => {
+    test.slow(); // six pages with a full axe scan each; ~20s alone, so it exceeds 30s when workers compete for CPU
     for (const path of [base, `${base}/jobs`, `${base}/jobs/${ids.jobSuccess}`, `${base}/machines`, `${base}/inventory`, `${base}/statistics`]) {
       await page.goto(path);
       await page.waitForLoadState('networkidle');
