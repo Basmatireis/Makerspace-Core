@@ -1,7 +1,10 @@
 import '@testing-library/jest-dom/vitest';
 import { afterAll, afterEach, beforeAll, vi } from 'vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { server } from './server';
+
+// Pages load lazily; slower CI runners need more than the 1 s default to settle.
+configure({ asyncUtilTimeout: 5000 });
 
 Element.prototype.scrollIntoView = vi.fn();
 
