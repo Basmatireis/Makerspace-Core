@@ -16,6 +16,7 @@ type Querier interface {
 	BeginCredentialRotation(ctx context.Context, connectorID uuid.UUID) error
 	BumpConnectorConfiguration(ctx context.Context, id uuid.UUID) (PrinterConnector, error)
 	BumpConnectorsOfMachine(ctx context.Context, machineID uuid.UUID) error
+	ClearConnectorEvents(ctx context.Context, arg ClearConnectorEventsParams) (PrinterConnector, error)
 	CompleteEnrollment(ctx context.Context, arg CompleteEnrollmentParams) (PrinterConnectorEnrollment, error)
 	CreateAssignment(ctx context.Context, arg CreateAssignmentParams) (PrinterConnectorAssignment, error)
 	CreateConnector(ctx context.Context, arg CreateConnectorParams) (PrinterConnector, error)
@@ -23,6 +24,7 @@ type Querier interface {
 	CreateEnrollment(ctx context.Context, arg CreateEnrollmentParams) (PrinterConnectorEnrollment, error)
 	CreateRotatedCredential(ctx context.Context, arg CreateRotatedCredentialParams) (PrinterConnectorCredential, error)
 	EndConnectorAssignments(ctx context.Context, connectorID uuid.UUID) error
+	GetAccountDisplayName(ctx context.Context, id uuid.UUID) (string, error)
 	GetActivePrinterLiveStatus(ctx context.Context, machineID uuid.UUID) (PrinterLiveStatus, error)
 	GetAssignment(ctx context.Context, arg GetAssignmentParams) (GetAssignmentRow, error)
 	GetAssignmentForIngress(ctx context.Context, arg GetAssignmentForIngressParams) (GetAssignmentForIngressRow, error)
@@ -40,7 +42,7 @@ type Querier interface {
 	InsertReportedUsageItem(ctx context.Context, arg InsertReportedUsageItemParams) error
 	ListActiveAssignments(ctx context.Context, connectorID uuid.UUID) ([]ListActiveAssignmentsRow, error)
 	ListConnectorAssignments(ctx context.Context, connectorID uuid.UUID) ([]ListConnectorAssignmentsRow, error)
-	ListConnectorEvents(ctx context.Context, connectorID *uuid.UUID) ([]ListConnectorEventsRow, error)
+	ListConnectorEvents(ctx context.Context, arg ListConnectorEventsParams) ([]ListConnectorEventsRow, error)
 	ListConnectors(ctx context.Context) ([]PrinterConnector, error)
 	ListNFCSpoolsAt(ctx context.Context, arg ListNFCSpoolsAtParams) ([]uuid.UUID, error)
 	ListObservedRuns(ctx context.Context, connectorID uuid.UUID) ([]ListObservedRunsRow, error)

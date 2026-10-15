@@ -103,6 +103,9 @@ type Querier interface {
 	InsertRunUsage(ctx context.Context, arg InsertRunUsageParams) (MachineRunUsage, error)
 	InsertSpoolInventoryTransaction(ctx context.Context, arg InsertSpoolInventoryTransactionParams) (InventoryTransaction, error)
 	InsertSpoolTransfer(ctx context.Context, arg InsertSpoolTransferParams) (InventoryTransaction, error)
+	// A job is on an order while an order item that was not removed references it
+	// or while it is claimed, whatever the state of the order.
+	JobIsOnOrder(ctx context.Context, jobID uuid.UUID) (bool, error)
 	ListActiveJobRunIDs(ctx context.Context, jobID *uuid.UUID) ([]uuid.UUID, error)
 	ListActiveRunUsagesForUpdate(ctx context.Context, runID uuid.UUID) ([]MachineRunUsage, error)
 	ListClosedFilamentSpoolFills(ctx context.Context, spoolID uuid.UUID) ([]ListClosedFilamentSpoolFillsRow, error)
@@ -151,6 +154,9 @@ type Querier interface {
 	SearchMachineJobOperators(ctx context.Context, arg SearchMachineJobOperatorsParams) ([]SearchMachineJobOperatorsRow, error)
 	SetMachineJobPriceAdjustment(ctx context.Context, arg SetMachineJobPriceAdjustmentParams) (MachineJob, error)
 	SetRecordedRunOutcomeFromMachine(ctx context.Context, id uuid.UUID) (MachineRun, error)
+	SoftDeleteMachineJob(ctx context.Context, arg SoftDeleteMachineJobParams) (MachineJob, error)
+	// A deleted run is detached from its job.
+	SoftDeleteMachineRun(ctx context.Context, arg SoftDeleteMachineRunParams) error
 	StatisticAcquisitionCost(ctx context.Context, arg StatisticAcquisitionCostParams) ([]StatisticAcquisitionCostRow, error)
 	StatisticAdjustmentLoss(ctx context.Context, arg StatisticAdjustmentLossParams) ([]StatisticAdjustmentLossRow, error)
 	StatisticCustomerCharges(ctx context.Context, arg StatisticCustomerChargesParams) ([]StatisticCustomerChargesRow, error)
@@ -163,6 +169,8 @@ type Querier interface {
 	StatisticMonths(ctx context.Context, arg StatisticMonthsParams) ([]StatisticMonthsRow, error)
 	StatisticPeriodTotals(ctx context.Context, arg StatisticPeriodTotalsParams) (StatisticPeriodTotalsRow, error)
 	StatisticRuntimePoints(ctx context.Context, arg StatisticRuntimePointsParams) ([]StatisticRuntimePointsRow, error)
+	// The net quantity and value the ledger holds for a run usage.
+	SumRunUsageLedger(ctx context.Context, runUsageID *uuid.UUID) (SumRunUsageLedgerRow, error)
 	TotalInventoryValue(ctx context.Context) (pgtype.Numeric, error)
 	UnmountFilamentSpool(ctx context.Context, arg UnmountFilamentSpoolParams) (int64, error)
 	UpdateFilamentProduct(ctx context.Context, arg UpdateFilamentProductParams) (uuid.UUID, error)

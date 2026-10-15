@@ -175,13 +175,19 @@ func formatRunDisplayID(sequence int64, observedAt time.Time) string {
 	return fmt.Sprintf("R-%04d-%06d", observedAt.UTC().Year(), sequence)
 }
 
+// errRunDeleted reports an observation of a run that staff deleted.
+var errRunDeleted = errors.New("run deleted")
+
 // recordObservedRun creates the recorded run on its first observation, which
 // is the only moment a run display ID is allocated, or applies the next
 // observation to the existing run. A run that belongs to another assignment or
 // machine is reported as pgx.ErrNoRows.
 func recordObservedRun(ctx context.Context, q *db.Queries, id, assignmentID, machineID uuid.UUID, vendorJobID *string, state string, historyComplete bool, observedAt time.Time) (db.MachineRun, error) {
 	observedAt = observedAt.UTC()
-	_, err := q.GetObservedRunForUpdate(ctx, id)
+	existing, err := q.GetObservedRunForUpdate(ctx, id)
+	if err == nil && existing.DeletedAt.Valid {
+		return existing, errRunDeleted
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		sequence, seqErr := q.NextPrintSequence(ctx)
 		if seqErr != nil {
@@ -196,6 +202,11 @@ func recordObservedRun(ctx context.Context, q *db.Queries, id, assignmentID, mac
 		return db.MachineRun{}, err
 	}
 	return q.UpdateObservedRun(ctx, db.UpdateObservedRunParams{ID: id, AssignmentID: &assignmentID, MachineID: machineID, VendorJobID: vendorJobID, State: state, HistoryComplete: historyComplete, ObservedAt: observedAt})
+}
+
+func timePtr(value time.Time) *time.Time {
+	value = value.UTC()
+	return &value
 }
 
 func timePointer(value pgtype.Timestamptz) *time.Time {

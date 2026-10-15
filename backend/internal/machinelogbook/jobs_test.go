@@ -424,66 +424,6 @@ func TestUpdateRunTimesAndPermissions(t *testing.T) {
 	}
 }
 
-func TestDeleteManualRun(t *testing.T) {
-	f := newJobFixture(t)
-	ctx := t.Context()
-	input := f.input(-10*time.Hour, time.Hour, "successful")
-	input.Usages = []UsageInput{{MaterialID: f.material.ID, Quantity: "50"}}
-	job := f.create(t, input)
-	if _, err := f.s.DeleteRun(ctx, f.p, job.Runs[0].ID, job.Runs[0].Version, &f.request); !apperror.IsCode(err, "job_needs_run") {
-		t.Fatalf("delete of the only run: %v", err)
-	}
-	// Two more runs: one with material, one without.
-	job = f.addRun(t, job, -8*time.Hour, time.Hour, outcomePtr("successful"), UsageInput{MaterialID: f.material.ID, Quantity: "20"})
-	job = f.addRun(t, job, -6*time.Hour, time.Hour, outcomePtr("failed"))
-	if len(job.Runs) != 3 || price(job.CalculatedPrice) != "37" {
-		t.Fatalf("three runs: %d price=%s", len(job.Runs), price(job.CalculatedPrice))
-	}
-	withoutUsage := job.Runs[2]
-	withUsage := job.Runs[1]
-
-	if _, err := f.s.DeleteRun(ctx, authorization.Principal{AccountID: f.p.AccountID}, withoutUsage.ID, withoutUsage.Version, &f.request); !apperror.IsCode(err, "permission_denied") {
-		t.Fatalf("delete without edit: %v", err)
-	}
-	if _, err := f.s.DeleteRun(ctx, f.p, withoutUsage.ID, withoutUsage.Version+1, &f.request); !apperror.IsCode(err, "stale_write") {
-		t.Fatalf("stale delete: %v", err)
-	}
-	// A run that never had material is deleted outright.
-	job, err := f.s.DeleteRun(ctx, f.p, withoutUsage.ID, withoutUsage.Version, &f.request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var exists bool
-	if err = f.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM machine_runs WHERE id = $1)`, withoutUsage.ID).Scan(&exists); err != nil || exists || len(job.Runs) != 2 || job.Outcome != "successful" {
-		t.Fatalf("deleted run: exists=%v runs=%d outcome=%s err=%v", exists, len(job.Runs), job.Outcome, err)
-	}
-	// A run with material keeps its ledger history: its material is reversed
-	// and the run stays with the state "replaced", out of the totals.
-	job, err = f.s.DeleteRun(ctx, f.p, withUsage.ID, withUsage.Version, &f.request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(job.Runs) != 2 || job.Runs[1].State != "replaced" || job.DurationSeconds != 3600 || len(job.Usages) != 1 || price(job.CalculatedPrice) != "15" {
-		t.Fatalf("replaced run: %+v", job)
-	}
-	if got := f.quantity(t, f.material.ID); got != decimalMinus("1000", "50") {
-		t.Fatalf("material quantity after removal = %s", got)
-	}
-	var compensations int
-	if err = f.pool.QueryRow(ctx, `SELECT count(*) FROM inventory_transactions WHERE material_id = $1 AND kind = 'adjustment' AND quantity_delta = 20`, f.material.ID).Scan(&compensations); err != nil || compensations != 1 {
-		t.Fatalf("compensating transactions = %d err=%v", compensations, err)
-	}
-	if _, err = f.s.DeleteRun(ctx, f.p, withUsage.ID, job.Runs[1].Version, &f.request); !apperror.IsCode(err, "run_replaced") {
-		t.Fatalf("second delete: %v", err)
-	}
-	if _, err = f.s.UpdateRun(ctx, f.p, withUsage.ID, job.Runs[1].Version, RunUpdate{Outcome: outcomePtr("failed")}, &f.request); !apperror.IsCode(err, "run_replaced") {
-		t.Fatalf("update of a replaced run: %v", err)
-	}
-	if _, err = f.s.DeleteRun(ctx, f.p, job.Runs[0].ID, job.Runs[0].Version, &f.request); !apperror.IsCode(err, "job_needs_run") {
-		t.Fatalf("delete of the last remaining run: %v", err)
-	}
-}
-
 func TestReplaceRunUsagesCompensatesInventory(t *testing.T) {
 	f := newJobFixture(t)
 	ctx := t.Context()

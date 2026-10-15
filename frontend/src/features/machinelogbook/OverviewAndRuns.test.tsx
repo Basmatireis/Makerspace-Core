@@ -336,4 +336,45 @@ describe('Run detail page', () => {
     expect(await screen.findByRole('link', { name: 'J-2026-000001' })).toBeInTheDocument();
     expect(document.querySelector('.cds--overflow-menu')).toBeNull();
   });
+
+  it('deletes a recorded run with machine_jobs.delete, asks about consumption and returns to the job', async () => {
+    auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsdelete];
+    const assigned = recordedRun({ job: { id: ids.job, displayId: 'J-2026-000001', title: 'Gearbox housing' }, usages: [usage({ spoolDisplayId: 'SP-0003' })], usagesFromMachine: true, version: 5 });
+    serveRun(assigned);
+    server.use(http.get(`*/api/v1/machine-jobs/${ids.job}`, () => HttpResponse.json(jobFixture({ runs: [manualRun(), assigned] }))));
+    let body: unknown;
+    server.use(http.delete(`*/api/v1/machine-runs/${ids.recordedRun}`, async ({ request }) => { body = await request.json(); return new HttpResponse(null, { status: 204 }); }));
+    const user = userEvent.setup();
+    renderRun();
+    await screen.findByRole('link', { name: /J-2026-000001 Gearbox housing/ });
+    await waitFor(() => expect(document.querySelector('.cds--overflow-menu')).not.toBeNull());
+    await user.click(document.querySelector('.cds--overflow-menu')!);
+    await user.click(await screen.findByText('Delete run'));
+    const dialog = await screen.findByRole('alertdialog');
+    const confirm = within(dialog).getByRole('button', { name: 'Delete run' });
+    expect(confirm).toBeDisabled();
+    await user.click(within(dialog).getByRole('radio', { name: /Reverse consumption \(183 g back to SP-0003\)/ }));
+    await user.click(confirm);
+    await waitFor(() => expect(body).toEqual({ expectedVersion: 5, reverseConsumption: true }));
+  });
+
+  it('hides Delete run for a recorded run without machine_jobs.delete', async () => {
+    auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit];
+    serveRun(recordedRun());
+    renderRun();
+    await screen.findByRole('heading', { name: /Gearbox housing v3/ });
+    expect(document.querySelector('.cds--overflow-menu')).toBeNull();
+  });
+
+  it('offers Delete run for a manual run with edit access', async () => {
+    auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit];
+    serveRun(recordedRun({ id: ids.manualRun, source: 'manual', job: { id: ids.job, displayId: 'J-2026-000001', title: null } }));
+    server.use(http.get(`*/api/v1/machine-jobs/${ids.job}`, () => HttpResponse.json(jobFixture())));
+    const user = userEvent.setup();
+    renderRun(ids.manualRun);
+    await waitFor(() => expect(document.querySelector('.cds--overflow-menu')).not.toBeNull());
+    await user.click(document.querySelector('.cds--overflow-menu')!);
+    expect(await screen.findByText('Delete run')).toBeInTheDocument();
+    expect(screen.queryByText('Detach from job')).not.toBeInTheDocument();
+  });
 });

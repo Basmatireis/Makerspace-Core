@@ -31,7 +31,8 @@ func TestAdministrationRequiresRegisteredPermissions(t *testing.T) {
 		{"create", func() error { _, err := service.Create(ctx, principal, "connector", nil, nil); return err }},
 		{"list", func() error { _, err := service.List(ctx, principal); return err }},
 		{"get", func() error { _, err := service.Get(ctx, principal, id); return err }},
-		{"list events", func() error { _, err := service.ListEvents(ctx, principal, id); return err }},
+		{"list events", func() error { _, err := service.ListEvents(ctx, principal, id, false); return err }},
+		{"clear events", func() error { _, err := service.ClearEvents(ctx, principal, id, nil); return err }},
 		{"update", func() error { _, err := service.Update(ctx, principal, id, "connector", nil, true, 1, nil); return err }},
 		{"enrollment", func() error { _, err := service.IssueEnrollment(ctx, principal, id, nil); return err }},
 		{"revoke", func() error { _, err := service.Revoke(ctx, principal, id, 1, nil); return err }},
@@ -143,7 +144,7 @@ func TestPrinterConnectorPostgresVerticalSlice(t *testing.T) {
 	if err != nil || receipts[0].Status != "accepted" {
 		t.Fatalf("second event receipts=%+v err=%v", receipts, err)
 	}
-	events, err := service.ListEvents(ctx, principal, connector.ID)
+	events, err := service.ListEvents(ctx, principal, connector.ID, false)
 	if err != nil || len(events) != 2 || events[0].AssignmentID != assignment.ID {
 		t.Fatalf("connector events=%+v err=%v", events, err)
 	}

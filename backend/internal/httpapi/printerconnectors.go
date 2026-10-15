@@ -19,7 +19,7 @@ func printerConnectorDTO(value printerconnectors.Connector) openapi.PrinterConne
 		ConfigurationRevision: value.ConfigurationRevision, AppliedConfigurationRevision: value.AppliedRevision,
 		SoftwareVersion: nullableString(value.SoftwareVersion), ProtocolVersion: nullableValue(value.ProtocolVersion),
 		HealthState: health, HealthSummary: nullableString(value.HealthSummary), PendingEventCount: value.PendingEventCount,
-		QuarantinedEventCount: value.QuarantinedEventCount, LastHeartbeatAt: nullableValue(value.LastHeartbeatAt),
+		QuarantinedEventCount: value.QuarantinedEventCount, EventsClearedAt: nullableValue(value.EventsClearedAt), EventsClearedByName: nullableString(value.EventsClearedByName), LastHeartbeatAt: nullableValue(value.LastHeartbeatAt),
 		EnrolledAt: nullableValue(value.EnrolledAt), DisabledAt: nullableValue(value.DisabledAt), RevokedAt: nullableValue(value.RevokedAt),
 		Version: value.Version, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
@@ -217,7 +217,7 @@ func (s *Server) ListPrinterConnectorEvents(ctx context.Context, request openapi
 	if err != nil {
 		return nil, err
 	}
-	items, err := s.printerConnectors.ListEvents(ctx, principal, request.PrinterConnectorId)
+	items, err := s.printerConnectors.ListEvents(ctx, principal, request.PrinterConnectorId, request.Params.IncludeCleared != nil && *request.Params.IncludeCleared)
 	if err != nil {
 		return nil, err
 	}
@@ -354,4 +354,16 @@ func (s *Server) ReportPrinterConnectorLiveStatus(ctx context.Context, request o
 		return nil, err
 	}
 	return openapi.ReportPrinterConnectorLiveStatus204Response{}, nil
+}
+
+func (s *Server) ClearPrinterConnectorEvents(ctx context.Context, request openapi.ClearPrinterConnectorEventsRequestObject) (openapi.ClearPrinterConnectorEventsResponseObject, error) {
+	principal, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	item, err := s.printerConnectors.ClearEvents(ctx, principal, request.PrinterConnectorId, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.ClearPrinterConnectorEvents200JSONResponse(printerConnectorDTO(item)), nil
 }

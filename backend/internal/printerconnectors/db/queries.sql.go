@@ -15,7 +15,7 @@ import (
 
 const activateConnector = `-- name: ActivateConnector :one
 UPDATE printer_connectors SET lifecycle='active', enrolled_at=COALESCE(enrolled_at, now()), version=version+1, updated_at=now()
-WHERE id=$1 AND lifecycle='pending' RETURNING id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at
+WHERE id=$1 AND lifecycle='pending' RETURNING id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, events_cleared_at, events_cleared_by
 `
 
 func (q *Queries) ActivateConnector(ctx context.Context, id uuid.UUID) (PrinterConnector, error) {
@@ -41,12 +41,14 @@ func (q *Queries) ActivateConnector(ctx context.Context, id uuid.UUID) (PrinterC
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EventsClearedAt,
+		&i.EventsClearedBy,
 	)
 	return i, err
 }
 
 const authenticateConnector = `-- name: AuthenticateConnector :one
-SELECT c.id, c.name, c.location_label, c.lifecycle, c.configuration_revision, c.applied_configuration_revision, c.software_version, c.protocol_version, c.health_state, c.health_summary, c.pending_event_count, c.quarantined_event_count, c.last_heartbeat_at, c.enrolled_at, c.disabled_at, c.revoked_at, c.version, c.created_at, c.updated_at, cr.id AS credential_id
+SELECT c.id, c.name, c.location_label, c.lifecycle, c.configuration_revision, c.applied_configuration_revision, c.software_version, c.protocol_version, c.health_state, c.health_summary, c.pending_event_count, c.quarantined_event_count, c.last_heartbeat_at, c.enrolled_at, c.disabled_at, c.revoked_at, c.version, c.created_at, c.updated_at, c.events_cleared_at, c.events_cleared_by, cr.id AS credential_id
 FROM printer_connector_credentials cr JOIN printer_connectors c ON c.id=cr.connector_id
 WHERE cr.token_digest=$1 AND cr.state IN ('current','retiring')
   AND cr.expires_at > now() AND (cr.retire_after IS NULL OR cr.retire_after > now())
@@ -73,6 +75,8 @@ type AuthenticateConnectorRow struct {
 	Version                      int64
 	CreatedAt                    time.Time
 	UpdatedAt                    time.Time
+	EventsClearedAt              pgtype.Timestamptz
+	EventsClearedBy              *uuid.UUID
 	CredentialID                 uuid.UUID
 }
 
@@ -99,6 +103,8 @@ func (q *Queries) AuthenticateConnector(ctx context.Context, tokenDigest []byte)
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EventsClearedAt,
+		&i.EventsClearedBy,
 		&i.CredentialID,
 	)
 	return i, err
@@ -116,7 +122,7 @@ func (q *Queries) BeginCredentialRotation(ctx context.Context, connectorID uuid.
 
 const bumpConnectorConfiguration = `-- name: BumpConnectorConfiguration :one
 UPDATE printer_connectors SET configuration_revision=configuration_revision+1, version=version+1, updated_at=now()
-WHERE id=$1 RETURNING id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at
+WHERE id=$1 RETURNING id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, events_cleared_at, events_cleared_by
 `
 
 func (q *Queries) BumpConnectorConfiguration(ctx context.Context, id uuid.UUID) (PrinterConnector, error) {
@@ -142,6 +148,8 @@ func (q *Queries) BumpConnectorConfiguration(ctx context.Context, id uuid.UUID) 
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EventsClearedAt,
+		&i.EventsClearedBy,
 	)
 	return i, err
 }
@@ -154,6 +162,46 @@ WHERE id IN (SELECT connector_id FROM printer_connector_assignments WHERE machin
 func (q *Queries) BumpConnectorsOfMachine(ctx context.Context, machineID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, bumpConnectorsOfMachine, machineID)
 	return err
+}
+
+const clearConnectorEvents = `-- name: ClearConnectorEvents :one
+UPDATE printer_connectors SET events_cleared_at=$1, events_cleared_by=$2
+WHERE id=$3 RETURNING id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, events_cleared_at, events_cleared_by
+`
+
+type ClearConnectorEventsParams struct {
+	ClearedAt pgtype.Timestamptz
+	ClearedBy *uuid.UUID
+	ID        uuid.UUID
+}
+
+func (q *Queries) ClearConnectorEvents(ctx context.Context, arg ClearConnectorEventsParams) (PrinterConnector, error) {
+	row := q.db.QueryRow(ctx, clearConnectorEvents, arg.ClearedAt, arg.ClearedBy, arg.ID)
+	var i PrinterConnector
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.LocationLabel,
+		&i.Lifecycle,
+		&i.ConfigurationRevision,
+		&i.AppliedConfigurationRevision,
+		&i.SoftwareVersion,
+		&i.ProtocolVersion,
+		&i.HealthState,
+		&i.HealthSummary,
+		&i.PendingEventCount,
+		&i.QuarantinedEventCount,
+		&i.LastHeartbeatAt,
+		&i.EnrolledAt,
+		&i.DisabledAt,
+		&i.RevokedAt,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.EventsClearedAt,
+		&i.EventsClearedBy,
+	)
+	return i, err
 }
 
 const completeEnrollment = `-- name: CompleteEnrollment :one
@@ -239,7 +287,7 @@ func (q *Queries) CreateAssignment(ctx context.Context, arg CreateAssignmentPara
 
 const createConnector = `-- name: CreateConnector :one
 INSERT INTO printer_connectors (id, name, location_label)
-VALUES ($1, $2, $3) RETURNING id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at
+VALUES ($1, $2, $3) RETURNING id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, events_cleared_at, events_cleared_by
 `
 
 type CreateConnectorParams struct {
@@ -271,6 +319,8 @@ func (q *Queries) CreateConnector(ctx context.Context, arg CreateConnectorParams
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EventsClearedAt,
+		&i.EventsClearedBy,
 	)
 	return i, err
 }
@@ -388,6 +438,18 @@ WHERE connector_id=$1 AND ended_at IS NULL
 func (q *Queries) EndConnectorAssignments(ctx context.Context, connectorID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, endConnectorAssignments, connectorID)
 	return err
+}
+
+const getAccountDisplayName = `-- name: GetAccountDisplayName :one
+SELECT btrim(p.first_name || ' ' || p.last_name)::text AS display_name
+FROM accounts a JOIN people p ON p.id=a.person_id WHERE a.id=$1
+`
+
+func (q *Queries) GetAccountDisplayName(ctx context.Context, id uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getAccountDisplayName, id)
+	var display_name string
+	err := row.Scan(&display_name)
+	return display_name, err
 }
 
 const getActivePrinterLiveStatus = `-- name: GetActivePrinterLiveStatus :one
@@ -595,7 +657,7 @@ func (q *Queries) GetAssignmentForUpdate(ctx context.Context, arg GetAssignmentF
 }
 
 const getConnector = `-- name: GetConnector :one
-SELECT id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at FROM printer_connectors WHERE id=$1
+SELECT id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, events_cleared_at, events_cleared_by FROM printer_connectors WHERE id=$1
 `
 
 func (q *Queries) GetConnector(ctx context.Context, id uuid.UUID) (PrinterConnector, error) {
@@ -621,6 +683,8 @@ func (q *Queries) GetConnector(ctx context.Context, id uuid.UUID) (PrinterConnec
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EventsClearedAt,
+		&i.EventsClearedBy,
 	)
 	return i, err
 }
@@ -724,7 +788,7 @@ func (q *Queries) GetConnectorEventBySequence(ctx context.Context, arg GetConnec
 }
 
 const getConnectorForUpdate = `-- name: GetConnectorForUpdate :one
-SELECT id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at FROM printer_connectors WHERE id=$1 FOR UPDATE
+SELECT id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, events_cleared_at, events_cleared_by FROM printer_connectors WHERE id=$1 FOR UPDATE
 `
 
 func (q *Queries) GetConnectorForUpdate(ctx context.Context, id uuid.UUID) (PrinterConnector, error) {
@@ -750,6 +814,8 @@ func (q *Queries) GetConnectorForUpdate(ctx context.Context, id uuid.UUID) (Prin
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EventsClearedAt,
+		&i.EventsClearedBy,
 	)
 	return i, err
 }
@@ -777,7 +843,7 @@ func (q *Queries) GetEnrollmentByDigestForUpdate(ctx context.Context, tokenDiges
 }
 
 const getObservedRunForUpdate = `-- name: GetObservedRunForUpdate :one
-SELECT id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id FROM machine_runs WHERE id=$1 AND source='recorded' FOR UPDATE
+SELECT id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by FROM machine_runs WHERE id=$1 AND source='recorded' FOR UPDATE
 `
 
 func (q *Queries) GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (MachineRun, error) {
@@ -809,6 +875,8 @@ func (q *Queries) GetObservedRunForUpdate(ctx context.Context, id uuid.UUID) (Ma
 		&i.JobID,
 		&i.Outcome,
 		&i.ArtifactID,
+		&i.DeletedAt,
+		&i.DeletedBy,
 	)
 	return i, err
 }
@@ -894,7 +962,7 @@ const insertObservedRun = `-- name: InsertObservedRun :one
 INSERT INTO machine_runs (id, display_id, source, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at)
 VALUES ($1, $2, 'recorded', $3, $4, $5, $6, $7, $8, $8)
 ON CONFLICT (id) DO NOTHING
-RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id
+RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by
 `
 
 type InsertObservedRunParams struct {
@@ -946,6 +1014,8 @@ func (q *Queries) InsertObservedRun(ctx context.Context, arg InsertObservedRunPa
 		&i.JobID,
 		&i.Outcome,
 		&i.ArtifactID,
+		&i.DeletedAt,
+		&i.DeletedBy,
 	)
 	return i, err
 }
@@ -1150,8 +1220,14 @@ SELECT id, machine_id, connector_assignment_id, kind, occurred_at, received_at,
     application_state, application_reason, payload
 FROM printer_events
 WHERE connector_id=$1
+  AND ($2::boolean OR received_at > COALESCE((SELECT c.events_cleared_at FROM printer_connectors c WHERE c.id=$1), '-infinity'::timestamptz))
 ORDER BY received_at DESC, id DESC LIMIT 100
 `
+
+type ListConnectorEventsParams struct {
+	ConnectorID    *uuid.UUID
+	IncludeCleared bool
+}
 
 type ListConnectorEventsRow struct {
 	ID                    uuid.UUID
@@ -1165,8 +1241,8 @@ type ListConnectorEventsRow struct {
 	Payload               []byte
 }
 
-func (q *Queries) ListConnectorEvents(ctx context.Context, connectorID *uuid.UUID) ([]ListConnectorEventsRow, error) {
-	rows, err := q.db.Query(ctx, listConnectorEvents, connectorID)
+func (q *Queries) ListConnectorEvents(ctx context.Context, arg ListConnectorEventsParams) ([]ListConnectorEventsRow, error) {
+	rows, err := q.db.Query(ctx, listConnectorEvents, arg.ConnectorID, arg.IncludeCleared)
 	if err != nil {
 		return nil, err
 	}
@@ -1196,7 +1272,7 @@ func (q *Queries) ListConnectorEvents(ctx context.Context, connectorID *uuid.UUI
 }
 
 const listConnectors = `-- name: ListConnectors :many
-SELECT id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at FROM printer_connectors ORDER BY lower(name), id
+SELECT id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, events_cleared_at, events_cleared_by FROM printer_connectors ORDER BY lower(name), id
 `
 
 func (q *Queries) ListConnectors(ctx context.Context) ([]PrinterConnector, error) {
@@ -1228,6 +1304,8 @@ func (q *Queries) ListConnectors(ctx context.Context) ([]PrinterConnector, error
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.EventsClearedAt,
+			&i.EventsClearedBy,
 		); err != nil {
 			return nil, err
 		}
@@ -1273,9 +1351,9 @@ func (q *Queries) ListNFCSpoolsAt(ctx context.Context, arg ListNFCSpoolsAtParams
 }
 
 const listObservedRuns = `-- name: ListObservedRuns :many
-SELECT r.id, r.assignment_id, r.machine_id, r.vendor_job_id, r.state, r.history_complete, r.first_observed_at, r.last_observed_at, r.version, r.created_at, r.updated_at, r.display_id, r.file_name, r.started_at, r.ended_at, r.estimated_end_at, r.progress_percent, r.reported_quantity_g, r.reported_quantity_basis, r.reported_spool_id, r.reported_event_id, r.source, r.job_id, r.outcome, r.artifact_id, m.name AS machine_name
+SELECT r.id, r.assignment_id, r.machine_id, r.vendor_job_id, r.state, r.history_complete, r.first_observed_at, r.last_observed_at, r.version, r.created_at, r.updated_at, r.display_id, r.file_name, r.started_at, r.ended_at, r.estimated_end_at, r.progress_percent, r.reported_quantity_g, r.reported_quantity_basis, r.reported_spool_id, r.reported_event_id, r.source, r.job_id, r.outcome, r.artifact_id, r.deleted_at, r.deleted_by, m.name AS machine_name
 FROM machine_runs r JOIN machines m ON m.id=r.machine_id
-WHERE r.assignment_id IN (SELECT id FROM printer_connector_assignments WHERE connector_id=$1)
+WHERE r.deleted_at IS NULL AND r.assignment_id IN (SELECT id FROM printer_connector_assignments WHERE connector_id=$1)
 ORDER BY r.last_observed_at DESC, r.id DESC LIMIT 100
 `
 
@@ -1305,6 +1383,8 @@ type ListObservedRunsRow struct {
 	JobID                 *uuid.UUID
 	Outcome               *string
 	ArtifactID            *uuid.UUID
+	DeletedAt             pgtype.Timestamptz
+	DeletedBy             *uuid.UUID
 	MachineName           string
 }
 
@@ -1343,6 +1423,8 @@ func (q *Queries) ListObservedRuns(ctx context.Context, connectorID uuid.UUID) (
 			&i.JobID,
 			&i.Outcome,
 			&i.ArtifactID,
+			&i.DeletedAt,
+			&i.DeletedBy,
 			&i.MachineName,
 		); err != nil {
 			return nil, err
@@ -1413,7 +1495,7 @@ UPDATE printer_connectors SET last_heartbeat_at=now(), software_version=$1,
     protocol_version=$2, applied_configuration_revision=$3,
     health_state=$4, health_summary=$5,
     pending_event_count=$6, quarantined_event_count=$7, updated_at=now()
-WHERE id=$8 AND lifecycle='active' RETURNING id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at
+WHERE id=$8 AND lifecycle='active' RETURNING id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, events_cleared_at, events_cleared_by
 `
 
 type RecordHeartbeatParams struct {
@@ -1459,6 +1541,8 @@ func (q *Queries) RecordHeartbeat(ctx context.Context, arg RecordHeartbeatParams
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EventsClearedAt,
+		&i.EventsClearedBy,
 	)
 	return i, err
 }
@@ -1491,7 +1575,7 @@ func (q *Queries) ResolvePrinterErrorOccurrence(ctx context.Context, arg Resolve
 const revokeConnector = `-- name: RevokeConnector :one
 UPDATE printer_connectors SET lifecycle='revoked', revoked_at=now(), disabled_at=NULL,
     configuration_revision=configuration_revision+1, version=version+1, updated_at=now()
-WHERE id=$1 AND version=$2 AND lifecycle <> 'revoked' RETURNING id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at
+WHERE id=$1 AND version=$2 AND lifecycle <> 'revoked' RETURNING id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, events_cleared_at, events_cleared_by
 `
 
 type RevokeConnectorParams struct {
@@ -1522,6 +1606,8 @@ func (q *Queries) RevokeConnector(ctx context.Context, arg RevokeConnectorParams
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EventsClearedAt,
+		&i.EventsClearedBy,
 	)
 	return i, err
 }
@@ -1684,7 +1770,7 @@ const updateConnector = `-- name: UpdateConnector :one
 UPDATE printer_connectors SET name=$1, location_label=$2,
     configuration_revision=configuration_revision + CASE WHEN lifecycle <> $3 THEN 1 ELSE 0 END,
     lifecycle=$3, disabled_at=$4, version=version+1, updated_at=now()
-WHERE id=$5 AND version=$6 RETURNING id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at
+WHERE id=$5 AND version=$6 RETURNING id, name, location_label, lifecycle, configuration_revision, applied_configuration_revision, software_version, protocol_version, health_state, health_summary, pending_event_count, quarantined_event_count, last_heartbeat_at, enrolled_at, disabled_at, revoked_at, version, created_at, updated_at, events_cleared_at, events_cleared_by
 `
 
 type UpdateConnectorParams struct {
@@ -1726,6 +1812,8 @@ func (q *Queries) UpdateConnector(ctx context.Context, arg UpdateConnectorParams
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EventsClearedAt,
+		&i.EventsClearedBy,
 	)
 	return i, err
 }
@@ -1749,7 +1837,7 @@ UPDATE machine_runs SET
         ELSE updated_at
     END
 WHERE id=$5 AND assignment_id=$6 AND machine_id=$7
-RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id
+RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by
 `
 
 type UpdateObservedRunParams struct {
@@ -1799,6 +1887,8 @@ func (q *Queries) UpdateObservedRun(ctx context.Context, arg UpdateObservedRunPa
 		&i.JobID,
 		&i.Outcome,
 		&i.ArtifactID,
+		&i.DeletedAt,
+		&i.DeletedBy,
 	)
 	return i, err
 }

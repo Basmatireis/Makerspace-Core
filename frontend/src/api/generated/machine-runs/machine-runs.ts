@@ -22,6 +22,7 @@ import type {
   AddManualMachineRunRequest,
   AttachMachineRunRequest,
   CreateMachineJobFromRunRequest,
+  DeleteMachineRunRequest,
   DetachMachineRunRequest,
   ListMachineRunsParams,
   MachineJob,
@@ -123,7 +124,8 @@ export const updateMachineRun = async (runId: UUIDv7,
 
 
 /**
- * @summary Remove a manual run from its job (the job keeps at least one run)
+ * Deleting a manual run needs machine_jobs.edit or machine_jobs.delete; deleting a recorded run needs machine_jobs.delete. The run is tombstoned and disappears from every list, statistic and total; its display ID is never reused. A run that is the only remaining run of its job cannot be deleted (409 last_run); delete the job instead. A running recorded run may be deleted; later machine reports for it are ignored. With reverseConsumption the material the run consumed is restored to inventory with compensating ledger entries, otherwise the ledger is left untouched. The response is always empty; clients refetch the job.
+ * @summary Delete a run, manual or recorded
  */
 export const getDeleteMachineRunUrl = (runId: UUIDv7,) => {
 
@@ -134,15 +136,15 @@ export const getDeleteMachineRunUrl = (runId: UUIDv7,) => {
 }
 
 export const deleteMachineRun = async (runId: UUIDv7,
-    versionRequest: VersionRequest, options?: RequestInit): Promise<MachineJob> => {
+    deleteMachineRunRequest: DeleteMachineRunRequest, options?: RequestInit): Promise<void> => {
 
-  return apiFetch<MachineJob>(getDeleteMachineRunUrl(runId),
+  return apiFetch<void>(getDeleteMachineRunUrl(runId),
   {
     ...options,
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
-      versionRequest,)
+      deleteMachineRunRequest,)
   }
 );}
 

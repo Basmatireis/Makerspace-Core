@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Button, ComboBox, Link as CarbonLink, MultiSelect } from '@carbon/react';
+import { Button, ComboBox, Link as CarbonLink, MultiSelect, OverflowMenu, OverflowMenuItem } from '@carbon/react';
 import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { listMachineLogbookWorkItems } from '../../api/generated/machine-logbook/machine-logbook';
@@ -9,6 +9,7 @@ import { DateInput } from '../../app/DateInput';
 import { PageShell } from '../../app/PageShell';
 import { useCurrentUser } from '../auth/auth';
 import { canLookupJobParties } from '../auth/permissions';
+import { DeleteRunModal } from './dialogs/DeleteDialogs';
 import { JobFormModal } from './dialogs/JobFormModal';
 import { matchesName } from './dialogs/jobFormHelpers';
 import { billingPartySearchQuery, machineLogbookKeys, machinesQuery, materialsQuery, operatorSearchQuery } from './queries';
@@ -31,6 +32,20 @@ const sourceIds = sourceOptions.map((option) => option.id);
 const nonEmpty = <T extends string>(items: T[]) => (items.length ? items : undefined);
 
 type Person = { id: string; displayName: string };
+
+/** Row menu of an unassigned run; jobs are deleted from their own page. */
+function UnassignedRunActions({ item }: { item: WorkItem }) {
+  const [open, setOpen] = useState(false);
+  if (item.kind !== 'run') return null;
+  return (
+    <>
+      <OverflowMenu aria-label={`Actions for ${item.displayId}`} iconDescription={`Actions for ${item.displayId}`} flipped size="sm">
+        <OverflowMenuItem itemText="Delete run" isDelete onClick={() => setOpen(true)} />
+      </OverflowMenu>
+      <DeleteRunModal open={open} onClose={() => setOpen(false)} runId={item.id} />
+    </>
+  );
+}
 
 const columns: Column<WorkItem>[] = [
   {
@@ -58,6 +73,8 @@ const columns: Column<WorkItem>[] = [
   { key: 'startedAt', header: 'Started', sortValue: () => 0, firstDirection: 'DESC', narrow: true, render: (item) => formatDateTime(item.startedAt) },
   { key: 'price', header: 'Price', sortValue: () => 0, firstDirection: 'DESC', render: (item) => formatMoney(item.effectivePrice) },
 ];
+
+const actionsColumn: Column<WorkItem> = { key: 'actions', header: 'Actions', render: (item) => <UnassignedRunActions item={item} /> };
 
 function JobsFilters({ rows }: { rows: WorkItem[] }) {
   const url = useUrlState('');
@@ -119,6 +136,7 @@ export function JobsPage() {
   const { url } = table;
   const [jobOpen, setJobOpen] = useState(false);
   const canCreate = can('machine_jobs.create');
+  const canDelete = can('machine_jobs.delete');
   const hasActiveFilters = FILTER_KEYS.some((key) => url.get(key));
 
   const sortKey = (SORT_KEYS.includes(table.sort.key) ? table.sort.key : 'startedAt') as ListMachineLogbookWorkItemsSort;
@@ -154,7 +172,7 @@ export function JobsPage() {
       <QueryBoundary query={query} errorMessage="Jobs could not be loaded.">
         {(page) => (
           <DirectoryTable
-            mode="server" id="jobs" urlPrefix="" label="Jobs" columns={columns} rows={page.items} total={page.total}
+            mode="server" id="jobs" urlPrefix="" label="Jobs" columns={canDelete ? [...columns, actionsColumn] : columns} rows={page.items} total={page.total}
             sort={{ key: sortKey, direction: table.sort.direction }} onSortChange={table.setSort}
             toolbarClassName="mj-jobs-table-toolbar"
             filterFields={<JobsFilters rows={page.items} />}

@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,6 +56,18 @@ func TestSpoolFillsMigrationKeepsStockAndHistory(t *testing.T) {
 	}
 
 	applyMigrationFiles(t, schemaPool, paths[37:])
+	// The queries below read the current schema, so the newer migrations apply too.
+	later, globErr := filepath.Glob(filepath.Join(filepath.Dir(paths[0]), "*.sql"))
+	if globErr != nil {
+		t.Fatal(globErr)
+	}
+	var newer []string
+	for _, path := range later {
+		if filepath.Base(path) > "00041_"+strings.Repeat("z", 200) {
+			newer = append(newer, path)
+		}
+	}
+	applyMigrationFiles(t, schemaPool, newer)
 
 	assertCount(t, schemaPool, `SELECT count(*) FROM filament_spool_fills WHERE fill_number = 1 AND closed_at IS NULL`, 2)
 	assertCount(t, schemaPool, `SELECT count(*) FROM inventory_transactions WHERE fill_id IS NOT NULL AND spool_display_id = 'S-2030-000001' AND fill_number = 1`, 1)

@@ -56,11 +56,10 @@ func (s *Server) DeleteMachineRun(ctx context.Context, r openapi.DeleteMachineRu
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.DeleteRun(ctx, p, r.RunId, r.Body.ExpectedVersion, requestIDPointer(ctx))
-	if err != nil {
+	if err := s.machineLogbook.DeleteRun(ctx, p, r.RunId, r.Body.ExpectedVersion, r.Body.ReverseConsumption, requestIDPointer(ctx)); err != nil {
 		return nil, err
 	}
-	return openapi.DeleteMachineRun200JSONResponse(mlJobDTO(item)), nil
+	return openapi.DeleteMachineRun204Response{}, nil
 }
 
 func (s *Server) ReplaceMachineRunUsages(ctx context.Context, r openapi.ReplaceMachineRunUsagesRequestObject) (openapi.ReplaceMachineRunUsagesResponseObject, error) {

@@ -86,6 +86,7 @@ const presentation: Partial<Record<PermissionId, PermissionPresentation>> = {
   'machine_jobs.create': { group: 'Machines', label: 'Create jobs' },
   'machine_jobs.edit': { group: 'Machines', label: 'Edit jobs and billing' },
   'machine_jobs.override_price': { group: 'Machines', label: 'Override job prices' },
+  'machine_jobs.delete': { group: 'Machines', label: 'Delete jobs and runs' },
   'inventory.read': { group: 'Machines', label: 'View inventory' },
   'inventory.manage': { group: 'Machines', label: 'Manage inventory transactions' },
   'organizations.read': { group: 'Machines', label: 'View billing organizations' },

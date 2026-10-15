@@ -2,13 +2,14 @@ import { useState } from 'react';
 import { Accordion, AccordionItem, Button, InlineNotification, Link as CarbonLink, OverflowMenu, OverflowMenuItem, ProgressBar, Tile } from '@carbon/react';
 import { Add, Link as LinkIcon } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { detachMachineRun } from '../../api/generated/machine-runs/machine-runs';
 import type { MachineRunEvent } from '../../api/generated/models';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
 import { PermissionId } from '../auth/permissions';
+import { DeleteJobModal, DeleteRunModal } from './dialogs/DeleteDialogs';
 import { AttachToJobModal } from './dialogs/AttachToJobModal';
 import { JobFormModal } from './dialogs/JobFormModal';
 import { saveError } from './dialogs/jobFormHelpers';
@@ -48,13 +49,16 @@ export function RunDetailPage() {
   const query = useQuery(runQuery(runId));
   const run = query.data;
   const artifact = useQuery({ ...artifactQuery(run?.artifact?.id ?? ''), enabled: Boolean(run?.artifact?.id) && can(PermissionId.print_artifactsread) });
-  const [dialog, setDialog] = useState<'create' | 'attach' | 'detach' | null>(null);
+  const navigate = useNavigate();
+  const [dialog, setDialog] = useState<'create' | 'attach' | 'detach' | 'delete' | 'delete-job' | null>(null);
   const close = () => setDialog(null);
 
   const canReadJobs = can(PermissionId.machine_jobsread);
   const canCreate = can(PermissionId.machine_jobscreate);
   const canEdit = can(PermissionId.machine_jobsedit);
   const canAttach = canEdit && canReadJobs;
+  const canDeleteJob = can(PermissionId.machine_jobsdelete);
+  const canDelete = run !== undefined && (canDeleteJob || (run.source === 'manual' && canEdit));
 
   const jobRef = run?.job ?? null;
   const jobResult = useQuery({ ...jobQuery(jobRef?.id ?? ''), enabled: jobRef !== null && canReadJobs });
@@ -83,9 +87,10 @@ export function RunDetailPage() {
 
   const actions = run ? (
     <>
-      {!unassigned && canEdit && job !== undefined && run.source === 'recorded' && (
+      {((!unassigned && canEdit && job !== undefined && run.source === 'recorded') || canDelete) && (
         <OverflowMenu aria-label="More run actions" iconDescription="More run actions" flipped>
-          <OverflowMenuItem itemText="Detach from job" isDelete onClick={() => { detach.reset(); setDialog('detach'); }} />
+          {!unassigned && canEdit && job !== undefined && run.source === 'recorded' && <OverflowMenuItem itemText="Detach from job" isDelete onClick={() => { detach.reset(); setDialog('detach'); }} />}
+          {canDelete && <OverflowMenuItem itemText="Delete run" isDelete hasDivider onClick={() => setDialog('delete')} />}
         </OverflowMenu>
       )}
       {unassigned && canAttach && <Button kind="tertiary" renderIcon={LinkIcon} onClick={() => setDialog('attach')}>Attach to job</Button>}
@@ -209,6 +214,15 @@ export function RunDetailPage() {
           {onlyRun && ` Because it is the only run, ${jobName} gets a manual run with the same start, end and outcome, but without material.`}
         </p>
       </DestructiveActionDialog>
+
+      {run && canDelete && (
+        <DeleteRunModal
+          open={dialog === 'delete'} onClose={close} run={run} runId={run.id} job={job}
+          onDeleteJob={canDeleteJob && job ? () => setDialog('delete-job') : undefined}
+          onDeleted={() => navigate(jobRef && !onlyRun && canReadJobs ? machineLogbookPaths.job(jobRef.id) : machineLogbookPaths.jobs())}
+        />
+      )}
+      {job && canDeleteJob && <DeleteJobModal open={dialog === 'delete-job'} onClose={close} job={job} />}
 
       {run && canAttach && <AttachToJobModal open={dialog === 'attach'} onClose={close} run={run} />}
       {run && canCreate && dialog === 'create' && (

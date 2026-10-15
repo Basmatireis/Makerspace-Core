@@ -483,6 +483,8 @@ type MachineJob struct {
 	EffectivePrice           pgtype.Numeric
 	OutcomeOverride          *string
 	ArtifactID               *uuid.UUID
+	DeletedAt                pgtype.Timestamptz
+	DeletedBy                *uuid.UUID
 }
 
 type MachineJobPricingSnapshot struct {
@@ -548,6 +550,8 @@ type MachineRun struct {
 	JobID                 *uuid.UUID
 	Outcome               *string
 	ArtifactID            *uuid.UUID
+	DeletedAt             pgtype.Timestamptz
+	DeletedBy             *uuid.UUID
 }
 
 type MachineRunReportedUsageItem struct {
@@ -1065,6 +1069,8 @@ type PrinterConnector struct {
 	Version                      int64
 	CreatedAt                    time.Time
 	UpdatedAt                    time.Time
+	EventsClearedAt              pgtype.Timestamptz
+	EventsClearedBy              *uuid.UUID
 }
 
 type PrinterConnectorAssignment struct {

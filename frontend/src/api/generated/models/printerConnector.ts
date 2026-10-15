@@ -70,6 +70,16 @@ export interface PrinterConnector {
   disabledAt: string | null;
   /** @nullable */
   revokedAt: string | null;
+  /**
+   * Events received up to this time are hidden from the event lists unless includeCleared is set. They are never deleted.
+   * @nullable
+   */
+  eventsClearedAt: string | null;
+  /**
+   * @maxLength 200
+   * @nullable
+   */
+  eventsClearedByName: string | null;
   version: Version;
   createdAt: string;
   updatedAt: string;

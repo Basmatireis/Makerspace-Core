@@ -104,6 +104,7 @@ export const PermissionId = {
   external_invoice_requestsread: 'external_invoice_requests.read',
   external_invoice_requestsmanage: 'external_invoice_requests.manage',
   machine_jobsoverride_price: 'machine_jobs.override_price',
+  machine_jobsdelete: 'machine_jobs.delete',
   inventoryread: 'inventory.read',
   inventorymanage: 'inventory.manage',
   filament_spoolsmanage: 'filament_spools.manage',

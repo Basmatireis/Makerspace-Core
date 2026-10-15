@@ -157,6 +157,19 @@ func (h *ingestHarness) burnedDisplayNumbers(before int64) int64 {
 	return h.sequenceValue() - before - created
 }
 
+// settledBurnedDisplayNumbers waits briefly for concurrent tests whose open
+// transactions already took a sequence value but have not committed their run
+// yet, so only numbers that stay unused are reported.
+func (h *ingestHarness) settledBurnedDisplayNumbers(before int64) int64 {
+	h.t.Helper()
+	burned := h.burnedDisplayNumbers(before)
+	for attempt := 0; burned != 0 && attempt < 30; attempt++ {
+		time.Sleep(100 * time.Millisecond)
+		burned = h.burnedDisplayNumbers(before)
+	}
+	return burned
+}
+
 // mountSpool creates a spool of a fresh filament material and mounts it in a new slot.
 func (h *ingestHarness) mountSpool(name string, externalSlot *string, mountedAt time.Time) uuid.UUID {
 	h.t.Helper()
@@ -201,7 +214,7 @@ func TestIngestRecordsPrintFacts(t *testing.T) {
 	before := h.sequenceValue()
 	h.accepted(runID, "operational_state", t0, `{"state":"printing","fileName":"  part.gcode  "}`)
 	created := h.run(runID)
-	if want := fmt.Sprintf("R-%04d-", t0.Year()); !strings.HasPrefix(created.displayID, want) || h.burnedDisplayNumbers(before) != 0 {
+	if want := fmt.Sprintf("R-%04d-", t0.Year()); !strings.HasPrefix(created.displayID, want) || h.settledBurnedDisplayNumbers(before) != 0 {
 		t.Fatalf("display id %q: %d display numbers burned since %d", created.displayID, h.burnedDisplayNumbers(before), before)
 	}
 	if created.state != "running" || created.started == nil || !created.started.Equal(t0) || created.fileName == nil || *created.fileName != "part.gcode" {
@@ -233,7 +246,7 @@ func TestIngestRecordsPrintFacts(t *testing.T) {
 	if again := h.run(runID); again.version != snapshot.version || *again.percent != *snapshot.percent || !again.estimatedEnd.Equal(*snapshot.estimatedEnd) {
 		t.Fatalf("duplicate changed the run: %+v -> %+v", snapshot, again)
 	}
-	if burned := h.burnedDisplayNumbers(before); burned != 0 {
+	if burned := h.settledBurnedDisplayNumbers(before); burned != 0 {
 		t.Fatalf("updates burned %d display numbers", burned)
 	}
 
@@ -266,7 +279,7 @@ func TestIngestRecordsPrintFacts(t *testing.T) {
 	if sticky := h.run(runID); sticky.state != "finished" || !sticky.ended.Equal(t0.Add(10*time.Minute)) {
 		t.Fatalf("terminal state moved: %+v", sticky)
 	}
-	if burned := h.burnedDisplayNumbers(before); burned != 0 {
+	if burned := h.settledBurnedDisplayNumbers(before); burned != 0 {
 		t.Fatalf("%d display numbers burned", burned)
 	}
 }
@@ -580,5 +593,87 @@ func TestIngestReplacesActiveMachineUsageOnce(t *testing.T) {
 	rows2, active2, _, net2 := h.runUsageState(runID)
 	if rows2 != rows || active2 != 1 || net2 != "18.000" {
 		t.Fatalf("after later events rows=%d active=%d net=%s", rows2, active2, net2)
+	}
+}
+
+func TestIngestIgnoresEventsOfADeletedRun(t *testing.T) {
+	h := newIngestHarness(t)
+	ctx := t.Context()
+	t0 := time.Now().UTC().Truncate(time.Second).Add(-2 * time.Hour)
+	runID := uuid.Must(uuid.NewV7())
+	h.accepted(runID, "progress", t0, `{"state":"printing","percent":10,"remainingSeconds":3600}`)
+	before := h.run(runID)
+	if err := h.logbook.DeleteRun(ctx, h.principal, runID, before.version, false, nil); err != nil {
+		t.Fatal(err)
+	}
+	before = h.run(runID)
+	// A running recorded run may be deleted; later reports are stored but change nothing.
+	receipt := h.send(runID, "terminal_outcome", t0.Add(time.Hour), `{"outcome":"completed"}`, nil)
+	if receipt.Status != "accepted" {
+		t.Fatalf("receipt = %+v", receipt)
+	}
+	after := h.run(runID)
+	if after.state != before.state || after.version != before.version || after.ended != nil {
+		t.Fatalf("deleted run changed: before=%+v after=%+v", before, after)
+	}
+	var deleted bool
+	var state string
+	var reason *string
+	if err := h.pool.QueryRow(ctx, `SELECT r.deleted_at IS NOT NULL, e.application_state, e.application_reason FROM machine_runs r JOIN printer_events e ON e.run_id = r.id WHERE r.id = $1 AND e.kind = 'terminal_outcome'`, runID).Scan(&deleted, &state, &reason); err != nil {
+		t.Fatal(err)
+	}
+	if !deleted || state != "recorded" || reason == nil || *reason != "run_deleted" {
+		t.Fatalf("deleted=%v state=%s reason=%v", deleted, state, reason)
+	}
+	// Replays stay duplicates and the run stays out of the observed runs.
+	runs, err := h.service.ListObservedRuns(ctx, h.principal, h.connector.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range runs {
+		if r.ID == runID {
+			t.Fatal("deleted run is listed as observed")
+		}
+	}
+}
+
+func TestClearEventsHidesThemUntilIncluded(t *testing.T) {
+	h := newIngestHarness(t)
+	ctx := t.Context()
+	t0 := time.Now().UTC().Truncate(time.Second).Add(-time.Hour)
+	runID := uuid.Must(uuid.NewV7())
+	h.accepted(runID, "progress", t0, `{"state":"printing","percent":10}`)
+	events, err := h.service.ListEvents(ctx, h.principal, h.connector.ID, false)
+	if err != nil || len(events) == 0 {
+		t.Fatalf("events before clearing: %d %v", len(events), err)
+	}
+	reader := authorization.Principal{AccountID: h.principal.AccountID}
+	if _, err = h.service.ClearEvents(ctx, reader, h.connector.ID, nil); err == nil {
+		t.Fatal("clearing needs printer_connectors.manage")
+	}
+	if _, err = h.service.ClearEvents(ctx, h.principal, uuid.Must(uuid.NewV7()), nil); err == nil {
+		t.Fatal("unknown connector")
+	}
+	cleared, err := h.service.ClearEvents(ctx, h.principal, h.connector.ID, nil)
+	if err != nil || cleared.EventsClearedAt == nil || cleared.EventsClearedByName == nil {
+		t.Fatalf("cleared connector: %+v err=%v", cleared, err)
+	}
+	if events, err = h.service.ListEvents(ctx, h.principal, h.connector.ID, false); err != nil || len(events) != 0 {
+		t.Fatalf("events after clearing: %d %v", len(events), err)
+	}
+	if events, err = h.service.ListEvents(ctx, h.principal, h.connector.ID, true); err != nil || len(events) == 0 {
+		t.Fatalf("events with includeCleared: %d %v", len(events), err)
+	}
+	h.accepted(runID, "progress", t0.Add(time.Minute), `{"state":"printing","percent":20}`)
+	if events, err = h.service.ListEvents(ctx, h.principal, h.connector.ID, false); err != nil || len(events) != 1 {
+		t.Fatalf("events after new event: %d %v", len(events), err)
+	}
+	var audits int
+	if err = h.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE action = 'printer_connector.events_cleared' AND resource_id = $1`, h.connector.ID).Scan(&audits); err != nil || audits != 1 {
+		t.Fatalf("audits = %d %v", audits, err)
+	}
+	got, err := h.service.Get(ctx, h.principal, h.connector.ID)
+	if err != nil || got.EventsClearedAt == nil || got.EventsClearedByName == nil {
+		t.Fatalf("get: %+v %v", got, err)
 	}
 }

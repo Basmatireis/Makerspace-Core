@@ -41,7 +41,7 @@ export const assignmentId = '0192f6f8-743e-7c77-a349-cd07c3e8a941';
 export const connectorOf = (overrides: Partial<PrinterConnector> = {}): PrinterConnector => ({
   id: connectorId, name: 'Print room agent', locationLabel: 'Print room', lifecycle: 'active', configurationRevision: 3, appliedConfigurationRevision: 3, softwareVersion: '1.2.3',
   protocolVersion: 1, healthState: 'connected', healthSummary: null, pendingEventCount: 2, quarantinedEventCount: 1, lastHeartbeatAt: new Date().toISOString(), enrolledAt: now,
-  disabledAt: null, revokedAt: null, version: 4, createdAt: now, updatedAt: now, ...overrides,
+  disabledAt: null, revokedAt: null, eventsClearedAt: null, eventsClearedByName: null, version: 4, createdAt: now, updatedAt: now, ...overrides,
 });
 export const assignmentOf = (overrides: Partial<PrinterConnectorAssignment> = {}): PrinterConnectorAssignment => ({
   id: assignmentId, connectorId, machineId: printerId, machineName: 'Bambu H2D', adapterKind: 'bambu_h2d', adapterSchemaVersion: 1,

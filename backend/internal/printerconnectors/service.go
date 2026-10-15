@@ -61,7 +61,8 @@ type Connector struct {
 	PendingEventCount, QuarantinedEventCount    int64
 	ProtocolVersion                             *int
 	LastHeartbeatAt, EnrolledAt, DisabledAt     *time.Time
-	RevokedAt                                   *time.Time
+	RevokedAt, EventsClearedAt                  *time.Time
+	EventsClearedByName                         *string
 	Version                                     int64
 	CreatedAt, UpdatedAt                        time.Time
 }
@@ -288,7 +289,7 @@ func connectorFrom(row db.PrinterConnector) Connector {
 		SoftwareVersion: row.SoftwareVersion, ProtocolVersion: protocol, HealthState: row.HealthState,
 		HealthSummary: row.HealthSummary, PendingEventCount: row.PendingEventCount, QuarantinedEventCount: row.QuarantinedEventCount,
 		LastHeartbeatAt: nullableTime(row.LastHeartbeatAt), EnrolledAt: nullableTime(row.EnrolledAt), DisabledAt: nullableTime(row.DisabledAt),
-		RevokedAt: nullableTime(row.RevokedAt), Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+		RevokedAt: nullableTime(row.RevokedAt), EventsClearedAt: nullableTime(row.EventsClearedAt), Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
 func normalizeName(name string) (string, error) {
@@ -351,21 +352,83 @@ func (s *Service) List(ctx context.Context, principal authorization.Principal) (
 		return nil, err
 	}
 	result := make([]Connector, 0, len(rows))
+	q := db.New(s.pool)
 	for _, row := range rows {
-		result = append(result, connectorFrom(row))
+		connector, err := connectorWithClearedBy(ctx, q, row)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, connector)
 	}
 	return result, nil
+}
+
+// connectorWithClearedBy converts a row and names the person who cleared the
+// connector's events. The name is only shown on the connector's own reads.
+func connectorWithClearedBy(ctx context.Context, q *db.Queries, row db.PrinterConnector) (Connector, error) {
+	connector := connectorFrom(row)
+	if row.EventsClearedBy == nil {
+		return connector, nil
+	}
+	name, err := q.GetAccountDisplayName(ctx, *row.EventsClearedBy)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return connector, nil
+	}
+	if err != nil {
+		return Connector{}, err
+	}
+	connector.EventsClearedByName = &name
+	return connector, nil
 }
 
 func (s *Service) Get(ctx context.Context, principal authorization.Principal, id uuid.UUID) (Connector, error) {
 	if !principal.Has(authorization.PrinterConnectorsRead) {
 		return Connector{}, apperror.PermissionDenied
 	}
-	row, err := db.New(s.pool).GetConnector(ctx, id)
+	q := db.New(s.pool)
+	row, err := q.GetConnector(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Connector{}, apperror.NotFound
 	}
-	return connectorFrom(row), err
+	if err != nil {
+		return Connector{}, err
+	}
+	return connectorWithClearedBy(ctx, q, row)
+}
+
+// ClearEvents hides the events received so far from the event lists. Events are
+// never deleted; includeCleared brings them back.
+func (s *Service) ClearEvents(ctx context.Context, principal authorization.Principal, id uuid.UUID, requestID *uuid.UUID) (Connector, error) {
+	if !principal.Has(authorization.PrinterConnectorsManage) {
+		return Connector{}, apperror.PermissionDenied
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Connector{}, err
+	}
+	defer tx.Rollback(ctx)
+	q := db.New(tx)
+	if _, err = q.GetConnectorForUpdate(ctx, id); errors.Is(err, pgx.ErrNoRows) {
+		return Connector{}, apperror.NotFound
+	} else if err != nil {
+		return Connector{}, err
+	}
+	actor := principal.AccountID
+	row, err := q.ClearConnectorEvents(ctx, db.ClearConnectorEventsParams{ID: id, ClearedAt: pgTimestamp(timePtr(time.Now())), ClearedBy: &actor})
+	if err != nil {
+		return Connector{}, databaseError(err)
+	}
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "printer_connector.events_cleared", ResourceType: "printer_connector", ResourceID: &id, RequestID: requestID, ChangedFields: []string{"eventsClearedAt"}}); err != nil {
+		return Connector{}, err
+	}
+	connector, err := connectorWithClearedBy(ctx, q, row)
+	if err != nil {
+		return Connector{}, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return Connector{}, err
+	}
+	return connector, nil
 }
 
 func (s *Service) Update(ctx context.Context, principal authorization.Principal, id uuid.UUID, name string, location *string, enabled bool, expected int64, requestID *uuid.UUID) (Connector, error) {
@@ -740,7 +803,7 @@ func (s *Service) ListObservedRuns(ctx context.Context, principal authorization.
 	return result, nil
 }
 
-func (s *Service) ListEvents(ctx context.Context, principal authorization.Principal, connectorID uuid.UUID) ([]ConnectorEvent, error) {
+func (s *Service) ListEvents(ctx context.Context, principal authorization.Principal, connectorID uuid.UUID, includeCleared bool) ([]ConnectorEvent, error) {
 	if !principal.Has(authorization.PrinterConnectorsRead) {
 		return nil, apperror.PermissionDenied
 	}
@@ -750,7 +813,7 @@ func (s *Service) ListEvents(ctx context.Context, principal authorization.Princi
 	} else if err != nil {
 		return nil, err
 	}
-	rows, err := q.ListConnectorEvents(ctx, &connectorID)
+	rows, err := q.ListConnectorEvents(ctx, db.ListConnectorEventsParams{ConnectorID: &connectorID, IncludeCleared: includeCleared})
 	if err != nil {
 		return nil, err
 	}
@@ -968,6 +1031,7 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 		reason = &v
 	}
 	var run db.MachineRun
+	runDeleted := false
 	if input.RunID != nil {
 		state, stateErr := recordedRunState(input.Kind, input.Payload)
 		if stateErr != nil {
@@ -984,11 +1048,20 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 		if errors.Is(runErr, pgx.ErrNoRows) {
 			return rejected("observed_run_conflict")
 		}
+		if errors.Is(runErr, errRunDeleted) {
+			// Staff deleted the run. The event is stored for idempotency but
+			// never resurrects or changes the run.
+			runDeleted = true
+			applicationState = "recorded"
+			v := "run_deleted"
+			reason = &v
+			runErr = nil
+		}
 		if runErr != nil {
 			code := "temporarily_unavailable"
 			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
 		}
-		if !run.HistoryComplete && applicationState == "applied" {
+		if !runDeleted && !run.HistoryComplete && applicationState == "applied" {
 			applicationState = "review_required"
 			v := "incomplete_run_history"
 			reason = &v
@@ -1002,7 +1075,7 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 		code := "temporarily_unavailable"
 		return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
 	}
-	if inserted && input.RunID != nil {
+	if inserted && input.RunID != nil && !runDeleted {
 		if err = applyPrintFacts(ctx, db.New(tx), run, event.ID, input.Kind, input.Payload, input.OccurredAt, input.ReportRevision); err != nil {
 			code := "temporarily_unavailable"
 			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}

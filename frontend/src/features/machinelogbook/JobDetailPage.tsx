@@ -7,13 +7,14 @@ import { Edit } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { clearMachineJobPriceAdjustment } from '../../api/generated/machine-jobs/machine-jobs';
-import { cancelMachineRun, deleteMachineRun, detachMachineRun, updateMachineRun } from '../../api/generated/machine-runs/machine-runs';
+import { cancelMachineRun, detachMachineRun, updateMachineRun } from '../../api/generated/machine-runs/machine-runs';
 import type { JobOrderAssociation, MachineJob, MachineRun, MachineRunOutcome, WorkItemBilling } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
 import { JobRunsTable, type RunAction } from './components/JobRunsTable';
+import { DeleteJobModal, DeleteRunModal } from './dialogs/DeleteDialogs';
 import { AttachRunModal } from './dialogs/AttachRunModal';
 import { JobFormModal } from './dialogs/JobFormModal';
 import { jobOrderQuery, saveError, unassignedRunsParams } from './dialogs/jobFormHelpers';
@@ -85,7 +86,7 @@ function RunOutcomeRow({ run }: { run: MachineRun }) {
   );
 }
 
-type JobDialog = 'edit' | 'override' | 'clear' | 'add-run' | 'attach' | null;
+type JobDialog = 'edit' | 'override' | 'clear' | 'add-run' | 'attach' | 'delete' | null;
 
 function JobDetail({ job }: { job: MachineJob }) {
   const can = useCan();
@@ -95,6 +96,7 @@ function JobDetail({ job }: { job: MachineJob }) {
   const [runDialog, setRunDialog] = useState<{ action: RunAction; runId: string } | null>(null);
   const now = useNow();
   const canEdit = can('machine_jobs.edit');
+  const canDelete = can('machine_jobs.delete');
   const canOverride = can('machine_jobs.override_price');
   const canReadOrders = can('orders.read');
   const status = statusNow(job, now);
@@ -120,15 +122,11 @@ function JobDetail({ job }: { job: MachineJob }) {
     mutationFn: (run: MachineRun) => cancelMachineRun(run.id, { expectedVersion: run.version }),
     onSuccess: async (_saved, run) => { await refresh(); notify({ kind: 'success', title: 'Run cancelled', subtitle: `${run.displayId} ended now and the price of ${job.displayId} was recalculated.` }); close(); },
   });
-  const removeRun = useMutation({
-    mutationFn: (run: MachineRun) => deleteMachineRun(run.id, { expectedVersion: run.version }),
-    onSuccess: async (_saved, run) => { await refresh(); notify({ kind: 'success', title: 'Run removed', subtitle: `${run.displayId} was removed from ${job.displayId}.` }); close(); },
-  });
   const detachRun = useMutation({
     mutationFn: (run: MachineRun) => detachMachineRun(run.id, { expectedJobVersion: job.version }),
     onSuccess: async (_saved, run) => { await refresh(); notify({ kind: 'success', title: 'Run detached', subtitle: `${run.displayId} is an unassigned run again.` }); close(); },
   });
-  const resetMutations = () => { clearAdjustment.reset(); cancelRun.reset(); removeRun.reset(); detachRun.reset(); };
+  const resetMutations = () => { clearAdjustment.reset(); cancelRun.reset(); detachRun.reset(); };
   const open = (next: NonNullable<JobDialog>) => { resetMutations(); setDialog(next); };
   const openRun = (action: RunAction, run: MachineRun) => { resetMutations(); setRunDialog({ action, runId: run.id }); };
 
@@ -136,6 +134,7 @@ function JobDetail({ job }: { job: MachineJob }) {
   const menuItems = [
     canOverride && <OverflowMenuItem key="override" itemText={job.priceAdjustment ? 'Change price adjustment' : 'Adjust price'} onClick={() => open('override')} />,
     canOverride && job.priceAdjustment && <OverflowMenuItem key="clear" itemText="Remove price adjustment" onClick={() => open('clear')} />,
+    canDelete && <OverflowMenuItem key="delete" itemText="Delete job" isDelete hasDivider onClick={() => open('delete')} />,
   ].filter(Boolean);
 
   const usageRows = runs.flatMap((run) => run.usages.map((usage) => ({
@@ -190,7 +189,7 @@ function JobDetail({ job }: { job: MachineJob }) {
           </dl>
         </Tile>
         <JobRunsTable
-          job={job} now={now} canEdit={canEdit} canAttach={canAttach}
+          job={job} now={now} canEdit={canEdit} canDelete={canDelete} canAttach={canAttach}
           onAction={openRun} onAdd={() => open('add-run')} onAttach={() => open('attach')}
         />
         <div className="mj-detail-layout">
@@ -289,13 +288,13 @@ function JobDetail({ job }: { job: MachineJob }) {
       >
         <p>{targetRun?.displayId} ends now and is marked cancelled. Runtime and price of {job.displayId} are recalculated for the shortened run.</p>
       </DestructiveActionDialog>
-      <DestructiveActionDialog
-        open={runDialog?.action === 'remove' && !!targetRun} title="Remove this run?" confirmLabel="Remove run" pending={removeRun.isPending} onClose={close}
-        error={removeRun.isError ? errorText(removeRun.error, 'The run could not be removed. Reload the page and try again.') : undefined}
-        onConfirm={() => { if (targetRun) removeRun.mutate(targetRun); }}
-      >
-        <p>{targetRun?.displayId} is deleted from {job.displayId}. Its material usage goes back to stock and the price is recalculated. A job always keeps at least one run.</p>
-      </DestructiveActionDialog>
+      {targetRun && (
+        <DeleteRunModal
+          open={runDialog?.action === 'delete'} onClose={close} run={targetRun} runId={targetRun.id} job={job}
+          onDeleteJob={canDelete ? () => { setRunDialog(null); setDialog('delete'); } : undefined}
+        />
+      )}
+      <DeleteJobModal open={dialog === 'delete'} onClose={close} job={job} />
       <DestructiveActionDialog
         open={runDialog?.action === 'detach' && !!targetRun} title="Detach this run?" confirmLabel="Detach" pending={detachRun.isPending} onClose={close}
         error={detachRun.isError ? errorText(detachRun.error, 'The run could not be detached. Reload the page and try again.') : undefined}

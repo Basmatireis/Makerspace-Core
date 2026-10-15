@@ -135,7 +135,7 @@ func TestMachineRunOperationsRequireTheirPermissionsOverHTTP(t *testing.T) {
 		csrf               string
 	}{
 		{"update", http.MethodPatch, runPath, map[string]any{"outcome": "failed", "expectedVersion": run.Version}, nil, ""},
-		{"delete", http.MethodDelete, runPath, map[string]any{"expectedVersion": run.Version}, nil, ""},
+		{"delete", http.MethodDelete, runPath, map[string]any{"expectedVersion": run.Version, "reverseConsumption": true}, nil, ""},
 		{"usages", http.MethodPut, runPath + "/usages", map[string]any{"usages": []any{}, "expectedVersion": run.Version}, nil, ""},
 		{"cancel", http.MethodPost, runPath + "/cancellation", map[string]any{"expectedVersion": run.Version}, nil, ""},
 		{"attach", http.MethodPut, runPath + "/job", map[string]any{"machineJobId": job.ID.String(), "replaceManualRuns": false, "expectedJobVersion": job.Version}, nil, ""},

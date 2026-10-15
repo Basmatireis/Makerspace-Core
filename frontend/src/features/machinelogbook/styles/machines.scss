@@ -33,6 +33,7 @@
 
 // Connector diagnostics: grids of facts that collapse to one column on narrow screens.
 .mj-diag-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: $spacing-05; margin-block-start: $spacing-03; }
+.mj-diag-clear-bar { margin-block-end: $spacing-05; }
 .mj-diag-value { @include type-style('body-compact-02'); margin-block-start: $spacing-01; }
 // Same column widths in every tray table of the connector diagnostics.
 .mj-diag-trays { table-layout: fixed; }

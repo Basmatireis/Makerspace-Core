@@ -1,15 +1,16 @@
 import { Fragment, useState, type ReactNode } from 'react';
 import {
-  Button, CodeSnippet, ComposedModal, DataTable, InlineNotification, Link as CarbonLink, ModalBody, ModalFooter, ModalHeader, ProgressBar, Stack, StructuredListBody, StructuredListCell, StructuredListRow, StructuredListWrapper,
+  Button, CodeSnippet, ComposedModal, DataTable, InlineNotification, Link as CarbonLink, Modal, ModalBody, ModalFooter, ModalHeader, ProgressBar, Stack, StructuredListBody, StructuredListCell, StructuredListRow, StructuredListWrapper,
   Tab, TabList, TabPanel, TabPanels, Table, TableBody, TableCell, TableContainer, TableExpandedRow, TableExpandHeader, TableExpandRow, TableHead, TableHeader, TableRow, Tabs, Tag,
 } from '@carbon/react';
 import { WarningAltFilled } from '@carbon/icons-react';
-import { useQueries, useQuery } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import type {
   PrinterConnector, PrinterConnectorAssignment, PrinterConnectorEvent, PrinterConnectorEventKind, PrinterLiveStatus, PrinterLiveStatusState, PrinterLiveStatusUnit, PrinterProfile,
 } from '../../../api/generated/models';
-import { assignmentsQuery, connectorEventsQuery, liveStatusQuery, observedRunsQuery } from '../connectorQueries';
+import { clearPrinterConnectorEvents } from '../../../api/generated/printer-connectors/printer-connectors';
+import { assignmentsQuery, connectorEventsQuery, connectorKeys, connectorsQuery, liveStatusQuery, observedRunsQuery } from '../connectorQueries';
 import { printerQuery, spoolsQuery } from '../queries';
 import { externalHolderNozzle, nozzleLabel, trayMismatch, type MountedSpool, type Nozzle } from '../printerSetup';
 import { ageSeconds, connectorStatus } from '../shared/connectorStatus';
@@ -17,6 +18,7 @@ import { connectorDiagnostic } from '../shared/connectorHelpers';
 import { groupConnectorEvents } from '../shared/connectorEvents';
 import { formatDateTime, formatRelative } from '../shared/format';
 import { machineLogbookPaths } from '../shared/paths';
+import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
 import { useNow } from '../shared/useNow';
 import { DetectedTrayCell } from './DetectedTrayCell';
@@ -366,13 +368,57 @@ function PrinterPanel({ view, events, active }: { view: PrinterView; events: Pri
   );
 }
 
-export function DiagnosticsModal({ connector, onClose }: { connector: PrinterConnector; onClose: () => void }) {
+/** Clear-events control, the "cleared" line and the toggle that brings cleared events back. Events are never deleted. */
+function EventsClearBar({ connector, showCleared, onToggle }: { connector: PrinterConnector; showCleared: boolean; onToggle: () => void }) {
+  const can = useCan();
+  const client = useQueryClient();
+  const notify = useNotify();
+  const [confirming, setConfirming] = useState(false);
+  const canManage = can('printer_connectors.manage');
+  const clear = useMutation({
+    mutationFn: () => clearPrinterConnectorEvents(connector.id),
+    onSuccess: async () => {
+      await client.invalidateQueries({ queryKey: connectorKeys.all });
+      notify({ kind: 'success', title: 'Events cleared', subtitle: `Older events of ${connector.name} are hidden. They stay available with "Show cleared events".` });
+      setConfirming(false);
+    },
+  });
+  if (!canManage && !connector.eventsClearedAt) return null;
+  return (
+    <div className="mj-inline mj-diag-clear-bar">
+      {canManage && <Button kind="tertiary" size="sm" onClick={() => { clear.reset(); setConfirming(true); }}>Clear events</Button>}
+      {connector.eventsClearedAt && (
+        <>
+          <span className="mj-secondary">Events cleared {formatRelative(connector.eventsClearedAt)}{connector.eventsClearedByName ? ` by ${connector.eventsClearedByName}` : ''}</span>
+          <Button kind="ghost" size="sm" onClick={onToggle}>{showCleared ? 'Hide cleared events' : 'Show cleared events'}</Button>
+        </>
+      )}
+      {confirming && (
+        <Modal
+          open size="xs" modalHeading="Clear events?" primaryButtonText={clear.isPending ? 'Clearing…' : 'Clear events'} secondaryButtonText="Cancel" primaryButtonDisabled={clear.isPending}
+          preventCloseOnClickOutside onRequestClose={() => setConfirming(false)} onSecondarySubmit={() => setConfirming(false)} onRequestSubmit={() => clear.mutate()}
+        >
+          <Stack gap={5}>
+            <p>The event lists of {connector.name} and its printers start empty. Nothing is deleted; use "Show cleared events" to see older events again.</p>
+            {clear.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Events not cleared" subtitle="Try again." />}
+          </Stack>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+export function DiagnosticsModal({ connector: opened, onClose }: { connector: PrinterConnector; onClose: () => void }) {
   const navigate = useNavigate();
   const [index, setIndex] = useState(0);
   const now = useNow();
+  // The list query holds the freshest connector (for example right after events were cleared).
+  const latest = useQuery(connectorsQuery());
+  const connector = latest.data?.items.find((item) => item.id === opened.id) ?? opened;
   const status = connectorStatus(connector, now);
   const assignments = useQuery({ ...assignmentsQuery(connector.id), refetchInterval: 10_000 });
-  const events = useQuery({ ...connectorEventsQuery(connector.id), refetchInterval: 10_000 });
+  const [showCleared, setShowCleared] = useState(false);
+  const events = useQuery({ ...connectorEventsQuery(connector.id, showCleared), refetchInterval: 10_000 });
   const active = (assignments.data?.items ?? []).filter((assignment) => !assignment.endedAt);
   const liveQueries = useQueries({ queries: active.map((assignment) => ({ ...liveStatusQuery(assignment.machineId), refetchInterval: 15_000 })) });
   const views: PrinterView[] = active.map((assignment, position) => {
@@ -389,6 +435,7 @@ export function DiagnosticsModal({ connector, onClose }: { connector: PrinterCon
       </ModalHeader>
       <ModalBody>
         {(assignments.isError || events.isError) && <InlineNotification kind="error" lowContrast hideCloseButton title="Diagnostics could not be loaded" subtitle="Close the dialog and try again." />}
+        <EventsClearBar connector={connector} showCleared={showCleared} onToggle={() => setShowCleared((current) => !current)} />
         <Tabs selectedIndex={Math.min(index, views.length)} onChange={({ selectedIndex }) => setIndex(selectedIndex)}>
           <TabList aria-label="Diagnostics sections" contained>
             <Tab>Connector</Tab>

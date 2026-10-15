@@ -166,4 +166,49 @@ describe('Connector diagnostics', () => {
     expect(await within(dialog).findByText('No status received yet')).toBeInTheDocument();
     expect(within(dialog).getAllByText(/port 8883/).length).toBeGreaterThan(0);
   });
+
+  it('clears events only with printer_connectors.manage and then shows who cleared them', async () => {
+    setup([...READ, PermissionId.printer_connectorsmanage]);
+    let cleared = false;
+    server.use(
+      http.get('*/api/v1/printer-connectors', () => HttpResponse.json({ items: [connectorOf(cleared ? { eventsClearedAt: new Date().toISOString(), eventsClearedByName: 'Maria Hoffmann' } : {})] })),
+      http.post(`*/api/v1/printer-connectors/${connectorId}/events/clear`, () => {
+        cleared = true;
+        return HttpResponse.json(connectorOf({ eventsClearedAt: new Date().toISOString(), eventsClearedByName: 'Maria Hoffmann' }));
+      }),
+    );
+    const user = userEvent.setup();
+    renderPage('/machine-logbook/machines?tab=connectors');
+    const dialog = await openDiagnostics(user);
+    await user.click(within(dialog).getByRole('button', { name: 'Clear events' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Clear events?' });
+    await user.click(within(confirm).getByRole('button', { name: 'Clear events' }));
+    await waitFor(() => expect(cleared).toBe(true));
+    expect(await within(dialog).findByText('Events cleared just now by Maria Hoffmann')).toBeInTheDocument();
+  });
+
+  it('hides Clear events without printer_connectors.manage', async () => {
+    setup(READ);
+    const user = userEvent.setup();
+    renderPage('/machine-logbook/machines?tab=connectors');
+    const dialog = await openDiagnostics(user);
+    await within(dialog).findByText('Events that need review');
+    expect(within(dialog).queryByRole('button', { name: 'Clear events' })).not.toBeInTheDocument();
+  });
+
+  it('refetches with includeCleared when cleared events are shown', async () => {
+    setup(READ, { connectors: [connectorOf({ eventsClearedAt: new Date().toISOString(), eventsClearedByName: 'Maria Hoffmann' })] });
+    const params: (string | null)[] = [];
+    server.use(http.get(`*/api/v1/printer-connectors/${connectorId}/events`, ({ request }) => {
+      params.push(new URL(request.url).searchParams.get('includeCleared'));
+      return HttpResponse.json({ items: [] });
+    }));
+    const user = userEvent.setup();
+    renderPage('/machine-logbook/machines?tab=connectors');
+    const dialog = await openDiagnostics(user);
+    await waitFor(() => expect(params).toContain(null));
+    await user.click(await within(dialog).findByRole('button', { name: 'Show cleared events' }));
+    await waitFor(() => expect(params).toContain('true'));
+    expect(within(dialog).getByRole('button', { name: 'Hide cleared events' })).toBeInTheDocument();
+  });
 });

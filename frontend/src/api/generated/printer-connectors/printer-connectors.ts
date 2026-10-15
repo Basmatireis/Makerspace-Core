@@ -22,6 +22,7 @@ import type {
   CreatePrinterConnectorAssignmentRequest,
   CreatePrinterConnectorRequest,
   EnrollPrinterConnectorRequest,
+  ListPrinterConnectorEventsParams,
   PrintArtifactUploadResult,
   PrinterConnector,
   PrinterConnectorAssignment,
@@ -284,22 +285,56 @@ export const listPrinterObservedRuns = async (printerConnectorId: UUIDv7, option
 
 
 /**
+ * Events received before the connector's events were cleared are omitted unless includeCleared is true.
  * @summary List recent normalized events and their application status
  */
-export const getListPrinterConnectorEventsUrl = (printerConnectorId: UUIDv7,) => {
+export const getListPrinterConnectorEventsUrl = (printerConnectorId: UUIDv7,
+    params?: ListPrinterConnectorEventsParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/printer-connectors/${printerConnectorId}/events`
+  return stringifiedParams.length > 0 ? `/api/v1/printer-connectors/${printerConnectorId}/events?${stringifiedParams}` : `/api/v1/printer-connectors/${printerConnectorId}/events`
 }
 
-export const listPrinterConnectorEvents = async (printerConnectorId: UUIDv7, options?: RequestInit): Promise<PrinterConnectorEventList> => {
+export const listPrinterConnectorEvents = async (printerConnectorId: UUIDv7,
+    params?: ListPrinterConnectorEventsParams, options?: RequestInit): Promise<PrinterConnectorEventList> => {
 
-  return apiFetch<PrinterConnectorEventList>(getListPrinterConnectorEventsUrl(printerConnectorId),
+  return apiFetch<PrinterConnectorEventList>(getListPrinterConnectorEventsUrl(printerConnectorId,params),
   {
     ...options,
     method: 'GET'
+
+
+  }
+);}
+
+
+/**
+ * Needs printer_connectors.manage. Sets the connector's eventsClearedAt to now; events are never deleted and stay available with includeCleared.
+ * @summary Hide the events received so far from the event lists
+ */
+export const getClearPrinterConnectorEventsUrl = (printerConnectorId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/printer-connectors/${printerConnectorId}/events/clear`
+}
+
+export const clearPrinterConnectorEvents = async (printerConnectorId: UUIDv7, options?: RequestInit): Promise<PrinterConnector> => {
+
+  return apiFetch<PrinterConnector>(getClearPrinterConnectorEventsUrl(printerConnectorId),
+  {
+    ...options,
+    method: 'POST'
 
 
   }

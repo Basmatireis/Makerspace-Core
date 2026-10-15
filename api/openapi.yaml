@@ -3333,9 +3333,27 @@ paths:
       tags: [Printer Connectors]
       operationId: listPrinterConnectorEvents
       summary: List recent normalized events and their application status
+      description: Events received before the connector's events were cleared are omitted unless includeCleared is true.
       security: [{sessionCookie: []}]
+      parameters:
+        - {name: includeCleared, in: query, required: false, schema: {type: boolean, default: false}}
       responses:
         "200": {description: Recent connector events., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnectorEventList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /printer-connectors/{printerConnectorId}/events/clear:
+    parameters: [{name: printerConnectorId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}]
+    post:
+      tags: [Printer Connectors]
+      operationId: clearPrinterConnectorEvents
+      summary: Hide the events received so far from the event lists
+      description: Needs printer_connectors.manage. Sets the connector's eventsClearedAt to now; events are never deleted and stay available with includeCleared.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Connector with the new eventsClearedAt., content: {application/json: {schema: {$ref: "#/components/schemas/PrinterConnector"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -4693,6 +4711,25 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Machine Jobs]
+      operationId: deleteMachineJob
+      summary: Delete a job and its manual runs
+      description: >-
+        Needs machine_jobs.delete. The job and its manual runs are tombstoned: they disappear from every list, statistic and total, but their display IDs are never reused.
+        Recorded runs of the job are deleted too with deleteRecordedRuns, otherwise they are detached and become unassigned runs.
+        With reverseConsumption the material the deleted runs consumed is restored to inventory with compensating ledger entries, otherwise the ledger is left untouched.
+        A job on an order cannot be deleted (409 job_on_order).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/DeleteMachineJobRequest"}}}}
+      responses:
+        "204": {description: Job deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
 
   /machine-jobs/{machineJobId}/price-adjustment:
     parameters:
@@ -4779,11 +4816,17 @@ paths:
     delete:
       tags: [Machine Runs]
       operationId: deleteMachineRun
-      summary: Remove a manual run from its job (the job keeps at least one run)
+      summary: Delete a run, manual or recorded
+      description: >-
+        Deleting a manual run needs machine_jobs.edit or machine_jobs.delete; deleting a recorded run needs machine_jobs.delete. The run is tombstoned and disappears from every list, statistic and total; its display ID is never reused.
+        A run that is the only remaining run of its job cannot be deleted (409 last_run); delete the job instead.
+        A running recorded run may be deleted; later machine reports for it are ignored.
+        With reverseConsumption the material the run consumed is restored to inventory with compensating ledger entries, otherwise the ledger is left untouched.
+        The response is always empty; clients refetch the job.
       security: [{sessionCookie: [], csrfHeader: []}]
-      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/DeleteMachineRunRequest"}}}}
       responses:
-        "200": {description: Run removed; returns the job., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
+        "204": {description: Run deleted.}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -7102,6 +7145,7 @@ components:
         - external_invoice_requests.read
         - external_invoice_requests.manage
         - machine_jobs.override_price
+        - machine_jobs.delete
         - inventory.read
         - inventory.manage
         - filament_spools.manage
@@ -9481,7 +9525,7 @@ components:
     PrinterConnector:
       type: object
       additionalProperties: false
-      required: [id, name, locationLabel, lifecycle, configurationRevision, appliedConfigurationRevision, softwareVersion, protocolVersion, healthState, healthSummary, pendingEventCount, quarantinedEventCount, lastHeartbeatAt, enrolledAt, disabledAt, revokedAt, version, createdAt, updatedAt]
+      required: [id, name, locationLabel, lifecycle, configurationRevision, appliedConfigurationRevision, softwareVersion, protocolVersion, healthState, healthSummary, pendingEventCount, quarantinedEventCount, lastHeartbeatAt, enrolledAt, disabledAt, revokedAt, eventsClearedAt, eventsClearedByName, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string, minLength: 1, maxLength: 120}
@@ -9499,6 +9543,8 @@ components:
         enrolledAt: {type: string, format: date-time, nullable: true}
         disabledAt: {type: string, format: date-time, nullable: true}
         revokedAt: {type: string, format: date-time, nullable: true}
+        eventsClearedAt: {type: string, format: date-time, nullable: true, description: Events received up to this time are hidden from the event lists unless includeCleared is set. They are never deleted.}
+        eventsClearedByName: {type: string, maxLength: 200, nullable: true}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
@@ -11270,6 +11316,23 @@ components:
         endsAt: {type: string, format: date-time}
         outcome: {allOf: [{$ref: "#/components/schemas/MachineRunOutcome"}], nullable: true}
         usages: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/MachineJobUsageInput"}}
+
+    DeleteMachineJobRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, reverseConsumption, deleteRecordedRuns]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        reverseConsumption: {type: boolean, description: Restore the consumed material of the deleted runs to inventory.}
+        deleteRecordedRuns: {type: boolean, description: "Delete the recorded runs of the job as well; otherwise they are detached and become unassigned runs."}
+
+    DeleteMachineRunRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, reverseConsumption]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        reverseConsumption: {type: boolean, description: Restore the consumed material of the run to inventory.}
 
     UpdateMachineRunRequest:
       type: object

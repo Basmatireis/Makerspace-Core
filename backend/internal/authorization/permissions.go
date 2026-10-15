@@ -95,6 +95,7 @@ const (
 	MachineJobsCreate                  Permission = Permission(openapi.MachineJobsCreate)
 	MachineJobsEdit                    Permission = Permission(openapi.MachineJobsEdit)
 	MachineJobsOverridePrice           Permission = Permission(openapi.MachineJobsOverridePrice)
+	MachineJobsDelete                  Permission = Permission(openapi.MachineJobsDelete)
 	InventoryRead                      Permission = Permission(openapi.InventoryRead)
 	InventoryManage                    Permission = Permission(openapi.InventoryManage)
 	FilamentSpoolsManage               Permission = Permission(openapi.FilamentSpoolsManage)
@@ -135,7 +136,7 @@ var registry = []Permission{
 	VisitorEnrollmentManage, SupervisorDashboardRead,
 	OIDCLinkSelf, OIDCLinkAll, OIDCUnlinkSelf, OIDCUnlinkAll, OIDCManage, SCIMManage, MailManage, BrandingManage,
 	MachinesRead, MachinesManage,
-	MachineJobsRead, MachineJobsCreate, MachineJobsEdit, MachineJobsOverridePrice,
+	MachineJobsRead, MachineJobsCreate, MachineJobsEdit, MachineJobsOverridePrice, MachineJobsDelete,
 	InventoryRead, InventoryManage, FilamentSpoolsManage, PrinterSlotsAssign,
 	PrinterConnectorsRead, PrinterConnectorsManage, PrinterConnectorsCredentialsManage, PrintArtifactsRead,
 	OrganizationsRead, OrganizationsManage, PricingRead, PricingManage, StatisticsRead,
@@ -231,6 +232,7 @@ var descriptions = map[Permission]string{
 	MachineJobsCreate:                  "Create manual jobs and ingest automatically detected jobs.",
 	MachineJobsEdit:                    "Correct confirmed machine-job facts and material usage.",
 	MachineJobsOverridePrice:           "Set and clear final machine-job price overrides.",
+	MachineJobsDelete:                  "Delete machine jobs and runs, optionally restoring their consumed material.",
 	InventoryRead:                      "Read materials, balances, valuation, and inventory history.",
 	InventoryManage:                    "Create materials and record purchases, consumption, corrections, and disposal.",
 	FilamentSpoolsManage:               "Manage physical filament spool records and identifiers.",

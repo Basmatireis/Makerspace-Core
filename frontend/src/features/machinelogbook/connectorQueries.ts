@@ -10,13 +10,16 @@ import { machineLogbookKeys } from './queries';
 export const connectorKeys = {
   all: ['printer-connectors'] as const,
   assignments: (connectorId: string) => ['printer-connectors', connectorId, 'assignments'] as const,
-  events: (connectorId: string) => ['printer-connectors', connectorId, 'events'] as const,
+  events: (connectorId: string, includeCleared = false) => ['printer-connectors', connectorId, 'events', includeCleared] as const,
   runs: (connectorId: string) => ['printer-connectors', connectorId, 'observed-runs'] as const,
 };
 
 export const connectorsQuery = () => queryOptions({ queryKey: connectorKeys.all, queryFn: ({ signal }) => listPrinterConnectors({ signal }) });
 export const assignmentsQuery = (connectorId: string) => queryOptions({ queryKey: connectorKeys.assignments(connectorId), queryFn: ({ signal }) => listPrinterConnectorAssignments(connectorId, { signal }) });
-export const connectorEventsQuery = (connectorId: string) => queryOptions({ queryKey: connectorKeys.events(connectorId), queryFn: ({ signal }) => listPrinterConnectorEvents(connectorId, { signal }) });
+export const connectorEventsQuery = (connectorId: string, includeCleared = false) => queryOptions({
+  queryKey: connectorKeys.events(connectorId, includeCleared),
+  queryFn: ({ signal }) => listPrinterConnectorEvents(connectorId, includeCleared ? { includeCleared: true } : undefined, { signal }),
+});
 export const observedRunsQuery = (connectorId: string) => queryOptions({ queryKey: connectorKeys.runs(connectorId), queryFn: ({ signal }) => listPrinterObservedRuns(connectorId, { signal }) });
 
 /** The last status snapshot a connector reported for a printer. `null` while none was received (the API answers 404). */

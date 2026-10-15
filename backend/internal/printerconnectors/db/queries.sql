@@ -236,7 +236,7 @@ WHERE i.kind='nfc' AND lower(i.value)=lower(sqlc.arg(tag_uid))
 -- name: ListObservedRuns :many
 SELECT r.*, m.name AS machine_name
 FROM machine_runs r JOIN machines m ON m.id=r.machine_id
-WHERE r.assignment_id IN (SELECT id FROM printer_connector_assignments WHERE connector_id=sqlc.arg(connector_id))
+WHERE r.deleted_at IS NULL AND r.assignment_id IN (SELECT id FROM printer_connector_assignments WHERE connector_id=sqlc.arg(connector_id))
 ORDER BY r.last_observed_at DESC, r.id DESC LIMIT 100;
 
 -- name: ListConnectorEvents :many
@@ -244,7 +244,12 @@ SELECT id, machine_id, connector_assignment_id, kind, occurred_at, received_at,
     application_state, application_reason, payload
 FROM printer_events
 WHERE connector_id=sqlc.arg(connector_id)
+  AND (sqlc.arg(include_cleared)::boolean OR received_at > COALESCE((SELECT c.events_cleared_at FROM printer_connectors c WHERE c.id=sqlc.arg(connector_id)), '-infinity'::timestamptz))
 ORDER BY received_at DESC, id DESC LIMIT 100;
+
+-- name: ClearConnectorEvents :one
+UPDATE printer_connectors SET events_cleared_at=sqlc.arg(cleared_at), events_cleared_by=sqlc.narg(cleared_by)
+WHERE id=sqlc.arg(id) RETURNING *;
 
 -- name: GetObservedRunForUpdate :one
 SELECT * FROM machine_runs WHERE id=sqlc.arg(id) AND source='recorded' FOR UPDATE;
@@ -283,3 +288,7 @@ WHERE printer_live_statuses.observed_at <= EXCLUDED.observed_at;
 -- name: GetActivePrinterLiveStatus :one
 SELECT s.* FROM printer_live_statuses s JOIN printer_connector_assignments a ON a.id=s.assignment_id
 WHERE s.machine_id=sqlc.arg(machine_id) AND a.ended_at IS NULL;
+
+-- name: GetAccountDisplayName :one
+SELECT btrim(p.first_name || ' ' || p.last_name)::text AS display_name
+FROM accounts a JOIN people p ON p.id=a.person_id WHERE a.id=sqlc.arg(id);

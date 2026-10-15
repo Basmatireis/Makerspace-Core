@@ -562,3 +562,17 @@ func valueString[T ~string](value *T) string {
 	}
 	return string(*value)
 }
+
+func (s *Server) DeleteMachineJob(ctx context.Context, r openapi.DeleteMachineJobRequestObject) (openapi.DeleteMachineJobResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	if err := s.machineLogbook.DeleteJob(ctx, p, r.MachineJobId, machinelogbook.DeleteJobInput{ExpectedVersion: r.Body.ExpectedVersion, ReverseConsumption: r.Body.ReverseConsumption, DeleteRecordedRuns: r.Body.DeleteRecordedRuns}, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.DeleteMachineJob204Response{}, nil
+}

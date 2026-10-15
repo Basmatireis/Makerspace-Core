@@ -57,6 +57,7 @@ Authorization is based on application-registered permission identifiers. Backend
 | `machines.read`, `machines.manage` | Read machine catalog/metrics or create and update machine types and machines. |
 | `machine_jobs.read`, `machine_jobs.create` | Read/filter jobs, work items, prints, and current machine activity, or create confirmed manual jobs and jobs from prints. |
 | `machine_jobs.edit` | Correct operational jobs, cancel runs, and link or unlink prints independently of Order state. |
+| `machine_jobs.delete` | Delete jobs and recorded runs (manual runs can also be removed with `machine_jobs.edit`) with a tombstone, optionally reversing their consumed material. |
 | `machine_jobs.override_price` | Set and clear price adjustments (fixed, discount, multiplier) while retaining calculated prices. |
 | `inventory.read`, `inventory.manage` | Read material balances/ledger and the filament product catalog, or mutate catalog, products, and stock through ledger-backed operations. Changing filament, finishing, and cleaning up spools also need `filament_spools.manage`. |
 | `organizations.read`, `organizations.manage` | Read billing organizations or create/update/deactivate them. |

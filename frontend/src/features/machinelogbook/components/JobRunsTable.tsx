@@ -10,7 +10,7 @@ import { machineLogbookPaths } from '../shared/paths';
 import { FromMachineTag, isRunLive, RunOutcomeTag, runEnd, RunSourceTag, RunStateTag, runName, runProgress, runStateNow, usagesText } from '../shared/status';
 import '../styles/jobs.scss';
 
-export type RunAction = 'edit' | 'usage' | 'cancel' | 'remove' | 'detach';
+export type RunAction = 'edit' | 'usage' | 'cancel' | 'delete' | 'detach';
 
 const headers = [
   { key: 'run', header: 'Run' }, { key: 'source', header: 'Source' }, { key: 'state', header: 'State' }, { key: 'start', header: 'Start' },
@@ -18,16 +18,18 @@ const headers = [
 ];
 const hideNarrow = new Set(['source', 'start', 'runtime']);
 
-/** Row actions a person with job edit access can take on one run. */
-function actionsFor(run: MachineRun, now: number): { action: RunAction; label: string; isDelete?: boolean }[] {
+/** Row actions available for one run, depending on the permissions of the viewer. */
+function actionsFor(run: MachineRun, now: number, canEdit: boolean, canDelete: boolean): { action: RunAction; label: string; isDelete?: boolean }[] {
   if (run.state === 'replaced') return [];
   const live = isRunLive(run, now);
+  const mayDelete = canDelete || (run.source === 'manual' && canEdit);
   return [
     // A running recorded run has no start to correct and cannot have an outcome yet.
-    ...(run.source === 'manual' || !live ? [{ action: 'edit' as const, label: 'Edit run' }] : []),
-    { action: 'usage', label: 'Edit material usage' },
-    ...(run.source === 'manual' && live ? [{ action: 'cancel' as const, label: 'Cancel run' }] : []),
-    ...(run.source === 'manual' ? [{ action: 'remove' as const, label: 'Remove run', isDelete: true }] : [{ action: 'detach' as const, label: 'Detach from job', isDelete: true }]),
+    ...(canEdit && (run.source === 'manual' || !live) ? [{ action: 'edit' as const, label: 'Edit run' }] : []),
+    ...(canEdit ? [{ action: 'usage' as const, label: 'Edit material usage' }] : []),
+    ...(canEdit && run.source === 'manual' && live ? [{ action: 'cancel' as const, label: 'Cancel run' }] : []),
+    ...(canEdit && run.source === 'recorded' ? [{ action: 'detach' as const, label: 'Detach from job', isDelete: true }] : []),
+    ...(mayDelete ? [{ action: 'delete' as const, label: 'Delete run', isDelete: true }] : []),
   ];
 }
 
@@ -35,6 +37,8 @@ type Props = {
   job: MachineJob;
   now: number;
   canEdit: boolean;
+  /** machine_jobs.delete: lets recorded runs be deleted too. */
+  canDelete?: boolean;
   /** An unassigned recorded run exists on the job's machine, so attaching is worth offering. */
   canAttach: boolean;
   onAction: (action: RunAction, run: MachineRun) => void;
@@ -43,11 +47,12 @@ type Props = {
 };
 
 /** The runs of one job: manual and recorded, with row actions for people who may edit the job. */
-export function JobRunsTable({ job, now, canEdit, canAttach, onAction, onAdd, onAttach }: Props) {
+export function JobRunsTable({ job, now, canEdit, canDelete = false, canAttach, onAction, onAdd, onAttach }: Props) {
   const [showReplaced, setShowReplaced] = useState(false);
   const ordered = [...job.runs].sort((a, b) => new Date(a.startedAt).getTime() - new Date(b.startedAt).getTime());
   const replaced = ordered.filter((run) => run.state === 'replaced');
   const visible = showReplaced ? [...ordered.filter((run) => run.state !== 'replaced'), ...replaced] : ordered.filter((run) => run.state !== 'replaced');
+  const showActions = canEdit || canDelete;
   const rows = visible.map((run) => ({ id: run.id, run: run.displayId, source: run.source, state: run.state, start: run.startedAt, end: runEnd(run) ?? '', runtime: run.durationSeconds, outcome: run.outcome ?? '', material: '' }));
 
   return (
@@ -67,7 +72,7 @@ export function JobRunsTable({ job, now, canEdit, canAttach, onAction, onAdd, on
               <TableHead>
                 <TableRow>
                   {tableHeaders.map((header) => { const { key, ...props } = getHeaderProps({ header }); return <TableHeader key={key} {...props} className={hideNarrow.has(header.key) ? 'mj-hide-narrow' : undefined}>{header.header}</TableHeader>; })}
-                  {canEdit && <TableHeader aria-label="Actions" />}
+                  {showActions && <TableHeader aria-label="Actions" />}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -80,7 +85,7 @@ export function JobRunsTable({ job, now, canEdit, canAttach, onAction, onAdd, on
                   const end = runEnd(run);
                   const progress = runProgress(run, now);
                   const isReplaced = run.state === 'replaced';
-                  const actions = canEdit ? actionsFor(run, now) : [];
+                  const actions = actionsFor(run, now, canEdit, canDelete);
                   return (
                     <TableRow key={key} {...props} className={isReplaced ? 'mj-run-row--replaced' : undefined}>
                       <TableCell>
@@ -118,7 +123,7 @@ export function JobRunsTable({ job, now, canEdit, canAttach, onAction, onAdd, on
                           {run.usagesFromMachine && <span><FromMachineTag /></span>}
                         </div>
                       </TableCell>
-                      {canEdit && (
+                      {showActions && (
                         <TableCell className="cds--table-column-menu">
                           {actions.length > 0 && (
                             <OverflowMenu aria-label={`Actions for ${run.displayId}`} iconDescription={`Actions for ${run.displayId}`} flipped size="md">

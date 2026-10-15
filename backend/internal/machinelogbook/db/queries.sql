@@ -29,7 +29,7 @@ SELECT m.*, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.p
        COALESCE(round(100.0 * count(j.id) FILTER (WHERE NOT s.running AND COALESCE(j.outcome_override, s.derived_outcome) IN ('failed', 'partial_failure')) / NULLIF(count(j.id), 0), 2), 0)::numeric AS failure_rate
 FROM machines m
 JOIN machine_types mt ON mt.id = m.machine_type_id
-LEFT JOIN machine_jobs j ON j.machine_id = m.id
+LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.deleted_at IS NULL
 LEFT JOIN machine_job_run_summaries s ON s.job_id = j.id
 WHERE m.id = sqlc.arg(id)
 GROUP BY m.id, mt.id;
@@ -45,7 +45,7 @@ SELECT m.*, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.p
        COALESCE(round(100.0 * count(j.id) FILTER (WHERE NOT s.running AND COALESCE(j.outcome_override, s.derived_outcome) IN ('failed', 'partial_failure')) / NULLIF(count(j.id), 0), 2), 0)::numeric AS failure_rate
 FROM machines m
 JOIN machine_types mt ON mt.id = m.machine_type_id
-LEFT JOIN machine_jobs j ON j.machine_id = m.id
+LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.deleted_at IS NULL
 LEFT JOIN machine_job_run_summaries s ON s.job_id = j.id
 WHERE (sqlc.arg(search)::text = '' OR lower(m.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(mt.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
   AND (sqlc.narg(status)::text IS NULL OR m.status = sqlc.narg(status)::text)
@@ -334,7 +334,7 @@ LEFT JOIN accounts ac ON ac.id = t.actor_account_id
 LEFT JOIN people pe ON pe.id = ac.person_id
 LEFT JOIN machine_run_usages u ON u.id = t.run_usage_id
 LEFT JOIN machine_runs ur ON ur.id = u.run_id
-LEFT JOIN machine_jobs j ON j.id = ur.job_id
+LEFT JOIN machine_jobs j ON j.id = ur.job_id AND j.deleted_at IS NULL
 WHERE t.material_id = sqlc.arg(material_id)
 ORDER BY t.occurred_at DESC, t.id DESC
 LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
@@ -552,7 +552,7 @@ LEFT JOIN accounts ac ON ac.id = t.actor_account_id
 LEFT JOIN people pe ON pe.id = ac.person_id
 LEFT JOIN machine_run_usages u ON u.id=t.run_usage_id
 LEFT JOIN machine_runs ur ON ur.id=u.run_id
-LEFT JOIN machine_jobs j ON j.id=ur.job_id
+LEFT JOIN machine_jobs j ON j.id=ur.job_id AND j.deleted_at IS NULL
 WHERE t.spool_id=sqlc.arg(spool_id) OR t.from_spool_id=sqlc.arg(spool_id) OR t.to_spool_id=sqlc.arg(spool_id)
 ORDER BY t.occurred_at DESC, t.id DESC
 LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
@@ -644,14 +644,14 @@ VALUES (sqlc.arg(id), sqlc.arg(display_id), sqlc.arg(machine_id), sqlc.narg(cust
 RETURNING *;
 
 -- name: GetMachineJobBase :one
-SELECT * FROM machine_jobs WHERE id = sqlc.arg(id);
+SELECT * FROM machine_jobs WHERE id = sqlc.arg(id) AND deleted_at IS NULL;
 
 -- name: GetArtifactReference :one
 SELECT id, encode(sha256, 'hex')::text AS sha256, parser_status
 FROM print_artifacts WHERE id = sqlc.arg(id);
 
 -- name: GetMachineJobForUpdate :one
-SELECT * FROM machine_jobs WHERE id = sqlc.arg(id) FOR UPDATE;
+SELECT * FROM machine_jobs WHERE id = sqlc.arg(id) AND deleted_at IS NULL FOR UPDATE;
 
 -- name: GetMachineJobRunSummary :one
 SELECT job_id, run_count, started_at, ended_at, expected_end_at, running, runtime_seconds, COALESCE(derived_outcome, 'unknown')::text AS derived_outcome
@@ -704,10 +704,10 @@ SELECT id FROM machine_runs WHERE job_id = sqlc.arg(job_id) AND state IS DISTINC
 SELECT * FROM machine_runs WHERE job_id = sqlc.arg(job_id) ORDER BY id FOR UPDATE;
 
 -- name: GetRunForUpdate :one
-SELECT * FROM machine_runs WHERE id = sqlc.arg(id) FOR UPDATE;
+SELECT * FROM machine_runs WHERE id = sqlc.arg(id) AND deleted_at IS NULL FOR UPDATE;
 
 -- name: GetRunBase :one
-SELECT * FROM machine_runs WHERE id = sqlc.arg(id);
+SELECT * FROM machine_runs WHERE id = sqlc.arg(id) AND deleted_at IS NULL;
 
 -- name: InsertManualRun :one
 INSERT INTO machine_runs (id, display_id, machine_id, source, job_id, started_at, ended_at, outcome, history_complete)
@@ -781,7 +781,8 @@ WITH runs AS (
         (SELECT x.id FROM filament_spool_fills x WHERE x.spool_id = sp.id ORDER BY x.fill_number DESC LIMIT 1))
     LEFT JOIN materials mat ON mat.id = pf.material_id
     LEFT JOIN print_artifacts pa ON pa.id = r.artifact_id
-    WHERE (sqlc.narg(run_id)::uuid IS NULL OR r.id = sqlc.narg(run_id)::uuid)
+    WHERE r.deleted_at IS NULL
+      AND (sqlc.narg(run_id)::uuid IS NULL OR r.id = sqlc.narg(run_id)::uuid)
       AND (sqlc.narg(job_id)::uuid IS NULL OR r.job_id = sqlc.narg(job_id)::uuid)
       AND (sqlc.arg(search)::text = '' OR r.display_id ILIKE '%' || sqlc.arg(search)::text || '%' OR r.file_name ILIKE '%' || sqlc.arg(search)::text || '%')
       AND (sqlc.narg(machine_id)::uuid IS NULL OR r.machine_id = sqlc.narg(machine_id)::uuid)
@@ -812,7 +813,8 @@ LEFT JOIN machine_job_run_summaries s ON s.job_id = j.id
 LEFT JOIN people cp ON cp.id = j.customer_person_id
 LEFT JOIN organizations co ON co.id = j.customer_organization_id
 LEFT JOIN people op ON op.id = j.operator_person_id
-WHERE (sqlc.arg(search)::text = '' OR lower(j.display_id) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(m.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+WHERE j.deleted_at IS NULL
+  AND (sqlc.arg(search)::text = '' OR lower(j.display_id) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(m.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
        OR lower(COALESCE(cp.first_name || ' ' || cp.last_name, co.name, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
        OR lower(COALESCE(op.first_name || ' ' || op.last_name, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
        OR EXISTS (SELECT 1 FROM machine_run_usages u JOIN machine_runs ur ON ur.id = u.run_id JOIN materials mat ON mat.id = u.material_id
@@ -835,7 +837,8 @@ LEFT JOIN machine_job_run_summaries s ON s.job_id = j.id
 LEFT JOIN people cp ON cp.id = j.customer_person_id
 LEFT JOIN organizations co ON co.id = j.customer_organization_id
 LEFT JOIN people op ON op.id = j.operator_person_id
-WHERE (sqlc.arg(search)::text = '' OR lower(j.display_id) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(m.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
+WHERE j.deleted_at IS NULL
+  AND (sqlc.arg(search)::text = '' OR lower(j.display_id) LIKE '%' || lower(sqlc.arg(search)::text) || '%' OR lower(m.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
        OR lower(COALESCE(cp.first_name || ' ' || cp.last_name, co.name, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
        OR lower(COALESCE(op.first_name || ' ' || op.last_name, '')) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
        OR EXISTS (SELECT 1 FROM machine_run_usages u JOIN machine_runs ur ON ur.id = u.run_id JOIN materials mat ON mat.id = u.material_id
@@ -932,11 +935,13 @@ SELECT count(*) FILTER (WHERE s.started_at >= date_trunc('day', now()))::bigint 
        COALESCE(sum(j.effective_price) FILTER (WHERE NOT EXISTS(SELECT 1 FROM order_job_claims c WHERE c.machine_job_id=j.id)), 0)::numeric AS unassigned_estimated_amount,
        count(*) FILTER (WHERE s.started_at >= date_trunc('week', now()) AND NOT s.running AND COALESCE(j.outcome_override, s.derived_outcome) IN ('failed', 'partial_failure'))::bigint AS failed_or_partial_this_week
 FROM machine_jobs j
-LEFT JOIN machine_job_run_summaries s ON s.job_id = j.id;
+LEFT JOIN machine_job_run_summaries s ON s.job_id = j.id
+WHERE j.deleted_at IS NULL;
 
 -- name: ListRecentJobIDs :many
 SELECT j.id FROM machine_jobs j
 LEFT JOIN machine_job_run_summaries s ON s.job_id = j.id
+WHERE j.deleted_at IS NULL
 ORDER BY s.started_at DESC NULLS LAST, j.id DESC LIMIT sqlc.arg(page_limit);
 
 -- name: ListLowStockMaterialIDs :many
@@ -957,13 +962,14 @@ GROUP BY day ORDER BY day;
 -- name: StatisticMaterialUsage :many
 SELECT m.category AS label, COALESCE(-sum(t.quantity_delta), 0)::numeric AS value
 FROM inventory_transactions t JOIN materials m ON m.id = t.material_id
-WHERE t.kind IN ('machine_run_consumption', 'manual_consumption') AND t.occurred_at >= sqlc.arg(from_time) AND t.occurred_at < sqlc.arg(to_time)
+WHERE (t.kind IN ('machine_run_consumption', 'manual_consumption') OR (t.kind = 'adjustment' AND t.adjustment_reason = 'job_corrected'))
+  AND t.occurred_at >= sqlc.arg(from_time) AND t.occurred_at < sqlc.arg(to_time)
 GROUP BY m.category ORDER BY m.category;
 
 -- name: StatisticMachineRuntime :many
 SELECT m.id::text AS key, m.name AS label, COALESCE(sum(rt.seconds) / 3600.0, 0)::numeric AS value
 FROM machines m
-LEFT JOIN machine_jobs j ON j.machine_id = m.id
+LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.deleted_at IS NULL
 LEFT JOIN machine_job_run_summaries s ON s.job_id = j.id AND s.started_at >= sqlc.arg(from_time) AND s.started_at < sqlc.arg(to_time)
 LEFT JOIN LATERAL (
     SELECT sum(GREATEST(EXTRACT(EPOCH FROM (LEAST(CASE WHEN r.source = 'manual' THEN r.ended_at ELSE COALESCE(r.ended_at, sqlc.arg(now)::timestamptz) END, sqlc.arg(now)::timestamptz)
@@ -975,7 +981,7 @@ GROUP BY m.id, m.name ORDER BY value DESC, lower(m.name);
 -- name: StatisticMachineJobCounts :many
 SELECT m.id::text AS key, m.name AS label, count(s.job_id)::numeric AS value
 FROM machines m
-LEFT JOIN machine_jobs j ON j.machine_id = m.id
+LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.deleted_at IS NULL
 LEFT JOIN machine_job_run_summaries s ON s.job_id = j.id AND s.started_at >= sqlc.arg(from_time) AND s.started_at < sqlc.arg(to_time)
 GROUP BY m.id, m.name ORDER BY value DESC, lower(m.name);
 
@@ -999,7 +1005,7 @@ GROUP BY date_trunc('month', occurred_at) ORDER BY date_trunc('month', occurred_
 SELECT m.id::text AS key, m.name AS label,
        COALESCE(round(100.0 * count(s.job_id) FILTER (WHERE NOT s.running AND COALESCE(j.outcome_override, s.derived_outcome) IN ('failed', 'partial_failure')) / NULLIF(count(s.job_id), 0), 2), 0)::numeric AS value
 FROM machines m
-LEFT JOIN machine_jobs j ON j.machine_id = m.id
+LEFT JOIN machine_jobs j ON j.machine_id = m.id AND j.deleted_at IS NULL
 LEFT JOIN machine_job_run_summaries s ON s.job_id = j.id AND s.started_at >= sqlc.arg(from_time) AND s.started_at < sqlc.arg(to_time)
 GROUP BY m.id, m.name ORDER BY value DESC, lower(m.name);
 
@@ -1027,7 +1033,7 @@ WITH items AS (
     LEFT JOIN filament_spool_fills pf ON pf.id = COALESCE(
         (SELECT x.id FROM filament_spool_fills x WHERE x.spool_id = r.reported_spool_id AND x.filled_at <= r.last_observed_at ORDER BY x.fill_number DESC LIMIT 1),
         (SELECT x.id FROM filament_spool_fills x WHERE x.spool_id = r.reported_spool_id ORDER BY x.fill_number DESC LIMIT 1))
-    WHERE r.job_id IS NULL AND r.source = 'recorded'
+    WHERE r.job_id IS NULL AND r.source = 'recorded' AND r.deleted_at IS NULL
     UNION ALL
     SELECT 'job'::text, j.id, j.display_id, j.title, lr.file_name,
            COALESCE(s.run_count, 0)::integer,
@@ -1075,6 +1081,7 @@ WITH items AS (
     LEFT JOIN order_job_claims oc ON oc.machine_job_id = j.id
     LEFT JOIN order_items oi ON oi.id = oc.order_item_id
     LEFT JOIN orders oo ON oo.id = oi.order_id
+    WHERE j.deleted_at IS NULL
 )
 SELECT i.kind, i.id, i.display_id, i.title, i.file_name, i.run_count, i.machine_id, i.machine_name,
        i.customer_id, i.customer_kind, i.customer_name, i.customer_organization_kind, i.customer_pricing_group_id,
@@ -1114,8 +1121,9 @@ LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 -- name: ListRunningMachineNames :many
 SELECT DISTINCT name::text AS name FROM (
     SELECT m.name FROM machine_runs r JOIN machines m ON m.id = r.machine_id
-    WHERE (r.source = 'manual' AND r.state IS NULL AND r.ended_at > sqlc.arg(now)::timestamptz)
-       OR (r.source = 'recorded' AND r.state = 'running')
+    WHERE r.deleted_at IS NULL
+      AND ((r.source = 'manual' AND r.state IS NULL AND r.ended_at > sqlc.arg(now)::timestamptz)
+           OR (r.source = 'recorded' AND r.state = 'running'))
 ) running ORDER BY 1;
 
 -- name: ListMachineActivityMachines :many
@@ -1127,8 +1135,9 @@ SELECT DISTINCT ON (r.machine_id) r.machine_id, r.id, r.display_id, r.file_name,
        COALESCE(r.ended_at, r.estimated_end_at) AS ends_at
 FROM machine_runs r
 LEFT JOIN machine_jobs j ON j.id = r.job_id
-WHERE (r.source = 'manual' AND r.state IS NULL AND r.ended_at > sqlc.arg(now)::timestamptz)
-   OR (r.source = 'recorded' AND r.state = 'running')
+WHERE r.deleted_at IS NULL
+  AND ((r.source = 'manual' AND r.state IS NULL AND r.ended_at > sqlc.arg(now)::timestamptz)
+       OR (r.source = 'recorded' AND r.state = 'running'))
 ORDER BY r.machine_id, COALESCE(r.started_at, r.first_observed_at) DESC, r.id DESC;
 
 -- name: ListMachineConnectorStates :many
@@ -1219,3 +1228,24 @@ FROM machines m
 JOIN machine_types mt ON mt.id = m.machine_type_id
 JOIN jobs j ON j.machine_id = m.id
 GROUP BY m.id, m.name, mt.name ORDER BY lower(m.name), m.id;
+
+-- name: JobIsOnOrder :one
+-- A job is on an order while an order item that was not removed references it
+-- or while it is claimed, whatever the state of the order.
+SELECT (EXISTS (SELECT 1 FROM order_job_claims c WHERE c.machine_job_id = sqlc.arg(job_id))
+    OR EXISTS (SELECT 1 FROM order_items i WHERE i.source_machine_job_id = sqlc.arg(job_id) AND i.removed_at IS NULL))::boolean AS on_order;
+
+-- name: SoftDeleteMachineJob :one
+UPDATE machine_jobs SET deleted_at = sqlc.arg(deleted_at), deleted_by = sqlc.narg(deleted_by), version = version + 1, updated_at = sqlc.arg(deleted_at)
+WHERE id = sqlc.arg(id) AND deleted_at IS NULL AND version = sqlc.arg(expected_version)
+RETURNING *;
+
+-- name: SoftDeleteMachineRun :exec
+-- A deleted run is detached from its job.
+UPDATE machine_runs SET deleted_at = sqlc.arg(deleted_at), deleted_by = sqlc.narg(deleted_by), job_id = NULL, version = version + 1, updated_at = sqlc.arg(deleted_at)
+WHERE id = sqlc.arg(id) AND deleted_at IS NULL;
+
+-- name: SumRunUsageLedger :one
+-- The net quantity and value the ledger holds for a run usage.
+SELECT COALESCE(sum(quantity_delta), 0)::numeric AS quantity, COALESCE(sum(inventory_value_delta), 0)::numeric AS value
+FROM inventory_transactions WHERE run_usage_id = sqlc.arg(run_usage_id);

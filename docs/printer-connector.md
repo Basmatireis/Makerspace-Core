@@ -187,3 +187,6 @@ Use the administration diagnostics panel to compare the applied and desired conf
 
 Configuration is a complete snapshot polled every 10 seconds, and the heartbeat is sent every 10 seconds. The heartbeat answer carries Core's current configuration revision; when it is newer than the applied one, the connector fetches the configuration immediately instead of waiting for the next poll, so a new assignment or a changed printer setup takes effect within seconds. The last encrypted snapshot remains active during Core outages. A changed revision cancels the current adapter contexts, applies the new snapshot, and starts fresh supervisors. Graceful shutdown cancels adapters, checkpoints SQLite, and releases the data-directory lock.
 
+## Clearing events
+
+`POST /printer-connectors/{id}/events/clear` (`printer_connectors.manage`) sets `eventsClearedAt` (migration 00044) and audits `printer_connector.events_cleared`. The event list omits events received up to that time unless `includeCleared=true`. Events are never deleted.

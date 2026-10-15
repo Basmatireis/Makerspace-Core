@@ -20,6 +20,7 @@ the required session and CSRF credentials.
  */
 import type {
   CreateMachineJobRequest,
+  DeleteMachineJobRequest,
   ListMachineJobsParams,
   MachineJob,
   MachineJobPage,
@@ -161,6 +162,32 @@ export const updateMachineJob = async (machineJobId: UUIDv7,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       updateMachineJobRequest,)
+  }
+);}
+
+
+/**
+ * Needs machine_jobs.delete. The job and its manual runs are tombstoned: they disappear from every list, statistic and total, but their display IDs are never reused. Recorded runs of the job are deleted too with deleteRecordedRuns, otherwise they are detached and become unassigned runs. With reverseConsumption the material the deleted runs consumed is restored to inventory with compensating ledger entries, otherwise the ledger is left untouched. A job on an order cannot be deleted (409 job_on_order).
+ * @summary Delete a job and its manual runs
+ */
+export const getDeleteMachineJobUrl = (machineJobId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machine-jobs/${machineJobId}`
+}
+
+export const deleteMachineJob = async (machineJobId: UUIDv7,
+    deleteMachineJobRequest: DeleteMachineJobRequest, options?: RequestInit): Promise<void> => {
+
+  return apiFetch<void>(getDeleteMachineJobUrl(machineJobId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      deleteMachineJobRequest,)
   }
 );}
 

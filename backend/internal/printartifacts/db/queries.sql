@@ -57,7 +57,7 @@ SELECT a.id AS assignment_id, a.machine_id, a.configuration_version, r.id AS run
 FROM printer_connector_assignments a
 JOIN machine_runs r ON r.assignment_id = a.id AND r.machine_id = a.machine_id
 WHERE a.id = sqlc.arg(assignment_id) AND a.connector_id = sqlc.arg(connector_id)
-  AND r.id = sqlc.arg(run_id) AND a.ended_at IS NULL
+  AND r.id = sqlc.arg(run_id) AND r.deleted_at IS NULL AND a.ended_at IS NULL
 FOR UPDATE OF a, r;
 
 -- name: CheckConnectorArtifactUploadTarget :one
@@ -65,7 +65,7 @@ SELECT a.machine_id, a.configuration_version, r.artifact_id
 FROM printer_connector_assignments a
 JOIN machine_runs r ON r.assignment_id = a.id AND r.machine_id = a.machine_id
 WHERE a.id = sqlc.arg(assignment_id) AND a.connector_id = sqlc.arg(connector_id)
-  AND r.id = sqlc.arg(run_id) AND a.ended_at IS NULL;
+  AND r.id = sqlc.arg(run_id) AND r.deleted_at IS NULL AND a.ended_at IS NULL;
 
 -- name: AttachArtifactToRun :one
 UPDATE machine_runs SET artifact_id = sqlc.arg(artifact_id), version = version + 1, updated_at = now()
@@ -75,7 +75,7 @@ RETURNING *;
 -- name: FindPlannedJobsForArtifact :many
 SELECT j.id
 FROM machine_jobs j
-WHERE j.machine_id = sqlc.arg(machine_id) AND j.artifact_id = sqlc.arg(artifact_id)
+WHERE j.machine_id = sqlc.arg(machine_id) AND j.artifact_id = sqlc.arg(artifact_id) AND j.deleted_at IS NULL
   AND NOT EXISTS (SELECT 1 FROM machine_runs r WHERE r.job_id = j.id AND r.state IS DISTINCT FROM 'replaced')
 ORDER BY j.created_at, j.id
 FOR UPDATE OF j;

@@ -68,6 +68,32 @@ describe('Jobs page', () => {
     expect(screen.queryByRole('button', { name: 'New job' })).not.toBeInTheDocument();
   });
 
+  it('deletes an unassigned run from its row menu only with machine_jobs.delete', async () => {
+    let body: unknown;
+    const run = recordedRun({ usages: [] });
+    server.use(
+      as(PermissionId.machine_jobsread, PermissionId.machine_jobsdelete),
+      http.get('*/api/v1/machine-logbook/work-items', () => HttpResponse.json({ items: [runItem], page: 1, pageSize: 10, total: 1 })),
+      http.get(`*/api/v1/machine-runs/${recordedRunId}`, () => HttpResponse.json(run)),
+      http.delete(`*/api/v1/machine-runs/${recordedRunId}`, async ({ request }) => { body = await request.json(); return new HttpResponse(null, { status: 204 }); }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, '/machine-logbook/jobs');
+    const table = await screen.findByRole('table', { name: 'Jobs' }, { timeout: 5000 });
+    await user.click(within(table).getByRole('link', { name: 'bracket_v2.gcode' }).closest('tr')!.querySelector<HTMLButtonElement>('.cds--overflow-menu')!);
+    await user.click(await screen.findByText('Delete run'));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(await within(dialog).findByRole('button', { name: 'Delete run' }));
+    await waitFor(() => expect(body).toEqual({ expectedVersion: run.version, reverseConsumption: false }));
+  });
+
+  it('has no row menu for unassigned runs without machine_jobs.delete', async () => {
+    server.use(as(PermissionId.machine_jobsread), http.get('*/api/v1/machine-logbook/work-items', () => HttpResponse.json({ items: [runItem], page: 1, pageSize: 10, total: 1 })));
+    renderRoute(<App />, '/machine-logbook/jobs');
+    const table = await screen.findByRole('table', { name: 'Jobs' }, { timeout: 5000 });
+    expect(table.querySelector('.cds--overflow-menu')).toBeNull();
+  });
+
   it('sends several selected values as repeated parameters, keeps the page URL comma-separated and sorts on the server', async () => {
     const requests: URL[] = [];
     server.use(
@@ -399,35 +425,214 @@ describe('Job detail page', () => {
     expect(await screen.findByText('Run detached')).toBeInTheDocument();
   });
 
-  it('shows the server rejection when the last run of a job is removed', async () => {
+  it('offers Delete run for a manual run with edit access only, and hides it for recorded runs without machine_jobs.delete', async () => {
+    const recorded = recordedRun({ job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' }, usagesFromMachine: true });
     server.use(
       as(...editor),
-      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
+      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [manualRun(), recorded] }))),
       noUnassignedRuns,
-      http.delete(`*/api/v1/machine-runs/${manualRunId}`, () => HttpResponse.json({ code: 'job_needs_run', message: 'A job needs at least one run' }, { status: 409 })),
     );
     const user = userEvent.setup();
     renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
-    await runAction(user, 'RN-2026-000001', 'Remove run');
-    const dialog = await screen.findByRole('alertdialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Remove run' }));
-    expect(await within(dialog).findByText('A job needs at least one run. Add another run before removing this one.')).toBeInTheDocument();
+    const runs = await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
+    await user.click(within(runs).getByRole('link', { name: 'RN-2026-000001' }).closest('tr')!.querySelector<HTMLButtonElement>('.cds--overflow-menu')!);
+    expect(await screen.findByText('Delete run')).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await user.click(within(runs).getByRole('link', { name: 'RN-2026-000007' }).closest('tr')!.querySelector<HTMLButtonElement>('.cds--overflow-menu')!);
+    expect(await screen.findByText('Detach from job')).toBeInTheDocument();
+    expect(screen.queryByText('Delete run')).not.toBeInTheDocument();
+    expect(screen.queryByText('Delete job')).not.toBeInTheDocument();
   });
 
-  it('removes a manual run with the version of the run', async () => {
-    let removed: VersionRequest | undefined;
-    const second = manualRun({ id: ids.otherJob, displayId: 'RN-2026-000002', version: 6 });
+  it('requires an explicit consumption choice and sends it when a manual run is deleted', async () => {
+    let removed: unknown;
+    const second = manualRun({ id: ids.otherJob, displayId: 'RN-2026-000002', version: 6, usages: [usage({ spoolDisplayId: 'SP-0001' })] });
     server.use(
       as(...editor),
       http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [manualRun(), second] }))),
       noUnassignedRuns,
-      http.delete(`*/api/v1/machine-runs/${ids.otherJob}`, async ({ request }) => { removed = await request.json() as VersionRequest; return HttpResponse.json(jobFixture()); }),
+      http.delete(`*/api/v1/machine-runs/${ids.otherJob}`, async ({ request }) => { removed = await request.json(); return new HttpResponse(null, { status: 204 }); }),
     );
     const user = userEvent.setup();
     renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
-    await runAction(user, 'RN-2026-000002', 'Remove run');
-    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove run' }));
-    await waitFor(() => expect(removed).toEqual({ expectedVersion: 6 }));
+    await runAction(user, 'RN-2026-000002', 'Delete run');
+    const dialog = await screen.findByRole('alertdialog');
+    const confirm = within(dialog).getByRole('button', { name: 'Delete run' });
+    expect(within(dialog).getByRole('radio', { name: 'Reverse consumption (183 g back to SP-0001)' })).not.toBeChecked();
+    expect(within(dialog).getByRole('radio', { name: 'Keep consumption' })).not.toBeChecked();
+    expect(confirm).toBeDisabled();
+    await user.click(within(dialog).getByRole('radio', { name: 'Keep consumption' }));
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+    await waitFor(() => expect(removed).toEqual({ expectedVersion: 6, reverseConsumption: false }));
+    expect(await screen.findByText('Run deleted')).toBeInTheDocument();
+  });
+
+  it('omits the consumption choice when the run booked no material', async () => {
+    server.use(
+      as(...editor),
+      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [manualRun(), manualRun({ id: ids.otherJob, displayId: 'RN-2026-000002', usages: [] })] }))),
+      noUnassignedRuns,
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    await runAction(user, 'RN-2026-000002', 'Delete run');
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).queryByRole('radio')).not.toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Delete run' })).toBeEnabled();
+  });
+
+  it('explains the last run and offers Delete job instead only with machine_jobs.delete', async () => {
+    server.use(
+      as(...editor, PermissionId.machine_jobsdelete),
+      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
+      orderAssociation(null),
+      noUnassignedRuns,
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    await runAction(user, 'RN-2026-000001', 'Delete run');
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText('This is the last run of its job')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Delete run' })).toBeDisabled();
+    await user.click(within(dialog).getByRole('button', { name: 'Delete job instead' }));
+    expect(await screen.findByText('Delete this job?')).toBeInTheDocument();
+  });
+
+  it('shows no Delete job instead without machine_jobs.delete', async () => {
+    server.use(as(...editor), http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())), noUnassignedRuns);
+    const user = userEvent.setup();
+    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    await runAction(user, 'RN-2026-000001', 'Delete run');
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText('This is the last run of its job')).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Delete job instead' })).not.toBeInTheDocument();
+  });
+
+  it('treats a last_run answer from the server like the last run', async () => {
+    server.use(
+      as(...editor),
+      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [manualRun(), manualRun({ id: ids.otherJob, displayId: 'RN-2026-000002', usages: [] })] }))),
+      noUnassignedRuns,
+      http.delete(`*/api/v1/machine-runs/${ids.otherJob}`, () => HttpResponse.json({ code: 'last_run', message: 'last run' }, { status: 409 })),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    await runAction(user, 'RN-2026-000002', 'Delete run');
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete run' }));
+    expect(await within(dialog).findByText('This is the last run of its job')).toBeInTheDocument();
+  });
+
+  it('shows Delete job only with machine_jobs.delete', async () => {
+    server.use(as(...editor), http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())), noUnassignedRuns);
+    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
+    expect(document.querySelector('.page-header__actions .cds--overflow-menu')).toBeNull();
+    expect(screen.queryByText('Delete job')).not.toBeInTheDocument();
+  });
+
+  describe('delete job dialog', () => {
+    const deleter = [...editor, PermissionId.machine_jobsdelete, PermissionId.ordersread] as const;
+    const recorded = () => recordedRun({ job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' }, usagesFromMachine: true, usages: [usage({ id: ids.otherJob, quantity: '40.000', spoolDisplayId: 'SP-0002' })] });
+    const jobWithBoth = () => jobFixture({ runs: [manualRun(), recorded()] });
+
+    it('requires the consumption choice, deletes recorded runs by default and sends the payload', async () => {
+      let body: unknown;
+      server.use(
+        as(...deleter),
+        http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobWithBoth())),
+        orderAssociation(null), noUnassignedRuns,
+        http.delete(`*/api/v1/machine-jobs/${jobId}`, async ({ request }) => { body = await request.json(); return new HttpResponse(null, { status: 204 }); }),
+      );
+      const user = userEvent.setup();
+      renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
+      await user.click(overflowButton());
+      await user.click(await screen.findByText('Delete job'));
+      const dialog = await screen.findByRole('alertdialog');
+      const confirm = within(dialog).getByRole('button', { name: 'Delete job' });
+      const checkbox = within(dialog).getByRole('checkbox', { name: /Also delete recorded runs \(RN-2026-000007\)/ });
+      expect(checkbox).toBeChecked();
+      expect(confirm).toBeDisabled();
+      await user.click(within(dialog).getByRole('radio', { name: /Reverse consumption/ }));
+      await user.click(confirm);
+      await waitFor(() => expect(body).toEqual({ expectedVersion: 3, reverseConsumption: true, deleteRecordedRuns: true }));
+      expect(await screen.findByText('Job deleted')).toBeInTheDocument();
+    });
+
+    it('detaches recorded runs when the checkbox is cleared and then needs no choice for their material', async () => {
+      let body: unknown;
+      server.use(
+        as(...deleter),
+        http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [manualRun({ usages: [] }), recorded()] }))),
+        orderAssociation(null), noUnassignedRuns,
+        http.delete(`*/api/v1/machine-jobs/${jobId}`, async ({ request }) => { body = await request.json(); return new HttpResponse(null, { status: 204 }); }),
+      );
+      const user = userEvent.setup();
+      renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
+      await user.click(overflowButton());
+      await user.click(await screen.findByText('Delete job'));
+      const dialog = await screen.findByRole('alertdialog');
+      await user.click(within(dialog).getByRole('checkbox', { name: /Also delete recorded runs/ }));
+      expect(within(dialog).queryByRole('radio')).not.toBeInTheDocument();
+      await user.click(within(dialog).getByRole('button', { name: 'Delete job' }));
+      await waitFor(() => expect(body).toEqual({ expectedVersion: 3, reverseConsumption: false, deleteRecordedRuns: false }));
+    });
+
+    it('blocks the delete and links the order when the job is on an order', async () => {
+      server.use(
+        as(...deleter),
+        http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture())),
+        orderAssociation('0192f6f8-743e-7c77-a349-cd07c3e8a999'), noUnassignedRuns,
+      );
+      const user = userEvent.setup();
+      renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
+      await user.click(overflowButton());
+      await user.click(await screen.findByText('Delete job'));
+      const dialog = await screen.findByRole('alertdialog');
+      expect(await within(dialog).findByText('This job is on an order')).toBeInTheDocument();
+      expect(within(dialog).getByRole('link', { name: /O-2026-0004/ })).toHaveAttribute('href', '/orders/0192f6f8-743e-7c77-a349-cd07c3e8a999');
+      expect(within(dialog).getByRole('button', { name: 'Delete job' })).toBeDisabled();
+    });
+
+    it('shows the job-on-order notification when the server answers 409 job_on_order', async () => {
+      server.use(
+        as(...editor, PermissionId.machine_jobsdelete),
+        http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [manualRun({ usages: [] })] }))),
+        noUnassignedRuns,
+        http.delete(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json({ code: 'job_on_order', message: 'on order' }, { status: 409 })),
+      );
+      const user = userEvent.setup();
+      renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+      await screen.findByRole('table', { name: 'Runs' }, { timeout: 5000 });
+      await user.click(overflowButton());
+      await user.click(await screen.findByText('Delete job'));
+      const dialog = await screen.findByRole('alertdialog');
+      await user.click(within(dialog).getByRole('button', { name: 'Delete job' }));
+      expect(await within(dialog).findByText('This job is on an order')).toBeInTheDocument();
+      expect(within(dialog).getByRole('button', { name: 'Delete job' })).toBeDisabled();
+    });
+  });
+
+  it('offers deleting a recorded run with machine_jobs.delete and warns about a running one', async () => {
+    let body: unknown;
+    const running = recordedRun({ job: { id: jobId, displayId: 'J-2026-000001', title: 'Gearbox housing' }, state: 'running', endedAt: null, usages: [], startedAt: iso(-30), estimatedEndAt: iso(30) });
+    server.use(
+      as(...editor, PermissionId.machine_jobsdelete),
+      http.get(`*/api/v1/machine-jobs/${jobId}`, () => HttpResponse.json(jobFixture({ runs: [manualRun(), running] }))),
+      noUnassignedRuns,
+      http.delete(`*/api/v1/machine-runs/${recordedRunId}`, async ({ request }) => { body = await request.json(); return new HttpResponse(null, { status: 204 }); }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, `/machine-logbook/jobs/${jobId}`);
+    await runAction(user, 'RN-2026-000007', 'Delete run');
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText('Further printer reports for this run are ignored after it is deleted.')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Delete run' }));
+    await waitFor(() => expect(body).toEqual({ expectedVersion: running.version, reverseConsumption: false }));
   });
 
   it('offers only the outcome for a recorded run and start, runtime and outcome for a manual one', async () => {

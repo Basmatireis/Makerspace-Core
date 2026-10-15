@@ -16,7 +16,7 @@ import (
 const activatePricingSnapshot = `-- name: ActivatePricingSnapshot :one
 UPDATE machine_jobs SET active_pricing_snapshot_id = $1, pricing_status = 'incomplete',
     calculated_price = NULL, version = version + 1, updated_at = now()
-WHERE id = $2 RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id
+WHERE id = $2 RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by
 `
 
 type ActivatePricingSnapshotParams struct {
@@ -50,6 +50,8 @@ func (q *Queries) ActivatePricingSnapshot(ctx context.Context, arg ActivatePrici
 		&i.EffectivePrice,
 		&i.OutcomeOverride,
 		&i.ArtifactID,
+		&i.DeletedAt,
+		&i.DeletedBy,
 	)
 	return i, err
 }
@@ -68,7 +70,7 @@ func (q *Queries) ActiveOrganizationExists(ctx context.Context, id uuid.UUID) (b
 const attachArtifactToRun = `-- name: AttachArtifactToRun :one
 UPDATE machine_runs SET artifact_id = $1, version = version + 1, updated_at = now()
 WHERE id = $2 AND (artifact_id IS NULL OR artifact_id = $1)
-RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id
+RETURNING id, assignment_id, machine_id, vendor_job_id, state, history_complete, first_observed_at, last_observed_at, version, created_at, updated_at, display_id, file_name, started_at, ended_at, estimated_end_at, progress_percent, reported_quantity_g, reported_quantity_basis, reported_spool_id, reported_event_id, source, job_id, outcome, artifact_id, deleted_at, deleted_by
 `
 
 type AttachArtifactToRunParams struct {
@@ -105,6 +107,8 @@ func (q *Queries) AttachArtifactToRun(ctx context.Context, arg AttachArtifactToR
 		&i.JobID,
 		&i.Outcome,
 		&i.ArtifactID,
+		&i.DeletedAt,
+		&i.DeletedBy,
 	)
 	return i, err
 }
@@ -143,7 +147,7 @@ SELECT a.machine_id, a.configuration_version, r.artifact_id
 FROM printer_connector_assignments a
 JOIN machine_runs r ON r.assignment_id = a.id AND r.machine_id = a.machine_id
 WHERE a.id = $1 AND a.connector_id = $2
-  AND r.id = $3 AND a.ended_at IS NULL
+  AND r.id = $3 AND r.deleted_at IS NULL AND a.ended_at IS NULL
 `
 
 type CheckConnectorArtifactUploadTargetParams struct {
@@ -171,7 +175,7 @@ INSERT INTO machine_jobs (
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9
-) RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id
+) RETURNING id, display_id, machine_id, customer_person_id, customer_organization_id, operator_person_id, notes, pricing_status, calculated_price, price_adjustment_reason, price_adjusted_by_account_id, price_adjusted_at, active_pricing_snapshot_id, version, created_at, updated_at, title, price_adjustment_kind, price_adjustment_value, effective_price, outcome_override, artifact_id, deleted_at, deleted_by
 `
 
 type CreatePlannedMachineJobParams struct {
@@ -222,6 +226,8 @@ func (q *Queries) CreatePlannedMachineJob(ctx context.Context, arg CreatePlanned
 		&i.EffectivePrice,
 		&i.OutcomeOverride,
 		&i.ArtifactID,
+		&i.DeletedAt,
+		&i.DeletedBy,
 	)
 	return i, err
 }
@@ -273,7 +279,7 @@ func (q *Queries) CreatePricingSnapshot(ctx context.Context, arg CreatePricingSn
 const findPlannedJobsForArtifact = `-- name: FindPlannedJobsForArtifact :many
 SELECT j.id
 FROM machine_jobs j
-WHERE j.machine_id = $1 AND j.artifact_id = $2
+WHERE j.machine_id = $1 AND j.artifact_id = $2 AND j.deleted_at IS NULL
   AND NOT EXISTS (SELECT 1 FROM machine_runs r WHERE r.job_id = j.id AND r.state IS DISTINCT FROM 'replaced')
 ORDER BY j.created_at, j.id
 FOR UPDATE OF j
@@ -438,7 +444,7 @@ SELECT a.id AS assignment_id, a.machine_id, a.configuration_version, r.id AS run
 FROM printer_connector_assignments a
 JOIN machine_runs r ON r.assignment_id = a.id AND r.machine_id = a.machine_id
 WHERE a.id = $1 AND a.connector_id = $2
-  AND r.id = $3 AND a.ended_at IS NULL
+  AND r.id = $3 AND r.deleted_at IS NULL AND a.ended_at IS NULL
 FOR UPDATE OF a, r
 `
 
