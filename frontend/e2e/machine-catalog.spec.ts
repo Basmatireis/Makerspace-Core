@@ -38,11 +38,10 @@ for (const width of [320, 390, 414, 768, 1440]) {
     await expect(page.getByRole('heading', { name: bambu, level: 1 })).toBeVisible();
 
     await page.goto(`${base}/machines/${ids.bambu}?tab=printer`);
-    await page.getByRole('button', { name: 'Add input unit' }).click();
-    const unit = page.getByRole('dialog', { name: 'Add input unit' });
-    await unit.getByLabel('Name', { exact: true }).fill('Rear feed');
-    await expect(unit.getByRole('button', { name: 'Add input unit' })).toBeEnabled();
-    await expect(unit.getByRole('button', { name: 'Add input unit' })).toBeInViewport();
+    await page.getByRole('button', { name: 'Edit spool inputs' }).click();
+    const unit = page.getByRole('dialog', { name: 'Edit spool inputs' });
+    await unit.getByRole('button', { name: 'Add input unit' }).click();
+    await expect(unit.getByRole('button', { name: 'Save spool inputs' })).toBeInViewport();
     await expectNoAccessibilityViolations(page);
   });
 }
@@ -64,18 +63,19 @@ test('adds a machine from the list', async ({ page, world }) => {
   const dialog = page.getByRole('dialog', { name: 'Add machine' });
   await dialog.getByLabel('Name', { exact: true }).fill('Vinyl cutter');
   await dialog.getByLabel('Machine type').selectOption({ label: 'Laser cutter' });
-  await dialog.getByRole('button', { name: 'Add machine' }).click();
+  await dialog.getByRole('button', { name: 'Create and continue' }).click();
   await expect.poll(() => world.sent('POST', '/api/v1/machines')).toHaveLength(1);
   expect(world.bodyOf('POST', '/api/v1/machines')).toEqual({ name: 'Vinyl cutter', machineTypeId: ids.typeLaser, status: 'active', externalIdentifier: null, automaticCollectionEnabled: false });
   await expect(page.getByRole('link', { name: 'Vinyl cutter' })).toBeVisible();
 });
 
-test('adds an input unit to a printer at the next position', async ({ page, world }) => {
+test('saves the spool inputs of a printer atomically', async ({ page, world }) => {
   await page.goto(`${base}/machines/${ids.bambu}?tab=printer`);
-  await page.getByRole('button', { name: 'Add input unit' }).click();
-  const dialog = page.getByRole('dialog', { name: 'Add input unit' });
-  await dialog.getByLabel('Name', { exact: true }).fill('Rear feed');
+  await page.getByRole('button', { name: 'Edit spool inputs' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Edit spool inputs' });
   await dialog.getByRole('button', { name: 'Add input unit' }).click();
-  await expect.poll(() => world.sent('POST', `/api/v1/machines/${ids.bambu}/printer/input-units`)).toHaveLength(1);
-  expect(world.bodyOf('POST', `/api/v1/machines/${ids.bambu}/printer/input-units`)).toEqual({ name: 'Rear feed', position: 1, externalIdentifier: null });
+  await dialog.getByLabel('Input unit name').last().fill('Rear feed');
+  await dialog.getByRole('button', { name: 'Save spool inputs' }).click();
+  await expect.poll(() => world.sent('PUT', `/api/v1/machines/${ids.bambu}/printer/setup`)).toHaveLength(1);
+  expect(world.bodyOf('PUT', `/api/v1/machines/${ids.bambu}/printer/setup`)).toMatchObject({ expectedVersion: 4, enabled: true, inputUnits: [{ id: ids.unit, name: 'AMS A' }, { name: 'Rear feed', slots: [{ name: 'Slot 1' }] }] });
 });

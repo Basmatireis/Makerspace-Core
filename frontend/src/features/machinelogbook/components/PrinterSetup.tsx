@@ -1,19 +1,26 @@
 import { useState } from 'react';
 import {
-  Button, ComboBox, DataTable, InlineLoading, InlineNotification, Modal, Select, SelectItem, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, Tag, TextInput, Tile, Toggle,
+  ActionableNotification, Button, ComboBox, DataTable, InlineLoading, InlineNotification, Link as CarbonLink, Modal, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, Tag, Tile, Toggle,
 } from '@carbon/react';
-import { Add, Edit, Link as LinkIcon, Unlink } from '@carbon/icons-react';
+import { Add, Link as LinkIcon, Unlink } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
-import type { FilamentSpool, Machine, PrinterInputUnit, PrinterProfile, PrinterSlot, PrinterSlotStatus } from '../../../api/generated/models';
-import { configurePrinterProfile, createPrinterInputUnit, createPrinterSlot, mountPrinterSpool, unmountPrinterSpool, updatePrinterInputUnit, updatePrinterSlot } from '../../../api/generated/printing/printing';
+import { Link } from 'react-router-dom';
+import type { FilamentSpool, Machine, PrinterProfile, PrinterSlot, PrinterSlotStatus } from '../../../api/generated/models';
+import { configurePrinterProfile, mountPrinterSpool, unmountPrinterSpool } from '../../../api/generated/printing/printing';
 import { DestructiveActionDialog } from '../../../app/DestructiveActionDialog';
 import { EmptyState } from '../../../app/PageState';
 import { useLatestCallback } from '../../../app/useLatestCallback';
+import { liveStatusQuery, type PrinterConnection } from '../connectorQueries';
+import { MachineSetupWizard } from '../dialogs/MachineSetupWizard';
+import { mappingLabel, missingUnits, modelById, NOZZLE_GROUPS, nozzleLabel, profileUnitRefs, trayFor } from '../printerSetup';
 import { machineLogbookKeys, spoolsQuery } from '../queries';
-import { formatQuantity } from '../shared/format';
+import { connectorDiagnostic } from '../shared/connectorHelpers';
+import { formatQuantity, formatRelative } from '../shared/format';
+import { machineLogbookPaths } from '../shared/paths';
 import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
+import { DetectedTrayCell } from './DetectedTrayCell';
+import type { StepKey } from './wizard/wizardTypes';
 
 const slotTag: Record<PrinterSlotStatus, { label: string; type: 'green' | 'warm-gray' | 'gray' }> = {
   available: { label: 'Available', type: 'green' },
@@ -23,91 +30,42 @@ const slotTag: Record<PrinterSlotStatus, { label: string; type: 'green' | 'warm-
 
 const slotHeaders = [
   { key: 'slot', header: 'Slot' },
-  { key: 'status', header: 'Status' },
+  { key: 'mapping', header: 'Printer slot' },
+  { key: 'detected', header: 'Detected' },
   { key: 'spool', header: 'Mounted spool' },
   { key: 'actions', header: 'Actions' },
 ];
 
+const runtimeTag = { connected: 'green', connecting: 'blue', degraded: 'purple', disconnected: 'red', disabled: 'gray' } as const;
+
 const spoolLabel = (spool: FilamentSpool) => `${spool.displayId}${spool.label ? ` (${spool.label})` : ''} · ${spool.materialName ?? 'No material'} · ${formatQuantity(spool.remainingQuantity)} ${spool.unit ?? 'g'} left`;
-const nextPosition = (items: { position: number }[]) => items.reduce((max, item) => Math.max(max, item.position), -1) + 1;
 
-type TopologyValues = { name: string; externalIdentifier: string; status: PrinterSlotStatus };
-
-function TopologyModal({ title, label, helperText, submitLabel, initialName = '', initialExternalIdentifier = '', status, onSubmit, onClose }: {
-  title: string; label: string; helperText?: string; submitLabel: string; initialName?: string; initialExternalIdentifier?: string; status?: PrinterSlotStatus;
-  onSubmit: (values: { name: string; externalIdentifier: string | null; status?: PrinterSlotStatus }) => Promise<void>; onClose: () => void;
-}) {
-  const [failed, setFailed] = useState(false);
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<TopologyValues>({
-    defaultValues: { name: initialName, externalIdentifier: initialExternalIdentifier, status: status ?? 'available' },
-  });
-  const close = useLatestCallback(() => { if (!isSubmitting) { setFailed(false); onClose(); } });
-  const submit = handleSubmit(async (values) => {
-    setFailed(false);
-    try {
-      await onSubmit({
-        name: values.name.trim(),
-        externalIdentifier: values.externalIdentifier.trim() || null,
-        status: status === undefined ? undefined : values.status,
-      });
-      onClose();
-    } catch {
-      setFailed(true);
-    }
-  });
-  return (
-    <Modal
-      open size="xs" modalHeading={title} primaryButtonText={isSubmitting ? 'Saving…' : submitLabel} secondaryButtonText="Cancel"
-      primaryButtonDisabled={isSubmitting} preventCloseOnClickOutside onRequestClose={close} onRequestSubmit={() => { void submit(); }}
-    >
-      <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
-        <Stack gap={5}>
-          <TextInput
-            id={`topology-name-${title}`} labelText={label} helperText={helperText} autoComplete="off" data-modal-primary-focus
-            invalid={Boolean(errors.name)} invalidText={errors.name?.message}
-            {...register('name', { required: 'Enter a name.', maxLength: { value: 120, message: 'Use at most 120 characters.' }, validate: (value) => Boolean(value.trim()) || 'Enter a name.' })}
-          />
-          <TextInput
-            id={`topology-external-${title}`} labelText="External identifier" helperText="Use the exact identifier reported by the printer. Leave blank for manually managed holders."
-            invalid={Boolean(errors.externalIdentifier)} invalidText={errors.externalIdentifier?.message}
-            {...register('externalIdentifier', { maxLength: { value: 200, message: 'Use at most 200 characters.' } })}
-          />
-          {status !== undefined && (
-            <Select id={`topology-status-${title}`} labelText="Status" {...register('status')}>
-              <SelectItem value="available" text="Available" />
-              <SelectItem value="unavailable" text="Unavailable" />
-              <SelectItem value="retired" text="Retired" />
-            </Select>
-          )}
-          {failed && <InlineNotification kind="error" lowContrast hideCloseButton title="Not saved" subtitle="Check the name and that the printer profile has not changed, then try again." />}
-        </Stack>
-      </form>
-    </Modal>
-  );
-}
-
-export function PrinterSetup({ machine, profile }: { machine: Machine; profile: PrinterProfile | undefined }) {
+export function PrinterSetup({ machine, profile, connection }: { machine: Machine; profile: PrinterProfile | undefined; connection: PrinterConnection | undefined }) {
   const can = useCan();
   const client = useQueryClient();
   const notify = useNotify();
   const canManage = can('machines.manage');
   const canAssign = can('printer_slots.assign');
   const canReadInventory = can('inventory.read');
+  const canReadConnectors = can('printer_connectors.read');
+  const canManageConnectors = can('printer_connectors.manage');
   const [disableOpen, setDisableOpen] = useState(false);
-  const [unitEditor, setUnitEditor] = useState<PrinterInputUnit | 'new' | null>(null);
-  const [slotEditor, setSlotEditor] = useState<{ unit: PrinterInputUnit; slot?: PrinterSlot } | null>(null);
+  const [wizard, setWizard] = useState<{ step: StepKey; addDetected?: string } | null>(null);
   const [mountSlot, setMountSlot] = useState<PrinterSlot | null>(null);
   const [selectedSpool, setSelectedSpool] = useState<FilamentSpool | null>(null);
 
   const refresh = () => client.invalidateQueries({ queryKey: machineLogbookKeys.all });
-  const hasMounted = Boolean(profile?.slots.some((slot) => slot.spoolId));
+  const live = useQuery({ ...liveStatusQuery(machine.id), refetchInterval: 30_000 });
+  const detection = live.data?.status ?? null;
+  const slots = (profile?.slots ?? []).filter((slot) => slot.status !== 'retired');
+  const hasMounted = slots.some((slot) => slot.spoolId);
   const mountedSpools = useQuery({ ...spoolsQuery({ mounted: true, pageSize: 100 }), enabled: canReadInventory && hasMounted });
   const freeSpools = useQuery({ ...spoolsQuery({ consumable: true, mounted: false, pageSize: 100 }), enabled: Boolean(mountSlot) && canAssign && canReadInventory });
 
   const configure = useMutation({
     mutationFn: ({ enabled }: { enabled: boolean }) => configurePrinterProfile(machine.id, { enabled, expectedVersion: profile?.version ?? 0 }),
     onSuccess: async (_saved, { enabled }) => {
-      notify({ kind: 'success', title: !profile ? 'Printer profile created' : enabled ? 'Printing enabled' : 'Printing disabled', subtitle: machine.name });
+      notify({ kind: 'success', title: enabled ? 'Printing enabled' : 'Printing disabled', subtitle: machine.name });
       setDisableOpen(false);
       await refresh();
     },
@@ -128,44 +86,85 @@ export function PrinterSetup({ machine, profile }: { machine: Machine; profile: 
       await refresh();
     },
   });
-
   const closeIfIdle = useLatestCallback(() => { if (!mount.isPending) closeMount(); });
+  function closeMount() { setMountSlot(null); setSelectedSpool(null); mount.reset(); }
+
+  const wizardDialog = wizard && (
+    <MachineSetupWizard
+      open machine={machine} profile={profile} connection={connection} initialStep={wizard.step} detection={detection} addDetected={wizard.addDetected}
+      onClose={() => setWizard(null)}
+    />
+  );
 
   if (!profile) {
     return (
-      <EmptyState
-        title="No printer profile" description="A printer profile lets this machine receive prints and track the spools loaded in its slots."
-        action={canManage ? (
-          <Button renderIcon={Add} disabled={configure.isPending} onClick={() => configure.mutate({ enabled: true })}>Create profile</Button>
-        ) : undefined}
-      />
+      <>
+        <EmptyState
+          title="No printer profile" description="A printer profile lets this machine receive prints and track the spools loaded in its slots."
+          action={canManage ? <Button renderIcon={Add} onClick={() => setWizard({ step: 'machine' })}>Create profile</Button> : undefined}
+        />
+        {wizardDialog}
+      </>
     );
   }
 
+  const model = modelById(profile.model);
   const spoolById = (id: string | null | undefined) => (id ? mountedSpools.data?.items.find((spool) => spool.id === id) : undefined);
-  function closeMount() { setMountSlot(null); setSelectedSpool(null); mount.reset(); }
+  const missing = missingUnits(detection, profileUnitRefs(profile));
+  const units = profile.inputUnits.filter((unit) => unit.enabled).sort((a, b) => a.position - b.position);
+  const multiNozzle = (model?.nozzles ?? 1) > 1 || units.some((unit) => unit.nozzle);
+  const assignment = connection?.assignment;
 
-  const saveUnit = async ({ name, externalIdentifier }: { name: string; externalIdentifier: string | null }) => {
-    if (unitEditor === 'new') {
-      await createPrinterInputUnit(machine.id, { name, position: nextPosition(profile.inputUnits), externalIdentifier });
-      notify({ kind: 'success', title: 'Input unit added', subtitle: name });
-    } else if (unitEditor) {
-      await updatePrinterInputUnit(unitEditor.id, { name, position: unitEditor.position, externalIdentifier, enabled: unitEditor.enabled, expectedVersion: unitEditor.version });
-      notify({ kind: 'success', title: 'Input unit updated', subtitle: name });
-    }
-    await refresh();
-  };
-  const saveSlot = async ({ name, externalIdentifier, status }: { name: string; externalIdentifier: string | null; status?: PrinterSlotStatus }) => {
-    if (!slotEditor) return;
-    if (slotEditor.slot) {
-      const slot = slotEditor.slot;
-      await updatePrinterSlot(slot.id, { name, position: slot.position, status: status ?? slot.status, externalIdentifier, expectedVersion: slot.version });
-      notify({ kind: 'success', title: 'Slot updated', subtitle: name });
-    } else {
-      await createPrinterSlot(slotEditor.unit.id, { name, position: nextPosition(profile.slots.filter((slot) => slot.inputUnitId === slotEditor.unit.id)), status: status ?? 'available', externalIdentifier });
-      notify({ kind: 'success', title: 'Slot added', subtitle: name });
-    }
-    await refresh();
+  const renderUnit = (unitId: string) => {
+    const unit = units.find((item) => item.id === unitId)!;
+    const unitSlots = slots.filter((slot) => slot.inputUnitId === unit.id).sort((a, b) => a.position - b.position);
+    return (
+      <Tile key={unit.id}>
+        <div className="mj-tile-header"><h4 className="mj-group-title">{unit.name}</h4></div>
+        {unitSlots.length === 0 ? <p className="mj-secondary">No slots in this input unit.</p> : (
+          <DataTable rows={unitSlots.map((slot) => ({ id: slot.id }))} headers={slotHeaders} size="sm">
+            {({ rows, headers, getHeaderProps, getRowProps, getTableProps }) => (
+              <TableContainer>
+                <Table {...getTableProps()} aria-label={`Slots of ${unit.name}`}>
+                  <TableHead>
+                    <TableRow>
+                      {headers.map((header) => {
+                        const { key, ...headerProps } = getHeaderProps({ header });
+                        return <TableHeader key={key} {...headerProps}>{header.header}</TableHeader>;
+                      })}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {rows.map((tableRow) => {
+                      const slot = unitSlots.find((item) => item.id === tableRow.id)!;
+                      const spool = spoolById(slot.spoolId);
+                      const mapping = mappingLabel(detection, profile.model, unit.externalIdentifier ?? null, slot.externalIdentifier ?? null);
+                      const { key, ...rowProps } = getRowProps({ row: tableRow });
+                      return (
+                        <TableRow key={key} {...rowProps}>
+                          <TableCell><span className="mj-inline">{slot.name}{slot.status !== 'available' && <Tag type={slotTag[slot.status].type} size="sm">{slotTag[slot.status].label}</Tag>}</span></TableCell>
+                          <TableCell>{mapping ?? <span className="mj-secondary">Not mapped</span>}</TableCell>
+                          <TableCell>{detection ? <DetectedTrayCell tray={trayFor(detection, unit.externalIdentifier ?? null, slot.externalIdentifier ?? null)} unknownLabel={slot.externalIdentifier ? 'Not reported' : '—'} /> : <span className="mj-secondary">—</span>}</TableCell>
+                          <TableCell>{slot.spoolId ? (spool ? spoolLabel(spool) : slot.spoolDisplayId ?? 'Spool mounted') : <span className="mj-secondary">Empty</span>}</TableCell>
+                          <TableCell>
+                            {canAssign && slot.spoolId && (
+                              <Button kind="ghost" size="sm" renderIcon={Unlink} disabled={unmount.isPending} onClick={() => unmount.mutate({ slot, unit: unit.name })}>Unmount</Button>
+                            )}
+                            {canAssign && canReadInventory && !slot.spoolId && slot.status === 'available' && (
+                              <Button kind="ghost" size="sm" renderIcon={LinkIcon} onClick={() => { mount.reset(); setMountSlot(slot); }}>Mount spool</Button>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </DataTable>
+        )}
+      </Tile>
+    );
   };
 
   return (
@@ -186,63 +185,57 @@ export function PrinterSetup({ machine, profile }: { machine: Machine; profile: 
         {configure.isError && !disableOpen && <InlineNotification kind="error" lowContrast hideCloseButton title="Printer profile not updated" subtitle="The profile may have changed. Reload and try again." />}
       </Tile>
 
+      {canReadConnectors && (
+        <Tile>
+          <div className="mj-tile-header">
+            <h3>Connection</h3>
+            {canManage && canManageConnectors && connection && <Button kind="tertiary" size="sm" onClick={() => setWizard({ step: 'connection' })}>Edit connection</Button>}
+          </div>
+          {connection && assignment ? (
+            <dl className="mj-facts">
+              <div><dt>Connector</dt><dd><CarbonLink as={Link} to={`${machineLogbookPaths.machines()}?tab=connectors`}>{connection.connector.name}</CarbonLink></dd></div>
+              <div><dt>Adapter</dt><dd>{assignment.adapterKind === 'bambu_h2d' ? 'Bambu Lab H2D' : 'Simulator'}</dd></div>
+              {assignment.adapterKind === 'bambu_h2d' && <div><dt>IP address</dt><dd>{typeof assignment.settings.ipAddress === 'string' ? assignment.settings.ipAddress : '—'}</dd></div>}
+              {assignment.adapterKind === 'bambu_h2d' && <div><dt>Serial number</dt><dd>{typeof assignment.settings.serialNumber === 'string' ? assignment.settings.serialNumber : '—'}</dd></div>}
+              {assignment.adapterKind === 'bambu_h2d' && <div><dt>LAN access code</dt><dd>Set</dd></div>}
+              {assignment.adapterKind === 'bambu_h2d' && <div><dt>Auto-mount RFID spools</dt><dd>{assignment.settings.autoDetectSpools === true ? 'On' : 'Off'}</dd></div>}
+              <div>
+                <dt>State</dt>
+                <dd>
+                  {assignment.runtimeState ? <Tag size="sm" type={runtimeTag[assignment.runtimeState]}>{assignment.runtimeState}</Tag> : <span className="mj-secondary">Not reported</span>}
+                  {assignment.runtimeErrorCode && <span className="mj-secondary"> {connectorDiagnostic(assignment.runtimeErrorCode)}</span>}
+                </dd>
+              </div>
+              <div><dt>Last heartbeat</dt><dd>{connection.connector.lastHeartbeatAt ? formatRelative(connection.connector.lastHeartbeatAt) : '—'}</dd></div>
+            </dl>
+          ) : (
+            <EmptyState
+              title="No connector" description="Connect this printer to collect prints automatically and see what is loaded in each slot."
+              action={canManage && canManageConnectors ? <Button renderIcon={Add} onClick={() => setWizard({ step: 'connection' })}>Connect printer</Button> : undefined}
+            />
+          )}
+        </Tile>
+      )}
+
       <div className="mj-tile-header">
-        <h3>Input units</h3>
-        {canManage && <Button kind="tertiary" size="sm" renderIcon={Add} onClick={() => setUnitEditor('new')}>Add input unit</Button>}
+        <h3>Spool inputs</h3>
+        {canManage && <Button kind="tertiary" size="sm" onClick={() => setWizard({ step: 'spools' })}>Edit spool inputs</Button>}
       </div>
-      {profile.inputUnits.length === 0 && <EmptyState title="No input units" description="Input units are the spool holders or material systems on this printer." />}
-      {[...profile.inputUnits].sort((a, b) => a.position - b.position).map((unit) => {
-        const slots = profile.slots.filter((slot) => slot.inputUnitId === unit.id).sort((a, b) => a.position - b.position);
-        return (
-          <Tile key={unit.id}>
-            <div className="mj-tile-header">
-              <div><h3>{unit.name}</h3><p className="mj-secondary">External ID: {unit.externalIdentifier ?? 'Not set'}</p></div>
-              {canManage && <Stack orientation="horizontal" gap={3}><Button kind="ghost" size="sm" renderIcon={Edit} onClick={() => setUnitEditor(unit)}>Edit input unit</Button><Button kind="ghost" size="sm" renderIcon={Add} onClick={() => setSlotEditor({ unit })}>Add slot</Button></Stack>}
-            </div>
-            {slots.length === 0 ? <p className="mj-secondary">No slots in this input unit.</p> : (
-              <DataTable rows={slots.map((slot) => ({ id: slot.id }))} headers={slotHeaders} size="sm">
-                {({ rows, headers, getHeaderProps, getRowProps, getTableProps }) => (
-                  <TableContainer>
-                    <Table {...getTableProps()} aria-label={`Slots of ${unit.name}`}>
-                      <TableHead>
-                        <TableRow>
-                          {headers.map((header) => {
-                            const { key, ...headerProps } = getHeaderProps({ header });
-                            return <TableHeader key={key} {...headerProps}>{header.header}</TableHeader>;
-                          })}
-                        </TableRow>
-                      </TableHead>
-                      <TableBody>
-                        {rows.map((tableRow) => {
-                          const slot = slots.find((item) => item.id === tableRow.id)!;
-                          const spool = spoolById(slot.spoolId);
-                          const { key, ...rowProps } = getRowProps({ row: tableRow });
-                          return (
-                            <TableRow key={key} {...rowProps}>
-                              <TableCell><div className="mj-cell-stack"><span>{slot.name}</span><span className="mj-secondary">External ID: {slot.externalIdentifier ?? 'Not set'}</span></div></TableCell>
-                              <TableCell><Tag type={slotTag[slot.status].type} size="sm">{slotTag[slot.status].label}</Tag></TableCell>
-                              <TableCell>{slot.spoolId ? (spool ? spoolLabel(spool) : slot.spoolDisplayId ?? 'Spool mounted') : <span className="mj-secondary">Empty</span>}</TableCell>
-                              <TableCell>
-                                {canManage && <Button kind="ghost" size="sm" renderIcon={Edit} onClick={() => setSlotEditor({ unit, slot })}>Edit slot</Button>}
-                                {canAssign && slot.spoolId && (
-                                  <Button kind="ghost" size="sm" renderIcon={Unlink} disabled={unmount.isPending} onClick={() => unmount.mutate({ slot, unit: unit.name })}>Unmount</Button>
-                                )}
-                                {canAssign && canReadInventory && !slot.spoolId && slot.status === 'available' && (
-                                  <Button kind="ghost" size="sm" renderIcon={LinkIcon} onClick={() => { mount.reset(); setMountSlot(slot); }}>Mount spool</Button>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </TableContainer>
-                )}
-              </DataTable>
-            )}
-          </Tile>
-        );
-      })}
+      {live.isPending && <InlineLoading description="Checking what the printer reports" />}
+      {canManage && missing.map((unit) => (
+        <ActionableNotification
+          key={unit.externalId} kind="info" lowContrast hideCloseButton inline title={`The printer reports ${unit.label} (${unit.externalId}), which isn't set up`}
+          actionButtonLabel="Add as input unit" onActionButtonClick={() => setWizard({ step: 'spools', addDetected: unit.externalId })}
+        />
+      ))}
+      {units.length === 0 && <EmptyState title="No input units" description="Input units are the spool holders or material systems on this printer." />}
+      {multiNozzle
+        ? NOZZLE_GROUPS.map((group) => {
+          const inGroup = units.filter((unit) => (unit.nozzle ?? null) === group);
+          if (inGroup.length === 0) return null;
+          return <Stack key={group ?? 'none'} gap={4}><h4 className="mj-group-title">{nozzleLabel(group)}</h4>{inGroup.map((unit) => renderUnit(unit.id))}</Stack>;
+        })
+        : units.map((unit) => renderUnit(unit.id))}
 
       <DestructiveActionDialog
         open={disableOpen} title="Disable printing?" confirmLabel="Disable profile" pending={configure.isPending}
@@ -251,23 +244,6 @@ export function PrinterSetup({ machine, profile }: { machine: Machine; profile: 
       >
         <p>{machine.name} will no longer accept new prints. Existing prints and history are kept, and you can enable the profile again at any time.</p>
       </DestructiveActionDialog>
-
-      {unitEditor && (
-        <TopologyModal
-          title={unitEditor === 'new' ? 'Add input unit' : 'Edit input unit'} label="Name" helperText="For example Spool holder or AMS."
-          submitLabel={unitEditor === 'new' ? 'Add input unit' : 'Save input unit'} initialName={unitEditor === 'new' ? '' : unitEditor.name}
-          initialExternalIdentifier={unitEditor === 'new' ? '' : unitEditor.externalIdentifier ?? ''} onClose={() => setUnitEditor(null)}
-          onSubmit={saveUnit}
-        />
-      )}
-      {slotEditor && (
-        <TopologyModal
-          title={slotEditor.slot ? 'Edit slot' : 'Add slot'} label="Slot name" helperText={`${slotEditor.slot ? 'Belongs' : 'Added'} to ${slotEditor.unit.name}.`}
-          submitLabel={slotEditor.slot ? 'Save slot' : 'Add slot'} initialName={slotEditor.slot?.name}
-          initialExternalIdentifier={slotEditor.slot?.externalIdentifier ?? ''} status={slotEditor.slot?.status ?? 'available'} onClose={() => setSlotEditor(null)}
-          onSubmit={saveSlot}
-        />
-      )}
 
       {mountSlot && <Modal
         open size="sm" modalHeading="Mount spool" primaryButtonText={mount.isPending ? 'Mounting…' : 'Mount spool'} secondaryButtonText="Cancel"
@@ -292,6 +268,7 @@ export function PrinterSetup({ machine, profile }: { machine: Machine; profile: 
           {mount.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Spool not mounted" subtitle="The slot or spool may have changed. Choose again and retry." />}
         </Stack>
       </Modal>}
+      {wizardDialog}
     </Stack>
   );
 }

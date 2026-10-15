@@ -24,7 +24,7 @@ const targets: Target[] = [
   { name: 'Machine detail, Overview tab', path: `${base}/machines/${ids.bambu}`, ready: text('Connector degraded · E42') },
   { name: 'Machine detail, Jobs tab', path: `${base}/machines/${ids.bambu}?tab=jobs`, ready: (page) => page.getByRole('link', { name: 'Open in Jobs' }) },
   { name: 'Machine detail, Printer setup tab', path: `${base}/machines/${ids.bambu}?tab=printer`, ready: (page) => page.getByRole('switch', { name: 'Printer profile enabled' }) },
-  { name: 'Machine detail without printer profile, Printer setup tab', path: `${base}/machines/${ids.laser}?tab=printer`, ready: (page) => page.getByRole('button', { name: 'Create profile' }) },
+  { name: 'Machines, Machine types tab', path: `${base}/machines?tab=types`, ready: (page) => page.getByRole('table', { name: 'Machine types' }) },
   { name: 'Inventory, Materials tab', path: `${base}/inventory`, ready: (page) => page.getByRole('table', { name: 'Materials' }).getByRole('link', { name: 'PLA Black' }) },
   { name: 'Inventory, Spools tab', path: `${base}/inventory?tab=spools`, ready: (page) => page.getByRole('table', { name: 'Spools' }).getByRole('link', { name: 'S-2026-000001' }) },
   { name: 'Inventory, Spools tab with archived spools', path: `${base}/inventory?tab=spools&spoolsarchived=1`, ready: (page) => page.getByRole('table', { name: 'Spools' }).getByRole('link', { name: 'S-2026-000003' }) },
@@ -195,6 +195,15 @@ test.describe('dialogs pass axe and fit a 375px phone', () => {
     await page.goto(`${base}/machines`);
     await page.locator('.cds--table-toolbar').getByRole('button', { name: 'Add machine' }).click();
     await checkDialog(page, page.getByRole('dialog', { name: 'Add machine' }));
+  });
+
+  test('add machine wizard, printer type', async ({ page }) => {
+    await page.goto(`${base}/machines`);
+    await page.locator('.cds--table-toolbar').getByRole('button', { name: 'Add machine' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Add machine' });
+    await dialog.getByLabel('Machine type').selectOption({ label: '3D printer' });
+    await expect(dialog.getByRole('radio', { name: /Bambu Lab H2D/ })).toBeVisible();
+    await checkDialog(page, dialog);
   });
 });
 

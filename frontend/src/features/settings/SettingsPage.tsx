@@ -1,5 +1,5 @@
 import { Column, Grid, Stack, ClickableTile as CarbonClickableTile } from '@carbon/react';
-import { DataBase, Devices, Document, Group, UserMultiple, IbmCloudKeyProtect, Email, PaintBrush, Printer, Timer, QuestionAnswering } from '@carbon/icons-react';
+import { DataBase, Devices, Document, Group, UserMultiple, IbmCloudKeyProtect, Email, PaintBrush, Timer, QuestionAnswering } from '@carbon/icons-react';
 import type { ComponentProps, ComponentType } from 'react';
 import { Link } from 'react-router-dom';
 import { PageShell } from '../../app/PageShell';
@@ -27,7 +27,6 @@ export function SettingsPage() {
   const canManageVisitorEnrollment = hasAnyPermission(currentUser, [PermissionId.visitor_enrollmentmanage]);
   const canManageMail = hasAnyPermission(currentUser, [PermissionId.mailmanage]);
   const canManageBranding = hasAnyPermission(currentUser, [PermissionId.brandingmanage]);
-  const canUsePrinterConnectors = hasPermission(currentUser, PermissionId.printer_connectorsread);
   const canConfigureMachineLogbook = hasAnyPermission(currentUser, [PermissionId.organizationsread, PermissionId.pricingread]);
 
   return (
@@ -67,7 +66,6 @@ export function SettingsPage() {
 		{canUseLaborordnung && <Column sm={4} md={4} lg={5}><ClickableTile as={Link} to="/settings/laborordnung" className="settings-tile"><Stack gap={5}><Document size={32} /><div><h2>Lab Rules</h2><p>Publish PDFs and verify physical evidence.</p></div></Stack></ClickableTile></Column>}
         {canManageOIDC && <Column sm={4} md={4} lg={5}><ClickableTile as={Link} to="/settings/oidc" className="settings-tile"><Stack gap={5}><IbmCloudKeyProtect size={32} /><div><h2>OpenID Connect</h2><p>Configure external identity providers and trusted assurance.</p></div></Stack></ClickableTile></Column>}
         {canManageSCIM && <Column sm={4} md={4} lg={5}><ClickableTile as={Link} to="/settings/scim" className="settings-tile"><Stack gap={5}><DataBase size={32} /><div><h2>SCIM provisioning</h2><p>Manage connectors, bearer tokens, and Account reconciliation.</p></div></Stack></ClickableTile></Column>}
-        {canUsePrinterConnectors && <Column sm={4} md={4} lg={5}><ClickableTile as={Link} to="/settings/printer-connectors" className="settings-tile"><Stack gap={5}><Printer size={32} /><div><h2>Printer connectors</h2><p>Enroll local-network agents, assign printers, and inspect delivery health.</p></div></Stack></ClickableTile></Column>}
         {canManageVisitorEnrollment && <Column sm={4} md={4} lg={5}><ClickableTile as={Link} to="/settings/visitor-enrollment" className="settings-tile"><Stack gap={5}><UserMultiple size={32} /><div><h2>Visitor enrollment</h2><p>Configure approved terminals, the initial Role, and authentication methods.</p></div></Stack></ClickableTile></Column>}
         {canManageMail && <Column sm={4} md={4} lg={5}><ClickableTile as={Link} to="/settings/mail" className="settings-tile"><Stack gap={5}><Email size={32} /><div><h2>Email delivery</h2><p>Configure SMTP, sender identity, and recovery-link delivery.</p></div></Stack></ClickableTile></Column>}
         {canManageBranding && <Column sm={4} md={4} lg={5}><ClickableTile as={Link} to="/settings/branding-legal" className="settings-tile"><Stack gap={5}><PaintBrush size={32} /><div><h2>Branding &amp; legal</h2><p>Configure organization identity, colors, assets, and public legal documents.</p></div></Stack></ClickableTile></Column>}

@@ -12,10 +12,31 @@
 .mj-tile-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: $spacing-03; margin-block-end: $spacing-04; }
 .mj-tile-header h3 { @include type-style('heading-compact-02'); }
 
-.mj-type-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: end; gap: $spacing-04; padding-block: $spacing-03; border-block-end: 1px solid var(--cds-border-subtle); }
-.mj-type-row__toggle { min-inline-size: 7rem; }
-
 @media (max-width: 41.98rem) {
   .mj-metrics { grid-template-columns: 1fr; }
-  .mj-type-row { grid-template-columns: 1fr; align-items: stretch; }
+  .mj-inline-form, .mj-unit__head, .mj-slot-row { grid-template-columns: 1fr; align-items: stretch; }
 }
+
+// Printer setup glue: colour swatch, tile choice grids, wizard layout.
+.mj-swatch { display: inline-block; inline-size: 1rem; block-size: 1rem; border-radius: 50%; border: 1px solid var(--cds-border-strong); flex: none; }
+.mj-tile-grid > div { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: $spacing-03; }
+.mj-tile-title { @include type-style('heading-compact-01'); display: block; }
+.mj-wizard-body { display: grid; gap: $spacing-06; min-block-size: 24rem; }
+.mj-inline-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: $spacing-03; }
+.mj-unit { border: 1px solid var(--cds-border-subtle); background: var(--cds-layer); padding: $spacing-05; display: grid; gap: $spacing-04; }
+.mj-unit__head { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; align-items: end; gap: $spacing-04; }
+.mj-slot-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1.2fr) auto; align-items: end; gap: $spacing-04; }
+.mj-slot-row__detected { min-block-size: 2.5rem; display: flex; align-items: center; }
+.mj-slot-row__custom { grid-column: 1 / -1; }
+.mj-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: $spacing-03; }
+.mj-group-title { @include type-style('heading-compact-02'); }
+
+// Connector diagnostics: grids of facts that collapse to one column on narrow screens.
+.mj-diag-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: $spacing-05; margin-block-start: $spacing-03; }
+.mj-diag-value { @include type-style('body-compact-02'); margin-block-start: $spacing-01; }
+// Same column widths in every tray table of the connector diagnostics.
+.mj-diag-trays { table-layout: fixed; }
+.mj-diag-trays th:nth-child(1) { inline-size: 14%; }
+.mj-diag-trays th:nth-child(2) { inline-size: 24%; }
+.mj-diag-trays th:nth-child(3) { inline-size: 24%; }
+.mj-diag-trays th:nth-child(4) { inline-size: 14%; }

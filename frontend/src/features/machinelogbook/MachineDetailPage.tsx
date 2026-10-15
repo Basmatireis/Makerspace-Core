@@ -10,7 +10,9 @@ import { EmptyState } from '../../app/PageState';
 import { JobsTable } from './components/JobsTable';
 import { PrinterSetup } from './components/PrinterSetup';
 import { JobFormModal } from './dialogs/JobFormModal';
-import { MachineFormModal } from './dialogs/MachineFormModal';
+import { MachineSetupWizard } from './dialogs/MachineSetupWizard';
+import { usePrinterConnection } from './connectorQueries';
+import { modelById } from './printerSetup';
 import { machineActivityQuery, machineQuery, printerQuery, workItemsQuery } from './queries';
 import { formatDateTime, formatHours, formatQuantity, formatRelative, formatTime } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
@@ -43,7 +45,9 @@ export function MachineDetailPage() {
   const machine = machineResult.data;
   const profile: PrinterProfile | undefined = printer.data;
   const profileAbsent = printer.isError && printer.error instanceof ApiError && printer.error.status === 404;
-  const showPrinterTab = Boolean(profile) || canManage;
+  const showPrinterTab = Boolean(profile) || (canManage && Boolean(machine?.machineType.printer));
+  const canReadConnectors = can('printer_connectors.read');
+  const { connection } = usePrinterConnection(machineId, canReadConnectors && showPrinterTab);
   const tabs: TabKey[] = ['overview', ...(canReadJobs ? ['jobs' as const] : []), ...(showPrinterTab ? ['printer' as const] : [])];
   const requested = params.get('tab') as TabKey | null;
   const tab: TabKey = requested && tabs.includes(requested) ? requested : 'overview';
@@ -92,6 +96,8 @@ export function MachineDetailPage() {
           <div><dt>Status</dt><dd>{statusLabel[machine.status]}</dd></div>
           <div><dt>Type</dt><dd>{machine.machineType.name} {!machine.machineType.active && <Tag size="sm" type="gray">Inactive type</Tag>}</dd></div>
           <div><dt>Collection</dt><dd>{machine.automaticCollectionEnabled ? 'Automatic' : 'Manual'}</dd></div>
+          {modelById(profile?.model)?.label && <div><dt>Model</dt><dd>{modelById(profile?.model)?.label}</dd></div>}
+          {typeof connection?.assignment.settings.serialNumber === 'string' && <div><dt>Serial number</dt><dd>{connection.assignment.settings.serialNumber}</dd></div>}
           <div><dt>External identifier</dt><dd>{machine.externalIdentifier ?? '—'}</dd></div>
           <div><dt>Last ingest</dt><dd>{machine.lastIngestedAt ? formatDateTime(machine.lastIngestedAt) : '—'}</dd></div>
         </dl>
@@ -134,7 +140,7 @@ export function MachineDetailPage() {
           query={{ status: profileAbsent ? 'success' : printer.status, data: profile, refetch: printer.refetch }}
           errorMessage="Printer setup could not be loaded."
         >
-          <PrinterSetup machine={machine} profile={profile} />
+          <PrinterSetup machine={machine} profile={profile} connection={connection} />
         </QueryBoundary>
       </div>
     ),
@@ -172,7 +178,7 @@ export function MachineDetailPage() {
           </TabPanels>
         </Tabs>
       </div>
-      {canManage && editOpen && <MachineFormModal open onClose={() => setEditOpen(false)} machine={machine} />}
+      {canManage && editOpen && <MachineSetupWizard open onClose={() => setEditOpen(false)} machine={machine} profile={profile} connection={connection} initialStep="machine" />}
       {canCreate && <JobFormModal open={jobOpen} onClose={() => setJobOpen(false)} mode="create" initialValues={{ machineId: machine.id }} />}
     </PageShell>
   );

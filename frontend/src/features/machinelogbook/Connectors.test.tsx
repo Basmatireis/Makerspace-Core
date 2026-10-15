@@ -1,0 +1,169 @@
+import { http, HttpResponse } from 'msw';
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
+import { PermissionId, type FilamentSpool, type PrinterConnectorEvent } from '../../api/generated/models';
+import { server } from '../../test/server';
+import {
+  assignmentId, assignmentOf, connectorId, connectorOf, h2dUnits, liveStatusOf, now, printer, printerId, renderPage, templateProfile, tray, types,
+} from './printerTestData';
+
+const auth = vi.hoisted(() => ({ permissions: [] as string[] }));
+vi.mock('../auth/auth', () => ({ useCurrentUser: () => ({ permissions: auth.permissions }) }));
+
+const READ = [PermissionId.machinesread, PermissionId.printer_connectorsread];
+const iconButton = (label: string) => screen.getByText(label, { selector: '.cds--tooltip-content' }).closest('.cds--popover-container')!.querySelector('button') as HTMLElement;
+const menuItem = (label: string) => screen.findByText(label, { selector: '.cds--overflow-menu-options__option-content' });
+
+const event = (overrides: Partial<PrinterConnectorEvent> = {}): PrinterConnectorEvent => ({
+  id: '0192f6f8-743e-7c77-a349-cd07c3e8a930', machineId: printerId, assignmentId, kind: 'slot_observation', occurredAt: '2026-10-11T12:00:00Z', receivedAt: '2026-10-11T12:00:01Z',
+  applicationState: 'review_required', applicationReason: 'configuration_version_mismatch', payload: { slot: 1, material: 'PLA' }, ...overrides,
+});
+
+function setup(permissions: PermissionId[], { connectors = [connectorOf()], assignments = [assignmentOf()], events = [event()], live = liveStatusOf(), profile = templateProfile() } = {}) {
+  auth.permissions = permissions;
+  server.use(
+    http.get('*/api/v1/machines', () => HttpResponse.json({ items: [printer], page: 1, pageSize: 100, total: 1 })),
+    http.get('*/api/v1/machine-types', () => HttpResponse.json({ items: types })),
+    http.get('*/api/v1/machine-logbook/machine-activity', () => HttpResponse.json({ items: [] })),
+    http.get('*/api/v1/printer-connectors', () => HttpResponse.json({ items: connectors })),
+    http.get(`*/api/v1/printer-connectors/${connectorId}/assignments`, () => HttpResponse.json({ items: assignments })),
+    http.get(`*/api/v1/printer-connectors/${connectorId}/events`, () => HttpResponse.json({ items: events })),
+    http.get(`*/api/v1/printer-connectors/${connectorId}/observed-runs`, () => HttpResponse.json({ items: [] })),
+    http.get(`*/api/v1/machines/${printerId}/printer/live-status`, () => live ? HttpResponse.json(live) : HttpResponse.json({ code: 'not_found' }, { status: 404 })),
+    http.get(`*/api/v1/machines/${printerId}/printer`, () => HttpResponse.json(profile)),
+  );
+}
+
+describe('Connectors tab', () => {
+  it('does not describe a stale heartbeat as connected and lists the assigned printers', async () => {
+    setup(READ, { connectors: [connectorOf({ lastHeartbeatAt: '2020-01-01T00:00:00Z' }), connectorOf({ id: '0192f6f8-743e-7c77-a349-cd07c3e8a922', name: 'Fresh agent' })] });
+    server.use(http.get('*/api/v1/printer-connectors/0192f6f8-743e-7c77-a349-cd07c3e8a922/assignments', () => HttpResponse.json({ items: [] })));
+    renderPage('/machine-logbook/machines?tab=connectors');
+    const table = await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
+    expect(within(table).getByText('Disconnected')).toBeInTheDocument();
+    expect(within(table).getByText('Connected')).toBeInTheDocument();
+    expect(within(table).getAllByText('2 pending · 1 quarantined')).toHaveLength(2);
+    expect(await within(table).findByRole('link', { name: 'Bambu H2D' })).toHaveAttribute('href', `/machine-logbook/machines/${printerId}`);
+  });
+
+  it('hides management actions without printer_connectors.manage and credentials.manage', async () => {
+    setup(READ, { connectors: [connectorOf({ lifecycle: 'pending' })] });
+    const user = userEvent.setup();
+    renderPage('/machine-logbook/machines?tab=connectors');
+    await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
+    expect(screen.queryByRole('button', { name: 'Add connector' })).not.toBeInTheDocument();
+    await user.click(iconButton('Actions for Print room agent'));
+    expect(await menuItem('Diagnostics')).toBeInTheDocument();
+    expect(screen.queryByText('Enroll', { selector: '.cds--overflow-menu-options__option-content' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Revoke', { selector: '.cds--overflow-menu-options__option-content' })).not.toBeInTheDocument();
+  });
+
+  it('shows an enrollment secret once and issues one for a new connector', async () => {
+    setup([...READ, PermissionId.printer_connectorsmanage, PermissionId.printer_connectorscredentialsmanage], { connectors: [connectorOf({ lifecycle: 'pending' })] });
+    let created: unknown;
+    server.use(
+      http.post(`*/api/v1/printer-connectors/${connectorId}/enrollments`, () => HttpResponse.json({ connector: connectorOf(), enrollmentId: 'e1', enrollmentSecret: 'a'.repeat(43), expiresAt: '2026-10-11T12:15:00Z' }, { status: 201 })),
+      http.post('*/api/v1/printer-connectors', async ({ request }) => { created = await request.json(); return HttpResponse.json(connectorOf({ id: 'new', name: 'Laser room Pi', lifecycle: 'pending' }), { status: 201 }); }),
+      http.post('*/api/v1/printer-connectors/new/enrollments', () => HttpResponse.json({ connector: connectorOf(), enrollmentId: 'e2', enrollmentSecret: 'b'.repeat(43), expiresAt: '2026-10-11T12:15:00Z' }, { status: 201 })),
+    );
+    const user = userEvent.setup();
+    renderPage('/machine-logbook/machines?tab=connectors');
+    await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
+    await user.click(iconButton('Actions for Print room agent'));
+    await user.click(await menuItem('Enroll'));
+    const secret = await screen.findByRole('dialog', { name: 'Enrollment secret' });
+    expect(within(secret).getByText('a'.repeat(43))).toBeInTheDocument();
+    await user.click(within(secret).getByRole('button', { name: 'I have stored the secret' }));
+    await waitFor(() => expect(screen.queryByText('a'.repeat(43))).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Add connector' }));
+    const add = await screen.findByRole('dialog', { name: 'Add connector' });
+    await user.type(within(add).getByLabelText('Connector name'), 'Laser room Pi');
+    await user.type(within(add).getByLabelText('Location (optional)'), 'Laser room');
+    await user.click(within(add).getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(created).toEqual({ name: 'Laser room Pi', locationLabel: 'Laser room' }));
+    expect(await screen.findByText('b'.repeat(43))).toBeInTheDocument();
+  });
+
+  it('revokes a connector only after confirmation, using its version', async () => {
+    setup([...READ, PermissionId.printer_connectorscredentialsmanage]);
+    let body: unknown;
+    server.use(http.post(`*/api/v1/printer-connectors/${connectorId}/revocation`, async ({ request }) => { body = await request.json(); return HttpResponse.json(connectorOf({ lifecycle: 'revoked' })); }));
+    const user = userEvent.setup();
+    renderPage('/machine-logbook/machines?tab=connectors');
+    await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
+    await user.click(iconButton('Actions for Print room agent'));
+    await user.click(await menuItem('Revoke'));
+    expect(body).toBeUndefined();
+    expect(await screen.findByText(/will stop collecting prints automatically until reassigned/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Revoke connector' }));
+    await waitFor(() => expect(body).toEqual({ expectedVersion: 4 }));
+  });
+});
+
+describe('Connector diagnostics', () => {
+  async function openDiagnostics(user: ReturnType<typeof userEvent.setup>) {
+    await screen.findByRole('table', { name: 'Printer connectors' }, { timeout: 5000 });
+    await user.click(iconButton('Actions for Print room agent'));
+    await user.click(await menuItem('Diagnostics'));
+    return screen.findByRole('dialog', { name: 'Print room agent diagnostics' });
+  }
+
+  it('explains runtime errors and shows events that need review with their reason and raw payload', async () => {
+    setup(READ, { connectors: [connectorOf({ healthState: 'degraded', healthSummary: 'MQTT_TIMEOUT' })], assignments: [assignmentOf({ runtimeState: 'degraded', runtimeErrorCode: 'TLS_SERIAL_MISMATCH' })] });
+    const user = userEvent.setup();
+    renderPage('/machine-logbook/machines?tab=connectors');
+    const dialog = await openDiagnostics(user);
+    expect(await within(dialog).findByText('Connector needs attention')).toBeInTheDocument();
+    expect(within(dialog).getAllByText(/does not match the configured serial number/i).length).toBeGreaterThan(0);
+    expect(within(dialog).getAllByText('The event was recorded under an older configuration of the assignment.').length).toBeGreaterThan(0);
+
+    await user.click(within(dialog).getByRole('tab', { name: 'Bambu H2D' }));
+    expect(await within(dialog).findByText('Recent events')).toBeInTheDocument();
+    await user.click(await within(dialog).findByRole('button', { name: /Show raw payload of Slot observation/ }));
+    expect(await within(dialog).findByText(/"material": "PLA"/)).toBeInTheDocument();
+    expect(within(dialog).getAllByText(/^Needs review/).length).toBeGreaterThan(0);
+  });
+
+  it('shows the live status of a printer and compares reported trays with Core slots and mounted spools', async () => {
+    const profile = templateProfile();
+    profile.slots[0] = { ...profile.slots[0], spoolId: 'spool-empty', spoolDisplayId: 'S-0001' }; // Core: mounted, printer: tray 0 loaded -> no issue (PLA)
+    profile.slots[1] = { ...profile.slots[1], spoolId: 'spool-other', spoolDisplayId: 'S-0002' }; // Core: PLA spool, printer: PETG -> material differs
+    profile.slots[2] = { ...profile.slots[2], spoolId: 'spool-gone', spoolDisplayId: 'S-0003' }; // Core: mounted, printer: empty -> printer reports empty
+    const live = liveStatusOf({ units: h2dUnits.map((unit) => unit.externalId === '0' ? { ...unit, trays: [unit.trays[0], unit.trays[1], unit.trays[2], tray('3', { materialType: 'PLA', colorHex: 'CC0000', rfid: true, empty: false })] } : unit) });
+    setup([...READ, PermissionId.inventoryread], { profile, live });
+    const spool = (spoolId: string, displayId: string, materialName: string) => ({ id: spoolId, displayId, materialName, kind: 'standard', status: 'in_stock', remainingQuantity: '500', unit: 'g', mounted: true, lifecycle: 'active', identifiers: [], version: 1, createdAt: now, updatedAt: now }) as unknown as FilamentSpool;
+    server.use(http.get('*/api/v1/filament-spools', () => HttpResponse.json({ items: [spool('spool-empty', 'S-0001', 'PLA Black'), spool('spool-other', 'S-0002', 'PLA White'), spool('spool-gone', 'S-0003', 'PLA Red')], page: 1, pageSize: 100, total: 3 })));
+    const user = userEvent.setup();
+    renderPage('/machine-logbook/machines?tab=connectors');
+    const dialog = await openDiagnostics(user);
+    await user.click(within(dialog).getByRole('tab', { name: 'Bambu H2D' }));
+
+    expect(await within(dialog).findByText('gearbox_housing_v3.gcode')).toBeInTheDocument();
+    expect(within(dialog).getByText('Printing')).toBeInTheDocument();
+    expect(within(dialog).getByText('215 / 220 °C')).toBeInTheDocument();
+    expect(within(dialog).getAllByText('Right nozzle').length).toBeGreaterThan(0);
+    expect(within(dialog).getByText('01.04.00.00')).toBeInTheDocument();
+    const trays = await within(dialog).findByRole('table', { name: 'AMS 2 Pro trays' });
+    await waitFor(() => expect(within(trays).getAllByRole('link').map((link) => link.textContent)).toEqual(['S-0001', 'S-0002', 'S-0003']));
+    const rows = within(trays).getAllByRole('row');
+    // Slot 2 (index 1) is the tray feeding now and has a material mismatch with the mounted PLA spool.
+    expect(within(rows[2]).getByText('Feeding now')).toBeInTheDocument();
+    expect(within(rows[2]).getByText('Material differs')).toBeInTheDocument();
+    expect(within(rows[1]).queryByText('Material differs')).not.toBeInTheDocument();
+    expect(within(rows[3]).getByText('Printer reports empty')).toBeInTheDocument();
+    expect(within(rows[4]).getByText('Not mounted in Core')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Open printer setup' })).toBeInTheDocument();
+  });
+
+  it('tells when a printer has not reported yet and shows the connector error text', async () => {
+    setup(READ, { live: null as never, assignments: [assignmentOf({ runtimeState: 'degraded', runtimeErrorCode: 'MQTT_CONNECTION_TIMEOUT' })], events: [] });
+    const user = userEvent.setup();
+    renderPage('/machine-logbook/machines?tab=connectors');
+    const dialog = await openDiagnostics(user);
+    await user.click(within(dialog).getByRole('tab', { name: 'Bambu H2D' }));
+    expect(await within(dialog).findByText('No status received yet')).toBeInTheDocument();
+    expect(within(dialog).getAllByText(/port 8883/).length).toBeGreaterThan(0);
+  });
+});

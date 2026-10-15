@@ -48,7 +48,7 @@ describe('Machine catalog and printer workflows', () => {
     await user.clear(within(dialog).getByLabelText('Name')); await user.type(within(dialog).getByLabelText('Name'), 'New cutter');
     await user.click(within(dialog).getByLabelText('Retired'));
     await user.click(within(dialog).getByRole('button', { name: 'Save machine' }));
-    await within(dialog).findByText('Machine not saved');
+    await within(dialog).findByText('Not saved');
     expect(input).toEqual({ name: 'New cutter', machineTypeId: typeId, status: 'retired', externalIdentifier: null, automaticCollectionEnabled: false, expectedVersion: 7 });
     expect(within(dialog).getByLabelText('Name')).toHaveValue('New cutter');
   });
@@ -80,21 +80,7 @@ describe('Machine catalog and printer workflows', () => {
     await user.keyboard('{Escape}');
     expect(within(dialog).getByLabelText('Name')).toHaveValue('Laser cutter edited');
     release?.();
-    await within(dialog).findByText('Machine not saved');
+    await within(dialog).findByText('Not saved');
     expect(requests).toBe(1);
-  });
-  it('updates a machine type name and inactive status with the selected type version', async () => {
-    auth([PermissionId.machinesread, PermissionId.machinesmanage]); catalog();
-    const inputs: unknown[] = [];
-    server.use(http.get('*/api/v1/machines', () => HttpResponse.json({ items: [machine], page: 1, pageSize: 100, total: 1 })), http.patch(`*/api/v1/machine-types/${typeId}`, async ({ request }) => { inputs.push(await request.json()); return HttpResponse.json({ ...machine.machineType, active: false }); }));
-    const user = userEvent.setup(); renderRoute(<App />, '/machine-logbook/machines');
-    await user.click((await screen.findByText('More actions', { selector: '.cds--tooltip-content' }, { timeout: 5000 })).closest('.cds--popover-container')!.querySelector('button')!);
-    await user.click(await screen.findByText('Manage machine types', { selector: '.cds--overflow-menu-options__option-content' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Manage machine types' });
-    await user.click(await within(dialog).findByRole('switch', { name: 'Laser active' }));
-    await waitFor(() => expect(inputs).toContainEqual({ active: false, expectedVersion: 3 }));
-    await user.clear(within(dialog).getByLabelText('Type name')); await user.type(within(dialog).getByLabelText('Type name'), 'Laser line');
-    await user.click(within(dialog).getByRole('button', { name: 'Save name' }));
-    await waitFor(() => expect(inputs).toContainEqual({ name: 'Laser line', expectedVersion: 3 }));
   });
 });

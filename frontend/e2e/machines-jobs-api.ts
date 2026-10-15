@@ -37,8 +37,8 @@ const minutes = (offset: number) => new Date(Date.now() + offset * 60_000).toISO
 const created = '2026-09-01T00:00:00Z';
 const pageOf = <T,>(items: T[], total = items.length) => ({ items, page: 1, pageSize: 100, total });
 
-const machineType = (typeId: string, name: string) => ({ id: typeId, name, active: true, version: 1, createdAt: created, updatedAt: created });
-const types = [machineType(ids.typePrinter, '3D printer'), machineType(ids.typeLaser, 'Laser cutter')];
+const machineType = (typeId: string, name: string, printer = false) => ({ id: typeId, name, active: true, printer, version: 1, createdAt: created, updatedAt: created });
+const types = [machineType(ids.typePrinter, '3D printer', true), machineType(ids.typeLaser, 'Laser cutter')];
 
 const machine = (machineId: string, name: string, type: (typeof types)[number], overrides: Partial<Machine> = {}): Machine => ({
   id: machineId, name, machineType: type, status: 'active', externalIdentifier: null, automaticCollectionEnabled: false, lastIngestedAt: null,
@@ -172,8 +172,8 @@ export function createWorld(permissions: string[] = staffPermissions) {
   ];
 
   const printerProfile: PrinterProfile = {
-    machineId: ids.bambu, machineName: bambu.name, enabled: true, version: 4, createdAt: created, updatedAt: created,
-    inputUnits: [{ id: ids.unit, machineId: ids.bambu, name: 'AMS A', enabled: true, position: 0, version: 1 }],
+    machineId: ids.bambu, machineName: bambu.name, enabled: true, model: null, version: 4, createdAt: created, updatedAt: created,
+    inputUnits: [{ id: ids.unit, machineId: ids.bambu, name: 'AMS A', enabled: true, position: 0, nozzle: null, version: 1 }],
     slots: [
       { id: ids.slot, machineId: ids.bambu, inputUnitId: ids.unit, inputUnitName: 'AMS A', name: 'Slot 1', position: 0, status: 'available', spoolId: ids.spoolMounted, spoolDisplayId: 'S-2026-000001', version: 1 },
       { id: id(102), machineId: ids.bambu, inputUnitId: ids.unit, inputUnitName: 'AMS A', name: 'Slot 2', position: 1, status: 'available', version: 1 },
@@ -380,9 +380,8 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
       world.machines.push(created_);
       return ok(route, created_, 201);
     }
-    if ((match = path.match(/^\/api\/v1\/machines\/([^/]+)\/printer\/input-units$/)) && method === 'POST') {
-      return ok(route, { id: id(103), machineId: match[1], name: body?.name, position: body?.position, enabled: true, version: 1 }, 201);
-    }
+    if (path.match(/^\/api\/v1\/machines\/([^/]+)\/printer\/live-status$/)) return notFound(route);
+    if (path.match(/^\/api\/v1\/machines\/([^/]+)\/printer\/setup$/) && method === 'PUT') return ok(route, { ...world.printerProfile, version: world.printerProfile.version + 1 });
     if ((match = path.match(/^\/api\/v1\/machines\/([^/]+)\/printer$/))) {
       return match[1] === ids.bambu ? ok(route, world.printerProfile) : notFound(route);
     }
