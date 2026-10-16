@@ -29,8 +29,9 @@ type bambuFixtureMessage struct {
 	Payload       json.RawMessage `json:"payload"`
 }
 
-// SanitizeBambuMQTTFixture converts raw JSON or an observedAt/payload NDJSON
-// envelope into the bounded, redacted fixture format accepted by Replay. It
+// SanitizeBambuMQTTFixture converts a whitespace-separated JSON stream, NDJSON,
+// or observedAt/payload envelopes into the bounded, redacted fixture format
+// accepted by Replay. It
 // intentionally normalizes timestamps so a committed fixture cannot reveal
 // when a real user printed.
 func SanitizeBambuMQTTFixture(input io.Reader, output io.Writer) error {
@@ -38,39 +39,39 @@ func SanitizeBambuMQTTFixture(input io.Reader, output io.Writer) error {
 		return errors.New("fixture input and output are required")
 	}
 	limited := &io.LimitedReader{R: input, N: MaximumBambuFixtureBytes + 1}
-	scanner := bufio.NewScanner(limited)
-	scanner.Buffer(make([]byte, 64<<10), maximumFixtureLineBytes)
+	decoder := json.NewDecoder(limited)
+	decoder.UseNumber()
 	encoder := json.NewEncoder(&boundedFixtureWriter{writer: output, remaining: MaximumBambuFixtureBytes})
 	encoder.SetEscapeHTML(false)
 	redactor := newFixtureRedactor()
-	lineNumber := 0
 	messageCount := 0
-	for scanner.Scan() {
-		lineNumber++
-		line := bytes.TrimSpace(scanner.Bytes())
-		if len(line) == 0 {
-			continue
+	for {
+		var raw json.RawMessage
+		if err := decoder.Decode(&raw); errors.Is(err, io.EOF) {
+			break
+		} else if err != nil {
+			return fmt.Errorf("fixture message %d is not a JSON object", messageCount+1)
 		}
 		messageCount++
-		payload, err := fixturePayload(line)
+		payload, err := fixturePayload(raw)
 		if err != nil {
-			return fmt.Errorf("fixture line %d is not a JSON object", lineNumber)
+			return fmt.Errorf("fixture message %d is not a JSON object", messageCount)
 		}
 		decoded, err := decodeFixtureJSON(payload)
 		if err != nil {
-			return fmt.Errorf("fixture line %d has an invalid payload", lineNumber)
+			return fmt.Errorf("fixture message %d has an invalid payload", messageCount)
 		}
 		object, ok := decoded.(map[string]any)
 		if !ok {
-			return fmt.Errorf("fixture line %d payload must be a JSON object", lineNumber)
+			return fmt.Errorf("fixture message %d payload must be a JSON object", messageCount)
 		}
 		sanitized, err := redactor.value("", object, 0)
 		if err != nil {
-			return fmt.Errorf("fixture line %d: %w", lineNumber, err)
+			return fmt.Errorf("fixture message %d: %w", messageCount, err)
 		}
 		encodedPayload, err := json.Marshal(sanitized)
 		if err != nil {
-			return fmt.Errorf("encode fixture line %d: %w", lineNumber, err)
+			return fmt.Errorf("encode fixture message %d: %w", messageCount, err)
 		}
 		message := bambuFixtureMessage{
 			SchemaVersion: BambuFixtureSchemaVersion,
@@ -80,9 +81,6 @@ func SanitizeBambuMQTTFixture(input io.Reader, output io.Writer) error {
 		if err = encoder.Encode(message); err != nil {
 			return fmt.Errorf("write sanitized fixture: %w", err)
 		}
-	}
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("read fixture: %w", err)
 	}
 	if limited.N <= 0 {
 		return fmt.Errorf("fixture exceeds %d bytes", MaximumBambuFixtureBytes)
@@ -303,15 +301,25 @@ func (r *fixtureRedactor) fileReplacement(value string) string {
 // reducer and writes deterministic normalized observations as NDJSON. It does
 // not open SQLite, contact Core, or connect to a printer.
 func ReplayBambuMQTTFixture(input io.Reader, output io.Writer) error {
+	return ReplayBambuMQTTFixtureFor(input, output, bambuH2DAdapterKind)
+}
+
+// ReplayBambuMQTTFixtureFor replays the same sanitized transport fixture with
+// the selected model's reducer semantics. Transport fields stay shared while
+// tray routing and live nozzle normalization remain model-specific.
+func ReplayBambuMQTTFixtureFor(input io.Reader, output io.Writer, adapterKind string) error {
 	if input == nil || output == nil {
 		return errors.New("fixture input and output are required")
+	}
+	if !isBambuAdapterKind(adapterKind) {
+		return errors.New("unsupported Bambu adapter kind")
 	}
 	limited := &io.LimitedReader{R: input, N: MaximumBambuFixtureBytes + 1}
 	scanner := bufio.NewScanner(limited)
 	scanner.Buffer(make([]byte, 64<<10), maximumFixtureLineBytes)
 	encoder := json.NewEncoder(&boundedFixtureWriter{writer: output, remaining: MaximumBambuFixtureBytes})
 	encoder.SetEscapeHTML(false)
-	processor := &bambuProcessor{state: bambuPersistedState{
+	processor := &bambuProcessor{adapterKind: adapterKind, state: bambuPersistedState{
 		Document: map[string]any{}, Sessions: map[string]string{}, LastSlots: map[string]string{}, ActiveErrors: map[string]bool{},
 	}}
 	lineNumber := 0

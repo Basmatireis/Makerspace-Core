@@ -209,7 +209,7 @@ func validateAssignmentContract(kind string, version int, settings json.RawMessa
 	if len(settings) > 32768 {
 		return nil, nil, validation("settings must be a bounded JSON object")
 	}
-	if kind != "bambu_h2d" {
+	if !isBambuLANAdapter(kind) {
 		var object map[string]any
 		if json.Unmarshal(settings, &object) != nil || object == nil {
 			return nil, nil, validation("settings must be a bounded JSON object")
@@ -223,11 +223,11 @@ func validateAssignmentContract(kind string, version int, settings json.RawMessa
 	}
 	var raw map[string]json.RawMessage
 	if json.Unmarshal(settings, &value) != nil || json.Unmarshal(settings, &raw) != nil || len(raw) < 2 || len(raw) > 3 {
-		return nil, nil, validation("bambu_h2d settings require ipAddress, serialNumber, and optional autoDetectSpools")
+		return nil, nil, validation(kind + " settings require ipAddress, serialNumber, and optional autoDetectSpools")
 	}
 	for key := range raw {
 		if key != "ipAddress" && key != "serialNumber" && key != "autoDetectSpools" {
-			return nil, nil, validation("bambu_h2d settings contain an unsupported field")
+			return nil, nil, validation(kind + " settings contain an unsupported field")
 		}
 	}
 	if encoded, ok := raw["autoDetectSpools"]; ok {
@@ -246,7 +246,7 @@ func validateAssignmentContract(kind string, version int, settings json.RawMessa
 	}
 	for key := range secrets {
 		if key != "lanAccessCode" {
-			return nil, nil, validation("bambu_h2d secrets contain only lanAccessCode")
+			return nil, nil, validation(kind + " secrets contain only lanAccessCode")
 		}
 	}
 	code := strings.TrimSpace(secrets["lanAccessCode"])
@@ -740,7 +740,7 @@ func (s *Service) UpdateAssignment(ctx context.Context, principal authorization.
 		return Assignment{}, conflict("printer_connector_assignment_ended", "An ended assignment cannot be updated")
 	}
 	encrypted := current.EncryptedSecrets
-	if input.Secrets != nil && (input.AdapterKind != "bambu_h2d" || len(providedSecrets) != 0) {
+	if input.Secrets != nil && (!isBambuLANAdapter(input.AdapterKind) || len(providedSecrets) != 0) {
 		encrypted = nil
 		if len(providedSecrets) != 0 {
 			if s.keyring == nil {
@@ -1093,7 +1093,7 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
 		}
 	}
-	if inserted && input.Kind == "slot_observation" && applicationState == "applied" && a.AdapterKind == "bambu_h2d" && bambuAutoDetectSpools(a.Settings) {
+	if inserted && input.Kind == "slot_observation" && applicationState == "applied" && isBambuLANAdapter(a.AdapterKind) && bambuAutoDetectSpools(a.Settings) {
 		if err = reconcileBambuSlotObservation(ctx, tx, connector.ID, a.ID, a.MachineID, event.ID, input.Payload, input.OccurredAt); err != nil {
 			code := "temporarily_unavailable"
 			return EventReceipt{EventID: input.EventID, Status: "retry", ReasonCode: &code}
@@ -1109,6 +1109,10 @@ func (s *Service) ingestOne(ctx context.Context, connector Context, input EventI
 	}
 	id := event.ID
 	return EventReceipt{EventID: input.EventID, CoreEventID: &id, Status: status}
+}
+
+func isBambuLANAdapter(kind string) bool {
+	return kind == "bambu_h2d" || kind == "bambu_x1c"
 }
 
 func applyPrinterError(ctx context.Context, q *db.Queries, machineID, assignmentID uuid.UUID, runID *uuid.UUID, payload json.RawMessage, observedAt time.Time) error {

@@ -5,7 +5,7 @@ import { Controller, useWatch } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 import type { PrinterConnector } from '../../../../api/generated/models';
 import { connectorsQuery, type PrinterConnection } from '../../connectorQueries';
-import { describeDetection, SERIAL_PATTERN, type PrinterModelInfo } from '../../printerSetup';
+import { adapterLabel, describeDetection, isBambuAdapter, SERIAL_PATTERN, type PrinterModelInfo } from '../../printerSetup';
 import { connectorDiagnostic, isIPv4Unicast } from '../../shared/connectorHelpers';
 import { machineLogbookPaths } from '../../shared/paths';
 import { QueryBoundary } from '../../shared/QueryBoundary';
@@ -24,10 +24,10 @@ export function ConnectionStep({ form, creating, model, connection, test, saveEr
   const adapterKind = useWatch({ control, name: 'adapterKind' });
   const query = useQuery({ ...connectorsQuery(), enabled: canManage });
   const hosts = (query.data?.items ?? []).filter((host) => host.lifecycle === 'active' || host.id === connection?.connector.id);
-  const live = model?.adapterKind === 'bambu_h2d';
+  const live = isBambuAdapter(model?.adapterKind);
   // The LAN access code is write-only; an existing H2D assignment already has one, so only a new code is asked for.
-  const hasCode = Boolean(connection) && connection?.assignment.adapterKind === 'bambu_h2d' && adapterKind === 'bambu_h2d';
-  const needsLan = connect === 'now' && adapterKind === 'bambu_h2d';
+  const hasCode = Boolean(connection) && connection?.assignment.adapterKind === adapterKind && isBambuAdapter(adapterKind);
+  const needsLan = connect === 'now' && isBambuAdapter(adapterKind);
   const busy = test.phase === 'saving' || test.phase === 'config' || test.phase === 'status';
 
   // Without any active connector there is nothing to connect to now.
@@ -77,7 +77,7 @@ export function ConnectionStep({ form, creating, model, connection, test, saveEr
             )}
           </div>
           {live ? (
-            <TextInput id="setup-adapter-live" labelText="Adapter" readOnly value="Bambu Lab H2D" helperText="LAN, observes only, never sends print commands" />
+            <TextInput id="setup-adapter-live" labelText="Adapter" readOnly value={adapterLabel(adapterKind)} helperText="LAN, observes only, never sends print commands" />
           ) : model ? (
             <Select id="setup-adapter" labelText="Adapter" helperText={`No live adapter exists for ${model.label} yet. The simulator reports plausible sample data for testing.`} {...register('adapterKind')}>
               <SelectItem value="simulator" text="Simulator" />
@@ -86,18 +86,19 @@ export function ConnectionStep({ form, creating, model, connection, test, saveEr
             <Select id="setup-adapter" labelText="Adapter" {...register('adapterKind')}>
               <SelectItem value="simulator" text="Simulator" />
               <SelectItem value="bambu_h2d" text="Bambu Lab H2D" />
+              <SelectItem value="bambu_x1c" text="Bambu Lab X1C" />
             </Select>
           )}
           {needsLan && (
             <>
               <TextInput
                 id="setup-ip" labelText="Printer IPv4 address" placeholder="192.168.1.42" autoComplete="off" invalid={Boolean(errors.ipAddress)} invalidText="Enter an IPv4 unicast address."
-                {...register('ipAddress', { validate: (value, all) => !(all.connect === 'now' && all.adapterKind === 'bambu_h2d') || isIPv4Unicast(value.trim()) })}
+                {...register('ipAddress', { validate: (value, all) => !(all.connect === 'now' && isBambuAdapter(all.adapterKind)) || isIPv4Unicast(value.trim()) })}
               />
               <TextInput
                 id="setup-serial" labelText="Serial number" autoComplete="off" helperText="Shown on the printer under Settings › Device." invalid={Boolean(errors.serialNumber)} invalidText="Use capital letters, digits, dash or underscore."
                 {...register('serialNumber', {
-                  validate: (value, all) => !(all.connect === 'now' && all.adapterKind === 'bambu_h2d') || SERIAL_PATTERN.test(value.trim()),
+                  validate: (value, all) => !(all.connect === 'now' && isBambuAdapter(all.adapterKind)) || SERIAL_PATTERN.test(value.trim()),
                   onChange: (event) => setValue('serialNumber', String(event.target.value).toUpperCase(), { shouldValidate: true }),
                 })}
               />
@@ -105,7 +106,7 @@ export function ConnectionStep({ form, creating, model, connection, test, saveEr
                 id="setup-code" labelText={hasCode ? 'New LAN access code (optional)' : 'LAN access code'} autoComplete="new-password"
                 helperText={hasCode ? 'Leave blank to keep the current code' : 'Stored encrypted and never shown again after saving.'}
                 invalid={Boolean(errors.accessCode)} invalidText="Enter the LAN access code."
-                {...register('accessCode', { validate: (value, all) => !(all.connect === 'now' && all.adapterKind === 'bambu_h2d') || hasCode || Boolean(value) })}
+                {...register('accessCode', { validate: (value, all) => !(all.connect === 'now' && isBambuAdapter(all.adapterKind)) || hasCode || Boolean(value) })}
               />
               <Controller
                 control={control} name="autoMountRfid"

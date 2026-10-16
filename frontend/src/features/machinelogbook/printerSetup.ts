@@ -28,8 +28,8 @@ export type PrinterModelInfo = {
   id: PrinterModelId;
   label: string;
   description: string;
-  /** Only the H2D has a live adapter; the simulator adapter works with any model for testing. */
-  adapterKind: 'bambu_h2d' | null;
+  /** Bambu models with a reviewed LAN adapter; other models use the simulator for testing. */
+  adapterKind: 'bambu_h2d' | 'bambu_x1c' | null;
   nozzles: number;
   template: TemplateUnit[];
 };
@@ -45,9 +45,9 @@ export const printerModels: PrinterModelInfo[] = [
     ],
   },
   {
-    id: PrinterModel.bambu_x1c, label: 'Bambu Lab X1C', description: '1 nozzle · AMS · simulator only', adapterKind: null, nozzles: 1, template: [
+    id: PrinterModel.bambu_x1c, label: 'Bambu Lab X1C', description: '1 nozzle · AMS · LAN connector', adapterKind: 'bambu_x1c', nozzles: 1, template: [
       { name: 'AMS', externalIdentifier: '0', nozzle: null, slots: [0, 1, 2, 3].map((i) => ({ name: `Slot ${i + 1}`, externalIdentifier: String(i) })) },
-      { name: 'External spool', externalIdentifier: '254', nozzle: null, slots: [{ name: 'Spool', externalIdentifier: '254' }] },
+      { name: 'External spool', externalIdentifier: '255', nozzle: null, slots: [{ name: 'Spool', externalIdentifier: '255' }] },
     ],
   },
   {
@@ -58,6 +58,8 @@ export const printerModels: PrinterModelInfo[] = [
   { id: PrinterModel.generic, label: 'Other 3D printer', description: 'No template · set up spool inputs yourself', adapterKind: null, nozzles: 1, template: [] },
 ];
 export const modelById = (id: PrinterModelId | null | undefined) => printerModels.find((model) => model.id === id);
+export const isBambuAdapter = (kind: string | null | undefined): kind is 'bambu_h2d' | 'bambu_x1c' => kind === 'bambu_h2d' || kind === 'bambu_x1c';
+export const adapterLabel = (kind: string) => kind === 'bambu_x1c' ? 'Bambu Lab X1C' : kind === 'bambu_h2d' ? 'Bambu Lab H2D' : 'Simulator';
 
 let counter = 0;
 export const draftKey = (prefix: string) => `${prefix}-${++counter}`;

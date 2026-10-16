@@ -9,10 +9,12 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/printartifacts/parser"
 	"github.com/google/uuid"
 )
 
@@ -44,6 +46,100 @@ func TestParseBambuH2DConfiguration(t *testing.T) {
 				t.Fatal("expected validation failure")
 			}
 		})
+	}
+}
+
+func TestBambuX1CAdapterUsesSharedLANContract(t *testing.T) {
+	t.Parallel()
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	adapter, err := NewBambuX1C(uuid.Must(uuid.NewV7()), 1, bambuX1CSchemaVersion,
+		map[string]any{"ipAddress": "192.168.1.43", "serialNumber": " 00m00a123456789 ", "autoDetectSpools": true},
+		map[string]string{"lanAccessCode": "secret"}, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := adapter.Descriptor(); got.Kind != bambuX1CAdapterKind || got.SchemaVersion != 1 {
+		t.Fatalf("descriptor = %+v", got)
+	}
+}
+
+func TestBambuX1CReducerRetainsGlobalAMSTrayHistory(t *testing.T) {
+	t.Parallel()
+	processor := &bambuProcessor{adapterKind: bambuX1CAdapterKind, state: bambuPersistedState{
+		Document: map[string]any{}, Sessions: map[string]string{}, LastSlots: map[string]string{}, EmptySlotCounts: map[string]uint8{}, ActiveErrors: map[string]bool{}, RunFacts: map[string]bambuRunFacts{},
+	}, firstSnapshot: true}
+	at := time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)
+	initial := []byte(`{"print":{"gcode_state":"RUNNING","task_id":"6380","subtask_name":"Two colour part","ams":{"tray_now":"255","ams":[{"id":"0","tray":[{"id":"0","tag_uid":"0000000000000000","tray_type":"PLA"},{"id":"2","tag_uid":"WHITE","tray_type":"PLA"}]}]},"vir_slot":[{"id":"255","tag_uid":"0000000000000000","tray_type":"TPU"}]}}`)
+	if _, _, err := processor.apply(context.Background(), initial, at); err != nil {
+		t.Fatal(err)
+	}
+	first := []byte(`{"print":{"ams":{"tray_now":"2","ams":[{"id":"0","tray":[{"id":"0","tag_uid":"0000000000000000","tray_type":"PLA"},{"id":"2","tag_uid":"WHITE","tray_type":"PLA"}]}]}}}`)
+	if _, _, err := processor.apply(context.Background(), first, at.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if processor.state.LastTray != "2" {
+		t.Fatalf("initial tray = %q", processor.state.LastTray)
+	}
+	second := []byte(`{"print":{"ams":{"tray_now":"0","ams":[{"id":"0","tray":[{"id":"0","tray_type":"PLA"},{"id":"2","tag_uid":"WHITE","tray_type":"PLA"}]}]}}}`)
+	observations, _, err := processor.apply(context.Background(), second, at.Add(2*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertKinds(t, observations, "filament_change")
+	runID, _ := processor.currentRun()
+	if runID == nil {
+		t.Fatal("X1C run ID not allocated")
+	}
+	facts := processor.state.RunFacts[runID.String()]
+	if len(facts.SpoolEvidence) != 2 || facts.SpoolEvidence[0].Extruder != 1 || facts.SpoolEvidence[0].SlotExternalID != "2" || facts.SpoolEvidence[1].SlotExternalID != "0" || facts.SpoolEvidence[1].TagUID != "" {
+		t.Fatalf("spool evidence = %+v", facts.SpoolEvidence)
+	}
+}
+
+func TestBambuX1CReducerUsesExplicitSlicerFilamentMapping(t *testing.T) {
+	t.Parallel()
+	processor := &bambuProcessor{adapterKind: bambuX1CAdapterKind, state: bambuPersistedState{
+		Document: map[string]any{}, Sessions: map[string]string{}, LastSlots: map[string]string{}, EmptySlotCounts: map[string]uint8{}, ActiveErrors: map[string]bool{}, RunFacts: map[string]bambuRunFacts{},
+	}, firstSnapshot: true}
+	payload := []byte(`{"print":{"gcode_state":"RUNNING","task_id":"6380","ams_mapping":[0,-1,2,-1,-1],"ams_mapping2":[{"ams_id":0,"slot_id":0},{"ams_id":255,"slot_id":255},{"ams_id":0,"slot_id":2},{"ams_id":255,"slot_id":255},{"ams_id":255,"slot_id":255}],"ams":{"tray_now":"0","ams":[{"id":"0","tray":[{"id":"0","tray_type":"PLA","tray_color":"00FF00FF"},{"id":"2","tag_uid":"WHITE","tray_type":"PLA","tray_color":"FFFFFFFF"}]}]}}}`)
+	if _, _, err := processor.apply(context.Background(), payload, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+	runID, _ := processor.currentRun()
+	if runID == nil {
+		t.Fatal("X1C run ID not allocated")
+	}
+	facts := processor.state.RunFacts[runID.String()]
+	if len(facts.SpoolEvidence) != 2 ||
+		facts.SpoolEvidence[0].SlicerFilamentID != "1" || facts.SpoolEvidence[0].SlotExternalID != "0" ||
+		facts.SpoolEvidence[1].SlicerFilamentID != "3" || facts.SpoolEvidence[1].SlotExternalID != "2" || facts.SpoolEvidence[1].TagUID != "WHITE" {
+		t.Fatalf("explicit X1C material routes = %+v", facts.SpoolEvidence)
+	}
+}
+
+func TestBambuX1CRejectsAmbiguousExternalHolderSentinel(t *testing.T) {
+	t.Parallel()
+	state := decodeDocument(t, `{"ams":{"tray_now":"255"},"vir_slot":[{"id":"255","tray_type":"TPU","tag_uid":"0000000000000000"}]}`)
+	if _, _, _, ok := bambuX1CActiveSlot(state); ok {
+		t.Fatal("ambiguous X1C holder 255 was treated as selected")
+	}
+}
+
+func TestBambuTLSConfigSharesSessionsWithFTPSDataChannels(t *testing.T) {
+	t.Parallel()
+	config, err := bambuTLSConfig("01P09A123456789")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.ServerName != "01P09A123456789" {
+		t.Fatalf("TLS session identity = %q", config.ServerName)
+	}
+	if config.ClientSessionCache == nil || config.Clone().ClientSessionCache != config.ClientSessionCache {
+		t.Fatal("Bambu TLS clones do not share a client session cache")
 	}
 }
 
@@ -117,6 +213,71 @@ func TestBareActiveTrayIsNotAppliedAcrossMultipleAMSUnits(t *testing.T) {
 		if facts.InputUnitExternalID != "" || facts.SlotExternalID != "" || facts.TagUID != "" {
 			t.Fatalf("ambiguous tray was retained as consumption evidence: %#v", facts)
 		}
+	}
+}
+
+func TestNoTraySentinelDoesNotEraseRunSpoolEvidence(t *testing.T) {
+	t.Parallel()
+	processor := &bambuProcessor{state: bambuPersistedState{
+		Document:        map[string]any{},
+		Sessions:        map[string]string{},
+		LastSlots:       map[string]string{},
+		EmptySlotCounts: map[string]uint8{},
+		ActiveErrors:    map[string]bool{},
+		RunFacts:        map[string]bambuRunFacts{},
+	}, firstSnapshot: true}
+	at := time.Date(2026, 10, 15, 12, 43, 0, 0, time.UTC)
+	active := []byte(`{"print":{"gcode_state":"RUNNING","task_id":"5","device":{"extruder":{"state":256,"info":[{"id":0,"snow":65535,"info":0},{"id":1,"snow":32768,"info":2}]}},"ams":{"tray_now":"255","ams":[{"id":"128","tray":[{"id":"0","tag_uid":"A1B2C3D4E5F60708"}]}]},"vir_slot":[{"id":"254"},{"id":"255","tag_uid":"0000000000000000"}]}}`)
+	if _, _, err := processor.apply(context.Background(), active, at); err != nil {
+		t.Fatal(err)
+	}
+	runID := processor.state.CurrentRunID
+	before := processor.state.RunFacts[runID]
+	if before.InputUnitExternalID != "128" || before.SlotExternalID != "0" || before.TagUID != "A1B2C3D4E5F60708" {
+		t.Fatalf("initial spool evidence = %#v", before)
+	}
+
+	// H2D reports an empty hotend route and ambiguous tray_now 255 while
+	// unloading after cancellation, so the last trustworthy evidence remains.
+	if _, _, err := processor.apply(context.Background(), []byte(`{"print":{"device":{"extruder":{"state":256,"info":[{"id":0,"snow":65535,"info":0},{"id":1,"snow":65535,"info":0}]}},"ams":{"tray_now":"255"}}}`), at.Add(10*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	after := processor.state.RunFacts[runID]
+	if after.InputUnitExternalID != "128" || after.SlotExternalID != "0" || after.TagUID != "A1B2C3D4E5F60708" {
+		t.Fatalf("no-tray sentinel erased spool evidence: before=%#v after=%#v", before, after)
+	}
+}
+
+func TestInactiveExtruderDoesNotReplaceRunSpoolEvidence(t *testing.T) {
+	t.Parallel()
+	processor := &bambuProcessor{state: bambuPersistedState{
+		Document:        map[string]any{},
+		Sessions:        map[string]string{},
+		LastSlots:       map[string]string{},
+		EmptySlotCounts: map[string]uint8{},
+		ActiveErrors:    map[string]bool{},
+		RunFacts:        map[string]bambuRunFacts{},
+	}, firstSnapshot: true}
+	at := time.Date(2026, 10, 15, 14, 36, 0, 0, time.UTC)
+	active := []byte(`{"print":{"gcode_state":"RUNNING","task_id":"9565","device":{"extruder":{"state":256,"info":[{"id":0,"snow":65280,"info":2},{"id":1,"snow":32768,"info":2}]}},"ams":{"tray_now":"255","ams":[{"id":"128","tray":[{"id":"0","tag_uid":"A1B2C3D4E5F60708"}]}]},"vir_slot":[{"id":"254"},{"id":"255","tag_uid":"0000000000000000"}]}}`)
+	if _, _, err := processor.apply(context.Background(), active, at); err != nil {
+		t.Fatal(err)
+	}
+	runID := processor.state.CurrentRunID
+	before := processor.state.RunFacts[runID]
+	if before.InputUnitExternalID != "128" || before.SlotExternalID != "0" || before.TagUID != "A1B2C3D4E5F60708" {
+		t.Fatalf("initial spool evidence = %#v", before)
+	}
+
+	// The active left hotend becomes empty while unloading, but the inactive
+	// right hotend still advertises its external holder. It must not win.
+	unloading := []byte(`{"print":{"device":{"extruder":{"state":256,"info":[{"id":0,"snow":65280,"info":2},{"id":1,"snow":65279,"info":2}]}}}}`)
+	if _, _, err := processor.apply(context.Background(), unloading, at.Add(15*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	after := processor.state.RunFacts[runID]
+	if after.InputUnitExternalID != "128" || after.SlotExternalID != "0" || after.TagUID != "A1B2C3D4E5F60708" {
+		t.Fatalf("inactive hotend replaced spool evidence: before=%#v after=%#v", before, after)
 	}
 }
 
@@ -201,7 +362,7 @@ func TestBambuReducerLifecycleSlotsErrorsAndPersistence(t *testing.T) {
 		t.Fatal(err)
 	}
 	at := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
-	initial := []byte(`{"print":{"gcode_state":"RUNNING","task_id":"23","subtask_id":"7","gcode_file":"part.3mf","mc_percent":12,"mc_remaining_time":8,"layer_num":3,"total_layer_num":20,"print_error":134184963,"ams":{"ams":[{"id":"0","tray":[{"id":"1","tag_uid":"ABC","tray_uuid":"observed-only","tray_type":"PLA","tray_color":"FF0000FF","tray_weight":"1000","remain":"80"}]}]},"tray_now":"0:1"}}`)
+	initial := []byte(`{"print":{"gcode_state":"RUNNING","task_id":"23","subtask_id":"7","subtask_name":"Customer project","gcode_file":"/cache/generated-name.3mf","mc_percent":12,"mc_remaining_time":8,"layer_num":3,"total_layer_num":20,"print_error":134184963,"ams":{"ams":[{"id":"0","tray":[{"id":"1","tag_uid":"ABC","tray_uuid":"observed-only","tray_type":"PLA","tray_color":"FF0000FF","tray_weight":"1000","remain":"80"}]}]},"tray_now":"0:1"}}`)
 	observations, ready, err := processor.apply(ctx, initial, at)
 	if err != nil || !ready {
 		t.Fatalf("initial reducer application failed: ready=%v err=%v", ready, err)
@@ -219,6 +380,12 @@ func TestBambuReducerLifecycleSlotsErrorsAndPersistence(t *testing.T) {
 			var payload map[string]any
 			if json.Unmarshal(observation.Payload, &payload) != nil || payload["transition"] != "appeared" || payload["code"] != "134184963" {
 				t.Fatalf("unexpected printer error payload: %s", observation.Payload)
+			}
+		}
+		if observation.Kind == "operational_state" || observation.Kind == "progress" {
+			var payload map[string]any
+			if json.Unmarshal(observation.Payload, &payload) != nil || payload["fileName"] != "Customer project" || payload["artifactPath"] != "/cache/generated-name.3mf" {
+				t.Fatalf("run name and artifact path were conflated: %s", observation.Payload)
 			}
 		}
 		if observation.Kind == "slot_observation" {
@@ -289,6 +456,174 @@ func TestBambuReducerLifecycleSlotsErrorsAndPersistence(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertKinds(t, observations, "terminal_outcome")
+}
+
+func TestBambuDisconnectTimeoutEndsPersistedRunAsUnknown(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	assignmentID := uuid.Must(uuid.NewV7())
+	processor, err := newBambuProcessor(ctx, assignmentID, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	startedAt := time.Date(2026, 10, 15, 8, 0, 0, 0, time.UTC)
+	active := []byte(`{"print":{"gcode_state":"RUNNING","task_id":"42","subtask_name":"Gearbox housing","gcode_file":"/cache/plate_1.gcode","mc_percent":30}}`)
+	observations, _, err := processor.apply(ctx, active, startedAt)
+	if err != nil || len(observations) == 0 {
+		t.Fatalf("active run was not established: observations=%#v err=%v", observations, err)
+	}
+	runID, _ := processor.currentRun()
+	if runID == nil || !processor.noteDisconnected(startedAt.Add(time.Minute)) {
+		t.Fatal("active run did not record its first disconnect")
+	}
+	if got := processor.expireDisconnectedRun(startedAt.Add(time.Minute).Add(bambuDisconnectGracePeriod - time.Second)); len(got) != 0 {
+		t.Fatalf("run ended before the disconnect grace period: %#v", got)
+	}
+	if err = processor.persist(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	restarted, err := newBambuProcessor(ctx, assignmentID, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := startedAt.Add(time.Minute).Add(bambuDisconnectGracePeriod)
+	observations = restarted.expireDisconnectedRun(deadline.Add(time.Second))
+	assertKinds(t, observations, "terminal_outcome")
+	if observations[0].RunID == nil || *observations[0].RunID != *runID || !bytes.Contains(observations[0].Payload, []byte(`"outcome":"unknown"`)) || !bytes.Contains(observations[0].Payload, []byte(`"reason":"connection_timeout"`)) {
+		t.Fatalf("unexpected timeout observation: %#v", observations[0])
+	}
+	if !restarted.state.RunTimedOut || restarted.state.DisconnectedAt != nil || restarted.state.Lifecycle != "UNKNOWN" {
+		t.Fatalf("timeout state was not checkpointed in memory: %#v", restarted.state)
+	}
+	if repeated := restarted.expireDisconnectedRun(deadline.Add(time.Hour)); len(repeated) != 0 {
+		t.Fatalf("timeout emitted more than once: %#v", repeated)
+	}
+	if err = restarted.persist(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	reloaded, err := newBambuProcessor(ctx, assignmentID, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reloaded.state.RunTimedOut {
+		t.Fatal("timed-out session did not survive connector restart")
+	}
+	observations, _, err = reloaded.apply(ctx, active, deadline.Add(2*time.Minute))
+	if err != nil || len(observations) != 0 {
+		t.Fatalf("late active snapshot reopened a timed-out run: observations=%#v err=%v", observations, err)
+	}
+	observations, _, err = reloaded.apply(ctx, []byte(`{"print":{"gcode_state":"FINISH","task_id":"42","mc_percent":100}}`), deadline.Add(3*time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertKinds(t, observations, "terminal_outcome")
+	if !bytes.Contains(observations[0].Payload, []byte(`"outcome":"completed"`)) {
+		t.Fatalf("trustworthy terminal state did not refine the timeout: %s", observations[0].Payload)
+	}
+}
+
+func TestBambuReconnectBeforeTimeoutKeepsRunActive(t *testing.T) {
+	t.Parallel()
+	runID := uuid.Must(uuid.NewV7())
+	disconnectedAt := time.Date(2026, 10, 15, 8, 0, 0, 0, time.UTC)
+	processor := &bambuProcessor{state: bambuPersistedState{
+		Lifecycle:      "RUNNING",
+		CurrentRunID:   runID.String(),
+		DisconnectedAt: &disconnectedAt,
+	}}
+	if !processor.noteConnected() || processor.state.DisconnectedAt != nil {
+		t.Fatal("reconnection did not clear the pending disconnect timeout")
+	}
+	if observations := processor.expireDisconnectedRun(disconnectedAt.Add(time.Hour)); len(observations) != 0 {
+		t.Fatalf("reconnected run was ended: %#v", observations)
+	}
+}
+
+func TestArtifactRetrievalUsesArchivePathNotProjectName(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	assignmentID, runID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	adapter := &bambuH2DAdapter{assignmentID: assignmentID, configurationVersion: 2, store: store}
+	observation := Observation{
+		Kind:    "progress",
+		RunID:   &runID,
+		Payload: mustJSON(map[string]any{"fileName": "Customer project", "artifactPath": "/cache/generated-name.3mf"}),
+	}
+	if err = adapter.scheduleArtifactRetrievals(ctx, []Observation{observation}); err != nil {
+		t.Fatal(err)
+	}
+	retrieval, err := store.PendingArtifactRetrieval(ctx, assignmentID)
+	if err != nil || retrieval == nil || retrieval.ReportedPath != "/cache/generated-name.3mf" {
+		t.Fatalf("artifact retrieval used the display name: retrieval=%#v err=%v", retrieval, err)
+	}
+}
+
+func TestInternalGCodePathIsNotScheduledAsAnArtifact(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store, err := OpenStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	assignmentID := uuid.Must(uuid.NewV7())
+	runID := uuid.Must(uuid.NewV7())
+	adapter := &bambuH2DAdapter{assignmentID: assignmentID, configurationVersion: 1, store: store}
+	observation := Observation{
+		Kind:  "progress",
+		RunID: &runID,
+		Payload: mustJSON(map[string]any{
+			"fileName":     "Customer project",
+			"artifactPath": "/data/Metadata/plate_1.gcode",
+		}),
+	}
+	if err = adapter.scheduleArtifactRetrievals(ctx, []Observation{observation}); err != nil {
+		t.Fatal(err)
+	}
+	if retrieval, pendingErr := store.PendingArtifactRetrieval(ctx, assignmentID); pendingErr != nil || retrieval != nil {
+		t.Fatalf("internal G-code path was scheduled as an archive: %#v %v", retrieval, pendingErr)
+	}
+
+	if got := bambuArtifactPath(map[string]any{"gcode_file": "/data/Metadata/plate_1.gcode", "subtask_name": "FlipOff_Ghostie.stl"}); got != "FlipOff_Ghostie.stl.gcode.3mf" {
+		t.Fatalf("print name did not become the exact archive candidate: %q", got)
+	}
+	if got := bambuArtifactPath(map[string]any{"file": "/cache/source.gcode.3mf", "gcode_file": "/data/Metadata/plate_1.gcode"}); got != "/cache/source.gcode.3mf" {
+		t.Fatalf("reported archive candidate = %q", got)
+	}
+	if got := bambuArtifactPath(map[string]any{"gcode_file": "/data/Metadata/plate_1.gcode", "subtask_name": "unsafe/name"}); got != "" {
+		t.Fatalf("unsafe print name became an archive candidate: %q", got)
+	}
+
+	// A persisted retry from an older connector build is quarantined locally
+	// before any network connection is attempted.
+	if err = store.ScheduleArtifactRetrieval(ctx, assignmentID, runID, 1, "/data/Metadata/plate_1.gcode", time.Now().UTC().Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = store.db.ExecContext(ctx, `UPDATE artifact_retrievals SET next_attempt_at=? WHERE assignment_id=? AND run_id=?`, time.Now().UTC().Add(time.Hour).Format(time.RFC3339Nano), assignmentID.String(), runID.String()); err != nil {
+		t.Fatal(err)
+	}
+	if completed, cleanupErr := adapter.retrieveOneArtifact(ctx); cleanupErr != nil || !completed {
+		t.Fatalf("legacy invalid retrieval was not completed locally: %v %v", completed, cleanupErr)
+	}
+	var state, reason string
+	if err = store.db.QueryRowContext(ctx, `SELECT state,reason_code FROM artifact_retrievals WHERE assignment_id=? AND run_id=?`, assignmentID.String(), runID.String()).Scan(&state, &reason); err != nil {
+		t.Fatal(err)
+	}
+	if state != "quarantined" || reason != "artifact_candidate_not_archive" {
+		t.Fatalf("legacy invalid retrieval state = %q %q", state, reason)
+	}
 }
 
 func TestBambuReducerIgnoresRetainedTerminalAtStartup(t *testing.T) {
@@ -380,6 +715,28 @@ func TestArtifactCandidateSelectionIsExactAndRequiresStableSize(t *testing.T) {
 	candidate.Size++
 	if tracker.Observe(candidate) {
 		t.Fatal("changed size was considered stable")
+	}
+}
+
+func TestArtifactDirectoryListingsKeepUsableRootWhenCacheFails(t *testing.T) {
+	t.Parallel()
+	var visited []string
+	listings, err := listBambuArtifactDirectories(context.Background(), func(_ context.Context, directory string) ([]FTPEntry, error) {
+		visited = append(visited, directory)
+		if directory == "/cache" {
+			return nil, errors.New("finish Bambu FTPS transfer: cache unavailable")
+		}
+		return []FTPEntry{{Name: "FlipOff_Ghostie.stl.gcode.3mf", Size: 123}}, nil
+	})
+	if !slices.Equal(visited, []string{"/", "/cache"}) {
+		t.Fatalf("listing order = %#v", visited)
+	}
+	if err == nil {
+		t.Fatal("partial listing failure was not retained")
+	}
+	candidate, selectErr := SelectArtifactCandidate("FlipOff_Ghostie.stl.gcode.3mf", listings)
+	if selectErr != nil || candidate.RemotePath != "/FlipOff_Ghostie.stl.gcode.3mf" {
+		t.Fatalf("root candidate = %#v, err=%v", candidate, selectErr)
 	}
 }
 
@@ -476,19 +833,23 @@ func TestBuildBambuConsumptionPayloadUsesTerminalMethod(t *testing.T) {
 		t.Fatalf("completed report = %s", completed)
 	}
 
-	layer := 1
-	failed, err := buildBambuConsumptionPayload(transfer, bambuRunFacts{Outcome: "failed", LastLayer: &layer})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var failedReport struct {
-		Items []map[string]any `json:"items"`
-	}
-	if err = json.Unmarshal(failed, &failedReport); err != nil {
-		t.Fatal(err)
-	}
-	if len(failedReport.Items) != 1 || failedReport.Items[0]["method"] != "gcode_checkpoint" || failedReport.Items[0]["estimatedQuantityGrams"] != "0.029825" || failedReport.Items[0]["modelQuantityGrams"] != "0.029825" {
-		t.Fatalf("failed report = %s", failed)
+	layer, progress := 1, 50.0
+	for _, adapterKind := range []string{bambuH2DAdapterKind, bambuX1CAdapterKind} {
+		t.Run(adapterKind, func(t *testing.T) {
+			failed, buildErr := buildBambuConsumptionPayloadFor(adapterKind, transfer, bambuRunFacts{Outcome: "failed", LastLayer: &layer, LastProgress: &progress})
+			if buildErr != nil {
+				t.Fatal(buildErr)
+			}
+			var failedReport struct {
+				Items []map[string]any `json:"items"`
+			}
+			if unmarshalErr := json.Unmarshal(failed, &failedReport); unmarshalErr != nil {
+				t.Fatal(unmarshalErr)
+			}
+			if len(failedReport.Items) != 1 || failedReport.Items[0]["method"] != "gcode_checkpoint" || failedReport.Items[0]["estimatedQuantityGrams"] != "0.029825" || failedReport.Items[0]["modelQuantityGrams"] != "0.029825" {
+				t.Fatalf("failed report = %s", failed)
+			}
+		})
 	}
 
 	unresolved, err := buildBambuConsumptionPayload(transfer, bambuRunFacts{Outcome: "unknown"})
@@ -503,6 +864,162 @@ func TestBuildBambuConsumptionPayloadUsesTerminalMethod(t *testing.T) {
 	}
 	if len(unresolvedReport.Items) != 1 || unresolvedReport.Items[0]["quality"] != "unresolved" || unresolvedReport.Items[0]["estimatedQuantityGrams"] != nil {
 		t.Fatalf("unresolved report = %s", unresolved)
+	}
+}
+
+func TestMultiMaterialConsumptionMapsEachPhysicalSpool(t *testing.T) {
+	t.Parallel()
+	gramsA, gramsB := 3.25, 4.75
+	parsed := parser.Result{
+		Filaments: []parser.Filament{
+			{ID: "1", WeightGrams: &gramsA, Extruders: []int{0}},
+			{ID: "5", WeightGrams: &gramsB, Extruders: []int{1}},
+		},
+	}
+	payload, err := marshalSlicerConsumption(parsed, bambuRunFacts{
+		HistoryComplete: true,
+		SpoolEvidence: []bambuSpoolEvidence{
+			{Extruder: 0, InputUnitExternalID: "0", SlotExternalID: "2", TagUID: "RIGHT"},
+			{Extruder: 1, InputUnitExternalID: "128", SlotExternalID: "0", TagUID: "LEFT"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err = json.Unmarshal(payload, &report); err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Items) != 2 || report.Items[0]["slotExternalId"] != "2" || report.Items[0]["tagUid"] != "RIGHT" ||
+		report.Items[1]["slotExternalId"] != "0" || report.Items[1]["tagUid"] != "LEFT" {
+		t.Fatalf("multi-nozzle report = %s", payload)
+	}
+}
+
+func TestInterruptedX1CConsumptionUsesExplicitMaterialMapping(t *testing.T) {
+	t.Parallel()
+	greenGrams, whiteGrams, consumedWhite := 0.76, 2.41, 2.147144
+	parsed := parser.Result{Filaments: []parser.Filament{
+		{ID: "1", WeightGrams: &greenGrams, Extruders: []int{1}},
+		{ID: "3", WeightGrams: &whiteGrams, Extruders: []int{1}},
+	}}
+	estimate := parser.GCodeEstimate{
+		Method: "gcode_checkpoint", CalculationVersion: parser.CalculationVersion, Quality: parser.QualityHigh, Resolved: true,
+		// M620 uses zero-based filament 2; marshalGCodeConsumption maps it to
+		// the positive-quantity slice_info filament 3 before resolving the spool.
+		Filaments: []parser.FilamentEstimate{{FilamentID: "2", Extruders: []int{1}, WeightGrams: &consumedWhite}},
+	}
+	payload, err := marshalGCodeConsumption(parsed, estimate, bambuRunFacts{
+		InputUnitExternalID: "0", SlotExternalID: "0",
+		SpoolEvidence: []bambuSpoolEvidence{
+			{SlicerFilamentID: "1", Extruder: 1, InputUnitExternalID: "0", SlotExternalID: "0", TagUID: "GREEN"},
+			{SlicerFilamentID: "3", Extruder: 1, InputUnitExternalID: "0", SlotExternalID: "2", TagUID: "WHITE"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err = json.Unmarshal(payload, &report); err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Items) != 1 || report.Items[0]["slicerFilamentId"] != "3" || report.Items[0]["slotExternalId"] != "2" || report.Items[0]["tagUid"] != "WHITE" {
+		t.Fatalf("interrupted X1C report = %s", payload)
+	}
+}
+
+func TestMultiMaterialConsumptionMapsUniqueRemainingH2DRoute(t *testing.T) {
+	t.Parallel()
+	yellowGrams, whiteGrams := 0.55, 1.64
+	parsed := parser.Result{
+		Filaments: []parser.Filament{
+			// Real H2D slice metadata numbers its two physical extruders 2/1,
+			// while MQTT identifies the corresponding routes as 0/1.
+			{ID: "1", WeightGrams: &yellowGrams, Extruders: []int{2}},
+			{ID: "3", WeightGrams: &whiteGrams, Extruders: []int{1}},
+		},
+	}
+	payload, err := marshalSlicerConsumption(parsed, bambuRunFacts{
+		HistoryComplete: true,
+		SpoolEvidence: []bambuSpoolEvidence{
+			{Extruder: 0, InputUnitExternalID: "255", SlotExternalID: "255"},
+			{Extruder: 1, InputUnitExternalID: "128", SlotExternalID: "0", TagUID: "WHITE"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err = json.Unmarshal(payload, &report); err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Items) != 2 || report.Items[0]["inputUnitExternalId"] != "255" || report.Items[0]["slotExternalId"] != "255" ||
+		report.Items[1]["inputUnitExternalId"] != "128" || report.Items[1]["slotExternalId"] != "0" || report.Items[1]["tagUid"] != "WHITE" {
+		t.Fatalf("H2D route elimination report = %s", payload)
+	}
+}
+
+func TestMultiMaterialConsumptionMapsOrderedChangesOnOneExtruder(t *testing.T) {
+	t.Parallel()
+	gramsA, gramsB := 2.0, 6.0
+	parsed := parser.Result{
+		Filaments: []parser.Filament{
+			{ID: "1", WeightGrams: &gramsA, Extruders: []int{1}},
+			{ID: "5", WeightGrams: &gramsB, Extruders: []int{1}},
+		},
+		FilamentSequence: []string{"5", "1"},
+	}
+	payload, err := marshalSlicerConsumption(parsed, bambuRunFacts{
+		HistoryComplete: true,
+		SpoolEvidence: []bambuSpoolEvidence{
+			{Extruder: 1, InputUnitExternalID: "0", SlotExternalID: "3", TagUID: "FIRST"},
+			{Extruder: 1, InputUnitExternalID: "0", SlotExternalID: "1", TagUID: "SECOND"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err = json.Unmarshal(payload, &report); err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]map[string]any{}
+	for _, item := range report.Items {
+		byID[item["slicerFilamentId"].(string)] = item
+	}
+	if byID["5"]["slotExternalId"] != "3" || byID["5"]["tagUid"] != "FIRST" ||
+		byID["1"]["slotExternalId"] != "1" || byID["1"]["tagUid"] != "SECOND" {
+		t.Fatalf("single-nozzle multi-material report = %s", payload)
+	}
+}
+
+func TestMultiMaterialConsumptionDoesNotGuessWithIncompleteHistory(t *testing.T) {
+	t.Parallel()
+	gramsA, gramsB := 2.0, 6.0
+	parsed := parser.Result{
+		Filaments:        []parser.Filament{{ID: "1", WeightGrams: &gramsA, Extruders: []int{1}}, {ID: "5", WeightGrams: &gramsB, Extruders: []int{1}}},
+		FilamentSequence: []string{"1", "5"},
+	}
+	payload, err := marshalSlicerConsumption(parsed, bambuRunFacts{
+		HistoryComplete: false,
+		SpoolEvidence: []bambuSpoolEvidence{
+			{Extruder: 1, InputUnitExternalID: "0", SlotExternalID: "0"},
+			{Extruder: 1, InputUnitExternalID: "0", SlotExternalID: "1"},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(payload), "slotExternalId") {
+		t.Fatalf("incomplete tray history must stay unresolved: %s", payload)
 	}
 }
 
@@ -574,8 +1091,11 @@ func syntheticBambuConsumptionZIP(t *testing.T) []byte {
 	var buffer bytes.Buffer
 	writer := zip.NewWriter(&buffer)
 	entries := map[string]string{
-		"Metadata/slice_info.config": `<?xml version="1.0"?><config><plate id="1"/><filament id="0" type="PLA" used_mm="100" used_g="0.3" density="1.24" diameter="1.75" extruder="0"/></config>`,
-		"Metadata/plate_1.gcode":     "M82\nG92 E0\n; layer: 0\n;TYPE:External perimeter\nG1 E10\n; layer: 1\nG1 E20\n; layer: 2\n",
+		"Metadata/slice_info.config": `<?xml version="1.0"?><config><plate id="1"/><filament id="0" type="PLA" used_mm="100" used_g="0.3" density="1.24" diameter="1.75" extruder="0"/><filament id="4" type="PLA" density="1.24" diameter="1.75"/><filament id="GFA00" type="PLA" density="1.24" diameter="1.75"/></config>`,
+		// The later progress marker is still on layer 1. A failed run reporting
+		// layer 1 but only 50% must use both bounds and stop at the layer marker,
+		// rather than accepting the later 80% checkpoint.
+		"Metadata/plate_1.gcode": "M82\nG92 E0\nM620 S0A\n; layer: 0\n;TYPE:External perimeter\nG1 E10\nM73 P25\n; layer: 1\nG1 E20\nM73 P80\n; layer: 2\n",
 	}
 	for name, content := range entries {
 		entry, err := writer.Create(name)

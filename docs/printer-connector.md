@@ -2,7 +2,7 @@
 
 The Makerspace Printer Connector is a single Go process that runs inside a printer network and makes outbound HTTPS requests to Makerspace Core. One instance can supervise multiple printers and adapter kinds. It does not expose an inbound application port, require host networking, or need device access.
 
-The connector includes the deterministic simulator and the `bambu_h2d` LAN adapter. Other printer families remain outside this release. The H2D adapter is observational: it receives status, retrieves the archive for the observed print when available, and reports facts to Core. It never uploads a print to the printer or starts, pauses, resumes, or cancels physical motion.
+The connector includes the deterministic simulator plus the `bambu_h2d` and `bambu_x1c` LAN adapters. Both Bambu adapters are observational: they receive status, retrieve the archive for an observed print when available, and report facts to Core. They never upload a print to the printer or start, pause, resume, or cancel physical motion.
 
 ## Domain boundaries
 
@@ -27,9 +27,9 @@ Runtime credentials expire after 90 days. The connector rotates its own credenti
 
 All production Core URLs must use HTTPS. Plain HTTP is accepted only when `CONNECTOR_ALLOW_HTTP=true`, which is intended for an isolated local development stack.
 
-## Bambu Lab H2D setup
+## Bambu Lab H2D and X1 Carbon setup
 
-V1 requires an H2D on a trusted local network with its firmware's Developer/LAN-only access enabled. Record the printer's IPv4 address, uppercase serial number, and LAN access code. Reserve the IPv4 address in DHCP or configure it consistently; discovery is not part of V1. Create or edit the assignment in **Settings → Printer connectors**, select **Bambu Lab H2D**, choose the enabled printer profile, and enter those values. Leaving the LAN-code field blank while editing preserves the encrypted credential; entering a non-empty value rotates it. **Automatically mount spools identified by exact Bambu RFID** is opt-in and should be enabled only after the printer profile's AMS input-unit and tray external IDs are configured.
+V1 requires an H2D or X1 Carbon on a trusted local network with its firmware's Developer/LAN-only access enabled. Record the printer's IPv4 address, uppercase serial number, and LAN access code. Reserve the IPv4 address in DHCP or configure it consistently; discovery is not part of V1. Create or edit the assignment in the printer setup, select the matching Bambu model, choose the connector, and enter those values. Leaving the LAN-code field blank while editing preserves the encrypted credential; entering a non-empty value rotates it. **Automatically mount spools identified by exact Bambu RFID** is opt-in and should be enabled only after the printer profile's AMS input-unit and tray external IDs are configured.
 
 The connector makes outbound connections directly to the configured printer IP on MQTT `8883` and implicit FTPS `990`. Docker Desktop must be able to route from its Linux VM to that LAN address. `host.docker.internal` is for reaching the Docker host and is not a substitute for the printer IP. Check VPN routing, guest-network isolation, and host firewall policy when the host can reach the printer but the container cannot. No inbound port, host networking, cloud account, or multicast discovery is required.
 
@@ -37,7 +37,7 @@ MQTT uses QoS 1 on `device/{serial}/report`. Connection loss is isolated to the 
 
 TLS on MQTT and both FTPS channels validates the full chain and validity period against Bambu's [`printer.cer` from Bambu Studio](https://github.com/bambulab/BambuStudio/blob/master/resources/cert/printer.cer), with retrieval attribution in the connector source. The leaf certificate Common Name must equal the configured serial even though the network connection uses an IP address. Unknown authorities, expired or incomplete chains, and serial mismatches fail closed; there is no verification-bypass setting.
 
-FTPS searches only `/cache` and `/` after telemetry supplies a candidate filename. It uses an exact path first and then an exact basename. The intentionally narrow client follows the passive-mode and delayed data-channel TLS behavior recorded by [open-bamboo-networking's FTPS research](https://github.com/ClusterM/open-bamboo-networking/blob/master/research/06.03-ftps.md). Ambiguous names, unstable sizes, corrupt ZIPs, and unavailable external storage are deferred rather than guessed. Telemetry continues while artifact retrieval or upload retries independently. Staged archives and the artifact-transfer queue live in the connector's protected named volume; reaching the queue cap degrades only the assignment and does not delete unacknowledged data.
+FTPS searches only `/cache` and `/` after telemetry supplies an explicit `.3mf` candidate filename. It uses an exact path first and then an exact basename. A reported `/data/Metadata/plate_N.gcode` is an internal member of the active archive, not an FTPS archive path; when no archive path is reported, both reviewed models expose the exact print name plus `.gcode.3mf`. No fuzzy match is used. The intentionally narrow client follows the passive-mode and delayed data-channel TLS behavior recorded by [open-bamboo-networking's FTPS research](https://github.com/ClusterM/open-bamboo-networking/blob/master/research/06.03-ftps.md). Ambiguous names, unstable sizes, corrupt ZIPs, and unavailable external storage are deferred rather than guessed. Telemetry continues while artifact retrieval or upload retries independently, and the diagnostics UI keeps fresh MQTT values marked live while showing any artifact-only delay separately. Staged archives and the artifact-transfer queue live in the connector's protected named volume; reaching the queue cap degrades only the assignment and does not delete unacknowledged data.
 
 The connector calculates inventory consumption only after a terminal outcome. Successful prints use complete per-filament slicer weights (`slicer_complete`). Failed or unknown outcomes select the latest G-code layer checkpoint supported by the last reliable MQTT layer, convert parsed extrusion using density/diameter or slicer length/weight normalization, and report model, purge/loading, and unclassified quantities when the markers support that split (`gcode_checkpoint`). It publishes an unresolved line when no defensible conversion or unique G-code stream exists; it never multiplies full-file weight by MQTT percentage. Calculation version, method, and quality are immutable. While a run is active, its page may show a clearly labeled display-only `~used / planned` estimate after Core has parsed the retrieved 3MF; this multiplies planned grams by printer progress for operator awareness and never changes stock. The archive may upload while printing, but its private staged copy is retained after Core acknowledges it until the terminal consumption event is durably queued; only then is that copy removed.
 
@@ -80,9 +80,9 @@ Core validates connector ownership, assignment ownership, configuration version,
 
 The connector protocol starts at version 1. Core and connector report their protocol and software versions in configuration and heartbeat payloads. Additive fields can be deployed independently; a connector rejects an unsupported protocol rather than silently interpreting it.
 
-H2D lifecycle identity uses the strongest non-zero tuple of LAN task, task, job, and subtask identifiers. The observed local task identifier remains untrusted until reviewed real fixtures demonstrate whole-job stability; filenames corroborate a session but never identify it. When no stable identifier exists, a persisted lifecycle generation is allocated on an inactive-to-active transition. `PREPARE`, `RUNNING`, and `PAUSE` establish or resume a run; pause/resume facts are transition-only. `FINISH` succeeds, `FAILED` fails unless a future verified fixture supplies explicit cancellation evidence, and 100 percent progress alone never terminates a run. A terminal snapshot retained at connector startup does not create historical work. A session that disappears without trustworthy terminal evidence closes as unknown.
+Bambu lifecycle identity uses the strongest non-zero tuple of LAN task, task, job, and subtask identifiers. The observed local task identifier remains untrusted; filenames corroborate a session but never identify it. When no stable identifier exists, a persisted lifecycle generation is allocated on an inactive-to-active transition. `PREPARE`, `RUNNING`, and `PAUSE` establish or resume a run; pause/resume facts are transition-only. `FINISH` succeeds, `FAILED` fails unless a future verified fixture supplies explicit cancellation evidence, and 100 percent progress alone never terminates a run. A terminal snapshot retained at connector startup does not create historical work. A session that disappears without trustworthy terminal evidence closes as unknown. If MQTT remains disconnected for five minutes during an active run, the connector also closes that run as unknown. The disconnect timestamp is persisted, so restarting the connector does not reset the grace period. A late active snapshot for that same timed-out session does not reopen the run; a later trustworthy terminal snapshot may refine its final state.
 
-AMS reports do not make printer-reported material, color, remaining weight, or `tray_uuid` authoritative. When exact-RFID auto-detection is disabled, all observations remain read-only. When enabled, Core may create a `connector_reconciled` slot assignment only when the observation identifies an exact configured input-unit/tray pair and its verified `tag_uid` uniquely identifies an active, non-empty Core spool. It never creates spools or identifiers, never replaces a staff/manual assignment, and never acts on material/color similarity. A later exact observation may move only a prior connector-reconciled mount. Two consecutive observations without an RFID tag produce a confirmed-empty transition; that transition closes only a connector-reconciled mount and never a manual assignment. Consumption resolves the historical slot assignment and exact NFC evidence at the report timestamp; disagreement remains unresolved. For a single-filament artifact, the connector carries the last unambiguous active unit/tray/tag into the terminal report. It does not apply the final tray to every line of a multi-material report.
+AMS reports do not make printer-reported material, color, remaining weight, or `tray_uuid` authoritative. When exact-RFID auto-detection is disabled, all observations remain read-only. When enabled, Core may create a `connector_reconciled` slot assignment only when the observation identifies an exact configured input-unit/tray pair and its verified `tag_uid` uniquely identifies an active, non-empty Core spool. It never creates spools or identifiers, never replaces a staff/manual assignment, and never acts on material/color similarity. A later exact observation may move only a prior connector-reconciled mount. Two consecutive observations without an RFID tag produce a confirmed-empty transition; that transition closes only a connector-reconciled mount and never a manual assignment. Consumption resolves the historical slot assignment and exact NFC evidence at the report timestamp; disagreement remains unresolved. H2D retains distinct tray evidence per physical extruder. X1C interprets `ams.tray_now` as global index `unit*4+tray` and records its ordered changes through physical extruder 1. For several materials changed through one nozzle, the connector uses the archive's first-use filament sequence and the observed tray-change order only when the complete run history and counts agree exactly. Ambiguous or incomplete mappings remain unresolved; the final tray is never copied onto every line of a multi-material report.
 
 ## Live status
 
@@ -112,9 +112,13 @@ The snapshot is built from the merged status document. Fields that are not obser
 
 Unit kinds: AMS IDs below 128 are `ams`, IDs from 128 are `ams_ht`, and `vir_slot` entries are `external`. A tray is `empty` when `tray_exist_bits` (bit `unit index * 4 + tray`, AMS HT 128 is unit index 4) marks it absent and it reports no material; without that bitmask, when it reports neither material nor RFID.
 
+### X1 Carbon mapping
+
+X1C uses the same lifecycle, AMS, error, artifact, and Wi-Fi fields. Its classic single-nozzle status fields are `nozzle_temper`, `nozzle_target_temper`, `nozzle_diameter`, `nozzle_type`, and `chamber_temper`; they normalize as physical extruder `1` with no left/right side. `ams.tray_now` is a global tray number (`unit*4+tray`), so `0` through `3` are AMS unit `0` trays `0` through `3`. The reviewed external holder is `vir_slot` `255`, but X1C also emits `tray_now=255` for no selected tray while retaining the holder's descriptive material fields. V1 therefore keeps that holder observational and does not use `255` as run spool evidence without a future verified active-feed signal. All-zero `tag_uid` values mean no readable RFID and are never treated as identifiers. Bambu's X1 G-code commands `T1000`, `T1100`, and `T255` are calibration/unload commands, not materials or extruders. The X1 parser fixes all extrusion to physical extruder `1` and uses `M620`/`M621` for material changes.
+
 ### External spool holders (`vir_slot`)
 
-`vir_slot[]` entries (IDs `254` and `255`) are reported as units of kind `external`. The unit external ID and its single slot external ID are both the `vir_slot` ID, so a printer setup maps them as unit `254` with slot `254`. `tray_now` `254` or `255` resolves to that holder while a job is active (`255` is also the idle "nothing selected" value, which is why an idle printer reports no active tray). External holders also produce `slot_observation` events, so exact-RFID auto-mount works for external spools like for AMS trays, and they are recorded as consumption evidence for a run.
+`vir_slot[]` entries are reported as units of kind `external`. The unit external ID and its single slot external ID are both the `vir_slot` ID. H2D reports holders `254` and `255`; the reviewed X1C fixture reports holder `255`. External holders also produce `slot_observation` events, so exact-RFID auto-mount works for tagged external spools like for AMS trays, and a trustworthy active-holder report may become consumption evidence for a run.
 
 ### Assumptions to verify on a real printer
 
@@ -142,19 +146,24 @@ go run ./cmd/printer-connector calculate-consumption \
   --last-layer 37 --last-progress 42
 ```
 
-Sanitize an NDJSON MQTT capture before review or replay. Each input line may be a raw report object or an object with a JSON object/string in `payload`. The output path must not already exist and is created with mode `0600`. The sanitizer caps input and output at 50 MiB, normalizes timestamps, replaces stable identifiers consistently, and removes access codes, network identity, user fields, and private filenames.
+Sanitize a whitespace-separated JSON stream or NDJSON MQTT capture before review or replay. Each message may be a raw report object or an object with a JSON object/string in `payload`. The output path must not already exist and is created with mode `0600`. The sanitizer caps input and output at 50 MiB, normalizes timestamps, replaces stable identifiers consistently, and removes access codes, network identity, user fields, and private filenames.
 
 ```sh
 go run ./cmd/printer-connector sanitize-mqtt \
   --input /protected/private/h2d-raw.ndjson \
   --output /protected/review/h2d-sanitized.ndjson
 go run ./cmd/printer-connector replay-mqtt \
-  --input /protected/review/h2d-sanitized.ndjson
+  --input /protected/review/h2d-sanitized.ndjson \
+  --adapter bambu_h2d
+
+go run ./cmd/printer-connector replay-mqtt \
+  --input /protected/review/x1c-sanitized.ndjson \
+  --adapter bambu_x1c
 ```
 
 Replay accepts only the versioned sanitized format and drives the production reducer without opening SQLite or making network calls. Its NDJSON output contains normalized observations but omits generated run UUID values. Review sanitized output manually before committing it: automatic redaction is a defense, not authorization to publish customer data. Raw capture is disabled by default and this release provides no live-capture command. Real logs and 3MFs remain private, gitignored inputs unless an owner explicitly authorizes a reviewed derivative.
 
-Synthetic fixtures exercise archive limits, parser variations, reducer transitions, and diagnostics in unit tests. No authorized real H2D logs/3MFs were supplied for this implementation, so real-fixture reproduction—including the approximately 1.20 g failed-print case—is unavailable and must not be inferred from synthetic data. H2D TLS/authentication, subscription, `pushall`, FTPS listing/download, and disconnect recovery also remain hardware-unverified. Mechanical motion and multimaterial-change tests are outside the permitted live verification scope.
+Synthetic fixtures exercise archive limits, parser variations, reducer transitions, and diagnostics in CI. Private X1C captures supplied during development replayed 1,089 multicolor MQTT messages into one run, one ordered tray change (`0/2` to `0/0`), and one successful terminal outcome; a private X1C 3MF parsed two used PLA lines at 2.28 g and 0.74 g. Those private files are not committed and CI does not reproduce that evidence. X1C TLS/authentication, live subscription, `pushall`, FTPS download, and disconnect recovery remain hardware-unverified until an actual X1C assignment is tested through the connector. No mechanical command is sent by these checks.
 
 ## Local simulator workflow
 
@@ -168,8 +177,12 @@ CONNECTOR_ALLOW_HTTP=true
 After creating `printer-connector/secrets/printer-connector-enrollment`, run the isolated development Compose project with:
 
 ```sh
-docker compose -f printer-connector/compose.development.yaml up --build
+make dev-printer-connector
 ```
+
+Use `make dev-printer-connector-detached` for the background equivalent. Both targets wrap `printer-connector/compose.development.yaml`; the normal `make dev` remains the Core database/backend/frontend stack.
+
+Run those commands from the repository root. From another directory, pass the repository explicitly, for example `make -C /Users/basmatireis/git/Makerspace-core dev-printer-connector`.
 
 Create an enabled printer profile in Core, assign it to the connector, and select one of the simulator scenarios:
 

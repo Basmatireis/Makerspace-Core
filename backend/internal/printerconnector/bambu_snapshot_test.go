@@ -131,6 +131,22 @@ func TestBuildBambuLiveSnapshotFromAnH2DDocument(t *testing.T) {
 	}
 }
 
+func TestBuildBambuLiveSnapshotFromX1CDocument(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)
+	document := decodeDocument(t, `{"print":{"gcode_state":"RUNNING","subtask_name":"Two colour part","mc_percent":66,"layer_num":30,"total_layer_num":72,"nozzle_temper":220.5,"nozzle_target_temper":220,"nozzle_diameter":"0.4","nozzle_type":"hardened_steel","chamber_temper":34,"bed_temper":55,"bed_target_temper":55,"ams":{"tray_now":"2","tray_exist_bits":"5","ams":[{"id":"0","tray":[{"id":"0","tray_type":"PLA","tray_color":"00FF00FF"},{"id":"2","tray_type":"PLA","tray_color":"FFFFFFFF","tag_uid":"RFID"}]}]}}}`)
+	snapshot := buildBambuLiveSnapshotFor(bambuX1CAdapterKind, document, map[string]time.Time{}, now)
+	if snapshot.ActiveTray == nil || snapshot.ActiveTray.UnitExternalID != "0" || snapshot.ActiveTray.TrayExternalID != "2" {
+		t.Fatalf("active tray = %+v", snapshot.ActiveTray)
+	}
+	if len(snapshot.Temperatures.Extruders) != 1 || snapshot.Temperatures.Extruders[0].ExtruderID != 1 || snapshot.Temperatures.Extruders[0].Side != nil || *snapshot.Temperatures.Extruders[0].CurrentC != 220.5 {
+		t.Fatalf("temperatures = %+v", snapshot.Temperatures)
+	}
+	if len(snapshot.Nozzles) != 1 || snapshot.Nozzles[0].ExtruderID != 1 || snapshot.Nozzles[0].Side != nil || *snapshot.Nozzles[0].DiameterMm != 0.4 || *snapshot.Nozzles[0].Type != "hardened_steel" {
+		t.Fatalf("nozzles = %+v", snapshot.Nozzles)
+	}
+}
+
 func TestBuildBambuLiveSnapshotStatesAndUnknownFields(t *testing.T) {
 	t.Parallel()
 	now := time.Now().UTC()
@@ -183,7 +199,7 @@ func TestActiveTrayResolvesExternalHoldersAndHTUnits(t *testing.T) {
 		resolved       bool
 	}{
 		{"external 254", `{"gcode_state":"RUNNING","ams":{"tray_now":"254","ams":[{"id":"0","tray":[{"id":"0"}]}]},"vir_slot":[{"id":"254","tag_uid":"AB12"},{"id":"255"}]}`, "254", "254", true},
-		{"external 255 while printing", `{"gcode_state":"RUNNING","ams":{"tray_now":"255"},"vir_slot":[{"id":"254"},{"id":"255"}]}`, "255", "255", true},
+		{"255 means no selected tray while printing", `{"gcode_state":"RUNNING","ams":{"tray_now":"255"},"vir_slot":[{"id":"254"},{"id":"255"}]}`, "", "", false},
 		{"external holder absent from the document", `{"gcode_state":"RUNNING","ams":{"tray_now":"254","ams":[{"id":"0","tray":[{"id":"0"}]}]}}`, "", "", false},
 		{"AMS HT addressed by unit id", `{"gcode_state":"RUNNING","ams":{"tray_now":"128","ams":[{"id":"0","tray":[{"id":"0"},{"id":"1"}]},{"id":"128","tray":[{"id":"0"}]}]}}`, "128", "0", true},
 		{"unit id of a multi-tray unit is not a tray", `{"gcode_state":"RUNNING","ams":{"tray_now":"128","ams":[{"id":"128","tray":[{"id":"0"},{"id":"1"}]}]}}`, "", "", false},
@@ -202,6 +218,49 @@ func TestActiveTrayResolvesExternalHoldersAndHTUnits(t *testing.T) {
 	active := buildBambuLiveSnapshot(decodeDocument(t, cases[0].document), map[string]time.Time{}, time.Now())
 	if active.ActiveTray == nil || active.ActiveTray.UnitExternalID != "254" || active.ActiveTray.TrayExternalID != "254" {
 		t.Fatalf("active tray = %+v", active.ActiveTray)
+	}
+}
+
+func TestActiveTrayPrefersH2DExtruderRouting(t *testing.T) {
+	t.Parallel()
+	state := decodeDocument(t, `{"gcode_state":"RUNNING","device":{"extruder":{"state":256,"info":[{"id":0,"snow":65535,"info":0},{"id":1,"snow":32768,"info":2}]}},"ams":{"tray_now":"255","ams":[{"id":"128","tray":[{"id":"0","tag_uid":"RFID-HT"}]}]},"vir_slot":[{"id":"254"},{"id":"255"}]}`)
+	unit, tray, tag, ok := bambuActiveSlot(state)
+	if !ok || unit != "128" || tray != "0" || tag != "RFID-HT" {
+		t.Fatalf("H2D extruder route = %q/%q tag=%q ok=%v", unit, tray, tag, ok)
+	}
+}
+
+func TestH2DExtruderRoutingUsesAMSBindingWithRepeatedTrayNumbers(t *testing.T) {
+	t.Parallel()
+	state := decodeDocument(t, `{"gcode_state":"RUNNING","device":{"extruder":{"state":256,"info":[{"id":0,"snow":0,"info":2},{"id":1,"snow":0,"info":2}]}},"ams":{"tray_now":"255","ams":[{"id":"0","info":"10001003","tray":[{"id":"0","tag_uid":"RIGHT"}]},{"id":"128","info":"51002104","tray":[{"id":"0","tag_uid":"LEFT"}]}]}}`)
+	routes := bambuExtruderSlots(state)
+	if len(routes) != 2 || routes[0].extruderID != 0 || routes[0].ref.unitID != "0" || routes[0].ref.trayID != "0" ||
+		routes[1].extruderID != 1 || routes[1].ref.unitID != "128" || routes[1].ref.trayID != "0" {
+		t.Fatalf("extruder routes = %+v", routes)
+	}
+	unit, tray, tag, ok := bambuActiveExtruderSlot(state)
+	if !ok || unit != "128" || tray != "0" || tag != "LEFT" {
+		t.Fatalf("active route = %q/%q tag=%q ok=%v", unit, tray, tag, ok)
+	}
+}
+
+func TestReducerRetainsEachSpoolUsedByAMaterialChange(t *testing.T) {
+	t.Parallel()
+	processor := &bambuProcessor{state: bambuPersistedState{Document: map[string]any{}, Sessions: map[string]string{}, LastSlots: map[string]string{}, EmptySlotCounts: map[string]uint8{}, ActiveErrors: map[string]bool{}, RunFacts: map[string]bambuRunFacts{}}, firstSnapshot: true}
+	at := time.Now().UTC()
+	first := []byte(`{"print":{"gcode_state":"RUNNING","task_id":"55","device":{"extruder":{"state":256,"info":[{"id":1,"snow":0,"info":2}]}},"ams":{"ams":[{"id":"128","info":"51002104","tray":[{"id":"0","tag_uid":"FIRST"},{"id":"1","tag_uid":"SECOND"}]}]}}}`)
+	if _, _, err := processor.apply(context.Background(), first, at); err != nil {
+		t.Fatal(err)
+	}
+	second := []byte(`{"print":{"device":{"extruder":{"info":[{"id":1,"snow":1,"info":2}]}}}}`)
+	if _, _, err := processor.apply(context.Background(), second, at.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	for _, facts := range processor.state.RunFacts {
+		if len(facts.SpoolEvidence) != 2 || facts.SpoolEvidence[0].SlotExternalID != "0" || facts.SpoolEvidence[0].TagUID != "FIRST" ||
+			facts.SpoolEvidence[1].SlotExternalID != "1" || facts.SpoolEvidence[1].TagUID != "SECOND" || !facts.HistoryComplete {
+			t.Fatalf("spool evidence = %+v", facts)
+		}
 	}
 }
 

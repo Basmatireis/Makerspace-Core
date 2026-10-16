@@ -15,7 +15,7 @@ import { useConnectionTest } from '../components/wizard/useConnectionTest';
 import type { SetupValues, StepKey } from '../components/wizard/wizardTypes';
 import { connectorKeys, connectorsQuery, type PrinterConnection } from '../connectorQueries';
 import {
-  draftFromDetected, draftFromProfile, draftFromTemplate, draftToInput, duplicatePairs, modelById, type Detection, type DraftUnit, type PrinterModelId,
+  draftFromDetected, draftFromProfile, draftFromTemplate, draftToInput, duplicatePairs, isBambuAdapter, modelById, type Detection, type DraftUnit, type PrinterModelId,
 } from '../printerSetup';
 import { machineLogbookKeys, machineTypesQuery } from '../queries';
 import { machineLogbookPaths } from '../shared/paths';
@@ -90,7 +90,7 @@ function WizardBody({ onClose, machine, profile: initialProfile, connection: ini
       automaticCollectionEnabled: machine?.automaticCollectionEnabled ?? false, externalIdentifier: machine?.externalIdentifier ?? '',
       modelId: initialProfile?.model ?? '',
       connect: initialConnection || !editing || initialStep === 'connection' ? 'now' : 'later', connectorId: initialConnection?.connector.id ?? '',
-      adapterKind: initialConnection?.assignment.adapterKind === 'bambu_h2d' ? 'bambu_h2d' : 'simulator',
+      adapterKind: isBambuAdapter(initialConnection?.assignment.adapterKind) ? initialConnection.assignment.adapterKind : 'simulator',
       ipAddress: text('ipAddress'), serialNumber: text('serialNumber'), accessCode: '', autoMountRfid: settings ? settings.autoDetectSpools === true : true,
     },
   });
@@ -148,7 +148,7 @@ function WizardBody({ onClose, machine, profile: initialProfile, connection: ini
     const v = form.getValues();
     const connector = (connectors.data?.items ?? []).find((item) => item.id === v.connectorId);
     if (!connector || !saved) return;
-    const live = v.adapterKind === 'bambu_h2d';
+    const live = isBambuAdapter(v.adapterKind);
     const keep = connection?.assignment.adapterKind === 'simulator' ? connection.assignment.settings : undefined;
     setConnectionFailed(false);
     try {

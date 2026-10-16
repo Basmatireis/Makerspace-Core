@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Stack, StructuredListBody, StructuredListCell, StructuredListRow, StructuredListWrapper } from '@carbon/react';
-import { mappingLabel, nozzleLabel, NOZZLE_GROUPS, type Detection, type DraftUnit, type PrinterModelInfo } from '../../printerSetup';
+import { adapterLabel, isBambuAdapter, mappingLabel, nozzleLabel, NOZZLE_GROUPS, type Detection, type DraftUnit, type PrinterModelInfo } from '../../printerSetup';
 import type { SetupValues } from './wizardTypes';
 
 const statusLabel = { active: 'Active', maintenance: 'Maintenance', retired: 'Retired' } as const;
@@ -15,7 +15,7 @@ export function ReviewStep({ values, typeName, printer, model, units, detection,
   /** Name of the connector the printer is assigned to, null when set up later. */
   connectorName: string | null; connected: boolean; hasCode: boolean;
 }) {
-  const live = values.adapterKind === 'bambu_h2d';
+  const live = isBambuAdapter(values.adapterKind);
   return (
     <Stack gap={6}>
       <div>
@@ -37,7 +37,7 @@ export function ReviewStep({ values, typeName, printer, model, units, detection,
               {!connectorName ? <Row label="Connector">Set up later</Row> : (
                 <>
                   <Row label="Connector">{connectorName}</Row>
-                  <Row label="Adapter">{live ? 'Bambu Lab H2D' : 'Simulator'}</Row>
+                  <Row label="Adapter">{adapterLabel(values.adapterKind)}</Row>
                   {live && <Row label="IP address">{values.ipAddress.trim()}</Row>}
                   {live && <Row label="Serial number">{values.serialNumber.trim()}</Row>}
                   {live && <Row label="LAN access code">{values.accessCode || hasCode ? 'Set' : 'Not set'}</Row>}

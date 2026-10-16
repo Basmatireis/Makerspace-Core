@@ -210,6 +210,8 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 			}
 		} else if raw.AdapterKind == "bambu_h2d" {
 			adapter, err = NewBambuH2D(id, raw.ConfigurationVersion, raw.AdapterSchemaVersion, raw.Settings, raw.Secrets, r.store)
+		} else if raw.AdapterKind == "bambu_x1c" {
+			adapter, err = NewBambuX1C(id, raw.ConfigurationVersion, raw.AdapterSchemaVersion, raw.Settings, raw.Secrets, r.store)
 		} else {
 			err = errors.New("unsupported adapter")
 		}
@@ -226,7 +228,7 @@ func (r *Runtime) apply(parent context.Context, value Configuration) {
 		r.health[id] = AssignmentHealth{AssignmentID: raw.ID, AppliedConfigurationVersion: raw.ConfigurationVersion, State: "connected"}
 		r.mu.Unlock()
 		go func(assignmentID uuid.UUID, configVersion int64, adapter Adapter) {
-			sink := &runtimeSink{store: r.store, live: r.live, assignmentID: assignmentID, configurationVersion: configVersion, reportHealth: func(state string, code *string) {
+			sink := &runtimeSink{store: r.store, live: r.live, assignmentID: assignmentID, adapterKind: adapter.Descriptor().Kind, configurationVersion: configVersion, reportHealth: func(state string, code *string) {
 				r.mu.Lock()
 				defer r.mu.Unlock()
 				r.health[assignmentID] = AssignmentHealth{AssignmentID: assignmentID.String(), AppliedConfigurationVersion: configVersion, State: state, ErrorCode: code}
@@ -257,6 +259,7 @@ type runtimeSink struct {
 	store                *Store
 	live                 *liveStatusHub
 	assignmentID         uuid.UUID
+	adapterKind          string
 	configurationVersion int64
 	reportHealth         func(string, *string)
 }
@@ -302,7 +305,7 @@ func (s *runtimeSink) CommitBambuState(ctx context.Context, observations []Obser
 			}
 		}
 	}
-	return s.store.EnqueueBambuState(ctx, s.assignmentID, s.configurationVersion, observations, state)
+	return s.store.EnqueueBambuStateFor(ctx, s.assignmentID, s.adapterKind, s.configurationVersion, observations, state)
 }
 
 func classifyAdapterError(err error) string {

@@ -2,6 +2,7 @@ package parser
 
 import (
 	"math"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -119,6 +120,47 @@ M73 P75
 	assertLengths(t, estimate.Filaments[0], 20, 20, 0, 0)
 }
 
+func TestEstimateGCodeUsesH2DLayerCheckpointWithoutCountingLaterMaterial(t *testing.T) {
+	t.Parallel()
+
+	diameter, density := 1.75, 1.24
+	lastLayer := 2
+	gcode := strings.NewReader(`
+; layer_change_gcode = template configuration, not a print checkpoint
+M83
+M620 S3A
+; CHANGE_LAYER
+; layer num/total_layer_count: 1/3
+;TYPE:External perimeter
+G1 E10
+; CHANGE_LAYER
+; layer num/total_layer_count: 2/3
+G1 E10
+; CHANGE_LAYER
+; layer num/total_layer_count: 3/3
+M620 S1A
+G1 E50
+M73 P100
+`)
+	estimate, err := EstimateGCode(gcode, GCodeOptions{
+		LastReliableLayer: &lastLayer,
+		Filaments: []GCodeFilament{
+			{ID: "1", DiameterMM: &diameter, DensityGCM3: &density},
+			{ID: "3", DiameterMM: &diameter, DensityGCM3: &density},
+		},
+	})
+	if err != nil {
+		t.Fatalf("EstimateGCode: %v", err)
+	}
+	if !estimate.Resolved || estimate.SelectedLayer == nil || *estimate.SelectedLayer != 2 {
+		t.Fatalf("estimate = %+v", estimate)
+	}
+	if len(estimate.Filaments) != 1 || estimate.Filaments[0].FilamentID != "3" {
+		t.Fatalf("future material was included: %+v", estimate.Filaments)
+	}
+	assertLengths(t, estimate.Filaments[0], 10, 10, 0, 0)
+}
+
 func TestEstimateGCodeLeavesMissingConversionUnresolved(t *testing.T) {
 	t.Parallel()
 
@@ -129,6 +171,23 @@ func TestEstimateGCodeLeavesMissingConversionUnresolved(t *testing.T) {
 	if estimate.Resolved || estimate.Quality != QualityLow || estimate.Filaments[0].WeightGrams != nil {
 		t.Fatalf("estimate = %+v", estimate)
 	}
+}
+
+func TestEstimateGCodeIgnoresBambuSpecialToolCommands(t *testing.T) {
+	t.Parallel()
+
+	diameter, density := 1.75, 1.24
+	physicalExtruder := 1
+	estimate, err := EstimateGCode(strings.NewReader("M83\nM620 S2A\nT1000\nG1 E5\nT1100\nG1 E2\nT255\nG1 E1\n"), GCodeOptions{
+		Filaments: []GCodeFilament{{ID: "2", DiameterMM: &diameter, DensityGCM3: &density}}, PhysicalExtruder: &physicalExtruder,
+	})
+	if err != nil {
+		t.Fatalf("EstimateGCode: %v", err)
+	}
+	if !estimate.Resolved || len(estimate.Filaments) != 1 || estimate.Filaments[0].FilamentID != "2" || !slices.Equal(estimate.Filaments[0].Extruders, []int{1}) {
+		t.Fatalf("estimate = %+v", estimate)
+	}
+	assertLengths(t, estimate.Filaments[0], 8, 0, 0, 8)
 }
 
 func TestEstimateGCodeRejectsOverlongLine(t *testing.T) {

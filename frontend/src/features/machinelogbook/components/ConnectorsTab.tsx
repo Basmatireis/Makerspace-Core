@@ -139,7 +139,8 @@ export function ConnectorsTab() {
                 </TableHead>
                 <TableBody>
                   {tableRows.map((row) => {
-                    const connector = items.find((item) => item.id === row.id)!;
+                    const connector = items.find((item) => item.id === row.id);
+                    if (!connector) return null;
                     const status = connectorStatus(connector, now);
                     const printers = printersOf(connector.id);
                     const { key, ...rowProps } = getRowProps({ row });

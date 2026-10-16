@@ -129,7 +129,13 @@ func TestArtifactRetrievalPersistsAndRequiresStableCandidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = store.Close() })
-	if _, err = store.db.ExecContext(ctx, `UPDATE artifact_retrievals SET next_attempt_at=? WHERE assignment_id=? AND run_id=?`, time.Now().UTC().Add(-time.Second).Format(time.RFC3339Nano), assignmentID.String(), runID.String()); err != nil {
+	if _, err = store.db.ExecContext(ctx, `UPDATE artifact_retrievals SET next_attempt_at=? WHERE assignment_id=? AND run_id=?`, time.Now().UTC().Add(time.Hour).Format(time.RFC3339Nano), assignmentID.String(), runID.String()); err != nil {
+		t.Fatal(err)
+	}
+	if deferred, pendingErr := store.PendingArtifactRetrieval(ctx, assignmentID); pendingErr != nil || deferred != nil {
+		t.Fatalf("future retry was unexpectedly due: %#v err=%v", deferred, pendingErr)
+	}
+	if err = store.RetryPendingArtifactRetrievalsNow(ctx, assignmentID); err != nil {
 		t.Fatal(err)
 	}
 	retrieval, err = store.PendingArtifactRetrieval(ctx, assignmentID)

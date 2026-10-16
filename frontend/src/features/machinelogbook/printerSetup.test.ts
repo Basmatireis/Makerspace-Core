@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  autoMatch, draftFromProfile, draftFromTemplate, draftToInput, duplicatePairs, missingUnits, slotOptions, trayMismatch, draftUnitRefs,
+  autoMatch, draftFromProfile, draftFromTemplate, draftToInput, duplicatePairs, missingUnits, modelById, slotOptions, trayMismatch, draftUnitRefs,
 } from './printerSetup';
 import { h2dUnits, liveStatusOf, templateProfile, tray } from './printerTestData';
 
@@ -12,12 +12,19 @@ describe('printer setup helpers', () => {
     expect(draftFromTemplate('generic')).toEqual([]);
   });
 
+  it('offers the X1C LAN adapter with its one-nozzle AMS topology', () => {
+    expect(modelById('bambu_x1c')).toMatchObject({ adapterKind: 'bambu_x1c', nozzles: 1 });
+    expect(draftFromTemplate('bambu_x1c').map((unit) => [unit.name, unit.ext, unit.slots.length])).toEqual([
+      ['AMS', '0', 4], ['External spool', '255', 1],
+    ]);
+  });
+
   it('serializes drafts with ids only for stored items and trims names', () => {
     const [stored] = draftFromProfile(templateProfile());
     const input = draftToInput([{ ...stored, name: ' AMS ' }, ...draftFromTemplate('bambu_x1c').slice(1)]);
     expect(input[0]).toMatchObject({ id: 'unit-ams', name: 'AMS', nozzle: 'left', externalIdentifier: '0' });
     expect(input[0].slots[0]).toEqual({ id: 'slot-ams-0', name: 'Slot 1', status: 'available', externalIdentifier: '0' });
-    expect(input[1]).toEqual({ name: 'External spool', nozzle: null, externalIdentifier: '254', slots: [{ name: 'Spool', status: 'available', externalIdentifier: '254' }] });
+    expect(input[1]).toEqual({ name: 'External spool', nozzle: null, externalIdentifier: '255', slots: [{ name: 'Spool', status: 'available', externalIdentifier: '255' }] });
   });
 
   it('ignores retired slots and disabled units of a stored profile', () => {

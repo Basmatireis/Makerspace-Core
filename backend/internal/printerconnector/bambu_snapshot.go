@@ -223,6 +223,24 @@ func bambuLiveTemperatures(printState map[string]any) liveTemperatures {
 	return result
 }
 
+func bambuLiveTemperaturesFor(adapterKind string, printState map[string]any) liveTemperatures {
+	result := bambuLiveTemperatures(printState)
+	if adapterKind != bambuX1CAdapterKind {
+		return result
+	}
+	if len(result.Extruders) == 0 {
+		result.Extruders = append(result.Extruders, liveExtruderTemperature{
+			ExtruderID: 1,
+			CurrentC:   boundedFloat(printState["nozzle_temper"], -50, 1000),
+			TargetC:    boundedFloat(printState["nozzle_target_temper"], 0, 1000),
+		})
+	}
+	if result.ChamberC == nil {
+		result.ChamberC = boundedFloat(printState["chamber_temper"], -50, 500)
+	}
+	return result
+}
+
 func bambuLiveNozzles(printState map[string]any) []liveNozzle {
 	result := []liveNozzle{}
 	info, _ := objectAt(objectAt(printState, "device"), "nozzle")["info"].([]any)
@@ -235,6 +253,18 @@ func bambuLiveNozzles(printState map[string]any) []liveNozzle {
 		result = append(result, liveNozzle{ExtruderID: id, Side: bambuExtruderSide(id), DiameterMm: boundedFloat(entry["diameter"], 0.05, 5), Type: boundedText(stringAt(entry, "type"), 40)})
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ExtruderID < result[j].ExtruderID })
+	return result
+}
+
+func bambuLiveNozzlesFor(adapterKind string, printState map[string]any) []liveNozzle {
+	result := bambuLiveNozzles(printState)
+	if adapterKind == bambuX1CAdapterKind && len(result) == 0 {
+		diameter := boundedFloat(printState["nozzle_diameter"], 0.05, 5)
+		nozzleType := boundedText(stringAt(printState, "nozzle_type"), 40)
+		if diameter != nil || nozzleType != nil {
+			result = append(result, liveNozzle{ExtruderID: 1, DiameterMm: diameter, Type: nozzleType})
+		}
+	}
 	return result
 }
 
@@ -319,6 +349,10 @@ func bambuLiveErrors(printState map[string]any, since map[string]time.Time, now 
 // buildBambuLiveSnapshot normalizes the merged H2D status document. It never
 // copies addresses, serial numbers, camera or network fields.
 func buildBambuLiveSnapshot(document map[string]any, errorSince map[string]time.Time, now time.Time) liveSnapshot {
+	return buildBambuLiveSnapshotFor(bambuH2DAdapterKind, document, errorSince, now)
+}
+
+func buildBambuLiveSnapshotFor(adapterKind string, document map[string]any, errorSince map[string]time.Time, now time.Time) liveSnapshot {
 	printState := objectAt(document, "print")
 	if printState == nil {
 		printState = document
@@ -326,15 +360,15 @@ func buildBambuLiveSnapshot(document map[string]any, errorSince map[string]time.
 	state := bambuLiveState(stringAt(printState, "gcode_state"))
 	snapshot := newLiveSnapshot(state)
 	snapshot.Job = bambuLiveJob(printState, state)
-	snapshot.Temperatures = bambuLiveTemperatures(printState)
-	snapshot.Nozzles = bambuLiveNozzles(printState)
+	snapshot.Temperatures = bambuLiveTemperaturesFor(adapterKind, printState)
+	snapshot.Nozzles = bambuLiveNozzlesFor(adapterKind, printState)
 	snapshot.Units = bambuLiveUnits(printState)
 	snapshot.Errors = bambuLiveErrors(printState, errorSince, now)
 	snapshot.WifiSignalDbm = bambuWifiSignal(printState["wifi_signal"])
 	// tray_now is 255 while nothing is selected, which is also the ID of an
 	// external holder, so the active tray is only reported for an active job.
 	if state == "preparing" || state == "printing" || state == "paused" {
-		if unit, tray, _, ok := bambuActiveSlot(printState); ok {
+		if unit, tray, _, ok := bambuActiveSlotFor(adapterKind, printState); ok {
 			snapshot.ActiveTray = &liveActiveTray{UnitExternalID: unit, TrayExternalID: tray}
 		}
 	}
@@ -345,5 +379,5 @@ func (p *bambuProcessor) liveSnapshot(now time.Time) json.RawMessage {
 	if p.errorSince == nil {
 		p.errorSince = map[string]time.Time{}
 	}
-	return mustJSON(buildBambuLiveSnapshot(p.state.Document, p.errorSince, now))
+	return mustJSON(buildBambuLiveSnapshotFor(p.adapterKind, p.state.Document, p.errorSince, now))
 }

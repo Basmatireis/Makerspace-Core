@@ -53,7 +53,8 @@ func TestSanitizeAndReplayCommands(t *testing.T) {
 	directory := t.TempDir()
 	rawPath := filepath.Join(directory, "raw.ndjson")
 	sanitizedPath := filepath.Join(directory, "sanitized.ndjson")
-	raw := "{\"print\":{\"gcode_state\":\"RUNNING\",\"local_task_id\":\"private-task\",\"gcode_file\":\"private.3mf\"}}\n"
+	raw := "{\n\"print\":{\"gcode_state\":\"RUNNING\",\"local_task_id\":\"private-task\",\"gcode_file\":\"private.3mf\"}}\n" +
+		"{\n\"print\":{\"ams\":{\"tray_now\":\"0\"}}}\n"
 	if err := os.WriteFile(rawPath, []byte(raw), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +76,7 @@ func TestSanitizeAndReplayCommands(t *testing.T) {
 		t.Fatalf("sanitized = %s", sanitized)
 	}
 	var replay bytes.Buffer
-	if handled, err := runOfflineCommand([]string{"replay-mqtt", "--input", sanitizedPath}, &replay); err != nil || !handled {
+	if handled, err := runOfflineCommand([]string{"replay-mqtt", "--input", sanitizedPath, "--adapter", "bambu_x1c"}, &replay); err != nil || !handled {
 		t.Fatalf("replay-mqtt handled=%v err=%v", handled, err)
 	}
 	if !strings.Contains(replay.String(), `"ready":true`) || !strings.Contains(replay.String(), `"kind":"progress"`) {

@@ -328,6 +328,23 @@ describe('Machine detail', () => {
     expect(spoolQuery?.get('mounted')).toBe('false');
   });
 
+  it('refreshes an open printer setup when the connector mounts a spool', async () => {
+    setup([PermissionId.machinesread, PermissionId.inventoryread]);
+    let requests = 0;
+    server.use(
+      http.get(`*/api/v1/machines/${bambu.id}/printer`, () => {
+        requests += 1;
+        const slots = requests === 1 ? profile.slots : [{ ...profile.slots[0], spoolId: spool.id, spoolDisplayId: spool.displayId }];
+        return HttpResponse.json({ ...profile, slots, version: requests });
+      }),
+      http.get('*/api/v1/filament-spools', () => HttpResponse.json({ items: [{ ...spool, mounted: true }], page: 1, pageSize: 100, total: 1 })),
+    );
+    renderPage(`/machine-logbook/machines/${bambu.id}?tab=printer`);
+    expect(await screen.findByText('Empty', undefined, { timeout: 5000 })).toBeInTheDocument();
+    expect(await screen.findByText(/S-0001.*PLA Black/, undefined, { timeout: 7000 })).toBeInTheDocument();
+    expect(requests).toBeGreaterThan(1);
+  });
+
   it('does not offer mounting without inventory.read and never queries spools', async () => {
     setup([PermissionId.machinesread, PermissionId.printer_slotsassign]);
     let spoolReads = 0;

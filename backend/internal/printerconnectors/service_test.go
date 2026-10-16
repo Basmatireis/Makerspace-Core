@@ -54,6 +54,19 @@ func TestAdministrationRequiresRegisteredPermissions(t *testing.T) {
 	}
 }
 
+func TestX1CAssignmentUsesBambuLANContract(t *testing.T) {
+	t.Parallel()
+	settings, secrets, err := validateAssignmentContract("bambu_x1c", 1,
+		json.RawMessage(`{"ipAddress":"192.168.1.43","serialNumber":" 00m00a123456789 ","autoDetectSpools":true}`),
+		map[string]string{"lanAccessCode": " secret "}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(settings) != `{"ipAddress":"192.168.1.43","serialNumber":"00M00A123456789","autoDetectSpools":true}` || secrets["lanAccessCode"] != "secret" {
+		t.Fatalf("normalized contract = %s / %#v", settings, secrets)
+	}
+}
+
 func printerConnectorIntegrationPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	databaseURL := os.Getenv("TEST_DATABASE_URL")

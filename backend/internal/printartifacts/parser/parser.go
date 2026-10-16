@@ -62,13 +62,17 @@ type Status string
 type PreviewRole string
 
 type Result struct {
-	ParserVersion string      `json:"parserVersion"`
-	Status        Status      `json:"status"`
-	Metadata      Metadata    `json:"metadata"`
-	Filaments     []Filament  `json:"filaments"`
-	Previews      []Preview   `json:"previews"`
-	GCode         []GCodeFile `json:"gcode"`
-	Warnings      []string    `json:"warnings,omitempty"`
+	ParserVersion string     `json:"parserVersion"`
+	Status        Status     `json:"status"`
+	Metadata      Metadata   `json:"metadata"`
+	Filaments     []Filament `json:"filaments"`
+	// FilamentSequence is the first-use order reported by Bambu's
+	// filament_sequence.json. It is connector routing evidence, not a source
+	// of consumption quantities.
+	FilamentSequence []string    `json:"filamentSequence,omitempty"`
+	Previews         []Preview   `json:"previews"`
+	GCode            []GCodeFile `json:"gcode"`
+	Warnings         []string    `json:"warnings,omitempty"`
 }
 
 // Metadata contains only fields for which the archive supplied evidence.
@@ -276,6 +280,9 @@ func Parse(r io.ReaderAt, compressedSize int64, limits Limits) (Result, error) {
 			var parseErr error
 			if len(trimmed) > 0 && (trimmed[0] == '{' || trimmed[0] == '[') {
 				parseErr = collector.addJSON(data)
+				if parseErr == nil && path.Base(lower) == "filament_sequence.json" {
+					parseErr = collector.addFilamentSequenceJSON(data)
+				}
 			} else {
 				parseErr = collector.addXML(data)
 			}
@@ -288,6 +295,7 @@ func Parse(r io.ReaderAt, compressedSize int64, limits Limits) (Result, error) {
 		result.addWarning("no supported Bambu metadata document was found")
 	}
 	result.Metadata, result.Filaments = collector.finish()
+	result.FilamentSequence = append(result.FilamentSequence, collector.filamentSequence...)
 	if metadataDocuments > 0 && !hasRecognizedMetadata(result.Metadata, result.Filaments, collector.previewReferences) {
 		result.addWarning("Bambu metadata contained no recognized fields")
 	}
@@ -316,6 +324,11 @@ func Parse(r io.ReaderAt, compressedSize int64, limits Limits) (Result, error) {
 			FullLengthMM: filament.LengthMM, FullWeightGrams: filament.WeightGrams,
 		})
 	}
+	var physicalExtruder *int
+	if strings.Contains(strings.ToLower(result.Metadata.PrinterProfile), "x1 carbon") {
+		value := 1
+		physicalExtruder = &value
+	}
 	for _, f := range files {
 		if f.FileInfo().IsDir() || !strings.HasSuffix(strings.ToLower(f.Name), ".gcode") {
 			continue
@@ -325,7 +338,7 @@ func Parse(r io.ReaderAt, compressedSize int64, limits Limits) (Result, error) {
 			result.addWarning("G-code entry could not be opened: " + f.Name)
 			continue
 		}
-		estimate, estimateErr := EstimateGCode(rc, GCodeOptions{Filaments: filamentOptions})
+		estimate, estimateErr := EstimateGCode(rc, GCodeOptions{Filaments: filamentOptions, PhysicalExtruder: physicalExtruder})
 		_ = rc.Close()
 		if estimateErr != nil {
 			result.addWarning("G-code entry could not be estimated: " + f.Name)
@@ -524,6 +537,8 @@ func plateNumberFromPath(name string) *int {
 type metadataCollector struct {
 	values            map[string][]string
 	filaments         map[string]*Filament
+	nozzleExtruders   map[int]int
+	filamentSequence  []string
 	modelNames        map[string]struct{}
 	plateNumbers      map[int]struct{}
 	previewReferences []string
@@ -532,8 +547,47 @@ type metadataCollector struct {
 func newMetadataCollector() *metadataCollector {
 	return &metadataCollector{
 		values: make(map[string][]string), filaments: make(map[string]*Filament),
-		modelNames: make(map[string]struct{}), plateNumbers: make(map[int]struct{}),
+		nozzleExtruders: make(map[int]int),
+		modelNames:      make(map[string]struct{}), plateNumbers: make(map[int]struct{}),
 	}
+}
+
+func (c *metadataCollector) addFilamentSequenceJSON(data []byte) error {
+	var value any
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	var walk func(any)
+	walk = func(current any) {
+		switch typed := current.(type) {
+		case map[string]any:
+			keys := make([]string, 0, len(typed))
+			for key := range typed {
+				keys = append(keys, key)
+			}
+			sort.Strings(keys)
+			for _, key := range keys {
+				child := typed[key]
+				if normalizeKey(key) == "sequence" {
+					if sequence, ok := child.([]any); ok {
+						for _, raw := range sequence {
+							id := strings.TrimSpace(fmt.Sprint(raw))
+							if id != "" && !containsString(c.filamentSequence, id) {
+								c.filamentSequence = append(c.filamentSequence, id)
+							}
+						}
+					}
+				}
+				walk(child)
+			}
+		case []any:
+			for _, child := range typed {
+				walk(child)
+			}
+		}
+	}
+	walk(value)
+	return nil
 }
 
 func normalizeKey(key string) string {
@@ -639,6 +693,13 @@ func (c *metadataCollector) addXML(data []byte) error {
 			if name == "filament" {
 				c.addFilamentAttrs(attrs)
 			}
+			if name == "nozzle" {
+				if id, idOK := parseInt(attrs["id"]); idOK {
+					if extruder, extruderOK := parseInt(attrs["extruder_id"]); extruderOK {
+						c.nozzleExtruders[id] = extruder
+					}
+				}
+			}
 			if name == "object" || name == "model" {
 				objectDepth = depth
 				if modelName := firstNonEmpty(attrs["name"], attrs["title"]); modelName != "" {
@@ -718,6 +779,34 @@ func (c *metadataCollector) finish() (Metadata, []Filament) {
 		if ok && (base == "filament_id" || base == "filament_ids") && len(values) > 0 {
 			indexIDs[index] = values[0]
 		}
+	}
+	// Bambu slice_info uses one-based filament IDs, while filament_maps is a
+	// parallel array of one-based logical nozzle IDs. H2D then records the
+	// physical extruder for each logical nozzle in <nozzle extruder_id="...">.
+	// Keep explicit per-filament attributes authoritative and use this mapping
+	// only when no direct extruder was supplied.
+	filamentMaps := splitIntegerList(firstValue(c.values, "filament_maps", "filament_map"))
+	for id, filament := range c.filaments {
+		if len(filament.Extruders) != 0 || len(filamentMaps) == 0 {
+			continue
+		}
+		filamentID, ok := parseInt(id)
+		if !ok {
+			continue
+		}
+		index := filamentID - 1
+		if filamentID == 0 {
+			index = 0
+		}
+		if index < 0 || index >= len(filamentMaps) || filamentMaps[index] <= 0 {
+			continue
+		}
+		logicalNozzle := filamentMaps[index] - 1
+		physicalExtruder := logicalNozzle
+		if mapped, exists := c.nozzleExtruders[logicalNozzle]; exists {
+			physicalExtruder = mapped
+		}
+		filament.Extruders = appendUniqueInt(filament.Extruders, physicalExtruder)
 	}
 	for key, values := range c.values {
 		base, index, ok := indexedKey(key)
@@ -874,4 +963,28 @@ func appendUniqueInt(values []int, value int) []int {
 		}
 	}
 	return append(values, value)
+}
+
+func containsString(values []string, value string) bool {
+	for _, existing := range values {
+		if existing == value {
+			return true
+		}
+	}
+	return false
+}
+
+func splitIntegerList(value string) []int {
+	fields := strings.FieldsFunc(value, func(r rune) bool {
+		return r == ',' || r == ';' || r == ' ' || r == '\t' || r == '\r' || r == '\n'
+	})
+	result := make([]int, 0, len(fields))
+	for _, field := range fields {
+		parsed, err := strconv.Atoi(field)
+		if err != nil {
+			return nil
+		}
+		result = append(result, parsed)
+	}
+	return result
 }

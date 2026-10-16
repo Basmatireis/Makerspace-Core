@@ -186,10 +186,20 @@ jobs:
           echo "archive_path=$archive_path" >> "$GITHUB_OUTPUT"
           connector_archive_path="$(./scripts/package-printer-connector-compose.sh "$VERSION" "$RUNNER_TEMP")"
           echo "connector_archive_path=$connector_archive_path" >> "$GITHUB_OUTPUT"
+          release_notes_path="${RUNNER_TEMP}/release-notes.md"
+          awk -v version="$VERSION" '
+            $0 ~ "^## \\[" version "\\]" { found = 1; next }
+            found && /^## \[/ { exit }
+            found { print }
+            END { if (!found) exit 1 }
+          ' CHANGELOG.md > "$release_notes_path"
+          test -s "$release_notes_path"
+          echo "release_notes_path=$release_notes_path" >> "$GITHUB_OUTPUT"
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.ref_name }}
           COMPOSE_BUNDLE: ${{ steps.bundle.outputs.archive_path }}
           CONNECTOR_COMPOSE_BUNDLE: ${{ steps.bundle.outputs.connector_archive_path }}
-        run: gh release create "$RELEASE_TAG" "$COMPOSE_BUNDLE#Production Compose bundle" "$CONNECTOR_COMPOSE_BUNDLE#Printer Connector Compose bundle" --verify-tag --generate-notes --title "$RELEASE_TAG"
+          RELEASE_NOTES: ${{ steps.bundle.outputs.release_notes_path }}
+        run: gh release create "$RELEASE_TAG" "$COMPOSE_BUNDLE#Production Compose bundle" "$CONNECTOR_COMPOSE_BUNDLE#Printer Connector Compose bundle" --verify-tag --notes-file "$RELEASE_NOTES" --title "$RELEASE_TAG"

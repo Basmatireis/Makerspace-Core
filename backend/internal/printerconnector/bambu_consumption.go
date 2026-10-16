@@ -131,7 +131,7 @@ func (s *Store) EnqueueArtifactConsumption(ctx context.Context, transfer Artifac
 }
 
 func (a *bambuH2DAdapter) processArtifactConsumptions(ctx context.Context) error {
-	state, found, err := a.store.BambuState(ctx, a.assignmentID)
+	state, found, err := a.store.BambuStateFor(ctx, a.assignmentID, a.adapterKind())
 	if err != nil || !found {
 		return err
 	}
@@ -144,7 +144,7 @@ func (a *bambuH2DAdapter) processArtifactConsumptions(ctx context.Context) error
 		if !ok || facts.Outcome == "" {
 			continue
 		}
-		payload, buildErr := buildBambuConsumptionPayload(transfer, facts)
+		payload, buildErr := buildBambuConsumptionPayloadFor(a.adapterKind(), transfer, facts)
 		if buildErr != nil {
 			return buildErr
 		}
@@ -156,6 +156,10 @@ func (a *bambuH2DAdapter) processArtifactConsumptions(ctx context.Context) error
 }
 
 func buildBambuConsumptionPayload(transfer ArtifactTransfer, facts bambuRunFacts) (json.RawMessage, error) {
+	return buildBambuConsumptionPayloadFor(bambuH2DAdapterKind, transfer, facts)
+}
+
+func buildBambuConsumptionPayloadFor(adapterKind string, transfer ArtifactTransfer, facts bambuRunFacts) (json.RawMessage, error) {
 	file, err := os.Open(transfer.StagedPath)
 	if err != nil {
 		return nil, fmt.Errorf("open staged artifact for consumption: %w", err)
@@ -176,9 +180,14 @@ func buildBambuConsumptionPayload(transfer ArtifactTransfer, facts bambuRunFacts
 		filaments = append(filaments, parser.GCodeFilament{ID: filament.ID, DiameterMM: filament.DiameterMM, DensityGCM3: filament.DensityGCM3, FullLengthMM: filament.LengthMM, FullWeightGrams: filament.WeightGrams})
 	}
 	options := parser.GCodeOptions{Filaments: filaments}
+	if adapterKind == bambuX1CAdapterKind {
+		physicalExtruder := 1
+		options.PhysicalExtruder = &physicalExtruder
+	}
 	if facts.LastLayer != nil {
 		options.LastReliableLayer = facts.LastLayer
-	} else {
+	}
+	if facts.LastProgress != nil {
 		options.LastReliableProgress = facts.LastProgress
 	}
 	estimates, err := parser.EstimateArchiveGCode(file, transfer.SizeBytes, parser.DefaultLimits(), options)
@@ -194,31 +203,35 @@ func buildBambuConsumptionPayload(transfer ArtifactTransfer, facts bambuRunFacts
 func marshalSlicerConsumption(parsed parser.Result, facts bambuRunFacts) (json.RawMessage, error) {
 	items := make([]map[string]any, 0, len(parsed.Filaments))
 	for _, filament := range parsed.Filaments {
-		item := baseConsumptionItem(filament, "slicer_complete", parser.ParserVersion)
-		if filament.WeightGrams != nil && *filament.WeightGrams >= 0 {
-			item["estimatedQuantityGrams"] = decimalString(*filament.WeightGrams)
-			item["quality"] = "high"
-		} else {
-			item["quality"] = "unresolved"
+		// Bambu project settings include every configured filament preset, even
+		// when a preset is not used by the sliced plate. Only slice-info entries
+		// with an actual positive weight are consumption lines. Treating the
+		// unused definitions as unresolved materials makes a one-material print
+		// look multi-material and prevents its exact mounted-spool evidence from
+		// being applied.
+		if filament.WeightGrams == nil || *filament.WeightGrams <= 0 {
+			continue
 		}
+		item := baseConsumptionItem(filament, "slicer_complete", parser.ParserVersion)
+		item["estimatedQuantityGrams"] = decimalString(*filament.WeightGrams)
+		item["quality"] = "high"
 		items = append(items, item)
 	}
 	if len(items) == 0 {
 		return marshalUnresolvedConsumption("slicer_complete", parser.ParserVersion, "artifact has no defensible per-filament quantity")
 	}
-	applySingleFilamentEvidence(items, facts)
+	applyFilamentEvidence(items, parsed, facts)
 	return json.Marshal(map[string]any{"items": items})
 }
 
 func marshalGCodeConsumption(parsed parser.Result, estimate parser.GCodeEstimate, facts bambuRunFacts) (json.RawMessage, error) {
-	byID := make(map[string]parser.Filament, len(parsed.Filaments))
-	for _, filament := range parsed.Filaments {
-		byID[filament.ID] = filament
-	}
 	items := make([]map[string]any, 0, len(estimate.Filaments))
 	for _, estimated := range estimate.Filaments {
-		item := baseConsumptionItem(byID[estimated.FilamentID], estimate.Method, estimate.CalculationVersion)
-		item["slicerFilamentId"] = estimated.FilamentID
+		filament := parsedFilamentForGCode(parsed.Filaments, estimated.FilamentID)
+		item := baseConsumptionItem(filament, estimate.Method, estimate.CalculationVersion)
+		if filament.ID == "" {
+			item["slicerFilamentId"] = estimated.FilamentID
+		}
 		item["quality"] = string(estimate.Quality)
 		if estimated.WeightGrams != nil {
 			item["estimatedQuantityGrams"] = decimalString(*estimated.WeightGrams)
@@ -231,7 +244,7 @@ func marshalGCodeConsumption(parsed parser.Result, estimate parser.GCodeEstimate
 		} else {
 			item["quality"] = "unresolved"
 		}
-		if len(estimated.Extruders) == 1 {
+		if _, mapped := item["extruder"]; !mapped && len(estimated.Extruders) == 1 {
 			item["extruder"] = estimated.Extruders[0]
 		}
 		items = append(items, item)
@@ -239,22 +252,187 @@ func marshalGCodeConsumption(parsed parser.Result, estimate parser.GCodeEstimate
 	if len(items) == 0 {
 		return marshalUnresolvedConsumption(estimate.Method, estimate.CalculationVersion, "no defensible G-code checkpoint quantity")
 	}
-	applySingleFilamentEvidence(items, facts)
+	applyFilamentEvidence(items, parsed, facts)
 	return json.Marshal(map[string]any{"items": items})
 }
 
-// The last unambiguous active tray is sufficient evidence only for a
-// single-filament report. Applying it to every line of a multi-material job
-// would incorrectly charge all materials to the final tray used.
-func applySingleFilamentEvidence(items []map[string]any, facts bambuRunFacts) {
-	if len(items) != 1 || facts.InputUnitExternalID == "" || facts.SlotExternalID == "" {
+// applyFilamentEvidence associates each consumption line only when the 3MF
+// route and observed H2D tray history make the mapping deterministic. This
+// supports materials split across two nozzles as well as ordered AMS changes
+// through one nozzle. Ambiguous lines intentionally remain unresolved.
+func applyFilamentEvidence(items []map[string]any, parsed parser.Result, facts bambuRunFacts) {
+	if len(items) == 1 && len(facts.SpoolEvidence) == 0 {
+		applyLegacySpoolEvidence(items[0], facts)
 		return
 	}
-	items[0]["inputUnitExternalId"] = facts.InputUnitExternalID
-	items[0]["slotExternalId"] = facts.SlotExternalID
-	if facts.TagUID != "" {
-		items[0]["tagUid"] = facts.TagUID
+	type indexedEvidence struct {
+		index int
+		value bambuSpoolEvidence
 	}
+	usedEvidence := make(map[int]bool, len(facts.SpoolEvidence))
+	hasExplicitFilamentRoutes := false
+	evidenceByFilament := map[string][]indexedEvidence{}
+	for index, evidence := range facts.SpoolEvidence {
+		if evidence.SlicerFilamentID == "" || evidence.InputUnitExternalID == "" || evidence.SlotExternalID == "" {
+			continue
+		}
+		hasExplicitFilamentRoutes = true
+		evidenceByFilament[evidence.SlicerFilamentID] = append(evidenceByFilament[evidence.SlicerFilamentID], indexedEvidence{index: index, value: evidence})
+	}
+	for _, item := range items {
+		filamentID, _ := item["slicerFilamentId"].(string)
+		if routes := evidenceByFilament[filamentID]; filamentID != "" && len(routes) == 1 {
+			applySpoolEvidence(item, routes[0].value)
+			usedEvidence[routes[0].index] = true
+		}
+	}
+
+	itemsByExtruder := map[int][]map[string]any{}
+	for _, item := range items {
+		if _, matched := item["slotExternalId"]; matched {
+			continue
+		}
+		extruder, ok := anyInt(item["extruder"])
+		if !ok {
+			continue
+		}
+		itemsByExtruder[extruder] = append(itemsByExtruder[extruder], item)
+	}
+	evidenceByExtruder := map[int][]indexedEvidence{}
+	for index, evidence := range facts.SpoolEvidence {
+		if usedEvidence[index] || evidence.SlicerFilamentID != "" || evidence.InputUnitExternalID == "" || evidence.SlotExternalID == "" {
+			continue
+		}
+		evidenceByExtruder[evidence.Extruder] = append(evidenceByExtruder[evidence.Extruder], indexedEvidence{index: index, value: evidence})
+	}
+	for extruder, routedItems := range itemsByExtruder {
+		routes := evidenceByExtruder[extruder]
+		if len(routedItems) == 1 && len(routes) == 1 {
+			applySpoolEvidence(routedItems[0], routes[0].value)
+			usedEvidence[routes[0].index] = true
+			continue
+		}
+		if !facts.HistoryComplete || len(routedItems) < 2 || len(routes) != len(routedItems) {
+			continue
+		}
+		ordered := orderConsumptionItems(routedItems, parsed.FilamentSequence)
+		if len(ordered) != len(routes) {
+			continue
+		}
+		for index := range ordered {
+			applySpoolEvidence(ordered[index], routes[index].value)
+			usedEvidence[routes[index].index] = true
+		}
+	}
+	// Some Bambu 3MFs and MQTT status documents use different numeric
+	// namespaces for the same physical extruders. H2D, for example, has been
+	// observed to encode the two slicer extruders as 1/2 while MQTT identifies
+	// their spool routes as 0/1. Do not guess a general offset or side mapping:
+	// when every other line is already matched and exactly one valid material
+	// and one observed route remain, the final association follows uniquely by
+	// elimination. Incomplete histories and larger ambiguous sets stay
+	// unresolved for staff correction.
+	if facts.HistoryComplete {
+		var unmatchedItems []map[string]any
+		for _, item := range items {
+			if _, matched := item["slotExternalId"]; !matched {
+				unmatchedItems = append(unmatchedItems, item)
+			}
+		}
+		var unusedEvidence []bambuSpoolEvidence
+		for index, evidence := range facts.SpoolEvidence {
+			if usedEvidence[index] || evidence.SlicerFilamentID != "" || evidence.InputUnitExternalID == "" || evidence.SlotExternalID == "" {
+				continue
+			}
+			unusedEvidence = append(unusedEvidence, evidence)
+		}
+		if len(unmatchedItems) == 1 && len(unusedEvidence) == 1 {
+			applySpoolEvidence(unmatchedItems[0], unusedEvidence[0])
+		}
+	}
+	// Preserve compatibility for a single-material run whose current firmware
+	// did not expose per-extruder routes.
+	if len(items) == 1 && !hasExplicitFilamentRoutes {
+		if _, applied := items[0]["slotExternalId"]; !applied {
+			applyLegacySpoolEvidence(items[0], facts)
+		}
+	}
+}
+
+func orderConsumptionItems(items []map[string]any, sequence []string) []map[string]any {
+	byID := make(map[string]map[string]any, len(items))
+	for _, item := range items {
+		id, _ := item["slicerFilamentId"].(string)
+		if id == "" || byID[id] != nil {
+			return nil
+		}
+		byID[id] = item
+	}
+	ordered := make([]map[string]any, 0, len(items))
+	for _, id := range sequence {
+		if item := byID[id]; item != nil {
+			ordered = append(ordered, item)
+			delete(byID, id)
+		}
+	}
+	if len(byID) != 0 {
+		return nil
+	}
+	return ordered
+}
+
+func applyLegacySpoolEvidence(item map[string]any, facts bambuRunFacts) {
+	if facts.InputUnitExternalID == "" || facts.SlotExternalID == "" {
+		return
+	}
+	applySpoolEvidence(item, bambuSpoolEvidence{InputUnitExternalID: facts.InputUnitExternalID, SlotExternalID: facts.SlotExternalID, TagUID: facts.TagUID})
+}
+
+func applySpoolEvidence(item map[string]any, evidence bambuSpoolEvidence) {
+	item["inputUnitExternalId"] = evidence.InputUnitExternalID
+	item["slotExternalId"] = evidence.SlotExternalID
+	if evidence.TagUID != "" {
+		item["tagUid"] = evidence.TagUID
+	}
+}
+
+func anyInt(value any) (int, bool) {
+	switch typed := value.(type) {
+	case int:
+		return typed, true
+	case int32:
+		return int(typed), true
+	case int64:
+		return int(typed), true
+	case float64:
+		return int(typed), typed == float64(int(typed))
+	default:
+		return 0, false
+	}
+}
+
+func parsedFilamentForGCode(filaments []parser.Filament, id string) parser.Filament {
+	var exact parser.Filament
+	for _, filament := range filaments {
+		if filament.ID == id {
+			exact = filament
+			if filament.WeightGrams != nil && *filament.WeightGrams > 0 {
+				return filament
+			}
+		}
+	}
+	// Bambu G-code M620 uses zero-based filament numbers while slice_info uses
+	// one-based IDs. Prefer the adjacent positive-quantity slice record.
+	number, err := strconv.Atoi(id)
+	if err == nil {
+		oneBased := strconv.Itoa(number + 1)
+		for _, filament := range filaments {
+			if filament.ID == oneBased && filament.WeightGrams != nil && *filament.WeightGrams > 0 {
+				return filament
+			}
+		}
+	}
+	return exact
 }
 
 func baseConsumptionItem(filament parser.Filament, method, version string) map[string]any {

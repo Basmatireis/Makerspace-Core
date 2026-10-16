@@ -61,18 +61,20 @@ func inspect3MF(args []string, stdout io.Writer) error {
 	}
 	return writeIndentedJSON(stdout, artifactInspection{
 		ParserVersion: result.ParserVersion, Status: result.Status, Metadata: result.Metadata,
-		Filaments: result.Filaments, Previews: previews, GCode: result.GCode, Warnings: result.Warnings,
+		Filaments: result.Filaments, FilamentSequence: result.FilamentSequence,
+		Previews: previews, GCode: result.GCode, Warnings: result.Warnings,
 	})
 }
 
 type artifactInspection struct {
-	ParserVersion string              `json:"parserVersion"`
-	Status        parser.Status       `json:"status"`
-	Metadata      parser.Metadata     `json:"metadata"`
-	Filaments     []parser.Filament   `json:"filaments"`
-	Previews      []previewInspection `json:"previews"`
-	GCode         []parser.GCodeFile  `json:"gcode"`
-	Warnings      []string            `json:"warnings,omitempty"`
+	ParserVersion    string              `json:"parserVersion"`
+	Status           parser.Status       `json:"status"`
+	Metadata         parser.Metadata     `json:"metadata"`
+	Filaments        []parser.Filament   `json:"filaments"`
+	FilamentSequence []string            `json:"filamentSequence,omitempty"`
+	Previews         []previewInspection `json:"previews"`
+	GCode            []parser.GCodeFile  `json:"gcode"`
+	Warnings         []string            `json:"warnings,omitempty"`
 }
 
 type previewInspection struct {
@@ -185,6 +187,7 @@ func replayMQTT(args []string, stdout io.Writer) error {
 	flags := flag.NewFlagSet("replay-mqtt", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	inputPath := flags.String("input", "", "sanitized MQTT NDJSON fixture")
+	adapterKind := flags.String("adapter", "bambu_h2d", "Bambu adapter kind: bambu_h2d or bambu_x1c")
 	if err := flags.Parse(args); err != nil {
 		return fmt.Errorf("replay-mqtt: %w", err)
 	}
@@ -196,7 +199,7 @@ func replayMQTT(args []string, stdout io.Writer) error {
 		return fmt.Errorf("replay-mqtt input: %w", err)
 	}
 	defer input.Close()
-	if err = printerconnector.ReplayBambuMQTTFixture(input, stdout); err != nil {
+	if err = printerconnector.ReplayBambuMQTTFixtureFor(input, stdout, *adapterKind); err != nil {
 		return fmt.Errorf("replay-mqtt: %w", err)
 	}
 	return nil

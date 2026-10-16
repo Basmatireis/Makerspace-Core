@@ -12,7 +12,7 @@ import { renderRoute } from '../../../test/render';
 import { DirectoryTable, useServerTableState, type Column } from './DirectoryTable';
 import { machineLogbookPaths } from './paths';
 import { QueryBoundary } from './QueryBoundary';
-import { activeRuns, adjustmentSummary, billingStateOptions, connectorIssue, displayName, isRunLive, jobRowStatusOptions, machineJobName, nameFromFile, replaceChangesAnything, runName, runProgress, runStateNow, usagesText, workItemName, workItemSecondaryIds } from './status';
+import { activeRuns, adjustmentSummary, billingStateOptions, connectorIssue, displayName, isRunLive, jobRowStatusOptions, machineJobName, nameFromFile, replaceChangesAnything, reportedUsageText, runName, runProgress, runStateNow, unresolvedReportedUsageItems, usagesText, workItemName, workItemSecondaryIds } from './status';
 import { formatDuration, formatMoney } from './format';
 import { ToastProvider } from './toasts';
 import { useCan } from './useCan';
@@ -62,6 +62,23 @@ describe('Machines & Jobs shared helpers', () => {
   it('summarises material usage', () => {
     expect(usagesText([])).toBe('None recorded');
     expect(usagesText([usage(), usage({ materialName: 'Insert', unit: 'm', quantity: '4.000' })])).toBe('183 g PLA Black, 4 m Insert');
+  });
+
+  it('keeps every itemized machine report visible when one spool is unresolved', () => {
+    const report = {
+      reportedUsage: null,
+      usages: [usage({ spoolId: 'spool-white', spoolDisplayId: 'S-617', materialName: 'PLA White', quantity: '1.64' })],
+      reportedUsageItems: [
+        { lineNumber: 0, reportRevision: 1, slicerFilamentId: '1', extruder: 2, plannedQuantityGrams: '0.55', estimatedQuantityGrams: '0.55', method: 'slicer_complete', calculationVersion: 'bambu-3mf-v1', quality: 'high' },
+        { lineNumber: 1, reportRevision: 1, slicerFilamentId: '3', extruder: 1, inputUnitExternalId: '128', slotExternalId: '0', plannedQuantityGrams: '1.64', estimatedQuantityGrams: '1.64', spoolId: 'spool-white', method: 'slicer_complete', calculationVersion: 'bambu-3mf-v1', quality: 'high' },
+      ],
+    } as Pick<MachineRun, 'reportedUsage' | 'reportedUsageItems' | 'usages'>;
+    expect(reportedUsageText(report)).toBe('0.55 g filament 1 (spool unresolved), 1.64 g PLA White (S-617)');
+    expect(unresolvedReportedUsageItems(report)).toHaveLength(1);
+
+    report.usages.push(usage({ id: 'usage-yellow', spoolId: 'spool-yellow', spoolDisplayId: 'S-618', materialName: 'PLA Yellow', quantity: '0.55', staffCorrected: true }));
+    expect(reportedUsageText(report)).toBe('0.55 g PLA Yellow (S-618) · mapped by staff, 1.64 g PLA White (S-617)');
+    expect(unresolvedReportedUsageItems(report)).toHaveLength(0);
   });
 
   it('formats prices, durations and adjustments like the prototype', () => {

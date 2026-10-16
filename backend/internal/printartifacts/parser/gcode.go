@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-const CalculationVersion = "gcode-extrusion-v1"
+const CalculationVersion = "gcode-extrusion-v3"
 
 type EstimateQuality string
 type ExtrusionCategory string
@@ -38,7 +38,10 @@ type GCodeOptions struct {
 	Filaments            []GCodeFilament
 	LastReliableLayer    *int
 	LastReliableProgress *float64
-	MaxLineBytes         int
+	// PhysicalExtruder fixes all extrusion to one nozzle. X1-family G-code
+	// still emits T0/T2 material commands even though it has one extruder.
+	PhysicalExtruder *int
+	MaxLineBytes     int
 }
 
 type GCodeEstimate struct {
@@ -84,12 +87,11 @@ type extruderState struct {
 }
 
 var (
-	wordPattern        = regexp.MustCompile(`(?i)([A-Z])\s*(-?(?:\d+(?:\.\d*)?|\.\d+))`)
-	bambuFilamentRegex = regexp.MustCompile(`(?i)^M62[01]\s+S(\d+)`)
-	layerRegexes       = []*regexp.Regexp{
-		regexp.MustCompile(`(?i)^;\s*layer(?:\s+num)?\s*[:= ]\s*(\d+)`),
-		regexp.MustCompile(`(?i)^;\s*layer_change\s*(?:[:= ]\s*(\d+))?`),
-	}
+	wordPattern          = regexp.MustCompile(`(?i)([A-Z])\s*(-?(?:\d+(?:\.\d*)?|\.\d+))`)
+	bambuFilamentRegex   = regexp.MustCompile(`(?i)^M62[01]\s+S(\d+)`)
+	bambuLayerCountRegex = regexp.MustCompile(`(?i)^;\s*layer\s+num/total_layer_count\s*:\s*(\d+)\s*/\s*\d+\s*$`)
+	layerNumberRegex     = regexp.MustCompile(`(?i)^;\s*layer(?:\s+num)?\s*[:=]\s*(\d+)\s*$`)
+	layerChangeRegex     = regexp.MustCompile(`(?i)^;\s*(?:change_layer|layer_change)\s*(?:[:=]\s*(\d+))?\s*$`)
 	progressCommentRegex = regexp.MustCompile(`(?i)^;.*(?:progress|percent)[^0-9]*(\d+(?:\.\d+)?)\s*%?`)
 	toolCommandRegex     = regexp.MustCompile(`^T\d+(?:\s|$)`)
 )
@@ -109,7 +111,11 @@ func EstimateGCode(r io.Reader, options GCodeOptions) (GCodeEstimate, error) {
 		totals:            extrusionTotals{byFilament: make(map[string]*filamentTotals)},
 		category:          CategoryUnclassified,
 	}
-	state.ensureExtruder(0)
+	if options.PhysicalExtruder != nil {
+		state.activeExtruder = *options.PhysicalExtruder
+		state.fixedExtruder = true
+	}
+	state.ensureExtruder(state.activeExtruder)
 	var checkpoints []extrusionTotals
 	scanner := bufio.NewScanner(r)
 	initialBuffer := 64 << 10
@@ -150,6 +156,7 @@ type gcodeState struct {
 	extruders         map[int]*extruderState
 	totals            extrusionTotals
 	category          ExtrusionCategory
+	fixedExtruder     bool
 }
 
 func (s *gcodeState) ensureExtruder(tool int) *extruderState {
@@ -164,20 +171,30 @@ func (s *gcodeState) ensureExtruder(tool int) *extruderState {
 func (s *gcodeState) handleMarker(line string) bool {
 	lower := strings.ToLower(line)
 	checkpoint := false
-	for _, expression := range layerRegexes {
-		if match := expression.FindStringSubmatch(line); len(match) > 0 {
-			if len(match) > 1 && match[1] != "" {
-				if layer, err := strconv.Atoi(match[1]); err == nil {
-					s.totals.layer = intPointer(layer)
-				}
-			} else if s.totals.layer == nil {
-				s.totals.layer = intPointer(0)
-			} else {
-				s.totals.layer = intPointer(*s.totals.layer + 1)
-			}
+	if match := bambuLayerCountRegex.FindStringSubmatch(line); len(match) == 2 {
+		if layer, err := strconv.Atoi(match[1]); err == nil && layer > 0 {
+			// H2D reports the same one-based layer number through MQTT once
+			// printing begins (zero is preparation). Selecting the archive marker
+			// with that number gives the conservative start-of-layer checkpoint.
+			s.totals.layer = intPointer(layer)
 			checkpoint = true
-			break
 		}
+	} else if match := layerNumberRegex.FindStringSubmatch(line); len(match) == 2 {
+		if layer, err := strconv.Atoi(match[1]); err == nil {
+			s.totals.layer = intPointer(layer)
+			checkpoint = true
+		}
+	} else if match := layerChangeRegex.FindStringSubmatch(line); len(match) > 0 {
+		if len(match) > 1 && match[1] != "" {
+			if layer, err := strconv.Atoi(match[1]); err == nil {
+				s.totals.layer = intPointer(layer)
+			}
+		} else if s.totals.layer == nil {
+			s.totals.layer = intPointer(0)
+		} else {
+			s.totals.layer = intPointer(*s.totals.layer + 1)
+		}
+		checkpoint = true
 	}
 	if strings.HasPrefix(strings.ToUpper(line), "M73 ") {
 		if progress, ok := commandWord(line, 'P'); ok && progress >= 0 && progress <= 100 {
@@ -229,6 +246,12 @@ func (s *gcodeState) handleCommand(line string) {
 			end++
 		}
 		if tool, err := strconv.Atoi(upper[1:end]); err == nil {
+			// Bambu uses T255 for unload and T1000/T1100 as X1-family
+			// calibration/nozzle-space commands. They are not physical extruder
+			// selections and must not create phantom consumption lines.
+			if tool >= 255 || s.fixedExtruder {
+				return
+			}
 			s.activeExtruder = tool
 			s.ensureExtruder(tool)
 		}

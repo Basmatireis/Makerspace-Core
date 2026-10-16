@@ -12,7 +12,7 @@ import { EmptyState } from '../../../app/PageState';
 import { useLatestCallback } from '../../../app/useLatestCallback';
 import { liveStatusQuery, type PrinterConnection } from '../connectorQueries';
 import { MachineSetupWizard } from '../dialogs/MachineSetupWizard';
-import { mappingLabel, missingUnits, modelById, NOZZLE_GROUPS, nozzleLabel, profileUnitRefs, trayFor } from '../printerSetup';
+import { adapterLabel, isBambuAdapter, mappingLabel, missingUnits, modelById, NOZZLE_GROUPS, nozzleLabel, profileUnitRefs, trayFor } from '../printerSetup';
 import { machineLogbookKeys, spoolsQuery } from '../queries';
 import { connectorDiagnostic } from '../shared/connectorHelpers';
 import { formatQuantity, formatRelative } from '../shared/format';
@@ -37,10 +37,11 @@ const slotHeaders = [
 ];
 
 const runtimeTag = { connected: 'green', connecting: 'blue', degraded: 'purple', disconnected: 'red', disabled: 'gray' } as const;
+const PRINTER_REFRESH_MS = 5000;
 
 const spoolLabel = (spool: FilamentSpool) => `${spool.displayId}${spool.label ? ` (${spool.label})` : ''} · ${spool.materialName ?? 'No material'} · ${formatQuantity(spool.remainingQuantity)} ${spool.unit ?? 'g'} left`;
 
-export function PrinterSetup({ machine, profile, connection }: { machine: Machine; profile: PrinterProfile | undefined; connection: PrinterConnection | undefined }) {
+export function PrinterSetup({ machine, profile, connection, active = true }: { machine: Machine; profile: PrinterProfile | undefined; connection: PrinterConnection | undefined; active?: boolean }) {
   const can = useCan();
   const client = useQueryClient();
   const notify = useNotify();
@@ -55,11 +56,15 @@ export function PrinterSetup({ machine, profile, connection }: { machine: Machin
   const [selectedSpool, setSelectedSpool] = useState<FilamentSpool | null>(null);
 
   const refresh = () => client.invalidateQueries({ queryKey: machineLogbookKeys.all });
-  const live = useQuery({ ...liveStatusQuery(machine.id), refetchInterval: 30_000 });
+  const live = useQuery({ ...liveStatusQuery(machine.id), enabled: active, refetchInterval: active ? PRINTER_REFRESH_MS : false });
   const detection = live.data?.status ?? null;
   const slots = (profile?.slots ?? []).filter((slot) => slot.status !== 'retired');
   const hasMounted = slots.some((slot) => slot.spoolId);
-  const mountedSpools = useQuery({ ...spoolsQuery({ mounted: true, pageSize: 100 }), enabled: canReadInventory && hasMounted });
+  const mountedSpools = useQuery({
+    ...spoolsQuery({ mounted: true, pageSize: 100 }),
+    enabled: active && canReadInventory && hasMounted,
+    refetchInterval: active ? PRINTER_REFRESH_MS : false,
+  });
   const freeSpools = useQuery({ ...spoolsQuery({ consumable: true, mounted: false, pageSize: 100 }), enabled: Boolean(mountSlot) && canAssign && canReadInventory });
 
   const configure = useMutation({
@@ -136,7 +141,10 @@ export function PrinterSetup({ machine, profile, connection }: { machine: Machin
                   </TableHead>
                   <TableBody>
                     {rows.map((tableRow) => {
-                      const slot = unitSlots.find((item) => item.id === tableRow.id)!;
+                      // The Carbon row model may lag one render behind a
+                      // polled profile whose slots changed.
+                      const slot = unitSlots.find((item) => item.id === tableRow.id);
+                      if (!slot) return null;
                       const spool = spoolById(slot.spoolId);
                       const mapping = mappingLabel(detection, profile.model, unit.externalIdentifier ?? null, slot.externalIdentifier ?? null);
                       const { key, ...rowProps } = getRowProps({ row: tableRow });
@@ -194,11 +202,11 @@ export function PrinterSetup({ machine, profile, connection }: { machine: Machin
           {connection && assignment ? (
             <dl className="mj-facts">
               <div><dt>Connector</dt><dd><CarbonLink as={Link} to={`${machineLogbookPaths.machines()}?tab=connectors`}>{connection.connector.name}</CarbonLink></dd></div>
-              <div><dt>Adapter</dt><dd>{assignment.adapterKind === 'bambu_h2d' ? 'Bambu Lab H2D' : 'Simulator'}</dd></div>
-              {assignment.adapterKind === 'bambu_h2d' && <div><dt>IP address</dt><dd>{typeof assignment.settings.ipAddress === 'string' ? assignment.settings.ipAddress : '—'}</dd></div>}
-              {assignment.adapterKind === 'bambu_h2d' && <div><dt>Serial number</dt><dd>{typeof assignment.settings.serialNumber === 'string' ? assignment.settings.serialNumber : '—'}</dd></div>}
-              {assignment.adapterKind === 'bambu_h2d' && <div><dt>LAN access code</dt><dd>Set</dd></div>}
-              {assignment.adapterKind === 'bambu_h2d' && <div><dt>Auto-mount RFID spools</dt><dd>{assignment.settings.autoDetectSpools === true ? 'On' : 'Off'}</dd></div>}
+              <div><dt>Adapter</dt><dd>{adapterLabel(assignment.adapterKind)}</dd></div>
+              {isBambuAdapter(assignment.adapterKind) && <div><dt>IP address</dt><dd>{typeof assignment.settings.ipAddress === 'string' ? assignment.settings.ipAddress : '—'}</dd></div>}
+              {isBambuAdapter(assignment.adapterKind) && <div><dt>Serial number</dt><dd>{typeof assignment.settings.serialNumber === 'string' ? assignment.settings.serialNumber : '—'}</dd></div>}
+              {isBambuAdapter(assignment.adapterKind) && <div><dt>LAN access code</dt><dd>Set</dd></div>}
+              {isBambuAdapter(assignment.adapterKind) && <div><dt>Auto-mount RFID spools</dt><dd>{assignment.settings.autoDetectSpools === true ? 'On' : 'Off'}</dd></div>}
               <div>
                 <dt>State</dt>
                 <dd>

@@ -72,6 +72,22 @@ async function openWizard(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe('Add machine wizard for a printer', () => {
+  it('offers the live X1 Carbon adapter and X1C topology', async () => {
+    const recorded = backend(MANAGE);
+    const user = userEvent.setup();
+    const dialog = await openWizard(user);
+    await user.type(within(dialog).getByLabelText('Name'), 'X1 printer');
+    await waitFor(() => expect(within(dialog).getByRole('option', { name: '3D printer' })).toBeInTheDocument());
+    await user.selectOptions(within(dialog).getByLabelText('Machine type'), printerTypeId);
+    await user.click(within(dialog).getByRole('radio', { name: /Bambu Lab X1C/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Create and continue' }));
+    await waitFor(() => expect(recorded.setup).toHaveLength(1));
+    expect(recorded.setup[0]).toMatchObject({ model: 'bambu_x1c', inputUnits: [
+      { name: 'AMS', externalIdentifier: '0' }, { name: 'External spool', externalIdentifier: '255' },
+    ] });
+    expect(await within(dialog).findByDisplayValue('Bambu Lab X1C')).toBeInTheDocument();
+  });
+
   it('creates the machine and its template, saves and tests the connection, then saves the spool inputs', async () => {
     const recorded = backend(MANAGE);
     const user = userEvent.setup();

@@ -4,7 +4,7 @@
 
 GitHub Actions runs `.github/workflows/ci.yml` for pull requests targeting `main` and pushes to `main`. It verifies committed generated code, Go formatting/vet/tests/build, frontend lint/type checking/tests/build, real-PostgreSQL integration tests, the isolated full-stack Playwright suite, both production Docker images, and the production release bundle. The bundle smoke check starts an extracted deployment with `docker compose up -d`, verifies automatic migration and failure gating, reaches the frontend and proxied readiness endpoint, recreates the backend to verify dynamic nginx resolution, and confirms that only the frontend publishes a port.
 
-CI also runs `make test-migrations` in its own disposable database to exercise goose Up/Down/Up. The production smoke check verifies non-root private-storage writes and that upload envelopes larger than nginx's default reach API authentication. H2D protocol, reducer, FTPS, archive, and fixture tests use synthetic inputs; private real-fixture replay and read-only H2D hardware checks are release evidence recorded separately and must never be inferred from CI. CI uses read-only repository permission. Docker builds use the GitHub Actions BuildKit cache and set `push: false`; a pull request or ordinary commit cannot publish a container image.
+CI also runs `make test-migrations` in its own disposable database to exercise goose Up/Down/Up. The production smoke check verifies non-root private-storage writes and that upload envelopes larger than nginx's default reach API authentication. H2D/X1C protocol, reducer, FTPS, archive, and fixture tests use synthetic inputs; private real-fixture replay and read-only printer hardware checks are release evidence recorded separately and must never be inferred from CI. CI uses read-only repository permission. Docker builds use the GitHub Actions BuildKit cache and set `push: false`; a pull request or ordinary commit cannot publish a container image.
 
 ## Creating a release
 
@@ -17,7 +17,7 @@ git tag v0.4.0
 git push origin v0.4.0
 ```
 
-The tag starts `.github/workflows/release.yml`. It accepts only stable `vMAJOR.MINOR.PATCH` tags, reruns the complete CI workflow, confirms that neither immutable `0.4.0` image tag already exists, publishes both images with `GITHUB_TOKEN`, verifies that both are anonymously pullable, and creates the `v0.4.0` GitHub Release with generated notes and a version-pinned production Compose bundle. Image digests are shown in the publish-job summaries and in GHCR. A failed validation publishes nothing.
+The tag starts `.github/workflows/release.yml`. It accepts only stable `vMAJOR.MINOR.PATCH` tags, reruns the complete CI workflow, confirms that neither immutable `0.4.0` image tag already exists, publishes the images with `GITHUB_TOKEN`, verifies that they are anonymously pullable, and creates the `v0.4.0` GitHub Release with that version's notes from `CHANGELOG.md` plus version-pinned Core and printer-connector Compose bundles. Image digests are shown in the publish-job summaries and in GHCR. A failed validation publishes nothing.
 
 Semantic versioning uses:
 

@@ -167,6 +167,23 @@ describe('Connector diagnostics', () => {
     expect(within(dialog).getAllByText(/port 8883/).length).toBeGreaterThan(0);
   });
 
+  it('keeps fresh MQTT status live while an independent FTPS retry is pending', async () => {
+    setup(READ, {
+      assignments: [assignmentOf({ runtimeState: 'degraded', runtimeErrorCode: 'ftps_transfer_finish_failed' })],
+      live: liveStatusOf(),
+      events: [],
+    });
+    const user = userEvent.setup();
+    renderPage('/machine-logbook/machines?tab=connectors');
+    const dialog = await openDiagnostics(user);
+    await user.click(within(dialog).getByRole('tab', { name: 'Bambu H2D' }));
+
+    expect(await within(dialog).findByText('Live')).toBeInTheDocument();
+    expect(within(dialog).getByText('Print file delayed · ftps_transfer_finish_failed')).toBeInTheDocument();
+    expect(within(dialog).getAllByText(/retry independently/i).length).toBeGreaterThan(0);
+    expect(within(dialog).queryByText(/No status for/)).not.toBeInTheDocument();
+  });
+
   it('clears events only with printer_connectors.manage and then shows who cleared them', async () => {
     setup([...READ, PermissionId.printer_connectorsmanage]);
     let cleared = false;
@@ -210,5 +227,26 @@ describe('Connector diagnostics', () => {
     await user.click(await within(dialog).findByRole('button', { name: 'Show cleared events' }));
     await waitFor(() => expect(params).toContain('true'));
     expect(within(dialog).getByRole('button', { name: 'Hide cleared events' })).toBeInTheDocument();
+  });
+
+  it('adds newly received events without crashing the open diagnostics table', async () => {
+    const initial = event({ applicationState: 'applied', applicationReason: null });
+    const arrived = event({
+      id: '0192f6f8-743e-7c77-a349-cd07c3e8a931', kind: 'progress', applicationState: 'applied', applicationReason: null,
+      receivedAt: '2026-10-11T12:00:05Z', payload: { fileName: 'Customer project', percent: 25 },
+    });
+    setup(READ, { events: [initial] });
+    let requests = 0;
+    server.use(http.get(`*/api/v1/printer-connectors/${connectorId}/events`, () => {
+      requests += 1;
+      return HttpResponse.json({ items: requests === 1 ? [initial] : [arrived, initial] });
+    }));
+    const user = userEvent.setup();
+    renderPage('/machine-logbook/machines?tab=connectors');
+    const dialog = await openDiagnostics(user);
+    await user.click(within(dialog).getByRole('tab', { name: 'Bambu H2D' }));
+    expect(await within(dialog).findByText(/unknown material/)).toBeInTheDocument();
+    expect(await within(dialog).findByText('Customer project at 25 %', undefined, { timeout: 7000 })).toBeInTheDocument();
+    expect(requests).toBeGreaterThan(1);
   });
 });

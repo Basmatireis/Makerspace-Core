@@ -4,7 +4,7 @@ import type { PrinterModelId } from '../../printerSetup';
 
 export type StepKey = 'machine' | 'connection' | 'spools' | 'review';
 
-export type AdapterKind = 'simulator' | 'bambu_h2d';
+export type AdapterKind = 'simulator' | 'bambu_h2d' | 'bambu_x1c';
 
 export type SetupValues = {
   name: string;

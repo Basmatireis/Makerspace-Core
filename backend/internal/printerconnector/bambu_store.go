@@ -25,8 +25,15 @@ const (
 )
 
 func (s *Store) BambuState(ctx context.Context, assignmentID uuid.UUID) (bambuPersistedState, bool, error) {
+	return s.BambuStateFor(ctx, assignmentID, bambuH2DAdapterKind)
+}
+
+func (s *Store) BambuStateFor(ctx context.Context, assignmentID uuid.UUID, adapterKind string) (bambuPersistedState, bool, error) {
+	if !isBambuAdapterKind(adapterKind) {
+		return bambuPersistedState{}, false, errors.New("unsupported Bambu adapter kind")
+	}
 	var encrypted []byte
-	err := s.db.QueryRowContext(ctx, `SELECT encrypted_value FROM adapter_state WHERE assignment_id=? AND adapter_kind='bambu_h2d'`, assignmentID.String()).Scan(&encrypted)
+	err := s.db.QueryRowContext(ctx, `SELECT encrypted_value FROM adapter_state WHERE assignment_id=? AND adapter_kind=?`, assignmentID.String(), adapterKind).Scan(&encrypted)
 	if errors.Is(err, sql.ErrNoRows) {
 		return bambuPersistedState{}, false, nil
 	}
@@ -45,18 +52,25 @@ func (s *Store) BambuState(ctx context.Context, assignmentID uuid.UUID) (bambuPe
 }
 
 func (s *Store) SaveBambuState(ctx context.Context, assignmentID uuid.UUID, state bambuPersistedState) error {
+	return s.SaveBambuStateFor(ctx, assignmentID, bambuH2DAdapterKind, state)
+}
+
+func (s *Store) SaveBambuStateFor(ctx context.Context, assignmentID uuid.UUID, adapterKind string, state bambuPersistedState) error {
+	if !isBambuAdapterKind(adapterKind) {
+		return errors.New("unsupported Bambu adapter kind")
+	}
 	plain, err := json.Marshal(state)
 	if err != nil {
 		return err
 	}
 	if len(plain) > maximumReducerBytes*2 {
-		return errors.New("encrypted bambu_h2d state exceeds storage limit")
+		return errors.New("encrypted Bambu state exceeds storage limit")
 	}
 	encrypted, err := s.seal(plain)
 	if err != nil {
 		return err
 	}
-	_, err = s.db.ExecContext(ctx, `INSERT INTO adapter_state(assignment_id,adapter_kind,encrypted_value,updated_at) VALUES(?,'bambu_h2d',?,?) ON CONFLICT(assignment_id) DO UPDATE SET adapter_kind=excluded.adapter_kind,encrypted_value=excluded.encrypted_value,updated_at=excluded.updated_at`, assignmentID.String(), encrypted, time.Now().UTC().Format(time.RFC3339Nano))
+	_, err = s.db.ExecContext(ctx, `INSERT INTO adapter_state(assignment_id,adapter_kind,encrypted_value,updated_at) VALUES(?,?,?,?) ON CONFLICT(assignment_id) DO UPDATE SET adapter_kind=excluded.adapter_kind,encrypted_value=excluded.encrypted_value,updated_at=excluded.updated_at`, assignmentID.String(), adapterKind, encrypted, time.Now().UTC().Format(time.RFC3339Nano))
 	return err
 }
 
@@ -64,12 +78,19 @@ func (s *Store) SaveBambuState(ctx context.Context, assignmentID uuid.UUID, stat
 // checkpoint durable in one SQLite transaction. This prevents a restart from
 // allocating a second run ID after an event was already queued.
 func (s *Store) EnqueueBambuState(ctx context.Context, assignmentID uuid.UUID, configurationVersion int64, observations []Observation, state bambuPersistedState) error {
+	return s.EnqueueBambuStateFor(ctx, assignmentID, bambuH2DAdapterKind, configurationVersion, observations, state)
+}
+
+func (s *Store) EnqueueBambuStateFor(ctx context.Context, assignmentID uuid.UUID, adapterKind string, configurationVersion int64, observations []Observation, state bambuPersistedState) error {
+	if !isBambuAdapterKind(adapterKind) {
+		return errors.New("unsupported Bambu adapter kind")
+	}
 	plain, err := json.Marshal(state)
 	if err != nil {
 		return err
 	}
 	if len(plain) > maximumReducerBytes*2 {
-		return errors.New("encrypted bambu_h2d state exceeds storage limit")
+		return errors.New("encrypted Bambu state exceeds storage limit")
 	}
 	encrypted, err := s.seal(plain)
 	if err != nil {
@@ -110,7 +131,7 @@ func (s *Store) EnqueueBambuState(ctx context.Context, assignmentID uuid.UUID, c
 			return err
 		}
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO adapter_state(assignment_id,adapter_kind,encrypted_value,updated_at) VALUES(?,'bambu_h2d',?,?) ON CONFLICT(assignment_id) DO UPDATE SET adapter_kind=excluded.adapter_kind,encrypted_value=excluded.encrypted_value,updated_at=excluded.updated_at`, assignmentID.String(), encrypted, now.Format(time.RFC3339Nano))
+	_, err = tx.ExecContext(ctx, `INSERT INTO adapter_state(assignment_id,adapter_kind,encrypted_value,updated_at) VALUES(?,?,?,?) ON CONFLICT(assignment_id) DO UPDATE SET adapter_kind=excluded.adapter_kind,encrypted_value=excluded.encrypted_value,updated_at=excluded.updated_at`, assignmentID.String(), adapterKind, encrypted, now.Format(time.RFC3339Nano))
 	if err != nil {
 		return err
 	}
@@ -308,14 +329,14 @@ func (s *Store) CompleteArtifactTransfer(ctx context.Context, id uuid.UUID) erro
 	if _, err = tx.ExecContext(ctx, `INSERT INTO artifact_upload_receipts(transfer_id,acknowledged_at) VALUES(?,?) ON CONFLICT(transfer_id) DO NOTHING`, id.String(), now); err != nil {
 		return err
 	}
-	var h2dStateExists int
-	h2dErr := tx.QueryRowContext(ctx, `SELECT 1 FROM adapter_state WHERE assignment_id=? AND adapter_kind='bambu_h2d'`, assignmentID).Scan(&h2dStateExists)
-	if h2dErr != nil && !errors.Is(h2dErr, sql.ErrNoRows) {
-		return h2dErr
+	var bambuStateExists int
+	bambuErr := tx.QueryRowContext(ctx, `SELECT 1 FROM adapter_state WHERE assignment_id=? AND adapter_kind IN ('bambu_h2d','bambu_x1c')`, assignmentID).Scan(&bambuStateExists)
+	if bambuErr != nil && !errors.Is(bambuErr, sql.ErrNoRows) {
+		return bambuErr
 	}
 	var reportExists int
 	err = tx.QueryRowContext(ctx, `SELECT 1 FROM artifact_consumption_reports WHERE assignment_id=? AND run_id=? AND artifact_sha256=?`, assignmentID, runID, hash).Scan(&reportExists)
-	if errors.Is(err, sql.ErrNoRows) && h2dErr == nil {
+	if errors.Is(err, sql.ErrNoRows) && bambuErr == nil {
 		return tx.Commit()
 	}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -331,4 +352,8 @@ func (s *Store) CompleteArtifactTransfer(ctx context.Context, id uuid.UUID) erro
 		return err
 	}
 	return nil
+}
+
+func isBambuAdapterKind(kind string) bool {
+	return kind == bambuH2DAdapterKind || kind == bambuX1CAdapterKind
 }

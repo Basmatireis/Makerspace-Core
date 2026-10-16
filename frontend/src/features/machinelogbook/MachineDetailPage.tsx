@@ -27,6 +27,7 @@ type TabKey = 'overview' | 'jobs' | 'printer';
 const statusLabel: Record<MachineStatus, string> = { active: 'Active', maintenance: 'Maintenance', retired: 'Retired' };
 const tabLabels: Record<TabKey, string> = { overview: 'Overview', jobs: 'Jobs', printer: 'Printer setup' };
 const JOBS_LIMIT = 100;
+const PRINTER_REFRESH_MS = 5000;
 
 export function MachineDetailPage() {
   const { machineId = '' } = useParams();
@@ -37,9 +38,11 @@ export function MachineDetailPage() {
   useNow();
   const canManage = can('machines.manage');
   const canReadJobs = can('machine_jobs.read');
+  const requested = params.get('tab') as TabKey | null;
+  const printerSelected = requested === 'printer';
   const machineResult = useQuery(machineQuery(machineId));
   const activityResult = useQuery(machineActivityQuery());
-  const printer = useQuery({ ...printerQuery(machineId), retry: false });
+  const printer = useQuery({ ...printerQuery(machineId), retry: false, refetchInterval: printerSelected ? PRINTER_REFRESH_MS : false });
   const jobsResult = useQuery({ ...workItemsQuery({ machineId: [machineId], sort: 'startedAt', direction: 'desc', pageSize: JOBS_LIMIT }), enabled: canReadJobs });
 
   const machine = machineResult.data;
@@ -47,9 +50,8 @@ export function MachineDetailPage() {
   const profileAbsent = printer.isError && printer.error instanceof ApiError && printer.error.status === 404;
   const showPrinterTab = Boolean(profile) || (canManage && Boolean(machine?.machineType.printer));
   const canReadConnectors = can('printer_connectors.read');
-  const { connection } = usePrinterConnection(machineId, canReadConnectors && showPrinterTab);
+  const { connection } = usePrinterConnection(machineId, canReadConnectors && showPrinterTab, printerSelected ? PRINTER_REFRESH_MS : undefined);
   const tabs: TabKey[] = ['overview', ...(canReadJobs ? ['jobs' as const] : []), ...(showPrinterTab ? ['printer' as const] : [])];
-  const requested = params.get('tab') as TabKey | null;
   const tab: TabKey = requested && tabs.includes(requested) ? requested : 'overview';
   const selectTab = (index: number) => setParams((current) => {
     const next = new URLSearchParams(current);
@@ -140,7 +142,7 @@ export function MachineDetailPage() {
           query={{ status: profileAbsent ? 'success' : printer.status, data: profile, refetch: printer.refetch }}
           errorMessage="Printer setup could not be loaded."
         >
-          <PrinterSetup machine={machine} profile={profile} connection={connection} />
+          <PrinterSetup machine={machine} profile={profile} connection={connection} active={tab === 'printer'} />
         </QueryBoundary>
       </div>
     ),

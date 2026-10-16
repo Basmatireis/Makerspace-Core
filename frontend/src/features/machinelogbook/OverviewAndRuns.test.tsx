@@ -178,7 +178,10 @@ function serveRun(run: ReturnType<typeof recordedRun>, jobs: ReturnType<typeof j
 }
 
 const renderRun = (id = ids.recordedRun) => renderPage(<RunDetailPage />, machineLogbookPaths.run(id), '/machine-logbook/jobs/runs/:runId');
-const runningRecorded = () => recordedRun({ state: 'running', endedAt: null, estimatedEndAt: '2099-01-01T13:30:00Z', progressPercent: 45, outcome: null, outcomeFromMachine: false, durationSeconds: 1800 });
+const runningRecorded = () => recordedRun({
+  state: 'running', endedAt: null, estimatedEndAt: '2099-01-01T13:30:00Z', progressPercent: 45,
+  outcome: null, outcomeFromMachine: false, durationSeconds: 1800, reportedUsage: null, reportedUsageItems: [],
+});
 
 describe('Run detail page', () => {
   it('shows the machine data, facts, "From machine" labels and a collapsed list of readable events', async () => {
@@ -221,6 +224,9 @@ describe('Run detail page', () => {
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '45');
     expect(screen.getByText(/45 % · ends ~/)).toBeInTheDocument();
     expect(screen.getByText('Outcome').nextSibling).toHaveTextContent('Not recorded yet');
+    expect(screen.getByText('Consumed material').nextSibling).toHaveTextContent('Pending final report');
+    expect(screen.getByText('Reported material').nextSibling).toHaveTextContent('Pending final report');
+    expect(screen.getByText(/Mounted spools describe the printer setup/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create job' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Attach to job' })).toBeInTheDocument();
   });
@@ -242,6 +248,54 @@ describe('Run detail page', () => {
     expect(await screen.findByText('~90 g / 200 g planned · based on 45 % print progress')).toBeInTheDocument();
     expect(screen.getByText('PLA · #ffffff: 120 g planned')).toBeInTheDocument();
     expect(screen.getByText(/Inventory is updated only after the run ends/)).toBeInTheDocument();
+  });
+
+  it('maps an unresolved reported filament to a selected spool as an audited usage correction', async () => {
+    auth.permissions = [PermissionId.machine_jobsread, PermissionId.machine_jobsedit, PermissionId.inventoryread];
+    const whiteSpool = '0192f6f8-743e-7c77-a349-cd07c3e8d610';
+    const yellowMaterial = '0192f6f8-743e-7c77-a349-cd07c3e8d611';
+    const yellowSpool = '0192f6f8-743e-7c77-a349-cd07c3e8d612';
+    const run = recordedRun({
+      usages: [usage({ spoolId: whiteSpool, spoolDisplayId: 'S-617', materialName: 'PLA White', quantity: '1.64' })],
+      usagesFromMachine: true,
+      reportedUsage: null,
+      reportedUsageItems: [
+        { lineNumber: 0, reportRevision: 1, slicerFilamentId: '1', extruder: 2, plannedQuantityGrams: '0.55', estimatedQuantityGrams: '0.55', method: 'slicer_complete', calculationVersion: 'bambu-3mf-v1', quality: 'high' },
+        { lineNumber: 1, reportRevision: 1, slicerFilamentId: '3', extruder: 1, inputUnitExternalId: '128', slotExternalId: '0', plannedQuantityGrams: '1.64', estimatedQuantityGrams: '1.64', spoolId: whiteSpool, method: 'slicer_complete', calculationVersion: 'bambu-3mf-v1', quality: 'high' },
+      ],
+      version: 7,
+    });
+    serveRun(run);
+    server.use(
+      http.get('*/api/v1/filament-spools', () => HttpResponse.json({
+        items: [{
+          id: yellowSpool, displayId: 'S-618', kind: 'standard', label: 'External holder', status: 'in_stock', fillNumber: 1,
+          materialId: yellowMaterial, materialName: 'PLA Yellow', remainingQuantity: '500', unit: 'g', mounted: true,
+          lifecycle: 'active', identifiers: [], version: 1, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z',
+        }], page: 1, pageSize: 100, total: 1,
+      })),
+    );
+    let body: unknown;
+    server.use(http.put(`*/api/v1/machine-runs/${ids.recordedRun}/usages`, async ({ request }) => {
+      body = await request.json();
+      return HttpResponse.json({ run, job: null });
+    }));
+
+    const user = userEvent.setup();
+    renderRun();
+    await user.click(await screen.findByRole('button', { name: 'Map filament 1 to a spool' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Map reported material' });
+    expect(within(dialog).getByLabelText('Consumed quantity (g)')).toHaveValue(0.55);
+    await user.selectOptions(within(dialog).getByLabelText('Spool used'), yellowSpool);
+    await user.click(within(dialog).getByRole('button', { name: 'Map and consume' }));
+
+    await waitFor(() => expect(body).toEqual({
+      expectedVersion: 7,
+      usages: [
+        { ownership: 'makerspace', materialId: ids.material, spoolId: whiteSpool, externalMaterialName: null, quantity: '1.64', quantityBasis: 'actual' },
+        { ownership: 'makerspace', materialId: yellowMaterial, spoolId: yellowSpool, externalMaterialName: null, quantity: '0.55', quantityBasis: 'estimated' },
+      ],
+    }));
   });
 
   it('creates a job from the run and passes the run to the form', async () => {

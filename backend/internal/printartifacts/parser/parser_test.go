@@ -82,6 +82,29 @@ func TestParseSyntheticBambuArchive(t *testing.T) {
 	}
 }
 
+func TestParseH2DFilamentRoutesAndSequence(t *testing.T) {
+	t.Parallel()
+	archive := makeZIP(t, []zipEntry{
+		{name: "Metadata/slice_info.config", data: []byte(`<?xml version="1.0"?><config>
+			<metadata key="filament_maps" value="2 1 1 1 1"/>
+			<nozzle id="0" extruder_id="1"/><nozzle id="1" extruder_id="0"/>
+			<filament id="1" used_g="2.5"/><filament id="5" used_g="4.5"/>
+		</config>`)},
+		{name: "Metadata/filament_sequence.json", data: []byte(`{"plate_1":{"nozzle_sequence":[0,1],"sequence":[5,1,5]}}`)},
+	})
+	result, err := Parse(bytes.NewReader(archive), int64(len(archive)), Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Filaments) != 2 || len(result.Filaments[0].Extruders) != 1 || result.Filaments[0].Extruders[0] != 0 ||
+		len(result.Filaments[1].Extruders) != 1 || result.Filaments[1].Extruders[0] != 1 {
+		t.Fatalf("filament routes = %+v", result.Filaments)
+	}
+	if len(result.FilamentSequence) != 2 || result.FilamentSequence[0] != "5" || result.FilamentSequence[1] != "1" {
+		t.Fatalf("filament sequence = %v", result.FilamentSequence)
+	}
+}
+
 func TestParseMarksMalformedOrMissingMetadataPartial(t *testing.T) {
 	t.Parallel()
 

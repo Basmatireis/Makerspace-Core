@@ -2,7 +2,7 @@
 import { Tag } from '@carbon/react';
 import { CheckmarkFilled, CircleDash, ErrorFilled, Flag, InProgress, Misuse, PauseFilled, WarningAltFilled, WarningFilled } from '@carbon/icons-react';
 import type {
-  JobBillingState, MachineAvailability, MachineConnectorState, MachineCurrentItem, MachineJob, MachineJobOutcome, MachineJobUsage, MachineRun, MachineRunState, PriceAdjustmentKind, WorkItem, WorkItemBilling, WorkItemStatus,
+  JobBillingState, MachineAvailability, MachineConnectorState, MachineCurrentItem, MachineJob, MachineJobOutcome, MachineJobUsage, MachineRun, MachineRunReportedUsageItem, MachineRunState, PriceAdjustmentKind, WorkItem, WorkItemBilling, WorkItemStatus,
 } from '../../../api/generated/models';
 import { formatMoney, formatQuantity } from './format';
 
@@ -103,10 +103,79 @@ export function FromMachineTag({ size = 'sm' }: { size?: 'sm' | 'md' }) {
 export const usagesText = (usages: Pick<MachineJobUsage, 'quantity' | 'unit' | 'materialName'>[]) => usages.length
   ? usages.map((usage) => `${formatQuantity(usage.quantity)} ${usage.unit} ${usage.materialName}`).join(', ') : 'None recorded';
 
-/** What a machine reported for a run (grams). */
-export const reportedUsageText = (run: Pick<MachineRun, 'reportedUsage'>) => run.reportedUsage
-  ? `${formatQuantity(run.reportedUsage.quantity)} g ${run.reportedUsage.materialName ?? 'unknown material'}${run.reportedUsage.spoolDisplayId ? ` (${run.reportedUsage.spoolDisplayId})` : ''}`
-  : 'Nothing reported';
+function reportUsageMatches(run: Pick<MachineRun, 'reportedUsageItems' | 'usages'>) {
+  const matches = new Map<number, MachineJobUsage>();
+  const claimedUsageIDs = new Set<string>();
+  const reportedUsageItems = Array.isArray(run.reportedUsageItems) ? run.reportedUsageItems : [];
+  const usages = Array.isArray(run.usages) ? run.usages : [];
+
+  // A connector-resolved spool is authoritative. Match those first so a
+  // staff correction with the same quantity cannot claim the wrong line.
+  for (const item of reportedUsageItems) {
+    if (!item.spoolId) continue;
+    const usage = usages.find((candidate) => candidate.spoolId === item.spoolId && !claimedUsageIDs.has(candidate.id));
+    if (usage) {
+      matches.set(item.lineNumber, usage);
+      claimedUsageIDs.add(usage.id);
+    }
+  }
+
+  // The machine report remains immutable. A staff-mapped line is presented
+  // as resolved only when exactly one correction has its exact quantity (and
+  // material, when the connector knew it).
+  for (const item of reportedUsageItems) {
+    if (matches.has(item.lineNumber)) continue;
+    const quantity = item.estimatedQuantityGrams ?? item.plannedQuantityGrams;
+    if (quantity == null) continue;
+    const candidates = usages.filter((usage) => (
+      usage.staffCorrected
+      && !claimedUsageIDs.has(usage.id)
+      && Number(usage.quantity) === Number(quantity)
+      && (!item.materialId || usage.materialId === item.materialId)
+    ));
+    if (candidates.length === 1) {
+      matches.set(item.lineNumber, candidates[0]);
+      claimedUsageIDs.add(candidates[0].id);
+    }
+  }
+  return matches;
+}
+
+/** Report lines that still need a person to identify their physical spool. */
+export function unresolvedReportedUsageItems(run: Pick<MachineRun, 'reportedUsageItems' | 'usages'>): MachineRunReportedUsageItem[] {
+  const matches = reportUsageMatches(run);
+  const reportedUsageItems = Array.isArray(run.reportedUsageItems) ? run.reportedUsageItems : [];
+  return reportedUsageItems.filter((item) => {
+    const quantity = item.estimatedQuantityGrams ?? item.plannedQuantityGrams;
+    return quantity != null && Number(quantity) > 0 && !matches.has(item.lineNumber);
+  });
+}
+
+/** What a machine reported for a run (grams), including unresolved itemized lines. */
+export function reportedUsageText(run: Pick<MachineRun, 'reportedUsage'> & Partial<Pick<MachineRun, 'reportedUsageItems' | 'usages'>>) {
+  if (run.reportedUsageItems?.length) {
+    const matches = reportUsageMatches({ reportedUsageItems: run.reportedUsageItems, usages: run.usages ?? [] });
+    return run.reportedUsageItems.map((item) => {
+      const quantity = item.estimatedQuantityGrams ?? item.plannedQuantityGrams;
+      const prefix = quantity == null ? 'Unknown quantity' : `${formatQuantity(quantity)} g`;
+      const usage = matches.get(item.lineNumber);
+      if (usage) {
+        return `${prefix} ${usage.materialName}${usage.spoolDisplayId ? ` (${usage.spoolDisplayId})` : ''}${!item.spoolId ? ' · mapped by staff' : ''}`;
+      }
+      const filament = item.slicerFilamentId ? `filament ${item.slicerFilamentId}` : `line ${item.lineNumber + 1}`;
+      if (item.inputUnitExternalId && item.slotExternalId) {
+        const source = item.inputUnitExternalId === item.slotExternalId && ['254', '255'].includes(item.slotExternalId)
+          ? `external spool ${item.slotExternalId}`
+          : `input ${item.inputUnitExternalId}, slot ${item.slotExternalId}`;
+        return `${prefix} ${filament} (${source})`;
+      }
+      return `${prefix} ${filament} (spool unresolved)`;
+    }).join(', ');
+  }
+  return run.reportedUsage
+    ? `${formatQuantity(run.reportedUsage.quantity)} g ${run.reportedUsage.materialName ?? 'unknown material'}${run.reportedUsage.spoolDisplayId ? ` (${run.reportedUsage.spoolDisplayId})` : ''}`
+    : 'Nothing reported';
+}
 
 /** The manual runs a recorded run would replace: still part of the job and entered by hand. */
 export const manualRuns = (job: Pick<MachineJob, 'runs'>) => activeRuns(job).filter((run) => run.source === 'manual');

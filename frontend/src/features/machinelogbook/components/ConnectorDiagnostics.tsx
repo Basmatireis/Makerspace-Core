@@ -12,7 +12,7 @@ import type {
 import { clearPrinterConnectorEvents } from '../../../api/generated/printer-connectors/printer-connectors';
 import { assignmentsQuery, connectorEventsQuery, connectorKeys, connectorsQuery, liveStatusQuery, observedRunsQuery } from '../connectorQueries';
 import { printerQuery, spoolsQuery } from '../queries';
-import { externalHolderNozzle, nozzleLabel, trayMismatch, type MountedSpool, type Nozzle } from '../printerSetup';
+import { adapterLabel, externalHolderNozzle, nozzleLabel, trayMismatch, type MountedSpool, type Nozzle } from '../printerSetup';
 import { ageSeconds, connectorStatus } from '../shared/connectorStatus';
 import { connectorDiagnostic } from '../shared/connectorHelpers';
 import { groupConnectorEvents } from '../shared/connectorEvents';
@@ -78,7 +78,10 @@ function EventsTable({ events, caption }: { events: PrinterConnectorEvent[]; cap
               </TableHead>
               <TableBody>
                 {tableRows.map((row) => {
-                  const group = shown.find((item) => item.id === row.id)!;
+                  // Carbon can retain the previous row model for one render
+                  // while a polling response changes the grouped event IDs.
+                  const group = shown.find((item) => item.id === row.id);
+                  if (!group) return null;
                   const event = group.newest;
                   const { key, ...rowProps } = getRowProps({ row });
                   return (
@@ -176,7 +179,7 @@ function ConnectorPanel({ connector, views, events, onSelect }: { connector: Pri
               {views.map(({ assignment, live, issue }) => (
                 <TableRow key={assignment.id}>
                   <TableCell><CarbonLink href="#" onClick={(event) => { event.preventDefault(); onSelect(assignment.machineId); }}>{assignment.machineName}</CarbonLink></TableCell>
-                  <TableCell>{assignment.adapterKind === 'bambu_h2d' ? 'Bambu LAN' : 'Simulator'}</TableCell>
+                  <TableCell>{adapterLabel(assignment.adapterKind)}</TableCell>
                   <TableCell>{assignment.runtimeState ? <Tag size="sm" type={runtimeTypes[assignment.runtimeState]}>{runtimeLabels[assignment.runtimeState]}</Tag> : <span className="mj-secondary">Not reported</span>}</TableCell>
                   <TableCell>{live ? relativeAge(live.receivedAt) : 'None yet'}</TableCell>
                   <TableCell>{issue ?? <span className="mj-secondary">None</span>}</TableCell>
@@ -252,15 +255,21 @@ function PrinterPanel({ view, events, active }: { view: PrinterView; events: Pri
   const machineId = assignment.machineId;
   // Only the visible printer is polled; the others keep what the connector tab already loaded.
   const liveQuery = useQuery({ ...liveStatusQuery(machineId), enabled: active, refetchInterval: active ? LIVE_REFRESH_MS : false });
-  const profileQuery = useQuery({ ...printerQuery(machineId), enabled: active, retry: false });
+  const profileQuery = useQuery({ ...printerQuery(machineId), enabled: active, retry: false, refetchInterval: active ? LIVE_REFRESH_MS : false });
   const profile = profileQuery.data;
   const canReadInventory = can('inventory.read');
-  const mountedSpools = useQuery({ ...spoolsQuery({ mounted: true, pageSize: 100 }), enabled: active && canReadInventory && Boolean(profile?.slots.some((slot) => slot.spoolId)) });
-  const runs = useQuery({ ...observedRunsQuery(assignment.connectorId), enabled: active });
+  const mountedSpools = useQuery({
+    ...spoolsQuery({ mounted: true, pageSize: 100 }),
+    enabled: active && canReadInventory && Boolean(profile?.slots.some((slot) => slot.spoolId)),
+    refetchInterval: active ? LIVE_REFRESH_MS : false,
+  });
+  const runs = useQuery({ ...observedRunsQuery(assignment.connectorId), enabled: active, refetchInterval: active ? LIVE_REFRESH_MS : false });
   const spools: MountedSpool[] = (mountedSpools.data?.items ?? []).map((spool) => ({ id: spool.id, displayId: spool.displayId, materialName: spool.materialName ?? null }));
   const live = liveQuery.data === undefined ? view.live : liveQuery.data;
   const errorCode = assignment.runtimeErrorCode;
-  const stale = Boolean(live && (ageSeconds(live.receivedAt) > STALE_AFTER_SECONDS || assignment.runtimeState === 'degraded'));
+  // Assignment health also covers the independent artifact worker. An FTPS
+  // retry must not make a fresh MQTT snapshot look stale.
+  const stale = Boolean(live && ageSeconds(live.receivedAt) > STALE_AFTER_SECONDS);
   const printerRuns = (runs.data?.items ?? []).filter((run) => run.machineId === machineId).slice(0, 5);
   const eventsTable = events.length === 0 ? <p className="mj-secondary">No events received for this printer.</p> : <EventsTable events={events} caption={`${assignment.machineName} events`} />;
 
@@ -292,6 +301,13 @@ function PrinterPanel({ view, events, active }: { view: PrinterView; events: Pri
           kind="warning" lowContrast hideCloseButton
           title={`No status for ${durationText(ageSeconds(live.receivedAt))}${errorCode ? ` · ${errorCode}` : ''}`}
           subtitle={errorCode ? `${connectorDiagnostic(errorCode)} Values below are the last known ones.` : 'Check that the printer is on and LAN only mode is enabled. Values below are the last known ones.'}
+        />
+      )}
+      {!stale && errorCode && (
+        <InlineNotification
+          kind="warning" lowContrast hideCloseButton
+          title={`${errorCode.toLowerCase().includes('ftps') || errorCode.toLowerCase().includes('artifact') ? 'Print file delayed' : 'Connector needs attention'} · ${errorCode}`}
+          subtitle={connectorDiagnostic(errorCode)}
         />
       )}
       <div>
@@ -413,17 +429,17 @@ export function DiagnosticsModal({ connector: opened, onClose }: { connector: Pr
   const [index, setIndex] = useState(0);
   const now = useNow();
   // The list query holds the freshest connector (for example right after events were cleared).
-  const latest = useQuery(connectorsQuery());
+  const latest = useQuery({ ...connectorsQuery(), refetchInterval: LIVE_REFRESH_MS });
   const connector = latest.data?.items.find((item) => item.id === opened.id) ?? opened;
   const status = connectorStatus(connector, now);
-  const assignments = useQuery({ ...assignmentsQuery(connector.id), refetchInterval: 10_000 });
+  const assignments = useQuery({ ...assignmentsQuery(connector.id), refetchInterval: LIVE_REFRESH_MS });
   const [showCleared, setShowCleared] = useState(false);
-  const events = useQuery({ ...connectorEventsQuery(connector.id, showCleared), refetchInterval: 10_000 });
+  const events = useQuery({ ...connectorEventsQuery(connector.id, showCleared), refetchInterval: LIVE_REFRESH_MS });
   const active = (assignments.data?.items ?? []).filter((assignment) => !assignment.endedAt);
-  const liveQueries = useQueries({ queries: active.map((assignment) => ({ ...liveStatusQuery(assignment.machineId), refetchInterval: 15_000 })) });
+  const liveQueries = useQueries({ queries: active.map((assignment) => ({ ...liveStatusQuery(assignment.machineId), refetchInterval: LIVE_REFRESH_MS })) });
   const views: PrinterView[] = active.map((assignment, position) => {
     const live = liveQueries[position]?.data;
-    const stale = Boolean(live && (ageSeconds(live.receivedAt, now) > STALE_AFTER_SECONDS || assignment.runtimeState === 'degraded'));
+    const stale = Boolean(live && ageSeconds(live.receivedAt, now) > STALE_AFTER_SECONDS);
     return { assignment, live, stale, issue: printerIssue(assignment, live, stale) };
   });
   const allEvents = events.data?.items ?? [];

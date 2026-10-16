@@ -12,18 +12,20 @@ import { PermissionId } from '../auth/permissions';
 import { DeleteJobModal, DeleteRunModal } from './dialogs/DeleteDialogs';
 import { AttachToJobModal } from './dialogs/AttachToJobModal';
 import { JobFormModal } from './dialogs/JobFormModal';
+import { ResolveReportedUsageModal } from './dialogs/ResolveReportedUsageModal';
 import { saveError } from './dialogs/jobFormHelpers';
 import { artifactQuery, jobQuery, machineLogbookKeys, runQuery } from './queries';
 import { formatDateTime, formatDuration, formatQuantity, formatTime } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
-import { FromMachineTag, isRunLive, reportedUsageText, RunOutcomeTag, runEnd, runName, runProgress, RunSourceTag, RunStateTag, runStateNow, usagesText } from './shared/status';
+import { FromMachineTag, isRunLive, reportedUsageText, RunOutcomeTag, runEnd, runName, runProgress, RunSourceTag, RunStateTag, runStateNow, unresolvedReportedUsageItems, usagesText } from './shared/status';
 import { useNotify } from './shared/toasts';
 import { useCan } from './shared/useCan';
 import { useNow } from './shared/useNow';
 import './styles/runs.scss';
 
 const words = (value: string) => value.replace(/_/g, ' ');
+const RUN_REFRESH_MS = 5000;
 
 /** One readable line per machine event (never the raw payload). */
 function eventSummary(event: MachineRunEvent) {
@@ -46,11 +48,14 @@ export function RunDetailPage() {
   const now = useNow();
   const client = useQueryClient();
   const notify = useNotify();
-  const query = useQuery(runQuery(runId));
+  // Run facts and their machine-event history change independently of this
+  // page, so keep the open detail view current while it is visible.
+  const query = useQuery({ ...runQuery(runId), refetchInterval: RUN_REFRESH_MS });
   const run = query.data;
   const artifact = useQuery({ ...artifactQuery(run?.artifact?.id ?? ''), enabled: Boolean(run?.artifact?.id) && can(PermissionId.print_artifactsread) });
   const navigate = useNavigate();
   const [dialog, setDialog] = useState<'create' | 'attach' | 'detach' | 'delete' | 'delete-job' | null>(null);
+  const [resolutionLine, setResolutionLine] = useState<number | null>(null);
   const close = () => setDialog(null);
 
   const canReadJobs = can(PermissionId.machine_jobsread);
@@ -79,6 +84,9 @@ export function RunDetailPage() {
   const state = run ? runStateNow(run, now) : undefined;
   const end = run ? runEnd(run) : null;
   const progress = run ? runProgress(run, now) : 0;
+  const consumedMaterial = run && live && run.usages.length === 0 ? 'Pending final report' : run ? usagesText(run.usages) : '';
+  const reportedMaterial = run && live && run.reportedUsage == null && run.reportedUsageItems.length === 0 ? 'Pending final report' : run ? reportedUsageText(run) : '';
+  const unresolvedMaterials = run ? unresolvedReportedUsageItems(run) : [];
   const plannedFilaments = artifact.data?.filaments.filter((filament) => filament.plannedWeightGrams != null && Number(filament.plannedWeightGrams) >= 0) ?? [];
   const plannedGrams = plannedFilaments.reduce((total, filament) => total + Number(filament.plannedWeightGrams), 0);
   const approximateUsedGrams = plannedGrams * progress / 100;
@@ -178,9 +186,26 @@ export function RunDetailPage() {
                     {run.outcomeFromMachine && <span><FromMachineTag /></span>}
                   </dd>
                 </div>
-                <div><dt>Material</dt><dd className="mj-cell-stack"><span>{usagesText(run.usages)}</span>{run.usagesFromMachine && <span><FromMachineTag /></span>}</dd></div>
-                {run.source === 'recorded' && <div><dt>Reported material</dt><dd>{reportedUsageText(run)}</dd></div>}
+                <div><dt>Consumed material</dt><dd className="mj-cell-stack"><span>{consumedMaterial}</span>{run.usagesFromMachine && <span><FromMachineTag /></span>}</dd></div>
+                {run.source === 'recorded' && (
+                  <div>
+                    <dt>Reported material</dt>
+                    <dd className="mj-cell-stack">
+                      <span>{reportedMaterial}</span>
+                      {!live && canEdit && can(PermissionId.inventoryread) && unresolvedMaterials.map((item) => (
+                        <span key={`${item.reportRevision}-${item.lineNumber}`}>
+                          <Button kind="ghost" size="sm" onClick={() => setResolutionLine(item.lineNumber)}>
+                            Map {item.slicerFilamentId ? `filament ${item.slicerFilamentId}` : `line ${item.lineNumber + 1}`} to a spool
+                          </Button>
+                        </span>
+                      ))}
+                    </dd>
+                  </div>
+                )}
               </dl>
+              {live && run.source === 'recorded' && run.usages.length === 0 && (
+                <p className="mj-secondary">Mounted spools describe the printer setup, not which spool this run consumed. Core records run consumption after the printer identifies the active source and the final report is accepted.</p>
+              )}
             </Tile>
             {run.source === 'recorded' && (
               <Tile>
@@ -225,6 +250,10 @@ export function RunDetailPage() {
       {job && canDeleteJob && <DeleteJobModal open={dialog === 'delete-job'} onClose={close} job={job} />}
 
       {run && canAttach && <AttachToJobModal open={dialog === 'attach'} onClose={close} run={run} />}
+      {run && resolutionLine !== null && (() => {
+        const item = unresolvedMaterials.find((candidate) => candidate.lineNumber === resolutionLine);
+        return item ? <ResolveReportedUsageModal open onClose={() => setResolutionLine(null)} run={run} item={item} /> : null;
+      })()}
       {run && canCreate && dialog === 'create' && (
         // As in the prototype the page stays open after saving; the form confirms with "Job created".
         <JobFormModal open mode="create" onClose={close} run={run} onSaved={() => undefined} />

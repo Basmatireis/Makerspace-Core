@@ -18,6 +18,9 @@ import (
 
 const (
 	bambuH2DSchemaVersion = 1
+	bambuX1CSchemaVersion = 1
+	bambuH2DAdapterKind   = "bambu_h2d"
+	bambuX1CAdapterKind   = "bambu_x1c"
 	bambuMQTTPort         = 8883
 	bambuFTPPort          = 990
 	maximumReducerBytes   = 256 << 10
@@ -38,46 +41,51 @@ type BambuH2DSecrets struct {
 }
 
 func parseBambuH2DConfiguration(settings map[string]any, secrets map[string]string) (BambuH2DSettings, BambuH2DSecrets, error) {
+	return parseBambuConfiguration(bambuH2DAdapterKind, settings, secrets)
+}
+
+func parseBambuConfiguration(kind string, settings map[string]any, secrets map[string]string) (BambuH2DSettings, BambuH2DSecrets, error) {
 	if len(settings) < 2 || len(settings) > 3 {
-		return BambuH2DSettings{}, BambuH2DSecrets{}, errors.New("bambu_h2d settings must contain ipAddress, serialNumber, and optional autoDetectSpools")
+		return BambuH2DSettings{}, BambuH2DSecrets{}, fmt.Errorf("%s settings must contain ipAddress, serialNumber, and optional autoDetectSpools", kind)
 	}
 	for key := range settings {
 		if key != "ipAddress" && key != "serialNumber" && key != "autoDetectSpools" {
-			return BambuH2DSettings{}, BambuH2DSecrets{}, errors.New("bambu_h2d settings contain an unsupported field")
+			return BambuH2DSettings{}, BambuH2DSecrets{}, fmt.Errorf("%s settings contain an unsupported field", kind)
 		}
 	}
 	ipText, ipOK := settings["ipAddress"].(string)
 	serial, serialOK := settings["serialNumber"].(string)
 	if !ipOK || !serialOK {
-		return BambuH2DSettings{}, BambuH2DSecrets{}, errors.New("bambu_h2d ipAddress and serialNumber must be strings")
+		return BambuH2DSettings{}, BambuH2DSecrets{}, fmt.Errorf("%s ipAddress and serialNumber must be strings", kind)
 	}
 	ip, err := netip.ParseAddr(strings.TrimSpace(ipText))
 	if err != nil || !ip.Is4() || ip.IsUnspecified() || ip.IsMulticast() || ip == netip.MustParseAddr("255.255.255.255") {
-		return BambuH2DSettings{}, BambuH2DSecrets{}, errors.New("bambu_h2d ipAddress must be an IPv4 unicast literal")
+		return BambuH2DSettings{}, BambuH2DSecrets{}, fmt.Errorf("%s ipAddress must be an IPv4 unicast literal", kind)
 	}
 	serial = strings.ToUpper(strings.TrimSpace(serial))
 	if !bambuSerialPattern.MatchString(serial) {
-		return BambuH2DSettings{}, BambuH2DSecrets{}, errors.New("bambu_h2d serialNumber must contain 8 to 32 ASCII letters or digits")
+		return BambuH2DSettings{}, BambuH2DSecrets{}, fmt.Errorf("%s serialNumber must contain 8 to 32 ASCII letters or digits", kind)
 	}
 	autoDetect := false
 	if raw, exists := settings["autoDetectSpools"]; exists {
 		var ok bool
 		autoDetect, ok = raw.(bool)
 		if !ok {
-			return BambuH2DSettings{}, BambuH2DSecrets{}, errors.New("bambu_h2d autoDetectSpools must be a boolean")
+			return BambuH2DSettings{}, BambuH2DSecrets{}, fmt.Errorf("%s autoDetectSpools must be a boolean", kind)
 		}
 	}
 	if len(secrets) != 1 {
-		return BambuH2DSettings{}, BambuH2DSecrets{}, errors.New("bambu_h2d secrets must contain exactly lanAccessCode")
+		return BambuH2DSettings{}, BambuH2DSecrets{}, fmt.Errorf("%s secrets must contain exactly lanAccessCode", kind)
 	}
 	accessCode := strings.TrimSpace(secrets["lanAccessCode"])
 	if accessCode == "" || len(accessCode) > 128 {
-		return BambuH2DSettings{}, BambuH2DSecrets{}, errors.New("bambu_h2d lanAccessCode is required and must not exceed 128 bytes")
+		return BambuH2DSettings{}, BambuH2DSecrets{}, fmt.Errorf("%s lanAccessCode is required and must not exceed 128 bytes", kind)
 	}
 	return BambuH2DSettings{IPAddress: ip, SerialNumber: serial, AutoDetectSpools: autoDetect}, BambuH2DSecrets{LANAccessCode: accessCode}, nil
 }
 
 type bambuH2DAdapter struct {
+	kind                 string
 	assignmentID         uuid.UUID
 	configurationVersion int64
 	settings             BambuH2DSettings
@@ -87,27 +95,42 @@ type bambuH2DAdapter struct {
 }
 
 func NewBambuH2D(assignmentID uuid.UUID, configurationVersion int64, schemaVersion int, settings map[string]any, secrets map[string]string, store *Store) (Adapter, error) {
+	return newBambuLANAdapter(bambuH2DAdapterKind, assignmentID, configurationVersion, schemaVersion, settings, secrets, store)
+}
+
+func NewBambuX1C(assignmentID uuid.UUID, configurationVersion int64, schemaVersion int, settings map[string]any, secrets map[string]string, store *Store) (Adapter, error) {
+	return newBambuLANAdapter(bambuX1CAdapterKind, assignmentID, configurationVersion, schemaVersion, settings, secrets, store)
+}
+
+func newBambuLANAdapter(kind string, assignmentID uuid.UUID, configurationVersion int64, schemaVersion int, settings map[string]any, secrets map[string]string, store *Store) (Adapter, error) {
 	if assignmentID == uuid.Nil {
-		return nil, errors.New("bambu_h2d assignment ID is required")
+		return nil, fmt.Errorf("%s assignment ID is required", kind)
 	}
 	if configurationVersion < 1 {
-		return nil, errors.New("bambu_h2d configuration version is required")
+		return nil, fmt.Errorf("%s configuration version is required", kind)
 	}
-	if schemaVersion != bambuH2DSchemaVersion {
-		return nil, fmt.Errorf("unsupported bambu_h2d schema version %d", schemaVersion)
+	if schemaVersion != 1 {
+		return nil, fmt.Errorf("unsupported %s schema version %d", kind, schemaVersion)
 	}
 	if store == nil {
-		return nil, errors.New("bambu_h2d store is required")
+		return nil, fmt.Errorf("%s store is required", kind)
 	}
-	parsedSettings, parsedSecrets, err := parseBambuH2DConfiguration(settings, secrets)
+	parsedSettings, parsedSecrets, err := parseBambuConfiguration(kind, settings, secrets)
 	if err != nil {
 		return nil, err
 	}
-	return &bambuH2DAdapter{assignmentID: assignmentID, configurationVersion: configurationVersion, settings: parsedSettings, secrets: parsedSecrets, store: store, newMQTT: newPahoBambuClient}, nil
+	return &bambuH2DAdapter{kind: kind, assignmentID: assignmentID, configurationVersion: configurationVersion, settings: parsedSettings, secrets: parsedSecrets, store: store, newMQTT: newPahoBambuClient}, nil
 }
 
 func (a *bambuH2DAdapter) Descriptor() AdapterDescriptor {
-	return AdapterDescriptor{Kind: "bambu_h2d", SchemaVersion: bambuH2DSchemaVersion, Capabilities: []Capability{CapabilityStatus, CapabilityProgress, CapabilitySlots, CapabilityConsumption, CapabilityTerminal}}
+	return AdapterDescriptor{Kind: a.adapterKind(), SchemaVersion: 1, Capabilities: []Capability{CapabilityStatus, CapabilityProgress, CapabilitySlots, CapabilityConsumption, CapabilityTerminal}}
+}
+
+func (a *bambuH2DAdapter) adapterKind() string {
+	if a.kind == "" {
+		return bambuH2DAdapterKind
+	}
+	return a.kind
 }
 
 type bambuMQTTMessage struct {
@@ -127,7 +150,7 @@ type bambuStateSink interface {
 }
 
 func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
-	processor, err := newBambuProcessor(ctx, a.assignmentID, a.store)
+	processor, err := newBambuProcessorFor(ctx, a.assignmentID, a.adapterKind(), a.store)
 	if err != nil {
 		return err
 	}
@@ -142,9 +165,11 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 	}
 	snapshotTimer := time.NewTimer(15 * time.Second)
 	defer snapshotTimer.Stop()
+	disconnectTimer := time.NewTicker(5 * time.Second)
+	defer disconnectTimer.Stop()
 	ready := processor.ready()
-	retrievalErrors := make(chan error, 1)
-	go a.runArtifactRetrievals(ctx, retrievalErrors)
+	retrievalResults := make(chan error, 1)
+	go a.runArtifactRetrievals(ctx, retrievalResults)
 	for {
 		select {
 		case <-ctx.Done():
@@ -156,19 +181,39 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 					return err
 				}
 			}
-		case retrievalErr := <-retrievalErrors:
+		case now := <-disconnectTimer.C:
+			observations := processor.expireDisconnectedRun(now.UTC())
+			if len(observations) > 0 {
+				if err = commitBambuProcessorState(ctx, sink, processor, observations); err != nil {
+					return err
+				}
+			}
+		case retrievalErr := <-retrievalResults:
+			if retrievalErr == nil {
+				if ready {
+					if err = sink.Commit(ctx, Observation{Kind: "connectivity", Payload: mustJSON(map[string]any{"state": "online"})}); err != nil {
+						return err
+					}
+				}
+				continue
+			}
 			code := classifyAdapterError(retrievalErr)
 			if err = sink.Commit(ctx, Observation{Kind: "connectivity", Payload: mustJSON(map[string]any{"state": "degraded", "errorCode": code})}); err != nil {
 				return err
 			}
 		case message, ok := <-client.Messages():
 			if !ok {
-				return errors.New("bambu_h2d MQTT client stopped")
+				return fmt.Errorf("%s MQTT client stopped", a.kind)
 			}
 			if message.err != nil {
 				payload := mustJSON(map[string]any{"state": "offline", "errorCode": classifyAdapterError(message.err)})
 				if err = sink.Commit(ctx, Observation{Kind: "connectivity", Payload: payload}); err != nil {
 					return err
+				}
+				if processor.noteDisconnected(time.Now().UTC()) {
+					if err = commitBambuProcessorState(ctx, sink, processor, nil); err != nil {
+						return err
+					}
 				}
 				continue
 			}
@@ -176,6 +221,10 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 				if message.state == "online" {
 					ready = false
 					snapshotTimer.Reset(15 * time.Second)
+				} else if message.state == "offline" && processor.noteDisconnected(time.Now().UTC()) {
+					if err = commitBambuProcessorState(ctx, sink, processor, nil); err != nil {
+						return err
+					}
 				}
 				if err = sink.Commit(ctx, Observation{Kind: "connectivity", Payload: mustJSON(map[string]any{"state": message.state})}); err != nil {
 					return err
@@ -190,6 +239,10 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 				}
 				continue
 			}
+			// A socket-level connection alone is not enough to cancel an active
+			// run's disconnect deadline. Wait until the printer supplies a valid
+			// status payload so a silent reconnect still expires predictably.
+			processor.noteConnected()
 			if complete && !ready {
 				ready = true
 				if !snapshotTimer.Stop() {
@@ -202,19 +255,8 @@ func (a *bambuH2DAdapter) Run(ctx context.Context, sink Sink) error {
 					return err
 				}
 			}
-			if persistent, ok := sink.(bambuStateSink); ok {
-				if err = persistent.CommitBambuState(ctx, observations, processor.state); err != nil {
-					return err
-				}
-			} else {
-				for _, observation := range observations {
-					if err = sink.Commit(ctx, observation); err != nil {
-						return err
-					}
-				}
-				if err = processor.persist(ctx); err != nil {
-					return err
-				}
+			if err = commitBambuProcessorState(ctx, sink, processor, observations); err != nil {
+				return err
 			}
 			if live, ok := sink.(LiveStatusSink); ok && processor.ready() {
 				live.ReportLiveStatus(processor.liveSnapshot(time.Now().UTC()))
@@ -235,13 +277,17 @@ func (a *bambuH2DAdapter) scheduleArtifactRetrievals(ctx context.Context, observ
 			continue
 		}
 		var payload struct {
-			FileName string `json:"fileName"`
+			ArtifactPath string `json:"artifactPath"`
 		}
-		if json.Unmarshal(observation.Payload, &payload) != nil || strings.TrimSpace(payload.FileName) == "" {
+		if json.Unmarshal(observation.Payload, &payload) != nil {
+			continue
+		}
+		reportedPath := strings.TrimSpace(payload.ArtifactPath)
+		if !isBambuArchivePath(reportedPath) {
 			continue
 		}
 		expiresAt := time.Now().UTC().Add(24 * time.Hour)
-		if err := a.store.ScheduleArtifactRetrieval(ctx, a.assignmentID, *observation.RunID, a.configurationVersion, payload.FileName, expiresAt); err != nil {
+		if err := a.store.ScheduleArtifactRetrieval(ctx, a.assignmentID, *observation.RunID, a.configurationVersion, reportedPath, expiresAt); err != nil {
 			return err
 		}
 		if err := a.store.ExtendArtifactTransferExpiry(ctx, a.assignmentID, *observation.RunID, expiresAt); err != nil {
@@ -249,6 +295,18 @@ func (a *bambuH2DAdapter) scheduleArtifactRetrievals(ctx context.Context, observ
 		}
 	}
 	return nil
+}
+
+func commitBambuProcessorState(ctx context.Context, sink Sink, processor *bambuProcessor, observations []Observation) error {
+	if persistent, ok := sink.(bambuStateSink); ok {
+		return persistent.CommitBambuState(ctx, observations, processor.state)
+	}
+	for _, observation := range observations {
+		if err := sink.Commit(ctx, observation); err != nil {
+			return err
+		}
+	}
+	return processor.persist(ctx)
 }
 
 type pahoBambuClient struct {
@@ -281,7 +339,7 @@ func newPahoBambuClient(settings BambuH2DSettings, secrets BambuH2DSecrets) (bam
 	options.SetConnectRetry(false)
 	options.SetOrderMatters(false)
 	options.SetConnectionLostHandler(func(_ MQTT.Client, err error) {
-		c.offer(bambuMQTTMessage{err: fmt.Errorf("bambu_h2d MQTT connection lost: %w", err)})
+		c.offer(bambuMQTTMessage{err: fmt.Errorf("Bambu MQTT connection lost: %w", err)})
 		c.startReconnect()
 	})
 	options.SetOnConnectHandler(func(client MQTT.Client) { c.connected(client) })
@@ -310,7 +368,7 @@ func (c *pahoBambuClient) connectOnce(ctx context.Context) error {
 		}
 	}
 	if err := token.Error(); err != nil {
-		return fmt.Errorf("connect to bambu_h2d MQTT: %w", err)
+		return fmt.Errorf("connect to Bambu MQTT: %w", err)
 	}
 	return nil
 }

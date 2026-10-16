@@ -91,19 +91,20 @@ make build              # build final backend and frontend stages
 
 Tests must not depend on an existing developer database or bootstrap account. Use isolated records/transactions and UUIDv7 IDs. Never put real credentials or PII in fixtures, snapshots, or failure output. Running `go test ./...` without `TEST_DATABASE_URL` deliberately skips the real-PostgreSQL integration package; use `make test-integration` for the required database pass.
 
-### H2D fixtures and offline diagnostics
+### Bambu fixtures and offline diagnostics
 
-H2D protocol work uses clearly labeled synthetic fixtures in CI. Private printer logs and 3MFs belong outside the repository or in an ignored local path. Before sharing a log derivative, run the bounded sanitizer and review its output; do not commit raw access codes, serials, network identifiers, RFID values, customer/project names, or private filenames.
+Bambu H2D and X1C protocol work uses clearly labeled synthetic fixtures in CI. Private printer logs and 3MFs belong outside the repository or in an ignored local path. Before sharing a log derivative, run the bounded sanitizer and review its output; do not commit raw access codes, serials, network identifiers, RFID values, customer/project names, or private filenames.
 
 ```sh
 cd backend
 go run ./cmd/printer-connector sanitize-mqtt --input /protected/h2d-raw.ndjson --output /protected/h2d-sanitized.ndjson
 go run ./cmd/printer-connector replay-mqtt --input /protected/h2d-sanitized.ndjson
+go run ./cmd/printer-connector replay-mqtt --input /protected/x1c-sanitized.ndjson --adapter bambu_x1c
 go run ./cmd/printer-connector inspect-3mf --file /protected/example.3mf
 go run ./cmd/printer-connector calculate-consumption --gcode /protected/plate_1.gcode --artifact /protected/example.3mf --last-layer 37 --last-progress 42
 ```
 
-The sanitizer output path is exclusive-create with mode `0600`, and capture input/output is capped at 50 MiB. Replay is offline and accepts only sanitizer schema version 1. Parser and reducer tests generate their own non-PII archives/messages; a passing synthetic suite is reported as synthetic-fixture-tested, never real-fixture-tested or H2D-verified. See [Printer connector](printer-connector.md#offline-artifact-and-fixture-diagnostics) for field semantics and current hardware-verification limits.
+The sanitizer accepts NDJSON and whitespace-separated JSON streams, creates its output exclusively with mode `0600`, and caps input/output at 50 MiB. Replay is offline and accepts only sanitizer schema version 1. Parser and reducer tests generate their own non-PII archives/messages; a passing synthetic suite is reported as synthetic-fixture-tested, never hardware-verified. See [Printer connector](printer-connector.md#offline-artifact-and-fixture-diagnostics) for field semantics and current hardware-verification limits.
 
 `make test-migrations` runs the complete goose chain up, down to zero, and up again in a separate Compose project, then deletes only that project's volumes. Never run this rollback sequence against developer or deployment data. PL/pgSQL `DO` blocks need goose `StatementBegin`/`StatementEnd` delimiters. The empty-database round trip supplements the data-preservation and guarded-downgrade tests; it does not prove that every populated database can be downgraded.
 

@@ -16,6 +16,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const bambuDisconnectGracePeriod = 5 * time.Minute
+
 type bambuPersistedState struct {
 	Document          map[string]any           `json:"document"`
 	Ready             bool                     `json:"ready"`
@@ -31,21 +33,33 @@ type bambuPersistedState struct {
 	LastTray          string                   `json:"lastTray,omitempty"`
 	RunFacts          map[string]bambuRunFacts `json:"runFacts,omitempty"`
 	AutoDetectSpools  bool                     `json:"autoDetectSpools"`
+	DisconnectedAt    *time.Time               `json:"disconnectedAt,omitempty"`
+	RunTimedOut       bool                     `json:"runTimedOut,omitempty"`
 }
 
 type bambuRunFacts struct {
-	Outcome             string   `json:"outcome,omitempty"`
-	LastLayer           *int     `json:"lastLayer,omitempty"`
-	LastProgress        *float64 `json:"lastProgress,omitempty"`
-	HistoryComplete     bool     `json:"historyComplete"`
-	ExternalPrintID     string   `json:"externalPrintId,omitempty"`
-	InputUnitExternalID string   `json:"inputUnitExternalId,omitempty"`
-	SlotExternalID      string   `json:"slotExternalId,omitempty"`
-	TagUID              string   `json:"tagUid,omitempty"`
+	Outcome             string               `json:"outcome,omitempty"`
+	LastLayer           *int                 `json:"lastLayer,omitempty"`
+	LastProgress        *float64             `json:"lastProgress,omitempty"`
+	HistoryComplete     bool                 `json:"historyComplete"`
+	ExternalPrintID     string               `json:"externalPrintId,omitempty"`
+	InputUnitExternalID string               `json:"inputUnitExternalId,omitempty"`
+	SlotExternalID      string               `json:"slotExternalId,omitempty"`
+	TagUID              string               `json:"tagUid,omitempty"`
+	SpoolEvidence       []bambuSpoolEvidence `json:"spoolEvidence,omitempty"`
+}
+
+type bambuSpoolEvidence struct {
+	SlicerFilamentID    string `json:"slicerFilamentId,omitempty"`
+	Extruder            int    `json:"extruder"`
+	InputUnitExternalID string `json:"inputUnitExternalId"`
+	SlotExternalID      string `json:"slotExternalId"`
+	TagUID              string `json:"tagUid,omitempty"`
 }
 
 type bambuProcessor struct {
 	assignmentID  uuid.UUID
+	adapterKind   string
 	store         *Store
 	state         bambuPersistedState
 	loaded        bool
@@ -55,7 +69,11 @@ type bambuProcessor struct {
 }
 
 func newBambuProcessor(ctx context.Context, assignmentID uuid.UUID, store *Store) (*bambuProcessor, error) {
-	state, found, err := store.BambuState(ctx, assignmentID)
+	return newBambuProcessorFor(ctx, assignmentID, bambuH2DAdapterKind, store)
+}
+
+func newBambuProcessorFor(ctx context.Context, assignmentID uuid.UUID, adapterKind string, store *Store) (*bambuProcessor, error) {
+	state, found, err := store.BambuStateFor(ctx, assignmentID, adapterKind)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +98,7 @@ func newBambuProcessor(ctx context.Context, assignmentID uuid.UUID, store *Store
 	if state.RunFacts == nil {
 		state.RunFacts = map[string]bambuRunFacts{}
 	}
-	return &bambuProcessor{assignmentID: assignmentID, store: store, state: state, loaded: found, firstSnapshot: true}, nil
+	return &bambuProcessor{assignmentID: assignmentID, adapterKind: adapterKind, store: store, state: state, loaded: found, firstSnapshot: true}, nil
 }
 
 func (p *bambuProcessor) ready() bool { return p.state.Ready }
@@ -97,7 +115,52 @@ func (p *bambuProcessor) configureAutoDetectSpools(enabled bool) {
 }
 
 func (p *bambuProcessor) persist(ctx context.Context) error {
-	return p.store.SaveBambuState(ctx, p.assignmentID, p.state)
+	return p.store.SaveBambuStateFor(ctx, p.assignmentID, p.adapterKind, p.state)
+}
+
+func (p *bambuProcessor) noteDisconnected(observedAt time.Time) bool {
+	if p.state.DisconnectedAt != nil || p.state.RunTimedOut || !isBambuActive(p.state.Lifecycle) || p.state.CurrentRunID == "" {
+		return false
+	}
+	at := observedAt.UTC()
+	p.state.DisconnectedAt = &at
+	return true
+}
+
+func (p *bambuProcessor) noteConnected() bool {
+	if p.state.DisconnectedAt == nil {
+		return false
+	}
+	p.state.DisconnectedAt = nil
+	return true
+}
+
+func (p *bambuProcessor) expireDisconnectedRun(observedAt time.Time) []Observation {
+	if p.state.DisconnectedAt == nil || p.state.RunTimedOut || !isBambuActive(p.state.Lifecycle) {
+		return nil
+	}
+	deadline := p.state.DisconnectedAt.UTC().Add(bambuDisconnectGracePeriod)
+	if observedAt.UTC().Before(deadline) {
+		return nil
+	}
+	runID, externalID := p.currentRun()
+	if runID == nil {
+		p.state.DisconnectedAt = nil
+		return nil
+	}
+	facts := p.state.RunFacts[runID.String()]
+	facts.Outcome = "unknown"
+	p.state.RunFacts[runID.String()] = facts
+	p.state.DisconnectedAt = nil
+	p.state.RunTimedOut = true
+	p.state.Lifecycle = "UNKNOWN"
+	return []Observation{{
+		Kind:            "terminal_outcome",
+		Payload:         mustJSON(map[string]any{"outcome": "unknown", "reason": "connection_timeout", "observedAt": deadline}),
+		RunID:           runID,
+		HistoryComplete: facts.HistoryComplete,
+		ExternalPrintID: externalID,
+	}}
 }
 
 func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt time.Time) ([]Observation, bool, error) {
@@ -108,13 +171,13 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 		p.state.EmptySlotCounts = map[string]uint8{}
 	}
 	if len(payload) == 0 || len(payload) > maximumReducerBytes {
-		return nil, p.state.Ready, errors.New("bambu_h2d MQTT payload exceeds reducer limit")
+		return nil, p.state.Ready, errors.New("Bambu MQTT payload exceeds reducer limit")
 	}
 	decoder := json.NewDecoder(strings.NewReader(string(payload)))
 	decoder.UseNumber()
 	var patch map[string]any
 	if err := decoder.Decode(&patch); err != nil || patch == nil {
-		return nil, p.state.Ready, errors.New("invalid bambu_h2d MQTT JSON object")
+		return nil, p.state.Ready, errors.New("invalid Bambu MQTT JSON object")
 	}
 	merged, err := mergeBambuObject(p.state.Document, patch, 0)
 	if err != nil {
@@ -122,7 +185,7 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 	}
 	encoded, err := json.Marshal(merged)
 	if err != nil || len(encoded) > maximumReducerBytes {
-		return nil, p.state.Ready, errors.New("bambu_h2d merged state exceeds reducer limit")
+		return nil, p.state.Ready, errors.New("Bambu merged state exceeds reducer limit")
 	}
 	p.state.Document = merged
 	printState := objectAt(merged, "print")
@@ -148,6 +211,7 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 	}
 
 	var observations []Observation
+	suppressTimedOutSession := false
 	if active {
 		sessionKey := bambuSessionKey(printState)
 		if sessionKey == "" {
@@ -156,6 +220,10 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 				p.state.CurrentSessionKey = fmt.Sprintf("generation:%d", p.state.Generation)
 			}
 			sessionKey = p.state.CurrentSessionKey
+		}
+		if sessionKey != p.state.CurrentSessionKey {
+			p.state.RunTimedOut = false
+			p.state.DisconnectedAt = nil
 		}
 		if sessionKey != p.state.CurrentSessionKey || p.state.CurrentRunID == "" {
 			p.state.CurrentSessionKey = sessionKey
@@ -170,12 +238,13 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 			}
 			p.state.LastProgress = ""
 		}
+		suppressTimedOutSession = p.state.RunTimedOut && sessionKey == p.state.CurrentSessionKey
 	}
 	runID, externalID := p.currentRun()
 	historyComplete := !p.firstSnapshot || (p.loaded && previousActive)
 	p.firstSnapshot = false
 
-	if active && runID != nil {
+	if active && runID != nil && !suppressTimedOutSession {
 		facts := p.state.RunFacts[runID.String()]
 		facts.HistoryComplete = historyComplete
 		if externalID != nil {
@@ -188,10 +257,19 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 			value := float64(progress)
 			facts.LastProgress = &value
 		}
-		if unitID, trayID, tagUID, ok := bambuActiveSlot(printState); ok {
+		if unitID, trayID, tagUID, ok := bambuActiveSlotFor(p.adapterKind, printState); ok {
 			facts.InputUnitExternalID = unitID
 			facts.SlotExternalID = trayID
 			facts.TagUID = tagUID
+		}
+		for _, route := range bambuSpoolRoutesFor(p.adapterKind, printState) {
+			evidence := bambuSpoolEvidence{
+				SlicerFilamentID: route.slicerFilamentID, Extruder: route.extruderID, InputUnitExternalID: route.ref.unitID,
+				SlotExternalID: route.ref.trayID, TagUID: bambuTagUID(route.ref.tray),
+			}
+			if !containsBambuSpoolEvidence(facts.SpoolEvidence, evidence) {
+				facts.SpoolEvidence = append(facts.SpoolEvidence, evidence)
+			}
 		}
 		p.state.RunFacts[runID.String()] = facts
 		state := "printing"
@@ -199,7 +277,7 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 			state = "paused"
 		}
 		if !previousActive || lifecycle != previousLifecycle {
-			observations = append(observations, Observation{Kind: "operational_state", Payload: mustJSON(map[string]any{"state": state, "fileName": bambuFileName(printState), "observedAt": observedAt}), RunID: runID, HistoryComplete: historyComplete, ExternalPrintID: externalID})
+			observations = append(observations, Observation{Kind: "operational_state", Payload: bambuOperationalState(printState, state, observedAt), RunID: runID, HistoryComplete: historyComplete, ExternalPrintID: externalID})
 		}
 		progressPayload := bambuProgress(printState, observedAt)
 		progressKey := digestWithoutObservedAt(progressPayload)
@@ -227,6 +305,8 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 			facts.ExternalPrintID = *externalID
 		}
 		p.state.RunFacts[runID.String()] = facts
+		p.state.RunTimedOut = false
+		p.state.DisconnectedAt = nil
 		observations = append(observations, Observation{Kind: "terminal_outcome", Payload: mustJSON(map[string]any{"outcome": outcome, "observedAt": observedAt}), RunID: runID, HistoryComplete: historyComplete, ExternalPrintID: externalID})
 	}
 
@@ -236,13 +316,15 @@ func (p *bambuProcessor) apply(_ context.Context, payload []byte, observedAt tim
 	if ams := objectAt(printState, "ams"); tray == "" {
 		tray = firstScalar(ams, "tray_now")
 	}
-	if active && tray != "" && tray != p.state.LastTray {
+	if active && tray != "" && tray != "255" && tray != p.state.LastTray {
 		if p.state.LastTray != "" {
 			observations = append(observations, Observation{Kind: "filament_change", Payload: mustJSON(map[string]any{"fromSlotExternalId": p.state.LastTray, "toSlotExternalId": tray, "observedAt": observedAt}), RunID: runID, HistoryComplete: historyComplete, ExternalPrintID: externalID})
 		}
 		p.state.LastTray = tray
 	}
-	p.state.Lifecycle = lifecycle
+	if !suppressTimedOutSession {
+		p.state.Lifecycle = lifecycle
+	}
 	return observations, true, nil
 }
 
@@ -257,7 +339,7 @@ func (p *bambuProcessor) currentRun() (*uuid.UUID, *string) {
 
 func mergeBambuObject(current, patch map[string]any, depth int) (map[string]any, error) {
 	if depth > 32 {
-		return nil, errors.New("bambu_h2d MQTT object nesting is too deep")
+		return nil, errors.New("Bambu MQTT object nesting is too deep")
 	}
 	result := make(map[string]any, len(current)+len(patch))
 	for key, value := range current {
@@ -265,7 +347,7 @@ func mergeBambuObject(current, patch map[string]any, depth int) (map[string]any,
 	}
 	for key, value := range patch {
 		if len(key) > 200 {
-			return nil, errors.New("bambu_h2d MQTT object key is too long")
+			return nil, errors.New("Bambu MQTT object key is too long")
 		}
 		if value == nil {
 			delete(result, key)
@@ -312,11 +394,65 @@ func bambuSessionKey(state map[string]any) string {
 }
 
 func bambuFileName(state map[string]any) string {
-	value := firstScalar(state, "gcode_file", "file", "filename")
+	value := firstScalar(state, "subtask_name")
+	if value == "" {
+		value = bambuArtifactPath(state)
+		if slash := strings.LastIndex(value, "/"); slash >= 0 {
+			value = value[slash+1:]
+		}
+	}
 	if len(value) > 255 {
 		return value[:255]
 	}
 	return value
+}
+
+func bambuArtifactPath(state map[string]any) string {
+	// H2D commonly reports /data/Metadata/plate_N.gcode here. That is a path
+	// inside the active 3MF, not a file exposed by FTPS. Prefer an explicitly
+	// reported archive name. When it is absent, H2D stores the archive under
+	// the exact print name plus ".gcode.3mf"; retain the complete print name
+	// (including suffixes such as ".stl") and still require an exact FTPS match.
+	for _, key := range []string{"file", "filename", "gcode_file"} {
+		value := strings.TrimSpace(scalarString(state[key]))
+		if !isBambuArchivePath(value) {
+			continue
+		}
+		if len(value) > 255 {
+			return value[:255]
+		}
+		return value
+	}
+	printName := strings.TrimSpace(scalarString(state["subtask_name"]))
+	if printName == "" || printName == "." || printName == ".." || strings.ContainsAny(printName, `/\`) {
+		return ""
+	}
+	for _, character := range printName {
+		if character < 0x20 || character == 0x7f {
+			return ""
+		}
+	}
+	candidate := printName + ".gcode.3mf"
+	if len(candidate) > 255 {
+		return ""
+	}
+	return candidate
+}
+
+func isBambuArchivePath(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	return strings.HasSuffix(value, ".3mf")
+}
+
+func bambuOperationalState(state map[string]any, lifecycle string, observedAt time.Time) json.RawMessage {
+	result := map[string]any{"state": lifecycle, "observedAt": observedAt}
+	if fileName := bambuFileName(state); fileName != "" {
+		result["fileName"] = fileName
+	}
+	if artifactPath := bambuArtifactPath(state); artifactPath != "" {
+		result["artifactPath"] = artifactPath
+	}
+	return mustJSON(result)
 }
 
 // bambuTrayRef is one filament holder in the merged status document: a tray of
@@ -327,6 +463,17 @@ type bambuTrayRef struct {
 	tray           map[string]any
 	external       bool
 	unit           map[string]any
+}
+
+// Bambu uses an all-zero tag UID for holders without a readable RFID tag.
+// Keep that sentinel out of authoritative spool evidence: only a real tag may
+// participate in exact historical NFC matching.
+func bambuTagUID(tray map[string]any) string {
+	tag := strings.TrimSpace(firstScalar(tray, "tag_uid"))
+	if tag == "" || isZeroIdentifier(tag) {
+		return ""
+	}
+	return tag
 }
 
 // bambuTrayRefs lists AMS trays first and external holders last. The second
@@ -361,16 +508,22 @@ func bambuTrayRefs(state map[string]any) ([]bambuTrayRef, bool) {
 // bambuActiveSlot resolves tray_now only when it identifies exactly one tray
 // in the merged status document. A bare tray number is intentionally not
 // guessed across multiple AMS units because tray numbers repeat. External
-// spool holders are addressed by their vir_slot ID (254 and 255). A bare
+// spool holders are addressed by their vir_slot ID. The tray_now value 255 is
+// ambiguous: legacy status uses it for no selected tray, while H2D can identify
+// external holder 255 only through per-hotend routing. It is therefore never
+// resolved from tray_now alone. A bare
 // tray_now of 128 or more may name a single-tray AMS HT unit by its unit ID;
 // that is an assumption pending real captures.
 func bambuActiveSlot(state map[string]any) (string, string, string, bool) {
+	if unitID, trayID, tagUID, ok := bambuActiveExtruderSlot(state); ok {
+		return unitID, trayID, tagUID, true
+	}
 	ams := objectAt(state, "ams")
 	trayNow := firstScalar(state, "tray_now")
 	if trayNow == "" {
 		trayNow = firstScalar(ams, "tray_now")
 	}
-	if trayNow == "" {
+	if trayNow == "" || trayNow == "255" {
 		return "", "", "", false
 	}
 	requestedUnit, requestedTray := "", trayNow
@@ -407,13 +560,248 @@ func bambuActiveSlot(state map[string]any) (string, string, string, bool) {
 	if len(matches) != 1 {
 		return "", "", "", false
 	}
-	return matches[0].unitID, matches[0].trayID, firstScalar(matches[0].tray, "tag_uid"), true
+	return matches[0].unitID, matches[0].trayID, bambuTagUID(matches[0].tray), true
+}
+
+func bambuActiveSlotFor(adapterKind string, state map[string]any) (string, string, string, bool) {
+	if adapterKind == bambuX1CAdapterKind {
+		return bambuX1CActiveSlot(state)
+	}
+	return bambuActiveSlot(state)
+}
+
+// X1C reports tray_now as a global AMS tray index: unit*4+tray. Value 255 is
+// also emitted while no tray is selected, even when vir_slot 255 retains
+// descriptive material data, so it must never become run spool evidence.
+func bambuX1CActiveSlot(state map[string]any) (string, string, string, bool) {
+	ams := objectAt(state, "ams")
+	value := firstScalar(ams, "tray_now")
+	if value == "" {
+		value = firstScalar(state, "tray_now")
+	}
+	if value == "255" {
+		return "", "", "", false
+	}
+	index, err := strconv.Atoi(value)
+	if err != nil || index < 0 || index > 15 {
+		return "", "", "", false
+	}
+	unitID, trayID := strconv.Itoa(index/4), strconv.Itoa(index%4)
+	refs, _ := bambuTrayRefs(state)
+	for _, ref := range refs {
+		if !ref.external && ref.unitID == unitID && ref.trayID == trayID {
+			return unitID, trayID, bambuTagUID(ref.tray), true
+		}
+	}
+	return "", "", "", false
+}
+
+type bambuExtruderRoute struct {
+	slicerFilamentID string
+	extruderID       int
+	ref              bambuTrayRef
+}
+
+func bambuSpoolRoutesFor(adapterKind string, state map[string]any) []bambuExtruderRoute {
+	if adapterKind == bambuX1CAdapterKind {
+		if routes := bambuX1CMaterialRoutes(state); len(routes) > 0 {
+			return routes
+		}
+		unitID, trayID, _, ok := bambuX1CActiveSlot(state)
+		if !ok {
+			return nil
+		}
+		refs, _ := bambuTrayRefs(state)
+		for _, ref := range refs {
+			if ref.unitID == unitID && ref.trayID == trayID {
+				// Bambu 3MF metadata numbers the X1C's sole physical extruder as 1.
+				return []bambuExtruderRoute{{extruderID: 1, ref: ref}}
+			}
+		}
+		return nil
+	}
+	return bambuExtruderSlots(state)
+}
+
+// bambuX1CMaterialRoutes resolves the print's explicit slicer-filament to AMS
+// mapping. Array indexes are Bambu's zero-based G-code filament numbers while
+// slice_info uses one-based IDs, so index 2 maps to slicer filament "3".
+// This mapping is authoritative for a run; tray_now is only the currently
+// selected physical tray and may still contain a stale value during startup.
+func bambuX1CMaterialRoutes(state map[string]any) []bambuExtruderRoute {
+	refs, _ := bambuTrayRefs(state)
+	findRef := func(unitID, trayID string) (bambuTrayRef, bool) {
+		for _, ref := range refs {
+			if !ref.external && ref.unitID == unitID && ref.trayID == trayID {
+				return ref, true
+			}
+		}
+		return bambuTrayRef{}, false
+	}
+	var routes []bambuExtruderRoute
+	if mappings, ok := state["ams_mapping2"].([]any); ok {
+		for index, raw := range mappings {
+			entry, _ := raw.(map[string]any)
+			unit, unitOK := boundedInt(entry["ams_id"], 0, 255)
+			tray, trayOK := boundedInt(entry["slot_id"], 0, 255)
+			if !unitOK || !trayOK || (unit == 255 && tray == 255) {
+				continue
+			}
+			ref, found := findRef(strconv.Itoa(unit), strconv.Itoa(tray))
+			if found {
+				routes = append(routes, bambuExtruderRoute{slicerFilamentID: strconv.Itoa(index + 1), extruderID: 1, ref: ref})
+			}
+		}
+	}
+	if len(routes) > 0 {
+		return routes
+	}
+	// Older X1C payloads expose only a global AMS slot index. Values outside
+	// 0..15 are sentinels or external-holder states and remain unresolved.
+	if mappings, ok := state["ams_mapping"].([]any); ok {
+		for index, raw := range mappings {
+			globalSlot, valid := boundedInt(raw, 0, 15)
+			if !valid {
+				continue
+			}
+			ref, found := findRef(strconv.Itoa(globalSlot/4), strconv.Itoa(globalSlot%4))
+			if found {
+				routes = append(routes, bambuExtruderRoute{slicerFilamentID: strconv.Itoa(index + 1), extruderID: 1, ref: ref})
+			}
+		}
+	}
+	return routes
+}
+
+// bambuExtruderSlots reads H2-family per-hotend routing. The low byte of snow
+// is the tray number. AMS unit info identifies which physical extruder that
+// unit feeds; the high-byte interpretation is retained only as a compatibility
+// fallback for older partial reports that omit AMS info.
+func bambuExtruderSlots(state map[string]any) []bambuExtruderRoute {
+	extruder := objectAt(objectAt(state, "device"), "extruder")
+	info, _ := extruder["info"].([]any)
+	if len(info) == 0 {
+		return nil
+	}
+	refs, _ := bambuTrayRefs(state)
+	candidates := make([]bambuExtruderRoute, 0, 2)
+	for _, raw := range info {
+		entry, _ := raw.(map[string]any)
+		extruderID, idOK := boundedInt(entry["id"], 0, 15)
+		snow, snowOK := boundedInt(entry["snow"], 0, 0xffff)
+		if !idOK || !snowOK || snow == 0xffff {
+			continue
+		}
+		// When present, bit 1 says whether this hotend actually holds
+		// filament. Older reports omit `info`, so absence is not failure.
+		if _, present := entry["info"]; present {
+			flags, ok := boundedInt(entry["info"], 0, math.MaxInt32)
+			if !ok || flags&0b10 == 0 {
+				continue
+			}
+		}
+		highByte := (snow >> 8) & 0xff
+		lowByte := snow & 0xff
+		if lowByte == 0xff {
+			continue
+		}
+		unitID := ""
+		slotID := strconv.Itoa(lowByte)
+		// H2D encodes its two external holders as unit 254/255, slot 0;
+		// normalized topology represents each holder as a same-ID unit/slot.
+		if (highByte == 254 || highByte == 255) && lowByte == 0 {
+			unitID = strconv.Itoa(highByte)
+			slotID = unitID
+		}
+		matches := make([]bambuTrayRef, 0, 1)
+		for _, ref := range refs {
+			if ref.external || ref.trayID != slotID {
+				continue
+			}
+			if boundExtruder, ok := bambuAMSExtruder(ref.unit); ok && boundExtruder == extruderID {
+				matches = append(matches, ref)
+			}
+		}
+		if unitID != "" {
+			matches = matches[:0]
+			for _, ref := range refs {
+				if ref.unitID == unitID && ref.trayID == slotID {
+					matches = append(matches, ref)
+				}
+			}
+		} else if len(matches) == 0 {
+			// Compatibility with reports captured before AMS info is present.
+			fallbackUnit := strconv.Itoa(highByte)
+			for _, ref := range refs {
+				if !ref.external && ref.unitID == fallbackUnit && ref.trayID == slotID {
+					matches = append(matches, ref)
+				}
+			}
+		}
+		if len(matches) == 1 {
+			candidates = append(candidates, bambuExtruderRoute{extruderID: extruderID, ref: matches[0]})
+		}
+	}
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i].extruderID < candidates[j].extruderID })
+	return candidates
+}
+
+func bambuActiveExtruderSlot(state map[string]any) (string, string, string, bool) {
+	extruder := objectAt(objectAt(state, "device"), "extruder")
+	activeID := -1
+	if rawState, ok := boundedInt(extruder["state"], 0, math.MaxInt32); ok {
+		activeID = (rawState >> 8) & 1
+	}
+	candidates := bambuExtruderSlots(state)
+	if activeID >= 0 {
+		for _, item := range candidates {
+			if item.extruderID == activeID {
+				return item.ref.unitID, item.ref.trayID, bambuTagUID(item.ref.tray), true
+			}
+		}
+		// The active hotend may briefly report no tray while unloading even
+		// though the inactive hotend still has filament loaded. Do not fall
+		// through to that other hotend: doing so replaces the run's last
+		// trustworthy AMS slot with an unrelated external holder.
+		return "", "", "", false
+	}
+	if len(candidates) != 1 {
+		return "", "", "", false
+	}
+	item := candidates[0]
+	return item.ref.unitID, item.ref.trayID, bambuTagUID(item.ref.tray), true
+}
+
+func bambuAMSExtruder(unit map[string]any) (int, bool) {
+	raw := strings.TrimSpace(firstScalar(unit, "info"))
+	if raw == "" {
+		return 0, false
+	}
+	// Bambu reports this bitfield as an eight-character hexadecimal string.
+	value, err := strconv.ParseUint(strings.TrimPrefix(strings.ToLower(raw), "0x"), 16, 32)
+	if err != nil {
+		return 0, false
+	}
+	return int((value >> 8) & 0x0f), true
+}
+
+func containsBambuSpoolEvidence(values []bambuSpoolEvidence, candidate bambuSpoolEvidence) bool {
+	for _, existing := range values {
+		if existing.SlicerFilamentID == candidate.SlicerFilamentID && existing.Extruder == candidate.Extruder && existing.InputUnitExternalID == candidate.InputUnitExternalID &&
+			existing.SlotExternalID == candidate.SlotExternalID && existing.TagUID == candidate.TagUID {
+			return true
+		}
+	}
+	return false
 }
 
 func bambuProgress(state map[string]any, observedAt time.Time) json.RawMessage {
 	result := map[string]any{"state": "printing", "observedAt": observedAt}
 	if fileName := bambuFileName(state); fileName != "" {
 		result["fileName"] = fileName
+	}
+	if artifactPath := bambuArtifactPath(state); artifactPath != "" {
+		result["artifactPath"] = artifactPath
 	}
 	if percent, ok := boundedInt(state["mc_percent"], 0, 100); ok {
 		result["percent"] = percent
@@ -489,7 +877,7 @@ func (p *bambuProcessor) slotTransitions(state map[string]any, at time.Time, run
 			"externalSlotKey":     slotKey,
 			"freshness":           "live",
 		}
-		tagUID := firstScalar(tray, "tag_uid")
+		tagUID := bambuTagUID(tray)
 		if tagUID == "" {
 			if p.state.EmptySlotCounts[slotKey] < 2 {
 				p.state.EmptySlotCounts[slotKey]++

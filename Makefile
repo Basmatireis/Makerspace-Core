@@ -2,7 +2,7 @@ SHELL := /bin/sh
 
 .DEFAULT_GOAL := help
 
-.PHONY: help dev dev-detached down logs db-up db-shell \
+.PHONY: help dev dev-detached dev-printer-connector dev-printer-connector-detached down logs db-up db-shell \
 	migrate-up migrate-down migrate-status \
 	generate generate-openapi-go generate-openapi-ts generate-sqlc \
 	test test-backend test-frontend test-db test-integration test-e2e test-production-compose test-printer-connector-compose test-android test-desktop \
@@ -22,6 +22,12 @@ dev: ## Build and run the database, backend, and frontend with live source mount
 
 dev-detached: ## Start the development stack in the background.
 	docker compose up --build -d
+
+dev-printer-connector: ## Build and run the standalone printer connector for local development.
+	docker compose -f printer-connector/compose.development.yaml up --build
+
+dev-printer-connector-detached: ## Start the development printer connector in the background.
+	docker compose -f printer-connector/compose.development.yaml up --build -d
 
 down: ## Stop the development stack without deleting database data.
 	docker compose down
