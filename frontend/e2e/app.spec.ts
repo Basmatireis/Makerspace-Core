@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 import { defaultPublicBrandingConfiguration } from './branding-fixtures';
 
 type ApiState = {
@@ -23,6 +23,20 @@ const passwordIdentityId = '0192f6f8-743e-7c77-a349-cd07c3e8a904';
 const managedPersonId = '0192f6f8-743e-7c77-a349-cd07c3e8a905';
 const managedAccountId = '0192f6f8-743e-7c77-a349-cd07c3e8a906';
 const openDayPeriodId = '0192f6f8-743e-7c77-a349-cd07c3e8a932';
+
+async function visibleBoundingBox(locator: Locator, label: string) {
+  await expect(locator).toBeVisible();
+  let measured: Awaited<ReturnType<Locator['boundingBox']>>;
+  await expect.poll(async () => {
+    const bounds = await locator.boundingBox();
+    if (bounds) measured = bounds;
+    return bounds;
+  }, {
+    message: `Could not measure the ${label}.`,
+  }).not.toBeNull();
+  if (!measured) throw new Error(`Could not measure the ${label}.`);
+  return measured;
+}
 
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -634,14 +648,10 @@ test('renders the responsive person detail hierarchy and functional tabs', async
 
   const cardBounds = async (heading: string) => {
     const headingLocator = page.getByRole('heading', { name: heading, exact: true });
-    await expect(headingLocator).toBeVisible();
     const card = headingLocator.locator(
       'xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " person-detail-card ")][1]',
     );
-    await expect(card).toBeVisible();
-    const bounds = await card.boundingBox();
-    if (!bounds) throw new Error(`Could not measure the ${heading} card.`);
-    return bounds;
+    return visibleBoundingBox(card, `${heading} card`);
   };
   const [profile, accountAccess, personalInformation, authenticationMethods, roles] = await Promise.all([
     cardBounds('Profile picture'),
@@ -653,8 +663,10 @@ test('renders the responsive person detail hierarchy and functional tabs', async
   expect(Math.abs(profile.y - accountAccess.y)).toBeLessThanOrEqual(1);
   expect(Math.abs((profile.y + profile.height) - (accountAccess.y + accountAccess.height))).toBeLessThanOrEqual(1);
   expect(profile.height).toBeLessThanOrEqual(260);
-  const actionsButton = await page.getByRole('button', { name: 'Actions', exact: true }).boundingBox();
-  if (!actionsButton) throw new Error('Could not measure the page Actions button.');
+  const actionsButton = await visibleBoundingBox(
+    page.getByRole('button', { name: 'Actions', exact: true }),
+    'page Actions button',
+  );
   expect(Math.abs(
     (actionsButton.x + actionsButton.width) - (accountAccess.x + accountAccess.width),
   )).toBeLessThanOrEqual(1);
@@ -670,14 +682,23 @@ test('renders the responsive person detail hierarchy and functional tabs', async
     .getByRole('heading', { name: 'Profile picture', exact: true })
     .locator('xpath=ancestor::*[contains(concat(" ", normalize-space(@class), " "), " person-detail-card ")][1]');
   const [profileHeading, profileAvatar, profileEdit, accountHeading] = await Promise.all([
-    profileCard.getByRole('heading', { name: 'Profile picture', exact: true }).boundingBox(),
-    profileCard.locator('.person-detail-card__heading-content .person-avatar').boundingBox(),
-    profileCard.getByRole('button', { name: 'Edit', exact: true }).boundingBox(),
-    page.getByRole('heading', { name: 'Account access', exact: true }).boundingBox(),
+    visibleBoundingBox(
+      profileCard.getByRole('heading', { name: 'Profile picture', exact: true }),
+      'Profile picture heading',
+    ),
+    visibleBoundingBox(
+      profileCard.locator('.person-detail-card__heading-content .person-avatar'),
+      'Profile picture avatar',
+    ),
+    visibleBoundingBox(
+      profileCard.getByRole('button', { name: 'Edit', exact: true }),
+      'Profile picture Edit button',
+    ),
+    visibleBoundingBox(
+      page.getByRole('heading', { name: 'Account access', exact: true }),
+      'Account access heading',
+    ),
   ]);
-  if (!profileHeading || !profileAvatar || !profileEdit || !accountHeading) {
-    throw new Error('Could not measure the compact Profile picture header.');
-  }
   const profileHeadingCenter = profileHeading.x + (profileHeading.width / 2);
   const profileAvatarCenter = profileAvatar.x + (profileAvatar.width / 2);
   const profileAvatarMiddle = profileAvatar.y + (profileAvatar.height / 2);
