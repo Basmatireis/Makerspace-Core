@@ -231,6 +231,14 @@ describe('Run detail page', () => {
     expect(screen.getByRole('button', { name: 'Attach to job' })).toBeInTheDocument();
   });
 
+  it('treats an omitted itemized report from an older response as empty', async () => {
+    auth.permissions = [PermissionId.machine_jobsread];
+    serveRun({ ...runningRecorded(), reportedUsageItems: undefined } as unknown as ReturnType<typeof recordedRun>);
+    renderRun();
+    expect(await screen.findByText('Run in progress')).toBeInTheDocument();
+    expect(screen.getByText('Reported material').nextSibling).toHaveTextContent('Pending final report');
+  });
+
   it('shows a display-only live filament estimate from the parsed artifact', async () => {
     auth.permissions = [PermissionId.machine_jobsread, PermissionId.print_artifactsread];
     const artifactId = '0192f6f8-743e-7c77-a349-cd07c3e8d001';

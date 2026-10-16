@@ -85,7 +85,7 @@ export function RunDetailPage() {
   const end = run ? runEnd(run) : null;
   const progress = run ? runProgress(run, now) : 0;
   const consumedMaterial = run && live && run.usages.length === 0 ? 'Pending final report' : run ? usagesText(run.usages) : '';
-  const reportedMaterial = run && live && run.reportedUsage == null && run.reportedUsageItems.length === 0 ? 'Pending final report' : run ? reportedUsageText(run) : '';
+  const reportedMaterial = run && live && run.reportedUsage == null && (run.reportedUsageItems?.length ?? 0) === 0 ? 'Pending final report' : run ? reportedUsageText(run) : '';
   const unresolvedMaterials = run ? unresolvedReportedUsageItems(run) : [];
   const plannedFilaments = artifact.data?.filaments.filter((filament) => filament.plannedWeightGrams != null && Number(filament.plannedWeightGrams) >= 0) ?? [];
   const plannedGrams = plannedFilaments.reduce((total, filament) => total + Number(filament.plannedWeightGrams), 0);
