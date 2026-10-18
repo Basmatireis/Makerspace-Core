@@ -1,14 +1,14 @@
 import { effectivePrice, jobName, outcomeLabel } from '../derived';
 import type { BillingParty, Job, Machine, MachineType, Print } from '../types';
 import { addCalendarDays } from '../../../app/dateTime';
-import { dateInAppTimeZone, formatDate, formatEur, round2 } from './format';
-import { activeItems, activeReceipts, allocationSum, cashDayFigures, isCashDayClosed, jobBlocker, orderMoney, requestReadiness, sum } from './logic';
+import { dateInAppTimeZone, formatEur, round2 } from './format';
+import { activeItems, activeReceipts, allocationSum, cashInRegister, jobBlocker, orderMoney, paidByCashOrCard, requestReadiness, sum } from './logic';
 import type {
-  Allocation, CustomerRecord, DaySession, FulfillmentMode, InvoiceEventKind, InvoiceRequest, InvoiceRequestDetails, JobChargeSnapshot, Order, OrderAdjustment, OrderEventKind, OrderItem, Payment, PaymentInput,
-  ReconciliationKind, ReversalInput, SalesCounters,
+  Allocation, BillingContact, CashMovement, CashMovementKind, CashMovementReason, FulfillmentMode, InvoiceEventKind, InvoiceRequest, InvoiceRequestDetails, JobChargeSnapshot, Order, OrderAdjustment,
+  OrderEventKind, OrderItem, OrganizationKind, OrganizationRecord, Payment, PaymentInput, ReconciliationKind, ReversalInput, SalesCounters,
 } from './types';
-import { methodLabel } from './labels';
-import { ruleKey, type PricingConfig, type PricingGroup, type RateRule } from './pricing';
+import { methodLabel, requestStateLabel } from './labels';
+import { accountRoles, resolveGroup, ruleKey, type PricingConfig, type PricingGroup, type RateRule } from './pricing';
 
 // Pure state transitions of the sales domain. They enforce the backend rules (docs/orders.md) and throw a SalesError that
 // names the rule, so a UI that fails to pre-validate still shows a readable message. Nothing is applied when one throws:
@@ -16,7 +16,7 @@ import { ruleKey, type PricingConfig, type PricingGroup, type RateRule } from '.
 
 export type SalesState = {
   orders: Order[]; payments: Payment[]; allocations: Allocation[]; adjustments: OrderAdjustment[]; requests: InvoiceRequest[]; jobs: Job[]; counters: SalesCounters;
-  customers: CustomerRecord[]; daySessions: DaySession[]; pricing: PricingConfig;
+  organizations: OrganizationRecord[]; cashMovements: CashMovement[]; pricing: PricingConfig;
 };
 export type Ctx = { at: string; actor: string; machines: Machine[]; machineTypes: MachineType[]; prints: Print[] };
 
@@ -49,27 +49,33 @@ function requireDraft(order: Order) {
 
 // Items ----------------------------------------------------------------------------------------------------------------
 
-export function snapshotOf(job: Job, c: Ctx): JobChargeSnapshot {
+export function snapshotOf(job: Job, c: Ctx, s: Pick<SalesState, 'pricing' | 'organizations'>): JobChargeSnapshot {
   const machine = c.machines.find((item) => item.id === job.machineId);
   return {
     displayId: job.displayId, machineName: machine?.name ?? 'Unknown machine', machineTypeName: c.machineTypes.find((type) => type.id === machine?.machineTypeId)?.name ?? '',
     startsAt: job.startsAt, endsAt: job.endsAt, durationSeconds: job.durationSeconds, outcome: outcomeLabel(job.outcome),
     usages: job.usages.map((usage) => ({ materialName: usage.materialName, unit: usage.unit, quantity: usage.quantity, ownership: usage.ownership })),
-    pricingGroupName: job.pricingSnapshot?.pricingGroupName ?? job.customer?.pricingGroup ?? '', calculatedAmount: job.calculatedPrice,
+    ...pricedWith(job, s), calculatedAmount: job.calculatedPrice,
     effectiveAmount: effectivePrice(job) ?? 0, overrideReason: job.priceAdjustment?.reason ?? null, capturedAt: c.at,
   };
 }
 
-function itemFromJob(job: Job, c: Ctx, position: number): OrderItem {
+/** The group and the reason that priced the job: what its price snapshot recorded, else what resolves now. */
+function pricedWith(job: Job, s: Pick<SalesState, 'pricing' | 'organizations'>) {
+  const resolved = resolveGroup(s.pricing, s.organizations, job.customer, job.pricingGroupOverride);
+  return { pricingGroupName: job.pricingSnapshot?.pricingGroupName ?? resolved.group.name, pricingVia: job.pricingSnapshot?.via ?? resolved.reason };
+}
+
+function itemFromJob(job: Job, c: Ctx, position: number, s: SalesState): OrderItem {
   const amount = effectivePrice(job) ?? 0;
   return {
     id: uid('it'), position, kind: 'machine_job', description: jobName(job, c.prints.find((print) => print.id === job.printId)), quantity: 1, unit: 'job', unitPrice: amount, amount,
-    sourceJobId: job.id, sourceJobVersion: job.version, snapshot: snapshotOf(job, c), catalogItemId: null, createdAt: c.at, removedAt: null,
+    sourceJobId: job.id, sourceJobVersion: job.version, snapshot: snapshotOf(job, c, s), catalogItemId: null, createdAt: c.at, removedAt: null,
   };
 }
 
 function assertChargeable(s: SalesState, c: Ctx, order: Order, job: Job) {
-  if ((job.customer?.id ?? null) !== (order.customer?.id ?? null)) fail('customer_mismatch', `${job.displayId} belongs to another customer than ${order.reference}`);
+  if (job.customer.id !== order.customer.id) fail('customer_mismatch', `${job.displayId} belongs to another customer than ${order.reference}`);
   const blocker = jobBlocker(job, c.prints, new Date(c.at).getTime());
   if (blocker) fail('job_not_chargeable', `${job.displayId} cannot be charged yet: ${blocker.charAt(0).toLowerCase()}${blocker.slice(1)}`);
   if (job.order && job.order.orderId !== order.id && job.order.orderId !== order.replacesOrderId) fail('job_already_ordered', `${job.displayId} is already on order ${job.order.orderReference}`);
@@ -91,14 +97,14 @@ function manualItem(input: ManualItemInput, c: Ctx, position: number): OrderItem
 
 // Draft lifecycle ------------------------------------------------------------------------------------------------------
 
-export type DraftInput = { customer: BillingParty | null; fulfillmentMode: FulfillmentMode };
+export type DraftInput = { customer: Pick<BillingParty, 'kind' | 'id' | 'displayName'> | null; fulfillmentMode: FulfillmentMode };
 
 function newDraft(s: SalesState, c: Ctx, input: DraftInput, replacesOrderId: string | null = null): Order {
-  if (!input.customer && input.fulfillmentMode === 'deferred') fail('anonymous_requires_full_settlement', 'Picking up later needs a named customer');
+  const customer = input.customer ?? fail('customer_required', 'Choose the customer of the order');
   s.counters.order += 1;
   const order: Order = {
-    id: uid('ord'), reference: reference('O', s.counters.order, c.at), status: 'draft', customer: input.customer ? { kind: input.customer.kind, id: input.customer.id } : null,
-    customerName: input.customer?.displayName ?? null, fulfillmentMode: input.fulfillmentMode, items: [], replacesOrderId, version: 1, createdAt: c.at, updatedAt: c.at, createdBy: c.actor, events: [],
+    id: uid('ord'), reference: reference('O', s.counters.order, c.at), status: 'draft', customer: { kind: customer.kind, id: customer.id },
+    customerName: customer.displayName, fulfillmentMode: input.fulfillmentMode, items: [], replacesOrderId, version: 1, createdAt: c.at, updatedAt: c.at, createdBy: c.actor, events: [],
   };
   order.events.push({ id: uid('ev'), at: c.at, actor: c.actor, kind: 'created', text: replacesOrderId ? 'Replacement draft created' : 'Draft created' });
   s.orders.unshift(order);
@@ -111,13 +117,13 @@ export function updateDraft(state: SalesState, c: Ctx, orderId: string, input: D
   return transition(state, (s) => {
     const order = orderOf(s, orderId);
     requireDraft(order);
-    if (!input.customer && input.fulfillmentMode === 'deferred') fail('anonymous_requires_full_settlement', 'Picking up later needs a named customer');
-    const blocking = activeItems(order).filter((item) => item.sourceJobId && (s.jobs.find((job) => job.id === item.sourceJobId)?.customer?.id ?? null) !== (input.customer?.id ?? null));
+    const customer = input.customer ?? fail('customer_required', 'Choose the customer of the order');
+    const blocking = activeItems(order).filter((item) => item.sourceJobId && s.jobs.find((job) => job.id === item.sourceJobId)?.customer.id !== customer.id);
     if (blocking.length) fail('customer_mismatch', `Remove ${blocking.map((item) => item.snapshot?.displayId ?? item.description).join(', ')} first: ${blocking.length === 1 ? 'that job belongs' : 'those jobs belong'} to another customer`);
-    order.customer = input.customer ? { kind: input.customer.kind, id: input.customer.id } : null;
-    order.customerName = input.customer?.displayName ?? null;
+    order.customer = { kind: customer.kind, id: customer.id };
+    order.customerName = customer.displayName;
     order.fulfillmentMode = input.fulfillmentMode;
-    note(order, c, 'edited', input.customer ? `Customer set to ${input.customer.displayName}` : 'Customer removed (walk-in sale)');
+    note(order, c, 'edited', `Customer set to ${customer.displayName}`);
     return {};
   });
 }
@@ -140,7 +146,7 @@ export function addJobItems(state: SalesState, c: Ctx, orderId: string, jobIds: 
     for (const id of jobIds) {
       const job = s.jobs.find((candidate) => candidate.id === id) ?? fail('not_found', 'The job does not exist');
       assertChargeable(s, c, order, job);
-      const item = itemFromJob(job, c, order.items.length + 1);
+      const item = itemFromJob(job, c, order.items.length + 1, s);
       order.items.push(item);
       note(order, c, 'item_added', `Added job ${job.displayId} · ${formatEur(item.amount)}`);
     }
@@ -181,7 +187,7 @@ export function refreshItem(state: SalesState, c: Ctx, orderId: string, itemId: 
     requireDraft(order);
     const item = order.items.find((candidate) => candidate.id === itemId && candidate.removedAt === null && candidate.sourceJobId) ?? fail('not_found', 'The item does not exist');
     const job = s.jobs.find((candidate) => candidate.id === item.sourceJobId) ?? fail('source_unavailable', 'The job no longer exists');
-    const next = itemFromJob(job, c, item.position);
+    const next = itemFromJob(job, c, item.position, s);
     item.removedAt = c.at;
     order.items.push(next);
     note(order, c, 'item_refreshed', `Refreshed ${job.displayId} to ${formatEur(next.amount)}`);
@@ -204,7 +210,6 @@ function finalizeIn(s: SalesState, c: Ctx, order: Order, committingReplacement =
   if (order.replacesOrderId && !committingReplacement) fail('replacement_commit_required', 'Commit a replacement through the order it replaces');
   const items = activeItems(order);
   if (items.length === 0) fail('validation', 'An order needs at least one item');
-  if (!order.customer && order.fulfillmentMode !== 'immediate') fail('anonymous_requires_full_settlement', 'A walk-in sale must be handed over immediately');
   for (const item of items) {
     if (!item.sourceJobId) continue;
     const job = s.jobs.find((candidate) => candidate.id === item.sourceJobId) ?? fail('source_unavailable', 'A job of this order no longer exists');
@@ -226,24 +231,30 @@ export const finalizeOrder = (state: SalesState, c: Ctx, orderId: string) => tra
 const activeRequestOf = (s: SalesState, orderId: string) => s.requests.filter((request) => request.orderId === orderId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).find((request) => request.state !== 'cancelled');
 const latestRequestOf = (s: SalesState, orderId: string) => s.requests.filter((request) => request.orderId === orderId).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
 
+/** While the request is a draft it follows cash and card payments; once it is ready, the figure is what the invoice states. */
+function syncAlreadyPaid(s: SalesState, order: Order) {
+  const request = activeRequestOf(s, order.id);
+  if (request?.state === 'draft') request.alreadyPaid = paidByCashOrCard(s.payments, s.allocations, order.id);
+}
+
 function receiptIn(s: SalesState, c: Ctx, order: Order, input: PaymentInput, op: string) {
   if (order.status !== 'finalized') fail('order_not_finalized', 'Payments need a finalized order');
   if (!(input.amount > 0) || round2(input.amount) !== input.amount) fail('validation', 'Enter an amount greater than zero with at most two decimals');
   if (!input.occurredAt || Number.isNaN(new Date(input.occurredAt).getTime())) fail('validation', 'The payment time is required');
-  if (input.method === 'cash' && isCashDayClosed(s.daySessions, input.occurredAt)) fail('day_closed', `The cash of ${formatDate(input.occurredAt)} is closed, so a cash payment cannot be booked on that day`);
   if (input.method === 'card') {
     if (!input.terminal.trim() || !input.transactionReference.trim()) fail('validation', 'Card payments need the terminal and its transaction reference');
     const duplicate = s.payments.find((payment) => payment.entryKind === 'receipt' && payment.method === 'card' && payment.transactionReference === input.transactionReference.trim()
       && !s.payments.some((other) => other.reversesPaymentId === payment.id));
     if (duplicate) fail('duplicate_transaction', `That transaction reference was already recorded as ${duplicate.reference}`);
   }
+  // [proposed rule] Cash/card and a bank transfer against the invoice may be mixed on one order: cash and card up to the moment the invoice request is
+  // ready (the request states what is already paid), the bank transfer only once wiRef issued the invoice.
   const request = activeRequestOf(s, order.id);
   if (input.method === 'external') {
-    if (request?.state !== 'issued') fail('external_reconciliation_required', 'A payment confirmed by wiRef needs an issued invoice');
+    if (request?.state !== 'issued') fail('external_reconciliation_required', 'A bank transfer against an invoice needs an issued invoice');
     if (!input.transactionReference.trim()) fail('validation', 'The wiRef confirmation reference is required');
-  } else if (request) fail('settlement_workflow_conflict', `${request.reference} is active, so cash and card payments cannot be recorded`);
-  for (const existing of activeReceipts(s.payments, s.allocations, order.id)) {
-    if ((existing.method === 'external') !== (input.method === 'external')) fail('settlement_workflow_conflict', 'Cash/card and wiRef-confirmed payments cannot be mixed on one order');
+  } else if (request && request.state !== 'draft') {
+    fail('invoice_amount_frozen', `${request.reference} is ${requestStateLabel[request.state].toLowerCase()} and states what was already paid, so cash and card can no longer be added. The rest can be paid by bank transfer once the invoice is issued.`);
   }
   const outstanding = money(s, order).outstanding;
   if (input.amount > outstanding) fail('payment_exceeds_outstanding', `The payment exceeds the outstanding ${formatEur(outstanding)}`);
@@ -254,12 +265,9 @@ function receiptIn(s: SalesState, c: Ctx, order: Order, input: PaymentInput, op:
   };
   s.payments.push(payment);
   s.allocations.push({ id: uid('al'), paymentId: payment.id, orderId: order.id, amount: input.amount, operationId: op, at: c.at });
+  syncAlreadyPaid(s, order);
   note(order, c, 'paid', `${methodLabel(input.method)} payment of ${formatEur(input.amount)} recorded (${payment.reference})`);
   return payment;
-}
-
-function assertFullySettledIfWalkIn(s: SalesState, order: Order) {
-  if (!order.customer && order.status === 'finalized' && money(s, order).outstanding > 0) fail('anonymous_requires_full_settlement', 'A walk-in sale has to be paid in full');
 }
 
 export function recordPayments(state: SalesState, c: Ctx, orderId: string, inputs: PaymentInput[]) {
@@ -268,19 +276,18 @@ export function recordPayments(state: SalesState, c: Ctx, orderId: string, input
     const op = uid('op');
     if (inputs.length === 0) fail('validation', 'Add at least one payment');
     for (const input of inputs) receiptIn(s, c, order, input, op);
-    assertFullySettledIfWalkIn(s, order);
     return {};
   });
 }
 
-/** Finalizes a draft and records its payments in one step (walk-in checkout). */
+/** Finalizes a draft and records its payments in one step ("Finalize and take payment"). Partial payments are fine; the rest stays outstanding. */
 export function checkoutOrder(state: SalesState, c: Ctx, orderId: string, inputs: PaymentInput[]) {
   return transition(state, (s) => {
     const order = orderOf(s, orderId);
+    if (inputs.length === 0) fail('validation', 'Add at least one payment');
     finalizeIn(s, c, order);
     const op = uid('op');
     for (const input of inputs) receiptIn(s, c, order, input, op);
-    assertFullySettledIfWalkIn(s, order);
     return {};
   });
 }
@@ -295,15 +302,14 @@ export function reverseReceiptIn(s: SalesState, c: Ctx, order: Order, input: Rev
   if (original.method === 'external') {
     if (input.reasonKind !== 'external_correction' || !input.transactionReference.trim()) fail('validation', 'An accounting correction needs its external reference');
     if (latestRequestOf(s, order.id)?.state !== 'cancelled') fail('external_reconciliation_required', 'Cancel the wiRef request and record the external correction first');
-  } else if (input.reasonKind !== 'refund' && input.reasonKind !== 'recording_error') fail('validation', 'Choose refund or recording error');
+  } else {
+    if (input.reasonKind !== 'refund' && input.reasonKind !== 'recording_error') fail('validation', 'Choose refund or recording error');
+    const active = activeRequestOf(s, order.id);
+    if (active && active.state !== 'draft') fail('invoice_amount_frozen', `${active.reference} is ${requestStateLabel[active.state].toLowerCase()} and states what was already paid. Cancel the request first.`);
+  }
   if (original.method === 'card' && !input.transactionReference.trim()) fail('validation', 'A card refund or correction needs the terminal reference');
   const bookedAt = input.reasonKind === 'recording_error' ? original.occurredAt : input.occurredAt;
   if (!input.occurredAt || Number.isNaN(new Date(input.occurredAt).getTime())) fail('validation', 'The time of the refund or correction is required');
-  if (original.method === 'cash' && isCashDayClosed(s.daySessions, bookedAt)) {
-    fail('day_closed', input.reasonKind === 'recording_error'
-      ? `The cash of ${formatDate(original.occurredAt)} is closed, so it cannot be corrected afterwards. Give the money back as a refund instead.`
-      : `The cash of ${formatDate(input.occurredAt)} is closed. Book the refund at the time it really happens.`);
-  }
   s.counters.payment += 1;
   const reversal: Payment = {
     id: uid('pay'), reference: reference('P', s.counters.payment, c.at), entryKind: 'reversal', method: original.method, amount: original.amount,
@@ -313,11 +319,12 @@ export function reverseReceiptIn(s: SalesState, c: Ctx, order: Order, input: Rev
   };
   s.payments.push(reversal);
   s.allocations.push({ id: uid('al'), paymentId: reversal.id, orderId: order.id, amount: -original.amount, operationId: op, at: c.at });
+  syncAlreadyPaid(s, order);
   note(order, c, input.reasonKind === 'refund' ? 'refund' : 'correction', `${original.reference} ${input.reasonKind === 'refund' ? 'refunded' : 'corrected'} (${reversal.reference}): ${reason}`);
   return reversal;
 }
 
-/** Reverses one receipt. A walk-in order has to stay fully paid, so it needs a replacement receipt. */
+/** Reverses one receipt. A recording error can record the right receipt in the same step. */
 export function reversePayment(state: SalesState, c: Ctx, input: ReversalInput, replacement?: PaymentInput) {
   return transition(state, (s) => {
     const payment = s.payments.find((item) => item.id === input.paymentId) ?? fail('not_found', 'The payment does not exist');
@@ -327,7 +334,6 @@ export function reversePayment(state: SalesState, c: Ctx, input: ReversalInput, 
     const op = uid('op');
     reverseReceiptIn(s, c, order, input, op);
     if (replacement) receiptIn(s, c, order, replacement, op);
-    assertFullySettledIfWalkIn(s, order);
     return {};
   });
 }
@@ -368,14 +374,14 @@ export function startReplacement(state: SalesState, c: Ctx, orderId: string) {
       if (successor.status === 'draft') return { orderId: successor.id };
       fail('order_already_replaced', `${original.reference} was already replaced by ${successor.reference}`);
     }
-    const customer = original.customer ? { kind: original.customer.kind, id: original.customer.id, displayName: original.customerName ?? '', pricingGroup: '' } : null;
+    const customer = { kind: original.customer.kind, id: original.customer.id, displayName: original.customerName };
     const draft = newDraft(s, c, { customer, fulfillmentMode: original.fulfillmentMode }, original.id);
     for (const item of activeItems(original)) {
       if (item.kind === 'manual') draft.items.push({ ...manualItem({ description: item.description, quantity: item.quantity, unit: item.unit, unitPrice: item.unitPrice, catalogItemId: item.catalogItemId }, c, draft.items.length + 1) });
       else {
         const job = s.jobs.find((candidate) => candidate.id === item.sourceJobId);
         if (!job) fail('source_unavailable', 'A job of the original order no longer exists. Add a manual item instead.');
-        else { assertChargeable(s, c, draft, job); draft.items.push(itemFromJob(job, c, draft.items.length + 1)); }
+        else { assertChargeable(s, c, draft, job); draft.items.push(itemFromJob(job, c, draft.items.length + 1, s)); }
       }
     }
     note(original, c, 'replacement_started', `Replacement draft ${draft.reference} created`);
@@ -408,7 +414,6 @@ export function commitReplacement(state: SalesState, c: Ctx, originalId: string,
     for (const payment of carried) s.allocations.push({ id: uid('al'), paymentId: payment.id, orderId: next.id, amount: payment.amount, operationId: op, at: c.at });
     if (carried.length) note(next, c, 'paid', `${carried.length === 1 ? `${carried[0].reference} carried` : `${carried.length} payments carried`} over from ${original.reference}`);
     for (const payment of input.payments) receiptIn(s, c, next, payment, op);
-    assertFullySettledIfWalkIn(s, next);
     note(original, c, 'replaced', `Replaced by ${next.reference}`);
     return {};
   });
@@ -416,29 +421,10 @@ export function commitReplacement(state: SalesState, c: Ctx, originalId: string,
 
 // Composite flows ------------------------------------------------------------------------------------------------------
 
-export type CounterSaleInput = { job: Job; extras: ManualItemInput[]; payments: PaymentInput[] };
-/** Anonymous sale: the new job, the order with its items, finalization and complete settlement succeed or fail together. */
-export function counterSale(state: SalesState, c: Ctx, input: CounterSaleInput) {
-  return transition(state, (s) => {
-    s.jobs.unshift(structuredClone(input.job));
-    const order = newDraft(s, c, { customer: null, fulfillmentMode: 'immediate' });
-    order.events[0].text = 'Counter sale started';
-    const job = s.jobs[0];
-    assertChargeable(s, c, order, job);
-    order.items.push(itemFromJob(job, c, 1));
-    input.extras.forEach((extra) => order.items.push(manualItem(extra, c, order.items.length + 1)));
-    finalizeIn(s, c, order);
-    const op = uid('op');
-    for (const payment of input.payments) receiptIn(s, c, order, payment, op);
-    assertFullySettledIfWalkIn(s, order);
-    return { orderId: order.id };
-  });
-}
-
 export function duplicateAsDraft(state: SalesState, c: Ctx, orderId: string) {
   return transition(state, (s) => {
     const source = orderOf(s, orderId);
-    const customer = source.customer ? { kind: source.customer.kind, id: source.customer.id, displayName: source.customerName ?? '', pricingGroup: '' } : null;
+    const customer = { kind: source.customer.kind, id: source.customer.id, displayName: source.customerName };
     const draft = newDraft(s, c, { customer, fulfillmentMode: source.fulfillmentMode });
     const manual = activeItems(source).filter((item) => item.kind === 'manual');
     manual.forEach((item) => draft.items.push(manualItem(item, c, draft.items.length + 1)));
@@ -448,13 +434,13 @@ export function duplicateAsDraft(state: SalesState, c: Ctx, orderId: string) {
 }
 
 /** Batch: one draft for a customer holding the given jobs. */
-export function draftFromJobs(state: SalesState, c: Ctx, customer: BillingParty, jobIds: string[]) {
+export function draftFromJobs(state: SalesState, c: Ctx, customer: Pick<BillingParty, 'kind' | 'id' | 'displayName'>, jobIds: string[]) {
   return transition(state, (s) => {
     const draft = newDraft(s, c, { customer, fulfillmentMode: 'immediate' });
     for (const id of jobIds) {
       const job = s.jobs.find((candidate) => candidate.id === id) ?? fail('not_found', 'The job does not exist');
       assertChargeable(s, c, draft, job);
-      const item = itemFromJob(job, c, draft.items.length + 1);
+      const item = itemFromJob(job, c, draft.items.length + 1, s);
       draft.items.push(item);
       note(draft, c, 'item_added', `Added job ${job.displayId} · ${formatEur(item.amount)}`);
     }
@@ -465,7 +451,6 @@ export function draftFromJobs(state: SalesState, c: Ctx, customer: BillingParty,
 // wiRef requests -------------------------------------------------------------------------------------------------------
 
 const requestOf = (s: SalesState, id: string) => s.requests.find((request) => request.id === id) ?? fail('not_found', 'The wiRef request does not exist');
-const customerOf = (s: SalesState, id: string | null | undefined) => s.customers.find((customer) => customer.id === id);
 
 function requestNote(s: SalesState, c: Ctx, request: InvoiceRequest, kind: InvoiceEventKind, text: string, extra: Partial<Pick<InvoiceRequest['events'][number], 'externalReference' | 'effectiveOn' | 'reconciliationKind' | 'reason'>> = {}) {
   request.events.push({ id: uid('we'), at: c.at, actor: c.actor, kind, text, ...extra });
@@ -481,40 +466,58 @@ function checkExternalText(reference: string, reason = '') {
 }
 const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T12:00:00Z`).getTime());
 
-/** Why an order cannot get a wiRef request, or null. The Invoicing picker and the order menu use the same rules as the transition. */
-export function invoiceRequestBlocker(s: Pick<SalesState, 'requests' | 'payments' | 'allocations'>, order: Order): string | null {
+/** Why an order cannot get an invoice request, or null. The order menu and the transition use the same rules. [proposed] Payment no longer matters: a paid order can be invoiced too. */
+export function invoiceRequestBlocker(s: Pick<SalesState, 'requests'>, order: Pick<Order, 'id' | 'status'> & { net?: number }): string | null {
   if (order.status !== 'finalized') return 'The order is not finalized';
-  if (!order.customer) return 'A walk-in sale has no one to invoice';
-  const active = s.requests.filter((request) => request.orderId === order.id && request.state !== 'cancelled')[0];
+  if (order.net !== undefined && order.net <= 0) return 'Nothing is charged, so there is nothing to invoice';
+  const active = s.requests.find((request) => request.orderId === order.id && request.state !== 'cancelled');
   if (active) return `${active.reference} is already active for this order`;
-  if (activeReceipts(s.payments, s.allocations, order.id).length) return 'Cash or card payments were recorded on it';
   return null;
 }
 
-/** Creates a wiRef request (draft state) for a finalized, named order that has no payments yet. A cancelled request may have a successor. */
-export function prepareInvoiceRequest(state: SalesState, c: Ctx, orderId: string) {
+function checkDetails(details: InvoiceRequestDetails) {
+  const text = Object.values(details).join('');
+  if ([details.recipientName, details.addressLine1, details.postalCode, details.locality, details.contactName, details.purchaseOrderReference].some((value) => value.length > 200) || text.length > 2000) fail('validation', 'Invoice recipient fields exceed their length limits');
+  if (details.serviceDescription.length > 500) fail('validation', 'The service description is too long');
+  if (details.countryCode && !/^[A-Za-z]{2}$/.test(details.countryCode)) fail('validation', 'Use the two-letter country code, e.g. AT');
+  if ((details.serviceStartsOn && !validDate(details.serviceStartsOn)) || (details.serviceEndsOn && !validDate(details.serviceEndsOn))) fail('validation', 'Service period dates must be valid');
+  if (details.serviceStartsOn && details.serviceEndsOn && details.serviceStartsOn > details.serviceEndsOn) fail('validation', 'The service period must end on or after its start');
+}
+
+/** The details a new request starts with: the customer's name, the service period of the jobs, and the given prefill (address, contact person). */
+export function defaultRequestDetails(order: Order, at: string): InvoiceRequestDetails {
+  const jobs = activeItems(order).flatMap((item) => (item.snapshot ? [item.snapshot] : []));
+  const items = activeItems(order).length;
+  return {
+    recipientName: order.customerName, addressLine1: '', postalCode: '', locality: '', countryCode: 'AT', contactName: '',
+    serviceStartsOn: jobs.length ? dateInAppTimeZone(jobs.map((job) => job.startsAt).sort()[0]) : dateInAppTimeZone(at),
+    serviceEndsOn: jobs.length ? dateInAppTimeZone(jobs.map((job) => job.endsAt).sort().at(-1)!) : addCalendarDays(dateInAppTimeZone(at), 0),
+    serviceDescription: `Machine services and materials, ${items} ${items === 1 ? 'item' : 'items'}`, purchaseOrderReference: '',
+  };
+}
+
+/**
+ * Creates a wiRef invoice request (draft state) for a finalized order. [proposed] This works whatever the payment: cash and card already received
+ * are carried on the request as "already paid", the rest is paid by bank transfer after wiRef issued the invoice. A cancelled request may have a successor.
+ */
+export function prepareInvoiceRequest(state: SalesState, c: Ctx, orderId: string, details?: InvoiceRequestDetails) {
   return transition(state, (s) => {
     const order = orderOf(s, orderId);
-    if (order.status !== 'finalized') fail('order_not_finalized', 'A wiRef request needs a finalized order');
-    if (!order.customer) fail('external_invoice_requires_customer', 'A wiRef request needs a named customer');
-    if (activeRequestOf(s, order.id)) fail('request_already_exists', `This order already has an active wiRef request: ${activeRequestOf(s, order.id)!.reference}`);
-    if (activeReceipts(s.payments, s.allocations, order.id).length) fail('settlement_workflow_conflict', 'An order with cash or card payments cannot be invoiced through wiRef');
-    const jobs = activeItems(order).flatMap((item) => (item.snapshot ? [item.snapshot] : []));
+    const blocker = invoiceRequestBlocker(s, { id: order.id, status: order.status, net: money(s, order).net });
+    if (blocker) fail(order.status !== 'finalized' ? 'order_not_finalized' : activeRequestOf(s, order.id) ? 'request_already_exists' : 'validation', blocker);
+    const own = details ?? defaultRequestDetails(order, c.at);
+    checkDetails(own);
     const previous = latestRequestOf(s, order.id);
     s.counters.request += 1;
+    const alreadyPaid = paidByCashOrCard(s.payments, s.allocations, order.id);
     const request: InvoiceRequest = {
-      id: uid('wr'), reference: reference('W', s.counters.request, c.at), orderId: order.id, orderReference: order.reference, state: 'draft', requestedAmount: money(s, order).net,
-      details: {
-        recipientName: order.customerName ?? '', addressLine1: '', postalCode: '', locality: '', countryCode: 'AT', contactName: '',
-        serviceStartsOn: jobs.length ? dateInAppTimeZone(jobs.map((job) => job.startsAt).sort()[0]) : dateInAppTimeZone(c.at),
-        serviceEndsOn: jobs.length ? dateInAppTimeZone(jobs.map((job) => job.endsAt).sort().at(-1)!) : addCalendarDays(dateInAppTimeZone(c.at), 0),
-        serviceDescription: `Machine services and materials, ${activeItems(order).length} ${activeItems(order).length === 1 ? 'item' : 'items'}`, purchaseOrderReference: '',
-      },
-      events: [{ id: uid('we'), at: c.at, actor: c.actor, kind: 'created', text: previous ? `Request prepared again after ${previous.reference} was cancelled` : 'Request prepared from the order' }],
+      id: uid('wr'), reference: reference('W', s.counters.request, c.at), orderId: order.id, orderReference: order.reference, state: 'draft', requestedAmount: money(s, order).net, alreadyPaid,
+      details: { ...own, countryCode: own.countryCode.toUpperCase() },
+      events: [{ id: uid('we'), at: c.at, actor: c.actor, kind: 'created', text: previous ? `Invoice requested again after ${previous.reference} was cancelled` : alreadyPaid > 0 ? `Invoice requested, ${formatEur(alreadyPaid)} already paid` : 'Invoice requested' }],
       supersedesRequestId: previous?.id ?? null, version: 1, createdAt: c.at,
     };
     s.requests.push(request);
-    note(order, c, 'invoicing', `wiRef request ${request.reference} prepared`);
+    note(order, c, 'invoicing', `Invoice requested from wiRef (${request.reference})${alreadyPaid > 0 ? `, ${formatEur(alreadyPaid)} already paid` : ''}`);
     return { requestId: request.id };
   });
 }
@@ -524,12 +527,7 @@ export function updateRequestDetails(state: SalesState, c: Ctx, requestId: strin
   return transition(state, (s) => {
     const request = requestOf(s, requestId);
     if (request.state !== 'draft') fail('request_frozen', 'Recipient details can only be changed while the request is a draft');
-    const text = Object.values(details).join('');
-    if ([details.recipientName, details.addressLine1, details.postalCode, details.locality, details.contactName, details.purchaseOrderReference].some((value) => value.length > 200) || text.length > 2000) fail('validation', 'Invoice recipient fields exceed their length limits');
-    if (details.serviceDescription.length > 500) fail('validation', 'The service description is too long');
-    if (details.countryCode && !/^[A-Za-z]{2}$/.test(details.countryCode)) fail('validation', 'Use the two-letter country code, e.g. AT');
-    if ((details.serviceStartsOn && !validDate(details.serviceStartsOn)) || (details.serviceEndsOn && !validDate(details.serviceEndsOn))) fail('validation', 'Service period dates must be valid');
-    if (details.serviceStartsOn && details.serviceEndsOn && details.serviceStartsOn > details.serviceEndsOn) fail('validation', 'The service period must end on or after its start');
+    checkDetails(details);
     request.details = { ...details, countryCode: details.countryCode.toUpperCase() };
     requestNote(s, c, request, 'details_saved', 'Recipient details saved');
     return {};
@@ -540,7 +538,8 @@ export function markRequestReady(state: SalesState, c: Ctx, requestId: string) {
   return transition(state, (s) => {
     const request = requestOf(s, requestId);
     requireState(request, ['draft'], 'Only drafts can become ready');
-    const missing = requestReadiness(request, customerOf(s, s.orders.find((order) => order.id === request.orderId)?.customer?.id)).filter((item) => !item.ok);
+    const customer = s.orders.find((order) => order.id === request.orderId)?.customer;
+    const missing = requestReadiness(request, customer, s.organizations.find((item) => item.id === customer?.id)).filter((item) => !item.ok);
     if (missing.length) fail('validation', `Complete these first: ${missing.map((item) => item.label.toLowerCase()).join(', ')}`);
     requestNote(s, c, request, 'ready', 'Marked as ready to submit');
     request.state = 'ready';
@@ -626,44 +625,59 @@ export function correctRequestReference(state: SalesState, c: Ctx, requestId: st
   });
 }
 
-// Cash day close [proposed] ----------------------------------------------------------------------------------------------------
+// Cash movements [proposed] ------------------------------------------------------------------------------------------------
 
-export type CloseDayInput = { day: string; countedCash: number; denominations: Record<string, number>; note: string };
-/** Closes the cash of one calendar day. Afterwards cash entries cannot be added to or corrected on that day. */
-export function closeDay(state: SalesState, c: Ctx, input: CloseDayInput) {
+export type CashMovementInput = { kind: CashMovementKind; amount: number; occurredAt: string; reason: CashMovementReason; note: string };
+/** Money taken out of the register (withdrawal) or added to it (deposit, e.g. a change float). It is not tied to an order. */
+export function recordCashMovement(state: SalesState, c: Ctx, input: CashMovementInput) {
   return transition(state, (s) => {
-    if (!validDate(input.day)) fail('validation', 'Choose the day to close');
-    if (input.day > dateInAppTimeZone(c.at)) fail('validation', 'A day that has not happened yet cannot be closed');
-    if (s.daySessions.some((session) => session.day === input.day)) fail('day_already_closed', `${formatDate(`${input.day}T12:00:00Z`)} is already closed`);
-    if (!(input.countedCash >= 0) || round2(input.countedCash) !== input.countedCash) fail('validation', 'Enter the counted cash with at most two decimals');
-    const expected = cashDayFigures(s.payments, input.day).expected;
-    const difference = round2(input.countedCash - expected);
+    if (!(input.amount > 0) || round2(input.amount) !== input.amount) fail('validation', 'Enter an amount greater than zero with at most two decimals');
+    if (!input.occurredAt || Number.isNaN(new Date(input.occurredAt).getTime())) fail('validation', 'The time is required');
+    if (new Date(input.occurredAt).getTime() > new Date(c.at).getTime() + 60_000) fail('validation', 'A cash movement cannot be in the future');
     const text = input.note.trim();
-    if (difference !== 0 && !text) fail('validation', `Explain the difference of ${formatEur(Math.abs(difference))} in the note`);
     if (text.length > 500) fail('validation', 'The note can have up to 500 characters');
-    s.daySessions.push({ id: uid('day'), day: input.day, expectedCash: expected, countedCash: input.countedCash, difference, note: text, denominations: input.denominations, closedAt: c.at, closedBy: c.actor });
-    return {};
+    if (input.reason === 'other' && !text) fail('validation', 'Say what the money was for in the note');
+    if (input.kind === 'withdrawal') {
+      const held = cashInRegister(s.payments, s.cashMovements, new Date(input.occurredAt).getTime() + 1).expected;
+      if (input.amount > held) fail('insufficient_cash', `The register should only hold ${formatEur(held)} at that time, so ${formatEur(input.amount)} cannot be taken out`);
+    }
+    s.counters.movement += 1;
+    const movement: CashMovement = { id: uid('cm'), reference: reference('C', s.counters.movement, c.at), kind: input.kind, amount: input.amount, occurredAt: input.occurredAt, recordedAt: c.at, recordedBy: c.actor, reason: input.reason, note: text };
+    s.cashMovements.push(movement);
+    return { movementId: movement.id };
   });
 }
 
-// Customers and pricing ---------------------------------------------------------------------------------------------------------
+// Organizations, role mapping and pricing --------------------------------------------------------------------------------------------
 
-export function assignPricingGroup(state: SalesState, c: Ctx, customerId: string, group: string | null) {
+export type OrganizationInput = { id?: string; name: string; kind: OrganizationKind; pricingGroup: string | null; requiresPurchaseOrder: boolean; active: boolean; billing: BillingContact };
+/** Organizations are the only customers besides accounts. A new one gets a customer id, so jobs and orders can refer to it. */
+export function saveOrganization(state: SalesState, c: Ctx, input: OrganizationInput) {
   return transition(state, (s) => {
-    const customer = customerOf(s, customerId) ?? fail('not_found', 'The customer does not exist');
-    if (group !== null && !s.pricing.groups.find((item) => item.name === group)?.active) fail('pricing_group_inactive', 'That pricing group is inactive');
-    customer.pricingGroup = group;
+    const name = input.name.trim();
+    if (!name || name.length > 120) fail('validation', 'Give the organization a name of up to 120 characters');
+    if (s.organizations.some((item) => item.id !== input.id && item.name.toLowerCase() === name.toLowerCase())) fail('conflict', `An organization named “${name}” already exists`);
+    if (input.pricingGroup !== null && !s.pricing.groups.find((group) => group.name === input.pricingGroup)?.active) fail('pricing_group_inactive', 'That pricing group is inactive');
+    if (input.billing.countryCode && !/^[A-Za-z]{2}$/.test(input.billing.countryCode)) fail('validation', 'Use the two-letter country code, e.g. AT');
+    const existing = input.id ? s.organizations.find((item) => item.id === input.id) ?? fail('not_found', 'The organization does not exist') : null;
+    const values = { name, kind: input.kind, pricingGroup: input.pricingGroup, requiresPurchaseOrder: input.requiresPurchaseOrder, active: input.active, billing: { ...input.billing, countryCode: input.billing.countryCode.toUpperCase() } };
+    if (existing) {
+      Object.assign(existing, values);
+      return { organizationId: existing.id };
+    }
+    const organization: OrganizationRecord = { id: uid('o'), ...values };
+    s.organizations.push(organization);
     void c;
-    return {};
+    return { organizationId: organization.id };
   });
 }
 
-/** Applies to wiRef requests that are marked ready from now on; ready requests keep what they captured. */
-export function setPurchaseOrderRequirement(state: SalesState, c: Ctx, customerId: string, required: boolean) {
+/** Maps an account role to a pricing group; null removes the mapping, so accounts with only that role follow the default group. */
+export function setRoleGroup(state: SalesState, c: Ctx, roleId: string, group: string | null) {
   return transition(state, (s) => {
-    const customer = customerOf(s, customerId) ?? fail('not_found', 'The customer does not exist');
-    if (customer.kind !== 'organization') fail('validation', 'Only organizations have invoicing requirements');
-    customer.requiresPurchaseOrder = required;
+    if (!accountRoles.some((role) => role.id === roleId)) fail('not_found', 'The account role does not exist');
+    if (group !== null && !s.pricing.groups.find((item) => item.name === group)?.active) fail('pricing_group_inactive', 'That pricing group is inactive');
+    if (group === null) delete s.pricing.roleGroups[roleId]; else s.pricing.roleGroups[roleId] = group;
     void c;
     return {};
   });
@@ -681,8 +695,9 @@ export function savePricingGroup(state: SalesState, c: Ctx, input: PricingGroupI
     if (existing?.isDefault && !input.isDefault) fail('validation', 'There always has to be a default group. Make another group the default instead.');
     if (input.isDefault) for (const group of s.pricing.groups) group.isDefault = false;
     if (existing) {
-      // Customers and jobs refer to the group by name, so a rename keeps them attached.
-      for (const customer of s.customers) if (customer.pricingGroup === existing.name) customer.pricingGroup = name;
+      // Organizations and role mappings refer to the group by name, so a rename keeps them attached.
+      for (const organization of s.organizations) if (organization.pricingGroup === existing.name) organization.pricingGroup = name;
+      for (const [role, mapped] of Object.entries(s.pricing.roleGroups)) if (mapped === existing.name) s.pricing.roleGroups[role] = name;
       Object.assign(existing, { name, description: input.description.trim(), active: input.active, isDefault: input.isDefault });
       return { groupId: existing.id };
     }

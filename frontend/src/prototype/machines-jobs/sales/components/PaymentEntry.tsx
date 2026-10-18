@@ -9,7 +9,7 @@ import { methodLabel, terminals } from '../labels';
 import { sum } from '../logic';
 import type { Payment, PaymentInput, PaymentMethod } from '../types';
 
-// Shared by the counter sale, the Record payment modal, the checkout of a walk-in draft and the replacement commit:
+// Shared by the Record payment modal, "Finalize and take payment", the refund correction and the replacement commit:
 // cash with change calculator, card with terminal reference, split payments and an editable payment time.
 
 export type PaymentRow = { key: string; method: PaymentMethod; amount: string; tendered: string; terminal: string; reference: string };

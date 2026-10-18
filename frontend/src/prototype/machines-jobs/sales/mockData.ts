@@ -2,18 +2,16 @@ import * as base from '../mockData';
 import { ago } from '../mockData';
 import type { BillingParty, Job, JobOutcome, Operator, PriceAdjustment } from '../types';
 import {
-  addJobItems, addManualItem, cancelDraft, cancelRequest, closeDay, commitReplacement, counterSale, createDraft, finalizeOrder, markRequestReady, markRequestSubmitted, prepareInvoiceRequest, recordPayments,
-  recordRequestIssued, requestCancellation, reverseOrder, reversePayment, startReplacement, updateManualItem, updateRequestDetails, type Ctx, type SalesState,
+  addJobItems, addManualItem, cancelDraft, cancelRequest, commitReplacement, createDraft, finalizeOrder, markRequestReady, markRequestSubmitted, prepareInvoiceRequest, recordCashMovement, recordPayments,
+  recordRequestIssued, requestCancellation, reverseOrder, reversePayment, startReplacement, updateManualItem, updateRequestDetails, type CashMovementInput, type Ctx, type SalesState,
 } from './engine';
-import { addCalendarDays, zonedDateTimeToISO } from '../../../app/dateTime';
 import { dateInAppTimeZone } from './format';
-import { activeItems, cashDayFigures, sum } from './logic';
-import { defaultPricingConfig, defaultPricingGroup, quoteJob } from './pricing';
-import type { InvoiceRequestDetails } from './types';
-import type { PaymentInput, PaymentMethod } from './types';
+import { activeItems, sum } from './logic';
+import { defaultPricingConfig, quoteJob, resolveGroup } from './pricing';
+import type { BillingContact, InvoiceRequestDetails, OrganizationRecord, PaymentInput, PaymentMethod } from './types';
 
 // The sales seed is not a hand-written pile of rows: it replays real actions through the engine at past times, so every
-// reference, allocation, timeline and job claim obeys the same rules as live use. ~30 orders in every state.
+// reference, allocation, timeline and job claim obeys the same rules as live use. ~30 orders in every state, every one with a customer.
 
 const H = 60;
 const D = 24 * H;
@@ -24,12 +22,32 @@ const FRONT_DESK = 'Sara Kofler';
 const material = (id: string) => base.materials.find((item) => item.id === id)!;
 
 type JobSpec = {
-  num: number; title: string | null; machineId: string; customer: BillingParty | null; endedAgo: number; minutes: number; usages: [materialId: string, quantity: number][];
+  num: number; title: string | null; machineId: string; customer: BillingParty; endedAgo: number; minutes: number; usages: [materialId: string, quantity: number][];
   operator?: Operator; outcome?: JobOutcome; adjustment?: PriceAdjustment; version?: number; group?: string; notes?: string;
 };
 
+/** Organizations are the only customers that are not accounts. Billing data is what the invoice request form prefills. */
+const org = (id: string, name: string, kind: OrganizationRecord['kind'], pricingGroup: string | null, requiresPurchaseOrder: boolean, billing: BillingContact, active = true): OrganizationRecord => ({ id, name, kind, pricingGroup, requiresPurchaseOrder, active, billing });
+const seedOrganizations: OrganizationRecord[] = [
+  org('o-racing', 'TU Graz Racing Team', 'association', 'Student teams', false, { addressLine1: 'Inffeldgasse 11', postalCode: '8010', locality: 'Graz', countryCode: 'AT', contactName: 'Julia Prem' }),
+  org('o-robotics', 'Robotics Lab', 'institute', 'Institutes', true, { addressLine1: 'Inffeldgasse 13', postalCode: '8010', locality: 'Graz', countryCode: 'AT', contactName: 'Dr. Markus Reiter' }),
+  org('o-kreativ', 'Kreativwerkstatt Graz GmbH', 'company', null, true, { addressLine1: 'Schmiedgasse 8', postalCode: '8010', locality: 'Graz', countryCode: 'AT', contactName: 'Petra Lang' }),
+  org('o-htl', 'HTL Bulme Robotics Club', 'association', 'Student teams', false, { addressLine1: 'Pestalozzistraße 3', postalCode: '8010', locality: 'Graz', countryCode: 'AT', contactName: 'Dr. Weber' }),
+  org('o-fablab', 'FabLab Steiermark Verein', 'association', 'Institutes', false, { addressLine1: 'Reininghausstraße 13', postalCode: '8020', locality: 'Graz', countryCode: 'AT', contactName: 'Tim Auer' }),
+  org('o-leoben', 'Leoben Maker Collective', 'association', null, false, { addressLine1: 'Franz-Josef-Straße 18', postalCode: '8700', locality: 'Leoben', countryCode: 'AT', contactName: '' }, false),
+];
+/** Where accounts live, for the invoice request prefill. Not every account has an address on file. */
+export const accountBilling: Record<string, BillingContact> = {
+  'p-lena': { addressLine1: 'Heinrichstraße 5', postalCode: '8010', locality: 'Graz', countryCode: 'AT', contactName: '' },
+  'p-amira': { addressLine1: 'Jakominiplatz 3', postalCode: '8010', locality: 'Graz', countryCode: 'AT', contactName: '' },
+  'p-tobias': { addressLine1: 'Lendkai 12', postalCode: '8020', locality: 'Graz', countryCode: 'AT', contactName: '' },
+};
+
+const seedPricing = defaultPricingConfig();
+
 function makeJob(spec: JobSpec): Job {
-  const group = spec.group ?? spec.customer?.pricingGroup ?? defaultPricingGroup;
+  const resolved = resolveGroup(seedPricing, seedOrganizations, spec.customer, spec.group);
+  const group = resolved.group.name;
   const usages = spec.usages.map(([materialId, quantity], index) => {
     const item = material(materialId);
     return { id: `u-${spec.num}-${index}`, ownership: 'makerspace' as const, materialId, spoolId: null, spoolDisplayId: null, materialName: item.name, category: item.category, unit: item.unit, quantity, quantityBasis: 'actual' as const };
@@ -38,8 +56,8 @@ function makeJob(spec: JobSpec): Job {
   return {
     id: `j-${spec.num}`, displayId: `J-${spec.num}`, title: spec.title, machineId: spec.machineId, startsAt: ago(spec.endedAgo + spec.minutes), endsAt: ago(spec.endedAgo), durationSeconds: spec.minutes * 60,
     run: 'manual', printId: null, source: 'manual', externalId: null, customer: spec.customer, operator: spec.operator ?? [sara, david, nina][spec.num % 3], outcome: spec.outcome ?? 'successful', notes: spec.notes ?? null,
-    usages, pricingStatus: 'complete', pricingSnapshot: { revision: 1, pricingGroupName: group, reason: 'initial', capturedAt: ago(spec.endedAgo), rules: quote.rules },
-    calculatedPrice: quote.total, priceAdjustment: spec.adjustment ?? null, order: null, version: spec.version ?? 1,
+    usages, pricingStatus: 'complete', pricingSnapshot: { revision: 1, pricingGroupName: group, via: resolved.reason, reason: 'initial', capturedAt: ago(spec.endedAgo), rules: quote.rules },
+    calculatedPrice: quote.total, priceAdjustment: spec.adjustment ?? null, pricingGroupOverride: spec.group ?? null, order: null, version: spec.version ?? 1,
   };
 }
 
@@ -48,7 +66,7 @@ const PLA = 'mat-pla-black'; const PETG = 'mat-petg-white'; const ASA = 'mat-asa
 // Jobs of the identified orders and the ready-to-bill list (J-1065 to J-1082).
 const extraJobs: Job[] = [
   makeJob({ num: 1082, title: 'Laser-cut shelf brackets', machineId: 'm-laser', customer: amira, endedAgo: 8 * D + 3 * H, minutes: 45, usages: [[PLY, 0.6]] }),
-  makeJob({ num: 1081, title: 'Sensor housing batch', machineId: 'm-mk4-1', customer: amira, endedAgo: 8 * D + 3 * H, minutes: 240, usages: [[PETG, 180]], group: 'Staff' }),
+  makeJob({ num: 1081, title: 'Sensor housing batch', machineId: 'm-mk4-1', customer: amira, endedAgo: 8 * D + 3 * H, minutes: 240, usages: [[PETG, 180]] }),
   makeJob({ num: 1080, title: 'Spare gears', machineId: 'm-mk4-2', customer: elif, endedAgo: 6 * D + 4 * H, minutes: 120, usages: [[PLA, 90]] }),
   makeJob({ num: 1079, title: 'Hinge prototypes', machineId: 'm-x1c', customer: felix, endedAgo: 5 * D + 6 * H, minutes: 150, usages: [[ASA, 70]] }),
   makeJob({ num: 1078, title: 'Cable guides', machineId: 'm-mk4-1', customer: tobias, endedAgo: 3 * D + 2 * H, minutes: 90, usages: [[PETG, 55]], version: 2 }),
@@ -73,43 +91,47 @@ const extraJobs: Job[] = [
 export function buildSalesSeed() {
   let state: SalesState = {
     orders: [], payments: [], allocations: [], adjustments: [], requests: [], jobs: [...structuredClone(extraJobs), ...structuredClone(base.jobs)],
-    counters: { order: 100, payment: 300, adjustment: 8, request: 40 },
-    customers: base.people.map((party) => ({
-      kind: party.kind, id: party.id, displayName: party.displayName,
-      // Felix follows the default group; the others are assigned one. Two organizations require a purchase order on their invoices.
-      pricingGroup: party.id === 'p-felix' ? null : party.pricingGroup, requiresPurchaseOrder: party.id === 'o-kreativ' || party.id === 'o-robotics',
-    })),
-    daySessions: [], pricing: defaultPricingConfig(),
+    counters: { order: 100, payment: 300, adjustment: 8, request: 40, movement: 12 },
+    // Two organizations require a purchase order reference on their invoices.
+    organizations: structuredClone(seedOrganizations), cashMovements: [], pricing: structuredClone(seedPricing),
   };
   const ctx = (minutesAgo: number, actor = FRONT_DESK): Ctx => ({ at: ago(minutesAgo), actor, machines: base.machines, machineTypes: base.machineTypes, prints: base.prints });
   let tx = 48300;
   const pay = (minutesAgo: number, method: PaymentMethod, amount: number): PaymentInput => ({
     method, amount, occurredAt: ago(minutesAgo), terminal: method === 'card' ? 'Terminal 1' : method === 'external' ? 'wiRef' : '', transactionReference: method === 'card' ? `T-${++tx}` : method === 'external' ? `WR-${++tx}` : '',
   });
-  const customerOf = (party: BillingParty | null) => ({ customer: party, fulfillmentMode: 'immediate' as const });
-  const draft = (m: number, party: BillingParty | null, actor?: string, fulfillmentMode: 'immediate' | 'deferred' = 'immediate') => { const r = createDraft(state, ctx(m, actor), { ...customerOf(party), fulfillmentMode }); state = r.state; return r.orderId; };
+  const customerOf = (party: BillingParty) => ({ customer: party, fulfillmentMode: 'immediate' as const });
+  const draft = (m: number, party: BillingParty, actor?: string, fulfillmentMode: 'immediate' | 'deferred' = 'immediate') => { const r = createDraft(state, ctx(m, actor), { ...customerOf(party), fulfillmentMode }); state = r.state; return r.orderId; };
   const totalOf = (orderId: string) => sum(activeItems(state.orders.find((order) => order.id === orderId)!).map((item) => item.amount));
   const jobs = (m: number, orderId: string, ...ids: string[]) => { state = addJobItems(state, ctx(m), orderId, ids).state; };
   const manual = (m: number, orderId: string, description: string, quantity: number, unit: string, unitPrice: number) => { state = addManualItem(state, ctx(m), orderId, { description, quantity, unit, unitPrice }).state; };
   const finalize = (m: number, orderId: string) => { state = finalizeOrder(state, ctx(m), orderId).state; };
   const record = (m: number, orderId: string, ...inputs: PaymentInput[]) => { state = recordPayments(state, ctx(m), orderId, inputs).state; };
 
-  // Counter sales (walk-in customers, paid on the spot) -------------------------------------------------------------------
-  const sale = (n: number, m: number, machineId: string, minutes: number, usages: [string, number][], opts: { adjustment?: PriceAdjustment; extras?: [string, number, string, number][]; pays?: [PaymentMethod, number][]; operator?: Operator } = {}) => {
-    const job = makeJob({ num: 1040 + n, title: null, machineId, customer: null, endedAgo: m, minutes, usages, operator: opts.operator ?? [sara, david, nina][n % 3], adjustment: opts.adjustment, notes: 'Counter sale' });
-    const payments = (opts.pays ?? []).map(([method, amount]) => pay(m, method, amount));
-    state = counterSale(state, ctx(m, job.operator!.displayName), { job, extras: (opts.extras ?? []).map(([description, quantity, unit, unitPrice]) => ({ description, quantity, unit, unitPrice })), payments }).state;
+  // Orders that were handed over and paid on the spot (formerly counter sales): each one has a customer, an account or an organization --------------
+  const sale = (n: number, m: number, party: BillingParty, machineId: string, minutes: number, usages: [string, number][], opts: { adjustment?: PriceAdjustment; extras?: [string, number, string, number][]; pays?: [PaymentMethod, number | 'rest'][]; operator?: Operator } = {}) => {
+    const job = makeJob({ num: 1040 + n, title: null, machineId, customer: party, endedAgo: m, minutes, usages, operator: opts.operator ?? [sara, david, nina][n % 3], adjustment: opts.adjustment });
+    state.jobs.unshift(job);
+    const id = draft(m - 1, party, job.operator!.displayName); jobs(m - 2, id, job.id);
+    (opts.extras ?? []).forEach(([description, quantity, unit, unitPrice]) => manual(m - 2, id, description, quantity, unit, unitPrice));
+    finalize(m - 3, id);
+    let left = totalOf(id);
+    (opts.pays ?? []).forEach(([method, amount], index) => {
+      const value = amount === 'rest' ? left : amount;
+      left = Math.round((left - value) * 100) / 100;
+      record(m - 4 - index, id, pay(m - 4 - index, method, value));
+    });
   };
-  sale(1, 9 * D + 4 * H, 'm-laser', 20, [[PLY, 0.3]], { pays: [['cash', 5.6]] });
-  sale(2, 7 * D + 2 * H, 'm-mk4-1', 90, [[PLA, 60]], { pays: [['card', 13.8]] });
-  sale(3, 5 * D + 6 * H, 'm-mk4-2', 45, [[PETG, 30]], { pays: [['cash', 4], ['card', 2.9]] });
-  sale(4, 4 * D + 1 * H, 'm-x1c', 180, [[ASA, 120]], { extras: [['Bed adhesive stick', 1, 'piece', 5.5]], pays: [['card', 33.1]] });
-  sale(5, 3 * D + 4 * H, 'm-cnc', 60, [[MDF, 0.25]], { adjustment: { kind: 'fixed', value: 0, reason: 'Demonstration for a school visit.' } });
-  sale(6, 2 * D + 2 * H, 'm-laser', 30, [[PLY, 0.5]], { extras: [['Plywood offcut, A4 size', 1, 'piece', 1.5]], pays: [['cash', 5], ['card', 5.5]] });
-  sale(7, 1 * D + 5 * H, 'm-mk4-1', 120, [[PLA, 100]], { adjustment: { kind: 'discount_percent', value: 10, reason: 'Regular visitor.' }, pays: [['cash', 18]] });
-  sale(8, 2 * H + 10, 'm-h2d', 240, [[PETG, 150]], { pays: [['card', 36]] });
-  sale(9, 55, 'm-mk4-2', 30, [[PLA, 25]], { pays: [['cash', 5]] });
-  sale(10, 12, 'm-laser', 15, [[PLY, 0.2]], { extras: [['Screw assortment M3', 1, 'pack', 3]], pays: [['cash', 3], ['card', 3.9]] });
+  sale(1, 9 * D + 4 * H, jonas, 'm-laser', 20, [[PLY, 0.3]], { pays: [['cash', 'rest']] });
+  sale(2, 7 * D + 2 * H, tobias, 'm-mk4-1', 90, [[PLA, 60]], { pays: [['card', 'rest']] });
+  sale(3, 5 * D + 6 * H, felix, 'm-mk4-2', 45, [[PETG, 30]], { pays: [['cash', 4], ['card', 'rest']] });
+  sale(4, 4 * D + 1 * H, elif, 'm-x1c', 180, [[ASA, 120]], { extras: [['Bed adhesive stick', 1, 'piece', 5.5]], pays: [['card', 'rest']] });
+  sale(5, 3 * D + 4 * H, htl, 'm-cnc', 60, [[MDF, 0.25]], { adjustment: { kind: 'fixed', value: 0, reason: 'Demonstration for a school visit.' } });
+  sale(6, 2 * D + 2 * H, mara, 'm-laser', 30, [[PLY, 0.5]], { extras: [['Plywood offcut, A4 size', 1, 'piece', 1.5]], pays: [['cash', 5], ['card', 'rest']] });
+  sale(7, 1 * D + 5 * H, lena, 'm-mk4-1', 120, [[PLA, 100]], { adjustment: { kind: 'discount_percent', value: 10, reason: 'Regular visitor.' }, pays: [['cash', 'rest']] });
+  sale(8, 2 * H + 10, amira, 'm-h2d', 240, [[PETG, 150]], { pays: [['card', 'rest']] });
+  sale(9, 55, jonas, 'm-mk4-2', 30, [[PLA, 25]], { pays: [['cash', 'rest']] });
+  sale(10, 12, tobias, 'm-laser', 15, [[PLY, 0.2]], { extras: [['Screw assortment M3', 1, 'pack', 3]], pays: [['cash', 3], ['card', 'rest']] });
 
   // Identified orders on the existing jobs -------------------------------------------------------------------------------
   const lenaOpen = draft(1300, lena, undefined, 'deferred'); jobs(1295, lenaOpen, 'j-1089'); finalize(1290, lenaOpen);
@@ -127,7 +149,7 @@ export function buildSalesSeed() {
   const lenaDraft = draft(4300, lena, 'David Mayr'); manual(4290, lenaDraft, 'Laser engraving, name plate', 1, 'piece', 6.5); manual(4285, lenaDraft, 'Birch plywood offcut', 2, 'piece', 1.5);
   const staleDraft = draft(3 * D + 1 * H, tobias); jobs(3 * D + 1 * H - 5, staleDraft, 'j-1078');
   state.orders.find((order) => order.id === staleDraft)!.items[0].sourceJobVersion = 1;
-  const walkInDraft = draft(12 * D, null, 'Nina Berger'); manual(12 * D - 5, walkInDraft, 'PLA spool 1 kg, black', 1, 'piece', 19.9); manual(12 * D - 8, walkInDraft, 'Nozzle 0.4 mm, hardened', 1, 'piece', 12);
+  const oldDraft = draft(12 * D, jonas, 'Nina Berger'); manual(12 * D - 5, oldDraft, 'PLA spool 1 kg, black', 1, 'piece', 19.9); manual(12 * D - 8, oldDraft, 'Nozzle 0.4 mm, hardened', 1, 'piece', 12);
   const kreativDraft = draft(9 * D + 4 * H, kreativ); jobs(9 * D + 4 * H - 3, kreativDraft, 'j-1077', 'j-1076');
   const cancelled = draft(6 * D, mara); manual(6 * D - 3, cancelled, 'Test print', 1, 'piece', 5);
   state = cancelDraft(state, ctx(6 * D - 60), cancelled).state;
@@ -224,20 +246,27 @@ export function buildSalesSeed() {
   state = cancelRequest(state, ctx(9 * D, NINA), cancelledRequest.requestId, 'The recipient asked for a different billing address.').state;
   state = reverseOrder(state, ctx(8 * D + 2 * H, NINA), cancelledRequest.id, { reason: 'Wrong billing details; to be charged again with the new address.', reversals: [] }).state;
 
-  // Cash days: every day from nine days ago to the day before yesterday is closed; yesterday and today stay open to demonstrate the close.
-  const quirks: Record<number, { difference: number; note: string }> = {
-    1: { difference: -0.5, note: 'Two 20 cent coins were missing from the change float.' },
-    3: { difference: 2, note: 'Customer left 2 euro as a tip. Put into the coffee fund.' },
-  };
-  let closedDays = 0;
-  for (let daysAgo = 9; daysAgo >= 2; daysAgo -= 1) {
-    const day = dateInAppTimeZone(ago(daysAgo * D));
-    const figures = cashDayFigures(state.payments, day);
-    if (figures.count === 0) continue;
-    const quirk = quirks[closedDays++] ?? { difference: 0, note: '' };
-    const closedAt = zonedDateTimeToISO(addCalendarDays(day, 1), '07:50');
-    state = closeDay(state, { ...ctx(0, FRONT_DESK), at: closedAt }, { day, countedCash: Math.round((figures.expected + quirk.difference) * 100) / 100, denominations: {}, note: quirk.note }).state;
-  }
+  // Invoices for orders that were already paid [proposed rule]: the request carries what was paid, the rest follows by bank transfer after issue.
+  const paidFirst = draft(3 * D, kreativ, NINA); manual(3 * D - 3, paidFirst, 'Laser engraving, 20 coasters', 20, 'piece', 2.5); finalize(3 * D - 5, paidFirst);
+  record(3 * D - 8, paidFirst, pay(3 * D - 8, 'card', totalOf(paidFirst)));
+  const paidFirstRequest = prepareInvoiceRequest(state, ctx(2 * D + 22 * H, NINA), paidFirst); state = paidFirstRequest.state;
+  details(2 * D + 21 * H, paidFirstRequest.requestId, { addressLine1: 'Schmiedgasse 8', postalCode: '8010', locality: 'Graz', contactName: 'Petra Lang', purchaseOrderReference: 'PO-2026-0455', serviceDescription: 'Laser engraving, 20 coasters (paid by card at the desk)' });
+  ready(2 * D + 20 * H, paidFirstRequest.requestId); submit(2 * D + 19 * H, paidFirstRequest.requestId); issue(2 * D + 4 * H, paidFirstRequest.requestId, 'RE-2026-0203');
+
+  const mixed = draft(2 * D + 9 * H, htl, NINA); manual(2 * D + 9 * H - 3, mixed, 'Robotics workshop for 8 pupils', 8, 'person', 15); finalize(2 * D + 9 * H - 5, mixed);
+  record(2 * D + 9 * H - 8, mixed, pay(2 * D + 9 * H - 8, 'cash', 40));
+  const mixedRequest = prepareInvoiceRequest(state, ctx(2 * D + 8 * H, NINA), mixed); state = mixedRequest.state;
+  details(2 * D + 7 * H, mixedRequest.requestId, { addressLine1: 'Pestalozzistraße 3', postalCode: '8010', locality: 'Graz', contactName: 'Dr. Weber', serviceDescription: 'Robotics workshop for 8 pupils (40 euro paid in cash)' });
+  ready(2 * D + 6 * H, mixedRequest.requestId); submit(2 * D + 5 * H, mixedRequest.requestId); issue(1 * D + 20 * H, mixedRequest.requestId, 'RE-2026-0207');
+  record(1 * D + 3 * H, mixed, pay(1 * D + 3 * H, 'external', totalOf(mixed) - 40));
+
+  // Cash movements [proposed]: a float to start with, bank deposits and the safe.
+  const movement = (m: number, input: Omit<CashMovementInput, 'occurredAt'>, actor = FRONT_DESK) => { state = recordCashMovement(state, ctx(m, actor), { ...input, occurredAt: ago(m) }).state; };
+  movement(10 * D, { kind: 'deposit', amount: 100, reason: 'float', note: 'Starting float for the cash register.' });
+  movement(4 * D + 2 * H, { kind: 'withdrawal', amount: 60, reason: 'bank_deposit', note: '' });
+  movement(2 * D + 30, { kind: 'withdrawal', amount: 8.5, reason: 'other', note: 'Coffee beans for the team kitchen.' }, 'David Mayr');
+  movement(1 * D + 3 * H, { kind: 'withdrawal', amount: 25, reason: 'safe', note: '' });
+  movement(5 * H, { kind: 'deposit', amount: 20, reason: 'float', note: 'Coins for change.' });
 
   return state;
 }

@@ -117,19 +117,19 @@ export function simulatedDetectedState(modelId: PrinterModelId | null): Detected
 export const detectedStates: Record<string, DetectedPrinterState> = { 'm-h2d': h2dDetectedState, 'm-x1c': simulatedDetectedState('bambu_x1c') };
 
 export const people: BillingParty[] = [
-  { kind: 'person', id: 'p-lena', displayName: 'Lena Huber', pricingGroup: 'Students' },
-  { kind: 'person', id: 'p-jonas', displayName: 'Jonas Pichler', pricingGroup: 'Students' },
-  { kind: 'person', id: 'p-amira', displayName: 'Amira Rahman', pricingGroup: 'Staff' },
-  { kind: 'person', id: 'p-tobias', displayName: 'Tobias Wagner', pricingGroup: 'External' },
-  { kind: 'organization', id: 'o-racing', displayName: 'TU Graz Racing Team', pricingGroup: 'Student teams' },
-  { kind: 'organization', id: 'o-robotics', displayName: 'Robotics Lab', pricingGroup: 'Institutes' },
+  { kind: 'person', id: 'p-lena', displayName: 'Lena Huber', roles: ['student'] },
+  { kind: 'person', id: 'p-jonas', displayName: 'Jonas Pichler', roles: ['student'] },
+  { kind: 'person', id: 'p-amira', displayName: 'Amira Rahman', roles: ['staff'] },
+  { kind: 'person', id: 'p-tobias', displayName: 'Tobias Wagner', roles: ['member'] },
+  { kind: 'organization', id: 'o-racing', displayName: 'TU Graz Racing Team', roles: [] },
+  { kind: 'organization', id: 'o-robotics', displayName: 'Robotics Lab', roles: [] },
   // Further billing parties for the sales screens. Appended, so the destructuring of the first six below stays valid.
-  { kind: 'person', id: 'p-mara', displayName: 'Mara Gruber', pricingGroup: 'Students' },
-  { kind: 'person', id: 'p-felix', displayName: 'Felix Brandstätter', pricingGroup: 'External' },
-  { kind: 'person', id: 'p-elif', displayName: 'Elif Yilmaz', pricingGroup: 'Staff' },
-  { kind: 'organization', id: 'o-kreativ', displayName: 'Kreativwerkstatt Graz GmbH', pricingGroup: 'External' },
-  { kind: 'organization', id: 'o-htl', displayName: 'HTL Bulme Robotics Club', pricingGroup: 'Student teams' },
-  { kind: 'organization', id: 'o-fablab', displayName: 'FabLab Steiermark Verein', pricingGroup: 'Institutes' },
+  { kind: 'person', id: 'p-mara', displayName: 'Mara Gruber', roles: ['student'] },
+  { kind: 'person', id: 'p-felix', displayName: 'Felix Brandstätter', roles: [] },
+  { kind: 'person', id: 'p-elif', displayName: 'Elif Yilmaz', roles: ['staff', 'student'] },
+  { kind: 'organization', id: 'o-kreativ', displayName: 'Kreativwerkstatt Graz GmbH', roles: [] },
+  { kind: 'organization', id: 'o-htl', displayName: 'HTL Bulme Robotics Club', roles: [] },
+  { kind: 'organization', id: 'o-fablab', displayName: 'FabLab Steiermark Verein', roles: [] },
 ];
 
 export const operators: Operator[] = [

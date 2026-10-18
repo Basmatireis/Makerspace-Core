@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button, ContainedList, ContainedListItem, InlineNotification, Link as CarbonLink, Tag, Tile } from '@carbon/react';
-import { Locked, Undo } from '@carbon/icons-react';
+import { Undo } from '@carbon/icons-react';
 import { Link, useParams } from 'react-router-dom';
 import { PageShell } from '../../../../app/PageShell';
 import { EmptyState } from '../../../../app/PageState';
@@ -9,9 +9,9 @@ import { useStore } from '../../store';
 import { LinkNotification } from '../components/LinkNotification';
 import { RequirePermission } from '../components/RequirePermission';
 import { RefundOrCorrectModal } from '../dialogs/RefundOrCorrectModal';
-import { dateInAppTimeZone, formatDate, formatDateTime, formatEur, formatSignedEur } from '../format';
+import { formatDateTime, formatEur, formatSignedEur } from '../format';
 import { methodLabel, reasonKindLabel } from '../labels';
-import { isCashDayClosed, paymentHistory, paymentOrderId, reversalOptions, type OrderView } from '../logic';
+import { paymentHistory, paymentOrderId, reversalOptions, type OrderView } from '../logic';
 import { PaymentKindTag } from '../status';
 import { useSalesData } from '../useSalesData';
 import '../sales.scss';
@@ -26,7 +26,6 @@ function PaymentDetail({ paymentId, views }: { paymentId: string; views: OrderVi
   const options = reversalOptions(payment, order, store);
   const original = payment.reversesPaymentId ? store.payments.find((item) => item.id === payment.reversesPaymentId) : undefined;
   const reversedBy = store.payments.find((item) => item.reversesPaymentId === payment.id);
-  const session = payment.method === 'cash' ? store.daySessions.find((item) => item.day === dateInAppTimeZone(payment.occurredAt)) : undefined;
   const history = paymentHistory(payment, { payments: store.payments, allocations: store.allocations, orders: store.orders });
   const signed = payment.entryKind === 'reversal' ? -payment.amount : payment.amount;
   const canReverse = store.can('payments.reverse') && store.can('payments.read');
@@ -35,7 +34,7 @@ function PaymentDetail({ paymentId, views }: { paymentId: string; views: OrderVi
   return (
     <PageShell
       title={payment.reference} width="wide" breadcrumbs={crumbs}
-      titleAdornment={<span className="mj-inline"><PaymentKindTag payment={payment} size="md" />{session && <Tag type="gray" size="md" renderIcon={Locked}>Day closed</Tag>}{reversedBy && <Tag type="warm-gray" size="md">Reversed</Tag>}</span>}
+      titleAdornment={<span className="mj-inline"><PaymentKindTag payment={payment} size="md" />{reversedBy && <Tag type="warm-gray" size="md">Reversed</Tag>}</span>}
       description={`${methodLabel(payment.method)} · ${formatSignedEur(signed)} · ${formatDateTime(payment.occurredAt)}`}
       actions={actionable && canReverse ? <Button kind="danger--tertiary" renderIcon={Undo} onClick={() => setDialog(true)}>Refund or correct</Button> : undefined}
     >
@@ -61,8 +60,7 @@ function PaymentDetail({ paymentId, views }: { paymentId: string; views: OrderVi
               {payment.method === 'card' && <div><dt>Terminal</dt><dd>{payment.terminal}</dd></div>}
               {payment.transactionReference && <div><dt>{payment.method === 'external' ? 'wiRef confirmation' : 'Terminal reference'}</dt><dd>{payment.transactionReference}</dd></div>}
               <div><dt>Order</dt><dd>{order ? <CarbonLink as={Link} to={`/sales/orders/${order.id}`}>{order.reference}</CarbonLink> : '—'}</dd></div>
-              <div><dt>Customer</dt><dd>{order?.customer ? <CarbonLink as={Link} to={`/sales/customers/${order.customer.kind}/${order.customer.id}`}>{order.customerLabel}</CarbonLink> : 'Walk-in customer'}</dd></div>
-              {payment.method === 'cash' && <div><dt>Cash day</dt><dd>{session ? `Closed ${formatDate(session.closedAt)} by ${session.closedBy}` : isCashDayClosed(store.daySessions, payment.occurredAt) ? 'Closed' : 'Still open'}</dd></div>}
+              <div><dt>Customer</dt><dd>{order ? <CarbonLink as={Link} to={`/sales/orders?customer=${order.customer.id}`}>{order.customerLabel}</CarbonLink> : '—'}</dd></div>
             </dl>
           </Tile>
         </div>

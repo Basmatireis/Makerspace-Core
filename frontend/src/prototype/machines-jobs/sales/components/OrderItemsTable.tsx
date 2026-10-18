@@ -68,7 +68,7 @@ export function OrderItemsTable({ order, jobs, prints, editable, busy, onRefresh
                       {snapshot ? (
                         <>
                           <span className="mj-secondary">{snapshot.displayId} · {snapshot.machineName} · {formatDateTimeRange(snapshot.startsAt, snapshot.endsAt)} ({formatDuration(snapshot.durationSeconds)})</span>
-                          <span className="mj-secondary">{snapshot.usages.map((usage) => `${formatQuantity(usage.quantity)} ${usage.unit} ${usage.materialName}`).join(', ') || 'No material'} · {snapshot.pricingGroupName} prices</span>
+                          <span className="mj-secondary">{snapshot.usages.map((usage) => `${formatQuantity(usage.quantity)} ${usage.unit} ${usage.materialName}`).join(', ') || 'No material'} · {snapshot.pricingGroupName} prices ({snapshot.pricingVia})</span>
                         </>
                       ) : <span className="mj-secondary">Manual item</span>}
                       <span className="mj-inline">

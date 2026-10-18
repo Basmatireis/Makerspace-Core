@@ -3,9 +3,9 @@ import { runsOfJob } from '../runs';
 import type { BillingParty, Job, Print } from '../types';
 import { addCalendarDays, zonedDateTimeToISO } from '../../../app/dateTime';
 import { dateInAppTimeZone, formatDateTime, formatEur, round2 } from './format';
-import { methodLabel, requestNextStep } from './labels';
+import { methodLabel, requestNextStep, requestStateLabel } from './labels';
 import type {
-  Allocation, CustomerRecord, DaySession, InvoiceRequest, Order, OrderAdjustment, OrderItem, Payment, PaymentMethod, ReversalReasonKind, SettlementState,
+  Allocation, CashMovement, InvoiceRequest, Order, OrderAdjustment, OrderItem, OrganizationRecord, Payment, PaymentMethod, ReversalReasonKind, SettlementState,
 } from './types';
 
 // Pure derivations over the sales data. The settlement rules match the backend: settlement is derived from charges,
@@ -28,7 +28,7 @@ export function orderMoney(order: Order, allocations: Allocation[], adjustments:
 
 export type OrderView = Order & OrderMoney & {
   customerLabel: string;
-  customerKind: 'person' | 'organization' | 'walk_in';
+  customerKind: 'person' | 'organization';
   /** wiRef request that is not cancelled. */
   activeRequest: InvoiceRequest | null;
   /** The latest request regardless of its state. */
@@ -46,7 +46,7 @@ export function buildOrderViews({ orders, allocations, adjustments, requests }: 
     const mine = requests.filter((request) => request.orderId === order.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return {
       ...order, ...orderMoney(order, allocations, adjustments),
-      customerLabel: order.customerName ?? 'Walk-in customer', customerKind: order.customer?.kind ?? 'walk_in',
+      customerLabel: order.customerName, customerKind: order.customer.kind,
       activeRequest: mine.find((request) => request.state !== 'cancelled') ?? null, latestRequest: mine[0] ?? null,
       replacedBy: orders.find((other) => other.replacesOrderId === order.id && other.status !== 'draft' && other.status !== 'cancelled') ?? null,
       replaces: order.replacesOrderId ? byId.get(order.replacesOrderId) ?? null : null,
@@ -64,6 +64,10 @@ export function activeReceipts(payments: Payment[], allocations: Allocation[], o
   const reversed = new Set(payments.filter((payment) => payment.entryKind === 'reversal').map((payment) => payment.reversesPaymentId));
   return payments.filter((payment) => payment.entryKind === 'receipt' && !reversed.has(payment.id) && allocationSum(allocations, orderId, payment.id) > 0);
 }
+
+/** Cash and card the order has received that still count: what an invoice request calls "already paid". */
+export const paidByCashOrCard = (payments: Payment[], allocations: Allocation[], orderId: string) =>
+  sum(activeReceipts(payments, allocations, orderId).filter((payment) => payment.method !== 'external').map((payment) => payment.amount));
 
 /** The order a payment belongs to: where it is allocated now, else where it was first allocated. */
 export function paymentOrderId(payment: Payment, allocations: Allocation[], payments: Payment[]): string | null {
@@ -86,6 +90,13 @@ export function takings(payments: Payment[], from: number, to: number): Record<P
 
 /** Midnight (Europe/Vienna) of today plus `offsetDays`. */
 export const startOfDay = (offsetDays = 0) => new Date(zonedDateTimeToISO(addCalendarDays(dateInAppTimeZone(new Date()), offsetDays), '00:00')).getTime();
+
+/** The payment methods an order accepts right now. Cash and card until its invoice request is marked ready; a bank transfer only once wiRef issued the invoice. [proposed rule] */
+export function acceptedMethods(order: Pick<OrderView, 'activeRequest'>): PaymentMethod[] {
+  const request = order.activeRequest;
+  if (!request || request.state === 'draft') return ['cash', 'card'];
+  return request.state === 'issued' ? ['external'] : [];
+}
 
 // Jobs and orders ----------------------------------------------------------------------------------------------------
 
@@ -118,7 +129,7 @@ export type ReadyGroup = { customer: BillingParty; rows: ReadyRow[]; ready: Read
 export function readyToBill(jobs: Job[], orders: Order[], prints: Print[], now: number): ReadyGroup[] {
   const groups = new Map<string, ReadyGroup>();
   for (const job of jobs) {
-    if (!job.customer || job.order) continue;
+    if (job.order) continue;
     const draft = orderOfJob(job, orders);
     const reason = draft ? `Already in draft ${draft.order.reference}` : jobBlocker(job, prints, now);
     const row: ReadyRow = { job, price: effectivePrice(job), reason };
@@ -134,10 +145,9 @@ export function readyToBill(jobs: Job[], orders: Order[], prints: Print[], now: 
 
 /** Jobs that can be added to this draft: the customer's finished, priced jobs that are on no order. */
 export function eligibleJobs(order: Order, jobs: Job[], orders: Order[], prints: Print[], now: number) {
-  if (!order.customer) return [];
   const original = order.replacesOrderId;
   const mine = new Set(activeItems(order).map((item) => item.sourceJobId));
-  return jobs.filter((job) => job.customer?.id === order.customer!.id && !mine.has(job.id)
+  return jobs.filter((job) => job.customer.id === order.customer.id && !mine.has(job.id)
     && (!job.order || job.order.orderId === original) && !orderOfJob(job, orders.filter((candidate) => candidate.id !== order.id && candidate.status === 'draft' && !candidate.replacesOrderId))?.order
     && jobBlocker(job, prints, now) === null);
 }
@@ -152,8 +162,7 @@ export function addToOrderBlocker(jobs: (Job | null)[], orders: Order[], prints:
   if (jobs.length === 0) return 'Add to order: select finished jobs first.';
   if (jobs.some((job) => job === null)) return 'Add to order: only jobs can be added — deselect the unassigned runs.';
   const real = jobs as Job[];
-  const customers = new Set(real.map((job) => job.customer?.id ?? null));
-  if (customers.has(null)) return 'Add to order: every job needs a customer.';
+  const customers = new Set(real.map((job) => job.customer.id));
   if (customers.size > 1) return 'Add to order: the jobs belong to different customers.';
   for (const job of real) {
     if (job.order) return `Add to order: ${job.displayId} is already on ${job.order.orderReference}.`;
@@ -187,42 +196,41 @@ export function periodRange(preset: PeriodPreset, from = '', to = '', now = new 
   return { from: from ? midnight(from) : 0, to: to ? midnight(addCalendarDays(to, 1)) : 0, label: valid ? `${from} to ${to}` : 'Custom range', valid };
 }
 
-export type CashbookLine = {
-  payment: Payment; order: Order | null; customerLabel: string; customerKind: 'person' | 'organization' | 'walk_in'; signed: number;
-  /** The cash of this payment's day is closed. */
-  locked: boolean;
-};
+/** One line of the cashbook: a payment (receipt, refund or correction) or a cash movement that is not tied to an order. */
+export type CashbookLine =
+  | { type: 'payment'; id: string; at: string; reference: string; payment: Payment; order: Order | null; customerLabel: string; customerKind: 'person' | 'organization' | null; signed: number; method: PaymentMethod; recordedBy: string }
+  | { type: 'movement'; id: string; at: string; reference: string; movement: CashMovement; order: null; customerLabel: string; customerKind: null; signed: number; method: 'cash'; recordedBy: string };
 
-export function cashbookLines(payments: Payment[], allocations: Allocation[], orders: Order[], sessions: DaySession[]): CashbookLine[] {
+export function cashbookLines(payments: Payment[], allocations: Allocation[], orders: Order[], movements: CashMovement[]): CashbookLine[] {
   const byId = new Map(orders.map((order) => [order.id, order]));
-  return payments.map((payment) => {
+  const paymentLines = payments.map((payment): CashbookLine => {
     const order = byId.get(paymentOrderId(payment, allocations, payments) ?? '') ?? null;
     return {
-      payment, order, customerLabel: order?.customerName ?? (order ? 'Walk-in customer' : '—'), customerKind: (order?.customer?.kind ?? 'walk_in') as CashbookLine['customerKind'],
-      signed: payment.entryKind === 'receipt' ? payment.amount : -payment.amount, locked: payment.method === 'cash' && isCashDayClosed(sessions, payment.occurredAt),
+      type: 'payment', id: payment.id, at: payment.occurredAt, reference: payment.reference, payment, order, customerLabel: order?.customerName ?? '—', customerKind: order?.customer.kind ?? null,
+      signed: payment.entryKind === 'receipt' ? payment.amount : -payment.amount, method: payment.method, recordedBy: payment.recordedBy,
     };
-  }).sort((a, b) => b.payment.occurredAt.localeCompare(a.payment.occurredAt) || b.payment.reference.localeCompare(a.payment.reference));
+  });
+  const movementLines = movements.map((movement): CashbookLine => ({
+    type: 'movement', id: movement.id, at: movement.occurredAt, reference: movement.reference, movement, order: null, customerLabel: '—', customerKind: null,
+    signed: movement.kind === 'deposit' ? movement.amount : -movement.amount, method: 'cash', recordedBy: movement.recordedBy,
+  }));
+  return [...paymentLines, ...movementLines].sort((a, b) => b.at.localeCompare(a.at) || b.reference.localeCompare(a.reference));
 }
 
-export const isCashDayClosed = (sessions: Pick<DaySession, 'day'>[], iso: string) => sessions.some((session) => session.day === dateInAppTimeZone(iso));
+export type CashFigures = { receipts: number; refunds: number; withdrawals: number; deposits: number; expected: number };
 
-/** What the till should hold at the end of a day: cash receipts minus cash refunds and corrections, by the day they happened. */
-export function cashDayFigures(payments: Payment[], day: string) {
-  let receipts = 0; let refunds = 0; let count = 0;
+/** The cash the register should hold: cash receipts minus cash refunds and corrections, minus withdrawals, plus deposits. All time up to (excluding) `to`. */
+export function cashInRegister(payments: Payment[], movements: CashMovement[], to = Infinity): CashFigures {
+  let receipts = 0; let refunds = 0; let withdrawals = 0; let deposits = 0;
   for (const payment of payments) {
-    if (payment.method !== 'cash' || dateInAppTimeZone(payment.occurredAt) !== day) continue;
-    count += 1;
+    if (payment.method !== 'cash' || new Date(payment.occurredAt).getTime() >= to) continue;
     if (payment.entryKind === 'receipt') receipts = round2(receipts + payment.amount); else refunds = round2(refunds + payment.amount);
   }
-  return { receipts, refunds, expected: round2(receipts - refunds), count };
-}
-
-/** Days within the last two weeks that have cash movements and are not closed yet, newest first. */
-export function openCashDays(payments: Payment[], sessions: DaySession[], now = new Date()): string[] {
-  const today = dateInAppTimeZone(now);
-  const earliest = addCalendarDays(today, -14);
-  const days = new Set(payments.filter((payment) => payment.method === 'cash').map((payment) => dateInAppTimeZone(payment.occurredAt)));
-  return [...days].filter((day) => day >= earliest && day <= today && !sessions.some((session) => session.day === day)).sort().reverse();
+  for (const movement of movements) {
+    if (new Date(movement.occurredAt).getTime() >= to) continue;
+    if (movement.kind === 'withdrawal') withdrawals = round2(withdrawals + movement.amount); else deposits = round2(deposits + movement.amount);
+  }
+  return { receipts, refunds, withdrawals, deposits, expected: round2(receipts - refunds - withdrawals + deposits) };
 }
 
 export type ReversalOptions = {
@@ -245,12 +253,15 @@ export function reversalOptions(payment: Payment, order: Order | null, data: { p
   if (!activeReceipts(data.payments, data.allocations, order.id).some((receipt) => receipt.id === payment.id)) return none('This payment no longer counts towards an order. Open the order it moved to.');
   if (order.status !== 'finalized') return none(`${order.reference} is ${order.status === 'reversed' ? 'reversed' : 'not finalized'}, so there is nothing to refund here.`);
   const latest = data.requests.filter((request) => request.orderId === order.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
-  const base = { blocker: null, needsReplacement: !order.customer, needsReference: payment.method === 'card' };
+  const base = { blocker: null, needsReplacement: false, needsReference: payment.method === 'card' };
+  const orderLink = `/sales/orders/${order.id}`;
   if (payment.method === 'external') {
-    return { ...base, kinds: ['external_correction'], needsReplacement: false, prerequisite: latest && latest.state === 'cancelled' ? null : { text: latest ? `${latest.reference} has to be cancelled in wiRef first (state: ${latest.state.replace('_', ' ')}).` : 'The wiRef request has to be cancelled first.', to: latest ? `/sales/invoicing/${latest.id}` : '/sales/invoicing' }, needsReference: true };
+    return { ...base, kinds: ['external_correction'], prerequisite: latest && latest.state === 'cancelled' ? null : { text: latest ? `${latest.reference} has to be cancelled in wiRef first (state: ${requestStateLabel[latest.state].toLowerCase()}).` : 'The invoice request has to be cancelled first.', to: orderLink }, needsReference: true };
   }
-  // A walk-in sale has to stay paid in full: money can only be given back by cancelling the whole order, so here only a mistaken entry can be fixed (with the right receipt).
-  return { ...base, kinds: order.customer ? ['refund', 'recording_error'] : ['recording_error'], prerequisite: null };
+  // Cash and card on an order whose invoice request moved past the draft are part of what the invoice says was paid.
+  const active = latest && latest.state !== 'cancelled' ? latest : null;
+  const frozen = active && active.state !== 'draft';
+  return { ...base, kinds: ['refund', 'recording_error'], prerequisite: frozen ? { text: `${active.reference} is ${requestStateLabel[active.state].toLowerCase()} and states what was already paid, so it has to be cancelled first.`, to: orderLink } : null };
 }
 
 type HistoryLine = { at: string; text: string };
@@ -284,16 +295,16 @@ export function paymentHistory(payment: Payment, data: { payments: Payment[]; al
 
 export type ReadinessItem = { key: string; label: string; ok: boolean; hint: string };
 /** What has to be filled in before a wiRef request can be marked ready. The purchase order rule follows the customer's invoicing requirements at that moment. */
-export function requestReadiness(request: Pick<InvoiceRequest, 'details'>, customer: Pick<CustomerRecord, 'kind' | 'requiresPurchaseOrder'> | undefined): ReadinessItem[] {
+export function requestReadiness(request: Pick<InvoiceRequest, 'details'>, customer: { kind: 'person' | 'organization' } | undefined, organization?: Pick<OrganizationRecord, 'requiresPurchaseOrder'>): ReadinessItem[] {
   const d = request.details;
-  const organization = customer?.kind === 'organization';
+  const isOrganization = customer?.kind === 'organization';
   const items: ReadinessItem[] = [
     { key: 'recipient', label: 'Recipient name', ok: d.recipientName.trim() !== '', hint: 'Who receives the invoice' },
     { key: 'address', label: 'Billing address', ok: d.addressLine1.trim() !== '' && d.postalCode.trim() !== '' && d.locality.trim() !== '', hint: 'Street, postal code and town' },
     { key: 'country', label: 'Country', ok: /^[A-Za-z]{2}$/.test(d.countryCode.trim()), hint: 'Two-letter code, e.g. AT' },
   ];
-  if (organization) items.push({ key: 'contact', label: 'Contact person', ok: d.contactName.trim() !== '', hint: 'Organizations need someone to address the invoice to' });
-  if (organization && customer?.requiresPurchaseOrder) items.push({ key: 'po', label: 'Purchase order reference', ok: d.purchaseOrderReference.trim() !== '', hint: 'This organization requires one on every invoice' });
+  if (isOrganization) items.push({ key: 'contact', label: 'Contact person', ok: d.contactName.trim() !== '', hint: 'Organizations need someone to address the invoice to' });
+  if (isOrganization && organization?.requiresPurchaseOrder) items.push({ key: 'po', label: 'Purchase order reference', ok: d.purchaseOrderReference.trim() !== '', hint: 'This organization requires one on every invoice' });
   items.push(
     { key: 'period', label: 'Service period', ok: !!d.serviceStartsOn && !!d.serviceEndsOn && d.serviceStartsOn <= d.serviceEndsOn, hint: 'Start and end date, in order' },
     { key: 'description', label: 'Service description', ok: d.serviceDescription.trim() !== '', hint: 'What the invoice is for' },
@@ -301,35 +312,24 @@ export function requestReadiness(request: Pick<InvoiceRequest, 'details'>, custo
   return items;
 }
 
-// Customers -----------------------------------------------------------------------------------------------------------------------
+export const INVOICE_STEPS = ['Draft', 'Ready to submit', 'Submitted', 'Invoice issued'] as const;
 
-export type CustomerSummary = { customer: CustomerRecord; orders: OrderView[]; openBalance: number; lastActivity: string | null; unbilledJobs: number };
-
-export function customerSummaries(customers: CustomerRecord[], views: OrderView[], jobs: Job[], prints: Print[], now: number): CustomerSummary[] {
-  const groups = new Map(readyToBill(jobs, views, prints, now).map((group) => [group.customer.id, group]));
-  return customers.map((customer) => {
-    const orders = views.filter((order) => order.customer?.id === customer.id);
-    const jobTimes = jobs.filter((job) => job.customer?.id === customer.id).map((job) => job.endsAt);
-    const times = [...orders.map((order) => order.updatedAt), ...jobTimes].sort();
-    return {
-      customer, orders, openBalance: sum(orders.filter((order) => order.status === 'finalized').map((order) => order.outstanding)), lastActivity: times.at(-1) ?? null,
-      unbilledJobs: groups.get(customer.id)?.rows.length ?? 0,
-    };
-  });
-}
-
-/** The state of a request together with its order: an issued invoice whose order is paid is done. */
-export function requestProgress(request: Pick<InvoiceRequest, 'state' | 'events'>, orderPaid: boolean): { index: number; invalid: boolean } {
+/** Where a request is on the progress indicator. An issued invoice completes all steps; a cancellation marks the last step that was reached. */
+export function requestProgress(request: Pick<InvoiceRequest, 'state' | 'events'>): { index: number; invalid: boolean } {
   const reached = (kind: string) => request.events.some((event) => event.kind === kind);
   if (request.state === 'draft') return { index: 0, invalid: false };
   if (request.state === 'ready') return { index: 1, invalid: false };
   if (request.state === 'submitted') return { index: 2, invalid: false };
-  if (request.state === 'issued') return { index: orderPaid ? 4 : 3, invalid: false };
-  // Cancellation: stay on the last step that was reached and mark it.
+  if (request.state === 'issued') return { index: INVOICE_STEPS.length, invalid: false };
   return { index: reached('issued') ? 3 : reached('submitted') ? 2 : reached('ready') ? 1 : 0, invalid: true };
 }
 
 /** What happens next, taking the order's payment into account. */
-export function requestNext(request: InvoiceRequest, orderPaid: boolean): string {
-  return request.state === 'issued' && orderPaid ? 'None, the payment is confirmed' : requestNextStep[request.state];
+export function requestNext(request: InvoiceRequest, orderPaid: boolean, detailsComplete?: boolean): string {
+  if (request.state === 'issued' && orderPaid) return 'Complete, invoice paid';
+  if (request.state === 'draft' && detailsComplete) return 'Mark it as ready to submit';
+  return requestNextStep[request.state];
 }
+
+/** An invoice request that still waits for someone: anything before issued, a cancellation to confirm, or an issued invoice that is not paid yet. */
+export const invoiceNeedsStep = (request: InvoiceRequest | null, orderPaid: boolean) => !!request && request.state !== 'cancelled' && !(request.state === 'issued' && orderPaid);

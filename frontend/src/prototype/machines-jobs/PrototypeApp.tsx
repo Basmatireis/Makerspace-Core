@@ -3,7 +3,7 @@ import {
   ActionableNotification, Button, Header, HeaderGlobalAction, HeaderGlobalBar, HeaderMenuButton, HeaderName, HeaderPanel, RadioButton, RadioButtonGroup,
   Select, SelectItem, SideNav, SideNavItems, SideNavLink, SkipToContent, Stack, Tag, Theme, ToastNotification,
 } from '@carbon/react';
-import { Chemistry, Dashboard, Reset, Tools, Catalog, InventoryManagement, ChartColumn, Currency, Purchase, Receipt, Wallet, DocumentExport, UserMultiple, Tag as TagIcon } from '@carbon/icons-react';
+import { Chemistry, Dashboard, Reset, Tools, Catalog, InventoryManagement, ChartColumn, Currency, Receipt, Wallet, Tag as TagIcon } from '@carbon/icons-react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { rolePresets, useStore, type ConnectionTestMode, type Permission, type Role, type Scenario, type Toast } from './store';
 import { OverviewPage } from './pages/OverviewPage';
@@ -17,16 +17,11 @@ import { MaterialDetailPage } from './pages/MaterialDetailPage';
 import { SpoolDetailPage } from './pages/SpoolDetailPage';
 import { StatisticsPage } from './pages/StatisticsPage';
 import { SalesOverviewPage } from './sales/pages/SalesOverviewPage';
-import { CounterSalePage } from './sales/pages/CounterSalePage';
 import { OrdersPage } from './sales/pages/OrdersPage';
 import { OrderDetailPage } from './sales/pages/OrderDetailPage';
 import { ReceiptPage } from './sales/pages/ReceiptPage';
 import { PaymentsPage } from './sales/pages/PaymentsPage';
 import { PaymentDetailPage } from './sales/pages/PaymentDetailPage';
-import { InvoicingPage } from './sales/pages/InvoicingPage';
-import { InvoiceRequestPage } from './sales/pages/InvoiceRequestPage';
-import { CustomersPage } from './sales/pages/CustomersPage';
-import { CustomerDetailPage } from './sales/pages/CustomerDetailPage';
 import { PricingPage } from './sales/pages/PricingPage';
 
 type NavItem = { label: string; to: string; icon: typeof Dashboard; match: (path: string) => boolean };
@@ -43,11 +38,8 @@ type SalesNavItem = NavItem & { /** Shown when the role holds at least one of th
 
 const SALES_NAV: SalesNavItem[] = [
   { label: 'Overview', to: '/sales', icon: Currency, match: (p) => p === '/sales', needs: [['payments.read']] },
-  { label: 'Counter sale', to: '/sales/counter', icon: Purchase, match: (p) => p.startsWith('/sales/counter'), needs: [['orders.write', 'orders.finalize', 'payments.record', 'machine_jobs.create']] },
   { label: 'Orders', to: '/sales/orders', icon: Receipt, match: (p) => p.startsWith('/sales/orders'), needs: [['orders.read']] },
   { label: 'Payments', to: '/sales/payments', icon: Wallet, match: (p) => p.startsWith('/sales/payments'), needs: [['payments.read']] },
-  { label: 'Invoicing', to: '/sales/invoicing', icon: DocumentExport, match: (p) => p.startsWith('/sales/invoicing'), needs: [['external_invoice_requests.read']] },
-  { label: 'Customers', to: '/sales/customers', icon: UserMultiple, match: (p) => p.startsWith('/sales/customers'), needs: [['orders.read']] },
   { label: 'Pricing', to: '/sales/pricing', icon: TagIcon, match: (p) => p.startsWith('/sales/pricing'), needs: [['pricing.read']] },
 ];
 
@@ -175,16 +167,14 @@ export function PrototypeApp() {
           <Route path="/inventory/spools/:spoolId" element={<SpoolDetailPage />} />
           <Route path="/statistics" element={<StatisticsPage />} />
           <Route path="/sales" element={<SalesOverviewPage />} />
-          <Route path="/sales/counter" element={<CounterSalePage />} />
+          <Route path="/sales/counter" element={<Navigate to="/sales/orders" replace />} />
+          <Route path="/sales/invoicing/*" element={<Navigate to="/sales/orders?view=invoice" replace />} />
+          <Route path="/sales/customers/*" element={<Navigate to="/sales/orders" replace />} />
           <Route path="/sales/orders" element={<OrdersPage />} />
           <Route path="/sales/orders/:orderId" element={<OrderDetailPage />} />
           <Route path="/sales/orders/:orderId/receipt" element={<ReceiptPage />} />
           <Route path="/sales/payments" element={<PaymentsPage />} />
           <Route path="/sales/payments/:paymentId" element={<PaymentDetailPage />} />
-          <Route path="/sales/invoicing" element={<InvoicingPage />} />
-          <Route path="/sales/invoicing/:requestId" element={<InvoiceRequestPage />} />
-          <Route path="/sales/customers" element={<CustomersPage />} />
-          <Route path="/sales/customers/:kind/:customerId" element={<CustomerDetailPage />} />
           <Route path="/sales/pricing" element={<PricingPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

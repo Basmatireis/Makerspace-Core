@@ -1,9 +1,9 @@
-import type { InvoiceEventKind, InvoiceRequestState, Payment, PaymentMethod, ReconciliationKind, ReversalReasonKind } from './types';
+import type { CashMovement, CashMovementKind, CashMovementReason, InvoiceEventKind, InvoiceRequestState, OrganizationKind, Payment, PaymentMethod, ReconciliationKind, ReversalReasonKind } from './types';
 
 // Human wording for every domain enum. No raw enum value is shown anywhere in the sales screens.
 
-export const methodLabel = (method: PaymentMethod) => method === 'cash' ? 'Cash' : method === 'card' ? 'Card' : 'Bank transfer (wiRef)';
-export const methodOptions: { id: PaymentMethod; label: string }[] = [{ id: 'cash', label: 'Cash' }, { id: 'card', label: 'Card' }, { id: 'external', label: 'Bank transfer (wiRef)' }];
+export const methodLabel = (method: PaymentMethod) => method === 'cash' ? 'Cash' : method === 'card' ? 'Card' : 'Bank transfer (wiRef invoice)';
+export const methodOptions: { id: PaymentMethod; label: string }[] = [{ id: 'cash', label: 'Cash' }, { id: 'card', label: 'Card' }, { id: 'external', label: 'Bank transfer (wiRef invoice)' }];
 
 export const reasonKindLabel = (kind: ReversalReasonKind) => kind === 'refund' ? 'Money given back' : kind === 'recording_error' ? 'Recorded by mistake' : 'External accounting correction';
 
@@ -21,7 +21,7 @@ export const requestStateTag: Record<InvoiceRequestState, 'gray' | 'blue' | 'pur
 };
 /** What the next step in wiRef is, in plain words. */
 export const requestNextStep: Record<InvoiceRequestState, string> = {
-  draft: 'Complete the recipient details', ready: 'Submit to wiRef', submitted: 'Wait for wiRef to issue the invoice', issued: 'Confirm the payment when it arrives',
+  draft: 'Complete the recipient details', ready: 'Submit to wiRef', submitted: 'Wait for wiRef to issue the invoice', issued: 'Record the bank transfer when it arrives',
   cancellation_requested: 'Confirm the cancellation in wiRef', cancelled: 'None',
 };
 
@@ -50,4 +50,16 @@ export const requestEventLabel: Record<InvoiceEventKind, string> = {
   cancelled: 'Cancelled', reference_corrected: 'Reference corrected',
 };
 
-export const customerKindLabel = (kind: 'person' | 'organization' | 'walk_in') => kind === 'person' ? 'Person' : kind === 'organization' ? 'Organization' : 'Walk-in customer';
+export const customerKindLabel = (kind: 'person' | 'organization') => kind === 'person' ? 'Person' : 'Organization';
+
+export const organizationKindLabel: Record<OrganizationKind, string> = { institute: 'Institute', company: 'Company', association: 'Association' };
+export const organizationKinds = (Object.keys(organizationKindLabel) as OrganizationKind[]).map((id) => ({ id, label: organizationKindLabel[id] }));
+
+export const cashMovementKindLabel = (kind: CashMovementKind) => kind === 'withdrawal' ? 'Cash withdrawal' : 'Cash deposit';
+export const cashMovementReasonLabel: Record<CashMovementReason, string> = { bank_deposit: 'Bank deposit', safe: 'Moved to safe', float: 'Change float', other: 'Other' };
+export const cashMovementReasons = (Object.keys(cashMovementReasonLabel) as CashMovementReason[]).map((id) => ({ id, label: cashMovementReasonLabel[id] }));
+/** The cashbook kind of a movement, next to Receipt, Refund and Correction. */
+export const movementKind = (movement: Pick<CashMovement, 'kind'>): { label: string; type: 'cyan' | 'teal' } => ({ label: cashMovementKindLabel(movement.kind), type: movement.kind === 'withdrawal' ? 'cyan' : 'teal' });
+
+/** The main-menu wording for the "Invoice" column and section. */
+export const invoiceStateText = (state: InvoiceRequestState) => requestStateLabel[state];

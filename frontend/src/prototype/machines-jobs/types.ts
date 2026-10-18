@@ -85,7 +85,8 @@ export type Machine = {
   version: number;
 };
 
-export type BillingParty = { kind: 'person' | 'organization'; id: string; displayName: string; pricingGroup: string };
+/** A person (an account) or an organization that can be billed. The pricing group is never stored here: it is resolved from the job, the organization or the account roles (sales/pricing.ts). */
+export type BillingParty = { kind: 'person' | 'organization'; id: string; displayName: string; /** Account roles of a person (ids from sales/pricing.ts); empty for organizations. */ roles: string[] };
 export type Operator = { personId: string; displayName: string };
 
 export type MaterialUnit = 'g' | 'ml' | 'pcs' | 'm2';
@@ -234,6 +235,8 @@ export type PricingRule = { label: string; rate: string; unit: string; missing: 
 export type PricingSnapshot = {
   revision: number;
   pricingGroupName: string;
+  /** Why this group was used, in words: "via role Student", "via organization", "set on the job", "default group". */
+  via?: string;
   reason: 'initial' | 'customer_changed' | 'machine_changed' | 'manual_reprice';
   capturedAt: string;
   rules: PricingRule[];
@@ -259,7 +262,8 @@ export type Job = {
   printId: string | null;
   source: JobSource;
   externalId: string | null;
-  customer: BillingParty | null;
+  /** Every job has a customer: an account or an organization. */
+  customer: BillingParty;
   operator: Operator | null;
   outcome: JobOutcome;
   notes: string | null;
@@ -269,6 +273,8 @@ export type Job = {
   calculatedPrice: number | null;
   /** Manual change to the calculated price. Relative kinds re-apply when the calculated price changes. */
   priceAdjustment: PriceAdjustment | null;
+  /** Pricing group chosen on the job itself (for example for a batch); it wins over the organization and role groups. */
+  pricingGroupOverride?: string | null;
   order: OrderAssociation | null;
   version: number;
 };

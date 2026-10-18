@@ -6,7 +6,7 @@ import { useStore } from '../store';
 import type { Job, Print } from '../types';
 import { useLinkPrint } from './useLinkPrint';
 
-const jobLabel = (job: Job) => `${job.displayId}${job.title ? ` ${job.title}` : ''} · ${job.customer?.displayName ?? 'No customer'} · started ${formatRelative(job.startsAt)} · ${job.run} run`;
+const jobLabel = (job: Job) => `${job.displayId}${job.title ? ` ${job.title}` : ''} · ${job.customer.displayName} · started ${formatRelative(job.startsAt)} · ${job.run} run`;
 
 export function LinkJobModal({ open, onClose, print }: { open: boolean; onClose: () => void; print: Print }) {
   const store = useStore();

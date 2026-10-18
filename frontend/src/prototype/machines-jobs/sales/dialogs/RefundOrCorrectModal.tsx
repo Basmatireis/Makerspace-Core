@@ -5,10 +5,9 @@ import { DateTimeInput } from '../../../../app/DateInput';
 import { instantToZonedDateTimeValue, isZonedDateTimeValue, zonedDateTimeValueToISO } from '../../../../app/dateTime';
 import { useStore } from '../../store';
 import { LinkNotification } from '../components/LinkNotification';
-import { checkEntry, existingReferences, newPaymentEntry, PaymentEntryForm, toPaymentInputs } from '../components/PaymentEntry';
-import { formatDate, formatDateTime, formatEur } from '../format';
+import { formatDateTime, formatEur } from '../format';
 import { methodLabel, reasonKindHelp } from '../labels';
-import { isCashDayClosed, reversalOptions, type OrderView } from '../logic';
+import { reversalOptions, type OrderView } from '../logic';
 import { useSalesMutation } from '../useSalesMutation';
 import type { Payment, ReversalReasonKind } from '../types';
 
@@ -19,30 +18,24 @@ import type { Payment, ReversalReasonKind } from '../types';
 export function RefundOrCorrectModal({ payment, order, onClose }: { payment: Payment; order: OrderView; onClose: () => void }) {
   const store = useStore();
   const options = reversalOptions(payment, order, store);
-  const closedOriginal = payment.method === 'cash' && isCashDayClosed(store.daySessions, payment.occurredAt);
-  const available = options.kinds.filter((kind) => !(kind === 'recording_error' && closedOriginal));
-  const [kind, setKind] = useState<ReversalReasonKind>(available[0] ?? options.kinds[0] ?? 'refund');
+  const available = options.kinds;
+  const [kind, setKind] = useState<ReversalReasonKind>(available[0] ?? 'refund');
   const [time, setTime] = useState(() => instantToZonedDateTimeValue(new Date()));
   const [reference, setReference] = useState('');
   const [reason, setReason] = useState('');
-  const [entry, setEntry] = useState(() => newPaymentEntry(payment.amount));
-  const replacement = options.needsReplacement && kind === 'recording_error';
-  const replacementCheck = checkEntry(entry, payment.amount, true, existingReferences(store.payments));
   const bookedAtOriginal = kind === 'recording_error';
   const timeOk = bookedAtOriginal || isZonedDateTimeValue(time);
-  const timeClosed = !bookedAtOriginal && payment.method === 'cash' && timeOk && isCashDayClosed(store.daySessions, zonedDateTimeValueToISO(time));
   const referenceOk = !(payment.method === 'card' || payment.method === 'external') || reference.trim() !== '';
   const reasonOk = reason.trim().length > 0 && reason.trim().length <= 500;
-  const ok = options.blocker === null && !options.prerequisite && available.includes(kind) && timeOk && !timeClosed && referenceOk && reasonOk && (!replacement || replacementCheck.ok);
+  const ok = options.blocker === null && !options.prerequisite && available.includes(kind) && timeOk && referenceOk && reasonOk;
 
   const { mutate, pending, error } = useSalesMutation(() => store.reverseOrderPayment(
     { paymentId: payment.id, reasonKind: kind, reason: reason.trim(), occurredAt: bookedAtOriginal ? payment.occurredAt : zonedDateTimeValueToISO(time), transactionReference: reference.trim() },
-    replacement ? toPaymentInputs(entry)[0] : undefined,
   ));
   const submit = async () => {
     const result = await mutate();
     if (!result.ok) return;
-    store.notify({ kind: 'success', title: kind === 'refund' ? `${payment.reference} refunded` : `${payment.reference} corrected`, subtitle: replacement ? 'The right payment was recorded in the same step.' : `${formatEur(payment.amount)} no longer counts towards ${order.reference}.` });
+    store.notify({ kind: 'success', title: kind === 'refund' ? `${payment.reference} refunded` : `${payment.reference} corrected`, subtitle: `${formatEur(payment.amount)} no longer counts towards ${order.reference}.` });
     onClose();
   };
 
@@ -63,18 +56,15 @@ export function RefundOrCorrectModal({ payment, order, onClose }: { payment: Pay
           <>
             <RadioButtonGroup legendText="What happened?" name="reversal-kind" orientation="vertical" valueSelected={kind} onChange={(value) => setKind(value as ReversalReasonKind)}>
               {options.kinds.map((item) => (
-                <RadioButton key={item} id={`reversal-${item}`} value={item} labelText={reasonKindHelp[item].title} disabled={item === 'recording_error' && closedOriginal} />
+                <RadioButton key={item} id={`reversal-${item}`} value={item} labelText={reasonKindHelp[item].title} />
               ))}
             </RadioButtonGroup>
             <p className="mj-secondary">{reasonKindHelp[kind].help}</p>
-            {closedOriginal && options.kinds.includes('recording_error') && <InlineNotification kind="info" lowContrast hideCloseButton title={`The cash of ${formatDate(payment.occurredAt)} is closed`} subtitle="A mistake on a closed day cannot be corrected backwards. Give the money back as a refund; it is booked today." />}
-            {!order.customer && <InlineNotification kind="info" lowContrast hideCloseButton title="Walk-in sale" subtitle="It has to stay paid in full. To give the money back, cancel the whole order with Correct order. To fix a wrongly recorded payment, record the right one below." />}
 
             {kind === 'refund' && <DateTimeInput id="reversal-time" labelText="Money given back" value={time} onChange={setTime} required />}
             {kind === 'external_correction' && <DateTimeInput id="reversal-time" labelText="Correction effective" value={time} onChange={setTime} required />}
             {kind === 'recording_error' && <p className="mj-secondary">It is booked at the original time, {formatDateTime(payment.occurredAt)}.</p>}
             {!timeOk && <p className="sales-field-error">Enter a valid date and time</p>}
-            {timeClosed && <p className="sales-field-error">The cash of that day is closed. Choose a time on an open day.</p>}
 
             {(payment.method === 'card' || payment.method === 'external') && (
               <TextInput id="reversal-reference" labelText={payment.method === 'external' ? 'Reference of the accounting correction' : 'Terminal reference of the refund or correction'} value={reference} onChange={(event) => setReference(event.target.value)}
@@ -83,18 +73,11 @@ export function RefundOrCorrectModal({ payment, order, onClose }: { payment: Pay
             <TextArea id="reversal-reason" labelText="Reason" rows={3} maxCount={500} enableCounter value={reason} onChange={(event) => setReason(event.target.value)}
               helperText="Shown on the payment and the order. Do not add personal data." invalid={reason.length > 0 && !reasonOk} invalidText="Give a reason of up to 500 characters" />
 
-            {replacement && (
-              <Stack gap={4}>
-                <h3 className="mj-section-title">Record the right payment</h3>
-                <PaymentEntryForm idPrefix="reversal-replacement" entry={entry} onChange={setEntry} due={payment.amount} requireFull payments={store.payments} disabled={pending} />
-              </Stack>
-            )}
-
             <StructuredListWrapper isCondensed aria-label="What will change">
               <StructuredListBody>
                 <StructuredListRow><StructuredListCell noWrap>{payment.reference}</StructuredListCell><StructuredListCell>{formatEur(payment.amount)} {methodLabel(payment.method).toLowerCase()} stays on the record and stops counting towards {order.reference}.</StructuredListCell></StructuredListRow>
                 <StructuredListRow><StructuredListCell noWrap>New line</StructuredListCell><StructuredListCell>{kindWord}, −{formatEur(payment.amount)}{bookedAtOriginal ? ` at ${formatDateTime(payment.occurredAt)}` : ''}.</StructuredListCell></StructuredListRow>
-                <StructuredListRow><StructuredListCell noWrap>Order</StructuredListCell><StructuredListCell>{replacement ? `${order.reference} stays paid with the new payment.` : `${formatEur(order.outstanding)} outstanding becomes ${formatEur(order.outstanding + payment.amount)}.`}</StructuredListCell></StructuredListRow>
+                <StructuredListRow><StructuredListCell noWrap>Order</StructuredListCell><StructuredListCell>{`${formatEur(order.outstanding)} outstanding becomes ${formatEur(order.outstanding + payment.amount)}.`}</StructuredListCell></StructuredListRow>
               </StructuredListBody>
             </StructuredListWrapper>
           </>

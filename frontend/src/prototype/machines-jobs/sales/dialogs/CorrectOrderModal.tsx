@@ -32,7 +32,6 @@ export function CorrectOrderModal({ order, replacement, onClose }: { order: Orde
   const [step, setStep] = useState<Step>(committing ? (receipts.length > 0 || (replacement?.total ?? 0) > 0 ? 'payments' : 'review') : 'intent');
   const [reason, setReason] = useState('');
   const newTotal = replacement?.total ?? 0;
-  const walkIn = !original.customer;
   const externalReceipt = receipts.find((payment) => payment.method === 'external');
 
   const optionsFor = (payment: Payment): Option[] => committing && payment.amount <= newTotal && payment.method !== 'external' ? ['carry', 'refund', 'error'] : ['refund', 'error'];
@@ -49,14 +48,13 @@ export function CorrectOrderModal({ order, replacement, onClose }: { order: Orde
   const [entryDue, setEntryDue] = useState(toPay);
   if (entryDue !== toPay) { setEntryDue(toPay); setEntry(newPaymentEntry(toPay)); }
   const [payNow, setPayNow] = useState(false);
-  const mustPayNow = committing && walkIn && toPay > 0;
-  const payCheck = checkEntry(entry, toPay, walkIn, existingReferences(store.payments));
-  const payingNow = (payNow || mustPayNow) && toPay > 0;
+  const payCheck = checkEntry(entry, toPay, false, existingReferences(store.payments));
+  const payingNow = payNow && toPay > 0;
 
   const receiptErrors = receipts.map((payment) => {
     const current = choice(payment);
     if (current.option === 'carry') return null;
-    if (payment.method === 'external' && current.option !== 'error') return 'Payments confirmed by wiRef need an accounting correction in Invoicing.';
+    if (payment.method === 'external' && current.option !== 'error') return 'Bank transfers against an invoice need an accounting correction first: cancel the invoice request on the original order.';
     if (current.option === 'refund' && !isZonedDateTimeValue(current.time)) return 'Enter a valid refund time';
     if (payment.method === 'card' && !current.reference.trim()) return 'Enter the terminal reference of the refund or correction';
     return null;
@@ -115,9 +113,9 @@ export function CorrectOrderModal({ order, replacement, onClose }: { order: Orde
       {order.replacedBy && <InlineNotification kind="info" lowContrast hideCloseButton title={`Already replaced by ${order.replacedBy.reference}`} subtitle="Correct the replacement instead; a replaced order cannot be changed again." />}
       {blockedRequest && (
         <InlineNotification kind="warning" lowContrast hideCloseButton title={`${blockedRequest.reference} is ${requestStateLabel[blockedRequest.state].toLowerCase()}`}
-          subtitle="Cancel or reconcile the wiRef request in Invoicing first. Core records what happened in wiRef; it does not change the accounting itself." />
+          subtitle="Cancel or reconcile the invoice request in the order first. Core records what happened in wiRef; it does not change the accounting itself." />
       )}
-      {blockedRequest && <Button as={Link} to="/sales/invoicing" kind="tertiary" size="sm" onClick={onClose}>Open Invoicing</Button>}
+      {blockedRequest && <Button as={Link} to={`/sales/orders/${original.id}`} kind="tertiary" size="sm" onClick={onClose}>Open the invoice section</Button>}
     </Stack>
   );
   const blocked = !committing && (!!order.replacedBy || !!blockedRequest);
@@ -158,7 +156,7 @@ export function CorrectOrderModal({ order, replacement, onClose }: { order: Orde
         {step === 'payments' && (
           <Stack gap={6}>
             {committing && <InlineNotification kind="info" lowContrast hideCloseButton title={`New total ${formatEur(newTotal)}`} subtitle={`${original.reference} was ${formatEur(sum(receipts.map((payment) => payment.amount)))} paid. Choose what happens to each payment.`} />}
-            {externalReceipt && <InlineNotification kind="error" lowContrast hideCloseButton title="A payment was confirmed by wiRef" subtitle="It cannot be moved or refunded here. Record the external accounting correction in Invoicing first." />}
+            {externalReceipt && <InlineNotification kind="error" lowContrast hideCloseButton title="A bank transfer was recorded against the invoice" subtitle="It cannot be moved or refunded here. Cancel the invoice request and record the external accounting correction on the original order first." />}
             {receipts.map((payment, position) => {
               const current = choice(payment);
               const options = optionsFor(payment);
@@ -186,12 +184,10 @@ export function CorrectOrderModal({ order, replacement, onClose }: { order: Orde
             {committing && toPay > 0 && (
               <Stack gap={4}>
                 <h3 className="mj-section-title">Still to pay: {formatEur(toPay)}</h3>
-                {mustPayNow
-                  ? <p className="mj-secondary">A walk-in order has to stay fully paid, so collect the difference now.</p>
-                  : <RadioButtonGroup legendText="Collect the difference" name="collect-now" valueSelected={payNow ? 'now' : 'later'} onChange={(value) => setPayNow(value === 'now')}>
-                    <RadioButton id="collect-later" value="later" labelText="Leave it outstanding" /><RadioButton id="collect-now" value="now" labelText="Record a payment now" />
-                  </RadioButtonGroup>}
-                {payingNow && <PaymentEntryForm idPrefix="commit-pay" entry={entry} onChange={setEntry} due={toPay} requireFull={walkIn} payments={store.payments} disabled={pending} />}
+                <RadioButtonGroup legendText="Collect the difference" name="collect-now" valueSelected={payNow ? 'now' : 'later'} onChange={(value) => setPayNow(value === 'now')}>
+                  <RadioButton id="collect-later" value="later" labelText="Leave it outstanding" /><RadioButton id="collect-now" value="now" labelText="Record a payment now" />
+                </RadioButtonGroup>
+                {payingNow && <PaymentEntryForm idPrefix="commit-pay" entry={entry} onChange={setEntry} due={toPay} requireFull={false} payments={store.payments} disabled={pending} />}
               </Stack>
             )}
           </Stack>

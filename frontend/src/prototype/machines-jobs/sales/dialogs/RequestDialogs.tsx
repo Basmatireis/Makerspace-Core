@@ -53,8 +53,8 @@ export function RequestDialog({ kind, request, order, onClose }: { kind: Request
   if (kind === 'ready') {
     return (
       <ActionModal heading="Mark as ready to submit" request={request} primary="Mark as ready" onClose={onClose} run={() => store.markRequestReady(request.id)} success={{ title: `${request.reference} is ready`, subtitle: 'Send it to wiRef, then mark it as submitted.' }}>
-        <p>The recipient details are complete. Once the request is ready they are frozen, and the purchase order requirement of the customer is checked and kept as it is now.</p>
-        <p className="mj-secondary">To change something afterwards, cancel this request and prepare a new one.</p>
+        <p>The recipient details are complete. Once the request is ready they are frozen, together with the amount already paid ({formatEur(request.alreadyPaid)}). The purchase order requirement of the organization is checked now.</p>
+        <p className="mj-secondary">To change something afterwards, cancel this request and request the invoice again. Cash and card payments can no longer be added.</p>
       </ActionModal>
     );
   }
@@ -70,8 +70,8 @@ export function RequestDialog({ kind, request, order, onClose }: { kind: Request
     return (
       <ActionModal heading="Record the issued invoice" request={request} primary="Record invoice" disabled={!valid} onClose={onClose}
         run={() => store.recordRequestIssued(request.id, { externalReference: reference, effectiveOn: date, amount: parsedAmount ?? 0 })}
-        success={{ title: 'Invoice recorded', subtitle: 'The payment can be recorded once wiRef confirms it.' }}>
-        <p>wiRef issued the invoice. Enter what it says. This is not a payment; the payment is recorded separately when it arrives.</p>
+        success={{ title: 'Invoice recorded', subtitle: 'A bank transfer can be recorded once it arrives.' }}>
+        <p>wiRef issued the invoice. Enter what it says. This is not a payment; a bank transfer to the HTU account is recorded separately when it arrives.</p>
         <TextInput id="issued-reference" labelText="Invoice number from wiRef" value={reference} onChange={(event) => setReference(event.target.value)} />
         <DateInput id="issued-date" labelText="Invoice date" value={date} onChange={setDate} required />
         <TextInput id="issued-amount" labelText="Invoice amount (€)" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)}
@@ -82,7 +82,7 @@ export function RequestDialog({ kind, request, order, onClose }: { kind: Request
   if (kind === 'cancel') {
     return (
       <ActionModal heading="Cancel this request" request={request} primary="Cancel request" secondary="Keep request" danger onClose={onClose} run={() => store.cancelRequest(request.id, reason)}
-        success={{ title: `${request.reference} cancelled`, subtitle: 'wiRef never saw it. Cash and card are available again, or you can prepare a new request.' }}>
+        success={{ title: `${request.reference} cancelled`, subtitle: 'wiRef never saw it. You can request the invoice again.' }}>
         <p>{request.state === 'draft' ? 'This request was never submitted.' : 'This request was marked ready, but not yet submitted.'} Cancelling it only affects Makerspace Core; nothing has to be undone in wiRef.</p>
         <TextArea id="cancel-reason" labelText="Reason (optional)" rows={2} maxCount={500} enableCounter value={reason} onChange={(event) => setReason(event.target.value)} />
       </ActionModal>
@@ -94,7 +94,7 @@ export function RequestDialog({ kind, request, order, onClose }: { kind: Request
         success={{ title: 'Cancellation requested', subtitle: 'Once wiRef cancelled or corrected the invoice, confirm it here.' }}>
         <p>{request.state === 'issued' ? 'The invoice was issued, so wiRef has to cancel or correct it.' : 'The request was submitted, so wiRef has to withdraw it.'} Do that in your normal accounting process; then come back and confirm.</p>
         <p className="mj-secondary">Cash and card stay switched off for the order until the cancellation is confirmed.</p>
-        {externalPaid && <InlineNotification kind="warning" lowContrast hideCloseButton title="A wiRef payment is recorded" subtitle="After the cancellation is confirmed you also have to correct that payment before the order can be reversed or replaced." />}
+        {externalPaid && <InlineNotification kind="warning" lowContrast hideCloseButton title="A bank transfer is recorded" subtitle="After the cancellation is confirmed you also have to correct that payment before the order can be reversed or replaced." />}
         <TextArea id="cancellation-reason" labelText="Why does it have to be cancelled?" rows={3} maxCount={500} enableCounter value={reason} onChange={(event) => setReason(event.target.value)} />
       </ActionModal>
     );
@@ -104,7 +104,7 @@ export function RequestDialog({ kind, request, order, onClose }: { kind: Request
     return (
       <ActionModal heading="Confirm the cancellation" request={request} primary="Confirm cancellation" disabled={!valid} onClose={onClose}
         run={() => store.confirmRequestCancellation(request.id, { reconciliationKind: procedure, externalReference: reference, effectiveOn: date })}
-        success={{ title: `${request.reference} cancelled`, subtitle: 'The order is free again. Correct a wiRef payment, or prepare a new request.' }}>
+        success={{ title: `${request.reference} cancelled`, subtitle: 'The order is free again. Correct a bank transfer if one was recorded, or request a new invoice.' }}>
         <p>How did wiRef settle the invoice? Record the evidence so the accounting can be followed later.</p>
         <TileGroup legend="What did wiRef do?" name="reconciliation-kind" valueSelected={procedure} onChange={(value) => setProcedure(value as ReconciliationKind)}>
           {RECONCILIATION_KINDS.map((item) => (

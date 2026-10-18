@@ -9,11 +9,11 @@ import type { Allocation, Order, Payment } from '../types';
 type Props = {
   order: OrderView; orders: Order[]; payments: Payment[]; allocations: Allocation[];
   /** Why recording is not possible right now, shown instead of the button. Null when the button is available. */
-  recordBlocked: string | null; canRecord: boolean; onRecord: () => void;
+  recordBlocked: string | null; canRecord: boolean; bankTransfer?: boolean; onRecord: () => void;
 };
 
 /** Receipts and refunds that touch this order, including payments carried over from or to a replacement. */
-export function PaymentsSection({ order, orders, payments, allocations, recordBlocked, canRecord, onRecord }: Props) {
+export function PaymentsSection({ order, orders, payments, allocations, recordBlocked, canRecord, bankTransfer = false, onRecord }: Props) {
   const touching = payments.filter((payment) => allocations.some((allocation) => allocation.paymentId === payment.id && allocation.orderId === order.id)
     || (payment.entryKind === 'reversal' && allocations.some((allocation) => allocation.paymentId === payment.id && allocation.orderId === order.id)))
     .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
@@ -27,7 +27,7 @@ export function PaymentsSection({ order, orders, payments, allocations, recordBl
     if (origin && origin !== order.id && net > 0) return `Carried over from ${orderRef(origin)}`;
     const moved = mine.find((allocation) => allocation.orderId !== order.id);
     if (net === 0 && moved && !payments.some((other) => other.reversesPaymentId === payment.id)) return `Moved to ${orderRef(moved.orderId)}`;
-    return payment.method === 'card' ? `${payment.terminal} · ${payment.transactionReference}` : payment.method === 'external' ? `Confirmation ${payment.transactionReference}` : '';
+    return payment.method === 'card' ? `${payment.terminal} · ${payment.transactionReference}` : payment.method === 'external' ? `Bank transfer, confirmation ${payment.transactionReference}` : '';
   };
 
   return (
@@ -35,7 +35,7 @@ export function PaymentsSection({ order, orders, payments, allocations, recordBl
       title="Payments" description={order.status === 'draft' ? 'Payments can be recorded once the order is finalized.' : 'Receipts are never edited. A mistake is undone by a reversal that stays on the record.'}
     >
       <div className="sales-section-actions">
-        {canRecord && !recordBlocked && <Button kind="primary" size="md" renderIcon={Currency} onClick={onRecord}>Record payment</Button>}
+        {canRecord && !recordBlocked && <Button kind="primary" size="md" renderIcon={Currency} onClick={onRecord}>{bankTransfer ? 'Record bank transfer' : 'Record payment'}</Button>}
         {recordBlocked && <span className="mj-secondary">{recordBlocked}</span>}
       </div>
       <Table aria-label="Payments of this order">

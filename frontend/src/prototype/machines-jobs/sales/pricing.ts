@@ -1,15 +1,27 @@
-import type { Material, MachineType, PricingRule } from '../types';
-import type { CatalogItem } from './types';
+import type { BillingParty, Material, MachineType, PricingRule } from '../types';
+import type { CatalogItem, OrganizationRecord } from './types';
 import { formatAmount, formatQuantity, round2 } from './format';
 
 // Stand-in for the backend pricing service (groups, rules, party assignments), after machinelogbook/catalog.go: a pricing group has
 // one rate per selector. A selector is either "machine runtime of a machine type" (per hour) or "material of a category in a unit".
-// A job is priced from its customer's group at capture time; a missing rate leaves the price incomplete instead of guessing.
+// A job is priced at capture time with a group that is resolved in this order: the group set on the job > the group of the organization
+// (organization customers) > the group mapped to the account's highest-priority role > the default group. A missing rate leaves the price
+// incomplete instead of guessing.
 
 export type RateUnit = 'h' | 'g' | 'ml' | 'm2' | 'piece';
 export type PricingGroup = { id: string; name: string; description: string; isDefault: boolean; active: boolean };
 export type RateRule = { id: string; groupId: string; kind: 'machine_runtime' | 'material'; machineTypeId: string | null; category: string | null; unit: RateUnit; rate: number };
-export type PricingConfig = { groups: PricingGroup[]; rules: RateRule[] };
+/** [proposed] Maps account roles to pricing groups. Role id to group name; a role without an entry follows the default group. */
+export type PricingConfig = { groups: PricingGroup[]; rules: RateRule[]; roleGroups: Record<string, string> };
+
+/** Account roles in priority order: when an account has several roles, the first one in this list that is mapped decides. */
+export const accountRoles: { id: string; label: string }[] = [
+  { id: 'staff', label: 'Staff' },
+  { id: 'team_member', label: 'Student team member' },
+  { id: 'student', label: 'Student' },
+  { id: 'member', label: 'Makerspace member' },
+];
+export const roleLabel = (id: string) => accountRoles.find((role) => role.id === id)?.label ?? id;
 
 /** One row of the rates matrix. */
 export type RateSelector = { key: string; kind: RateRule['kind']; label: string; machineTypeId: string | null; category: string | null; unit: RateUnit };
@@ -58,18 +70,47 @@ export function defaultPricingConfig(): PricingConfig {
     add({ kind: 'material', machineTypeId: null, category: 'Resin', unit: 'ml', rate: group.ml });
     add({ kind: 'material', machineTypeId: null, category: 'Sheet', unit: 'm2', rate: group.m2 });
   }
-  return { groups: GROUP_SEED.map(({ id, name, description, isDefault }) => ({ id, name, description, isDefault, active: true })), rules };
+  return {
+    groups: GROUP_SEED.map(({ id, name, description, isDefault }) => ({ id, name, description, isDefault, active: true })), rules,
+    // 'member' is deliberately not mapped, so ordinary members and accounts without a role fall back to the default group.
+    roleGroups: { staff: 'Staff', team_member: 'Student teams', student: 'Students' },
+  };
 }
 
 let live: PricingConfig = defaultPricingConfig();
-/** The store publishes its pricing here, so every quote (counter sale, job forms, seed replay) uses the rates that are configured now. */
-export const setLivePricing = (config: PricingConfig) => { live = config; };
+let liveOrgs: OrganizationRecord[] = [];
+/** The store publishes its pricing and organizations here, so every quote (job forms, repricing, seed replay) uses what is configured now. */
+export const setLivePricing = (config: PricingConfig, organizations: OrganizationRecord[] = liveOrgs) => { live = config; liveOrgs = organizations; };
 export const livePricing = () => live;
+export const liveOrganizations = () => liveOrgs;
 
 export const defaultGroupOf = (config: PricingConfig) => config.groups.find((group) => group.isDefault && group.active) ?? config.groups.find((group) => group.active) ?? config.groups[0];
 export const defaultPricingGroup = defaultGroupOf(live).name;
-/** The group that prices a customer: the assigned one, else the default. */
-export const effectiveGroup = (config: PricingConfig, assigned: string | null) => config.groups.find((group) => group.name === assigned && group.active) ?? defaultGroupOf(config);
+const activeGroup = (config: PricingConfig, name: string | null | undefined) => name ? config.groups.find((group) => group.name === name && group.active) : undefined;
+
+export type GroupResolution = { group: PricingGroup; /** In words, e.g. "via role Student". */ reason: string };
+
+/**
+ * The group that prices a customer: set on the job > organization group > the group of the highest-priority mapped role > default.
+ * An inactive or missing group is skipped, so a deactivated group never prices anything.
+ */
+export function resolveGroup(config: PricingConfig, organizations: OrganizationRecord[], party: Pick<BillingParty, 'kind' | 'id' | 'roles'> | null | undefined, explicit?: string | null): GroupResolution {
+  const fallback = defaultGroupOf(config);
+  const set = activeGroup(config, explicit);
+  if (set) return { group: set, reason: 'set on the job' };
+  if (party?.kind === 'organization') {
+    const organization = organizations.find((item) => item.id === party.id);
+    const group = activeGroup(config, organization?.pricingGroup);
+    if (group) return { group, reason: 'via the organization' };
+    return { group: fallback, reason: 'default group, the organization has none' };
+  }
+  const roles = party?.roles ?? [];
+  for (const role of accountRoles.filter((item) => roles.includes(item.id))) {
+    const group = activeGroup(config, config.roleGroups[role.id]);
+    if (group) return { group, reason: `via role ${role.label}` };
+  }
+  return { group: fallback, reason: roles.length ? 'default group, no role is mapped' : 'default group, the account has no role' };
+}
 
 export const rateOf = (config: PricingConfig, groupId: string, selector: Pick<RateSelector, 'key'>) => config.rules.find((rule) => rule.groupId === groupId && ruleKey(rule) === selector.key) ?? null;
 

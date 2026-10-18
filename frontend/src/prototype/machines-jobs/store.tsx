@@ -6,13 +6,12 @@ import type {
   PriceAdjustment, Spool, SpoolFill, SpoolIdentifier, SpoolKind, SpoolLifecycle, SpoolStockSource,
 } from './types';
 import { leftoverOutcome, planClose, type LeftoverChoice } from './fillPlan';
-import { nameFromFile } from './derived';
 import { outcomeFromRuns, planAttach, runsOfJob, runsSummary } from './runs';
 import * as sales from './sales/engine';
 import { CURRENT_ACTOR } from './sales/labels';
-import { effectiveGroup, livePricing, quoteJob, setLivePricing, type PricingConfig } from './sales/pricing';
+import { livePricing, liveOrganizations, quoteJob, resolveGroup, setLivePricing, type PricingConfig } from './sales/pricing';
 import { salesSeed } from './sales/mockData';
-import type { Allocation, CustomerRecord, DaySession, InvoiceRequest, Order, OrderAdjustment, Payment, PaymentInput, SalesCounters } from './sales/types';
+import type { Allocation, CashMovement, InvoiceRequest, Order, OrderAdjustment, OrganizationRecord, Payment, SalesCounters } from './sales/types';
 
 // ---------------------------------------------------------------------------
 // Prototype controls: role presets and simulated data states.
@@ -42,8 +41,8 @@ export const rolePresets: Record<Role, { label: string; description: string; per
   operator: { label: 'Operator', description: 'Creates jobs; no linking, pricing or machine setup', permissions: ['machines.read', 'machine_jobs.read', 'machine_jobs.create', 'printer_slots.assign', 'inventory.read'] },
   viewer: { label: 'Read-only', description: 'Can look up machines and jobs only', permissions: ['machines.read', 'machine_jobs.read'] },
   front_desk: {
-    label: 'Front desk', description: 'Counter sales and payments; no reversals, no wiRef',
-    permissions: ['machines.read', 'machine_jobs.read', 'machine_jobs.create', 'machine_jobs.override_price', 'inventory.read', 'orders.read', 'orders.write', 'orders.finalize', 'payments.read', 'payments.record', 'pricing.read'],
+    label: 'Front desk', description: 'Creates and finalizes orders, records payments and cash movements; no reversals, no pricing edits, no invoice requests',
+    permissions: ['machines.read', 'machine_jobs.read', 'machine_jobs.create', 'inventory.read', 'orders.read', 'orders.write', 'orders.finalize', 'payments.read', 'payments.record', 'pricing.read'],
   },
   finance: {
     label: 'Finance', description: 'All sales, payments and invoicing; read-only workshop',
@@ -76,8 +75,8 @@ type Data = {
   adjustments: OrderAdjustment[];
   requests: InvoiceRequest[];
   counters: SalesCounters;
-  customers: CustomerRecord[];
-  daySessions: DaySession[];
+  organizations: OrganizationRecord[];
+  cashMovements: CashMovement[];
   pricing: PricingConfig;
 };
 
@@ -85,13 +84,13 @@ const initialData = (): Data => structuredClone({
   machines: seed.machines, connectorHosts: seed.connectorHosts, detected: seed.detectedStates, liveStatus: seed.liveStatuses, machineTypes: seed.machineTypes, jobs: salesSeed.jobs, prints: seed.prints,
   printerProfiles: seed.printerProfiles, spools: seed.spools, materials: seed.materials, products: seed.filamentProducts, transactions: seed.inventoryTransactions,
   orders: salesSeed.orders, payments: salesSeed.payments, allocations: salesSeed.allocations, adjustments: salesSeed.adjustments, requests: salesSeed.requests, counters: salesSeed.counters,
-  customers: salesSeed.customers, daySessions: salesSeed.daySessions, pricing: salesSeed.pricing,
+  organizations: salesSeed.organizations, cashMovements: salesSeed.cashMovements, pricing: salesSeed.pricing,
 });
 
 export type Toast = { id: number; kind: 'success' | 'error' | 'info'; title: string; subtitle?: string; /** A single follow-up link; shown as the action button of the notification. */ action?: { label: string; to: string } };
 
 export type JobFactsInput = {
-  title: string | null; machineId: string; startsAt: string; endsAt: string; customer: BillingParty | null; operator: Operator | null;
+  title: string | null; machineId: string; startsAt: string; endsAt: string; customer: BillingParty; operator: Operator | null;
   outcome: JobOutcome; notes: string | null;
 };
 export type UsageInput = Omit<JobUsage, 'id' | 'spoolDisplayId' | 'category' | 'unit'> & { materialName?: string };
@@ -212,22 +211,16 @@ type Actions = {
   requestCancellation: SalesAction<typeof sales.requestCancellation>;
   confirmRequestCancellation: SalesAction<typeof sales.confirmRequestCancellation>;
   correctRequestReference: SalesAction<typeof sales.correctRequestReference>;
-  /** [proposed] Closes the cash of one day. */
-  closeDay: SalesAction<typeof sales.closeDay>;
-  assignPricingGroup: SalesAction<typeof sales.assignPricingGroup>;
-  setPurchaseOrderRequirement: SalesAction<typeof sales.setPurchaseOrderRequirement>;
+  /** [proposed] Money taken out of or added to the cash register. */
+  recordCashMovement: SalesAction<typeof sales.recordCashMovement>;
+  saveOrganization: SalesAction<typeof sales.saveOrganization>;
+  /** [proposed] Maps an account role to a pricing group. */
+  setRoleGroup: SalesAction<typeof sales.setRoleGroup>;
   savePricingGroup: SalesAction<typeof sales.savePricingGroup>;
   setRate: SalesAction<typeof sales.setRate>;
-  /** Anonymous sale: job, stock consumption, order, finalization and complete settlement in one step. */
-  createCounterSale: (input: CounterSaleRequest) => { orderId: string; jobId: string };
 };
 
 type SalesAction<F> = F extends (state: sales.SalesState, c: sales.Ctx, ...args: infer A) => infer R ? (...args: A) => Omit<R, 'state'> : never;
-
-export type CounterSaleRequest = {
-  machineId: string; minutes: number; operator: Operator; usages: UsageInput[]; runId: string | null; pricingGroup: string; adjustment: PriceAdjustment | null;
-  extras: sales.ManualItemInput[]; payments: PaymentInput[];
-};
 
 type Store = Data & Actions & {
   role: Role;
@@ -258,11 +251,11 @@ function toUsage(input: UsageInput, spools: Spool[], materials: Material[]): Job
   };
 }
 
-// Stand-in for the backend pricing service: the customer's pricing group (see sales/pricing.ts) supplies the machine runtime and material rates.
-// A missing rate leaves the job's price incomplete, like the backend does, instead of guessing one.
+// Stand-in for the backend pricing service: the pricing group (set on the job, else organization, else account role, else default; see sales/pricing.ts)
+// supplies the machine runtime and material rates. A missing rate leaves the job's price incomplete, like the backend does, instead of guessing one.
 function price(job: Job): Pick<Job, 'calculatedPrice' | 'pricingSnapshot' | 'pricingStatus'> {
-  if (!job.customer) return { calculatedPrice: null, pricingSnapshot: null, pricingStatus: 'pending' };
-  const group = effectiveGroup(livePricing(), job.customer.pricingGroup || null).name;
+  const resolved = resolveGroup(livePricing(), liveOrganizations(), job.customer, job.pricingGroupOverride);
+  const group = resolved.group.name;
   const quote = quoteJob({
     group, durationSeconds: job.durationSeconds, machineTypeId: seed.machines.find((machine) => machine.id === job.machineId)?.machineTypeId,
     usages: job.usages.map((usage) => ({ materialName: usage.materialName, unit: usage.unit, quantity: usage.quantity, ownership: usage.ownership, category: usage.category })),
@@ -271,7 +264,7 @@ function price(job: Job): Pick<Job, 'calculatedPrice' | 'pricingSnapshot' | 'pri
     calculatedPrice: quote.complete ? quote.total : null,
     pricingStatus: quote.complete ? 'complete' : 'incomplete',
     pricingSnapshot: {
-      revision: (job.pricingSnapshot?.revision ?? 0) + 1, pricingGroupName: group, reason: job.pricingSnapshot ? 'customer_changed' : 'initial', capturedAt: new Date().toISOString(), rules: quote.rules,
+      revision: (job.pricingSnapshot?.revision ?? 0) + 1, pricingGroupName: group, via: resolved.reason, reason: job.pricingSnapshot ? 'customer_changed' : 'initial', capturedAt: new Date().toISOString(), rules: quote.rules,
     },
   };
 }
@@ -284,9 +277,9 @@ function buildJob(d: Data, facts: JobFactsInput, usages: UsageInput[], pricingGr
     usages: usages.map((usage) => toUsage(usage, d.spools, d.materials)), pricingStatus: 'pending', pricingSnapshot: null, calculatedPrice: null,
     priceAdjustment: null, order: null, version: 1,
   };
-  // A pricing group chosen for a batch prices the job without changing the customer record.
-  const priced = price(pricingGroup && base.customer ? { ...base, customer: { ...base.customer, pricingGroup } } : base);
-  return { ...base, ...priced };
+  // A pricing group chosen for a batch prices the job without changing the customer or the role mapping.
+  const withGroup: Job = { ...base, pricingGroupOverride: pricingGroup };
+  return { ...withGroup, ...price(withGroup) };
 }
 
 const secondsBetween = (startsAt: string, endsAt: string) => Math.max(60, Math.round((new Date(endsAt).getTime() - new Date(startsAt).getTime()) / 1000));
@@ -425,7 +418,7 @@ function buildTransaction(
 
 const salesSlice = (d: Data): sales.SalesState => ({
   orders: d.orders, payments: d.payments, allocations: d.allocations, adjustments: d.adjustments, requests: d.requests, jobs: d.jobs, counters: d.counters,
-  customers: d.customers, daySessions: d.daySessions, pricing: d.pricing,
+  organizations: d.organizations, cashMovements: d.cashMovements, pricing: d.pricing,
 });
 const salesCtx = (d: Data): sales.Ctx => ({ at: new Date().toISOString(), actor: CURRENT_ACTOR, machines: d.machines, machineTypes: d.machineTypes, prints: d.prints });
 
@@ -454,15 +447,9 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
   // Sales actions run engine transitions and return ids synchronously, so they read the latest data through a ref that they also update eagerly.
   const dataRef = useRef(data);
   useEffect(() => { dataRef.current = data; }, [data]);
-  // Quotes everywhere (job forms, counter sale, reprice) use the rates and customer assignments configured on the Pricing page.
-  useEffect(() => { setLivePricing(data.pricing); }, [data.pricing]);
-  useEffect(() => {
-    for (const person of lookups.people) {
-      const customer = data.customers.find((item) => item.id === person.id);
-      if (customer) person.pricingGroup = effectiveGroup(data.pricing, customer.pricingGroup).name;
-    }
-  }, [data.customers, data.pricing]);
-  const commit = useCallback((next: Data) => { dataRef.current = next; setData(next); }, []);
+  // Quotes everywhere (job forms, repricing) use the rates, role mapping and organizations configured on the Pricing page.
+  useEffect(() => { setLivePricing(data.pricing, data.organizations); syncParties(data.organizations); }, [data.pricing, data.organizations]);
+  const commit = useCallback((next: Data) => { dataRef.current = next; setLivePricing(next.pricing, next.organizations); syncParties(next.organizations); setData(next); }, []);
   const [role, setRole] = useState<Role>('supervisor');
   const [scenario, setScenario] = useState<Scenario>('normal');
   const [connectionTest, setConnectionTest] = useState<ConnectionTestMode>('success');
@@ -490,34 +477,9 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
     duplicateOrder: salesAction(sales.duplicateAsDraft), createDraftFromJobs: salesAction(sales.draftFromJobs), prepareInvoiceRequest: salesAction(sales.prepareInvoiceRequest),
     updateRequestDetails: salesAction(sales.updateRequestDetails), markRequestReady: salesAction(sales.markRequestReady), markRequestSubmitted: salesAction(sales.markRequestSubmitted),
     recordRequestIssued: salesAction(sales.recordRequestIssued), cancelRequest: salesAction(sales.cancelRequest), requestCancellation: salesAction(sales.requestCancellation),
-    confirmRequestCancellation: salesAction(sales.confirmRequestCancellation), correctRequestReference: salesAction(sales.correctRequestReference), closeDay: salesAction(sales.closeDay),
-    assignPricingGroup: salesAction(sales.assignPricingGroup), setPurchaseOrderRequirement: salesAction(sales.setPurchaseOrderRequirement),
+    confirmRequestCancellation: salesAction(sales.confirmRequestCancellation), correctRequestReference: salesAction(sales.correctRequestReference),
+    recordCashMovement: salesAction(sales.recordCashMovement), saveOrganization: salesAction(sales.saveOrganization), setRoleGroup: salesAction(sales.setRoleGroup),
     savePricingGroup: salesAction(sales.savePricingGroup), setRate: salesAction(sales.setRate),
-    createCounterSale: (input) => {
-      const d = dataRef.current;
-      const run = input.runId ? d.prints.find((item) => item.id === input.runId && item.linkedJobId === null) : undefined;
-      if (input.runId && !run) throw new sales.SalesError('run_unavailable', 'That run was assigned to a job in the meantime');
-      const at = new Date().toISOString();
-      const endsAt = run ? run.endedAt ?? at : at;
-      const startsAt = run ? run.startedAt : new Date(Date.now() - input.minutes * 60_000).toISOString();
-      const usages = input.usages.map((usage) => toUsage(usage, d.spools, d.materials));
-      const durationSeconds = secondsBetween(startsAt, endsAt);
-      const quote = quoteJob({ group: input.pricingGroup, durationSeconds, machineTypeId: d.machines.find((machine) => machine.id === input.machineId)?.machineTypeId, usages: usages.map((usage) => ({ materialName: usage.materialName, unit: usage.unit, quantity: usage.quantity, ownership: usage.ownership, category: usage.category })) }, d.pricing);
-      if (!quote.complete) throw new sales.SalesError('pricing_incomplete', `There is no rate for ${quote.missing.join(' and ')}. Ask someone who manages pricing to set it under Pricing.`);
-      const job: Job = {
-        id: uid('j'), displayId: `J-${Math.max(...d.jobs.map((item) => Number(item.displayId.slice(2)))) + 1}`, title: run ? nameFromFile(run.fileName) : null, machineId: input.machineId, startsAt, endsAt, durationSeconds,
-        run: run ? 'automatic' : 'manual', printId: run?.id ?? null, source: run ? 'automatic' : 'manual', externalId: run?.displayId ?? null, customer: null, operator: input.operator, outcome: 'successful', notes: 'Counter sale',
-        usages, pricingStatus: 'complete', pricingSnapshot: { revision: 1, pricingGroupName: input.pricingGroup, reason: 'initial', capturedAt: at, rules: quote.rules },
-        calculatedPrice: quote.total, priceAdjustment: input.adjustment, order: null, version: 1,
-      };
-      const result = sales.counterSale(salesSlice(d), salesCtx(d), { job, extras: input.extras, payments: input.payments });
-      let next: Data = { ...d, ...result.state, prints: run ? d.prints.map((item) => item.id === run.id ? { ...item, linkedJobId: job.id } : item) : d.prints };
-      for (const usage of job.usages.filter((item) => item.ownership === 'makerspace' && item.materialId)) {
-        next = applyTransaction(next, buildTransaction(next, usage.materialId!, usage.spoolId, 'consumption', usage.quantity, { jobId: job.id, note: `Counter sale ${job.displayId}` }));
-      }
-      commit(next);
-      return { orderId: result.orderId, jobId: job.id };
-    },
     createJob: (facts, usages) => {
       const job = buildJob(data, facts, usages);
       setData((d) => ({ ...d, jobs: [job, ...d.jobs] }));
@@ -805,7 +767,7 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
       }));
       return doomed;
     },
-  }), [data, connectionTest, patchJob, patchProfile, salesAction, commit]);
+  }), [data, connectionTest, patchJob, patchProfile, salesAction]);
 
   const permissions = rolePresets[role].permissions;
   const value: Store = {
@@ -864,3 +826,15 @@ export function useNow(intervalMs = 15_000) {
 }
 
 export const lookups = { people: seed.people, operators: seed.operators, materials: seed.materials };
+
+/** Organizations are customers too: the pickers (`lookups.people`) list the active ones and follow the Pricing page. */
+function syncParties(organizations: OrganizationRecord[]) {
+  const wanted = new Map(organizations.filter((item) => item.active).map((item) => [item.id, item]));
+  for (let index = lookups.people.length - 1; index >= 0; index -= 1) {
+    const party = lookups.people[index];
+    if (party.kind !== 'organization') continue;
+    const record = wanted.get(party.id);
+    if (record) party.displayName = record.name; else lookups.people.splice(index, 1);
+  }
+  for (const record of wanted.values()) if (!lookups.people.some((party) => party.id === record.id)) lookups.people.push({ kind: 'organization', id: record.id, displayName: record.name, roles: [] });
+}

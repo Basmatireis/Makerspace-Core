@@ -29,7 +29,7 @@ export function JobsTable({ jobs, hideMachine = false, size = 'lg', title, empty
     { key: 'price', header: 'Price', isSortable: true },
   ];
   const rows = jobs.map((job) => ({
-    id: job.id, job: job.startsAt, machine: machineName(job), customer: job.customer?.displayName ?? '', status: jobStatus(job, prints.find((print) => print.id === job.printId), now), price: effectivePrice(job) ?? -1,
+    id: job.id, job: job.startsAt, machine: machineName(job), customer: job.customer.displayName, status: jobStatus(job, prints.find((print) => print.id === job.printId), now), price: effectivePrice(job) ?? -1,
   }));
 
   return (
@@ -66,7 +66,7 @@ export function JobsTable({ jobs, hideMachine = false, size = 'lg', title, empty
                     {!hideMachine && <TableCell className="mj-hide-narrow">{machineName(job)}</TableCell>}
                     <TableCell className="mj-hide-narrow">
                       <div className="mj-cell-stack">
-                        <span>{job.customer?.displayName ?? '—'}</span>
+                        <span>{job.customer.displayName}</span>
                         {job.operator && <span className="mj-secondary">{job.operator.displayName}</span>}
                       </div>
                     </TableCell>

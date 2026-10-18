@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Button, InlineNotification, Link as CarbonLink, MenuButton, MenuItem, Modal, OverflowMenu, OverflowMenuItem, Stack, Tile } from '@carbon/react';
-import { Add, Currency, Printer } from '@carbon/icons-react';
+import { Currency, Printer } from '@carbon/icons-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DestructiveActionDialog } from '../../../../app/DestructiveActionDialog';
 import { PageShell } from '../../../../app/PageShell';
 import { EmptyState } from '../../../../app/PageState';
 import { QueryBoundary } from '../../components/QueryBoundary';
-import { useStore } from '../../store';
-import { LinkNotification } from '../components/LinkNotification';
+import { lookups, useStore } from '../../store';
+import { InvoiceSection } from '../components/InvoiceSection';
 import { OrderItemsTable } from '../components/OrderItemsTable';
 import { OrderTimeline } from '../components/OrderTimeline';
 import { PaymentsSection } from '../components/PaymentsSection';
@@ -16,16 +16,18 @@ import { AddItemModal } from '../dialogs/AddItemModal';
 import { AddJobsModal } from '../dialogs/AddJobsModal';
 import { CorrectOrderModal } from '../dialogs/CorrectOrderModal';
 import { EditOrderModal } from '../dialogs/EditOrderModal';
-import { PrepareRequestModal } from '../dialogs/PrepareRequestModal';
 import { RecordPaymentModal } from '../dialogs/RecordPaymentModal';
+import { RequestInvoiceModal } from '../dialogs/RequestInvoiceModal';
+import { invoiceRequestBlocker } from '../engine';
 import { formatDateTime, formatEur } from '../format';
-import { requestStateLabel } from '../labels';
-import { activeItems, activeReceipts, itemChanged, type OrderView } from '../logic';
+import { customerKindLabel, requestStateLabel } from '../labels';
+import { acceptedMethods, activeItems, activeReceipts, itemChanged, type OrderView } from '../logic';
+import { accountRoles } from '../pricing';
 import { OrderStatusTag } from '../status';
 import { useSalesData } from '../useSalesData';
 import '../sales.scss';
 
-type Dialog = 'edit' | 'jobs' | 'catalog' | 'custom' | 'finalize' | 'cancel' | 'pay' | 'checkout' | 'correct' | 'commit' | 'request' | null;
+type Dialog = 'edit' | 'jobs' | 'catalog' | 'custom' | 'finalize' | 'cancel' | 'pay' | 'checkout' | 'correct' | 'commit' | 'invoice' | null;
 
 function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] }) {
   const store = useStore();
@@ -34,7 +36,6 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
   const close = () => setDialog(null);
   const draft = order.status === 'draft';
   const items = activeItems(order);
-  const walkIn = !order.customer;
   const can = store.can;
   const canWrite = can('orders.write');
   const request = order.activeRequest;
@@ -42,6 +43,9 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
   const changedItems = items.filter((item) => itemChanged(item, store.jobs));
   const receipts = activeReceipts(store.payments, store.allocations, order.id);
   const recorded = can('payments.record') && can('payments.read');
+  const methods = acceptedMethods(order);
+  const bankTransfer = methods.length === 1 && methods[0] === 'external';
+  const invoiceBlocker = invoiceRequestBlocker(store, order);
 
   const act = (fn: () => unknown, success?: { title: string; subtitle?: string }) => {
     try { fn(); if (success) store.notify({ kind: 'success', ...success }); } catch (error) { store.notify({ kind: 'error', title: 'That did not work', subtitle: error instanceof Error ? error.message : undefined }); }
@@ -53,13 +57,13 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
   ].filter((value): value is string => !!value) : [];
 
   // The primary action depends on where the order is in its life.
-  let primary: { label: string; icon?: typeof Add; disabled?: boolean; run: () => void } | null = null;
+  let primary: { label: string; icon?: typeof Currency; disabled?: boolean; run: () => void } | null = null;
+  const checkoutPrimary = draft && !order.replacesOrderId && can('orders.finalize') && recorded;
   if (draft && order.replacesOrderId) primary = canWrite && can('orders.finalize') && can('orders.reverse') && recorded ? { label: 'Commit replacement…', disabled: draftBlockers.length > 0, run: () => setDialog('commit') } : null;
-  else if (draft && walkIn) primary = can('orders.finalize') && recorded ? { label: 'Check out', icon: Currency, disabled: draftBlockers.length > 0, run: () => setDialog('checkout') } : null;
+  else if (checkoutPrimary) primary = { label: 'Finalize and take payment', icon: Currency, disabled: draftBlockers.length > 0, run: () => setDialog('checkout') };
   else if (draft) primary = can('orders.finalize') ? { label: 'Finalize', disabled: draftBlockers.length > 0, run: () => setDialog('finalize') } : null;
-  else if (order.status === 'finalized' && order.outstanding > 0 && recorded && (!request || request.state === 'issued')) primary = { label: request ? 'Record wiRef payment' : 'Record payment', icon: Currency, run: () => setDialog('pay') };
-  else if (order.status === 'finalized' && order.outstanding > 0 && request) primary = { label: 'Open wiRef request', run: () => navigate(`/sales/invoicing/${request.id}`) };
-  else if (order.status === 'finalized') primary = { label: 'Print receipt', icon: Printer, run: () => navigate(`/sales/orders/${order.id}/receipt`) };
+  else if (order.status === 'finalized' && order.outstanding > 0 && recorded && methods.length > 0) primary = { label: bankTransfer ? 'Record bank transfer' : 'Record payment', icon: Currency, run: () => setDialog('pay') };
+  else if (order.status === 'finalized' && receipts.length > 0) primary = { label: 'Print receipt', icon: Printer, run: () => navigate(`/sales/orders/${order.id}/receipt`) };
   else if (order.status === 'reversed' && order.replacedBy) primary = { label: `Open ${order.replacedBy.reference}`, run: () => navigate(`/sales/orders/${order.replacedBy!.id}`) };
   else if (order.status === 'reversed' && canWrite && can('orders.finalize') && can('orders.reverse')) primary = { label: 'Replace with a corrected order', run: () => setDialog('correct') };
   else if ((order.status === 'cancelled') && canWrite) primary = { label: 'Duplicate as draft', run: () => act(() => navigate(`/sales/orders/${store.duplicateOrder(order.id).orderId}`)) };
@@ -67,14 +71,16 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
   const canCorrect = (order.status === 'finalized' || order.status === 'reversed') && can('orders.finalize') && (can('orders.reverse') || order.status === 'reversed') && recorded && !order.replacedBy;
   const menu = [
     draft && canWrite && <OverflowMenuItem key="edit" itemText="Edit customer and hand-over" onClick={() => setDialog('edit')} />,
+    draft && !order.replacesOrderId && checkoutPrimary && can('orders.finalize') && <OverflowMenuItem key="finalize" itemText="Finalize without payment" disabled={draftBlockers.length > 0} onClick={() => setDialog('finalize')} />,
+    order.status === 'finalized' && can('external_invoice_requests.manage') && invoiceBlocker === null && <OverflowMenuItem key="invoice" itemText="Request invoice…" onClick={() => setDialog('invoice')} />,
     canCorrect && <OverflowMenuItem key="correct" itemText="Correct order…" onClick={() => setDialog('correct')} />,
-    order.status === 'finalized' && !walkIn && can('external_invoice_requests.manage') && !request && receipts.length === 0 && <OverflowMenuItem key="request" itemText="Prepare wiRef request" onClick={() => setDialog('request')} />,
     order.status === 'finalized' && order.net > 0 && receipts.length > 0 && primary?.label !== 'Print receipt' && <OverflowMenuItem key="receipt" itemText="Print receipt" onClick={() => navigate(`/sales/orders/${order.id}/receipt`)} />,
     !draft && canWrite && order.status !== 'cancelled' && primary?.label !== 'Duplicate as draft' && <OverflowMenuItem key="duplicate" itemText="Duplicate as draft" onClick={() => act(() => navigate(`/sales/orders/${store.duplicateOrder(order.id).orderId}`))} />,
     draft && canWrite && <OverflowMenuItem key="cancel" itemText="Cancel draft" isDelete hasDivider onClick={() => setDialog('cancel')} />,
   ].filter(Boolean);
 
-  const recordBlocked = request && request.state !== 'issued' ? `${request.reference} is ${requestStateLabel[request.state].toLowerCase()}: cash and card are switched off.` : null;
+  const recordBlocked = request && methods.length === 0 ? `${request.reference} is ${requestStateLabel[request.state].toLowerCase()}: cash and card can no longer be added. A bank transfer is recorded once the invoice is issued.` : null;
+  const customerRole = order.customer.kind === 'person' ? lookupRoles(order.customer.id) : null;
 
   return (
     <PageShell
@@ -93,10 +99,6 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
         )}
         {order.replacedBy && <InlineNotification kind="info" lowContrast hideCloseButton title={`Replaced by ${order.replacedBy.reference}`} subtitle="This order no longer counts. Open the replacement to see what is charged now." />}
         {order.replaces && !draft && <InlineNotification kind="info" lowContrast hideCloseButton title={`Replaces ${order.replaces.reference}`} subtitle="Payments that were already made moved over to this order." />}
-        {request && (
-          <LinkNotification title={`Invoicing via wiRef: ${request.reference} (${requestStateLabel[request.state].toLowerCase()})`} label="Open request" to={`/sales/invoicing/${request.id}`}
-            subtitle={request.state === 'issued' ? 'wiRef issued the invoice. Record the payment here once it is confirmed.' : 'Cash and card are switched off while the request is active.'} />
-        )}
         {draftBlockers.length > 0 && <InlineNotification kind="warning" lowContrast hideCloseButton title="Before you can continue" subtitle={draftBlockers.join(' ')} />}
         {!draft && changedItems.length > 0 && (
           <InlineNotification kind="warning" lowContrast hideCloseButton title={`${changedItems.length === 1 ? 'A job' : `${changedItems.length} jobs`} changed after being charged`}
@@ -116,7 +118,7 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
             {draft && canWrite && (
               <div className="sales-section-actions">
                 <MenuButton label="Add items" kind="tertiary" size="md" menuAlignment="bottom-start">
-                  <MenuItem label={walkIn ? 'Jobs (choose a customer first)' : 'Jobs…'} disabled={walkIn} onClick={() => setDialog('jobs')} />
+                  <MenuItem label="Jobs…" onClick={() => setDialog('jobs')} />
                   <MenuItem label="Catalog item… (proposed)" onClick={() => setDialog('catalog')} />
                   <MenuItem label="Custom item…" onClick={() => setDialog('custom')} />
                 </MenuButton>
@@ -128,20 +130,21 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
               onRemove={(item) => act(() => store.removeOrderItem(order.id, item.id), { title: 'Item removed' })}
               onSave={(item, input) => act(() => store.updateOrderManualItem(order.id, item.id, input), { title: 'Item updated' })}
             />
-            <PaymentsSection order={order} orders={store.orders} payments={store.payments} allocations={store.allocations} canRecord={recorded && order.status === 'finalized' && order.outstanding > 0 && (!request || request.state === 'issued')}
-              recordBlocked={recordBlocked} onRecord={() => setDialog('pay')} />
+            <PaymentsSection order={order} orders={store.orders} payments={store.payments} allocations={store.allocations} canRecord={recorded && order.status === 'finalized' && order.outstanding > 0 && methods.length > 0}
+              recordBlocked={recordBlocked} bankTransfer={bankTransfer} onRecord={() => setDialog('pay')} />
+            {order.latestRequest && <InvoiceSection order={order} request={order.latestRequest} />}
           </div>
           <div className="mj-stack">
             <Tile>
               <h2 className="mj-section-title">Details</h2>
               <dl className="mj-facts sales-facts">
-                <div><dt>Customer</dt><dd>{order.customer ? <CarbonLink as={Link} to={`/sales/customers/${order.customer.kind}/${order.customer.id}`}>{order.customerLabel}</CarbonLink> : 'Walk-in customer'}</dd></div>
+                <div><dt>Customer</dt><dd><CarbonLink as={Link} to={`/sales/orders?customer=${order.customer.id}`}>{order.customerLabel}</CarbonLink><br /><span className="mj-secondary">{customerKindLabel(order.customer.kind)}{customerRole ? ` · ${customerRole}` : ''} · all their orders</span></dd></div>
                 <div><dt>Hand-over</dt><dd>{order.fulfillmentMode === 'immediate' ? 'Handed over now' : 'Customer picks up later'}</dd></div>
                 <div><dt>Created</dt><dd>{formatDateTime(order.createdAt)}</dd></div>
                 <div><dt>Last change</dt><dd>{formatDateTime(order.updatedAt)}</dd></div>
                 {order.replaces && <div><dt>Replaces</dt><dd><CarbonLink as={Link} to={`/sales/orders/${order.replaces.id}`}>{order.replaces.reference}</CarbonLink></dd></div>}
                 {order.replacedBy && <div><dt>Replaced by</dt><dd><CarbonLink as={Link} to={`/sales/orders/${order.replacedBy.id}`}>{order.replacedBy.reference}</CarbonLink></dd></div>}
-                {order.latestRequest && <div><dt>wiRef request</dt><dd><CarbonLink as={Link} to={`/sales/invoicing/${order.latestRequest.id}`}>{order.latestRequest.reference}</CarbonLink></dd></div>}
+                {order.latestRequest && <div><dt>Invoice request</dt><dd>{order.latestRequest.reference}</dd></div>}
               </dl>
             </Tile>
             <OrderTimeline order={order} />
@@ -153,10 +156,10 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
       {dialog === 'jobs' && <AddJobsModal order={order} onClose={close} />}
       {(dialog === 'catalog' || dialog === 'custom') && <AddItemModal order={order} kind={dialog} onClose={close} />}
       {dialog === 'pay' && <RecordPaymentModal order={order} mode="record" onClose={close} />}
-      {dialog === 'checkout' && <RecordPaymentModal order={order} mode="checkout" onClose={close} onDone={() => navigate(`/sales/orders/${order.id}/receipt`)} />}
+      {dialog === 'checkout' && <RecordPaymentModal order={order} mode="checkout" onClose={close} />}
       {dialog === 'correct' && <CorrectOrderModal order={order} onClose={close} />}
       {dialog === 'commit' && original && <CorrectOrderModal order={original} replacement={order} onClose={close} />}
-      {dialog === 'request' && <PrepareRequestModal order={order} onClose={close} />}
+      {dialog === 'invoice' && <RequestInvoiceModal order={order} onClose={close} />}
       {dialog === 'finalize' && (
         <Modal open size="sm" modalHeading="Finalize order" modalLabel={order.reference} primaryButtonText="Finalize" secondaryButtonText="Cancel" preventCloseOnClickOutside onRequestClose={close}
           onRequestSubmit={() => { act(() => store.finalizeOrder(order.id), { title: `${order.reference} finalized`, subtitle: order.fulfillmentMode === 'deferred' ? 'Payments can be recorded now or when the customer picks it up.' : 'Payments can be recorded now.' }); close(); }}>
@@ -172,6 +175,13 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
       </DestructiveActionDialog>
     </PageShell>
   );
+}
+
+/** The highest-priority account role of a person, for the customer fact. */
+function lookupRoles(personId: string): string | null {
+  const party = lookups.people.find((item) => item.id === personId);
+  const role = accountRoles.find((item) => party?.roles.includes(item.id));
+  return role ? `role ${role.label}` : null;
 }
 
 export function OrderDetailPage() {
@@ -191,4 +201,3 @@ export function OrderDetailPage() {
     </RequirePermission>
   );
 }
-

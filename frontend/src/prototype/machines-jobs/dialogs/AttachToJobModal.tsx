@@ -5,7 +5,7 @@ import { planAttach, runsOfJob, usageListText } from '../runs';
 import { useSimulatedMutation, useStore } from '../store';
 import type { Job, Print } from '../types';
 
-const jobLabel = (job: Job, name: string) => `${job.displayId}${name !== job.displayId ? ` ${name}` : ''} · ${job.customer?.displayName ?? 'No customer'} · started ${formatRelative(job.startsAt)}`;
+const jobLabel = (job: Job, name: string) => `${job.displayId}${name !== job.displayId ? ` ${name}` : ''} · ${job.customer.displayName} · started ${formatRelative(job.startsAt)}`;
 
 /** Attach several unassigned runs (all on one machine) to an existing job on that machine. */
 export function AttachToJobModal({ open, onClose, runs, onDone }: { open: boolean; onClose: () => void; runs: Print[]; onDone: () => void }) {

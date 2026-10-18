@@ -3,10 +3,9 @@ import { ComboBox, Modal, Select, SelectItem, Stack, StructuredListBody, Structu
 import { formatDateTime } from '../derived';
 import { usageListText } from '../runs';
 import { lookups, useSimulatedMutation, useStore, type SeparateJobsShared } from '../store';
+import { resolveGroup } from '../sales/pricing';
 import type { BillingParty, Operator, Print } from '../types';
 import { matchesName } from './jobFormHelpers';
-
-const groups = [...new Set(lookups.people.map((person) => person.pricingGroup))];
 
 /** One job per selected unassigned run; customer and operator (and optionally a pricing group) are shared. */
 export function CreateSeparateJobsModal({ open, onClose, runs, onDone }: { open: boolean; onClose: () => void; runs: Print[]; onDone: () => void }) {
@@ -15,6 +14,7 @@ export function CreateSeparateJobsModal({ open, onClose, runs, onDone }: { open:
   const [operator, setOperator] = useState<Operator | null>(null);
   const [group, setGroup] = useState('');
   useEffect(() => { if (open) { setCustomer(null); setOperator(null); setGroup(''); } }, [open]);
+  const resolved = customer ? resolveGroup(store.pricing, store.organizations, customer) : null;
   const { mutate, pending } = useSimulatedMutation((ids: string[], shared: SeparateJobsShared) => store.createSeparateJobs(ids, shared));
 
   const submit = async () => {
@@ -35,14 +35,15 @@ export function CreateSeparateJobsModal({ open, onClose, runs, onDone }: { open:
         <ComboBox autoAlign
           id="separate-customer" titleText="Customer" placeholder="Search people or organizations" items={lookups.people} itemToString={(item) => item?.displayName ?? ''}
           shouldFilterItem={matchesName} selectedItem={customer} onChange={({ selectedItem }) => setCustomer(selectedItem ?? null)}
+          helperText="Every job needs a customer, an account or an organization."
         />
         <ComboBox autoAlign
           id="separate-operator" titleText="Operator" placeholder="Search operators" items={lookups.operators} itemToString={(item) => item?.displayName ?? ''}
           shouldFilterItem={matchesName} selectedItem={operator} onChange={({ selectedItem }) => setOperator(selectedItem ?? null)}
         />
-        <Select id="separate-pricing-group" labelText="Pricing group (optional)" helperText="Leave empty to price each job with the customer's own pricing group." value={group} onChange={(event) => setGroup(event.target.value)}>
-          <SelectItem value="" text="Customer's pricing group" />
-          {groups.map((name) => <SelectItem key={name} value={name} text={name} />)}
+        <Select id="separate-pricing-group" labelText="Pricing group (optional)" helperText={resolved ? `Leave empty to price the jobs with ${resolved.group.name} (${resolved.reason}).` : 'Leave empty to price the jobs by the customer.'} value={group} onChange={(event) => setGroup(event.target.value)}>
+          <SelectItem value="" text="By the customer" />
+          {store.pricing.groups.filter((item) => item.active).map((item) => <SelectItem key={item.id} value={item.name} text={item.name} />)}
         </Select>
         <StructuredListWrapper isCondensed aria-label="Jobs that will be created">
           <StructuredListHead>

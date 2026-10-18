@@ -4,6 +4,7 @@ import { lookups } from '../store';
 
 export type UsageRow = { ownership: Ownership; materialId: string; spoolId: string; externalName: string; quantity: number | ''; quantityBasis: QuantityBasis };
 export type UsagesValues = { usages: UsageRow[] };
+/** The customer is empty only until one is chosen; the form requires it. */
 export type PartyValues = { customer: BillingParty | null; operator: Operator | null; outcome: JobOutcome; notes: string };
 
 export const blankUsage = (): UsageRow => ({ ownership: 'makerspace', materialId: '', spoolId: '', externalName: '', quantity: '', quantityBasis: 'actual' });

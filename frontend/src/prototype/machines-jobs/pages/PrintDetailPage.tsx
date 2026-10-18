@@ -85,7 +85,7 @@ export function PrintDetailPage() {
                 <p>
                   Assigned to{' '}
                   {store.can('machine_jobs.read') ? <CarbonLink as={Link} to={`/jobs/${linkedJob.id}`}>{linkedJob.displayId}{linkedJob.title ? ` ${linkedJob.title}` : ''}</CarbonLink> : linkedJob.displayId}
-                  <span className="mj-secondary"> · {linkedJob.customer?.displayName ?? 'No customer'}. The job uses this run’s times and material.</span>
+                  <span className="mj-secondary"> · {linkedJob.customer.displayName}. The job uses this run’s times and material.</span>
                 </p>
               </Tile>
             )}

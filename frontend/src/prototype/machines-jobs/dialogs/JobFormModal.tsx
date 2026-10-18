@@ -8,13 +8,17 @@ import { UnsavedChangesDialog } from '../../../app/UnsavedChangesDialog';
 import { useUnsavedChanges } from '../../../app/useUnsavedChanges';
 import { formatDateTime, nameFromFile, outcomeOptions } from '../derived';
 import { lookups, useSimulatedMutation, useStore, type JobFactsInput } from '../store';
+import { resolveGroup } from '../sales/pricing';
 import type { Job, JobOutcome } from '../types';
 import { blankUsage, matchesName, toUsageInputs, type JobInitialValues, type PartyValues, type UsageRow, type UsagesValues } from './jobFormHelpers';
 import { UsageRowsEditor } from './UsageFormModal';
 import '../styles/jobs.scss';
 
 export function JobPartyFields({ idPrefix, showOutcome = true }: { idPrefix: string; showOutcome?: boolean }) {
-  const { control, register, formState } = useFormContext<PartyValues>();
+  const { control, register, formState, watch } = useFormContext<PartyValues>();
+  const store = useStore();
+  const customer = watch('customer');
+  const resolved = customer ? resolveGroup(store.pricing, store.organizations, customer) : null;
   return (
     <Stack gap={6}>
       <div className="mj-form-grid">
@@ -23,6 +27,7 @@ export function JobPartyFields({ idPrefix, showOutcome = true }: { idPrefix: str
             id={`${idPrefix}-customer`} titleText="Customer" placeholder="Search people or organizations" items={lookups.people}
             itemToString={(item) => item?.displayName ?? ''} shouldFilterItem={matchesName} selectedItem={field.value}
             onChange={({ selectedItem }) => field.onChange(selectedItem ?? null)} invalid={fieldState.invalid} invalidText="Select a customer."
+            helperText={resolved ? `Priced with ${resolved.group.name} (${resolved.reason}).` : 'Every job needs a customer, an account or an organization.'}
           />
         )} />
         <Controller control={control} name="operator" rules={{ required: true }} render={({ field, fieldState }) => (
@@ -97,6 +102,7 @@ function JobForm({ onClose, mode, job, initialValues, onSaved }: {
     setError(null);
     const endsAt = endFrom(values.startsAt, values.runtimeHours, values.runtimeMinutes);
     if (!endsAt) { setError('Enter a valid start time and a runtime longer than zero.'); return; }
+    if (!values.customer) { setError('Select a customer. Every job belongs to an account or an organization.'); return; }
     let facts: JobFactsInput;
     try {
       facts = {

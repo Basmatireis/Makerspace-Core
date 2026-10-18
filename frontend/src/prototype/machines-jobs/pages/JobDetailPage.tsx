@@ -97,7 +97,7 @@ function JobDetail({ job }: { job: Job }) {
         )}
         <Tile>
           <dl className="mj-facts">
-            <div><dt>Customer</dt><dd>{job.customer ? <>{job.customer.displayName}<br /><span className="mj-secondary">{job.customer.pricingGroup}</span></> : '—'}</dd></div>
+            <div><dt>Customer</dt><dd>{job.customer.displayName}{job.pricingSnapshot && <><br /><span className="mj-secondary">{job.pricingSnapshot.pricingGroupName} prices{job.pricingSnapshot.via ? `, ${job.pricingSnapshot.via}` : ''}</span></>}</dd></div>
             <div><dt>Operator</dt><dd>{job.operator?.displayName ?? '—'}</dd></div>
             <div><dt>Start</dt><dd>{formatZoned(job.startsAt)}</dd></div>
             <div><dt>Runtime</dt><dd className="mj-cell-stack"><span>{formatDuration(job.durationSeconds)}</span><span className="mj-secondary">Ends {formatZoned(job.endsAt)}</span></dd></div>
@@ -201,7 +201,7 @@ function JobDetail({ job }: { job: Job }) {
               <Accordion size="md">
                 <AccordionItem title="How this was calculated">
                   <dl className="mj-price-details">
-                    <div><dt>Pricing group</dt><dd>{job.pricingSnapshot.pricingGroupName}</dd></div>
+                    <div><dt>Pricing group</dt><dd>{job.pricingSnapshot.pricingGroupName}{job.pricingSnapshot.via ? ` (${job.pricingSnapshot.via})` : ''}</dd></div>
                     <div><dt>Revision</dt><dd>{job.pricingSnapshot.revision}</dd></div>
                     <div><dt>Captured</dt><dd>{formatZoned(job.pricingSnapshot.capturedAt)}</dd></div>
                   </dl>

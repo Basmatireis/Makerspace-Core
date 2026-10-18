@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
 import {
-  Button, Checkbox, CheckboxGroup, ContentSwitcher, Link as CarbonLink, Pagination, Popover, PopoverContent, Select, SelectItem, Switch, Tab, Table, TableBody, TableCell, TableContainer,
-  TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, TableToolbarSearch, TabList, TabPanel, TabPanels, Tabs, Tag, Tile,
+  Button, Checkbox, CheckboxGroup, ContentSwitcher, Link as CarbonLink, Pagination, Popover, PopoverContent, Select, SelectItem, Switch, Table, TableBody, TableCell, TableContainer,
+  TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, TableToolbarSearch, Tile, Toggletip, ToggletipButton, ToggletipContent,
 } from '@carbon/react';
-import { Download, Filter, Locked } from '@carbon/icons-react';
+import { Add, Download, Filter, Information, Subtract } from '@carbon/icons-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { DateInput } from '../../../../app/DateInput';
 import { PageShell } from '../../../../app/PageShell';
@@ -11,40 +11,44 @@ import { EmptyState } from '../../../../app/PageState';
 import { timeInAppTimeZone } from '../../../../app/dateTime';
 import { QueryBoundary } from '../../components/QueryBoundary';
 import { useStore } from '../../store';
-import { DayClosePanel } from '../components/DayClosePanel';
 import { RequirePermission } from '../components/RequirePermission';
+import { CashMovementModal } from '../dialogs/CashMovementModal';
 import { downloadCsv, toCsv } from '../csv';
 import { dateInAppTimeZone, formatDateTime, formatEur, formatSignedEur, round2 } from '../format';
-import { customerKindLabel, methodLabel, methodOptions, paymentKind, reasonKindLabel } from '../labels';
-import { cashbookLines, periodPresets, periodRange, takings, type CashbookLine, type PeriodPreset } from '../logic';
-import { PaymentKindTag, ProposedTag } from '../status';
+import { cashMovementKindLabel, cashMovementReasonLabel, customerKindLabel, methodLabel, methodOptions, movementKind, paymentKind, reasonKindLabel } from '../labels';
+import { cashbookLines, cashInRegister, periodPresets, periodRange, takings, type CashbookLine, type PeriodPreset } from '../logic';
+import { MovementKindTag, PaymentKindTag, ProposedTag } from '../status';
 import { useSalesData } from '../useSalesData';
 import { useUrlParams } from '../useUrlParams';
-import type { PaymentMethod } from '../types';
+import type { CashMovement, CashMovementKind, Payment, PaymentMethod } from '../types';
 import '../sales.scss';
 
 const PAGE_SIZES = [10, 25, 50];
 const FILTER_KEYS = ['method', 'kind', 'who'] as const;
-const KIND_OPTIONS = [{ id: 'receipt', label: 'Receipt' }, { id: 'refund', label: 'Refund' }, { id: 'correction', label: 'Correction' }];
-const WHO_OPTIONS = [{ id: 'person', label: 'Person' }, { id: 'organization', label: 'Organization' }, { id: 'walk_in', label: 'Walk-in customer' }];
-const kindId = (line: CashbookLine) => paymentKind(line.payment).label.toLowerCase();
+const KIND_OPTIONS = [{ id: 'receipt', label: 'Receipt' }, { id: 'refund', label: 'Refund' }, { id: 'correction', label: 'Correction' }, { id: 'withdrawal', label: cashMovementKindLabel('withdrawal') }, { id: 'deposit', label: cashMovementKindLabel('deposit') }];
+const WHO_OPTIONS = [{ id: 'person', label: customerKindLabel('person') }, { id: 'organization', label: customerKindLabel('organization') }];
+const kindId = (line: CashbookLine) => line.type === 'movement' ? line.movement.kind : paymentKind(line.payment).label.toLowerCase();
+const lineKindLabel = (line: CashbookLine) => line.type === 'movement' ? movementKind(line.movement).label : paymentKind(line.payment).label;
 
 function amountText(line: CashbookLine) {
-  return line.payment.entryKind === 'reversal' ? formatSignedEur(line.signed) : formatEur(line.signed);
+  return line.type === 'movement' || line.payment.entryKind === 'reversal' ? formatSignedEur(line.signed) : formatEur(line.signed);
 }
 
-/** The cashbook as a spreadsheet file. Amounts are plain numbers with a decimal point so any tool can add them up. */
+/** The cashbook as a spreadsheet file, cash movements included. Amounts are plain numbers with a decimal point so any tool can add them up. */
 function exportLines(lines: CashbookLine[], filename: string) {
-  const rows = lines.map((line) => [
-    line.payment.reference, dateInAppTimeZone(line.payment.occurredAt), timeInAppTimeZone(line.payment.occurredAt), paymentKind(line.payment).label, methodLabel(line.payment.method), line.signed.toFixed(2),
-    line.order?.reference ?? '', line.order?.customerName ?? (line.order ? 'Walk-in customer' : ''), line.payment.terminal, line.payment.transactionReference,
-    line.payment.reasonKind ? reasonKindLabel(line.payment.reasonKind) : '', line.payment.reason, line.payment.recordedBy, dateInAppTimeZone(line.payment.recordedAt),
-  ]);
-  downloadCsv(filename, toCsv(['Payment', 'Date', 'Time', 'Kind', 'Method', 'Amount EUR', 'Order', 'Customer', 'Terminal', 'Transaction reference', 'Reason kind', 'Reason', 'Recorded by', 'Recorded on'], rows));
+  const rows = lines.map((line) => line.type === 'movement'
+    ? [line.reference, dateInAppTimeZone(line.at), timeInAppTimeZone(line.at), lineKindLabel(line), methodLabel('cash'), line.signed.toFixed(2), '', '', '', '', cashMovementReasonLabel[line.movement.reason], line.movement.note, line.recordedBy, dateInAppTimeZone(line.movement.recordedAt)]
+    : [
+      line.reference, dateInAppTimeZone(line.at), timeInAppTimeZone(line.at), lineKindLabel(line), methodLabel(line.payment.method), line.signed.toFixed(2),
+      line.order?.reference ?? '', line.order?.customerName ?? '', line.payment.terminal, line.payment.transactionReference,
+      line.payment.reasonKind ? reasonKindLabel(line.payment.reasonKind) : '', line.payment.reason, line.recordedBy, dateInAppTimeZone(line.payment.recordedAt),
+    ]);
+  downloadCsv(filename, toCsv(['Entry', 'Date', 'Time', 'Kind', 'Method', 'Amount EUR', 'Order', 'Customer', 'Terminal', 'Transaction reference', 'Reason kind', 'Reason or note', 'Recorded by', 'Recorded on'], rows));
 }
 
-function Cashbook({ lines, empty }: { lines: CashbookLine[]; empty: boolean }) {
+function Cashbook({ lines, empty, canRecord, payments, movements }: { lines: CashbookLine[]; empty: boolean; canRecord: boolean; payments: Payment[]; movements: CashMovement[] }) {
   const store = useStore();
+  const [movement, setMovement] = useState<CashMovementKind | null>(null);
   const navigate = useNavigate();
   const { params, update, list, toggleIn } = useUrlParams();
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -57,11 +61,13 @@ function Cashbook({ lines, empty }: { lines: CashbookLine[]; empty: boolean }) {
   const activeFilters = FILTER_KEYS.filter((key) => params.get(key)).length;
   const range = periodRange(preset, from, to);
 
-  const inPeriod = useMemo(() => range.valid ? lines.filter((line) => { const at = new Date(line.payment.occurredAt).getTime(); return at >= range.from && at < range.to; }) : [], [lines, range.from, range.to, range.valid]);
+  const inPeriod = useMemo(() => range.valid ? lines.filter((line) => { const at = new Date(line.at).getTime(); return at >= range.from && at < range.to; }) : [], [lines, range.from, range.to, range.valid]);
+  const register = useMemo(() => cashInRegister(payments, movements, range.to), [payments, movements, range.to]);
   const tiles = useMemo(() => {
-    const net = takings(inPeriod.map((line) => line.payment), range.from, range.to);
+    const paymentLines = inPeriod.flatMap((line) => line.type === 'payment' ? [line] : []);
+    const net = takings(paymentLines.map((line) => line.payment), range.from, range.to);
     const count = (method: PaymentMethod | null) => {
-      const mine = inPeriod.filter((line) => method === null || line.payment.method === method);
+      const mine = paymentLines.filter((line) => method === null || line.payment.method === method);
       const receipts = mine.filter((line) => line.payment.entryKind === 'receipt').length; const undone = mine.length - receipts;
       return `${receipts} ${receipts === 1 ? 'receipt' : 'receipts'} · ${undone} ${undone === 1 ? 'refund or correction' : 'refunds or corrections'}`;
     };
@@ -69,14 +75,14 @@ function Cashbook({ lines, empty }: { lines: CashbookLine[]; empty: boolean }) {
       { key: 'total', label: 'Net takings', value: net.total, detail: count(null) },
       { key: 'cash', label: 'Cash', value: net.cash, detail: count('cash') },
       { key: 'card', label: 'Card', value: net.card, detail: count('card') },
-      { key: 'external', label: 'Bank transfer (wiRef)', value: net.external, detail: count('external') },
+      { key: 'external', label: 'Bank transfer (wiRef invoice)', value: net.external, detail: count('external') },
     ];
   }, [inPeriod, range.from, range.to]);
 
   const visible = useMemo(() => {
     const needle = search.trim().toLowerCase();
-    return inPeriod.filter((line) => (methods.length === 0 || methods.includes(line.payment.method)) && (kinds.length === 0 || kinds.includes(kindId(line))) && (who.length === 0 || who.includes(line.customerKind))
-      && (!needle || `${line.payment.reference} ${line.order?.reference ?? ''} ${line.customerLabel} ${line.payment.transactionReference} ${line.payment.recordedBy}`.toLowerCase().includes(needle)));
+    return inPeriod.filter((line) => (methods.length === 0 || methods.includes(line.method)) && (kinds.length === 0 || kinds.includes(kindId(line))) && (who.length === 0 || (line.customerKind !== null && who.includes(line.customerKind)))
+      && (!needle || `${line.reference} ${line.order?.reference ?? ''} ${line.customerLabel} ${line.type === 'payment' ? line.payment.transactionReference : `${cashMovementReasonLabel[line.movement.reason]} ${line.movement.note}`} ${line.recordedBy}`.toLowerCase().includes(needle)));
   }, [inPeriod, search, methods.join(','), kinds.join(','), who.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pageSize = PAGE_SIZES.includes(Number(params.get('pageSize'))) ? Number(params.get('pageSize')) : 10;
@@ -89,7 +95,7 @@ function Cashbook({ lines, empty }: { lines: CashbookLine[]; empty: boolean }) {
   return (
     <div className="mj-stack">
       <div className="sales-period">
-        <div className="mj-hide-narrow">
+        <div className="mj-hide-narrow sales-period__switcher">
           <ContentSwitcher size="md" selectedIndex={periodPresets.findIndex((item) => item.id === preset)} onChange={({ index }) => setPreset(periodPresets[index ?? 0].id)}>
             {periodPresets.map((item) => <Switch key={item.id} name={item.id} text={item.label} />)}
           </ContentSwitcher>
@@ -115,6 +121,25 @@ function Cashbook({ lines, empty }: { lines: CashbookLine[]; empty: boolean }) {
             <span className="mj-secondary">{range.valid ? tile.detail : 'Choose both dates'}</span>
           </Tile>
         ))}
+        <Tile className="sales-tile">
+          <span className="sales-tile__label mj-inline">Cash in register (expected)
+            <Toggletip align="bottom-start">
+              <ToggletipButton label="Show how the expected cash is calculated"><Information /></ToggletipButton>
+              <ToggletipContent>
+                <p>Everything in cash from the beginning up to {range.valid ? 'the end of the period' : 'the chosen end'}.</p>
+                <dl className="sales-sum">
+                  <div><dt>Cash receipts</dt><dd>{formatEur(register.receipts)}</dd></div>
+                  <div><dt>− Cash refunds and corrections</dt><dd>{formatEur(register.refunds)}</dd></div>
+                  <div><dt>− Cash withdrawals</dt><dd>{formatEur(register.withdrawals)}</dd></div>
+                  <div><dt>+ Cash deposits</dt><dd>{formatEur(register.deposits)}</dd></div>
+                  <div className="sales-sum__total"><dt>Expected in the register</dt><dd>{formatEur(register.expected)}</dd></div>
+                </dl>
+              </ToggletipContent>
+            </Toggletip>
+          </span>
+          <span className="sales-tile__value">{range.valid ? formatEur(register.expected) : '—'}</span>
+          <span className="mj-secondary">{range.valid ? `After ${register.withdrawals ? 'withdrawals and ' : ''}deposits, to the end of ${range.label.toLowerCase()}` : 'Choose both dates'}</span>
+        </Tile>
       </section>
 
       <TableContainer className="mj-table-container">
@@ -141,9 +166,16 @@ function Cashbook({ lines, empty }: { lines: CashbookLine[]; empty: boolean }) {
                 </div>
               </PopoverContent>
             </Popover>
+            {canRecord && (
+              <>
+                <Button kind="ghost" size="md" renderIcon={Subtract} onClick={() => setMovement('withdrawal')}>Record cash withdrawal</Button>
+                <Button kind="ghost" size="md" renderIcon={Add} onClick={() => setMovement('deposit')}>Record cash deposit</Button>
+                <ProposedTag hint="Needs cash movements on the backend" />
+              </>
+            )}
             <span className="sales-export">
               <Button kind="ghost" size="md" renderIcon={Download} disabled={visible.length === 0} onClick={() => { exportLines(visible, filename); store.notify({ kind: 'success', title: 'CSV exported', subtitle: `${visible.length} ${visible.length === 1 ? 'line' : 'lines'} of the current view were saved as ${filename}.` }); }}>Export CSV</Button>
-              <ProposedTag hint="Needs a payments export endpoint" />
+              <ProposedTag hint="Needs a payments export endpoint, with cash movements" />
             </span>
           </TableToolbarContent>
         </TableToolbar>
@@ -155,30 +187,40 @@ function Cashbook({ lines, empty }: { lines: CashbookLine[]; empty: boolean }) {
             </TableRow>
           </TableHead>
           <TableBody>
-            {rows.map((line) => (
-              <TableRow key={line.payment.id} className="mj-table-row" onClick={() => navigate(`/sales/payments/${line.payment.id}`)}>
-                <TableCell>{formatDateTime(line.payment.occurredAt)}</TableCell>
+            {rows.map((line) => line.type === 'payment' ? (
+              <TableRow key={line.id} className="mj-table-row" onClick={() => navigate(`/sales/payments/${line.payment.id}`)}>
+                <TableCell>{formatDateTime(line.at)}</TableCell>
                 <TableCell>
                   <div className="mj-cell-stack">
-                    <CarbonLink as={Link} to={`/sales/payments/${line.payment.id}`} onClick={(event: React.MouseEvent) => event.stopPropagation()}>{line.payment.reference}</CarbonLink>
-                    <span className="mj-inline">
-                      <PaymentKindTag payment={line.payment} />
-                      {line.locked && <Tag type="gray" size="sm" renderIcon={Locked} title="The cash of this day is closed">Day closed</Tag>}
-                    </span>
-                    <span className="mj-secondary mj-show-narrow">{methodLabel(line.payment.method)}</span>
+                    <CarbonLink as={Link} to={`/sales/payments/${line.payment.id}`} onClick={(event: React.MouseEvent) => event.stopPropagation()}>{line.reference}</CarbonLink>
+                    <PaymentKindTag payment={line.payment} />
+                    <span className="mj-secondary mj-show-narrow">{methodLabel(line.method)}</span>
                   </div>
                 </TableCell>
                 <TableCell>
                   <div className="mj-cell-stack">
                     {line.order ? <CarbonLink as={Link} to={`/sales/orders/${line.order.id}`} onClick={(event: React.MouseEvent) => event.stopPropagation()}>{line.order.reference}</CarbonLink> : '—'}
-                    {line.order?.customer
-                      ? <CarbonLink as={Link} to={`/sales/customers/${line.order.customer.kind}/${line.order.customer.id}`} onClick={(event: React.MouseEvent) => event.stopPropagation()}>{line.customerLabel}</CarbonLink>
-                      : <span className="mj-secondary">{customerKindLabel('walk_in')}</span>}
+                    {line.order && <CarbonLink as={Link} to={`/sales/orders?customer=${line.order.customer.id}`} onClick={(event: React.MouseEvent) => event.stopPropagation()}>{line.customerLabel}</CarbonLink>}
                   </div>
                 </TableCell>
-                <TableCell className="mj-hide-narrow">{methodLabel(line.payment.method)}</TableCell>
+                <TableCell className="mj-hide-narrow">{methodLabel(line.method)}</TableCell>
                 <TableCell className={`sales-num${line.signed < 0 ? ' sales-num--due' : ''}`}>{amountText(line)}</TableCell>
-                <TableCell className="mj-hide-narrow">{line.payment.recordedBy}</TableCell>
+                <TableCell className="mj-hide-narrow">{line.recordedBy}</TableCell>
+              </TableRow>
+            ) : (
+              <TableRow key={line.id}>
+                <TableCell>{formatDateTime(line.at)}</TableCell>
+                <TableCell>
+                  <div className="mj-cell-stack">
+                    <strong>{line.reference}</strong>
+                    <MovementKindTag movement={line.movement} />
+                    <span className="mj-secondary mj-show-narrow">{methodLabel(line.method)}</span>
+                  </div>
+                </TableCell>
+                <TableCell><div className="mj-cell-stack"><span className="mj-secondary">Not tied to an order</span><span>{cashMovementReasonLabel[line.movement.reason]}{line.movement.note ? ` · ${line.movement.note}` : ''}</span></div></TableCell>
+                <TableCell className="mj-hide-narrow">{methodLabel(line.method)}</TableCell>
+                <TableCell className={`sales-num${line.signed < 0 ? ' sales-num--due' : ''}`}>{amountText(line)}</TableCell>
+                <TableCell className="mj-hide-narrow">{line.recordedBy}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -187,6 +229,7 @@ function Cashbook({ lines, empty }: { lines: CashbookLine[]; empty: boolean }) {
           ? <EmptyState title={empty ? 'No payments yet' : 'No payments in this period'} description={empty ? 'Receipts, refunds and corrections appear here as soon as they are recorded.' : 'Pick another period to see earlier payments.'} />
           : <EmptyState title="No payments found" description={range.valid ? 'Try different search terms or filters.' : 'Choose a start and an end date.'} action={range.valid ? <Button kind="tertiary" onClick={clearAll}>Clear filters</Button> : undefined} />)}
         <Pagination page={page} pageSize={pageSize} pageSizes={PAGE_SIZES} totalItems={visible.length} onChange={({ page: nextPage, pageSize: nextSize }) => update({ page: String(nextPage), pageSize: String(nextSize) })} />
+        {movement && <CashMovementModal kind={movement} onClose={() => setMovement(null)} />}
       </TableContainer>
     </div>
   );
@@ -194,24 +237,13 @@ function Cashbook({ lines, empty }: { lines: CashbookLine[]; empty: boolean }) {
 
 export function PaymentsPage() {
   const store = useStore();
-  const { params, update } = useUrlParams();
   const { query, data } = useSalesData();
-  const lines = useMemo(() => cashbookLines(data.payments, data.allocations, data.orders, store.daySessions), [data.payments, data.allocations, data.orders, store.daySessions]);
-  const tab = params.get('tab') === 'close' ? 1 : 0;
+  const lines = useMemo(() => cashbookLines(data.payments, data.allocations, data.orders, data.cashMovements), [data.payments, data.allocations, data.orders, data.cashMovements]);
   return (
     <RequirePermission permission="payments.read" title="Payments" crumbs={[{ label: 'Sales & payments', to: '/sales' }, { label: 'Payments' }]}>
-      <PageShell title="Payments" description="The cashbook: every receipt, refund and correction." width="wide" breadcrumbs={[{ label: 'Sales & payments', to: '/sales' }, { label: 'Payments' }]}>
+      <PageShell title="Payments" description="The cashbook: every receipt, refund, correction and cash movement." width="wide" breadcrumbs={[{ label: 'Sales & payments', to: '/sales' }, { label: 'Payments' }]}>
         <QueryBoundary query={query} errorMessage="The payments could not be loaded.">
-          <Tabs selectedIndex={tab} onChange={({ selectedIndex }) => update({ tab: selectedIndex === 1 ? 'close' : null, period: null, from: null, to: null, q: null, method: null, kind: null, who: null })}>
-            <TabList aria-label="Payment sections" contained>
-              <Tab>Cashbook</Tab>
-              <Tab><span className="mj-inline">Day close <ProposedTag hint="Needs cash day sessions on the backend" /></span></Tab>
-            </TabList>
-            <TabPanels>
-              <TabPanel className="sales-tab-panel"><Cashbook lines={lines} empty={store.scenario === 'empty'} /></TabPanel>
-              <TabPanel className="sales-tab-panel"><DayClosePanel payments={data.payments} sessions={store.daySessions} canClose={store.can('payments.record')} /></TabPanel>
-            </TabPanels>
-          </Tabs>
+          <Cashbook lines={lines} empty={store.scenario === 'empty'} canRecord={store.can('payments.record')} payments={data.payments} movements={data.cashMovements} />
         </QueryBoundary>
       </PageShell>
     </RequirePermission>

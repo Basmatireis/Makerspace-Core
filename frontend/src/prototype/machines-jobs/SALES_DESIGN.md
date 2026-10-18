@@ -1,7 +1,7 @@
-# Sales & payments redesign: design spec (Parts 1 and 2)
+# Sales & payments redesign: design spec
 
 Frontend-only prototype in the same folder as the Machines & Jobs prototype. Open `http://localhost:5173/prototype.html#/sales`.
-Prototype controls (beaker icon): role presets now include **Front desk** and **Finance**; the data state (loading, error, empty) applies to every sales page.
+Prototype controls (beaker icon): role presets include **Front desk** and **Finance**; the data state (loading, error, empty) applies to every sales page.
 Everything marked **Proposed** (small outline tag in the UI) needs new backend capability and is listed at the end.
 
 ## Structure
@@ -10,48 +10,52 @@ Everything marked **Proposed** (small outline tag in the UI) needs new backend c
 
 | File | Role |
 |---|---|
-| `types.ts` | Order, item (manual / machine_job), job charge snapshot, payment, signed allocation, adjustment, wiRef request |
-| `engine.ts` | Pure transitions that enforce the backend rules and throw a `SalesError` naming the rule. Nothing applies when one throws (atomic) |
-| `logic.ts` | Derivations: settlement (never stored), order views, ready-to-bill groups, eligible jobs, takings |
+| `types.ts` | Order (always with a customer), item, job charge snapshot (with the pricing group and why), payment, signed allocation, adjustment, wiRef invoice request, organization, cash movement |
+| `engine.ts` | Pure transitions that enforce the rules and throw a `SalesError` naming the rule. Nothing applies when one throws (atomic) |
+| `logic.ts` | Derivations: settlement (never stored), order views, ready-to-bill groups, accepted payment methods, cash in register, cashbook lines, readiness checklist, invoice progress |
+| `pricing.ts` | Rates, pricing groups, account roles with their priority, `resolveGroup` (group and reason) |
 | `status.tsx`, `labels.ts` | The single status helper `orderStatus()` and all human wording; no raw enum is shown |
-| `format.ts` | de-AT money, Vienna dates, tolerant money input |
-| `mockData.ts` | Seed replayed through the engine at past times: 31 orders in every state, 40+ payments, wiRef requests |
+| `mockData.ts` | Seed replayed through the engine at past times: orders in every state, payments, invoice requests, cash movements, organizations |
 | `pages/`, `components/`, `dialogs/` | Screens |
-
-Store (`store.tsx`) adds orders, payments, allocations, adjustments, requests and the engine actions: create draft, add/remove/edit/refresh items, add job snapshots (with claims at finalization), finalize, checkout, record payments (split), cancel draft, reverse payment, reverse order, replace with payment carry-over/refund, counter sale (job, stock consumption, order and payment in one step), duplicate, batch drafts, prepare wiRef request.
-
-Rules mirrored from the backend: references `O-/P-/W-YYYY-NNNNNN`; draft, finalized, cancelled, reversed; jobs are claimed at finalization and a changed job version means "job changed since charged"; settlement is derived from charge, reversals and allocations; card payments need terminal and unique reference; cash/card and wiRef payments cannot mix; an active wiRef request blocks cash/card; walk-in sales are immediate and fully settled; reversals are whole receipts (refund, recording error); replacement transfers allocations and cannot carry more than the new total.
 
 ## Navigation
 
-Group "Sales & payments": Overview, Counter sale, Orders, Payments, Invoicing, Customers, Pricing. Items hide when the role lacks the permission; pages show a no-access state. Permissions use the real names (`orders.read/write/finalize/reverse`, `payments.read/record/reverse`, `external_invoice_requests.read/manage`, `pricing.read/manage`, `organizations.read/manage`).
-Front desk: counter sale, orders, record payments, price override for free sales; no reversal, no wiRef. Finance: all sales, read-only workshop.
+Group "Sales & payments": **Overview, Orders, Payments, Pricing.** Items hide when the role lacks the permission; pages show a no-access state. There is no counter sale, invoicing or customers area (old links redirect to Orders).
+Permissions use the real names (`orders.read/write/finalize/reverse`, `payments.read/record/reverse`, `external_invoice_requests.read/manage`, `pricing.read/manage`, `organizations.read/manage`).
+Front desk: creates and finalizes orders, records payments and cash movements; no reversals, no pricing edits (no `machine_jobs.override_price`), no invoice requests. Finance: all sales, read-only workshop.
+
+## Rules
+
+- Every order and every job has a customer: an account (person) or an organization. There are no anonymous or walk-in orders; the job form, "Create separate jobs" and "Create combined job" require a customer.
+- Paying immediately is **Finalize and take payment** in the order (split, cash change calculator, card reference, editable time). Partial payments are fine. "Finalize without payment" is in the menu.
+- References `O-/P-/W-/C-YYYY-NNNNNN`; jobs are claimed at finalization; a changed job version means "job changed since charged"; settlement is derived; card payments need terminal and a unique reference; reversals are whole receipts; replacement transfers allocations.
+- **Pricing group resolution:** set on the job > group of the organization (organization customers) > group mapped to the account's highest-priority role > default group. Role priority: Staff, Student team member, Student, Makerspace member. The resolved group and the reason ("via role Student", "via the organization", "default group, the account has no role", "set on the job") show in the job form, the separate-jobs dialog, the ready-to-bill list, order items and the price preview.
+- **Invoices are issued by wiRef** (Core hands the data over). **[Proposed]** An invoice can be requested whatever the payment:
+  - Cash/card already received are carried on the request as "already paid" (follows payments while the request is a draft, frozen from ready on); the invoice is then marked paid for that part, and paid in full when nothing is outstanding.
+  - The rest is paid by bank transfer to the HTU account, recorded as "Bank transfer (wiRef invoice)", only after the invoice is issued.
+  - Cash/card and bank transfer may be mixed on one order. Once the request is ready, cash/card can no longer be added or refunded without cancelling the request first.
+  - An order that charges nothing cannot be invoiced.
+  - Cancellation, reconciliation kinds and reference corrections work as before; correcting a bank transfer needs the cancelled request.
+- No day close and no day locks. Cash movements replace them.
 
 ## Screens
 
-- **Overview**: takings today and this week by method, awaiting payment (count and sum), ready to bill; "Needs attention" (drafts older than 7 days, unpaid orders, billable customers, open wiRef steps) and recent sales.
-- **Counter sale**: source "From a run" (unassigned finished runs of the last 24 h with preview) or "Manual" (machine search, 15/30/60/custom minutes); material from the printer's mounted spools first, else stock search, customer-owned toggle; extra items (catalog is Proposed, custom exists); sticky live price panel with pricing group and adjustment (bottom bar on narrow screens); payment tiles Cash / Card / Split with change calculator and card reference; explicit "Free of charge" with reason (price adjustment to 0); completion screen with printable receipt.
-- **Orders**: tabs All orders / Ready to bill. Search by reference or customer, Filters popover (status, customer type, created range, outstanding, wiRef), sorting, pagination. Ready to bill groups finished jobs per customer, shows blocked jobs with the reason, creates one draft per customer.
-- **Order detail**: status-dependent primary action (Finalize, Check out, Record payment, Print receipt, Commit replacement, Replace, Duplicate); summary tiles; items with thumbnail, "job changed" and Refresh in drafts; Add items menu (eligible jobs only, catalog, custom); payments including carried-over ones; timeline (Proposed); Correct order wizard (intent, payments with only valid options, reason and review); Prepare wiRef request; receipt view.
-- **Jobs**: job detail shows its order (or draft); mass edit has "Add to order" (same customer, finished, priced).
-
-## Part 2 screens
-
-Engine additions (all in `engine.ts`, with tests in `engine.test.ts`): wiRef commands (`updateRequestDetails` only while draft, `markRequestReady` with the readiness checklist, `markRequestSubmitted`, `recordRequestIssued` with matching amount, `cancelRequest` for draft/ready only, `requestCancellation`, `confirmRequestCancellation` with a reconciliation kind, `correctRequestReference`), `prepareInvoiceRequest` now links a successor to its cancelled predecessor, `closeDay`, `assignPricingGroup`, `setPurchaseOrderRequirement`, `savePricingGroup`, `setRate`. A closed cash day rejects new cash payments and backdated cash corrections (`day_closed`).
-
-- **Payments** (`/sales/payments`): tabs Cashbook and Day close. Period presets in the app time zone (Today, Yesterday, This week from Monday, This month, Custom range), tiles per method with net takings and counts, table (time, payment, order and customer links, method, kind Receipt/Refund/Correction, signed amount, recorded by), search, filters (method, kind, customer type), pagination, filters and period in the URL. Export CSV builds a real file client-side from the filtered lines (`csv.ts`: comma separated, UTF-8 with BOM, formula-safe text). Cash lines of a closed day carry a "Day closed" tag.
-- **Day close**: day picker (open cash days), expected cash (cash receipts minus cash refunds and corrections), counted cash plus a banknote and coin counter (Carbon NumberInputs), difference (a note is required when it is not zero), confirmation, list of closed days.
-- **Payment detail** (`/sales/payments/:id`): facts, order and customer links, the life of the payment in plain words from its allocations, links between a receipt and its reversal. **Refund or correct** offers only the reasons that are valid for the method and state (refund and recording error for cash and card, accounting correction for wiRef payments once the request is cancelled), explains each, edits the time of a refund, requires the terminal reference for card, shows the closed-day block, and for a walk-in sale asks for the right replacement receipt in the same step.
-- **Invoicing** (`/sales/invoicing`): list with search, customer and state filters, amount, next step, sorting and pagination; **New request** with an eligible-order picker and a list of orders that are not eligible with the reason. **Request detail**: progress indicator (Draft, Ready to submit, Submitted, Invoice issued, Paid; cancellation marks the last step reached), recipient form while draft, frozen details afterwards, readiness checklist (recipient, address, country, contact person for organizations, purchase order reference when the organization requires it, service period, description), primary action and menu per state with dialogs, humanized history with references and effective dates.
-- **Customers** (`/sales/customers`): list of persons and organizations with type, pricing group, open balance, orders, last activity, search and filters. Detail: figures, pricing group assignment (or follow the default), purchase order requirement toggle for organizations (applies to requests marked ready from now on), tabs Orders, Unbilled jobs (with "Bill n jobs") and Payments.
-- **Pricing** (`/sales/pricing`, moved here from Settings > Machines; the prototype had no older copy): tabs Rates (matrix of groups by machine runtime per machine type and material per category and unit, inline editing, "Missing" cells and a warning), Groups (default, active, description, new and edit, optional copy of another group's rates), Assignments (per customer), Price preview (machine type, duration, materials, group, itemized price and the same job in every group). Rates feed every quote in the prototype (counter sale, job forms); a missing rate leaves a job's price incomplete and blocks a counter sale.
+- **Overview**: tiles for cash in register (expected), takings today, awaiting payment, invoice requests to handle and jobs ready to bill; "Needs attention" (old drafts, unpaid orders, billable customers, invoice steps) and recent orders.
+- **Orders**: one row per order. Switcher All, Drafts, Awaiting payment, Paid, Invoice requested (with counts). Columns Order (reference and customer), Status, Payment (paid or outstanding), Invoice (state and next step, or a dash), Total, Updated. Search by reference or customer, a filter popover (status including Reversed and Cancelled, customer type, created range), sorting, pagination, and a removable customer chip (`?customer=`). Customer names everywhere link to the Orders table filtered by that customer. A notification above the table ("12 finished jobs are ready to bill") opens a modal with the grouped jobs and the batch "Create order".
+- **Order detail**: status-dependent primary action (Finalize and take payment, Finalize, Record payment or bank transfer, Print receipt, Commit replacement, Replace, Duplicate); menu with Request invoice, Correct order, Finalize without payment. Summary tiles, items (with pricing group and reason), payments, and an **Invoice** section once requested: progress indicator (Draft, Ready to submit, Submitted, Invoice issued; cancellation marks the last step reached), next step, amounts (invoice, already paid, still to pay), readiness checklist, recipient form while draft or frozen details, history, and every action per state (mark ready, submitted, record issued with reference and date, request and confirm cancellation with reconciliation kind, cancel, reference correction, record bank transfer, request again).
+- **Request invoice** (modal): recipient prefilled from the organization or the account, service period, description, purchase order reference (required when the organization requires it), payment summary, inline readiness checklist.
+- **Payments**: cashbook with period presets, tiles per method, a tile **Cash in register (expected)** (Toggletip shows cash receipts − cash refunds − withdrawals + deposits, all time up to the period end), search, filters (method, kind including cash withdrawal and deposit, customer type), CSV export with movements. **Record cash withdrawal** and **Record cash deposit** (amount, editable time, reason Bank deposit / Moved to safe / Change float / Other, note, recorded by). A withdrawal cannot exceed the cash the register should hold.
+- **Payment detail**: facts, order and customer links, history, Refund or correct with only valid reasons.
+- **Pricing**: Groups & rates (matrix, inline editing, groups), Role mapping (each account role to a group, plus the default group), Organizations (kind, pricing group, purchase order requirement, active, invoice address; add and edit), Price preview (optionally resolved for a customer).
 
 ## Proposed backend capabilities
 
-1. Sale catalog with fixed prices (catalog items on orders and counter sales).
+1. Sale catalog with fixed prices (catalog items on orders).
 2. Order timeline/audit read endpoint with actor and readable text.
 3. Receipt numbering and PDF export.
 4. `createdBy` display name on orders and `recordedBy` on payments.
-5. CSV export of payments (Payments > Export CSV).
-6. Cash day close sessions: expected and counted cash, difference, note, lock on a closed day (Payments > Day close, "Day closed" tags, the `day_closed` rule).
-7. Organization-level invoicing requirement is real; a customer list endpoint with open balance and last activity (Customers) is derived client-side today and would need aggregation on the server.
+5. CSV export of payments and cash movements (Payments > Export CSV).
+6. **Cash movements** (withdrawals and deposits with reason and note) and the expected cash in the register.
+7. **Invoice request regardless of payment**: "already paid" cash/card amount on the request, bank transfer payments only after issue, mixing cash/card with a bank transfer. The backend currently blocks an invoice request once a cash or card payment exists.
+8. **Role mapping**: account role to pricing group, with a priority order and a default group.
+9. **Organization pricing group** and organization admin (kind, active, invoice address) on the Pricing page; organization invoicing requirements already exist.
