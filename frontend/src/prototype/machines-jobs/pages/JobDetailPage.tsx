@@ -13,6 +13,8 @@ import { QueryBoundary } from '../components/QueryBoundary';
 import { BillingTag, effectivePrice, formatDuration, formatMoney, formatTime, isManualRunning, JobRowStatusTag, jobStatus, PrintStateTag, runProgress, outcomeLabel, outcomeOptions, jobName, adjustmentSummary } from '../derived';
 import { JobFormModal } from '../dialogs/JobFormModal';
 import { PriceAdjustmentModal } from '../dialogs/PriceAdjustmentModal';
+import { RunThumb } from '../components/RunPreview';
+import { runsOfJob } from '../runs';
 import { LinkPrintModal } from '../dialogs/LinkPrintModal';
 import { UsageFormModal } from '../dialogs/UsageFormModal';
 import { useNow, useSimulatedMutation, useSimulatedQuery, useStore } from '../store';
@@ -28,6 +30,7 @@ function JobDetail({ job }: { job: Job }) {
   const machine = store.machines.find((item) => item.id === job.machineId);
   const now = useNow();
   const print = job.printId ? store.prints.find((item) => item.id === job.printId) : undefined;
+  const runs = runsOfJob(job.id, store.prints).sort((a, b) => a.startedAt.localeCompare(b.startedAt));
   const unlinkedPrints = store.prints.filter((item) => item.machineId === job.machineId && item.linkedJobId === null);
   const canEdit = store.can('machine_jobs.edit');
   const canOverride = store.can('machine_jobs.override_price');
@@ -101,21 +104,29 @@ function JobDetail({ job }: { job: Job }) {
           </dl>
         </Tile>
         <Tile>
-          <h2 className="mj-section-title">Run</h2>
+          <h2 className="mj-section-title">{runs.length > 1 ? 'Runs' : 'Run'}</h2>
           <div className="mj-stack">
             {job.run === 'automatic' && print ? (
               <>
                 <div className="mj-inline">
                   <Tag type="green" size="md">From printer</Tag>
-                  <PrintStateTag state={print.state} size="md" />
+                  {runs.length > 1 && <Tag type="outline" size="md">{runs.length} runs</Tag>}
                 </div>
-                <p>
-                  <CarbonLink as={Link} to={`/jobs/prints/${print.id}`}>{print.displayId}</CarbonLink>
-                  <span className="mj-secondary"> · {print.fileName} · via {print.connectorName}</span>
-                </p>
-                {print.state === 'printing' && (
-                  <ProgressBar label="Print progress" value={print.progress ?? 0} max={100} helperText={`${print.progress ?? 0} %${print.estimatedEndAt ? ` · ends ~${formatTime(print.estimatedEndAt)}` : ''}`} />
-                )}
+                {runs.map((run) => (
+                  <div key={run.id} className="mj-stack">
+                    <div className="mj-title-with-thumb">
+                      <RunThumb run={run} />
+                      <p>
+                        <CarbonLink as={Link} to={`/jobs/runs/${run.id}`}>{run.displayId}</CarbonLink>
+                        <span className="mj-secondary"> · {run.fileName} · via {run.connectorName}</span>
+                      </p>
+                      <PrintStateTag state={run.state} size="sm" />
+                    </div>
+                    {run.state === 'printing' && (
+                      <ProgressBar label="Run progress" value={run.progress ?? 0} max={100} helperText={`${run.progress ?? 0} %${run.estimatedEndAt ? ` · ends ~${formatTime(run.estimatedEndAt)}` : ''}`} />
+                    )}
+                  </div>
+                ))}
               </>
             ) : manualRunning ? (
               <>
@@ -126,13 +137,13 @@ function JobDetail({ job }: { job: Job }) {
             ) : (
               <>
                 <div className="mj-inline"><Tag type="gray" size="md">Manual run</Tag></div>
-                <p className="mj-secondary">{job.outcome === 'cancelled' ? 'Cancelled' : 'Recorded by hand'}; ended {formatZoned(job.endsAt)}. No printer data is linked.</p>
+                <p className="mj-secondary">{job.outcome === 'cancelled' ? 'Cancelled' : 'Recorded by hand'}; ended {formatZoned(job.endsAt)}. No recorded run is assigned.</p>
               </>
             )}
             {job.run === 'manual' && (canEdit && (manualRunning || canLinkPrint)) && (
               <div className="mj-inline">
                 {manualRunning && <Button kind="danger--tertiary" size="md" renderIcon={StopOutline} onClick={() => setDialog('cancel')}>Cancel run</Button>}
-                {canLinkPrint && <Button kind="tertiary" size="md" renderIcon={LinkIcon} onClick={() => setDialog('link')}>Link printer data</Button>}
+                {canLinkPrint && <Button kind="tertiary" size="md" renderIcon={LinkIcon} onClick={() => setDialog('link')}>Assign recorded run</Button>}
               </div>
             )}
           </div>

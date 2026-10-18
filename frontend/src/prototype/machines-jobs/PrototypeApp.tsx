@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
-  Button, Header, HeaderGlobalAction, HeaderGlobalBar, HeaderMenuButton, HeaderName, HeaderPanel, RadioButton, RadioButtonGroup,
+  ActionableNotification, Button, Header, HeaderGlobalAction, HeaderGlobalBar, HeaderMenuButton, HeaderName, HeaderPanel, RadioButton, RadioButtonGroup,
   Select, SelectItem, SideNav, SideNavItems, SideNavLink, SkipToContent, Stack, Tag, Theme, ToastNotification,
 } from '@carbon/react';
 import { Chemistry, Dashboard, Reset, Tools, Catalog, InventoryManagement, ChartColumn } from '@carbon/icons-react';
-import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { rolePresets, useStore, type ConnectionTestMode, type Role, type Scenario } from './store';
+import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { rolePresets, useStore, type ConnectionTestMode, type Role, type Scenario, type Toast } from './store';
 import { OverviewPage } from './pages/OverviewPage';
 import { PrintDetailPage } from './pages/PrintDetailPage';
 import { JobsPage } from './pages/JobsPage';
@@ -26,6 +26,28 @@ const NAV: NavItem[] = [
   { label: 'Inventory', to: '/inventory', icon: InventoryManagement, match: (p) => p.startsWith('/inventory') },
   { label: 'Statistics', to: '/statistics', icon: ChartColumn, match: (p) => p.startsWith('/statistics') },
 ];
+
+/** Old bookmarks used "prints" for what the UI now calls runs. */
+function LegacyRunRedirect() {
+  const { printId = '' } = useParams();
+  return <Navigate to={`/jobs/runs/${printId}`} replace />;
+}
+
+/** Toast with a follow-up link. Carbon's toast may not contain links, so this uses the actionable notification and dismisses itself. */
+function ActionToast({ toast }: { toast: Toast }) {
+  const store = useStore();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const timer = window.setTimeout(() => store.dismissToast(toast.id), 9000);
+    return () => window.clearTimeout(timer);
+  }, [toast.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <ActionableNotification
+      kind={toast.kind} lowContrast title={toast.title} subtitle={toast.subtitle} actionButtonLabel={toast.action!.label}
+      onActionButtonClick={() => { navigate(toast.action!.to); store.dismissToast(toast.id); }} onCloseButtonClick={() => store.dismissToast(toast.id)}
+    />
+  );
+}
 
 function useIsNarrow() {
   const query = '(max-width: 65.98rem)';
@@ -109,7 +131,8 @@ export function PrototypeApp() {
         <Routes>
           <Route path="/" element={<OverviewPage />} />
           <Route path="/jobs" element={<JobsPage />} />
-          <Route path="/jobs/prints/:printId" element={<PrintDetailPage />} />
+          <Route path="/jobs/runs/:printId" element={<PrintDetailPage />} />
+          <Route path="/jobs/prints/:printId" element={<LegacyRunRedirect />} />
           <Route path="/jobs/:jobId" element={<JobDetailPage />} />
           <Route path="/machines" element={<MachinesPage />} />
           <Route path="/machines/:machineId" element={<MachineDetailPage />} />
@@ -121,9 +144,9 @@ export function PrototypeApp() {
         </Routes>
       </main>
       <div className="prototype-toasts" aria-live="polite">
-        {store.toasts.map((toast) => (
-          <ToastNotification key={toast.id} kind={toast.kind} lowContrast timeout={5000} title={toast.title} subtitle={toast.subtitle} onClose={() => { store.dismissToast(toast.id); return false; }} onCloseButtonClick={() => store.dismissToast(toast.id)} />
-        ))}
+        {store.toasts.map((toast) => toast.action
+          ? <ActionToast key={toast.id} toast={toast} />
+          : <ToastNotification key={toast.id} kind={toast.kind} lowContrast timeout={5000} title={toast.title} subtitle={toast.subtitle} onClose={() => { store.dismissToast(toast.id); return false; }} onCloseButtonClick={() => store.dismissToast(toast.id)} />)}
       </div>
     </div>
   );

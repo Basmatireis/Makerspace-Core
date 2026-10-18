@@ -14,7 +14,7 @@ import { DetectedTrayCell } from './DetectedTrayCell';
 const STALE_AFTER_SECONDS = 300;
 
 const eventLabels: Record<ConnectorEventKind, string> = {
-  operational_state: 'State change', progress: 'Progress', filament_change: 'Filament change', consumption_report: 'Material consumption', terminal_outcome: 'Print outcome',
+  operational_state: 'State change', progress: 'Progress', filament_change: 'Filament change', consumption_report: 'Material consumption', terminal_outcome: 'Run outcome',
   hms_error: 'Printer warning', connectivity: 'Connection', config_applied: 'Configuration applied', heartbeat_restored: 'Heartbeat restored',
 };
 const quarantineReasons: Record<string, string> = {

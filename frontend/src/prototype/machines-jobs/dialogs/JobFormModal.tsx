@@ -128,8 +128,10 @@ function JobForm({ onClose, mode, job, initialValues, onSaved }: {
           <FormProvider {...form}>
             <Stack gap={6}>
               <p>
-                {mode === 'create'
-                  ? 'Use this when a printer cannot report the print. The run is manual and priced from the customer’s pricing group when saved.'
+                {mode === 'create' && initialValues?.printFileName
+                  ? 'Times and material are prefilled from the recorded runs. Check them before saving; the price is calculated from the customer’s pricing group.'
+                  : mode === 'create'
+                  ? 'Use this when a printer cannot record the run. The run is manual and priced from the customer’s pricing group when saved.'
                   : 'Changing customer or machine recalculates the price; existing order charges stay unchanged. Material usage is edited separately.'}
               </p>
               {error && <InlineNotification kind="error" lowContrast hideCloseButton title="Job not saved" subtitle={error} />}

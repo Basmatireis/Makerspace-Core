@@ -5,3 +5,14 @@
 .mj-prints__events { display: grid; gap: $spacing-03; margin: 0; padding: 0; list-style: none; }
 .mj-prints__event { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: $spacing-03; padding-block: $spacing-03; border-block-end: 1px solid var(--cds-border-subtle); }
 .mj-prints__event:last-child { border-block-end: 0; }
+
+// Preview tile (3MF thumbnails) and the tiny thumbnail next to titles.
+.mj-preview { display: grid; gap: $spacing-04; max-inline-size: 28rem; }
+.mj-preview__header { display: flex; align-items: center; justify-content: space-between; gap: $spacing-03; }
+.mj-preview__frame { position: relative; }
+.mj-preview__image { inline-size: 100%; block-size: 100%; object-fit: contain; cursor: zoom-in; background: var(--cds-layer-accent); }
+.mj-preview__enlarge { position: absolute; inset-block-start: $spacing-03; inset-inline-end: $spacing-03; }
+.mj-preview__empty { display: flex; align-items: center; justify-content: center; block-size: 100%; background: var(--cds-layer-accent); }
+.mj-preview__large { inline-size: 100%; block-size: auto; background: var(--cds-layer-accent); }
+.mj-thumb { flex: none; inline-size: 2rem; block-size: 2rem; object-fit: cover; background: var(--cds-layer-accent); }
+.mj-title-with-thumb { display: flex; align-items: center; gap: $spacing-04; }

@@ -1,5 +1,7 @@
 import type { ConnectorHost, PrinterLiveStatus, DetectedPrinterState, DetectedTray, MachineConnection, PrinterModel, PrinterModelId, BillingParty, IdentifierKind, InventoryTransaction, InventoryTransactionKind, Job, Machine, MachineType, Material, Operator, FilamentProduct, Print, PrinterProfile, Spool, SpoolFill, LeftoverOutcome } from './types';
 
+import { makePreviews } from './previewImages';
+
 // Timestamps are relative to page load so the prototype always looks "live".
 const now = Date.now();
 export const ago = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
@@ -377,38 +379,45 @@ export const jobs: Job[] = [
 const usage = (materialId: string, materialName: string, spoolDisplayId: string | null, quantity: number) => ({ materialId, materialName, spoolDisplayId, quantity, unit: 'g' });
 
 export const prints: Print[] = [
-  { id: 'pr-311', displayId: 'PR-2026-000311', machineId: 'm-mk4-1', fileName: 'gearbox_housing_v3.gcode', state: 'printing', startedAt: ago(95), endedAt: null, estimatedEndAt: ago(-50), progress: 64,
-    reportedUsage: usage('mat-pla-black', 'PLA Black', 'SP-0141', 118), linkedJobId: null, connectorName: 'Workshop Pi',
+  { id: 'pr-311', displayId: 'R-2026-000311', machineId: 'm-mk4-1', fileName: 'gearbox_housing_v3.gcode', state: 'printing', startedAt: ago(95), endedAt: null, estimatedEndAt: ago(-50), progress: 64,
+    reportedUsage: usage('mat-pla-black', 'PLA Black', 'SP-0141', 118), linkedJobId: null, connectorName: 'Workshop Pi', previews: makePreviews('pr-311', ['PLA Black'], 1), artifact: { fileName: 'gearbox_housing_v3.gcode.3mf', sha256Short: 'a91f03c2', parserStatus: 'parsed', plates: 1 },
     events: [
       { id: 'e1', kind: 'operational_state', occurredAt: ago(95), sourceId: 'workshop-pi', summary: 'Printer state: PRINTING' },
       { id: 'e2', kind: 'progress', occurredAt: ago(2), sourceId: 'workshop-pi', summary: 'Progress 64 % · 50 min remaining' },
     ] },
-  { id: 'pr-310', displayId: 'PR-2026-000310', machineId: 'm-x1c', fileName: 'drone_arm_bracket.3mf', state: 'finished', startedAt: ago(3 * H + 40), endedAt: ago(3 * H), estimatedEndAt: null, progress: null,
-    reportedUsage: usage('mat-asa-grey', 'ASA Grey', 'SP-0163', 38), linkedJobId: null, connectorName: 'Workshop Pi',
+  { id: 'pr-310', displayId: 'R-2026-000310', machineId: 'm-x1c', fileName: 'drone_arm_bracket.3mf', state: 'finished', startedAt: ago(3 * H + 40), endedAt: ago(3 * H), estimatedEndAt: null, progress: null,
+    reportedUsage: usage('mat-asa-grey', 'ASA Grey', 'SP-0163', 38), linkedJobId: null, connectorName: 'Workshop Pi', previews: makePreviews('pr-310', ['ASA Grey'], 2), artifact: { fileName: 'drone_arm_bracket.3mf', sha256Short: '5be2d7a8', parserStatus: 'parsed', plates: 2 },
     events: [
       { id: 'e3', kind: 'terminal_outcome', occurredAt: ago(3 * H), sourceId: 'workshop-pi', summary: 'Print finished' },
       { id: 'e4', kind: 'consumption_report', occurredAt: ago(3 * H), sourceId: 'workshop-pi', summary: 'Reported 38 g ASA Grey from SP-0163' },
     ] },
   // Overlaps the manual run J-1095 on the same printer, so linking with replace can be demonstrated.
-  { id: 'pr-309', displayId: 'PR-2026-000309', machineId: 'm-mk4-2', fileName: 'cable_clips_x12.gcode', state: 'finished', startedAt: ago(34), endedAt: ago(4), estimatedEndAt: null, progress: null,
-    reportedUsage: usage('mat-petg-white', 'PETG White', 'SP-0152', 61), linkedJobId: null, connectorName: 'Workshop Pi',
+  { id: 'pr-309', displayId: 'R-2026-000309', machineId: 'm-mk4-2', fileName: 'cable_clips_x12.gcode', state: 'finished', startedAt: ago(34), endedAt: ago(4), estimatedEndAt: null, progress: null,
+    reportedUsage: usage('mat-petg-white', 'PETG White', 'SP-0152', 61), linkedJobId: null, connectorName: 'Workshop Pi', previews: [], artifact: { fileName: 'cable_clips_x12.3mf', sha256Short: '', parserStatus: 'pending', plates: 0 },
     events: [
       { id: 'e5', kind: 'terminal_outcome', occurredAt: ago(4), sourceId: 'workshop-pi', summary: 'Print finished' },
       { id: 'e6', kind: 'consumption_report', occurredAt: ago(4), sourceId: 'workshop-pi', summary: 'Reported 61 g PETG White from SP-0152' },
     ] },
-  { id: 'pr-308', displayId: 'PR-2026-000308', machineId: 'm-mk4-1', fileName: 'phone_stand_v2.gcode', state: 'failed', startedAt: ago(5 * H), endedAt: ago(4 * H + 5), estimatedEndAt: null, progress: null,
-    reportedUsage: usage('mat-pla-black', 'PLA Black', 'SP-0141', 17), linkedJobId: null, connectorName: 'Workshop Pi',
+  { id: 'pr-308', displayId: 'R-2026-000308', machineId: 'm-mk4-1', fileName: 'phone_stand_v2.gcode', state: 'failed', startedAt: ago(5 * H), endedAt: ago(4 * H + 5), estimatedEndAt: null, progress: null,
+    reportedUsage: usage('mat-pla-black', 'PLA Black', 'SP-0141', 17), linkedJobId: null, connectorName: 'Workshop Pi', previews: [], artifact: { fileName: 'phone_stand_v2.3mf', sha256Short: 'c04b9e11', parserStatus: 'failed', plates: 0 },
     events: [
       { id: 'e7', kind: 'terminal_outcome', occurredAt: ago(4 * H + 5), sourceId: 'workshop-pi', summary: 'Print failed: filament runout' },
     ] },
-  { id: 'pr-301', displayId: 'PR-2026-000301', machineId: 'm-mk4-1', fileName: 'nameplates_door_set.gcode', state: 'finished', startedAt: ago(1 * D + 2 * H), endedAt: ago(1 * D - 1 * H), estimatedEndAt: null, progress: null,
-    reportedUsage: usage('mat-pla-black', 'PLA Black', 'SP-0141', 142), linkedJobId: 'j-1089', connectorName: 'Workshop Pi',
+  // Two further unassigned runs on the same printer, to demonstrate combining and attaching several runs.
+  { id: 'pr-307', displayId: 'R-2026-000307', machineId: 'm-mk4-1', fileName: 'bearing_holder_a.gcode', state: 'finished', startedAt: ago(9 * H), endedAt: ago(8 * H + 10), estimatedEndAt: null, progress: null,
+    reportedUsage: usage('mat-pla-black', 'PLA Black', 'SP-0141', 54), linkedJobId: null, connectorName: 'Workshop Pi', previews: makePreviews('pr-307', ['PLA Black'], 1), artifact: { fileName: 'bearing_holder_a.3mf', sha256Short: '3f9a61bd', parserStatus: 'parsed', plates: 1 },
+    events: [{ id: 'e11', kind: 'terminal_outcome', occurredAt: ago(8 * H + 10), sourceId: 'workshop-pi', summary: 'Print finished' }] },
+  { id: 'pr-306', displayId: 'R-2026-000306', machineId: 'm-mk4-1', fileName: 'bearing_holder_b.gcode', state: 'finished', startedAt: ago(8 * H), endedAt: ago(7 * H + 5), estimatedEndAt: null, progress: null,
+    reportedUsage: usage('mat-pla-black', 'PLA Black', 'SP-0141', 49), linkedJobId: null, connectorName: 'Workshop Pi', previews: makePreviews('pr-306', ['PLA Black'], 1), artifact: { fileName: 'bearing_holder_b.3mf', sha256Short: '82c4d0e7', parserStatus: 'parsed', plates: 1 },
+    events: [{ id: 'e12', kind: 'terminal_outcome', occurredAt: ago(7 * H + 5), sourceId: 'workshop-pi', summary: 'Print finished' }] },
+  { id: 'pr-301', displayId: 'R-2026-000301', machineId: 'm-mk4-1', fileName: 'nameplates_door_set.gcode', state: 'finished', startedAt: ago(1 * D + 2 * H), endedAt: ago(1 * D - 1 * H), estimatedEndAt: null, progress: null,
+    reportedUsage: usage('mat-pla-black', 'PLA Black', 'SP-0141', 142), linkedJobId: 'j-1089', connectorName: 'Workshop Pi', previews: [], artifact: null,
     events: [{ id: 'e8', kind: 'terminal_outcome', occurredAt: ago(1 * D - 1 * H), sourceId: 'workshop-pi', summary: 'Print finished' }] },
-  { id: 'pr-300', displayId: 'PR-2026-000300', machineId: 'm-x1c', fileName: 'drone_brackets_x6.3mf', state: 'finished', startedAt: ago(1 * D + 5 * H), endedAt: ago(1 * D + 3 * H), estimatedEndAt: null, progress: null,
-    reportedUsage: usage('mat-asa-grey', 'ASA Grey', 'SP-0163', 96), linkedJobId: 'j-1088', connectorName: 'Workshop Pi',
+  { id: 'pr-300', displayId: 'R-2026-000300', machineId: 'm-x1c', fileName: 'drone_brackets_x6.3mf', state: 'finished', startedAt: ago(1 * D + 5 * H), endedAt: ago(1 * D + 3 * H), estimatedEndAt: null, progress: null,
+    reportedUsage: usage('mat-asa-grey', 'ASA Grey', 'SP-0163', 96), linkedJobId: 'j-1088', connectorName: 'Workshop Pi', previews: makePreviews('pr-300', ['ASA Grey'], 1), artifact: { fileName: 'drone_brackets_x6.3mf', sha256Short: '7d30ae45', parserStatus: 'parsed', plates: 1 },
     events: [{ id: 'e9', kind: 'terminal_outcome', occurredAt: ago(1 * D + 3 * H), sourceId: 'workshop-pi', summary: 'Print finished' }] },
-  { id: 'pr-284', displayId: 'PR-2026-000284', machineId: 'm-mk4-1', fileName: 'team_logo_plate.gcode', state: 'finished', startedAt: ago(5 * D), endedAt: ago(5 * D - 200), estimatedEndAt: null, progress: null,
-    reportedUsage: usage('mat-petg-white', 'PETG White', null, 210), linkedJobId: 'j-1084', connectorName: 'Workshop Pi',
+  { id: 'pr-284', displayId: 'R-2026-000284', machineId: 'm-mk4-1', fileName: 'team_logo_plate.gcode', state: 'finished', startedAt: ago(5 * D), endedAt: ago(5 * D - 200), estimatedEndAt: null, progress: null,
+    reportedUsage: usage('mat-petg-white', 'PETG White', null, 210), linkedJobId: 'j-1084', connectorName: 'Workshop Pi', previews: makePreviews('pr-284', ['PETG White'], 1), artifact: { fileName: 'team_logo_plate.3mf', sha256Short: 'e1c8825f', parserStatus: 'parsed', plates: 1 },
     events: [{ id: 'e10', kind: 'terminal_outcome', occurredAt: ago(5 * D - 200), sourceId: 'workshop-pi', summary: 'Print finished' }] },
 ];
 

@@ -302,3 +302,40 @@ runtime, failure rate, charges, share of runtime) replaces the separate jobs-per
   — plain sortable DataTable of jobs (columns as in Jobs), row links to detail, responsive.
 - Forms: React Hook Form; Carbon inputs only; `useUnsavedChanges` + `UnsavedChangesDialog` from `src/app`
   for larger forms.
+
+## 3. Runs, mass edit and previews (addendum)
+
+### Terminology: print → run
+What printers record is called a **run** in the UI (the type and component names still say `Print`). Statuses: **Unassigned run**,
+**Running (unassigned)**; actions: **Assign to job**, **Unassign**, **Assign recorded run**. Route `/jobs/runs/:printId`; the old
+`/jobs/prints/:printId` redirects. A job can have **several runs**: they are the prints whose `linkedJobId` is the job
+(`Job.printId` stays the earliest one). Times of such a job: start = earliest, end = latest, runtime = sum of the runs' machine time;
+material = sum of reported material per material and spool; outcome (when still unknown) = all good → Successful, all failed →
+Failed, all cancelled → Cancelled, mixed → Partial failure. Pure helpers: `runs.ts`.
+
+### Mass edit in the Jobs table
+Rows are selectable (`TableSelectRow` / `TableSelectAll` for the page) for users with `machine_jobs.create`, `.edit` or the new
+`machine_jobs.delete` (supervisor preset only). Selection lives in `JobsPage` (survives paging and sorting, rows hidden by a filter
+drop out). `TableBatchActions` shows "N items selected", the four actions and Cancel. An action is disabled when it does not apply and
+a short `InlineNotification` under the toolbar lists why (permission, jobs mixed in, running runs, fewer than two runs, runs on
+different machines, everything on orders) so nothing is a silent no-op.
+- **Delete** (`DeleteSelectionModal`, danger `Modal`): "Delete 3 jobs, 2 runs?"; jobs on an order and running runs are skipped and listed
+  ("J-1084 is on order ORD-… — remove it from the order first"); `Checkbox` "Also delete their recorded runs (N)" (checked; unchecked →
+  runs become unassigned) when selected jobs have runs; required `RadioButtonGroup` "Material consumption" Reverse / Keep, no
+  preselection, only when a deletable job has makerspace material booked. Reverse writes correction ledger entries.
+- **Create separate jobs** (`CreateSeparateJobsModal`, unassigned runs only): shared customer and operator (required) and an optional
+  pricing group that prices the jobs without changing the customer; list of the jobs to create (name = run file name). Toast names the
+  new jobs and links to the customer's jobs.
+- **Create combined job** (same machine, ≥ 2 runs): the normal `JobFormModal` prefilled (name and start from the first run, runtime
+  spanning all runs, material summed per spool, outcome derived); on save all runs are attached.
+- **Attach to job** (`AttachToJobModal`, same machine): `ComboBox` of jobs on that machine plus a Now / After attaching comparison
+  (start, end, runtime, number of runs, material) and a warning (manual entry replaced, or runs added; job on an order).
+Selection clears after success; toasts with a "View J-…" action (`ActionableNotification`, since Carbon toasts must not contain links).
+
+### Previews from the 3MF file
+Recorded runs carry `artifact` (file name, short sha256, parser status parsed / pending / failed, plates) and `previews`
+(role plate / top / pick, label, `src`). The mock images are inline SVG data URIs from `previewImages.ts` using the run's filament
+colours. The run detail page shows a **Preview** tile (`RunPreview`): `AspectRatio` image, `ContentSwitcher` between previews, file
+name and parser `Tag`, a pending state ("Waiting for the printer's 3MF file…"), a failed state (error `InlineNotification`) and a
+"no file" state; clicking the image or the "View larger" icon button opens a passive large `Modal`. A 32 px thumbnail (`RunThumb`, alt
+"Preview of <file>") sits next to titles in the Jobs table, job tables and the runs list of a job.

@@ -8,6 +8,7 @@ import { DestructiveActionDialog } from '../../../app/DestructiveActionDialog';
 import { QueryBoundary } from '../components/QueryBoundary';
 import { JobFormModal } from '../dialogs/JobFormModal';
 import { usageRowFromPrint } from '../dialogs/jobFormHelpers';
+import { RunPreview } from '../components/RunPreview';
 import { LinkJobModal } from '../dialogs/LinkJobModal';
 import { formatDateTime, formatDuration, formatTime, printDurationSeconds, printEnd, PrintStateTag, printUsageText, nameFromFile } from '../derived';
 import { useNow, useSimulatedMutation, useSimulatedQuery, useStore } from '../store';
@@ -33,6 +34,7 @@ export function PrintDetailPage() {
 
   const machine = machines.find((item) => item.id === print?.machineId);
   const linkedJob = print?.linkedJobId ? jobs.find((job) => job.id === print.linkedJobId) : undefined;
+  const linkedRunCount = linkedJob ? store.prints.filter((item) => item.linkedJobId === linkedJob.id).length : 0;
   const unlinked = print !== undefined && print.linkedJobId === null;
   const end = print ? printEnd(print) : null;
   const duration = print ? printDurationSeconds(print) : null;
@@ -41,48 +43,49 @@ export function PrintDetailPage() {
     <>
       {!unlinked && canEdit && (
         <OverflowMenu aria-label="More actions" iconDescription="More actions" flipped>
-          <OverflowMenuItem itemText="Unlink" isDelete onClick={() => setDialog('unlink')} />
+          <OverflowMenuItem itemText="Unassign" isDelete onClick={() => setDialog('unlink')} />
         </OverflowMenu>
       )}
-      {unlinked && canLink && <Button kind="tertiary" renderIcon={LinkIcon} onClick={() => setDialog('link')}>Link to job</Button>}
+      {unlinked && canLink && <Button kind="tertiary" renderIcon={LinkIcon} onClick={() => setDialog('link')}>Assign to job</Button>}
       {unlinked && canCreate && <Button renderIcon={Add} onClick={() => setDialog('create')}>Create job</Button>}
     </>
   ) : undefined;
 
   return (
     <PageShell
-      title={print?.fileName ?? 'Print'} width="wide"
+      title={print?.fileName ?? 'Run'} width="wide"
       titleAdornment={print ? <PrintStateTag state={print.state} /> : undefined}
       description={print ? `${print.displayId} · ${machine?.name ?? 'Unknown printer'} · via ${print.connectorName}` : undefined}
-      breadcrumbs={[{ label: 'Workshop', to: '/' }, { label: 'Jobs', to: '/jobs' }, { label: print?.fileName ?? 'Print' }]}
+      breadcrumbs={[{ label: 'Workshop', to: '/' }, { label: 'Jobs', to: '/jobs' }, { label: print?.fileName ?? 'Run' }]}
       actions={actions}
     >
-      <QueryBoundary query={query} errorMessage="This print could not be loaded.">
+      <QueryBoundary query={query} errorMessage="This run could not be loaded.">
         {!print ? (
-          <EmptyState title="Print not found" description="It may have been removed, or the link is wrong." action={<Button as={Link} to="/jobs" kind="tertiary">Back to Jobs</Button>} />
+          <EmptyState title="Run not found" description="It may have been removed, or the link is wrong." action={<Button as={Link} to="/jobs" kind="tertiary">Back to Jobs</Button>} />
         ) : (
           <div className="mj-stack">
             {unlinked && print.state !== 'printing' && (
               <InlineNotification
-                kind="warning" lowContrast hideCloseButton title="Not linked to a job"
-                subtitle={canCreate || canLink ? 'Create a job from this print, or link it to an existing job, so material usage and billing are recorded.' : 'Staff with job permissions can create or link a job for this print.'}
+                kind="warning" lowContrast hideCloseButton title="Unassigned run"
+                subtitle={canCreate || canLink ? 'Create a job from this run, or assign it to an existing job, so material usage and billing are recorded.' : 'Staff with job permissions can create a job for this run or assign it to one.'}
               />
             )}
             {print.state === 'printing' && (
               <Tile>
                 <ProgressBar
-                  label="Print progress" value={print.progress ?? 0} max={100}
+                  label="Run progress" value={print.progress ?? 0} max={100}
                   helperText={`${print.progress ?? 0} %${print.estimatedEndAt ? ` · ends ~${formatTime(print.estimatedEndAt)}` : ''}`}
                 />
               </Tile>
             )}
+            <RunPreview key={print.id} run={print} />
             {linkedJob && (
               <Tile>
-                <h2 className="mj-section-title">Linked job</h2>
+                <h2 className="mj-section-title">Assigned job</h2>
                 <p>
-                  Linked to{' '}
+                  Assigned to{' '}
                   {store.can('machine_jobs.read') ? <CarbonLink as={Link} to={`/jobs/${linkedJob.id}`}>{linkedJob.displayId}{linkedJob.title ? ` ${linkedJob.title}` : ''}</CarbonLink> : linkedJob.displayId}
-                  <span className="mj-secondary"> · {linkedJob.customer?.displayName ?? 'No customer'}. The job uses this print’s times and material.</span>
+                  <span className="mj-secondary"> · {linkedJob.customer?.displayName ?? 'No customer'}. The job uses this run’s times and material.</span>
                 </p>
               </Tile>
             )}
@@ -116,15 +119,15 @@ export function PrintDetailPage() {
       </QueryBoundary>
 
       <DestructiveActionDialog
-        open={dialog === 'unlink'} title="Unlink this print?" confirmLabel="Unlink" pending={unlinking} onClose={close}
+        open={dialog === 'unlink'} title="Unassign this run?" confirmLabel="Unassign" pending={unlinking} onClose={close}
         onConfirm={async () => {
           if (!print) return;
           await unlink(print.id);
-          store.notify({ kind: 'success', title: 'Print unlinked', subtitle: `${linkedJob?.displayId ?? 'The job'} keeps its values and is a manual run again.` });
+          store.notify({ kind: 'success', title: 'Run unassigned', subtitle: `${linkedJob?.displayId ?? 'The job'} keeps its values${linkedRunCount > 1 ? ' and its other runs' : ' and is a manual run again'}.` });
           close();
         }}
       >
-        <p>{linkedJob?.displayId ?? 'The job'} keeps its current times and material, but becomes a manual run again. The print shows as unlinked.</p>
+        <p>{linkedJob?.displayId ?? 'The job'} keeps its current material{linkedRunCount > 1 ? ', and its times follow the runs that remain' : ', but becomes a manual run again'}. This run shows as unassigned.</p>
       </DestructiveActionDialog>
 
       {print && <LinkJobModal open={dialog === 'link'} onClose={close} print={print} />}
@@ -137,7 +140,7 @@ export function PrintDetailPage() {
           }}
           onSaved={(job) => {
             store.linkPrint(print.id, job.id, { keepUsages: true });
-            store.notify({ kind: 'success', title: 'Job created and linked', subtitle: `${job.displayId} uses the data from ${print.displayId}.` });
+            store.notify({ kind: 'success', title: 'Job created', subtitle: `${job.displayId} uses the data from ${print.displayId}.`, action: { label: `View ${job.displayId}`, to: `/jobs/${job.id}` } });
           }}
         />
       )}

@@ -126,7 +126,7 @@ export function ConnectorsTab() {
                 })}
               </TableBody>
             </Table>
-            {store.connectorHosts.length === 0 && <EmptyState title="No connectors yet" description="Add a connector to collect prints automatically." action={canManage ? <Button kind="tertiary" onClick={() => setAdding(true)}>Add connector</Button> : undefined} />}
+            {store.connectorHosts.length === 0 && <EmptyState title="No connectors yet" description="Add a connector to collect runs automatically." action={canManage ? <Button kind="tertiary" onClick={() => setAdding(true)}>Add connector</Button> : undefined} />}
           </TableContainer>
         )}
       </DataTable>
@@ -138,7 +138,7 @@ export function ConnectorsTab() {
         onClose={() => setRevoking(null)}
         onConfirm={async () => { if (!revoking) return; await revoke.mutate(revoking.id); store.notify({ kind: 'success', title: 'Connector revoked', subtitle: revoking.name }); setRevoking(null); }}
       >
-        <p>The connector can no longer deliver events, and this can't be undone.{revoking && printersOf(revoking).length > 0 ? ` ${printersOf(revoking).map((machine) => machine.name).join(', ')} will stop collecting prints automatically until reassigned.` : ''}</p>
+        <p>The connector can no longer deliver events, and this can't be undone.{revoking && printersOf(revoking).length > 0 ? ` ${printersOf(revoking).map((machine) => machine.name).join(', ')} will stop collecting runs automatically until reassigned.` : ''}</p>
       </DestructiveActionDialog>
     </div>
   );

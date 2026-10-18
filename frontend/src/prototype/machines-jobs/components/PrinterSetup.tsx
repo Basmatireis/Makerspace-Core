@@ -57,7 +57,7 @@ export function PrinterSetup({ machine, profile, detected }: { machine: Machine;
     return (
       <>
         <EmptyState
-          title="No spool inputs" description="Set up the spool inputs of this printer so it can receive prints and track the spools loaded in its slots."
+          title="No spool inputs" description="Set up the spool inputs of this printer so it can receive runs and track the spools loaded in its slots."
           action={canManage ? <Button renderIcon={Add} onClick={() => setWizard({ step: 'spools' })}>Create profile</Button> : undefined}
         />
         {wizardDialog}
@@ -144,7 +144,7 @@ export function PrinterSetup({ machine, profile, detected }: { machine: Machine;
           )}
           {!canManage && <Tag type={profile.enabled ? 'green' : 'gray'}>{profile.enabled ? 'Enabled' : 'Disabled'}</Tag>}
         </div>
-        <p className="mj-secondary">Disabling the profile blocks new prints for this printer. Existing prints and history are kept.</p>
+        <p className="mj-secondary">Disabling the profile blocks new runs for this printer. Existing runs and history are kept.</p>
       </Tile>
 
       <Tile>
@@ -165,7 +165,7 @@ export function PrinterSetup({ machine, profile, detected }: { machine: Machine;
           </dl>
         ) : (
           <EmptyState
-            title="No connector" description="Connect this printer to collect prints automatically and see what is loaded in each slot."
+            title="No connector" description="Connect this printer to collect runs automatically and see what is loaded in each slot."
             action={canManage ? <Button renderIcon={Add} onClick={() => setWizard({ step: 'connection' })}>Connect printer</Button> : undefined}
           />
         )}
@@ -194,7 +194,7 @@ export function PrinterSetup({ machine, profile, detected }: { machine: Machine;
         open={disableOpen} title="Disable printing?" confirmLabel="Disable profile" pending={setEnabled.pending}
         onClose={() => setDisableOpen(false)} onConfirm={() => { void toggleEnabled(false); }}
       >
-        <p>{machine.name} will no longer accept new prints. Existing prints and history are kept, and you can enable the profile again at any time.</p>
+        <p>{machine.name} will no longer accept new runs. Existing runs and history are kept, and you can enable the profile again at any time.</p>
       </DestructiveActionDialog>
 
       <Modal

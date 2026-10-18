@@ -1,18 +1,23 @@
 import { useMemo, useState } from 'react';
 import {
-  Button, ComboBox, DataTable, Link as CarbonLink, MultiSelect, Pagination, Table, TableBody, TableCell,
-  TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, TableToolbarSearch,
+  Button, ComboBox, DataTable, InlineNotification, Link as CarbonLink, MultiSelect, Pagination, Table, TableBatchAction, TableBatchActions, TableBody, TableCell,
+  TableContainer, TableHead, TableHeader, TableRow, TableSelectAll, TableSelectRow, TableToolbar, TableToolbarContent, TableToolbarSearch,
 } from '@carbon/react';
-import { Filter } from '@carbon/icons-react';
+import { Filter, Link as LinkIcon, Merge, Split, TrashCan } from '@carbon/icons-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { dateInAppTimeZone } from '../../../app/dateTime';
 import { DateInput } from '../../../app/DateInput';
 import { PageShell } from '../../../app/PageShell';
 import { EmptyState } from '../../../app/PageState';
 import { QueryBoundary } from '../components/QueryBoundary';
-import { billingState, buildJobRows, formatDateTime, formatDuration, formatMoney, jobRowStatusOptions, JobRowStatusTag, type BillingState, type JobRow } from '../derived';
+import { RunThumb } from '../components/RunPreview';
+import { billingState, buildJobRows, formatDateTime, formatDuration, formatMoney, jobRowStatusOptions, nameFromFile, JobRowStatusTag, type BillingState, type JobRow } from '../derived';
+import { AttachToJobModal } from '../dialogs/AttachToJobModal';
+import { CreateSeparateJobsModal } from '../dialogs/CreateSeparateJobsModal';
+import { DeleteSelectionModal } from '../dialogs/DeleteSelectionModal';
 import { JobFormModal } from '../dialogs/JobFormModal';
-import { matchesName } from '../dialogs/jobFormHelpers';
+import { matchesName, usageRowFromPrint } from '../dialogs/jobFormHelpers';
+import { batchAvailability, outcomeFromRuns, runsSummary, sumReportedUsages, type BatchAction } from '../runs';
 import { lookups, useNow, useSimulatedQuery, useStore } from '../store';
 import type { Job, Machine, Print } from '../types';
 import '../styles/jobs.scss';
@@ -24,7 +29,7 @@ const billingOptions: Option[] = [
   { id: 'on_order', label: 'On an order' }, { id: 'order_outdated', label: 'Order outdated' }, { id: 'ready', label: 'Not on order' },
   { id: 'price_incomplete', label: 'Price incomplete' }, { id: 'pending', label: 'Price pending' },
 ];
-const runOptions: Option[] = [{ id: 'manual', label: 'Manual' }, { id: 'printer', label: 'Printer' }];
+const runOptions: Option[] = [{ id: 'manual', label: 'Manual' }, { id: 'printer', label: 'Recorded by printer' }];
 const PAGE_SIZES = [10, 25, 50];
 const FILTER_KEYS = ['status', 'machine', 'run', 'customer', 'operator', 'material', 'billing', 'from', 'to'] as const;
 const HEADERS: { key: string; header: string; sort?: SortKey; narrow?: boolean }[] = [
@@ -48,10 +53,13 @@ export function JobsPage() {
   const [searchKey, setSearchKey] = useState(0);
   const [sort, setSort] = useState<{ key: SortKey; direction: 'ASC' | 'DESC' }>({ key: 'started', direction: 'DESC' });
   const [jobOpen, setJobOpen] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [batch, setBatch] = useState<BatchAction | null>(null);
   const now = useNow();
   const query = useSimulatedQuery((data) => ({ jobs: data.jobs, prints: data.prints, machines: data.machines }), EMPTY);
 
   const canCreate = store.can('machine_jobs.create');
+  const selectable = canCreate || store.can('machine_jobs.edit') || store.can('machine_jobs.delete');
 
   const statusIds = listParam(params.get('status'));
   const machineIds = listParam(params.get('machine'));
@@ -117,6 +125,22 @@ export function JobsPage() {
   const rowsById = new Map(allRows.map((row) => [row.id, row]));
   const tableKey = `${page}-${pageSize}-${params.toString()}-${sort.key}-${sort.direction}`;
 
+  // Selection survives paging and sorting; rows hidden by a filter drop out of it.
+  const selectedRows = visible.filter((row) => selected.has(row.id));
+  const selectedRuns = selectedRows.flatMap((row) => row.kind === 'print' && row.print ? [row.print] : []);
+  const availability = batchAvailability(selectedRows, store.can);
+  const unavailable = (Object.entries(availability) as [BatchAction, { enabled: boolean; reason: string | null }][]).filter(([, item]) => !item.enabled);
+  const pageIds = pageRows.map((row) => row.id);
+  const pageSelected = pageIds.filter((id) => selected.has(id)).length;
+  const toggle = (id: string) => setSelected((current) => { const next = new Set(current); if (!next.delete(id)) next.add(id); return next; });
+  const togglePage = () => setSelected((current) => {
+    const next = new Set(current);
+    if (pageSelected === pageIds.length) pageIds.forEach((id) => next.delete(id)); else pageIds.forEach((id) => next.add(id));
+    return next;
+  });
+  const clearSelection = () => setSelected(new Set());
+  const combinedRuns = selectedRuns.length > 0 ? runsSummary(selectedRuns) : null;
+
   const tableRows = pageRows.map((row) => ({
     id: row.id, job: row.title, machine: row.machineName, customer: row.customer ?? '', status: row.status, started: row.startedAt, price: row.price ?? -1,
   }));
@@ -126,10 +150,13 @@ export function JobsPage() {
   const renderCell = (row: JobRow, key: string) => {
     if (key === 'job') {
       return (
-        <div className="mj-cell-stack">
-          <CarbonLink as={Link} to={row.href}>{row.title}</CarbonLink>
-          <span className="mj-secondary">{row.secondaryIds.length ? row.secondaryIds.join(' · ') : row.job ? `${formatDuration(row.job.durationSeconds)} · manual run` : ''}</span>
-          <span className="mj-secondary mj-show-narrow">{row.machineName}</span>
+        <div className="mj-title-with-thumb">
+          <RunThumb run={row.print} />
+          <div className="mj-cell-stack">
+            <CarbonLink as={Link} to={row.href}>{row.title}</CarbonLink>
+            <span className="mj-secondary">{row.secondaryIds.length ? row.secondaryIds.join(' · ') : row.job ? `${formatDuration(row.job.durationSeconds)} · manual run` : ''}</span>
+            <span className="mj-secondary mj-show-narrow">{row.machineName}</span>
+          </div>
         </div>
       );
     }
@@ -147,7 +174,7 @@ export function JobsPage() {
   const emptyState = allRows.length === 0
     ? (
       <EmptyState
-        title="No jobs yet" description="Jobs appear here when staff create them or when a printer reports a print."
+        title="No jobs yet" description="Jobs appear here when staff create them or when a printer records a run."
         action={canCreate ? <Button kind="tertiary" onClick={() => setJobOpen(true)}>New job</Button> : undefined}
       />
     )
@@ -160,7 +187,7 @@ export function JobsPage() {
 
   return (
     <PageShell
-      title="Jobs" description="Running and finished jobs, and prints reported by printers." width="wide"
+      title="Jobs" description="Running and finished jobs, and runs recorded by printers." width="wide"
       breadcrumbs={[{ label: 'Workshop', to: '/' }, { label: 'Jobs' }]}
     >
       <QueryBoundary query={query}>
@@ -169,6 +196,14 @@ export function JobsPage() {
             return (
               <TableContainer className="mj-table-container">
                 <TableToolbar className="mj-jobs-table-toolbar" aria-label="Jobs table toolbar">
+                  {selectable && (
+                    <TableBatchActions shouldShowBatchActions={selectedRows.length > 0} totalSelected={selectedRows.length} onCancel={clearSelection}>
+                      <TableBatchAction renderIcon={TrashCan} disabled={!availability.delete.enabled} onClick={() => setBatch('delete')}>Delete</TableBatchAction>
+                      <TableBatchAction renderIcon={Split} disabled={!availability.separate.enabled} onClick={() => setBatch('separate')}>Create separate jobs</TableBatchAction>
+                      <TableBatchAction renderIcon={Merge} disabled={!availability.combined.enabled} onClick={() => setBatch('combined')}>Create combined job</TableBatchAction>
+                      <TableBatchAction renderIcon={LinkIcon} disabled={!availability.attach.enabled} onClick={() => setBatch('attach')}>Attach to job</TableBatchAction>
+                    </TableBatchActions>
+                  )}
                   <TableToolbarContent>
                     <TableToolbarSearch
                       key={searchKey}
@@ -197,7 +232,7 @@ export function JobsPage() {
                     <div className="mj-filter-panel__fields">
                       <MultiSelect id="jobs-status-filter" className="mj-filter-panel__field" titleText="Status" label="All statuses" items={statusOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(statusOptions, statusIds)} onChange={({ selectedItems }) => updateList('status', selectedItems)} />
                       <MultiSelect id="jobs-machine-filter" className="mj-filter-panel__field" titleText="Machine" label="All machines" items={machineOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(machineOptions, machineIds)} onChange={({ selectedItems }) => updateList('machine', selectedItems)} />
-                      <MultiSelect id="jobs-run-filter" className="mj-filter-panel__field" titleText="Run" label="All runs" items={runOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(runOptions, runIds)} onChange={({ selectedItems }) => updateList('run', selectedItems)} />
+                      <MultiSelect id="jobs-run-filter" className="mj-filter-panel__field" titleText="Run source" label="All sources" items={runOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(runOptions, runIds)} onChange={({ selectedItems }) => updateList('run', selectedItems)} />
                       <ComboBox id="jobs-customer-filter" className="mj-filter-panel__field" titleText="Customer" placeholder="Any customer" items={lookups.people} itemToString={(item) => item?.displayName ?? ''} shouldFilterItem={matchesName} selectedItem={lookups.people.find((person) => person.id === customerId) ?? null} onChange={({ selectedItem }) => update({ customer: selectedItem?.id ?? null })} />
                       <ComboBox id="jobs-operator-filter" className="mj-filter-panel__field" titleText="Operator" placeholder="Any operator" items={lookups.operators} itemToString={(item) => item?.displayName ?? ''} shouldFilterItem={matchesName} selectedItem={lookups.operators.find((operator) => operator.personId === operatorId) ?? null} onChange={({ selectedItem }) => update({ operator: selectedItem?.personId ?? null })} />
                       <MultiSelect id="jobs-material-filter" className="mj-filter-panel__field" titleText="Material" label="All materials" items={materialOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(materialOptions, materialIds)} onChange={({ selectedItems }) => updateList('material', selectedItems)} />
@@ -208,9 +243,15 @@ export function JobsPage() {
                     </div>
                   </div>
                 )}
+                {selectable && selectedRows.length > 0 && unavailable.length > 0 && (
+                  <InlineNotification kind="info" lowContrast hideCloseButton title="Some actions are unavailable for this selection">
+                    <ul className="mj-skip-list">{unavailable.map(([action, item]) => <li key={action}>{item.reason}</li>)}</ul>
+                  </InlineNotification>
+                )}
                 <Table {...getTableProps()} aria-label="Jobs">
                   <TableHead>
                     <TableRow>
+                      {selectable && <TableSelectAll id="jobs-select-all" name="jobs-select-all" aria-label="Select all rows on this page" checked={pageIds.length > 0 && pageSelected === pageIds.length} indeterminate={pageSelected > 0 && pageSelected < pageIds.length} onSelect={togglePage} />}
                       {tableHeaders.map((header) => {
                         const meta = HEADERS.find((item) => item.key === header.key);
                         const sortKey = meta?.sort;
@@ -236,7 +277,8 @@ export function JobsPage() {
                       if (!row) return null;
                       const { key, ...rowProps } = getRowProps({ row: tableRow });
                       return (
-                        <TableRow key={key} {...rowProps}>
+                        <TableRow key={key} {...rowProps} isSelected={selected.has(row.id)}>
+                          {selectable && <TableSelectRow id={`jobs-select-${row.id}`} name={`jobs-select-${row.id}`} aria-label={`Select ${row.title}`} checked={selected.has(row.id)} onSelect={() => toggle(row.id)} />}
                           {tableRow.cells.map((cell) => (
                             <TableCell key={cell.id} className={HEADERS.find((item) => item.key === cell.info.header)?.narrow ? 'mj-hide-narrow' : undefined}>
                               {renderCell(row, cell.info.header)}
@@ -261,6 +303,23 @@ export function JobsPage() {
         </DataTable>
       </QueryBoundary>
       <JobFormModal open={jobOpen} onClose={() => setJobOpen(false)} mode="create" />
+      <DeleteSelectionModal open={batch === 'delete'} onClose={() => setBatch(null)} rows={selectedRows} onDone={clearSelection} />
+      <CreateSeparateJobsModal open={batch === 'separate'} onClose={() => setBatch(null)} runs={selectedRuns} onDone={clearSelection} />
+      <AttachToJobModal open={batch === 'attach'} onClose={() => setBatch(null)} runs={selectedRuns} onDone={clearSelection} />
+      {batch === 'combined' && combinedRuns && (
+        <JobFormModal
+          open mode="create" onClose={() => setBatch(null)}
+          initialValues={{
+            title: nameFromFile(combinedRuns.first.fileName), printFileName: combinedRuns.first.fileName, machineId: combinedRuns.first.machineId, startsAt: combinedRuns.startsAt, endsAt: combinedRuns.endsAt,
+            outcome: outcomeFromRuns(selectedRuns), usages: sumReportedUsages(selectedRuns).map((usage) => usageRowFromPrint(usage, store.spools)),
+          }}
+          onSaved={(job) => {
+            store.attachRuns(selectedRuns.map((run) => run.id), job.id, { keepUsages: true });
+            store.notify({ kind: 'success', title: `${selectedRuns.length} runs combined`, subtitle: `${job.displayId} holds all selected runs.`, action: { label: `View ${job.displayId}`, to: `/jobs/${job.id}` } });
+            clearSelection();
+          }}
+        />
+      )}
     </PageShell>
   );
 }

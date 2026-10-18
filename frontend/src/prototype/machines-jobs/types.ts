@@ -253,8 +253,9 @@ export type Job = {
   startsAt: string;
   endsAt: string;
   durationSeconds: number;
-  /** manual: entered by staff (a future end means a simulated run); automatic: replaced by a linked print. */
+  /** manual: entered by staff (a future end means a simulated run); automatic: replaced by one or more assigned recorded runs. */
   run: JobRun;
+  /** The earliest assigned recorded run; all assigned runs are the prints whose `linkedJobId` is this job. */
   printId: string | null;
   source: JobSource;
   externalId: string | null;
@@ -282,7 +283,16 @@ export type PrinterEvent = {
 
 export type PrintUsage = { materialId: string | null; materialName: string; spoolDisplayId: string | null; quantity: number; unit: string };
 
-/** An automatic run reported by a printer connector. Nobody creates prints by hand. */
+export type PreviewRole = 'plate' | 'top' | 'pick';
+/** One thumbnail the backend extracted from the 3MF file (loosely mirrors `print_artifact_previews`). `src` is an inline data URI in the prototype. */
+export type PrintPreview = { id: string; role: PreviewRole; label: string; src: string };
+/** The 3MF file the printer reported for a run. Parsing happens asynchronously on the backend. */
+export type PrintArtifact = { fileName: string; sha256Short: string; parserStatus: 'parsed' | 'pending' | 'failed'; plates: number };
+
+/**
+ * A run recorded by a printer connector (UI wording: "run"; the type keeps its old name). Nobody creates recorded runs by hand.
+ * A job can have several runs: they point to it through `linkedJobId`; `Job.printId` is the earliest one.
+ */
 export type Print = {
   id: string;
   displayId: string;
@@ -298,6 +308,8 @@ export type Print = {
   events: PrinterEvent[];
   linkedJobId: string | null;
   connectorName: string;
+  previews: PrintPreview[];
+  artifact: PrintArtifact | null;
 };
 
 export type InputUnit = { id: string; machineId: string; name: string; position: number; externalIdentifier: string | null; nozzle: Nozzle | null };

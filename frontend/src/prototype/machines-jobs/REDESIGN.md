@@ -162,3 +162,10 @@ is linked to the job and replaces the manual run. Backend impact:
 - Browser walkthrough after the domain-model change (desktop): Jobs table with the new statuses, link a print to a
   manual running job with the replace comparison, cancel a manual run, job detail Run tile. Not re-run at 375 px or
   for the other role presets and data states since this change.
+
+## 8. Addendum: runs, mass edit, previews
+Wording changed from "print" to "run" for recorded runs (route `/jobs/runs/:id`, redirect from `/jobs/prints/:id`); a job can own several
+runs. The Jobs table gained selection with batch Delete, Create separate jobs, Create combined job and Attach to job, and the run
+detail page a 3MF preview tile with mock SVG images. Production notes: the backend needs a job↔runs relation (many runs per job), batch
+endpoints (or client-side loops with one transaction per action and one audit event each), a `machine_jobs.delete` permission, and the
+existing `print_artifact_previews` for images. Details: `DESIGN.md` section 3.

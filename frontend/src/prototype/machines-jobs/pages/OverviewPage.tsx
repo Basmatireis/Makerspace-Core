@@ -11,7 +11,7 @@ import type { Job, Machine, Print } from '../types';
 import '../styles/overview.scss';
 
 const EMPTY: { machines: Machine[]; jobs: Job[]; prints: Print[] } = { machines: [], jobs: [], prints: [] };
-const ACTIVE_STATUSES: JobRow['status'][] = ['running', 'printing', 'needs_outcome', 'unlinked'];
+const ACTIVE_STATUSES: JobRow['status'][] = ['running', 'printing', 'needs_outcome', 'unassigned'];
 const ACTIVE_LIMIT = 6;
 
 type Metric = { key: string; label: string; count: number; detail: string; to: string };
@@ -28,7 +28,7 @@ function MetricTile({ metric, loading }: { metric: Metric; loading: boolean }) {
 
 function activeLine(row: JobRow) {
   const end = row.job && row.print?.state !== 'printing' ? row.job.endsAt : row.print ? printEnd(row.print) : null;
-  const when = row.status === 'unlinked' && row.print?.endedAt ? `${row.print.state} ${formatRelative(row.print.endedAt)}`
+  const when = row.status === 'unassigned' && row.print?.endedAt ? `${row.print.state} ${formatRelative(row.print.endedAt)}`
     : end ? `ends ~${formatTime(end)}` : `started ${formatRelative(row.startedAt)}`;
   return [row.machineName, row.customer, when].filter(Boolean).join(' · ');
 }
@@ -45,14 +45,14 @@ export function OverviewPage() {
 
   const rows = buildJobRows(jobs, prints, machines, now);
   const running = rows.filter((row) => row.status === 'running' || row.status === 'printing');
-  const unlinkedCount = rows.filter((row) => row.status === 'unlinked').length;
+  const unassignedCount = rows.filter((row) => row.status === 'unassigned').length;
   const runningMachines = [...new Set(running.map((row) => row.machineName))];
   const billingIssues = jobs.filter((job) => ['price_incomplete', 'order_outdated'].includes(billingState(job))).length;
 
   const metrics: Metric[] = [
     { key: 'running', label: 'Running now', count: running.length, detail: runningMachines.length ? runningMachines.join(', ') : 'No machine is busy', to: '/jobs?status=running,printing' },
     { key: 'outcome', label: 'Needs outcome', count: rows.filter((row) => row.status === 'needs_outcome').length, detail: 'Run ended; record how it went', to: '/jobs?status=needs_outcome' },
-    { key: 'unlinked', label: 'Unlinked prints', count: unlinkedCount, detail: 'Create a job or link to one', to: '/jobs?status=unlinked' },
+    { key: 'unassigned', label: 'Unassigned runs', count: unassignedCount, detail: 'Create a job or assign to one', to: '/jobs?status=unassigned' },
     { key: 'billing', label: 'Billing issues', count: billingIssues, detail: 'Missing price rule or changed order', to: '/jobs?billing=price_incomplete,order_outdated' },
   ];
 
@@ -64,7 +64,7 @@ export function OverviewPage() {
   return (
     <PageShell
       title="Overview" width="wide" breadcrumbs={[{ label: 'Workshop' }]}
-      description={loading || query.status === 'error' ? 'What is running and what needs you.' : `${todayCount} ${todayCount === 1 ? 'job' : 'jobs'} today · ${running.length} running · ${unlinkedCount} unlinked`}
+      description={loading || query.status === 'error' ? 'What is running and what needs you.' : `${todayCount} ${todayCount === 1 ? 'job' : 'jobs'} today · ${running.length} running · ${unassignedCount} unassigned`}
       actions={canCreate ? <Button kind="primary" onClick={() => setJobOpen(true)}>New job</Button> : undefined}
     >
       {query.status === 'error' ? <ErrorState message="The overview could not be loaded." onRetry={query.retry} /> : (
@@ -79,7 +79,7 @@ export function OverviewPage() {
               action={<Button as={Link} to="/jobs" kind="ghost" size="sm" renderIcon={ArrowRight}>All jobs</Button>}
             >
               {loading && <ContainedListItem><SkeletonText paragraph lineCount={3} /></ContainedListItem>}
-              {!loading && active.length === 0 && <ContainedListItem>Nothing is running and no print waits to be linked.</ContainedListItem>}
+              {!loading && active.length === 0 && <ContainedListItem>Nothing is running and no run waits to be assigned.</ContainedListItem>}
               {!loading && active.slice(0, ACTIVE_LIMIT).map((row) => (
                 <ContainedListItem key={row.id} onClick={() => navigate(row.href)} action={<JobRowStatusTag status={row.status} size="sm" />}>
                   <span className="mj-cell-stack">
@@ -89,7 +89,7 @@ export function OverviewPage() {
                 </ContainedListItem>
               ))}
               {!loading && active.length > ACTIVE_LIMIT && (
-                <ContainedListItem onClick={() => navigate('/jobs?status=running,printing,unlinked')}>
+                <ContainedListItem onClick={() => navigate('/jobs?status=running,printing,unassigned')}>
                   <span className="mj-secondary">{active.length - ACTIVE_LIMIT} more active items</span>
                 </ContainedListItem>
               )}

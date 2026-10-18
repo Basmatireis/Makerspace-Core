@@ -8,7 +8,7 @@ import { useLinkPrint } from './useLinkPrint';
 
 const printLabel = (print: Print) => `${print.fileName} · ${print.displayId} · started ${formatRelative(print.startedAt)} · ${print.state}`;
 
-/** Job-side counterpart of LinkJobModal: pick an unlinked print on the job's machine. */
+/** Job-side counterpart of LinkJobModal: pick an unassigned run on the job's machine. */
 export function LinkPrintModal({ open, onClose, job }: { open: boolean; onClose: () => void; job: Job }) {
   const store = useStore();
   const [selected, setSelected] = useState<Print | null>(null);
@@ -25,20 +25,20 @@ export function LinkPrintModal({ open, onClose, job }: { open: boolean; onClose:
 
   return (
     <Modal
-      open={open} modalHeading="Link printer data" size="md" secondaryButtonText="Cancel"
-      primaryButtonText={pending ? 'Linking…' : changes ? 'Link and replace' : 'Link print'}
+      open={open} modalHeading="Assign recorded run" size="md" secondaryButtonText="Cancel"
+      primaryButtonText={pending ? 'Assigning…' : changes ? 'Assign and replace' : 'Assign run'}
       primaryButtonDisabled={!selected || pending} onRequestClose={() => { if (!pending) onClose(); }}
       onRequestSubmit={() => { if (selected) void link(selected, job); }} preventCloseOnClickOutside
     >
       <Stack gap={5}>
-        <p>Pick the automatic print that belongs to {job.displayId}.</p>
+        <p>Pick the recorded run that belongs to {job.displayId}.</p>
         <ComboBox autoAlign
-          id="link-print-select" titleText="Print" placeholder="Search prints"
-          helperText={`Unlinked prints on ${machine?.name ?? 'this machine'}, closest to the job start first.`}
+          id="link-print-select" titleText="Run" placeholder="Search runs"
+          helperText={`Unassigned runs on ${machine?.name ?? 'this machine'}, closest to the job start first.`}
           items={prints} itemToString={(print) => (print ? printLabel(print) : '')} selectedItem={selected}
           onChange={({ selectedItem }) => setSelected(selectedItem ?? null)}
         />
-        {prints.length === 0 && <InlineNotification kind="info" lowContrast hideCloseButton title="No prints to link" subtitle="The printer has not reported an unlinked print." />}
+        {prints.length === 0 && <InlineNotification kind="info" lowContrast hideCloseButton title="No runs to assign" subtitle="The printer has not recorded an unassigned run." />}
         {selected && job.run === 'manual' && <ReplaceComparison job={job} print={selected} />}
       </Stack>
     </Modal>

@@ -29,7 +29,7 @@ export function ConnectionStep({ form, machine, model, test, detection, onTest, 
         control={control} name="connect"
         render={({ field }) => (
           <TileGroup<string> legend="Connection" name="setup-connect" className="mj-tile-grid" valueSelected={field.value} onChange={(value) => field.onChange(value)}>
-            <RadioTile id="setup-connect-now" value="now"><span className="mj-tile-title">Connect a connector now</span><span className="mj-secondary">Collect prints and read what is loaded automatically.</span></RadioTile>
+            <RadioTile id="setup-connect-now" value="now"><span className="mj-tile-title">Connect a connector now</span><span className="mj-secondary">Collect runs and read what is loaded automatically.</span></RadioTile>
             <RadioTile id="setup-connect-later" value="later"><span className="mj-tile-title">Set up later</span><span className="mj-secondary">Jobs are logged manually until a connector is attached.</span></RadioTile>
           </TileGroup>
         )}

@@ -6,6 +6,7 @@ import type {
   PriceAdjustment, Spool, SpoolFill, SpoolIdentifier, SpoolKind, SpoolLifecycle, SpoolStockSource,
 } from './types';
 import { leftoverOutcome, planClose, type LeftoverChoice } from './fillPlan';
+import { outcomeFromRuns, planAttach, runsOfJob, runsSummary } from './runs';
 
 // ---------------------------------------------------------------------------
 // Prototype controls: role presets and simulated data states.
@@ -14,7 +15,7 @@ import { leftoverOutcome, planClose, type LeftoverChoice } from './fillPlan';
 
 export type Permission =
   | 'machines.read' | 'machines.manage' | 'machine_jobs.read' | 'machine_jobs.create'
-  | 'machine_jobs.edit' | 'machine_jobs.override_price'
+  | 'machine_jobs.edit' | 'machine_jobs.delete' | 'machine_jobs.override_price'
   | 'printer_slots.assign' | 'inventory.read' | 'inventory.manage' | 'filament_spools.manage' | 'orders.read' | 'orders.write' | 'orders.finalize' | 'payments.read' | 'payments.record'
   | 'pricing.read' | 'statistics.read'
   | 'printer_connectors.read' | 'printer_connectors.manage' | 'printer_connectors.credentials.manage';
@@ -24,7 +25,7 @@ export type Scenario = 'normal' | 'loading' | 'error' | 'empty';
 /** Outcome of the simulated "Test connection" call in the machine setup wizard. */
 export type ConnectionTestMode = 'success' | 'unreachable' | 'wrong_code';
 
-const ALL: Permission[] = ['machines.read', 'machines.manage', 'machine_jobs.read', 'machine_jobs.create', 'machine_jobs.edit', 'machine_jobs.override_price', 'printer_slots.assign', 'inventory.read', 'inventory.manage', 'filament_spools.manage', 'orders.read', 'orders.write', 'orders.finalize', 'payments.read', 'payments.record', 'pricing.read', 'statistics.read', 'printer_connectors.read', 'printer_connectors.manage', 'printer_connectors.credentials.manage'];
+const ALL: Permission[] = ['machines.read', 'machines.manage', 'machine_jobs.read', 'machine_jobs.create', 'machine_jobs.edit', 'machine_jobs.delete', 'machine_jobs.override_price', 'printer_slots.assign', 'inventory.read', 'inventory.manage', 'filament_spools.manage', 'orders.read', 'orders.write', 'orders.finalize', 'payments.read', 'payments.record', 'pricing.read', 'statistics.read', 'printer_connectors.read', 'printer_connectors.manage', 'printer_connectors.credentials.manage'];
 
 export const rolePresets: Record<Role, { label: string; description: string; permissions: Permission[] }> = {
   supervisor: { label: 'Workshop supervisor', description: 'All Machines & Jobs permissions', permissions: ALL },
@@ -58,13 +59,17 @@ const initialData = (): Data => structuredClone({
   printerProfiles: seed.printerProfiles, spools: seed.spools, materials: seed.materials, products: seed.filamentProducts, transactions: seed.inventoryTransactions,
 });
 
-export type Toast = { id: number; kind: 'success' | 'error' | 'info'; title: string; subtitle?: string };
+export type Toast = { id: number; kind: 'success' | 'error' | 'info'; title: string; subtitle?: string; /** A single follow-up link; shown as the action button of the notification. */ action?: { label: string; to: string } };
 
 export type JobFactsInput = {
   title: string | null; machineId: string; startsAt: string; endsAt: string; customer: BillingParty | null; operator: Operator | null;
   outcome: JobOutcome; notes: string | null;
 };
 export type UsageInput = Omit<JobUsage, 'id' | 'spoolDisplayId' | 'category' | 'unit'> & { materialName?: string };
+
+export type SeparateJobsShared = { customer: BillingParty; operator: Operator; pricingGroup: string | null };
+export type DeleteSelectionInput = { jobIds: string[]; runIds: string[]; deleteRuns: boolean; material: 'reverse' | 'keep' | null };
+export type DeleteSelectionResult = { jobs: number; runs: number; skipped: string[] };
 
 export type MaterialInput = Pick<Material, 'name' | 'category' | 'unit' | 'color' | 'diameterMm' | 'lowStockThreshold' | 'active'> & { id?: string };
 export type ProductInput = Omit<FilamentProduct, 'id'> & { id?: string };
@@ -115,6 +120,12 @@ type Actions = {
   /** The job keeps its values; its run returns to manual. */
   unlinkPrint: (printId: string) => void;
   createJobFromPrint: (printId: string, facts: JobFactsInput, usages: UsageInput[]) => Job;
+  /** One job per unassigned run (title = file name), sharing customer, operator and optionally a pricing group. */
+  createSeparateJobs: (runIds: string[], shared: SeparateJobsShared) => Job[];
+  /** Assigns unassigned runs on the job's machine to the job; times, runtime, material and outcome follow all of its runs. */
+  attachRuns: (runIds: string[], jobId: string, options?: { keepUsages?: boolean }) => void;
+  /** Deletes jobs and unassigned runs. Jobs on orders and running runs are skipped. Returns what was deleted and what was skipped. */
+  deleteSelection: (input: DeleteSelectionInput) => DeleteSelectionResult;
   /** Ends a manual run now: outcome cancelled, duration and price recalculated. */
   cancelRun: (jobId: string) => void;
   /** Records how a finished run ended. */
@@ -198,6 +209,19 @@ function price(job: Job): Pick<Job, 'calculatedPrice' | 'pricingSnapshot' | 'pri
   };
 }
 
+/** A new manual job; numbering looks at the jobs of `d`, so callers creating several jobs add each to `d` first. */
+function buildJob(d: Data, facts: JobFactsInput, usages: UsageInput[], pricingGroup: string | null = null): Job {
+  const next = Math.max(...d.jobs.map((job) => Number(job.displayId.slice(2)))) + 1;
+  const base: Job = {
+    id: uid('j'), displayId: `J-${next}`, ...facts, durationSeconds: secondsBetween(facts.startsAt, facts.endsAt), run: 'manual', printId: null, source: 'manual', externalId: null,
+    usages: usages.map((usage) => toUsage(usage, d.spools, d.materials)), pricingStatus: 'pending', pricingSnapshot: null, calculatedPrice: null,
+    priceAdjustment: null, order: null, version: 1,
+  };
+  // A pricing group chosen for a batch prices the job without changing the customer record.
+  const priced = price(pricingGroup && base.customer ? { ...base, customer: { ...base.customer, pricingGroup } } : base);
+  return { ...base, ...priced };
+}
+
 const secondsBetween = (startsAt: string, endsAt: string) => Math.max(60, Math.round((new Date(endsAt).getTime() - new Date(startsAt).getTime()) / 1000));
 const reprice = (job: Job): Job => ({ ...job, calculatedPrice: price(job).calculatedPrice });
 
@@ -226,6 +250,31 @@ function applyLink(d: Data, printId: string, jobId: string, keepUsages: boolean)
     ...d,
     jobs: d.jobs.map((item) => item.id === jobId ? linked : item),
     prints: d.prints.map((item) => item.id === printId ? { ...item, linkedJobId: jobId } : item),
+  };
+}
+
+/** Assigns unassigned runs to a job and recomputes the job from all of its runs. */
+function applyAttach(d: Data, runIds: string[], jobId: string, keepUsages: boolean): Data {
+  const job = d.jobs.find((item) => item.id === jobId);
+  if (!job) return d;
+  const added = runIds.map((id) => d.prints.find((item) => item.id === id)).filter((run): run is Print => !!run && run.linkedJobId === null && run.machineId === job.machineId && run.state !== 'printing');
+  if (added.length === 0) return d;
+  const current = runsOfJob(jobId, d.prints);
+  const plan = planAttach(job, current, added);
+  const usages = keepUsages ? job.usages : plan.usages.map((usage) => toUsage({
+    ownership: usage.materialId ? 'makerspace' : 'external', materialId: usage.materialId, spoolId: d.spools.find((spool) => spool.displayId === usage.spoolDisplayId)?.id ?? null,
+    materialName: usage.materialName, quantity: usage.quantity, quantityBasis: 'actual',
+  }, d.spools, d.materials));
+  const runs = [...current, ...added];
+  const updated = reprice({
+    ...job, run: 'automatic', source: 'automatic', printId: plan.first.id, externalId: runs.length > 1 ? `${plan.first.displayId} +${runs.length - 1}` : plan.first.displayId,
+    startsAt: plan.startsAt, endsAt: plan.endsAt, durationSeconds: plan.durationSeconds, usages, version: job.version + 1,
+    outcome: job.outcome === 'unknown' ? outcomeFromRuns(runs) : job.outcome,
+  });
+  const ids = new Set(added.map((run) => run.id));
+  return {
+    ...d, jobs: d.jobs.map((item) => item.id === jobId ? updated : item),
+    prints: d.prints.map((item) => ids.has(item.id) ? { ...item, linkedJobId: jobId } : item),
   };
 }
 
@@ -339,14 +388,7 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
 
   const actions: Actions = useMemo(() => ({
     createJob: (facts, usages) => {
-      const next = Math.max(...data.jobs.map((job) => Number(job.displayId.slice(2)))) + 1;
-      const durationSeconds = secondsBetween(facts.startsAt, facts.endsAt);
-      const base: Job = {
-        id: uid('j'), displayId: `J-${next}`, ...facts, durationSeconds, run: 'manual', printId: null, source: 'manual', externalId: null,
-        usages: usages.map((usage) => toUsage(usage, data.spools, data.materials)), pricingStatus: 'pending', pricingSnapshot: null, calculatedPrice: null,
-        priceAdjustment: null, order: null, version: 1,
-      };
-      const job = { ...base, ...price(base) };
+      const job = buildJob(data, facts, usages);
       setData((d) => ({ ...d, jobs: [job, ...d.jobs] }));
       return job;
     },
@@ -364,12 +406,69 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
     unlinkPrint: (printId) => setData((d) => {
       const print = d.prints.find((item) => item.id === printId);
       if (!print?.linkedJobId) return d;
-      return {
-        ...d,
-        prints: d.prints.map((item) => item.id === printId ? { ...item, linkedJobId: null } : item),
-        jobs: d.jobs.map((job) => job.id === print.linkedJobId ? { ...job, run: 'manual', source: 'manual', printId: null, externalId: null, version: job.version + 1 } : job),
-      };
+      const remaining = runsOfJob(print.linkedJobId, d.prints).filter((item) => item.id !== printId);
+      const prints = d.prints.map((item) => item.id === printId ? { ...item, linkedJobId: null } : item);
+      // A job with other runs left follows them; the last run leaving makes it a manual run with its current values.
+      const jobs = d.jobs.map((job) => {
+        if (job.id !== print.linkedJobId) return job;
+        if (remaining.length === 0) return { ...job, run: 'manual' as const, source: 'manual' as const, printId: null, externalId: null, version: job.version + 1 };
+        const summary = runsSummary(remaining);
+        return { ...job, printId: summary.first.id, externalId: remaining.length > 1 ? `${summary.first.displayId} +${remaining.length - 1}` : summary.first.displayId, startsAt: summary.startsAt, endsAt: summary.endsAt, durationSeconds: summary.durationSeconds, version: job.version + 1 };
+      });
+      return { ...d, prints, jobs };
     }),
+    attachRuns: (runIds, jobId, options) => setData((d) => applyAttach(d, runIds, jobId, options?.keepUsages ?? false)),
+    createSeparateJobs: (runIds, shared) => {
+      let next = data;
+      const created: Job[] = [];
+      for (const run of runIds.map((id) => data.prints.find((item) => item.id === id))) {
+        if (!run || run.linkedJobId || run.state === 'printing') continue;
+        const reported = run.reportedUsage;
+        const job = buildJob(next, {
+          title: run.fileName, machineId: run.machineId, startsAt: run.startedAt, endsAt: run.endedAt ?? run.estimatedEndAt ?? run.startedAt,
+          customer: shared.customer, operator: shared.operator, outcome: outcomeFromRuns([run]), notes: null,
+        }, reported ? [{
+          ownership: reported.materialId ? 'makerspace' : 'external', materialId: reported.materialId, spoolId: data.spools.find((spool) => spool.displayId === reported.spoolDisplayId)?.id ?? null,
+          materialName: reported.materialName, quantity: reported.quantity, quantityBasis: 'actual',
+        }] : [], shared.pricingGroup);
+        next = applyAttach({ ...next, jobs: [job, ...next.jobs] }, [run.id], job.id, true);
+        created.push(next.jobs.find((item) => item.id === job.id) ?? job);
+      }
+      setData(next);
+      return created;
+    },
+    deleteSelection: ({ jobIds, runIds, deleteRuns, material }) => {
+      const skipped: string[] = [];
+      const jobsToDelete = data.jobs.filter((job) => jobIds.includes(job.id)).filter((job) => {
+        if (!job.order) return true;
+        skipped.push(`${job.displayId} is on order ${job.order.orderReference} — remove it from the order first`);
+        return false;
+      });
+      const runsToDelete = data.prints.filter((run) => runIds.includes(run.id) && run.linkedJobId === null).filter((run) => {
+        if (run.state !== 'printing') return true;
+        skipped.push(`${run.displayId} is still running — wait until it has ended`);
+        return false;
+      });
+      const doomedJobs = new Set(jobsToDelete.map((job) => job.id));
+      const linkedRuns = data.prints.filter((run) => run.linkedJobId && doomedJobs.has(run.linkedJobId));
+      const doomedRuns = new Set([...runsToDelete.map((run) => run.id), ...(deleteRuns ? linkedRuns.map((run) => run.id) : [])]);
+      setData((d) => {
+        let next: Data = {
+          ...d,
+          jobs: d.jobs.filter((job) => !doomedJobs.has(job.id)),
+          prints: d.prints.filter((run) => !doomedRuns.has(run.id)).map((run) => run.linkedJobId && doomedJobs.has(run.linkedJobId) ? { ...run, linkedJobId: null } : run),
+        };
+        if (material === 'reverse') {
+          for (const job of jobsToDelete) {
+            for (const usage of job.usages.filter((item) => item.ownership === 'makerspace' && item.materialId)) {
+              next = applyTransaction(next, buildTransaction(next, usage.materialId!, usage.spoolId && next.spools.some((spool) => spool.id === usage.spoolId) ? usage.spoolId : null, 'correction', usage.quantity, { note: `Reversed: ${job.displayId} deleted`, jobId: null }));
+            }
+          }
+        }
+        return next;
+      });
+      return { jobs: jobsToDelete.length, runs: doomedRuns.size, skipped };
+    },
     createJobFromPrint: (printId, facts, usages) => {
       const job = actions.createJob(facts, usages);
       setData((d) => applyLink(d, printId, job.id, true));

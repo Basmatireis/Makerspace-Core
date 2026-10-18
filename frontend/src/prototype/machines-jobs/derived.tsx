@@ -65,7 +65,7 @@ export function machineActivity(machine: Machine, prints: Print[], jobs: Job[], 
   if (machine.status === 'maintenance') return { availability: 'maintenance', connectorIssue };
   const print = prints.find((item) => item.machineId === machine.id && item.state === 'printing');
   if (print) {
-    return { availability: 'in_use', connectorIssue, current: { kind: 'print', title: nameFromFile(print.fileName), href: `/jobs/prints/${print.id}`, startedAt: print.startedAt, endsAt: print.estimatedEndAt } };
+    return { availability: 'in_use', connectorIssue, current: { kind: 'print', title: nameFromFile(print.fileName), href: `/jobs/runs/${print.id}`, startedAt: print.startedAt, endsAt: print.estimatedEndAt } };
   }
   const job = jobs.find((item) => item.machineId === machine.id && isManualRunning(item, now));
   if (job) return { availability: 'in_use', connectorIssue, current: { kind: 'job', title: jobName(job), href: `/jobs/${job.id}`, startedAt: job.startsAt, endsAt: job.endsAt } };
@@ -163,7 +163,7 @@ export function BillingTag({ job }: { job: Job }) {
 }
 
 // ---------------------------------------------------------------------------
-// Print status
+// Recorded run status (the type is still called Print)
 // ---------------------------------------------------------------------------
 
 const printMeta: Record<PrintState, { label: string; type: 'blue' | 'green' | 'red' | 'gray' }> = {
@@ -198,16 +198,16 @@ export function PrintStateTag({ state, size = 'md' }: { state: PrintState; size?
 
 // ---------------------------------------------------------------------------
 // Unified Jobs rows
-// Prints come from printers; nobody creates them. A print that is linked to a
-// job is shown as that job; every other print is its own "unlinked" row.
+// Recorded runs come from printers; nobody creates them. A run assigned to a
+// job is shown as that job; every other run is its own "unassigned" row.
 // ---------------------------------------------------------------------------
 
-export type JobRowStatus = 'running' | 'printing' | 'unlinked' | 'needs_outcome' | JobOutcome;
+export type JobRowStatus = 'running' | 'printing' | 'unassigned' | 'needs_outcome' | JobOutcome;
 
 const rowStatusMeta: Record<JobRowStatus, { label: string; type: 'blue' | 'green' | 'red' | 'warm-gray' | 'gray' | 'cyan' | 'magenta'; icon: typeof InProgress }> = {
   running: { label: 'Running', type: 'blue', icon: InProgress },
-  printing: { label: 'Printing (unlinked)', type: 'cyan', icon: InProgress },
-  unlinked: { label: 'Unlinked print', type: 'magenta', icon: Flag },
+  printing: { label: 'Running (unassigned)', type: 'cyan', icon: InProgress },
+  unassigned: { label: 'Unassigned run', type: 'magenta', icon: Flag },
   needs_outcome: { label: 'Needs outcome', type: 'magenta', icon: WarningAltFilled },
   successful: outcomeMeta.successful,
   partial_failure: outcomeMeta.partial_failure,
@@ -248,9 +248,11 @@ export type JobRow = {
   price: number | null;
   href: string;
   job: Job | null;
-  /** The unlinked print of a print row, or the print linked to a job row. */
+  /** The unassigned run of a run row, or the earliest run assigned to a job row. */
   print: Print | null;
   run: 'manual' | 'printer';
+  /** Number of recorded runs assigned to a job row. */
+  runCount: number;
   materialIds: string[];
   materialNames: string[];
 };
@@ -269,27 +271,29 @@ export function jobName(job: Job, print?: Print | null) {
 export function buildJobRows(jobs: Job[], prints: Print[], machines: Machine[], now: number): JobRow[] {
   const machineName = (id: string) => machines.find((machine) => machine.id === id)?.name ?? 'Unknown machine';
   const printById = new Map(prints.map((print) => [print.id, print]));
+  const runCounts = new Map<string, number>();
+  for (const print of prints) if (print.linkedJobId) runCounts.set(print.linkedJobId, (runCounts.get(print.linkedJobId) ?? 0) + 1);
 
   const jobRows = jobs.map<JobRow>((job) => {
     const print = job.printId ? printById.get(job.printId) ?? null : null;
     return {
-      id: job.id, kind: 'job', title: jobName(job, print), secondaryIds: [job.displayId, ...(print ? [print.fileName] : [])].filter((value) => value !== jobName(job, print)),
+      id: job.id, kind: 'job', title: jobName(job, print), secondaryIds: [job.displayId, ...(print ? [(runCounts.get(job.id) ?? 0) > 1 ? `${runCounts.get(job.id)} runs` : print.fileName] : [])].filter((value) => value !== jobName(job, print)),
       machineId: job.machineId, machineName: machineName(job.machineId),
       customer: job.customer?.displayName ?? null, customerId: job.customer?.id ?? null,
       operator: job.operator?.displayName ?? null, operatorId: job.operator?.personId ?? null,
       startedAt: job.startsAt, status: jobStatus(job, print, now), price: effectivePrice(job), href: `/jobs/${job.id}`, job, print,
-      run: job.run === 'manual' ? 'manual' : 'printer',
+      run: job.run === 'manual' ? 'manual' : 'printer', runCount: runCounts.get(job.id) ?? 0,
       materialIds: job.usages.flatMap((usage) => usage.materialId ? [usage.materialId] : []),
       materialNames: job.usages.map((usage) => usage.materialName),
     };
   });
 
   const printRows = prints.filter((print) => !print.linkedJobId).map<JobRow>((print) => ({
-    id: print.id, kind: 'print', title: print.fileName, secondaryIds: [print.displayId, 'Unlinked'],
+    id: print.id, kind: 'print', title: print.fileName, secondaryIds: [print.displayId, 'Unassigned'],
     machineId: print.machineId, machineName: machineName(print.machineId),
     customer: null, customerId: null, operator: null, operatorId: null,
-    startedAt: print.startedAt, status: print.state === 'printing' ? 'printing' : 'unlinked', price: null,
-    href: `/jobs/prints/${print.id}`, job: null, print, run: 'printer',
+    startedAt: print.startedAt, status: print.state === 'printing' ? 'printing' : 'unassigned', price: null,
+    href: `/jobs/runs/${print.id}`, job: null, print, run: 'printer', runCount: 0,
     materialIds: print.reportedUsage?.materialId ? [print.reportedUsage.materialId] : [],
     materialNames: print.reportedUsage ? [print.reportedUsage.materialName] : [],
   }));
