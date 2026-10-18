@@ -1,0 +1,115 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+// Layout glue for the Sales & payments screens. Controls, tables, tiles and lists are Carbon components.
+
+.sales-num { text-align: end; font-variant-numeric: tabular-nums; }
+.sales-num--due { color: var(--cds-text-error); }
+.sales-tab-count { margin-inline-start: $spacing-03; }
+.cds--tab-content.sales-tab-panel { padding: $spacing-05 0 0; background: transparent; }
+.cds--tab-content.sales-tab-panel[hidden] { display: none; }
+.sales-top-gap { margin-block-start: $spacing-03; }
+.sales-field-error { @include type-style('helper-text-01'); color: var(--cds-text-error); }
+
+// Orders list ---------------------------------------------------------------------------------------------------------------
+.sales-filters { display: grid; gap: $spacing-05; inline-size: min(22rem, 86vw); padding: $spacing-05; }
+.sales-filters__actions { display: flex; justify-content: space-between; gap: $spacing-03; }
+.sales-ready-jobs { display: grid; gap: $spacing-03; margin: 0; padding: $spacing-03 0; list-style: none; }
+.sales-ready-jobs__row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: $spacing-05; padding-block: $spacing-02; border-block-end: 1px solid var(--cds-border-subtle); }
+.sales-ready-jobs__row:last-child { border-block-end: 0; }
+.sales-ready-jobs__row:not(:has(.cds--checkbox-wrapper)) { grid-template-columns: minmax(0, 1fr) auto; }
+
+// Order detail -----------------------------------------------------------------------------------------------------------------
+.sales-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: $spacing-05; }
+.sales-tile.cds--tile { display: grid; gap: $spacing-02; align-content: start; }
+.sales-tile__label { @include type-style('heading-compact-01'); }
+.sales-tile__value { @include type-style('productive-heading-05'); font-variant-numeric: tabular-nums; }
+.sales-facts { grid-template-columns: 1fr; }
+.sales-section-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: $spacing-03; padding: $spacing-03 $spacing-05 0; }
+.sales-table-note { padding: $spacing-03 $spacing-05; }
+.sales-row-actions { text-align: end; white-space: nowrap; }
+.sales-timeline .cds--contained-list-item__content { min-inline-size: 0; }
+.sales-job-picker { display: grid; gap: $spacing-03; margin: 0; padding: 0; border: 0; }
+.sales-job-picker__row { display: flex; align-items: center; justify-content: space-between; gap: $spacing-05; padding-block: $spacing-03; border-block-end: 1px solid var(--cds-border-subtle); }
+.sales-reason-list { display: grid; gap: $spacing-03; margin: $spacing-03 0 0; padding: 0; list-style: none; }
+.sales-reason-list li { display: flex; align-items: center; justify-content: space-between; gap: $spacing-05; @include type-style('body-compact-01'); }
+.sales-checklist { display: grid; gap: $spacing-03; margin: 0; padding: 0; list-style: none; }
+.sales-checklist li { display: flex; align-items: center; gap: $spacing-03; }
+.sales-checklist__ok { color: var(--cds-support-success); flex: none; }
+.sales-checklist__bad { color: var(--cds-support-error); flex: none; }
+.sales-receipt-choice { padding-block-end: $spacing-05; border-block-end: 1px solid var(--cds-border-subtle); }
+.sales-planned { display: grid; gap: $spacing-03; margin: 0; padding-inline-start: $spacing-05; list-style: disc; }
+
+// Payment entry -----------------------------------------------------------------------------------------------------------------
+.sales-modal-summary { display: flex; align-items: flex-end; justify-content: space-between; gap: $spacing-05; padding: $spacing-05; background: var(--cds-layer-accent); }
+.sales-modal-summary > div { display: grid; gap: $spacing-02; }
+.sales-modal-summary__amount { @include type-style('productive-heading-05'); }
+.sales-method-tiles > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: $spacing-03; }
+.sales-method-tile { display: flex; align-items: center; gap: $spacing-03; }
+.sales-payment-row { display: grid; gap: $spacing-05; }
+.sales-payment-row--split { padding: $spacing-05; border: 1px solid var(--cds-border-subtle); background: var(--cds-layer); }
+.sales-payment-row__head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: $spacing-03; }
+.sales-amount-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: $spacing-03; }
+.sales-amount-line:not(:has(.cds--btn)) { grid-template-columns: minmax(0, 1fr); }
+.sales-tender-buttons { display: flex; flex-wrap: wrap; gap: $spacing-03; }
+.sales-change.cds--tile { display: flex; align-items: center; justify-content: space-between; gap: $spacing-05; background: var(--cds-layer-accent); }
+.sales-change__amount { @include type-style('productive-heading-04'); font-variant-numeric: tabular-nums; }
+.sales-cover { display: flex; flex-wrap: wrap; align-items: center; gap: $spacing-03; }
+
+// Counter sale -------------------------------------------------------------------------------------------------------------------
+.sales-counter { display: grid; grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr); gap: $spacing-05; align-items: start; }
+.sales-price { position: sticky; inset-block-start: calc(3rem + #{$spacing-05}); }
+.sales-quote { display: grid; gap: $spacing-04; margin: 0; padding: 0; list-style: none; @include type-style('body-compact-01'); }
+.sales-quote li { display: flex; justify-content: space-between; gap: $spacing-05; }
+.sales-total { display: flex; align-items: baseline; justify-content: space-between; padding-block-start: $spacing-04; border-block-start: 1px solid var(--cds-border-strong); @include type-style('heading-compact-02'); }
+.sales-total strong { @include type-style('productive-heading-05'); font-variant-numeric: tabular-nums; }
+.sales-problems { margin: $spacing-04 0 0; padding-inline-start: $spacing-05; list-style: disc; @include type-style('helper-text-01'); color: var(--cds-text-secondary); }
+.sales-run-tiles > div { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: $spacing-03; }
+.sales-run { display: flex; align-items: center; gap: $spacing-04; }
+.sales-run__thumb { flex: none; inline-size: 4rem; block-size: 4rem; object-fit: cover; background: var(--cds-layer-accent); }
+.sales-spool-tiles > div { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: $spacing-03; }
+.sales-spool { display: flex; align-items: center; gap: $spacing-04; }
+.sales-lines { display: grid; gap: $spacing-06; }
+.sales-line { display: grid; gap: $spacing-05; padding-block-end: $spacing-05; border-block-end: 1px solid var(--cds-border-subtle); }
+.sales-line__head { display: flex; align-items: flex-end; justify-content: space-between; gap: $spacing-03; }
+.sales-extra { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)) auto auto; align-items: end; gap: $spacing-04; padding-block-end: $spacing-05; border-block-end: 1px solid var(--cds-border-subtle); }
+.sales-extra__amount { display: grid; gap: $spacing-02; min-inline-size: 5rem; text-align: end; }
+.sales-pricebar { display: none; }
+
+// Completion screen and receipt ----------------------------------------------------------------------------------------------------
+.sales-done { display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem); gap: $spacing-07; align-items: start; }
+.sales-done__banner { display: flex; align-items: center; gap: $spacing-05; }
+.sales-done__icon { color: var(--cds-support-success); flex: none; }
+.sales-receipt-wrap { display: grid; gap: $spacing-05; }
+.sales-receipt { display: grid; gap: $spacing-04; padding: $spacing-06; background: #fff; color: #161616; border: 1px solid var(--cds-border-subtle); font-family: 'IBM Plex Mono', monospace; font-size: 0.8125rem; line-height: 1.4; }
+.sales-receipt__head { display: grid; gap: $spacing-01; text-align: center; padding-block-end: $spacing-04; border-block-end: 1px dashed #8d8d8d; }
+.sales-receipt__lines { display: grid; gap: $spacing-02; margin: 0; padding: 0; list-style: none; }
+.sales-receipt__lines li, .sales-receipt__total { display: flex; justify-content: space-between; gap: $spacing-04; }
+.sales-receipt__total { padding-block: $spacing-03; border-block: 1px dashed #8d8d8d; font-weight: 600; }
+.sales-receipt__note, .sales-receipt__foot { text-align: center; margin: 0; }
+.sales-receipt__foot { padding-block-start: $spacing-04; border-block-start: 1px dashed #8d8d8d; }
+.sales-receipt-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: $spacing-04; }
+
+@media (max-width: 65.98rem) {
+  .sales-counter, .sales-done { grid-template-columns: minmax(0, 1fr); }
+  .sales-price { position: static; }
+}
+
+@media (max-width: 41.98rem) {
+  .sales-method-tiles > div { grid-template-columns: 1fr; }
+  .sales-ready-jobs__row { grid-template-columns: auto minmax(0, 1fr); }
+  .sales-ready-jobs__row > :last-child { grid-column: 1 / -1; }
+  // The total and the completing button stay within reach on a narrow screen.
+  .sales-pricebar { position: fixed; inset-inline: 0; inset-block-end: 0; z-index: 8000; display: flex; align-items: center; justify-content: space-between; gap: $spacing-05; padding: $spacing-04 $spacing-05; background: var(--cds-layer); border-block-start: 1px solid var(--cds-border-strong); }
+  .sales-counter { padding-block-end: 5rem; }
+}
+
+@media print {
+  body * { visibility: hidden; }
+  .sales-receipt, .sales-receipt * { visibility: visible; }
+  .sales-receipt { position: absolute; inset-block-start: 0; inset-inline-start: 0; inline-size: 80mm; border: 0; }
+}
+
+// Tags in stacked cells keep their natural width instead of stretching.
+.sales-tab-panel .mj-cell-stack { justify-items: start; }
+.sales-done__icon { fill: var(--cds-support-success); }

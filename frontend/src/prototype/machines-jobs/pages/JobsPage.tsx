@@ -3,7 +3,7 @@ import {
   Button, ComboBox, DataTable, InlineNotification, Link as CarbonLink, MultiSelect, Pagination, Table, TableBatchAction, TableBatchActions, TableBody, TableCell,
   TableContainer, TableHead, TableHeader, TableRow, TableSelectAll, TableSelectRow, TableToolbar, TableToolbarContent, TableToolbarSearch,
 } from '@carbon/react';
-import { Filter, Link as LinkIcon, Merge, Split, TrashCan } from '@carbon/icons-react';
+import { Filter, Link as LinkIcon, Merge, Receipt, Split, TrashCan } from '@carbon/icons-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { dateInAppTimeZone } from '../../../app/dateTime';
 import { DateInput } from '../../../app/DateInput';
@@ -20,6 +20,8 @@ import { matchesName, usageRowFromPrint } from '../dialogs/jobFormHelpers';
 import { batchAvailability, outcomeFromRuns, runsSummary, sumReportedUsages, type BatchAction } from '../runs';
 import { lookups, useNow, useSimulatedQuery, useStore } from '../store';
 import type { Job, Machine, Print } from '../types';
+import { AddToOrderModal } from '../sales/dialogs/AddToOrderModal';
+import { addToOrderBlocker } from '../sales/logic';
 import '../styles/jobs.scss';
 
 type Option = { id: string; label: string };
@@ -55,11 +57,12 @@ export function JobsPage() {
   const [jobOpen, setJobOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [batch, setBatch] = useState<BatchAction | null>(null);
+  const [orderOpen, setOrderOpen] = useState(false);
   const now = useNow();
   const query = useSimulatedQuery((data) => ({ jobs: data.jobs, prints: data.prints, machines: data.machines }), EMPTY);
 
   const canCreate = store.can('machine_jobs.create');
-  const selectable = canCreate || store.can('machine_jobs.edit') || store.can('machine_jobs.delete');
+  const selectable = canCreate || store.can('machine_jobs.edit') || store.can('machine_jobs.delete') || store.can('orders.write');
 
   const statusIds = listParam(params.get('status'));
   const machineIds = listParam(params.get('machine'));
@@ -130,6 +133,8 @@ export function JobsPage() {
   const selectedRuns = selectedRows.flatMap((row) => row.kind === 'print' && row.print ? [row.print] : []);
   const availability = batchAvailability(selectedRows, store.can);
   const unavailable = (Object.entries(availability) as [BatchAction, { enabled: boolean; reason: string | null }][]).filter(([, item]) => !item.enabled);
+  const selectedJobs = selectedRows.map((row) => row.job);
+  const orderBlocker = addToOrderBlocker(selectedJobs, store.orders, store.prints, now, store.can('orders.write'));
   const pageIds = pageRows.map((row) => row.id);
   const pageSelected = pageIds.filter((id) => selected.has(id)).length;
   const toggle = (id: string) => setSelected((current) => { const next = new Set(current); if (!next.delete(id)) next.add(id); return next; });
@@ -202,6 +207,7 @@ export function JobsPage() {
                       <TableBatchAction renderIcon={Split} disabled={!availability.separate.enabled} onClick={() => setBatch('separate')}>Create separate jobs</TableBatchAction>
                       <TableBatchAction renderIcon={Merge} disabled={!availability.combined.enabled} onClick={() => setBatch('combined')}>Create combined job</TableBatchAction>
                       <TableBatchAction renderIcon={LinkIcon} disabled={!availability.attach.enabled} onClick={() => setBatch('attach')}>Attach to job</TableBatchAction>
+                      {store.can('orders.read') && <TableBatchAction renderIcon={Receipt} disabled={orderBlocker !== null} onClick={() => setOrderOpen(true)}>Add to order</TableBatchAction>}
                     </TableBatchActions>
                   )}
                   <TableToolbarContent>
@@ -243,9 +249,9 @@ export function JobsPage() {
                     </div>
                   </div>
                 )}
-                {selectable && selectedRows.length > 0 && unavailable.length > 0 && (
+                {selectable && selectedRows.length > 0 && (unavailable.length > 0 || orderBlocker) && (
                   <InlineNotification kind="info" lowContrast hideCloseButton title="Some actions are unavailable for this selection">
-                    <ul className="mj-skip-list">{unavailable.map(([action, item]) => <li key={action}>{item.reason}</li>)}</ul>
+                    <ul className="mj-skip-list">{unavailable.map(([action, item]) => <li key={action}>{item.reason}</li>)}{orderBlocker && store.can('orders.read') && <li>{orderBlocker}</li>}</ul>
                   </InlineNotification>
                 )}
                 <Table {...getTableProps()} aria-label="Jobs">
@@ -303,6 +309,7 @@ export function JobsPage() {
         </DataTable>
       </QueryBoundary>
       <JobFormModal open={jobOpen} onClose={() => setJobOpen(false)} mode="create" />
+      <AddToOrderModal open={orderOpen} jobs={orderBlocker === null ? selectedJobs.filter((job): job is Job => job !== null) : []} onClose={() => setOrderOpen(false)} onDone={clearSelection} />
       <DeleteSelectionModal open={batch === 'delete'} onClose={() => setBatch(null)} rows={selectedRows} onDone={clearSelection} />
       <CreateSeparateJobsModal open={batch === 'separate'} onClose={() => setBatch(null)} runs={selectedRuns} onDone={clearSelection} />
       <AttachToJobModal open={batch === 'attach'} onClose={() => setBatch(null)} runs={selectedRuns} onDone={clearSelection} />

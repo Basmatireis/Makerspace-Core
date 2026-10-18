@@ -1,12 +1,18 @@
 /* eslint-disable react-refresh/only-export-components -- store provider, hooks and role presets form one module */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as seed from './mockData';
 import type {
   AdapterKind, BillingParty, ConnectorHost, DetectedPrinterState, PrinterLiveStatus, IdentifierKind, InventoryTransaction, InventoryTransactionKind, FilamentProduct, Job, JobOutcome, JobUsage, Machine, MachineStatus, MachineType, Material, Nozzle, Operator, Print, PrinterModelId, PrinterProfile, SlotStatus,
   PriceAdjustment, Spool, SpoolFill, SpoolIdentifier, SpoolKind, SpoolLifecycle, SpoolStockSource,
 } from './types';
 import { leftoverOutcome, planClose, type LeftoverChoice } from './fillPlan';
+import { nameFromFile } from './derived';
 import { outcomeFromRuns, planAttach, runsOfJob, runsSummary } from './runs';
+import * as sales from './sales/engine';
+import { CURRENT_ACTOR } from './sales/labels';
+import { quoteJob } from './sales/pricing';
+import { salesSeed } from './sales/mockData';
+import type { Allocation, InvoiceRequest, Order, OrderAdjustment, Payment, PaymentInput, SalesCounters } from './sales/types';
 
 // ---------------------------------------------------------------------------
 // Prototype controls: role presets and simulated data states.
@@ -17,20 +23,32 @@ export type Permission =
   | 'machines.read' | 'machines.manage' | 'machine_jobs.read' | 'machine_jobs.create'
   | 'machine_jobs.edit' | 'machine_jobs.delete' | 'machine_jobs.override_price'
   | 'printer_slots.assign' | 'inventory.read' | 'inventory.manage' | 'filament_spools.manage' | 'orders.read' | 'orders.write' | 'orders.finalize' | 'payments.read' | 'payments.record'
-  | 'pricing.read' | 'statistics.read'
-  | 'printer_connectors.read' | 'printer_connectors.manage' | 'printer_connectors.credentials.manage';
+  | 'orders.reverse' | 'payments.reverse' | 'external_invoice_requests.read' | 'external_invoice_requests.manage' | 'pricing.read' | 'pricing.manage' | 'organizations.read' | 'organizations.manage'
+  | 'statistics.read' | 'printer_connectors.read' | 'printer_connectors.manage' | 'printer_connectors.credentials.manage';
 
-export type Role = 'supervisor' | 'operator' | 'viewer';
+export type Role = 'supervisor' | 'operator' | 'viewer' | 'front_desk' | 'finance';
 export type Scenario = 'normal' | 'loading' | 'error' | 'empty';
 /** Outcome of the simulated "Test connection" call in the machine setup wizard. */
 export type ConnectionTestMode = 'success' | 'unreachable' | 'wrong_code';
 
-const ALL: Permission[] = ['machines.read', 'machines.manage', 'machine_jobs.read', 'machine_jobs.create', 'machine_jobs.edit', 'machine_jobs.delete', 'machine_jobs.override_price', 'printer_slots.assign', 'inventory.read', 'inventory.manage', 'filament_spools.manage', 'orders.read', 'orders.write', 'orders.finalize', 'payments.read', 'payments.record', 'pricing.read', 'statistics.read', 'printer_connectors.read', 'printer_connectors.manage', 'printer_connectors.credentials.manage'];
+const ALL: Permission[] = [
+  'machines.read', 'machines.manage', 'machine_jobs.read', 'machine_jobs.create', 'machine_jobs.edit', 'machine_jobs.delete', 'machine_jobs.override_price', 'printer_slots.assign', 'inventory.read', 'inventory.manage', 'filament_spools.manage',
+  'orders.read', 'orders.write', 'orders.finalize', 'orders.reverse', 'payments.read', 'payments.record', 'payments.reverse', 'external_invoice_requests.read', 'external_invoice_requests.manage',
+  'pricing.read', 'pricing.manage', 'organizations.read', 'organizations.manage', 'statistics.read', 'printer_connectors.read', 'printer_connectors.manage', 'printer_connectors.credentials.manage',
+];
 
 export const rolePresets: Record<Role, { label: string; description: string; permissions: Permission[] }> = {
-  supervisor: { label: 'Workshop supervisor', description: 'All Machines & Jobs permissions', permissions: ALL },
+  supervisor: { label: 'Workshop supervisor', description: 'All Machines & Jobs and Sales permissions', permissions: ALL },
   operator: { label: 'Operator', description: 'Creates jobs; no linking, pricing or machine setup', permissions: ['machines.read', 'machine_jobs.read', 'machine_jobs.create', 'printer_slots.assign', 'inventory.read'] },
   viewer: { label: 'Read-only', description: 'Can look up machines and jobs only', permissions: ['machines.read', 'machine_jobs.read'] },
+  front_desk: {
+    label: 'Front desk', description: 'Counter sales and payments; no reversals, no wiRef',
+    permissions: ['machines.read', 'machine_jobs.read', 'machine_jobs.create', 'machine_jobs.override_price', 'inventory.read', 'orders.read', 'orders.write', 'orders.finalize', 'payments.read', 'payments.record', 'pricing.read'],
+  },
+  finance: {
+    label: 'Finance', description: 'All sales, payments and invoicing; read-only workshop',
+    permissions: ['machines.read', 'machine_jobs.read', 'inventory.read', 'statistics.read', 'orders.read', 'orders.write', 'orders.finalize', 'orders.reverse', 'payments.read', 'payments.record', 'payments.reverse', 'external_invoice_requests.read', 'external_invoice_requests.manage', 'pricing.read', 'pricing.manage', 'organizations.read', 'organizations.manage'],
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -52,11 +70,18 @@ type Data = {
   materials: Material[];
   products: FilamentProduct[];
   transactions: InventoryTransaction[];
+  orders: Order[];
+  payments: Payment[];
+  allocations: Allocation[];
+  adjustments: OrderAdjustment[];
+  requests: InvoiceRequest[];
+  counters: SalesCounters;
 };
 
 const initialData = (): Data => structuredClone({
-  machines: seed.machines, connectorHosts: seed.connectorHosts, detected: seed.detectedStates, liveStatus: seed.liveStatuses, machineTypes: seed.machineTypes, jobs: seed.jobs, prints: seed.prints,
+  machines: seed.machines, connectorHosts: seed.connectorHosts, detected: seed.detectedStates, liveStatus: seed.liveStatuses, machineTypes: seed.machineTypes, jobs: salesSeed.jobs, prints: seed.prints,
   printerProfiles: seed.printerProfiles, spools: seed.spools, materials: seed.materials, products: seed.filamentProducts, transactions: seed.inventoryTransactions,
+  orders: salesSeed.orders, payments: salesSeed.payments, allocations: salesSeed.allocations, adjustments: salesSeed.adjustments, requests: salesSeed.requests, counters: salesSeed.counters,
 });
 
 export type Toast = { id: number; kind: 'success' | 'error' | 'info'; title: string; subtitle?: string; /** A single follow-up link; shown as the action button of the notification. */ action?: { label: string; to: string } };
@@ -155,6 +180,35 @@ type Actions = {
   finishSpool: (spoolId: string, leftover: LeftoverChoice) => void;
   /** Hard-deletes archived single-use spools archived before `olderThan` (ISO); ledger entries and job usages keep the spool ID as text. */
   deleteArchivedSpools: (olderThan: string) => Spool[];
+
+  // Sales & payments. Each runs one engine transition (see sales/engine.ts) and throws a SalesError when a rule is violated.
+  createDraftOrder: SalesAction<typeof sales.createDraft>;
+  updateDraftOrder: SalesAction<typeof sales.updateDraft>;
+  addOrderManualItem: SalesAction<typeof sales.addManualItem>;
+  addOrderJobs: SalesAction<typeof sales.addJobItems>;
+  updateOrderManualItem: SalesAction<typeof sales.updateManualItem>;
+  removeOrderItem: SalesAction<typeof sales.removeItem>;
+  refreshOrderItem: SalesAction<typeof sales.refreshItem>;
+  cancelDraftOrder: SalesAction<typeof sales.cancelDraft>;
+  finalizeOrder: SalesAction<typeof sales.finalizeOrder>;
+  checkoutOrder: SalesAction<typeof sales.checkoutOrder>;
+  recordOrderPayments: SalesAction<typeof sales.recordPayments>;
+  reverseOrderPayment: SalesAction<typeof sales.reversePayment>;
+  reverseOrder: SalesAction<typeof sales.reverseOrder>;
+  startReplacement: SalesAction<typeof sales.startReplacement>;
+  commitReplacement: SalesAction<typeof sales.commitReplacement>;
+  duplicateOrder: SalesAction<typeof sales.duplicateAsDraft>;
+  createDraftFromJobs: SalesAction<typeof sales.draftFromJobs>;
+  prepareInvoiceRequest: SalesAction<typeof sales.prepareInvoiceRequest>;
+  /** Anonymous sale: job, stock consumption, order, finalization and complete settlement in one step. */
+  createCounterSale: (input: CounterSaleRequest) => { orderId: string; jobId: string };
+};
+
+type SalesAction<F> = F extends (state: sales.SalesState, c: sales.Ctx, ...args: infer A) => infer R ? (...args: A) => Omit<R, 'state'> : never;
+
+export type CounterSaleRequest = {
+  machineId: string; minutes: number; operator: Operator; usages: UsageInput[]; runId: string | null; pricingGroup: string; adjustment: PriceAdjustment | null;
+  extras: sales.ManualItemInput[]; payments: PaymentInput[];
 };
 
 type Store = Data & Actions & {
@@ -242,7 +296,7 @@ function applyLink(d: Data, printId: string, jobId: string, keepUsages: boolean)
     : job.usages;
   const linked = reprice({
     ...job, run: 'automatic', source: 'automatic', printId, externalId: print.displayId,
-    startsAt: print.startedAt, endsAt, durationSeconds: secondsBetween(print.startedAt, endsAt), usages, version: job.version + 1,
+    startsAt: print.startedAt, endsAt, durationSeconds: secondsBetween(print.startedAt, endsAt), usages, version: job.version + 1, order: changedOrder(job),
     // A finished print reports how it ended; a still-printing one leaves the outcome open.
     outcome: job.outcome === 'unknown' && print.state !== 'printing' ? PRINT_OUTCOME[print.state] : job.outcome,
   });
@@ -268,7 +322,7 @@ function applyAttach(d: Data, runIds: string[], jobId: string, keepUsages: boole
   const runs = [...current, ...added];
   const updated = reprice({
     ...job, run: 'automatic', source: 'automatic', printId: plan.first.id, externalId: runs.length > 1 ? `${plan.first.displayId} +${runs.length - 1}` : plan.first.displayId,
-    startsAt: plan.startsAt, endsAt: plan.endsAt, durationSeconds: plan.durationSeconds, usages, version: job.version + 1,
+    startsAt: plan.startsAt, endsAt: plan.endsAt, durationSeconds: plan.durationSeconds, usages, version: job.version + 1, order: changedOrder(job),
     outcome: job.outcome === 'unknown' ? outcomeFromRuns(runs) : job.outcome,
   });
   const ids = new Set(added.map((run) => run.id));
@@ -277,6 +331,9 @@ function applyAttach(d: Data, runIds: string[], jobId: string, keepUsages: boole
     prints: d.prints.map((item) => ids.has(item.id) ? { ...item, linkedJobId: jobId } : item),
   };
 }
+
+/** A job that changed after it was charged keeps its order link but flags the order as outdated. */
+const changedOrder = (job: Job) => job.order ? { ...job.order, sourceChanged: true } : null;
 
 const round = (value: number, digits: number) => Math.round(value * 10 ** digits) / 10 ** digits + 0;
 
@@ -353,6 +410,9 @@ function buildTransaction(
   };
 }
 
+const salesSlice = (d: Data): sales.SalesState => ({ orders: d.orders, payments: d.payments, allocations: d.allocations, adjustments: d.adjustments, requests: d.requests, jobs: d.jobs, counters: d.counters });
+const salesCtx = (d: Data): sales.Ctx => ({ at: new Date().toISOString(), actor: CURRENT_ACTOR, machines: d.machines, machineTypes: d.machineTypes, prints: d.prints });
+
 const CLEARED_FILL = { materialId: '', materialName: '', color: '', initialNetWeightG: 0, productId: null, manufacturer: null, productName: null, filledAt: null } as const;
 
 /** Writes the closing ledger entries and moves the current fill into the history. Reusable spools end without a current fill. */
@@ -375,6 +435,10 @@ function closeCurrentFill(d: Data, spoolId: string, choice: LeftoverChoice): Dat
 
 export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<Data>(initialData);
+  // Sales actions run engine transitions and return ids synchronously, so they read the latest data through a ref that they also update eagerly.
+  const dataRef = useRef(data);
+  useEffect(() => { dataRef.current = data; }, [data]);
+  const commit = useCallback((next: Data) => { dataRef.current = next; setData(next); }, []);
   const [role, setRole] = useState<Role>('supervisor');
   const [scenario, setScenario] = useState<Scenario>('normal');
   const [connectionTest, setConnectionTest] = useState<ConnectionTestMode>('success');
@@ -383,10 +447,47 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
   const notify = useCallback((toast: Omit<Toast, 'id'>) => setToasts((current) => [...current, { ...toast, id: Date.now() + Math.random() }]), []);
   const dismissToast = useCallback((id: number) => setToasts((current) => current.filter((item) => item.id !== id)), []);
 
-  const patchJob = useCallback((id: string, fn: (job: Job) => Job) => setData((d) => ({ ...d, jobs: d.jobs.map((job) => job.id === id ? { ...fn(job), version: job.version + 1 } : job) })), []);
+  const patchJob = useCallback((id: string, fn: (job: Job) => Job) => setData((d) => ({ ...d, jobs: d.jobs.map((job) => job.id === id ? { ...fn(job), version: job.version + 1, order: changedOrder(job) } : job) })), []);
   const patchProfile = useCallback((machineId: string, fn: (p: PrinterProfile) => PrinterProfile) => setData((d) => ({ ...d, printerProfiles: d.printerProfiles.map((p) => p.machineId === machineId ? fn(p) : p) })), []);
 
+  const salesAction = useCallback(<A extends unknown[], R extends { state: sales.SalesState }>(fn: (state: sales.SalesState, c: sales.Ctx, ...args: A) => R) => (...args: A): Omit<R, 'state'> => {
+    const d = dataRef.current;
+    const { state, ...rest } = fn(salesSlice(d), salesCtx(d), ...args);
+    commit({ ...d, ...state });
+    return rest;
+  }, [commit]);
+
   const actions: Actions = useMemo(() => ({
+    createDraftOrder: salesAction(sales.createDraft), updateDraftOrder: salesAction(sales.updateDraft), addOrderManualItem: salesAction(sales.addManualItem),
+    addOrderJobs: salesAction(sales.addJobItems), updateOrderManualItem: salesAction(sales.updateManualItem), removeOrderItem: salesAction(sales.removeItem),
+    refreshOrderItem: salesAction(sales.refreshItem), cancelDraftOrder: salesAction(sales.cancelDraft), finalizeOrder: salesAction(sales.finalizeOrder),
+    checkoutOrder: salesAction(sales.checkoutOrder), recordOrderPayments: salesAction(sales.recordPayments), reverseOrderPayment: salesAction(sales.reversePayment),
+    reverseOrder: salesAction(sales.reverseOrder), startReplacement: salesAction(sales.startReplacement), commitReplacement: salesAction(sales.commitReplacement),
+    duplicateOrder: salesAction(sales.duplicateAsDraft), createDraftFromJobs: salesAction(sales.draftFromJobs), prepareInvoiceRequest: salesAction(sales.prepareInvoiceRequest),
+    createCounterSale: (input) => {
+      const d = dataRef.current;
+      const run = input.runId ? d.prints.find((item) => item.id === input.runId && item.linkedJobId === null) : undefined;
+      if (input.runId && !run) throw new sales.SalesError('run_unavailable', 'That run was assigned to a job in the meantime');
+      const at = new Date().toISOString();
+      const endsAt = run ? run.endedAt ?? at : at;
+      const startsAt = run ? run.startedAt : new Date(Date.now() - input.minutes * 60_000).toISOString();
+      const usages = input.usages.map((usage) => toUsage(usage, d.spools, d.materials));
+      const durationSeconds = secondsBetween(startsAt, endsAt);
+      const quote = quoteJob({ group: input.pricingGroup, durationSeconds, usages });
+      const job: Job = {
+        id: uid('j'), displayId: `J-${Math.max(...d.jobs.map((item) => Number(item.displayId.slice(2)))) + 1}`, title: run ? nameFromFile(run.fileName) : null, machineId: input.machineId, startsAt, endsAt, durationSeconds,
+        run: run ? 'automatic' : 'manual', printId: run?.id ?? null, source: run ? 'automatic' : 'manual', externalId: run?.displayId ?? null, customer: null, operator: input.operator, outcome: 'successful', notes: 'Counter sale',
+        usages, pricingStatus: 'complete', pricingSnapshot: { revision: 1, pricingGroupName: input.pricingGroup, reason: 'initial', capturedAt: at, rules: quote.rules },
+        calculatedPrice: quote.total, priceAdjustment: input.adjustment, order: null, version: 1,
+      };
+      const result = sales.counterSale(salesSlice(d), salesCtx(d), { job, extras: input.extras, payments: input.payments });
+      let next: Data = { ...d, ...result.state, prints: run ? d.prints.map((item) => item.id === run.id ? { ...item, linkedJobId: job.id } : item) : d.prints };
+      for (const usage of job.usages.filter((item) => item.ownership === 'makerspace' && item.materialId)) {
+        next = applyTransaction(next, buildTransaction(next, usage.materialId!, usage.spoolId, 'consumption', usage.quantity, { jobId: job.id, note: `Counter sale ${job.displayId}` }));
+      }
+      commit(next);
+      return { orderId: result.orderId, jobId: job.id };
+    },
     createJob: (facts, usages) => {
       const job = buildJob(data, facts, usages);
       setData((d) => ({ ...d, jobs: [job, ...d.jobs] }));
@@ -411,9 +512,9 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
       // A job with other runs left follows them; the last run leaving makes it a manual run with its current values.
       const jobs = d.jobs.map((job) => {
         if (job.id !== print.linkedJobId) return job;
-        if (remaining.length === 0) return { ...job, run: 'manual' as const, source: 'manual' as const, printId: null, externalId: null, version: job.version + 1 };
+        if (remaining.length === 0) return { ...job, run: 'manual' as const, source: 'manual' as const, printId: null, externalId: null, version: job.version + 1, order: changedOrder(job) };
         const summary = runsSummary(remaining);
-        return { ...job, printId: summary.first.id, externalId: remaining.length > 1 ? `${summary.first.displayId} +${remaining.length - 1}` : summary.first.displayId, startsAt: summary.startsAt, endsAt: summary.endsAt, durationSeconds: summary.durationSeconds, version: job.version + 1 };
+        return { ...job, printId: summary.first.id, externalId: remaining.length > 1 ? `${summary.first.displayId} +${remaining.length - 1}` : summary.first.displayId, startsAt: summary.startsAt, endsAt: summary.endsAt, durationSeconds: summary.durationSeconds, version: job.version + 1, order: changedOrder(job) };
       });
       return { ...d, prints, jobs };
     }),
@@ -674,7 +775,7 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
       }));
       return doomed;
     },
-  }), [data, connectionTest, patchJob, patchProfile]);
+  }), [data, connectionTest, patchJob, patchProfile, salesAction, commit]);
 
   const permissions = rolePresets[role].permissions;
   const value: Store = {

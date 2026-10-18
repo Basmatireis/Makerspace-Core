@@ -123,6 +123,13 @@ export const people: BillingParty[] = [
   { kind: 'person', id: 'p-tobias', displayName: 'Tobias Wagner', pricingGroup: 'External' },
   { kind: 'organization', id: 'o-racing', displayName: 'TU Graz Racing Team', pricingGroup: 'Student teams' },
   { kind: 'organization', id: 'o-robotics', displayName: 'Robotics Lab', pricingGroup: 'Institutes' },
+  // Further billing parties for the sales screens. Appended, so the destructuring of the first six below stays valid.
+  { kind: 'person', id: 'p-mara', displayName: 'Mara Gruber', pricingGroup: 'Students' },
+  { kind: 'person', id: 'p-felix', displayName: 'Felix Brandstätter', pricingGroup: 'External' },
+  { kind: 'person', id: 'p-elif', displayName: 'Elif Yilmaz', pricingGroup: 'Staff' },
+  { kind: 'organization', id: 'o-kreativ', displayName: 'Kreativwerkstatt Graz GmbH', pricingGroup: 'External' },
+  { kind: 'organization', id: 'o-htl', displayName: 'HTL Bulme Robotics Club', pricingGroup: 'Student teams' },
+  { kind: 'organization', id: 'o-fablab', displayName: 'FabLab Steiermark Verein', pricingGroup: 'Institutes' },
 ];
 
 export const operators: Operator[] = [
@@ -355,13 +362,13 @@ export const jobs: Job[] = [
     pricingStatus: 'complete', pricingSnapshot: snapshot('Student teams', ago(5 * H + 30)), calculatedPrice: 14.4, priceAdjustment: { kind: 'discount_percent', value: 20, reason: 'Student team sponsorship agreement.' }, order: null, version: 2 },
   { id: 'j-1089', displayId: 'J-1089', title: null, machineId: 'm-mk4-1', startsAt: ago(1 * D + 2 * H), endsAt: ago(1 * D - 1 * H), durationSeconds: 10800, run: 'automatic', printId: 'pr-301', source: 'automatic', externalId: 'prusa-55101', customer: lena, operator: sara, outcome: 'successful', notes: null,
     usages: [{ id: 'u5', ownership: 'makerspace', materialId: 'mat-pla-black', spoolId: 'sp-0141', spoolDisplayId: 'SP-0141', materialName: 'PLA Black', category: 'Filament', unit: 'g', quantity: 142, quantityBasis: 'actual' }],
-    pricingStatus: 'complete', pricingSnapshot: snapshot('Students', ago(1 * D - 1 * H)), calculatedPrice: 11.68, priceAdjustment: null, order: { orderId: 'ord-2201', orderReference: 'ORD-2201', sourceChanged: false }, version: 3 },
+    pricingStatus: 'complete', pricingSnapshot: snapshot('Students', ago(1 * D - 1 * H)), calculatedPrice: 11.68, priceAdjustment: null, order: null, version: 3 },
   { id: 'j-1088', displayId: 'J-1088', title: null, machineId: 'm-x1c', startsAt: ago(1 * D + 5 * H), endsAt: ago(1 * D + 3 * H), durationSeconds: 7200, run: 'automatic', printId: 'pr-300', source: 'automatic', externalId: 'bambu-88190', customer: robotics, operator: nina, outcome: 'partial_failure', notes: 'Two of six brackets detached from the plate.',
     usages: [{ id: 'u6', ownership: 'makerspace', materialId: 'mat-asa-grey', spoolId: 'sp-0163', spoolDisplayId: 'SP-0163', materialName: 'ASA Grey', category: 'Filament', unit: 'g', quantity: 96, quantityBasis: 'actual' }],
     pricingStatus: 'complete', pricingSnapshot: snapshot('Institutes', ago(1 * D + 3 * H)), calculatedPrice: 7.84, priceAdjustment: { kind: 'multiplier', value: 0.67, reason: 'Four of six brackets usable; charged for those only.' }, order: null, version: 4 },
   { id: 'j-1087', displayId: 'J-1087', title: 'TPU phone bumpers', machineId: 'm-mk4-2', startsAt: ago(2 * D), endsAt: ago(2 * D - 90), durationSeconds: 5400, run: 'manual', printId: null, source: 'manual', externalId: null, customer: tobias, operator: sara, outcome: 'successful', notes: null,
     usages: [{ id: 'u7', ownership: 'external', materialId: null, spoolId: null, spoolDisplayId: null, materialName: 'Customer TPU (own spool)', category: 'Filament', unit: 'g', quantity: 80, quantityBasis: 'estimated' }],
-    pricingStatus: 'complete', pricingSnapshot: snapshot('External', ago(2 * D - 90)), calculatedPrice: 9, priceAdjustment: null, order: { orderId: 'ord-2198', orderReference: 'ORD-2198', sourceChanged: false }, version: 2 },
+    pricingStatus: 'complete', pricingSnapshot: snapshot('External', ago(2 * D - 90)), calculatedPrice: 9, priceAdjustment: null, order: null, version: 2 },
   { id: 'j-1086', displayId: 'J-1086', title: 'Router jig', machineId: 'm-cnc', startsAt: ago(3 * D), endsAt: ago(3 * D - 150), durationSeconds: 9000, run: 'manual', printId: null, source: 'manual', externalId: null, customer: jonas, operator: david, outcome: 'cancelled', notes: 'Stopped: wrong stock thickness. Re-scheduled.',
     usages: [{ id: 'u8', ownership: 'makerspace', materialId: 'mat-mdf-6', spoolId: null, spoolDisplayId: null, materialName: 'MDF 6 mm', category: 'Sheet', unit: 'm2', quantity: 0.3, quantityBasis: 'actual' }],
     pricingStatus: 'complete', pricingSnapshot: snapshot('Students', ago(3 * D - 150)), calculatedPrice: 5, priceAdjustment: { kind: 'fixed', value: 0, reason: 'Cancelled before cutting; no charge.' }, order: null, version: 3 },
@@ -370,10 +377,10 @@ export const jobs: Job[] = [
     pricingStatus: 'incomplete', pricingSnapshot: { ...snapshot('Staff', ago(4 * D - 300)), rules: [{ label: 'Machine time', rate: '2.00', unit: 'h', missing: false }, { label: 'Resin', rate: '—', unit: 'ml', missing: true }] }, calculatedPrice: null, priceAdjustment: null, order: null, version: 2 },
   { id: 'j-1084', displayId: 'J-1084', title: null, machineId: 'm-mk4-1', startsAt: ago(5 * D), endsAt: ago(5 * D - 200), durationSeconds: 12000, run: 'automatic', printId: 'pr-284', source: 'automatic', externalId: 'prusa-55043', customer: racing, operator: sara, outcome: 'successful', notes: null,
     usages: [{ id: 'u10', ownership: 'makerspace', materialId: 'mat-petg-white', spoolId: null, spoolDisplayId: null, materialName: 'PETG White', category: 'Filament', unit: 'g', quantity: 210, quantityBasis: 'actual' }],
-    pricingStatus: 'complete', pricingSnapshot: snapshot('Student teams', ago(5 * D - 200), { revision: 2, reason: 'customer_changed' }), calculatedPrice: 15.07, priceAdjustment: null, order: { orderId: 'ord-2187', orderReference: 'ORD-2187', sourceChanged: true }, version: 5 },
+    pricingStatus: 'complete', pricingSnapshot: snapshot('Student teams', ago(5 * D - 200), { revision: 2, reason: 'customer_changed' }), calculatedPrice: 15.07, priceAdjustment: null, order: null, version: 5 },
   { id: 'j-1083', displayId: 'J-1083', title: 'Birthday card cut-outs', machineId: 'm-laser', startsAt: ago(6 * D), endsAt: ago(6 * D - 20), durationSeconds: 1200, run: 'manual', printId: null, source: 'manual', externalId: null, customer: lena, operator: david, outcome: 'successful', notes: null,
     usages: [{ id: 'u11', ownership: 'makerspace', materialId: 'mat-ply-3', spoolId: null, spoolDisplayId: null, materialName: 'Birch plywood 3 mm', category: 'Sheet', unit: 'm2', quantity: 0.4, quantityBasis: 'actual' }],
-    pricingStatus: 'complete', pricingSnapshot: snapshot('Students', ago(6 * D - 20)), calculatedPrice: 4.8, priceAdjustment: null, order: { orderId: 'ord-2180', orderReference: 'ORD-2180', sourceChanged: false }, version: 2 },
+    pricingStatus: 'complete', pricingSnapshot: snapshot('Students', ago(6 * D - 20)), calculatedPrice: 4.8, priceAdjustment: null, order: null, version: 2 },
 ];
 
 const usage = (materialId: string, materialName: string, spoolDisplayId: string | null, quantity: number) => ({ materialId, materialName, spoolDisplayId, quantity, unit: 'g' });

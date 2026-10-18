@@ -17,6 +17,7 @@ import { RunThumb } from '../components/RunPreview';
 import { runsOfJob } from '../runs';
 import { LinkPrintModal } from '../dialogs/LinkPrintModal';
 import { UsageFormModal } from '../dialogs/UsageFormModal';
+import { orderOfJob } from '../sales/logic';
 import { useNow, useSimulatedMutation, useSimulatedQuery, useStore } from '../store';
 import type { Job, JobOutcome } from '../types';
 import '../styles/jobs.scss';
@@ -212,17 +213,22 @@ function JobDetail({ job }: { job: Job }) {
                 </AccordionItem>
               </Accordion>
             )}
-            {store.can('orders.read') && (
-              <div className="mj-stack">
-                <h4 className="mj-section-title">Order</h4>
-                {job.order ? (
-                  <>
-                    <p>{job.order.orderReference}</p>
-                    {job.order.sourceChanged && <InlineNotification kind="warning" lowContrast hideCloseButton title="Changed after charge" subtitle="This job changed after it was charged. The order amount has not been updated." />}
-                  </>
-                ) : <p className="mj-secondary">Not on an order.</p>}
-              </div>
-            )}
+            {store.can('orders.read') && (() => {
+              const held = orderOfJob(job, store.orders);
+              return (
+                <div className="mj-stack">
+                  <h4 className="mj-section-title">Order</h4>
+                  {held ? (
+                    <>
+                      <p><CarbonLink as={Link} to={`/sales/orders/${held.order.id}`}>{held.order.reference}</CarbonLink> <span className="mj-secondary">{held.claimed ? 'charges this job' : 'draft that contains this job'}</span></p>
+                      {job.order?.sourceChanged && <InlineNotification kind="warning" lowContrast hideCloseButton title="Changed after charge" subtitle="This job changed after it was charged. The order amount has not been updated. Use Correct order on the order to change the charge." />}
+                    </>
+                  ) : job.pricingStatus === 'complete' && job.customer && !isManualRunning(job, now) && job.outcome !== 'unknown'
+                    ? <p className="mj-secondary">Not on an order. It is ready to bill: select it in the Jobs list and choose Add to order.</p>
+                    : <p className="mj-secondary">Not on an order.</p>}
+                </div>
+              );
+            })()}
           </Tile>
         </div>
       </div>
