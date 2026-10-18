@@ -7,6 +7,7 @@ import { PageShell } from '../../../../app/PageShell';
 import { EmptyState } from '../../../../app/PageState';
 import { QueryBoundary } from '../../components/QueryBoundary';
 import { useStore } from '../../store';
+import { LinkNotification } from '../components/LinkNotification';
 import { OrderItemsTable } from '../components/OrderItemsTable';
 import { OrderTimeline } from '../components/OrderTimeline';
 import { PaymentsSection } from '../components/PaymentsSection';
@@ -93,10 +94,8 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
         {order.replacedBy && <InlineNotification kind="info" lowContrast hideCloseButton title={`Replaced by ${order.replacedBy.reference}`} subtitle="This order no longer counts. Open the replacement to see what is charged now." />}
         {order.replaces && !draft && <InlineNotification kind="info" lowContrast hideCloseButton title={`Replaces ${order.replaces.reference}`} subtitle="Payments that were already made moved over to this order." />}
         {request && (
-          <InlineNotification kind="info" lowContrast hideCloseButton title={`Invoicing via wiRef: ${request.reference} (${requestStateLabel[request.state].toLowerCase()})`}
-            subtitle={request.state === 'issued' ? 'wiRef issued the invoice. Record the payment here once it is confirmed.' : 'Cash and card are switched off while the request is active.'}>
-            <Button as={Link} to={`/sales/invoicing/${request.id}`} kind="ghost" size="sm">Open request</Button>
-          </InlineNotification>
+          <LinkNotification title={`Invoicing via wiRef: ${request.reference} (${requestStateLabel[request.state].toLowerCase()})`} label="Open request" to={`/sales/invoicing/${request.id}`}
+            subtitle={request.state === 'issued' ? 'wiRef issued the invoice. Record the payment here once it is confirmed.' : 'Cash and card are switched off while the request is active.'} />
         )}
         {draftBlockers.length > 0 && <InlineNotification kind="warning" lowContrast hideCloseButton title="Before you can continue" subtitle={draftBlockers.join(' ')} />}
         {!draft && changedItems.length > 0 && (

@@ -2,8 +2,11 @@ import { effectivePrice, isManualRunning } from '../derived';
 import { runsOfJob } from '../runs';
 import type { BillingParty, Job, Print } from '../types';
 import { addCalendarDays, zonedDateTimeToISO } from '../../../app/dateTime';
-import { dateInAppTimeZone, round2 } from './format';
-import type { Allocation, InvoiceRequest, Order, OrderAdjustment, OrderItem, Payment, PaymentMethod, SettlementState } from './types';
+import { dateInAppTimeZone, formatDateTime, formatEur, round2 } from './format';
+import { methodLabel, requestNextStep } from './labels';
+import type {
+  Allocation, CustomerRecord, DaySession, InvoiceRequest, Order, OrderAdjustment, OrderItem, Payment, PaymentMethod, ReversalReasonKind, SettlementState,
+} from './types';
 
 // Pure derivations over the sales data. The settlement rules match the backend: settlement is derived from charges,
 // full-reversal adjustments and signed allocations, never stored.
@@ -160,4 +163,173 @@ export function addToOrderBlocker(jobs: (Job | null)[], orders: Order[], prints:
     if (blocker) return `Add to order: ${job.displayId}: ${blocker.charAt(0).toLowerCase()}${blocker.slice(1)}.`;
   }
   return null;
+}
+
+// Cashbook ------------------------------------------------------------------------------------------------------------------------
+
+export type PeriodPreset = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
+export const periodPresets: { id: PeriodPreset; label: string }[] = [
+  { id: 'today', label: 'Today' }, { id: 'yesterday', label: 'Yesterday' }, { id: 'week', label: 'This week' }, { id: 'month', label: 'This month' }, { id: 'custom', label: 'Custom range' },
+];
+const midnight = (day: string) => new Date(zonedDateTimeToISO(day, '00:00')).getTime();
+
+/** A period in the app time zone as [from, to) instants. `from` and `to` of a custom range are inclusive calendar days. */
+export function periodRange(preset: PeriodPreset, from = '', to = '', now = new Date()): { from: number; to: number; label: string; valid: boolean } {
+  const today = dateInAppTimeZone(now);
+  if (preset === 'today') return { from: midnight(today), to: midnight(addCalendarDays(today, 1)), label: 'Today', valid: true };
+  if (preset === 'yesterday') return { from: midnight(addCalendarDays(today, -1)), to: midnight(today), label: 'Yesterday', valid: true };
+  if (preset === 'week') {
+    const weekday = (new Date(`${today}T12:00:00Z`).getUTCDay() + 6) % 7;
+    return { from: midnight(addCalendarDays(today, -weekday)), to: midnight(addCalendarDays(today, 1)), label: 'This week', valid: true };
+  }
+  if (preset === 'month') return { from: midnight(`${today.slice(0, 8)}01`), to: midnight(addCalendarDays(today, 1)), label: 'This month', valid: true };
+  const valid = !!from && !!to && from <= to;
+  return { from: from ? midnight(from) : 0, to: to ? midnight(addCalendarDays(to, 1)) : 0, label: valid ? `${from} to ${to}` : 'Custom range', valid };
+}
+
+export type CashbookLine = {
+  payment: Payment; order: Order | null; customerLabel: string; customerKind: 'person' | 'organization' | 'walk_in'; signed: number;
+  /** The cash of this payment's day is closed. */
+  locked: boolean;
+};
+
+export function cashbookLines(payments: Payment[], allocations: Allocation[], orders: Order[], sessions: DaySession[]): CashbookLine[] {
+  const byId = new Map(orders.map((order) => [order.id, order]));
+  return payments.map((payment) => {
+    const order = byId.get(paymentOrderId(payment, allocations, payments) ?? '') ?? null;
+    return {
+      payment, order, customerLabel: order?.customerName ?? (order ? 'Walk-in customer' : '—'), customerKind: (order?.customer?.kind ?? 'walk_in') as CashbookLine['customerKind'],
+      signed: payment.entryKind === 'receipt' ? payment.amount : -payment.amount, locked: payment.method === 'cash' && isCashDayClosed(sessions, payment.occurredAt),
+    };
+  }).sort((a, b) => b.payment.occurredAt.localeCompare(a.payment.occurredAt) || b.payment.reference.localeCompare(a.payment.reference));
+}
+
+export const isCashDayClosed = (sessions: Pick<DaySession, 'day'>[], iso: string) => sessions.some((session) => session.day === dateInAppTimeZone(iso));
+
+/** What the till should hold at the end of a day: cash receipts minus cash refunds and corrections, by the day they happened. */
+export function cashDayFigures(payments: Payment[], day: string) {
+  let receipts = 0; let refunds = 0; let count = 0;
+  for (const payment of payments) {
+    if (payment.method !== 'cash' || dateInAppTimeZone(payment.occurredAt) !== day) continue;
+    count += 1;
+    if (payment.entryKind === 'receipt') receipts = round2(receipts + payment.amount); else refunds = round2(refunds + payment.amount);
+  }
+  return { receipts, refunds, expected: round2(receipts - refunds), count };
+}
+
+/** Days within the last two weeks that have cash movements and are not closed yet, newest first. */
+export function openCashDays(payments: Payment[], sessions: DaySession[], now = new Date()): string[] {
+  const today = dateInAppTimeZone(now);
+  const earliest = addCalendarDays(today, -14);
+  const days = new Set(payments.filter((payment) => payment.method === 'cash').map((payment) => dateInAppTimeZone(payment.occurredAt)));
+  return [...days].filter((day) => day >= earliest && day <= today && !sessions.some((session) => session.day === day)).sort().reverse();
+}
+
+export type ReversalOptions = {
+  kinds: ReversalReasonKind[];
+  /** The payment cannot be refunded or corrected at all right now. */
+  blocker: string | null;
+  /** The correction is possible, but only after something else happens (cancel the wiRef request). */
+  prerequisite: { text: string; to: string } | null;
+  needsReplacement: boolean;
+  needsReference: boolean;
+};
+
+/** Which reasons a receipt can be undone with, and what stands in the way. Mirrors the engine so the dialog never offers an option that fails. */
+export function reversalOptions(payment: Payment, order: Order | null, data: { payments: Payment[]; allocations: Allocation[]; requests: InvoiceRequest[] }): ReversalOptions {
+  const none = (blocker: string): ReversalOptions => ({ kinds: [], blocker, prerequisite: null, needsReplacement: false, needsReference: false });
+  if (payment.entryKind !== 'receipt') return none('Only receipts can be refunded or corrected. This entry is itself a reversal.');
+  const reversal = data.payments.find((other) => other.reversesPaymentId === payment.id);
+  if (reversal) return none(`${reversal.reference} already reversed this payment.`);
+  if (!order) return none('This payment is not allocated to an order.');
+  if (!activeReceipts(data.payments, data.allocations, order.id).some((receipt) => receipt.id === payment.id)) return none('This payment no longer counts towards an order. Open the order it moved to.');
+  if (order.status !== 'finalized') return none(`${order.reference} is ${order.status === 'reversed' ? 'reversed' : 'not finalized'}, so there is nothing to refund here.`);
+  const latest = data.requests.filter((request) => request.orderId === order.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+  const base = { blocker: null, needsReplacement: !order.customer, needsReference: payment.method === 'card' };
+  if (payment.method === 'external') {
+    return { ...base, kinds: ['external_correction'], needsReplacement: false, prerequisite: latest && latest.state === 'cancelled' ? null : { text: latest ? `${latest.reference} has to be cancelled in wiRef first (state: ${latest.state.replace('_', ' ')}).` : 'The wiRef request has to be cancelled first.', to: latest ? `/sales/invoicing/${latest.id}` : '/sales/invoicing' }, needsReference: true };
+  }
+  // A walk-in sale has to stay paid in full: money can only be given back by cancelling the whole order, so here only a mistaken entry can be fixed (with the right receipt).
+  return { ...base, kinds: order.customer ? ['refund', 'recording_error'] : ['recording_error'], prerequisite: null };
+}
+
+type HistoryLine = { at: string; text: string };
+/** The life of a payment in plain words, from its allocations. A transfer is a negative entry for one order and a positive one for another with the same operation. */
+export function paymentHistory(payment: Payment, data: { payments: Payment[]; allocations: Allocation[]; orders: Order[] }): HistoryLine[] {
+  const ref = (id: string) => data.orders.find((order) => order.id === id)?.reference ?? 'another order';
+  const lines: HistoryLine[] = [];
+  const sourceId = payment.entryKind === 'reversal' ? payment.reversesPaymentId ?? payment.id : payment.id;
+  const source = data.payments.find((item) => item.id === sourceId) ?? payment;
+  const groups = new Map<string, Allocation[]>();
+  for (const allocation of data.allocations.filter((item) => item.paymentId === source.id || item.paymentId === payment.id).sort((a, b) => a.at.localeCompare(b.at))) {
+    groups.set(allocation.operationId, [...(groups.get(allocation.operationId) ?? []), allocation]);
+  }
+  const reversal = data.payments.find((item) => item.reversesPaymentId === source.id);
+  lines.push({ at: source.occurredAt, text: `${methodLabel(source.method)} payment of ${formatEur(source.amount)} received at ${formatDateTime(source.occurredAt)}.` });
+  let first = true;
+  for (const group of groups.values()) {
+    const added = group.filter((item) => item.amount > 0 && item.paymentId === source.id);
+    const removed = group.filter((item) => item.amount < 0);
+    const at = group[0].at;
+    if (first && added.length && !removed.length) { lines.push({ at, text: `Counted towards ${ref(added[0].orderId)}.` }); first = false; continue; }
+    first = false;
+    if (removed.length && added.length && removed[0].orderId !== added[0].orderId) lines.push({ at, text: `Moved from ${ref(removed[0].orderId)} to ${ref(added[0].orderId)} when the order was replaced. No money moved.` });
+    else if (removed.length && reversal) lines.push({ at, text: `Taken off ${ref(removed[0].orderId)} by ${reversal.reference}: ${reversal.reasonKind === 'refund' ? 'the money was given back' : reversal.reasonKind === 'recording_error' ? 'it had been recorded by mistake' : 'an accounting correction in wiRef'}.` });
+  }
+  if (reversal) lines.push({ at: reversal.occurredAt, text: `${reversal.reasonKind === 'refund' ? 'Refunded' : 'Corrected'} by ${reversal.reference}: ${reversal.reason}` });
+  return lines.sort((a, b) => a.at.localeCompare(b.at));
+}
+
+// wiRef readiness ---------------------------------------------------------------------------------------------------------------------
+
+export type ReadinessItem = { key: string; label: string; ok: boolean; hint: string };
+/** What has to be filled in before a wiRef request can be marked ready. The purchase order rule follows the customer's invoicing requirements at that moment. */
+export function requestReadiness(request: Pick<InvoiceRequest, 'details'>, customer: Pick<CustomerRecord, 'kind' | 'requiresPurchaseOrder'> | undefined): ReadinessItem[] {
+  const d = request.details;
+  const organization = customer?.kind === 'organization';
+  const items: ReadinessItem[] = [
+    { key: 'recipient', label: 'Recipient name', ok: d.recipientName.trim() !== '', hint: 'Who receives the invoice' },
+    { key: 'address', label: 'Billing address', ok: d.addressLine1.trim() !== '' && d.postalCode.trim() !== '' && d.locality.trim() !== '', hint: 'Street, postal code and town' },
+    { key: 'country', label: 'Country', ok: /^[A-Za-z]{2}$/.test(d.countryCode.trim()), hint: 'Two-letter code, e.g. AT' },
+  ];
+  if (organization) items.push({ key: 'contact', label: 'Contact person', ok: d.contactName.trim() !== '', hint: 'Organizations need someone to address the invoice to' });
+  if (organization && customer?.requiresPurchaseOrder) items.push({ key: 'po', label: 'Purchase order reference', ok: d.purchaseOrderReference.trim() !== '', hint: 'This organization requires one on every invoice' });
+  items.push(
+    { key: 'period', label: 'Service period', ok: !!d.serviceStartsOn && !!d.serviceEndsOn && d.serviceStartsOn <= d.serviceEndsOn, hint: 'Start and end date, in order' },
+    { key: 'description', label: 'Service description', ok: d.serviceDescription.trim() !== '', hint: 'What the invoice is for' },
+  );
+  return items;
+}
+
+// Customers -----------------------------------------------------------------------------------------------------------------------
+
+export type CustomerSummary = { customer: CustomerRecord; orders: OrderView[]; openBalance: number; lastActivity: string | null; unbilledJobs: number };
+
+export function customerSummaries(customers: CustomerRecord[], views: OrderView[], jobs: Job[], prints: Print[], now: number): CustomerSummary[] {
+  const groups = new Map(readyToBill(jobs, views, prints, now).map((group) => [group.customer.id, group]));
+  return customers.map((customer) => {
+    const orders = views.filter((order) => order.customer?.id === customer.id);
+    const jobTimes = jobs.filter((job) => job.customer?.id === customer.id).map((job) => job.endsAt);
+    const times = [...orders.map((order) => order.updatedAt), ...jobTimes].sort();
+    return {
+      customer, orders, openBalance: sum(orders.filter((order) => order.status === 'finalized').map((order) => order.outstanding)), lastActivity: times.at(-1) ?? null,
+      unbilledJobs: groups.get(customer.id)?.rows.length ?? 0,
+    };
+  });
+}
+
+/** The state of a request together with its order: an issued invoice whose order is paid is done. */
+export function requestProgress(request: Pick<InvoiceRequest, 'state' | 'events'>, orderPaid: boolean): { index: number; invalid: boolean } {
+  const reached = (kind: string) => request.events.some((event) => event.kind === kind);
+  if (request.state === 'draft') return { index: 0, invalid: false };
+  if (request.state === 'ready') return { index: 1, invalid: false };
+  if (request.state === 'submitted') return { index: 2, invalid: false };
+  if (request.state === 'issued') return { index: orderPaid ? 4 : 3, invalid: false };
+  // Cancellation: stay on the last step that was reached and mark it.
+  return { index: reached('issued') ? 3 : reached('submitted') ? 2 : reached('ready') ? 1 : 0, invalid: true };
+}
+
+/** What happens next, taking the order's payment into account. */
+export function requestNext(request: InvoiceRequest, orderPaid: boolean): string {
+  return request.state === 'issued' && orderPaid ? 'None, the payment is confirmed' : requestNextStep[request.state];
 }

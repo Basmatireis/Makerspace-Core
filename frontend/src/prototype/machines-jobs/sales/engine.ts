@@ -1,13 +1,14 @@
 import { effectivePrice, jobName, outcomeLabel } from '../derived';
 import type { BillingParty, Job, Machine, MachineType, Print } from '../types';
 import { addCalendarDays } from '../../../app/dateTime';
-import { dateInAppTimeZone, formatEur, round2 } from './format';
-import { activeItems, activeReceipts, allocationSum, jobBlocker, orderMoney, sum } from './logic';
+import { dateInAppTimeZone, formatDate, formatEur, round2 } from './format';
+import { activeItems, activeReceipts, allocationSum, cashDayFigures, isCashDayClosed, jobBlocker, orderMoney, requestReadiness, sum } from './logic';
 import type {
-  Allocation, FulfillmentMode, InvoiceRequest, JobChargeSnapshot, Order, OrderAdjustment, OrderEventKind, OrderItem, Payment, PaymentInput,
-  ReversalInput, SalesCounters,
+  Allocation, CustomerRecord, DaySession, FulfillmentMode, InvoiceEventKind, InvoiceRequest, InvoiceRequestDetails, JobChargeSnapshot, Order, OrderAdjustment, OrderEventKind, OrderItem, Payment, PaymentInput,
+  ReconciliationKind, ReversalInput, SalesCounters,
 } from './types';
 import { methodLabel } from './labels';
+import { ruleKey, type PricingConfig, type PricingGroup, type RateRule } from './pricing';
 
 // Pure state transitions of the sales domain. They enforce the backend rules (docs/orders.md) and throw a SalesError that
 // names the rule, so a UI that fails to pre-validate still shows a readable message. Nothing is applied when one throws:
@@ -15,6 +16,7 @@ import { methodLabel } from './labels';
 
 export type SalesState = {
   orders: Order[]; payments: Payment[]; allocations: Allocation[]; adjustments: OrderAdjustment[]; requests: InvoiceRequest[]; jobs: Job[]; counters: SalesCounters;
+  customers: CustomerRecord[]; daySessions: DaySession[]; pricing: PricingConfig;
 };
 export type Ctx = { at: string; actor: string; machines: Machine[]; machineTypes: MachineType[]; prints: Print[] };
 
@@ -228,6 +230,7 @@ function receiptIn(s: SalesState, c: Ctx, order: Order, input: PaymentInput, op:
   if (order.status !== 'finalized') fail('order_not_finalized', 'Payments need a finalized order');
   if (!(input.amount > 0) || round2(input.amount) !== input.amount) fail('validation', 'Enter an amount greater than zero with at most two decimals');
   if (!input.occurredAt || Number.isNaN(new Date(input.occurredAt).getTime())) fail('validation', 'The payment time is required');
+  if (input.method === 'cash' && isCashDayClosed(s.daySessions, input.occurredAt)) fail('day_closed', `The cash of ${formatDate(input.occurredAt)} is closed, so a cash payment cannot be booked on that day`);
   if (input.method === 'card') {
     if (!input.terminal.trim() || !input.transactionReference.trim()) fail('validation', 'Card payments need the terminal and its transaction reference');
     const duplicate = s.payments.find((payment) => payment.entryKind === 'receipt' && payment.method === 'card' && payment.transactionReference === input.transactionReference.trim()
@@ -294,11 +297,18 @@ export function reverseReceiptIn(s: SalesState, c: Ctx, order: Order, input: Rev
     if (latestRequestOf(s, order.id)?.state !== 'cancelled') fail('external_reconciliation_required', 'Cancel the wiRef request and record the external correction first');
   } else if (input.reasonKind !== 'refund' && input.reasonKind !== 'recording_error') fail('validation', 'Choose refund or recording error');
   if (original.method === 'card' && !input.transactionReference.trim()) fail('validation', 'A card refund or correction needs the terminal reference');
+  const bookedAt = input.reasonKind === 'recording_error' ? original.occurredAt : input.occurredAt;
+  if (!input.occurredAt || Number.isNaN(new Date(input.occurredAt).getTime())) fail('validation', 'The time of the refund or correction is required');
+  if (original.method === 'cash' && isCashDayClosed(s.daySessions, bookedAt)) {
+    fail('day_closed', input.reasonKind === 'recording_error'
+      ? `The cash of ${formatDate(original.occurredAt)} is closed, so it cannot be corrected afterwards. Give the money back as a refund instead.`
+      : `The cash of ${formatDate(input.occurredAt)} is closed. Book the refund at the time it really happens.`);
+  }
   s.counters.payment += 1;
   const reversal: Payment = {
     id: uid('pay'), reference: reference('P', s.counters.payment, c.at), entryKind: 'reversal', method: original.method, amount: original.amount,
     // A recording error is undone at the original time; an actual refund happens when it happens.
-    occurredAt: input.reasonKind === 'recording_error' ? original.occurredAt : input.occurredAt, recordedAt: c.at, recordedBy: c.actor,
+    occurredAt: bookedAt, recordedAt: c.at, recordedBy: c.actor,
     reversesPaymentId: original.id, reasonKind: input.reasonKind, reason, terminal: original.terminal, transactionReference: input.transactionReference.trim(),
   };
   s.payments.push(reversal);
@@ -452,15 +462,45 @@ export function draftFromJobs(state: SalesState, c: Ctx, customer: BillingParty,
   });
 }
 
-/** Prepares a wiRef request (draft state) for a finalized, named order that has no payments yet. */
+// wiRef requests -------------------------------------------------------------------------------------------------------
+
+const requestOf = (s: SalesState, id: string) => s.requests.find((request) => request.id === id) ?? fail('not_found', 'The wiRef request does not exist');
+const customerOf = (s: SalesState, id: string | null | undefined) => s.customers.find((customer) => customer.id === id);
+
+function requestNote(s: SalesState, c: Ctx, request: InvoiceRequest, kind: InvoiceEventKind, text: string, extra: Partial<Pick<InvoiceRequest['events'][number], 'externalReference' | 'effectiveOn' | 'reconciliationKind' | 'reason'>> = {}) {
+  request.events.push({ id: uid('we'), at: c.at, actor: c.actor, kind, text, ...extra });
+  request.version += 1;
+  const order = s.orders.find((candidate) => candidate.id === request.orderId);
+  if (order) note(order, c, 'invoicing', `${request.reference}: ${text.charAt(0).toLowerCase()}${text.slice(1)}`);
+}
+function requireState(request: InvoiceRequest, allowed: InvoiceRequest['state'][], message: string) {
+  if (!allowed.includes(request.state)) fail('invalid_request_transition', message);
+}
+function checkExternalText(reference: string, reason = '') {
+  if (reference.length > 200 || reason.length > 500) fail('validation', 'The reference or reason is too long');
+}
+const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(new Date(`${value}T12:00:00Z`).getTime());
+
+/** Why an order cannot get a wiRef request, or null. The Invoicing picker and the order menu use the same rules as the transition. */
+export function invoiceRequestBlocker(s: Pick<SalesState, 'requests' | 'payments' | 'allocations'>, order: Order): string | null {
+  if (order.status !== 'finalized') return 'The order is not finalized';
+  if (!order.customer) return 'A walk-in sale has no one to invoice';
+  const active = s.requests.filter((request) => request.orderId === order.id && request.state !== 'cancelled')[0];
+  if (active) return `${active.reference} is already active for this order`;
+  if (activeReceipts(s.payments, s.allocations, order.id).length) return 'Cash or card payments were recorded on it';
+  return null;
+}
+
+/** Creates a wiRef request (draft state) for a finalized, named order that has no payments yet. A cancelled request may have a successor. */
 export function prepareInvoiceRequest(state: SalesState, c: Ctx, orderId: string) {
   return transition(state, (s) => {
     const order = orderOf(s, orderId);
     if (order.status !== 'finalized') fail('order_not_finalized', 'A wiRef request needs a finalized order');
-    if (!order.customer) fail('validation', 'A wiRef request needs a named customer');
-    if (activeRequestOf(s, order.id)) fail('settlement_workflow_conflict', 'This order already has an active wiRef request');
+    if (!order.customer) fail('external_invoice_requires_customer', 'A wiRef request needs a named customer');
+    if (activeRequestOf(s, order.id)) fail('request_already_exists', `This order already has an active wiRef request: ${activeRequestOf(s, order.id)!.reference}`);
     if (activeReceipts(s.payments, s.allocations, order.id).length) fail('settlement_workflow_conflict', 'An order with cash or card payments cannot be invoiced through wiRef');
     const jobs = activeItems(order).flatMap((item) => (item.snapshot ? [item.snapshot] : []));
+    const previous = latestRequestOf(s, order.id);
     s.counters.request += 1;
     const request: InvoiceRequest = {
       id: uid('wr'), reference: reference('W', s.counters.request, c.at), orderId: order.id, orderReference: order.reference, state: 'draft', requestedAmount: money(s, order).net,
@@ -470,7 +510,8 @@ export function prepareInvoiceRequest(state: SalesState, c: Ctx, orderId: string
         serviceEndsOn: jobs.length ? dateInAppTimeZone(jobs.map((job) => job.endsAt).sort().at(-1)!) : addCalendarDays(dateInAppTimeZone(c.at), 0),
         serviceDescription: `Machine services and materials, ${activeItems(order).length} ${activeItems(order).length === 1 ? 'item' : 'items'}`, purchaseOrderReference: '',
       },
-      events: [{ id: uid('we'), at: c.at, actor: c.actor, text: 'Request prepared from the order' }], supersedesRequestId: null, version: 1, createdAt: c.at,
+      events: [{ id: uid('we'), at: c.at, actor: c.actor, kind: 'created', text: previous ? `Request prepared again after ${previous.reference} was cancelled` : 'Request prepared from the order' }],
+      supersedesRequestId: previous?.id ?? null, version: 1, createdAt: c.at,
     };
     s.requests.push(request);
     note(order, c, 'invoicing', `wiRef request ${request.reference} prepared`);
@@ -478,3 +519,192 @@ export function prepareInvoiceRequest(state: SalesState, c: Ctx, orderId: string
   });
 }
 
+/** Recipient details are editable while the request is a draft; they freeze when it becomes ready. */
+export function updateRequestDetails(state: SalesState, c: Ctx, requestId: string, details: InvoiceRequestDetails) {
+  return transition(state, (s) => {
+    const request = requestOf(s, requestId);
+    if (request.state !== 'draft') fail('request_frozen', 'Recipient details can only be changed while the request is a draft');
+    const text = Object.values(details).join('');
+    if ([details.recipientName, details.addressLine1, details.postalCode, details.locality, details.contactName, details.purchaseOrderReference].some((value) => value.length > 200) || text.length > 2000) fail('validation', 'Invoice recipient fields exceed their length limits');
+    if (details.serviceDescription.length > 500) fail('validation', 'The service description is too long');
+    if (details.countryCode && !/^[A-Za-z]{2}$/.test(details.countryCode)) fail('validation', 'Use the two-letter country code, e.g. AT');
+    if ((details.serviceStartsOn && !validDate(details.serviceStartsOn)) || (details.serviceEndsOn && !validDate(details.serviceEndsOn))) fail('validation', 'Service period dates must be valid');
+    if (details.serviceStartsOn && details.serviceEndsOn && details.serviceStartsOn > details.serviceEndsOn) fail('validation', 'The service period must end on or after its start');
+    request.details = { ...details, countryCode: details.countryCode.toUpperCase() };
+    requestNote(s, c, request, 'details_saved', 'Recipient details saved');
+    return {};
+  });
+}
+
+export function markRequestReady(state: SalesState, c: Ctx, requestId: string) {
+  return transition(state, (s) => {
+    const request = requestOf(s, requestId);
+    requireState(request, ['draft'], 'Only drafts can become ready');
+    const missing = requestReadiness(request, customerOf(s, s.orders.find((order) => order.id === request.orderId)?.customer?.id)).filter((item) => !item.ok);
+    if (missing.length) fail('validation', `Complete these first: ${missing.map((item) => item.label.toLowerCase()).join(', ')}`);
+    requestNote(s, c, request, 'ready', 'Marked as ready to submit');
+    request.state = 'ready';
+    return {};
+  });
+}
+
+export function markRequestSubmitted(state: SalesState, c: Ctx, requestId: string) {
+  return transition(state, (s) => {
+    const request = requestOf(s, requestId);
+    requireState(request, ['ready'], 'Only ready requests can be submitted');
+    request.state = 'submitted';
+    requestNote(s, c, request, 'submitted', 'Submitted to wiRef');
+    return {};
+  });
+}
+
+export type RecordIssuedInput = { externalReference: string; effectiveOn: string; amount: number };
+export function recordRequestIssued(state: SalesState, c: Ctx, requestId: string, input: RecordIssuedInput) {
+  return transition(state, (s) => {
+    const request = requestOf(s, requestId);
+    requireState(request, ['submitted'], 'Only submitted requests can record an external invoice');
+    const reference = input.externalReference.trim();
+    if (!reference || !validDate(input.effectiveOn)) fail('validation', 'External invoice reference and issue date are required');
+    if (round2(input.amount) !== request.requestedAmount) fail('validation', `The invoice amount must equal the requested ${formatEur(request.requestedAmount)}`);
+    checkExternalText(reference);
+    request.state = 'issued';
+    requestNote(s, c, request, 'issued', `Invoice ${reference} issued by wiRef for ${formatEur(request.requestedAmount)}`, { externalReference: reference, effectiveOn: input.effectiveOn });
+    return {};
+  });
+}
+
+/** Local cancellation: only drafts and ready requests, because wiRef has not seen them yet. */
+export function cancelRequest(state: SalesState, c: Ctx, requestId: string, reason = '') {
+  return transition(state, (s) => {
+    const request = requestOf(s, requestId);
+    if (request.state !== 'draft' && request.state !== 'ready') fail('external_reconciliation_required', 'Submitted requests need external cancellation evidence. Request the cancellation instead.');
+    checkExternalText('', reason.trim());
+    request.state = 'cancelled';
+    requestNote(s, c, request, 'cancelled', reason.trim() ? `Request cancelled: ${reason.trim()}` : 'Request cancelled', { reason: reason.trim() || undefined });
+    return {};
+  });
+}
+
+export function requestCancellation(state: SalesState, c: Ctx, requestId: string, reason: string) {
+  return transition(state, (s) => {
+    const request = requestOf(s, requestId);
+    requireState(request, ['submitted', 'issued'], 'Only submitted or issued requests require external cancellation');
+    if (!reason.trim()) fail('validation', 'Say why the request has to be cancelled');
+    checkExternalText('', reason.trim());
+    request.state = 'cancellation_requested';
+    requestNote(s, c, request, 'cancellation_requested', `Cancellation requested: ${reason.trim()}`, { reason: reason.trim() });
+    return {};
+  });
+}
+
+export const RECONCILIATION_KINDS: ReconciliationKind[] = ['cancellation', 'credit_note', 'corrected_invoice', 'reallocation', 'other'];
+export type ConfirmCancellationInput = { reconciliationKind: ReconciliationKind; externalReference: string; effectiveOn: string };
+export function confirmRequestCancellation(state: SalesState, c: Ctx, requestId: string, input: ConfirmCancellationInput) {
+  return transition(state, (s) => {
+    const request = requestOf(s, requestId);
+    requireState(request, ['cancellation_requested'], 'Request the external cancellation first');
+    const reference = input.externalReference.trim();
+    if (!reference || !validDate(input.effectiveOn)) fail('validation', 'External correction kind, reference and date are required');
+    if (!RECONCILIATION_KINDS.includes(input.reconciliationKind)) fail('validation', 'Unsupported external accounting procedure');
+    checkExternalText(reference);
+    request.state = 'cancelled';
+    requestNote(s, c, request, 'cancelled', `Cancellation confirmed in wiRef (${reference})`, { externalReference: reference, effectiveOn: input.effectiveOn, reconciliationKind: input.reconciliationKind });
+    return {};
+  });
+}
+
+export type CorrectReferenceInput = { externalReference: string; reason: string; effectiveOn: string };
+export function correctRequestReference(state: SalesState, c: Ctx, requestId: string, input: CorrectReferenceInput) {
+  return transition(state, (s) => {
+    const request = requestOf(s, requestId);
+    requireState(request, ['issued', 'cancellation_requested'], 'Reference correction requires an issued invoice');
+    const reference = input.externalReference.trim();
+    if (!reference || !input.reason.trim() || !validDate(input.effectiveOn)) fail('validation', 'Corrected reference, reason and date are required');
+    checkExternalText(reference, input.reason.trim());
+    requestNote(s, c, request, 'reference_corrected', `Invoice reference corrected to ${reference}`, { externalReference: reference, effectiveOn: input.effectiveOn, reason: input.reason.trim() });
+    return {};
+  });
+}
+
+// Cash day close [proposed] ----------------------------------------------------------------------------------------------------
+
+export type CloseDayInput = { day: string; countedCash: number; denominations: Record<string, number>; note: string };
+/** Closes the cash of one calendar day. Afterwards cash entries cannot be added to or corrected on that day. */
+export function closeDay(state: SalesState, c: Ctx, input: CloseDayInput) {
+  return transition(state, (s) => {
+    if (!validDate(input.day)) fail('validation', 'Choose the day to close');
+    if (input.day > dateInAppTimeZone(c.at)) fail('validation', 'A day that has not happened yet cannot be closed');
+    if (s.daySessions.some((session) => session.day === input.day)) fail('day_already_closed', `${formatDate(`${input.day}T12:00:00Z`)} is already closed`);
+    if (!(input.countedCash >= 0) || round2(input.countedCash) !== input.countedCash) fail('validation', 'Enter the counted cash with at most two decimals');
+    const expected = cashDayFigures(s.payments, input.day).expected;
+    const difference = round2(input.countedCash - expected);
+    const text = input.note.trim();
+    if (difference !== 0 && !text) fail('validation', `Explain the difference of ${formatEur(Math.abs(difference))} in the note`);
+    if (text.length > 500) fail('validation', 'The note can have up to 500 characters');
+    s.daySessions.push({ id: uid('day'), day: input.day, expectedCash: expected, countedCash: input.countedCash, difference, note: text, denominations: input.denominations, closedAt: c.at, closedBy: c.actor });
+    return {};
+  });
+}
+
+// Customers and pricing ---------------------------------------------------------------------------------------------------------
+
+export function assignPricingGroup(state: SalesState, c: Ctx, customerId: string, group: string | null) {
+  return transition(state, (s) => {
+    const customer = customerOf(s, customerId) ?? fail('not_found', 'The customer does not exist');
+    if (group !== null && !s.pricing.groups.find((item) => item.name === group)?.active) fail('pricing_group_inactive', 'That pricing group is inactive');
+    customer.pricingGroup = group;
+    void c;
+    return {};
+  });
+}
+
+/** Applies to wiRef requests that are marked ready from now on; ready requests keep what they captured. */
+export function setPurchaseOrderRequirement(state: SalesState, c: Ctx, customerId: string, required: boolean) {
+  return transition(state, (s) => {
+    const customer = customerOf(s, customerId) ?? fail('not_found', 'The customer does not exist');
+    if (customer.kind !== 'organization') fail('validation', 'Only organizations have invoicing requirements');
+    customer.requiresPurchaseOrder = required;
+    void c;
+    return {};
+  });
+}
+
+export type PricingGroupInput = { id?: string; name: string; description: string; active: boolean; isDefault: boolean };
+export function savePricingGroup(state: SalesState, c: Ctx, input: PricingGroupInput) {
+  return transition(state, (s) => {
+    const name = input.name.trim();
+    if (!name || name.length > 80) fail('validation', 'Give the group a name of up to 80 characters');
+    if (input.description.trim().length > 300) fail('validation', 'The description can have up to 300 characters');
+    if (s.pricing.groups.some((group) => group.id !== input.id && group.name.toLowerCase() === name.toLowerCase())) fail('conflict', `A pricing group named “${name}” already exists`);
+    if (input.isDefault && !input.active) fail('validation', 'The default pricing group must be active');
+    const existing = input.id ? s.pricing.groups.find((group) => group.id === input.id) ?? fail('not_found', 'The pricing group does not exist') : null;
+    if (existing?.isDefault && !input.isDefault) fail('validation', 'There always has to be a default group. Make another group the default instead.');
+    if (input.isDefault) for (const group of s.pricing.groups) group.isDefault = false;
+    if (existing) {
+      // Customers and jobs refer to the group by name, so a rename keeps them attached.
+      for (const customer of s.customers) if (customer.pricingGroup === existing.name) customer.pricingGroup = name;
+      Object.assign(existing, { name, description: input.description.trim(), active: input.active, isDefault: input.isDefault });
+      return { groupId: existing.id };
+    }
+    const group: PricingGroup = { id: uid('pg'), name, description: input.description.trim(), active: input.active, isDefault: input.isDefault || s.pricing.groups.length === 0 };
+    s.pricing.groups.push(group);
+    void c;
+    return { groupId: group.id };
+  });
+}
+
+export type RateInput = Pick<RateRule, 'groupId' | 'kind' | 'machineTypeId' | 'category' | 'unit'> & { rate: number };
+/** Sets the rate of one selector in one group. Creates the rule when it does not exist yet (a "missing rule"). */
+export function setRate(state: SalesState, c: Ctx, input: RateInput) {
+  return transition(state, (s) => {
+    const group = s.pricing.groups.find((item) => item.id === input.groupId) ?? fail('not_found', 'The pricing group does not exist');
+    if (!group.active) fail('pricing_group_inactive', `${group.name} is inactive`);
+    if (!(input.rate >= 0) || Math.round(input.rate * 10_000) / 10_000 !== input.rate) fail('validation', 'The rate must be zero or more, with at most four decimals');
+    const candidate: RateRule = { id: '', ...input };
+    const existing = s.pricing.rules.find((rule) => rule.groupId === input.groupId && ruleKey(rule) === ruleKey(candidate));
+    if (existing) existing.rate = input.rate;
+    else s.pricing.rules.push({ ...candidate, id: uid('pr') });
+    void c;
+    return {};
+  });
+}

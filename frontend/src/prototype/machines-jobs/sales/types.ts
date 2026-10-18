@@ -108,7 +108,18 @@ export type InvoiceRequestDetails = {
   recipientName: string; addressLine1: string; postalCode: string; locality: string; countryCode: string; contactName: string;
   serviceStartsOn: string; serviceEndsOn: string; serviceDescription: string; purchaseOrderReference: string;
 };
-export type InvoiceRequestEvent = { id: string; at: string; actor: string; text: string };
+export type InvoiceEventKind = 'created' | 'details_saved' | 'ready' | 'submitted' | 'issued' | 'cancellation_requested' | 'cancelled' | 'reference_corrected';
+/** How an external cancellation was settled in wiRef. */
+export type ReconciliationKind = 'cancellation' | 'credit_note' | 'corrected_invoice' | 'reallocation' | 'other';
+export type InvoiceRequestEvent = {
+  id: string; at: string; actor: string; kind: InvoiceEventKind; text: string;
+  /** Invoice number, credit note number or similar from wiRef. */
+  externalReference?: string;
+  /** The date the fact is effective in wiRef (YYYY-MM-DD). */
+  effectiveOn?: string;
+  reconciliationKind?: ReconciliationKind;
+  reason?: string;
+};
 export type InvoiceRequest = {
   id: string;
   /** W-YYYY-NNNNNN */
@@ -122,6 +133,28 @@ export type InvoiceRequest = {
   supersedesRequestId: string | null;
   version: number;
   createdAt: string;
+};
+
+/** A person or organization that can be billed. Pricing group null means "follow the default group". */
+export type CustomerRecord = {
+  kind: 'person' | 'organization'; id: string; displayName: string; pricingGroup: string | null;
+  /** Organizations only: wiRef requests need a purchase order reference (organization_invoicing_requirements). */
+  requiresPurchaseOrder: boolean;
+};
+
+/** [proposed] A closed cash day: counted cash against the cash the system expects. */
+export type DaySession = {
+  id: string;
+  /** Calendar day in the app time zone, YYYY-MM-DD. */
+  day: string;
+  expectedCash: number;
+  countedCash: number;
+  difference: number;
+  note: string;
+  /** Count per denomination in euro (key is the value, e.g. "0.5"). */
+  denominations: Record<string, number>;
+  closedAt: string;
+  closedBy: string;
 };
 
 /** [proposed] Sale catalog: fixed-price items for counter sales and orders. */

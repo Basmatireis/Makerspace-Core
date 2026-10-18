@@ -10,9 +10,9 @@ import { nameFromFile } from './derived';
 import { outcomeFromRuns, planAttach, runsOfJob, runsSummary } from './runs';
 import * as sales from './sales/engine';
 import { CURRENT_ACTOR } from './sales/labels';
-import { quoteJob } from './sales/pricing';
+import { effectiveGroup, livePricing, quoteJob, setLivePricing, type PricingConfig } from './sales/pricing';
 import { salesSeed } from './sales/mockData';
-import type { Allocation, InvoiceRequest, Order, OrderAdjustment, Payment, PaymentInput, SalesCounters } from './sales/types';
+import type { Allocation, CustomerRecord, DaySession, InvoiceRequest, Order, OrderAdjustment, Payment, PaymentInput, SalesCounters } from './sales/types';
 
 // ---------------------------------------------------------------------------
 // Prototype controls: role presets and simulated data states.
@@ -76,12 +76,16 @@ type Data = {
   adjustments: OrderAdjustment[];
   requests: InvoiceRequest[];
   counters: SalesCounters;
+  customers: CustomerRecord[];
+  daySessions: DaySession[];
+  pricing: PricingConfig;
 };
 
 const initialData = (): Data => structuredClone({
   machines: seed.machines, connectorHosts: seed.connectorHosts, detected: seed.detectedStates, liveStatus: seed.liveStatuses, machineTypes: seed.machineTypes, jobs: salesSeed.jobs, prints: seed.prints,
   printerProfiles: seed.printerProfiles, spools: seed.spools, materials: seed.materials, products: seed.filamentProducts, transactions: seed.inventoryTransactions,
   orders: salesSeed.orders, payments: salesSeed.payments, allocations: salesSeed.allocations, adjustments: salesSeed.adjustments, requests: salesSeed.requests, counters: salesSeed.counters,
+  customers: salesSeed.customers, daySessions: salesSeed.daySessions, pricing: salesSeed.pricing,
 });
 
 export type Toast = { id: number; kind: 'success' | 'error' | 'info'; title: string; subtitle?: string; /** A single follow-up link; shown as the action button of the notification. */ action?: { label: string; to: string } };
@@ -200,6 +204,20 @@ type Actions = {
   duplicateOrder: SalesAction<typeof sales.duplicateAsDraft>;
   createDraftFromJobs: SalesAction<typeof sales.draftFromJobs>;
   prepareInvoiceRequest: SalesAction<typeof sales.prepareInvoiceRequest>;
+  updateRequestDetails: SalesAction<typeof sales.updateRequestDetails>;
+  markRequestReady: SalesAction<typeof sales.markRequestReady>;
+  markRequestSubmitted: SalesAction<typeof sales.markRequestSubmitted>;
+  recordRequestIssued: SalesAction<typeof sales.recordRequestIssued>;
+  cancelRequest: SalesAction<typeof sales.cancelRequest>;
+  requestCancellation: SalesAction<typeof sales.requestCancellation>;
+  confirmRequestCancellation: SalesAction<typeof sales.confirmRequestCancellation>;
+  correctRequestReference: SalesAction<typeof sales.correctRequestReference>;
+  /** [proposed] Closes the cash of one day. */
+  closeDay: SalesAction<typeof sales.closeDay>;
+  assignPricingGroup: SalesAction<typeof sales.assignPricingGroup>;
+  setPurchaseOrderRequirement: SalesAction<typeof sales.setPurchaseOrderRequirement>;
+  savePricingGroup: SalesAction<typeof sales.savePricingGroup>;
+  setRate: SalesAction<typeof sales.setRate>;
   /** Anonymous sale: job, stock consumption, order, finalization and complete settlement in one step. */
   createCounterSale: (input: CounterSaleRequest) => { orderId: string; jobId: string };
 };
@@ -240,25 +258,20 @@ function toUsage(input: UsageInput, spools: Spool[], materials: Material[]): Job
   };
 }
 
-// Simplified stand-in for the backend pricing service: hourly machine rate plus
-// per-unit material rate from the customer's pricing group. Only used to make
-// the prototype's numbers plausible.
+// Stand-in for the backend pricing service: the customer's pricing group (see sales/pricing.ts) supplies the machine runtime and material rates.
+// A missing rate leaves the job's price incomplete, like the backend does, instead of guessing one.
 function price(job: Job): Pick<Job, 'calculatedPrice' | 'pricingSnapshot' | 'pricingStatus'> {
   if (!job.customer) return { calculatedPrice: null, pricingSnapshot: null, pricingStatus: 'pending' };
-  const external = job.customer.pricingGroup === 'External';
-  const hourly = external ? 6 : 2;
-  const perGram = external ? 0.08 : 0.04;
-  const material = job.usages.filter((usage) => usage.ownership === 'makerspace').reduce((sum, usage) => sum + usage.quantity * (usage.unit === 'g' ? perGram : 12), 0);
-  const total = Math.round(((job.durationSeconds / 3600) * hourly + material) * 100) / 100;
+  const group = effectiveGroup(livePricing(), job.customer.pricingGroup || null).name;
+  const quote = quoteJob({
+    group, durationSeconds: job.durationSeconds, machineTypeId: seed.machines.find((machine) => machine.id === job.machineId)?.machineTypeId,
+    usages: job.usages.map((usage) => ({ materialName: usage.materialName, unit: usage.unit, quantity: usage.quantity, ownership: usage.ownership, category: usage.category })),
+  });
   return {
-    calculatedPrice: total,
-    pricingStatus: 'complete',
+    calculatedPrice: quote.complete ? quote.total : null,
+    pricingStatus: quote.complete ? 'complete' : 'incomplete',
     pricingSnapshot: {
-      revision: (job.pricingSnapshot?.revision ?? 0) + 1,
-      pricingGroupName: job.customer.pricingGroup,
-      reason: job.pricingSnapshot ? 'customer_changed' : 'initial',
-      capturedAt: new Date().toISOString(),
-      rules: [{ label: 'Machine time', rate: hourly.toFixed(2), unit: 'h', missing: false }, { label: 'Material', rate: perGram.toFixed(2), unit: 'g', missing: false }],
+      revision: (job.pricingSnapshot?.revision ?? 0) + 1, pricingGroupName: group, reason: job.pricingSnapshot ? 'customer_changed' : 'initial', capturedAt: new Date().toISOString(), rules: quote.rules,
     },
   };
 }
@@ -410,7 +423,10 @@ function buildTransaction(
   };
 }
 
-const salesSlice = (d: Data): sales.SalesState => ({ orders: d.orders, payments: d.payments, allocations: d.allocations, adjustments: d.adjustments, requests: d.requests, jobs: d.jobs, counters: d.counters });
+const salesSlice = (d: Data): sales.SalesState => ({
+  orders: d.orders, payments: d.payments, allocations: d.allocations, adjustments: d.adjustments, requests: d.requests, jobs: d.jobs, counters: d.counters,
+  customers: d.customers, daySessions: d.daySessions, pricing: d.pricing,
+});
 const salesCtx = (d: Data): sales.Ctx => ({ at: new Date().toISOString(), actor: CURRENT_ACTOR, machines: d.machines, machineTypes: d.machineTypes, prints: d.prints });
 
 const CLEARED_FILL = { materialId: '', materialName: '', color: '', initialNetWeightG: 0, productId: null, manufacturer: null, productName: null, filledAt: null } as const;
@@ -438,6 +454,14 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
   // Sales actions run engine transitions and return ids synchronously, so they read the latest data through a ref that they also update eagerly.
   const dataRef = useRef(data);
   useEffect(() => { dataRef.current = data; }, [data]);
+  // Quotes everywhere (job forms, counter sale, reprice) use the rates and customer assignments configured on the Pricing page.
+  useEffect(() => { setLivePricing(data.pricing); }, [data.pricing]);
+  useEffect(() => {
+    for (const person of lookups.people) {
+      const customer = data.customers.find((item) => item.id === person.id);
+      if (customer) person.pricingGroup = effectiveGroup(data.pricing, customer.pricingGroup).name;
+    }
+  }, [data.customers, data.pricing]);
   const commit = useCallback((next: Data) => { dataRef.current = next; setData(next); }, []);
   const [role, setRole] = useState<Role>('supervisor');
   const [scenario, setScenario] = useState<Scenario>('normal');
@@ -464,6 +488,11 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
     checkoutOrder: salesAction(sales.checkoutOrder), recordOrderPayments: salesAction(sales.recordPayments), reverseOrderPayment: salesAction(sales.reversePayment),
     reverseOrder: salesAction(sales.reverseOrder), startReplacement: salesAction(sales.startReplacement), commitReplacement: salesAction(sales.commitReplacement),
     duplicateOrder: salesAction(sales.duplicateAsDraft), createDraftFromJobs: salesAction(sales.draftFromJobs), prepareInvoiceRequest: salesAction(sales.prepareInvoiceRequest),
+    updateRequestDetails: salesAction(sales.updateRequestDetails), markRequestReady: salesAction(sales.markRequestReady), markRequestSubmitted: salesAction(sales.markRequestSubmitted),
+    recordRequestIssued: salesAction(sales.recordRequestIssued), cancelRequest: salesAction(sales.cancelRequest), requestCancellation: salesAction(sales.requestCancellation),
+    confirmRequestCancellation: salesAction(sales.confirmRequestCancellation), correctRequestReference: salesAction(sales.correctRequestReference), closeDay: salesAction(sales.closeDay),
+    assignPricingGroup: salesAction(sales.assignPricingGroup), setPurchaseOrderRequirement: salesAction(sales.setPurchaseOrderRequirement),
+    savePricingGroup: salesAction(sales.savePricingGroup), setRate: salesAction(sales.setRate),
     createCounterSale: (input) => {
       const d = dataRef.current;
       const run = input.runId ? d.prints.find((item) => item.id === input.runId && item.linkedJobId === null) : undefined;
@@ -473,7 +502,8 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
       const startsAt = run ? run.startedAt : new Date(Date.now() - input.minutes * 60_000).toISOString();
       const usages = input.usages.map((usage) => toUsage(usage, d.spools, d.materials));
       const durationSeconds = secondsBetween(startsAt, endsAt);
-      const quote = quoteJob({ group: input.pricingGroup, durationSeconds, usages });
+      const quote = quoteJob({ group: input.pricingGroup, durationSeconds, machineTypeId: d.machines.find((machine) => machine.id === input.machineId)?.machineTypeId, usages: usages.map((usage) => ({ materialName: usage.materialName, unit: usage.unit, quantity: usage.quantity, ownership: usage.ownership, category: usage.category })) }, d.pricing);
+      if (!quote.complete) throw new sales.SalesError('pricing_incomplete', `There is no rate for ${quote.missing.join(' and ')}. Ask someone who manages pricing to set it under Pricing.`);
       const job: Job = {
         id: uid('j'), displayId: `J-${Math.max(...d.jobs.map((item) => Number(item.displayId.slice(2)))) + 1}`, title: run ? nameFromFile(run.fileName) : null, machineId: input.machineId, startsAt, endsAt, durationSeconds,
         run: run ? 'automatic' : 'manual', printId: run?.id ?? null, source: run ? 'automatic' : 'manual', externalId: run?.displayId ?? null, customer: null, operator: input.operator, outcome: 'successful', notes: 'Counter sale',

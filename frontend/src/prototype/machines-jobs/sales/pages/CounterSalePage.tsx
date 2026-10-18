@@ -10,12 +10,12 @@ import { matchesName } from '../../dialogs/jobFormHelpers';
 import { lookups, useStore } from '../../store';
 import type { PriceAdjustmentKind, Print } from '../../types';
 import { blankLine, lineState, MaterialLines, unitOf, type MaterialLine } from '../components/CounterMaterials';
-import { checkEntry, existingReferences, newPaymentEntry, PaymentEntryForm, toPaymentInputs, type PaymentEntryState } from '../components/PaymentEntry';
+import { checkEntry, existingReferences, newPaymentEntry, PaymentEntryForm, presetEntry, toPaymentInputs, type PaymentEntryState } from '../components/PaymentEntry';
 import { ReceiptPreview, type ReceiptChange } from '../components/Receipt';
 import { RequirePermission } from '../components/RequirePermission';
 import { formatEur, formatQuantity, parseMoney, parseQuantity, round2 } from '../format';
 import { activeReceipts, buildOrderViews } from '../logic';
-import { catalogItems, defaultPricingGroup, pricingGroups, quoteJob } from '../pricing';
+import { catalogItems, defaultGroupOf, quoteJob } from '../pricing';
 import { ProposedTag } from '../status';
 import { useSalesMutation } from '../useSalesMutation';
 import '../sales.scss';
@@ -43,7 +43,7 @@ function CounterSale() {
   const [operator, setOperator] = useState(me);
   const [lines, setLines] = useState<MaterialLine[]>([blankLine()]);
   const [extras, setExtras] = useState<Extra[]>([]);
-  const [group, setGroup] = useState(defaultPricingGroup);
+  const [group, setGroup] = useState(() => defaultGroupOf(store.pricing).name);
   const [adjustKind, setAdjustKind] = useState<PriceAdjustmentKind | 'none'>('none');
   const [adjustValue, setAdjustValue] = useState('');
   const [adjustReason, setAdjustReason] = useState('');
@@ -65,7 +65,10 @@ function CounterSale() {
     materialName: line.ownership === 'external' ? line.externalName.trim() : store.materials.find((item) => item.id === line.materialId)?.name ?? '', quantity: parseQuantity(line.quantity)!, quantityBasis: 'actual' as const,
     unit: unitOf(line, store.materials),
   }));
-  const quote = quoteJob({ group, durationSeconds: minutes * 60, usages: usageInputs.map((usage) => ({ materialName: usage.materialName, unit: usage.unit, quantity: usage.quantity, ownership: usage.ownership })) });
+  const quote = quoteJob({
+    group, durationSeconds: minutes * 60, machineTypeId: machine?.machineTypeId,
+    usages: usageInputs.map((usage) => ({ materialName: usage.materialName, unit: usage.unit, quantity: usage.quantity, ownership: usage.ownership, category: store.materials.find((item) => item.id === usage.materialId)?.category })),
+  }, store.pricing);
   const adjustNumber = parseMoney(adjustValue.replace('%', ''));
   const adjustment = free ? { kind: 'fixed' as const, value: 0, reason: freeReason.trim() }
     : canOverride && adjustKind !== 'none' && adjustNumber !== null ? { kind: adjustKind, value: adjustNumber, reason: adjustReason.trim() } : null;
@@ -83,7 +86,7 @@ function CounterSale() {
 
   // Re-create the payment form whenever the amount due changes, so the prefilled amount stays right.
   const [entryDue, setEntryDue] = useState(0);
-  if (entryDue !== total) { setEntryDue(total); setEntry(newPaymentEntry(total)); }
+  if (entryDue !== total) { setEntryDue(total); setEntry(presetEntry(entry, entry.preset, total)); }
   const payCheck = checkEntry(entry, total, true, existingReferences(store.payments));
 
   // Validity ---------------------------------------------------------------------------------------------------------------
@@ -91,6 +94,7 @@ function CounterSale() {
   if (source === 'run' && !run) problems.push('Choose a run, or switch to Manual.');
   if (source === 'manual' && !machineId) problems.push('Choose the machine.');
   if (source === 'manual' && !(minutes > 0)) problems.push('Enter how long the machine ran.');
+  if (!quote.complete && (source === 'run' ? !!run : !!machineId)) problems.push(`There is no rate for ${quote.missing.join(' and ')}. Choose another pricing group, or ask someone who manages pricing to add it.`);
   if (lines.some((line) => lineState(line) === 'invalid')) problems.push('Finish or remove the incomplete material.');
   if (extraRows.some((row) => !row.valid)) problems.push('Finish or remove the incomplete extra item.');
   if (free && !freeReason.trim()) problems.push('Give a reason for the free sale.');
@@ -114,7 +118,7 @@ function CounterSale() {
   };
 
   const reset = () => {
-    setDone(null); setSource('run'); setRunId(''); setMachineId(''); setPreset(1); setCustom(''); setOperator(me); setLines([blankLine()]); setExtras([]); setGroup(defaultPricingGroup);
+    setDone(null); setSource('run'); setRunId(''); setMachineId(''); setPreset(1); setCustom(''); setOperator(me); setLines([blankLine()]); setExtras([]); setGroup(defaultGroupOf(store.pricing).name);
     setAdjustKind('none'); setAdjustValue(''); setAdjustReason(''); setFree(false); setFreeReason(''); setEntryDue(0); setEntry(newPaymentEntry(0));
   };
 
@@ -269,7 +273,7 @@ function CounterSale() {
               </ul>
               <div className="sales-total"><span>Total</span><strong>{formatEur(total)}</strong></div>
               <Select id="counter-group" labelText="Pricing group" helperText="Walk-in customers are priced with the default group unless you choose another." value={group} disabled={pending} onChange={(event) => setGroup(event.target.value)}>
-                {pricingGroups.map((item) => <SelectItem key={item.name} value={item.name} text={`${item.name}${item.isDefault ? ' (default)' : ''}`} />)}
+                {store.pricing.groups.filter((item) => item.active).map((item) => <SelectItem key={item.id} value={item.name} text={`${item.name}${item.isDefault ? ' (default)' : ''}`} />)}
               </Select>
               {canOverride && !free && (
                 <>

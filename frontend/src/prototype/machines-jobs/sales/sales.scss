@@ -38,7 +38,27 @@
 .sales-checklist__ok { color: var(--cds-support-success); flex: none; }
 .sales-checklist__bad { color: var(--cds-support-error); flex: none; }
 .sales-receipt-choice { padding-block-end: $spacing-05; border-block-end: 1px solid var(--cds-border-subtle); }
-.sales-planned { display: grid; gap: $spacing-03; margin: 0; padding-inline-start: $spacing-05; list-style: disc; }
+
+// Payments (cashbook), invoicing, customers, pricing ------------------------------------------------------------------------------
+.sales-period { display: flex; flex-wrap: wrap; align-items: flex-end; gap: $spacing-05; }
+.sales-period__range { display: grid; grid-template-columns: repeat(2, minmax(0, 12rem)); gap: $spacing-05; }
+.sales-export { display: inline-flex; align-items: center; gap: $spacing-02; padding-inline: $spacing-03; }
+.sales-dayclose { max-inline-size: 60rem; }
+.sales-denominations { display: grid; grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr)); gap: $spacing-05; }
+.sales-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: $spacing-05; }
+.sales-form-grid, .sales-period__range { min-inline-size: 0; }
+.sales-form-grid .cds--date-picker, .sales-form-grid .cds--date-picker-container, .sales-form-grid .cds--date-picker-input__wrapper, .sales-form-grid .cds--date-picker-input__wrapper > span,
+.sales-form-grid .cds--date-picker.cds--date-picker--single .cds--date-picker__input,
+.sales-period__range .cds--date-picker, .sales-period__range .cds--date-picker-container, .sales-period__range .cds--date-picker-input__wrapper, .sales-period__range .cds--date-picker-input__wrapper > span,
+.sales-period__range .cds--date-picker.cds--date-picker--single .cds--date-picker__input { inline-size: 100%; }
+.sales-two-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: $spacing-05; align-items: start; }
+.sales-tile__value--text { @include type-style('productive-heading-04'); }
+.sales-progress { inline-size: 100%; }
+.sales-rate { display: flex; align-items: center; justify-content: space-between; gap: $spacing-03; min-inline-size: 7rem; }
+.sales-rate-edit { display: flex; align-items: center; gap: $spacing-01; min-inline-size: 11rem; }
+.sales-rate-edit .cds--form-item { flex: 1; }
+.sales-preview-line { display: grid; grid-template-columns: minmax(0, 1fr) minmax(7rem, 9rem) auto; align-items: end; gap: $spacing-03; }
+.sales-rates td, .sales-rates th { white-space: nowrap; }
 
 // Payment entry -----------------------------------------------------------------------------------------------------------------
 .sales-modal-summary { display: flex; align-items: flex-end; justify-content: space-between; gap: $spacing-05; padding: $spacing-05; background: var(--cds-layer-accent); }
@@ -96,6 +116,11 @@
 }
 
 @media (max-width: 41.98rem) {
+  .sales-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: $spacing-03; }
+  .sales-tile__value { @include type-style('productive-heading-04'); }
+  .sales-period__range { grid-template-columns: minmax(0, 1fr); }
+  .sales-preview-line { grid-template-columns: minmax(0, 1fr) auto; }
+  .sales-preview-line > :first-child { grid-column: 1 / -1; }
   .sales-method-tiles > div { grid-template-columns: 1fr; }
   .sales-ready-jobs__row { grid-template-columns: auto minmax(0, 1fr); }
   .sales-ready-jobs__row > :last-child { grid-column: 1 / -1; }

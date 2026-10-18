@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import * as base from '../mockData';
 import {
-  addJobItems, addManualItem, checkoutOrder, commitReplacement, createDraft, finalizeOrder, prepareInvoiceRequest, recordPayments, reverseOrder, reversePayment, startReplacement,
-  SalesError, type Ctx, type SalesState,
+  addJobItems, addManualItem, assignPricingGroup, cancelRequest, checkoutOrder, closeDay, commitReplacement, confirmRequestCancellation, correctRequestReference, createDraft, finalizeOrder,
+  markRequestReady, markRequestSubmitted, prepareInvoiceRequest, recordPayments, recordRequestIssued, requestCancellation, reverseOrder, reversePayment, savePricingGroup, setPurchaseOrderRequirement,
+  setRate, startReplacement, updateRequestDetails, SalesError, type Ctx, type SalesState,
 } from './engine';
-import { activeReceipts, buildOrderViews, readyToBill } from './logic';
+import { csvCell, toCsv } from './csv';
+import { activeReceipts, buildOrderViews, cashDayFigures, readyToBill, requestReadiness, reversalOptions } from './logic';
+import { dateInAppTimeZone } from './format';
+import { quoteJob } from './pricing';
 import { salesSeed } from './mockData';
 import { orderStatus } from './status';
 import type { PaymentInput } from './types';
@@ -120,5 +124,135 @@ describe('sales engine rules', () => {
     const { state, orderId } = finalizedDraft(fresh());
     const prepared = prepareInvoiceRequest(state, ctx, orderId).state;
     expect(thrown(() => recordPayments(prepared, ctx, orderId, [cash(5)]))?.code).toBe('settlement_workflow_conflict');
+  });
+});
+
+describe('wiRef request lifecycle', () => {
+  const organization = base.people.find((party) => party.id === 'o-kreativ')!;
+  function request(state: SalesState) {
+    const draft = createDraft(state, ctx, { customer: organization, fulfillmentMode: 'immediate' });
+    const item = addManualItem(draft.state, ctx, draft.orderId, { description: 'Service', quantity: 1, unit: 'piece', unitPrice: 50 });
+    const done = finalizeOrder(item.state, ctx, draft.orderId).state;
+    const prepared = prepareInvoiceRequest(done, ctx, draft.orderId);
+    const details = { ...prepared.state.requests.find((r) => r.id === prepared.requestId)!.details, addressLine1: 'Street 1', postalCode: '8010', locality: 'Graz', contactName: 'Pat', purchaseOrderReference: 'PO-1' };
+    return { ...prepared, orderId: draft.orderId, details };
+  }
+  it('needs the purchase order reference when the organization requires it, then freezes the details', () => {
+    const { state, requestId, details } = request(fresh());
+    expect(state.customers.find((c) => c.id === organization.id)!.requiresPurchaseOrder).toBe(true);
+    const missing = { ...details, purchaseOrderReference: '' };
+    const saved = updateRequestDetails(state, ctx, requestId, missing).state;
+    expect(requestReadiness(saved.requests.find((r) => r.id === requestId)!, saved.customers.find((c) => c.id === organization.id)).filter((item) => !item.ok).map((item) => item.key)).toEqual(['po']);
+    expect(thrown(() => markRequestReady(saved, ctx, requestId))?.code).toBe('validation');
+    const ready = markRequestReady(updateRequestDetails(saved, ctx, requestId, details).state, ctx, requestId).state;
+    expect(thrown(() => updateRequestDetails(ready, ctx, requestId, details))?.code).toBe('request_frozen');
+    expect(thrown(() => markRequestReady(ready, ctx, requestId))?.code).toBe('invalid_request_transition');
+  });
+  it('allows one active request per order and blocks cash and card, then a successor after cancellation', () => {
+    const { state, requestId, orderId } = request(fresh());
+    expect(thrown(() => prepareInvoiceRequest(state, ctx, orderId))?.code).toBe('request_already_exists');
+    expect(thrown(() => recordPayments(state, ctx, orderId, [cash(5)]))?.code).toBe('settlement_workflow_conflict');
+    const cancelled = cancelRequest(state, ctx, requestId, 'Wrong address').state;
+    const next = prepareInvoiceRequest(cancelled, ctx, orderId);
+    expect(next.state.requests.find((r) => r.id === next.requestId)?.supersedesRequestId).toBe(requestId);
+  });
+  it('walks submitted, issued with a matching amount, cancellation and its confirmation', () => {
+    const all = request(fresh());
+    let state = updateRequestDetails(all.state, ctx, all.requestId, all.details).state;
+    state = markRequestReady(state, ctx, all.requestId).state;
+    expect(thrown(() => recordRequestIssued(state, ctx, all.requestId, { externalReference: 'RE-1', effectiveOn: '2026-01-02', amount: 50 }))?.code).toBe('invalid_request_transition');
+    expect(thrown(() => cancelRequest(markRequestSubmitted(state, ctx, all.requestId).state, ctx, all.requestId))?.code).toBe('external_reconciliation_required');
+    state = markRequestSubmitted(state, ctx, all.requestId).state;
+    expect(thrown(() => recordRequestIssued(state, ctx, all.requestId, { externalReference: 'RE-1', effectiveOn: '2026-01-02', amount: 49 }))?.code).toBe('validation');
+    state = recordRequestIssued(state, ctx, all.requestId, { externalReference: 'RE-1', effectiveOn: '2026-01-02', amount: 50 }).state;
+    // Cash and card stay blocked, a wiRef payment is allowed, and an order reversal needs the cancellation first.
+    expect(thrown(() => reverseOrder(state, ctx, all.orderId, { reason: 'x', reversals: [] }))?.code).toBe('external_reconciliation_required');
+    state = correctRequestReference(state, ctx, all.requestId, { externalReference: 'RE-1A', reason: 'Typo', effectiveOn: '2026-01-03' }).state;
+    expect(state.requests.find((r) => r.id === all.requestId)!.events.at(-1)?.externalReference).toBe('RE-1A');
+    expect(thrown(() => confirmRequestCancellation(state, ctx, all.requestId, { reconciliationKind: 'credit_note', externalReference: 'CN-1', effectiveOn: '2026-01-04' }))?.code).toBe('invalid_request_transition');
+    state = requestCancellation(state, ctx, all.requestId, 'Wrong amount').state;
+    state = confirmRequestCancellation(state, ctx, all.requestId, { reconciliationKind: 'credit_note', externalReference: 'CN-1', effectiveOn: '2026-01-04' }).state;
+    expect(state.requests.find((r) => r.id === all.requestId)?.state).toBe('cancelled');
+  });
+  it('records a wiRef payment only for an issued invoice, and corrects it only after cancellation', () => {
+    const all = request(fresh());
+    let state = updateRequestDetails(all.state, ctx, all.requestId, all.details).state;
+    state = markRequestSubmitted(markRequestReady(state, ctx, all.requestId).state, ctx, all.requestId).state;
+    const external: PaymentInput = { method: 'external', amount: 50, occurredAt: ctx.at, terminal: 'wiRef', transactionReference: 'WR-9' };
+    expect(thrown(() => recordPayments(state, ctx, all.orderId, [external]))?.code).toBe('external_reconciliation_required');
+    state = recordRequestIssued(state, ctx, all.requestId, { externalReference: 'RE-2', effectiveOn: '2026-01-02', amount: 50 }).state;
+    state = recordPayments(state, ctx, all.orderId, [external]).state;
+    const payment = activeReceipts(state.payments, state.allocations, all.orderId)[0];
+    const options = reversalOptions(payment, state.orders.find((o) => o.id === all.orderId)!, state);
+    expect(options.kinds).toEqual(['external_correction']);
+    expect(options.prerequisite).not.toBeNull();
+    const input = { paymentId: payment.id, reasonKind: 'external_correction' as const, reason: 'Credit note', occurredAt: ctx.at, transactionReference: 'CN-2' };
+    expect(thrown(() => reversePayment(state, ctx, input))?.code).toBe('external_reconciliation_required');
+  });
+});
+
+describe('cash day close', () => {
+  it('expects cash receipts minus cash refunds and demands a note for a difference', () => {
+    const { state, orderId } = finalizedDraft(fresh(), 40);
+    const paid = recordPayments(state, ctx, orderId, [cash(30), card(10, 'TX-DAY-1')]).state;
+    const day = dateInAppTimeZone(ctx.at);
+    const before = cashDayFigures(paid.payments, day).expected;
+    const receipt = activeReceipts(paid.payments, paid.allocations, orderId).find((p) => p.method === 'cash')!;
+    const refunded = reversePayment(paid, ctx, { paymentId: receipt.id, reasonKind: 'refund', reason: 'Gave back', occurredAt: ctx.at, transactionReference: '' }).state;
+    expect(cashDayFigures(refunded.payments, day).expected).toBe(before - 30);
+    const expected = cashDayFigures(paid.payments, day).expected;
+    expect(thrown(() => closeDay(paid, ctx, { day, countedCash: expected - 1, denominations: {}, note: '' }))?.message).toMatch(/Explain the difference/);
+    const closed = closeDay(paid, ctx, { day, countedCash: expected - 1, denominations: {}, note: 'Missing coin' }).state;
+    expect(closed.daySessions.at(-1)!.difference).toBe(-1);
+    expect(thrown(() => closeDay(closed, ctx, { day, countedCash: expected, denominations: {}, note: '' }))?.code).toBe('day_already_closed');
+  });
+  it('locks the cash of a closed day against new cash and backdated corrections', () => {
+    const { state, orderId } = finalizedDraft(fresh(), 40);
+    const paid = recordPayments(state, ctx, orderId, [cash(10)]).state;
+    const day = dateInAppTimeZone(ctx.at);
+    const closed = closeDay(paid, ctx, { day, countedCash: cashDayFigures(paid.payments, day).expected, denominations: {}, note: '' }).state;
+    expect(thrown(() => recordPayments(closed, ctx, orderId, [cash(5)]))?.code).toBe('day_closed');
+    expect(recordPayments(closed, ctx, orderId, [card(5, 'TX-LOCK')]).state.payments.length).toBe(closed.payments.length + 1);
+    const receipt = activeReceipts(closed.payments, closed.allocations, orderId)[0];
+    expect(thrown(() => reversePayment(closed, ctx, { paymentId: receipt.id, reasonKind: 'recording_error', reason: 'Oops', occurredAt: ctx.at, transactionReference: '' }))?.code).toBe('day_closed');
+  });
+});
+
+describe('customers and pricing', () => {
+  it('assigns only active groups and only organizations have invoicing requirements', () => {
+    const state = fresh();
+    const inactive = savePricingGroup(state, ctx, { name: 'Alumni', description: '', active: false, isDefault: false }).state;
+    expect(thrown(() => assignPricingGroup(inactive, ctx, 'p-lena', 'Alumni'))?.code).toBe('pricing_group_inactive');
+    expect(assignPricingGroup(state, ctx, 'p-lena', null).state.customers.find((c) => c.id === 'p-lena')?.pricingGroup).toBeNull();
+    expect(thrown(() => setPurchaseOrderRequirement(state, ctx, 'p-lena', true))?.code).toBe('validation');
+    expect(setPurchaseOrderRequirement(state, ctx, 'o-racing', true).state.customers.find((c) => c.id === 'o-racing')?.requiresPurchaseOrder).toBe(true);
+  });
+  it('keeps exactly one active default group and rejects duplicate names', () => {
+    const state = fresh();
+    const group = state.pricing.groups.find((g) => !g.isDefault)!;
+    expect(thrown(() => savePricingGroup(state, ctx, { id: group.id, name: group.name, description: '', active: false, isDefault: true }))?.code).toBe('validation');
+    expect(thrown(() => savePricingGroup(state, ctx, { name: 'external', description: '', active: true, isDefault: false }))?.code).toBe('conflict');
+    const moved = savePricingGroup(state, ctx, { id: group.id, name: group.name, description: '', active: true, isDefault: true }).state;
+    expect(moved.pricing.groups.filter((g) => g.isDefault).map((g) => g.id)).toEqual([group.id]);
+    const old = state.pricing.groups.find((g) => g.isDefault)!;
+    expect(thrown(() => savePricingGroup(moved, ctx, { id: group.id, name: group.name, description: '', active: true, isDefault: false }))?.code).toBe('validation');
+    expect(old.id).not.toBe(group.id);
+  });
+  it('prices with the configured rates and reports a missing one instead of guessing', () => {
+    const state = fresh();
+    const teams = state.pricing.groups.find((g) => g.name === 'Student teams')!;
+    const input = { group: 'Student teams', durationSeconds: 3600, machineTypeId: 'type-sla', usages: [] };
+    const gap = quoteJob(input, state.pricing);
+    expect(gap.complete).toBe(false);
+    expect(gap.missing[0]).toMatch(/machine time/);
+    expect(thrown(() => setRate(state, ctx, { groupId: teams.id, kind: 'machine_runtime', machineTypeId: 'type-sla', category: null, unit: 'h', rate: -1 }))?.code).toBe('validation');
+    const fixed = setRate(state, ctx, { groupId: teams.id, kind: 'machine_runtime', machineTypeId: 'type-sla', category: null, unit: 'h', rate: 3 }).state;
+    expect(quoteJob(input, fixed.pricing)).toMatchObject({ complete: true, total: 3 });
+  });
+  it('builds a safe CSV', () => {
+    expect(csvCell('=SUM(A1)')).toBe("'=SUM(A1)");
+    expect(csvCell('-5.00')).toBe('-5.00');
+    expect(csvCell('a "b", c')).toBe('"a ""b"", c"');
+    expect(toCsv(['A', 'B'], [['x', 1]])).toBe('\uFEFFA,B\r\nx,1\r\n');
   });
 });

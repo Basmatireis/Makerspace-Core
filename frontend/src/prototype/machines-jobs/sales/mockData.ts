@@ -2,11 +2,14 @@ import * as base from '../mockData';
 import { ago } from '../mockData';
 import type { BillingParty, Job, JobOutcome, Operator, PriceAdjustment } from '../types';
 import {
-  addJobItems, addManualItem, cancelDraft, commitReplacement, counterSale, createDraft, finalizeOrder, prepareInvoiceRequest, recordPayments, reverseOrder, reversePayment,
-  startReplacement, updateManualItem, type Ctx, type SalesState,
+  addJobItems, addManualItem, cancelDraft, cancelRequest, closeDay, commitReplacement, counterSale, createDraft, finalizeOrder, markRequestReady, markRequestSubmitted, prepareInvoiceRequest, recordPayments,
+  recordRequestIssued, requestCancellation, reverseOrder, reversePayment, startReplacement, updateManualItem, updateRequestDetails, type Ctx, type SalesState,
 } from './engine';
-import { activeItems, sum } from './logic';
-import { defaultPricingGroup, quoteJob } from './pricing';
+import { addCalendarDays, zonedDateTimeToISO } from '../../../app/dateTime';
+import { dateInAppTimeZone } from './format';
+import { activeItems, cashDayFigures, sum } from './logic';
+import { defaultPricingConfig, defaultPricingGroup, quoteJob } from './pricing';
+import type { InvoiceRequestDetails } from './types';
 import type { PaymentInput, PaymentMethod } from './types';
 
 // The sales seed is not a hand-written pile of rows: it replays real actions through the engine at past times, so every
@@ -71,6 +74,12 @@ export function buildSalesSeed() {
   let state: SalesState = {
     orders: [], payments: [], allocations: [], adjustments: [], requests: [], jobs: [...structuredClone(extraJobs), ...structuredClone(base.jobs)],
     counters: { order: 100, payment: 300, adjustment: 8, request: 40 },
+    customers: base.people.map((party) => ({
+      kind: party.kind, id: party.id, displayName: party.displayName,
+      // Felix follows the default group; the others are assigned one. Two organizations require a purchase order on their invoices.
+      pricingGroup: party.id === 'p-felix' ? null : party.pricingGroup, requiresPurchaseOrder: party.id === 'o-kreativ' || party.id === 'o-robotics',
+    })),
+    daySessions: [], pricing: defaultPricingConfig(),
   };
   const ctx = (minutesAgo: number, actor = FRONT_DESK): Ctx => ({ at: ago(minutesAgo), actor, machines: base.machines, machineTypes: base.machineTypes, prints: base.prints });
   let tx = 48300;
@@ -165,29 +174,70 @@ export function buildSalesSeed() {
   small(2 * D + 10 * H, mara, 'Laser engraving, 12 phone cases', 12, 'piece', 1.75, ['cash', 11], ['cash', 10]);
   small(30 * H, tobias, 'Heat-set inserts, 40 pieces', 2, 'pack', 4.5, ['cash', 4.5], ['card', 4.5]);
 
-  // wiRef-backed orders ---------------------------------------------------------------------------------------------------
-  const wiRefOrder = (party: BillingParty, m: number, ids: string[]) => {
-    const id = draft(m, party, 'Nina Berger'); jobs(m - 4, id, ...ids); finalize(m - 6, id);
-    const r = prepareInvoiceRequest(state, ctx(m - 60, 'Nina Berger'), id); state = r.state; return { id, request: state.requests.find((request) => request.id === r.requestId)! };
+  // wiRef-backed orders: every step is replayed through the engine at its own past time -------------------------------------------
+  const NINA = 'Nina Berger';
+  const wiRefOrder = (party: BillingParty, m: number, ids: string[], items: [string, number, string, number][] = []) => {
+    const id = draft(m, party, NINA); if (ids.length) jobs(m - 4, id, ...ids); items.forEach(([description, quantity, unit, unitPrice]) => manual(m - 4, id, description, quantity, unit, unitPrice)); finalize(m - 6, id);
+    const r = prepareInvoiceRequest(state, ctx(m - 60, NINA), id); state = r.state; return { id, requestId: r.requestId };
   };
+  const requestOf = (id: string) => state.requests.find((request) => request.id === id)!;
+  const details = (m: number, requestId: string, patch: Partial<InvoiceRequestDetails>) => { state = updateRequestDetails(state, ctx(m, NINA), requestId, { ...requestOf(requestId).details, ...patch }).state; };
+  const ready = (m: number, requestId: string) => { state = markRequestReady(state, ctx(m, NINA), requestId).state; };
+  const submit = (m: number, requestId: string) => { state = markRequestSubmitted(state, ctx(m, NINA), requestId).state; };
+  const issue = (m: number, requestId: string, externalReference: string) => {
+    state = recordRequestIssued(state, ctx(m, NINA), requestId, { externalReference, effectiveOn: dateInAppTimeZone(ago(m)), amount: requestOf(requestId).requestedAmount }).state;
+  };
+
+  // Still a draft: the address is in, but the contact person and the purchase order reference the organization requires are missing.
   const wiRefDraft = wiRefOrder(robotics, 4 * D + 2 * H, ['j-1075', 'j-1074']);
-  wiRefDraft.request.details = { ...wiRefDraft.request.details, addressLine1: 'Inffeldgasse 13', postalCode: '8010', locality: 'Graz' };
+  details(4 * D + 90, wiRefDraft.requestId, { addressLine1: 'Inffeldgasse 13', postalCode: '8010', locality: 'Graz' });
+
+  // Ready: complete and waiting to be sent to wiRef.
+  const readyOrder = wiRefOrder(racing, 2 * D + 7 * H, [], [['Large-format banner cutting, 6 pieces', 6, 'piece', 20]]);
+  details(2 * D + 6 * H, readyOrder.requestId, { addressLine1: 'Inffeldgasse 11', postalCode: '8010', locality: 'Graz', contactName: 'Julia Prem' });
+  ready(2 * D + 5 * H + 30, readyOrder.requestId);
 
   const submitted = wiRefOrder(kreativ, 6 * D + 5 * H, ['j-1073']);
-  Object.assign(submitted.request.details, { addressLine1: 'Schmiedgasse 8', postalCode: '8010', locality: 'Graz', contactName: 'Petra Lang', purchaseOrderReference: 'PO-2026-0412' });
-  submitted.request.state = 'submitted';
-  submitted.request.events.push({ id: 'we-s1', at: ago(6 * D + 3 * H), actor: 'Nina Berger', text: 'Marked as ready' }, { id: 'we-s2', at: ago(6 * D + 2 * H), actor: 'Nina Berger', text: 'Submitted to wiRef' });
+  details(6 * D + 4 * H, submitted.requestId, { addressLine1: 'Schmiedgasse 8', postalCode: '8010', locality: 'Graz', contactName: 'Petra Lang', purchaseOrderReference: 'PO-2026-0412' });
+  ready(6 * D + 3 * H, submitted.requestId); submit(6 * D + 2 * H, submitted.requestId);
 
   const issued = wiRefOrder(htl, 7 * D, ['j-1072']);
-  Object.assign(issued.request.details, { addressLine1: 'Pestalozzistraße 3', postalCode: '8010', locality: 'Graz', contactName: 'Dr. Weber' });
-  issued.request.state = 'issued';
-  issued.request.events.push({ id: 'we-i1', at: ago(6 * D + 20 * H), actor: 'Nina Berger', text: 'Marked as ready' }, { id: 'we-i2', at: ago(6 * D + 18 * H), actor: 'Nina Berger', text: 'Submitted to wiRef' }, { id: 'we-i3', at: ago(5 * D + 6 * H), actor: 'Nina Berger', text: 'wiRef issued the invoice (R-2026-2201)' });
+  details(7 * D - 60, issued.requestId, { addressLine1: 'Pestalozzistraße 3', postalCode: '8010', locality: 'Graz', contactName: 'Dr. Weber' });
+  ready(6 * D + 20 * H, issued.requestId); submit(6 * D + 18 * H, issued.requestId); issue(5 * D + 6 * H, issued.requestId, 'RE-2026-0187');
   record(2 * D + 5 * H, issued.id, pay(2 * D + 5 * H, 'external', totalOf(issued.id)));
 
+  // Cancellation requested: wiRef issued the invoice, then the amount turned out to be wrong.
+  const unwinding = wiRefOrder(htl, 5 * D + 3 * H, [], [['Workshop day for 12 pupils', 12, 'person', 15]]);
+  details(5 * D + 2 * H, unwinding.requestId, { addressLine1: 'Pestalozzistraße 3', postalCode: '8010', locality: 'Graz', contactName: 'Dr. Weber', serviceDescription: 'Workshop day with 12 pupils' });
+  ready(5 * D + 1 * H, unwinding.requestId); submit(4 * D + 22 * H, unwinding.requestId); issue(4 * D + 20 * H, unwinding.requestId, 'RE-2026-0191');
+  state = requestCancellation(state, ctx(3 * D + 4 * H, NINA), unwinding.requestId, 'Eleven pupils took part, not twelve. A corrected invoice is needed.').state;
+
+  // Cancelled before it was ever submitted, and prepared again: the new request links back to the old one.
+  const redo = wiRefOrder(fablab, 3 * D + 2 * H, [], [['Reprint of prototype enclosures', 1, 'set', 80]]);
+  details(3 * D + 60, redo.requestId, { addressLine1: 'Reininghausstraße 13', postalCode: '8020', locality: 'Graz', contactName: 'Tim Auer', serviceDescription: 'Prototype enclosures' });
+  ready(3 * D + 30, redo.requestId);
+  state = cancelRequest(state, ctx(3 * D, NINA), redo.requestId, 'The recipient asked for a different billing address.').state;
+  const again = prepareInvoiceRequest(state, ctx(2 * D + 20 * H, NINA), redo.id); state = again.state;
+  details(2 * D + 19 * H, again.requestId, { addressLine1: 'Lendkai 45', postalCode: '8020', locality: 'Graz', contactName: 'Tim Auer', serviceDescription: 'Prototype enclosures' });
+
   const cancelledRequest = wiRefOrder(fablab, 11 * D, ['j-1071']);
-  cancelledRequest.request.state = 'cancelled';
-  cancelledRequest.request.events.push({ id: 'we-c1', at: ago(9 * D), actor: 'Nina Berger', text: 'Request cancelled: the recipient asked for a different billing address' });
-  state = reverseOrder(state, ctx(8 * D + 2 * H, 'Nina Berger'), cancelledRequest.id, { reason: 'Wrong billing details; to be charged again with the new address.', reversals: [] }).state;
+  state = cancelRequest(state, ctx(9 * D, NINA), cancelledRequest.requestId, 'The recipient asked for a different billing address.').state;
+  state = reverseOrder(state, ctx(8 * D + 2 * H, NINA), cancelledRequest.id, { reason: 'Wrong billing details; to be charged again with the new address.', reversals: [] }).state;
+
+  // Cash days: every day from nine days ago to the day before yesterday is closed; yesterday and today stay open to demonstrate the close.
+  const quirks: Record<number, { difference: number; note: string }> = {
+    1: { difference: -0.5, note: 'Two 20 cent coins were missing from the change float.' },
+    3: { difference: 2, note: 'Customer left 2 euro as a tip. Put into the coffee fund.' },
+  };
+  let closedDays = 0;
+  for (let daysAgo = 9; daysAgo >= 2; daysAgo -= 1) {
+    const day = dateInAppTimeZone(ago(daysAgo * D));
+    const figures = cashDayFigures(state.payments, day);
+    if (figures.count === 0) continue;
+    const quirk = quirks[closedDays++] ?? { difference: 0, note: '' };
+    const closedAt = zonedDateTimeToISO(addCalendarDays(day, 1), '07:50');
+    state = closeDay(state, { ...ctx(0, FRONT_DESK), at: closedAt }, { day, countedCash: Math.round((figures.expected + quirk.difference) * 100) / 100, denominations: {}, note: quirk.note }).state;
+  }
 
   return state;
 }

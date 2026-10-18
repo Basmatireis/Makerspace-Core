@@ -1,4 +1,4 @@
-# Sales & payments redesign: design spec (Part 1)
+# Sales & payments redesign: design spec (Parts 1 and 2)
 
 Frontend-only prototype in the same folder as the Machines & Jobs prototype. Open `http://localhost:5173/prototype.html#/sales`.
 Prototype controls (beaker icon): role presets now include **Front desk** and **Finance**; the data state (loading, error, empty) applies to every sales page.
@@ -35,9 +35,16 @@ Front desk: counter sale, orders, record payments, price override for free sales
 - **Order detail**: status-dependent primary action (Finalize, Check out, Record payment, Print receipt, Commit replacement, Replace, Duplicate); summary tiles; items with thumbnail, "job changed" and Refresh in drafts; Add items menu (eligible jobs only, catalog, custom); payments including carried-over ones; timeline (Proposed); Correct order wizard (intent, payments with only valid options, reason and review); Prepare wiRef request; receipt view.
 - **Jobs**: job detail shows its order (or draft); mass edit has "Add to order" (same customer, finished, priced).
 
-## Part 2 (placeholders, labelled in `Part2Pages.tsx`)
+## Part 2 screens
 
-Payments cashbook and payment detail with Refund or correct, Invoicing (wiRef list and detail), Customers, Pricing (moved from Settings). Engine support for standalone `reversePayment` and request preparation exists already.
+Engine additions (all in `engine.ts`, with tests in `engine.test.ts`): wiRef commands (`updateRequestDetails` only while draft, `markRequestReady` with the readiness checklist, `markRequestSubmitted`, `recordRequestIssued` with matching amount, `cancelRequest` for draft/ready only, `requestCancellation`, `confirmRequestCancellation` with a reconciliation kind, `correctRequestReference`), `prepareInvoiceRequest` now links a successor to its cancelled predecessor, `closeDay`, `assignPricingGroup`, `setPurchaseOrderRequirement`, `savePricingGroup`, `setRate`. A closed cash day rejects new cash payments and backdated cash corrections (`day_closed`).
+
+- **Payments** (`/sales/payments`): tabs Cashbook and Day close. Period presets in the app time zone (Today, Yesterday, This week from Monday, This month, Custom range), tiles per method with net takings and counts, table (time, payment, order and customer links, method, kind Receipt/Refund/Correction, signed amount, recorded by), search, filters (method, kind, customer type), pagination, filters and period in the URL. Export CSV builds a real file client-side from the filtered lines (`csv.ts`: comma separated, UTF-8 with BOM, formula-safe text). Cash lines of a closed day carry a "Day closed" tag.
+- **Day close**: day picker (open cash days), expected cash (cash receipts minus cash refunds and corrections), counted cash plus a banknote and coin counter (Carbon NumberInputs), difference (a note is required when it is not zero), confirmation, list of closed days.
+- **Payment detail** (`/sales/payments/:id`): facts, order and customer links, the life of the payment in plain words from its allocations, links between a receipt and its reversal. **Refund or correct** offers only the reasons that are valid for the method and state (refund and recording error for cash and card, accounting correction for wiRef payments once the request is cancelled), explains each, edits the time of a refund, requires the terminal reference for card, shows the closed-day block, and for a walk-in sale asks for the right replacement receipt in the same step.
+- **Invoicing** (`/sales/invoicing`): list with search, customer and state filters, amount, next step, sorting and pagination; **New request** with an eligible-order picker and a list of orders that are not eligible with the reason. **Request detail**: progress indicator (Draft, Ready to submit, Submitted, Invoice issued, Paid; cancellation marks the last step reached), recipient form while draft, frozen details afterwards, readiness checklist (recipient, address, country, contact person for organizations, purchase order reference when the organization requires it, service period, description), primary action and menu per state with dialogs, humanized history with references and effective dates.
+- **Customers** (`/sales/customers`): list of persons and organizations with type, pricing group, open balance, orders, last activity, search and filters. Detail: figures, pricing group assignment (or follow the default), purchase order requirement toggle for organizations (applies to requests marked ready from now on), tabs Orders, Unbilled jobs (with "Bill n jobs") and Payments.
+- **Pricing** (`/sales/pricing`, moved here from Settings > Machines; the prototype had no older copy): tabs Rates (matrix of groups by machine runtime per machine type and material per category and unit, inline editing, "Missing" cells and a warning), Groups (default, active, description, new and edit, optional copy of another group's rates), Assignments (per customer), Price preview (machine type, duration, materials, group, itemized price and the same job in every group). Rates feed every quote in the prototype (counter sale, job forms); a missing rate leaves a job's price incomplete and blocks a counter sale.
 
 ## Proposed backend capabilities
 
@@ -45,4 +52,6 @@ Payments cashbook and payment detail with Refund or correct, Invoicing (wiRef li
 2. Order timeline/audit read endpoint with actor and readable text.
 3. Receipt numbering and PDF export.
 4. `createdBy` display name on orders and `recordedBy` on payments.
-5. Part 2: CSV export of payments, cash day close sessions.
+5. CSV export of payments (Payments > Export CSV).
+6. Cash day close sessions: expected and counted cash, difference, note, lock on a closed day (Payments > Day close, "Day closed" tags, the `day_closed` rule).
+7. Organization-level invoicing requirement is real; a customer list endpoint with open balance and last activity (Customers) is derived client-side today and would need aggregation on the server.

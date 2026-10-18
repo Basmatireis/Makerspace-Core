@@ -21,7 +21,13 @@ import { CounterSalePage } from './sales/pages/CounterSalePage';
 import { OrdersPage } from './sales/pages/OrdersPage';
 import { OrderDetailPage } from './sales/pages/OrderDetailPage';
 import { ReceiptPage } from './sales/pages/ReceiptPage';
-import { CustomersPlaceholder, InvoicingPlaceholder, PaymentsPlaceholder, PricingPlaceholder } from './sales/pages/Part2Pages';
+import { PaymentsPage } from './sales/pages/PaymentsPage';
+import { PaymentDetailPage } from './sales/pages/PaymentDetailPage';
+import { InvoicingPage } from './sales/pages/InvoicingPage';
+import { InvoiceRequestPage } from './sales/pages/InvoiceRequestPage';
+import { CustomersPage } from './sales/pages/CustomersPage';
+import { CustomerDetailPage } from './sales/pages/CustomerDetailPage';
+import { PricingPage } from './sales/pages/PricingPage';
 
 type NavItem = { label: string; to: string; icon: typeof Dashboard; match: (path: string) => boolean };
 
@@ -173,13 +179,13 @@ export function PrototypeApp() {
           <Route path="/sales/orders" element={<OrdersPage />} />
           <Route path="/sales/orders/:orderId" element={<OrderDetailPage />} />
           <Route path="/sales/orders/:orderId/receipt" element={<ReceiptPage />} />
-          {/* Part 2 of the sales redesign: placeholders until the real pages exist. */}
-          <Route path="/sales/payments" element={<PaymentsPlaceholder />} />
-          <Route path="/sales/invoicing" element={<InvoicingPlaceholder />} />
-          <Route path="/sales/invoicing/:requestId" element={<InvoicingPlaceholder />} />
-          <Route path="/sales/customers" element={<CustomersPlaceholder />} />
-          <Route path="/sales/customers/:kind/:customerId" element={<CustomersPlaceholder />} />
-          <Route path="/sales/pricing" element={<PricingPlaceholder />} />
+          <Route path="/sales/payments" element={<PaymentsPage />} />
+          <Route path="/sales/payments/:paymentId" element={<PaymentDetailPage />} />
+          <Route path="/sales/invoicing" element={<InvoicingPage />} />
+          <Route path="/sales/invoicing/:requestId" element={<InvoiceRequestPage />} />
+          <Route path="/sales/customers" element={<CustomersPage />} />
+          <Route path="/sales/customers/:kind/:customerId" element={<CustomerDetailPage />} />
+          <Route path="/sales/pricing" element={<PricingPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
