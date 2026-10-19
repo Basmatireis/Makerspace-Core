@@ -1,13 +1,12 @@
 import { useMemo, type ReactNode } from 'react';
-import { Link as CarbonLink, MultiSelect } from '@carbon/react';
+import { Link as CarbonLink } from '@carbon/react';
 import { Link } from 'react-router-dom';
 import { formatDateTime } from '../derived';
 import { useStore } from '../store';
 import type { InventoryTransaction, MaterialUnit } from '../types';
-import { DirectoryTable, selectedOptions, useUrlState, type Column } from './DirectoryTable';
+import { DirectoryTable, useUrlState, type Column } from './DirectoryTable';
 import { formatQuantity, formatSigned, formatSignedMoney, TransactionKindTag, transactionKindOptions } from './inventoryShared';
 
-const FILTER_KEYS = ['type'];
 
 /** Ledger of stock movements for one material or one spool, shown as a Directory-style table. */
 export function InventoryLedgerTable({ id, transactions, unit, showSpool, showFill = false }: {
@@ -75,14 +74,7 @@ export function InventoryLedgerTable({ id, transactions, unit, showSpool, showFi
       id={id} label="Ledger" columns={columns} rows={rows} totalCount={transactions.length}
       searchText={(tx) => [tx.note, tx.supplier, tx.by, jobName(tx), spoolName(tx)].filter(Boolean).join(' ')}
       defaultSort={{ key: 'date', direction: 'DESC' }}
-      hasActiveFilters={FILTER_KEYS.some((key) => url.get(key))} onClearFilters={() => url.clear(FILTER_KEYS)}
-      filterFields={(
-        <MultiSelect
-          id={`${id}-type-filter`} className="mj-filter-panel__field" titleText="Type" label="All types" items={transactionKindOptions}
-          itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(transactionKindOptions, typeIds) as typeof transactionKindOptions}
-          onChange={({ selectedItems }) => url.setList('type', selectedItems)}
-        />
-      )}
+      filterCategories={[{ key: 'type', label: 'Type', options: transactionKindOptions }]}
       empty={{ title: 'No movements yet', description: 'Purchases, consumption, corrections and disposals appear here.' }}
     />
   );

@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import {
-  Button, DataTable, Link as CarbonLink, MultiSelect, Pagination, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader,
+  Button, DataTable, Link as CarbonLink, Pagination, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader,
   Tab, TabList, TabPanel, TabPanels, Tabs, TableRow, TableToolbar, TableToolbarContent, TableToolbarSearch,
 } from '@carbon/react';
-import { Filter } from '@carbon/icons-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PageShell } from '../../../app/PageShell';
 import { EmptyState } from '../../../app/PageState';
+import { BatchFilter, toPatch, type FilterValues } from '../components/BatchFilter';
 import { QueryBoundary } from '../components/QueryBoundary';
 import { ConnectorsTab } from '../components/ConnectorsTab';
 import { MachineTypesTab } from '../components/MachineTypesTab';
@@ -40,7 +40,6 @@ const HEADERS: { key: string; header: string; sort?: SortKey; narrow?: boolean }
 ];
 
 const listParam = (value: string | null) => (value ?? '').split(',').filter(Boolean);
-const selectedOptions = (options: Option[], ids: string[]) => options.filter((option) => ids.includes(option.id));
 
 function ActivityText({ row }: { row: Row }) {
   const { current } = row.activity;
@@ -76,7 +75,6 @@ function renderCell(row: Row, key: string) {
 export function MachinesPage() {
   const store = useStore();
   const [params, setParams] = useSearchParams();
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [searchKey, setSearchKey] = useState(0);
   const [sort, setSort] = useState<{ key: SortKey; direction: 'ASC' | 'DESC' }>({ key: 'machine', direction: 'ASC' });
   const [formOpen, setFormOpen] = useState(false);
@@ -97,7 +95,7 @@ export function MachinesPage() {
   const collectionIds = listParam(params.get('collection'));
   const connectorIds = listParam(params.get('connector'));
   const search = params.get('q') ?? '';
-  const hasActiveFilters = FILTER_KEYS.some((key) => params.get(key));
+  const appliedFilters: FilterValues = Object.fromEntries(FILTER_KEYS.map((key) => [key, listParam(params.get(key))]));
 
   const update = (patch: Record<string, string | null>) => setParams((previous) => {
     const next = new URLSearchParams(previous);
@@ -105,7 +103,6 @@ export function MachinesPage() {
     if (!('page' in patch)) next.delete('page');
     return next;
   }, { replace: true });
-  const updateList = (key: string, items: Option[] | null | undefined) => update({ [key]: (items ?? []).map((item) => item.id).join(',') || null });
   const clearFilters = () => update(Object.fromEntries(FILTER_KEYS.map((key) => [key, null])));
   const clearAll = () => { update({ ...Object.fromEntries(FILTER_KEYS.map((key) => [key, null])), q: null }); setSearchKey((key) => key + 1); };
 
@@ -195,30 +192,18 @@ export function MachinesPage() {
                     onChange={(_event, value) => update({ q: value ?? '' })}
                     onClear={() => update({ q: null })}
                   />
-                  <Button
-                    hasIconOnly
-                    kind={hasActiveFilters ? 'primary' : 'ghost'}
-                    size="md"
-                    renderIcon={Filter}
-                    iconDescription="Filters"
-                    aria-expanded={filtersOpen}
-                    aria-controls="machines-filters"
-                    onClick={() => setFiltersOpen((open) => !open)}
+                  <BatchFilter
+                    id="machines" label="Machines" applied={appliedFilters} onApply={(values) => update(toPatch(values, [...FILTER_KEYS]))} onReset={clearFilters}
+                    categories={[
+                      { key: 'status', label: 'Status', options: statusOptions, helperText: 'Retired machines only appear when selected.' },
+                      { key: 'type', label: 'Type', options: typeOptions },
+                      { key: 'collection', label: 'Collection', options: collectionOptions },
+                      { key: 'connector', label: 'Connector', options: connectorOptions },
+                    ]}
                   />
                   {canManage && <Button kind="primary" size="lg" onClick={() => setFormOpen(true)}>Add machine</Button>}
                 </TableToolbarContent>
               </TableToolbar>
-              {filtersOpen && (
-                <div id="machines-filters" className="mj-filter-panel" role="region" aria-label="Machines filters">
-                  <div className="mj-filter-panel__fields">
-                    <MultiSelect id="machines-status-filter" className="mj-filter-panel__field" titleText="Status" label="Active machines" helperText="Retired machines only appear when selected." items={statusOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(statusOptions, statusIds)} onChange={({ selectedItems }) => updateList('status', selectedItems)} />
-                    <MultiSelect id="machines-type-filter" className="mj-filter-panel__field" titleText="Type" label="All types" items={typeOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(typeOptions, typeIds)} onChange={({ selectedItems }) => updateList('type', selectedItems)} />
-                    <MultiSelect id="machines-collection-filter" className="mj-filter-panel__field" titleText="Collection" label="All collection modes" items={collectionOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(collectionOptions, collectionIds)} onChange={({ selectedItems }) => updateList('collection', selectedItems)} />
-                    <MultiSelect id="machines-connector-filter" className="mj-filter-panel__field" titleText="Connector" label="All connector states" items={connectorOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(connectorOptions, connectorIds)} onChange={({ selectedItems }) => updateList('connector', selectedItems)} />
-                    <Button kind="ghost" size="md" disabled={!hasActiveFilters} onClick={clearFilters}>Clear filters</Button>
-                  </div>
-                </div>
-              )}
               <Table {...getTableProps()} aria-label="Machines">
                 <TableHead>
                   <TableRow>

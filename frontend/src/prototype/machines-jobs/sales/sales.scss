@@ -12,8 +12,6 @@
 .sales-field-error { @include type-style('helper-text-01'); color: var(--cds-text-error); }
 
 // Orders list ---------------------------------------------------------------------------------------------------------------
-.sales-filters { display: grid; gap: $spacing-05; inline-size: min(22rem, 86vw); padding: $spacing-05; }
-.sales-filters__actions { display: flex; justify-content: space-between; gap: $spacing-03; }
 .sales-ready-jobs { display: grid; gap: $spacing-03; margin: 0; padding: $spacing-03 0; list-style: none; }
 .sales-ready-jobs__row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: $spacing-05; padding-block: $spacing-02; border-block-end: 1px solid var(--cds-border-subtle); }
 .sales-ready-jobs__row:last-child { border-block-end: 0; }

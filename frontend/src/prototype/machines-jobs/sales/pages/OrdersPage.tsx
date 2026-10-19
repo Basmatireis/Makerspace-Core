@@ -1,13 +1,14 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import {
-  ActionableNotification, Button, Checkbox, CheckboxGroup, DataTable, DismissibleTag, Link as CarbonLink, Pagination, Popover, PopoverContent, Select, SelectItem, Tab, TabList, Table, TableBody,
+  ActionableNotification, Button, DataTable, DismissibleTag, Link as CarbonLink, Pagination, Select, SelectItem, Tab, TabList, Table, TableBody,
   TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, TableToolbarSearch, Tabs,
 } from '@carbon/react';
-import { Add, Filter } from '@carbon/icons-react';
+import { Add } from '@carbon/icons-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { DateInput } from '../../../../app/DateInput';
 import { PageShell } from '../../../../app/PageShell';
 import { EmptyState } from '../../../../app/PageState';
+import { BatchFilter, toPatch, type FilterValues } from '../../components/BatchFilter';
 import { QueryBoundary } from '../../components/QueryBoundary';
 import { useStore } from '../../store';
 import { RequirePermission } from '../components/RequirePermission';
@@ -16,14 +17,14 @@ import { ReadyToBillModal } from '../dialogs/ReadyToBillModal';
 import { dateInAppTimeZone, formatDateTime, formatEur } from '../format';
 import { customerKindLabel } from '../labels';
 import { activeItems, readyToBill, requestNext, requestReadiness, type OrderView } from '../logic';
-import { orderStatus, OrderStatusTag, orderStatusOptions, RequestStateTag, type OrderStatusKey } from '../status';
+import { OrderStatusTag, RequestStateTag } from '../status';
 import { useSalesData } from '../useSalesData';
 import '../sales.scss';
 
 type SortKey = 'order' | 'payment' | 'total' | 'updated';
-type ViewId = 'all' | 'drafts' | 'awaiting' | 'paid' | 'invoice';
+type ViewId = 'all' | 'drafts' | 'awaiting' | 'paid' | 'invoice' | 'closed';
 const PAGE_SIZES = [10, 25, 50];
-const FILTER_KEYS = ['status', 'type', 'from', 'to', 'customer'] as const;
+const FILTER_KEYS = ['type', 'from', 'to', 'customer'] as const;
 const TYPE_OPTIONS = [{ id: 'person', label: customerKindLabel('person') }, { id: 'organization', label: customerKindLabel('organization') }];
 const VIEWS: { id: ViewId; label: string; has: (order: OrderView) => boolean }[] = [
   { id: 'all', label: 'All', has: () => true },
@@ -31,6 +32,7 @@ const VIEWS: { id: ViewId; label: string; has: (order: OrderView) => boolean }[]
   { id: 'awaiting', label: 'Awaiting payment', has: (order) => order.status === 'finalized' && order.outstanding > 0 },
   { id: 'paid', label: 'Paid', has: (order) => order.status === 'finalized' && (order.settlement === 'paid' || order.settlement === 'no_payment_due') },
   { id: 'invoice', label: 'Invoice requested', has: (order) => order.activeRequest !== null },
+  { id: 'closed', label: 'Reversed & cancelled', has: (order) => order.status === 'reversed' || order.status === 'cancelled' },
 ];
 const HEADERS: { key: string; header: string; sort?: SortKey; narrow?: boolean; num?: boolean }[] = [
   { key: 'order', header: 'Order', sort: 'order' }, { key: 'status', header: 'Status' }, { key: 'payment', header: 'Payment', sort: 'payment' }, { key: 'invoice', header: 'Invoice', narrow: true },
@@ -42,20 +44,18 @@ function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; load
   const store = useStore();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [searchKey, setSearchKey] = useState(0);
   const [sort, setSort] = useState<{ key: SortKey; direction: 'ASC' | 'DESC' }>({ key: 'updated', direction: 'DESC' });
   const canWrite = store.can('orders.write');
   const view = VIEWS.find((item) => item.id === params.get('view')) ?? VIEWS[0];
-  const statuses = list(params.get('status'));
   const types = list(params.get('type'));
   const from = params.get('from') ?? '';
   const to = params.get('to') ?? '';
   const customerId = params.get('customer') ?? '';
   const customerName = customerId ? views.find((order) => order.customer.id === customerId)?.customerLabel ?? 'Unknown customer' : '';
   const search = params.get('q') ?? '';
-  const activeFilters = FILTER_KEYS.filter((key) => params.get(key)).length;
+  const appliedFilters: FilterValues = Object.fromEntries(FILTER_KEYS.map((key) => [key, list(params.get(key))]));
 
   const update = (patch: Record<string, string | null>) => setParams((previous) => {
     const next = new URLSearchParams(previous);
@@ -63,7 +63,6 @@ function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; load
     if (!('page' in patch)) next.delete('page');
     return next;
   }, { replace: true });
-  const toggleIn = (key: string, current: string[], id: string, checked: boolean) => update({ [key]: (checked ? [...current, id] : current.filter((item) => item !== id)).join(',') || null });
   const clearAll = () => { update({ ...Object.fromEntries(FILTER_KEYS.map((key) => [key, null])), q: null }); setSearchKey((value) => value + 1); };
   const setView = (id: ViewId) => update({ view: id === 'all' ? null : id });
   const counts = useMemo(() => Object.fromEntries(VIEWS.map((item) => [item.id, views.filter((order) => item.has(order) && (!customerId || order.customer.id === customerId)).length])) as Record<ViewId, number>, [views, customerId]);
@@ -74,7 +73,6 @@ function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; load
     return views.filter((order) => {
       const day = dateInAppTimeZone(order.createdAt);
       return view.has(order)
-        && (statuses.length === 0 || statuses.includes(orderStatus(order).key))
         && (types.length === 0 || types.includes(order.customerKind))
         && (!customerId || order.customer.id === customerId)
         && (!from || day >= from) && (!to || day <= to)
@@ -84,7 +82,7 @@ function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; load
       const x = value(a); const y = value(b);
       return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y))) * direction;
     });
-  }, [views, sort, search, view, statuses.join(','), types.join(','), from, to, customerId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [views, sort, search, view, types.join(','), from, to, customerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pageSize = PAGE_SIZES.includes(Number(params.get('pageSize'))) ? Number(params.get('pageSize')) : 10;
   const page = Math.max(1, Math.min(Number(params.get('page')) || 1, Math.ceil(visible.length / pageSize) || 1));
@@ -143,25 +141,21 @@ function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; load
             <TableToolbar aria-label="Orders table toolbar">
               <TableToolbarContent>
                 <TableToolbarSearch key={searchKey} id="orders-search" labelText="Search orders" placeholder="Search by reference or customer" defaultValue={search} onChange={(_event, value) => update({ q: value ?? '' })} onClear={() => update({ q: null })} />
-                <Popover open={filtersOpen} align="bottom-end" className="sales-filter-popover">
-                  <Button hasIconOnly kind={activeFilters ? 'primary' : 'ghost'} size="md" renderIcon={Filter} iconDescription={activeFilters ? `Filters (${activeFilters} active)` : 'Filters'} aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)} />
-                  <PopoverContent>
-                    <div className="sales-filters" role="group" aria-label="Order filters">
-                      <CheckboxGroup legendText="Status" helperText="Reversed and cancelled orders show up here.">
-                        {orderStatusOptions.map((option) => <Checkbox key={option.id} id={`orders-status-${option.id}`} labelText={option.label} checked={statuses.includes(option.id)} onChange={(_event, { checked }) => toggleIn('status', statuses, option.id as OrderStatusKey, checked)} />)}
-                      </CheckboxGroup>
-                      <CheckboxGroup legendText="Customer type">
-                        {TYPE_OPTIONS.map((option) => <Checkbox key={option.id} id={`orders-type-${option.id}`} labelText={option.label} checked={types.includes(option.id)} onChange={(_event, { checked }) => toggleIn('type', types, option.id, checked)} />)}
-                      </CheckboxGroup>
-                      <DateInput id="orders-from" labelText="Created from" value={from} onChange={(value) => update({ from: value || null })} />
-                      <DateInput id="orders-to" labelText="Created through" value={to} onChange={(value) => update({ to: value || null })} />
-                      <div className="sales-filters__actions">
-                        <Button kind="ghost" size="sm" disabled={activeFilters === 0} onClick={() => update(Object.fromEntries(FILTER_KEYS.map((key) => [key, null])))}>Clear filters</Button>
-                        <Button kind="secondary" size="sm" onClick={() => setFiltersOpen(false)}>Done</Button>
-                      </div>
-                    </div>
-                  </PopoverContent>
-                </Popover>
+                <BatchFilter
+                  id="orders" label="Orders" applied={appliedFilters} onApply={(values) => update(toPatch(values, [...FILTER_KEYS]))} onReset={() => update(Object.fromEntries(FILTER_KEYS.map((key) => [key, null])))}
+                  categories={[
+                    { key: 'type', label: 'Customer type', options: TYPE_OPTIONS },
+                    {
+                      key: 'created', label: 'Created', keys: ['from', 'to'],
+                      render: ({ idPrefix, staged, set }) => (
+                        <>
+                          <DateInput id={`${idPrefix}-from`} labelText="Created from" value={staged.from?.[0] ?? ''} onChange={(value) => set('from', value ? [value] : [])} />
+                          <DateInput id={`${idPrefix}-to`} labelText="Created through" value={staged.to?.[0] ?? ''} onChange={(value) => set('to', value ? [value] : [])} />
+                        </>
+                      ),
+                    },
+                  ]}
+                />
                 {canWrite && <Button kind="primary" size="lg" renderIcon={Add} onClick={() => setCreating(true)}>New order</Button>}
               </TableToolbarContent>
             </TableToolbar>

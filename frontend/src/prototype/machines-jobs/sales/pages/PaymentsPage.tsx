@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
 import {
-  Button, Checkbox, CheckboxGroup, ContentSwitcher, Link as CarbonLink, Pagination, Popover, PopoverContent, Select, SelectItem, Switch, Table, TableBody, TableCell, TableContainer,
+  Button, ContentSwitcher, Link as CarbonLink, Pagination, Select, SelectItem, Switch, Table, TableBody, TableCell, TableContainer,
   TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, TableToolbarSearch, Tile, Toggletip, ToggletipButton, ToggletipContent,
 } from '@carbon/react';
-import { Add, Download, Filter, Information, Subtract } from '@carbon/icons-react';
+import { Add, Download, Information, Subtract } from '@carbon/icons-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { DateInput } from '../../../../app/DateInput';
 import { PageShell } from '../../../../app/PageShell';
 import { EmptyState } from '../../../../app/PageState';
 import { timeInAppTimeZone } from '../../../../app/dateTime';
+import { BatchFilter, toPatch, type FilterValues } from '../../components/BatchFilter';
 import { QueryBoundary } from '../../components/QueryBoundary';
 import { useStore } from '../../store';
 import { RequirePermission } from '../components/RequirePermission';
@@ -50,8 +51,7 @@ function Cashbook({ lines, empty, canRecord, payments, movements }: { lines: Cas
   const store = useStore();
   const [movement, setMovement] = useState<CashMovementKind | null>(null);
   const navigate = useNavigate();
-  const { params, update, list, toggleIn } = useUrlParams();
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const { params, update, list } = useUrlParams();
   const [searchKey, setSearchKey] = useState(0);
   const preset = (periodPresets.find((item) => item.id === params.get('period'))?.id ?? 'today') as PeriodPreset;
   const from = params.get('from') ?? '';
@@ -59,6 +59,7 @@ function Cashbook({ lines, empty, canRecord, payments, movements }: { lines: Cas
   const search = params.get('q') ?? '';
   const methods = list('method'); const kinds = list('kind'); const who = list('who');
   const activeFilters = FILTER_KEYS.filter((key) => params.get(key)).length;
+  const appliedFilters: FilterValues = { method: methods, kind: kinds, who };
   const range = periodRange(preset, from, to);
 
   const inPeriod = useMemo(() => range.valid ? lines.filter((line) => { const at = new Date(line.at).getTime(); return at >= range.from && at < range.to; }) : [], [lines, range.from, range.to, range.valid]);
@@ -146,26 +147,14 @@ function Cashbook({ lines, empty, canRecord, payments, movements }: { lines: Cas
         <TableToolbar aria-label="Payments table toolbar">
           <TableToolbarContent>
             <TableToolbarSearch key={searchKey} id="payments-search" labelText="Search payments" placeholder="Search payment, order, customer or reference" defaultValue={search} onChange={(_event, value) => update({ q: value ?? '' })} onClear={() => update({ q: null })} />
-            <Popover open={filtersOpen} align="bottom-end" className="sales-filter-popover">
-              <Button hasIconOnly kind={activeFilters ? 'primary' : 'ghost'} size="md" renderIcon={Filter} iconDescription={activeFilters ? `Filters (${activeFilters} active)` : 'Filters'} aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)} />
-              <PopoverContent>
-                <div className="sales-filters" role="group" aria-label="Payment filters">
-                  <CheckboxGroup legendText="Method">
-                    {methodOptions.map((option) => <Checkbox key={option.id} id={`payments-method-${option.id}`} labelText={option.label} checked={methods.includes(option.id)} onChange={(_event, { checked }) => toggleIn('method', option.id, checked)} />)}
-                  </CheckboxGroup>
-                  <CheckboxGroup legendText="Kind">
-                    {KIND_OPTIONS.map((option) => <Checkbox key={option.id} id={`payments-kind-${option.id}`} labelText={option.label} checked={kinds.includes(option.id)} onChange={(_event, { checked }) => toggleIn('kind', option.id, checked)} />)}
-                  </CheckboxGroup>
-                  <CheckboxGroup legendText="Customer">
-                    {WHO_OPTIONS.map((option) => <Checkbox key={option.id} id={`payments-who-${option.id}`} labelText={option.label} checked={who.includes(option.id)} onChange={(_event, { checked }) => toggleIn('who', option.id, checked)} />)}
-                  </CheckboxGroup>
-                  <div className="sales-filters__actions">
-                    <Button kind="ghost" size="sm" disabled={activeFilters === 0} onClick={() => update(Object.fromEntries(FILTER_KEYS.map((key) => [key, null])))}>Clear filters</Button>
-                    <Button kind="secondary" size="sm" onClick={() => setFiltersOpen(false)}>Done</Button>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
+            <BatchFilter
+              id="payments" label="Payments" applied={appliedFilters} onApply={(values) => update(toPatch(values, [...FILTER_KEYS]))} onReset={() => update(Object.fromEntries(FILTER_KEYS.map((key) => [key, null])))}
+              categories={[
+                { key: 'method', label: 'Method', options: methodOptions },
+                { key: 'kind', label: 'Kind', options: KIND_OPTIONS },
+                { key: 'who', label: 'Customer', options: WHO_OPTIONS },
+              ]}
+            />
             {canRecord && (
               <>
                 <Button kind="ghost" size="md" renderIcon={Subtract} onClick={() => setMovement('withdrawal')}>Record cash withdrawal</Button>

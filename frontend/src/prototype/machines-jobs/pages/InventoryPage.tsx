@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { Button, Link as CarbonLink, MenuButton, MenuItem, MultiSelect, Tab, TabList, TabPanel, TabPanels, Tabs, Toggle } from '@carbon/react';
+import { Button, Link as CarbonLink, MenuButton, MenuItem, Tab, TabList, TabPanel, TabPanels, Tabs } from '@carbon/react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PageShell } from '../../../app/PageShell';
-import { DirectoryTable, selectedOptions, useUrlState, type Column, type Option } from '../components/DirectoryTable';
+import { DirectoryTable, useUrlState, type Column, type Option } from '../components/DirectoryTable';
 import { InventorySpoolsTable } from '../components/InventorySpoolsTable';
 import { ProductsTable } from '../components/ProductsTable';
 import { formatQuantity, formatUnitCost, isFilament, looseStock, onSpoolsStock, NoInventoryAccess, StockTag, stockState, stockStateOptions, type StockState } from '../components/inventoryShared';
@@ -18,7 +18,6 @@ import '../styles/inventory.scss';
 
 type TabKey = 'materials' | 'spools' | 'products';
 const TABS: TabKey[] = ['materials', 'spools', 'products'];
-const MATERIAL_FILTERS = ['category', 'stock', 'inactive'];
 const EMPTY: { materials: Material[]; spools: Spool[] } = { materials: [], spools: [] };
 
 type MaterialRow = Material & { state: StockState; activeSpools: number | null };
@@ -83,23 +82,12 @@ function MaterialsTable({ materials, spools, canAdd, canRegister, onAdd, onRegis
       id="materials" label="Materials" columns={columns} rows={rows} totalCount={materials.length}
       searchText={(row) => [row.name, row.category, row.color].filter(Boolean).join(' ')}
       defaultSort={{ key: 'material', direction: 'ASC' }}
-      hasActiveFilters={MATERIAL_FILTERS.some((key) => url.get(key))} onClearFilters={() => url.clear(MATERIAL_FILTERS)}
       toolbarAction={action}
-      filterFields={(
-        <>
-          <MultiSelect
-            id="materials-category-filter" className="mj-filter-panel__field" titleText="Category" label="All categories" items={categoryOptions}
-            itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(categoryOptions, categoryIds)} onChange={({ selectedItems }) => url.setList('category', selectedItems)}
-          />
-          <MultiSelect
-            id="materials-stock-filter" className="mj-filter-panel__field" titleText="Stock state" label="All states" items={stockStateOptions}
-            itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(stockStateOptions, stockIds) as typeof stockStateOptions} onChange={({ selectedItems }) => url.setList('stock', selectedItems)}
-          />
-          <div className="mj-filter-panel__field">
-            <Toggle id="materials-inactive-filter" size="sm" labelText="Show inactive" labelA="Hidden" labelB="Shown" toggled={showInactive} onToggle={(checked) => url.set({ inactive: checked ? '1' : null })} />
-          </div>
-        </>
-      )}
+      filterCategories={[
+        { key: 'category', label: 'Category', options: categoryOptions },
+        { key: 'stock', label: 'Stock state', options: stockStateOptions },
+        { key: 'inactive', label: 'Show', options: [{ id: '1', label: 'Inactive materials' }] },
+      ]}
       empty={{
         title: 'No materials yet', description: 'Add the materials the makerspace keeps in stock to track quantities and costs.',
         action: canAdd ? <Button kind="tertiary" onClick={onAdd}>Add material</Button> : undefined,

@@ -1,15 +1,15 @@
 import { lazy, Suspense, useMemo, useState } from 'react';
 import {
-  ContentSwitcher, DataTable, DataTableSkeleton, InlineNotification, Link as CarbonLink, MultiSelect, SkeletonPlaceholder, SkeletonText, Switch,
+  ContentSwitcher, DataTable, DataTableSkeleton, InlineNotification, Link as CarbonLink, SkeletonPlaceholder, SkeletonText, Switch,
   Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, TableToolbarSearch,
   Button, Pagination, Tile,
 } from '@carbon/react';
-import { Filter } from '@carbon/icons-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { dateInAppTimeZone } from '../../../app/dateTime';
 import { DateInput } from '../../../app/DateInput';
 import { PageShell } from '../../../app/PageShell';
 import { EmptyState } from '../../../app/PageState';
+import { BatchFilter, toPatch } from '../components/BatchFilter';
 import { QueryBoundary } from '../components/QueryBoundary';
 import { formatMoney } from '../derived';
 import { addDays, addMonths, buildStatistics, daysBetween, type DateRange, type MachineStat, type Totals } from '../statsData';
@@ -100,7 +100,6 @@ function StatisticsSkeleton() {
 export function StatisticsPage() {
   const store = useStore();
   const [params, setParams] = useSearchParams();
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [sort, setSort] = useState<{ key: SortKey; direction: 'ASC' | 'DESC' }>({ key: 'runtime', direction: 'DESC' });
   const canRead = store.can('statistics.read');
   const query = useSimulatedQuery<Inputs>((data) => ({
@@ -161,7 +160,6 @@ export function StatisticsPage() {
   const sortBy = (key: SortKey) => setSort((current) => current.key === key
     ? { key, direction: current.direction === 'ASC' ? 'DESC' : 'ASC' }
     : { key, direction: key === 'machine' ? 'ASC' : 'DESC' });
-  const hasActiveFilters = typeIds.length > 0;
 
   if (!canRead) {
     return (
@@ -220,24 +218,12 @@ export function StatisticsPage() {
                     id="stats-search" labelText="Search machines" placeholder="Search machines" defaultValue={search}
                     onChange={(_event, value) => update({ q: value ?? '' })} onClear={() => update({ q: null })}
                   />
-                  <Button
-                    hasIconOnly kind={hasActiveFilters ? 'primary' : 'ghost'} size="md" renderIcon={Filter} iconDescription="Filters"
-                    aria-expanded={filtersOpen} aria-controls="stats-filters" onClick={() => setFiltersOpen((open) => !open)}
+                  <BatchFilter
+                    id="stats" label="Per machine" applied={{ type: typeIds }} onApply={(values) => update(toPatch(values, ['type']))} onReset={() => update({ type: null })}
+                    categories={[{ key: 'type', label: 'Type', options: typeOptions }]}
                   />
                 </TableToolbarContent>
               </TableToolbar>
-              {filtersOpen && (
-                <div id="stats-filters" className="mj-filter-panel" role="region" aria-label="Per machine filters">
-                  <div className="mj-filter-panel__fields">
-                    <MultiSelect
-                      id="stats-type-filter" className="mj-filter-panel__field" titleText="Type" label="All types" items={typeOptions}
-                      itemToString={(item) => item?.label ?? ''} selectedItems={typeOptions.filter((option) => typeIds.includes(option.id))}
-                      onChange={({ selectedItems }) => update({ type: (selectedItems ?? []).map((item) => item.id).join(',') || null })}
-                    />
-                    <Button kind="ghost" size="md" disabled={!hasActiveFilters} onClick={() => update({ type: null })}>Clear filters</Button>
-                  </div>
-                </div>
-              )}
               <Table {...getTableProps()} aria-label="Statistics per machine">
                 <TableHead>
                   <TableRow>

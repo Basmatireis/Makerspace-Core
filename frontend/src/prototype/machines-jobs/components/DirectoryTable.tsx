@@ -3,9 +3,9 @@ import { useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 import {
   Button, DataTable, Pagination, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, TableToolbarMenu, TableToolbarSearch,
 } from '@carbon/react';
-import { Filter } from '@carbon/icons-react';
 import { useSearchParams } from 'react-router-dom';
 import { EmptyState } from '../../../app/PageState';
+import { BatchFilter, toPatch, type FilterCategory, type FilterValues } from './BatchFilter';
 
 export type Column<T> = {
   key: string;
@@ -50,9 +50,8 @@ type Props<T extends { id: string }> = {
   totalCount: number;
   searchText: (row: T) => string;
   defaultSort: { key: string; direction: 'ASC' | 'DESC' };
-  filterFields?: ReactNode;
-  hasActiveFilters?: boolean;
-  onClearFilters?: () => void;
+  /** Columns of the batch filter panel; each category key is also the URL parameter (under the table prefix) it is stored in. */
+  filterCategories?: FilterCategory[];
   toolbarAction?: ReactNode;
   /** Overflow items (`TableToolbarAction`) shown in a menu before the primary action. */
   toolbarMenu?: ReactNode;
@@ -67,13 +66,14 @@ type Props<T extends { id: string }> = {
  * panel, primary action in the toolbar, client-side sort over the full filtered list, pagination in the container.
  */
 export function DirectoryTable<T extends { id: string }>({
-  id, label, columns, rows, totalCount, searchText, defaultSort, filterFields, hasActiveFilters = false, onClearFilters, toolbarAction, toolbarMenu, empty, pageSizes = [10, 25, 50], onRowClick,
+  id, label, columns, rows, totalCount, searchText, defaultSort, filterCategories, toolbarAction, toolbarMenu, empty, pageSizes = [10, 25, 50], onRowClick,
 }: Props<T>) {
   const url = useUrlState(id);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [searchKey, setSearchKey] = useState(0);
   const [sort, setSort] = useState(defaultSort);
   const search = url.get('q');
+  const filterKeys = (filterCategories ?? []).flatMap((category) => category.keys ?? [category.key]);
+  const applied: FilterValues = Object.fromEntries(filterKeys.map((key) => [key, url.list(key)]));
 
   const visible = useMemo(() => {
     const column = columns.find((item) => item.key === sort.key);
@@ -98,7 +98,7 @@ export function DirectoryTable<T extends { id: string }>({
   const sortBy = (column: Column<T>) => setSort((current) => current.key === column.key
     ? { key: column.key, direction: current.direction === 'ASC' ? 'DESC' : 'ASC' }
     : { key: column.key, direction: column.firstDirection ?? 'ASC' });
-  const clearAll = () => { onClearFilters?.(); url.clear(['q']); setSearchKey((key) => key + 1); };
+  const clearAll = () => { url.clear([...filterKeys, 'q']); setSearchKey((key) => key + 1); };
 
   return (
     <DataTable key={`${page}-${pageSize}-${sort.key}-${sort.direction}`} rows={tableRows} headers={headers}>
@@ -115,24 +115,16 @@ export function DirectoryTable<T extends { id: string }>({
                 onChange={(_event, value) => url.set({ q: value ?? '' })}
                 onClear={() => url.set({ q: null })}
               />
-              {filterFields && (
-                <Button
-                  hasIconOnly kind={hasActiveFilters ? 'primary' : 'ghost'} size="md" renderIcon={Filter} iconDescription="Filters"
-                  aria-expanded={filtersOpen} aria-controls={`${id}-filters`} onClick={() => setFiltersOpen((open) => !open)}
+              {filterCategories && filterCategories.length > 0 && (
+                <BatchFilter
+                  id={id} label={label} categories={filterCategories} applied={applied}
+                  onApply={(values) => url.set(toPatch(values, filterKeys))} onReset={() => url.clear(filterKeys)}
                 />
               )}
               {toolbarMenu && <TableToolbarMenu iconDescription="More actions">{toolbarMenu}</TableToolbarMenu>}
               {toolbarAction}
             </TableToolbarContent>
           </TableToolbar>
-          {filterFields && filtersOpen && (
-            <div id={`${id}-filters`} className="mj-filter-panel" role="region" aria-label={`${label} filters`}>
-              <div className="mj-filter-panel__fields">
-                {filterFields}
-                <Button kind="ghost" size="md" disabled={!hasActiveFilters} onClick={() => onClearFilters?.()}>Clear filters</Button>
-              </div>
-            </div>
-          )}
           <Table {...getTableProps()} aria-label={label}>
             <TableHead>
               <TableRow>

@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
 import {
-  Button, ComboBox, DataTable, InlineNotification, Link as CarbonLink, MultiSelect, Pagination, Table, TableBatchAction, TableBatchActions, TableBody, TableCell,
+  Button, ComboBox, DataTable, InlineNotification, Link as CarbonLink, Pagination, Table, TableBatchAction, TableBatchActions, TableBody, TableCell,
   TableContainer, TableHead, TableHeader, TableRow, TableSelectAll, TableSelectRow, TableToolbar, TableToolbarContent, TableToolbarSearch,
 } from '@carbon/react';
-import { Filter, Link as LinkIcon, Merge, Receipt, Split, TrashCan } from '@carbon/icons-react';
+import { Link as LinkIcon, Merge, Receipt, Split, TrashCan } from '@carbon/icons-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { dateInAppTimeZone } from '../../../app/dateTime';
 import { DateInput } from '../../../app/DateInput';
 import { PageShell } from '../../../app/PageShell';
 import { EmptyState } from '../../../app/PageState';
+import { BatchFilter, toPatch, type FilterValues } from '../components/BatchFilter';
 import { QueryBoundary } from '../components/QueryBoundary';
 import { billingState, buildJobRows, formatDateTime, formatDuration, formatMoney, jobRowStatusOptions, nameFromFile, JobRowStatusTag, type BillingState, type JobRow } from '../derived';
 import { AttachToJobModal } from '../dialogs/AttachToJobModal';
@@ -44,13 +45,11 @@ const HEADERS: { key: string; header: string; sort?: SortKey; narrow?: boolean }
 const EMPTY: { jobs: Job[]; prints: Print[]; machines: Machine[] } = { jobs: [], prints: [], machines: [] };
 
 const listParam = (value: string | null) => (value ?? '').split(',').filter(Boolean);
-const selectedOptions = (options: Option[], ids: string[]) => options.filter((option) => ids.includes(option.id));
 
 export function JobsPage() {
   const store = useStore();
   const materialOptions: Option[] = store.materials.map((material) => ({ id: material.id, label: material.name }));
   const [params, setParams] = useSearchParams();
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [searchKey, setSearchKey] = useState(0);
   const [sort, setSort] = useState<{ key: SortKey; direction: 'ASC' | 'DESC' }>({ key: 'started', direction: 'DESC' });
   const [jobOpen, setJobOpen] = useState(false);
@@ -73,7 +72,7 @@ export function JobsPage() {
   const from = params.get('from') ?? '';
   const to = params.get('to') ?? '';
   const search = params.get('q') ?? '';
-  const hasActiveFilters = FILTER_KEYS.some((key) => params.get(key));
+  const appliedFilters: FilterValues = Object.fromEntries(FILTER_KEYS.map((key) => [key, listParam(params.get(key))]));
 
   const update = (patch: Record<string, string | null>) => setParams((previous) => {
     const next = new URLSearchParams(previous);
@@ -81,7 +80,6 @@ export function JobsPage() {
     if (!('page' in patch)) next.delete('page');
     return next;
   }, { replace: true });
-  const updateList = (key: string, items: Option[] | null | undefined) => update({ [key]: (items ?? []).map((item) => item.id).join(',') || null });
   const clearFilters = () => update(Object.fromEntries(FILTER_KEYS.map((key) => [key, null])));
   const clearAll = () => { update({ ...Object.fromEntries(FILTER_KEYS.map((key) => [key, null])), q: null }); setSearchKey((key) => key + 1); };
 
@@ -218,35 +216,37 @@ export function JobsPage() {
                       onChange={(_event, value) => update({ q: value ?? '' })}
                       onClear={() => update({ q: null })}
                     />
-                    <Button
-                      hasIconOnly
-                      kind={hasActiveFilters ? 'primary' : 'ghost'}
-                      size="md"
-                      renderIcon={Filter}
-                      iconDescription="Filters"
-                      aria-expanded={filtersOpen}
-                      aria-controls="jobs-filters"
-                      onClick={() => setFiltersOpen((open) => !open)}
+                    <BatchFilter
+                      id="jobs" label="Jobs" applied={appliedFilters} onApply={(values) => update(toPatch(values, [...FILTER_KEYS]))} onReset={clearFilters}
+                      categories={[
+                        { key: 'status', label: 'Status', options: statusOptions },
+                        { key: 'machine', label: 'Machine', options: machineOptions },
+                        { key: 'run', label: 'Run source', options: runOptions },
+                        { key: 'material', label: 'Material', options: materialOptions },
+                        { key: 'billing', label: 'Billing state', options: billingOptions },
+                        {
+                          key: 'people', label: 'People', keys: ['customer', 'operator'],
+                          render: ({ idPrefix, staged, set }) => (
+                            <>
+                              <ComboBox autoAlign id={`${idPrefix}-customer`} titleText="Customer" placeholder="Any customer" items={lookups.people} itemToString={(item) => item?.displayName ?? ''} shouldFilterItem={matchesName} selectedItem={lookups.people.find((person) => person.id === staged.customer?.[0]) ?? null} onChange={({ selectedItem }) => set('customer', selectedItem ? [selectedItem.id] : [])} />
+                              <ComboBox autoAlign id={`${idPrefix}-operator`} titleText="Operator" placeholder="Any operator" items={lookups.operators} itemToString={(item) => item?.displayName ?? ''} shouldFilterItem={matchesName} selectedItem={lookups.operators.find((operator) => operator.personId === staged.operator?.[0]) ?? null} onChange={({ selectedItem }) => set('operator', selectedItem ? [selectedItem.personId] : [])} />
+                            </>
+                          ),
+                        },
+                        {
+                          key: 'period', label: 'Started', keys: ['from', 'to'],
+                          render: ({ idPrefix, staged, set }) => (
+                            <>
+                              <DateInput id={`${idPrefix}-from`} labelText="From" value={staged.from?.[0] ?? ''} onChange={(value) => set('from', value ? [value] : [])} />
+                              <DateInput id={`${idPrefix}-to`} labelText="Through" value={staged.to?.[0] ?? ''} onChange={(value) => set('to', value ? [value] : [])} />
+                            </>
+                          ),
+                        },
+                      ]}
                     />
                     {canCreate && <Button kind="primary" size="lg" onClick={() => setJobOpen(true)}>New job</Button>}
                   </TableToolbarContent>
                 </TableToolbar>
-                {filtersOpen && (
-                  <div id="jobs-filters" className="mj-filter-panel" role="region" aria-label="Jobs filters">
-                    <div className="mj-filter-panel__fields">
-                      <MultiSelect id="jobs-status-filter" className="mj-filter-panel__field" titleText="Status" label="All statuses" items={statusOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(statusOptions, statusIds)} onChange={({ selectedItems }) => updateList('status', selectedItems)} />
-                      <MultiSelect id="jobs-machine-filter" className="mj-filter-panel__field" titleText="Machine" label="All machines" items={machineOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(machineOptions, machineIds)} onChange={({ selectedItems }) => updateList('machine', selectedItems)} />
-                      <MultiSelect id="jobs-run-filter" className="mj-filter-panel__field" titleText="Run source" label="All sources" items={runOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(runOptions, runIds)} onChange={({ selectedItems }) => updateList('run', selectedItems)} />
-                      <ComboBox id="jobs-customer-filter" className="mj-filter-panel__field" titleText="Customer" placeholder="Any customer" items={lookups.people} itemToString={(item) => item?.displayName ?? ''} shouldFilterItem={matchesName} selectedItem={lookups.people.find((person) => person.id === customerId) ?? null} onChange={({ selectedItem }) => update({ customer: selectedItem?.id ?? null })} />
-                      <ComboBox id="jobs-operator-filter" className="mj-filter-panel__field" titleText="Operator" placeholder="Any operator" items={lookups.operators} itemToString={(item) => item?.displayName ?? ''} shouldFilterItem={matchesName} selectedItem={lookups.operators.find((operator) => operator.personId === operatorId) ?? null} onChange={({ selectedItem }) => update({ operator: selectedItem?.personId ?? null })} />
-                      <MultiSelect id="jobs-material-filter" className="mj-filter-panel__field" titleText="Material" label="All materials" items={materialOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(materialOptions, materialIds)} onChange={({ selectedItems }) => updateList('material', selectedItems)} />
-                      <MultiSelect id="jobs-billing-filter" className="mj-filter-panel__field" titleText="Billing state" label="All billing states" items={billingOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(billingOptions, billingIds)} onChange={({ selectedItems }) => updateList('billing', selectedItems)} />
-                      <div className="mj-filter-panel__field"><DateInput id="jobs-from-filter" labelText="From" value={from} onChange={(value) => update({ from: value || null })} /></div>
-                      <div className="mj-filter-panel__field"><DateInput id="jobs-to-filter" labelText="Through" value={to} onChange={(value) => update({ to: value || null })} /></div>
-                      <Button kind="ghost" size="md" disabled={!hasActiveFilters} onClick={clearFilters}>Clear filters</Button>
-                    </div>
-                  </div>
-                )}
                 {selectable && selectedRows.length > 0 && (unavailable.length > 0 || orderBlocker) && (
                   <InlineNotification className="mj-full-width-notification" kind="info" lowContrast hideCloseButton title="Some actions are unavailable for this selection">
                     <ul className="mj-skip-list">{unavailable.map(([action, item]) => <li key={action}>{item.reason}</li>)}{orderBlocker && store.can('orders.read') && <li>{orderBlocker}</li>}</ul>

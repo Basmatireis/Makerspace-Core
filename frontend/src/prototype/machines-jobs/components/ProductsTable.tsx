@@ -1,10 +1,10 @@
 import { useMemo } from 'react';
-import { Button, Link as CarbonLink, MultiSelect, Tag, Toggle } from '@carbon/react';
+import { Button, Link as CarbonLink, Tag } from '@carbon/react';
 import { Link } from 'react-router-dom';
 import { formatMoney } from '../derived';
 import { useStore } from '../store';
 import type { FilamentProduct } from '../types';
-import { DirectoryTable, selectedOptions, useUrlState, type Column, type Option } from './DirectoryTable';
+import { DirectoryTable, useUrlState, type Column, type Option } from './DirectoryTable';
 import { formatGrams, packagingOptions, PackagingTag, productInUse } from './inventoryShared';
 
 type Row = FilamentProduct & { materialName: string; inUse: number };
@@ -28,7 +28,6 @@ export function ProductsTable({ id, materialId, canManage, onAdd, onEdit }: Prop
   const materialIds = url.list('material');
   const packagingIds = url.list('packaging');
   const showInactive = url.get('inactive') === '1';
-  const filterKeys = fixedMaterial ? ['manufacturer', 'packaging', 'inactive'] : ['manufacturer', 'material', 'packaging', 'inactive'];
 
   const scoped = useMemo(() => products.filter((product) => !materialId || product.materialId === materialId), [products, materialId]);
   const all: Row[] = useMemo(() => scoped.map((product) => ({
@@ -71,30 +70,14 @@ export function ProductsTable({ id, materialId, canManage, onAdd, onEdit }: Prop
       id={id} label="Products" columns={columns} rows={rows} totalCount={scoped.length}
       searchText={(row) => [row.manufacturer, row.name, row.materialName, row.notes].filter(Boolean).join(' ')}
       defaultSort={{ key: 'product', direction: 'ASC' }}
-      hasActiveFilters={filterKeys.some((key) => url.get(key))} onClearFilters={() => url.clear(filterKeys)}
       onRowClick={canManage ? onEdit : undefined}
       toolbarAction={canManage ? <Button kind="primary" size="lg" onClick={onAdd}>Add product</Button> : undefined}
-      filterFields={(
-        <>
-          <MultiSelect
-            id={`${id}-manufacturer-filter`} className="mj-filter-panel__field" titleText="Manufacturer" label="All manufacturers" items={manufacturerOptions}
-            itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(manufacturerOptions, manufacturerIds)} onChange={({ selectedItems }) => url.setList('manufacturer', selectedItems)}
-          />
-          {!fixedMaterial && (
-            <MultiSelect
-              id={`${id}-material-filter`} className="mj-filter-panel__field" titleText="Material" label="All materials" items={materialOptions}
-              itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(materialOptions, materialIds)} onChange={({ selectedItems }) => url.setList('material', selectedItems)}
-            />
-          )}
-          <MultiSelect
-            id={`${id}-packaging-filter`} className="mj-filter-panel__field" titleText="Packaging" label="All packaging" items={packagingOptions}
-            itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(packagingOptions, packagingIds) as typeof packagingOptions} onChange={({ selectedItems }) => url.setList('packaging', selectedItems)}
-          />
-          <div className="mj-filter-panel__field">
-            <Toggle id={`${id}-inactive-filter`} size="sm" labelText="Show inactive" labelA="Hidden" labelB="Shown" toggled={showInactive} onToggle={(checked) => url.set({ inactive: checked ? '1' : null })} />
-          </div>
-        </>
-      )}
+      filterCategories={[
+        { key: 'manufacturer', label: 'Manufacturer', options: manufacturerOptions },
+        ...(fixedMaterial ? [] : [{ key: 'material', label: 'Material', options: materialOptions }]),
+        { key: 'packaging', label: 'Packaging', options: packagingOptions },
+        { key: 'inactive', label: 'Show', options: [{ id: '1', label: 'Inactive products' }] },
+      ]}
       empty={{
         title: 'No products yet', description: 'Add the filament products the makerspace buys, so a spool can be registered with one choice.',
         action: canManage ? <Button kind="tertiary" onClick={onAdd}>Add product</Button> : undefined,
