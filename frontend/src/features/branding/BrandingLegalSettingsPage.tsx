@@ -28,6 +28,7 @@ import type {
   BrandingConfiguration,
   BrandingColors,
   LegalConfiguration,
+  PublicConfiguration,
   UpdateBrandingConfigurationRequest,
 } from '../../api/generated/models';
 import {
@@ -41,7 +42,7 @@ import { apiFetch, ApiError } from '../../api/http-client';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { PageShell } from '../../app/PageShell';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
-import { publicConfigurationFromAdmin, publicConfigurationKey } from './branding';
+import { defaultPublicConfiguration, publicConfigurationFromAdmin, publicConfigurationKey } from './branding';
 
 type FormValues = Omit<UpdateBrandingConfigurationRequest, 'expectedVersion'>;
 
@@ -250,7 +251,7 @@ export function BrandingLegalSettingsPage() {
 
   const apply = (result: BrandingConfiguration) => {
     queryClient.setQueryData(adminQueryKey, result);
-    queryClient.setQueryData(publicConfigurationKey, publicConfigurationFromAdmin(result));
+    queryClient.setQueryData<PublicConfiguration>(publicConfigurationKey, (current) => publicConfigurationFromAdmin(result, current?.timeZone ?? defaultPublicConfiguration.timeZone));
   };
   const save = useMutation({
     mutationFn: (input: FormValues) => updateBrandingConfiguration({ ...input, expectedVersion: configuration.data!.version }),

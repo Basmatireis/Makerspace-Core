@@ -23,12 +23,12 @@ function validate(file: File): string | null {
   return file.size > limit ? `Too large (limit ${formatBytes(limit)})` : null;
 }
 
-/** Header values must be ASCII-safe for fetch; the name can be changed afterwards in the media details. */
-const headerSafeName = (name: string) => name.replace(/[^\x20-\x7e]/g, '_').slice(0, 255) || 'upload';
+/** Header values are ASCII-only, so the name travels percent-encoded as UTF-8 (the server stores at most 150 characters). */
+const encodedName = (name: string) => encodeURIComponent(Array.from(name.replace(/\p{Cc}/gu, '')).slice(0, 150).join('') || 'upload');
 
 /** Sends the raw bytes with the headers the API expects. Images are measured by the server, videos by the browser. */
 async function uploadFile(file: File): Promise<SignageAsset> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/octet-stream', 'X-File-Name': headerSafeName(file.name), 'X-File-Content-Type': file.type };
+  const headers: Record<string, string> = { 'Content-Type': 'application/octet-stream', 'X-File-Name': encodedName(file.name), 'X-File-Content-Type': file.type };
   if (VIDEO_TYPES.includes(file.type)) {
     const metadata = await readVideoMetadata(file);
     headers['X-Asset-Width'] = String(metadata.width);

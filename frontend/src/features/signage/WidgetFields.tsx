@@ -26,7 +26,7 @@ type Props = {
   widget: SignageWidget;
   assets: readonly SignageAsset[];
   templates: readonly SignageAnnouncementTemplate[];
-  /** Machines the person may list; empty without `machines.read`. */
+  /** Machines from the signage picker endpoint. */
   machines: readonly MachineOption[];
   /** Names of displays that show this scene and are visible from outside (camera warning). Empty until displays exist (2b). */
   outsideDisplays: readonly string[];
@@ -39,7 +39,7 @@ export function WidgetFields({ widget, assets, templates, machines, outsideDispl
   const fieldError = error ? <InlineNotification kind="error" lowContrast hideCloseButton title="Not saved" subtitle={error} /> : null;
   const machineOptions: Option[] = machines.map((machine) => ({ id: machine.id, label: machine.name }));
   const machineName = (id: string) => machines.find((machine) => machine.id === id)?.name ?? 'Unknown machine';
-  const machinesHint = machines.length === 0 ? 'Machine names need the permission to read machines.' : undefined;
+  const machinesHint = machines.length === 0 ? 'No machines are set up yet.' : undefined;
 
   switch (widget.type) {
     case 'empty': return <p className="sg-secondary">This zone is empty. Choose a widget type to fill it.</p>;

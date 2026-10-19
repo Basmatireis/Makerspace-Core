@@ -12,6 +12,7 @@ const configured: PublicConfiguration = {
   colors: { primary: '#123456', secondary: '#abcdef', accent: '#fedcba', background: '#101820' },
   assets: { logoUrl: '/custom/logo.png', compactLogoUrl: null, faviconUrl: '/custom/favicon.png', applicationBackgroundUrl: null, authenticationBackgroundUrl: '/custom/auth.jpg' },
   legal: { imprint: { mode: 'internal', href: '/legal/imprint' }, privacy: { mode: 'external', href: 'https://example.test/privacy' } },
+  timeZone: 'Europe/Berlin',
   version: 7,
 };
 

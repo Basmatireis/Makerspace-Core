@@ -643,8 +643,11 @@ func (q *Queries) GetSignageAnnouncementForUpdate(ctx context.Context, id uuid.U
 
 const getSignageAsset = `-- name: GetSignageAsset :one
 SELECT a.id, a.file_id, a.kind, a.name, a.width, a.height, a.duration_ms, a.created_by_account_id, a.created_at,
-       f.content_type, f.size_bytes, f.sha256
+       f.content_type, f.size_bytes, f.sha256,
+       COALESCE(NULLIF(btrim(COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')), ''), '')::text AS created_by_name
 FROM signage_assets a JOIN files f ON f.id = a.file_id
+LEFT JOIN accounts acc ON acc.id = a.created_by_account_id
+LEFT JOIN people p ON p.id = acc.person_id
 WHERE a.id = $1
 `
 
@@ -661,6 +664,7 @@ type GetSignageAssetRow struct {
 	ContentType        string
 	SizeBytes          int64
 	Sha256             []byte
+	CreatedByName      string
 }
 
 func (q *Queries) GetSignageAsset(ctx context.Context, id uuid.UUID) (GetSignageAssetRow, error) {
@@ -679,6 +683,7 @@ func (q *Queries) GetSignageAsset(ctx context.Context, id uuid.UUID) (GetSignage
 		&i.ContentType,
 		&i.SizeBytes,
 		&i.Sha256,
+		&i.CreatedByName,
 	)
 	return i, err
 }
@@ -1597,8 +1602,11 @@ func (q *Queries) ListSignageAssetKinds(ctx context.Context, ids []string) ([]Li
 
 const listSignageAssets = `-- name: ListSignageAssets :many
 SELECT a.id, a.file_id, a.kind, a.name, a.width, a.height, a.duration_ms, a.created_by_account_id, a.created_at,
-       f.content_type, f.size_bytes, f.sha256
+       f.content_type, f.size_bytes, f.sha256,
+       COALESCE(NULLIF(btrim(COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')), ''), '')::text AS created_by_name
 FROM signage_assets a JOIN files f ON f.id = a.file_id
+LEFT JOIN accounts acc ON acc.id = a.created_by_account_id
+LEFT JOIN people p ON p.id = acc.person_id
 WHERE ($1::text IS NULL OR a.kind = $1::text)
 ORDER BY a.created_at DESC, a.id DESC
 `
@@ -1616,6 +1624,7 @@ type ListSignageAssetsRow struct {
 	ContentType        string
 	SizeBytes          int64
 	Sha256             []byte
+	CreatedByName      string
 }
 
 func (q *Queries) ListSignageAssets(ctx context.Context, kind *string) ([]ListSignageAssetsRow, error) {
@@ -1640,6 +1649,7 @@ func (q *Queries) ListSignageAssets(ctx context.Context, kind *string) ([]ListSi
 			&i.ContentType,
 			&i.SizeBytes,
 			&i.Sha256,
+			&i.CreatedByName,
 		); err != nil {
 			return nil, err
 		}
@@ -1865,6 +1875,38 @@ func (q *Queries) ListSignageMachineNames(ctx context.Context, ids []string) ([]
 	for rows.Next() {
 		var i ListSignageMachineNamesRow
 		if err := rows.Scan(&i.ID, &i.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSignageMachines = `-- name: ListSignageMachines :many
+SELECT m.id, m.name, mt.name AS kind
+FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id
+ORDER BY lower(m.name), m.id
+`
+
+type ListSignageMachinesRow struct {
+	ID   uuid.UUID
+	Name string
+	Kind string
+}
+
+func (q *Queries) ListSignageMachines(ctx context.Context) ([]ListSignageMachinesRow, error) {
+	rows, err := q.db.Query(ctx, listSignageMachines)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListSignageMachinesRow{}
+	for rows.Next() {
+		var i ListSignageMachinesRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.Kind); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

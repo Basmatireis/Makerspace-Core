@@ -9,7 +9,7 @@ import { AnnouncementPreview } from './AnnouncementPreview';
 import { BUILT_IN_VARIABLES, fieldKeyFor, placeholdersIn, unknownPlaceholders } from './engine/announcements';
 import { errorMessage, isStaleWrite, pluralize } from './helpers';
 import { announcementsQuery, signageKeys } from './queries';
-import { renderSample, useMachineOptions } from './preview';
+import { renderSample, useMachineOptions, useMakerspaceTimeZone } from './preview';
 
 const FIELD_TYPES: { id: SignageFieldType; label: string }[] = [
   { id: 'text', label: 'Text' }, { id: 'longtext', label: 'Long text' }, { id: 'time', label: 'Time' }, { id: 'date', label: 'Date' },
@@ -27,6 +27,7 @@ const splitOptions = (text: string) => text.split('\n').map((option) => option.t
 export function AnnouncementTemplateModal({ template, onClose }: { template?: SignageAnnouncementTemplate; onClose: () => void }) {
   const queryClient = useQueryClient();
   const { machines } = useMachineOptions();
+  const timeZone = useMakerspaceTimeZone();
   const announcements = useQuery(announcementsQuery());
   const form = useForm<Values>({ defaultValues: { name: template?.name ?? '', tone: template?.tone ?? 'info', title: template?.title ?? '', body: template?.body ?? '', fields: toFieldValues(template) } });
   const { fields, append, remove, move } = useFieldArray({ control: form.control, name: 'fields' });
@@ -42,7 +43,7 @@ export function AnnouncementTemplateModal({ template, onClose }: { template?: Si
   const draftFields = (watched.fields ?? []).map((field) => ({ key: field.key ?? '', label: field.label ?? '', type: field.type ?? 'text', required: field.required ?? false, defaultValue: field.defaultValue ?? '', helperText: field.helperText ?? '', options: splitOptions(field.options ?? '') }));
   const unknownTitle = unknownPlaceholders({ fields: draftFields, title, body: '' });
   const unknownBody = unknownPlaceholders({ fields: draftFields, title: '', body });
-  const preview = renderSample({ fields: draftFields, title, body, tone: watched.tone ?? 'info' }, Object.fromEntries(machines.map((machine) => [machine.id, machine.name])), now);
+  const preview = renderSample({ fields: draftFields, title, body, tone: watched.tone ?? 'info' }, Object.fromEntries(machines.map((machine) => [machine.id, machine.name])), now, timeZone);
   const inUse = template ? (announcements.data?.items ?? []).filter((item) => item.templateId === template.id).length : 0;
 
   const mutation = useMutation({

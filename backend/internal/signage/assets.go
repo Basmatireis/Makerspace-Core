@@ -42,6 +42,7 @@ type Asset struct {
 	SizeBytes          int64
 	SHA256             string
 	CreatedByAccountID *uuid.UUID
+	CreatedByName      *string
 	CreatedAt          time.Time
 }
 
@@ -67,10 +68,15 @@ type OpenedAsset struct {
 	Reader io.ReadCloser
 }
 
-func assetFromRow(id uuid.UUID, kind, name string, width, height, duration *int32, createdBy *uuid.UUID, createdAt time.Time, contentType string, size int64, digest []byte) Asset {
+// assetFromRow maps a row; an empty createdByName (account deleted) becomes nil.
+func assetFromRow(id uuid.UUID, kind, name string, width, height, duration *int32, createdBy *uuid.UUID, createdByName string, createdAt time.Time, contentType string, size int64, digest []byte) Asset {
+	var uploader *string
+	if createdByName != "" {
+		uploader = &createdByName
+	}
 	return Asset{
 		ID: id, Kind: kind, Name: name, Width: intPointer(width), Height: intPointer(height), DurationMs: intPointer(duration),
-		ContentType: contentType, SizeBytes: size, SHA256: hex.EncodeToString(digest), CreatedByAccountID: createdBy, CreatedAt: createdAt.UTC(),
+		ContentType: contentType, SizeBytes: size, SHA256: hex.EncodeToString(digest), CreatedByAccountID: createdBy, CreatedByName: uploader, CreatedAt: createdAt.UTC(),
 	}
 }
 
@@ -88,7 +94,7 @@ func (s *Service) ListAssets(ctx context.Context, principal authorization.Princi
 	}
 	items := make([]Asset, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, assetFromRow(row.ID, row.Kind, row.Name, row.Width, row.Height, row.DurationMs, row.CreatedByAccountID, row.CreatedAt, row.ContentType, row.SizeBytes, row.Sha256))
+		items = append(items, assetFromRow(row.ID, row.Kind, row.Name, row.Width, row.Height, row.DurationMs, row.CreatedByAccountID, row.CreatedByName, row.CreatedAt, row.ContentType, row.SizeBytes, row.Sha256))
 	}
 	return items, nil
 }
@@ -109,7 +115,7 @@ func (s *Service) getAsset(ctx context.Context, q *signagedb.Queries, id uuid.UU
 	if err != nil {
 		return Asset{}, err
 	}
-	return assetFromRow(row.ID, row.Kind, row.Name, row.Width, row.Height, row.DurationMs, row.CreatedByAccountID, row.CreatedAt, row.ContentType, row.SizeBytes, row.Sha256), nil
+	return assetFromRow(row.ID, row.Kind, row.Name, row.Width, row.Height, row.DurationMs, row.CreatedByAccountID, row.CreatedByName, row.CreatedAt, row.ContentType, row.SizeBytes, row.Sha256), nil
 }
 
 // OpenAsset opens the asset bytes for an admin preview.
@@ -128,7 +134,7 @@ func (s *Service) OpenAsset(ctx context.Context, principal authorization.Princip
 	if err != nil {
 		return OpenedAsset{}, err
 	}
-	return OpenedAsset{Asset: assetFromRow(row.ID, row.Kind, row.Name, row.Width, row.Height, row.DurationMs, row.CreatedByAccountID, row.CreatedAt, row.ContentType, row.SizeBytes, row.Sha256), Reader: reader}, nil
+	return OpenedAsset{Asset: assetFromRow(row.ID, row.Kind, row.Name, row.Width, row.Height, row.DurationMs, row.CreatedByAccountID, row.CreatedByName, row.CreatedAt, row.ContentType, row.SizeBytes, row.Sha256), Reader: reader}, nil
 }
 
 func positiveHeader(value *int, max int, label string) error {

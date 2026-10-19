@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw';
-import type { PermissionId, SignageAnnouncement, SignageAnnouncementTemplate, SignageAsset, SignagePlaylist, SignageScene } from '../../api/generated/models';
+import type { PermissionId, SignageAnnouncement, SignageAnnouncementTemplate, SignageAsset, SignageMachine, SignagePlaylist, SignageScene } from '../../api/generated/models';
 import { currentUserFixture } from '../../test/fixtures';
 import { server } from '../../test/server';
 
@@ -32,7 +32,7 @@ export const templateFixture = (overrides: Partial<SignageAnnouncementTemplate> 
 });
 
 export const assetFixture = (overrides: Partial<SignageAsset> = {}): SignageAsset => ({
-  id: ids.asset, kind: 'image', name: 'poster.png', width: 1080, height: 1920, durationMs: null, contentType: 'image/png', sizeBytes: 2_097_152, sha256: 'a'.repeat(64), createdAt: stamp, ...overrides,
+  id: ids.asset, kind: 'image', name: 'poster.png', width: 1080, height: 1920, durationMs: null, contentType: 'image/png', sizeBytes: 2_097_152, sha256: 'a'.repeat(64), createdByName: 'Ada Lovelace', createdAt: stamp, ...overrides,
 });
 
 export const announcementFixture = (overrides: Partial<SignageAnnouncement> = {}): SignageAnnouncement => ({
@@ -40,11 +40,11 @@ export const announcementFixture = (overrides: Partial<SignageAnnouncement> = {}
   rendered: { title: 'Closed today – Holiday', body: '', tone: 'warning' }, version: 1, createdAt: stamp, updatedAt: stamp, ...overrides,
 });
 
-type Content = { scenes?: SignageScene[]; playlists?: SignagePlaylist[]; templates?: SignageAnnouncementTemplate[]; assets?: SignageAsset[]; announcements?: SignageAnnouncement[] };
+type Content = { scenes?: SignageScene[]; playlists?: SignagePlaylist[]; templates?: SignageAnnouncementTemplate[]; assets?: SignageAsset[]; announcements?: SignageAnnouncement[]; machines?: SignageMachine[] };
 
 /** Signed-in user plus read endpoints for the content screens. Individual tests add writes with `server.use`. */
 export function mockSignage(permissions: PermissionId[], content: Content = {}) {
-  const { scenes = [sceneFixture()], playlists = [playlistFixture()], templates = [templateFixture()], assets = [assetFixture()], announcements = [] } = content;
+  const { scenes = [sceneFixture()], playlists = [playlistFixture()], templates = [templateFixture()], assets = [assetFixture()], announcements = [], machines = [] } = content;
   server.use(
     http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
     http.get('*/api/v1/signage/scenes', () => HttpResponse.json({ items: scenes })),
@@ -59,6 +59,7 @@ export function mockSignage(permissions: PermissionId[], content: Content = {}) 
     }),
     http.get('*/api/v1/signage/announcement-templates', () => HttpResponse.json({ items: templates })),
     http.get('*/api/v1/signage/announcements', () => HttpResponse.json({ items: announcements })),
+    http.get('*/api/v1/signage/machines', () => HttpResponse.json({ items: machines })),
     http.get('*/api/v1/signage/assets', () => HttpResponse.json({ items: assets })),
     http.get('*/api/v1/signage/assets/:id/content', () => new HttpResponse(null, { status: 404 })),
   );

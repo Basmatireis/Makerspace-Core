@@ -19,7 +19,7 @@ export function MediaDetailModal({ asset, usedIn, canEdit, onClose }: { asset: S
     onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: signageKeys.assets() }); },
   });
   const row = (label: string, value: React.ReactNode) => <StructuredListRow><StructuredListCell noWrap>{label}</StructuredListCell><StructuredListCell>{value}</StructuredListCell></StructuredListRow>;
-  const url = assetContentUrl(asset.id);
+  const url = assetContentUrl(asset.id, asset.sha256);
   const renamed = name.trim() !== asset.name;
 
   if (deleting) {
@@ -42,6 +42,7 @@ export function MediaDetailModal({ asset, usedIn, canEdit, onClose }: { asset: S
             {row('Format', asset.contentType)}
             {row('Checksum', <code title={asset.sha256}>{asset.sha256.slice(0, 20)}</code>)}
             {row('Uploaded', formatDateTime(asset.createdAt))}
+            {row('Uploaded by', asset.createdByName ?? 'Unknown')}
             {row('Used in', usedIn.length === 0 ? 'No scene' : usedIn.map((scene, index) => <span key={scene.id}>{index > 0 && ', '}<CarbonLink as={Link} inline to={signagePaths.scene(scene.id)} onClick={onClose}>{scene.name}</CarbonLink></span>))}
           </StructuredListBody>
         </StructuredListWrapper>

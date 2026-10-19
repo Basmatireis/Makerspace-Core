@@ -47,5 +47,11 @@ export interface SignageAsset {
   sha256: string;
   /** @nullable */
   createdByAccountId?: SignageAssetCreatedByAccountId;
+  /**
+   * Display name of the uploader; null once the account is deleted.
+   * @maxLength 255
+   * @nullable
+   */
+  createdByName?: string | null;
   createdAt: string;
 }

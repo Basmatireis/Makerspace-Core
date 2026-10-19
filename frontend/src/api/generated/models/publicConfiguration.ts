@@ -25,6 +25,11 @@ import type { PublicLegalLinks } from './publicLegalLinks';
 import type { Version } from './version';
 
 export interface PublicConfiguration {
+  /**
+   * IANA time zone of the makerspace (used e.g. to render announcement times).
+   * @maxLength 100
+   */
+  timeZone: string;
   identity: BrandingIdentity;
   colors: BrandingColors;
   assets: PublicBrandingAssets;

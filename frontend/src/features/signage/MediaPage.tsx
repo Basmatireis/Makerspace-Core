@@ -47,7 +47,7 @@ export function MediaPage() {
               {visible.map((item) => (
                 <ClickableTile key={item.id} role="button" className="sg-media-tile" onClick={() => setOpenId(item.id)} aria-label={`${item.name}, details`}>
                   {item.kind === 'image'
-                    ? <img className="sg-media-tile__image" src={assetContentUrl(item.id)} alt="" loading="lazy" />
+                    ? <img className="sg-media-tile__image" src={assetContentUrl(item.id, item.sha256)} alt="" loading="lazy" />
                     : <div className="sg-media-tile__image sg-media-tile__image--video"><VideoFilled size={32} aria-hidden="true" /></div>}
                   <div className="sg-scene-tile__text">
                     <strong className="sg-media-tile__name">{item.name}</strong>

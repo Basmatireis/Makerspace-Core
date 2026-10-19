@@ -49,8 +49,44 @@ describe('Media page', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Upload' }));
     await waitFor(() => expect(headers).toBeDefined());
     expect(headers?.get('content-type')).toBe('application/octet-stream');
-    expect(headers?.get('x-file-name')).toBe('Plakat _.png');
+    expect(headers?.get('x-file-name')).toBe(encodeURIComponent('Plakat ü.png'));
     expect(headers?.get('x-file-content-type')).toBe('image/png');
+  });
+
+  it('sends ASCII names encoded and strips control characters', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
+    let name: string | null | undefined;
+    server.use(http.post('*/api/v1/signage/assets', async ({ request }) => { name = request.headers.get('x-file-name'); return HttpResponse.json(assetFixture(), { status: 201 }); }));
+    renderRoute(<App />, '/signage/media');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Upload' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.upload(dialog.querySelector('input[type="file"]') as HTMLInputElement, new File([new Uint8Array(10)], '100% done – 日本.png', { type: 'image/png' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Upload' }));
+    await waitFor(() => expect(name).toBeDefined());
+    expect(decodeURIComponent(name ?? '')).toBe('100% done – 日本.png');
+    expect(name).toMatch(/^[\x20-\x7e]+$/);
+  });
+
+  it('shows the uploader and requests thumbnails with the content digest', async () => {
+    mockSignage([PermissionId.signageread]);
+    renderRoute(<App />, '/signage/media');
+    const user = userEvent.setup();
+    const tile = await screen.findByRole('button', { name: 'poster.png, details' });
+    expect(tile.querySelector('img')?.getAttribute('src')).toContain(`/content?v=${'a'.repeat(64)}`);
+    await user.click(tile);
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Uploaded by')).toBeInTheDocument();
+    expect(within(dialog).getByText('Ada Lovelace')).toBeInTheDocument();
+    expect(dialog.querySelector('img')?.getAttribute('src')).toContain(`v=${'a'.repeat(64)}`);
+  });
+
+  it('shows Unknown when the uploader account no longer exists', async () => {
+    mockSignage([PermissionId.signageread], { assets: [assetFixture({ createdByName: null })] });
+    renderRoute(<App />, '/signage/media');
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'poster.png, details' }));
+    expect(within(await screen.findByRole('dialog')).getByText('Unknown')).toBeInTheDocument();
   });
 
   it('rejects oversized files before uploading', async () => {

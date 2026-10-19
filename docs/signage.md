@@ -105,6 +105,16 @@ Separate Vite entry `frontend/player.html` → `src/player/main.tsx`; no Carbon,
 - **Assets.** Served with HTTP Range support when the storage reader is seekable (local storage); S3 storage streams the full body with `Accept-Ranges: none`.
 - **Live.** Open days and events come from the public calendar only (`events.ListUpcomingPublic`: published, planned or confirmed events with a public title, next public session, title/start/location only).
 
+## Media and picker API details
+
+- **Image caps.** PNG, JPEG and WebP up to 20 MiB; at most 8192 px per side and 40 megapixels (422 otherwise). Dimensions come from the decoded header, never from the client.
+- **Video.** MP4 only, up to 200 MiB; width, height and duration are optional client-measured headers.
+- **File names.** `X-File-Name` carries the percent-encoded UTF-8 name (`encodeURIComponent`). The server decodes it with `url.PathUnescape` and answers 400 `invalid_request` for invalid encodings, invalid UTF-8, control characters or a decoded name over 600 bytes; the stored name is limited to 150 characters (422). Plain ASCII names keep working.
+- **Uploader.** Asset responses include `createdByName` (the uploader's person name; `null` once the account is deleted).
+- **Content caching.** `GET /signage/assets/{id}/content?v=<sha256>` answers `Cache-Control: private, max-age=31536000, immutable` when `v` equals the asset's `sha256`, and `private, no-store` otherwise. Admin thumbnails and previews always use the `?v=` URL.
+- **`GET /signage/machines`.** Picker data for widgets and rules: `{items: [{id, name, kind, hasCamera}]}` ordered by name, `kind` being the machine type. Allowed with `signage.read`, `signage.manage` or `signage.content.manage`; `machines.read` is not needed. `hasCamera` is `false` until the streaming-gateway phase assigns cameras.
+- **Time zone.** `GET /public/config` includes `timeZone`, the makerspace IANA zone the server renders announcements in; the admin announcement preview uses it instead of the browser zone.
+
 ## Security hardening (review follow-up)
 
 - **Pairing rate limits** (in-memory, single instance): 10 codes/hour and 60 polls/minute per client IP (IPv4 by address, IPv6 by /64), 50 open requests, 10 wrong codes per staff account per 15 minutes. The wrong-code counter reserves an attempt before checking the code and refunds it on success, so parallel guesses cannot exceed the limit. Each limiter tracks at most 4096 keys; when full and nothing has expired, new keys are refused (fail closed).

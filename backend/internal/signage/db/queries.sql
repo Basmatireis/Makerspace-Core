@@ -7,8 +7,11 @@ RETURNING id;
 
 -- name: GetSignageAsset :one
 SELECT a.id, a.file_id, a.kind, a.name, a.width, a.height, a.duration_ms, a.created_by_account_id, a.created_at,
-       f.content_type, f.size_bytes, f.sha256
+       f.content_type, f.size_bytes, f.sha256,
+       COALESCE(NULLIF(btrim(COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')), ''), '')::text AS created_by_name
 FROM signage_assets a JOIN files f ON f.id = a.file_id
+LEFT JOIN accounts acc ON acc.id = a.created_by_account_id
+LEFT JOIN people p ON p.id = acc.person_id
 WHERE a.id = sqlc.arg(id);
 
 -- name: GetSignageAssetForUpdate :one
@@ -16,8 +19,11 @@ SELECT id, file_id, kind, name FROM signage_assets WHERE id = sqlc.arg(id) FOR U
 
 -- name: ListSignageAssets :many
 SELECT a.id, a.file_id, a.kind, a.name, a.width, a.height, a.duration_ms, a.created_by_account_id, a.created_at,
-       f.content_type, f.size_bytes, f.sha256
+       f.content_type, f.size_bytes, f.sha256,
+       COALESCE(NULLIF(btrim(COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')), ''), '')::text AS created_by_name
 FROM signage_assets a JOIN files f ON f.id = a.file_id
+LEFT JOIN accounts acc ON acc.id = a.created_by_account_id
+LEFT JOIN people p ON p.id = acc.person_id
 WHERE (sqlc.narg(kind)::text IS NULL OR a.kind = sqlc.narg(kind)::text)
 ORDER BY a.created_at DESC, a.id DESC;
 
@@ -26,6 +32,11 @@ UPDATE signage_assets SET name = sqlc.arg(name) WHERE id = sqlc.arg(id);
 
 -- name: DeleteSignageAsset :one
 DELETE FROM signage_assets WHERE id = sqlc.arg(id) RETURNING file_id;
+
+-- name: ListSignageMachines :many
+SELECT m.id, m.name, mt.name AS kind
+FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id
+ORDER BY lower(m.name), m.id;
 
 -- name: ListSignageAssetKinds :many
 SELECT id, kind FROM signage_assets WHERE id = ANY(sqlc.arg(ids)::text[]::uuid[]) FOR SHARE;

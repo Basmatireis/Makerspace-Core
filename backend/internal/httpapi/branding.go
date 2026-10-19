@@ -13,7 +13,7 @@ func (s *Server) GetPublicConfiguration(ctx context.Context, _ openapi.GetPublic
 	if err != nil {
 		return nil, err
 	}
-	return openapi.GetPublicConfiguration200JSONResponse(publicBrandingConfigurationDTO(configuration)), nil
+	return openapi.GetPublicConfiguration200JSONResponse(publicBrandingConfigurationDTO(configuration, s.config.MakerspaceTimeZone)), nil
 }
 
 func (s *Server) GetPublicLegalDocument(ctx context.Context, request openapi.GetPublicLegalDocumentRequestObject) (openapi.GetPublicLegalDocumentResponseObject, error) {
@@ -155,7 +155,10 @@ func brandingConfigurationDTO(value branding.Configuration) openapi.BrandingConf
 	}
 }
 
-func publicBrandingConfigurationDTO(value branding.Configuration) openapi.PublicConfiguration {
+func publicBrandingConfigurationDTO(value branding.Configuration, timeZone string) openapi.PublicConfiguration {
+	if timeZone == "" {
+		timeZone = "Europe/Vienna" // the default the services fall back to
+	}
 	legalLink := func(kind string, value branding.Legal) openapi.PublicLegalLink {
 		href := "/legal/" + kind
 		if value.Mode == "external" {
@@ -164,7 +167,7 @@ func publicBrandingConfigurationDTO(value branding.Configuration) openapi.Public
 		return openapi.PublicLegalLink{Mode: openapi.PublicLegalLinkMode(value.Mode), Href: href}
 	}
 	return openapi.PublicConfiguration{
-		Identity: brandingIdentityDTO(value.Identity), Colors: brandingColorsDTO(value.Colors), Version: value.Version,
+		TimeZone: timeZone, Identity: brandingIdentityDTO(value.Identity), Colors: brandingColorsDTO(value.Colors), Version: value.Version,
 		Assets: openapi.PublicBrandingAssets{
 			LogoUrl: nullableString(value.Assets[branding.Logo].URL), CompactLogoUrl: nullableString(value.Assets[branding.CompactLogo].URL), FaviconUrl: nullableString(value.Assets[branding.Favicon].URL),
 			ApplicationBackgroundUrl: nullableString(value.Assets[branding.ApplicationBackground].URL), AuthenticationBackgroundUrl: nullableString(value.Assets[branding.AuthenticationBackground].URL),

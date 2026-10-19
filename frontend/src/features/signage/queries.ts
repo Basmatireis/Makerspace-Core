@@ -1,5 +1,4 @@
 import { queryOptions } from '@tanstack/react-query';
-import { listMachines } from '../../api/generated/machines/machines';
 import {
   getSignageAsset,
   getSignagePlaylist,
@@ -7,6 +6,7 @@ import {
   listSignageAnnouncementTemplates,
   listSignageAnnouncements,
   listSignageAssets,
+  listSignageMachines,
   listSignagePlaylists,
   listSignageScenes,
 } from '../../api/generated/signage/signage';
@@ -33,9 +33,9 @@ export const announcementsQuery = () => queryOptions({ queryKey: signageKeys.ann
 export const assetsQuery = () => queryOptions({ queryKey: signageKeys.assets(), queryFn: ({ signal }) => listSignageAssets(undefined, { signal }) });
 export const assetQuery = (id: string) => queryOptions({ queryKey: signageKeys.asset(id), queryFn: ({ signal }) => getSignageAsset(id, { signal }) });
 
-/** Machine names for widget pickers. Needs `machines.read`; callers enable it only for people who have it. */
+/** Machines for widget pickers: id, name and kind only. Any signage permission is enough (no `machines.read` needed). */
 export const machinesQuery = (enabled: boolean) => queryOptions({
   queryKey: signageKeys.machines(),
-  queryFn: ({ signal }) => listMachines({ pageSize: 100 }, { signal }),
+  queryFn: ({ signal }) => listSignageMachines({ signal }),
   enabled,
 });

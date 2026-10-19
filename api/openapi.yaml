@@ -3128,6 +3128,19 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /signage/machines:
+    get:
+      tags: [Signage]
+      operationId: listSignageMachines
+      summary: List machines for signage pickers (name and kind only)
+      description: Needs `signage.read`, `signage.manage` or `signage.content.manage`; does not require `machines.read`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Machines by name., content: {application/json: {schema: {$ref: "#/components/schemas/SignageMachineList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /signage/assets:
     get:
       tags: [Signage]
@@ -3146,9 +3159,10 @@ paths:
       tags: [Signage]
       operationId: uploadSignageAsset
       summary: Upload a PNG, JPEG, WebP image (20 MiB) or MP4 video (200 MiB)
+      description: Images may be up to 8192 px per side and 40 megapixels. `X-File-Name` is the percent-encoded UTF-8 file name (as produced by `encodeURIComponent`); invalid encodings and control characters are rejected with 400.
       security: [{sessionCookie: [], csrfHeader: []}]
       parameters:
-        - {name: X-File-Name, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 255}}
+        - {name: X-File-Name, in: header, required: true, description: "Percent-encoded UTF-8 file name.", schema: {type: string, minLength: 1, maxLength: 2048}}
         - {name: X-File-Content-Type, in: header, required: true, schema: {type: string, enum: [image/png, image/jpeg, image/webp, video/mp4], x-enum-varnames: [UploadSignageAssetContentTypeImagePng, UploadSignageAssetContentTypeImageJpeg, UploadSignageAssetContentTypeImageWebp, UploadSignageAssetContentTypeVideoMp4]}}
         - {name: X-Asset-Width, in: header, description: "Video only: pixel width.", schema: {type: integer, minimum: 1, maximum: 20000}}
         - {name: X-Asset-Height, in: header, description: "Video only: pixel height.", schema: {type: integer, minimum: 1, maximum: 20000}}
@@ -3207,12 +3221,15 @@ paths:
       tags: [Signage]
       operationId: downloadSignageAsset
       summary: Download the asset bytes for the admin preview
+      description: With `v` equal to the asset's current `sha256` the response is cacheable for a year (the URL is content-addressed); otherwise it is never cached.
       security: [{sessionCookie: []}]
+      parameters:
+        - {name: v, in: query, description: "The asset's sha256; enables long-lived private caching when it matches.", schema: {type: string, pattern: "^[0-9a-f]{64}$"}}
       responses:
         "200":
-          description: Asset bytes, private and never cached.
+          description: Asset bytes, private; immutable-cached only when `v` matches the sha256, otherwise no-store.
           headers:
-            Cache-Control: {$ref: "#/components/headers/NoStore"}
+            Cache-Control: {schema: {type: string}}
             X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}
             Content-Security-Policy: {schema: {type: string}}
           content:
@@ -8949,8 +8966,9 @@ components:
     PublicConfiguration:
       type: object
       additionalProperties: false
-      required: [identity, colors, assets, legal, version]
+      required: [identity, colors, assets, legal, timeZone, version]
       properties:
+        timeZone: {type: string, maxLength: 100, description: "IANA time zone of the makerspace (used e.g. to render announcement times)."}
         identity: {$ref: "#/components/schemas/BrandingIdentity"}
         colors: {$ref: "#/components/schemas/BrandingColors"}
         assets: {$ref: "#/components/schemas/PublicBrandingAssets"}
@@ -14320,7 +14338,22 @@ components:
         sizeBytes: {type: integer, format: int64, minimum: 0}
         sha256: {type: string, pattern: "^[0-9a-f]{64}$"}
         createdByAccountId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        createdByName: {type: string, nullable: true, maxLength: 255, description: "Display name of the uploader; null once the account is deleted."}
         createdAt: {type: string, format: date-time}
+    SignageMachine:
+      type: object
+      additionalProperties: false
+      required: [id, name, kind, hasCamera]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, maxLength: 150}
+        kind: {type: string, maxLength: 120, description: "Machine type (process) name."}
+        hasCamera: {type: boolean, description: "Whether a streaming camera is assigned (always false until cameras exist)."}
+    SignageMachineList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/SignageMachine"}}}
     SignageAssetList:
       type: object
       additionalProperties: false

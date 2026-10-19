@@ -138,7 +138,7 @@ func (s *Service) OpenPlayerAsset(ctx context.Context, display PlayerDisplay, as
 	if err != nil {
 		return PlayerAssetFile{}, err
 	}
-	if assetFromRow(row.ID, row.Kind, row.Name, row.Width, row.Height, row.DurationMs, nil, time.Time{}, row.ContentType, row.SizeBytes, row.Sha256).SHA256 != sha256 {
+	if assetFromRow(row.ID, row.Kind, row.Name, row.Width, row.Height, row.DurationMs, nil, "", time.Time{}, row.ContentType, row.SizeBytes, row.Sha256).SHA256 != sha256 {
 		return PlayerAssetFile{}, apperror.NotFound
 	}
 	_, reader, err := s.files.Open(ctx, row.FileID)

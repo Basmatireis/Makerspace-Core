@@ -22,6 +22,7 @@ import type {
   CreateSignageAnnouncementTemplateRequest,
   CreateSignagePlaylistRequest,
   CreateSignageSceneRequest,
+  DownloadSignageAssetParams,
   ListSignageAssetsParams,
   PairSignageDisplayRequest,
   RenameSignageAssetRequest,
@@ -36,6 +37,7 @@ import type {
   SignageDisplay,
   SignageDisplayList,
   SignageLayoutList,
+  SignageMachineList,
   SignagePairingPoll,
   SignagePairingStart,
   SignagePlaylist,
@@ -79,6 +81,30 @@ export const listSignageLayouts = async ( options?: RequestInit): Promise<Signag
 
 
 /**
+ * Needs `signage.read`, `signage.manage` or `signage.content.manage`; does not require `machines.read`.
+ * @summary List machines for signage pickers (name and kind only)
+ */
+export const getListSignageMachinesUrl = () => {
+
+
+
+
+  return `/api/v1/signage/machines`
+}
+
+export const listSignageMachines = async ( options?: RequestInit): Promise<SignageMachineList> => {
+
+  return apiFetch<SignageMachineList>(getListSignageMachinesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+/**
  * @summary List uploaded images and videos
  */
 export const getListSignageAssetsUrl = (params?: ListSignageAssetsParams,) => {
@@ -109,6 +135,7 @@ export const listSignageAssets = async (params?: ListSignageAssetsParams, option
 
 
 /**
+ * Images may be up to 8192 px per side and 40 megapixels. `X-File-Name` is the percent-encoded UTF-8 file name (as produced by `encodeURIComponent`); invalid encodings and control characters are rejected with 400.
  * @summary Upload a PNG, JPEG, WebP image (20 MiB) or MP4 video (200 MiB)
  */
 export const getUploadSignageAssetUrl = () => {
@@ -199,19 +226,29 @@ export const deleteSignageAsset = async (assetId: string, options?: RequestInit)
 
 
 /**
+ * With `v` equal to the asset's current `sha256` the response is cacheable for a year (the URL is content-addressed); otherwise it is never cached.
  * @summary Download the asset bytes for the admin preview
  */
-export const getDownloadSignageAssetUrl = (assetId: string,) => {
+export const getDownloadSignageAssetUrl = (assetId: string,
+    params?: DownloadSignageAssetParams,) => {
+  const normalizedParams = new URLSearchParams();
 
+  Object.entries(params || {}).forEach(([key, value]) => {
 
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
 
+  const stringifiedParams = normalizedParams.toString();
 
-  return `/api/v1/signage/assets/${assetId}/content`
+  return stringifiedParams.length > 0 ? `/api/v1/signage/assets/${assetId}/content?${stringifiedParams}` : `/api/v1/signage/assets/${assetId}/content`
 }
 
-export const downloadSignageAsset = async (assetId: string, options?: RequestInit): Promise<Blob> => {
+export const downloadSignageAsset = async (assetId: string,
+    params?: DownloadSignageAssetParams, options?: RequestInit): Promise<Blob> => {
 
-  return apiFetch<Blob>(getDownloadSignageAssetUrl(assetId),
+  return apiFetch<Blob>(getDownloadSignageAssetUrl(assetId,params),
   {
     ...options,
     method: 'GET'

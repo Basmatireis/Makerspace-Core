@@ -3,6 +3,9 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"net/url"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -33,6 +36,24 @@ func (s *Server) ListSignageLayouts(ctx context.Context, _ openapi.ListSignageLa
 	return openapi.ListSignageLayouts200JSONResponse{Items: items}, nil
 }
 
+// Machines ----------------------------------------------------------------------------------------------------
+
+func (s *Server) ListSignageMachines(ctx context.Context, _ openapi.ListSignageMachinesRequestObject) (openapi.ListSignageMachinesResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	machines, err := s.signage.ListMachines(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]openapi.SignageMachine, 0, len(machines))
+	for _, machine := range machines {
+		items = append(items, openapi.SignageMachine{Id: machine.ID, Name: machine.Name, Kind: machine.Kind, HasCamera: machine.HasCamera})
+	}
+	return openapi.ListSignageMachines200JSONResponse{Items: items}, nil
+}
+
 // Assets ------------------------------------------------------------------------------------------------------
 
 func signageAssetDTO(asset signage.Asset) openapi.SignageAsset {
@@ -44,6 +65,7 @@ func signageAssetDTO(asset signage.Asset) openapi.SignageAsset {
 	if asset.CreatedByAccountID != nil {
 		result.CreatedByAccountId = nullable.NewNullableWithValue(*asset.CreatedByAccountID)
 	}
+	result.CreatedByName = nullableString(asset.CreatedByName)
 	return result
 }
 
@@ -76,8 +98,12 @@ func (s *Server) UploadSignageAsset(ctx context.Context, r openapi.UploadSignage
 	if r.Body == nil {
 		return nil, invalidRequest("asset body is required")
 	}
+	name, err := decodeUploadFileName(r.Params.XFileName)
+	if err != nil {
+		return nil, err
+	}
 	asset, err := s.signage.UploadAsset(ctx, p, signage.UploadInput{
-		Name: r.Params.XFileName, ContentType: string(r.Params.XFileContentType),
+		Name: name, ContentType: string(r.Params.XFileContentType),
 		Width: r.Params.XAssetWidth, Height: r.Params.XAssetHeight, DurationMs: r.Params.XAssetDurationMs, Body: r.Body,
 	}, requestIDPointer(ctx))
 	if err != nil {
@@ -133,7 +159,12 @@ func (s *Server) DownloadSignageAsset(ctx context.Context, r openapi.DownloadSig
 	if err != nil {
 		return nil, err
 	}
-	headers := openapi.DownloadSignageAsset200ResponseHeaders{CacheControl: "private, no-store", XContentTypeOptions: "nosniff", ContentSecurityPolicy: signageAssetCSP}
+	// The URL is content-addressed when the caller passes the asset's current digest, so the bytes never change under it.
+	cacheControl := "private, no-store"
+	if r.Params.V != nil && *r.Params.V == opened.Asset.SHA256 {
+		cacheControl = "private, max-age=31536000, immutable"
+	}
+	headers := openapi.DownloadSignageAsset200ResponseHeaders{CacheControl: cacheControl, XContentTypeOptions: "nosniff", ContentSecurityPolicy: signageAssetCSP}
 	switch opened.Asset.ContentType {
 	case "image/png":
 		return openapi.DownloadSignageAsset200ImagepngResponse{Body: opened.Reader, ContentLength: opened.Asset.SizeBytes, Headers: headers}, nil
@@ -571,4 +602,26 @@ func (s *Server) StopSignageAnnouncement(ctx context.Context, r openapi.StopSign
 		return nil, err
 	}
 	return openapi.StopSignageAnnouncement204Response{}, nil
+}
+
+// maxDecodedUploadNameBytes caps the decoded X-File-Name; the service still limits the stored name to 150 characters.
+const maxDecodedUploadNameBytes = 600
+
+// decodeUploadFileName reads the percent-encoded UTF-8 X-File-Name header. Headers cannot carry
+// raw non-ASCII text, so clients send encodeURIComponent(name). Invalid encodings, invalid UTF-8
+// and control characters are rejected.
+func decodeUploadFileName(raw string) (string, error) {
+	name, err := url.PathUnescape(raw)
+	if err != nil {
+		return "", invalidRequest("X-File-Name is not valid percent-encoding")
+	}
+	if len(name) > maxDecodedUploadNameBytes || !utf8.ValidString(name) {
+		return "", invalidRequest("X-File-Name must be valid UTF-8 of reasonable length")
+	}
+	for _, character := range name {
+		if unicode.IsControl(character) {
+			return "", invalidRequest("X-File-Name must not contain control characters")
+		}
+	}
+	return name, nil
 }

@@ -89,6 +89,7 @@ type Querier interface {
 	ListSignageDisplayViews(ctx context.Context) ([]ListSignageDisplayViewsRow, error)
 	ListSignageLiveStatuses(ctx context.Context, ids []string) ([]ListSignageLiveStatusesRow, error)
 	ListSignageMachineNames(ctx context.Context, ids []string) ([]ListSignageMachineNamesRow, error)
+	ListSignageMachines(ctx context.Context) ([]ListSignageMachinesRow, error)
 	ListSignagePlaylistItems(ctx context.Context, playlistIds []string) ([]SignagePlaylistItem, error)
 	ListSignagePlaylists(ctx context.Context) ([]SignagePlaylist, error)
 	ListSignagePlaylistsByIDs(ctx context.Context, ids []string) ([]SignagePlaylist, error)

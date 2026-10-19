@@ -57,6 +57,19 @@ describe('Scene editor', () => {
     expect(puts).toBe(0);
   });
 
+  it('lists picker machines from the signage endpoint without the machines permission', async () => {
+    mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage], { machines: [{ id: '0192f6f8-743e-7c77-a349-cd07c3e8a201', name: 'Prusa MK4', kind: 'FDM printer', hasCamera: false }] });
+    let machinesApiCalled = false;
+    server.use(http.get('*/api/v1/machines', () => { machinesApiCalled = true; return HttpResponse.json({ items: [], page: 1, pageSize: 100, total: 0 }); }));
+    renderRoute(<App />, editor);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Select zone Footer' }));
+    await user.selectOptions(screen.getByLabelText('Widget type'), 'camera');
+    await user.selectOptions(await screen.findByLabelText('Source'), 'machine');
+    expect(await screen.findByRole('option', { name: 'Prusa MK4' })).toBeInTheDocument();
+    expect(machinesApiCalled).toBe(false);
+  });
+
   it('selects a zone and changes its widget type', async () => {
     mockSignage([PermissionId.signageread, PermissionId.signagecontentmanage]);
     let zones: Record<string, { type: string }> | undefined;

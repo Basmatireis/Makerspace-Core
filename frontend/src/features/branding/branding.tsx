@@ -12,6 +12,7 @@ export const defaultPublicConfiguration: PublicConfiguration = {
     applicationBackgroundUrl: '/brand/blueprint-workshop.jpg', authenticationBackgroundUrl: '/brand/blueprint-details.jpg',
   },
   legal: { imprint: { mode: 'internal', href: '/legal/imprint' }, privacy: { mode: 'internal', href: '/legal/privacy' } },
+  timeZone: 'Europe/Vienna',
   version: 1,
 };
 
@@ -101,7 +102,8 @@ export function usePageTitle(title: string) {
   }, [branding.identity.applicationName, title]);
 }
 
-export function publicConfigurationFromAdmin(configuration: BrandingConfiguration): PublicConfiguration {
+/** The admin configuration carries no time zone (it is deployment configuration), so the current one is kept. */
+export function publicConfigurationFromAdmin(configuration: BrandingConfiguration, timeZone: string): PublicConfiguration {
   const link = (kind: 'imprint' | 'privacy') => {
     const legal = configuration[kind];
     return { mode: legal.mode, href: legal.mode === 'external' ? legal.externalUrl : `/legal/${kind}` };
@@ -117,6 +119,7 @@ export function publicConfigurationFromAdmin(configuration: BrandingConfiguratio
       authenticationBackgroundUrl: configuration.assets.authenticationBackground.url,
     },
     legal: { imprint: link('imprint'), privacy: link('privacy') },
+    timeZone,
     version: configuration.version,
   };
 }

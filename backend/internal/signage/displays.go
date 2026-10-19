@@ -218,7 +218,7 @@ func (s *Service) buildManifests(ctx context.Context, q *signagedb.Queries, draf
 			return nil, err
 		}
 		for _, row := range assetRows {
-			asset := assetFromRow(row.ID, row.Kind, row.Name, row.Width, row.Height, row.DurationMs, nil, time.Time{}, row.ContentType, row.SizeBytes, row.Sha256)
+			asset := assetFromRow(row.ID, row.Kind, row.Name, row.Width, row.Height, row.DurationMs, nil, "", time.Time{}, row.ContentType, row.SizeBytes, row.Sha256)
 			content.assets[row.ID] = ManifestAsset{
 				ID: row.ID, Kind: row.Kind, Name: row.Name, ContentType: row.ContentType, SHA256: asset.SHA256, SizeBytes: row.SizeBytes,
 				Width: asset.Width, Height: asset.Height, DurationMs: asset.DurationMs,
