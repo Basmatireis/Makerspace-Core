@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -188,6 +189,12 @@ const (
 	CreateRoleRequestLaborordnungModeBlocking    CreateRoleRequestLaborordnungMode = "blocking"
 	CreateRoleRequestLaborordnungModeNotRequired CreateRoleRequestLaborordnungMode = "not_required"
 	CreateRoleRequestLaborordnungModeWarning     CreateRoleRequestLaborordnungMode = "warning"
+)
+
+// Defines values for CreateSignageSceneRequestTheme.
+const (
+	CreateSignageSceneRequestThemeDark  CreateSignageSceneRequestTheme = "dark"
+	CreateSignageSceneRequestThemeLight CreateSignageSceneRequestTheme = "light"
 )
 
 // Defines values for DeviceApplicationMode.
@@ -810,6 +817,7 @@ const (
 	LaborordnungManage                 PermissionId = "laborordnung.manage"
 	LaborordnungRead                   PermissionId = "laborordnung.read"
 	LaborordnungRequestsRead           PermissionId = "laborordnung.requests.read"
+	LocalServicesManage                PermissionId = "local_services.manage"
 	MachineJobsCreate                  PermissionId = "machine_jobs.create"
 	MachineJobsDelete                  PermissionId = "machine_jobs.delete"
 	MachineJobsEdit                    PermissionId = "machine_jobs.edit"
@@ -859,6 +867,11 @@ const (
 	RolesRead                          PermissionId = "roles.read"
 	ScimManage                         PermissionId = "scim.manage"
 	SessionPoliciesManage              PermissionId = "session_policies.manage"
+	SignageContentManage               PermissionId = "signage.content.manage"
+	SignageManage                      PermissionId = "signage.manage"
+	SignageOverride                    PermissionId = "signage.override"
+	SignagePublish                     PermissionId = "signage.publish"
+	SignageRead                        PermissionId = "signage.read"
 	StatisticsRead                     PermissionId = "statistics.read"
 	SupervisorDashboardRead            PermissionId = "supervisor_dashboard.read"
 	SurveysManage                      PermissionId = "surveys.manage"
@@ -1142,6 +1155,195 @@ const (
 	SetBillingPartyPricingGroupRequestPartyKindOrganization SetBillingPartyPricingGroupRequestPartyKind = "organization"
 )
 
+// Defines values for SignageAnnouncementStatus.
+const (
+	SignageAnnouncementStatusActive    SignageAnnouncementStatus = "active"
+	SignageAnnouncementStatusScheduled SignageAnnouncementStatus = "scheduled"
+)
+
+// Defines values for SignageAnnouncementWidgetStyle.
+const (
+	SignageAnnouncementWidgetStyleBanner SignageAnnouncementWidgetStyle = "banner"
+	SignageAnnouncementWidgetStyleCard   SignageAnnouncementWidgetStyle = "card"
+	SignageAnnouncementWidgetStyleFull   SignageAnnouncementWidgetStyle = "full"
+)
+
+// Defines values for SignageAnnouncementWidgetType.
+const (
+	SignageAnnouncementWidgetTypeAnnouncement SignageAnnouncementWidgetType = "announcement"
+)
+
+// Defines values for SignageAnnouncementWidgetWhenMany.
+const (
+	SignageAnnouncementWidgetWhenManyNewest SignageAnnouncementWidgetWhenMany = "newest"
+	SignageAnnouncementWidgetWhenManyRotate SignageAnnouncementWidgetWhenMany = "rotate"
+	SignageAnnouncementWidgetWhenManyStack  SignageAnnouncementWidgetWhenMany = "stack"
+)
+
+// Defines values for SignageAnnouncementWidgetWhenNone.
+const (
+	SignageAnnouncementWidgetWhenNoneEmpty SignageAnnouncementWidgetWhenNone = "empty"
+	SignageAnnouncementWidgetWhenNoneText  SignageAnnouncementWidgetWhenNone = "text"
+)
+
+// Defines values for SignageAssetKind.
+const (
+	SignageAssetKindImage SignageAssetKind = "image"
+	SignageAssetKindVideo SignageAssetKind = "video"
+)
+
+// Defines values for SignageCameraWidgetFallback.
+const (
+	SignageCameraWidgetFallbackHide  SignageCameraWidgetFallback = "hide"
+	SignageCameraWidgetFallbackImage SignageCameraWidgetFallback = "image"
+	SignageCameraWidgetFallbackText  SignageCameraWidgetFallback = "text"
+)
+
+// Defines values for SignageCameraWidgetMulti.
+const (
+	SignageCameraWidgetMultiAlternate SignageCameraWidgetMulti = "alternate"
+	SignageCameraWidgetMultiSplit     SignageCameraWidgetMulti = "split"
+)
+
+// Defines values for SignageCameraWidgetSource.
+const (
+	SignageCameraWidgetSourceAuto    SignageCameraWidgetSource = "auto"
+	SignageCameraWidgetSourceMachine SignageCameraWidgetSource = "machine"
+)
+
+// Defines values for SignageCameraWidgetType.
+const (
+	SignageCameraWidgetTypeCamera SignageCameraWidgetType = "camera"
+)
+
+// Defines values for SignageClockWidgetMode.
+const (
+	SignageClockWidgetModeDatetime SignageClockWidgetMode = "datetime"
+	SignageClockWidgetModeTime     SignageClockWidgetMode = "time"
+)
+
+// Defines values for SignageClockWidgetType.
+const (
+	SignageClockWidgetTypeClock SignageClockWidgetType = "clock"
+)
+
+// Defines values for SignageEmptyWidgetType.
+const (
+	SignageEmptyWidgetTypeEmpty SignageEmptyWidgetType = "empty"
+)
+
+// Defines values for SignageEventsWidgetType.
+const (
+	SignageEventsWidgetTypeEvents SignageEventsWidgetType = "events"
+)
+
+// Defines values for SignageFieldType.
+const (
+	SignageFieldTypeChoice   SignageFieldType = "choice"
+	SignageFieldTypeDate     SignageFieldType = "date"
+	SignageFieldTypeDatetime SignageFieldType = "datetime"
+	SignageFieldTypeLongtext SignageFieldType = "longtext"
+	SignageFieldTypeMachine  SignageFieldType = "machine"
+	SignageFieldTypeNumber   SignageFieldType = "number"
+	SignageFieldTypeText     SignageFieldType = "text"
+	SignageFieldTypeTime     SignageFieldType = "time"
+)
+
+// Defines values for SignageFit.
+const (
+	SignageFitContain SignageFit = "contain"
+	SignageFitCover   SignageFit = "cover"
+)
+
+// Defines values for SignageImageWidgetType.
+const (
+	SignageImageWidgetTypeImage SignageImageWidgetType = "image"
+)
+
+// Defines values for SignageLayoutId.
+const (
+	SignageLayoutIdBannerMain SignageLayoutId = "banner_main"
+	SignageLayoutIdFull       SignageLayoutId = "full"
+	SignageLayoutIdGrid2x2    SignageLayoutId = "grid2x2"
+	SignageLayoutIdMainFooter SignageLayoutId = "main_footer"
+	SignageLayoutIdMainSide   SignageLayoutId = "main_side"
+	SignageLayoutIdQuadBanner SignageLayoutId = "quad_banner"
+	SignageLayoutIdSplit      SignageLayoutId = "split"
+	SignageLayoutIdStack3     SignageLayoutId = "stack3"
+	SignageLayoutIdStack4     SignageLayoutId = "stack4"
+)
+
+// Defines values for SignageOpenDaysWidgetType.
+const (
+	SignageOpenDaysWidgetTypeOpenDays SignageOpenDaysWidgetType = "open_days"
+)
+
+// Defines values for SignageOrientation.
+const (
+	SignageOrientationLandscape SignageOrientation = "landscape"
+	SignageOrientationPortrait  SignageOrientation = "portrait"
+)
+
+// Defines values for SignageQrWidgetType.
+const (
+	SignageQrWidgetTypeQr SignageQrWidgetType = "qr"
+)
+
+// Defines values for SignageSceneTheme.
+const (
+	SignageSceneThemeDark  SignageSceneTheme = "dark"
+	SignageSceneThemeLight SignageSceneTheme = "light"
+)
+
+// Defines values for SignageSlideshowWidgetType.
+const (
+	SignageSlideshowWidgetTypeSlideshow SignageSlideshowWidgetType = "slideshow"
+)
+
+// Defines values for SignageStatusWidgetType.
+const (
+	SignageStatusWidgetTypeStatus SignageStatusWidgetType = "status"
+)
+
+// Defines values for SignageTextSize.
+const (
+	SignageTextSizeL  SignageTextSize = "l"
+	SignageTextSizeM  SignageTextSize = "m"
+	SignageTextSizeS  SignageTextSize = "s"
+	SignageTextSizeXl SignageTextSize = "xl"
+)
+
+// Defines values for SignageTextWidgetAlign.
+const (
+	SignageTextWidgetAlignCenter SignageTextWidgetAlign = "center"
+	SignageTextWidgetAlignEnd    SignageTextWidgetAlign = "end"
+	SignageTextWidgetAlignStart  SignageTextWidgetAlign = "start"
+)
+
+// Defines values for SignageTextWidgetType.
+const (
+	SignageTextWidgetTypeText SignageTextWidgetType = "text"
+)
+
+// Defines values for SignageTone.
+const (
+	SignageToneCritical SignageTone = "critical"
+	SignageToneInfo     SignageTone = "info"
+	SignageToneNeutral  SignageTone = "neutral"
+	SignageToneWarning  SignageTone = "warning"
+)
+
+// Defines values for SignageTransition.
+const (
+	SignageTransitionCut  SignageTransition = "cut"
+	SignageTransitionFade SignageTransition = "fade"
+)
+
+// Defines values for SignageVideoWidgetType.
+const (
+	SignageVideoWidgetTypeVideo SignageVideoWidgetType = "video"
+)
+
 // Defines values for StockState.
 const (
 	StockStateEmpty    StockState = "empty"
@@ -1228,6 +1430,12 @@ const (
 	UpdateRoleRequestLaborordnungModeBlocking    UpdateRoleRequestLaborordnungMode = "blocking"
 	UpdateRoleRequestLaborordnungModeNotRequired UpdateRoleRequestLaborordnungMode = "not_required"
 	UpdateRoleRequestLaborordnungModeWarning     UpdateRoleRequestLaborordnungMode = "warning"
+)
+
+// Defines values for UpdateSignageSceneRequestTheme.
+const (
+	UpdateSignageSceneRequestThemeDark  UpdateSignageSceneRequestTheme = "dark"
+	UpdateSignageSceneRequestThemeLight UpdateSignageSceneRequestTheme = "light"
 )
 
 // Defines values for VisitAdmissionDecision.
@@ -1353,6 +1561,14 @@ const (
 const (
 	GetPublicLegalDocumentParamsDocumentImprint GetPublicLegalDocumentParamsDocument = "imprint"
 	GetPublicLegalDocumentParamsDocumentPrivacy GetPublicLegalDocumentParamsDocument = "privacy"
+)
+
+// Defines values for UploadSignageAssetParamsXFileContentType.
+const (
+	UploadSignageAssetContentTypeImageJpeg UploadSignageAssetParamsXFileContentType = "image/jpeg"
+	UploadSignageAssetContentTypeImagePng  UploadSignageAssetParamsXFileContentType = "image/png"
+	UploadSignageAssetContentTypeImageWebp UploadSignageAssetParamsXFileContentType = "image/webp"
+	UploadSignageAssetContentTypeVideoMp4  UploadSignageAssetParamsXFileContentType = "video/mp4"
 )
 
 // AcademicBreak defines model for AcademicBreak.
@@ -2282,6 +2498,42 @@ type CreateSCIMConnectorRequest struct {
 	OidcProviderId nullable.Nullable[UUIDv7] `json:"oidcProviderId"`
 	TokenExpiresAt time.Time                 `json:"tokenExpiresAt"`
 }
+
+// CreateSignageAnnouncementTemplateRequest defines model for CreateSignageAnnouncementTemplateRequest.
+type CreateSignageAnnouncementTemplateRequest struct {
+	Body   string                 `json:"body"`
+	Fields []SignageTemplateField `json:"fields"`
+	Name   string                 `json:"name"`
+	Title  string                 `json:"title"`
+	Tone   SignageTone            `json:"tone"`
+}
+
+// CreateSignagePlaylistRequest defines model for CreateSignagePlaylistRequest.
+type CreateSignagePlaylistRequest struct {
+	Items []SignagePlaylistItem `json:"items"`
+	Name  string                `json:"name"`
+}
+
+// CreateSignageSceneRequest defines model for CreateSignageSceneRequest.
+type CreateSignageSceneRequest struct {
+	// BackgroundAssetId Image asset; omitted or null means none.
+	BackgroundAssetId nullable.Nullable[UUIDv7] `json:"backgroundAssetId,omitempty"`
+	BackgroundColor   string                    `json:"backgroundColor"`
+	BackgroundDim     int                       `json:"backgroundDim"`
+	BackgroundFit     SignageFit                `json:"backgroundFit"`
+
+	// LayoutId Fixed, code-defined layouts shared by backend validation and frontend rendering.
+	LayoutId    SignageLayoutId                `json:"layoutId"`
+	Name        string                         `json:"name"`
+	Orientation SignageOrientation             `json:"orientation"`
+	Theme       CreateSignageSceneRequestTheme `json:"theme"`
+
+	// Zones Widget per zone id of the scene's layout.
+	Zones *SignageZones `json:"zones,omitempty"`
+}
+
+// CreateSignageSceneRequestTheme defines model for CreateSignageSceneRequest.Theme.
+type CreateSignageSceneRequestTheme string
 
 // CreateSurveyRequest defines model for CreateSurveyRequest.
 type CreateSurveyRequest struct {
@@ -5609,6 +5861,11 @@ type RemoveOwnPasswordRequest struct {
 	CurrentPassword *ExistingPassword `json:"currentPassword,omitempty"`
 }
 
+// RenameSignageAssetRequest defines model for RenameSignageAssetRequest.
+type RenameSignageAssetRequest struct {
+	Name string `json:"name"`
+}
+
 // ReplaceMachineRunUsagesRequest defines model for ReplaceMachineRunUsagesRequest.
 type ReplaceMachineRunUsagesRequest struct {
 	// ExpectedVersion Optimistic-concurrency version.
@@ -6082,6 +6339,393 @@ type SetRolePricingGroupsRequest struct {
 	Items []RolePricingGroupInput `json:"items"`
 }
 
+// SignageAnnouncement defines model for SignageAnnouncement.
+type SignageAnnouncement struct {
+	AllDisplays bool                         `json:"allDisplays"`
+	CreatedAt   time.Time                    `json:"createdAt"`
+	DisplayIds  []UUIDv7                     `json:"displayIds"`
+	EndsAt      nullable.Nullable[time.Time] `json:"endsAt,omitempty"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id UUIDv7 `json:"id"`
+
+	// Rendered Server-rendered preview; `{display}` and `{location}` stay as typed because they depend on the showing display.
+	Rendered SignageRenderedMessage    `json:"rendered"`
+	StartsAt time.Time                 `json:"startsAt"`
+	Status   SignageAnnouncementStatus `json:"status"`
+
+	// TemplateId Lowercase RFC 9562 UUID version 7 generated by the application.
+	TemplateId UUIDv7    `json:"templateId"`
+	UpdatedAt  time.Time `json:"updatedAt"`
+
+	// Values Field key to value. Time `HH:MM`, date `YYYY-MM-DD`, date and time `YYYY-MM-DDTHH:MM` (makerspace local time), machine a machine id.
+	Values SignageAnnouncementValues `json:"values"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// SignageAnnouncementList defines model for SignageAnnouncementList.
+type SignageAnnouncementList struct {
+	Items []SignageAnnouncement `json:"items"`
+}
+
+// SignageAnnouncementStatus defines model for SignageAnnouncementStatus.
+type SignageAnnouncementStatus string
+
+// SignageAnnouncementTemplate defines model for SignageAnnouncementTemplate.
+type SignageAnnouncementTemplate struct {
+	Body      string                 `json:"body"`
+	CreatedAt time.Time              `json:"createdAt"`
+	Fields    []SignageTemplateField `json:"fields"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id        UUIDv7      `json:"id"`
+	Name      string      `json:"name"`
+	Title     string      `json:"title"`
+	Tone      SignageTone `json:"tone"`
+	UpdatedAt time.Time   `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// SignageAnnouncementTemplateList defines model for SignageAnnouncementTemplateList.
+type SignageAnnouncementTemplateList struct {
+	Items []SignageAnnouncementTemplate `json:"items"`
+}
+
+// SignageAnnouncementValues Field key to value. Time `HH:MM`, date `YYYY-MM-DD`, date and time `YYYY-MM-DDTHH:MM` (makerspace local time), machine a machine id.
+type SignageAnnouncementValues map[string]string
+
+// SignageAnnouncementWidget defines model for SignageAnnouncementWidget.
+type SignageAnnouncementWidget struct {
+	FallbackText  string                         `json:"fallbackText"`
+	RotateSeconds int                            `json:"rotateSeconds"`
+	Size          SignageTextSize                `json:"size"`
+	Style         SignageAnnouncementWidgetStyle `json:"style"`
+
+	// TemplateIds Empty means any template.
+	TemplateIds []UUIDv7                          `json:"templateIds"`
+	Type        SignageAnnouncementWidgetType     `json:"type"`
+	WhenMany    SignageAnnouncementWidgetWhenMany `json:"whenMany"`
+	WhenNone    SignageAnnouncementWidgetWhenNone `json:"whenNone"`
+}
+
+// SignageAnnouncementWidgetStyle defines model for SignageAnnouncementWidget.Style.
+type SignageAnnouncementWidgetStyle string
+
+// SignageAnnouncementWidgetType defines model for SignageAnnouncementWidget.Type.
+type SignageAnnouncementWidgetType string
+
+// SignageAnnouncementWidgetWhenMany defines model for SignageAnnouncementWidget.WhenMany.
+type SignageAnnouncementWidgetWhenMany string
+
+// SignageAnnouncementWidgetWhenNone defines model for SignageAnnouncementWidget.WhenNone.
+type SignageAnnouncementWidgetWhenNone string
+
+// SignageAsset defines model for SignageAsset.
+type SignageAsset struct {
+	ContentType        string                    `json:"contentType"`
+	CreatedAt          time.Time                 `json:"createdAt"`
+	CreatedByAccountId nullable.Nullable[UUIDv7] `json:"createdByAccountId,omitempty"`
+	DurationMs         nullable.Nullable[int]    `json:"durationMs"`
+	Height             nullable.Nullable[int]    `json:"height"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id        UUIDv7           `json:"id"`
+	Kind      SignageAssetKind `json:"kind"`
+	Name      string           `json:"name"`
+	Sha256    string           `json:"sha256"`
+	SizeBytes int64            `json:"sizeBytes"`
+
+	// Width Always set for images; null for videos uploaded without dimensions.
+	Width nullable.Nullable[int] `json:"width"`
+}
+
+// SignageAssetKind defines model for SignageAssetKind.
+type SignageAssetKind string
+
+// SignageAssetList defines model for SignageAssetList.
+type SignageAssetList struct {
+	Items []SignageAsset `json:"items"`
+}
+
+// SignageCameraWidget defines model for SignageCameraWidget.
+type SignageCameraWidget struct {
+	Fallback SignageCameraWidgetFallback `json:"fallback"`
+
+	// FallbackMediaId Image asset; only kept when `fallback` is `image`.
+	FallbackMediaId nullable.Nullable[UUIDv7] `json:"fallbackMediaId"`
+
+	// MachineId Required when `source` is `machine`; cleared for `auto`.
+	MachineId     nullable.Nullable[UUIDv7] `json:"machineId"`
+	Multi         SignageCameraWidgetMulti  `json:"multi"`
+	ShowProgress  bool                      `json:"showProgress"`
+	ShowRemaining bool                      `json:"showRemaining"`
+	Source        SignageCameraWidgetSource `json:"source"`
+	Type          SignageCameraWidgetType   `json:"type"`
+}
+
+// SignageCameraWidgetFallback defines model for SignageCameraWidget.Fallback.
+type SignageCameraWidgetFallback string
+
+// SignageCameraWidgetMulti defines model for SignageCameraWidget.Multi.
+type SignageCameraWidgetMulti string
+
+// SignageCameraWidgetSource defines model for SignageCameraWidget.Source.
+type SignageCameraWidgetSource string
+
+// SignageCameraWidgetType defines model for SignageCameraWidget.Type.
+type SignageCameraWidgetType string
+
+// SignageClockWidget defines model for SignageClockWidget.
+type SignageClockWidget struct {
+	Mode SignageClockWidgetMode `json:"mode"`
+	Type SignageClockWidgetType `json:"type"`
+}
+
+// SignageClockWidgetMode defines model for SignageClockWidget.Mode.
+type SignageClockWidgetMode string
+
+// SignageClockWidgetType defines model for SignageClockWidget.Type.
+type SignageClockWidgetType string
+
+// SignageEmptyWidget defines model for SignageEmptyWidget.
+type SignageEmptyWidget struct {
+	Type SignageEmptyWidgetType `json:"type"`
+}
+
+// SignageEmptyWidgetType defines model for SignageEmptyWidget.Type.
+type SignageEmptyWidgetType string
+
+// SignageEventsWidget defines model for SignageEventsWidget.
+type SignageEventsWidget struct {
+	Count int                     `json:"count"`
+	Type  SignageEventsWidgetType `json:"type"`
+}
+
+// SignageEventsWidgetType defines model for SignageEventsWidget.Type.
+type SignageEventsWidgetType string
+
+// SignageFieldType defines model for SignageFieldType.
+type SignageFieldType string
+
+// SignageFit defines model for SignageFit.
+type SignageFit string
+
+// SignageImageWidget defines model for SignageImageWidget.
+type SignageImageWidget struct {
+	Fit     SignageFit                `json:"fit"`
+	MediaId nullable.Nullable[UUIDv7] `json:"mediaId"`
+	Type    SignageImageWidgetType    `json:"type"`
+}
+
+// SignageImageWidgetType defines model for SignageImageWidget.Type.
+type SignageImageWidgetType string
+
+// SignageLayout defines model for SignageLayout.
+type SignageLayout struct {
+	// Columns CSS grid-template-columns.
+	Columns string `json:"columns"`
+
+	// Id Fixed, code-defined layouts shared by backend validation and frontend rendering.
+	Id   SignageLayoutId `json:"id"`
+	Name string          `json:"name"`
+
+	// Rows CSS grid-template-rows.
+	Rows  string              `json:"rows"`
+	Zones []SignageLayoutZone `json:"zones"`
+}
+
+// SignageLayoutId Fixed, code-defined layouts shared by backend validation and frontend rendering.
+type SignageLayoutId string
+
+// SignageLayoutList defines model for SignageLayoutList.
+type SignageLayoutList struct {
+	Items []SignageLayout `json:"items"`
+}
+
+// SignageLayoutZone defines model for SignageLayoutZone.
+type SignageLayoutZone struct {
+	Col     int    `json:"col"`
+	ColSpan int    `json:"colSpan"`
+	Id      string `json:"id"`
+	Label   string `json:"label"`
+	Row     int    `json:"row"`
+	RowSpan int    `json:"rowSpan"`
+}
+
+// SignageOpenDaysWidget defines model for SignageOpenDaysWidget.
+type SignageOpenDaysWidget struct {
+	Count int                       `json:"count"`
+	Type  SignageOpenDaysWidgetType `json:"type"`
+}
+
+// SignageOpenDaysWidgetType defines model for SignageOpenDaysWidget.Type.
+type SignageOpenDaysWidgetType string
+
+// SignageOrientation defines model for SignageOrientation.
+type SignageOrientation string
+
+// SignagePlaylist defines model for SignagePlaylist.
+type SignagePlaylist struct {
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id        UUIDv7                `json:"id"`
+	Items     []SignagePlaylistItem `json:"items"`
+	Name      string                `json:"name"`
+	UpdatedAt time.Time             `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+}
+
+// SignagePlaylistItem defines model for SignagePlaylistItem.
+type SignagePlaylistItem struct {
+	// SceneId Lowercase RFC 9562 UUID version 7 generated by the application.
+	SceneId    UUIDv7            `json:"sceneId"`
+	Seconds    int               `json:"seconds"`
+	Transition SignageTransition `json:"transition"`
+}
+
+// SignagePlaylistList defines model for SignagePlaylistList.
+type SignagePlaylistList struct {
+	Items []SignagePlaylist `json:"items"`
+}
+
+// SignageQrWidget defines model for SignageQrWidget.
+type SignageQrWidget struct {
+	Caption string              `json:"caption"`
+	Type    SignageQrWidgetType `json:"type"`
+
+	// Url Absolute https URL.
+	Url string `json:"url"`
+}
+
+// SignageQrWidgetType defines model for SignageQrWidget.Type.
+type SignageQrWidgetType string
+
+// SignageRenderedMessage defines model for SignageRenderedMessage.
+type SignageRenderedMessage struct {
+	Body  string      `json:"body"`
+	Title string      `json:"title"`
+	Tone  SignageTone `json:"tone"`
+}
+
+// SignageScene defines model for SignageScene.
+type SignageScene struct {
+	BackgroundAssetId nullable.Nullable[UUIDv7] `json:"backgroundAssetId"`
+	BackgroundColor   string                    `json:"backgroundColor"`
+	BackgroundDim     int                       `json:"backgroundDim"`
+	BackgroundFit     SignageFit                `json:"backgroundFit"`
+	CreatedAt         time.Time                 `json:"createdAt"`
+
+	// Id Lowercase RFC 9562 UUID version 7 generated by the application.
+	Id UUIDv7 `json:"id"`
+
+	// LayoutId Fixed, code-defined layouts shared by backend validation and frontend rendering.
+	LayoutId    SignageLayoutId    `json:"layoutId"`
+	Name        string             `json:"name"`
+	Orientation SignageOrientation `json:"orientation"`
+	Theme       SignageSceneTheme  `json:"theme"`
+	UpdatedAt   time.Time          `json:"updatedAt"`
+
+	// Version Optimistic-concurrency version.
+	Version Version `json:"version"`
+
+	// Zones Widget per zone id of the scene's layout.
+	Zones SignageZones `json:"zones"`
+}
+
+// SignageSceneTheme defines model for SignageScene.Theme.
+type SignageSceneTheme string
+
+// SignageSceneList defines model for SignageSceneList.
+type SignageSceneList struct {
+	Items []SignageScene `json:"items"`
+}
+
+// SignageSlideshowWidget defines model for SignageSlideshowWidget.
+type SignageSlideshowWidget struct {
+	MediaIds []UUIDv7                   `json:"mediaIds"`
+	Seconds  int                        `json:"seconds"`
+	Type     SignageSlideshowWidgetType `json:"type"`
+}
+
+// SignageSlideshowWidgetType defines model for SignageSlideshowWidget.Type.
+type SignageSlideshowWidgetType string
+
+// SignageStatusWidget defines model for SignageStatusWidget.
+type SignageStatusWidget struct {
+	MachineIds    []UUIDv7                `json:"machineIds"`
+	ShowProgress  bool                    `json:"showProgress"`
+	ShowRemaining bool                    `json:"showRemaining"`
+	Type          SignageStatusWidgetType `json:"type"`
+}
+
+// SignageStatusWidgetType defines model for SignageStatusWidget.Type.
+type SignageStatusWidgetType string
+
+// SignageTemplateField defines model for SignageTemplateField.
+type SignageTemplateField struct {
+	DefaultValue string `json:"defaultValue"`
+	HelperText   string `json:"helperText"`
+
+	// Key Placeholder name; not a built-in variable and unique in the template.
+	Key   string `json:"key"`
+	Label string `json:"label"`
+
+	// Options Required and non-empty for `choice`, empty otherwise.
+	Options  []string         `json:"options"`
+	Required bool             `json:"required"`
+	Type     SignageFieldType `json:"type"`
+}
+
+// SignageTextSize defines model for SignageTextSize.
+type SignageTextSize string
+
+// SignageTextWidget defines model for SignageTextWidget.
+type SignageTextWidget struct {
+	Align SignageTextWidgetAlign `json:"align"`
+	Size  SignageTextSize        `json:"size"`
+
+	// Text Plain text; rendered as text nodes, never as HTML.
+	Text string                `json:"text"`
+	Type SignageTextWidgetType `json:"type"`
+}
+
+// SignageTextWidgetAlign defines model for SignageTextWidget.Align.
+type SignageTextWidgetAlign string
+
+// SignageTextWidgetType defines model for SignageTextWidget.Type.
+type SignageTextWidgetType string
+
+// SignageTone defines model for SignageTone.
+type SignageTone string
+
+// SignageTransition defines model for SignageTransition.
+type SignageTransition string
+
+// SignageVideoWidget defines model for SignageVideoWidget.
+type SignageVideoWidget struct {
+	Fit     SignageFit                `json:"fit"`
+	MediaId nullable.Nullable[UUIDv7] `json:"mediaId"`
+	Type    SignageVideoWidgetType    `json:"type"`
+}
+
+// SignageVideoWidgetType defines model for SignageVideoWidget.Type.
+type SignageVideoWidgetType string
+
+// SignageWidget One widget per layout zone. Fields are decoded strictly; unknown fields are rejected.
+type SignageWidget struct {
+	union json.RawMessage
+}
+
+// SignageZones Widget per zone id of the scene's layout.
+type SignageZones map[string]SignageWidget
+
 // SpoolInventoryCommand defines model for SpoolInventoryCommand.
 type SpoolInventoryCommand struct {
 	Disposal *bool `json:"disposal,omitempty"`
@@ -6102,6 +6746,26 @@ type StaffingRequirementInput struct {
 	EligibleRoleIds []UUIDv7               `json:"eligibleRoleIds"`
 	Kind            OpenDayRequirementKind `json:"kind"`
 	RequiredCount   int                    `json:"requiredCount"`
+}
+
+// StartSignageAnnouncementRequest defines model for StartSignageAnnouncementRequest.
+type StartSignageAnnouncementRequest struct {
+	AllDisplays bool `json:"allDisplays"`
+
+	// DisplayIds Must be empty when `allDisplays` is true and non-empty otherwise.
+	DisplayIds []UUIDv7 `json:"displayIds"`
+
+	// EndsAt Omitted or null means until stopped.
+	EndsAt nullable.Nullable[time.Time] `json:"endsAt,omitempty"`
+
+	// StartsAt Defaults to now.
+	StartsAt *time.Time `json:"startsAt,omitempty"`
+
+	// TemplateId Lowercase RFC 9562 UUID version 7 generated by the application.
+	TemplateId UUIDv7 `json:"templateId"`
+
+	// Values Field key to value. Time `HH:MM`, date `YYYY-MM-DD`, date and time `YYYY-MM-DDTHH:MM` (makerspace local time), machine a machine id.
+	Values SignageAnnouncementValues `json:"values"`
 }
 
 // StatisticMachine defines model for StatisticMachine.
@@ -6902,6 +7566,64 @@ type UpdateSessionPolicyRequest struct {
 	PostSessionDestination PostSessionDestination `json:"postSessionDestination"`
 }
 
+// UpdateSignageAnnouncementRequest defines model for UpdateSignageAnnouncementRequest.
+type UpdateSignageAnnouncementRequest struct {
+	AllDisplays bool                         `json:"allDisplays"`
+	DisplayIds  []UUIDv7                     `json:"displayIds"`
+	EndsAt      nullable.Nullable[time.Time] `json:"endsAt,omitempty"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version   `json:"expectedVersion"`
+	StartsAt        time.Time `json:"startsAt"`
+
+	// Values Field key to value. Time `HH:MM`, date `YYYY-MM-DD`, date and time `YYYY-MM-DDTHH:MM` (makerspace local time), machine a machine id.
+	Values SignageAnnouncementValues `json:"values"`
+}
+
+// UpdateSignageAnnouncementTemplateRequest defines model for UpdateSignageAnnouncementTemplateRequest.
+type UpdateSignageAnnouncementTemplateRequest struct {
+	Body string `json:"body"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version                `json:"expectedVersion"`
+	Fields          []SignageTemplateField `json:"fields"`
+	Name            string                 `json:"name"`
+	Title           string                 `json:"title"`
+	Tone            SignageTone            `json:"tone"`
+}
+
+// UpdateSignagePlaylistRequest defines model for UpdateSignagePlaylistRequest.
+type UpdateSignagePlaylistRequest struct {
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version               `json:"expectedVersion"`
+	Items           []SignagePlaylistItem `json:"items"`
+	Name            string                `json:"name"`
+}
+
+// UpdateSignageSceneRequest defines model for UpdateSignageSceneRequest.
+type UpdateSignageSceneRequest struct {
+	// BackgroundAssetId Image asset; omitted or null clears it.
+	BackgroundAssetId nullable.Nullable[UUIDv7] `json:"backgroundAssetId,omitempty"`
+	BackgroundColor   string                    `json:"backgroundColor"`
+	BackgroundDim     int                       `json:"backgroundDim"`
+	BackgroundFit     SignageFit                `json:"backgroundFit"`
+
+	// ExpectedVersion Optimistic-concurrency version.
+	ExpectedVersion Version `json:"expectedVersion"`
+
+	// LayoutId Fixed, code-defined layouts shared by backend validation and frontend rendering.
+	LayoutId    SignageLayoutId                `json:"layoutId"`
+	Name        string                         `json:"name"`
+	Orientation SignageOrientation             `json:"orientation"`
+	Theme       UpdateSignageSceneRequestTheme `json:"theme"`
+
+	// Zones Widget per zone id of the scene's layout.
+	Zones *SignageZones `json:"zones,omitempty"`
+}
+
+// UpdateSignageSceneRequestTheme defines model for UpdateSignageSceneRequest.Theme.
+type UpdateSignageSceneRequestTheme string
+
 // UpdateSurveyRequest defines model for UpdateSurveyRequest.
 type UpdateSurveyRequest struct {
 	Anonymous   bool                      `json:"anonymous"`
@@ -7218,6 +7940,21 @@ type PublicEventId = string
 
 // RoleId Lowercase RFC 9562 UUID version 7 generated by the application.
 type RoleId = UUIDv7
+
+// SignageAnnouncementId Lowercase RFC 9562 UUID version 7 generated by the application.
+type SignageAnnouncementId = UUIDv7
+
+// SignageAssetId Lowercase RFC 9562 UUID version 7 generated by the application.
+type SignageAssetId = UUIDv7
+
+// SignagePlaylistId Lowercase RFC 9562 UUID version 7 generated by the application.
+type SignagePlaylistId = UUIDv7
+
+// SignageSceneId Lowercase RFC 9562 UUID version 7 generated by the application.
+type SignageSceneId = UUIDv7
+
+// SignageTemplateId Lowercase RFC 9562 UUID version 7 generated by the application.
+type SignageTemplateId = UUIDv7
 
 // BadRequest defines model for BadRequest.
 type BadRequest = Error
@@ -7630,6 +8367,29 @@ type ListSCIMUsersParams struct {
 	StartIndex *int    `form:"startIndex,omitempty" json:"startIndex,omitempty"`
 	Count      *int    `form:"count,omitempty" json:"count,omitempty"`
 }
+
+// ListSignageAssetsParams defines parameters for ListSignageAssets.
+type ListSignageAssetsParams struct {
+	Kind *SignageAssetKind `form:"kind,omitempty" json:"kind,omitempty"`
+}
+
+// UploadSignageAssetParams defines parameters for UploadSignageAsset.
+type UploadSignageAssetParams struct {
+	XFileName        string                                   `json:"X-File-Name"`
+	XFileContentType UploadSignageAssetParamsXFileContentType `json:"X-File-Content-Type"`
+
+	// XAssetWidth Video only: pixel width.
+	XAssetWidth *int `json:"X-Asset-Width,omitempty"`
+
+	// XAssetHeight Video only: pixel height.
+	XAssetHeight *int `json:"X-Asset-Height,omitempty"`
+
+	// XAssetDurationMs Video only: duration in milliseconds.
+	XAssetDurationMs *int `json:"X-Asset-Duration-Ms,omitempty"`
+}
+
+// UploadSignageAssetParamsXFileContentType defines parameters for UploadSignageAsset.
+type UploadSignageAssetParamsXFileContentType string
 
 // SubmitVisitorEnrollmentParams defines parameters for SubmitVisitorEnrollment.
 type SubmitVisitorEnrollmentParams struct {
@@ -8288,6 +9048,45 @@ type CreateSessionPolicyJSONRequestBody = SessionPolicyInput
 // UpdateSessionPolicyJSONRequestBody defines body for UpdateSessionPolicy for application/json ContentType.
 type UpdateSessionPolicyJSONRequestBody = UpdateSessionPolicyRequest
 
+// CreateSignageAnnouncementTemplateJSONRequestBody defines body for CreateSignageAnnouncementTemplate for application/json ContentType.
+type CreateSignageAnnouncementTemplateJSONRequestBody = CreateSignageAnnouncementTemplateRequest
+
+// DeleteSignageAnnouncementTemplateJSONRequestBody defines body for DeleteSignageAnnouncementTemplate for application/json ContentType.
+type DeleteSignageAnnouncementTemplateJSONRequestBody = VersionRequest
+
+// UpdateSignageAnnouncementTemplateJSONRequestBody defines body for UpdateSignageAnnouncementTemplate for application/json ContentType.
+type UpdateSignageAnnouncementTemplateJSONRequestBody = UpdateSignageAnnouncementTemplateRequest
+
+// StartSignageAnnouncementJSONRequestBody defines body for StartSignageAnnouncement for application/json ContentType.
+type StartSignageAnnouncementJSONRequestBody = StartSignageAnnouncementRequest
+
+// StopSignageAnnouncementJSONRequestBody defines body for StopSignageAnnouncement for application/json ContentType.
+type StopSignageAnnouncementJSONRequestBody = VersionRequest
+
+// UpdateSignageAnnouncementJSONRequestBody defines body for UpdateSignageAnnouncement for application/json ContentType.
+type UpdateSignageAnnouncementJSONRequestBody = UpdateSignageAnnouncementRequest
+
+// RenameSignageAssetJSONRequestBody defines body for RenameSignageAsset for application/json ContentType.
+type RenameSignageAssetJSONRequestBody = RenameSignageAssetRequest
+
+// CreateSignagePlaylistJSONRequestBody defines body for CreateSignagePlaylist for application/json ContentType.
+type CreateSignagePlaylistJSONRequestBody = CreateSignagePlaylistRequest
+
+// DeleteSignagePlaylistJSONRequestBody defines body for DeleteSignagePlaylist for application/json ContentType.
+type DeleteSignagePlaylistJSONRequestBody = VersionRequest
+
+// UpdateSignagePlaylistJSONRequestBody defines body for UpdateSignagePlaylist for application/json ContentType.
+type UpdateSignagePlaylistJSONRequestBody = UpdateSignagePlaylistRequest
+
+// CreateSignageSceneJSONRequestBody defines body for CreateSignageScene for application/json ContentType.
+type CreateSignageSceneJSONRequestBody = CreateSignageSceneRequest
+
+// DeleteSignageSceneJSONRequestBody defines body for DeleteSignageScene for application/json ContentType.
+type DeleteSignageSceneJSONRequestBody = VersionRequest
+
+// UpdateSignageSceneJSONRequestBody defines body for UpdateSignageScene for application/json ContentType.
+type UpdateSignageSceneJSONRequestBody = UpdateSignageSceneRequest
+
 // CreateSurveyJSONRequestBody defines body for CreateSurvey for application/json ContentType.
 type CreateSurveyJSONRequestBody = CreateSurveyRequest
 
@@ -8421,6 +9220,395 @@ func (a SCIMMultiValue) MarshalJSON() ([]byte, error) {
 		}
 	}
 	return json.Marshal(object)
+}
+
+// AsSignageEmptyWidget returns the union data inside the SignageWidget as a SignageEmptyWidget
+func (t SignageWidget) AsSignageEmptyWidget() (SignageEmptyWidget, error) {
+	var body SignageEmptyWidget
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSignageEmptyWidget overwrites any union data inside the SignageWidget as the provided SignageEmptyWidget
+func (t *SignageWidget) FromSignageEmptyWidget(v SignageEmptyWidget) error {
+	v.Type = "empty"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSignageEmptyWidget performs a merge with any union data inside the SignageWidget, using the provided SignageEmptyWidget
+func (t *SignageWidget) MergeSignageEmptyWidget(v SignageEmptyWidget) error {
+	v.Type = "empty"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSignageImageWidget returns the union data inside the SignageWidget as a SignageImageWidget
+func (t SignageWidget) AsSignageImageWidget() (SignageImageWidget, error) {
+	var body SignageImageWidget
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSignageImageWidget overwrites any union data inside the SignageWidget as the provided SignageImageWidget
+func (t *SignageWidget) FromSignageImageWidget(v SignageImageWidget) error {
+	v.Type = "image"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSignageImageWidget performs a merge with any union data inside the SignageWidget, using the provided SignageImageWidget
+func (t *SignageWidget) MergeSignageImageWidget(v SignageImageWidget) error {
+	v.Type = "image"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSignageVideoWidget returns the union data inside the SignageWidget as a SignageVideoWidget
+func (t SignageWidget) AsSignageVideoWidget() (SignageVideoWidget, error) {
+	var body SignageVideoWidget
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSignageVideoWidget overwrites any union data inside the SignageWidget as the provided SignageVideoWidget
+func (t *SignageWidget) FromSignageVideoWidget(v SignageVideoWidget) error {
+	v.Type = "video"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSignageVideoWidget performs a merge with any union data inside the SignageWidget, using the provided SignageVideoWidget
+func (t *SignageWidget) MergeSignageVideoWidget(v SignageVideoWidget) error {
+	v.Type = "video"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSignageSlideshowWidget returns the union data inside the SignageWidget as a SignageSlideshowWidget
+func (t SignageWidget) AsSignageSlideshowWidget() (SignageSlideshowWidget, error) {
+	var body SignageSlideshowWidget
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSignageSlideshowWidget overwrites any union data inside the SignageWidget as the provided SignageSlideshowWidget
+func (t *SignageWidget) FromSignageSlideshowWidget(v SignageSlideshowWidget) error {
+	v.Type = "slideshow"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSignageSlideshowWidget performs a merge with any union data inside the SignageWidget, using the provided SignageSlideshowWidget
+func (t *SignageWidget) MergeSignageSlideshowWidget(v SignageSlideshowWidget) error {
+	v.Type = "slideshow"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSignageTextWidget returns the union data inside the SignageWidget as a SignageTextWidget
+func (t SignageWidget) AsSignageTextWidget() (SignageTextWidget, error) {
+	var body SignageTextWidget
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSignageTextWidget overwrites any union data inside the SignageWidget as the provided SignageTextWidget
+func (t *SignageWidget) FromSignageTextWidget(v SignageTextWidget) error {
+	v.Type = "text"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSignageTextWidget performs a merge with any union data inside the SignageWidget, using the provided SignageTextWidget
+func (t *SignageWidget) MergeSignageTextWidget(v SignageTextWidget) error {
+	v.Type = "text"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSignageQrWidget returns the union data inside the SignageWidget as a SignageQrWidget
+func (t SignageWidget) AsSignageQrWidget() (SignageQrWidget, error) {
+	var body SignageQrWidget
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSignageQrWidget overwrites any union data inside the SignageWidget as the provided SignageQrWidget
+func (t *SignageWidget) FromSignageQrWidget(v SignageQrWidget) error {
+	v.Type = "qr"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSignageQrWidget performs a merge with any union data inside the SignageWidget, using the provided SignageQrWidget
+func (t *SignageWidget) MergeSignageQrWidget(v SignageQrWidget) error {
+	v.Type = "qr"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSignageClockWidget returns the union data inside the SignageWidget as a SignageClockWidget
+func (t SignageWidget) AsSignageClockWidget() (SignageClockWidget, error) {
+	var body SignageClockWidget
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSignageClockWidget overwrites any union data inside the SignageWidget as the provided SignageClockWidget
+func (t *SignageWidget) FromSignageClockWidget(v SignageClockWidget) error {
+	v.Type = "clock"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSignageClockWidget performs a merge with any union data inside the SignageWidget, using the provided SignageClockWidget
+func (t *SignageWidget) MergeSignageClockWidget(v SignageClockWidget) error {
+	v.Type = "clock"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSignageCameraWidget returns the union data inside the SignageWidget as a SignageCameraWidget
+func (t SignageWidget) AsSignageCameraWidget() (SignageCameraWidget, error) {
+	var body SignageCameraWidget
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSignageCameraWidget overwrites any union data inside the SignageWidget as the provided SignageCameraWidget
+func (t *SignageWidget) FromSignageCameraWidget(v SignageCameraWidget) error {
+	v.Type = "camera"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSignageCameraWidget performs a merge with any union data inside the SignageWidget, using the provided SignageCameraWidget
+func (t *SignageWidget) MergeSignageCameraWidget(v SignageCameraWidget) error {
+	v.Type = "camera"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSignageStatusWidget returns the union data inside the SignageWidget as a SignageStatusWidget
+func (t SignageWidget) AsSignageStatusWidget() (SignageStatusWidget, error) {
+	var body SignageStatusWidget
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSignageStatusWidget overwrites any union data inside the SignageWidget as the provided SignageStatusWidget
+func (t *SignageWidget) FromSignageStatusWidget(v SignageStatusWidget) error {
+	v.Type = "status"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSignageStatusWidget performs a merge with any union data inside the SignageWidget, using the provided SignageStatusWidget
+func (t *SignageWidget) MergeSignageStatusWidget(v SignageStatusWidget) error {
+	v.Type = "status"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSignageOpenDaysWidget returns the union data inside the SignageWidget as a SignageOpenDaysWidget
+func (t SignageWidget) AsSignageOpenDaysWidget() (SignageOpenDaysWidget, error) {
+	var body SignageOpenDaysWidget
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSignageOpenDaysWidget overwrites any union data inside the SignageWidget as the provided SignageOpenDaysWidget
+func (t *SignageWidget) FromSignageOpenDaysWidget(v SignageOpenDaysWidget) error {
+	v.Type = "open_days"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSignageOpenDaysWidget performs a merge with any union data inside the SignageWidget, using the provided SignageOpenDaysWidget
+func (t *SignageWidget) MergeSignageOpenDaysWidget(v SignageOpenDaysWidget) error {
+	v.Type = "open_days"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSignageEventsWidget returns the union data inside the SignageWidget as a SignageEventsWidget
+func (t SignageWidget) AsSignageEventsWidget() (SignageEventsWidget, error) {
+	var body SignageEventsWidget
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSignageEventsWidget overwrites any union data inside the SignageWidget as the provided SignageEventsWidget
+func (t *SignageWidget) FromSignageEventsWidget(v SignageEventsWidget) error {
+	v.Type = "events"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSignageEventsWidget performs a merge with any union data inside the SignageWidget, using the provided SignageEventsWidget
+func (t *SignageWidget) MergeSignageEventsWidget(v SignageEventsWidget) error {
+	v.Type = "events"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSignageAnnouncementWidget returns the union data inside the SignageWidget as a SignageAnnouncementWidget
+func (t SignageWidget) AsSignageAnnouncementWidget() (SignageAnnouncementWidget, error) {
+	var body SignageAnnouncementWidget
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSignageAnnouncementWidget overwrites any union data inside the SignageWidget as the provided SignageAnnouncementWidget
+func (t *SignageWidget) FromSignageAnnouncementWidget(v SignageAnnouncementWidget) error {
+	v.Type = "announcement"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSignageAnnouncementWidget performs a merge with any union data inside the SignageWidget, using the provided SignageAnnouncementWidget
+func (t *SignageWidget) MergeSignageAnnouncementWidget(v SignageAnnouncementWidget) error {
+	v.Type = "announcement"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t SignageWidget) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t SignageWidget) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "announcement":
+		return t.AsSignageAnnouncementWidget()
+	case "camera":
+		return t.AsSignageCameraWidget()
+	case "clock":
+		return t.AsSignageClockWidget()
+	case "empty":
+		return t.AsSignageEmptyWidget()
+	case "events":
+		return t.AsSignageEventsWidget()
+	case "image":
+		return t.AsSignageImageWidget()
+	case "open_days":
+		return t.AsSignageOpenDaysWidget()
+	case "qr":
+		return t.AsSignageQrWidget()
+	case "slideshow":
+		return t.AsSignageSlideshowWidget()
+	case "status":
+		return t.AsSignageStatusWidget()
+	case "text":
+		return t.AsSignageTextWidget()
+	case "video":
+		return t.AsSignageVideoWidget()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t SignageWidget) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *SignageWidget) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
 }
 
 // ServerInterface represents all server handlers.
@@ -9493,6 +10681,87 @@ type ServerInterface interface {
 
 	// (PUT /session-policies/{sessionPolicyId})
 	UpdateSessionPolicy(w http.ResponseWriter, r *http.Request, sessionPolicyId UUIDv7)
+
+	// (GET /signage/announcement-templates)
+	ListSignageAnnouncementTemplates(w http.ResponseWriter, r *http.Request)
+
+	// (POST /signage/announcement-templates)
+	CreateSignageAnnouncementTemplate(w http.ResponseWriter, r *http.Request)
+
+	// (DELETE /signage/announcement-templates/{templateId})
+	DeleteSignageAnnouncementTemplate(w http.ResponseWriter, r *http.Request, templateId SignageTemplateId)
+
+	// (GET /signage/announcement-templates/{templateId})
+	GetSignageAnnouncementTemplate(w http.ResponseWriter, r *http.Request, templateId SignageTemplateId)
+	// Replace a template and its fields
+	// (PUT /signage/announcement-templates/{templateId})
+	UpdateSignageAnnouncementTemplate(w http.ResponseWriter, r *http.Request, templateId SignageTemplateId)
+	// List active and scheduled announcements
+	// (GET /signage/announcements)
+	ListSignageAnnouncements(w http.ResponseWriter, r *http.Request)
+
+	// (POST /signage/announcements)
+	StartSignageAnnouncement(w http.ResponseWriter, r *http.Request)
+	// Stop an announcement by hard-deleting it
+	// (DELETE /signage/announcements/{announcementId})
+	StopSignageAnnouncement(w http.ResponseWriter, r *http.Request, announcementId SignageAnnouncementId)
+
+	// (GET /signage/announcements/{announcementId})
+	GetSignageAnnouncement(w http.ResponseWriter, r *http.Request, announcementId SignageAnnouncementId)
+	// Edit values, targets and window of a live announcement
+	// (PUT /signage/announcements/{announcementId})
+	UpdateSignageAnnouncement(w http.ResponseWriter, r *http.Request, announcementId SignageAnnouncementId)
+	// List uploaded images and videos
+	// (GET /signage/assets)
+	ListSignageAssets(w http.ResponseWriter, r *http.Request, params ListSignageAssetsParams)
+	// Upload a PNG, JPEG, WebP image (20 MiB) or MP4 video (200 MiB)
+	// (POST /signage/assets)
+	UploadSignageAsset(w http.ResponseWriter, r *http.Request, params UploadSignageAssetParams)
+	// Delete an asset that no draft scene references
+	// (DELETE /signage/assets/{assetId})
+	DeleteSignageAsset(w http.ResponseWriter, r *http.Request, assetId SignageAssetId)
+
+	// (GET /signage/assets/{assetId})
+	GetSignageAsset(w http.ResponseWriter, r *http.Request, assetId SignageAssetId)
+
+	// (PATCH /signage/assets/{assetId})
+	RenameSignageAsset(w http.ResponseWriter, r *http.Request, assetId SignageAssetId)
+	// Download the asset bytes for the admin preview
+	// (GET /signage/assets/{assetId}/content)
+	DownloadSignageAsset(w http.ResponseWriter, r *http.Request, assetId SignageAssetId)
+	// List the fixed, code-defined scene layouts
+	// (GET /signage/layouts)
+	ListSignageLayouts(w http.ResponseWriter, r *http.Request)
+
+	// (GET /signage/playlists)
+	ListSignagePlaylists(w http.ResponseWriter, r *http.Request)
+
+	// (POST /signage/playlists)
+	CreateSignagePlaylist(w http.ResponseWriter, r *http.Request)
+
+	// (DELETE /signage/playlists/{playlistId})
+	DeleteSignagePlaylist(w http.ResponseWriter, r *http.Request, playlistId SignagePlaylistId)
+
+	// (GET /signage/playlists/{playlistId})
+	GetSignagePlaylist(w http.ResponseWriter, r *http.Request, playlistId SignagePlaylistId)
+	// Rename a playlist and atomically replace its items
+	// (PUT /signage/playlists/{playlistId})
+	UpdateSignagePlaylist(w http.ResponseWriter, r *http.Request, playlistId SignagePlaylistId)
+
+	// (GET /signage/scenes)
+	ListSignageScenes(w http.ResponseWriter, r *http.Request)
+
+	// (POST /signage/scenes)
+	CreateSignageScene(w http.ResponseWriter, r *http.Request)
+
+	// (DELETE /signage/scenes/{sceneId})
+	DeleteSignageScene(w http.ResponseWriter, r *http.Request, sceneId SignageSceneId)
+
+	// (GET /signage/scenes/{sceneId})
+	GetSignageScene(w http.ResponseWriter, r *http.Request, sceneId SignageSceneId)
+	// Replace a scene
+	// (PUT /signage/scenes/{sceneId})
+	UpdateSignageScene(w http.ResponseWriter, r *http.Request, sceneId SignageSceneId)
 	// Aggregate designated supervisors, compliance, profile images, and open-period assignment counts
 	// (GET /supervisor-dashboard)
 	GetSupervisorDashboard(w http.ResponseWriter, r *http.Request)
@@ -11582,6 +12851,152 @@ func (_ Unimplemented) CreateSessionPolicy(w http.ResponseWriter, r *http.Reques
 
 // (PUT /session-policies/{sessionPolicyId})
 func (_ Unimplemented) UpdateSessionPolicy(w http.ResponseWriter, r *http.Request, sessionPolicyId UUIDv7) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /signage/announcement-templates)
+func (_ Unimplemented) ListSignageAnnouncementTemplates(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /signage/announcement-templates)
+func (_ Unimplemented) CreateSignageAnnouncementTemplate(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /signage/announcement-templates/{templateId})
+func (_ Unimplemented) DeleteSignageAnnouncementTemplate(w http.ResponseWriter, r *http.Request, templateId SignageTemplateId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /signage/announcement-templates/{templateId})
+func (_ Unimplemented) GetSignageAnnouncementTemplate(w http.ResponseWriter, r *http.Request, templateId SignageTemplateId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace a template and its fields
+// (PUT /signage/announcement-templates/{templateId})
+func (_ Unimplemented) UpdateSignageAnnouncementTemplate(w http.ResponseWriter, r *http.Request, templateId SignageTemplateId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List active and scheduled announcements
+// (GET /signage/announcements)
+func (_ Unimplemented) ListSignageAnnouncements(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /signage/announcements)
+func (_ Unimplemented) StartSignageAnnouncement(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Stop an announcement by hard-deleting it
+// (DELETE /signage/announcements/{announcementId})
+func (_ Unimplemented) StopSignageAnnouncement(w http.ResponseWriter, r *http.Request, announcementId SignageAnnouncementId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /signage/announcements/{announcementId})
+func (_ Unimplemented) GetSignageAnnouncement(w http.ResponseWriter, r *http.Request, announcementId SignageAnnouncementId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Edit values, targets and window of a live announcement
+// (PUT /signage/announcements/{announcementId})
+func (_ Unimplemented) UpdateSignageAnnouncement(w http.ResponseWriter, r *http.Request, announcementId SignageAnnouncementId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List uploaded images and videos
+// (GET /signage/assets)
+func (_ Unimplemented) ListSignageAssets(w http.ResponseWriter, r *http.Request, params ListSignageAssetsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Upload a PNG, JPEG, WebP image (20 MiB) or MP4 video (200 MiB)
+// (POST /signage/assets)
+func (_ Unimplemented) UploadSignageAsset(w http.ResponseWriter, r *http.Request, params UploadSignageAssetParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Delete an asset that no draft scene references
+// (DELETE /signage/assets/{assetId})
+func (_ Unimplemented) DeleteSignageAsset(w http.ResponseWriter, r *http.Request, assetId SignageAssetId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /signage/assets/{assetId})
+func (_ Unimplemented) GetSignageAsset(w http.ResponseWriter, r *http.Request, assetId SignageAssetId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (PATCH /signage/assets/{assetId})
+func (_ Unimplemented) RenameSignageAsset(w http.ResponseWriter, r *http.Request, assetId SignageAssetId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Download the asset bytes for the admin preview
+// (GET /signage/assets/{assetId}/content)
+func (_ Unimplemented) DownloadSignageAsset(w http.ResponseWriter, r *http.Request, assetId SignageAssetId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// List the fixed, code-defined scene layouts
+// (GET /signage/layouts)
+func (_ Unimplemented) ListSignageLayouts(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /signage/playlists)
+func (_ Unimplemented) ListSignagePlaylists(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /signage/playlists)
+func (_ Unimplemented) CreateSignagePlaylist(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /signage/playlists/{playlistId})
+func (_ Unimplemented) DeleteSignagePlaylist(w http.ResponseWriter, r *http.Request, playlistId SignagePlaylistId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /signage/playlists/{playlistId})
+func (_ Unimplemented) GetSignagePlaylist(w http.ResponseWriter, r *http.Request, playlistId SignagePlaylistId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Rename a playlist and atomically replace its items
+// (PUT /signage/playlists/{playlistId})
+func (_ Unimplemented) UpdateSignagePlaylist(w http.ResponseWriter, r *http.Request, playlistId SignagePlaylistId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /signage/scenes)
+func (_ Unimplemented) ListSignageScenes(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (POST /signage/scenes)
+func (_ Unimplemented) CreateSignageScene(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (DELETE /signage/scenes/{sceneId})
+func (_ Unimplemented) DeleteSignageScene(w http.ResponseWriter, r *http.Request, sceneId SignageSceneId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// (GET /signage/scenes/{sceneId})
+func (_ Unimplemented) GetSignageScene(w http.ResponseWriter, r *http.Request, sceneId SignageSceneId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Replace a scene
+// (PUT /signage/scenes/{sceneId})
+func (_ Unimplemented) UpdateSignageScene(w http.ResponseWriter, r *http.Request, sceneId SignageSceneId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -23822,6 +25237,875 @@ func (siw *ServerInterfaceWrapper) UpdateSessionPolicy(w http.ResponseWriter, r 
 	handler.ServeHTTP(w, r)
 }
 
+// ListSignageAnnouncementTemplates operation middleware
+func (siw *ServerInterfaceWrapper) ListSignageAnnouncementTemplates(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSignageAnnouncementTemplates(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateSignageAnnouncementTemplate operation middleware
+func (siw *ServerInterfaceWrapper) CreateSignageAnnouncementTemplate(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateSignageAnnouncementTemplate(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteSignageAnnouncementTemplate operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSignageAnnouncementTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "templateId" -------------
+	var templateId SignageTemplateId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "templateId", chi.URLParam(r, "templateId"), &templateId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "templateId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteSignageAnnouncementTemplate(w, r, templateId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSignageAnnouncementTemplate operation middleware
+func (siw *ServerInterfaceWrapper) GetSignageAnnouncementTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "templateId" -------------
+	var templateId SignageTemplateId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "templateId", chi.URLParam(r, "templateId"), &templateId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "templateId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSignageAnnouncementTemplate(w, r, templateId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateSignageAnnouncementTemplate operation middleware
+func (siw *ServerInterfaceWrapper) UpdateSignageAnnouncementTemplate(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "templateId" -------------
+	var templateId SignageTemplateId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "templateId", chi.URLParam(r, "templateId"), &templateId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "templateId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateSignageAnnouncementTemplate(w, r, templateId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListSignageAnnouncements operation middleware
+func (siw *ServerInterfaceWrapper) ListSignageAnnouncements(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSignageAnnouncements(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StartSignageAnnouncement operation middleware
+func (siw *ServerInterfaceWrapper) StartSignageAnnouncement(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StartSignageAnnouncement(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// StopSignageAnnouncement operation middleware
+func (siw *ServerInterfaceWrapper) StopSignageAnnouncement(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "announcementId" -------------
+	var announcementId SignageAnnouncementId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "announcementId", chi.URLParam(r, "announcementId"), &announcementId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "announcementId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.StopSignageAnnouncement(w, r, announcementId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSignageAnnouncement operation middleware
+func (siw *ServerInterfaceWrapper) GetSignageAnnouncement(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "announcementId" -------------
+	var announcementId SignageAnnouncementId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "announcementId", chi.URLParam(r, "announcementId"), &announcementId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "announcementId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSignageAnnouncement(w, r, announcementId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateSignageAnnouncement operation middleware
+func (siw *ServerInterfaceWrapper) UpdateSignageAnnouncement(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "announcementId" -------------
+	var announcementId SignageAnnouncementId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "announcementId", chi.URLParam(r, "announcementId"), &announcementId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "announcementId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateSignageAnnouncement(w, r, announcementId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListSignageAssets operation middleware
+func (siw *ServerInterfaceWrapper) ListSignageAssets(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListSignageAssetsParams
+
+	// ------------- Optional query parameter "kind" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "kind", r.URL.Query(), &params.Kind)
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "kind", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSignageAssets(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UploadSignageAsset operation middleware
+func (siw *ServerInterfaceWrapper) UploadSignageAsset(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params UploadSignageAssetParams
+
+	headers := r.Header
+
+	// ------------- Required header parameter "X-File-Name" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-File-Name")]; found {
+		var XFileName string
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-File-Name", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-File-Name", valueList[0], &XFileName, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-File-Name", Err: err})
+			return
+		}
+
+		params.XFileName = XFileName
+
+	} else {
+		err := fmt.Errorf("Header parameter X-File-Name is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-File-Name", Err: err})
+		return
+	}
+
+	// ------------- Required header parameter "X-File-Content-Type" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-File-Content-Type")]; found {
+		var XFileContentType UploadSignageAssetParamsXFileContentType
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-File-Content-Type", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-File-Content-Type", valueList[0], &XFileContentType, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: true})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-File-Content-Type", Err: err})
+			return
+		}
+
+		params.XFileContentType = XFileContentType
+
+	} else {
+		err := fmt.Errorf("Header parameter X-File-Content-Type is required, but not found")
+		siw.ErrorHandlerFunc(w, r, &RequiredHeaderError{ParamName: "X-File-Content-Type", Err: err})
+		return
+	}
+
+	// ------------- Optional header parameter "X-Asset-Width" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Asset-Width")]; found {
+		var XAssetWidth int
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Asset-Width", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Asset-Width", valueList[0], &XAssetWidth, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Asset-Width", Err: err})
+			return
+		}
+
+		params.XAssetWidth = &XAssetWidth
+
+	}
+
+	// ------------- Optional header parameter "X-Asset-Height" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Asset-Height")]; found {
+		var XAssetHeight int
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Asset-Height", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Asset-Height", valueList[0], &XAssetHeight, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Asset-Height", Err: err})
+			return
+		}
+
+		params.XAssetHeight = &XAssetHeight
+
+	}
+
+	// ------------- Optional header parameter "X-Asset-Duration-Ms" -------------
+	if valueList, found := headers[http.CanonicalHeaderKey("X-Asset-Duration-Ms")]; found {
+		var XAssetDurationMs int
+		n := len(valueList)
+		if n != 1 {
+			siw.ErrorHandlerFunc(w, r, &TooManyValuesForParamError{ParamName: "X-Asset-Duration-Ms", Count: n})
+			return
+		}
+
+		err = runtime.BindStyledParameterWithOptions("simple", "X-Asset-Duration-Ms", valueList[0], &XAssetDurationMs, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false})
+		if err != nil {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "X-Asset-Duration-Ms", Err: err})
+			return
+		}
+
+		params.XAssetDurationMs = &XAssetDurationMs
+
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UploadSignageAsset(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteSignageAsset operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSignageAsset(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "assetId" -------------
+	var assetId SignageAssetId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "assetId", chi.URLParam(r, "assetId"), &assetId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "assetId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteSignageAsset(w, r, assetId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSignageAsset operation middleware
+func (siw *ServerInterfaceWrapper) GetSignageAsset(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "assetId" -------------
+	var assetId SignageAssetId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "assetId", chi.URLParam(r, "assetId"), &assetId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "assetId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSignageAsset(w, r, assetId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RenameSignageAsset operation middleware
+func (siw *ServerInterfaceWrapper) RenameSignageAsset(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "assetId" -------------
+	var assetId SignageAssetId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "assetId", chi.URLParam(r, "assetId"), &assetId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "assetId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RenameSignageAsset(w, r, assetId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DownloadSignageAsset operation middleware
+func (siw *ServerInterfaceWrapper) DownloadSignageAsset(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "assetId" -------------
+	var assetId SignageAssetId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "assetId", chi.URLParam(r, "assetId"), &assetId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "assetId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DownloadSignageAsset(w, r, assetId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListSignageLayouts operation middleware
+func (siw *ServerInterfaceWrapper) ListSignageLayouts(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSignageLayouts(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListSignagePlaylists operation middleware
+func (siw *ServerInterfaceWrapper) ListSignagePlaylists(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSignagePlaylists(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateSignagePlaylist operation middleware
+func (siw *ServerInterfaceWrapper) CreateSignagePlaylist(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateSignagePlaylist(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteSignagePlaylist operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSignagePlaylist(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "playlistId" -------------
+	var playlistId SignagePlaylistId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "playlistId", chi.URLParam(r, "playlistId"), &playlistId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "playlistId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteSignagePlaylist(w, r, playlistId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSignagePlaylist operation middleware
+func (siw *ServerInterfaceWrapper) GetSignagePlaylist(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "playlistId" -------------
+	var playlistId SignagePlaylistId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "playlistId", chi.URLParam(r, "playlistId"), &playlistId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "playlistId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSignagePlaylist(w, r, playlistId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateSignagePlaylist operation middleware
+func (siw *ServerInterfaceWrapper) UpdateSignagePlaylist(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "playlistId" -------------
+	var playlistId SignagePlaylistId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "playlistId", chi.URLParam(r, "playlistId"), &playlistId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "playlistId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateSignagePlaylist(w, r, playlistId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListSignageScenes operation middleware
+func (siw *ServerInterfaceWrapper) ListSignageScenes(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListSignageScenes(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// CreateSignageScene operation middleware
+func (siw *ServerInterfaceWrapper) CreateSignageScene(w http.ResponseWriter, r *http.Request) {
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.CreateSignageScene(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteSignageScene operation middleware
+func (siw *ServerInterfaceWrapper) DeleteSignageScene(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "sceneId" -------------
+	var sceneId SignageSceneId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sceneId", chi.URLParam(r, "sceneId"), &sceneId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sceneId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteSignageScene(w, r, sceneId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetSignageScene operation middleware
+func (siw *ServerInterfaceWrapper) GetSignageScene(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "sceneId" -------------
+	var sceneId SignageSceneId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sceneId", chi.URLParam(r, "sceneId"), &sceneId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sceneId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetSignageScene(w, r, sceneId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// UpdateSignageScene operation middleware
+func (siw *ServerInterfaceWrapper) UpdateSignageScene(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+
+	// ------------- Path parameter "sceneId" -------------
+	var sceneId SignageSceneId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "sceneId", chi.URLParam(r, "sceneId"), &sceneId, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "sceneId", Err: err})
+		return
+	}
+
+	ctx := r.Context()
+
+	ctx = context.WithValue(ctx, CsrfHeaderScopes, []string{})
+
+	ctx = context.WithValue(ctx, SessionCookieScopes, []string{})
+
+	r = r.WithContext(ctx)
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.UpdateSignageScene(w, r, sceneId)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetSupervisorDashboard operation middleware
 func (siw *ServerInterfaceWrapper) GetSupervisorDashboard(w http.ResponseWriter, r *http.Request) {
 
@@ -25679,6 +27963,87 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	})
 	r.Group(func(r chi.Router) {
 		r.Put(options.BaseURL+"/session-policies/{sessionPolicyId}", wrapper.UpdateSessionPolicy)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/signage/announcement-templates", wrapper.ListSignageAnnouncementTemplates)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/signage/announcement-templates", wrapper.CreateSignageAnnouncementTemplate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/signage/announcement-templates/{templateId}", wrapper.DeleteSignageAnnouncementTemplate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/signage/announcement-templates/{templateId}", wrapper.GetSignageAnnouncementTemplate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/signage/announcement-templates/{templateId}", wrapper.UpdateSignageAnnouncementTemplate)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/signage/announcements", wrapper.ListSignageAnnouncements)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/signage/announcements", wrapper.StartSignageAnnouncement)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/signage/announcements/{announcementId}", wrapper.StopSignageAnnouncement)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/signage/announcements/{announcementId}", wrapper.GetSignageAnnouncement)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/signage/announcements/{announcementId}", wrapper.UpdateSignageAnnouncement)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/signage/assets", wrapper.ListSignageAssets)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/signage/assets", wrapper.UploadSignageAsset)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/signage/assets/{assetId}", wrapper.DeleteSignageAsset)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/signage/assets/{assetId}", wrapper.GetSignageAsset)
+	})
+	r.Group(func(r chi.Router) {
+		r.Patch(options.BaseURL+"/signage/assets/{assetId}", wrapper.RenameSignageAsset)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/signage/assets/{assetId}/content", wrapper.DownloadSignageAsset)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/signage/layouts", wrapper.ListSignageLayouts)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/signage/playlists", wrapper.ListSignagePlaylists)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/signage/playlists", wrapper.CreateSignagePlaylist)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/signage/playlists/{playlistId}", wrapper.DeleteSignagePlaylist)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/signage/playlists/{playlistId}", wrapper.GetSignagePlaylist)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/signage/playlists/{playlistId}", wrapper.UpdateSignagePlaylist)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/signage/scenes", wrapper.ListSignageScenes)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/signage/scenes", wrapper.CreateSignageScene)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/signage/scenes/{sceneId}", wrapper.DeleteSignageScene)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/signage/scenes/{sceneId}", wrapper.GetSignageScene)
+	})
+	r.Group(func(r chi.Router) {
+		r.Put(options.BaseURL+"/signage/scenes/{sceneId}", wrapper.UpdateSignageScene)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/supervisor-dashboard", wrapper.GetSupervisorDashboard)
@@ -49516,6 +51881,1701 @@ func (response UpdateSessionPolicy500JSONResponse) VisitUpdateSessionPolicyRespo
 	return json.NewEncoder(w).Encode(response)
 }
 
+type ListSignageAnnouncementTemplatesRequestObject struct {
+}
+
+type ListSignageAnnouncementTemplatesResponseObject interface {
+	VisitListSignageAnnouncementTemplatesResponse(w http.ResponseWriter) error
+}
+
+type ListSignageAnnouncementTemplates200JSONResponse SignageAnnouncementTemplateList
+
+func (response ListSignageAnnouncementTemplates200JSONResponse) VisitListSignageAnnouncementTemplatesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageAnnouncementTemplates401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListSignageAnnouncementTemplates401JSONResponse) VisitListSignageAnnouncementTemplatesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageAnnouncementTemplates403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListSignageAnnouncementTemplates403JSONResponse) VisitListSignageAnnouncementTemplatesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageAnnouncementTemplates500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListSignageAnnouncementTemplates500JSONResponse) VisitListSignageAnnouncementTemplatesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSignageAnnouncementTemplateRequestObject struct {
+	Body *CreateSignageAnnouncementTemplateJSONRequestBody
+}
+
+type CreateSignageAnnouncementTemplateResponseObject interface {
+	VisitCreateSignageAnnouncementTemplateResponse(w http.ResponseWriter) error
+}
+
+type CreateSignageAnnouncementTemplate201JSONResponse SignageAnnouncementTemplate
+
+func (response CreateSignageAnnouncementTemplate201JSONResponse) VisitCreateSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSignageAnnouncementTemplate401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateSignageAnnouncementTemplate401JSONResponse) VisitCreateSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSignageAnnouncementTemplate403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateSignageAnnouncementTemplate403JSONResponse) VisitCreateSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSignageAnnouncementTemplate422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateSignageAnnouncementTemplate422JSONResponse) VisitCreateSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSignageAnnouncementTemplate500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateSignageAnnouncementTemplate500JSONResponse) VisitCreateSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignageAnnouncementTemplateRequestObject struct {
+	TemplateId SignageTemplateId `json:"templateId"`
+	Body       *DeleteSignageAnnouncementTemplateJSONRequestBody
+}
+
+type DeleteSignageAnnouncementTemplateResponseObject interface {
+	VisitDeleteSignageAnnouncementTemplateResponse(w http.ResponseWriter) error
+}
+
+type DeleteSignageAnnouncementTemplate204Response struct {
+}
+
+func (response DeleteSignageAnnouncementTemplate204Response) VisitDeleteSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteSignageAnnouncementTemplate401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteSignageAnnouncementTemplate401JSONResponse) VisitDeleteSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignageAnnouncementTemplate403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteSignageAnnouncementTemplate403JSONResponse) VisitDeleteSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignageAnnouncementTemplate404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteSignageAnnouncementTemplate404JSONResponse) VisitDeleteSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignageAnnouncementTemplate409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteSignageAnnouncementTemplate409JSONResponse) VisitDeleteSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignageAnnouncementTemplate500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response DeleteSignageAnnouncementTemplate500JSONResponse) VisitDeleteSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageAnnouncementTemplateRequestObject struct {
+	TemplateId SignageTemplateId `json:"templateId"`
+}
+
+type GetSignageAnnouncementTemplateResponseObject interface {
+	VisitGetSignageAnnouncementTemplateResponse(w http.ResponseWriter) error
+}
+
+type GetSignageAnnouncementTemplate200JSONResponse SignageAnnouncementTemplate
+
+func (response GetSignageAnnouncementTemplate200JSONResponse) VisitGetSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageAnnouncementTemplate401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetSignageAnnouncementTemplate401JSONResponse) VisitGetSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageAnnouncementTemplate403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetSignageAnnouncementTemplate403JSONResponse) VisitGetSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageAnnouncementTemplate404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetSignageAnnouncementTemplate404JSONResponse) VisitGetSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageAnnouncementTemplate500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetSignageAnnouncementTemplate500JSONResponse) VisitGetSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageAnnouncementTemplateRequestObject struct {
+	TemplateId SignageTemplateId `json:"templateId"`
+	Body       *UpdateSignageAnnouncementTemplateJSONRequestBody
+}
+
+type UpdateSignageAnnouncementTemplateResponseObject interface {
+	VisitUpdateSignageAnnouncementTemplateResponse(w http.ResponseWriter) error
+}
+
+type UpdateSignageAnnouncementTemplate200JSONResponse SignageAnnouncementTemplate
+
+func (response UpdateSignageAnnouncementTemplate200JSONResponse) VisitUpdateSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageAnnouncementTemplate401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateSignageAnnouncementTemplate401JSONResponse) VisitUpdateSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageAnnouncementTemplate403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateSignageAnnouncementTemplate403JSONResponse) VisitUpdateSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageAnnouncementTemplate404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateSignageAnnouncementTemplate404JSONResponse) VisitUpdateSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageAnnouncementTemplate409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateSignageAnnouncementTemplate409JSONResponse) VisitUpdateSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageAnnouncementTemplate422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateSignageAnnouncementTemplate422JSONResponse) VisitUpdateSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageAnnouncementTemplate500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateSignageAnnouncementTemplate500JSONResponse) VisitUpdateSignageAnnouncementTemplateResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageAnnouncementsRequestObject struct {
+}
+
+type ListSignageAnnouncementsResponseObject interface {
+	VisitListSignageAnnouncementsResponse(w http.ResponseWriter) error
+}
+
+type ListSignageAnnouncements200JSONResponse SignageAnnouncementList
+
+func (response ListSignageAnnouncements200JSONResponse) VisitListSignageAnnouncementsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageAnnouncements401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListSignageAnnouncements401JSONResponse) VisitListSignageAnnouncementsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageAnnouncements403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListSignageAnnouncements403JSONResponse) VisitListSignageAnnouncementsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageAnnouncements500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListSignageAnnouncements500JSONResponse) VisitListSignageAnnouncementsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StartSignageAnnouncementRequestObject struct {
+	Body *StartSignageAnnouncementJSONRequestBody
+}
+
+type StartSignageAnnouncementResponseObject interface {
+	VisitStartSignageAnnouncementResponse(w http.ResponseWriter) error
+}
+
+type StartSignageAnnouncement201JSONResponse SignageAnnouncement
+
+func (response StartSignageAnnouncement201JSONResponse) VisitStartSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StartSignageAnnouncement401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response StartSignageAnnouncement401JSONResponse) VisitStartSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StartSignageAnnouncement403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response StartSignageAnnouncement403JSONResponse) VisitStartSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StartSignageAnnouncement422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response StartSignageAnnouncement422JSONResponse) VisitStartSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StartSignageAnnouncement500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response StartSignageAnnouncement500JSONResponse) VisitStartSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StopSignageAnnouncementRequestObject struct {
+	AnnouncementId SignageAnnouncementId `json:"announcementId"`
+	Body           *StopSignageAnnouncementJSONRequestBody
+}
+
+type StopSignageAnnouncementResponseObject interface {
+	VisitStopSignageAnnouncementResponse(w http.ResponseWriter) error
+}
+
+type StopSignageAnnouncement204Response struct {
+}
+
+func (response StopSignageAnnouncement204Response) VisitStopSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type StopSignageAnnouncement401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response StopSignageAnnouncement401JSONResponse) VisitStopSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StopSignageAnnouncement403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response StopSignageAnnouncement403JSONResponse) VisitStopSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StopSignageAnnouncement404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response StopSignageAnnouncement404JSONResponse) VisitStopSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StopSignageAnnouncement409JSONResponse struct{ ConflictJSONResponse }
+
+func (response StopSignageAnnouncement409JSONResponse) VisitStopSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type StopSignageAnnouncement500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response StopSignageAnnouncement500JSONResponse) VisitStopSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageAnnouncementRequestObject struct {
+	AnnouncementId SignageAnnouncementId `json:"announcementId"`
+}
+
+type GetSignageAnnouncementResponseObject interface {
+	VisitGetSignageAnnouncementResponse(w http.ResponseWriter) error
+}
+
+type GetSignageAnnouncement200JSONResponse SignageAnnouncement
+
+func (response GetSignageAnnouncement200JSONResponse) VisitGetSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageAnnouncement401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetSignageAnnouncement401JSONResponse) VisitGetSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageAnnouncement403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetSignageAnnouncement403JSONResponse) VisitGetSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageAnnouncement404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetSignageAnnouncement404JSONResponse) VisitGetSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageAnnouncement500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetSignageAnnouncement500JSONResponse) VisitGetSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageAnnouncementRequestObject struct {
+	AnnouncementId SignageAnnouncementId `json:"announcementId"`
+	Body           *UpdateSignageAnnouncementJSONRequestBody
+}
+
+type UpdateSignageAnnouncementResponseObject interface {
+	VisitUpdateSignageAnnouncementResponse(w http.ResponseWriter) error
+}
+
+type UpdateSignageAnnouncement200JSONResponse SignageAnnouncement
+
+func (response UpdateSignageAnnouncement200JSONResponse) VisitUpdateSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageAnnouncement401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateSignageAnnouncement401JSONResponse) VisitUpdateSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageAnnouncement403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateSignageAnnouncement403JSONResponse) VisitUpdateSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageAnnouncement404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateSignageAnnouncement404JSONResponse) VisitUpdateSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageAnnouncement409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateSignageAnnouncement409JSONResponse) VisitUpdateSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageAnnouncement422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateSignageAnnouncement422JSONResponse) VisitUpdateSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageAnnouncement500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateSignageAnnouncement500JSONResponse) VisitUpdateSignageAnnouncementResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageAssetsRequestObject struct {
+	Params ListSignageAssetsParams
+}
+
+type ListSignageAssetsResponseObject interface {
+	VisitListSignageAssetsResponse(w http.ResponseWriter) error
+}
+
+type ListSignageAssets200JSONResponse SignageAssetList
+
+func (response ListSignageAssets200JSONResponse) VisitListSignageAssetsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageAssets401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListSignageAssets401JSONResponse) VisitListSignageAssetsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageAssets403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListSignageAssets403JSONResponse) VisitListSignageAssetsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageAssets422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response ListSignageAssets422JSONResponse) VisitListSignageAssetsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageAssets500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListSignageAssets500JSONResponse) VisitListSignageAssetsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadSignageAssetRequestObject struct {
+	Params UploadSignageAssetParams
+	Body   io.Reader
+}
+
+type UploadSignageAssetResponseObject interface {
+	VisitUploadSignageAssetResponse(w http.ResponseWriter) error
+}
+
+type UploadSignageAsset201JSONResponse SignageAsset
+
+func (response UploadSignageAsset201JSONResponse) VisitUploadSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadSignageAsset400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response UploadSignageAsset400JSONResponse) VisitUploadSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadSignageAsset401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UploadSignageAsset401JSONResponse) VisitUploadSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadSignageAsset403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UploadSignageAsset403JSONResponse) VisitUploadSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadSignageAsset413JSONResponse struct{ PayloadTooLargeJSONResponse }
+
+func (response UploadSignageAsset413JSONResponse) VisitUploadSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(413)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadSignageAsset422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UploadSignageAsset422JSONResponse) VisitUploadSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UploadSignageAsset500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UploadSignageAsset500JSONResponse) VisitUploadSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignageAssetRequestObject struct {
+	AssetId SignageAssetId `json:"assetId"`
+}
+
+type DeleteSignageAssetResponseObject interface {
+	VisitDeleteSignageAssetResponse(w http.ResponseWriter) error
+}
+
+type DeleteSignageAsset204Response struct {
+}
+
+func (response DeleteSignageAsset204Response) VisitDeleteSignageAssetResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteSignageAsset401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteSignageAsset401JSONResponse) VisitDeleteSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignageAsset403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteSignageAsset403JSONResponse) VisitDeleteSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignageAsset404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteSignageAsset404JSONResponse) VisitDeleteSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignageAsset409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteSignageAsset409JSONResponse) VisitDeleteSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignageAsset500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response DeleteSignageAsset500JSONResponse) VisitDeleteSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageAssetRequestObject struct {
+	AssetId SignageAssetId `json:"assetId"`
+}
+
+type GetSignageAssetResponseObject interface {
+	VisitGetSignageAssetResponse(w http.ResponseWriter) error
+}
+
+type GetSignageAsset200JSONResponse SignageAsset
+
+func (response GetSignageAsset200JSONResponse) VisitGetSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageAsset401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetSignageAsset401JSONResponse) VisitGetSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageAsset403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetSignageAsset403JSONResponse) VisitGetSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageAsset404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetSignageAsset404JSONResponse) VisitGetSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageAsset500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetSignageAsset500JSONResponse) VisitGetSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RenameSignageAssetRequestObject struct {
+	AssetId SignageAssetId `json:"assetId"`
+	Body    *RenameSignageAssetJSONRequestBody
+}
+
+type RenameSignageAssetResponseObject interface {
+	VisitRenameSignageAssetResponse(w http.ResponseWriter) error
+}
+
+type RenameSignageAsset200JSONResponse SignageAsset
+
+func (response RenameSignageAsset200JSONResponse) VisitRenameSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RenameSignageAsset401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response RenameSignageAsset401JSONResponse) VisitRenameSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RenameSignageAsset403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response RenameSignageAsset403JSONResponse) VisitRenameSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RenameSignageAsset404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response RenameSignageAsset404JSONResponse) VisitRenameSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RenameSignageAsset422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response RenameSignageAsset422JSONResponse) VisitRenameSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type RenameSignageAsset500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response RenameSignageAsset500JSONResponse) VisitRenameSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DownloadSignageAssetRequestObject struct {
+	AssetId SignageAssetId `json:"assetId"`
+}
+
+type DownloadSignageAssetResponseObject interface {
+	VisitDownloadSignageAssetResponse(w http.ResponseWriter) error
+}
+
+type DownloadSignageAsset200ResponseHeaders struct {
+	CacheControl          string
+	ContentSecurityPolicy string
+	XContentTypeOptions   string
+}
+
+type DownloadSignageAsset200ImagejpegResponse struct {
+	Body          io.Reader
+	Headers       DownloadSignageAsset200ResponseHeaders
+	ContentLength int64
+}
+
+func (response DownloadSignageAsset200ImagejpegResponse) VisitDownloadSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "image/jpeg")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Content-Security-Policy", fmt.Sprint(response.Headers.ContentSecurityPolicy))
+	w.Header().Set("X-Content-Type-Options", fmt.Sprint(response.Headers.XContentTypeOptions))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type DownloadSignageAsset200ImagepngResponse struct {
+	Body          io.Reader
+	Headers       DownloadSignageAsset200ResponseHeaders
+	ContentLength int64
+}
+
+func (response DownloadSignageAsset200ImagepngResponse) VisitDownloadSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "image/png")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Content-Security-Policy", fmt.Sprint(response.Headers.ContentSecurityPolicy))
+	w.Header().Set("X-Content-Type-Options", fmt.Sprint(response.Headers.XContentTypeOptions))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type DownloadSignageAsset200ImagewebpResponse struct {
+	Body          io.Reader
+	Headers       DownloadSignageAsset200ResponseHeaders
+	ContentLength int64
+}
+
+func (response DownloadSignageAsset200ImagewebpResponse) VisitDownloadSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "image/webp")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Content-Security-Policy", fmt.Sprint(response.Headers.ContentSecurityPolicy))
+	w.Header().Set("X-Content-Type-Options", fmt.Sprint(response.Headers.XContentTypeOptions))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type DownloadSignageAsset200Videomp4Response struct {
+	Body          io.Reader
+	Headers       DownloadSignageAsset200ResponseHeaders
+	ContentLength int64
+}
+
+func (response DownloadSignageAsset200Videomp4Response) VisitDownloadSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "video/mp4")
+	if response.ContentLength != 0 {
+		w.Header().Set("Content-Length", fmt.Sprint(response.ContentLength))
+	}
+	w.Header().Set("Cache-Control", fmt.Sprint(response.Headers.CacheControl))
+	w.Header().Set("Content-Security-Policy", fmt.Sprint(response.Headers.ContentSecurityPolicy))
+	w.Header().Set("X-Content-Type-Options", fmt.Sprint(response.Headers.XContentTypeOptions))
+	w.WriteHeader(200)
+
+	if closer, ok := response.Body.(io.ReadCloser); ok {
+		defer closer.Close()
+	}
+	_, err := io.Copy(w, response.Body)
+	return err
+}
+
+type DownloadSignageAsset401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DownloadSignageAsset401JSONResponse) VisitDownloadSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DownloadSignageAsset403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DownloadSignageAsset403JSONResponse) VisitDownloadSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DownloadSignageAsset404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DownloadSignageAsset404JSONResponse) VisitDownloadSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DownloadSignageAsset500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response DownloadSignageAsset500JSONResponse) VisitDownloadSignageAssetResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageLayoutsRequestObject struct {
+}
+
+type ListSignageLayoutsResponseObject interface {
+	VisitListSignageLayoutsResponse(w http.ResponseWriter) error
+}
+
+type ListSignageLayouts200JSONResponse SignageLayoutList
+
+func (response ListSignageLayouts200JSONResponse) VisitListSignageLayoutsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageLayouts401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListSignageLayouts401JSONResponse) VisitListSignageLayoutsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageLayouts403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListSignageLayouts403JSONResponse) VisitListSignageLayoutsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageLayouts500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListSignageLayouts500JSONResponse) VisitListSignageLayoutsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignagePlaylistsRequestObject struct {
+}
+
+type ListSignagePlaylistsResponseObject interface {
+	VisitListSignagePlaylistsResponse(w http.ResponseWriter) error
+}
+
+type ListSignagePlaylists200JSONResponse SignagePlaylistList
+
+func (response ListSignagePlaylists200JSONResponse) VisitListSignagePlaylistsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignagePlaylists401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListSignagePlaylists401JSONResponse) VisitListSignagePlaylistsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignagePlaylists403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListSignagePlaylists403JSONResponse) VisitListSignagePlaylistsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignagePlaylists500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListSignagePlaylists500JSONResponse) VisitListSignagePlaylistsResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSignagePlaylistRequestObject struct {
+	Body *CreateSignagePlaylistJSONRequestBody
+}
+
+type CreateSignagePlaylistResponseObject interface {
+	VisitCreateSignagePlaylistResponse(w http.ResponseWriter) error
+}
+
+type CreateSignagePlaylist201JSONResponse SignagePlaylist
+
+func (response CreateSignagePlaylist201JSONResponse) VisitCreateSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSignagePlaylist401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateSignagePlaylist401JSONResponse) VisitCreateSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSignagePlaylist403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateSignagePlaylist403JSONResponse) VisitCreateSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSignagePlaylist422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateSignagePlaylist422JSONResponse) VisitCreateSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSignagePlaylist500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateSignagePlaylist500JSONResponse) VisitCreateSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignagePlaylistRequestObject struct {
+	PlaylistId SignagePlaylistId `json:"playlistId"`
+	Body       *DeleteSignagePlaylistJSONRequestBody
+}
+
+type DeleteSignagePlaylistResponseObject interface {
+	VisitDeleteSignagePlaylistResponse(w http.ResponseWriter) error
+}
+
+type DeleteSignagePlaylist204Response struct {
+}
+
+func (response DeleteSignagePlaylist204Response) VisitDeleteSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteSignagePlaylist401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteSignagePlaylist401JSONResponse) VisitDeleteSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignagePlaylist403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteSignagePlaylist403JSONResponse) VisitDeleteSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignagePlaylist404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteSignagePlaylist404JSONResponse) VisitDeleteSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignagePlaylist409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteSignagePlaylist409JSONResponse) VisitDeleteSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignagePlaylist500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response DeleteSignagePlaylist500JSONResponse) VisitDeleteSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignagePlaylistRequestObject struct {
+	PlaylistId SignagePlaylistId `json:"playlistId"`
+}
+
+type GetSignagePlaylistResponseObject interface {
+	VisitGetSignagePlaylistResponse(w http.ResponseWriter) error
+}
+
+type GetSignagePlaylist200JSONResponse SignagePlaylist
+
+func (response GetSignagePlaylist200JSONResponse) VisitGetSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignagePlaylist401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetSignagePlaylist401JSONResponse) VisitGetSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignagePlaylist403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetSignagePlaylist403JSONResponse) VisitGetSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignagePlaylist404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetSignagePlaylist404JSONResponse) VisitGetSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignagePlaylist500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetSignagePlaylist500JSONResponse) VisitGetSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignagePlaylistRequestObject struct {
+	PlaylistId SignagePlaylistId `json:"playlistId"`
+	Body       *UpdateSignagePlaylistJSONRequestBody
+}
+
+type UpdateSignagePlaylistResponseObject interface {
+	VisitUpdateSignagePlaylistResponse(w http.ResponseWriter) error
+}
+
+type UpdateSignagePlaylist200JSONResponse SignagePlaylist
+
+func (response UpdateSignagePlaylist200JSONResponse) VisitUpdateSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignagePlaylist401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateSignagePlaylist401JSONResponse) VisitUpdateSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignagePlaylist403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateSignagePlaylist403JSONResponse) VisitUpdateSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignagePlaylist404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateSignagePlaylist404JSONResponse) VisitUpdateSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignagePlaylist409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateSignagePlaylist409JSONResponse) VisitUpdateSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignagePlaylist422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateSignagePlaylist422JSONResponse) VisitUpdateSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignagePlaylist500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateSignagePlaylist500JSONResponse) VisitUpdateSignagePlaylistResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageScenesRequestObject struct {
+}
+
+type ListSignageScenesResponseObject interface {
+	VisitListSignageScenesResponse(w http.ResponseWriter) error
+}
+
+type ListSignageScenes200JSONResponse SignageSceneList
+
+func (response ListSignageScenes200JSONResponse) VisitListSignageScenesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageScenes401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response ListSignageScenes401JSONResponse) VisitListSignageScenesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageScenes403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response ListSignageScenes403JSONResponse) VisitListSignageScenesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type ListSignageScenes500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response ListSignageScenes500JSONResponse) VisitListSignageScenesResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSignageSceneRequestObject struct {
+	Body *CreateSignageSceneJSONRequestBody
+}
+
+type CreateSignageSceneResponseObject interface {
+	VisitCreateSignageSceneResponse(w http.ResponseWriter) error
+}
+
+type CreateSignageScene201JSONResponse SignageScene
+
+func (response CreateSignageScene201JSONResponse) VisitCreateSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSignageScene401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response CreateSignageScene401JSONResponse) VisitCreateSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSignageScene403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response CreateSignageScene403JSONResponse) VisitCreateSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSignageScene422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response CreateSignageScene422JSONResponse) VisitCreateSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type CreateSignageScene500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateSignageScene500JSONResponse) VisitCreateSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignageSceneRequestObject struct {
+	SceneId SignageSceneId `json:"sceneId"`
+	Body    *DeleteSignageSceneJSONRequestBody
+}
+
+type DeleteSignageSceneResponseObject interface {
+	VisitDeleteSignageSceneResponse(w http.ResponseWriter) error
+}
+
+type DeleteSignageScene204Response struct {
+}
+
+func (response DeleteSignageScene204Response) VisitDeleteSignageSceneResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteSignageScene401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response DeleteSignageScene401JSONResponse) VisitDeleteSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignageScene403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response DeleteSignageScene403JSONResponse) VisitDeleteSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignageScene404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response DeleteSignageScene404JSONResponse) VisitDeleteSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignageScene409JSONResponse struct{ ConflictJSONResponse }
+
+func (response DeleteSignageScene409JSONResponse) VisitDeleteSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type DeleteSignageScene500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response DeleteSignageScene500JSONResponse) VisitDeleteSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageSceneRequestObject struct {
+	SceneId SignageSceneId `json:"sceneId"`
+}
+
+type GetSignageSceneResponseObject interface {
+	VisitGetSignageSceneResponse(w http.ResponseWriter) error
+}
+
+type GetSignageScene200JSONResponse SignageScene
+
+func (response GetSignageScene200JSONResponse) VisitGetSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageScene401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetSignageScene401JSONResponse) VisitGetSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageScene403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response GetSignageScene403JSONResponse) VisitGetSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageScene404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response GetSignageScene404JSONResponse) VisitGetSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type GetSignageScene500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetSignageScene500JSONResponse) VisitGetSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageSceneRequestObject struct {
+	SceneId SignageSceneId `json:"sceneId"`
+	Body    *UpdateSignageSceneJSONRequestBody
+}
+
+type UpdateSignageSceneResponseObject interface {
+	VisitUpdateSignageSceneResponse(w http.ResponseWriter) error
+}
+
+type UpdateSignageScene200JSONResponse SignageScene
+
+func (response UpdateSignageScene200JSONResponse) VisitUpdateSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageScene401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response UpdateSignageScene401JSONResponse) VisitUpdateSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageScene403JSONResponse struct{ ForbiddenJSONResponse }
+
+func (response UpdateSignageScene403JSONResponse) VisitUpdateSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(403)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageScene404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response UpdateSignageScene404JSONResponse) VisitUpdateSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageScene409JSONResponse struct{ ConflictJSONResponse }
+
+func (response UpdateSignageScene409JSONResponse) VisitUpdateSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(409)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageScene422JSONResponse struct {
+	UnprocessableEntityJSONResponse
+}
+
+func (response UpdateSignageScene422JSONResponse) VisitUpdateSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(422)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
+type UpdateSignageScene500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateSignageScene500JSONResponse) VisitUpdateSignageSceneResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 type GetSupervisorDashboardRequestObject struct {
 }
 
@@ -52132,6 +56192,87 @@ type StrictServerInterface interface {
 
 	// (PUT /session-policies/{sessionPolicyId})
 	UpdateSessionPolicy(ctx context.Context, request UpdateSessionPolicyRequestObject) (UpdateSessionPolicyResponseObject, error)
+
+	// (GET /signage/announcement-templates)
+	ListSignageAnnouncementTemplates(ctx context.Context, request ListSignageAnnouncementTemplatesRequestObject) (ListSignageAnnouncementTemplatesResponseObject, error)
+
+	// (POST /signage/announcement-templates)
+	CreateSignageAnnouncementTemplate(ctx context.Context, request CreateSignageAnnouncementTemplateRequestObject) (CreateSignageAnnouncementTemplateResponseObject, error)
+
+	// (DELETE /signage/announcement-templates/{templateId})
+	DeleteSignageAnnouncementTemplate(ctx context.Context, request DeleteSignageAnnouncementTemplateRequestObject) (DeleteSignageAnnouncementTemplateResponseObject, error)
+
+	// (GET /signage/announcement-templates/{templateId})
+	GetSignageAnnouncementTemplate(ctx context.Context, request GetSignageAnnouncementTemplateRequestObject) (GetSignageAnnouncementTemplateResponseObject, error)
+	// Replace a template and its fields
+	// (PUT /signage/announcement-templates/{templateId})
+	UpdateSignageAnnouncementTemplate(ctx context.Context, request UpdateSignageAnnouncementTemplateRequestObject) (UpdateSignageAnnouncementTemplateResponseObject, error)
+	// List active and scheduled announcements
+	// (GET /signage/announcements)
+	ListSignageAnnouncements(ctx context.Context, request ListSignageAnnouncementsRequestObject) (ListSignageAnnouncementsResponseObject, error)
+
+	// (POST /signage/announcements)
+	StartSignageAnnouncement(ctx context.Context, request StartSignageAnnouncementRequestObject) (StartSignageAnnouncementResponseObject, error)
+	// Stop an announcement by hard-deleting it
+	// (DELETE /signage/announcements/{announcementId})
+	StopSignageAnnouncement(ctx context.Context, request StopSignageAnnouncementRequestObject) (StopSignageAnnouncementResponseObject, error)
+
+	// (GET /signage/announcements/{announcementId})
+	GetSignageAnnouncement(ctx context.Context, request GetSignageAnnouncementRequestObject) (GetSignageAnnouncementResponseObject, error)
+	// Edit values, targets and window of a live announcement
+	// (PUT /signage/announcements/{announcementId})
+	UpdateSignageAnnouncement(ctx context.Context, request UpdateSignageAnnouncementRequestObject) (UpdateSignageAnnouncementResponseObject, error)
+	// List uploaded images and videos
+	// (GET /signage/assets)
+	ListSignageAssets(ctx context.Context, request ListSignageAssetsRequestObject) (ListSignageAssetsResponseObject, error)
+	// Upload a PNG, JPEG, WebP image (20 MiB) or MP4 video (200 MiB)
+	// (POST /signage/assets)
+	UploadSignageAsset(ctx context.Context, request UploadSignageAssetRequestObject) (UploadSignageAssetResponseObject, error)
+	// Delete an asset that no draft scene references
+	// (DELETE /signage/assets/{assetId})
+	DeleteSignageAsset(ctx context.Context, request DeleteSignageAssetRequestObject) (DeleteSignageAssetResponseObject, error)
+
+	// (GET /signage/assets/{assetId})
+	GetSignageAsset(ctx context.Context, request GetSignageAssetRequestObject) (GetSignageAssetResponseObject, error)
+
+	// (PATCH /signage/assets/{assetId})
+	RenameSignageAsset(ctx context.Context, request RenameSignageAssetRequestObject) (RenameSignageAssetResponseObject, error)
+	// Download the asset bytes for the admin preview
+	// (GET /signage/assets/{assetId}/content)
+	DownloadSignageAsset(ctx context.Context, request DownloadSignageAssetRequestObject) (DownloadSignageAssetResponseObject, error)
+	// List the fixed, code-defined scene layouts
+	// (GET /signage/layouts)
+	ListSignageLayouts(ctx context.Context, request ListSignageLayoutsRequestObject) (ListSignageLayoutsResponseObject, error)
+
+	// (GET /signage/playlists)
+	ListSignagePlaylists(ctx context.Context, request ListSignagePlaylistsRequestObject) (ListSignagePlaylistsResponseObject, error)
+
+	// (POST /signage/playlists)
+	CreateSignagePlaylist(ctx context.Context, request CreateSignagePlaylistRequestObject) (CreateSignagePlaylistResponseObject, error)
+
+	// (DELETE /signage/playlists/{playlistId})
+	DeleteSignagePlaylist(ctx context.Context, request DeleteSignagePlaylistRequestObject) (DeleteSignagePlaylistResponseObject, error)
+
+	// (GET /signage/playlists/{playlistId})
+	GetSignagePlaylist(ctx context.Context, request GetSignagePlaylistRequestObject) (GetSignagePlaylistResponseObject, error)
+	// Rename a playlist and atomically replace its items
+	// (PUT /signage/playlists/{playlistId})
+	UpdateSignagePlaylist(ctx context.Context, request UpdateSignagePlaylistRequestObject) (UpdateSignagePlaylistResponseObject, error)
+
+	// (GET /signage/scenes)
+	ListSignageScenes(ctx context.Context, request ListSignageScenesRequestObject) (ListSignageScenesResponseObject, error)
+
+	// (POST /signage/scenes)
+	CreateSignageScene(ctx context.Context, request CreateSignageSceneRequestObject) (CreateSignageSceneResponseObject, error)
+
+	// (DELETE /signage/scenes/{sceneId})
+	DeleteSignageScene(ctx context.Context, request DeleteSignageSceneRequestObject) (DeleteSignageSceneResponseObject, error)
+
+	// (GET /signage/scenes/{sceneId})
+	GetSignageScene(ctx context.Context, request GetSignageSceneRequestObject) (GetSignageSceneResponseObject, error)
+	// Replace a scene
+	// (PUT /signage/scenes/{sceneId})
+	UpdateSignageScene(ctx context.Context, request UpdateSignageSceneRequestObject) (UpdateSignageSceneResponseObject, error)
 	// Aggregate designated supervisors, compliance, profile images, and open-period assignment counts
 	// (GET /supervisor-dashboard)
 	GetSupervisorDashboard(ctx context.Context, request GetSupervisorDashboardRequestObject) (GetSupervisorDashboardResponseObject, error)
@@ -62880,6 +67021,783 @@ func (sh *strictHandler) UpdateSessionPolicy(w http.ResponseWriter, r *http.Requ
 	}
 }
 
+// ListSignageAnnouncementTemplates operation middleware
+func (sh *strictHandler) ListSignageAnnouncementTemplates(w http.ResponseWriter, r *http.Request) {
+	var request ListSignageAnnouncementTemplatesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSignageAnnouncementTemplates(ctx, request.(ListSignageAnnouncementTemplatesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSignageAnnouncementTemplates")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSignageAnnouncementTemplatesResponseObject); ok {
+		if err := validResponse.VisitListSignageAnnouncementTemplatesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateSignageAnnouncementTemplate operation middleware
+func (sh *strictHandler) CreateSignageAnnouncementTemplate(w http.ResponseWriter, r *http.Request) {
+	var request CreateSignageAnnouncementTemplateRequestObject
+
+	var body CreateSignageAnnouncementTemplateJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateSignageAnnouncementTemplate(ctx, request.(CreateSignageAnnouncementTemplateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateSignageAnnouncementTemplate")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateSignageAnnouncementTemplateResponseObject); ok {
+		if err := validResponse.VisitCreateSignageAnnouncementTemplateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteSignageAnnouncementTemplate operation middleware
+func (sh *strictHandler) DeleteSignageAnnouncementTemplate(w http.ResponseWriter, r *http.Request, templateId SignageTemplateId) {
+	var request DeleteSignageAnnouncementTemplateRequestObject
+
+	request.TemplateId = templateId
+
+	var body DeleteSignageAnnouncementTemplateJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteSignageAnnouncementTemplate(ctx, request.(DeleteSignageAnnouncementTemplateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteSignageAnnouncementTemplate")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteSignageAnnouncementTemplateResponseObject); ok {
+		if err := validResponse.VisitDeleteSignageAnnouncementTemplateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSignageAnnouncementTemplate operation middleware
+func (sh *strictHandler) GetSignageAnnouncementTemplate(w http.ResponseWriter, r *http.Request, templateId SignageTemplateId) {
+	var request GetSignageAnnouncementTemplateRequestObject
+
+	request.TemplateId = templateId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSignageAnnouncementTemplate(ctx, request.(GetSignageAnnouncementTemplateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSignageAnnouncementTemplate")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSignageAnnouncementTemplateResponseObject); ok {
+		if err := validResponse.VisitGetSignageAnnouncementTemplateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateSignageAnnouncementTemplate operation middleware
+func (sh *strictHandler) UpdateSignageAnnouncementTemplate(w http.ResponseWriter, r *http.Request, templateId SignageTemplateId) {
+	var request UpdateSignageAnnouncementTemplateRequestObject
+
+	request.TemplateId = templateId
+
+	var body UpdateSignageAnnouncementTemplateJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateSignageAnnouncementTemplate(ctx, request.(UpdateSignageAnnouncementTemplateRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateSignageAnnouncementTemplate")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateSignageAnnouncementTemplateResponseObject); ok {
+		if err := validResponse.VisitUpdateSignageAnnouncementTemplateResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListSignageAnnouncements operation middleware
+func (sh *strictHandler) ListSignageAnnouncements(w http.ResponseWriter, r *http.Request) {
+	var request ListSignageAnnouncementsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSignageAnnouncements(ctx, request.(ListSignageAnnouncementsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSignageAnnouncements")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSignageAnnouncementsResponseObject); ok {
+		if err := validResponse.VisitListSignageAnnouncementsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StartSignageAnnouncement operation middleware
+func (sh *strictHandler) StartSignageAnnouncement(w http.ResponseWriter, r *http.Request) {
+	var request StartSignageAnnouncementRequestObject
+
+	var body StartSignageAnnouncementJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StartSignageAnnouncement(ctx, request.(StartSignageAnnouncementRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StartSignageAnnouncement")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StartSignageAnnouncementResponseObject); ok {
+		if err := validResponse.VisitStartSignageAnnouncementResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// StopSignageAnnouncement operation middleware
+func (sh *strictHandler) StopSignageAnnouncement(w http.ResponseWriter, r *http.Request, announcementId SignageAnnouncementId) {
+	var request StopSignageAnnouncementRequestObject
+
+	request.AnnouncementId = announcementId
+
+	var body StopSignageAnnouncementJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.StopSignageAnnouncement(ctx, request.(StopSignageAnnouncementRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "StopSignageAnnouncement")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(StopSignageAnnouncementResponseObject); ok {
+		if err := validResponse.VisitStopSignageAnnouncementResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSignageAnnouncement operation middleware
+func (sh *strictHandler) GetSignageAnnouncement(w http.ResponseWriter, r *http.Request, announcementId SignageAnnouncementId) {
+	var request GetSignageAnnouncementRequestObject
+
+	request.AnnouncementId = announcementId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSignageAnnouncement(ctx, request.(GetSignageAnnouncementRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSignageAnnouncement")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSignageAnnouncementResponseObject); ok {
+		if err := validResponse.VisitGetSignageAnnouncementResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateSignageAnnouncement operation middleware
+func (sh *strictHandler) UpdateSignageAnnouncement(w http.ResponseWriter, r *http.Request, announcementId SignageAnnouncementId) {
+	var request UpdateSignageAnnouncementRequestObject
+
+	request.AnnouncementId = announcementId
+
+	var body UpdateSignageAnnouncementJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateSignageAnnouncement(ctx, request.(UpdateSignageAnnouncementRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateSignageAnnouncement")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateSignageAnnouncementResponseObject); ok {
+		if err := validResponse.VisitUpdateSignageAnnouncementResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListSignageAssets operation middleware
+func (sh *strictHandler) ListSignageAssets(w http.ResponseWriter, r *http.Request, params ListSignageAssetsParams) {
+	var request ListSignageAssetsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSignageAssets(ctx, request.(ListSignageAssetsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSignageAssets")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSignageAssetsResponseObject); ok {
+		if err := validResponse.VisitListSignageAssetsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UploadSignageAsset operation middleware
+func (sh *strictHandler) UploadSignageAsset(w http.ResponseWriter, r *http.Request, params UploadSignageAssetParams) {
+	var request UploadSignageAssetRequestObject
+
+	request.Params = params
+
+	request.Body = r.Body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UploadSignageAsset(ctx, request.(UploadSignageAssetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UploadSignageAsset")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UploadSignageAssetResponseObject); ok {
+		if err := validResponse.VisitUploadSignageAssetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteSignageAsset operation middleware
+func (sh *strictHandler) DeleteSignageAsset(w http.ResponseWriter, r *http.Request, assetId SignageAssetId) {
+	var request DeleteSignageAssetRequestObject
+
+	request.AssetId = assetId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteSignageAsset(ctx, request.(DeleteSignageAssetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteSignageAsset")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteSignageAssetResponseObject); ok {
+		if err := validResponse.VisitDeleteSignageAssetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSignageAsset operation middleware
+func (sh *strictHandler) GetSignageAsset(w http.ResponseWriter, r *http.Request, assetId SignageAssetId) {
+	var request GetSignageAssetRequestObject
+
+	request.AssetId = assetId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSignageAsset(ctx, request.(GetSignageAssetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSignageAsset")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSignageAssetResponseObject); ok {
+		if err := validResponse.VisitGetSignageAssetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// RenameSignageAsset operation middleware
+func (sh *strictHandler) RenameSignageAsset(w http.ResponseWriter, r *http.Request, assetId SignageAssetId) {
+	var request RenameSignageAssetRequestObject
+
+	request.AssetId = assetId
+
+	var body RenameSignageAssetJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RenameSignageAsset(ctx, request.(RenameSignageAssetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RenameSignageAsset")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RenameSignageAssetResponseObject); ok {
+		if err := validResponse.VisitRenameSignageAssetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DownloadSignageAsset operation middleware
+func (sh *strictHandler) DownloadSignageAsset(w http.ResponseWriter, r *http.Request, assetId SignageAssetId) {
+	var request DownloadSignageAssetRequestObject
+
+	request.AssetId = assetId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DownloadSignageAsset(ctx, request.(DownloadSignageAssetRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DownloadSignageAsset")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DownloadSignageAssetResponseObject); ok {
+		if err := validResponse.VisitDownloadSignageAssetResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListSignageLayouts operation middleware
+func (sh *strictHandler) ListSignageLayouts(w http.ResponseWriter, r *http.Request) {
+	var request ListSignageLayoutsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSignageLayouts(ctx, request.(ListSignageLayoutsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSignageLayouts")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSignageLayoutsResponseObject); ok {
+		if err := validResponse.VisitListSignageLayoutsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListSignagePlaylists operation middleware
+func (sh *strictHandler) ListSignagePlaylists(w http.ResponseWriter, r *http.Request) {
+	var request ListSignagePlaylistsRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSignagePlaylists(ctx, request.(ListSignagePlaylistsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSignagePlaylists")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSignagePlaylistsResponseObject); ok {
+		if err := validResponse.VisitListSignagePlaylistsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateSignagePlaylist operation middleware
+func (sh *strictHandler) CreateSignagePlaylist(w http.ResponseWriter, r *http.Request) {
+	var request CreateSignagePlaylistRequestObject
+
+	var body CreateSignagePlaylistJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateSignagePlaylist(ctx, request.(CreateSignagePlaylistRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateSignagePlaylist")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateSignagePlaylistResponseObject); ok {
+		if err := validResponse.VisitCreateSignagePlaylistResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteSignagePlaylist operation middleware
+func (sh *strictHandler) DeleteSignagePlaylist(w http.ResponseWriter, r *http.Request, playlistId SignagePlaylistId) {
+	var request DeleteSignagePlaylistRequestObject
+
+	request.PlaylistId = playlistId
+
+	var body DeleteSignagePlaylistJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteSignagePlaylist(ctx, request.(DeleteSignagePlaylistRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteSignagePlaylist")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteSignagePlaylistResponseObject); ok {
+		if err := validResponse.VisitDeleteSignagePlaylistResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSignagePlaylist operation middleware
+func (sh *strictHandler) GetSignagePlaylist(w http.ResponseWriter, r *http.Request, playlistId SignagePlaylistId) {
+	var request GetSignagePlaylistRequestObject
+
+	request.PlaylistId = playlistId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSignagePlaylist(ctx, request.(GetSignagePlaylistRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSignagePlaylist")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSignagePlaylistResponseObject); ok {
+		if err := validResponse.VisitGetSignagePlaylistResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateSignagePlaylist operation middleware
+func (sh *strictHandler) UpdateSignagePlaylist(w http.ResponseWriter, r *http.Request, playlistId SignagePlaylistId) {
+	var request UpdateSignagePlaylistRequestObject
+
+	request.PlaylistId = playlistId
+
+	var body UpdateSignagePlaylistJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateSignagePlaylist(ctx, request.(UpdateSignagePlaylistRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateSignagePlaylist")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateSignagePlaylistResponseObject); ok {
+		if err := validResponse.VisitUpdateSignagePlaylistResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListSignageScenes operation middleware
+func (sh *strictHandler) ListSignageScenes(w http.ResponseWriter, r *http.Request) {
+	var request ListSignageScenesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListSignageScenes(ctx, request.(ListSignageScenesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListSignageScenes")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListSignageScenesResponseObject); ok {
+		if err := validResponse.VisitListSignageScenesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// CreateSignageScene operation middleware
+func (sh *strictHandler) CreateSignageScene(w http.ResponseWriter, r *http.Request) {
+	var request CreateSignageSceneRequestObject
+
+	var body CreateSignageSceneJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.CreateSignageScene(ctx, request.(CreateSignageSceneRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "CreateSignageScene")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(CreateSignageSceneResponseObject); ok {
+		if err := validResponse.VisitCreateSignageSceneResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteSignageScene operation middleware
+func (sh *strictHandler) DeleteSignageScene(w http.ResponseWriter, r *http.Request, sceneId SignageSceneId) {
+	var request DeleteSignageSceneRequestObject
+
+	request.SceneId = sceneId
+
+	var body DeleteSignageSceneJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteSignageScene(ctx, request.(DeleteSignageSceneRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteSignageScene")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteSignageSceneResponseObject); ok {
+		if err := validResponse.VisitDeleteSignageSceneResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetSignageScene operation middleware
+func (sh *strictHandler) GetSignageScene(w http.ResponseWriter, r *http.Request, sceneId SignageSceneId) {
+	var request GetSignageSceneRequestObject
+
+	request.SceneId = sceneId
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetSignageScene(ctx, request.(GetSignageSceneRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetSignageScene")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetSignageSceneResponseObject); ok {
+		if err := validResponse.VisitGetSignageSceneResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// UpdateSignageScene operation middleware
+func (sh *strictHandler) UpdateSignageScene(w http.ResponseWriter, r *http.Request, sceneId SignageSceneId) {
+	var request UpdateSignageSceneRequestObject
+
+	request.SceneId = sceneId
+
+	var body UpdateSignageSceneJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.UpdateSignageScene(ctx, request.(UpdateSignageSceneRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "UpdateSignageScene")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(UpdateSignageSceneResponseObject); ok {
+		if err := validResponse.VisitUpdateSignageSceneResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetSupervisorDashboard operation middleware
 func (sh *strictHandler) GetSupervisorDashboard(w http.ResponseWriter, r *http.Request) {
 	var request GetSupervisorDashboardRequestObject
@@ -63618,1021 +68536,1111 @@ func (sh *strictHandler) VoidVisit(w http.ResponseWriter, r *http.Request, visit
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"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",
+	"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",
-	"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",
+	"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",
-	"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",
+	"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",
+	"CAA=",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

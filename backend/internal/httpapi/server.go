@@ -31,6 +31,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	scimservice "github.com/Basmatireis/Makerspace-Core/backend/internal/scim"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/signage"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/storage"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/supervisors"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/surveys"
@@ -70,6 +71,7 @@ type Server struct {
 	scim              *scimservice.Service
 	visitor           *visitor.Service
 	branding          *branding.Service
+	signage           *signage.Service
 	attendance        *attendance.Service
 	surveys           *surveys.Service
 	connectorRateMu   sync.Mutex
@@ -114,6 +116,10 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("initialize printer connectors: %w", err)
 	}
+	signageService, err := signage.NewService(pool, cfg, fileService)
+	if err != nil {
+		return nil, fmt.Errorf("initialize signage: %w", err)
+	}
 	surveyService := surveys.NewService(pool, cfg, notifier)
 	return &Server{
 		pool:              pool,
@@ -140,6 +146,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		scim:              scimservice.NewService(pool),
 		visitor:           visitor.NewService(pool, cfg, fileService, labRulesService, notifier),
 		branding:          brandingService,
+		signage:           signageService,
 		surveys:           surveyService,
 		connectorRates:    make(map[uuid.UUID]connectorRateWindow),
 		attendance:        attendance.NewService(pool, authService, labRulesService, surveyService),

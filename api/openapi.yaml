@@ -46,6 +46,7 @@ tags:
   - name: Print Artifacts
   - name: Machine Logbook
   - name: Branding
+  - name: Signage
 
 paths:
   /health/live:
@@ -3111,6 +3112,367 @@ paths:
         "200": {description: Updated branding configuration., content: {application/json: {schema: {$ref: "#/components/schemas/BrandingConfiguration"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/layouts:
+    get:
+      tags: [Signage]
+      operationId: listSignageLayouts
+      summary: List the fixed, code-defined scene layouts
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Layouts with their zones., content: {application/json: {schema: {$ref: "#/components/schemas/SignageLayoutList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/assets:
+    get:
+      tags: [Signage]
+      operationId: listSignageAssets
+      summary: List uploaded images and videos
+      security: [{sessionCookie: []}]
+      parameters:
+        - {name: kind, in: query, schema: {$ref: "#/components/schemas/SignageAssetKind"}}
+      responses:
+        "200": {description: "Media assets, newest first.", content: {application/json: {schema: {$ref: "#/components/schemas/SignageAssetList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Signage]
+      operationId: uploadSignageAsset
+      summary: Upload a PNG, JPEG, WebP image (20 MiB) or MP4 video (200 MiB)
+      security: [{sessionCookie: [], csrfHeader: []}]
+      parameters:
+        - {name: X-File-Name, in: header, required: true, schema: {type: string, minLength: 1, maxLength: 255}}
+        - {name: X-File-Content-Type, in: header, required: true, schema: {type: string, enum: [image/png, image/jpeg, image/webp, video/mp4], x-enum-varnames: [UploadSignageAssetContentTypeImagePng, UploadSignageAssetContentTypeImageJpeg, UploadSignageAssetContentTypeImageWebp, UploadSignageAssetContentTypeVideoMp4]}}
+        - {name: X-Asset-Width, in: header, description: "Video only: pixel width.", schema: {type: integer, minimum: 1, maximum: 20000}}
+        - {name: X-Asset-Height, in: header, description: "Video only: pixel height.", schema: {type: integer, minimum: 1, maximum: 20000}}
+        - {name: X-Asset-Duration-Ms, in: header, description: "Video only: duration in milliseconds.", schema: {type: integer, minimum: 1, maximum: 86400000}}
+      requestBody: {required: true, content: {application/octet-stream: {schema: {type: string, format: binary}}}}
+      responses:
+        "201": {description: Asset stored., content: {application/json: {schema: {$ref: "#/components/schemas/SignageAsset"}}}}
+        "400": {$ref: "#/components/responses/BadRequest"}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "413": {$ref: "#/components/responses/PayloadTooLarge"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/assets/{assetId}:
+    parameters: [{$ref: "#/components/parameters/SignageAssetId"}]
+    get:
+      tags: [Signage]
+      operationId: getSignageAsset
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Media asset., content: {application/json: {schema: {$ref: "#/components/schemas/SignageAsset"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    patch:
+      tags: [Signage]
+      operationId: renameSignageAsset
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RenameSignageAssetRequest"}}}}
+      responses:
+        "200": {description: Renamed asset., content: {application/json: {schema: {$ref: "#/components/schemas/SignageAsset"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Signage]
+      operationId: deleteSignageAsset
+      summary: Delete an asset that no draft scene references
+      description: Answers 409 `signage_in_use` with `details.references` while a scene uses the asset as background or in a widget.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "204": {description: Asset and stored bytes deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/assets/{assetId}/content:
+    parameters: [{$ref: "#/components/parameters/SignageAssetId"}]
+    get:
+      tags: [Signage]
+      operationId: downloadSignageAsset
+      summary: Download the asset bytes for the admin preview
+      security: [{sessionCookie: []}]
+      responses:
+        "200":
+          description: Asset bytes, private and never cached.
+          headers:
+            Cache-Control: {$ref: "#/components/headers/NoStore"}
+            X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}
+            Content-Security-Policy: {schema: {type: string}}
+          content:
+            image/png: {schema: {type: string, format: binary}}
+            image/jpeg: {schema: {type: string, format: binary}}
+            image/webp: {schema: {type: string, format: binary}}
+            video/mp4: {schema: {type: string, format: binary}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/scenes:
+    get:
+      tags: [Signage]
+      operationId: listSignageScenes
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Scenes by name., content: {application/json: {schema: {$ref: "#/components/schemas/SignageSceneList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Signage]
+      operationId: createSignageScene
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateSignageSceneRequest"}}}}
+      responses:
+        "201": {description: Scene created., content: {application/json: {schema: {$ref: "#/components/schemas/SignageScene"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/scenes/{sceneId}:
+    parameters: [{$ref: "#/components/parameters/SignageSceneId"}]
+    get:
+      tags: [Signage]
+      operationId: getSignageScene
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Scene., content: {application/json: {schema: {$ref: "#/components/schemas/SignageScene"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Signage]
+      operationId: updateSignageScene
+      summary: Replace a scene
+      description: When `layoutId` changes and `zones` is omitted, widgets move to the new layout by position; surplus widgets are dropped and new zones are empty.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSignageSceneRequest"}}}}
+      responses:
+        "200": {description: Updated scene., content: {application/json: {schema: {$ref: "#/components/schemas/SignageScene"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Signage]
+      operationId: deleteSignageScene
+      description: Answers 409 `signage_in_use` with `details.references` while a playlist or rule uses the scene.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Scene deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/playlists:
+    get:
+      tags: [Signage]
+      operationId: listSignagePlaylists
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Playlists with their items., content: {application/json: {schema: {$ref: "#/components/schemas/SignagePlaylistList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Signage]
+      operationId: createSignagePlaylist
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateSignagePlaylistRequest"}}}}
+      responses:
+        "201": {description: Playlist created., content: {application/json: {schema: {$ref: "#/components/schemas/SignagePlaylist"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/playlists/{playlistId}:
+    parameters: [{$ref: "#/components/parameters/SignagePlaylistId"}]
+    get:
+      tags: [Signage]
+      operationId: getSignagePlaylist
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Playlist., content: {application/json: {schema: {$ref: "#/components/schemas/SignagePlaylist"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Signage]
+      operationId: updateSignagePlaylist
+      summary: Rename a playlist and atomically replace its items
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSignagePlaylistRequest"}}}}
+      responses:
+        "200": {description: Updated playlist., content: {application/json: {schema: {$ref: "#/components/schemas/SignagePlaylist"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Signage]
+      operationId: deleteSignagePlaylist
+      description: Answers 409 `signage_in_use` with `details.references` while a display or rule uses the playlist.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Playlist deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/announcement-templates:
+    get:
+      tags: [Signage]
+      operationId: listSignageAnnouncementTemplates
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Templates with their fields., content: {application/json: {schema: {$ref: "#/components/schemas/SignageAnnouncementTemplateList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Signage]
+      operationId: createSignageAnnouncementTemplate
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateSignageAnnouncementTemplateRequest"}}}}
+      responses:
+        "201": {description: Template created., content: {application/json: {schema: {$ref: "#/components/schemas/SignageAnnouncementTemplate"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/announcement-templates/{templateId}:
+    parameters: [{$ref: "#/components/parameters/SignageTemplateId"}]
+    get:
+      tags: [Signage]
+      operationId: getSignageAnnouncementTemplate
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Template., content: {application/json: {schema: {$ref: "#/components/schemas/SignageAnnouncementTemplate"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Signage]
+      operationId: updateSignageAnnouncementTemplate
+      summary: Replace a template and its fields
+      description: Answers 422 `unknown_placeholders` when title or body use a placeholder that is neither a field key nor a built-in variable. Stored values of removed fields are dropped from existing announcements.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSignageAnnouncementTemplateRequest"}}}}
+      responses:
+        "200": {description: Updated template., content: {application/json: {schema: {$ref: "#/components/schemas/SignageAnnouncementTemplate"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Signage]
+      operationId: deleteSignageAnnouncementTemplate
+      description: Answers 409 `signage_in_use` with `details.references` while an active or scheduled announcement, a rule filter or a widget filter uses the template. Ended announcements of the template are deleted with it.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Template deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/announcements:
+    get:
+      tags: [Signage]
+      operationId: listSignageAnnouncements
+      summary: List active and scheduled announcements
+      description: Ended announcements are hidden; those that ended more than 30 days ago are hard-deleted when this list is read.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: "Active and scheduled announcements, soonest start first.", content: {application/json: {schema: {$ref: "#/components/schemas/SignageAnnouncementList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Signage]
+      operationId: startSignageAnnouncement
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/StartSignageAnnouncementRequest"}}}}
+      responses:
+        "201": {description: Announcement started or scheduled., content: {application/json: {schema: {$ref: "#/components/schemas/SignageAnnouncement"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/announcements/{announcementId}:
+    parameters: [{$ref: "#/components/parameters/SignageAnnouncementId"}]
+    get:
+      tags: [Signage]
+      operationId: getSignageAnnouncement
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Announcement., content: {application/json: {schema: {$ref: "#/components/schemas/SignageAnnouncement"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Signage]
+      operationId: updateSignageAnnouncement
+      summary: Edit values, targets and window of a live announcement
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSignageAnnouncementRequest"}}}}
+      responses:
+        "200": {description: Updated announcement., content: {application/json: {schema: {$ref: "#/components/schemas/SignageAnnouncement"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Signage]
+      operationId: stopSignageAnnouncement
+      summary: Stop an announcement by hard-deleting it
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Announcement and its values deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
@@ -7171,6 +7533,31 @@ components:
         type: string
         maxLength: 500
 
+    SignageAssetId:
+      name: assetId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
+    SignageSceneId:
+      name: sceneId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
+    SignagePlaylistId:
+      name: playlistId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
+    SignageTemplateId:
+      name: templateId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
+    SignageAnnouncementId:
+      name: announcementId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
   responses:
     BadRequest:
       description: Malformed request, invalid JSON, or unsupported query value.
@@ -7372,6 +7759,12 @@ components:
         - pricing.read
         - pricing.manage
         - statistics.read
+        - signage.read
+        - signage.manage
+        - signage.content.manage
+        - signage.publish
+        - signage.override
+        - local_services.manage
 
     HealthStatus:
       type: object
@@ -13565,3 +13958,438 @@ components:
       required: [answers]
       properties:
         answers: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SurveyAnswerInput"}}
+    SignageLayoutId:
+      type: string
+      description: Fixed, code-defined layouts shared by backend validation and frontend rendering.
+      enum: [full, stack3, stack4, split, grid2x2, quad_banner, main_side, main_footer, banner_main]
+      x-enum-varnames: [SignageLayoutIdFull, SignageLayoutIdStack3, SignageLayoutIdStack4, SignageLayoutIdSplit, SignageLayoutIdGrid2x2, SignageLayoutIdQuadBanner, SignageLayoutIdMainSide, SignageLayoutIdMainFooter, SignageLayoutIdBannerMain]
+    SignageOrientation:
+      type: string
+      enum: [portrait, landscape]
+      x-enum-varnames: [SignageOrientationPortrait, SignageOrientationLandscape]
+    SignageLayoutZone:
+      type: object
+      additionalProperties: false
+      required: [id, label, col, row, colSpan, rowSpan]
+      properties:
+        id: {type: string, pattern: "^[a-z][a-z0-9_]*$", maxLength: 40}
+        label: {type: string, maxLength: 60}
+        col: {type: integer, minimum: 1}
+        row: {type: integer, minimum: 1}
+        colSpan: {type: integer, minimum: 1}
+        rowSpan: {type: integer, minimum: 1}
+    SignageLayout:
+      type: object
+      additionalProperties: false
+      required: [id, name, columns, rows, zones]
+      properties:
+        id: {$ref: "#/components/schemas/SignageLayoutId"}
+        name: {type: string, maxLength: 100}
+        columns: {type: string, description: CSS grid-template-columns., maxLength: 100}
+        rows: {type: string, description: CSS grid-template-rows., maxLength: 100}
+        zones: {type: array, items: {$ref: "#/components/schemas/SignageLayoutZone"}}
+    SignageLayoutList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/SignageLayout"}}}
+
+    SignageAssetKind:
+      type: string
+      enum: [image, video]
+      x-enum-varnames: [SignageAssetKindImage, SignageAssetKindVideo]
+    SignageAsset:
+      type: object
+      additionalProperties: false
+      required: [id, kind, name, width, height, durationMs, contentType, sizeBytes, sha256, createdAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        kind: {$ref: "#/components/schemas/SignageAssetKind"}
+        name: {type: string, minLength: 1, maxLength: 150}
+        width: {type: integer, nullable: true, description: "Always set for images; null for videos uploaded without dimensions."}
+        height: {type: integer, nullable: true}
+        durationMs: {type: integer, nullable: true}
+        contentType: {type: string, maxLength: 255}
+        sizeBytes: {type: integer, format: int64, minimum: 0}
+        sha256: {type: string, pattern: "^[0-9a-f]{64}$"}
+        createdByAccountId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        createdAt: {type: string, format: date-time}
+    SignageAssetList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/SignageAsset"}}}
+    RenameSignageAssetRequest:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 150}
+
+    SignageTextSize:
+      type: string
+      enum: [s, m, l, xl]
+      x-enum-varnames: [SignageTextSizeS, SignageTextSizeM, SignageTextSizeL, SignageTextSizeXl]
+    SignageFit:
+      type: string
+      enum: [contain, cover]
+      x-enum-varnames: [SignageFitContain, SignageFitCover]
+    SignageEmptyWidget:
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type: {type: string, enum: [empty], x-enum-varnames: [SignageEmptyWidgetTypeEmpty]}
+    SignageImageWidget:
+      type: object
+      additionalProperties: false
+      required: [type, mediaId, fit]
+      properties:
+        type: {type: string, enum: [image], x-enum-varnames: [SignageImageWidgetTypeImage]}
+        mediaId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        fit: {$ref: "#/components/schemas/SignageFit"}
+    SignageVideoWidget:
+      type: object
+      additionalProperties: false
+      required: [type, mediaId, fit]
+      properties:
+        type: {type: string, enum: [video], x-enum-varnames: [SignageVideoWidgetTypeVideo]}
+        mediaId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        fit: {$ref: "#/components/schemas/SignageFit"}
+    SignageSlideshowWidget:
+      type: object
+      additionalProperties: false
+      required: [type, mediaIds, seconds]
+      properties:
+        type: {type: string, enum: [slideshow], x-enum-varnames: [SignageSlideshowWidgetTypeSlideshow]}
+        mediaIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}}
+        seconds: {type: integer, minimum: 3, maximum: 3600}
+    SignageTextWidget:
+      type: object
+      additionalProperties: false
+      required: [type, text, size, align]
+      properties:
+        type: {type: string, enum: [text], x-enum-varnames: [SignageTextWidgetTypeText]}
+        text: {type: string, maxLength: 1000, description: "Plain text; rendered as text nodes, never as HTML."}
+        size: {$ref: "#/components/schemas/SignageTextSize"}
+        align: {type: string, enum: [start, center, end], x-enum-varnames: [SignageTextWidgetAlignStart, SignageTextWidgetAlignCenter, SignageTextWidgetAlignEnd]}
+    SignageQrWidget:
+      type: object
+      additionalProperties: false
+      required: [type, url, caption]
+      properties:
+        type: {type: string, enum: [qr], x-enum-varnames: [SignageQrWidgetTypeQr]}
+        url: {type: string, maxLength: 500, pattern: "^https://", description: Absolute https URL.}
+        caption: {type: string, maxLength: 200}
+    SignageClockWidget:
+      type: object
+      additionalProperties: false
+      required: [type, mode]
+      properties:
+        type: {type: string, enum: [clock], x-enum-varnames: [SignageClockWidgetTypeClock]}
+        mode: {type: string, enum: [time, datetime], x-enum-varnames: [SignageClockWidgetModeTime, SignageClockWidgetModeDatetime]}
+    SignageCameraWidget:
+      type: object
+      additionalProperties: false
+      required: [type, source, machineId, multi, showProgress, showRemaining, fallback, fallbackMediaId]
+      properties:
+        type: {type: string, enum: [camera], x-enum-varnames: [SignageCameraWidgetTypeCamera]}
+        source: {type: string, enum: [machine, auto], x-enum-varnames: [SignageCameraWidgetSourceMachine, SignageCameraWidgetSourceAuto]}
+        machineId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Required when `source` is `machine`; cleared for `auto`.}
+        multi: {type: string, enum: [split, alternate], x-enum-varnames: [SignageCameraWidgetMultiSplit, SignageCameraWidgetMultiAlternate]}
+        showProgress: {type: boolean}
+        showRemaining: {type: boolean}
+        fallback: {type: string, enum: [image, text, hide], x-enum-varnames: [SignageCameraWidgetFallbackImage, SignageCameraWidgetFallbackText, SignageCameraWidgetFallbackHide]}
+        fallbackMediaId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Image asset; only kept when `fallback` is `image`.}
+    SignageStatusWidget:
+      type: object
+      additionalProperties: false
+      required: [type, machineIds, showProgress, showRemaining]
+      properties:
+        type: {type: string, enum: [status], x-enum-varnames: [SignageStatusWidgetTypeStatus]}
+        machineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}}
+        showProgress: {type: boolean}
+        showRemaining: {type: boolean}
+    SignageOpenDaysWidget:
+      type: object
+      additionalProperties: false
+      required: [type, count]
+      properties:
+        type: {type: string, enum: [open_days], x-enum-varnames: [SignageOpenDaysWidgetTypeOpenDays]}
+        count: {type: integer, minimum: 1, maximum: 10}
+    SignageEventsWidget:
+      type: object
+      additionalProperties: false
+      required: [type, count]
+      properties:
+        type: {type: string, enum: [events], x-enum-varnames: [SignageEventsWidgetTypeEvents]}
+        count: {type: integer, minimum: 1, maximum: 10}
+    SignageAnnouncementWidget:
+      type: object
+      additionalProperties: false
+      required: [type, templateIds, style, size, whenNone, fallbackText, whenMany, rotateSeconds]
+      properties:
+        type: {type: string, enum: [announcement], x-enum-varnames: [SignageAnnouncementWidgetTypeAnnouncement]}
+        templateIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}, description: Empty means any template.}
+        style: {type: string, enum: [banner, card, full], x-enum-varnames: [SignageAnnouncementWidgetStyleBanner, SignageAnnouncementWidgetStyleCard, SignageAnnouncementWidgetStyleFull]}
+        size: {$ref: "#/components/schemas/SignageTextSize"}
+        whenNone: {type: string, enum: [empty, text], x-enum-varnames: [SignageAnnouncementWidgetWhenNoneEmpty, SignageAnnouncementWidgetWhenNoneText]}
+        fallbackText: {type: string, maxLength: 500}
+        whenMany: {type: string, enum: [rotate, newest, stack], x-enum-varnames: [SignageAnnouncementWidgetWhenManyRotate, SignageAnnouncementWidgetWhenManyNewest, SignageAnnouncementWidgetWhenManyStack]}
+        rotateSeconds: {type: integer, minimum: 3, maximum: 300}
+    SignageWidget:
+      description: One widget per layout zone. Fields are decoded strictly; unknown fields are rejected.
+      oneOf:
+        - $ref: "#/components/schemas/SignageEmptyWidget"
+        - $ref: "#/components/schemas/SignageImageWidget"
+        - $ref: "#/components/schemas/SignageVideoWidget"
+        - $ref: "#/components/schemas/SignageSlideshowWidget"
+        - $ref: "#/components/schemas/SignageTextWidget"
+        - $ref: "#/components/schemas/SignageQrWidget"
+        - $ref: "#/components/schemas/SignageClockWidget"
+        - $ref: "#/components/schemas/SignageCameraWidget"
+        - $ref: "#/components/schemas/SignageStatusWidget"
+        - $ref: "#/components/schemas/SignageOpenDaysWidget"
+        - $ref: "#/components/schemas/SignageEventsWidget"
+        - $ref: "#/components/schemas/SignageAnnouncementWidget"
+      discriminator:
+        propertyName: type
+        mapping:
+          empty: "#/components/schemas/SignageEmptyWidget"
+          image: "#/components/schemas/SignageImageWidget"
+          video: "#/components/schemas/SignageVideoWidget"
+          slideshow: "#/components/schemas/SignageSlideshowWidget"
+          text: "#/components/schemas/SignageTextWidget"
+          qr: "#/components/schemas/SignageQrWidget"
+          clock: "#/components/schemas/SignageClockWidget"
+          camera: "#/components/schemas/SignageCameraWidget"
+          status: "#/components/schemas/SignageStatusWidget"
+          open_days: "#/components/schemas/SignageOpenDaysWidget"
+          events: "#/components/schemas/SignageEventsWidget"
+          announcement: "#/components/schemas/SignageAnnouncementWidget"
+    SignageZones:
+      type: object
+      description: Widget per zone id of the scene's layout.
+      maxProperties: 5
+      additionalProperties: {$ref: "#/components/schemas/SignageWidget"}
+    SignageScene:
+      type: object
+      additionalProperties: false
+      required: [id, name, orientation, layoutId, backgroundColor, backgroundAssetId, backgroundFit, backgroundDim, theme, zones, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        orientation: {$ref: "#/components/schemas/SignageOrientation"}
+        layoutId: {$ref: "#/components/schemas/SignageLayoutId"}
+        backgroundColor: {type: string, pattern: "^#[0-9a-f]{6}$"}
+        backgroundAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        backgroundFit: {$ref: "#/components/schemas/SignageFit"}
+        backgroundDim: {type: integer, minimum: 0, maximum: 80}
+        theme: {type: string, enum: [dark, light], x-enum-varnames: [SignageSceneThemeDark, SignageSceneThemeLight]}
+        zones: {$ref: "#/components/schemas/SignageZones"}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    SignageSceneList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/SignageScene"}}}
+    CreateSignageSceneRequest:
+      type: object
+      additionalProperties: false
+      required: [name, orientation, layoutId, backgroundColor, backgroundFit, backgroundDim, theme]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        orientation: {$ref: "#/components/schemas/SignageOrientation"}
+        layoutId: {$ref: "#/components/schemas/SignageLayoutId"}
+        backgroundColor: {type: string, pattern: "^#[0-9a-f]{6}$"}
+        backgroundAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Image asset; omitted or null means none.}
+        backgroundFit: {$ref: "#/components/schemas/SignageFit"}
+        backgroundDim: {type: integer, minimum: 0, maximum: 80}
+        theme: {type: string, enum: [dark, light], x-enum-varnames: [CreateSignageSceneRequestThemeDark, CreateSignageSceneRequestThemeLight]}
+        zones: {$ref: "#/components/schemas/SignageZones"}
+    UpdateSignageSceneRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, name, orientation, layoutId, backgroundColor, backgroundFit, backgroundDim, theme]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        orientation: {$ref: "#/components/schemas/SignageOrientation"}
+        layoutId: {$ref: "#/components/schemas/SignageLayoutId"}
+        backgroundColor: {type: string, pattern: "^#[0-9a-f]{6}$"}
+        backgroundAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Image asset; omitted or null clears it.}
+        backgroundFit: {$ref: "#/components/schemas/SignageFit"}
+        backgroundDim: {type: integer, minimum: 0, maximum: 80}
+        theme: {type: string, enum: [dark, light], x-enum-varnames: [UpdateSignageSceneRequestThemeDark, UpdateSignageSceneRequestThemeLight]}
+        zones: {$ref: "#/components/schemas/SignageZones"}
+
+    SignageTransition:
+      type: string
+      enum: [cut, fade]
+      x-enum-varnames: [SignageTransitionCut, SignageTransitionFade]
+    SignagePlaylistItem:
+      type: object
+      additionalProperties: false
+      required: [sceneId, seconds, transition]
+      properties:
+        sceneId: {$ref: "#/components/schemas/UUIDv7"}
+        seconds: {type: integer, minimum: 3, maximum: 3600}
+        transition: {$ref: "#/components/schemas/SignageTransition"}
+    SignagePlaylist:
+      type: object
+      additionalProperties: false
+      required: [id, name, items, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        items: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SignagePlaylistItem"}}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    SignagePlaylistList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/SignagePlaylist"}}}
+    CreateSignagePlaylistRequest:
+      type: object
+      additionalProperties: false
+      required: [name, items]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        items: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SignagePlaylistItem"}}
+    UpdateSignagePlaylistRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, name, items]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        items: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SignagePlaylistItem"}}
+
+    SignageTone:
+      type: string
+      enum: [info, warning, critical, neutral]
+      x-enum-varnames: [SignageToneInfo, SignageToneWarning, SignageToneCritical, SignageToneNeutral]
+    SignageFieldType:
+      type: string
+      enum: [text, longtext, time, date, datetime, number, choice, machine]
+      x-enum-varnames: [SignageFieldTypeText, SignageFieldTypeLongtext, SignageFieldTypeTime, SignageFieldTypeDate, SignageFieldTypeDatetime, SignageFieldTypeNumber, SignageFieldTypeChoice, SignageFieldTypeMachine]
+    SignageTemplateField:
+      type: object
+      additionalProperties: false
+      required: [key, label, type, required, defaultValue, helperText, options]
+      properties:
+        key: {type: string, pattern: "^[a-z][a-z0-9_]{0,39}$", description: Placeholder name; not a built-in variable and unique in the template.}
+        label: {type: string, minLength: 1, maxLength: 100}
+        type: {$ref: "#/components/schemas/SignageFieldType"}
+        required: {type: boolean}
+        defaultValue: {type: string, maxLength: 2000}
+        helperText: {type: string, maxLength: 300}
+        options: {type: array, maxItems: 20, items: {type: string, minLength: 1, maxLength: 100}, description: "Required and non-empty for `choice`, empty otherwise."}
+    SignageAnnouncementTemplate:
+      type: object
+      additionalProperties: false
+      required: [id, name, tone, title, body, fields, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        tone: {$ref: "#/components/schemas/SignageTone"}
+        title: {type: string, minLength: 1, maxLength: 200}
+        body: {type: string, maxLength: 2000}
+        fields: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignageTemplateField"}}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    SignageAnnouncementTemplateList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/SignageAnnouncementTemplate"}}}
+    CreateSignageAnnouncementTemplateRequest:
+      type: object
+      additionalProperties: false
+      required: [name, tone, title, body, fields]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        tone: {$ref: "#/components/schemas/SignageTone"}
+        title: {type: string, minLength: 1, maxLength: 200}
+        body: {type: string, maxLength: 2000}
+        fields: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignageTemplateField"}}
+    UpdateSignageAnnouncementTemplateRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, name, tone, title, body, fields]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        tone: {$ref: "#/components/schemas/SignageTone"}
+        title: {type: string, minLength: 1, maxLength: 200}
+        body: {type: string, maxLength: 2000}
+        fields: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/SignageTemplateField"}}
+
+    SignageRenderedMessage:
+      type: object
+      additionalProperties: false
+      required: [title, body, tone]
+      properties:
+        title: {type: string}
+        body: {type: string}
+        tone: {$ref: "#/components/schemas/SignageTone"}
+    SignageAnnouncementStatus:
+      type: string
+      enum: [scheduled, active]
+      x-enum-varnames: [SignageAnnouncementStatusScheduled, SignageAnnouncementStatusActive]
+    SignageAnnouncementValues:
+      type: object
+      description: Field key to value. Time `HH:MM`, date `YYYY-MM-DD`, date and time `YYYY-MM-DDTHH:MM` (makerspace local time), machine a machine id.
+      maxProperties: 20
+      additionalProperties: {type: string, maxLength: 2000}
+    SignageAnnouncement:
+      type: object
+      additionalProperties: false
+      required: [id, templateId, values, allDisplays, displayIds, startsAt, status, rendered, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        templateId: {$ref: "#/components/schemas/UUIDv7"}
+        values: {$ref: "#/components/schemas/SignageAnnouncementValues"}
+        allDisplays: {type: boolean}
+        displayIds: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time, nullable: true}
+        status: {$ref: "#/components/schemas/SignageAnnouncementStatus"}
+        rendered:
+          allOf: [{$ref: "#/components/schemas/SignageRenderedMessage"}]
+          description: Server-rendered preview; `{display}` and `{location}` stay as typed because they depend on the showing display.
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    SignageAnnouncementList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/SignageAnnouncement"}}}
+    StartSignageAnnouncementRequest:
+      type: object
+      additionalProperties: false
+      required: [templateId, values, allDisplays, displayIds]
+      properties:
+        templateId: {$ref: "#/components/schemas/UUIDv7"}
+        values: {$ref: "#/components/schemas/SignageAnnouncementValues"}
+        allDisplays: {type: boolean}
+        displayIds: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}, description: Must be empty when `allDisplays` is true and non-empty otherwise.}
+        startsAt: {type: string, format: date-time, description: Defaults to now.}
+        endsAt: {type: string, format: date-time, nullable: true, description: Omitted or null means until stopped.}
+    UpdateSignageAnnouncementRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, values, allDisplays, displayIds, startsAt]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        values: {$ref: "#/components/schemas/SignageAnnouncementValues"}
+        allDisplays: {type: boolean}
+        displayIds: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time, nullable: true}

@@ -391,6 +391,8 @@ func maxBodyMiddleware(next http.Handler) http.Handler {
 				limit = maxImageRequestBodyBytes
 			} else if strings.HasPrefix(r.URL.Path, apiBasePath+"/branding/assets/") {
 				limit = maxImageRequestBodyBytes
+			} else if r.Method == http.MethodPost && r.URL.Path == apiBasePath+"/signage/assets" {
+				limit = (200 << 20) + 1
 			} else if r.URL.Path == apiBasePath+"/laborordnung/versions" {
 				limit = maxPDFRequestBodyBytes
 			} else if r.URL.Path == apiBasePath+"/visitor-enrollment/submissions" {

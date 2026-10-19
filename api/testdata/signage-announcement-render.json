@@ -1,0 +1,167 @@
+{
+  "description": "Test vectors for announcement rendering. The Go implementation (backend/internal/signage/render.go) is authoritative; the TypeScript copy must produce the same output. Times are instants (RFC 3339) shown in timeZone; field values of type date/datetime are local wall-clock text. machines maps a machine id to its name.",
+  "cases": [
+    {
+      "name": "built-in variables for an end later today",
+      "template": {"fields": [], "title": "Closed until {ends_at}", "body": "Back {ends}. Today is {today}. {display} - {location}", "tone": "warning"},
+      "values": {},
+      "startsAt": "2026-10-19T06:00:00Z",
+      "endsAt": "2026-10-19T12:30:00Z",
+      "now": "2026-10-19T08:30:00Z",
+      "timeZone": "Europe/Vienna",
+      "displayName": "Entrance window",
+      "location": "Ground floor",
+      "machines": {},
+      "expected": {"title": "Closed until 14:30", "body": "Back at 14:30. Today is Mon 19 Oct. Entrance window - Ground floor", "tone": "warning"}
+    },
+    {
+      "name": "end on another day names the day",
+      "template": {"fields": [], "title": "{ends_on} {ends_at}", "body": "Back {ends}", "tone": "info"},
+      "values": {},
+      "startsAt": "2026-10-19T06:00:00Z",
+      "endsAt": "2026-10-21T08:00:00Z",
+      "now": "2026-10-19T08:30:00Z",
+      "timeZone": "Europe/Vienna",
+      "displayName": "",
+      "location": "",
+      "machines": {},
+      "expected": {"title": "Wed 21 Oct 10:00", "body": "Back on Wed 21 Oct at 10:00", "tone": "info"}
+    },
+    {
+      "name": "open-ended announcement",
+      "template": {"fields": [], "title": "Notice [{ends_at}] [{ends_on}]", "body": "Open {ends}", "tone": "neutral"},
+      "values": {},
+      "startsAt": "2026-10-19T07:05:00Z",
+      "endsAt": null,
+      "now": "2026-10-19T08:30:00Z",
+      "timeZone": "Europe/Vienna",
+      "displayName": "",
+      "location": "",
+      "machines": {},
+      "expected": {"title": "Notice [] []", "body": "Open until further notice", "tone": "neutral"}
+    },
+    {
+      "name": "start time in the makerspace time zone",
+      "template": {"fields": [], "title": "From {starts_at}", "body": "", "tone": "info"},
+      "values": {},
+      "startsAt": "2026-10-19T07:05:00Z",
+      "endsAt": null,
+      "now": "2026-10-19T08:30:00Z",
+      "timeZone": "Europe/Vienna",
+      "displayName": "",
+      "location": "",
+      "machines": {},
+      "expected": {"title": "From 09:05", "body": "", "tone": "info"}
+    },
+    {
+      "name": "date and datetime fields",
+      "template": {
+        "fields": [{"key": "day", "type": "date"}, {"key": "later", "type": "datetime"}, {"key": "next", "type": "datetime"}, {"key": "far", "type": "datetime"}, {"key": "past", "type": "datetime"}],
+        "title": "Day {day}", "body": "{later} / {next} / {far} / {past}", "tone": "info"
+      },
+      "values": {"day": "2026-10-23", "later": "2026-10-19T15:00", "next": "2026-10-20T09:30", "far": "2026-10-25T18:00", "past": "2026-10-18T10:00"},
+      "startsAt": "2026-10-19T06:00:00Z",
+      "endsAt": null,
+      "now": "2026-10-19T08:30:00Z",
+      "timeZone": "Europe/Vienna",
+      "displayName": "",
+      "location": "",
+      "machines": {},
+      "expected": {"title": "Day Fri 23 Oct", "body": "today at 15:00 / tomorrow at 09:30 / on Sun 25 Oct at 18:00 / on Sun 18 Oct at 10:00", "tone": "info"}
+    },
+    {
+      "name": "machine field shows the machine name, unknown ids stay as typed",
+      "template": {"fields": [{"key": "printer", "type": "machine"}, {"key": "other", "type": "machine"}], "title": "{printer} is down", "body": "{other}", "tone": "critical"},
+      "values": {"printer": "machine-1", "other": "machine-gone"},
+      "startsAt": "2026-10-19T06:00:00Z",
+      "endsAt": null,
+      "now": "2026-10-19T08:30:00Z",
+      "timeZone": "Europe/Vienna",
+      "displayName": "",
+      "location": "",
+      "machines": {"machine-1": "Bambu H2D"},
+      "expected": {"title": "Bambu H2D is down", "body": "machine-gone", "tone": "critical"}
+    },
+    {
+      "name": "empty and blank optional values become empty text",
+      "template": {"fields": [{"key": "room", "type": "text"}, {"key": "note", "type": "longtext"}, {"key": "missing", "type": "text"}], "title": "Room [{room}]", "body": "[{note}] [{missing}]", "tone": "info"},
+      "values": {"room": "", "note": "   "},
+      "startsAt": "2026-10-19T06:00:00Z",
+      "endsAt": null,
+      "now": "2026-10-19T08:30:00Z",
+      "timeZone": "Europe/Vienna",
+      "displayName": "",
+      "location": "",
+      "machines": {},
+      "expected": {"title": "Room []", "body": "[] []", "tone": "info"}
+    },
+    {
+      "name": "unknown and wrongly cased placeholders stay visible",
+      "template": {"fields": [], "title": "{nope} {Today} {today}", "body": "{ends_at", "tone": "info"},
+      "values": {},
+      "startsAt": "2026-10-19T06:00:00Z",
+      "endsAt": null,
+      "now": "2026-10-19T08:30:00Z",
+      "timeZone": "Europe/Vienna",
+      "displayName": "",
+      "location": "",
+      "machines": {},
+      "expected": {"title": "{nope} {Today} Mon 19 Oct", "body": "{ends_at", "tone": "info"}
+    },
+    {
+      "name": "plain field types pass through and values are not expanded again",
+      "template": {
+        "fields": [{"key": "at", "type": "time"}, {"key": "count", "type": "number"}, {"key": "kind", "type": "choice"}, {"key": "free", "type": "text"}],
+        "title": "{at} {count} {kind}", "body": "{free}", "tone": "info"
+      },
+      "values": {"at": "14:30", "count": "3,5", "kind": "Workshop", "free": "{today} {display}"},
+      "startsAt": "2026-10-19T06:00:00Z",
+      "endsAt": null,
+      "now": "2026-10-19T08:30:00Z",
+      "timeZone": "Europe/Vienna",
+      "displayName": "Lobby",
+      "location": "",
+      "machines": {},
+      "expected": {"title": "14:30 3,5 Workshop", "body": "{today} {display}", "tone": "info"}
+    },
+    {
+      "name": "dates follow the local calendar day, not UTC, across a daylight-saving change",
+      "template": {"fields": [], "title": "Today {today}", "body": "Back {ends}", "tone": "warning"},
+      "values": {},
+      "startsAt": "2026-10-25T00:00:00Z",
+      "endsAt": "2026-10-25T23:30:00Z",
+      "now": "2026-10-25T00:30:00Z",
+      "timeZone": "Europe/Vienna",
+      "displayName": "",
+      "location": "",
+      "machines": {},
+      "expected": {"title": "Today Sun 25 Oct", "body": "Back on Mon 26 Oct at 00:30", "tone": "warning"}
+    },
+    {
+      "name": "just after local midnight is already the next day",
+      "template": {"fields": [{"key": "when", "type": "datetime"}], "title": "Today {today}", "body": "{when}", "tone": "info"},
+      "values": {"when": "2026-10-20T08:00"},
+      "startsAt": "2026-10-19T22:00:00Z",
+      "endsAt": "2026-10-20T08:00:00Z",
+      "now": "2026-10-19T22:30:00Z",
+      "timeZone": "Europe/Vienna",
+      "displayName": "",
+      "location": "",
+      "machines": {},
+      "expected": {"title": "Today Tue 20 Oct", "body": "today at 08:00", "tone": "info"}
+    },
+    {
+      "name": "invalid date text stays as typed",
+      "template": {"fields": [{"key": "day", "type": "date"}, {"key": "moment", "type": "datetime"}], "title": "{day}", "body": "{moment}", "tone": "info"},
+      "values": {"day": "next friday", "moment": "2026-10-20 09:00"},
+      "startsAt": "2026-10-19T06:00:00Z",
+      "endsAt": null,
+      "now": "2026-10-19T08:30:00Z",
+      "timeZone": "Europe/Vienna",
+      "displayName": "",
+      "location": "",
+      "machines": {},
+      "expected": {"title": "next friday", "body": "2026-10-20 09:00", "tone": "info"}
+    }
+  ]
+}

@@ -112,6 +112,12 @@ const (
 	PricingRead                        Permission = Permission(openapi.PricingRead)
 	PricingManage                      Permission = Permission(openapi.PricingManage)
 	StatisticsRead                     Permission = Permission(openapi.StatisticsRead)
+	SignageRead                        Permission = Permission(openapi.SignageRead)
+	SignageManage                      Permission = Permission(openapi.SignageManage)
+	SignageContentManage               Permission = Permission(openapi.SignageContentManage)
+	SignagePublish                     Permission = Permission(openapi.SignagePublish)
+	SignageOverride                    Permission = Permission(openapi.SignageOverride)
+	LocalServicesManage                Permission = Permission(openapi.LocalServicesManage)
 )
 
 type Definition struct {
@@ -143,6 +149,7 @@ var registry = []Permission{
 	InventoryRead, InventoryManage, FilamentSpoolsManage, PrinterSlotsAssign,
 	PrinterConnectorsRead, PrinterConnectorsManage, PrinterConnectorsCredentialsManage, PrintArtifactsRead,
 	OrganizationsRead, OrganizationsManage, PricingRead, PricingManage, StatisticsRead,
+	SignageRead, SignageManage, SignageContentManage, SignagePublish, SignageOverride, LocalServicesManage,
 }
 
 var known = func() map[Permission]struct{} {
@@ -252,6 +259,12 @@ var descriptions = map[Permission]string{
 	PricingRead:                        "Read pricing groups, rules, and billing-party defaults.",
 	PricingManage:                      "Create and update pricing groups, rules, and billing-party defaults.",
 	StatisticsRead:                     "Read machine-logbook operational and financial statistics.",
+	SignageRead:                        "Read digital signage displays, health, content, media, rules, and announcements.",
+	SignageManage:                      "Pair, rename, revoke, and delete signage displays; edit their rules, default playlist, and settings.",
+	SignageContentManage:               "Create, edit, and delete signage scenes, playlists, media assets, and announcement templates.",
+	SignagePublish:                     "Publish a signage display so its player receives the current content.",
+	SignageOverride:                    "Start, edit, and stop signage announcements.",
+	LocalServicesManage:                "Manage local streaming gateways and camera assignments and issue their enrollment secrets.",
 }
 
 type GrantScope string

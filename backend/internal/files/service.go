@@ -100,16 +100,27 @@ func (w countWriter) Write(p []byte) (int, error) {
 }
 
 func (s *Service) storeBytes(ctx context.Context, actor *uuid.UUID, originalFilename, contentType string, data []byte, requestID *uuid.UUID) (File, error) {
+	digest := sha256.Sum256(data)
+	return s.storeReader(ctx, actor, originalFilename, contentType, bytes.NewReader(data), storage.Metadata{Size: int64(len(data)), SHA256: digest}, requestID)
+}
+
+// StoreReader stores a private file from a reader whose size and SHA-256 are already known, for
+// large uploads that a caller has spooled to disk instead of holding in memory. The blob is verified
+// against the declared metadata while it is written.
+func (s *Service) StoreReader(ctx context.Context, principal authorization.Principal, originalFilename, contentType string, reader io.Reader, metadata storage.Metadata, requestID *uuid.UUID) (File, error) {
+	actor := principal.AccountID
+	return s.storeReader(ctx, &actor, originalFilename, contentType, reader, metadata, requestID)
+}
+
+func (s *Service) storeReader(ctx context.Context, actor *uuid.UUID, originalFilename, contentType string, reader io.Reader, metadata storage.Metadata, requestID *uuid.UUID) (File, error) {
 	filename := strings.TrimSpace(originalFilename)
 	contentType = strings.TrimSpace(contentType)
-	if filename == "" || len(filename) > 255 || contentType == "" || len(contentType) > 255 {
+	if filename == "" || len(filename) > 255 || contentType == "" || len(contentType) > 255 || metadata.Size < 0 {
 		return File{}, apperror.New(422, "file_metadata_invalid", "File name or content type is invalid")
 	}
 	id := uuid.Must(uuid.NewV7())
 	key := strings.ReplaceAll(id.String()[:2]+"/"+id.String(), "..", "")
-	digest := sha256.Sum256(data)
-	metadata := storage.Metadata{Size: int64(len(data)), SHA256: digest}
-	if err := s.store.Put(ctx, key, bytes.NewReader(data), metadata); err != nil {
+	if err := s.store.Put(ctx, key, reader, metadata); err != nil {
 		return File{}, err
 	}
 	committed := false
@@ -125,7 +136,7 @@ func (s *Service) storeBytes(ctx context.Context, actor *uuid.UUID, originalFile
 	defer func() { _ = tx.Rollback(ctx) }()
 	row, err := filesdb.New(tx).CreateFile(ctx, filesdb.CreateFileParams{
 		ID: id, StorageKey: key, OriginalFilename: filename, ContentType: contentType,
-		SizeBytes: int64(len(data)), Sha256: digest[:], CreatedByAccountID: actor,
+		SizeBytes: metadata.Size, Sha256: metadata.SHA256[:], CreatedByAccountID: actor,
 	})
 	if err != nil {
 		return File{}, err

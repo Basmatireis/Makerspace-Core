@@ -1394,6 +1394,165 @@ type SessionPolicy struct {
 	UpdatedAt               time.Time
 }
 
+type SignageAnnouncement struct {
+	ID                 uuid.UUID
+	TemplateID         uuid.UUID
+	AllDisplays        bool
+	StartsAt           time.Time
+	EndsAt             pgtype.Timestamptz
+	CreatedByAccountID *uuid.UUID
+	Version            int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type SignageAnnouncementDisplay struct {
+	AnnouncementID uuid.UUID
+	DisplayID      uuid.UUID
+}
+
+type SignageAnnouncementTemplate struct {
+	ID        uuid.UUID
+	Name      string
+	Tone      string
+	Title     string
+	Body      string
+	Version   int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type SignageAnnouncementTemplateField struct {
+	TemplateID   uuid.UUID
+	Position     int32
+	Key          string
+	Label        string
+	Type         string
+	Required     bool
+	DefaultValue string
+	HelperText   string
+	Options      []string
+}
+
+type SignageAnnouncementValue struct {
+	AnnouncementID uuid.UUID
+	Key            string
+	Value          string
+}
+
+type SignageAsset struct {
+	ID                 uuid.UUID
+	FileID             uuid.UUID
+	Kind               string
+	Name               string
+	Width              *int32
+	Height             *int32
+	DurationMs         *int32
+	CreatedByAccountID *uuid.UUID
+	CreatedAt          time.Time
+}
+
+type SignageDisplay struct {
+	ID                 uuid.UUID
+	ManagedDeviceID    uuid.UUID
+	Name               string
+	Location           string
+	Orientation        string
+	ResolutionWidth    int32
+	ResolutionHeight   int32
+	VisibleFromOutside bool
+	DefaultPlaylistID  uuid.UUID
+	RevokedAt          pgtype.Timestamptz
+	Version            int64
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type SignageDisplayState struct {
+	DisplayID           uuid.UUID
+	LastHeartbeatAt     time.Time
+	PublicationRevision *int32
+	CurrentRule         *string
+	CurrentSceneID      *uuid.UUID
+	PlayerVersion       *string
+	CacheUsedBytes      *int64
+	CacheQuotaBytes     *int64
+	Errors              []byte
+}
+
+type SignagePairingRequest struct {
+	ID               uuid.UUID
+	CodeDigest       []byte
+	PollSecretDigest []byte
+	CreatedAt        time.Time
+	ExpiresAt        time.Time
+	ClaimedDisplayID *uuid.UUID
+	ClaimedAt        pgtype.Timestamptz
+	DeliveredAt      pgtype.Timestamptz
+}
+
+type SignagePlaylist struct {
+	ID        uuid.UUID
+	Name      string
+	Version   int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type SignagePlaylistItem struct {
+	PlaylistID uuid.UUID
+	Position   int32
+	SceneID    uuid.UUID
+	Seconds    int32
+	Transition string
+}
+
+type SignagePublication struct {
+	ID                   uuid.UUID
+	DisplayID            uuid.UUID
+	Revision             int32
+	Manifest             []byte
+	ManifestSha256       []byte
+	PublishedByAccountID *uuid.UUID
+	PublishedAt          time.Time
+}
+
+type SignageRule struct {
+	ID                      uuid.UUID
+	DisplayID               uuid.UUID
+	Position                int32
+	Enabled                 bool
+	ConditionKind           string
+	Weekdays                []int16
+	TimeFrom                pgtype.Time
+	TimeTo                  pgtype.Time
+	MachineIds              []uuid.UUID
+	MachineMatch            *string
+	AnnouncementTemplateIds []uuid.UUID
+	TargetKind              string
+	TargetSceneID           *uuid.UUID
+	TargetPlaylistID        *uuid.UUID
+	MinSeconds              int32
+	MultiMode               string
+	AlternateSeconds        int32
+}
+
+type SignageScene struct {
+	ID                uuid.UUID
+	Name              string
+	Orientation       string
+	LayoutID          string
+	BackgroundColor   string
+	BackgroundAssetID *uuid.UUID
+	BackgroundFit     string
+	BackgroundDim     int32
+	Theme             string
+	Zones             []byte
+	Version           int64
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
 type Survey struct {
 	ID          uuid.UUID
 	Name        string

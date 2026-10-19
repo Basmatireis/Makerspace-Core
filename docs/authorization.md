@@ -69,6 +69,12 @@ Authorization is based on application-registered permission identifiers. Backend
 | `cash_movements.read`, `cash_movements.record` | Read cash withdrawals/deposits, or record them (also needs read). The expected cash in the register needs `payments.read` and `cash_movements.read`. |
 | `pricing.read`, `pricing.manage` | Read pricing groups/rules and the role mapping, or manage rates, organization defaults and the role to pricing group mapping. |
 | `statistics.read` | Read date-filtered machine-logbook operational and financial statistics. |
+| `signage.read` | Read signage displays, health, scenes, playlists, media, rules, announcement templates and announcements. |
+| `signage.manage` | Pair, rename, revoke and delete signage displays; edit their rules, default playlist and settings. |
+| `signage.content.manage` | Create, edit and delete scenes, playlists, media assets and announcement templates. Implies no read permission. |
+| `signage.publish` | Publish a signage display. |
+| `signage.override` | Start, edit and stop announcements (live, never published). |
+| `local_services.manage` | Manage streaming gateways and camera assignments; issue enrollment secrets. |
 
 ## Device-scoped grants
 

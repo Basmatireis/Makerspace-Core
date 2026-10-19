@@ -121,4 +121,10 @@ export const PermissionId = {
   pricingread: 'pricing.read',
   pricingmanage: 'pricing.manage',
   statisticsread: 'statistics.read',
+  signageread: 'signage.read',
+  signagemanage: 'signage.manage',
+  signagecontentmanage: 'signage.content.manage',
+  signagepublish: 'signage.publish',
+  signageoverride: 'signage.override',
+  local_servicesmanage: 'local_services.manage',
 } as const;
