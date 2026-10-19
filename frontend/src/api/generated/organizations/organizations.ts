@@ -19,11 +19,14 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type {
+  AddOrganizationMemberRequest,
   BillingPartyList,
   CreateOrganizationRequest,
   InvoicingRequirements,
   ListOrganizationsParams,
   Organization,
+  OrganizationMember,
+  OrganizationMemberList,
   OrganizationPage,
   SearchBillingPartiesParams,
   UUIDv7,
@@ -34,6 +37,7 @@ import type {
 import { apiFetch } from '../../http-client';
 
 /**
+ * Requires `organizations.read`.
  * @summary List customer organizations
  */
 export const getListOrganizationsUrl = (params?: ListOrganizationsParams,) => {
@@ -64,6 +68,7 @@ export const listOrganizations = async (params?: ListOrganizationsParams, option
 
 
 /**
+ * Requires `organizations.manage`.
  * @summary Create a customer organization
  */
 export const getCreateOrganizationUrl = () => {
@@ -88,6 +93,31 @@ export const createOrganization = async (createOrganizationRequest: CreateOrgani
 
 
 /**
+ * Requires `organizations.read`.
+ * @summary Read one customer organization
+ */
+export const getGetOrganizationUrl = (organizationId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/organizations/${organizationId}`
+}
+
+export const getOrganization = async (organizationId: UUIDv7, options?: RequestInit): Promise<Organization> => {
+
+  return apiFetch<Organization>(getGetOrganizationUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+/**
+ * Requires `organizations.manage`. Omitted address and contact fields stay unchanged; an empty string clears one.
  * @summary Update a customer organization
  */
 export const getUpdateOrganizationUrl = (organizationId: UUIDv7,) => {
@@ -108,6 +138,82 @@ export const updateOrganization = async (organizationId: UUIDv7,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       updateOrganizationRequest,)
+  }
+);}
+
+
+/**
+ * Requires `organizations.read`. Membership is informational and never restricts who may order for the organization.
+ * @summary List the people associated with an organization
+ */
+export const getListOrganizationMembersUrl = (organizationId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/organizations/${organizationId}/members`
+}
+
+export const listOrganizationMembers = async (organizationId: UUIDv7, options?: RequestInit): Promise<OrganizationMemberList> => {
+
+  return apiFetch<OrganizationMemberList>(getListOrganizationMembersUrl(organizationId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+/**
+ * Requires `organizations.manage`.
+ * @summary Associate a person with an organization
+ */
+export const getAddOrganizationMemberUrl = (organizationId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/organizations/${organizationId}/members`
+}
+
+export const addOrganizationMember = async (organizationId: UUIDv7,
+    addOrganizationMemberRequest: AddOrganizationMemberRequest, options?: RequestInit): Promise<OrganizationMember> => {
+
+  return apiFetch<OrganizationMember>(getAddOrganizationMemberUrl(organizationId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      addOrganizationMemberRequest,)
+  }
+);}
+
+
+/**
+ * Requires `organizations.manage`.
+ * @summary Remove a person from an organization
+ */
+export const getRemoveOrganizationMemberUrl = (organizationId: UUIDv7,
+    personId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/organizations/${organizationId}/members/${personId}`
+}
+
+export const removeOrganizationMember = async (organizationId: UUIDv7,
+    personId: UUIDv7, options?: RequestInit): Promise<void> => {
+
+  return apiFetch<void>(getRemoveOrganizationMemberUrl(organizationId,personId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
   }
 );}
 

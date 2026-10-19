@@ -492,7 +492,7 @@ func (s *seeder) createOrgsAndPricing() {
 	mk := func(name, kind, key string) {
 		id, create := s.claim("organizations", name, "active")
 		if create != "" {
-			o, err := ml.CreateOrganization(s.ctx, s.actor, create, kind, nil)
+			o, err := ml.CreateOrganization(s.ctx, s.actor, create, kind, machinelogbook.OrganizationDetailsInput{}, nil)
 			check("org", err)
 			id, name = o.ID, create
 			newOrgs[key] = true

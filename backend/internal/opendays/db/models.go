@@ -865,13 +865,19 @@ type OrderOperation struct {
 }
 
 type Organization struct {
-	ID        uuid.UUID
-	Name      string
-	Kind      string
-	Active    bool
-	Version   int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID           uuid.UUID
+	Name         string
+	Kind         string
+	Active       bool
+	Version      int64
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	AddressLine  string
+	PostalCode   string
+	Locality     string
+	CountryCode  string
+	ContactName  string
+	ContactEmail string
 }
 
 type OrganizationInvoicingRequirement struct {
@@ -880,6 +886,12 @@ type OrganizationInvoicingRequirement struct {
 	Version                       int64
 	UpdatedAt                     time.Time
 	UpdatedByAccountID            *uuid.UUID
+}
+
+type OrganizationMember struct {
+	OrganizationID uuid.UUID
+	PersonID       uuid.UUID
+	AddedAt        time.Time
 }
 
 type OrganizationPricingGroupAssignment struct {

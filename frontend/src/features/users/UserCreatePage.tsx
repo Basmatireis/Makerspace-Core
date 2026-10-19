@@ -53,7 +53,8 @@ export function UserCreatePage() {
     <PageShell
       title="Add person"
       breadcrumbs={[
-        { label: 'Directory', to: '/people' },
+        { label: 'Directory' },
+        { label: 'People', to: '/people' },
       ]}
       description="Create a person record. A login account can be added afterward."
     >

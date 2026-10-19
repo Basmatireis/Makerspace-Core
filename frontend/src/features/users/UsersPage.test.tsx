@@ -18,7 +18,7 @@ function peoplePage(items: ReturnType<typeof personFixture>[]) {
   return { items, page: 1, pageSize: 25, total: items.length };
 }
 
-describe('Directory page', () => {
+describe('People page', () => {
   it('redirects the legacy directory URL and preserves its filters', async () => {
     server.use(
       http.get('*/api/v1/auth/me', () =>
@@ -31,7 +31,7 @@ describe('Directory page', () => {
 
     const { router } = renderRoute(<App />, '/settings/users?search=Ada&page=2');
 
-    expect(await screen.findByRole('heading', { name: 'Directory' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'People' })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe('/people');
     expect(router.state.location.search).toBe('?search=Ada&page=2');
   });
@@ -88,10 +88,10 @@ describe('Directory page', () => {
     renderRoute(<App />, '/people');
 
     expect(await screen.findByText('Grace Hopper')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Directory' })).toHaveAttribute('href', '/people');
+    expect(screen.getByRole('link', { name: 'People' })).toHaveAttribute('href', '/people');
     const addPersonButton = screen.getByRole('button', { name: 'Add person' });
     expect(addPersonButton).toBeInTheDocument();
-    expect(screen.getByLabelText('Directory table toolbar')).toContainElement(
+    expect(screen.getByLabelText('People table toolbar')).toContainElement(
       addPersonButton,
     );
     const statusHeader = screen.getByRole('columnheader', { name: /Status/ });
@@ -121,13 +121,13 @@ describe('Directory page', () => {
     const filtersButton = screen.getByRole('button', { name: 'Filters' });
     expect(filtersButton).toHaveAttribute('aria-expanded', 'false');
     await user.click(filtersButton);
-    const filters = screen.getByRole('region', { name: 'Directory filters' });
+    const filters = screen.getByRole('region', { name: 'People filters' });
     expect(filtersButton).toHaveAttribute('aria-expanded', 'true');
     expect(within(filters).getByRole('combobox', { name: 'Role' })).toBeInTheDocument();
     expect(within(filters).getByRole('combobox', { name: 'Lab Rules' })).toBeInTheDocument();
     expect(within(filters).getByRole('combobox', { name: 'Status' })).toBeInTheDocument();
     const membersButton = screen.getByRole('button', { name: 'Members' });
-    const tableToolbar = screen.getByLabelText('Directory table toolbar');
+    const tableToolbar = screen.getByLabelText('People table toolbar');
     expect(tableToolbar).toContainElement(membersButton);
     expect(membersButton.querySelector('svg')).toBeInTheDocument();
     expect(membersButton).toBe(tableToolbar.querySelector('.cds--toolbar-content')?.lastElementChild);
@@ -181,7 +181,7 @@ describe('Directory page', () => {
     expect(requestedLaborordnungStatuses).toEqual(['current', 'pending']);
 
     await user.click(screen.getByRole('button', { name: 'Filters' }));
-    const filters = screen.getByRole('region', { name: 'Directory filters' });
+    const filters = screen.getByRole('region', { name: 'People filters' });
     expect(within(filters).getAllByText('2', { selector: '.cds--tag__label' })).toHaveLength(3);
 
     await user.click(within(filters).getByRole('button', { name: 'Clear filters' }));

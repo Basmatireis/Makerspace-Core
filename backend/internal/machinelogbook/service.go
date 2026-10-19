@@ -62,13 +62,46 @@ type Machine struct {
 }
 
 type Organization struct {
-	ID                            uuid.UUID
-	Name, Kind                    string
-	Active                        bool
+	ID         uuid.UUID
+	Name, Kind string
+	Active     bool
+	OrganizationDetails
+	MemberCount                   int64
 	PricingGroup                  *PricingGroupSummary
 	PricingGroupAssignmentVersion int64
 	Version                       int64
 	CreatedAt, UpdatedAt          time.Time
+}
+
+// OrganizationDetails holds the invoice address and contact; empty means not set.
+type OrganizationDetails struct {
+	AddressLine, PostalCode, Locality, CountryCode string
+	ContactName, ContactEmail                      string
+}
+
+// OrganizationDetailsInput carries optional detail changes; nil keeps the stored value.
+type OrganizationDetailsInput struct {
+	AddressLine, PostalCode, Locality, CountryCode *string
+	ContactName, ContactEmail                      *string
+}
+
+type OrganizationFilters struct {
+	Search         string
+	Active         *bool
+	Kind           *string
+	PricingGroupID *uuid.UUID
+	Page, PageSize int
+}
+
+type OrganizationMember struct {
+	PersonID    uuid.UUID
+	DisplayName string
+	AddedAt     time.Time
+}
+
+type OrganizationReference struct {
+	ID   uuid.UUID
+	Name string
 }
 
 type PricingGroupSummary struct {
@@ -82,6 +115,7 @@ type BillingParty struct {
 	OrganizationKind              *string
 	PricingGroup                  *PricingGroupSummary
 	PricingGroupAssignmentVersion int64
+	MemberOrganizations           []OrganizationReference
 }
 
 type Operator struct {

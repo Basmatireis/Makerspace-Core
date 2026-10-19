@@ -62,7 +62,7 @@ describe('Members inside Directory', () => {
     expect(await screen.findByRole('heading', { name: 'Supervisor staffing' })).toBeInTheDocument();
     expect(screen.getByText('Grace Hopper')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Grace Hopper' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Directory' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'People' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Supervisors' })).not.toBeInTheDocument();
     const breadcrumbs = within(screen.getByLabelText('Breadcrumb'));
     expect(breadcrumbs.getByText('Directory')).toBeInTheDocument();
@@ -91,7 +91,7 @@ describe('Members inside Directory', () => {
       'href',
       `/people/${otherPersonId}`,
     );
-    const directoryButton = screen.getByRole('button', { name: 'Directory' });
+    const directoryButton = screen.getByRole('button', { name: 'People' });
     expect(screen.queryByRole('heading', { name: 'Designated supervisors' })).not.toBeInTheDocument();
     const table = screen.getByRole('table');
     expect(table.closest('.people-table-container')).toHaveClass('supervisor-staffing-table');

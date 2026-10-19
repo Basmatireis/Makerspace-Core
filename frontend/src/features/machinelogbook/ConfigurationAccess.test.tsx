@@ -2,7 +2,7 @@ import { http, HttpResponse } from 'msw';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { PermissionId, type Organization, type PricingGroup } from '../../api/generated/models';
+import { PermissionId, type PricingGroup } from '../../api/generated/models';
 import { App } from '../../app/App';
 import { currentUserFixture } from '../../test/fixtures';
 import { renderRoute } from '../../test/render';
@@ -11,15 +11,13 @@ import { server } from '../../test/server';
 vi.mock('@carbon/charts-react', () => ({ LineChart: () => <div />, SimpleBarChart: () => <div /> }));
 
 const now = '2026-09-15T11:26:00Z';
-const organization: Organization = { id: 'org-1', name: 'Workshop partners', kind: 'association', active: true, pricingGroupAssignmentVersion: 1, version: 4, createdAt: now, updatedAt: now };
 const group: PricingGroup = { id: 'group-1', name: 'Partners', description: null, active: true, isDefault: false, version: 2, createdAt: now, updatedAt: now,
   rules: [{ id: 'rule-1', pricingGroupId: 'group-1', kind: 'machine_runtime', machineTypeId: 'type-1', materialCategory: null, materialUnit: null, rate: '0.50', active: true, version: 3 }] };
 
 function configure(permissions: PermissionId[]) {
-  const reads = { organizations: 0, pricing: 0, machines: 0 };
+  const reads = { pricing: 0, machines: 0 };
   server.use(
     http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
-    http.get('*/api/v1/organizations', () => { reads.organizations++; return HttpResponse.json({ items: [organization], page: 1, pageSize: 25, total: 1 }); }),
     http.get('*/api/v1/pricing-groups', () => { reads.pricing++; return HttpResponse.json({ items: [group] }); }),
     http.get('*/api/v1/machine-types', () => { reads.machines++; return HttpResponse.json({ items: [] }); }),
   );
@@ -27,25 +25,33 @@ function configure(permissions: PermissionId[]) {
 }
 
 describe('independent machine configuration access', () => {
-  it.each([
-    [PermissionId.organizationsread, 'Organizations', 'Pricing groups'],
-    [PermissionId.pricingread, 'Pricing groups', 'Organizations'],
-  ] as const)('opens %s independently without foreign lookups', async (permission, visible, hidden) => {
-    const reads = configure([permission]);
+  it('opens pricing configuration with pricing read alone, without foreign lookups', async () => {
+    const reads = configure([PermissionId.pricingread]);
     renderRoute(<App />, '/settings/machine-logbook');
-    expect(await screen.findByRole('tab', { name: visible })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.queryByRole('tab', { name: hidden })).not.toBeInTheDocument();
-    await screen.findByRole('heading', { name: visible });
+    await screen.findByRole('heading', { name: 'Pricing groups' });
     expect(reads.machines).toBe(0);
-    expect(permission === PermissionId.organizationsread ? reads.pricing : reads.organizations).toBe(0);
     expect(screen.queryByRole('button', { name: /^Add/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+  });
+
+  it('no longer opens pricing configuration with organization access alone and keeps a link to organizations', async () => {
+    const reads = configure([PermissionId.organizationsread]);
+    const { router } = renderRoute(<App />, '/settings/machine-logbook');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/dashboard'));
+    expect(reads).toEqual({ pricing: 0, machines: 0 });
+  });
+
+  it('links to the organizations page from pricing configuration', async () => {
+    configure([PermissionId.pricingread, PermissionId.organizationsread]);
+    renderRoute(<App />, '/settings/machine-logbook');
+    expect(await screen.findByRole('link', { name: /Directory › Organizations/ })).toHaveAttribute('href', '/organizations');
   });
 
   it('does not allow machine read permission alone into configuration', async () => {
     const reads = configure([PermissionId.machinesread]);
     const { router } = renderRoute(<App />, '/settings/machine-logbook');
     await waitFor(() => expect(router.state.location.pathname).toBe('/dashboard'));
-    expect(reads).toEqual({ organizations: 0, pricing: 0, machines: 0 });
+    expect(reads).toEqual({ pricing: 0, machines: 0 });
   });
 
   it('preserves an existing machine selector while editing its rate without machine read', async () => {
@@ -83,22 +89,5 @@ describe('independent machine configuration access', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Add rule' }));
     await waitFor(() => expect(submitted).toMatchObject({ kind: 'material', machineTypeId: null, materialCategory: 'pla', rate: '0.03' }));
     expect(reads.machines).toBe(0);
-  });
-
-  it('preserves organization edits after a failure, Escape and Keep editing', async () => {
-    configure([PermissionId.organizationsread, PermissionId.organizationsmanage]);
-    server.use(http.patch('*/api/v1/organizations/org-1', () => HttpResponse.json({ code: 'stale_write' }, { status: 409 })));
-    const user = userEvent.setup();
-    renderRoute(<App />, '/settings/machine-logbook');
-    await user.click(await screen.findByRole('button', { name: 'Edit' }));
-    await user.clear(screen.getByLabelText('Name'));
-    await user.type(screen.getByLabelText('Name'), 'Retained draft');
-    await user.click(screen.getByRole('button', { name: 'Save organization' }));
-    await screen.findByText('Organization not saved');
-    await user.keyboard('{Escape}');
-    expect(await screen.findByRole('alertdialog')).toBeInTheDocument();
-    expect(screen.getByRole('dialog').closest('.cds--modal')).not.toHaveClass('is-visible');
-    await user.click(screen.getByRole('button', { name: 'Keep editing' }));
-    expect(screen.getByLabelText('Name')).toHaveValue('Retained draft');
   });
 });

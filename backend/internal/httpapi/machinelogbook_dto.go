@@ -23,7 +23,7 @@ func mlPricingSummaryDTO(item *machinelogbook.PricingGroupSummary) nullable.Null
 	return nullable.NewNullableWithValue(openapi.PricingGroupSummary{Id: item.ID, Name: item.Name})
 }
 func mlOrganizationDTO(item machinelogbook.Organization) openapi.Organization {
-	return openapi.Organization{Id: item.ID, Name: item.Name, Kind: openapi.OrganizationKind(item.Kind), Active: item.Active, PricingGroup: mlPricingSummaryDTO(item.PricingGroup), PricingGroupAssignmentVersion: item.PricingGroupAssignmentVersion, Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
+	return openapi.Organization{Id: item.ID, Name: item.Name, Kind: openapi.OrganizationKind(item.Kind), Active: item.Active, AddressLine: item.AddressLine, PostalCode: item.PostalCode, Locality: item.Locality, CountryCode: item.CountryCode, ContactName: item.ContactName, ContactEmail: item.ContactEmail, MemberCount: item.MemberCount, PricingGroup: mlPricingSummaryDTO(item.PricingGroup), PricingGroupAssignmentVersion: item.PricingGroupAssignmentVersion, Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
 }
 func mlBillingPartyDTO(item machinelogbook.BillingParty) openapi.BillingParty {
 	var kind *openapi.OrganizationKind
@@ -31,7 +31,7 @@ func mlBillingPartyDTO(item machinelogbook.BillingParty) openapi.BillingParty {
 		v := openapi.OrganizationKind(*item.OrganizationKind)
 		kind = &v
 	}
-	return openapi.BillingParty{Id: item.ID, Kind: openapi.BillingPartyKind(item.Kind), DisplayName: item.DisplayName, OrganizationKind: kind, PricingGroup: mlPricingSummaryDTO(item.PricingGroup), PricingGroupAssignmentVersion: item.PricingGroupAssignmentVersion}
+	return openapi.BillingParty{Id: item.ID, Kind: openapi.BillingPartyKind(item.Kind), DisplayName: item.DisplayName, OrganizationKind: kind, PricingGroup: mlPricingSummaryDTO(item.PricingGroup), PricingGroupAssignmentVersion: item.PricingGroupAssignmentVersion, MemberOrganizations: mlMemberOrganizationsDTO(item.MemberOrganizations)}
 }
 func mlOperatorDTO(item machinelogbook.Operator) openapi.Operator {
 	return openapi.Operator{PersonId: item.PersonID, DisplayName: item.DisplayName}
@@ -300,4 +300,15 @@ func mlOverviewWorkItemsDTO(item machinelogbook.Overview, result *openapi.Machin
 	result.ActiveTotal = nullable.NewNullableWithValue(*item.ActiveTotal)
 	result.RunningMachineNames = nullable.NewNullableWithValue(append([]string{}, item.RunningMachineNames...))
 	result.ActiveItems = nullable.NewNullableWithValue(mlWorkItemDTOs(item.ActiveItems))
+}
+
+func mlMemberOrganizationsDTO(items []machinelogbook.OrganizationReference) *[]openapi.OrganizationReference {
+	if items == nil {
+		return nil
+	}
+	out := make([]openapi.OrganizationReference, 0, len(items))
+	for _, item := range items {
+		out = append(out, openapi.OrganizationReference{Id: item.ID, Name: item.Name})
+	}
+	return &out
 }

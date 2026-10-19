@@ -18,6 +18,8 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { OrganizationKind } from './organizationKind';
+import type { UUIDv7 } from './uUIDv7';
 
 export type ListOrganizationsParams = {
 /**
@@ -25,6 +27,11 @@ export type ListOrganizationsParams = {
  */
 search?: string;
 active?: boolean;
+kind?: OrganizationKind;
+/**
+ * Only organizations assigned to this pricing group.
+ */
+pricingGroupId?: UUIDv7;
 /**
  * @minimum 1
  */

@@ -15,7 +15,6 @@ vi.mock('@carbon/charts-react', () => ({
 
 const machineTypeId = '0192f6f8-743e-7c77-a349-cd07c3e8a910';
 const machineId = '0192f6f8-743e-7c77-a349-cd07c3e8a911';
-const organizationId = '0192f6f8-743e-7c77-a349-cd07c3e8a915';
 
 const machine = {
   id: machineId,
@@ -34,21 +33,15 @@ const machine = {
 };
 
 describe('Machine Logbook pages', () => {
-  it('submits optimistic organization and pricing-rule edits', async () => {
-    let organizationUpdate: Record<string, unknown> | undefined;
+  it('submits optimistic pricing-rule edits', async () => {
     let ruleUpdate: Record<string, unknown> | undefined;
-    const organization = { id: organizationId, name: 'TU Berlin', kind: 'institute' as const, active: true, pricingGroup: { id: '0192f6f8-743e-7c77-a349-cd07c3e8a930', name: 'Partner' }, pricingGroupAssignmentVersion: 1, version: 4, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z' };
-    const rule = { id: '0192f6f8-743e-7c77-a349-cd07c3e8a931', pricingGroupId: organization.pricingGroup.id, kind: 'machine_runtime' as const, machineTypeId, materialCategory: null, materialUnit: null, rate: '0.5', active: true, version: 3 };
-    const group = { id: organization.pricingGroup.id, name: 'Partner', description: null, active: true, isDefault: false, rules: [rule], version: 2, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z' };
+    const groupId = '0192f6f8-743e-7c77-a349-cd07c3e8a930';
+    const rule = { id: '0192f6f8-743e-7c77-a349-cd07c3e8a931', pricingGroupId: groupId, kind: 'machine_runtime' as const, machineTypeId, materialCategory: null, materialUnit: null, rate: '0.5', active: true, version: 3 };
+    const group = { id: groupId, name: 'Partner', description: null, active: true, isDefault: false, rules: [rule], version: 2, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z' };
     server.use(
-      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.organizationsread, PermissionId.organizationsmanage, PermissionId.pricingread, PermissionId.pricingmanage, PermissionId.machinesread]))),
-      http.get('*/api/v1/organizations', () => HttpResponse.json({ items: [organization], page: 1, pageSize: 100, total: 1 })),
+      http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture([PermissionId.pricingread, PermissionId.pricingmanage, PermissionId.machinesread]))),
       http.get('*/api/v1/pricing-groups', () => HttpResponse.json({ items: [group] })),
       http.get('*/api/v1/machine-types', () => HttpResponse.json({ items: [machine.machineType] })),
-      http.patch(`*/api/v1/organizations/${organizationId}`, async ({ request }) => {
-        organizationUpdate = await request.json() as Record<string, unknown>;
-        return HttpResponse.json({ ...organization, ...organizationUpdate, version: 5 });
-      }),
       http.patch(`*/api/v1/pricing-rules/${rule.id}`, async ({ request }) => {
         ruleUpdate = await request.json() as Record<string, unknown>;
         return HttpResponse.json({ ...rule, ...ruleUpdate, version: 4 });
@@ -59,19 +52,8 @@ describe('Machine Logbook pages', () => {
     const heading = await screen.findByRole('heading', { name: 'Machines configuration' });
     const shell = heading.closest('[data-page-shell]');
     expect(shell).toHaveAttribute('data-page-width', 'wide');
-    expect(shell?.querySelector('.page-header__tabs')).toContainElement(
-      screen.getByRole('tablist', { name: 'Configuration sections' }),
-    );
-    await user.click(await screen.findByRole('button', { name: 'Edit' }));
-    let dialog = await screen.findByRole('dialog');
-    await user.clear(within(dialog).getByLabelText('Name'));
-    await user.type(within(dialog).getByLabelText('Name'), 'TU Berlin Makerspace');
-    await user.click(within(dialog).getByRole('button', { name: 'Save organization' }));
-    await waitFor(() => expect(organizationUpdate).toMatchObject({ expectedVersion: 4, name: 'TU Berlin Makerspace', kind: 'institute', active: true }));
-
-    await user.click(screen.getByRole('tab', { name: 'Pricing groups' }));
     await user.click(await screen.findByRole('button', { name: 'Edit rule for Partner' }));
-    dialog = await screen.findByRole('dialog');
+    const dialog = await screen.findByRole('dialog');
     await user.clear(within(dialog).getByLabelText('Rate (€ per hour)'));
     await user.type(within(dialog).getByLabelText('Rate (€ per hour)'), '0.75');
     await user.click(within(dialog).getByRole('button', { name: 'Save rule' }));

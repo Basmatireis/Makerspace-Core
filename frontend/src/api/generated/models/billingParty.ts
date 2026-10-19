@@ -22,6 +22,7 @@ import type { BillingPartyKind } from './billingPartyKind';
 import type { UUIDv7 } from './uUIDv7';
 import type { OrganizationKind } from './organizationKind';
 import type { PricingGroupSummary } from './pricingGroupSummary';
+import type { OrganizationReference } from './organizationReference';
 
 export interface BillingParty {
   kind: BillingPartyKind;
@@ -31,4 +32,6 @@ export interface BillingParty {
   pricingGroup?: PricingGroupSummary;
   /** @minimum 0 */
   pricingGroupAssignmentVersion: number;
+  /** Active organizations this person is associated with; present only for people. */
+  memberOrganizations?: OrganizationReference[];
 }

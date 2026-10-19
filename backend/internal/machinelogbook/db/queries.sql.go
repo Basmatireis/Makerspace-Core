@@ -113,6 +113,24 @@ func (q *Queries) AddFilamentSpoolIdentifier(ctx context.Context, arg AddFilamen
 	return i, err
 }
 
+const addOrganizationMember = `-- name: AddOrganizationMember :one
+INSERT INTO organization_members (organization_id, person_id)
+VALUES ($1, $2)
+RETURNING added_at
+`
+
+type AddOrganizationMemberParams struct {
+	OrganizationID uuid.UUID
+	PersonID       uuid.UUID
+}
+
+func (q *Queries) AddOrganizationMember(ctx context.Context, arg AddOrganizationMemberParams) (time.Time, error) {
+	row := q.db.QueryRow(ctx, addOrganizationMember, arg.OrganizationID, arg.PersonID)
+	var added_at time.Time
+	err := row.Scan(&added_at)
+	return added_at, err
+}
+
 const allocatedMaterialQuantity = `-- name: AllocatedMaterialQuantity :one
 SELECT COALESCE(sum(
         COALESCE((SELECT sum(t.quantity_delta) FROM inventory_transactions t WHERE t.fill_id=f.id), 0::numeric)
@@ -715,17 +733,27 @@ func (q *Queries) CountMaterials(ctx context.Context, arg CountMaterialsParams) 
 
 const countOrganizations = `-- name: CountOrganizations :one
 SELECT count(*) FROM organizations o
+LEFT JOIN organization_pricing_group_assignments a ON a.organization_id = o.id
 WHERE ($1::text = '' OR lower(o.name) LIKE '%' || lower($1::text) || '%')
   AND ($2::boolean IS NULL OR o.active = $2::boolean)
+  AND ($3::text IS NULL OR o.kind = $3::text)
+  AND ($4::uuid IS NULL OR a.pricing_group_id = $4::uuid)
 `
 
 type CountOrganizationsParams struct {
-	Search string
-	Active *bool
+	Search         string
+	Active         *bool
+	Kind           *string
+	PricingGroupID *uuid.UUID
 }
 
 func (q *Queries) CountOrganizations(ctx context.Context, arg CountOrganizationsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countOrganizations, arg.Search, arg.Active)
+	row := q.db.QueryRow(ctx, countOrganizations,
+		arg.Search,
+		arg.Active,
+		arg.Kind,
+		arg.PricingGroupID,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -1041,17 +1069,36 @@ func (q *Queries) CreateMaterialBalance(ctx context.Context, materialID uuid.UUI
 }
 
 const createOrganization = `-- name: CreateOrganization :one
-INSERT INTO organizations (id, name, kind) VALUES ($1, $2, $3) RETURNING id, name, kind, active, version, created_at, updated_at
+INSERT INTO organizations (id, name, kind, address_line, postal_code, locality, country_code, contact_name, contact_email)
+VALUES ($1, $2, $3, $4, $5, $6,
+        $7, $8, $9)
+RETURNING id, name, kind, active, version, created_at, updated_at, address_line, postal_code, locality, country_code, contact_name, contact_email
 `
 
 type CreateOrganizationParams struct {
-	ID   uuid.UUID
-	Name string
-	Kind string
+	ID           uuid.UUID
+	Name         string
+	Kind         string
+	AddressLine  string
+	PostalCode   string
+	Locality     string
+	CountryCode  string
+	ContactName  string
+	ContactEmail string
 }
 
 func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganizationParams) (Organization, error) {
-	row := q.db.QueryRow(ctx, createOrganization, arg.ID, arg.Name, arg.Kind)
+	row := q.db.QueryRow(ctx, createOrganization,
+		arg.ID,
+		arg.Name,
+		arg.Kind,
+		arg.AddressLine,
+		arg.PostalCode,
+		arg.Locality,
+		arg.CountryCode,
+		arg.ContactName,
+		arg.ContactEmail,
+	)
 	var i Organization
 	err := row.Scan(
 		&i.ID,
@@ -1061,6 +1108,12 @@ func (q *Queries) CreateOrganization(ctx context.Context, arg CreateOrganization
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AddressLine,
+		&i.PostalCode,
+		&i.Locality,
+		&i.CountryCode,
+		&i.ContactName,
+		&i.ContactEmail,
 	)
 	return i, err
 }
@@ -2152,7 +2205,7 @@ func (q *Queries) GetOpenFilamentSpoolFill(ctx context.Context, spoolID uuid.UUI
 }
 
 const getOrganization = `-- name: GetOrganization :one
-SELECT id, name, kind, active, version, created_at, updated_at FROM organizations WHERE id = $1
+SELECT id, name, kind, active, version, created_at, updated_at, address_line, postal_code, locality, country_code, contact_name, contact_email FROM organizations WHERE id = $1
 `
 
 func (q *Queries) GetOrganization(ctx context.Context, id uuid.UUID) (Organization, error) {
@@ -2166,12 +2219,73 @@ func (q *Queries) GetOrganization(ctx context.Context, id uuid.UUID) (Organizati
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AddressLine,
+		&i.PostalCode,
+		&i.Locality,
+		&i.CountryCode,
+		&i.ContactName,
+		&i.ContactEmail,
+	)
+	return i, err
+}
+
+const getOrganizationDetail = `-- name: GetOrganizationDetail :one
+SELECT o.id, o.name, o.kind, o.active, o.version, o.created_at, o.updated_at, o.address_line, o.postal_code, o.locality, o.country_code, o.contact_name, o.contact_email, pg.id AS pricing_group_id, pg.name AS pricing_group_name,
+       COALESCE(a.version, 0)::bigint AS pricing_group_assignment_version,
+       (SELECT count(*) FROM organization_members m WHERE m.organization_id = o.id)::bigint AS member_count
+FROM organizations o
+LEFT JOIN organization_pricing_group_assignments a ON a.organization_id = o.id
+LEFT JOIN pricing_groups pg ON pg.id = a.pricing_group_id
+WHERE o.id = $1
+`
+
+type GetOrganizationDetailRow struct {
+	ID                            uuid.UUID
+	Name                          string
+	Kind                          string
+	Active                        bool
+	Version                       int64
+	CreatedAt                     time.Time
+	UpdatedAt                     time.Time
+	AddressLine                   string
+	PostalCode                    string
+	Locality                      string
+	CountryCode                   string
+	ContactName                   string
+	ContactEmail                  string
+	PricingGroupID                *uuid.UUID
+	PricingGroupName              *string
+	PricingGroupAssignmentVersion int64
+	MemberCount                   int64
+}
+
+func (q *Queries) GetOrganizationDetail(ctx context.Context, id uuid.UUID) (GetOrganizationDetailRow, error) {
+	row := q.db.QueryRow(ctx, getOrganizationDetail, id)
+	var i GetOrganizationDetailRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Kind,
+		&i.Active,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AddressLine,
+		&i.PostalCode,
+		&i.Locality,
+		&i.CountryCode,
+		&i.ContactName,
+		&i.ContactEmail,
+		&i.PricingGroupID,
+		&i.PricingGroupName,
+		&i.PricingGroupAssignmentVersion,
+		&i.MemberCount,
 	)
 	return i, err
 }
 
 const getOrganizationForUpdate = `-- name: GetOrganizationForUpdate :one
-SELECT id, name, kind, active, version, created_at, updated_at FROM organizations WHERE id = $1 FOR UPDATE
+SELECT id, name, kind, active, version, created_at, updated_at, address_line, postal_code, locality, country_code, contact_name, contact_email FROM organizations WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetOrganizationForUpdate(ctx context.Context, id uuid.UUID) (Organization, error) {
@@ -2185,6 +2299,12 @@ func (q *Queries) GetOrganizationForUpdate(ctx context.Context, id uuid.UUID) (O
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AddressLine,
+		&i.PostalCode,
+		&i.Locality,
+		&i.CountryCode,
+		&i.ContactName,
+		&i.ContactEmail,
 	)
 	return i, err
 }
@@ -2925,6 +3045,39 @@ func (q *Queries) ListActiveJobRunIDs(ctx context.Context, jobID *uuid.UUID) ([]
 			return nil, err
 		}
 		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveOrganizationsOfPeople = `-- name: ListActiveOrganizationsOfPeople :many
+SELECT m.person_id, o.id AS organization_id, o.name AS organization_name
+FROM organization_members m JOIN organizations o ON o.id = m.organization_id
+WHERE o.active AND m.person_id = ANY($1::uuid[])
+ORDER BY m.person_id, lower(o.name), o.id
+`
+
+type ListActiveOrganizationsOfPeopleRow struct {
+	PersonID         uuid.UUID
+	OrganizationID   uuid.UUID
+	OrganizationName string
+}
+
+func (q *Queries) ListActiveOrganizationsOfPeople(ctx context.Context, personIds []uuid.UUID) ([]ListActiveOrganizationsOfPeopleRow, error) {
+	rows, err := q.db.Query(ctx, listActiveOrganizationsOfPeople, personIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveOrganizationsOfPeopleRow{}
+	for rows.Next() {
+		var i ListActiveOrganizationsOfPeopleRow
+		if err := rows.Scan(&i.PersonID, &i.OrganizationID, &i.OrganizationName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -4131,23 +4284,61 @@ func (q *Queries) ListMaterials(ctx context.Context, arg ListMaterialsParams) ([
 	return items, nil
 }
 
+const listOrganizationMembers = `-- name: ListOrganizationMembers :many
+SELECT m.person_id, btrim(p.first_name || ' ' || p.last_name) AS display_name, m.added_at
+FROM organization_members m JOIN people p ON p.id = m.person_id
+WHERE m.organization_id = $1
+ORDER BY lower(p.last_name), lower(p.first_name), p.id
+`
+
+type ListOrganizationMembersRow struct {
+	PersonID    uuid.UUID
+	DisplayName string
+	AddedAt     time.Time
+}
+
+func (q *Queries) ListOrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]ListOrganizationMembersRow, error) {
+	rows, err := q.db.Query(ctx, listOrganizationMembers, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOrganizationMembersRow{}
+	for rows.Next() {
+		var i ListOrganizationMembersRow
+		if err := rows.Scan(&i.PersonID, &i.DisplayName, &i.AddedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOrganizations = `-- name: ListOrganizations :many
-SELECT o.id, o.name, o.kind, o.active, o.version, o.created_at, o.updated_at, pg.id AS pricing_group_id, pg.name AS pricing_group_name,
-       COALESCE(a.version, 0)::bigint AS pricing_group_assignment_version
+SELECT o.id, o.name, o.kind, o.active, o.version, o.created_at, o.updated_at, o.address_line, o.postal_code, o.locality, o.country_code, o.contact_name, o.contact_email, pg.id AS pricing_group_id, pg.name AS pricing_group_name,
+       COALESCE(a.version, 0)::bigint AS pricing_group_assignment_version,
+       (SELECT count(*) FROM organization_members m WHERE m.organization_id = o.id)::bigint AS member_count
 FROM organizations o
 LEFT JOIN organization_pricing_group_assignments a ON a.organization_id = o.id
 LEFT JOIN pricing_groups pg ON pg.id = a.pricing_group_id
 WHERE ($1::text = '' OR lower(o.name) LIKE '%' || lower($1::text) || '%')
   AND ($2::boolean IS NULL OR o.active = $2::boolean)
+  AND ($3::text IS NULL OR o.kind = $3::text)
+  AND ($4::uuid IS NULL OR a.pricing_group_id = $4::uuid)
 ORDER BY o.active DESC, lower(o.name), o.id
-LIMIT $4 OFFSET $3
+LIMIT $6 OFFSET $5
 `
 
 type ListOrganizationsParams struct {
-	Search     string
-	Active     *bool
-	PageOffset int32
-	PageLimit  int32
+	Search         string
+	Active         *bool
+	Kind           *string
+	PricingGroupID *uuid.UUID
+	PageOffset     int32
+	PageLimit      int32
 }
 
 type ListOrganizationsRow struct {
@@ -4158,15 +4349,24 @@ type ListOrganizationsRow struct {
 	Version                       int64
 	CreatedAt                     time.Time
 	UpdatedAt                     time.Time
+	AddressLine                   string
+	PostalCode                    string
+	Locality                      string
+	CountryCode                   string
+	ContactName                   string
+	ContactEmail                  string
 	PricingGroupID                *uuid.UUID
 	PricingGroupName              *string
 	PricingGroupAssignmentVersion int64
+	MemberCount                   int64
 }
 
 func (q *Queries) ListOrganizations(ctx context.Context, arg ListOrganizationsParams) ([]ListOrganizationsRow, error) {
 	rows, err := q.db.Query(ctx, listOrganizations,
 		arg.Search,
 		arg.Active,
+		arg.Kind,
+		arg.PricingGroupID,
 		arg.PageOffset,
 		arg.PageLimit,
 	)
@@ -4185,9 +4385,16 @@ func (q *Queries) ListOrganizations(ctx context.Context, arg ListOrganizationsPa
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.AddressLine,
+			&i.PostalCode,
+			&i.Locality,
+			&i.CountryCode,
+			&i.ContactName,
+			&i.ContactEmail,
 			&i.PricingGroupID,
 			&i.PricingGroupName,
 			&i.PricingGroupAssignmentVersion,
+			&i.MemberCount,
 		); err != nil {
 			return nil, err
 		}
@@ -5145,6 +5352,24 @@ func (q *Queries) RefreshMachineJobPrice(ctx context.Context, arg RefreshMachine
 		&i.DeletedBy,
 	)
 	return i, err
+}
+
+const removeOrganizationMember = `-- name: RemoveOrganizationMember :one
+DELETE FROM organization_members
+WHERE organization_id = $1 AND person_id = $2
+RETURNING person_id
+`
+
+type RemoveOrganizationMemberParams struct {
+	OrganizationID uuid.UUID
+	PersonID       uuid.UUID
+}
+
+func (q *Queries) RemoveOrganizationMember(ctx context.Context, arg RemoveOrganizationMemberParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, removeOrganizationMember, arg.OrganizationID, arg.PersonID)
+	var person_id uuid.UUID
+	err := row.Scan(&person_id)
+	return person_id, err
 }
 
 const retireFillIdentifiers = `-- name: RetireFillIdentifiers :exec
@@ -6416,15 +6641,23 @@ func (q *Queries) UpdateOpenFilamentSpoolFillSnapshot(ctx context.Context, arg U
 
 const updateOrganization = `-- name: UpdateOrganization :one
 UPDATE organizations SET name = $1, kind = $2, active = $3,
+    address_line = $4, postal_code = $5, locality = $6,
+    country_code = $7, contact_name = $8, contact_email = $9,
     version = version + 1, updated_at = now()
-WHERE id = $4 AND version = $5
-RETURNING id, name, kind, active, version, created_at, updated_at
+WHERE id = $10 AND version = $11
+RETURNING id, name, kind, active, version, created_at, updated_at, address_line, postal_code, locality, country_code, contact_name, contact_email
 `
 
 type UpdateOrganizationParams struct {
 	Name            string
 	Kind            string
 	Active          bool
+	AddressLine     string
+	PostalCode      string
+	Locality        string
+	CountryCode     string
+	ContactName     string
+	ContactEmail    string
 	ID              uuid.UUID
 	ExpectedVersion int64
 }
@@ -6434,6 +6667,12 @@ func (q *Queries) UpdateOrganization(ctx context.Context, arg UpdateOrganization
 		arg.Name,
 		arg.Kind,
 		arg.Active,
+		arg.AddressLine,
+		arg.PostalCode,
+		arg.Locality,
+		arg.CountryCode,
+		arg.ContactName,
+		arg.ContactEmail,
 		arg.ID,
 		arg.ExpectedVersion,
 	)
@@ -6446,6 +6685,12 @@ func (q *Queries) UpdateOrganization(ctx context.Context, arg UpdateOrganization
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.AddressLine,
+		&i.PostalCode,
+		&i.Locality,
+		&i.CountryCode,
+		&i.ContactName,
+		&i.ContactEmail,
 	)
 	return i, err
 }

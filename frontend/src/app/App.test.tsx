@@ -196,8 +196,9 @@ describe('protected application routing', () => {
       ),
     );
     renderRoute(<App />, '/people');
-    expect(await screen.findByRole('heading', { name: 'Directory' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Directory' })).toHaveAttribute('href', '/people');
+    expect(await screen.findByRole('heading', { name: 'People' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'People' })).toHaveAttribute('href', '/people');
+    expect(screen.queryByRole('link', { name: 'Organizations' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
   });
 
@@ -211,9 +212,9 @@ describe('protected application routing', () => {
 
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
     const user = userEvent.setup();
-    await user.click(screen.getByRole('button', { name: 'People' }));
+    await user.click(screen.getByRole('button', { name: 'Directory' }));
     expect(screen.getByRole('link', { name: 'Staffing' })).toHaveAttribute('href', '/people/staffing');
-    expect(screen.queryByRole('link', { name: 'Directory' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'People' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
   });
 
@@ -227,6 +228,7 @@ describe('protected application routing', () => {
           PermissionId.statisticsread,
           PermissionId.peoplereadall,
           PermissionId.supervisor_dashboardread,
+          PermissionId.organizationsread,
           PermissionId.open_daysread,
           PermissionId.eventsread,
           PermissionId.attendanceread,
@@ -243,10 +245,10 @@ describe('protected application routing', () => {
 
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
     const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
-    for (const group of ['Operations', 'People', 'Workshop', 'Sales & payments']) {
+    for (const group of ['Operations', 'Directory', 'Workshop', 'Sales & payments']) {
       await user.click(within(navigation).getByRole('button', { name: group }));
     }
-    for (const name of ['Open Days', 'Events', 'Attendance', 'Directory', 'Staffing', 'Overview', 'Jobs', 'Machines', 'Inventory', 'Statistics', 'Orders', 'Payments', 'External invoicing']) {
+    for (const name of ['Open Days', 'Events', 'Attendance', 'People', 'Organizations', 'Staffing', 'Overview', 'Jobs', 'Machines', 'Inventory', 'Statistics', 'Orders', 'Payments', 'External invoicing']) {
       expect(within(navigation).getByRole('link', { name })).toBeInTheDocument();
     }
     const workshop = within(navigation).getAllByRole('link').map((link) => link.getAttribute('href')).filter((href) => href?.startsWith('/machine-logbook'));
@@ -268,7 +270,7 @@ describe('protected application routing', () => {
     ]) {
       expect(within(navigation).getByRole('link', { name }).querySelector('svg')).toBeInTheDocument();
     }
-    for (const group of ['Operations', 'People', 'Workshop', 'Sales & payments']) {
+    for (const group of ['Operations', 'Directory', 'Workshop', 'Sales & payments']) {
       expect(within(navigation).getByRole('button', { name: group }).querySelectorAll('svg')).toHaveLength(2);
     }
   });

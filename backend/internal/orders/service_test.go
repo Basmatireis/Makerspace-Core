@@ -113,7 +113,7 @@ func newFixture(t *testing.T) *fixture {
 	f.p = authorization.Principal{AccountID: account, PersonID: f.person, Master: true}
 	f.jobs = machinelogbook.NewService(pool)
 	f.s = NewService(pool, f.jobs)
-	org, e := f.jobs.CreateOrganization(ctx, f.p, "Example institute", "institute", &f.request)
+	org, e := f.jobs.CreateOrganization(ctx, f.p, "Example institute", "institute", machinelogbook.OrganizationDetailsInput{}, &f.request)
 	if e != nil {
 		t.Fatal(e)
 	}

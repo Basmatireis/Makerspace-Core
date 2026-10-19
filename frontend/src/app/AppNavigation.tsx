@@ -94,7 +94,7 @@ function NavigationGroup({
 
 function activeGroupForPath(pathname: string): NavigationGroupId | null {
   if (pathname.startsWith('/open-days') || pathname.startsWith('/events') || pathname.startsWith('/attendance')) return 'operations';
-  if (pathname.startsWith('/people')) return 'people';
+  if (pathname.startsWith('/people') || pathname.startsWith('/organizations')) return 'people';
   if (pathname.startsWith('/machine-logbook')) return 'machines';
   if (pathname.startsWith('/orders') || pathname.startsWith('/payments') || pathname.startsWith('/external-invoicing')) return 'sales';
   return null;
@@ -117,7 +117,10 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
 
   const people: NavigationItem[] = [];
   if (hasPermission(currentUser, PermissionId.peoplereadall)) {
-    people.push({ label: 'Directory', to: '/people', active: pathname === '/people' || (pathname.startsWith('/people/') && !pathname.startsWith('/people/staffing')) });
+    people.push({ label: 'People', to: '/people', active: pathname === '/people' || (pathname.startsWith('/people/') && !pathname.startsWith('/people/staffing')) });
+  }
+  if (hasPermission(currentUser, PermissionId.organizationsread)) {
+    people.push({ label: 'Organizations', to: '/organizations', active: pathname.startsWith('/organizations') });
   }
   if (hasPermission(currentUser, PermissionId.supervisor_dashboardread)) {
     people.push({ label: 'Staffing', to: '/people/staffing', active: pathname.startsWith('/people/staffing') });
@@ -184,7 +187,7 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
           Dashboard
         </SideNavLink>
         {renderGroup('operations', 'Operations', Calendar, operations)}
-        {renderGroup('people', 'People', UserMultiple, people)}
+        {renderGroup('people', 'Directory', UserMultiple, people)}
         {renderGroup('machines', 'Workshop', Tools, machines)}
         {renderGroup('sales', 'Sales & payments', Receipt, sales)}
         {showAdministration && (

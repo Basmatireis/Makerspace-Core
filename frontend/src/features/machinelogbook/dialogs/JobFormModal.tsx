@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Button, ComboBox, ComposedModal, InlineNotification, ModalBody, ModalFooter, ModalHeader, Select, SelectItem, Stack, TextArea, TextInput } from '@carbon/react';
+import { ActionableNotification, Button, ComboBox, ComposedModal, InlineNotification, ModalBody, ModalFooter, ModalHeader, Select, SelectItem, Stack, TextArea, TextInput } from '@carbon/react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Controller, FormProvider, useForm, useFormContext } from 'react-hook-form';
+import { Controller, FormProvider, useForm, useFormContext, useWatch } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { createMachineJob, updateMachineJob } from '../../../api/generated/machine-jobs/machine-jobs';
 import { createMachineJobFromRun } from '../../../api/generated/machine-runs/machine-runs';
@@ -27,7 +27,10 @@ export type { JobInitialValues } from './jobFormHelpers';
 function JobPartyFields({ idPrefix, current }: { idPrefix: string; current?: MachineJob }) {
   const currentUser = useCurrentUser();
   const canLookup = canLookupJobParties(currentUser);
-  const { control, register } = useFormContext<PartyValues>();
+  const { control, register, setValue } = useFormContext<PartyValues>();
+  const customer = useWatch({ control, name: 'customer' });
+  // A person who belongs to exactly one organization may be billed through it; the choice stays with the user.
+  const suggestedOrganization = customer?.kind === 'person' && customer.memberOrganizations?.length === 1 ? customer.memberOrganizations[0] : null;
   const [customerSearch, setCustomerSearch] = useState('');
   const [operatorSearch, setOperatorSearch] = useState('');
   const parties = useQuery({ ...billingPartySearchQuery(customerSearch), enabled: canLookup, placeholderData: keepPreviousData });
@@ -59,6 +62,14 @@ function JobPartyFields({ idPrefix, current }: { idPrefix: string; current?: Mac
           />
         )} />
       </div>
+      {suggestedOrganization && (
+        <ActionableNotification
+          inline kind="info" lowContrast hideCloseButton title={`${customer?.displayName} belongs to ${suggestedOrganization.name}.`}
+          subtitle="Bill the organization instead of the person?"
+          actionButtonLabel={`Bill to ${suggestedOrganization.name}`}
+          onActionButtonClick={() => setValue('customer', { kind: 'organization', id: suggestedOrganization.id, displayName: suggestedOrganization.name, pricingGroupAssignmentVersion: 0 }, { shouldDirty: true, shouldValidate: true })}
+        />
+      )}
       <TextArea id={`${idPrefix}-notes`} labelText="Notes" rows={3} {...register('notes')} />
     </Stack>
   );

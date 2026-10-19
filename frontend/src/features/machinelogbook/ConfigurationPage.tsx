@@ -3,17 +3,12 @@ import './configuration.scss';
 import {
   Button,
   InlineNotification,
-  Pagination,
+  Link as CarbonLink,
   Select,
   SelectItem,
   Stack,
   StructuredListBody,
   StructuredListWrapper,
-  Tab,
-  TabList,
-  TabPanel,
-  TabPanels,
-  Tabs,
   TextArea,
   TextInput,
   Tile,
@@ -22,19 +17,16 @@ import {
 import { Add, Edit } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Controller, useForm } from 'react-hook-form';
 import type {
-  Organization,
-  OrganizationKind,
   PricingGroup,
   PricingRule,
   PricingRuleKind,
 } from '../../api/generated/models';
-import { createOrganization, updateOrganization } from '../../api/generated/organizations/organizations';
 import {
   createPricingGroup,
   createPricingRule,
-  setBillingPartyPricingGroup,
   updatePricingGroup,
   updatePricingRule,
 } from '../../api/generated/pricing/pricing';
@@ -47,9 +39,8 @@ import { useLatestCallback } from '../../app/useLatestCallback';
 import { PermissionId, hasPermission } from '../auth/permissions';
 import { useCurrentUser } from '../auth/auth';
 import { CatalogFormModal as Modal } from './CatalogFormModal';
-import { machineLogbookKeys, machineTypesQuery, organizationsQuery, pricingQuery } from './queries';
+import { machineLogbookKeys, machineTypesQuery, pricingQuery } from './queries';
 
-type OrganizationFields = { name: string; kind: OrganizationKind; active: boolean };
 type GroupFields = { name: string; description: string; isDefault: boolean; active: boolean };
 type RuleFields = {
   groupId: string;
@@ -63,43 +54,27 @@ type RuleFields = {
 
 export function ConfigurationPage() {
   const currentUser = useCurrentUser();
-  const canReadOrganizations = hasPermission(currentUser, PermissionId.organizationsread);
+  const canOpenOrganizations = hasPermission(currentUser, PermissionId.organizationsread);
   const canReadPricing = hasPermission(currentUser, PermissionId.pricingread);
   const canReadMachines = hasPermission(currentUser, PermissionId.machinesread);
-  const canManageOrganizations = hasPermission(currentUser, PermissionId.organizationsmanage);
   const canManagePricing = hasPermission(currentUser, PermissionId.pricingmanage);
   const client = useQueryClient();
-  const [organizationPage, setOrganizationPage] = useState(1);
-  const [organizationPageSize, setOrganizationPageSize] = useState(25);
-  const [selectedTab, setSelectedTab] = useState(0);
-  const organizations = useQuery({ ...organizationsQuery({ page: organizationPage, pageSize: organizationPageSize }), enabled: canReadOrganizations });
   const pricing = useQuery({ ...pricingQuery(), enabled: canReadPricing });
   const machineTypes = useQuery({ ...machineTypesQuery(), enabled: canReadPricing && canReadMachines });
-  const [organizationOpen, setOrganizationOpen] = useState(false);
   const [groupOpen, setGroupOpen] = useState(false);
   const [ruleOpen, setRuleOpen] = useState(false);
-  const [editingOrganization, setEditingOrganization] = useState<Organization | null>(null);
   const [editingGroup, setEditingGroup] = useState<PricingGroup | null>(null);
   const [editingRule, setEditingRule] = useState<PricingRule | null>(null);
-  const organizationForm = useForm<OrganizationFields>({ defaultValues: { kind: 'company', active: true } });
   const groupForm = useForm<GroupFields>({ defaultValues: { isDefault: false, active: true } });
   const ruleForm = useForm<RuleFields>({ defaultValues: { kind: 'machine_runtime', materialUnit: 'g', active: true } });
   const kind = ruleForm.watch('kind');
   const guard = useUnsavedChanges({
-    isDirty: (organizationOpen && organizationForm.formState.isDirty)
-      || (groupOpen && groupForm.formState.isDirty) || (ruleOpen && ruleForm.formState.isDirty),
-    onDiscard: () => { organizationForm.reset(); groupForm.reset(); ruleForm.reset(); },
+    isDirty: (groupOpen && groupForm.formState.isDirty) || (ruleOpen && ruleForm.formState.isDirty),
+    onDiscard: () => { groupForm.reset(); ruleForm.reset(); },
   });
   const refresh = () => client.invalidateQueries({ queryKey: machineLogbookKeys.all });
-  const closeOrganization = () => { setOrganizationOpen(false); setEditingOrganization(null); };
   const closeGroup = () => { setGroupOpen(false); setEditingGroup(null); };
   const closeRule = () => { setRuleOpen(false); setEditingRule(null); };
-  const organizationMutation = useMutation({
-    mutationFn: (values: OrganizationFields) => editingOrganization
-      ? updateOrganization(editingOrganization.id, { ...values, expectedVersion: editingOrganization.version })
-      : createOrganization({ name: values.name, kind: values.kind }),
-    onSuccess: async () => { closeOrganization(); await refresh(); },
-  });
   const groupMutation = useMutation({
     mutationFn: (values: GroupFields) => editingGroup
       ? updatePricingGroup(editingGroup.id, {
@@ -127,13 +102,8 @@ export function ConfigurationPage() {
     },
     onSuccess: async () => { closeRule(); await refresh(); },
   });
-  const assignmentMutation = useMutation({
-    mutationFn: ({ organizationId, pricingGroupId, expectedVersion }: { organizationId: string; pricingGroupId: string; expectedVersion: number }) =>
-      setBillingPartyPricingGroup({ party: { kind: 'organization', id: organizationId }, pricingGroupId: pricingGroupId || null, expectedVersion }),
-    onSuccess: refresh,
-  });
 
-  const requestCloseOrganization = useLatestCallback(() => { if (!organizationMutation.isPending) guard.requestDiscard(closeOrganization); });
+
   const requestCloseGroup = useLatestCallback(() => { if (!groupMutation.isPending) guard.requestDiscard(closeGroup); });
   const requestCloseRule = useLatestCallback(() => { if (!ruleMutation.isPending) guard.requestDiscard(closeRule); });
   const groups = pricing.data?.items ?? [];
@@ -141,18 +111,6 @@ export function ConfigurationPage() {
   const requiresUnavailableType = kind === 'machine_runtime' && (!canReadMachines || machineTypes.isError)
     && !(editingRule?.kind === 'machine_runtime' && ruleForm.watch('machineTypeId') === editingRule.machineTypeId);
 
-  const addOrganization = () => {
-    setEditingOrganization(null);
-    organizationForm.reset({ name: '', kind: 'company', active: true });
-    organizationMutation.reset();
-    setOrganizationOpen(true);
-  };
-  const editOrganization = (organization: Organization) => {
-    setEditingOrganization(organization);
-    organizationForm.reset({ name: organization.name, kind: organization.kind, active: organization.active });
-    organizationMutation.reset();
-    setOrganizationOpen(true);
-  };
   const addGroup = () => {
     setEditingGroup(null);
     groupForm.reset({ name: '', description: '', isDefault: false, active: true });
@@ -186,42 +144,9 @@ export function ConfigurationPage() {
     setRuleOpen(true);
   };
 
-  return <Tabs selectedIndex={selectedTab} onChange={({ selectedIndex }) => guard.requestDiscard(() => setSelectedTab(selectedIndex))}>
-    <PageShell title="Machines configuration" description="Organizations, pricing groups, and explicit rates." breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Machines' }]} tabs={<TabList aria-label="Configuration sections">{[canReadOrganizations ? <Tab key="organizations">Organizations</Tab> : null, canReadPricing ? <Tab key="pricing">Pricing groups</Tab> : null].filter(Boolean)}</TabList>} width="wide" className="machine-logbook-page machine-configuration-page">
-      <TabPanels>
-        {[canReadOrganizations ? <TabPanel key="organizations">
-          {organizations.isPending ? <FullPageLoading label="Loading organizations" /> : organizations.isError ? <ErrorState message="Organizations could not be loaded." onRetry={() => organizations.refetch()} /> : <Stack gap={5}>
-            <div className="section-heading">
-              <div><h2>Organizations</h2><p className="section-description">Active organizations can be selected as billing parties.</p></div>
-              {canManageOrganizations && <Button renderIcon={Add} onClick={addOrganization}>Add organization</Button>}
-            </div>
-            <div className="configuration-list">
-              {organizations.data.items.length === 0 && <EmptyState title="No organizations" description="Organizations can be added as billing parties." />}
-              {organizations.data.items.map((organization) => <Tile key={organization.id}>
-                <div className="section-heading">
-                  <div><h3>{organization.name}</h3><p>{organization.kind} · {organization.active ? 'Active' : 'Inactive'}</p></div>
-                  <div className="button-cluster">
-                    {canManageOrganizations && <Button kind="ghost" size="sm" renderIcon={Edit} onClick={() => editOrganization(organization)}>Edit</Button>}
-                    {canReadPricing && pricing.data ? <Select
-                      id={`organization-pricing-${organization.id}`}
-                      labelText="Default pricing group"
-                      value={organization.pricingGroup?.id ?? ''}
-                      disabled={!canManagePricing || assignmentMutation.isPending}
-                      onChange={(event) => assignmentMutation.mutate({ organizationId: organization.id, pricingGroupId: event.target.value, expectedVersion: organization.pricingGroupAssignmentVersion })}
-                    >
-                      <SelectItem value="" text="Use global default" />
-                      {groups.filter((group) => group.active || group.id === organization.pricingGroup?.id).map((group) => <SelectItem key={group.id} value={group.id} text={group.name} />)}
-                    </Select> : <p className="section-description">Pricing group: {organization.pricingGroup?.name ?? 'Global default'}</p>}
-                  </div>
-                </div>
-              </Tile>)}
-            </div>
-            {assignmentMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Pricing assignment not saved" subtitle="The assignment may have changed. Refresh the organizations and try again." />}
-            {canReadPricing && pricing.isError && <InlineNotification kind="warning" lowContrast hideCloseButton title="Pricing groups unavailable" subtitle="Organization editing is still available." />}
-            <Pagination page={organizationPage} pageSize={organizationPageSize} pageSizes={[25, 50, 100]} totalItems={organizations.data.total} onChange={({ page, pageSize }) => { setOrganizationPage(page); setOrganizationPageSize(pageSize); }} />
-          </Stack>}
-        </TabPanel> : null,
-        canReadPricing ? <TabPanel key="pricing">
+  return <PageShell title="Machines configuration" description="Pricing groups and explicit rates." breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Machines' }]} width="wide" className="machine-logbook-page machine-configuration-page">
+    {canOpenOrganizations && <p className="section-description">Organizations have moved to <CarbonLink as={Link} to="/organizations">Directory › Organizations</CarbonLink>.</p>}
+    {canReadPricing && <>
           {pricing.isPending ? <FullPageLoading label="Loading pricing groups" /> : pricing.isError ? <ErrorState message="Pricing groups could not be loaded." onRetry={() => pricing.refetch()} /> : <Stack gap={5}>
             <div className="section-heading">
               <div><h2>Pricing groups</h2><p className="section-description">Rates are exact decimals. An explicit zero rate means intentionally free.</p></div>
@@ -258,29 +183,7 @@ export function ConfigurationPage() {
               </Tile>)}
             </div>
           </Stack>}
-        </TabPanel> : null].filter(Boolean)}
-      </TabPanels>
-
-    {organizationOpen && <Modal
-      open={!guard.dialogOpen}
-      preventCloseOnClickOutside
-      modalHeading={editingOrganization ? 'Edit organization' : 'Add organization'}
-      primaryButtonText={organizationMutation.isPending ? 'Saving…' : editingOrganization ? 'Save organization' : 'Add organization'}
-      secondaryButtonText="Cancel"
-      primaryButtonDisabled={organizationMutation.isPending}
-      onRequestClose={requestCloseOrganization}
-      onRequestSubmit={organizationForm.handleSubmit((values) => { if (!organizationMutation.isPending) organizationMutation.mutate(values); })}
-    >
-      <Stack gap={5}>
-        <TextInput id="organization-name" labelText="Name" {...organizationForm.register('name', { required: true })} />
-        <Select id="organization-kind" labelText="Type" {...organizationForm.register('kind')}>
-          <SelectItem value="company" text="Company" /><SelectItem value="institute" text="Institute" /><SelectItem value="association" text="Association" /><SelectItem value="other" text="Other" />
-        </Select>
-        {editingOrganization && <p>Deactivating an organization removes it from new billing selections. Existing jobs, orders, and history remain.</p>}
-        {editingOrganization && <Controller control={organizationForm.control} name="active" render={({ field }) => <Toggle id="organization-active" labelText="Active" labelA="Inactive" labelB="Active" toggled={field.value} onToggle={field.onChange} />} />}
-        {organizationMutation.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Organization not saved" subtitle="It may have changed. Reload and retry with the latest version." />}
-      </Stack>
-    </Modal>}
+    </>}
 
     {groupOpen && <Modal
       open={!guard.dialogOpen}
@@ -340,6 +243,5 @@ export function ConfigurationPage() {
       </Stack>
     </Modal>}
     <UnsavedChangesDialog guard={guard} />
-    </PageShell>
-  </Tabs>;
+  </PageShell>;
 }

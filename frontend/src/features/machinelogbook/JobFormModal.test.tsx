@@ -54,6 +54,30 @@ describe('JobFormModal', () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
   });
 
+  it('suggests the single organization of the chosen person and switches only on request', async () => {
+    const person = { kind: 'person' as const, id: ids.operator, displayName: 'Maria Hoffmann', pricingGroupAssignmentVersion: 0, memberOrganizations: [{ id: ids.organization, name: 'TU Berlin' }] };
+    const twoOrganizations = { ...person, id: ids.job, displayName: 'Jonas Weber', memberOrganizations: [{ id: ids.organization, name: 'TU Berlin' }, { id: ids.otherJob, name: 'HU Berlin' }] };
+    server.use(
+      http.get('*/api/v1/billing-parties', () => HttpResponse.json({ items: [person, twoOrganizations] })),
+      ...lookups,
+    );
+    const user = userEvent.setup();
+    renderRoute(<ToastProvider><JobFormModal open mode="create" onClose={() => undefined} run={recordedRun()} /></ToastProvider>);
+    const dialog = await screen.findByRole('dialog');
+    const customerField = within(dialog).getByPlaceholderText('Search people or organizations');
+    await user.click(customerField);
+    await user.click(await screen.findByText('Jonas Weber'));
+    // Two organizations are ambiguous: no suggestion.
+    expect(within(dialog).queryByRole('button', { name: /^Bill to/ })).not.toBeInTheDocument();
+    await user.clear(customerField);
+    await user.click(await screen.findByText('Maria Hoffmann'));
+    expect(customerField).toHaveValue('Maria Hoffmann');
+    expect(within(dialog).getByText('Maria Hoffmann belongs to TU Berlin.')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Bill to TU Berlin' }));
+    expect(customerField).toHaveValue('TU Berlin');
+    expect(within(dialog).queryByRole('button', { name: /^Bill to/ })).not.toBeInTheDocument();
+  });
+
   it('edits the job facts and an outcome override, never times or material, and keeps an empty override as null', async () => {
     let body: UpdateMachineJobRequest | undefined;
     server.use(

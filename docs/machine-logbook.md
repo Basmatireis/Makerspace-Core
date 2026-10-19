@@ -24,7 +24,9 @@ A printer profile holds the printing switch, an optional model (`bambu_h2d`, `ba
 
 Requested slot statuses are `available` or `unavailable`; `retired` only results from omitting a slot. Unchanged rows keep their version. The existing single-row endpoints for units and slots keep working. `GET /machines/{machineId}/printer/live-status` (`machines.read`) returns the latest connector snapshot (see the [printer connector](printer-connector.md#live-status)).
 
-Organizations are versioned billing parties with the type **company**, **institute**, **association**, or **other**. An identified job customer is either a Person or an Organization, represented by two mutually exclusive nullable foreign keys. Anonymous counter-sale jobs may omit both. Operators are People with enabled Accounts. Customer and operator searches return only identifiers and display names needed for assignment.
+Organizations are versioned billing parties with the type **company**, **institute**, **association**, or **other**. An identified job customer is either a Person or an Organization, represented by two mutually exclusive nullable foreign keys. Anonymous counter-sale jobs may omit both. Operators are People with enabled Accounts.
+
+Organizations also carry an invoice address (address line, postal code, locality, ISO country code), an invoice contact name and an optional contact email; empty strings mean "not set". `PATCH /organizations/{id}` leaves omitted detail fields unchanged and clears a field when given an empty string. The purchase-order requirement stays in `organization_invoicing_requirements` (see [Orders](orders.md)) and is read and written through `/organizations/{id}/invoicing-requirements`; the organization page uses both endpoints. People can be associated with an organization (`organization_members`, unique per pair, removed with either side). Membership is informational: it never restricts who may bill an organization. It feeds the overview on the organization page and the job form, where choosing a person who belongs to exactly one active organization offers a one-click "Bill to <organization>" (the billing-party search returns `memberOrganizations` for people; nothing is switched automatically). Organizations are created, edited and assigned a pricing group on the **Directory › Organizations** pages (`/organizations`, `/organizations/:id`), not in Settings. Customer and operator searches return only identifiers and display names needed for assignment.
 
 Person references use ON DELETE SET NULL. Hard-deleting a Person therefore removes their PII without deleting non-PII machine, timing, usage, price, or inventory facts. Jobs do not retain person-name snapshots. Referenced Organizations are deactivated instead of deleted.
 
@@ -84,13 +86,13 @@ The module registers:
 - **machine_jobs.read**, **machine_jobs.create**, **machine_jobs.edit**, **machine_jobs.override_price** (price adjustments)
 - **inventory.read**, **inventory.manage**
 - **filament_spools.manage**, **printer_slots.assign**
-- **organizations.read**, **organizations.manage**
+- **organizations.read**, **organizations.manage** (read covers the organization, its address and contact, and its people list; manage covers create, update and member changes)
 - **pricing.read**, **pricing.manage**
 - **statistics.read**
 
 Frontend gates are presentation only. Services authorize every operation, including the minimal party/operator lookups used for create and Order payer selection. Minimal lookups also accept `orders.read`.
 
-Catalog, organization, pricing, job, run attach/detach/create, reassignment, correction, price adjustment, purchase, consumption, adjustment, disposal, and mark-empty mutations write an audit event in the same transaction. Audit metadata contains changed field names and non-sensitive identifiers only. It does not duplicate names, free-text notes, search text, external metadata, or override reasons.
+Catalog, organization (including member add/remove; audit names only the changed fields, never the member or address values), pricing, job, run attach/detach/create, reassignment, correction, price adjustment, purchase, consumption, adjustment, disposal, and mark-empty mutations write an audit event in the same transaction. Audit metadata contains changed field names and non-sensitive identifiers only. It does not duplicate names, free-text notes, search text, external metadata, or override reasons.
 
 ## Work items and machine activity
 
@@ -107,7 +109,7 @@ Catalog, organization, pricing, job, run attach/detach/create, reassignment, cor
 The OpenAPI resource groups are:
 
 - **/machine-types**, **/machines**
-- **/organizations**, **/billing-parties**, **/machine-job-operators**
+- **/organizations** (list with `search`, `active`, `kind`, `pricingGroupId` filters; `GET`/`PATCH /organizations/{id}`; `GET`/`POST /organizations/{id}/members`; `DELETE /organizations/{id}/members/{personId}`), **/billing-parties**, **/machine-job-operators**
 - **/pricing-groups**, **/pricing-rules**, **/billing-party-pricing-group**
 - **/machine-jobs** with run creation (`POST /machine-jobs/{id}/runs`), price-adjustment, confirm, and Order-association subresources
 - **/machine-runs** with list, detail, patch, delete, usages, cancellation, and job attach, detach, and create subresources

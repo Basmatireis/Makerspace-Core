@@ -45,8 +45,8 @@ describe('settings navigation', () => {
     expect(canAccessSettings(currentUserFixture([PermissionId.auditread]))).toBe(false);
   });
 
-  it('allows independently authorized organization and pricing configuration', () => {
-    expect(canAccessSettings(currentUserFixture([PermissionId.organizationsread]))).toBe(true);
+  it('allows pricing configuration but not the Directory-owned organizations', () => {
+    expect(canAccessSettings(currentUserFixture([PermissionId.organizationsread]))).toBe(false);
     expect(canAccessSettings(currentUserFixture([PermissionId.pricingread]))).toBe(true);
     expect(canAccessSettings(currentUserFixture([PermissionId.machinesread]))).toBe(false);
     expect(canAccessSettings(currentUserFixture([PermissionId.organizationsmanage, PermissionId.pricingmanage]))).toBe(false);

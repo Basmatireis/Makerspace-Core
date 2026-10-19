@@ -306,7 +306,7 @@ const pricingGroup = {
   version: 1, createdAt: created, updatedAt: created,
 };
 const organization = {
-  id: ids.customer, name: 'TU Berlin', kind: 'institute', active: true, pricingGroup: { id: ids.pricingGroup, name: pricingGroup.name }, pricingGroupAssignmentVersion: 1, version: 1, createdAt: created, updatedAt: created,
+  id: ids.customer, name: 'TU Berlin', kind: 'institute', active: true, addressLine: '', postalCode: '', locality: '', countryCode: '', contactName: '', contactEmail: '', memberCount: 0, pricingGroup: { id: ids.pricingGroup, name: pricingGroup.name }, pricingGroupAssignmentVersion: 1, version: 1, createdAt: created, updatedAt: created,
 };
 
 function paginate<T>(items: T[], params: URLSearchParams) {

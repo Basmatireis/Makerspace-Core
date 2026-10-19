@@ -66,7 +66,10 @@ WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
 -- name: CreateOrganization :one
-INSERT INTO organizations (id, name, kind) VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(kind)) RETURNING *;
+INSERT INTO organizations (id, name, kind, address_line, postal_code, locality, country_code, contact_name, contact_email)
+VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(kind), sqlc.arg(address_line), sqlc.arg(postal_code), sqlc.arg(locality),
+        sqlc.arg(country_code), sqlc.arg(contact_name), sqlc.arg(contact_email))
+RETURNING *;
 
 -- name: GetOrganization :one
 SELECT * FROM organizations WHERE id = sqlc.arg(id);
@@ -74,27 +77,66 @@ SELECT * FROM organizations WHERE id = sqlc.arg(id);
 -- name: GetOrganizationForUpdate :one
 SELECT * FROM organizations WHERE id = sqlc.arg(id) FOR UPDATE;
 
+-- name: GetOrganizationDetail :one
+SELECT o.*, pg.id AS pricing_group_id, pg.name AS pricing_group_name,
+       COALESCE(a.version, 0)::bigint AS pricing_group_assignment_version,
+       (SELECT count(*) FROM organization_members m WHERE m.organization_id = o.id)::bigint AS member_count
+FROM organizations o
+LEFT JOIN organization_pricing_group_assignments a ON a.organization_id = o.id
+LEFT JOIN pricing_groups pg ON pg.id = a.pricing_group_id
+WHERE o.id = sqlc.arg(id);
+
 -- name: ListOrganizations :many
 SELECT o.*, pg.id AS pricing_group_id, pg.name AS pricing_group_name,
-       COALESCE(a.version, 0)::bigint AS pricing_group_assignment_version
+       COALESCE(a.version, 0)::bigint AS pricing_group_assignment_version,
+       (SELECT count(*) FROM organization_members m WHERE m.organization_id = o.id)::bigint AS member_count
 FROM organizations o
 LEFT JOIN organization_pricing_group_assignments a ON a.organization_id = o.id
 LEFT JOIN pricing_groups pg ON pg.id = a.pricing_group_id
 WHERE (sqlc.arg(search)::text = '' OR lower(o.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
   AND (sqlc.narg(active)::boolean IS NULL OR o.active = sqlc.narg(active)::boolean)
+  AND (sqlc.narg(kind)::text IS NULL OR o.kind = sqlc.narg(kind)::text)
+  AND (sqlc.narg(pricing_group_id)::uuid IS NULL OR a.pricing_group_id = sqlc.narg(pricing_group_id)::uuid)
 ORDER BY o.active DESC, lower(o.name), o.id
 LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 
 -- name: CountOrganizations :one
 SELECT count(*) FROM organizations o
+LEFT JOIN organization_pricing_group_assignments a ON a.organization_id = o.id
 WHERE (sqlc.arg(search)::text = '' OR lower(o.name) LIKE '%' || lower(sqlc.arg(search)::text) || '%')
-  AND (sqlc.narg(active)::boolean IS NULL OR o.active = sqlc.narg(active)::boolean);
+  AND (sqlc.narg(active)::boolean IS NULL OR o.active = sqlc.narg(active)::boolean)
+  AND (sqlc.narg(kind)::text IS NULL OR o.kind = sqlc.narg(kind)::text)
+  AND (sqlc.narg(pricing_group_id)::uuid IS NULL OR a.pricing_group_id = sqlc.narg(pricing_group_id)::uuid);
 
 -- name: UpdateOrganization :one
 UPDATE organizations SET name = sqlc.arg(name), kind = sqlc.arg(kind), active = sqlc.arg(active),
+    address_line = sqlc.arg(address_line), postal_code = sqlc.arg(postal_code), locality = sqlc.arg(locality),
+    country_code = sqlc.arg(country_code), contact_name = sqlc.arg(contact_name), contact_email = sqlc.arg(contact_email),
     version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
+
+-- name: ListOrganizationMembers :many
+SELECT m.person_id, btrim(p.first_name || ' ' || p.last_name) AS display_name, m.added_at
+FROM organization_members m JOIN people p ON p.id = m.person_id
+WHERE m.organization_id = sqlc.arg(organization_id)
+ORDER BY lower(p.last_name), lower(p.first_name), p.id;
+
+-- name: AddOrganizationMember :one
+INSERT INTO organization_members (organization_id, person_id)
+VALUES (sqlc.arg(organization_id), sqlc.arg(person_id))
+RETURNING added_at;
+
+-- name: RemoveOrganizationMember :one
+DELETE FROM organization_members
+WHERE organization_id = sqlc.arg(organization_id) AND person_id = sqlc.arg(person_id)
+RETURNING person_id;
+
+-- name: ListActiveOrganizationsOfPeople :many
+SELECT m.person_id, o.id AS organization_id, o.name AS organization_name
+FROM organization_members m JOIN organizations o ON o.id = m.organization_id
+WHERE o.active AND m.person_id = ANY(sqlc.arg(person_ids)::uuid[])
+ORDER BY m.person_id, lower(o.name), o.id;
 
 -- name: SearchBillingParties :many
 SELECT party_kind, party_id, display_name, organization_kind, pricing_group_id, pricing_group_name,

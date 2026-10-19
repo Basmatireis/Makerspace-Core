@@ -86,7 +86,6 @@ export const settingsPermissions: readonly PermissionIdType[] = [
   PermissionId.oidcmanage,
   PermissionId.mailmanage,
   PermissionId.brandingmanage,
-  PermissionId.organizationsread,
   PermissionId.pricingread,
 ];
 

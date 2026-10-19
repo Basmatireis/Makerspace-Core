@@ -3,14 +3,14 @@ import { getMachineLogbookOverview, getMachineLogbookStatistics, listMachineActi
 import { getMachineJob, listMachineJobs, searchMachineJobOperators } from '../../api/generated/machine-jobs/machine-jobs';
 import { getMachine, listMachineTypes, listMachines } from '../../api/generated/machines/machines';
 import { getMaterial, listMaterials, listMaterialTransactions } from '../../api/generated/inventory/inventory';
-import { listOrganizations, searchBillingParties } from '../../api/generated/organizations/organizations';
+import { searchBillingParties } from '../../api/generated/organizations/organizations';
 import { listPricingGroups } from '../../api/generated/pricing/pricing';
 import { getFilamentSpool, listFilamentSpoolTransactions, listFilamentSpools } from '../../api/generated/filament-spools/filament-spools';
 import { getFilamentProduct, listFilamentProducts } from '../../api/generated/filament-products/filament-products';
 import { getMachineRun, listMachineRuns } from '../../api/generated/machine-runs/machine-runs';
 import { getPrinterProfile } from '../../api/generated/printing/printing';
 import { getPrintArtifact } from '../../api/generated/print-artifacts/print-artifacts';
-import type { GetMachineLogbookStatisticsParams, ListFilamentProductsParams, ListFilamentSpoolsParams, ListMachineJobsParams, ListMachineLogbookWorkItemsParams, ListMachinesParams, ListMaterialsParams, ListOrganizationsParams, ListMachineRunsParams } from '../../api/generated/models';
+import type { GetMachineLogbookStatisticsParams, ListFilamentProductsParams, ListFilamentSpoolsParams, ListMachineJobsParams, ListMachineLogbookWorkItemsParams, ListMachinesParams, ListMaterialsParams, ListMachineRunsParams } from '../../api/generated/models';
 
 export const machineLogbookKeys = {
   all: ['machine-logbook'] as const,
@@ -34,7 +34,6 @@ export const machineLogbookKeys = {
   artifact: (id: string) => [...machineLogbookKeys.all, 'artifact', id] as const,
   products: (params: ListFilamentProductsParams) => [...machineLogbookKeys.all, 'products', params] as const,
   product: (id: string) => [...machineLogbookKeys.all, 'product', id] as const,
-  organizations: (params: ListOrganizationsParams) => [...machineLogbookKeys.all, 'organizations', params] as const,
   pricing: () => [...machineLogbookKeys.all, 'pricing'] as const,
   statistics: (params: GetMachineLogbookStatisticsParams) => [...machineLogbookKeys.all, 'statistics', params] as const,
 };
@@ -59,7 +58,6 @@ export const runQuery = (id: string) => queryOptions({ queryKey: machineLogbookK
 export const artifactQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.artifact(id), queryFn: ({ signal }) => getPrintArtifact(id, { signal }) });
 export const productsQuery = (params: ListFilamentProductsParams) => queryOptions({ queryKey: machineLogbookKeys.products(params), queryFn: ({ signal }) => listFilamentProducts(params, { signal }) });
 export const productQuery = (id: string) => queryOptions({ queryKey: machineLogbookKeys.product(id), queryFn: ({ signal }) => getFilamentProduct(id, { signal }) });
-export const organizationsQuery = (params: ListOrganizationsParams) => queryOptions({ queryKey: machineLogbookKeys.organizations(params), queryFn: () => listOrganizations(params) });
 export const pricingQuery = () => queryOptions({ queryKey: machineLogbookKeys.pricing(), queryFn: () => listPricingGroups() });
 export const statisticsQuery = (params: GetMachineLogbookStatisticsParams) => queryOptions({ queryKey: machineLogbookKeys.statistics(params), queryFn: () => getMachineLogbookStatistics(params) });
 export const billingPartySearchQuery = (search: string) => queryOptions({ queryKey: [...machineLogbookKeys.all, 'billing-parties', search], queryFn: () => searchBillingParties({ search, limit: 25 }) });

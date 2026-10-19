@@ -30,4 +30,16 @@ export interface UpdateOrganizationRequest {
   name: string;
   kind: OrganizationKind;
   active: boolean;
+  /** @maxLength 200 */
+  addressLine?: string;
+  /** @maxLength 20 */
+  postalCode?: string;
+  /** @maxLength 100 */
+  locality?: string;
+  /** @maxLength 2 */
+  countryCode?: string;
+  /** @maxLength 200 */
+  contactName?: string;
+  /** @maxLength 254 */
+  contactEmail?: string;
 }

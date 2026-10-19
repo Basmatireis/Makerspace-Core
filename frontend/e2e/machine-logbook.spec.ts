@@ -4,20 +4,10 @@ import { ids } from './machines-jobs-api';
 const widths = [320, 390, 414, 768, 1440];
 
 for (const width of widths) {
-  test(`configuration keeps unsaved edits and stays usable at ${width}px`, async ({ page }, testInfo) => {
+  test(`pricing configuration stays usable at ${width}px`, async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/settings/machine-logbook');
-    await page.getByRole('button', { name: 'Edit', exact: true }).click();
-    await page.getByRole('textbox', { name: 'Name', exact: true }).fill('Preserved organization draft');
-    await page.keyboard.press('Escape');
-    await expect(page.getByRole('alertdialog')).toBeVisible();
-    await expect(page.getByRole('dialog')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Keep editing', exact: true }).click();
-    await expect(page.getByRole('textbox', { name: 'Name', exact: true })).toHaveValue('Preserved organization draft');
-    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-    await page.getByRole('button', { name: 'Discard changes', exact: true }).click();
-    await page.getByRole('tab', { name: 'Pricing groups' }).click();
     await expect(page.getByRole('heading', { name: 'Partner institute', exact: true })).toBeVisible();
     await expectNoHorizontalScroll(page);
     await expectNoAccessibilityViolations(page);

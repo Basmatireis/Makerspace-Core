@@ -28,6 +28,18 @@ export interface Organization {
   name: string;
   kind: OrganizationKind;
   active: boolean;
+  /** Invoice address line; empty when not set. */
+  addressLine: string;
+  postalCode: string;
+  locality: string;
+  /** ISO 3166-1 alpha-2 code; empty when not set. */
+  countryCode: string;
+  /** Invoice contact person; empty when not set. */
+  contactName: string;
+  /** Invoice contact email; empty when not set. */
+  contactEmail: string;
+  /** @minimum 0 */
+  memberCount: number;
   pricingGroup?: PricingGroupSummary;
   /** @minimum 0 */
   pricingGroupAssignmentVersion: number;

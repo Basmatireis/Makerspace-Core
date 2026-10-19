@@ -24,9 +24,10 @@ describe('AppNavigation', () => {
     expect(screen.queryByRole('button', { name: 'Workshop' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Sales & payments' })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'People' }));
+    await user.click(screen.getByRole('button', { name: 'Directory' }));
     expect(screen.getByRole('link', { name: 'Staffing' })).toHaveAttribute('href', '/people/staffing');
-    expect(screen.queryByRole('link', { name: 'Directory' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'People' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Organizations' })).not.toBeInTheDocument();
   });
 
   it('lists the Workshop destinations in order and gates each by its permission', () => {

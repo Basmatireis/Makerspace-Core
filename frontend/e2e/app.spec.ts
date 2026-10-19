@@ -405,8 +405,8 @@ test('shows promoted Directory navigation and exposes self-service profile acces
   });
 
   await page.goto('/people');
-  await expect(page.getByRole('heading', { name: 'Directory', exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Directory' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'People', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'People', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Settings' })).toHaveCount(0);
   await expectNoSeriousAccessibilityViolations(page);
 
@@ -521,7 +521,7 @@ test('opens responsive Directory filters for roles, Lab Rules, and account statu
   await filterButton.click();
   await expect(filterButton).toHaveAttribute('aria-expanded', 'true');
 
-  const filters = page.getByRole('region', { name: 'Directory filters' });
+  const filters = page.getByRole('region', { name: 'People filters' });
   const roleFilter = filters.getByRole('combobox', { name: 'Role' });
   const labRulesFilter = filters.getByRole('combobox', { name: 'Lab Rules' });
   const statusFilter = filters.getByRole('combobox', { name: 'Status' });
@@ -570,13 +570,13 @@ test('renders the Directory-styled Members table without summary statistics', as
   await expect(page.getByText('Member readiness')).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Designated supervisors' })).toHaveCount(0);
   const toolbar = page.getByLabel('Members table toolbar');
-  const directoryButton = page.getByRole('button', { name: 'Directory' });
+  const directoryButton = page.getByRole('button', { name: 'People' });
   await expect(toolbar).toBeVisible();
   const periodSelector = toolbar.getByRole('combobox', { name: 'Open Days period' });
   await expect(periodSelector).toBeVisible();
   await expect(periodSelector).toHaveAttribute('title', 'Autumn Open Days');
-  await expect(toolbar.getByRole('button', { name: 'Directory' })).toBeVisible();
-  await expect(page.locator('.page-header').getByRole('button', { name: 'Directory' })).toHaveCount(0);
+  await expect(toolbar.getByRole('button', { name: 'People' })).toBeVisible();
+  await expect(page.locator('.page-header').getByRole('button', { name: 'People' })).toHaveCount(0);
   await expect(directoryButton).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /Member$/ })).toBeVisible();
   await expect(page.getByRole('columnheader', { name: /Supervisor$/ })).toBeVisible();

@@ -78,6 +78,8 @@ const VisitorEnrollmentSettingsPage = lazy(() => import('../features/visitor/Vis
 const MailSettingsPage = lazy(() => import('../features/mail/MailSettingsPage').then(({ MailSettingsPage }) => ({ default: MailSettingsPage })));
 const BrandingLegalSettingsPage = lazy(() => import('../features/branding/BrandingLegalSettingsPage').then(({ BrandingLegalSettingsPage }) => ({ default: BrandingLegalSettingsPage })));
 const ConfigurationPage = lazy(() => import('../features/machinelogbook/ConfigurationPage').then(({ ConfigurationPage }) => ({ default: ConfigurationPage })));
+const OrganizationsPage = lazy(() => import('../features/organizations/OrganizationsPage').then(({ OrganizationsPage }) => ({ default: OrganizationsPage })));
+const OrganizationDetailPage = lazy(() => import('../features/organizations/OrganizationDetailPage').then(({ OrganizationDetailPage }) => ({ default: OrganizationDetailPage })));
 const UsersPage = lazy(() => import('../features/users/UsersPage').then(({ UsersPage }) => ({ default: UsersPage })));
 const SupervisorStaffingPage = lazy(() => import('../features/users/SupervisorStaffingPage').then(({ SupervisorStaffingPage }) => ({ default: SupervisorStaffingPage })));
 const UserCreatePage = lazy(() => import('../features/users/UserCreatePage').then(({ UserCreatePage }) => ({ default: UserCreatePage })));
@@ -224,10 +226,18 @@ export function App() {
         <Route path="settings/visitor-enrollment" element={<PermissionRoute allOf={[PermissionId.visitor_enrollmentmanage]}><VisitorEnrollmentSettingsPage /></PermissionRoute>} />
         <Route path="settings/mail" element={<PermissionRoute allOf={[PermissionId.mailmanage]}><MailSettingsPage /></PermissionRoute>} />
         <Route path="settings/branding-legal" element={<PermissionRoute allOf={[PermissionId.brandingmanage]}><BrandingLegalSettingsPage /></PermissionRoute>} />
-        <Route path="settings/machine-logbook" element={<PermissionRoute anyOf={[PermissionId.organizationsread, PermissionId.pricingread]}><ConfigurationPage /></PermissionRoute>} />
+        <Route path="settings/machine-logbook" element={<PermissionRoute allOf={[PermissionId.pricingread]}><ConfigurationPage /></PermissionRoute>} />
         <Route
           path="people"
           element={<PermissionRoute allOf={[PermissionId.peoplereadall]}><UsersPage /></PermissionRoute>}
+        />
+        <Route
+          path="organizations"
+          element={<PermissionRoute allOf={[PermissionId.organizationsread]}><OrganizationsPage /></PermissionRoute>}
+        />
+        <Route
+          path="organizations/:organizationId"
+          element={<PermissionRoute allOf={[PermissionId.organizationsread]}><OrganizationDetailPage /></PermissionRoute>}
         />
         <Route
           path="people/staffing"

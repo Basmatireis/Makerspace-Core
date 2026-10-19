@@ -16,6 +16,7 @@ type Querier interface {
 	ActivatePricingSnapshot(ctx context.Context, arg ActivatePricingSnapshotParams) (MachineJob, error)
 	ActiveOrganizationExists(ctx context.Context, id uuid.UUID) (bool, error)
 	AddFilamentSpoolIdentifier(ctx context.Context, arg AddFilamentSpoolIdentifierParams) (FilamentSpoolIdentifier, error)
+	AddOrganizationMember(ctx context.Context, arg AddOrganizationMemberParams) (time.Time, error)
 	AllocatedMaterialQuantity(ctx context.Context, materialID uuid.UUID) (pgtype.Numeric, error)
 	ArchiveFilamentSpool(ctx context.Context, arg ArchiveFilamentSpoolParams) (FilamentSpool, error)
 	AssignRunToJob(ctx context.Context, arg AssignRunToJobParams) (MachineRun, error)
@@ -84,6 +85,7 @@ type Querier interface {
 	GetMaterialForUpdate(ctx context.Context, id uuid.UUID) (GetMaterialForUpdateRow, error)
 	GetOpenFilamentSpoolFill(ctx context.Context, spoolID uuid.UUID) (GetOpenFilamentSpoolFillRow, error)
 	GetOrganization(ctx context.Context, id uuid.UUID) (Organization, error)
+	GetOrganizationDetail(ctx context.Context, id uuid.UUID) (GetOrganizationDetailRow, error)
 	GetOrganizationForUpdate(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationPricingGroup(ctx context.Context, organizationID uuid.UUID) (PricingGroup, error)
 	GetPersonPricingGroup(ctx context.Context, personID uuid.UUID) (PricingGroup, error)
@@ -107,6 +109,7 @@ type Querier interface {
 	// or while it is claimed, whatever the state of the order.
 	JobIsOnOrder(ctx context.Context, jobID uuid.UUID) (bool, error)
 	ListActiveJobRunIDs(ctx context.Context, jobID *uuid.UUID) ([]uuid.UUID, error)
+	ListActiveOrganizationsOfPeople(ctx context.Context, personIds []uuid.UUID) ([]ListActiveOrganizationsOfPeopleRow, error)
 	ListActiveRunUsagesForUpdate(ctx context.Context, runID uuid.UUID) ([]MachineRunUsage, error)
 	ListClosedFilamentSpoolFills(ctx context.Context, spoolID uuid.UUID) ([]ListClosedFilamentSpoolFillsRow, error)
 	ListFilamentProducts(ctx context.Context, arg ListFilamentProductsParams) ([]ListFilamentProductsRow, error)
@@ -126,6 +129,7 @@ type Querier interface {
 	ListMachineTypes(ctx context.Context) ([]MachineType, error)
 	ListMachines(ctx context.Context, arg ListMachinesParams) ([]ListMachinesRow, error)
 	ListMaterials(ctx context.Context, arg ListMaterialsParams) ([]ListMaterialsRow, error)
+	ListOrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]ListOrganizationMembersRow, error)
 	ListOrganizations(ctx context.Context, arg ListOrganizationsParams) ([]ListOrganizationsRow, error)
 	ListPricingGroups(ctx context.Context) ([]PricingGroup, error)
 	ListPricingRulesByGroup(ctx context.Context, pricingGroupID uuid.UUID) ([]PricingRule, error)
@@ -149,6 +153,7 @@ type Querier interface {
 	RecalculateMachineJobPrice(ctx context.Context, arg RecalculateMachineJobPriceParams) (MachineJob, error)
 	// Keeps the price of a running job current without bumping its version.
 	RefreshMachineJobPrice(ctx context.Context, arg RefreshMachineJobPriceParams) (MachineJob, error)
+	RemoveOrganizationMember(ctx context.Context, arg RemoveOrganizationMemberParams) (uuid.UUID, error)
 	RetireFillIdentifiers(ctx context.Context, arg RetireFillIdentifiersParams) error
 	SearchBillingParties(ctx context.Context, arg SearchBillingPartiesParams) ([]SearchBillingPartiesRow, error)
 	SearchMachineJobOperators(ctx context.Context, arg SearchMachineJobOperatorsParams) ([]SearchMachineJobOperatorsRow, error)

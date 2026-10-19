@@ -141,7 +141,8 @@ export function SupervisorStaffingPage() {
     <PageShell
       title="Supervisor staffing"
       breadcrumbs={[
-        ...(canOpenPeople ? [{ label: 'Directory', to: '/people' }] : [{ label: 'Directory' }]),
+        { label: 'Directory' },
+        ...(canOpenPeople ? [{ label: 'People', to: '/people' }] : []),
         { label: 'Members' },
       ]}
       description="Profile-picture readiness, Lab Rules status, and staffing across active Open Day periods."
@@ -206,7 +207,7 @@ export function SupervisorStaffingPage() {
                     />
                     {canOpenPeople && (
                       <Button kind="tertiary" onClick={() => navigate('/people')}>
-                        Directory
+                        People
                       </Button>
                     )}
                   </TableToolbarContent>

@@ -71,8 +71,14 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 			return err
 		}},
 		{"inventory.manage products", func() error { _, err := s.CreateFilamentProduct(ctx, p, FilamentProductInput{}, nil); return err }},
-		{"organizations.read", func() error { _, _, err := s.ListOrganizations(ctx, p, "", nil, 1, 25); return err }},
-		{"organizations.manage", func() error { _, err := s.CreateOrganization(ctx, p, "Institute", "institute", nil); return err }},
+		{"organizations.read", func() error {
+			_, _, err := s.ListOrganizations(ctx, p, OrganizationFilters{Page: 1, PageSize: 25})
+			return err
+		}},
+		{"organizations.manage", func() error {
+			_, err := s.CreateOrganization(ctx, p, "Institute", "institute", OrganizationDetailsInput{}, nil)
+			return err
+		}},
 		{"pricing.read", func() error { _, err := s.ListPricingGroups(ctx, p); return err }},
 		{"pricing.manage", func() error { _, err := s.CreatePricingGroup(ctx, p, "Standard", nil, false, nil); return err }},
 		{"statistics.read", func() error { _, err := s.Statistics(ctx, p, now.Add(-time.Hour), now); return err }},
@@ -220,7 +226,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatalf("external filament changed inventory: %+v", afterExternalJob)
 	}
 
-	organization, err := s.CreateOrganization(ctx, p, "Test Institute "+suffix, "institute", &requestID)
+	organization, err := s.CreateOrganization(ctx, p, "Test Institute "+suffix, "institute", OrganizationDetailsInput{}, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,7 +296,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	organization2, err := s.CreateOrganization(ctx, p, "Test Partner "+suffix, "company", &requestID)
+	organization2, err := s.CreateOrganization(ctx, p, "Test Partner "+suffix, "company", OrganizationDetailsInput{}, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}

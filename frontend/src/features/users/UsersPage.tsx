@@ -470,7 +470,8 @@ export function UsersPage() {
 
   return (
     <PageShell
-      title="Directory"
+      title="People"
+      breadcrumbs={[{ label: 'Directory' }, { label: 'People' }]}
       description="Manage people, login accounts, roles, and access."
       width="wide"
     >
@@ -526,7 +527,7 @@ export function UsersPage() {
 
             return (
               <TableContainer className="people-table-container">
-                <TableToolbar className="people-table-toolbar" aria-label="Directory table toolbar">
+                <TableToolbar className="people-table-toolbar" aria-label="People table toolbar">
                   {canBatchManage && (
                     <TableBatchActions {...getBatchActionProps()}>
                       {mayCreateAccounts && (
@@ -630,7 +631,7 @@ export function UsersPage() {
                   </TableToolbarContent>
                 </TableToolbar>
                 {filtersOpen && (
-                  <div id="people-filters" className="people-filter-panel" role="region" aria-label="Directory filters">
+                  <div id="people-filters" className="people-filter-panel" role="region" aria-label="People filters">
                     <div className="people-filter-panel__fields">
                       {mayReadRoles && (
                         <MultiSelect
