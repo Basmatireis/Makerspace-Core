@@ -302,7 +302,7 @@ INSERT INTO signage_pairing_requests (id, code_digest, poll_secret_digest, creat
 VALUES (sqlc.arg(id), sqlc.arg(code_digest), sqlc.arg(poll_secret_digest), sqlc.arg(created_at), sqlc.arg(expires_at));
 
 -- name: DeleteSignagePairingRequestByPollDigest :exec
-DELETE FROM signage_pairing_requests WHERE poll_secret_digest = sqlc.arg(poll_secret_digest);
+DELETE FROM signage_pairing_requests WHERE poll_secret_digest = sqlc.arg(poll_secret_digest) AND claimed_display_id IS NULL;
 
 -- name: GetSignagePairingRequestForPoll :one
 SELECT r.id, r.expires_at, r.claimed_display_id, d.managed_device_id

@@ -67,6 +67,23 @@ func (s *Service) sweepExpired(ctx context.Context) error {
 	return tx.Commit(ctx)
 }
 
+// announcementSweepInterval is the minimum time between two sweeps triggered by player traffic.
+const announcementSweepInterval = 10 * time.Minute
+
+// sweepExpiredThrottled runs sweepExpired at most once per announcementSweepInterval per process,
+// so retention holds even when nobody opens the admin lists. Failures are not fatal for the caller.
+func (s *Service) sweepExpiredThrottled(ctx context.Context) {
+	now := s.now()
+	s.sweepMu.Lock()
+	if !s.lastAnnounceGC.IsZero() && now.Sub(s.lastAnnounceGC) < announcementSweepInterval && !now.Before(s.lastAnnounceGC) {
+		s.sweepMu.Unlock()
+		return
+	}
+	s.lastAnnounceGC = now
+	s.sweepMu.Unlock()
+	_ = s.sweepExpired(ctx)
+}
+
 func (s *Service) statusOf(startsAt time.Time, now time.Time) string {
 	if startsAt.After(now) {
 		return "scheduled"

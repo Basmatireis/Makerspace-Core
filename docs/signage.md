@@ -104,3 +104,14 @@ Separate Vite entry `frontend/player.html` → `src/player/main.tsx`; no Carbon,
 - **Revoked displays.** Revoking a display (or its managed device through the generic endpoint) makes the credential invalid (401); a device without a display answers 404.
 - **Assets.** Served with HTTP Range support when the storage reader is seekable (local storage); S3 storage streams the full body with `Accept-Ranges: none`.
 - **Live.** Open days and events come from the public calendar only (`events.ListUpcomingPublic`: published, planned or confirmed events with a public title, next public session, title/start/location only).
+
+## Security hardening (review follow-up)
+
+- **Pairing rate limits** (in-memory, single instance): 10 codes/hour and 60 polls/minute per client IP (IPv4 by address, IPv6 by /64), 50 open requests, 10 wrong codes per staff account per 15 minutes. The wrong-code counter reserves an attempt before checking the code and refunds it on success, so parallel guesses cannot exceed the limit. Each limiter tracks at most 4096 keys; when full and nothing has expired, new keys are refused (fail closed).
+- **`HTTP_TRUSTED_PROXIES` must be set behind a reverse proxy** (the bundled nginx included). Without it every client appears as the proxy's address and the per-IP limits throttle all displays together.
+- **`SIGNAGE_PAIRING_ALLOWED_CIDRS`** (optional, comma-separated CIDRs): when set, `POST /public/signage/pairing` is answered 403 `pairing_network_denied` unless the client IP (after trusted-proxy resolution) is inside one of the networks. Use it to limit pairing to the makerspace LAN. Polling is unaffected.
+- **Restarting pairing** never deletes a request staff already claimed; it answers 409 `pairing_claimed` and the player collects its credential with the cookie that started the request (5-minute window).
+- **Player rate limits**: 120 requests/minute per device on `/signage/player/*`, 600/minute for asset downloads. `managed_devices.last_seen_at` is written at most every 5 minutes (SQL guard in `TouchManagedDevice`).
+- **Uploads**: raw binary upload routes (signage assets, event files, profile images, branding assets, Laborordnung PDFs, connector artifacts) skip OpenAPI request-body validation (headers are still validated), so unauthenticated bodies are never read; size caps remain. Images are limited to 8192 px per side and 40 megapixels. Asset bytes, file row, asset row and both audit events commit in one transaction.
+- **Publishing** answers 409 `stale_write` when a concurrent change to the display aborts the snapshot transaction.
+- **Announcement retention**: ended announcements are hard-deleted after 30 days, swept from admin reads and (at most every 10 minutes per process) from player live requests.

@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"errors"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -36,6 +38,8 @@ const (
 	claimFailuresPerWindow    = 10
 	claimFailureWindow        = 15 * time.Minute
 	pairingGenerationAttempts = 5
+	pairingPollsPerWindow     = 60
+	pairingPollWindow         = time.Minute
 )
 
 // ErrPairingCodeInvalid is the single answer for unknown, expired, claimed and malformed codes.
@@ -81,64 +85,120 @@ func pairingCodeDigest(code string) []byte {
 	return sum[:]
 }
 
+// maxLimiterKeys bounds the memory of one attemptLimiter. At the cap, expired keys are swept
+// (at most once per minute); if the table is still full, new keys are refused (fail closed)
+// while keys that are already tracked keep working.
+const (
+	maxLimiterKeys     = 4096
+	limiterSweepPeriod = time.Minute
+)
+
 // attemptLimiter is a small in-memory sliding-window counter (single-instance deployment).
 type attemptLimiter struct {
-	mu      sync.Mutex
-	limit   int
-	window  time.Duration
-	entries map[string][]time.Time
+	mu        sync.Mutex
+	limit     int
+	window    time.Duration
+	maxKeys   int
+	entries   map[string][]time.Time
+	lastSweep time.Time
 }
 
 func newAttemptLimiter(limit int, window time.Duration) *attemptLimiter {
-	return &attemptLimiter{limit: limit, window: window, entries: map[string][]time.Time{}}
+	return &attemptLimiter{limit: limit, window: window, maxKeys: maxLimiterKeys, entries: map[string][]time.Time{}}
 }
 
-func (l *attemptLimiter) prune(key string, now time.Time) []time.Time {
-	recent := l.entries[key][:0:0]
-	for _, at := range l.entries[key] {
+// recentLocked drops the expired attempts of key and returns the remaining ones. It never
+// touches other keys.
+func (l *attemptLimiter) recentLocked(key string, now time.Time) []time.Time {
+	attempts, ok := l.entries[key]
+	if !ok {
+		return nil
+	}
+	recent := attempts[:0:0]
+	for _, at := range attempts {
 		if now.Sub(at) < l.window {
 			recent = append(recent, at)
 		}
 	}
 	if len(recent) == 0 {
 		delete(l.entries, key)
-	} else {
-		l.entries[key] = recent
+		return nil
 	}
-	if len(l.entries) > 4096 {
-		for other := range l.entries {
-			if other != key && len(l.prune(other, now)) == 0 {
-				delete(l.entries, other)
-			}
-		}
-	}
+	l.entries[key] = recent
 	return recent
 }
 
-// blocked reports whether key already used up its attempts.
+// sweepLocked removes every key without a live attempt.
+func (l *attemptLimiter) sweepLocked(now time.Time) {
+	l.lastSweep = now
+	for key := range l.entries {
+		l.recentLocked(key, now)
+	}
+}
+
+// admitsNewKeyLocked reports whether there is room to track a key that is not in the table yet,
+// sweeping expired keys first when the table is full.
+func (l *attemptLimiter) admitsNewKeyLocked(key string, now time.Time) bool {
+	if _, tracked := l.entries[key]; tracked || len(l.entries) < l.maxKeys {
+		return true
+	}
+	if now.Sub(l.lastSweep) >= limiterSweepPeriod || now.Before(l.lastSweep) {
+		l.sweepLocked(now)
+	}
+	return len(l.entries) < l.maxKeys
+}
+
+// blocked reports whether key already used up its attempts (or cannot be tracked at all).
 func (l *attemptLimiter) blocked(key string, now time.Time) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return len(l.prune(key, now)) >= l.limit
-}
-
-// record counts one attempt for key.
-func (l *attemptLimiter) record(key string, now time.Time) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.prune(key, now)
-	l.entries[key] = append(l.entries[key], now)
+	if len(l.recentLocked(key, now)) >= l.limit {
+		return true
+	}
+	return !l.admitsNewKeyLocked(key, now)
 }
 
 // take counts an attempt and reports whether it was within the limit.
 func (l *attemptLimiter) take(key string, now time.Time) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if len(l.prune(key, now)) >= l.limit {
+	if len(l.recentLocked(key, now)) >= l.limit || !l.admitsNewKeyLocked(key, now) {
 		return false
 	}
 	l.entries[key] = append(l.entries[key], now)
 	return true
+}
+
+// refund gives back one attempt that take counted at the given time.
+func (l *attemptLimiter) refund(key string, at time.Time) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	attempts := l.entries[key]
+	for index, candidate := range attempts {
+		if candidate.Equal(at) {
+			attempts = append(attempts[:index:index], attempts[index+1:]...)
+			break
+		}
+	}
+	if len(attempts) == 0 {
+		delete(l.entries, key)
+	} else {
+		l.entries[key] = attempts
+	}
+}
+
+// limiterKeyForIP maps a client address to its rate-limit key: IPv4 by full address, IPv6 by /64
+// (one subscriber typically controls a whole /64, so per-address keys would be free to mint).
+func limiterKeyForIP(raw string) string {
+	address, err := netip.ParseAddr(strings.TrimSpace(raw))
+	if err != nil {
+		return "unknown"
+	}
+	address = address.WithZone("").Unmap()
+	if address.Is6() {
+		return netip.PrefixFrom(address, 64).Masked().String()
+	}
+	return address.String()
 }
 
 // PairingStart is what an unpaired player receives: the code to show and the secret that proves
@@ -153,10 +213,7 @@ type PairingStart struct {
 // limit; pollSecret is the cookie value of a previous request of the same player, which is replaced.
 func (s *Service) StartPairing(ctx context.Context, clientIP, previousPollSecret string) (PairingStart, error) {
 	now := s.now()
-	if clientIP == "" {
-		clientIP = "unknown"
-	}
-	if !s.pairingRequests.take(clientIP, now) {
+	if !s.pairingRequests.take(limiterKeyForIP(clientIP), now) {
 		return PairingStart{}, rateLimited("Too many pairing requests; try again later")
 	}
 	for attempt := 0; attempt < pairingGenerationAttempts; attempt++ {
@@ -192,6 +249,13 @@ func (s *Service) tryStartPairing(ctx context.Context, now time.Time, previousPo
 		return PairingStart{}, err
 	}
 	if previousPollSecret != "" {
+		// A request that staff already claimed stays collectable by the cookie that started it
+		// until its delivery window ends; restarting must not destroy (or orphan) it.
+		if previous, err := q.GetSignagePairingRequestForPoll(ctx, security.DigestToken(previousPollSecret)); err == nil && previous.ClaimedDisplayID != nil {
+			return PairingStart{}, apperror.New(409, "pairing_claimed", "This display was already claimed; collect its credential instead of restarting")
+		} else if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return PairingStart{}, err
+		}
 		if err := q.DeleteSignagePairingRequestByPollDigest(ctx, security.DigestToken(previousPollSecret)); err != nil {
 			return PairingStart{}, err
 		}
@@ -225,11 +289,14 @@ type PairingPoll struct {
 // PollPairing reports the state of the player's request. On the first poll after a staff member
 // claimed the code it issues the device credential, deletes the request and returns the token;
 // the plaintext never rests in the database.
-func (s *Service) PollPairing(ctx context.Context, pollSecret string) (PairingPoll, error) {
-	if pollSecret == "" {
-		return PairingPoll{Status: "expired"}, nil
-	}
+func (s *Service) PollPairing(ctx context.Context, clientIP, pollSecret string) (PairingPoll, error) {
 	now := s.now()
+	if decoded, err := base64.RawURLEncoding.DecodeString(pollSecret); err != nil || len(decoded) != 32 {
+		return PairingPoll{Status: "expired"}, nil // cannot match any request; skip the database
+	}
+	if !s.pairingPolls.take(limiterKeyForIP(clientIP), now) {
+		return PairingPoll{}, rateLimited("Too many pairing polls; slow down")
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return PairingPoll{}, err
@@ -282,12 +349,20 @@ func (s *Service) PairDisplay(ctx context.Context, principal authorization.Princ
 	}
 	now := s.now()
 	account := principal.AccountID.String()
-	if s.claimFailures.blocked(account, now) {
+	// Reserve an attempt before looking at the code so concurrent guesses cannot all pass the
+	// check; the reservation is given back unless the code itself was wrong.
+	if !s.claimFailures.take(account, now) {
 		return Display{}, rateLimited("Too many wrong pairing codes; try again later")
 	}
+	wrongCode := false
+	defer func() {
+		if !wrongCode {
+			s.claimFailures.refund(account, now)
+		}
+	}()
 	normalized, wellFormed := NormalizePairingCode(code)
 	if !wellFormed {
-		s.claimFailures.record(account, now)
+		wrongCode = true
 		return Display{}, errPairingCodeInvalid()
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -303,7 +378,7 @@ func (s *Service) PairDisplay(ctx context.Context, principal authorization.Princ
 	}
 	requestRowID, err := q.GetOpenSignagePairingRequestByCode(ctx, signagedb.GetOpenSignagePairingRequestByCodeParams{CodeDigest: pairingCodeDigest(normalized), Now: now})
 	if errors.Is(err, pgx.ErrNoRows) {
-		s.claimFailures.record(account, now)
+		wrongCode = true
 		return Display{}, errPairingCodeInvalid()
 	}
 	if err != nil {

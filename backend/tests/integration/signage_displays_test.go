@@ -48,7 +48,10 @@ type staffSession struct {
 	account   seededAccount
 }
 
-func newSignageEnv(t *testing.T) *signageEnv {
+func newSignageEnv(t *testing.T) *signageEnv { return newSignageEnvWith(t, nil) }
+
+// newSignageEnvWith lets a test adjust the configuration (for example the pairing allow-list).
+func newSignageEnvWith(t *testing.T, adjust func(*config.Config)) *signageEnv {
 	t.Helper()
 	pool := migratedPool(t)
 	dir := t.TempDir()
@@ -65,6 +68,9 @@ func newSignageEnv(t *testing.T) *signageEnv {
 	cfg.LocalStorageRoot = dir
 	cfg.SessionCookieName, cfg.CSRFCookieName, cfg.ManagedDeviceCookieName = "makerspace_session", "makerspace_csrf", signageDeviceCookie
 	cfg.MakerspaceTimeZone = "Europe/Vienna"
+	if adjust != nil {
+		adjust(&cfg)
+	}
 	handler, err := httpapi.NewHandler(pool, cfg, slog.New(slog.NewJSONHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)

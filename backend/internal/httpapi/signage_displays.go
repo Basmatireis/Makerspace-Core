@@ -335,7 +335,7 @@ func (response signagePairingPollResponse) VisitPollSignagePairingResponse(w htt
 }
 
 func (s *Server) PollSignagePairing(ctx context.Context, _ openapi.PollSignagePairingRequestObject) (openapi.PollSignagePairingResponseObject, error) {
-	poll, err := s.signage.PollPairing(ctx, s.pollSecret(ctx))
+	poll, err := s.signage.PollPairing(ctx, sourceAddress(ctx), s.pollSecret(ctx))
 	if err != nil {
 		return nil, err
 	}

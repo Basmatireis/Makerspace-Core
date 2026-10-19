@@ -57,6 +57,17 @@ func (s *Service) StoreSystemBytes(ctx context.Context, originalFilename, conten
 // this boundary explicit lets artifact metadata and the file row commit
 // atomically without teaching the storage backend about PostgreSQL.
 func (s *Service) StoreSystemReaderInTransaction(ctx context.Context, tx pgx.Tx, originalFilename, contentType string, reader io.Reader, expected storage.Metadata, requestID *uuid.UUID) (File, func(), error) {
+	return s.storeReaderInTransaction(ctx, tx, nil, originalFilename, contentType, reader, expected, requestID)
+}
+
+// StoreReaderInTransaction is StoreSystemReaderInTransaction for a file created by an
+// authenticated account: the creator is recorded and the audit event names the actor.
+func (s *Service) StoreReaderInTransaction(ctx context.Context, tx pgx.Tx, principal authorization.Principal, originalFilename, contentType string, reader io.Reader, expected storage.Metadata, requestID *uuid.UUID) (File, func(), error) {
+	actor := principal.AccountID
+	return s.storeReaderInTransaction(ctx, tx, &actor, originalFilename, contentType, reader, expected, requestID)
+}
+
+func (s *Service) storeReaderInTransaction(ctx context.Context, tx pgx.Tx, actor *uuid.UUID, originalFilename, contentType string, reader io.Reader, expected storage.Metadata, requestID *uuid.UUID) (File, func(), error) {
 	filename := strings.TrimSpace(originalFilename)
 	contentType = strings.TrimSpace(contentType)
 	if filename == "" || len(filename) > 255 || contentType == "" || len(contentType) > 255 || expected.Size < 0 {
@@ -79,13 +90,17 @@ func (s *Service) StoreSystemReaderInTransaction(ctx context.Context, tx pgx.Tx,
 	}
 	row, err := filesdb.New(tx).CreateFile(ctx, filesdb.CreateFileParams{
 		ID: id, StorageKey: key, OriginalFilename: filename, ContentType: contentType,
-		SizeBytes: expected.Size, Sha256: expected.SHA256[:], CreatedByAccountID: nil,
+		SizeBytes: expected.Size, Sha256: expected.SHA256[:], CreatedByAccountID: actor,
 	})
 	if err != nil {
 		cleanup()
 		return File{}, func() {}, err
 	}
-	if err := audit.Write(ctx, tx, audit.Event{Action: "file.created", ResourceType: "file", ResourceID: &id, RequestID: requestID, ActorType: "system"}); err != nil {
+	event := audit.Event{ActorAccountID: actor, Action: "file.created", ResourceType: "file", ResourceID: &id, RequestID: requestID}
+	if actor == nil {
+		event.ActorType = "system"
+	}
+	if err := audit.Write(ctx, tx, event); err != nil {
 		cleanup()
 		return File{}, func() {}, err
 	}

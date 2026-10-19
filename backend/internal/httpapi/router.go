@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -58,6 +59,7 @@ const (
 	printerConnectorContextKey
 	printerConnectorEnrollmentSecretContextKey
 	httpRequestContextKey
+	rawUploadBodyContextKey
 )
 
 type operationState struct {
@@ -103,28 +105,55 @@ func NewHandler(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (htt
 	if err != nil {
 		return nil, fmt.Errorf("load embedded OpenAPI specification: %w", err)
 	}
-	validator := nethttpmiddleware.OapiRequestValidatorWithOptions(spec, &nethttpmiddleware.Options{
-		DoNotValidateServers: true,
-		Prefix:               apiBasePath,
-		Options: openapi3filter.Options{
-			AuthenticationFunc: func(context.Context, *openapi3filter.AuthenticationInput) error {
-				// Authentication and CSRF are deliberately enforced below using the
-				// runtime-configured cookie names and current PostgreSQL state.
-				return nil
+	newValidator := func(excludeBody bool) func(http.Handler) http.Handler {
+		return nethttpmiddleware.OapiRequestValidatorWithOptions(spec, &nethttpmiddleware.Options{
+			DoNotValidateServers: true,
+			Prefix:               apiBasePath,
+			Options: openapi3filter.Options{
+				// Raw binary uploads are not buffered by the validator: it would read the whole body before authentication.
+				ExcludeRequestBody: excludeBody,
+				AuthenticationFunc: func(context.Context, *openapi3filter.AuthenticationInput) error {
+					// Authentication and CSRF are deliberately enforced below using the
+					// runtime-configured cookie names and current PostgreSQL state.
+					return nil
+				},
 			},
-		},
-		ErrorHandlerWithOpts: func(_ context.Context, _ error, w http.ResponseWriter, r *http.Request, opts nethttpmiddleware.ErrorHandlerOpts) {
-			if opts.StatusCode == http.StatusNotFound {
-				writeAPIError(w, r, apperror.NotFound, logger)
+			ErrorHandlerWithOpts: func(_ context.Context, _ error, w http.ResponseWriter, r *http.Request, opts nethttpmiddleware.ErrorHandlerOpts) {
+				if opts.StatusCode == http.StatusNotFound {
+					writeAPIError(w, r, apperror.NotFound, logger)
+					return
+				}
+				if opts.StatusCode >= http.StatusInternalServerError {
+					writeAPIError(w, r, errors.New("OpenAPI request validation failed internally"), logger)
+					return
+				}
+				writeAPIError(w, r, invalidRequest("request does not match the API contract"), logger)
+			},
+		})
+	}
+	validatorWithBody := newValidator(false)
+	validatorWithoutBody := newValidator(true)
+	validator := func(next http.Handler) http.Handler {
+		withBody := validatorWithBody(next)
+		// kin-openapi reads the whole request body while evaluating security requirements, even
+		// with ExcludeRequestBody. Raw binary uploads therefore hide their body from the validator
+		// and get it back afterwards, so nothing is buffered before the handlers authenticate.
+		withoutBody := validatorWithoutBody(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if body, ok := r.Context().Value(rawUploadBodyContextKey).(io.ReadCloser); ok {
+				r.Body = body
+			}
+			next.ServeHTTP(w, r)
+		}))
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if isRawBinaryUpload(r.Method, r.URL.Path) && r.Body != nil {
+				hidden := r.WithContext(context.WithValue(r.Context(), rawUploadBodyContextKey, r.Body))
+				hidden.Body = http.NoBody
+				withoutBody.ServeHTTP(w, hidden)
 				return
 			}
-			if opts.StatusCode >= http.StatusInternalServerError {
-				writeAPIError(w, r, errors.New("OpenAPI request validation failed internally"), logger)
-				return
-			}
-			writeAPIError(w, r, invalidRequest("request does not match the API contract"), logger)
-		},
-	})
+			withBody.ServeHTTP(w, r)
+		})
+	}
 
 	var handler http.Handler = generated
 	handler = server.authenticationMiddleware(handler, logger)
@@ -282,8 +311,18 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 				writeAPIError(w, r, apperror.New(http.StatusForbidden, "device_mode_denied", "This managed device is not configured as a signage player"), logger)
 				return
 			}
+			if !s.allowSignagePlayerRequest(device.ID, strings.HasPrefix(r.URL.Path, apiBasePath+"/signage/player/assets/"), time.Now().UTC()) {
+				writeAPIError(w, r, apperror.New(http.StatusTooManyRequests, "rate_limited", "Player request rate exceeded"), logger)
+				return
+			}
 			next.ServeHTTP(w, r)
 			return
+		}
+		if r.Method == http.MethodPost && isSignagePairingPath(r.URL.Path) && len(s.config.SignagePairingAllowedCIDRs) > 0 {
+			if client, ok := parseIP(sourceAddress(r.Context())); !ok || !isTrustedProxy(client, s.config.SignagePairingAllowedCIDRs) {
+				writeAPIError(w, r, apperror.New(http.StatusForbidden, "pairing_network_denied", "Pairing is not available from this network"), logger)
+				return
+			}
 		}
 		if device != nil && device.IsSignagePlayer() && !isSignagePairingPath(r.URL.Path) {
 			// A signage player may reach the player routes and the pairing endpoints, never staff, visitor or public APIs.
@@ -374,6 +413,36 @@ func (s *Server) allowPrinterConnectorRequest(id uuid.UUID, now time.Time) bool 
 	return window.count <= 600
 }
 
+const (
+	signagePlayerRequestsPerMinute      = 120
+	signagePlayerAssetRequestsPerMinute = 600
+)
+
+// allowSignagePlayerRequest applies a fixed one-minute window per device and bucket. Asset
+// downloads (many Range requests per video) have their own, more generous bucket.
+func (s *Server) allowSignagePlayerRequest(deviceID uuid.UUID, assets bool, now time.Time) bool {
+	key, limit := deviceID.String()+":api", signagePlayerRequestsPerMinute
+	if assets {
+		key, limit = deviceID.String()+":assets", signagePlayerAssetRequestsPerMinute
+	}
+	s.playerRateMu.Lock()
+	defer s.playerRateMu.Unlock()
+	window := s.playerRates[key]
+	if window.startedAt.IsZero() || now.Sub(window.startedAt) >= time.Minute {
+		window = connectorRateWindow{startedAt: now}
+	}
+	window.count++
+	s.playerRates[key] = window
+	if len(s.playerRates) > 256 {
+		for candidateKey, candidate := range s.playerRates {
+			if now.Sub(candidate.startedAt) > 10*time.Minute {
+				delete(s.playerRates, candidateKey)
+			}
+		}
+	}
+	return window.count <= limit
+}
+
 func (s *Server) originMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 	expectedOrigin := s.config.PublicBaseURL.Scheme + "://" + s.config.PublicBaseURL.Host
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -404,6 +473,29 @@ func requestMetadataMiddleware(next http.Handler, routes chi.Routes, trustedProx
 		ctx = context.WithValue(ctx, normalizedRouteContextKey, matchedRoutePattern(routes, r.Method, r.URL.Path))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// isRawBinaryUpload reports the routes whose request body is an opaque binary stream
+// (application/octet-stream or application/pdf). Their bodies are size-capped by
+// maxBodyMiddleware and consumed by the handler after authentication; the OpenAPI validator
+// must not buffer them (it would do so before authentication). Headers and parameters are
+// still validated. Keep in sync with the binary requestBody entries of api/openapi.yaml.
+func isRawBinaryUpload(method, path string) bool {
+	switch {
+	case method == http.MethodPut && strings.HasPrefix(path, apiBasePath+"/printer-connector/self/assignments/") && strings.HasSuffix(path, "/artifact"):
+		return true
+	case method == http.MethodPut && strings.HasPrefix(path, apiBasePath+"/people/") && strings.HasSuffix(path, "/profile-image"):
+		return true
+	case method == http.MethodPut && strings.HasPrefix(path, apiBasePath+"/branding/assets/"):
+		return true
+	case method == http.MethodPost && path == apiBasePath+"/signage/assets":
+		return true
+	case method == http.MethodPost && path == apiBasePath+"/laborordnung/versions":
+		return true
+	case method == http.MethodPost && strings.HasPrefix(path, apiBasePath+"/events/") && strings.HasSuffix(path, "/files"):
+		return true
+	}
+	return false
 }
 
 func maxBodyMiddleware(next http.Handler) http.Handler {

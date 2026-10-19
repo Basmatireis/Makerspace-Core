@@ -11,6 +11,7 @@ import (
 	signagedb "github.com/Basmatireis/Makerspace-Core/backend/internal/signage/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // retainedPublications is how many publications per display are kept.
@@ -21,6 +22,17 @@ const retainedPublications = 5
 // repeatable-read transaction so all content comes from one consistent point; revisions are
 // assigned under the display row lock. Older publications beyond the latest five are pruned.
 func (s *Service) PublishDisplay(ctx context.Context, principal authorization.Principal, id uuid.UUID, requestID *uuid.UUID) (Display, error) {
+	display, err := s.publishDisplay(ctx, principal, id, requestID)
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "40001" {
+		// The display row changed after this transaction's snapshot (e.g. a concurrent edit or
+		// publish): the client must reload and publish again.
+		return Display{}, apperror.StaleWrite
+	}
+	return display, err
+}
+
+func (s *Service) publishDisplay(ctx context.Context, principal authorization.Principal, id uuid.UUID, requestID *uuid.UUID) (Display, error) {
 	if !principal.Has(authorization.SignagePublish) {
 		return Display{}, apperror.PermissionDenied
 	}

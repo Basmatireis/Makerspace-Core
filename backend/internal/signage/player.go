@@ -218,6 +218,7 @@ func liveMachineFrom(id uuid.UUID, name string, status *signagedb.ListSignageLiv
 
 // PlayerLive assembles the live data of a display.
 func (s *Service) PlayerLive(ctx context.Context, display PlayerDisplay) (LiveData, error) {
+	s.sweepExpiredThrottled(ctx)
 	now := s.now()
 	q := signagedb.New(s.pool)
 	live := LiveData{ServerTime: now, Machines: []LiveMachine{}, Announcements: []LiveAnnouncement{}, OpenDays: []PublicOpenDay{}, Events: []PublicEvent{}}

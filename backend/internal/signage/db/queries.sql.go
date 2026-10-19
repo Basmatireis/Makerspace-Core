@@ -468,7 +468,7 @@ func (q *Queries) DeleteSignagePairingRequest(ctx context.Context, id uuid.UUID)
 }
 
 const deleteSignagePairingRequestByPollDigest = `-- name: DeleteSignagePairingRequestByPollDigest :exec
-DELETE FROM signage_pairing_requests WHERE poll_secret_digest = $1
+DELETE FROM signage_pairing_requests WHERE poll_secret_digest = $1 AND claimed_display_id IS NULL
 `
 
 func (q *Queries) DeleteSignagePairingRequestByPollDigest(ctx context.Context, pollSecretDigest []byte) error {

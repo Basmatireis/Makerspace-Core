@@ -27,8 +27,8 @@ const (
 	MaxImageBytes int64 = 20 << 20
 	MaxVideoBytes int64 = 200 << 20
 
-	maxImageSide   = 12000
-	maxImagePixels = 100_000_000
+	maxImageSide   = 8192
+	maxImagePixels = 40_000_000
 )
 
 // Asset is an uploaded image or video; the bytes live in the files module.
@@ -140,7 +140,8 @@ func positiveHeader(value *int, max int, label string) error {
 
 // UploadAsset validates and stores an image (PNG, JPEG, WebP up to 20 MiB, dimensions decoded from
 // the bytes) or an MP4 video (up to 200 MiB, dimensions and duration optional). The body is
-// spooled to a temporary file while hashing so large videos never sit in memory.
+// spooled to a temporary file while hashing so large videos never sit in memory; the HTTP layer
+// does not buffer it either (raw binary routes skip OpenAPI body validation, see isRawBinaryUpload).
 func (s *Service) UploadAsset(ctx context.Context, principal authorization.Principal, input UploadInput, requestID *uuid.UUID) (Asset, error) {
 	if err := requireContentManage(principal); err != nil {
 		return Asset{}, err
@@ -221,21 +222,23 @@ func (s *Service) UploadAsset(ctx context.Context, principal authorization.Princ
 	}
 	var digest [sha256.Size]byte
 	copy(digest[:], hasher.Sum(nil))
-	stored, err := s.files.StoreReader(ctx, principal, name, input.ContentType, spool, storage.Metadata{Size: size, SHA256: digest}, requestID)
+	// The blob is written to storage first; the file row, asset row and both audit events then
+	// commit in one transaction. If anything fails before the commit, cleanup removes the blob.
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Asset{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	stored, cleanup, err := s.files.StoreReaderInTransaction(ctx, tx, principal, name, input.ContentType, spool, storage.Metadata{Size: size, SHA256: digest}, requestID)
 	if err != nil {
 		return Asset{}, err
 	}
 	committed := false
 	defer func() {
 		if !committed {
-			_ = s.files.Delete(context.Background(), principal, stored.ID, requestID)
+			cleanup()
 		}
 	}()
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Asset{}, err
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
 	id := uuid.Must(uuid.NewV7())
 	actor := principal.AccountID
 	if _, err := signagedb.New(tx).CreateSignageAsset(ctx, signagedb.CreateSignageAssetParams{

@@ -76,6 +76,8 @@ type Server struct {
 	surveys           *surveys.Service
 	connectorRateMu   sync.Mutex
 	connectorRates    map[uuid.UUID]connectorRateWindow
+	playerRateMu      sync.Mutex
+	playerRates       map[string]connectorRateWindow
 }
 
 func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
@@ -149,6 +151,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 		signage:           signageService,
 		surveys:           surveyService,
 		connectorRates:    make(map[uuid.UUID]connectorRateWindow),
+		playerRates:       make(map[string]connectorRateWindow),
 		attendance:        attendance.NewService(pool, authService, labRulesService, surveyService),
 	}, nil
 }

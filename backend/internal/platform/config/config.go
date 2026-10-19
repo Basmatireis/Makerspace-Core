@@ -13,41 +13,43 @@ import (
 )
 
 type Config struct {
-	DatabaseURL              string
-	HTTPAddr                 string
-	HTTPTrustedProxies       []netip.Prefix
-	Environment              string
-	PublicBaseURL            *url.URL
-	SessionCookieName        string
-	CSRFCookieName           string
-	ManagedDeviceCookieName  string
-	OIDCFlowCookieName       string
-	EnrollmentCookieName     string
-	EnrollmentCSRFName       string
-	SignagePairingCookieName string
-	SessionCookieSecure      bool
-	SessionIdleTTL           time.Duration
-	SessionAbsoluteTTL       time.Duration
-	PasswordResetTTL         time.Duration
-	AuditRetention           time.Duration
-	EventSignupRetention     time.Duration
-	ShutdownTimeout          time.Duration
-	MakerspaceTimeZone       string
-	HolidayCountry           string
-	HolidaySubdivision       string
-	HolidayLanguage          string
-	ChallengeHMACKey         []byte
-	PINPepper                []byte
-	StorageBackend           string
-	LocalStorageRoot         string
-	S3Endpoint               string
-	S3Region                 string
-	S3Bucket                 string
-	S3AccessKeyID            string
-	S3SecretAccessKey        string
-	S3UsePathStyle           bool
-	S3DisableTLS             bool
-	EncryptionKeys           [][]byte
+	DatabaseURL        string
+	HTTPAddr           string
+	HTTPTrustedProxies []netip.Prefix
+	// SignagePairingAllowedCIDRs restricts POST /public/signage/pairing to these client networks (empty: any).
+	SignagePairingAllowedCIDRs []netip.Prefix
+	Environment                string
+	PublicBaseURL              *url.URL
+	SessionCookieName          string
+	CSRFCookieName             string
+	ManagedDeviceCookieName    string
+	OIDCFlowCookieName         string
+	EnrollmentCookieName       string
+	EnrollmentCSRFName         string
+	SignagePairingCookieName   string
+	SessionCookieSecure        bool
+	SessionIdleTTL             time.Duration
+	SessionAbsoluteTTL         time.Duration
+	PasswordResetTTL           time.Duration
+	AuditRetention             time.Duration
+	EventSignupRetention       time.Duration
+	ShutdownTimeout            time.Duration
+	MakerspaceTimeZone         string
+	HolidayCountry             string
+	HolidaySubdivision         string
+	HolidayLanguage            string
+	ChallengeHMACKey           []byte
+	PINPepper                  []byte
+	StorageBackend             string
+	LocalStorageRoot           string
+	S3Endpoint                 string
+	S3Region                   string
+	S3Bucket                   string
+	S3AccessKeyID              string
+	S3SecretAccessKey          string
+	S3UsePathStyle             bool
+	S3DisableTLS               bool
+	EncryptionKeys             [][]byte
 }
 
 func Load() (Config, error) {
@@ -115,6 +117,10 @@ func Load() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	pairingAllowed, err := prefixListEnv("SIGNAGE_PAIRING_ALLOWED_CIDRS")
+	if err != nil {
+		return Config{}, err
+	}
 	challengeKey, err := secretKeyEnv("AUTH_CHALLENGE_HMAC_KEY", environment)
 	if err != nil {
 		return Config{}, err
@@ -179,41 +185,42 @@ func Load() (Config, error) {
 	}
 
 	return Config{
-		DatabaseURL:              strings.TrimSpace(os.Getenv("DATABASE_URL")),
-		HTTPAddr:                 envOr("HTTP_ADDR", ":8080"),
-		HTTPTrustedProxies:       trustedProxies,
-		Environment:              environment,
-		PublicBaseURL:            base,
-		SessionCookieName:        sessionName,
-		CSRFCookieName:           csrfName,
-		ManagedDeviceCookieName:  deviceName,
-		OIDCFlowCookieName:       oidcFlowName,
-		EnrollmentCookieName:     enrollmentName,
-		EnrollmentCSRFName:       enrollmentCSRFName,
-		SignagePairingCookieName: signagePairingName,
-		SessionCookieSecure:      secure,
-		SessionIdleTTL:           idle,
-		SessionAbsoluteTTL:       absolute,
-		PasswordResetTTL:         resetTTL,
-		AuditRetention:           auditRetention,
-		EventSignupRetention:     eventSignupRetention,
-		ShutdownTimeout:          10 * time.Second,
-		MakerspaceTimeZone:       timeZone,
-		HolidayCountry:           holidayCountry,
-		HolidaySubdivision:       holidaySubdivision,
-		HolidayLanguage:          holidayLanguage,
-		ChallengeHMACKey:         challengeKey,
-		PINPepper:                pinPepper,
-		StorageBackend:           storageBackend,
-		LocalStorageRoot:         localStorageRoot,
-		S3Endpoint:               s3Endpoint,
-		S3Region:                 strings.TrimSpace(os.Getenv("S3_REGION")),
-		S3Bucket:                 strings.TrimSpace(os.Getenv("S3_BUCKET")),
-		S3AccessKeyID:            strings.TrimSpace(os.Getenv("S3_ACCESS_KEY_ID")),
-		S3SecretAccessKey:        os.Getenv("S3_SECRET_ACCESS_KEY"),
-		S3UsePathStyle:           s3PathStyle,
-		S3DisableTLS:             s3DisableTLS,
-		EncryptionKeys:           encryptionKeys,
+		DatabaseURL:                strings.TrimSpace(os.Getenv("DATABASE_URL")),
+		HTTPAddr:                   envOr("HTTP_ADDR", ":8080"),
+		HTTPTrustedProxies:         trustedProxies,
+		SignagePairingAllowedCIDRs: pairingAllowed,
+		Environment:                environment,
+		PublicBaseURL:              base,
+		SessionCookieName:          sessionName,
+		CSRFCookieName:             csrfName,
+		ManagedDeviceCookieName:    deviceName,
+		OIDCFlowCookieName:         oidcFlowName,
+		EnrollmentCookieName:       enrollmentName,
+		EnrollmentCSRFName:         enrollmentCSRFName,
+		SignagePairingCookieName:   signagePairingName,
+		SessionCookieSecure:        secure,
+		SessionIdleTTL:             idle,
+		SessionAbsoluteTTL:         absolute,
+		PasswordResetTTL:           resetTTL,
+		AuditRetention:             auditRetention,
+		EventSignupRetention:       eventSignupRetention,
+		ShutdownTimeout:            10 * time.Second,
+		MakerspaceTimeZone:         timeZone,
+		HolidayCountry:             holidayCountry,
+		HolidaySubdivision:         holidaySubdivision,
+		HolidayLanguage:            holidayLanguage,
+		ChallengeHMACKey:           challengeKey,
+		PINPepper:                  pinPepper,
+		StorageBackend:             storageBackend,
+		LocalStorageRoot:           localStorageRoot,
+		S3Endpoint:                 s3Endpoint,
+		S3Region:                   strings.TrimSpace(os.Getenv("S3_REGION")),
+		S3Bucket:                   strings.TrimSpace(os.Getenv("S3_BUCKET")),
+		S3AccessKeyID:              strings.TrimSpace(os.Getenv("S3_ACCESS_KEY_ID")),
+		S3SecretAccessKey:          os.Getenv("S3_SECRET_ACCESS_KEY"),
+		S3UsePathStyle:             s3PathStyle,
+		S3DisableTLS:               s3DisableTLS,
+		EncryptionKeys:             encryptionKeys,
 	}, nil
 }
 

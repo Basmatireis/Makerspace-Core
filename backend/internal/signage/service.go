@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -34,6 +35,10 @@ type Service struct {
 
 	pairingRequests *attemptLimiter // pairing codes handed out per client IP
 	claimFailures   *attemptLimiter // wrong pairing codes entered per staff account
+	pairingPolls    *attemptLimiter // pairing polls per client IP
+
+	sweepMu        sync.Mutex
+	lastAnnounceGC time.Time
 }
 
 // Option customises the service at construction.
@@ -59,6 +64,7 @@ func NewService(pool *pgxpool.Pool, cfg config.Config, fileService *files.Servic
 		pool: pool, files: fileService, location: location, now: func() time.Time { return time.Now().UTC() },
 		pairingRequests: newAttemptLimiter(pairingRequestsPerWindow, pairingRequestWindow),
 		claimFailures:   newAttemptLimiter(claimFailuresPerWindow, claimFailureWindow),
+		pairingPolls:    newAttemptLimiter(pairingPollsPerWindow, pairingPollWindow),
 	}
 	for _, option := range options {
 		option(service)
