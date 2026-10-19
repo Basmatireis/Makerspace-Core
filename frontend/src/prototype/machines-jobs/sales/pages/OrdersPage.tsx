@@ -1,9 +1,9 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import {
-  ActionableNotification, Button, DataTable, DismissibleTag, Link as CarbonLink, Pagination, Select, SelectItem, Tab, TabList, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, TableToolbarSearch, Tabs,
+  Button, ComboBox, InlineNotification, DataTable, Link as CarbonLink, Pagination, Table, TableBody,
+  TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, TableToolbarSearch,
 } from '@carbon/react';
-import { Add } from '@carbon/icons-react';
+import { Add, ListChecked } from '@carbon/icons-react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { DateInput } from '../../../../app/DateInput';
 import { PageShell } from '../../../../app/PageShell';
@@ -24,10 +24,9 @@ import '../sales.scss';
 type SortKey = 'order' | 'payment' | 'total' | 'updated';
 type ViewId = 'all' | 'drafts' | 'awaiting' | 'paid' | 'invoice' | 'closed';
 const PAGE_SIZES = [10, 25, 50];
-const FILTER_KEYS = ['type', 'from', 'to', 'customer'] as const;
+const FILTER_KEYS = ['view', 'type', 'from', 'to', 'customer'] as const;
 const TYPE_OPTIONS = [{ id: 'person', label: customerKindLabel('person') }, { id: 'organization', label: customerKindLabel('organization') }];
-const VIEWS: { id: ViewId; label: string; has: (order: OrderView) => boolean }[] = [
-  { id: 'all', label: 'All', has: () => true },
+const VIEWS: { id: Exclude<ViewId, 'all'>; label: string; has: (order: OrderView) => boolean }[] = [
   { id: 'drafts', label: 'Drafts', has: (order) => order.status === 'draft' },
   { id: 'awaiting', label: 'Awaiting payment', has: (order) => order.status === 'finalized' && order.outstanding > 0 },
   { id: 'paid', label: 'Paid', has: (order) => order.status === 'finalized' && (order.settlement === 'paid' || order.settlement === 'no_payment_due') },
@@ -48,12 +47,11 @@ function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; load
   const [searchKey, setSearchKey] = useState(0);
   const [sort, setSort] = useState<{ key: SortKey; direction: 'ASC' | 'DESC' }>({ key: 'updated', direction: 'DESC' });
   const canWrite = store.can('orders.write');
-  const view = VIEWS.find((item) => item.id === params.get('view')) ?? VIEWS[0];
+  const selectedViews = VIEWS.filter((item) => list(params.get('view')).includes(item.id));
   const types = list(params.get('type'));
   const from = params.get('from') ?? '';
   const to = params.get('to') ?? '';
   const customerId = params.get('customer') ?? '';
-  const customerName = customerId ? views.find((order) => order.customer.id === customerId)?.customerLabel ?? 'Unknown customer' : '';
   const search = params.get('q') ?? '';
   const appliedFilters: FilterValues = Object.fromEntries(FILTER_KEYS.map((key) => [key, list(params.get(key))]));
 
@@ -64,15 +62,15 @@ function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; load
     return next;
   }, { replace: true });
   const clearAll = () => { update({ ...Object.fromEntries(FILTER_KEYS.map((key) => [key, null])), q: null }); setSearchKey((value) => value + 1); };
-  const setView = (id: ViewId) => update({ view: id === 'all' ? null : id });
-  const counts = useMemo(() => Object.fromEntries(VIEWS.map((item) => [item.id, views.filter((order) => item.has(order) && (!customerId || order.customer.id === customerId)).length])) as Record<ViewId, number>, [views, customerId]);
+  const counts = useMemo(() => Object.fromEntries(VIEWS.map((item) => [item.id, views.filter((order) => item.has(order)).length])) as Record<ViewId, number>, [views]);
+  const customers = useMemo(() => [...new Map(views.map((order) => [order.customer.id, { id: order.customer.id, label: order.customerLabel }])).values()].sort((a, b) => a.label.localeCompare(b.label)), [views]);
 
   const visible = useMemo(() => {
     const direction = sort.direction === 'ASC' ? 1 : -1;
     const needle = search.trim().toLowerCase();
     return views.filter((order) => {
       const day = dateInAppTimeZone(order.createdAt);
-      return view.has(order)
+      return (selectedViews.length === 0 || selectedViews.some((item) => item.has(order)))
         && (types.length === 0 || types.includes(order.customerKind))
         && (!customerId || order.customer.id === customerId)
         && (!from || day >= from) && (!to || day <= to)
@@ -82,7 +80,7 @@ function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; load
       const x = value(a); const y = value(b);
       return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y))) * direction;
     });
-  }, [views, sort, search, view, types.join(','), from, to, customerId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [views, sort, search, selectedViews.map((item) => item.id).join(','), types.join(','), from, to, customerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pageSize = PAGE_SIZES.includes(Number(params.get('pageSize'))) ? Number(params.get('pageSize')) : 10;
   const page = Math.max(1, Math.min(Number(params.get('page')) || 1, Math.ceil(visible.length / pageSize) || 1));
@@ -119,32 +117,26 @@ function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; load
 
   return (
     <div className="mj-stack">
-      <div className="sales-period">
-        <div className="mj-hide-narrow">
-          <Tabs selectedIndex={VIEWS.indexOf(view)} onChange={({ selectedIndex }) => setView(VIEWS[selectedIndex].id)}>
-            <TabList aria-label="Order views" contained>
-              {VIEWS.map((item) => <Tab key={item.id}>{`${item.label} (${counts[item.id]})`}</Tab>)}
-            </TabList>
-          </Tabs>
-        </div>
-        <div className="mj-show-narrow">
-          <Select id="orders-view" labelText="Show" value={view.id} onChange={(event) => setView(event.target.value as ViewId)}>
-            {VIEWS.map((item) => <SelectItem key={item.id} value={item.id} text={`${item.label} (${counts[item.id]})`} />)}
-          </Select>
-        </div>
-        {customerId && <DismissibleTag type="blue" size="md" text={`Customer: ${customerName}`} title="Remove the customer filter" dismissTitle="Remove the customer filter" onClose={() => update({ customer: null })} />}
-      </div>
       <DataTable key={`${page}-${pageSize}-${params.toString()}-${sort.key}-${sort.direction}`} rows={tableRows} headers={HEADERS.map(({ key, header }) => ({ key, header }))}>
         {({ rows, headers, getRowProps, getTableProps }) => (
           <TableContainer className="mj-table-container">
-            {notice}
             <TableToolbar aria-label="Orders table toolbar">
               <TableToolbarContent>
                 <TableToolbarSearch key={searchKey} id="orders-search" labelText="Search orders" placeholder="Search by reference or customer" defaultValue={search} onChange={(_event, value) => update({ q: value ?? '' })} onClear={() => update({ q: null })} />
                 <BatchFilter
                   id="orders" label="Orders" applied={appliedFilters} onApply={(values) => update(toPatch(values, [...FILTER_KEYS]))} onReset={() => update(Object.fromEntries(FILTER_KEYS.map((key) => [key, null])))}
                   categories={[
+                    { key: 'view', label: 'Status', options: VIEWS.map((item) => ({ id: item.id, label: `${item.label} (${counts[item.id]})` })) },
                     { key: 'type', label: 'Customer type', options: TYPE_OPTIONS },
+                    {
+                      key: 'customer', label: 'Customer', keys: ['customer'],
+                      render: ({ idPrefix, staged, set }) => (
+                        <ComboBox<{ id: string; label: string }>
+                          id={`${idPrefix}-customer`} titleText="Customer" placeholder="Any customer" items={customers} itemToString={(item) => item?.label ?? ''}
+                          selectedItem={customers.find((item) => item.id === staged.customer?.[0]) ?? null} onChange={({ selectedItem }) => set('customer', selectedItem ? [selectedItem.id] : [])}
+                        />
+                      ),
+                    },
                     {
                       key: 'created', label: 'Created', keys: ['from', 'to'],
                       render: ({ idPrefix, staged, set }) => (
@@ -156,9 +148,10 @@ function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; load
                     },
                   ]}
                 />
-                {canWrite && <Button kind="primary" size="lg" renderIcon={Add} onClick={() => setCreating(true)}>New order</Button>}
+                {canWrite && <Button kind="primary" size="lg" renderIcon={Add} className="sales-toolbar-action" onClick={() => setCreating(true)}>New order</Button>}
               </TableToolbarContent>
             </TableToolbar>
+            {notice}
             <Table {...getTableProps()} aria-label="Orders">
               <TableHead>
                 <TableRow>
@@ -189,7 +182,7 @@ function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; load
             </Table>
             {visible.length === 0 && (views.length === 0 || loadingEmpty
               ? <EmptyState title="No orders yet" description="Orders are created from finished jobs or by hand." action={canWrite ? <Button kind="tertiary" onClick={() => setCreating(true)}>New order</Button> : undefined} />
-              : <EmptyState title="No orders found" description={view.id === 'all' ? 'Try different search terms or filters.' : `No order matches “${view.label}” and the filters.`} action={<Button kind="tertiary" onClick={() => { clearAll(); setView('all'); }}>Clear filters</Button>} />)}
+              : <EmptyState title="No orders found" description="Try different search terms or filters." action={<Button kind="tertiary" onClick={clearAll}>Clear filters</Button>} />)}
             <Pagination page={page} pageSize={pageSize} pageSizes={PAGE_SIZES} totalItems={visible.length} onChange={({ page: nextPage, pageSize: nextSize }) => update({ page: String(nextPage), pageSize: String(nextSize) })} />
             {creating && <EditOrderModal order={null} initialCustomer={null} onClose={() => setCreating(false)} onSaved={(id) => navigate(`/sales/orders/${id}`)} />}
           </TableContainer>
@@ -214,8 +207,11 @@ export function OrdersPage() {
           <OrdersTable
             views={views} loadingEmpty={store.scenario === 'empty'}
             notice={readyCount > 0 && (
-              <ActionableNotification inline lowContrast hideCloseButton kind="info" className="sales-ready-notice" title={`${readyCount} finished ${readyCount === 1 ? 'job is' : 'jobs are'} ready to bill`}
-                subtitle={`${readyCustomers} ${readyCustomers === 1 ? 'customer' : 'customers'} have finished jobs that are on no order yet.`} actionButtonLabel="Review jobs" onActionButtonClick={() => setReviewing(true)} />
+              <div className="sales-ready-bar">
+                <InlineNotification lowContrast hideCloseButton kind="info" className="sales-ready-notice" title={`${readyCount} finished ${readyCount === 1 ? 'job is' : 'jobs are'} ready to bill`}
+                  subtitle={`${readyCustomers} ${readyCustomers === 1 ? 'customer' : 'customers'} have finished jobs that are on no order yet.`} />
+                <Button kind="primary" size="lg" renderIcon={ListChecked} className="sales-toolbar-action" onClick={() => setReviewing(true)}>Review jobs</Button>
+              </div>
             )}
           />
           {reviewing && <ReadyToBillModal jobs={data.jobs} orders={data.orders} prints={data.prints} canCreate={store.can('orders.write')} onClose={() => setReviewing(false)} />}

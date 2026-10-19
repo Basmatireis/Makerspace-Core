@@ -3,7 +3,8 @@
 // Layout glue for the batch filter panel; every control inside is a Carbon component.
 .mj-batch-filter { position: relative; flex: 0 0 auto; display: flex; }
 .mj-batch-filter__popover { display: flex; }
-.mj-batch-filter__popover > .cds--popover > .cds--popover-content { inline-size: max-content; max-inline-size: calc(100vw - 2rem); }
+// Wide enough for every column next to each other; when that does not fit, columns wrap into another row. Never scrolls.
+.mj-batch-filter__popover > .cds--popover > .cds--popover-content { inline-size: max-content; max-inline-size: min(calc(100vw - 28rem), 76rem); }
 .mj-batch-filter__trigger--open { position: relative; z-index: 1; background: var(--cds-layer); }
 .mj-batch-filter__trigger--active:not(.mj-batch-filter__trigger--open) { background: var(--cds-layer-selected); }
 .mj-batch-filter__badge {
@@ -11,13 +12,13 @@
   min-inline-size: 1rem; padding-inline: 0.25rem; border-radius: 0.5rem; text-align: center;
   background: var(--cds-support-error); color: var(--cds-text-on-color); font-size: 0.625rem; line-height: 1rem; font-weight: 600;
 }
-.mj-batch-filter__panel { display: flex; flex-direction: column; inline-size: max-content; max-inline-size: calc(100vw - 2rem); background: var(--cds-layer); outline: none; }
+.mj-batch-filter__panel { display: flex; flex-direction: column; inline-size: max-content; max-inline-size: 100%; background: var(--cds-layer); outline: none; }
 .mj-batch-filter__columns {
-  display: grid; grid-template-columns: repeat(var(--mj-batch-filter-columns, 1), 11rem);
+  display: flex; flex-wrap: wrap;
   gap: 1px; background: var(--cds-border-subtle); border-block-start: 1px solid var(--cds-border-subtle);
-  max-block-size: min(28rem, 60vh); overflow: auto;
 }
-.mj-batch-filter__column { padding: $spacing-05; background: var(--cds-layer); min-inline-size: 0; }
+.mj-batch-filter__column { flex: 1 0 auto; min-inline-size: 11rem; padding: $spacing-05; background: var(--cds-layer); }
+.mj-batch-filter__column .cds--checkbox-label-text { white-space: nowrap; }
 .mj-batch-filter__label { margin-block-end: $spacing-03; font-size: var(--cds-label-01-font-size, 0.75rem); color: var(--cds-text-secondary); }
 .mj-batch-filter__custom { display: grid; gap: $spacing-05; }
 .mj-batch-filter__custom .cds--date-picker,
@@ -35,5 +36,6 @@
   .mj-batch-filter .mj-batch-filter__popover > .cds--popover { position: absolute; z-index: 10; inline-size: auto; inset-inline: 0; inset-block-start: 100%; inset-block-end: auto; transform: none; translate: none; }
   .mj-batch-filter__popover > .cds--popover > .cds--popover-content { position: static !important; max-inline-size: none; inset: auto !important; inline-size: 100%; transform: none !important; translate: none !important; }
   .mj-batch-filter__panel { inline-size: 100%; max-inline-size: none; }
-  .mj-batch-filter__columns { grid-template-columns: 1fr; }
+  .mj-batch-filter__columns { flex-direction: column; }
+  .mj-batch-filter__column { max-inline-size: none; }
 }

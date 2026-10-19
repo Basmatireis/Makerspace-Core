@@ -93,7 +93,7 @@ export function BatchFilter({ id, label, categories, applied, onApply, onReset }
         <PopoverContent>
           <div id={`${id}-filters`} ref={panel} className="mj-batch-filter__panel" role="group" aria-labelledby={headingId} tabIndex={-1}>
             <h2 id={headingId} className="cds--visually-hidden">{label} filters</h2>
-            <div className="mj-batch-filter__columns" style={{ '--mj-batch-filter-columns': Math.min(categories.length, 3) } as React.CSSProperties}>
+            <div className="mj-batch-filter__columns">
               {categories.map((category) => (
                 <div key={category.key} className="mj-batch-filter__column">
                   {category.render

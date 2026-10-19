@@ -27,7 +27,10 @@
 .mj-outcome-prompt__form .cds--form-item { inline-size: 14rem; }
 
 .mj-price-preview { margin: 0; padding: $spacing-04; background: var(--cds-layer-accent); }
-.mj-skip-list { margin-block-start: 0.5rem; padding-inline-start: 1rem; list-style: disc; }
+.mj-skip-list { margin-block-start: 0.25rem; padding-inline-start: 1rem; list-style: disc; font-size: 0.875rem; line-height: 1.28572; letter-spacing: 0.16px; }
+.mj-skip-list li + li { margin-block-start: 0.125rem; }
 
 // Spans the whole table width instead of Carbon's default notification max width.
 .mj-full-width-notification.cds--inline-notification { max-inline-size: none; inline-size: 100%; }
+// Title on its own line, the reasons as a list below it.
+.mj-full-width-notification .cds--inline-notification__text-wrapper { flex-direction: column; align-items: flex-start; }

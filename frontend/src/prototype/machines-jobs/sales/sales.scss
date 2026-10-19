@@ -113,7 +113,10 @@
 .sales-sum dd { margin: 0; font-variant-numeric: tabular-nums; }
 .sales-sum__total { padding-block-start: $spacing-02; border-block-start: 1px solid var(--cds-border-strong); font-weight: 600; }
 .sales-fieldset { margin: 0; padding: 0; border: 0; }
-.sales-ready-notice.cds--actionable-notification { max-inline-size: none; inline-size: 100%; }
+.sales-ready-bar { display: flex; align-items: stretch; background: var(--cds-notification-background-info); }
+.sales-ready-notice.cds--inline-notification { flex: 1 1 auto; max-inline-size: none; margin: 0; }
+// The bar's action matches the toolbar's primary button in size.
+.sales-toolbar-action.cds--btn { min-inline-size: 11rem; }
 
 // Price quote (Pricing preview) ---------------------------------------------------------------------------------------------------
 .sales-quote { display: grid; gap: $spacing-04; margin: 0; padding: 0; list-style: none; @include type-style('body-compact-01'); }
