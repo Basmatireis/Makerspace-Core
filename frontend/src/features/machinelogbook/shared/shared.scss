@@ -50,6 +50,7 @@
 .mj-table-container { inline-size: 100%; min-inline-size: 0; }
 .mj-table-container .cds--table-toolbar,
 .mj-table-container .cds--toolbar-content { block-size: auto; min-block-size: 3rem; }
+.mj-table-container .cds--batch-actions { overflow-x: auto; }
 .mj-table-container .cds--data-table-content { inline-size: 100%; overflow-x: auto; }
 
 // Whole-row click on tables whose rows open a page or dialog (the name is also a link or button for keyboard access).

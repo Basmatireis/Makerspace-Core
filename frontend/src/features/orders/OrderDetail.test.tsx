@@ -156,6 +156,7 @@ describe('order detail: invoice approval', () => {
     serve(paid({ activeExternalRequestId: ids.request, activeExternalRequestReference: 'W-2026-000001', activeExternalRequestState: 'issued', status: 'finalized' }), invoiceRequest({ state: 'issued' }));
     renderRoute(<App />, `/orders/${ids.order}`);
     expect(await screen.findByText('Issued, the order is paid')).toBeInTheDocument();
+    expect(screen.queryByText('Payments paused')).not.toBeInTheDocument();
   });
 
   it('does not load private recipient details without the read permission', async () => {

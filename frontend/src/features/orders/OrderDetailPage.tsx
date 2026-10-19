@@ -100,7 +100,7 @@ function OrderDetail({ order }: { order: Order }) {
     : order.latestExternalRequestId ? { label: 'View invoice', run: () => document.getElementById('invoice')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
       : canRequestInvoice && outstanding === 0 ? { label: 'Request invoice', run: () => setDialog('invoice') } : null;
   const state = order.activeExternalRequestState;
-  const notice = hasRequest && !accepts && order.status === 'finalized'
+  const notice = hasRequest && !accepts && order.status === 'finalized' && outstanding > 0
     ? `${order.activeExternalRequestReference} is ${(requestStateLabel[state as keyof typeof requestStateLabel] ?? state ?? '').toLowerCase()}: cash and card can no longer be added. An issued invoice settles the balance by itself.` : null;
 
   return (

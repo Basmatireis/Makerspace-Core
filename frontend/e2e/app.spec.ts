@@ -521,10 +521,10 @@ test('opens responsive Directory filters for roles, Lab Rules, and account statu
   await filterButton.click();
   await expect(filterButton).toHaveAttribute('aria-expanded', 'true');
 
-  const filters = page.getByRole('region', { name: 'People filters' });
-  const roleFilter = filters.getByRole('combobox', { name: 'Role' });
-  const labRulesFilter = filters.getByRole('combobox', { name: 'Lab Rules' });
-  const statusFilter = filters.getByRole('combobox', { name: 'Status' });
+  const filters = page.getByRole('group', { name: 'People filters' });
+  const roleFilter = filters.getByRole('group', { name: 'Role' });
+  const labRulesFilter = filters.getByRole('group', { name: 'Lab Rules' });
+  const statusFilter = filters.getByRole('group', { name: 'Status' });
   await expect(roleFilter).toBeVisible();
   await expect(labRulesFilter).toBeVisible();
   await expect(statusFilter).toBeVisible();
@@ -595,9 +595,9 @@ test('renders the Directory-styled Members table without summary statistics', as
   expect(Math.abs(periodSelectorBounds.height - directoryButtonBounds.height)).toBeLessThanOrEqual(1);
   const filterButton = toolbar.getByRole('button', { name: 'Filters' });
   await filterButton.click();
-  const filters = page.getByRole('region', { name: 'Members filters' });
-  await expect(filters.getByRole('combobox', { name: 'Profile picture' })).toBeVisible();
-  await expect(filters.getByRole('combobox', { name: 'Lab Rules' })).toBeVisible();
+  const filters = page.getByRole('group', { name: 'Members filters' });
+  await expect(filters.getByRole('group', { name: 'Profile picture' })).toBeVisible();
+  await expect(filters.getByRole('group', { name: 'Lab Rules' })).toBeVisible();
   await expect(tableContainer.locator('.cds--pagination')).toBeVisible();
   await expect(tableContainer).toBeVisible();
   await expectNoHorizontalPageOverflow(page);

@@ -143,7 +143,7 @@ test('uses the standard table toolbar, filters, and pagination for events', asyn
   await expect(page.getByRole('columnheader', { name: 'Staffing' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Autumn exhibition' })).toBeVisible();
   await toolbar.getByRole('button', { name: 'Filters' }).click();
-  await expect(page.getByRole('region', { name: 'Event filters' })).toBeVisible();
+  await expect(page.getByRole('group', { name: 'Events filters' })).toBeVisible();
   await toolbar.getByRole('searchbox', { name: 'Search events' }).fill('missing');
   await expect(page.getByRole('heading', { name: 'No events found' })).toBeVisible();
   await toolbar.getByRole('searchbox', { name: 'Search events' }).fill('Autumn');

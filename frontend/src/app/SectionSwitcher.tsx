@@ -1,4 +1,4 @@
-import { Tab, TabList, Tabs } from '@carbon/react';
+import { Tab, TabList, TabPanel, TabPanels, Tabs } from '@carbon/react';
 import './sectionSwitcher.scss';
 
 export type Section = { id: string; label: string };
@@ -11,6 +11,10 @@ export function SectionSwitcher({ sections, selected, onChange, label }: { secti
         <TabList aria-label={label} contained>
           {sections.map((section) => <Tab key={section.id}>{section.label}</Tab>)}
         </TabList>
+        {/* Carbon tabs point aria-controls at a panel; the sections themselves render outside, so the panels stay empty. */}
+        <TabPanels>
+          {sections.map((section) => <TabPanel key={section.id} className="app-toolbar-switcher__panel" />)}
+        </TabPanels>
       </Tabs>
     </div>
   );

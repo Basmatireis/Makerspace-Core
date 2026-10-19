@@ -1,6 +1,6 @@
 import type { Page, Route } from '@playwright/test';
 import type {
-  BillingParty, FilamentProduct, FilamentSpool, Machine, MachineActivity, MachineJob, MachineLogbookStatistics, MachineRun, MachineRunDetail, Material, Operator, PrinterProfile, WorkItem,
+  BillingParty, MachineProcess, MaterialType, FilamentProduct, FilamentSpool, Machine, MachineActivity, MachineJob, MachineLogbookStatistics, MachineRun, MachineRunDetail, Material, Operator, PrinterProfile, WorkItem,
 } from '../src/api/generated/models';
 import { defaultPublicBrandingConfiguration } from './branding-fixtures';
 
@@ -37,8 +37,13 @@ const minutes = (offset: number) => new Date(Date.now() + offset * 60_000).toISO
 const created = '2026-09-01T00:00:00Z';
 const pageOf = <T,>(items: T[], total = items.length) => ({ items, page: 1, pageSize: 100, total });
 
-const machineType = (typeId: string, name: string, printer = false) => ({ id: typeId, name, active: true, printer, version: 1, createdAt: created, updatedAt: created });
-const types = [machineType(ids.typePrinter, '3D printer', true), machineType(ids.typeLaser, 'Laser cutter')];
+const machineType = (typeId: string, name: string, process: MachineProcess) => ({ id: typeId, name, active: true, process, version: 1, createdAt: created, updatedAt: created });
+const types = [machineType(ids.typePrinter, '3D printer', 'fdm_printing'), machineType(ids.typeLaser, 'Laser cutter', 'laser_cutting')];
+
+const materialTypes: MaterialType[] = [
+  { id: id(900), name: 'PLA', unit: 'g', processes: ['fdm_printing'], active: true, materialCount: 1, pricingRuleCount: 1, version: 1, createdAt: created, updatedAt: created },
+  { id: id(901), name: 'Plywood', unit: 'm2', processes: ['laser_cutting'], active: true, materialCount: 1, pricingRuleCount: 0, version: 1, createdAt: created, updatedAt: created },
+];
 
 const machine = (machineId: string, name: string, type: (typeof types)[number], overrides: Partial<Machine> = {}): Machine => ({
   id: machineId, name, machineType: type, status: 'active', externalIdentifier: null, automaticCollectionEnabled: false, lastIngestedAt: null,
@@ -85,21 +90,21 @@ const pricingSnapshot = {
   rules: [{ kind: 'machine_runtime', label: '3D printer runtime', selector: '3D printer', unit: 'hour', rate: '5.00', missing: false }],
 };
 
-const usageOf = (n: number, quantity: string) => ({ id: id(n), ownership: 'makerspace' as const, materialId: ids.pla, spoolId: null, spoolDisplayId: null, materialName: 'PLA Black', materialTypeId: id(900), materialTypeName: 'PLA', unit: 'g' as const, quantity, quantityBasis: 'actual' as const });
+const usageOf = (n: number, quantity: string) => ({ id: id(n), ownership: 'makerspace' as const, materialId: ids.pla, spoolId: null, spoolDisplayId: null, materialName: 'PLA Black', materialTypeId: id(900), materialTypeName: 'PLA', unit: 'g' as const, quantity, quantityBasis: 'actual' as const, staffCorrected: false });
 
 type RunInit = Partial<MachineRun> & Pick<MachineRun, 'id' | 'displayId'>;
 /** A manual run. `endedAt` is always the real end here; the API shape (running → estimatedEndAt) is applied when it is served. */
 export function manualRunFixture(overrides: RunInit): MachineRun {
   return {
     machineId: ids.laser, machineName: 'Laser cutter', source: 'manual', state: 'finished', connectorName: null, fileName: null, startedAt: minutes(-180), endedAt: minutes(-90), estimatedEndAt: null,
-    durationSeconds: 5400, progressPercent: null, outcome: 'successful', outcomeFromMachine: false, usages: [usageOf(130, '183.000')], usagesFromMachine: false, reportedUsage: null, version: 2, ...overrides,
+    durationSeconds: 5400, progressPercent: null, outcome: 'successful', outcomeFromMachine: false, usages: [usageOf(130, '183.000')], measures: {}, usagesFromMachine: false, reportedUsage: null, reportedUsageItems: [], version: 2, ...overrides,
   } as MachineRun;
 }
 
 type JobInit = Partial<MachineJob> & Pick<MachineJob, 'id' | 'displayId'>;
 export function jobFixture(overrides: JobInit): MachineJob {
   return {
-    title: null, machine: machine(ids.laser, 'Laser cutter', types[1]), runs: [], startedAt: null, endedAt: null, expectedEndAt: null, durationSeconds: 0, customer, operator, outcome: 'successful', outcomeOverridden: false, status: 'successful',
+    title: null, machine: machine(ids.laser, 'Laser cutter', types[1]), runs: [], startedAt: null, endedAt: null, expectedEndAt: null, durationSeconds: 0, measures: {}, customer, operator, outcome: 'successful', outcomeOverridden: false, status: 'successful',
     notes: 'Print with 0.2 mm layers', pricingStatus: 'complete', pricingSnapshot, calculatedPrice: '12.50', priceAdjustment: null, effectivePrice: '12.50', version: 3, createdAt: created, updatedAt: created, ...overrides,
   } as MachineJob;
 }
@@ -148,7 +153,7 @@ export function createWorld(permissions: string[] = staffPermissions) {
 
   const recordedRun = (run: Partial<MachineRunDetail> & Pick<MachineRunDetail, 'id' | 'displayId' | 'state'>): MachineRunDetail => ({
     machineId: ids.bambu, machineName: bambu.name, source: 'recorded', connectorName: 'Bambu LAN', fileName: 'bracket_v2.gcode', startedAt: minutes(-180), endedAt: minutes(-120), estimatedEndAt: null,
-    durationSeconds: 3600, progressPercent: 100, outcome: 'successful', outcomeFromMachine: true, usages: [], usagesFromMachine: false,
+    durationSeconds: 3600, progressPercent: 100, outcome: 'successful', outcomeFromMachine: true, usages: [], measures: {}, usagesFromMachine: false, reportedUsageItems: [],
     reportedUsage: { quantity: '42.000', quantityBasis: 'actual', materialId: ids.pla, materialName: 'PLA Black', spoolId: null, spoolDisplayId: null }, job: null, version: 1,
     events: [
       { id: id(140), kind: 'operational_state', occurredAt: minutes(-180), state: 'printing' },
@@ -188,12 +193,12 @@ export function createWorld(permissions: string[] = staffPermissions) {
     months: [{ month: '2026-09', charges: '900.00', materialCost: '200.00', losses: '12.00' }, { month: '2026-10', charges: '600.00', materialCost: '200.00', losses: '0.00' }],
     runtimeGranularity: 'month',
     runtime: [{ bucketStart: '2026-09-01', machineId: ids.bambu, hours: '10.0' }, { bucketStart: '2026-09-01', machineId: ids.laser, hours: '6.0' }],
-    materialCostByCategory: [{ key: 'filament', label: 'Filament', value: '300.00' }],
+    materialCostByType: [{ key: 'PLA', label: 'PLA', value: '300.00' }],
     machines: [
       statMachine(ids.bambu, 'Bambu H2D #1', '3D printer', '50.0', 10), statMachine(ids.laser, 'Laser cutter', 'Laser cutter', '120.0', 40),
       statMachine(ids.prusa, 'Prusa MK4', '3D printer', '90.0', 30), statMachine(ids.mill, 'CNC mill', 'Laser cutter', '10.0', 5),
     ],
-    materialUsageByCategory: [], machineRuntimeHours: [], machineJobCounts: [], acquisitionCost: [], customerCharges: [], adjustmentLoss: [], machineFailureRates: [],
+    materialUsageByType: [], machineRuntimeHours: [], machineJobCounts: [], acquisitionCost: [], customerCharges: [], adjustmentLoss: [], machineFailureRates: [],
   };
 
   const requests: RecordedRequest[] = [];
@@ -370,10 +375,12 @@ export async function installMachinesJobsApi(page: Page, world: World = createWo
     if (path === '/api/v1/billing-parties') return ok(route, { items: [customer] });
     if (path === '/api/v1/machine-job-operators') return ok(route, { items: [operator] });
     if (path === '/api/v1/organizations') return ok(route, pageOf([organization]));
+    if (path === '/api/v1/pricing-role-groups') return ok(route, { items: [] });
     if (path === '/api/v1/pricing-groups') return ok(route, { items: [pricingGroup] });
 
     // Machines
     if (path === '/api/v1/machine-types') return ok(route, { items: types });
+    if (path === '/api/v1/material-types') return ok(route, { items: materialTypes });
     if (path === '/api/v1/machines' && method === 'GET') return ok(route, pageOf(world.machines));
     if (path === '/api/v1/machines' && method === 'POST') {
       const created_ = machine(id(160), String(body?.name), types.find((type) => type.id === body?.machineTypeId) ?? types[0], { status: 'active', version: 1 });

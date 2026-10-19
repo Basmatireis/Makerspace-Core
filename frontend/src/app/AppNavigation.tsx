@@ -189,10 +189,10 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
         >
           Dashboard
         </SideNavLink>
-        {renderGroup('operations', 'Operations', Calendar, operations)}
-        {renderGroup('people', 'Directory', UserMultiple, people)}
         {renderGroup('machines', 'Workshop', Tools, machines)}
         {renderGroup('sales', 'Sales & payments', Receipt, sales)}
+        {renderGroup('operations', 'Operations', Calendar, operations)}
+        {renderGroup('people', 'Directory', UserMultiple, people)}
         {showAdministration && (
           <>
             <SideNavDivider />

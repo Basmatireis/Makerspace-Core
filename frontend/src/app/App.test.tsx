@@ -246,6 +246,8 @@ describe('protected application routing', () => {
 
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
     const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
+    const groupOrder = within(navigation).getAllByRole('button').map((button) => button.textContent?.trim());
+    expect(groupOrder.filter((name) => ['Workshop', 'Sales & payments', 'Operations', 'Directory'].includes(name ?? ''))).toEqual(['Workshop', 'Sales & payments', 'Operations', 'Directory']);
     for (const group of ['Operations', 'Directory', 'Workshop', 'Sales & payments']) {
       await user.click(within(navigation).getByRole('button', { name: group }));
     }

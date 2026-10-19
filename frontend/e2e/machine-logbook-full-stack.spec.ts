@@ -55,7 +55,7 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
 
   const me = await parse<{ person: { id: string } }>(await get('/auth/me'), 'current user');
   const machineType = await parse<Identified>(
-    await post('/machine-types', { name: 'E2E additive manufacturing' }),
+    await post('/machine-types', { name: 'E2E additive manufacturing', process: 'fdm_printing' }),
     'create machine type',
   );
   const machine = await parse<Identified>(
@@ -68,7 +68,7 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
     }),
     'create machine',
   );
-  const materialType = await parse<Identified>(await post('/material-types', { name: `E2E PLA ${Date.now()}`, unit: 'g' }), 'create material type');
+  const materialType = await parse<Identified>(await post('/material-types', { name: `E2E PLA ${Date.now()}`, unit: 'g', processes: ['fdm_printing'] }), 'create material type');
   let material = await parse<Material>(
     await post('/materials', {
       name: 'E2E PLA blue',

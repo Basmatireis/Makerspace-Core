@@ -32,8 +32,8 @@ test.describe('jobs', () => {
     await expect(dialog.getByLabel('Outcome')).toHaveCount(0);
     await expect(dialog.getByText(/The end is in the future/)).toBeVisible();
     await chooseCustomerAndOperator(page, dialog);
-    await dialog.getByLabel('Material', { exact: true }).selectOption({ label: 'PLA Black (g)' });
-    await dialog.getByLabel('Quantity (g)').fill('25');
+    await dialog.getByLabel('Material', { exact: true }).selectOption({ label: 'Birch plywood (m²)' });
+    await dialog.getByLabel('Quantity (m²)').fill('25');
     await dialog.getByRole('button', { name: 'Create job' }).click();
 
     await expect(page).toHaveURL(`${base}/jobs/${ids.newJob}`);
@@ -44,7 +44,7 @@ test.describe('jobs', () => {
     const created = world.bodyOf('POST', '/api/v1/machine-jobs') as { run: Record<string, unknown> } & Record<string, unknown>;
     expect(created).toMatchObject({
       machineId: ids.laser, title: 'Lamp prototype', customer: { kind: 'organization', id: customer.id }, operatorPersonId: operator.personId,
-      run: { outcome: null, usages: [{ ownership: 'makerspace', materialId: ids.pla, quantity: '25', quantityBasis: 'actual' }] },
+      run: { outcome: null, usages: [{ ownership: 'makerspace', materialId: ids.plywood, quantity: '25', quantityBasis: 'actual' }] },
     });
     expect(new Date(String(created.run.endsAt)).getTime()).toBeGreaterThan(Date.now() + 3_600_000);
 
@@ -109,7 +109,7 @@ test.describe('jobs', () => {
     await expect(dialog).toBeVisible();
     // A job with a calculated price starts on the percentage discount.
     await expect(dialog.getByRole('radio', { name: 'Discount (%)' })).toBeChecked();
-    await dialog.getByRole('spinbutton').fill('20');
+    await dialog.getByRole('textbox', { name: 'Discount (%)' }).fill('20');
     await expect(dialog.getByText('€10.00')).toBeVisible();
     await dialog.getByLabel('Reason').fill('Member discount');
     await dialog.getByRole('button', { name: 'Save adjustment' }).click();
@@ -133,13 +133,13 @@ test.describe('runs', () => {
     await page.getByRole('button', { name: 'Add run' }).click();
     const dialog = page.getByRole('dialog', { name: 'Add run' });
     await expect(dialog.getByLabel('Outcome')).toHaveValue('successful');
-    await dialog.getByLabel('Material', { exact: true }).selectOption({ label: 'PLA Black (g)' });
-    await dialog.getByLabel('Quantity (g)').fill('25');
+    await dialog.getByLabel('Material', { exact: true }).selectOption({ label: 'Birch plywood (m²)' });
+    await dialog.getByLabel('Quantity (m²)').fill('25');
     await dialog.getByRole('button', { name: 'Add run' }).click();
 
     await expect(page.getByText('Run added', { exact: true })).toBeVisible();
     expect(world.bodyOf('POST', `/api/v1/machine-jobs/${ids.jobSuccess}/runs`)).toMatchObject({
-      expectedJobVersion: 3, run: { outcome: 'successful', usages: [{ ownership: 'makerspace', materialId: ids.pla, quantity: '25', quantityBasis: 'actual' }] },
+      expectedJobVersion: 3, run: { outcome: 'successful', usages: [{ ownership: 'makerspace', materialId: ids.plywood, quantity: '25', quantityBasis: 'actual' }] },
     });
     const runs = page.getByRole('table', { name: 'Runs' });
     await expect(runs.getByRole('link', { name: 'RN-2026-000020' })).toBeVisible();

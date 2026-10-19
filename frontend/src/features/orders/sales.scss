@@ -19,7 +19,9 @@
 // Contained lists, tables and tiles that sit on the page surface read as white panels.
 .sales-page .cds--contained-list,
 .sales-page .cds--contained-list .cds--contained-list__header { background: var(--cds-layer); }
-.sales-page .cds--data-table-container { background: var(--cds-layer); }
+.sales-page .cds--data-table-container { background: var(--cds-layer); min-inline-size: 0; }
+// Wide tables scroll inside their own container instead of widening the page.
+.sales-page .cds--data-table-content { overflow-x: auto; }
 
 // Order detail ---------------------------------------------------------------------------------------------------------
 .sales-section-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: $spacing-03; padding: $spacing-03 $spacing-05 0; }
