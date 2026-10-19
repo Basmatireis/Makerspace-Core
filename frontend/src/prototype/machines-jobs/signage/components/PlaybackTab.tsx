@@ -17,6 +17,7 @@ export function PlaybackTab({ display, playback }: { display: Display; playback:
   const [editing, setEditing] = useState<Rule | 'new' | null>(null);
   const [editingDefault, setEditingDefault] = useState(false);
   const name = (target: Rule['target']) => targetName(target, signage.scenes, signage.playlists);
+  const templateName = (id: string) => signage.announcementTemplates.find((item) => item.id === id)?.name ?? 'removed template';
   const defaultName = signage.playlists.find((item) => item.id === display.defaultPlaylistId)?.name ?? 'removed';
 
   return (
@@ -31,7 +32,7 @@ export function PlaybackTab({ display, playback }: { display: Display; playback:
             <div className={`sg-rule${rule.enabled ? '' : ' sg-rule--off'}`}>
               <span className="sg-rule__priority" aria-label={`Priority ${index + 1}`}>{index + 1}</span>
               <div className="sg-rule__body">
-                <span className="sg-rule__condition"><strong>When</strong> {describeCondition(rule.condition)}</span>
+                <span className="sg-rule__condition"><strong>When</strong> {describeCondition(rule.condition, templateName)}</span>
                 <span className="sg-rule__arrow" aria-hidden="true"><ArrowRight size={16} /></span>
                 <span className="sg-rule__target"><strong>{name(rule.target)}</strong> <span className="mj-secondary">· min. {rule.minSeconds} s</span></span>
               </div>

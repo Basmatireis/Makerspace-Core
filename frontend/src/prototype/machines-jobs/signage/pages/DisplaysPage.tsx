@@ -45,7 +45,7 @@ export function DisplaysPage() {
                 </TableHead>
                 <TableBody>
                   {displays.map((display) => {
-                    const playback = playbackOf(display, signage.sim, now);
+                    const playback = playbackOf(display, signage.sim, now, signage.announcements);
                     return (
                       <TableRow key={display.id} className="mj-table-row" onClick={() => navigate(`/signage/displays/${display.id}`)}>
                         <TableCell>

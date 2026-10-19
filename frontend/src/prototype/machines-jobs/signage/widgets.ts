@@ -1,7 +1,7 @@
 import type { MediaItem, Sim, Widget, WidgetType } from './types';
 
 export const WIDGET_LABELS: Record<WidgetType, string> = {
-  empty: 'Empty', image: 'Image', video: 'Video', slideshow: 'Slideshow', text: 'Text', qr: 'QR code', clock: 'Clock', camera: 'Camera', status: 'Machine status', open_days: 'Open days', events: 'Events',
+  empty: 'Empty', image: 'Image', video: 'Video', slideshow: 'Slideshow', text: 'Text', qr: 'QR code', clock: 'Clock', camera: 'Camera', status: 'Machine status', open_days: 'Open days', events: 'Events', announcement: 'Announcement',
 };
 export const WIDGET_TYPES = Object.keys(WIDGET_LABELS) as WidgetType[];
 
@@ -20,14 +20,16 @@ export function defaultWidget(type: WidgetType, media: MediaItem[]): Widget {
     case 'status': return { type, machineIds: ['h2d', 'x1c'], showProgress: true, showRemaining: true };
     case 'open_days': return { type, count: 3 };
     case 'events': return { type, count: 3 };
+    case 'announcement': return { type, templateIds: [], style: 'banner', size: 'm', whenNone: 'empty', fallbackText: '', whenMany: 'rotate', rotateSeconds: 10 };
   }
 }
 
-/** "Preview as" choices in the scene editor. */
-export const PREVIEW_PRESETS: { id: string; label: string; sim: Sim }[] = [
-  { id: 'idle', label: 'Idle', sim: { h2d: 'idle', x1c: 'idle', coreReachable: true, announcement: false } },
-  { id: 'h2d', label: 'H2D printing', sim: { h2d: 'printing', x1c: 'idle', coreReachable: true, announcement: false } },
-  { id: 'both', label: 'Both printing', sim: { h2d: 'printing', x1c: 'printing', coreReachable: true, announcement: false } },
-  { id: 'camera', label: 'Camera unavailable', sim: { h2d: 'camera_unavailable', x1c: 'idle', coreReachable: true, announcement: false } },
-  { id: 'stale', label: 'Live data stale', sim: { h2d: 'printing', x1c: 'idle', coreReachable: false, announcement: false } },
+/** "Preview as" choices in the scene editor. `announcement` shows the sample "Closed" announcement. */
+export const PREVIEW_PRESETS: { id: string; label: string; sim: Sim; announcement?: boolean }[] = [
+  { id: 'idle', label: 'Idle', sim: { h2d: 'idle', x1c: 'idle', coreReachable: true } },
+  { id: 'h2d', label: 'H2D printing', sim: { h2d: 'printing', x1c: 'idle', coreReachable: true } },
+  { id: 'both', label: 'Both printing', sim: { h2d: 'printing', x1c: 'printing', coreReachable: true } },
+  { id: 'camera', label: 'Camera unavailable', sim: { h2d: 'camera_unavailable', x1c: 'idle', coreReachable: true } },
+  { id: 'stale', label: 'Live data stale', sim: { h2d: 'printing', x1c: 'idle', coreReachable: false } },
+  { id: 'announcement', label: 'Announcement active', sim: { h2d: 'idle', x1c: 'idle', coreReachable: true }, announcement: true },
 ];

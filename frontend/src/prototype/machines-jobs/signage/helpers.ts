@@ -1,5 +1,6 @@
-import { resolvePlayback } from './engine';
-import type { Display, MachineSim, MediaItem, PlaybackResult, Playlist, Scene, Sim, Target, Widget } from './types';
+import { activeAnnouncementsFor, renderAnnouncement, resolvePlayback } from './engine';
+import { CLOSED_TEMPLATE_ID, sampleClosedAnnouncement } from './mockData';
+import type { Announcement, AnnouncementField, AnnouncementTemplate, Display, RenderedAnnouncement, MachineSim, MediaItem, PlaybackResult, Playlist, Scene, Sim, Target, Widget } from './types';
 
 export const uid = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -45,13 +46,33 @@ export const sceneMediaIds = (scene: Scene): string[] => [...(scene.backgroundIm
 
 export const loopSeconds = (playlist: Playlist) => playlist.items.reduce((sum, item) => sum + item.seconds, 0);
 
-/** The playback a display runs: always its last publication, never the drafts. */
-export function playbackOf(display: Display, sim: Sim, now: number): PlaybackResult {
-  return resolvePlayback({ defaultPlaylistId: display.published.defaultPlaylistId, announcement: display.announcement }, display.published.rules, sim, new Date(now));
+/** The playback a display runs: always its last publication, never the drafts. Announcements are live data, not part of a publication. */
+export function playbackOf(display: Display, sim: Sim, now: number, announcements: Announcement[]): PlaybackResult {
+  const date = new Date(now);
+  return resolvePlayback({ defaultPlaylistId: display.published.defaultPlaylistId }, display.published.rules, sim, date, activeAnnouncementsFor(display.id, announcements, date));
+}
+
+/** Renders one announcement for a display (`{display}` and `{location}` depend on it). */
+export function renderFor(announcement: Announcement, template: AnnouncementTemplate, display: Pick<Display, 'name' | 'location'>, now: Date): RenderedAnnouncement {
+  const timing = { startsAt: new Date(announcement.startsAt), endsAt: announcement.endsAt ? new Date(announcement.endsAt) : null };
+  return { ...renderAnnouncement(template, announcement.values, timing, { now, displayName: display.name, location: display.location }), id: announcement.id, templateId: announcement.templateId, startsAt: timing.startsAt.getTime() };
+}
+
+/** What the Announcement widget of a display's scenes gets: the active announcements, rendered, newest first. */
+export function renderedFor(display: Pick<Display, 'id' | 'name' | 'location'>, announcements: Announcement[], templates: AnnouncementTemplate[], now: Date): RenderedAnnouncement[] {
+  return activeAnnouncementsFor(display.id, announcements, now).flatMap((item) => {
+    const template = templates.find((entry) => entry.id === item.templateId);
+    return template ? [renderFor(item, template, display, now)] : [];
+  }).sort((a, b) => b.startsAt - a.startsAt);
+}
+
+/** The sample "Closed" announcement, rendered for thumbnails and the editor's "Announcement active" preview. Empty when the template was removed. */
+export function sampleRendered(templates: AnnouncementTemplate[], now: Date, display: Pick<Display, 'name' | 'location'> = { name: 'Entrance window', location: 'Ground floor' }): RenderedAnnouncement[] {
+  const template = templates.find((item) => item.id === CLOSED_TEMPLATE_ID);
+  return template ? [renderFor(sampleClosedAnnouncement(now.getTime()), template, display, now)] : [];
 }
 
 export function targetName(target: Target, scenes: Scene[], playlists: Playlist[]): string {
-  if (target.type === 'scene' && target.id === '') return 'Scene Announcement text';
   if (target.type === 'scene') return `Scene ${scenes.find((item) => item.id === target.id)?.name ?? 'removed'}`;
   return `Playlist ${playlists.find((item) => item.id === target.id)?.name ?? 'removed'}`;
 }
@@ -87,4 +108,31 @@ export function publishedScenesUsingMedia(mediaId: string, displays: Display[]):
 export function cameraState(sim: MachineSim, coreReachable: boolean): { label: string; type: 'green' | 'gray' | 'red' } {
   if (!coreReachable || sim === 'camera_unavailable') return { label: 'Unavailable', type: 'red' };
   return sim === 'printing' ? { label: 'Live', type: 'green' } : { label: 'Idle', type: 'gray' };
+}
+
+// Announcement form values ----------------------------------------------------------------------------------------------------------
+const pad = (value: number) => String(value).padStart(2, '0');
+export const toDateValue = (date: Date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+export const toDateTimeValue = (date: Date) => `${toDateValue(date)}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+
+/** The values a template's fields start with: their defaults. */
+export const defaultValues = (fields: AnnouncementField[]): Record<string, string> => Object.fromEntries(fields.map((field) => [field.key, field.defaultValue]));
+
+/** Example values for the template editor preview: the default, else something typical for the field type. */
+export function sampleValues(fields: AnnouncementField[], now: Date): Record<string, string> {
+  const tomorrow = new Date(now.getTime() + 86_400_000);
+  tomorrow.setHours(10, 0, 0, 0);
+  const sample = (field: AnnouncementField): string => {
+    if (field.defaultValue !== '') return field.defaultValue;
+    switch (field.type) {
+      case 'time': return '14:30';
+      case 'date': return toDateValue(tomorrow);
+      case 'datetime': return toDateTimeValue(tomorrow);
+      case 'number': return '15';
+      case 'choice': return field.options[0] ?? '';
+      case 'machine': return 'h2d';
+      default: return field.label || 'Sample text';
+    }
+  };
+  return Object.fromEntries(fields.map((field) => [field.key, sample(field)]));
 }

@@ -1,6 +1,5 @@
 import { emptyZones } from './templates';
-import { DEFAULT_ANNOUNCEMENT_SCENE } from './engine';
-import type { Display, LocalService, MediaItem, Playlist, Rule, Scene, Snapshot, Widget } from './types';
+import type { Announcement, AnnouncementTemplate, Display, LocalService, MediaItem, Playlist, Rule, Scene, Snapshot, Widget } from './types';
 
 // Mock data: everything is generated in code (inline SVG data URIs), no network and no files.
 
@@ -76,10 +75,14 @@ export const eventsSeed = [
 const fullImage = (mediaId: string): Record<string, Widget> => ({ main: { type: 'image', mediaId, fit: 'cover' } });
 const scene = (partial: Pick<Scene, 'id' | 'name' | 'orientation' | 'templateId'> & Partial<Scene>): Scene => ({ background: '#161616', theme: 'dark', ...partial, zones: { ...emptyZones(partial.templateId), ...partial.zones } });
 
+const bannerWidget = (templateIds: string[] = []): Widget => ({ type: 'announcement', templateIds, style: 'banner', size: 'm', whenNone: 'empty', fallbackText: '', whenMany: 'rotate', rotateSeconds: 10 });
+/** A portrait ad image with a slim announcement banner at the bottom that only shows while something is active. */
+const adWithBanner = (mediaId: string): Record<string, Widget> => ({ main: { type: 'image', mediaId, fit: 'cover' }, footer: bannerWidget() });
+
 export const scenesSeed: Scene[] = [
-  scene({ id: 'scene-ad-open-days', name: 'Ad – Open days', orientation: 'portrait', templateId: 'full', zones: fullImage('media-open-days') }),
-  scene({ id: 'scene-ad-workshops', name: 'Ad – Workshops', orientation: 'portrait', templateId: 'full', zones: fullImage('media-workshops') }),
-  scene({ id: 'scene-ad-3dprint', name: 'Ad – 3D printing service', orientation: 'portrait', templateId: 'full', zones: fullImage('media-3dprint') }),
+  scene({ id: 'scene-ad-open-days', name: 'Ad – Open days', orientation: 'portrait', templateId: 'main_footer', zones: adWithBanner('media-open-days') }),
+  scene({ id: 'scene-ad-workshops', name: 'Ad – Workshops', orientation: 'portrait', templateId: 'main_footer', zones: adWithBanner('media-workshops') }),
+  scene({ id: 'scene-ad-3dprint', name: 'Ad – 3D printing service', orientation: 'portrait', templateId: 'main_footer', zones: adWithBanner('media-3dprint') }),
   scene({
     id: 'scene-print-live', name: 'Print live', orientation: 'portrait', templateId: 'stack4', background: '#0b0f19',
     zones: {
@@ -90,10 +93,10 @@ export const scenesSeed: Scene[] = [
     },
   }),
   scene({
-    id: 'scene-overview', name: 'Workshop overview', orientation: 'landscape', templateId: 'grid2x2', background: '#262626', backgroundImage: { mediaId: 'media-backdrop', fit: 'cover', dim: 40 },
+    id: 'scene-overview', name: 'Workshop overview', orientation: 'landscape', templateId: 'quad_banner', background: '#262626', backgroundImage: { mediaId: 'media-backdrop', fit: 'cover', dim: 40 },
     zones: {
       tl: { type: 'status', machineIds: ['h2d', 'x1c'], showProgress: true, showRemaining: true }, tr: { type: 'open_days', count: 3 },
-      bl: { type: 'events', count: 3 }, br: { type: 'clock', mode: 'datetime' },
+      bl: { type: 'events', count: 3 }, br: { type: 'clock', mode: 'datetime' }, banner: bannerWidget(),
     },
   }),
   scene({
@@ -105,12 +108,8 @@ export const scenesSeed: Scene[] = [
   }),
   scene({ id: 'scene-ad-welcome', name: 'Ad – Welcome', orientation: 'landscape', templateId: 'full', zones: fullImage('media-welcome') }),
   scene({
-    id: DEFAULT_ANNOUNCEMENT_SCENE, name: 'Closed today', orientation: 'portrait', templateId: 'full', background: '#a2191f', announcement: true,
-    zones: { main: { type: 'text', text: 'Closed today\nWe are back tomorrow at 10:00', size: 'xl', align: 'center' } },
-  }),
-  scene({
-    id: 'scene-back-soon', name: 'Back in a moment', orientation: 'landscape', templateId: 'full', background: '#0f62fe', announcement: true,
-    zones: { main: { type: 'text', text: 'Back in a moment\nPlease ask at the desk', size: 'xl', align: 'center' } },
+    id: 'scene-announcement-full', name: 'Announcement full screen', orientation: 'portrait', templateId: 'full', background: '#161616',
+    zones: { main: { type: 'announcement', templateIds: [], style: 'full', size: 'xl', whenNone: 'empty', fallbackText: '', whenMany: 'rotate', rotateSeconds: 10 } },
   }),
 ];
 
@@ -133,14 +132,53 @@ export const playlistsSeed: Playlist[] = [
   },
 ];
 
+// Announcement templates and announcements ---------------------------------------------------------------------------------------------
+const field = (key: string, label: string, type: AnnouncementTemplate['fields'][number]['type'], extra: Partial<AnnouncementTemplate['fields'][number]> = {}): AnnouncementTemplate['fields'][number] =>
+  ({ id: `fld-${key}`, key, label, type, required: false, defaultValue: '', helper: '', options: [], ...extra });
+
+export const CLOSED_TEMPLATE_ID = 'tpl-closed';
+
+export const announcementTemplatesSeed: AnnouncementTemplate[] = [
+  {
+    id: CLOSED_TEMPLATE_ID, name: 'Closed', tone: 'critical', title: 'Closed today – {reason}', body: 'We are back {back_on}.',
+    fields: [field('reason', 'Reason', 'choice', { required: true, options: ['Holiday', 'Event', 'Maintenance', 'Illness'], defaultValue: 'Holiday' }), field('back_on', 'Back on', 'datetime', { required: true })],
+  },
+  {
+    id: 'tpl-back-soon', name: 'Back soon', tone: 'info', title: 'Back in {minutes} minutes', body: 'Please ask at the desk if you need help right now.',
+    fields: [field('minutes', 'Minutes', 'number', { required: true, defaultValue: '15' })],
+  },
+  {
+    id: 'tpl-out-of-order', name: 'Machine out of order', tone: 'warning', title: '{machine} is out of order', body: '{note}',
+    fields: [field('machine', 'Machine', 'machine', { required: true }), field('note', 'Note', 'longtext', { helper: 'Shown below the title' })],
+  },
+];
+
+/** The sample "Closed" announcement behind the simulation shortcut and the editor's "Announcement active" preview. */
+export function sampleClosedAnnouncement(now = Date.now()): Announcement {
+  const back = new Date(now + day);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return {
+    id: 'ann-sample-closed', templateId: CLOSED_TEMPLATE_ID, values: { reason: 'Maintenance', back_on: `${back.getFullYear()}-${pad(back.getMonth() + 1)}-${pad(back.getDate())}T10:00` },
+    displayIds: null, startsAt: new Date(now).toISOString(), endsAt: null,
+  };
+}
+
+/** One announcement seeded as scheduled (not yet active), so the Announcements page has a "Scheduled" entry. */
+export const announcementsSeed: Announcement[] = [
+  { id: 'ann-seed-holiday', templateId: CLOSED_TEMPLATE_ID, values: { reason: 'Holiday', back_on: iso(3 * day).slice(0, 11) + '10:00' }, displayIds: null, startsAt: iso(2 * day), endsAt: iso(3 * day) },
+];
+
 // Displays ------------------------------------------------------------------------------------------------------------------------
 const snapshot = (rules: Rule[], defaultPlaylistId: string): Snapshot => ({ rules: structuredClone(rules), defaultPlaylistId, scenes: structuredClone(scenesSeed), playlists: structuredClone(playlistsSeed) });
 
-const rulesEntrance: Rule[] = [{ id: 'rule-ent-1', enabled: true, condition: { kind: 'machines', machines: ['h2d', 'x1c'], mode: 'any' }, target: { type: 'scene', id: 'scene-print-live' }, minSeconds: 20, multiMode: 'split', alternateSeconds: 10 }];
+const rulesEntrance: Rule[] = [
+  { id: 'rule-ent-1', enabled: true, condition: { kind: 'announcement', templateIds: ['tpl-closed'] }, target: { type: 'scene', id: 'scene-announcement-full' }, minSeconds: 20, multiMode: 'split', alternateSeconds: 10 },
+  { id: 'rule-ent-2', enabled: true, condition: { kind: 'machines', machines: ['h2d', 'x1c'], mode: 'any' }, target: { type: 'scene', id: 'scene-print-live' }, minSeconds: 20, multiMode: 'split', alternateSeconds: 10 },
+];
 const rulesWorkshop: Rule[] = [{ id: 'rule-ws-1', enabled: true, condition: { kind: 'time', days: [1, 2, 3, 4, 5], from: '08:00', to: '10:00' }, target: { type: 'scene', id: 'scene-morning' }, minSeconds: 20, multiMode: 'split', alternateSeconds: 10 }];
 const rulesLaser: Rule[] = [{ id: 'rule-laser-1', enabled: true, condition: { kind: 'time', days: [1, 2, 3, 4, 5], from: '08:00', to: '10:00' }, target: { type: 'scene', id: 'scene-morning' }, minSeconds: 20, multiMode: 'split', alternateSeconds: 10 }];
 
-const baseDisplay = { revoked: false, announcement: null, errors: [] as Display['errors'], syncPercent: 100 };
+const baseDisplay = { revoked: false, errors: [] as Display['errors'], syncPercent: 100 };
 
 export const displaysSeed: Display[] = [
   {

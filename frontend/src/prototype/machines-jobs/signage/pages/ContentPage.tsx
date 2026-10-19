@@ -10,32 +10,38 @@ import { RequirePermission } from '../../sales/components/RequirePermission';
 import { useUrlParams } from '../../sales/useUrlParams';
 import { useStore } from '../../store';
 import { SceneThumbnail } from '../components/SceneRenderer';
+import { AnnouncementTemplateModal } from '../dialogs/AnnouncementTemplateModal';
 import { NewPlaylistModal, NewSceneModal } from '../dialogs/NewContentModals';
 import { displayUsesPlaylist, formatLoop, loopSeconds, pluralize, sceneUsage } from '../helpers';
 import { useSignage } from '../SignageContext';
 import { useSignageQuery } from '../useSignageQuery';
+import type { AnnouncementTemplate, Tone } from '../types';
 import '../signage.scss';
 
-const SECTIONS = [{ id: 'scenes', label: 'Scenes' }, { id: 'playlists', label: 'Playlists' }];
+const SECTIONS = [{ id: 'scenes', label: 'Scenes' }, { id: 'playlists', label: 'Playlists' }, { id: 'announcements', label: 'Announcements' }];
+const TONE_TAG: Record<Tone, 'blue' | 'warm-gray' | 'red' | 'gray'> = { info: 'blue', warning: 'warm-gray', critical: 'red', neutral: 'gray' };
+const TONE_LABEL: Record<Tone, string> = { info: 'Info', warning: 'Warning', critical: 'Critical', neutral: 'Neutral' };
 
 export function ContentPage() {
   const store = useStore();
   const signage = useSignage();
   const navigate = useNavigate();
   const { params, update } = useUrlParams();
-  const section = params.get('section') === 'playlists' ? 'playlists' : 'scenes';
+  const requested = params.get('section');
+  const section = requested === 'playlists' || requested === 'announcements' ? requested : 'scenes';
   const [creating, setCreating] = useState<'scene' | 'playlist' | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<AnnouncementTemplate | 'new' | null>(null);
   const query = useSignageQuery({ scenes: signage.scenes, playlists: signage.playlists }, { scenes: [], playlists: [] });
   const canEdit = store.can('signage.content.manage');
   const { scenes, playlists } = query.data;
 
   const create = canEdit ? (
-    <Button renderIcon={Add} onClick={() => setCreating(section === 'scenes' ? 'scene' : 'playlist')}>{section === 'scenes' ? 'New scene' : 'New playlist'}</Button>
+    <Button renderIcon={Add} onClick={() => { if (section === 'announcements') setEditingTemplate('new'); else setCreating(section === 'scenes' ? 'scene' : 'playlist'); }}>{section === 'scenes' ? 'New scene' : section === 'playlists' ? 'New playlist' : 'New template'}</Button>
   ) : undefined;
 
   return (
     <RequirePermission permission="signage.read" title="Content" crumbs={[{ label: 'Signage' }]}>
-      <PageShell title="Content" description="Scenes are single screens built from a layout; playlists play scenes in a loop. Edits are drafts until a display is published." width="wide" breadcrumbs={[{ label: 'Signage' }]} actions={create}>
+      <PageShell title="Content" description="Scenes are single screens built from a layout; playlists play scenes in a loop; announcement templates define live messages. Scene and playlist edits are drafts until a display is published." width="wide" breadcrumbs={[{ label: 'Signage' }]} actions={create}>
         <div className="mj-stack">
           <SectionSwitcher label="Content type" sections={SECTIONS} selected={section} onChange={(id) => update({ section: id === 'scenes' ? null : id })} />
           <QueryBoundary query={query} errorMessage="The content could not be loaded.">
@@ -49,13 +55,35 @@ export function ContentPage() {
                         <div className={`sg-scene-tile__thumb sg-scene-tile__thumb--${scene.orientation}`}><SceneThumbnail scene={scene} media={signage.media} /></div>
                         <div className="sg-scene-tile__text">
                           <strong>{scene.name}</strong>
-                          <div className="mj-inline"><Tag size="sm" type="cool-gray">{scene.orientation === 'portrait' ? 'Portrait' : 'Landscape'}</Tag>{scene.announcement && <Tag size="sm" type="warm-gray">Announcement</Tag>}</div>
+                          <div className="mj-inline"><Tag size="sm" type="cool-gray">{scene.orientation === 'portrait' ? 'Portrait' : 'Landscape'}</Tag></div>
                           <span className="mj-secondary">Used by {pluralize(usage.playlists, 'playlist')} · {pluralize(usage.rules, 'rule')}</span>
                         </div>
                       </ClickableTile>
                     );
                   })}
                 </div>
+              )
+            ) : section === 'announcements' ? (
+              signage.announcementTemplates.length === 0 ? <EmptyState title="No announcement templates yet" description="A template defines the fields and the message of a kind of announcement, such as “Closed”." action={create} /> : (
+                <TableContainer className="mj-table-container">
+                  <Table aria-label="Announcement templates">
+                    <TableHead><TableRow><TableHeader>Name</TableHeader><TableHeader>Tone</TableHeader><TableHeader className="mj-hide-narrow">Message</TableHeader><TableHeader className="mj-hide-narrow">Fields</TableHeader><TableHeader>In use</TableHeader></TableRow></TableHead>
+                    <TableBody>
+                      {signage.announcementTemplates.map((template) => {
+                        const inUse = signage.announcements.filter((item) => item.templateId === template.id && (!item.endsAt || Date.parse(item.endsAt) > Date.now())).length;
+                        return (
+                          <TableRow key={template.id} className={canEdit ? 'mj-table-row' : undefined} onClick={canEdit ? () => setEditingTemplate(template) : undefined}>
+                            <TableCell>{canEdit ? <CarbonLink href="#" onClick={(event: React.MouseEvent) => { event.preventDefault(); event.stopPropagation(); setEditingTemplate(template); }}>{template.name}</CarbonLink> : template.name}</TableCell>
+                            <TableCell><Tag size="sm" type={TONE_TAG[template.tone]}>{TONE_LABEL[template.tone]}</Tag></TableCell>
+                            <TableCell className="mj-hide-narrow">{template.title}</TableCell>
+                            <TableCell className="mj-hide-narrow">{template.fields.length === 0 ? '—' : template.fields.map((field) => field.label).join(', ')}</TableCell>
+                            <TableCell>{inUse === 0 ? <span className="mj-secondary">Not in use</span> : pluralize(inUse, 'announcement')}</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
               )
             ) : playlists.length === 0 ? <EmptyState title="No playlists yet" description="A playlist plays scenes one after another." action={create} /> : (
               <TableContainer className="mj-table-container">
@@ -81,6 +109,7 @@ export function ContentPage() {
         </div>
         {creating === 'scene' && <NewSceneModal onClose={() => setCreating(null)} />}
         {creating === 'playlist' && <NewPlaylistModal onClose={() => setCreating(null)} />}
+        {editingTemplate && <AnnouncementTemplateModal template={editingTemplate === 'new' ? undefined : editingTemplate} onClose={() => setEditingTemplate(null)} />}
       </PageShell>
     </RequirePermission>
   );

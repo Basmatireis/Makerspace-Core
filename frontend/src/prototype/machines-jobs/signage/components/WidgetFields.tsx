@@ -1,9 +1,10 @@
 import { ComboBox, ContainedList, ContainedListItem, IconButton, InlineNotification, MultiSelect, NumberInput, RadioButton, RadioButtonGroup, Select, SelectItem, TextArea, TextInput, Toggle } from '@carbon/react';
 import { ArrowDown, ArrowUp, TrashCan } from '@carbon/icons-react';
 import { MACHINE_KEYS, MACHINE_NAMES } from '../engine';
-import type { MachineKey, MediaItem, TextSize, Widget } from '../types';
+import type { AnnouncementStyle, AnnouncementTemplate, MachineKey, MediaItem, TextSize, Widget } from '../types';
 
 type MachineOption = { id: MachineKey; label: string };
+type TemplateOption = { id: string; label: string };
 
 export function MediaPicker({ id, label, kind, media, value, onChange }: { id: string; label: string; kind: 'image' | 'video'; media: MediaItem[]; value: string | null; onChange: (id: string | null) => void }) {
   const items = media.filter((item) => item.kind === kind);
@@ -22,7 +23,7 @@ export function FitField({ id, value, onChange }: { id: string; value: 'contain'
 }
 
 /** Widget-specific properties of the selected zone. Every change is applied (autosaved) immediately. */
-export function WidgetFields({ widget, media, outsideDisplays, onChange }: { widget: Widget; media: MediaItem[]; outsideDisplays: string[]; onChange: (widget: Widget) => void }) {
+export function WidgetFields({ widget, media, templates, outsideDisplays, onChange }: { widget: Widget; media: MediaItem[]; templates: AnnouncementTemplate[]; outsideDisplays: string[]; onChange: (widget: Widget) => void }) {
   switch (widget.type) {
     case 'empty': return <p className="mj-secondary">This zone is empty. Choose a widget type to fill it.</p>;
     case 'image': return (
@@ -122,6 +123,29 @@ export function WidgetFields({ widget, media, outsideDisplays, onChange }: { wid
       </>
     );
     case 'open_days': return <NumberInput id="wf-open-days" label="Show the next … open days" min={1} max={5} value={widget.count} onChange={(_, { value }) => onChange({ ...widget, count: Math.min(5, Math.max(1, Number(value) || 1)) })} />;
+    case 'announcement': return (
+      <>
+        <MultiSelect<TemplateOption> id="wf-ann-templates" titleText="Show announcements from" label="All templates" items={templates.map((item) => ({ id: item.id, label: item.name }))} itemToString={(item) => item?.label ?? ''}
+          initialSelectedItems={templates.filter((item) => widget.templateIds.includes(item.id)).map((item) => ({ id: item.id, label: item.name }))}
+          helperText="Leave empty to show every announcement that targets the display."
+          onChange={({ selectedItems }) => onChange({ ...widget, templateIds: (selectedItems ?? []).map((item) => item.id) })} />
+        <Select id="wf-ann-style" labelText="Style" value={widget.style} onChange={(event) => onChange({ ...widget, style: event.target.value as AnnouncementStyle })}>
+          <SelectItem value="banner" text="Banner (one slim line)" /><SelectItem value="card" text="Card" /><SelectItem value="full" text="Full zone" />
+        </Select>
+        <Select id="wf-ann-size" labelText="Text size" value={widget.size} onChange={(event) => onChange({ ...widget, size: event.target.value as TextSize })}>
+          <SelectItem value="s" text="S" /><SelectItem value="m" text="M" /><SelectItem value="l" text="L" /><SelectItem value="xl" text="XL" />
+        </Select>
+        <Select id="wf-ann-none" labelText="When none is active" value={widget.whenNone} onChange={(event) => onChange({ ...widget, whenNone: event.target.value as 'empty' | 'text' })}>
+          <SelectItem value="empty" text="Leave the zone empty" /><SelectItem value="text" text="Show fallback text" />
+        </Select>
+        {widget.whenNone === 'text' && <TextInput id="wf-ann-fallback" labelText="Fallback text" value={widget.fallbackText} onChange={(event) => onChange({ ...widget, fallbackText: event.target.value })} />}
+        <Select id="wf-ann-many" labelText="When several are active" value={widget.whenMany} onChange={(event) => onChange({ ...widget, whenMany: event.target.value as 'rotate' | 'newest' | 'stack' })}>
+          <SelectItem value="rotate" text="Rotate" /><SelectItem value="newest" text="Show the newest" /><SelectItem value="stack" text="Stack them" />
+        </Select>
+        {widget.whenMany === 'rotate' && <NumberInput id="wf-ann-rotate" label="Rotate every (seconds)" min={2} max={120} value={widget.rotateSeconds} onChange={(_, { value }) => onChange({ ...widget, rotateSeconds: Math.min(120, Math.max(2, Number(value) || 10)) })} />}
+        <p className="mj-secondary">Announcements are live: they appear on the display as soon as they start, without publishing.</p>
+      </>
+    );
     case 'events': return <NumberInput id="wf-events" label="Show the next … events" min={1} max={5} value={widget.count} onChange={(_, { value }) => onChange({ ...widget, count: Math.min(5, Math.max(1, Number(value) || 1)) })} />;
   }
 }

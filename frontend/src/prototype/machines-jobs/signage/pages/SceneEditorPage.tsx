@@ -11,7 +11,7 @@ import { SceneRenderer, ScreenFrame } from '../components/SceneRenderer';
 import { TemplateSketch } from '../components/TemplatePicker';
 import { FitField, MediaPicker, WidgetFields } from '../components/WidgetFields';
 import { ChangeTemplateModal } from '../dialogs/ChangeTemplateModal';
-import { displaySceneIds } from '../helpers';
+import { displaySceneIds, sampleRendered } from '../helpers';
 import { useSignage } from '../SignageContext';
 import { templateById } from '../templates';
 import { useSignageQuery } from '../useSignageQuery';
@@ -52,7 +52,9 @@ function Editor({ sceneId, crumbs }: { sceneId: string; crumbs: { label: string;
   const selectedId = template.zones.some((zone) => zone.id === zoneId) ? zoneId : template.zones[0].id;
   const zone = template.zones.find((item) => item.id === selectedId)!;
   const widget = scene.zones[selectedId] ?? { type: 'empty' as const };
-  const previewSim = (PREVIEW_PRESETS.find((item) => item.id === preview) ?? PREVIEW_PRESETS[0]).sim;
+  const previewPreset = PREVIEW_PRESETS.find((item) => item.id === preview) ?? PREVIEW_PRESETS[0];
+  const previewSim = previewPreset.sim;
+  const previewAnnouncements = previewPreset.announcement ? sampleRendered(signage.announcementTemplates, new Date(now)) : [];
   const outsideDisplays = signage.displays.filter((display) => display.outside && !display.revoked && displaySceneIds(display, signage.playlists).has(scene.id)).map((display) => display.name);
 
   const setWidget = (next: Widget) => signage.updateScene(scene.id, (current) => ({ ...current, zones: { ...current.zones, [selectedId]: next } }));
@@ -116,7 +118,7 @@ function Editor({ sceneId, crumbs }: { sceneId: string; crumbs: { label: string;
           </Select>
           <div className={`sg-editor__frame sg-editor__frame--${scene.orientation}`}>
             <ScreenFrame orientation={scene.orientation} className="sg-canvas">
-              <SceneRenderer scene={scene} sim={previewSim} now={now} media={signage.media} selectedZone={selectedId} onSelectZone={setZoneId} />
+              <SceneRenderer scene={scene} sim={previewSim} now={now} media={signage.media} announcements={previewAnnouncements} selectedZone={selectedId} onSelectZone={setZoneId} />
             </ScreenFrame>
           </div>
           <p className="mj-secondary">Select a zone on the canvas or in the list. Zone labels are only shown here.</p>
@@ -129,7 +131,7 @@ function Editor({ sceneId, crumbs }: { sceneId: string; crumbs: { label: string;
               <Select id="widget-type" labelText="Widget type" value={widget.type} onChange={(event) => setWidget(defaultWidget(event.target.value as WidgetType, signage.media))}>
                 {WIDGET_TYPES.map((type) => <SelectItem key={type} value={type} text={WIDGET_LABELS[type]} />)}
               </Select>
-              <WidgetFields widget={widget} media={signage.media} outsideDisplays={outsideDisplays} onChange={setWidget} />
+              <WidgetFields widget={widget} media={signage.media} templates={signage.announcementTemplates} outsideDisplays={outsideDisplays} onChange={setWidget} />
             </div>
           ) : (
             <div className="mj-stack">

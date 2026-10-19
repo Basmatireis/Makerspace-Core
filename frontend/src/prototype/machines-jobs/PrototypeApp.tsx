@@ -3,7 +3,7 @@ import {
   ActionableNotification, Button, Header, HeaderGlobalAction, HeaderGlobalBar, HeaderMenuButton, HeaderName, HeaderPanel, RadioButton, RadioButtonGroup,
   Select, SelectItem, SideNav, SideNavItems, SideNavLink, SkipToContent, Stack, Tag, Theme, ToastNotification,
 } from '@carbon/react';
-import { Chemistry, Dashboard, Reset, Tools, Catalog, InventoryManagement, ChartColumn, Currency, Receipt, Wallet, Tag as TagIcon, Screen, Image as ImageIcon, Document, Settings } from '@carbon/icons-react';
+import { Chemistry, Dashboard, Reset, Tools, Catalog, InventoryManagement, ChartColumn, Currency, Receipt, Wallet, Tag as TagIcon, Screen, Bullhorn, Image as ImageIcon, Document, Settings } from '@carbon/icons-react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { rolePresets, useStore, type ConnectionTestMode, type Permission, type Role, type Scenario, type Toast } from './store';
 import { OverviewPage } from './pages/OverviewPage';
@@ -23,6 +23,7 @@ import { ReceiptPage } from './sales/pages/ReceiptPage';
 import { PaymentsPage } from './sales/pages/PaymentsPage';
 import { PaymentDetailPage } from './sales/pages/PaymentDetailPage';
 import { PricingPage } from './sales/pages/PricingPage';
+import { AnnouncementsPage } from './signage/pages/AnnouncementsPage';
 import { ContentPage } from './signage/pages/ContentPage';
 import { DisplayDetailPage } from './signage/pages/DisplayDetailPage';
 import { DisplaysPage } from './signage/pages/DisplaysPage';
@@ -54,6 +55,7 @@ const SALES_NAV: SalesNavItem[] = [
 
 const SIGNAGE_NAV: SalesNavItem[] = [
   { label: 'Displays', to: '/signage', icon: Screen, match: (p) => p === '/signage' || p.startsWith('/signage/displays'), needs: [['signage.read']] },
+  { label: 'Announcements', to: '/signage/announcements', icon: Bullhorn, match: (p) => p.startsWith('/signage/announcements'), needs: [['signage.read'], ['signage.override']] },
   { label: 'Content', to: '/signage/content', icon: Document, match: (p) => p.startsWith('/signage/content') || p.startsWith('/signage/scenes') || p.startsWith('/signage/playlists'), needs: [['signage.read']] },
   { label: 'Media', to: '/signage/media', icon: ImageIcon, match: (p) => p.startsWith('/signage/media'), needs: [['signage.read']] },
 ];
@@ -212,6 +214,7 @@ function Shell() {
           <Route path="/sales/pricing" element={<PricingPage />} />
           <Route path="/signage" element={<DisplaysPage />} />
           <Route path="/signage/displays/:displayId" element={<DisplayDetailPage />} />
+          <Route path="/signage/announcements" element={<AnnouncementsPage />} />
           <Route path="/signage/content" element={<ContentPage />} />
           <Route path="/signage/scenes/:sceneId" element={<SceneEditorPage />} />
           <Route path="/signage/playlists/:playlistId" element={<PlaylistDetailPage />} />

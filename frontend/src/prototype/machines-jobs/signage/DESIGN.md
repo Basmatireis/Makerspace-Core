@@ -19,14 +19,14 @@ Source concept: "Digital Signage für Makerspace Core – Gesamtkonzept" (19.10.
 | `signage.manage` | Pair/rename/revoke displays, edit rules and default playlist |
 | `signage.content.manage` | Edit scenes, playlists, upload/delete media |
 | `signage.publish` | Publish a display |
-| `signage.override` | Start/stop an announcement takeover |
+| `signage.override` | Start, edit and stop announcements (the Announcements page is visible with `signage.read` or `signage.override`) |
 | `local_services.manage` | Local services: enrollment secrets, compose bundle, revoke services |
 
-Role presets: supervisor gets all. New preset **Content editor** (`signage.read`, `signage.content.manage`): can edit scenes/playlists/media, cannot pair, publish or change rules. Front desk additionally gets `signage.read` + `signage.override` (can put up a "Closed today" announcement). Controls without permission are hidden, never just disabled-without-reason.
+Role presets: supervisor gets all. New preset **Content editor** (`signage.read`, `signage.content.manage`): can edit scenes/playlists/media, cannot pair, publish or change rules. Front desk additionally gets `signage.read` + `signage.override` (can start a "Closed" announcement). Controls without permission are hidden, never just disabled-without-reason.
 
 ## Navigation
 
-New side-nav heading **Signage**: Displays (`/signage`), Content (`/signage/content`), Media (`/signage/media`).
+New side-nav heading **Signage**: Displays (`/signage`), Announcements (`/signage/announcements`), Content (`/signage/content`), Media (`/signage/media`).
 New side-nav heading **Settings**: Local services (`/settings/local-services`).
 Fullscreen player route `/signage/play/:displayId` renders **without** the app shell (no header/side nav). `/signage/play/unpaired` shows the pairing screen.
 
@@ -52,7 +52,7 @@ Two-column layout (stacks on narrow): left **Live preview** — scaled frame (co
 - **Health** tab: StructuredList — last heartbeat, published revision + time, player version, cache usage (ProgressBar "1.2 of 8 GB"), cameras (per camera: Live / Idle / Unavailable, "1680 × 1080 · H.264 · 30 fps"), recent errors list.
 - **Settings** tab: name, location, orientation, resolution, visible-from-outside, default playlist. Save button.
 
-**Announcement takeover** (`signage.override`): a secondary button "Show announcement" in the header area opens a modal: pick an announcement scene or type a quick text, until (time / "until I stop it"). While active a warning banner with **Stop announcement**. Takeover applies immediately (no publish needed) — it is the one live override.
+**Announcements**: see the section *Announcements (v2)* below. The display header keeps a secondary **Show announcement** button that opens the same start dialog with this display preselected.
 
 ### Content `/signage/content`
 Table toolbar with `SectionSwitcher` Scenes | Playlists (URL param `?section=`).
@@ -89,12 +89,56 @@ One installation card "Makerspace Graz" (in the concept there is one installatio
 Lightweight custom rendering (the real player is a separate small app, so **no Carbon components here**, plain CSS is intended). Fills the window, letterboxes to the display's aspect ratio. Renders the resolved scene; playlists rotate with fade. Camera zones show a mock live feed (a print preview image with a subtle animated noise/scan effect and a red "LIVE" badge), machine name, progress bar and "ends ~14:20". Split mode for two cameras. Live data stale (Core unreachable longer than TTL): machine status widgets show "Status unknown" instead of guessing; a small offline dot in a corner; cached media keep playing. Unpaired: big pairing code `K7F2QX`, "Enter this code in Makerspace Core › Signage › Pair display".
 
 ## Simulation controls
-Extend the prototype controls panel with a **Signage simulation** group: H2D (Idle / Printing / Camera unavailable), X1C (same), Core reachable (toggle), Announcement active (toggle). The live preview, editor preview and player react immediately.
+Extend the prototype controls panel with a **Signage simulation** group: H2D (Idle / Printing / Camera unavailable), X1C (same), Core reachable (toggle) and two shortcut buttons, "Start sample 'Closed' announcement" and "Stop all announcements". The live preview, editor preview and player react immediately.
 
 ## Resolution engine
-Pure function `resolvePlayback(display, rules, sim, now)` → `{ ruleId | 'default', target, reason, activeMachines }`. Covered by vitest unit tests (time windows across weekdays, any/all machines, disabled rules, priority order, announcement beats everything above it only by order, stale data rule).
+Pure function `resolvePlayback(display, rules, sim, now, activeAnnouncements)` → `{ ruleId | 'default', target, reason, activeMachines }`; there is no announcement special case. Covered by vitest unit tests (time windows across weekdays, any/all machines, disabled rules, priority order, announcement rules match only by list position, template filter, stale data rule).
 
 ## Mock data
 Displays: **Entrance window** (portrait 1080×1920, visible from outside, online, default playlist Ads, rule 1 "Any of H2D, X1C printing → Print live"); **Workshop info** (landscape 1920×1080, inside, online, default playlist Workshop info, rule "Mon–Fri 08:00–10:00 → Morning briefing"); **Laser room** (landscape, offline 2 h, 2 unpublished changes).
 Scenes: Ad – Open days (portrait), Ad – Workshops, Ad – 3D printing service, Print live (portrait, header text + camera zone + machine status + QR footer), Workshop overview (landscape 2×2: machine status, open days, events, clock), Morning briefing, Closed today (announcement).
 Media: 6–8 generated SVG data-URI posters (gradients + big text) and 2 mock videos (poster images). No network, no external files.
+
+## Announcements (v2) — replaces the takeover
+
+Agreed with the user: announcements are **content with variables**, shown wherever a scene contains an **Announcement** widget; displays decide via ordinary rules whether to switch to an announcement scene.
+
+### Announcement templates (Content › Announcements, `signage.content.manage`)
+Third section in the Content `SectionSwitcher`: Scenes | Playlists | **Announcements**.
+A template has:
+- **Name** (e.g. "Closed", "Back soon", "Machine out of order").
+- **Fields** the person starting it fills in. Each field: label, key (auto from label, e.g. `reason`), type (Text · Long text · Time · Date · Date and time · Number · Choice with options · Machine), required, default value, optional helper text. Reorder up/down, add, remove.
+- **Message**: title + body with placeholders `{reason}`. Insert via a "Insert variable" menu (custom fields + built-ins) so nobody has to type braces. Unknown placeholders are flagged inline.
+- **Built-in variables**: `{ends_at}` (time, "14:30"), `{ends_on}` (date, "Mon 21 Oct"), `{ends}` (smart: "at 14:30" today, "on Mon 21 Oct at 10:00" otherwise, "until further notice" if open-ended), `{starts_at}`, `{today}`, `{display}` (display name), `{location}`.
+- **Style**: tone Info (blue) · Warning (yellow) · Critical (red) · Neutral; optional icon/pictogram name. The widget renders with the tone.
+- Live preview of the rendered message with sample values; editing the template shows "Used in N active announcements".
+Seed templates: **Closed** (fields: reason Choice [Holiday, Event, Maintenance, Illness], back_on Date and time; message "Closed today – {reason}" / "We are back {ends}." with ends = back_on), **Back soon** (fields: minutes Number; "Back in {minutes} minutes"), **Machine out of order** (fields: machine Machine, note Long text; "{machine} is out of order" / "{note}").
+
+### Starting / stopping (`signage.override`)
+New page **Signage › Announcements** (`/signage/announcements`) — side nav item between Displays and Content. Shows **Active** (and scheduled) announcements as a list: rendered title, template, displays, "until 14:30", Stop / Edit. Primary **New announcement** → modal (ComposedModal, size md):
+1. Template (tiles or select).
+2. The template's fields, rendered as Carbon inputs by type (TextInput, TextArea, TimePicker/TextInput type=time, DatePicker, NumberInput, Select, machine Select). Required validation.
+3. **Shown on**: All displays · Selected displays (MultiSelect).
+4. **Start**: Now · At (date+time). **End**: Until I stop it · At (date + time) · After (duration: 15 min, 30 min, 1 h, 2 h, end of day). The end time feeds `{ends…}`.
+5. Live preview of the rendered message (and a small frame preview of a target display's resolved scene).
+Applies immediately (no publish), because announcements are live data, not layout. Several announcements may be active at once.
+
+### Announcement widget (any scene)
+New widget type **Announcement** in the zone properties: which announcements (All · Only templates …), style (Banner · Card · Full zone), text size, **when none is active**: Leave zone empty · Show fallback text · Show another widget (pick Image/Text/Clock/etc. via a nested simple widget select — prototype: fallback text or empty only is fine), **when several are active**: Rotate every N s · Show the newest · Stack. The widget renders the template's tone. In the editor's "Preview as", add "Announcement active" which uses the seeded Closed announcement.
+So an ad scene can carry a slim announcement banner that only appears when something is active, with no rule needed.
+
+### Rule condition "Announcement active"
+The existing condition gets options: Any announcement · Only templates (multi-select). It matches if an active announcement targets this display (all or selected). Target is a normal scene/playlist — typically a scene built around a full-zone Announcement widget. **Remove the old implicit takeover** (announcement jumping to the top, the hidden default scene, the `quick text` shortcut). Order in the list is the only priority — what you see is what happens.
+Seed: Entrance window rule 1 "Announcement active (Closed) → Scene Announcement full screen", rule 2 printers → Print live; Ad scenes on Entrance have a bottom Banner announcement zone where a template fits. Workshop info has none as a rule, but its overview scene has a banner zone.
+
+### Simulation & engine
+Simulation toggle "Announcement active" is replaced by the real Announcements page (seed: one scheduled "Closed" announcement, none active; the controls panel gets a shortcut "Start sample 'Closed' announcement" / "Stop all announcements").
+Engine: `renderAnnouncement(template, values, timing, context) → { title, body, tone }` (pure, tested: built-ins, `{ends}` today/other day/open-ended, missing optional values render empty, unknown placeholders left visible) and `activeAnnouncementsFor(displayId, announcements, now)` (start/end windows, all vs selected displays). `resolvePlayback` uses that list for the condition, no special case.
+Offline note in the spec/UI help: the player keeps active announcements it received and drops them at their end time even if Core is unreachable.
+
+
+### Implementation notes (prototype)
+- Announcements are live data in `SignageContext` (not part of a publication) and are mirrored to other tabs like the simulation, so the fullscreen player reacts.
+- `{ends}`-style wording also applies to Date-and-time fields: "today at 14:30", "tomorrow at 10:00", "on Mon 21 Oct at 10:00". Seed "Closed" uses `{back_on}` (a Date and time field) in its body; `{ends}` comes from the End setting in the start dialog.
+- Not built: template delete, icon/pictogram per template, "show another widget" as empty behaviour (fallback text or empty only).
+- Scenes with an Announcement widget show the sample "Closed" announcement in thumbnails and in the editor's "Announcement active" preview.

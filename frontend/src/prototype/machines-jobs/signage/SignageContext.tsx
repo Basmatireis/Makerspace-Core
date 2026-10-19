@@ -1,18 +1,18 @@
 /* eslint-disable react-refresh/only-export-components -- provider and hook form one module, like the prototype store */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../store';
-import { PAIRING_CODE, displaysSeed, mediaSeed, playlistsSeed, scenesSeed, servicesSeed } from './mockData';
+import { PAIRING_CODE, announcementTemplatesSeed, announcementsSeed, displaysSeed, mediaSeed, playlistsSeed, sampleClosedAnnouncement, scenesSeed, servicesSeed } from './mockData';
 import { displaySceneIds, displayUsesPlaylist, publishedScenesUsingMedia, uid } from './helpers';
 import { emptyZones, remapZones } from './templates';
-import type { Announcement, Display, LocalService, MediaItem, Orientation, Playlist, PlaylistItem, Resolution, Rule, Scene, ServiceKind, Sim } from './types';
+import type { Announcement, AnnouncementTemplate, Display, LocalService, MediaItem, Orientation, Playlist, PlaylistItem, Resolution, Rule, Scene, ServiceKind, Sim } from './types';
 
-export const DEFAULT_SIM: Sim = { h2d: 'idle', x1c: 'idle', coreReachable: true, announcement: false };
+export const DEFAULT_SIM: Sim = { h2d: 'idle', x1c: 'idle', coreReachable: true };
 
 export type PairInput = { code: string; name: string; location: string; orientation: Orientation; resolution: Resolution; outside: boolean; defaultPlaylistId: string };
 export type DisplaySettings = Pick<Display, 'name' | 'location' | 'orientation' | 'resolution' | 'outside'>;
 export type PairResult = { ok: true; display: Display } | { ok: false; error: string };
 
-type State = { displays: Display[]; scenes: Scene[]; playlists: Playlist[]; media: MediaItem[]; services: LocalService[]; paired: boolean };
+type State = { displays: Display[]; scenes: Scene[]; playlists: Playlist[]; media: MediaItem[]; services: LocalService[]; announcementTemplates: AnnouncementTemplate[]; paired: boolean };
 
 type Api = State & {
   sim: Sim;
@@ -27,8 +27,14 @@ type Api = State & {
   moveRule: (displayId: string, ruleId: string, direction: -1 | 1) => void;
   deleteRule: (displayId: string, ruleId: string) => void;
   publishDisplay: (id: string) => void;
-  startAnnouncement: (id: string, announcement: Announcement) => void;
+  /** Announcements (active, scheduled and ended ones that have not been cleaned up). They are live data: no publishing. */
+  announcements: Announcement[];
+  startAnnouncement: (input: Omit<Announcement, 'id'>) => Announcement;
+  updateAnnouncement: (id: string, input: Omit<Announcement, 'id'>) => void;
   stopAnnouncement: (id: string) => void;
+  stopAllAnnouncements: () => void;
+  startSampleClosed: () => void;
+  saveAnnouncementTemplate: (template: AnnouncementTemplate) => void;
   revokeDisplay: (id: string) => void;
   deleteDisplay: (id: string) => void;
   rotateCredential: (id: string) => void;
@@ -44,7 +50,7 @@ type Api = State & {
   revokeService: (id: string) => void;
 };
 
-const initial = (): State => structuredClone({ displays: displaysSeed, scenes: scenesSeed, playlists: playlistsSeed, media: mediaSeed, services: servicesSeed, paired: false });
+const initial = (): State => structuredClone({ displays: displaysSeed, scenes: scenesSeed, playlists: playlistsSeed, media: mediaSeed, services: servicesSeed, announcementTemplates: announcementTemplatesSeed, paired: false });
 
 const SignageContext = createContext<Api | null>(null);
 
@@ -62,13 +68,24 @@ export function SignageProvider({ children }: { children: ReactNode }) {
   const [sim, setSimState] = useState<Sim>(DEFAULT_SIM);
   // The simulation follows across tabs, so a second window with the fullscreen player reacts to the controls.
   const simRef = useRef<Sim>(DEFAULT_SIM);
+  const [announcements, setAnnouncementsState] = useState<Announcement[]>(() => structuredClone(announcementsSeed));
+  const announcementsRef = useRef<Announcement[]>(announcements);
   const channel = useRef<BroadcastChannel | null>(null);
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return undefined;
     const bc = new BroadcastChannel('signage-sim');
     channel.current = bc;
-    bc.onmessage = (event: MessageEvent<Sim>) => { simRef.current = event.data; setSimState(event.data); };
+    bc.onmessage = (event: MessageEvent<{ sim?: Sim; announcements?: Announcement[] }>) => {
+      if (event.data.sim) { simRef.current = event.data.sim; setSimState(event.data.sim); }
+      if (event.data.announcements) { announcementsRef.current = event.data.announcements; setAnnouncementsState(event.data.announcements); }
+    };
     return () => { bc.close(); channel.current = null; };
+  }, []);
+  const changeAnnouncements = useCallback((change: (list: Announcement[]) => Announcement[]) => {
+    const next = change(announcementsRef.current);
+    announcementsRef.current = next;
+    setAnnouncementsState(next);
+    channel.current?.postMessage({ announcements: next });
   }, []);
 
   const patchDisplay = useCallback((id: string, change: (display: Display) => Display) => setState((s) => ({ ...s, displays: s.displays.map((display) => display.id === id ? change(display) : display) })), []);
@@ -77,15 +94,15 @@ export function SignageProvider({ children }: { children: ReactNode }) {
   const api = useMemo<Api>(() => ({
     ...state,
     sim,
-    setSim: (patch) => { const next = { ...simRef.current, ...patch }; simRef.current = next; setSimState(next); channel.current?.postMessage(next); },
-    resetSignage: () => { setState(initial()); simRef.current = DEFAULT_SIM; setSimState(DEFAULT_SIM); channel.current?.postMessage(DEFAULT_SIM); },
+    setSim: (patch) => { const next = { ...simRef.current, ...patch }; simRef.current = next; setSimState(next); channel.current?.postMessage({ sim: next }); },
+    resetSignage: () => { setState(initial()); simRef.current = DEFAULT_SIM; setSimState(DEFAULT_SIM); channel.current?.postMessage({ sim: DEFAULT_SIM }); changeAnnouncements(() => structuredClone(announcementsSeed)); },
     pairDisplay: (input) => {
       if (input.code.trim().toUpperCase() !== PAIRING_CODE) return { ok: false, error: 'No screen is waiting for this code. Codes expire after 15 minutes.' };
       const playlist = state.playlists.find((item) => item.id === input.defaultPlaylistId) ?? state.playlists[0];
       const display: Display = {
         id: uid('display'), name: input.name.trim(), location: input.location.trim(), orientation: input.orientation, resolution: input.resolution, outside: input.outside,
         status: 'online', lastSeenAt: new Date().toISOString(), syncPercent: 100, revoked: false, playerVersion: '0.9.3', cacheGb: 0, cacheLimitGb: 8, rules: [], defaultPlaylistId: playlist.id,
-        pending: [], revision: 1, publishedAt: new Date().toISOString(), announcement: null, errors: [],
+        pending: [], revision: 1, publishedAt: new Date().toISOString(), errors: [],
         published: { rules: [], defaultPlaylistId: playlist.id, scenes: structuredClone(state.scenes), playlists: structuredClone(state.playlists) },
       };
       setState((s) => ({ ...s, displays: [...s.displays, display], paired: true }));
@@ -117,9 +134,18 @@ export function SignageProvider({ children }: { children: ReactNode }) {
       window.setTimeout(() => patchDisplay(id, (display) => display.status === 'syncing' ? { ...display, syncPercent: 75 } : display), 700);
       window.setTimeout(() => patchDisplay(id, (display) => display.status === 'syncing' ? { ...display, status: 'online', syncPercent: 100 } : display), 1500);
     },
-    startAnnouncement: (id, announcement) => patchDisplay(id, (display) => ({ ...display, announcement })),
-    stopAnnouncement: (id) => patchDisplay(id, (display) => ({ ...display, announcement: null })),
-    revokeDisplay: (id) => patchDisplay(id, (display) => ({ ...display, revoked: true, status: 'offline', announcement: null })),
+    announcements,
+    startAnnouncement: (input) => {
+      const announcement: Announcement = { ...input, id: uid('ann') };
+      changeAnnouncements((list) => [...list, announcement]);
+      return announcement;
+    },
+    updateAnnouncement: (id, input) => changeAnnouncements((list) => list.map((item) => item.id === id ? { ...input, id } : item)),
+    stopAnnouncement: (id) => changeAnnouncements((list) => list.filter((item) => item.id !== id)),
+    stopAllAnnouncements: () => changeAnnouncements(() => []),
+    startSampleClosed: () => changeAnnouncements((list) => [...list.filter((item) => item.id !== 'ann-sample-closed'), sampleClosedAnnouncement()]),
+    saveAnnouncementTemplate: (template) => setState((s) => ({ ...s, announcementTemplates: s.announcementTemplates.some((item) => item.id === template.id) ? s.announcementTemplates.map((item) => item.id === template.id ? template : item) : [...s.announcementTemplates, template] })),
+    revokeDisplay: (id) => patchDisplay(id, (display) => ({ ...display, revoked: true, status: 'offline' })),
     deleteDisplay: (id) => setState((s) => ({ ...s, displays: s.displays.filter((display) => display.id !== id || !display.revoked) })),
     rotateCredential: () => store.notify({ kind: 'success', title: 'Credential rotated', subtitle: 'The player picks up its new credential on the next heartbeat.' }),
     createScene: (input) => {
@@ -165,7 +191,7 @@ export function SignageProvider({ children }: { children: ReactNode }) {
       store.notify({ kind: 'success', title: 'Credential rotated', subtitle: 'The service switches to the new credential automatically.' });
     },
     revokeService: (id) => setState((s) => ({ ...s, services: s.services.map((service) => service.id === id ? { ...service, state: 'revoked' } : service) })),
-  }), [state, sim, patchDisplay, store]);
+  }), [state, sim, announcements, patchDisplay, changeAnnouncements, store]);
 
   return <SignageContext.Provider value={api}>{children}</SignageContext.Provider>;
 }

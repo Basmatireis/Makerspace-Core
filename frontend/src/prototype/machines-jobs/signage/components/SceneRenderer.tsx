@@ -1,9 +1,10 @@
 import { useMemo, type CSSProperties, type ReactNode } from 'react';
 import { MACHINE_NAMES, printingMachines } from '../engine';
 import { cameraFrames, eventsSeed, machineLive, openDaysSeed } from '../mockData';
-import { formatClock } from '../helpers';
+import { formatClock, sampleRendered } from '../helpers';
+import { useSignage } from '../SignageContext';
 import { templateById } from '../templates';
-import type { MachineKey, MediaItem, MultiMode, Orientation, Scene, Sim, Widget } from '../types';
+import type { MachineKey, MediaItem, MultiMode, Orientation, RenderedAnnouncement, Scene, Sim, Widget } from '../types';
 import { qrModules } from './qr';
 
 // The one renderer behind preview frames, thumbnails, the editor canvas and the fullscreen player.
@@ -12,7 +13,7 @@ import { qrModules } from './qr';
 
 export type PlaybackContext = { activeMachines: MachineKey[]; multiMode: MultiMode | null; alternateSeconds: number };
 
-type RenderContext = { sim: Sim; now: number; media: Map<string, MediaItem>; playback: PlaybackContext; orientation: Orientation };
+type RenderContext = { sim: Sim; now: number; media: Map<string, MediaItem>; playback: PlaybackContext; orientation: Orientation; announcements: RenderedAnnouncement[] };
 
 const TEXT_SIZE = { s: 3, m: 4.6, l: 7, xl: 10 } as const;
 
@@ -104,6 +105,27 @@ function StatusWidget({ widget, ctx }: { widget: Extract<Widget, { type: 'status
   );
 }
 
+/** Announcements matching the widget's filter, shown per the "several active" setting; nothing active falls back as configured. */
+function AnnouncementWidget({ widget, ctx }: { widget: Extract<Widget, { type: 'announcement' }>; ctx: RenderContext }) {
+  const matching = ctx.announcements.filter((item) => widget.templateIds.length === 0 || widget.templateIds.includes(item.templateId));
+  if (matching.length === 0) return widget.whenNone === 'text' && widget.fallbackText.trim() !== '' ? <div className="sg-text" style={{ fontSize: `calc(var(--u) * ${TEXT_SIZE[widget.size]})` }}>{widget.fallbackText}</div> : null;
+  const shown = widget.whenMany === 'stack' ? matching
+    : widget.whenMany === 'newest' ? matching.slice(0, 1)
+      : [matching[Math.floor(ctx.now / 1000 / Math.max(2, widget.rotateSeconds)) % matching.length]];
+  const rotating = widget.whenMany === 'rotate' && matching.length > 1;
+  const unit = TEXT_SIZE[widget.size] * (widget.style === 'full' ? 1 : 0.8);
+  return (
+    <div className={`sg-ann-list sg-ann-list--${widget.style}`} key={rotating ? shown[0].id : undefined}>
+      {shown.map((item) => (
+        <div key={item.id} className={`sg-ann sg-ann--${item.tone} sg-ann--${widget.style}${rotating ? ' sg-fade' : ''}`} role="status">
+          <strong className="sg-ann__title" style={{ fontSize: `calc(var(--u) * ${unit})` }}>{item.title}</strong>
+          {item.body.trim() !== '' && <span className="sg-ann__body" style={{ fontSize: `calc(var(--u) * ${unit * 0.6})` }}>{item.body}</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function WidgetView({ widget, ctx }: { widget: Widget; ctx: RenderContext }) {
   switch (widget.type) {
     case 'empty': return null;
@@ -131,6 +153,7 @@ function WidgetView({ widget, ctx }: { widget: Widget; ctx: RenderContext }) {
     }
     case 'camera': return <CameraWidget widget={widget} ctx={ctx} />;
     case 'status': return <StatusWidget widget={widget} ctx={ctx} />;
+    case 'announcement': return <AnnouncementWidget widget={widget} ctx={ctx} />;
     case 'open_days':
       return <div className="sg-list"><strong className="sg-list__title">Next open days</strong>{openDaysSeed.slice(0, widget.count).map((entry) => <div key={entry.date} className="sg-list__row"><span>{entry.date}</span><span>{entry.time}</span></div>)}</div>;
     case 'events':
@@ -153,6 +176,8 @@ export type SceneRendererProps = {
   now: number;
   media: MediaItem[];
   playback?: PlaybackContext;
+  /** Active announcements for the screen, already rendered (see `renderedFor`). */
+  announcements?: RenderedAnnouncement[];
   selectedZone?: string | null;
   onSelectZone?: (zoneId: string) => void;
 };
@@ -166,12 +191,12 @@ function sceneBackground(scene: Scene, media: Map<string, MediaItem>): string {
   return `linear-gradient(${veil}, ${veil}), url("${item.src}") center / ${image.fit} no-repeat, ${scene.background}`;
 }
 
-export function SceneRenderer({ scene, screenOrientation, sim, now, media, playback, selectedZone, onSelectZone }: SceneRendererProps) {
+export function SceneRenderer({ scene, screenOrientation, sim, now, media, playback, announcements, selectedZone, onSelectZone }: SceneRendererProps) {
   const lookup = useMemo(() => new Map(media.map((item) => [item.id, item])), [media]);
   if (!scene) return <div className="sg-scene sg-scene--empty" />;
   const orientation = screenOrientation ?? scene.orientation;
   const template = templateById(scene.templateId);
-  const ctx: RenderContext = { sim, now, media: lookup, orientation, playback: playback ?? { activeMachines: printingMachines(sim), multiMode: null, alternateSeconds: 10 } };
+  const ctx: RenderContext = { sim, now, media: lookup, orientation, announcements: announcements ?? [], playback: playback ?? { activeMachines: printingMachines(sim), multiMode: null, alternateSeconds: 10 } };
   const style = { '--u': orientation === 'portrait' ? '1cqw' : '0.5625cqw', background: sceneBackground(scene, lookup), gridTemplateColumns: template.columns, gridTemplateRows: template.rows } as CSSProperties;
   return (
     <div className={`sg-scene sg-scene--${scene.theme}`} style={style}>
@@ -194,11 +219,13 @@ export function SceneRenderer({ scene, screenOrientation, sim, now, media, playb
 
 /** Small static rendering of a scene for tiles, tables and playlist rows. */
 export function SceneThumbnail({ scene, media, className }: { scene: Scene; media: MediaItem[]; className?: string }) {
+  const { announcementTemplates } = useSignage();
+  const announcements = useMemo(() => sampleRendered(announcementTemplates, new Date(THUMB_NOW)), [announcementTemplates]);
   return (
     <ScreenFrame orientation={scene.orientation} className={`sg-thumb${className ? ` ${className}` : ''}`}>
-      <SceneRenderer scene={scene} sim={THUMB_SIM} now={THUMB_NOW} media={media} />
+      <SceneRenderer scene={scene} sim={THUMB_SIM} now={THUMB_NOW} media={media} announcements={announcements} />
     </ScreenFrame>
   );
 }
 const THUMB_NOW = 1_800_000_000_000;
-const THUMB_SIM: Sim = { h2d: 'idle', x1c: 'idle', coreReachable: true, announcement: false };
+const THUMB_SIM: Sim = { h2d: 'idle', x1c: 'idle', coreReachable: true };

@@ -1,11 +1,16 @@
 import { useMemo } from 'react';
-import { playbackOf } from '../helpers';
-import type { Display, MediaItem, Scene, Sim } from '../types';
+import { playbackOf, renderedFor } from '../helpers';
+import { useSignage } from '../SignageContext';
+import type { Announcement, Display, MediaItem, Scene, Sim } from '../types';
 import { SceneRenderer, ScreenFrame } from './SceneRenderer';
 
 /** What a paired player shows right now: the resolved rule's scene, or the playlist's current scene (fading between items). */
-export function DisplayScreen({ display, sim, now, media, width }: { display: Display; sim: Sim; now: number; media: MediaItem[]; width?: string }) {
-  const playback = useMemo(() => playbackOf(display, sim, now), [display, sim, now]);
+export function DisplayScreen({ display, sim, now, media, width, extraAnnouncements, omitAnnouncementId }: { display: Display; sim: Sim; now: number; media: MediaItem[]; width?: string; extraAnnouncements?: Announcement[]; omitAnnouncementId?: string }) {
+  const { announcements: stored, announcementTemplates } = useSignage();
+  // `extraAnnouncements` lets the start dialog preview an announcement that has not been started yet.
+  const announcements = useMemo(() => (extraAnnouncements ? [...stored.filter((item) => item.id !== omitAnnouncementId), ...extraAnnouncements] : stored), [stored, extraAnnouncements, omitAnnouncementId]);
+  const playback = useMemo(() => playbackOf(display, sim, now, announcements), [display, sim, now, announcements]);
+  const rendered = useMemo(() => renderedFor(display, announcements, announcementTemplates, new Date(now)), [display, announcements, announcementTemplates, now]);
   const { scenes, playlists } = display.published;
 
   let scene: Scene | null = null;
@@ -14,9 +19,6 @@ export function DisplayScreen({ display, sim, now, media, width }: { display: Di
   let note: string | null = null;
   if (playback.target.type === 'scene') {
     scene = scenes.find((item) => item.id === playback.target.id) ?? null;
-    if (!scene && playback.announcement?.text) {
-      scene = { id: 'announcement-text', name: 'Announcement', orientation: display.orientation, templateId: 'full', background: '#a2191f', theme: 'dark', zones: { main: { type: 'text', text: playback.announcement.text, size: 'xl', align: 'center' } } };
-    }
     key = scene?.id ?? 'missing';
     if (!scene) note = 'This scene was removed.';
   } else {
@@ -37,7 +39,7 @@ export function DisplayScreen({ display, sim, now, media, width }: { display: Di
   return (
     <ScreenFrame orientation={display.orientation} resolution={display.resolution} width={width}>
       <div className={`sg-screen${fade ? ' sg-fade' : ''}`} key={key}>
-        <SceneRenderer scene={scene} screenOrientation={display.orientation} sim={sim} now={now} media={media} playback={playback} />
+        <SceneRenderer scene={scene} screenOrientation={display.orientation} sim={sim} now={now} media={media} playback={playback} announcements={rendered} />
       </div>
       {note && <div className="sg-note">{note}</div>}
       {!sim.coreReachable && <span className="sg-offline-dot" role="img" aria-label="Core unreachable" title="Core unreachable: showing cached content" />}

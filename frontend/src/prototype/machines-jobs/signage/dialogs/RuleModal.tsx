@@ -7,6 +7,7 @@ import type { Condition, Display, MachineKey, MultiMode, Rule, Target } from '..
 const WEEKDAYS = [['Mon', 1], ['Tue', 2], ['Wed', 3], ['Thu', 4], ['Fri', 5], ['Sat', 6], ['Sun', 7]] as const;
 type Option = { id: string; label: string; target: Target };
 type MachineOption = { id: MachineKey; label: string };
+type TemplateOption = { id: string; label: string };
 
 const hasCamera = (zones: Record<string, { type: string }>) => Object.values(zones).some((widget) => widget.type === 'camera');
 
@@ -16,11 +17,14 @@ export function RuleModal({ display, rule, onClose }: { display: Display; rule?:
   const [kind, setKind] = useState<Condition['kind']>(rule?.condition.kind ?? 'time');
   const timeInit = rule?.condition.kind === 'time' ? rule.condition : null;
   const machineInit = rule?.condition.kind === 'machines' ? rule.condition : null;
+  const announcementInit = rule?.condition.kind === 'announcement' ? rule.condition : null;
   const [days, setDays] = useState<number[]>(timeInit?.days ?? [1, 2, 3, 4, 5]);
   const [from, setFrom] = useState(timeInit?.from ?? '08:00');
   const [to, setTo] = useState(timeInit?.to ?? '10:00');
   const [machines, setMachines] = useState<MachineKey[]>(machineInit?.machines ?? ['h2d']);
   const [mode, setMode] = useState<'any' | 'all'>(machineInit?.mode ?? 'any');
+  const [onlyTemplates, setOnlyTemplates] = useState((announcementInit?.templateIds.length ?? 0) > 0);
+  const [templateIds, setTemplateIds] = useState<string[]>(announcementInit?.templateIds ?? []);
   const [target, setTarget] = useState<Target | null>(rule?.target ?? null);
   const [multi, setMulti] = useState<MultiMode>(rule?.multiMode ?? 'split');
   const [alternate, setAlternate] = useState(rule?.alternateSeconds ?? 10);
@@ -39,6 +43,7 @@ export function RuleModal({ display, rule, onClose }: { display: Display; rule?:
     days: kind === 'time' && days.length === 0 ? 'Choose at least one weekday' : null,
     times: kind === 'time' && (from === '' || to === '' || from === to) ? 'Start and end must differ' : null,
     machines: kind === 'machines' && machines.length === 0 ? 'Choose at least one machine' : null,
+    templates: kind === 'announcement' && onlyTemplates && templateIds.length === 0 ? 'Choose at least one template' : null,
     target: target === null ? 'Choose what to show' : null,
   };
   const valid = Object.values(errors).every((error) => error === null) && minSeconds >= 1;
@@ -46,7 +51,7 @@ export function RuleModal({ display, rule, onClose }: { display: Display; rule?:
   const save = () => {
     setTouched(true);
     if (!valid || !target) return;
-    const condition: Condition = kind === 'time' ? { kind, days, from, to } : kind === 'machines' ? { kind, machines, mode } : kind === 'announcement' ? { kind } : { kind };
+    const condition: Condition = kind === 'time' ? { kind, days, from, to } : kind === 'machines' ? { kind, machines, mode } : kind === 'announcement' ? { kind, templateIds: onlyTemplates ? templateIds : [] } : { kind };
     const values = { condition, target, minSeconds, multiMode: askMulti ? multi : (rule?.multiMode ?? 'split'), alternateSeconds: alternate };
     if (rule) signage.updateRule(display.id, rule.id, values); else signage.addRule(display.id, values);
     onClose();
@@ -86,7 +91,21 @@ export function RuleModal({ display, rule, onClose }: { display: Display; rule?:
             </RadioButtonGroup>
           </>
         )}
-        {kind === 'announcement' && <p className="mj-secondary">Matches while an announcement is on. Without such a rule an announcement always comes first; with it, only rules above it can still win.</p>}
+        {kind === 'announcement' && (
+          <>
+            <RadioButtonGroup legendText="Matches" name="rule-announcement" valueSelected={onlyTemplates ? 'only' : 'any'} onChange={(value) => setOnlyTemplates(value === 'only')}>
+              <RadioButton id="rule-announcement-any" value="any" labelText="Any announcement" />
+              <RadioButton id="rule-announcement-only" value="only" labelText="Only announcements from certain templates" />
+            </RadioButtonGroup>
+            {onlyTemplates && (
+              <MultiSelect<TemplateOption>
+                id="rule-templates" titleText="Templates" label="Choose templates" items={signage.announcementTemplates.map((item) => ({ id: item.id, label: item.name }))} itemToString={(item) => item?.label ?? ''}
+                initialSelectedItems={signage.announcementTemplates.filter((item) => templateIds.includes(item.id)).map((item) => ({ id: item.id, label: item.name }))} invalid={touched && Boolean(errors.templates)} invalidText={errors.templates ?? ''}
+                onChange={({ selectedItems }) => setTemplateIds((selectedItems ?? []).map((item) => item.id))} />
+            )}
+            <p className="mj-secondary">Matches while a matching announcement is active on this display. The position in the list is the only priority.</p>
+          </>
+        )}
         {kind === 'stale' && <p className="mj-secondary">Matches while Core has been unreachable longer than the data may be trusted.</p>}
         <ComboBox<Option>
           id="rule-target" titleText="Show" placeholder="Choose a scene or playlist" items={options} itemToString={(item) => item?.label ?? ''} selectedItem={selected}

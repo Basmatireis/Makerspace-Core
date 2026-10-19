@@ -8,14 +8,14 @@ import { EmptyState } from '../../../../app/PageState';
 import { QueryBoundary } from '../../components/QueryBoundary';
 import { RequirePermission } from '../../sales/components/RequirePermission';
 import { useNow, useSimulatedMutation, useStore } from '../../store';
-import { AnnouncementModal } from '../dialogs/AnnouncementModal';
+import { AnnouncementStartModal } from '../dialogs/AnnouncementStartModal';
 import { RenameModal } from '../dialogs/TextEditModals';
 import { DisplayScreen } from '../components/DisplayScreen';
 import { DisplaySettingsTab } from '../components/DisplaySettingsTab';
 import { HealthTab } from '../components/HealthTab';
 import { PlaybackTab } from '../components/PlaybackTab';
 import { StatusTag } from '../components/Tags';
-import { orientationLabel, playbackOf, pluralize, targetName } from '../helpers';
+import { orientationLabel, playbackOf, pluralize, renderedFor, targetName } from '../helpers';
 import { useSignage } from '../SignageContext';
 import { useSignageQuery } from '../useSignageQuery';
 import '../signage.scss';
@@ -46,7 +46,8 @@ function Detail({ displayId, crumbs }: { displayId: string; crumbs: { label: str
   const [renaming, setRenaming] = useState(false);
   const [announcing, setAnnouncing] = useState(false);
   const [confirm, setConfirm] = useState<'revoke' | 'delete' | null>(null);
-  const playback = playbackOf(display, signage.sim, now);
+  const playback = playbackOf(display, signage.sim, now, signage.announcements);
+  const activeHere = renderedFor(display, signage.announcements, signage.announcementTemplates, new Date(now));
   const publish = useSimulatedMutation(() => signage.publishDisplay(display.id), 900);
   const canPublish = store.can('signage.publish') && !display.revoked;
   const canManage = store.can('signage.manage');
@@ -60,7 +61,7 @@ function Detail({ displayId, crumbs }: { displayId: string; crumbs: { label: str
 
   const actions = (
     <>
-      {canOverride && !display.announcement && <Button kind="tertiary" renderIcon={Bullhorn} onClick={() => setAnnouncing(true)}>Show announcement</Button>}
+      {canOverride && <Button kind="tertiary" renderIcon={Bullhorn} onClick={() => setAnnouncing(true)}>Show announcement</Button>}
       {canPublish && pendingCount > 0 && <Button renderIcon={Upload} disabled={publish.pending} onClick={() => { void doPublish(); }}>{publish.pending ? 'Publishing…' : `Publish ${pluralize(pendingCount, 'change')}`}</Button>}
       <div>
         <OverflowMenu flipped aria-label="Display actions" iconDescription="Display actions">
@@ -81,10 +82,9 @@ function Detail({ displayId, crumbs }: { displayId: string; crumbs: { label: str
     >
       <div className="mj-stack">
         {pendingCount > 0 && !display.revoked && <InlineNotification kind="info" lowContrast hideCloseButton title={`${pluralize(pendingCount, 'unpublished change')}`} subtitle={`${display.pending.join(' · ')}. The display keeps running its last publication until you publish.`} />}
-        {display.announcement && (canOverride
-          ? <ActionableNotification inline lowContrast hideCloseButton kind="warning" title="Announcement is on" subtitle={`${display.announcement.text ?? signage.scenes.find((scene) => scene.id === display.announcement?.sceneId)?.name ?? ''}${display.announcement.until ? ` until ${new Date(display.announcement.until).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}` : ' until stopped'}`} actionButtonLabel="Stop announcement" onActionButtonClick={() => { signage.stopAnnouncement(display.id); store.notify({ kind: 'success', title: 'Announcement stopped' }); }} />
-          : <InlineNotification kind="warning" lowContrast hideCloseButton title="Announcement is on" subtitle="Someone with the announcement permission can stop it." />)}
-        {signage.sim.announcement && <InlineNotification kind="warning" lowContrast hideCloseButton title="Simulated announcement is on" subtitle="Switch it off in the prototype controls." />}
+        {activeHere.length > 0 && (store.can('signage.read') || store.can('signage.override')
+          ? <ActionableNotification inline lowContrast hideCloseButton kind="warning" title={pluralize(activeHere.length, 'announcement') + ' active'} subtitle={activeHere.map((item) => item.title).join(' · ')} actionButtonLabel="Manage" onActionButtonClick={() => navigate('/signage/announcements')} />
+          : <InlineNotification kind="warning" lowContrast hideCloseButton title={pluralize(activeHere.length, 'announcement') + ' active'} subtitle={activeHere.map((item) => item.title).join(' · ')} />)}
 
         <div className="sg-detail">
           <Tile className="sg-detail__preview">
@@ -111,7 +111,7 @@ function Detail({ displayId, crumbs }: { displayId: string; crumbs: { label: str
         </div>
       </div>
       {renaming && <RenameModal title="Rename display" label="Name" initial={display.name} onClose={() => setRenaming(false)} onSave={(value) => signage.updateDisplaySettings(display.id, { name: value, location: display.location, orientation: display.orientation, resolution: display.resolution, outside: display.outside })} />}
-      {announcing && <AnnouncementModal display={display} onClose={() => setAnnouncing(false)} />}
+      {announcing && <AnnouncementStartModal display={display} onClose={() => setAnnouncing(false)} />}
       <DestructiveActionDialog open={confirm === 'revoke'} title="Revoke display" confirmLabel="Revoke" onClose={() => setConfirm(null)} onConfirm={() => { signage.revokeDisplay(display.id); setConfirm(null); store.notify({ kind: 'success', title: 'Display revoked', subtitle: 'Its credential no longer works.' }); }}>
         <p>{display.name} stops receiving content immediately and shows the pairing screen again. Pair it again to reuse the screen.</p>
       </DestructiveActionDialog>

@@ -1,5 +1,5 @@
 import { Button, Select, SelectItem, Stack, Toggle } from '@carbon/react';
-import { Reset } from '@carbon/icons-react';
+import { Bullhorn, Reset, StopOutline } from '@carbon/icons-react';
 import { useSignage } from '../SignageContext';
 import type { MachineSim } from '../types';
 
@@ -7,7 +7,7 @@ const STATES: { id: MachineSim; label: string }[] = [{ id: 'idle', label: 'Idle'
 
 /** The "Signage simulation" group of the prototype controls panel. */
 export function SignageSimulationControls() {
-  const { sim, setSim, resetSignage } = useSignage();
+  const { sim, setSim, resetSignage, startSampleClosed, stopAllAnnouncements } = useSignage();
   return (
     <Stack gap={5}>
       <p className="prototype-controls__title">Signage simulation</p>
@@ -18,7 +18,8 @@ export function SignageSimulationControls() {
         {STATES.map((item) => <SelectItem key={item.id} value={item.id} text={item.label} />)}
       </Select>
       <Toggle id="sim-core" size="sm" labelText="Core reachable" labelA="No" labelB="Yes" toggled={sim.coreReachable} onToggle={(coreReachable) => setSim({ coreReachable })} />
-      <Toggle id="sim-announcement" size="sm" labelText="Announcement active" labelA="Off" labelB="On" toggled={sim.announcement} onToggle={(announcement) => setSim({ announcement })} />
+      <Button kind="tertiary" size="sm" renderIcon={Bullhorn} onClick={startSampleClosed}>Start sample “Closed” announcement</Button>
+      <Button kind="ghost" size="sm" renderIcon={StopOutline} onClick={stopAllAnnouncements}>Stop all announcements</Button>
       <Button kind="ghost" size="sm" renderIcon={Reset} onClick={resetSignage}>Reset signage data</Button>
     </Stack>
   );

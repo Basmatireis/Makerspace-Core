@@ -26,8 +26,20 @@ export const templates: Template[] = [
     ],
   },
   {
+    id: 'quad_banner', name: 'Four quarters with banner', columns: '1fr 1fr', rows: '44fr 44fr 12fr',
+    zones: [
+      { id: 'tl', label: 'Top left', col: 1, row: 1, colSpan: 1, rowSpan: 1 }, { id: 'tr', label: 'Top right', col: 2, row: 1, colSpan: 1, rowSpan: 1 },
+      { id: 'bl', label: 'Bottom left', col: 1, row: 2, colSpan: 1, rowSpan: 1 }, { id: 'br', label: 'Bottom right', col: 2, row: 2, colSpan: 1, rowSpan: 1 },
+      { id: 'banner', label: 'Banner', col: 1, row: 3, colSpan: 2, rowSpan: 1 },
+    ],
+  },
+  {
     id: 'main_side', name: 'Main with sidebar', columns: '2fr 1fr', rows: '1fr 1fr',
     zones: [{ id: 'main', label: 'Main', col: 1, row: 1, colSpan: 1, rowSpan: 2 }, { id: 'side_top', label: 'Sidebar top', col: 2, row: 1, colSpan: 1, rowSpan: 1 }, { id: 'side_bottom', label: 'Sidebar bottom', col: 2, row: 2, colSpan: 1, rowSpan: 1 }],
+  },
+  {
+    id: 'main_footer', name: 'Main and footer banner', columns: '1fr', rows: '92fr 8fr',
+    zones: [{ id: 'main', label: 'Main', col: 1, row: 1, colSpan: 1, rowSpan: 1 }, { id: 'footer', label: 'Footer', col: 1, row: 2, colSpan: 1, rowSpan: 1 }],
   },
   {
     id: 'banner_main', name: 'Banner and main', columns: '1fr', rows: '16fr 84fr',

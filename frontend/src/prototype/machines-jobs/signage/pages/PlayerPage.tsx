@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useNow } from '../../store';
 import { DisplayScreen } from '../components/DisplayScreen';
 import { SceneRenderer, ScreenFrame } from '../components/SceneRenderer';
+import { sampleRendered } from '../helpers';
 import { PAIRING_CODE } from '../mockData';
 import { useSignage } from '../SignageContext';
 import { PREVIEW_PRESETS } from '../widgets';
@@ -32,14 +33,16 @@ export function PlayerPage() {
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const previewSim = scene ? (PREVIEW_PRESETS.find((item) => item.id === search.get('as'))?.sim ?? signage.sim) : signage.sim;
+  const preset = scene ? PREVIEW_PRESETS.find((item) => item.id === search.get('as')) : undefined;
+  const previewSim = preset?.sim ?? signage.sim;
+  const previewAnnouncements = preset?.announcement ? sampleRendered(signage.announcementTemplates, new Date(now)) : [];
   const bar = (
     <div className="sg-player__bar">
       <button type="button" onClick={back}>Back</button>
       <button type="button" onClick={() => signage.setSim({ h2d: NEXT[signage.sim.h2d] })}>H2D: {LABEL[signage.sim.h2d]}</button>
       <button type="button" onClick={() => signage.setSim({ x1c: NEXT[signage.sim.x1c] })}>X1C: {LABEL[signage.sim.x1c]}</button>
       <button type="button" onClick={() => signage.setSim({ coreReachable: !signage.sim.coreReachable })}>Core: {signage.sim.coreReachable ? 'reachable' : 'unreachable'}</button>
-      <button type="button" onClick={() => signage.setSim({ announcement: !signage.sim.announcement })}>Announcement: {signage.sim.announcement ? 'on' : 'off'}</button>
+      <button type="button" onClick={() => { if (signage.announcements.length > 0) signage.stopAllAnnouncements(); else signage.startSampleClosed(); }}>Announcement: {signage.announcements.length > 0 ? 'on' : 'off'}</button>
     </div>
   );
 
@@ -55,7 +58,7 @@ export function PlayerPage() {
     return (
       <div className="sg-player">
         <ScreenFrame orientation={scene.orientation} width={`min(100vw, calc(100vh * ${scene.orientation === 'portrait' ? 1080 / 1920 : 1920 / 1080}))`}>
-          <SceneRenderer scene={scene} sim={previewSim} now={now} media={signage.media} />
+          <SceneRenderer scene={scene} sim={previewSim} now={now} media={signage.media} announcements={previewAnnouncements} />
         </ScreenFrame>
         {bar}
       </div>
