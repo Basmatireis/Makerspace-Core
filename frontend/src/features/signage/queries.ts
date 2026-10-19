@@ -1,13 +1,17 @@
 import { queryOptions } from '@tanstack/react-query';
 import {
   getSignageAsset,
+  getSignageDisplay,
+  getSignageDisplayPreview,
   getSignagePlaylist,
   getSignageScene,
   listSignageAnnouncementTemplates,
   listSignageAnnouncements,
   listSignageAssets,
+  listSignageDisplays,
   listSignageMachines,
   listSignagePlaylists,
+  listSignageRules,
   listSignageScenes,
 } from '../../api/generated/signage/signage';
 
@@ -22,6 +26,10 @@ export const signageKeys = {
   assets: () => [...signageKeys.all, 'assets'] as const,
   asset: (id: string) => [...signageKeys.all, 'asset', id] as const,
   machines: () => [...signageKeys.all, 'machines'] as const,
+  displays: () => [...signageKeys.all, 'displays'] as const,
+  display: (id: string) => [...signageKeys.all, 'display', id] as const,
+  rules: (id: string) => [...signageKeys.all, 'rules', id] as const,
+  preview: (id: string) => [...signageKeys.all, 'preview', id] as const,
 };
 
 export const scenesQuery = () => queryOptions({ queryKey: signageKeys.scenes(), queryFn: ({ signal }) => listSignageScenes({ signal }) });
@@ -39,3 +47,11 @@ export const machinesQuery = (enabled: boolean) => queryOptions({
   queryFn: ({ signal }) => listSignageMachines({ signal }),
   enabled,
 });
+
+// Heartbeats arrive every 30 s and live data every 10 s on the player, so the admin views poll at a similar pace.
+export const displaysQuery = () => queryOptions({ queryKey: signageKeys.displays(), queryFn: ({ signal }) => listSignageDisplays({ signal }), refetchInterval: 30_000 });
+export const displayQuery = (id: string) => queryOptions({ queryKey: signageKeys.display(id), queryFn: ({ signal }) => getSignageDisplay(id, { signal }), refetchInterval: 30_000 });
+/** Ordered rules and the display version every rule write must quote. */
+export const rulesQuery = (displayId: string, enabled = true) => queryOptions({ queryKey: signageKeys.rules(displayId), queryFn: ({ signal }) => listSignageRules(displayId, { signal }), enabled });
+/** The display's latest publication plus the live data its player would poll. */
+export const previewQuery = (displayId: string, enabled = true) => queryOptions({ queryKey: signageKeys.preview(displayId), queryFn: ({ signal }) => getSignageDisplayPreview(displayId, { signal }), refetchInterval: 10_000, enabled });

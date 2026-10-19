@@ -39,6 +39,9 @@ const FilamentSpoolDetailPage = lazy(() => import('../features/machinelogbook/Fi
 const MachinesPage = lazy(() => import('../features/machinelogbook/MachinesPage').then(({ MachinesPage }) => ({ default: MachinesPage })));
 const MachineDetailPage = lazy(() => import('../features/machinelogbook/MachineDetailPage').then(({ MachineDetailPage }) => ({ default: MachineDetailPage })));
 const StatisticsPage = lazy(() => import('../features/machinelogbook/StatisticsPage').then(({ StatisticsPage }) => ({ default: StatisticsPage })));
+const SignageDisplaysPage = lazy(() => import('../features/signage/DisplaysPage').then(({ DisplaysPage }) => ({ default: DisplaysPage })));
+const SignageDisplayDetailPage = lazy(() => import('../features/signage/DisplayDetailPage').then(({ DisplayDetailPage }) => ({ default: DisplayDetailPage })));
+const SignageAnnouncementsPage = lazy(() => import('../features/signage/AnnouncementsPage').then(({ AnnouncementsPage }) => ({ default: AnnouncementsPage })));
 const SignageContentPage = lazy(() => import('../features/signage/ContentPage').then(({ ContentPage }) => ({ default: ContentPage })));
 const SignageSceneEditorPage = lazy(() => import('../features/signage/SceneEditorPage').then(({ SceneEditorPage }) => ({ default: SceneEditorPage })));
 const SignagePlaylistDetailPage = lazy(() => import('../features/signage/PlaylistDetailPage').then(({ PlaylistDetailPage }) => ({ default: PlaylistDetailPage })));
@@ -191,6 +194,9 @@ export function App() {
           path="open-days/manage"
           element={<PermissionRoute allOf={[PermissionId.open_daysmanage]}><OpenDayManagementPage /></PermissionRoute>}
         />
+        <Route path="signage" element={<PermissionRoute allOf={[PermissionId.signageread]}><SignageDisplaysPage /></PermissionRoute>} />
+        <Route path="signage/displays/:displayId" element={<PermissionRoute allOf={[PermissionId.signageread]}><SignageDisplayDetailPage /></PermissionRoute>} />
+        <Route path="signage/announcements" element={<PermissionRoute anyOf={[PermissionId.signageread, PermissionId.signageoverride]}><SignageAnnouncementsPage /></PermissionRoute>} />
         <Route path="signage/content" element={<PermissionRoute allOf={[PermissionId.signageread]}><SignageContentPage /></PermissionRoute>} />
         <Route path="signage/scenes/:sceneId" element={<PermissionRoute allOf={[PermissionId.signageread]}><SignageSceneEditorPage /></PermissionRoute>} />
         <Route path="signage/playlists/:playlistId" element={<PermissionRoute allOf={[PermissionId.signageread]}><SignagePlaylistDetailPage /></PermissionRoute>} />

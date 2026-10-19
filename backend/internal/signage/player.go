@@ -10,6 +10,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	signagedb "github.com/Basmatireis/Makerspace-Core/backend/internal/signage/db"
 	"github.com/google/uuid"
@@ -270,6 +271,39 @@ func (s *Service) PlayerLive(ctx context.Context, display PlayerDisplay) (LiveDa
 		}
 	}
 	return live, nil
+}
+
+// DisplayPreview is what the admin live preview renders: the latest publication (nil before the
+// first one) and the live data the display's player would poll right now.
+type DisplayPreview struct {
+	Manifest *Manifest
+	Live     LiveData
+}
+
+// PreviewDisplay assembles the preview of one display for staff with signage.read.
+func (s *Service) PreviewDisplay(ctx context.Context, principal authorization.Principal, id uuid.UUID) (DisplayPreview, error) {
+	if err := requireRead(principal); err != nil {
+		return DisplayPreview{}, err
+	}
+	q := signagedb.New(s.pool)
+	row, err := q.GetSignageDisplayView(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DisplayPreview{}, apperror.NotFound
+	}
+	if err != nil {
+		return DisplayPreview{}, err
+	}
+	live, err := s.PlayerLive(ctx, PlayerDisplay{ID: row.ID, Name: row.Name, Location: row.Location})
+	if err != nil {
+		return DisplayPreview{}, err
+	}
+	preview := DisplayPreview{Live: live}
+	if manifest, ok, err := s.latestManifest(ctx, q, id); err != nil {
+		return DisplayPreview{}, err
+	} else if ok {
+		preview.Manifest = &manifest
+	}
+	return preview, nil
 }
 
 // Heartbeat is what a player reports about itself every 30 seconds.

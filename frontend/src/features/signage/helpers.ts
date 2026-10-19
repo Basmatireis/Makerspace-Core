@@ -51,7 +51,9 @@ export function referenceHref(reference: SignageReference): string | null {
   switch (reference.kind) {
     case 'scene': return `/signage/scenes/${encodeURIComponent(reference.id)}`;
     case 'playlist': return `/signage/playlists/${encodeURIComponent(reference.id)}`;
-    // Display and announcement pages arrive with phase 2b; until then they are listed without a link.
+    case 'display_default':
+    case 'display_rule': return `/signage/displays/${encodeURIComponent(reference.id)}`;
+    case 'announcement': return '/signage/announcements';
     default: return null;
   }
 }
@@ -59,3 +61,33 @@ export function referenceHref(reference: SignageReference): string | null {
 export const referenceLabel = (reference: SignageReference) => ({
   scene: 'Scene', playlist: 'Playlist', display_default: 'Display (default playlist)', display_rule: 'Display (rule)', announcement: 'Announcement',
 } as Record<string, string>)[reference.kind] ?? reference.kind;
+
+/** "just now", "5 min ago", "2 h ago", "3 days ago". */
+export function relativeTime(iso: string, nowMs: number): string {
+  const seconds = Math.max(0, Math.round((nowMs - Date.parse(iso)) / 1000));
+  if (seconds < 45) return 'just now';
+  if (seconds < 3600) return `${Math.max(1, Math.round(seconds / 60))} min ago`;
+  if (seconds < 86_400) return `${Math.round(seconds / 3600)} h ago`;
+  return `${Math.round(seconds / 86_400)} days ago`;
+}
+
+/** "Mon 21 Oct, 14:30" in the viewer's zone, for announcement windows. */
+export const formatMoment = (iso: string) => new Date(iso).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+const PENDING_KIND: Record<string, string> = { display: 'Display settings', rule: 'Rule', scene: 'Scene', playlist: 'Playlist', asset: 'Media' };
+const PENDING_CHANGE: Record<string, string> = { added: 'added', modified: 'edited', removed: 'removed' };
+/** "Scene “Print live” edited". */
+export const describePendingChange = (change: { kind: string; name: string; change: string }) => `${PENDING_KIND[change.kind] ?? change.kind}${change.name ? ` “${change.name}”` : ''} ${PENDING_CHANGE[change.change] ?? change.change}`;
+
+export type DisplayResolution = { width: number; height: number };
+/** Common panel sizes per orientation; the first is the default. */
+export const RESOLUTIONS: Record<'portrait' | 'landscape', DisplayResolution[]> = {
+  portrait: [{ width: 1080, height: 1920 }, { width: 2160, height: 3840 }, { width: 720, height: 1280 }],
+  landscape: [{ width: 1920, height: 1080 }, { width: 3840, height: 2160 }, { width: 1280, height: 720 }],
+};
+export const resolutionLabel = (resolution: DisplayResolution) => `${resolution.width} × ${resolution.height}`;
+/** The presets of an orientation, plus the current size when it is none of them. */
+export function resolutionOptions(orientation: 'portrait' | 'landscape', current?: DisplayResolution): DisplayResolution[] {
+  const presets = RESOLUTIONS[orientation];
+  return current && !presets.some((item) => item.width === current.width && item.height === current.height) ? [current, ...presets] : presets;
+}

@@ -793,6 +793,8 @@ export * from './signageClockWidgetType';
 export * from './signageDisplay';
 export * from './signageDisplayCurrentSceneId';
 export * from './signageDisplayList';
+export * from './signageDisplayPreview';
+export * from './signageDisplayPreviewManifest';
 export * from './signageDisplayStatus';
 export * from './signageEmptyWidget';
 export * from './signageEmptyWidgetType';

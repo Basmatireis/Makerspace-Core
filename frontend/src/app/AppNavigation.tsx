@@ -159,9 +159,15 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
     sales.push({ label: 'Pricing', to: '/pricing', active: pathname.startsWith('/pricing') });
   }
 
-  // Displays and Announcements join this group with the display management screens.
   const signage: NavigationItem[] = [];
-  if (hasPermission(currentUser, PermissionId.signageread)) {
+  const canReadSignage = hasPermission(currentUser, PermissionId.signageread);
+  if (canReadSignage) {
+    signage.push({ label: 'Displays', to: '/signage', active: pathname === '/signage' || pathname.startsWith('/signage/displays') });
+  }
+  if (canReadSignage || hasPermission(currentUser, PermissionId.signageoverride)) {
+    signage.push({ label: 'Announcements', to: '/signage/announcements', active: pathname.startsWith('/signage/announcements') });
+  }
+  if (canReadSignage) {
     signage.push({ label: 'Content', to: '/signage/content', active: pathname.startsWith('/signage/content') || pathname.startsWith('/signage/scenes') || pathname.startsWith('/signage/playlists') });
     signage.push({ label: 'Media', to: '/signage/media', active: pathname.startsWith('/signage/media') });
   }

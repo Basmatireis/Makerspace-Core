@@ -482,15 +482,7 @@ func (s *Server) GetSignagePlayerAsset(ctx context.Context, r openapi.GetSignage
 	return signagePlayerAssetResponse{file: file, request: httpRequest(ctx)}, nil
 }
 
-func (s *Server) GetSignagePlayerLive(ctx context.Context, _ openapi.GetSignagePlayerLiveRequestObject) (openapi.GetSignagePlayerLiveResponseObject, error) {
-	display, err := s.signagePlayerDisplay(ctx)
-	if err != nil {
-		return nil, err
-	}
-	live, err := s.signage.PlayerLive(ctx, display)
-	if err != nil {
-		return nil, err
-	}
+func signagePlayerLiveDTO(live signage.LiveData) openapi.SignagePlayerLive {
 	machines := make([]openapi.SignagePlayerLiveMachine, 0, len(live.Machines))
 	for _, machine := range live.Machines {
 		machines = append(machines, openapi.SignagePlayerLiveMachine{
@@ -518,13 +510,42 @@ func (s *Server) GetSignagePlayerLive(ctx context.Context, _ openapi.GetSignageP
 		}
 		events = append(events, openapi.SignagePlayerEvent{Title: event.Title, StartsAt: event.StartsAt, Location: nullableValue(location)})
 	}
-	return openapi.GetSignagePlayerLive200JSONResponse{
-		Body: openapi.SignagePlayerLive{
-			ServerTime: live.ServerTime, Revision: nullableValue(live.Revision), Machines: machines, Announcements: announcements,
-			OpenDays: openDays, Events: events, Streams: []openapi.SignagePlayerStream{},
-		},
-		Headers: openapi.GetSignagePlayerLive200ResponseHeaders{CacheControl: "no-store"},
-	}, nil
+	return openapi.SignagePlayerLive{
+		ServerTime: live.ServerTime, Revision: nullableValue(live.Revision), Machines: machines, Announcements: announcements,
+		OpenDays: openDays, Events: events, Streams: []openapi.SignagePlayerStream{},
+	}
+}
+
+func (s *Server) GetSignagePlayerLive(ctx context.Context, _ openapi.GetSignagePlayerLiveRequestObject) (openapi.GetSignagePlayerLiveResponseObject, error) {
+	display, err := s.signagePlayerDisplay(ctx)
+	if err != nil {
+		return nil, err
+	}
+	live, err := s.signage.PlayerLive(ctx, display)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.GetSignagePlayerLive200JSONResponse{Body: signagePlayerLiveDTO(live), Headers: openapi.GetSignagePlayerLive200ResponseHeaders{CacheControl: "no-store"}}, nil
+}
+
+func (s *Server) GetSignageDisplayPreview(ctx context.Context, r openapi.GetSignageDisplayPreviewRequestObject) (openapi.GetSignageDisplayPreviewResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	preview, err := s.signage.PreviewDisplay(ctx, p, r.DisplayId)
+	if err != nil {
+		return nil, err
+	}
+	body := openapi.SignageDisplayPreview{Live: signagePlayerLiveDTO(preview.Live), Manifest: nullableValue[openapi.SignagePlayerManifest](nil)}
+	if preview.Manifest != nil {
+		dto, err := signagePlayerManifestDTO(*preview.Manifest)
+		if err != nil {
+			return nil, err
+		}
+		body.Manifest = nullableValue(&dto)
+	}
+	return openapi.GetSignageDisplayPreview200JSONResponse{Body: body, Headers: openapi.GetSignageDisplayPreview200ResponseHeaders{CacheControl: "no-store"}}, nil
 }
 
 func (s *Server) PostSignagePlayerHeartbeat(ctx context.Context, r openapi.PostSignagePlayerHeartbeatRequestObject) (openapi.PostSignagePlayerHeartbeatResponseObject, error) {

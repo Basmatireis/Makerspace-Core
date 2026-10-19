@@ -36,6 +36,7 @@ import type {
   SignageAssetList,
   SignageDisplay,
   SignageDisplayList,
+  SignageDisplayPreview,
   SignageLayoutList,
   SignageMachineList,
   SignagePairingPoll,
@@ -873,6 +874,30 @@ export const publishSignageDisplay = async (displayId: string, options?: Request
   {
     ...options,
     method: 'POST'
+
+
+  }
+);}
+
+
+/**
+ * Requires `signage.read`. Returns the display's latest publication together with the same live data its player would poll (machine states of the machines the publication uses, announcements in force, open days, events), so the admin UI can render exactly what the screen runs. `manifest` is null before the first publication. Asset `url`s are player paths; admin previews load assets through the admin asset endpoint instead. Never cached.
+ * @summary What the display plays, for the admin live preview
+ */
+export const getGetSignageDisplayPreviewUrl = (displayId: string,) => {
+
+
+
+
+  return `/api/v1/signage/displays/${displayId}/preview`
+}
+
+export const getSignageDisplayPreview = async (displayId: string, options?: RequestInit): Promise<SignageDisplayPreview> => {
+
+  return apiFetch<SignageDisplayPreview>(getGetSignageDisplayPreviewUrl(displayId),
+  {
+    ...options,
+    method: 'GET'
 
 
   }
