@@ -185,11 +185,13 @@ export function PermissionRoute({ anyOf = [], allOf = [], children }: Permission
 
 export function SessionEventHandler() {
   const navigate = useNavigate();
-  const location = useLocation();
   const queryClient = useQueryClient();
 
   useEffect(() => {
     const handleSessionExpired = (event: Event) => {
+      // A 401 can arrive after sign-out already navigated away, so read the
+      // live location instead of the one captured at the last render.
+      const location = window.location;
 	  const currentUser = queryClient.getQueryData<CurrentUser>(authQueryKey);
       clearPrivateQueryData();
       const publicPath = ['/login', '/reset-password', '/complete-invitation', '/complete-pin-setup', '/verify-email', '/visitor-enrollment', '/terminal', '/events/signup/manage'].includes(location.pathname) || location.pathname.startsWith('/legal/') || location.pathname.startsWith('/events/public/') || location.pathname.startsWith('/survey/');
@@ -205,7 +207,7 @@ export function SessionEventHandler() {
     return () => {
       window.removeEventListener('makerspace:session-expired', handleSessionExpired);
     };
-  }, [location.pathname, location.search, navigate, queryClient]);
+  }, [navigate, queryClient]);
 
   return null;
 }
