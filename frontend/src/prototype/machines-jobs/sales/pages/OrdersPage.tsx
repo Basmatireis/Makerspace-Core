@@ -16,24 +16,28 @@ import { RequirePermission } from '../components/RequirePermission';
 import { EditOrderModal } from '../dialogs/EditOrderModal';
 import { ReadyToBillModal } from '../dialogs/ReadyToBillModal';
 import { dateInAppTimeZone, formatDateTime, formatEur } from '../format';
-import { customerKindLabel } from '../labels';
-import { activeItems, readyToBill, requestNext, requestReadiness, type OrderView } from '../logic';
+import { customerKindLabel, requestStateLabel } from '../labels';
+import { activeItems, invoiceFilterKey, readyToBill, requestNext, requestReadiness, type InvoiceFilterKey, type OrderView } from '../logic';
 import { OrderStatusTag, RequestStateTag } from '../status';
 import { useSalesData } from '../useSalesData';
 import { SectionSwitcher } from '../../components/SectionSwitcher';
 import '../sales.scss';
 
 type SortKey = 'order' | 'payment' | 'total' | 'updated';
-type ViewId = 'all' | 'drafts' | 'awaiting' | 'paid' | 'invoice' | 'closed';
+type Section = 'open' | 'paid' | 'cancelled';
+type ViewId = 'all' | 'drafts' | 'awaiting' | 'paid' | 'closed';
 const PAGE_SIZES = [10, 25, 50];
-const FILTER_KEYS = ['view', 'type', 'from', 'to', 'customer'] as const;
+const FILTER_KEYS = ['view', 'invoice', 'type', 'from', 'to', 'customer'] as const;
 const TYPE_OPTIONS = [{ id: 'person', label: customerKindLabel('person') }, { id: 'organization', label: customerKindLabel('organization') }];
 const VIEWS: { id: Exclude<ViewId, 'all'>; label: string; has: (order: OrderView) => boolean }[] = [
   { id: 'drafts', label: 'Drafts', has: (order) => order.status === 'draft' },
   { id: 'awaiting', label: 'Awaiting payment', has: (order) => order.status === 'finalized' && order.outstanding > 0 },
   { id: 'paid', label: 'Paid', has: (order) => order.status === 'finalized' && (order.settlement === 'paid' || order.settlement === 'no_payment_due') },
-  { id: 'invoice', label: 'Invoice requested', has: (order) => order.activeRequest !== null },
   { id: 'closed', label: 'Reversed & cancelled', has: (order) => order.status === 'reversed' || order.status === 'cancelled' },
+];
+/** The Invoice category is its own dimension, so the Status category does not repeat it. */
+const INVOICE_OPTIONS: { id: InvoiceFilterKey; label: string }[] = [
+  { id: 'none', label: 'No invoice' }, { id: 'draft', label: requestStateLabel.draft }, { id: 'submitted', label: requestStateLabel.submitted }, { id: 'issued', label: requestStateLabel.issued }, { id: 'cancelled', label: requestStateLabel.cancelled },
 ];
 const HEADERS: { key: string; header: string; sort?: SortKey; narrow?: boolean; num?: boolean }[] = [
   { key: 'order', header: 'Order', sort: 'order' }, { key: 'status', header: 'Status' }, { key: 'payment', header: 'Payment', sort: 'payment' }, { key: 'invoice', header: 'Invoice', narrow: true },
@@ -50,10 +54,18 @@ function OrdersTable({ views, loadingEmpty, review }: { views: OrderView[]; load
   const [sort, setSort] = useState<{ key: SortKey; direction: 'ASC' | 'DESC' }>({ key: 'updated', direction: 'DESC' });
   const canWrite = store.can('orders.write');
   const paidView = VIEWS.find((item) => item.id === 'paid')!;
-  const section: 'open' | 'paid' = params.get('section') === 'paid' ? 'paid' : 'open';
-  const sectionViews = VIEWS.filter((item) => item.id !== 'paid');
+  const closedView = VIEWS.find((item) => item.id === 'closed')!;
+  // Open: not paid and not cancelled or reversed. Paid: paid in full (also by an issued invoice). Cancelled: cancelled or reversed orders, replaced ones included.
+  const sectionOf = (order: OrderView): Section => paidView.has(order) ? 'paid' : closedView.has(order) ? 'cancelled' : 'open';
+  const sectionViews = VIEWS.filter((item) => item.id === 'drafts' || item.id === 'awaiting');
+  const explicit = params.get('section');
+  const invoiceLanding = list(params.get('invoice'));
+  // A link that filters by invoice without a section (the overview) lands on the first section that has such orders, so none of them is hidden.
+  const landing = explicit === null && invoiceLanding.length > 0 ? (['open', 'paid', 'cancelled'] as Section[]).find((id) => views.some((order) => sectionOf(order) === id && invoiceLanding.includes(invoiceFilterKey(order)))) : undefined;
+  const section: Section = explicit === 'paid' || explicit === 'cancelled' ? explicit : landing ?? 'open';
   const selectedViews = section === 'open' ? sectionViews.filter((item) => list(params.get('view')).includes(item.id)) : [];
   const types = list(params.get('type'));
+  const invoices = list(params.get('invoice'));
   const from = params.get('from') ?? '';
   const to = params.get('to') ?? '';
   const customerId = params.get('customer') ?? '';
@@ -68,6 +80,8 @@ function OrdersTable({ views, loadingEmpty, review }: { views: OrderView[]; load
   }, { replace: true });
   const clearAll = () => { update({ ...Object.fromEntries(FILTER_KEYS.map((key) => [key, null])), q: null }); setSearchKey((value) => value + 1); };
   const counts = useMemo(() => Object.fromEntries(VIEWS.map((item) => [item.id, views.filter((order) => item.has(order)).length])) as Record<ViewId, number>, [views]);
+  const sectionCounts = useMemo(() => ({ open: views.filter((order) => sectionOf(order) === 'open').length, paid: counts.paid, cancelled: counts.closed }), [views, counts]); // eslint-disable-line react-hooks/exhaustive-deps
+  const invoiceCounts = useMemo(() => Object.fromEntries(INVOICE_OPTIONS.map((item) => [item.id, views.filter((order) => invoiceFilterKey(order) === item.id).length])) as Record<InvoiceFilterKey, number>, [views]);
   const customers = useMemo(() => [...new Map(views.map((order) => [order.customer.id, { id: order.customer.id, label: order.customerLabel }])).values()].sort((a, b) => a.label.localeCompare(b.label)), [views]);
 
   const visible = useMemo(() => {
@@ -75,8 +89,9 @@ function OrdersTable({ views, loadingEmpty, review }: { views: OrderView[]; load
     const needle = search.trim().toLowerCase();
     return views.filter((order) => {
       const day = dateInAppTimeZone(order.createdAt);
-      return (section === 'paid' ? paidView.has(order) : !paidView.has(order))
+      return sectionOf(order) === section
         && (selectedViews.length === 0 || selectedViews.some((item) => item.has(order)))
+        && (invoices.length === 0 || invoices.includes(invoiceFilterKey(order)))
         && (types.length === 0 || types.includes(order.customerKind))
         && (!customerId || order.customer.id === customerId)
         && (!from || day >= from) && (!to || day <= to)
@@ -86,7 +101,7 @@ function OrdersTable({ views, loadingEmpty, review }: { views: OrderView[]; load
       const x = value(a); const y = value(b);
       return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y))) * direction;
     });
-  }, [views, sort, search, section, selectedViews.map((item) => item.id).join(','), types.join(','), from, to, customerId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [views, sort, search, section, selectedViews.map((item) => item.id).join(','), invoices.join(','), types.join(','), from, to, customerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pageSize = PAGE_SIZES.includes(Number(params.get('pageSize'))) ? Number(params.get('pageSize')) : 10;
   const page = Math.max(1, Math.min(Number(params.get('page')) || 1, Math.ceil(visible.length / pageSize) || 1));
@@ -129,15 +144,17 @@ function OrdersTable({ views, loadingEmpty, review }: { views: OrderView[]; load
             <TableToolbar aria-label="Orders table toolbar">
               <SectionSwitcher
                 label="Order sections" selected={section}
-                sections={[{ id: 'open', label: `Open (${views.filter((order) => !paidView.has(order)).length})` }, { id: 'paid', label: `Paid (${counts.paid})` }]}
-                onChange={(id) => update({ section: id === 'paid' ? 'paid' : null, view: null })}
+                sections={[{ id: 'open', label: `Open (${sectionCounts.open})` }, { id: 'paid', label: `Paid (${sectionCounts.paid})` }, { id: 'cancelled', label: `Cancelled (${sectionCounts.cancelled})` }]}
+                onChange={(id) => update({ section: id === 'open' ? (landing ? 'open' : null) : id, view: null })}
               />
               <TableToolbarContent>
                 <TableToolbarSearch key={searchKey} id="orders-search" labelText="Search orders" placeholder="Search by reference or customer" defaultValue={search} onChange={(_event, value) => update({ q: value ?? '' })} onClear={() => update({ q: null })} />
                 <BatchFilter
                   id="orders" label="Orders" applied={appliedFilters} onApply={(values) => update(toPatch(values, [...FILTER_KEYS]))} onReset={() => update(Object.fromEntries(FILTER_KEYS.map((key) => [key, null])))}
                   categories={[
+                    // Paid and cancelled orders have a single status each, so the Status category only exists for the open section.
                     ...(section === 'open' ? [{ key: 'view', label: 'Status', options: sectionViews.map((item) => ({ id: item.id, label: `${item.label} (${counts[item.id]})` })) }] : []),
+                    { key: 'invoice', label: 'Invoice', options: INVOICE_OPTIONS.map((item) => ({ id: item.id, label: `${item.label} (${invoiceCounts[item.id]})` })) },
                     { key: 'type', label: 'Customer type', options: TYPE_OPTIONS },
                     {
                       key: 'customer', label: 'Customer', keys: ['customer'],
@@ -198,6 +215,7 @@ function OrdersTable({ views, loadingEmpty, review }: { views: OrderView[]; load
             </Table>
             {visible.length === 0 && (views.length === 0 || loadingEmpty
               ? <EmptyState title="No orders yet" description="Orders are created from finished jobs or by hand." action={canWrite ? <Button kind="tertiary" onClick={() => setCreating(true)}>New order</Button> : undefined} />
+              : !search && !customerId && !from && !to && types.length === 0 && invoices.length === 0 && selectedViews.length === 0 ? <EmptyState title={section === 'paid' ? 'No paid orders' : section === 'cancelled' ? 'No cancelled or reversed orders' : 'No open orders'} description={section === 'paid' ? 'Orders appear here once they are paid in full or settled by an issued invoice.' : section === 'cancelled' ? 'Cancelled drafts and reversed orders appear here.' : 'Every order is paid, or was cancelled or reversed.'} />
               : <EmptyState title="No orders found" description="Try different search terms or filters." action={<Button kind="tertiary" onClick={clearAll}>Clear filters</Button>} />)}
             <Pagination page={page} pageSize={pageSize} pageSizes={PAGE_SIZES} totalItems={visible.length} onChange={({ page: nextPage, pageSize: nextSize }) => update({ page: String(nextPage), pageSize: String(nextSize) })} />
             {creating && <EditOrderModal order={null} initialCustomer={null} onClose={() => setCreating(false)} onSaved={(id) => navigate(`/sales/orders/${id}`)} />}

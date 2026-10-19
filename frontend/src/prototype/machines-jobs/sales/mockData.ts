@@ -2,8 +2,8 @@ import * as base from '../mockData';
 import { ago } from '../mockData';
 import type { BillingParty, Job, JobOutcome, Operator, PriceAdjustment } from '../types';
 import {
-  addJobItems, addManualItem, cancelDraft, cancelRequest, commitReplacement, createDraft, finalizeOrder, markRequestReady, markRequestSubmitted, prepareInvoiceRequest, recordCashMovement, recordPayments,
-  recordRequestIssued, requestCancellation, reverseOrder, reversePayment, startReplacement, updateManualItem, updateRequestDetails, type CashMovementInput, type Ctx, type SalesState,
+  addJobItems, addManualItem, cancelDraft, cancelRequest, commitReplacement, createDraft, finalizeOrder, forwardRequestToWiRef, prepareInvoiceRequest, recordCashMovement, recordPayments,
+  recordRequestReference, requestCancellation, returnRequestForCorrection, submitRequestForApproval, reverseOrder, reversePayment, startReplacement, updateManualItem, updateRequestDetails, type CashMovementInput, type Ctx, type SalesState,
 } from './engine';
 import { dateInAppTimeZone } from './format';
 import { activeItems, sum } from './logic';
@@ -95,7 +95,7 @@ export function buildSalesSeed() {
     // Two organizations require a purchase order reference on their invoices.
     organizations: structuredClone(seedOrganizations), cashMovements: [], pricing: structuredClone(seedPricing),
   };
-  const ctx = (minutesAgo: number, actor = FRONT_DESK): Ctx => ({ at: ago(minutesAgo), actor, machines: base.machines, machineTypes: base.machineTypes, prints: base.prints });
+  const ctx = (minutesAgo: number, actor = FRONT_DESK): Ctx => ({ at: ago(minutesAgo), actor, canApproveInvoices: true, machines: base.machines, machineTypes: base.machineTypes, prints: base.prints });
   let tx = 48300;
   const pay = (minutesAgo: number, method: PaymentMethod, amount: number): PaymentInput => ({
     method, amount, occurredAt: ago(minutesAgo), terminal: method === 'card' ? 'Terminal 1' : method === 'external' ? 'wiRef' : '', transactionReference: method === 'card' ? `T-${++tx}` : method === 'external' ? `WR-${++tx}` : '',
@@ -204,61 +204,66 @@ export function buildSalesSeed() {
   };
   const requestOf = (id: string) => state.requests.find((request) => request.id === id)!;
   const details = (m: number, requestId: string, patch: Partial<InvoiceRequestDetails>) => { state = updateRequestDetails(state, ctx(m, NINA), requestId, { ...requestOf(requestId).details, ...patch }).state; };
-  const ready = (m: number, requestId: string) => { state = markRequestReady(state, ctx(m, NINA), requestId).state; };
-  const submit = (m: number, requestId: string) => { state = markRequestSubmitted(state, ctx(m, NINA), requestId).state; };
-  const issue = (m: number, requestId: string, externalReference: string) => {
-    state = recordRequestIssued(state, ctx(m, NINA), requestId, { externalReference, effectiveOn: dateInAppTimeZone(ago(m)), amount: requestOf(requestId).requestedAmount }).state;
+  // Staff submit for approval; management (Marlene Huber) forwards the data to wiRef and may add the invoice number later.
+  const MANAGER = 'Marlene Huber';
+  const submit = (m: number, requestId: string) => { state = submitRequestForApproval(state, ctx(m, NINA), requestId).state; };
+  const returnIt = (m: number, requestId: string, comment: string) => { state = returnRequestForCorrection(state, ctx(m, MANAGER), requestId, comment).state; };
+  const forward = (m: number, requestId: string) => { state = forwardRequestToWiRef(state, ctx(m, MANAGER), requestId).state; };
+  const addNumber = (m: number, requestId: string, externalReference: string) => {
+    state = recordRequestReference(state, ctx(m, NINA), requestId, { externalReference, reason: '', effectiveOn: dateInAppTimeZone(ago(m)) }).state;
   };
+  const issue = (m: number, requestId: string, externalReference: string) => { forward(m + 30, requestId); addNumber(m, requestId, externalReference); };
 
   // Still a draft: the address is in, but the contact person and the purchase order reference the organization requires are missing.
   const wiRefDraft = wiRefOrder(robotics, 4 * D + 2 * H, ['j-1075', 'j-1074']);
   details(4 * D + 90, wiRefDraft.requestId, { addressLine1: 'Inffeldgasse 13', postalCode: '8010', locality: 'Graz' });
 
-  // Ready: complete and waiting to be sent to wiRef.
+  // Awaiting approval: complete, waiting for management to approve and forward it to wiRef.
   const readyOrder = wiRefOrder(racing, 2 * D + 7 * H, [], [['Large-format banner cutting, 6 pieces', 6, 'piece', 20]]);
   details(2 * D + 6 * H, readyOrder.requestId, { addressLine1: 'Inffeldgasse 11', postalCode: '8010', locality: 'Graz', contactName: 'Julia Prem' });
-  ready(2 * D + 5 * H + 30, readyOrder.requestId);
+  submit(2 * D + 5 * H + 30, readyOrder.requestId);
 
   const submitted = wiRefOrder(kreativ, 6 * D + 5 * H, ['j-1073']);
   details(6 * D + 4 * H, submitted.requestId, { addressLine1: 'Schmiedgasse 8', postalCode: '8010', locality: 'Graz', contactName: 'Petra Lang', purchaseOrderReference: 'PO-2026-0412' });
-  ready(6 * D + 3 * H, submitted.requestId); submit(6 * D + 2 * H, submitted.requestId);
+  // Forwarded to wiRef, the invoice number is not recorded yet.
+  submit(6 * D + 3 * H, submitted.requestId); forward(6 * D + 2 * H, submitted.requestId);
 
   const issued = wiRefOrder(htl, 7 * D, ['j-1072']);
   details(7 * D - 60, issued.requestId, { addressLine1: 'Pestalozzistraße 3', postalCode: '8010', locality: 'Graz', contactName: 'Dr. Weber' });
-  ready(6 * D + 20 * H, issued.requestId); submit(6 * D + 18 * H, issued.requestId); issue(5 * D + 6 * H, issued.requestId, 'RE-2026-0187');
-  record(2 * D + 5 * H, issued.id, pay(2 * D + 5 * H, 'external', totalOf(issued.id)));
+  submit(6 * D + 20 * H, issued.requestId); issue(5 * D + 6 * H, issued.requestId, 'RE-2026-0187');
 
   // Cancellation requested: wiRef issued the invoice, then the amount turned out to be wrong.
   const unwinding = wiRefOrder(htl, 5 * D + 3 * H, [], [['Workshop day for 12 pupils', 12, 'person', 15]]);
   details(5 * D + 2 * H, unwinding.requestId, { addressLine1: 'Pestalozzistraße 3', postalCode: '8010', locality: 'Graz', contactName: 'Dr. Weber', serviceDescription: 'Workshop day with 12 pupils' });
-  ready(5 * D + 1 * H, unwinding.requestId); submit(4 * D + 22 * H, unwinding.requestId); issue(4 * D + 20 * H, unwinding.requestId, 'RE-2026-0191');
+  submit(5 * D + 1 * H, unwinding.requestId); issue(4 * D + 20 * H, unwinding.requestId, 'RE-2026-0191');
   state = requestCancellation(state, ctx(3 * D + 4 * H, NINA), unwinding.requestId, 'Eleven pupils took part, not twelve. A corrected invoice is needed.').state;
 
-  // Cancelled before it was ever submitted, and prepared again: the new request links back to the old one.
+  // Cancelled before it was forwarded, and prepared again: the new request links back to the old one.
   const redo = wiRefOrder(fablab, 3 * D + 2 * H, [], [['Reprint of prototype enclosures', 1, 'set', 80]]);
   details(3 * D + 60, redo.requestId, { addressLine1: 'Reininghausstraße 13', postalCode: '8020', locality: 'Graz', contactName: 'Tim Auer', serviceDescription: 'Prototype enclosures' });
-  ready(3 * D + 30, redo.requestId);
+  submit(3 * D + 30, redo.requestId);
   state = cancelRequest(state, ctx(3 * D, NINA), redo.requestId, 'The recipient asked for a different billing address.').state;
   const again = prepareInvoiceRequest(state, ctx(2 * D + 20 * H, NINA), redo.id); state = again.state;
   details(2 * D + 19 * H, again.requestId, { addressLine1: 'Lendkai 45', postalCode: '8020', locality: 'Graz', contactName: 'Tim Auer', serviceDescription: 'Prototype enclosures' });
+  // Submitted, then returned by management: the draft shows the comment until it is submitted again.
+  submit(2 * D + 18 * H, again.requestId); returnIt(2 * D + 17 * H, again.requestId, 'Please bill the faculty office, not the lab, and add the service period of the print run.');
 
   const cancelledRequest = wiRefOrder(fablab, 11 * D, ['j-1071']);
   state = cancelRequest(state, ctx(9 * D, NINA), cancelledRequest.requestId, 'The recipient asked for a different billing address.').state;
   state = reverseOrder(state, ctx(8 * D + 2 * H, NINA), cancelledRequest.id, { reason: 'Wrong billing details; to be charged again with the new address.', reversals: [] }).state;
 
-  // Invoices for orders that were already paid [proposed rule]: the request carries what was paid, the rest follows by bank transfer after issue.
+  // Invoices for orders that were already paid [proposed rule]: the request carries what was paid, the invoice settles the rest when it is issued.
   const paidFirst = draft(3 * D, kreativ, NINA); manual(3 * D - 3, paidFirst, 'Laser engraving, 20 coasters', 20, 'piece', 2.5); finalize(3 * D - 5, paidFirst);
   record(3 * D - 8, paidFirst, pay(3 * D - 8, 'card', totalOf(paidFirst)));
   const paidFirstRequest = prepareInvoiceRequest(state, ctx(2 * D + 22 * H, NINA), paidFirst); state = paidFirstRequest.state;
   details(2 * D + 21 * H, paidFirstRequest.requestId, { addressLine1: 'Schmiedgasse 8', postalCode: '8010', locality: 'Graz', contactName: 'Petra Lang', purchaseOrderReference: 'PO-2026-0455', serviceDescription: 'Laser engraving, 20 coasters (paid by card at the desk)' });
-  ready(2 * D + 20 * H, paidFirstRequest.requestId); submit(2 * D + 19 * H, paidFirstRequest.requestId); issue(2 * D + 4 * H, paidFirstRequest.requestId, 'RE-2026-0203');
+  submit(2 * D + 20 * H, paidFirstRequest.requestId); issue(2 * D + 4 * H, paidFirstRequest.requestId, 'RE-2026-0203');
 
   const mixed = draft(2 * D + 9 * H, htl, NINA); manual(2 * D + 9 * H - 3, mixed, 'Robotics workshop for 8 pupils', 8, 'person', 15); finalize(2 * D + 9 * H - 5, mixed);
   record(2 * D + 9 * H - 8, mixed, pay(2 * D + 9 * H - 8, 'cash', 40));
   const mixedRequest = prepareInvoiceRequest(state, ctx(2 * D + 8 * H, NINA), mixed); state = mixedRequest.state;
   details(2 * D + 7 * H, mixedRequest.requestId, { addressLine1: 'Pestalozzistraße 3', postalCode: '8010', locality: 'Graz', contactName: 'Dr. Weber', serviceDescription: 'Robotics workshop for 8 pupils (40 euro paid in cash)' });
-  ready(2 * D + 6 * H, mixedRequest.requestId); submit(2 * D + 5 * H, mixedRequest.requestId); issue(1 * D + 20 * H, mixedRequest.requestId, 'RE-2026-0207');
-  record(1 * D + 3 * H, mixed, pay(1 * D + 3 * H, 'external', totalOf(mixed) - 40));
+  submit(2 * D + 6 * H, mixedRequest.requestId); issue(1 * D + 20 * H, mixedRequest.requestId, 'RE-2026-0207');
 
   // Cash movements [proposed]: a float to start with, bank deposits and the safe.
   const movement = (m: number, input: Omit<CashMovementInput, 'occurredAt'>, actor = FRONT_DESK) => { state = recordCashMovement(state, ctx(m, actor), { ...input, occurredAt: ago(m) }).state; };

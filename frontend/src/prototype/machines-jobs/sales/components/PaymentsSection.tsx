@@ -27,7 +27,7 @@ export function PaymentsSection({ order, orders, payments, allocations, recordBl
     if (origin && origin !== order.id && net > 0) return `Carried over from ${orderRef(origin)}`;
     const moved = mine.find((allocation) => allocation.orderId !== order.id);
     if (net === 0 && moved && !payments.some((other) => other.reversesPaymentId === payment.id)) return `Moved to ${orderRef(moved.orderId)}`;
-    return payment.method === 'card' ? `${payment.terminal} · ${payment.transactionReference}` : payment.method === 'external' ? `Bank transfer, confirmation ${payment.transactionReference}` : '';
+    return payment.method === 'card' ? `${payment.terminal} · ${payment.transactionReference}` : payment.method === 'external' ? `Settles invoice ${payment.transactionReference}` : '';
   };
 
   return (

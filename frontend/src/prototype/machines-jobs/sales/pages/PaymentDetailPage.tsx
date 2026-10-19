@@ -59,7 +59,7 @@ function PaymentDetail({ paymentId, views }: { paymentId: string; views: OrderVi
               <div><dt>{payment.entryKind === 'reversal' ? 'Booked at' : 'Paid'}</dt><dd>{formatDateTime(payment.occurredAt)}</dd></div>
               <div><dt>Recorded</dt><dd>{formatDateTime(payment.recordedAt)} by {payment.recordedBy}</dd></div>
               {payment.method === 'card' && <div><dt>Terminal</dt><dd>{payment.terminal}</dd></div>}
-              {payment.transactionReference && <div><dt>{payment.method === 'external' ? 'wiRef confirmation' : 'Terminal reference'}</dt><dd>{payment.transactionReference}</dd></div>}
+              {payment.transactionReference && <div><dt>{payment.method === 'external' ? 'Settled invoice' : 'Terminal reference'}</dt><dd>{payment.transactionReference}</dd></div>}
               <div><dt>Order</dt><dd>{order ? <RefLink reference={order.reference} id={order.id} /> : '—'}</dd></div>
               <div><dt>Customer</dt><dd>{order ? <CarbonLink as={Link} to={`/sales/orders?customer=${order.customer.id}`}>{order.customerLabel}</CarbonLink> : '—'}</dd></div>
             </dl>

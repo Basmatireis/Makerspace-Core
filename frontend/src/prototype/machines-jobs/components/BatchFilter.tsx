@@ -43,6 +43,8 @@ export const toPatch = (values: FilterValues, keys: string[]) => Object.fromEntr
  */
 export function BatchFilter({ id, label, categories, applied, onApply, onReset }: Props) {
   const [open, setOpen] = useState(false);
+  // Opens towards the side with more room, so a trigger that wrapped to the left of a narrow toolbar keeps the panel on screen.
+  const [align, setAlign] = useState<'bottom-end' | 'bottom-start'>('bottom-end');
   const [staged, setStaged] = useState<FilterValues>(applied);
   const wrapper = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -54,6 +56,8 @@ export function BatchFilter({ id, label, categories, applied, onApply, onReset }
   const toggle = () => {
     if (open) { close(false); return; }
     setStaged(applied);
+    const rect = trigger.current?.getBoundingClientRect();
+    setAlign(rect && rect.right < window.innerWidth / 2 ? 'bottom-start' : 'bottom-end');
     setOpen(true);
   };
 
@@ -83,7 +87,7 @@ export function BatchFilter({ id, label, categories, applied, onApply, onReset }
       ref={wrapper} className="mj-batch-filter"
       onKeyDown={(event) => { if (event.key === 'Escape' && open && !(event.target as Element).closest('.flatpickr-calendar')) { event.stopPropagation(); close(true); } }}
     >
-      <Popover open={open} align="bottom-end" isTabTip className="mj-batch-filter__popover">
+      <Popover open={open} align={align} isTabTip className="mj-batch-filter__popover">
         <Button
           ref={trigger} hasIconOnly kind="ghost" size="md" renderIcon={Filter} tooltipPosition="bottom"
           className={`mj-batch-filter__trigger${open ? ' mj-batch-filter__trigger--open' : ''}${count ? ' mj-batch-filter__trigger--active' : ''}`}

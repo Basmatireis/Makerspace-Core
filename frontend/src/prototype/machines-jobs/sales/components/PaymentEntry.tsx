@@ -13,7 +13,7 @@ import type { Payment, PaymentInput, PaymentMethod } from '../types';
 // cash with change calculator, card with terminal reference, split payments and an editable payment time.
 
 export type PaymentRow = { key: string; method: PaymentMethod; amount: string; tendered: string; terminal: string; reference: string };
-/** `invoice`: nothing is paid now; the order is invoiced via wiRef and paid by bank transfer later. */
+/** `invoice`: nothing is paid now; the order is invoiced via wiRef and counts as paid once the invoice is issued. */
 export type PaymentPreset = 'cash' | 'card' | 'split' | 'invoice';
 export type PaymentEntryState = { preset: PaymentPreset; rows: PaymentRow[]; time: string };
 
@@ -54,7 +54,6 @@ export function checkEntry(entry: PaymentEntryState, due: number, requireFull: b
       else if (seen.has(reference)) errors.reference = 'Each card payment needs its own reference';
       seen.add(reference);
     }
-    if (item.method === 'external' && !item.reference.trim()) errors.reference = 'Enter the wiRef confirmation reference';
     if (item.method === 'cash' && item.tendered.trim()) {
       const tendered = parseMoney(item.tendered);
       if (tendered === null) errors.tendered = 'Enter the amount handed over, e.g. 20';
@@ -71,7 +70,7 @@ export function checkEntry(entry: PaymentEntryState, due: number, requireFull: b
 
 export function toPaymentInputs(entry: PaymentEntryState): PaymentInput[] {
   const occurredAt = zonedDateTimeValueToISO(entry.time);
-  return entry.rows.map((item) => ({ method: item.method, amount: parseMoney(item.amount) ?? 0, occurredAt, terminal: item.method === 'card' ? item.terminal : item.method === 'external' ? 'wiRef' : '', transactionReference: item.reference.trim() }));
+  return entry.rows.map((item) => ({ method: item.method, amount: parseMoney(item.amount) ?? 0, occurredAt, terminal: item.method === 'card' ? item.terminal : '', transactionReference: item.reference.trim() }));
 }
 
 export function existingReferences(payments: Payment[]) {
@@ -114,9 +113,6 @@ function RowFields({ item, check, idPrefix, disabled, onChange }: { item: Paymen
           />
         </>
       )}
-      {item.method === 'external' && (
-        <TextInput id={`${idPrefix}-${item.key}-reference`} labelText="wiRef payment confirmation reference" value={item.reference} disabled={disabled} invalid={!!errors.reference} invalidText={errors.reference} onChange={(event) => onChange({ reference: event.target.value })} />
-      )}
     </>
   );
 }
@@ -129,24 +125,21 @@ export function PaymentEntryForm({ idPrefix, entry, onChange, due, requireFull, 
   const [editTime, setEditTime] = useState(false);
   const check = checkEntry(entry, due, requireFull, existingReferences(payments));
   const patchRow = (key: string, patch: Partial<PaymentRow>) => onChange({ ...entry, rows: entry.rows.map((item) => item.key === key ? { ...item, ...patch } : item) });
-  const external = methods.length === 1 && methods[0] === 'external';
   const split = entry.preset === 'split';
   const fillRemaining = (key: string) => patchRow(key, { amount: moneyText(Math.max(0, round2(due - sum(entry.rows.filter((item) => item.key !== key).map((item) => parseMoney(item.amount) ?? 0))))) });
 
   return (
     <Stack gap={5}>
-      {!external && (
-        <TileGroup legend="Payment method" name={`${idPrefix}-preset`} valueSelected={entry.preset} disabled={disabled} onChange={(value) => onChange(presetEntry(entry, value as PaymentPreset, due))} className="sales-method-tiles">
+      <TileGroup legend="Payment method" name={`${idPrefix}-preset`} valueSelected={entry.preset} disabled={disabled} onChange={(value) => onChange(presetEntry(entry, value as PaymentPreset, due))} className="sales-method-tiles">
           <RadioTile id={`${idPrefix}-cash`} value="cash"><span className="sales-method-tile"><Currency size={20} />Cash</span></RadioTile>
           <RadioTile id={`${idPrefix}-card`} value="card"><span className="sales-method-tile"><Wallet size={20} />Card</span></RadioTile>
           <RadioTile id={`${idPrefix}-split`} value="split"><span className="sales-method-tile"><Add size={20} />Split</span></RadioTile>
           {allowInvoice && <RadioTile id={`${idPrefix}-invoice`} value="invoice"><span className="sales-method-tile"><Document size={20} />Invoice</span></RadioTile>}
         </TileGroup>
-      )}
       {entry.preset === 'invoice' && (
         <Tile className="sales-invoice-choice">
           <p><strong>No payment now.</strong> An invoice is requested from wiRef for {formatEur(due)}.</p>
-          <p className="mj-secondary">The customer pays by bank transfer to the HTU account once the invoice is issued. You check the recipient details in the next step.</p>
+          <p className="mj-secondary">Once management approves and forwards the invoice, it settles the order as paid. You check the recipient details in the next step.</p>
         </Tile>
       )}
       {entry.preset !== 'invoice' && <>

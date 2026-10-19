@@ -45,7 +45,6 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
   const receipts = activeReceipts(store.payments, store.allocations, order.id);
   const recorded = can('payments.record') && can('payments.read');
   const methods = acceptedMethods(order);
-  const bankTransfer = methods.length === 1 && methods[0] === 'external';
   const invoiceBlocker = invoiceRequestBlocker(store, order);
 
   const act = (fn: () => unknown, success?: { title: string; subtitle?: string }) => {
@@ -63,7 +62,7 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
   if (draft && order.replacesOrderId) primary = canWrite && can('orders.finalize') && can('orders.reverse') && recorded ? { label: 'Commit replacement…', disabled: draftBlockers.length > 0, run: () => setDialog('commit') } : null;
   else if (checkoutPrimary) primary = { label: 'Finalize and take payment', icon: Currency, disabled: draftBlockers.length > 0, run: () => setDialog('checkout') };
   else if (draft) primary = can('orders.finalize') ? { label: 'Finalize', disabled: draftBlockers.length > 0, run: () => setDialog('finalize') } : null;
-  else if (order.status === 'finalized' && order.outstanding > 0 && recorded && methods.length > 0) primary = { label: bankTransfer ? 'Record bank transfer' : 'Record payment', icon: Currency, run: () => setDialog('pay') };
+  else if (order.status === 'finalized' && order.outstanding > 0 && recorded && methods.length > 0) primary = { label: 'Record payment', icon: Currency, run: () => setDialog('pay') };
   else if (order.status === 'finalized' && receipts.length > 0) primary = { label: 'Print receipt', icon: Printer, run: () => navigate(`/sales/orders/${order.id}/receipt`) };
   else if (order.status === 'reversed' && order.replacedBy) primary = { label: `Open ${order.replacedBy.reference}`, run: () => navigate(`/sales/orders/${order.replacedBy!.id}`) };
   else if (order.status === 'reversed' && canWrite && can('orders.finalize') && can('orders.reverse')) primary = { label: 'Replace with a corrected order', run: () => setDialog('correct') };
@@ -83,7 +82,7 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
   const invoiceAction = order.status !== 'finalized' ? null
     : request ? { label: 'View invoice', run: () => document.getElementById('order-invoice')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
     : canInvoice && order.outstanding === 0 ? { label: 'Request invoice', run: () => setDialog('invoice') } : null;
-  const recordBlocked = request && methods.length === 0 ? `${request.reference} is ${requestStateLabel[request.state].toLowerCase()}: cash and card can no longer be added. A bank transfer is recorded once the invoice is issued.` : null;
+  const recordBlocked = request && methods.length === 0 ? `${request.reference} is ${requestStateLabel[request.state].toLowerCase()}: cash and card can no longer be added. An issued invoice settles the balance by itself.` : null;
   const customerRole = order.customer.kind === 'person' ? lookupRoles(order.customer.id) : null;
 
   return (

@@ -1,21 +1,23 @@
-// Client-side CSV for the prototype's cashbook export. Standard comma separated values (RFC 4180), UTF-8 with a byte order mark so spreadsheets
-// open umlauts correctly. Text that a spreadsheet could read as a formula is prefixed with an apostrophe; plain numbers are left alone.
+// Client-side CSV for the prototype's cashbook export, in the form German and Austrian spreadsheets open directly: semicolon separated, amounts with a
+// decimal comma (12,50), UTF-8 with a byte order mark so umlauts are right. No "sep=;" line: it would push the byte order mark out of first place and
+// Excel would stop reading the file as UTF-8. Cells with a semicolon, a quote or a line break are quoted. Text that a spreadsheet could read as a formula
+// is prefixed with an apostrophe; plain numbers are left alone.
 
 const BOM = String.fromCharCode(0xfeff);
 const FORMULA = /^[=+\-@\t\r]/;
-const PLAIN_NUMBER = /^-?\d+(\.\d+)?$/;
+const PLAIN_NUMBER = /^-?\d+([.,]\d+)?$/;
 
 export type CsvCell = string | number | null | undefined;
 
 export function csvCell(value: CsvCell): string {
   if (value === null || value === undefined) return '';
-  if (typeof value === 'number') return String(value);
+  if (typeof value === 'number') return String(value).replace('.', ',');
   const text = FORMULA.test(value) && !PLAIN_NUMBER.test(value) ? `'${value}` : value;
-  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  return /[";\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 export function toCsv(header: string[], rows: CsvCell[][]): string {
-  return `${BOM}${[header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n')}\r\n`;
+  return `${BOM}${[header, ...rows].map((row) => row.map(csvCell).join(';')).join('\r\n')}\r\n`;
 }
 
 /** Hands the text to the browser as a file download. */

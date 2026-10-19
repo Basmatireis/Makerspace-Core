@@ -110,6 +110,7 @@
 .sales-tab-panel .mj-cell-stack { justify-items: start; }
 
 // Invoice section, cash register tile, fieldsets -------------------------------------------------------------------------------------
+.sales-period-note { margin: 0; }
 .sales-invoice__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: $spacing-03; margin-block-end: $spacing-05; }
 .sales-invoice__head .mj-section-title { margin-block-end: 0; }
 .sales-sum { display: grid; gap: $spacing-02; margin: $spacing-03 0 0; min-inline-size: 16rem; }
@@ -128,3 +129,8 @@
 // A notice that belongs to a table sits in its first row, edge to edge.
 .sales-table-notice > td { padding: 0 !important; }
 .sales-table-notice .sales-table-notice__box.cds--actionable-notification { max-inline-size: none; inline-size: 100%; margin: 0; }
+
+// Notifications inside the invoice tile span the whole tile, like the progress bar below them.
+.sales-invoice .cds--inline-notification,
+.sales-invoice .cds--actionable-notification { max-inline-size: none; inline-size: 100%; }
+.sales-invoice__returned.cds--actionable-notification { margin-block: $spacing-05; }

@@ -2,8 +2,10 @@ import type { CashMovement, CashMovementKind, CashMovementReason, InvoiceEventKi
 
 // Human wording for every domain enum. No raw enum value is shown anywhere in the sales screens.
 
-export const methodLabel = (method: PaymentMethod) => method === 'cash' ? 'Cash' : method === 'card' ? 'Card' : 'Bank transfer (wiRef invoice)';
-export const methodOptions: { id: PaymentMethod; label: string }[] = [{ id: 'cash', label: 'Cash' }, { id: 'card', label: 'Card' }, { id: 'external', label: 'Bank transfer (wiRef invoice)' }];
+export const methodLabel = (method: PaymentMethod) => method === 'cash' ? 'Cash' : method === 'card' ? 'Card' : 'Invoice (wiRef)';
+export const methodOptions: { id: PaymentMethod; label: string }[] = [{ id: 'cash', label: 'Cash' }, { id: 'card', label: 'Card' }];
+/** Every method a cashbook line can have, for filters and tiles. The invoice method is never recorded by hand. */
+export const methodFilterOptions: { id: PaymentMethod; label: string }[] = [...methodOptions, { id: 'external', label: 'Invoice (wiRef)' }];
 
 export const reasonKindLabel = (kind: ReversalReasonKind) => kind === 'refund' ? 'Money given back' : kind === 'recording_error' ? 'Recorded by mistake' : 'External accounting correction';
 
@@ -14,14 +16,14 @@ export function paymentKind(payment: Payment): { label: string; type: 'green' | 
 }
 
 export const requestStateLabel: Record<InvoiceRequestState, string> = {
-  draft: 'Draft', ready: 'Ready to submit', submitted: 'Submitted to wiRef', issued: 'Invoice issued', cancellation_requested: 'Cancellation requested', cancelled: 'Cancelled',
+  draft: 'Draft', submitted: 'Awaiting approval', issued: 'Issued', cancellation_requested: 'Cancellation requested', cancelled: 'Cancelled',
 };
 export const requestStateTag: Record<InvoiceRequestState, 'gray' | 'blue' | 'purple' | 'green' | 'red' | 'warm-gray'> = {
-  draft: 'gray', ready: 'blue', submitted: 'purple', issued: 'green', cancellation_requested: 'red', cancelled: 'warm-gray',
+  draft: 'gray', submitted: 'purple', issued: 'green', cancellation_requested: 'red', cancelled: 'warm-gray',
 };
 /** What the next step in wiRef is, in plain words. */
 export const requestNextStep: Record<InvoiceRequestState, string> = {
-  draft: 'Complete the recipient details', ready: 'Submit to wiRef', submitted: 'Wait for wiRef to issue the invoice', issued: 'Record the bank transfer when it arrives',
+  draft: 'Complete the recipient details', submitted: 'Approve and forward to wiRef', issued: 'Complete, invoice issued and paid',
   cancellation_requested: 'Confirm the cancellation in wiRef', cancelled: 'None',
 };
 
@@ -46,8 +48,8 @@ export const reconciliationLabels: Record<ReconciliationKind, { label: string; h
 };
 
 export const requestEventLabel: Record<InvoiceEventKind, string> = {
-  created: 'Prepared', details_saved: 'Details saved', ready: 'Marked ready', submitted: 'Submitted', issued: 'Invoice issued', cancellation_requested: 'Cancellation requested',
-  cancelled: 'Cancelled', reference_corrected: 'Reference corrected',
+  created: 'Prepared', details_saved: 'Details saved', submitted: 'Submitted for approval', returned: 'Returned for correction', issued: 'Issued, forwarded to wiRef',
+  reference_added: 'Invoice number added', cancellation_requested: 'Cancellation requested', cancelled: 'Cancelled', reference_corrected: 'Reference corrected',
 };
 
 export const customerKindLabel = (kind: 'person' | 'organization') => kind === 'person' ? 'Person' : 'Organization';

@@ -18,7 +18,8 @@ export type SalesState = {
   orders: Order[]; payments: Payment[]; allocations: Allocation[]; adjustments: OrderAdjustment[]; requests: InvoiceRequest[]; jobs: Job[]; counters: SalesCounters;
   organizations: OrganizationRecord[]; cashMovements: CashMovement[]; pricing: PricingConfig;
 };
-export type Ctx = { at: string; actor: string; machines: Machine[]; machineTypes: MachineType[]; prints: Print[] };
+/** `canApproveInvoices` is the actor's `external_invoice_requests.approve` permission, enforced by the transitions that only management may run. */
+export type Ctx = { at: string; actor: string; canApproveInvoices: boolean; machines: Machine[]; machineTypes: MachineType[]; prints: Print[] };
 
 export class SalesError extends Error {
   code: string;
@@ -231,7 +232,7 @@ export const finalizeOrder = (state: SalesState, c: Ctx, orderId: string) => tra
 const activeRequestOf = (s: SalesState, orderId: string) => s.requests.filter((request) => request.orderId === orderId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).find((request) => request.state !== 'cancelled');
 const latestRequestOf = (s: SalesState, orderId: string) => s.requests.filter((request) => request.orderId === orderId).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
 
-/** While the request is a draft it follows cash and card payments; once it is ready, the figure is what the invoice states. */
+/** While the request is a draft it follows cash and card payments; once it is submitted for approval, the figure is what the invoice states. */
 function syncAlreadyPaid(s: SalesState, order: Order) {
   const request = activeRequestOf(s, order.id);
   if (request?.state === 'draft') request.alreadyPaid = paidByCashOrCard(s.payments, s.allocations, order.id);
@@ -247,14 +248,12 @@ function receiptIn(s: SalesState, c: Ctx, order: Order, input: PaymentInput, op:
       && !s.payments.some((other) => other.reversesPaymentId === payment.id));
     if (duplicate) fail('duplicate_transaction', `That transaction reference was already recorded as ${duplicate.reference}`);
   }
-  // [proposed rule] Cash/card and a bank transfer against the invoice may be mixed on one order: cash and card up to the moment the invoice request is
-  // ready (the request states what is already paid), the bank transfer only once wiRef issued the invoice.
+  // [proposed rule] Cash and card up to the moment the invoice request is submitted for approval (the request states what is already paid). The rest
+  // is settled by the invoice itself when the request is issued; nobody records an "invoice payment" by hand.
   const request = activeRequestOf(s, order.id);
-  if (input.method === 'external') {
-    if (request?.state !== 'issued') fail('external_reconciliation_required', 'A bank transfer against an invoice needs an issued invoice');
-    if (!input.transactionReference.trim()) fail('validation', 'The wiRef confirmation reference is required');
-  } else if (request && request.state !== 'draft') {
-    fail('invoice_amount_frozen', `${request.reference} is ${requestStateLabel[request.state].toLowerCase()} and states what was already paid, so cash and card can no longer be added. The rest can be paid by bank transfer once the invoice is issued.`);
+  if (input.method === 'external') fail('invoice_settles_balance', 'An invoice settles the balance by itself when management forwards it to wiRef; it cannot be recorded as a payment');
+  if (request && request.state !== 'draft') {
+    fail('invoice_amount_frozen', `${request.reference} is ${requestStateLabel[request.state].toLowerCase()} and states what was already paid, so cash and card can no longer be added.`);
   }
   const outstanding = money(s, order).outstanding;
   if (input.amount > outstanding) fail('payment_exceeds_outstanding', `The payment exceeds the outstanding ${formatEur(outstanding)}`);
@@ -522,61 +521,90 @@ export function prepareInvoiceRequest(state: SalesState, c: Ctx, orderId: string
   });
 }
 
-/** Recipient details are editable while the request is a draft; they freeze when it becomes ready. */
+const requireApprover = (c: Ctx, what: string) => {
+  if (!c.canApproveInvoices) fail('permission_denied', `${what} needs the permission to approve invoice requests`);
+};
+function requireComplete(s: SalesState, request: InvoiceRequest) {
+  const customer = s.orders.find((order) => order.id === request.orderId)?.customer;
+  const missing = requestReadiness(request, customer, s.organizations.find((item) => item.id === customer?.id)).filter((item) => !item.ok);
+  if (missing.length) fail('validation', `Complete these first: ${missing.map((item) => item.label.toLowerCase()).join(', ')}`);
+}
+
+/** Recipient details are editable while the request is a draft, and by management while it awaits approval. They freeze once it is issued. */
 export function updateRequestDetails(state: SalesState, c: Ctx, requestId: string, details: InvoiceRequestDetails) {
   return transition(state, (s) => {
     const request = requestOf(s, requestId);
-    if (request.state !== 'draft') fail('request_frozen', 'Recipient details can only be changed while the request is a draft');
+    if (request.state !== 'draft' && request.state !== 'submitted') fail('request_frozen', 'Recipient details can only be changed while the request is a draft or awaiting approval');
+    if (request.state === 'submitted') requireApprover(c, 'Editing a request that awaits approval');
     checkDetails(details);
     request.details = { ...details, countryCode: details.countryCode.toUpperCase() };
-    requestNote(s, c, request, 'details_saved', 'Recipient details saved');
+    requestNote(s, c, request, 'details_saved', request.state === 'submitted' ? 'Recipient details edited while awaiting approval' : 'Recipient details saved');
     return {};
   });
 }
 
-export function markRequestReady(state: SalesState, c: Ctx, requestId: string) {
+/** Draft to awaiting approval. The readiness checklist has to be complete. */
+export function submitRequestForApproval(state: SalesState, c: Ctx, requestId: string) {
   return transition(state, (s) => {
     const request = requestOf(s, requestId);
-    requireState(request, ['draft'], 'Only drafts can become ready');
-    const customer = s.orders.find((order) => order.id === request.orderId)?.customer;
-    const missing = requestReadiness(request, customer, s.organizations.find((item) => item.id === customer?.id)).filter((item) => !item.ok);
-    if (missing.length) fail('validation', `Complete these first: ${missing.map((item) => item.label.toLowerCase()).join(', ')}`);
-    requestNote(s, c, request, 'ready', 'Marked as ready to submit');
-    request.state = 'ready';
-    return {};
-  });
-}
-
-export function markRequestSubmitted(state: SalesState, c: Ctx, requestId: string) {
-  return transition(state, (s) => {
-    const request = requestOf(s, requestId);
-    requireState(request, ['ready'], 'Only ready requests can be submitted');
+    requireState(request, ['draft'], 'Only drafts can be submitted for approval');
+    requireComplete(s, request);
     request.state = 'submitted';
-    requestNote(s, c, request, 'submitted', 'Submitted to wiRef');
+    requestNote(s, c, request, 'submitted', 'Submitted for approval');
     return {};
   });
 }
 
-export type RecordIssuedInput = { externalReference: string; effectiveOn: string; amount: number };
-export function recordRequestIssued(state: SalesState, c: Ctx, requestId: string, input: RecordIssuedInput) {
+/** Management sends a request that awaits approval back to the draft, with the reason as a comment. */
+export function returnRequestForCorrection(state: SalesState, c: Ctx, requestId: string, comment: string) {
   return transition(state, (s) => {
     const request = requestOf(s, requestId);
-    requireState(request, ['submitted'], 'Only submitted requests can record an external invoice');
-    const reference = input.externalReference.trim();
-    if (!reference || !validDate(input.effectiveOn)) fail('validation', 'External invoice reference and issue date are required');
-    if (round2(input.amount) !== request.requestedAmount) fail('validation', `The invoice amount must equal the requested ${formatEur(request.requestedAmount)}`);
-    checkExternalText(reference);
-    request.state = 'issued';
-    requestNote(s, c, request, 'issued', `Invoice ${reference} issued by wiRef for ${formatEur(request.requestedAmount)}`, { externalReference: reference, effectiveOn: input.effectiveOn });
+    requireState(request, ['submitted'], 'Only requests that await approval can be returned');
+    requireApprover(c, 'Returning a request');
+    const text = comment.trim();
+    if (!text) fail('validation', 'Say what has to be corrected');
+    checkExternalText('', text);
+    request.state = 'draft';
+    requestNote(s, c, request, 'returned', `Returned for correction: ${text}`, { reason: text });
     return {};
   });
 }
 
-/** Local cancellation: only drafts and ready requests, because wiRef has not seen them yet. */
+/** Settles what is still open on the order with the invoice: a payment of method `external` ("Invoice (wiRef)") allocated to the order. */
+function settleByInvoice(s: SalesState, c: Ctx, request: InvoiceRequest) {
+  const order = orderOf(s, request.orderId);
+  const open = money(s, order).outstanding;
+  if (open <= 0) return;
+  s.counters.payment += 1;
+  const payment: Payment = {
+    id: uid('pay'), reference: reference('P', s.counters.payment, c.at), entryKind: 'receipt', method: 'external', amount: open, occurredAt: c.at, recordedAt: c.at, recordedBy: c.actor,
+    reversesPaymentId: null, reasonKind: null, reason: '', terminal: 'wiRef', transactionReference: request.reference,
+  };
+  s.payments.push(payment);
+  s.allocations.push({ id: uid('al'), paymentId: payment.id, orderId: order.id, amount: open, operationId: uid('op'), at: c.at });
+  note(order, c, 'paid', `Invoice ${request.reference} settles ${formatEur(open)} (${payment.reference})`);
+}
+
+/** Management approves: the data was copied to wiRef, the request is issued and the invoice settles the open balance, so the order is paid. The wiRef invoice number is optional and can be added later. */
+export function forwardRequestToWiRef(state: SalesState, c: Ctx, requestId: string) {
+  return transition(state, (s) => {
+    const request = requestOf(s, requestId);
+    requireState(request, ['submitted'], 'Only requests that await approval can be forwarded to wiRef');
+    requireApprover(c, 'Forwarding a request to wiRef');
+    requireComplete(s, request);
+    request.state = 'issued';
+    requestNote(s, c, request, 'issued', 'Approved and forwarded to wiRef');
+    settleByInvoice(s, c, request);
+    return {};
+  });
+}
+
+/** Local cancellation: only drafts and requests awaiting approval (management), because wiRef has not seen them yet. */
 export function cancelRequest(state: SalesState, c: Ctx, requestId: string, reason = '') {
   return transition(state, (s) => {
     const request = requestOf(s, requestId);
-    if (request.state !== 'draft' && request.state !== 'ready') fail('external_reconciliation_required', 'Submitted requests need external cancellation evidence. Request the cancellation instead.');
+    if (request.state !== 'draft' && request.state !== 'submitted') fail('external_reconciliation_required', 'Issued requests need external cancellation evidence. Request the cancellation instead.');
+    if (request.state === 'submitted') requireApprover(c, 'Cancelling a request that awaits approval');
     checkExternalText('', reason.trim());
     request.state = 'cancelled';
     requestNote(s, c, request, 'cancelled', reason.trim() ? `Request cancelled: ${reason.trim()}` : 'Request cancelled', { reason: reason.trim() || undefined });
@@ -587,7 +615,7 @@ export function cancelRequest(state: SalesState, c: Ctx, requestId: string, reas
 export function requestCancellation(state: SalesState, c: Ctx, requestId: string, reason: string) {
   return transition(state, (s) => {
     const request = requestOf(s, requestId);
-    requireState(request, ['submitted', 'issued'], 'Only submitted or issued requests require external cancellation');
+    requireState(request, ['issued'], 'Only issued requests require external cancellation');
     if (!reason.trim()) fail('validation', 'Say why the request has to be cancelled');
     checkExternalText('', reason.trim());
     request.state = 'cancellation_requested';
@@ -612,15 +640,19 @@ export function confirmRequestCancellation(state: SalesState, c: Ctx, requestId:
   });
 }
 
-export type CorrectReferenceInput = { externalReference: string; reason: string; effectiveOn: string };
-export function correctRequestReference(state: SalesState, c: Ctx, requestId: string, input: CorrectReferenceInput) {
+export type RecordReferenceInput = { externalReference: string; reason: string; effectiveOn: string };
+/** Adds the wiRef invoice number to an issued request (optional), or corrects it when one is on record; a correction needs a reason. */
+export function recordRequestReference(state: SalesState, c: Ctx, requestId: string, input: RecordReferenceInput) {
   return transition(state, (s) => {
     const request = requestOf(s, requestId);
-    requireState(request, ['issued', 'cancellation_requested'], 'Reference correction requires an issued invoice');
+    requireState(request, ['issued', 'cancellation_requested'], 'An invoice number can only be recorded for an issued request');
     const reference = input.externalReference.trim();
-    if (!reference || !input.reason.trim() || !validDate(input.effectiveOn)) fail('validation', 'Corrected reference, reason and date are required');
+    const correcting = request.events.some((event) => event.kind === 'reference_added' || event.kind === 'reference_corrected');
+    if (!reference || !validDate(input.effectiveOn)) fail('validation', 'Invoice number and invoice date are required');
+    if (correcting && !input.reason.trim()) fail('validation', 'Say why the invoice number changes');
     checkExternalText(reference, input.reason.trim());
-    requestNote(s, c, request, 'reference_corrected', `Invoice reference corrected to ${reference}`, { externalReference: reference, effectiveOn: input.effectiveOn, reason: input.reason.trim() });
+    if (correcting) requestNote(s, c, request, 'reference_corrected', `Invoice number corrected to ${reference}`, { externalReference: reference, effectiveOn: input.effectiveOn, reason: input.reason.trim() });
+    else requestNote(s, c, request, 'reference_added', `Invoice number ${reference} added`, { externalReference: reference, effectiveOn: input.effectiveOn });
     return {};
   });
 }

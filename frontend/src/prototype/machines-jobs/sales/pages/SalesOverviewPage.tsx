@@ -15,7 +15,7 @@ import { useSalesData } from '../useSalesData';
 import '../sales.scss';
 
 type Takings = ReturnType<typeof takings>;
-const breakdown = (value: Takings) => [`Cash ${formatEur(value.cash)}`, `Card ${formatEur(value.card)}`, ...(value.external ? [`Bank transfer ${formatEur(value.external)}`] : [])].join(' · ');
+const breakdown = (value: Takings) => [`Cash ${formatEur(value.cash)}`, `Card ${formatEur(value.card)}`, ...(value.external ? [`Invoice ${formatEur(value.external)}`] : [])].join(' · ');
 const daysOld = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
 
 type Attention = { key: string; title: ReactNode; detail: string; to: string; tag: { label: string; type: 'warm-gray' | 'blue' | 'green' | 'purple' | 'red' } };
@@ -27,6 +27,7 @@ function SalesOverview() {
   const loading = query.status === 'pending';
   const canOrders = store.can('orders.read');
   const canInvoices = store.can('external_invoice_requests.read');
+  const canApprove = store.can('external_invoice_requests.approve');
 
   const figures = useMemo(() => ({
     today: takings(data.payments, startOfDay(0), startOfDay(1)),
@@ -41,11 +42,15 @@ function SalesOverview() {
     return order && order.status === 'finalized' && invoiceNeedsStep(order.activeRequest?.id === request.id ? request : null, order.settlement === 'paid') ? [{ request, order }] : [];
   });
 
+  const toApprove = stepping.filter(({ request }) => request.state === 'submitted');
+  const toApproveTotal = round2(sum(toApprove.map(({ request }) => request.requestedAmount)));
+
   const attention: Attention[] = [
+    ...(canApprove ? toApprove.slice(0, 4).map(({ request, order }) => ({ key: `approve-${request.id}`, title: <>{request.reference} · <RefLink reference={order.reference} id={order.id} /> · {order.customerLabel}</>, detail: `${formatEur(request.requestedAmount)}. Check the data, then approve and forward it to wiRef or return it.`, to: `/sales/orders/${order.id}`, tag: { label: 'To approve', type: 'purple' as const } })) : []),
     ...views.filter(isStaleDraft).map((order) => ({ key: order.id, title: <><RefLink reference={order.reference} id={order.id} /> · {order.customerLabel}</>, detail: `Draft untouched for ${daysOld(order.updatedAt)} days. Finalize or cancel it.`, to: `/sales/orders/${order.id}`, tag: { label: 'Old draft', type: 'warm-gray' as const } })),
     ...[...awaiting].filter((order) => !order.activeRequest).sort((a, b) => a.updatedAt.localeCompare(b.updatedAt)).slice(0, 3).map((order) => ({ key: order.id, title: <><RefLink reference={order.reference} id={order.id} /> · {order.customerLabel}</>, detail: `${formatEur(order.outstanding)} outstanding of ${formatEur(order.net)}`, to: `/sales/orders/${order.id}`, tag: { label: order.settlement === 'partially_paid' ? 'Partially paid' : 'Awaiting payment', type: 'blue' as const } })),
     ...readyCustomers.slice(0, 3).map((group) => ({ key: `ready-${group.customer.id}`, title: group.customer.displayName, detail: `${group.ready.length} ${group.ready.length === 1 ? 'job' : 'jobs'} ready to bill · ${formatEur(group.total)}`, to: '/sales/orders?review=1', tag: { label: 'Ready to bill', type: 'green' as const } })),
-    ...(canInvoices ? stepping.slice(0, 4).map(({ request, order }) => ({ key: request.id, title: <>{request.reference} · <RefLink reference={order.reference} id={order.id} /> · {order.customerLabel}</>, detail: `${requestStateLabel[request.state]}. Next: ${(request.state === 'issued' ? requestNextStep.issued : requestNextStep[request.state]).toLowerCase()}`, to: `/sales/orders/${order.id}`, tag: { label: 'Invoice', type: 'purple' as const } })) : []),
+    ...(canInvoices ? stepping.filter(({ request }) => !(canApprove && request.state === 'submitted')).slice(0, 4).map(({ request, order }) => ({ key: request.id, title: <>{request.reference} · <RefLink reference={order.reference} id={order.id} /> · {order.customerLabel}</>, detail: `${requestStateLabel[request.state]}. Next: ${requestNextStep[request.state].toLowerCase()}`, to: `/sales/orders/${order.id}`, tag: { label: 'Invoice', type: 'purple' as const } })) : []),
   ];
   const recent = [...views].filter((order) => order.status !== 'draft' && order.status !== 'cancelled').sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 8);
 
@@ -53,7 +58,8 @@ function SalesOverview() {
     { key: 'register', label: 'Cash in register (expected)', value: formatEur(figures.register.expected), detail: 'Cash receipts − refunds − withdrawals + deposits', to: '/sales/payments' },
     { key: 'today', label: 'Takings today', value: formatEur(figures.today.total), detail: breakdown(figures.today), to: '/sales/payments' },
     { key: 'awaiting', label: 'Awaiting payment', value: String(awaiting.length), detail: awaiting.length ? `${formatEur(round2(sum(awaiting.map((order) => order.outstanding))))} outstanding` : 'Everything is paid', to: '/sales/orders?view=awaiting' },
-    { key: 'invoices', label: 'Invoice requests to handle', value: String(stepping.length), detail: stepping.length ? `${stepping.filter(({ request }) => request.state === 'issued').length} issued, waiting for the bank transfer` : 'No invoice waits for a step', to: '/sales/orders?view=invoice' },
+    ...(canApprove ? [{ key: 'approve', label: 'Invoices to approve', value: String(toApprove.length), detail: toApprove.length ? `${formatEur(toApproveTotal)} awaiting approval` : 'Nothing awaits approval', to: '/sales/orders?invoice=submitted' }] : []),
+    { key: 'invoices', label: 'Invoice requests to handle', value: String(stepping.length), detail: stepping.length ? `${stepping.filter(({ request }) => request.state === 'draft').length} drafts, ${toApprove.length} awaiting approval` : 'No invoice waits for a step', to: '/sales/orders?invoice=draft,submitted' },
     { key: 'ready', label: 'Jobs ready to bill', value: String(readyJobs), detail: readyJobs ? `${formatEur(readyCustomers.reduce((total, group) => total + group.total, 0))} · ${readyCustomers.length} ${readyCustomers.length === 1 ? 'customer' : 'customers'}` : 'No finished job waits', to: '/sales/orders?review=1' },
   ];
 
@@ -65,7 +71,7 @@ function SalesOverview() {
       {query.status === 'error' ? <ErrorState message="The sales overview could not be loaded." onRetry={query.retry} /> : (
         <div className="mj-overview">
           <section aria-label="Key figures" className="mj-overview__metrics">
-            {tiles.filter((tile) => canOrders || tile.key === 'register' || tile.key === 'today').filter((tile) => canInvoices || tile.key !== 'invoices').map((tile) => (
+            {tiles.filter((tile) => canOrders || tile.key === 'register' || tile.key === 'today').filter((tile) => canInvoices || (tile.key !== 'invoices' && tile.key !== 'approve')).map((tile) => (
               <ClickableTile key={tile.key} href={`#${tile.to}`} renderIcon={ArrowRight} className="mj-metric">
                 <span className="mj-metric__label">{tile.label}</span>
                 {loading ? <SkeletonText heading width="5rem" /> : <span className="mj-metric__value">{tile.value}</span>}

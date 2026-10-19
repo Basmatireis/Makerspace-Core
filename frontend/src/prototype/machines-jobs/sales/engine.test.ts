@@ -1,18 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import * as base from '../mockData';
 import {
-  addJobItems, addManualItem, cancelRequest, checkoutOrder, commitReplacement, confirmRequestCancellation, correctRequestReference, createDraft, finalizeOrder, markRequestReady, markRequestSubmitted,
-  prepareInvoiceRequest, recordCashMovement, recordPayments, recordRequestIssued, requestCancellation, reverseOrder, reversePayment, saveOrganization, savePricingGroup, setRate, setRoleGroup,
-  startReplacement, updateRequestDetails, SalesError, type Ctx, type SalesState,
+  addJobItems, addManualItem, cancelRequest, checkoutOrder, commitReplacement, confirmRequestCancellation, createDraft, finalizeOrder, forwardRequestToWiRef,
+  prepareInvoiceRequest, recordCashMovement, recordPayments, recordRequestReference, requestCancellation, returnRequestForCorrection, reverseOrder, reversePayment, saveOrganization, savePricingGroup, setRate, setRoleGroup,
+  startReplacement, submitRequestForApproval, updateRequestDetails, SalesError, type Ctx, type SalesState,
 } from './engine';
 import { csvCell, toCsv } from './csv';
-import { acceptedMethods, activeReceipts, buildOrderViews, cashInRegister, invoiceNeedsStep, readyToBill, requestProgress, requestReadiness, reversalOptions } from './logic';
+import { acceptedMethods, activeReceipts, buildOrderViews, cashInRegister, invoiceFilterKey, invoiceNeedsStep, invoiceNumberOf, latestReturn, readyToBill, requestNext, requestProgress, requestReadiness, reversalOptions, wiRefCopyText } from './logic';
 import { quoteJob, resolveGroup } from './pricing';
 import { salesSeed } from './mockData';
 import { orderStatus } from './status';
 import type { PaymentInput } from './types';
 
-const ctx: Ctx = { at: new Date().toISOString(), actor: 'Test', machines: base.machines, machineTypes: base.machineTypes, prints: base.prints };
+const ctx: Ctx = { at: new Date().toISOString(), actor: 'Test', canApproveInvoices: true, machines: base.machines, machineTypes: base.machineTypes, prints: base.prints };
+/** Staff without the approve permission. */
+const staff: Ctx = { ...ctx, actor: 'Staff', canApproveInvoices: false };
 const cash = (amount: number): PaymentInput => ({ method: 'cash', amount, occurredAt: ctx.at, terminal: '', transactionReference: '' });
 const card = (amount: number, reference: string): PaymentInput => ({ method: 'card', amount, occurredAt: ctx.at, terminal: 'Terminal 1', transactionReference: reference });
 const transfer = (amount: number, reference: string): PaymentInput => ({ method: 'external', amount, occurredAt: ctx.at, terminal: 'wiRef', transactionReference: reference });
@@ -154,30 +156,104 @@ describe('invoice requests (wiRef)', () => {
     const prepared = prepareInvoiceRequest(done, ctx, orderId);
     return { ...prepared, orderId, details: completeDetails(prepared.state, prepared.requestId) };
   }
-  const issue = (state: SalesState, requestId: string, orderId: string, amount?: number) => {
-    let next = updateRequestDetails(state, ctx, requestId, completeDetails(state, requestId)).state;
-    next = markRequestSubmitted(markRequestReady(next, ctx, requestId).state, ctx, requestId).state;
-    return recordRequestIssued(next, ctx, requestId, { externalReference: 'RE-1', effectiveOn: '2026-01-02', amount: amount ?? next.requests.find((r) => r.id === requestId)!.requestedAmount }).state;
+  /** Fill in the details, submit as staff, approve and forward as management. */
+  const issue = (state: SalesState, requestId: string) => {
+    const next = updateRequestDetails(state, staff, requestId, completeDetails(state, requestId)).state;
+    return forwardRequestToWiRef(submitRequestForApproval(next, staff, requestId).state, ctx, requestId).state;
   };
+  const submitted = (state: SalesState, requestId: string) => submitRequestForApproval(updateRequestDetails(state, staff, requestId, completeDetails(state, requestId)).state, staff, requestId).state;
+  const stateOf = (state: SalesState, requestId: string) => state.requests.find((r) => r.id === requestId)!;
 
-  it('needs the purchase order reference when the organization requires it, then freezes the details', () => {
+  it('needs the purchase order reference when the organization requires it before it can be submitted', () => {
     const { state, requestId, details } = request(fresh());
     expect(state.organizations.find((c) => c.id === organization.id)!.requiresPurchaseOrder).toBe(true);
     const missing = { ...details, purchaseOrderReference: '' };
-    const saved = updateRequestDetails(state, ctx, requestId, missing).state;
+    const saved = updateRequestDetails(state, staff, requestId, missing).state;
     const org = saved.organizations.find((c) => c.id === organization.id);
-    expect(requestReadiness(saved.requests.find((r) => r.id === requestId)!, organization, org).filter((item) => !item.ok).map((item) => item.key)).toEqual(['po']);
-    expect(thrown(() => markRequestReady(saved, ctx, requestId))?.code).toBe('validation');
-    const ready = markRequestReady(updateRequestDetails(saved, ctx, requestId, details).state, ctx, requestId).state;
-    expect(thrown(() => updateRequestDetails(ready, ctx, requestId, details))?.code).toBe('request_frozen');
-    expect(thrown(() => markRequestReady(ready, ctx, requestId))?.code).toBe('invalid_request_transition');
+    expect(requestReadiness(stateOf(saved, requestId), organization, org).filter((item) => !item.ok).map((item) => item.key)).toEqual(['po']);
+    expect(thrown(() => submitRequestForApproval(saved, staff, requestId))?.code).toBe('validation');
+    const awaiting = submitRequestForApproval(updateRequestDetails(saved, staff, requestId, details).state, staff, requestId).state;
+    expect(stateOf(awaiting, requestId).state).toBe('submitted');
+    expect(thrown(() => submitRequestForApproval(awaiting, staff, requestId))?.code).toBe('invalid_request_transition');
+  });
+  it('lets only management edit, return and forward a request that awaits approval', () => {
+    const { state, requestId, details } = request(fresh());
+    const awaiting = submitted(state, requestId);
+    expect(stateOf(awaiting, requestId)).toMatchObject({ state: 'submitted' });
+    // Without the approve permission nothing changes.
+    expect(thrown(() => updateRequestDetails(awaiting, staff, requestId, { ...details, contactName: 'Other' }))?.code).toBe('permission_denied');
+    expect(thrown(() => returnRequestForCorrection(awaiting, staff, requestId, 'Please check'))?.code).toBe('permission_denied');
+    expect(thrown(() => forwardRequestToWiRef(awaiting, staff, requestId))?.code).toBe('permission_denied');
+    expect(thrown(() => cancelRequest(awaiting, staff, requestId, 'x'))?.code).toBe('permission_denied');
+    // Management edits with an audit entry.
+    const edited = updateRequestDetails(awaiting, ctx, requestId, { ...details, contactName: 'Corrected Contact' }).state;
+    expect(stateOf(edited, requestId).details.contactName).toBe('Corrected Contact');
+    expect(stateOf(edited, requestId).events.at(-1)).toMatchObject({ kind: 'details_saved', actor: 'Test', text: 'Recipient details edited while awaiting approval' });
+    expect(edited.orders.find((order) => order.id === stateOf(edited, requestId).orderId)!.events.at(-1)?.kind).toBe('invoicing');
+    // Staff can edit the draft, but nothing once it is issued.
+    expect(thrown(() => updateRequestDetails(issue(state, requestId), ctx, requestId, details))?.code).toBe('request_frozen');
+  });
+  it('returns a request with a required comment, shows it on the draft until it is submitted again', () => {
+    const { state, requestId } = request(fresh());
+    const awaiting = submitted(state, requestId);
+    expect(thrown(() => returnRequestForCorrection(awaiting, ctx, requestId, '   '))?.code).toBe('validation');
+    expect(thrown(() => returnRequestForCorrection(state, ctx, requestId, 'Not submitted yet'))?.code).toBe('invalid_request_transition');
+    const returned = returnRequestForCorrection(awaiting, ctx, requestId, ' Wrong recipient ').state;
+    const draft = stateOf(returned, requestId);
+    expect(draft.state).toBe('draft');
+    expect(latestReturn(draft)).toMatchObject({ kind: 'returned', reason: 'Wrong recipient', actor: 'Test' });
+    expect(requestNext(draft, false, true)).toBe('Submit for approval again');
+    expect(requestProgress(draft)).toEqual({ index: 0, invalid: false });
+    const again = submitRequestForApproval(returned, staff, requestId).state;
+    expect(latestReturn(stateOf(again, requestId))).toBeNull();
+    const second = returnRequestForCorrection(again, ctx, requestId, 'Still wrong').state;
+    expect(latestReturn(stateOf(second, requestId))?.reason).toBe('Still wrong');
+  });
+  it('forwarding issues the request, the wiRef invoice number is optional and added afterwards', () => {
+    const { state, requestId, orderId } = request(fresh());
+    const awaiting = submitted(state, requestId);
+    expect(requestProgress(stateOf(awaiting, requestId))).toEqual({ index: 1, invalid: false });
+    const issued = forwardRequestToWiRef(awaiting, ctx, requestId).state;
+    expect(stateOf(issued, requestId).state).toBe('issued');
+    expect(requestProgress(stateOf(issued, requestId))).toEqual({ index: 3, invalid: false });
+    expect(invoiceNumberOf(stateOf(issued, requestId))).toBeNull();
+    expect(thrown(() => forwardRequestToWiRef(issued, ctx, requestId))?.code).toBe('invalid_request_transition');
+    expect(thrown(() => recordRequestReference(issued, staff, requestId, { externalReference: '', reason: '', effectiveOn: '2026-01-02' }))?.code).toBe('validation');
+    const numbered = recordRequestReference(issued, staff, requestId, { externalReference: 'RE-1', reason: '', effectiveOn: '2026-01-02' }).state;
+    expect(invoiceNumberOf(stateOf(numbered, requestId))).toMatchObject({ kind: 'reference_added', externalReference: 'RE-1' });
+    // A number on record can only be corrected with a reason.
+    expect(thrown(() => recordRequestReference(numbered, staff, requestId, { externalReference: 'RE-1A', reason: '', effectiveOn: '2026-01-03' }))?.code).toBe('validation');
+    const corrected = recordRequestReference(numbered, staff, requestId, { externalReference: 'RE-1A', reason: 'Typo', effectiveOn: '2026-01-03' }).state;
+    expect(invoiceNumberOf(stateOf(corrected, requestId))).toMatchObject({ kind: 'reference_corrected', externalReference: 'RE-1A' });
+    // Settling needs no invoice number.
+    expect(view(issued, orderId)).toMatchObject({ outstanding: 0, settlement: 'paid' });
+  });
+  it('cannot forward an incomplete request that was edited into an incomplete state', () => {
+    const { state, requestId, details } = request(fresh());
+    const awaiting = submitted(state, requestId);
+    const broken = updateRequestDetails(awaiting, ctx, requestId, { ...details, purchaseOrderReference: '' }).state;
+    expect(thrown(() => forwardRequestToWiRef(broken, ctx, requestId))?.code).toBe('validation');
+  });
+  it('copies the invoice data as plain text for wiRef', () => {
+    const all = request(fresh());
+    const { requestId, orderId } = all;
+    const state = submitted(all.state, requestId);
+    const text = wiRefCopyText(stateOf(state, requestId), view(state, orderId));
+    expect(text).toContain(`Order: ${view(state, orderId).reference}`);
+    expect(text).toContain(`Invoice request: ${stateOf(state, requestId).reference}`);
+    expect(text).toContain('Purchase order: PO-1');
+    expect(text).toMatch(/1\. Test item · 1 piece/);
+    expect(text).toContain('Still to pay (by bank transfer to HTU)');
+    expect(text).toContain('Bank transfer note:');
   });
   it('allows one active request per order, then a successor after cancellation', () => {
     const { state, requestId, orderId } = request(fresh());
     expect(thrown(() => prepareInvoiceRequest(state, ctx, orderId))?.code).toBe('request_already_exists');
-    const cancelled = cancelRequest(state, ctx, requestId, 'Wrong address').state;
-    const next = prepareInvoiceRequest(cancelled, ctx, orderId);
+    const cancelled = cancelRequest(state, staff, requestId, 'Wrong address').state;
+    const next = prepareInvoiceRequest(cancelled, { ...ctx, at: new Date(Date.parse(ctx.at) + 1000).toISOString() }, orderId);
     expect(next.state.requests.find((r) => r.id === next.requestId)?.supersedesRequestId).toBe(requestId);
+    expect(invoiceFilterKey(view(cancelled, orderId))).toBe('cancelled');
+    expect(invoiceFilterKey(view(next.state, orderId))).toBe('draft');
   });
   it('can be requested for an order that was already paid by cash or card, and is then marked paid', () => {
     const { state: done, orderId } = finalizedDraft(fresh(), 40, organization);
@@ -186,40 +262,47 @@ describe('invoice requests (wiRef)', () => {
     const prepared = prepareInvoiceRequest(paid, ctx, orderId);
     const requestId = prepared.requestId;
     expect(prepared.state.requests.find((r) => r.id === requestId)).toMatchObject({ alreadyPaid: 40, requestedAmount: 40, state: 'draft' });
-    const issued = issue(prepared.state, requestId, orderId);
+    const issued = issue(prepared.state, requestId);
     const order = view(issued, orderId);
     expect(order.settlement).toBe('paid');
     expect(invoiceNeedsStep(order.activeRequest, true)).toBe(false);
-    expect(requestProgress(issued.requests.find((r) => r.id === requestId)!)).toEqual({ index: 4, invalid: false });
-    // The order is paid in full, so there is nothing left for a bank transfer.
-    expect(thrown(() => recordPayments(issued, ctx, orderId, [transfer(1, 'WR-X')]))?.code).toBe('payment_exceeds_outstanding');
+    expect(invoiceFilterKey(order)).toBe('issued');
+    expect(requestNext(stateOf(issued, requestId), true)).toBe('Complete, invoice paid');
+    // Nothing was open, so the invoice adds no entry.
+    expect(activeReceipts(issued.payments, issued.allocations, orderId).filter((payment) => payment.method === 'external')).toHaveLength(0);
   });
-  it('lets an unpaid order be paid by bank transfer, but only after the invoice is issued', () => {
+  it('keeps the order open until the invoice is issued, then the invoice settles the balance (no manual bank transfer)', () => {
     const { state, requestId, orderId } = request(fresh());
     expect(acceptedMethods(view(state, orderId))).toEqual(['cash', 'card']);
-    expect(thrown(() => recordPayments(state, ctx, orderId, [transfer(50, 'WR-1')]))?.code).toBe('external_reconciliation_required');
-    const ready = markRequestReady(updateRequestDetails(state, ctx, requestId, completeDetails(state, requestId)).state, ctx, requestId).state;
-    expect(acceptedMethods(view(ready, orderId))).toEqual([]);
-    expect(thrown(() => recordPayments(ready, ctx, orderId, [transfer(50, 'WR-1')]))?.code).toBe('external_reconciliation_required');
-    const issued = issue(state, requestId, orderId);
-    expect(acceptedMethods(view(issued, orderId))).toEqual(['external']);
-    expect(thrown(() => recordPayments(issued, ctx, orderId, [transfer(50, '')]))?.code).toBe('validation');
-    const paid = recordPayments(issued, ctx, orderId, [transfer(50, 'WR-1')]).state;
-    expect(view(paid, orderId).settlement).toBe('paid');
-    expect(paid.payments.at(-1)?.method).toBe('external');
+    // Nobody can record an invoice payment by hand.
+    expect(thrown(() => recordPayments(state, ctx, orderId, [transfer(50, 'WR-1')]))?.code).toBe('invoice_settles_balance');
+    const awaiting = submitted(state, requestId);
+    expect(view(awaiting, orderId)).toMatchObject({ settlement: 'unpaid', outstanding: 50 });
+    expect(acceptedMethods(view(awaiting, orderId))).toEqual([]);
+    const returned = returnRequestForCorrection(awaiting, ctx, requestId, 'Check').state;
+    expect(view(returned, orderId)).toMatchObject({ settlement: 'unpaid', outstanding: 50 });
+    const issued = issue(state, requestId);
+    expect(acceptedMethods(view(issued, orderId))).toEqual([]);
+    expect(view(issued, orderId)).toMatchObject({ settlement: 'paid', outstanding: 0, settled: 50 });
+    const settling = activeReceipts(issued.payments, issued.allocations, orderId).filter((payment) => payment.method === 'external');
+    expect(settling).toHaveLength(1);
+    expect(settling[0]).toMatchObject({ amount: 50, entryKind: 'receipt', transactionReference: stateOf(issued, requestId).reference });
+    expect(thrown(() => recordPayments(issued, ctx, orderId, [cash(1)]))?.code).toBe('invoice_amount_frozen');
+    expect(orderStatus(view(issued, orderId)).key).toBe('paid');
   });
-  it('mixes cash or card before the request with a bank transfer after the invoice', () => {
+  it('settles only the rest when cash or card was paid before the request', () => {
     const { state: done, orderId } = finalizedDraft(fresh(), 100, organization);
     const partlyPaid = recordPayments(done, ctx, orderId, [cash(30)]).state;
     const prepared = prepareInvoiceRequest(partlyPaid, ctx, orderId);
-    const issued = issue(prepared.state, prepared.requestId, orderId);
-    expect(view(issued, orderId)).toMatchObject({ settlement: 'partially_paid', outstanding: 70 });
-    expect(thrown(() => recordPayments(issued, ctx, orderId, [cash(10)]))?.code).toBe('invoice_amount_frozen');
-    const paid = recordPayments(issued, ctx, orderId, [transfer(70, 'WR-MIX')]).state;
-    expect(view(paid, orderId)).toMatchObject({ settlement: 'paid', outstanding: 0 });
-    expect(activeReceipts(paid.payments, paid.allocations, orderId).map((payment) => payment.method).sort()).toEqual(['cash', 'external']);
+    const awaiting = submitted(prepared.state, prepared.requestId);
+    expect(view(awaiting, orderId)).toMatchObject({ settlement: 'partially_paid', outstanding: 70 });
+    expect(thrown(() => recordPayments(awaiting, ctx, orderId, [cash(10)]))?.code).toBe('invoice_amount_frozen');
+    const issued = forwardRequestToWiRef(awaiting, ctx, prepared.requestId).state;
+    expect(view(issued, orderId)).toMatchObject({ settlement: 'paid', outstanding: 0 });
+    expect(activeReceipts(issued.payments, issued.allocations, orderId).map((payment) => payment.method).sort()).toEqual(['cash', 'external']);
+    expect(activeReceipts(issued.payments, issued.allocations, orderId).find((payment) => payment.method === 'external')?.amount).toBe(70);
   });
-  it('keeps "already paid" in step with cash and card while the request is a draft, then freezes it', () => {
+  it('keeps "already paid" in step with cash and card while the request is a draft, then freezes it from approval on', () => {
     const { state, requestId, orderId } = request(fresh());
     expect(state.requests.find((r) => r.id === requestId)!.alreadyPaid).toBe(0);
     const paid = recordPayments(state, ctx, orderId, [cash(20)]).state;
@@ -227,10 +310,13 @@ describe('invoice requests (wiRef)', () => {
     const receipt = activeReceipts(paid.payments, paid.allocations, orderId)[0];
     const refunded = reversePayment(paid, ctx, { paymentId: receipt.id, reasonKind: 'refund', reason: 'Gave back', occurredAt: ctx.at, transactionReference: '' }).state;
     expect(refunded.requests.find((r) => r.id === requestId)!.alreadyPaid).toBe(0);
-    const ready = markRequestReady(updateRequestDetails(paid, ctx, requestId, completeDetails(paid, requestId)).state, ctx, requestId).state;
-    expect(thrown(() => recordPayments(ready, ctx, orderId, [card(5, 'TX-LATE')]))?.code).toBe('invoice_amount_frozen');
-    expect(thrown(() => reversePayment(ready, ctx, { paymentId: receipt.id, reasonKind: 'refund', reason: 'Gave back', occurredAt: ctx.at, transactionReference: '' }))?.code).toBe('invoice_amount_frozen');
-    expect(reversalOptions(receipt, view(ready, orderId), ready).prerequisite).not.toBeNull();
+    const awaiting = submitted(paid, requestId);
+    expect(thrown(() => recordPayments(awaiting, ctx, orderId, [card(5, 'TX-LATE')]))?.code).toBe('invoice_amount_frozen');
+    expect(thrown(() => reversePayment(awaiting, ctx, { paymentId: receipt.id, reasonKind: 'refund', reason: 'Gave back', occurredAt: ctx.at, transactionReference: '' }))?.code).toBe('invoice_amount_frozen');
+    expect(reversalOptions(receipt, view(awaiting, orderId), awaiting).prerequisite).not.toBeNull();
+    // Returned to the draft, the figure follows the payments again.
+    const returned = returnRequestForCorrection(awaiting, ctx, requestId, 'Check').state;
+    expect(acceptedMethods(view(returned, orderId))).toEqual(['cash', 'card']);
   });
   it('does not invoice orders that are not finalized or charge nothing', () => {
     const draft = createDraft(fresh(), ctx, { customer: organization, fulfillmentMode: 'immediate' });
@@ -238,39 +324,75 @@ describe('invoice requests (wiRef)', () => {
     const free = finalizedDraft(fresh(), 0, organization);
     expect(thrown(() => prepareInvoiceRequest(free.state, ctx, free.orderId))?.code).toBe('validation');
   });
-  it('walks submitted, issued with a matching amount, cancellation and its confirmation', () => {
+  it('walks awaiting approval, issued, cancellation and its confirmation', () => {
     const all = request(fresh());
-    let state = updateRequestDetails(all.state, ctx, all.requestId, all.details).state;
-    state = markRequestReady(state, ctx, all.requestId).state;
-    expect(thrown(() => recordRequestIssued(state, ctx, all.requestId, { externalReference: 'RE-1', effectiveOn: '2026-01-02', amount: 50 }))?.code).toBe('invalid_request_transition');
-    expect(thrown(() => cancelRequest(markRequestSubmitted(state, ctx, all.requestId).state, ctx, all.requestId))?.code).toBe('external_reconciliation_required');
-    state = markRequestSubmitted(state, ctx, all.requestId).state;
-    expect(thrown(() => recordRequestIssued(state, ctx, all.requestId, { externalReference: 'RE-1', effectiveOn: '2026-01-02', amount: 49 }))?.code).toBe('validation');
-    state = recordRequestIssued(state, ctx, all.requestId, { externalReference: 'RE-1', effectiveOn: '2026-01-02', amount: 50 }).state;
+    let state = submitted(all.state, all.requestId);
+    // Awaiting approval has not reached wiRef, so only the draft/approval cancellation applies and external cancellation does not.
+    expect(thrown(() => requestCancellation(state, ctx, all.requestId, 'Too early'))?.code).toBe('invalid_request_transition');
+    state = forwardRequestToWiRef(state, ctx, all.requestId).state;
+    expect(thrown(() => cancelRequest(state, ctx, all.requestId))?.code).toBe('external_reconciliation_required');
     expect(thrown(() => reverseOrder(state, ctx, all.orderId, { reason: 'x', reversals: [] }))?.code).toBe('external_reconciliation_required');
-    state = correctRequestReference(state, ctx, all.requestId, { externalReference: 'RE-1A', reason: 'Typo', effectiveOn: '2026-01-03' }).state;
-    expect(state.requests.find((r) => r.id === all.requestId)!.events.at(-1)?.externalReference).toBe('RE-1A');
     expect(thrown(() => confirmRequestCancellation(state, ctx, all.requestId, { reconciliationKind: 'credit_note', externalReference: 'CN-1', effectiveOn: '2026-01-04' }))?.code).toBe('invalid_request_transition');
     state = requestCancellation(state, ctx, all.requestId, 'Wrong amount').state;
+    expect(requestProgress(stateOf(state, all.requestId))).toEqual({ index: 2, invalid: true });
     state = confirmRequestCancellation(state, ctx, all.requestId, { reconciliationKind: 'credit_note', externalReference: 'CN-1', effectiveOn: '2026-01-04' }).state;
-    expect(state.requests.find((r) => r.id === all.requestId)?.state).toBe('cancelled');
+    expect(stateOf(state, all.requestId).state).toBe('cancelled');
   });
-  it('corrects a bank transfer only after the request is cancelled', () => {
+  it('cancels a request that awaits approval locally, marking the step it reached', () => {
     const all = request(fresh());
-    const issued = issue(all.state, all.requestId, all.orderId);
-    const paid = recordPayments(issued, ctx, all.orderId, [transfer(50, 'WR-9')]).state;
-    const payment = activeReceipts(paid.payments, paid.allocations, all.orderId)[0];
-    const options = reversalOptions(payment, view(paid, all.orderId), paid);
+    const cancelled = cancelRequest(submitted(all.state, all.requestId), ctx, all.requestId, 'Not needed').state;
+    expect(stateOf(cancelled, all.requestId).state).toBe('cancelled');
+    expect(requestProgress(stateOf(cancelled, all.requestId))).toEqual({ index: 1, invalid: true });
+  });
+  it('corrects the invoice payment only after the request is cancelled', () => {
+    const all = request(fresh());
+    const issued = issue(all.state, all.requestId);
+    const payment = activeReceipts(issued.payments, issued.allocations, all.orderId)[0];
+    expect(payment.method).toBe('external');
+    const options = reversalOptions(payment, view(issued, all.orderId), issued);
     expect(options.kinds).toEqual(['external_correction']);
     expect(options.prerequisite).not.toBeNull();
     const input = { paymentId: payment.id, reasonKind: 'external_correction' as const, reason: 'Credit note', occurredAt: ctx.at, transactionReference: 'CN-2' };
-    expect(thrown(() => reversePayment(paid, ctx, input))?.code).toBe('external_reconciliation_required');
-    const cancelled = confirmRequestCancellation(requestCancellation(paid, ctx, all.requestId, 'Wrong').state, ctx, all.requestId, { reconciliationKind: 'credit_note', externalReference: 'CN-2', effectiveOn: '2026-01-04' }).state;
-    expect(reversePayment(cancelled, ctx, input).state.payments.at(-1)?.entryKind).toBe('reversal');
+    expect(thrown(() => reversePayment(issued, ctx, input))?.code).toBe('external_reconciliation_required');
+    const cancelled = confirmRequestCancellation(requestCancellation(issued, ctx, all.requestId, 'Wrong').state, ctx, all.requestId, { reconciliationKind: 'credit_note', externalReference: 'CN-2', effectiveOn: '2026-01-04' }).state;
+    const corrected = reversePayment(cancelled, ctx, input).state;
+    expect(corrected.payments.at(-1)?.entryKind).toBe('reversal');
+    expect(view(corrected, all.orderId)).toMatchObject({ outstanding: 50 });
+  });
+  it('has a seed with a request in every step, including a returned draft and an issued one without number', () => {
+    const states = salesSeed.requests.map((r) => r.state);
+    for (const expected of ['draft', 'submitted', 'issued', 'cancellation_requested', 'cancelled']) expect(states).toContain(expected);
+    expect(salesSeed.requests.some((r) => latestReturn(r) !== null)).toBe(true);
+    expect(salesSeed.requests.some((r) => r.state === 'issued' && invoiceNumberOf(r) === null)).toBe(true);
+    // Every order with an issued invoice is paid.
+    const all = buildOrderViews(salesSeed);
+    for (const request of salesSeed.requests.filter((r) => r.state === 'issued')) expect(all.find((order) => order.id === request.orderId)!.settlement).toBe('paid');
   });
 });
 
 describe('cash register', () => {
+  it('ignores card and invoice payments and their reversals', () => {
+    const { state, orderId } = finalizedDraft(fresh(), 40);
+    const before = cashInRegister(state.payments, state.cashMovements).expected;
+    const paid = recordPayments(state, ctx, orderId, [card(25, 'TX-REG-NOCASH'), cash(0.5)]).state;
+    expect(cashInRegister(paid.payments, paid.cashMovements).expected).toBe(before + 0.5);
+    const cardReceipt = activeReceipts(paid.payments, paid.allocations, orderId).find((p) => p.method === 'card')!;
+    const refunded = reversePayment(paid, ctx, { paymentId: cardReceipt.id, reasonKind: 'refund', reason: 'Gave back', occurredAt: ctx.at, transactionReference: 'TX-REG-REFUND' }).state;
+    expect(cashInRegister(refunded.payments, refunded.cashMovements).expected).toBe(before + 0.5);
+    // An invoice settles the rest and is no cash either; correcting it later does not touch the register.
+    const organization = base.people.find((party) => party.id === 'o-kreativ')!;
+    const invoiced = finalizedDraft(fresh(), 60, organization);
+    const requested = prepareInvoiceRequest(invoiced.state, ctx, invoiced.orderId);
+    const details = { ...requested.state.requests.find((r) => r.id === requested.requestId)!.details, addressLine1: 'Street 1', postalCode: '8010', locality: 'Graz', contactName: 'Pat', purchaseOrderReference: 'PO-1' };
+    const awaiting = submitRequestForApproval(updateRequestDetails(requested.state, ctx, requested.requestId, details).state, ctx, requested.requestId).state;
+    const issued = forwardRequestToWiRef(awaiting, ctx, requested.requestId).state;
+    expect(issued.payments.length).toBeGreaterThan(invoiced.state.payments.length);
+    expect(cashInRegister(issued.payments, issued.cashMovements).expected).toBe(cashInRegister(invoiced.state.payments, invoiced.state.cashMovements).expected);
+    const settling = activeReceipts(issued.payments, issued.allocations, invoiced.orderId).find((p) => p.method === 'external')!;
+    const cancelled = confirmRequestCancellation(requestCancellation(issued, ctx, requested.requestId, 'Wrong').state, ctx, requested.requestId, { reconciliationKind: 'credit_note', externalReference: 'CN-REG', effectiveOn: '2026-01-04' }).state;
+    const corrected = reversePayment(cancelled, ctx, { paymentId: settling.id, reasonKind: 'external_correction', reason: 'Credit note', occurredAt: ctx.at, transactionReference: 'CN-REG' }).state;
+    expect(cashInRegister(corrected.payments, corrected.cashMovements).expected).toBe(cashInRegister(invoiced.state.payments, invoiced.state.cashMovements).expected);
+  });
   it('expects cash receipts minus refunds minus withdrawals plus deposits', () => {
     const { state, orderId } = finalizedDraft(fresh(), 40);
     const before = cashInRegister(state.payments, state.cashMovements).expected;
@@ -376,8 +498,13 @@ describe('pricing groups, roles and organizations', () => {
   });
   it('builds a safe CSV', () => {
     expect(csvCell('=SUM(A1)')).toBe("'=SUM(A1)");
-    expect(csvCell('-5.00')).toBe('-5.00');
-    expect(csvCell('a "b", c')).toBe('"a ""b"", c"');
-    expect(toCsv(['A', 'B'], [['x', 1]])).toBe('﻿A,B\r\nx,1\r\n');
+    expect(csvCell('-5,00')).toBe('-5,00');
+    expect(csvCell(12.5)).toBe('12,5');
+    expect(csvCell('a "b"; c')).toBe('"a ""b""; c"');
+    expect(csvCell('1,5 kg, ok')).toBe('1,5 kg, ok');
+    expect(csvCell('two\nlines')).toBe('"two\nlines"');
+    const csv = toCsv(['A', 'B'], [['x', 1.25]]);
+    expect(csv).toBe('﻿A;B\r\nx;1,25\r\n');
+    expect(csv.startsWith('﻿A;B')).toBe(true);
   });
 });

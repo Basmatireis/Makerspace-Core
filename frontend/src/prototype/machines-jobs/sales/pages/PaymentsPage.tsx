@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  Button, ContentSwitcher, Link as CarbonLink, Pagination, Select, SelectItem, Switch, Table, TableBody, TableCell, TableContainer,
+  Button, Link as CarbonLink, Pagination, RadioButton, RadioButtonGroup, Table, TableBody, TableCell, TableContainer,
   TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, TableToolbarSearch, Tile, Toggletip, ToggletipButton, ToggletipContent,
 } from '@carbon/react';
 import { Add, Download, Information, Subtract } from '@carbon/icons-react';
@@ -16,17 +16,19 @@ import { useStore } from '../../store';
 import { RequirePermission } from '../components/RequirePermission';
 import { CashMovementModal } from '../dialogs/CashMovementModal';
 import { downloadCsv, toCsv } from '../csv';
-import { dateInAppTimeZone, formatDateTime, formatEur, formatSignedEur, round2 } from '../format';
-import { cashMovementKindLabel, cashMovementReasonLabel, customerKindLabel, methodLabel, methodOptions, movementKind, paymentKind, reasonKindLabel } from '../labels';
+import { dateInAppTimeZone, formatDate, formatDateTime, formatEur, formatSignedEur, round2 } from '../format';
+import { cashMovementKindLabel, cashMovementReasonLabel, customerKindLabel, methodLabel, methodFilterOptions, movementKind, paymentKind, reasonKindLabel } from '../labels';
 import { cashbookLines, cashInRegister, periodPresets, periodRange, takings, type CashbookLine, type PeriodPreset } from '../logic';
-import { MovementKindTag, PaymentKindTag, ProposedTag } from '../status';
+import { MovementKindTag, PaymentKindTag } from '../status';
 import { useSalesData } from '../useSalesData';
 import { useUrlParams } from '../useUrlParams';
 import type { CashMovement, CashMovementKind, Payment, PaymentMethod } from '../types';
 import '../sales.scss';
 
 const PAGE_SIZES = [10, 25, 50];
-const FILTER_KEYS = ['method', 'kind', 'who'] as const;
+/** The period is a filter category too; Today is the default and is not a stored value. */
+const FILTER_KEYS = ['period', 'from', 'to', 'method', 'kind', 'who'] as const;
+const ROW_FILTER_KEYS = ['method', 'kind', 'who'] as const;
 const KIND_OPTIONS = [{ id: 'receipt', label: 'Receipt' }, { id: 'refund', label: 'Refund' }, { id: 'correction', label: 'Correction' }, { id: 'withdrawal', label: cashMovementKindLabel('withdrawal') }, { id: 'deposit', label: cashMovementKindLabel('deposit') }];
 const WHO_OPTIONS = [{ id: 'person', label: customerKindLabel('person') }, { id: 'organization', label: customerKindLabel('organization') }];
 const kindId = (line: CashbookLine) => line.type === 'movement' ? line.movement.kind : paymentKind(line.payment).label.toLowerCase();
@@ -36,12 +38,12 @@ function amountText(line: CashbookLine) {
   return line.type === 'movement' || line.payment.entryKind === 'reversal' ? formatSignedEur(line.signed) : formatEur(line.signed);
 }
 
-/** The cashbook as a spreadsheet file, cash movements included. Amounts are plain numbers with a decimal point so any tool can add them up. */
+/** The cashbook as a spreadsheet file, cash movements included. Semicolons and decimal commas (12,50) so German and Austrian spreadsheets open it in columns. */
 function exportLines(lines: CashbookLine[], filename: string) {
   const rows = lines.map((line) => line.type === 'movement'
-    ? [line.reference, dateInAppTimeZone(line.at), timeInAppTimeZone(line.at), lineKindLabel(line), methodLabel('cash'), line.signed.toFixed(2), '', '', '', '', cashMovementReasonLabel[line.movement.reason], line.movement.note, line.recordedBy, dateInAppTimeZone(line.movement.recordedAt)]
+    ? [line.reference, dateInAppTimeZone(line.at), timeInAppTimeZone(line.at), lineKindLabel(line), methodLabel('cash'), line.signed.toFixed(2).replace('.', ','), '', '', '', '', cashMovementReasonLabel[line.movement.reason], line.movement.note, line.recordedBy, dateInAppTimeZone(line.movement.recordedAt)]
     : [
-      line.reference, dateInAppTimeZone(line.at), timeInAppTimeZone(line.at), lineKindLabel(line), methodLabel(line.payment.method), line.signed.toFixed(2),
+      line.reference, dateInAppTimeZone(line.at), timeInAppTimeZone(line.at), lineKindLabel(line), methodLabel(line.payment.method), line.signed.toFixed(2).replace('.', ','),
       line.order?.reference ?? '', line.order?.customerName ?? '', line.payment.terminal, line.payment.transactionReference,
       line.payment.reasonKind ? reasonKindLabel(line.payment.reasonKind) : '', line.payment.reason, line.recordedBy, dateInAppTimeZone(line.payment.recordedAt),
     ]);
@@ -59,8 +61,8 @@ function Cashbook({ lines, empty, canRecord, payments, movements }: { lines: Cas
   const to = params.get('to') ?? '';
   const search = params.get('q') ?? '';
   const methods = list('method'); const kinds = list('kind'); const who = list('who');
-  const activeFilters = FILTER_KEYS.filter((key) => params.get(key)).length;
-  const appliedFilters: FilterValues = { method: methods, kind: kinds, who };
+  const activeFilters = ROW_FILTER_KEYS.filter((key) => params.get(key)).length;
+  const appliedFilters: FilterValues = { period: preset === 'today' ? [] : [preset], from: from ? [from] : [], to: to ? [to] : [], method: methods, kind: kinds, who };
   const range = periodRange(preset, from, to);
 
   const inPeriod = useMemo(() => range.valid ? lines.filter((line) => { const at = new Date(line.at).getTime(); return at >= range.from && at < range.to; }) : [], [lines, range.from, range.to, range.valid]);
@@ -77,7 +79,7 @@ function Cashbook({ lines, empty, canRecord, payments, movements }: { lines: Cas
       { key: 'total', label: 'Net takings', value: net.total, detail: count(null) },
       { key: 'cash', label: 'Cash', value: net.cash, detail: count('cash') },
       { key: 'card', label: 'Card', value: net.card, detail: count('card') },
-      { key: 'external', label: 'Bank transfer (wiRef invoice)', value: net.external, detail: count('external') },
+      { key: 'external', label: 'Invoice (wiRef)', value: net.external, detail: count('external') },
     ];
   }, [inPeriod, range.from, range.to]);
 
@@ -91,29 +93,13 @@ function Cashbook({ lines, empty, canRecord, payments, movements }: { lines: Cas
   const page = Math.max(1, Math.min(Number(params.get('page')) || 1, Math.ceil(visible.length / pageSize) || 1));
   const rows = visible.slice((page - 1) * pageSize, page * pageSize);
   const clearAll = () => { update({ ...Object.fromEntries(FILTER_KEYS.map((key) => [key, null])), q: null }); setSearchKey((value) => value + 1); };
-  const setPreset = (id: PeriodPreset) => update({ period: id === 'today' ? null : id, ...(id === 'custom' ? {} : { from: null, to: null }) });
+  const periodText = !range.valid ? 'Custom range · choose both dates' : preset === 'custom' ? `Custom range · ${formatDate(`${from}T12:00:00Z`)} to ${formatDate(`${to}T12:00:00Z`)}`
+    : `${range.label} · ${formatDate(new Date(range.from).toISOString())}${preset === 'today' || preset === 'yesterday' ? '' : ` to ${formatDate(new Date(range.to - 1).toISOString())}`}`;
   const filename = `cashbook-${preset === 'custom' ? `${from}_${to}` : dateInAppTimeZone(new Date(range.from))}.csv`;
 
   return (
     <div className="mj-stack">
-      <div className="sales-period">
-        <div className="mj-hide-narrow sales-period__switcher">
-          <ContentSwitcher size="md" selectedIndex={periodPresets.findIndex((item) => item.id === preset)} onChange={({ index }) => setPreset(periodPresets[index ?? 0].id)}>
-            {periodPresets.map((item) => <Switch key={item.id} name={item.id} text={item.label} />)}
-          </ContentSwitcher>
-        </div>
-        <div className="mj-show-narrow">
-          <Select id="payments-period" labelText="Period" value={preset} onChange={(event) => setPreset(event.target.value as PeriodPreset)}>
-            {periodPresets.map((item) => <SelectItem key={item.id} value={item.id} text={item.label} />)}
-          </Select>
-        </div>
-        {preset === 'custom' && (
-          <div className="sales-period__range">
-            <DateInput id="payments-from" labelText="From" value={from} onChange={(value) => update({ from: value || null })} invalid={!!from && !!to && from > to} invalidText="Start must not be after the end" />
-            <DateInput id="payments-to" labelText="Through" value={to} onChange={(value) => update({ to: value || null })} />
-          </div>
-        )}
-      </div>
+      <p className="sales-period-note" aria-live="polite"><strong>{periodText}</strong></p>
 
       <section className="sales-tiles" aria-label="Takings by method">
         {tiles.map((tile) => (
@@ -128,6 +114,7 @@ function Cashbook({ lines, empty, canRecord, payments, movements }: { lines: Cas
             <Toggletip align="bottom-start">
               <ToggletipButton label="Show how the expected cash is calculated"><Information /></ToggletipButton>
               <ToggletipContent>
+                <p>Card and invoice payments don't go through the register.</p>
                 <p>Everything in cash from the beginning up to {range.valid ? 'the end of the period' : 'the chosen end'}.</p>
                 <dl className="sales-sum">
                   <div><dt>Cash receipts</dt><dd>{formatEur(register.receipts)}</dd></div>
@@ -151,7 +138,28 @@ function Cashbook({ lines, empty, canRecord, payments, movements }: { lines: Cas
             <BatchFilter
               id="payments" label="Payments" applied={appliedFilters} onApply={(values) => update(toPatch(values, [...FILTER_KEYS]))} onReset={() => update(Object.fromEntries(FILTER_KEYS.map((key) => [key, null])))}
               categories={[
-                { key: 'method', label: 'Method', options: methodOptions },
+                {
+                  key: 'period', label: 'Period', keys: ['period', 'from', 'to'],
+                  render: ({ idPrefix, staged, set }) => {
+                    const chosen = staged.period?.[0] ?? 'today';
+                    const [stagedFrom, stagedTo] = [staged.from?.[0] ?? '', staged.to?.[0] ?? ''];
+                    return (
+                      <>
+                        <RadioButtonGroup legendText={<span className="cds--visually-hidden">Period</span>} name={`${idPrefix}-preset`} orientation="vertical" valueSelected={chosen}
+                          onChange={(value) => { set('period', value === 'today' ? [] : [String(value)]); if (value !== 'custom') { set('from', []); set('to', []); } }}>
+                          {periodPresets.map((item) => <RadioButton key={item.id} id={`${idPrefix}-${item.id}`} value={item.id} labelText={item.label} />)}
+                        </RadioButtonGroup>
+                        {chosen === 'custom' && (
+                          <>
+                            <DateInput id={`${idPrefix}-from`} labelText="From" value={stagedFrom} onChange={(value) => set('from', value ? [value] : [])} invalid={!!stagedFrom && !!stagedTo && stagedFrom > stagedTo} invalidText="Start must not be after the end" />
+                            <DateInput id={`${idPrefix}-to`} labelText="Through" value={stagedTo} onChange={(value) => set('to', value ? [value] : [])} />
+                          </>
+                        )}
+                      </>
+                    );
+                  },
+                },
+                { key: 'method', label: 'Method', options: methodFilterOptions },
                 { key: 'kind', label: 'Kind', options: KIND_OPTIONS },
                 { key: 'who', label: 'Customer', options: WHO_OPTIONS },
               ]}
@@ -160,12 +168,10 @@ function Cashbook({ lines, empty, canRecord, payments, movements }: { lines: Cas
               <>
                 <Button kind="ghost" size="md" renderIcon={Subtract} onClick={() => setMovement('withdrawal')}>Record cash withdrawal</Button>
                 <Button kind="ghost" size="md" renderIcon={Add} onClick={() => setMovement('deposit')}>Record cash deposit</Button>
-                <ProposedTag hint="Needs cash movements on the backend" />
               </>
             )}
             <span className="sales-export">
               <Button kind="ghost" size="md" renderIcon={Download} disabled={visible.length === 0} onClick={() => { exportLines(visible, filename); store.notify({ kind: 'success', title: 'CSV exported', subtitle: `${visible.length} ${visible.length === 1 ? 'line' : 'lines'} of the current view were saved as ${filename}.` }); }}>Export CSV</Button>
-              <ProposedTag hint="Needs a payments export endpoint, with cash movements" />
             </span>
           </TableToolbarContent>
         </TableToolbar>

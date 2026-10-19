@@ -33,9 +33,9 @@ export function RecipientFields({ idPrefix, details, onChange, organization, req
   );
 }
 
-/** The recipient details of a draft request, saved on their own. The details freeze when the request is marked ready. */
-export function RecipientDetailsForm({ request, organization, requiresPurchaseOrder, onChange }: {
-  request: InvoiceRequest; organization: boolean; requiresPurchaseOrder: boolean; onChange: (details: InvoiceRequestDetails, dirty: boolean) => void;
+/** The recipient details of a request, saved on their own. Staff edit the draft; management edits while the request awaits approval; they freeze once it is issued. */
+export function RecipientDetailsForm({ request, editedByManagement = false, organization, requiresPurchaseOrder, onChange }: {
+  request: InvoiceRequest; /** Management edits a request that awaits approval; every save is recorded in the history. */ editedByManagement?: boolean; organization: boolean; requiresPurchaseOrder: boolean; onChange: (details: InvoiceRequestDetails, dirty: boolean) => void;
 }) {
   const store = useStore();
   const [details, setDetails] = useState<InvoiceRequestDetails>(request.details);
@@ -54,6 +54,7 @@ export function RecipientDetailsForm({ request, organization, requiresPurchaseOr
         <Button kind="primary" size="md" disabled={!dirty || pending} onClick={() => { void save(); }}>{pending ? 'Saving…' : 'Save details'}</Button>
         <Button kind="ghost" size="md" disabled={!dirty || pending} onClick={() => { setDetails(request.details); onChange(request.details, false); }}>Discard changes</Button>
         {dirty && <span className="mj-secondary">Unsaved changes</span>}
+        {!dirty && editedByManagement && <span className="mj-secondary">Changes are recorded in the history.</span>}
       </div>
     </Stack>
   );

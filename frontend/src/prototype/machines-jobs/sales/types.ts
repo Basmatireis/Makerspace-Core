@@ -6,11 +6,12 @@ export type OrderStatus = 'draft' | 'finalized' | 'cancelled' | 'reversed';
 export type SettlementState = 'unpaid' | 'partially_paid' | 'paid' | 'no_payment_due';
 export type FulfillmentMode = 'immediate' | 'deferred';
 export type OrderItemKind = 'manual' | 'machine_job';
-/** `external` is a bank transfer to the HTU account against a wiRef invoice [proposed rule: only after the invoice is issued]. */
+/** `external` is the wiRef invoice that settles the open balance of an order when management forwards it [proposed rule]; it is created by the engine, never recorded by hand. */
 export type PaymentMethod = 'cash' | 'card' | 'external';
 export type PaymentEntryKind = 'receipt' | 'reversal';
 export type ReversalReasonKind = 'refund' | 'recording_error' | 'external_correction';
-export type InvoiceRequestState = 'draft' | 'ready' | 'submitted' | 'issued' | 'cancellation_requested' | 'cancelled';
+/** `submitted` is shown as "Awaiting approval": management approves, copies the data to wiRef and marks it forwarded, which makes the request `issued`. */
+export type InvoiceRequestState = 'draft' | 'submitted' | 'issued' | 'cancellation_requested' | 'cancelled';
 
 /** The payer reference of an order. Every order has one: an account (person) or an organization. */
 export type OrderCustomer = { kind: 'person' | 'organization'; id: string };
@@ -111,12 +112,12 @@ export type InvoiceRequestDetails = {
   recipientName: string; addressLine1: string; postalCode: string; locality: string; countryCode: string; contactName: string;
   serviceStartsOn: string; serviceEndsOn: string; serviceDescription: string; purchaseOrderReference: string;
 };
-export type InvoiceEventKind = 'created' | 'details_saved' | 'ready' | 'submitted' | 'issued' | 'cancellation_requested' | 'cancelled' | 'reference_corrected';
+export type InvoiceEventKind = 'created' | 'details_saved' | 'submitted' | 'returned' | 'issued' | 'reference_added' | 'cancellation_requested' | 'cancelled' | 'reference_corrected';
 /** How an external cancellation was settled in wiRef. */
 export type ReconciliationKind = 'cancellation' | 'credit_note' | 'corrected_invoice' | 'reallocation' | 'other';
 export type InvoiceRequestEvent = {
   id: string; at: string; actor: string; kind: InvoiceEventKind; text: string;
-  /** Invoice number, credit note number or similar from wiRef. */
+  /** Invoice number (reference_added, reference_corrected), credit note number or similar from wiRef. */
   externalReference?: string;
   /** The date the fact is effective in wiRef (YYYY-MM-DD). */
   effectiveOn?: string;

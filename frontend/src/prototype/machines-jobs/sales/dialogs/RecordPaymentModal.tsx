@@ -3,6 +3,7 @@ import { InlineNotification, Modal, Stack } from '@carbon/react';
 import { useStore } from '../../store';
 import { checkEntry, existingReferences, newPaymentEntry, PaymentEntryForm, toPaymentInputs } from '../components/PaymentEntry';
 import { formatEur } from '../format';
+import { requestStateLabel } from '../labels';
 import { acceptedMethods, type OrderView } from '../logic';
 import { OrderStatusTag } from '../status';
 import { useSalesMutation } from '../useSalesMutation';
@@ -21,10 +22,9 @@ export function RecordPaymentModal({ order, mode, onClose, onDone, onRequestInvo
   const checkout = mode === 'checkout';
   const due = checkout ? order.total : order.outstanding;
   const methods = checkout ? (['cash', 'card'] as PaymentMethod[]) : acceptedMethods(order);
-  const external = methods.length === 1 && methods[0] === 'external';
   const [entry, setEntry] = useState(() => ({ ...newPaymentEntry(due, methods.length ? methods : ['cash', 'card']) }));
   const invoice = entry.preset === 'invoice';
-  const check = checkEntry(entry, due, external, existingReferences(store.payments));
+  const check = checkEntry(entry, due, false, existingReferences(store.payments));
   const { mutate, pending, error } = useSalesMutation(() => {
     if (invoice) return store.finalizeOrder(order.id);
     const inputs = toPaymentInputs(entry);
@@ -42,15 +42,15 @@ export function RecordPaymentModal({ order, mode, onClose, onDone, onRequestInvo
       onRequestInvoice?.();
       return;
     }
-    store.notify({ kind: 'success', title: checkout ? `${order.reference} finalized` : external ? 'Bank transfer recorded' : 'Payment recorded', subtitle: `${formatEur(check.covered)} on ${order.reference}${check.remaining > 0 ? `, ${formatEur(check.remaining)} still outstanding` : ''}.`, action: { label: 'Print receipt', to: `/sales/orders/${order.id}/receipt` } });
+    store.notify({ kind: 'success', title: checkout ? `${order.reference} finalized` : 'Payment recorded', subtitle: `${formatEur(check.covered)} on ${order.reference}${check.remaining > 0 ? `, ${formatEur(check.remaining)} still outstanding` : ''}.`, action: { label: 'Print receipt', to: `/sales/orders/${order.id}/receipt` } });
     onDone?.();
     onClose();
   };
 
   return (
     <Modal
-      open size="md" modalHeading={checkout ? 'Finalize and take payment' : external ? 'Record bank transfer' : 'Record payment'} modalLabel={order.reference}
-      primaryButtonText={pending ? 'Saving…' : invoice ? (checkout ? 'Finalize and request invoice' : 'Request invoice') : checkout ? 'Finalize and record payment' : external ? 'Record bank transfer' : 'Record payment'} secondaryButtonText="Cancel" primaryButtonDisabled={(!invoice && !check.ok) || pending || methods.length === 0}
+      open size="md" modalHeading={checkout ? 'Finalize and take payment' : 'Record payment'} modalLabel={order.reference}
+      primaryButtonText={pending ? 'Saving…' : invoice ? (checkout ? 'Finalize and request invoice' : 'Request invoice') : checkout ? 'Finalize and record payment' : 'Record payment'} secondaryButtonText="Cancel" primaryButtonDisabled={(!invoice && !check.ok) || pending || methods.length === 0}
       preventCloseOnClickOutside onRequestClose={() => { if (!pending) onClose(); }} onRequestSubmit={() => { void submit(); }}
     >
       <Stack gap={5}>
@@ -59,10 +59,9 @@ export function RecordPaymentModal({ order, mode, onClose, onDone, onRequestInvo
           <div className="mj-cell-stack"><span>{order.customerLabel}</span><OrderStatusTag order={order} size="sm" /></div>
         </div>
         {checkout && <p>Prices and items freeze when you finalize. {invoice ? 'The invoice request follows right after.' : 'The payment is recorded in the same step.'}</p>}
-        {!external && !invoice && <p className="mj-secondary">Partial payments are fine; the rest stays outstanding.</p>}
-        {external && <p>The invoice {order.activeRequest?.reference} was issued by wiRef. Record the bank transfer to the HTU account once it arrived, with the confirmation reference. Cash and card were recorded before the invoice.</p>}
-        {methods.length === 0 && <InlineNotification kind="warning" lowContrast hideCloseButton title="No payment can be recorded right now" subtitle={`${order.activeRequest?.reference} is not issued yet. Cash and card can no longer be added, and a bank transfer is recorded after the invoice is issued.`} />}
-        {methods.length > 0 && <PaymentEntryForm idPrefix={`pay-${order.id}`} entry={entry} onChange={setEntry} due={due} requireFull={external} payments={store.payments} methods={methods} disabled={pending} allowInvoice={!!onRequestInvoice && due > 0 && !external} />}
+        {!invoice && <p className="mj-secondary">Partial payments are fine; the rest stays outstanding.</p>}
+        {methods.length === 0 && <InlineNotification kind="warning" lowContrast hideCloseButton title="No payment can be recorded right now" subtitle={`${order.activeRequest?.reference} is ${order.activeRequest ? requestStateLabel[order.activeRequest.state].toLowerCase() : 'active'}, so cash and card can no longer be added. An issued invoice settles the balance by itself.`} />}
+        {methods.length > 0 && <PaymentEntryForm idPrefix={`pay-${order.id}`} entry={entry} onChange={setEntry} due={due} requireFull={false} payments={store.payments} methods={methods} disabled={pending} allowInvoice={!!onRequestInvoice && due > 0} />}
         {error && <InlineNotification kind="error" lowContrast hideCloseButton title="Could not record" subtitle={error} />}
       </Stack>
     </Modal>

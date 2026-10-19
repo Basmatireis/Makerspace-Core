@@ -157,7 +157,7 @@ export function CorrectOrderModal({ order, replacement, onClose }: { order: Orde
         {step === 'payments' && (
           <Stack gap={6}>
             {committing && <RichNotification kind="info" title={`New total ${formatEur(newTotal)}`}><RefLink reference={original.reference} id={original.id} onNavigate={onClose} /> was {formatEur(sum(receipts.map((payment) => payment.amount)))} paid. Choose what happens to each payment.</RichNotification>}
-            {externalReceipt && <InlineNotification kind="error" lowContrast hideCloseButton title="A bank transfer was recorded against the invoice" subtitle="It cannot be moved or refunded here. Cancel the invoice request and record the external accounting correction on the original order first." />}
+            {externalReceipt && <InlineNotification kind="error" lowContrast hideCloseButton title="The order was settled by an invoice" subtitle="It cannot be moved or refunded here. Cancel the invoice request and record the external accounting correction on the original order first." />}
             {receipts.map((payment, position) => {
               const current = choice(payment);
               const options = optionsFor(payment);

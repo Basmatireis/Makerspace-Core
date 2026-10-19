@@ -22,17 +22,17 @@ export type Permission =
   | 'machines.read' | 'machines.manage' | 'machine_jobs.read' | 'machine_jobs.create'
   | 'machine_jobs.edit' | 'machine_jobs.delete' | 'machine_jobs.override_price'
   | 'printer_slots.assign' | 'inventory.read' | 'inventory.manage' | 'filament_spools.manage' | 'orders.read' | 'orders.write' | 'orders.finalize' | 'payments.read' | 'payments.record'
-  | 'orders.reverse' | 'payments.reverse' | 'external_invoice_requests.read' | 'external_invoice_requests.manage' | 'pricing.read' | 'pricing.manage' | 'organizations.read' | 'organizations.manage'
+  | 'orders.reverse' | 'payments.reverse' | 'external_invoice_requests.read' | 'external_invoice_requests.manage' | 'external_invoice_requests.approve' | 'pricing.read' | 'pricing.manage' | 'organizations.read' | 'organizations.manage'
   | 'statistics.read' | 'printer_connectors.read' | 'printer_connectors.manage' | 'printer_connectors.credentials.manage';
 
-export type Role = 'supervisor' | 'operator' | 'viewer' | 'front_desk' | 'finance';
+export type Role = 'supervisor' | 'operator' | 'viewer' | 'front_desk' | 'finance' | 'management';
 export type Scenario = 'normal' | 'loading' | 'error' | 'empty';
 /** Outcome of the simulated "Test connection" call in the machine setup wizard. */
 export type ConnectionTestMode = 'success' | 'unreachable' | 'wrong_code';
 
 const ALL: Permission[] = [
   'machines.read', 'machines.manage', 'machine_jobs.read', 'machine_jobs.create', 'machine_jobs.edit', 'machine_jobs.delete', 'machine_jobs.override_price', 'printer_slots.assign', 'inventory.read', 'inventory.manage', 'filament_spools.manage',
-  'orders.read', 'orders.write', 'orders.finalize', 'orders.reverse', 'payments.read', 'payments.record', 'payments.reverse', 'external_invoice_requests.read', 'external_invoice_requests.manage',
+  'orders.read', 'orders.write', 'orders.finalize', 'orders.reverse', 'payments.read', 'payments.record', 'payments.reverse', 'external_invoice_requests.read', 'external_invoice_requests.manage', 'external_invoice_requests.approve',
   'pricing.read', 'pricing.manage', 'organizations.read', 'organizations.manage', 'statistics.read', 'printer_connectors.read', 'printer_connectors.manage', 'printer_connectors.credentials.manage',
 ];
 
@@ -47,6 +47,10 @@ export const rolePresets: Record<Role, { label: string; description: string; per
   finance: {
     label: 'Finance', description: 'All sales, payments and invoicing; read-only workshop',
     permissions: ['machines.read', 'machine_jobs.read', 'inventory.read', 'statistics.read', 'orders.read', 'orders.write', 'orders.finalize', 'orders.reverse', 'payments.read', 'payments.record', 'payments.reverse', 'external_invoice_requests.read', 'external_invoice_requests.manage', 'pricing.read', 'pricing.manage', 'organizations.read', 'organizations.manage'],
+  },
+  management: {
+    label: 'Management', description: 'All sales permissions, including approving invoice requests; read-only workshop',
+    permissions: ['machines.read', 'machine_jobs.read', 'inventory.read', 'statistics.read', 'orders.read', 'orders.write', 'orders.finalize', 'orders.reverse', 'payments.read', 'payments.record', 'payments.reverse', 'external_invoice_requests.read', 'external_invoice_requests.manage', 'external_invoice_requests.approve', 'pricing.read', 'pricing.manage', 'organizations.read', 'organizations.manage'],
   },
 };
 
@@ -204,13 +208,13 @@ type Actions = {
   createDraftFromJobs: SalesAction<typeof sales.draftFromJobs>;
   prepareInvoiceRequest: SalesAction<typeof sales.prepareInvoiceRequest>;
   updateRequestDetails: SalesAction<typeof sales.updateRequestDetails>;
-  markRequestReady: SalesAction<typeof sales.markRequestReady>;
-  markRequestSubmitted: SalesAction<typeof sales.markRequestSubmitted>;
-  recordRequestIssued: SalesAction<typeof sales.recordRequestIssued>;
+  submitRequestForApproval: SalesAction<typeof sales.submitRequestForApproval>;
+  returnRequestForCorrection: SalesAction<typeof sales.returnRequestForCorrection>;
+  forwardRequestToWiRef: SalesAction<typeof sales.forwardRequestToWiRef>;
   cancelRequest: SalesAction<typeof sales.cancelRequest>;
   requestCancellation: SalesAction<typeof sales.requestCancellation>;
   confirmRequestCancellation: SalesAction<typeof sales.confirmRequestCancellation>;
-  correctRequestReference: SalesAction<typeof sales.correctRequestReference>;
+  recordRequestReference: SalesAction<typeof sales.recordRequestReference>;
   /** [proposed] Money taken out of or added to the cash register. */
   recordCashMovement: SalesAction<typeof sales.recordCashMovement>;
   saveOrganization: SalesAction<typeof sales.saveOrganization>;
@@ -420,7 +424,7 @@ const salesSlice = (d: Data): sales.SalesState => ({
   orders: d.orders, payments: d.payments, allocations: d.allocations, adjustments: d.adjustments, requests: d.requests, jobs: d.jobs, counters: d.counters,
   organizations: d.organizations, cashMovements: d.cashMovements, pricing: d.pricing,
 });
-const salesCtx = (d: Data): sales.Ctx => ({ at: new Date().toISOString(), actor: CURRENT_ACTOR, machines: d.machines, machineTypes: d.machineTypes, prints: d.prints });
+const salesCtx = (d: Data, canApproveInvoices: boolean): sales.Ctx => ({ at: new Date().toISOString(), actor: CURRENT_ACTOR, canApproveInvoices, machines: d.machines, machineTypes: d.machineTypes, prints: d.prints });
 
 const CLEARED_FILL = { materialId: '', materialName: '', color: '', initialNetWeightG: 0, productId: null, manufacturer: null, productName: null, filledAt: null } as const;
 
@@ -463,10 +467,10 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
 
   const salesAction = useCallback(<A extends unknown[], R extends { state: sales.SalesState }>(fn: (state: sales.SalesState, c: sales.Ctx, ...args: A) => R) => (...args: A): Omit<R, 'state'> => {
     const d = dataRef.current;
-    const { state, ...rest } = fn(salesSlice(d), salesCtx(d), ...args);
+    const { state, ...rest } = fn(salesSlice(d), salesCtx(d, rolePresets[role].permissions.includes('external_invoice_requests.approve')), ...args);
     commit({ ...d, ...state });
     return rest;
-  }, [commit]);
+  }, [commit, role]);
 
   const actions: Actions = useMemo(() => ({
     createDraftOrder: salesAction(sales.createDraft), updateDraftOrder: salesAction(sales.updateDraft), addOrderManualItem: salesAction(sales.addManualItem),
@@ -475,9 +479,9 @@ export function PrototypeStoreProvider({ children }: { children: ReactNode }) {
     checkoutOrder: salesAction(sales.checkoutOrder), recordOrderPayments: salesAction(sales.recordPayments), reverseOrderPayment: salesAction(sales.reversePayment),
     reverseOrder: salesAction(sales.reverseOrder), startReplacement: salesAction(sales.startReplacement), commitReplacement: salesAction(sales.commitReplacement),
     duplicateOrder: salesAction(sales.duplicateAsDraft), createDraftFromJobs: salesAction(sales.draftFromJobs), prepareInvoiceRequest: salesAction(sales.prepareInvoiceRequest),
-    updateRequestDetails: salesAction(sales.updateRequestDetails), markRequestReady: salesAction(sales.markRequestReady), markRequestSubmitted: salesAction(sales.markRequestSubmitted),
-    recordRequestIssued: salesAction(sales.recordRequestIssued), cancelRequest: salesAction(sales.cancelRequest), requestCancellation: salesAction(sales.requestCancellation),
-    confirmRequestCancellation: salesAction(sales.confirmRequestCancellation), correctRequestReference: salesAction(sales.correctRequestReference),
+    updateRequestDetails: salesAction(sales.updateRequestDetails), submitRequestForApproval: salesAction(sales.submitRequestForApproval), returnRequestForCorrection: salesAction(sales.returnRequestForCorrection),
+    forwardRequestToWiRef: salesAction(sales.forwardRequestToWiRef), cancelRequest: salesAction(sales.cancelRequest), requestCancellation: salesAction(sales.requestCancellation),
+    confirmRequestCancellation: salesAction(sales.confirmRequestCancellation), recordRequestReference: salesAction(sales.recordRequestReference),
     recordCashMovement: salesAction(sales.recordCashMovement), saveOrganization: salesAction(sales.saveOrganization), setRoleGroup: salesAction(sales.setRoleGroup),
     savePricingGroup: salesAction(sales.savePricingGroup), setRate: salesAction(sales.setRate),
     createJob: (facts, usages) => {

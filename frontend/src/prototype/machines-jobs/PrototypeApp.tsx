@@ -168,7 +168,7 @@ export function PrototypeApp() {
           <Route path="/statistics" element={<StatisticsPage />} />
           <Route path="/sales" element={<SalesOverviewPage />} />
           <Route path="/sales/counter" element={<Navigate to="/sales/orders" replace />} />
-          <Route path="/sales/invoicing/*" element={<Navigate to="/sales/orders?view=invoice" replace />} />
+          <Route path="/sales/invoicing/*" element={<Navigate to="/sales/orders?invoice=draft,submitted" replace />} />
           <Route path="/sales/customers/*" element={<Navigate to="/sales/orders" replace />} />
           <Route path="/sales/orders" element={<OrdersPage />} />
           <Route path="/sales/orders/:orderId" element={<OrderDetailPage />} />
