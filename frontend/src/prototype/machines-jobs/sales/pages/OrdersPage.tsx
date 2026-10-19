@@ -195,10 +195,18 @@ function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; load
 export function OrdersPage() {
   const store = useStore();
   const { query, data, views } = useSalesData();
-  const [reviewing, setReviewing] = useState(false);
+  // `?review=1` opens the ready-to-bill review, so links from the overview land on it directly.
+  const [params, setParams] = useSearchParams();
+  const reviewing = params.get('review') === '1';
+  const setReviewing = (open: boolean) => setParams((previous) => {
+    const next = new URLSearchParams(previous);
+    if (open) next.set('review', '1'); else next.delete('review');
+    return next;
+  }, { replace: true });
   const groups = useMemo(() => readyToBill(data.jobs, data.orders, data.prints, Date.now()), [data.jobs, data.orders, data.prints]);
   const readyCount = groups.reduce((total, group) => total + group.ready.length, 0);
   const readyCustomers = groups.filter((group) => group.ready.length > 0).length;
+  const readyValue = groups.reduce((total, group) => total + group.total, 0);
 
   return (
     <RequirePermission permission="orders.read" title="Orders" crumbs={[{ label: 'Sales & payments' }, { label: 'Orders' }]}>
@@ -209,7 +217,7 @@ export function OrdersPage() {
             notice={readyCount > 0 && (
               <div className="sales-ready-bar">
                 <InlineNotification lowContrast hideCloseButton kind="info" className="sales-ready-notice" title={`${readyCount} finished ${readyCount === 1 ? 'job is' : 'jobs are'} ready to bill`}
-                  subtitle={`${readyCustomers} ${readyCustomers === 1 ? 'customer' : 'customers'} have finished jobs that are on no order yet.`} />
+                  subtitle={`${formatEur(readyValue)} from ${readyCustomers} ${readyCustomers === 1 ? 'customer' : 'customers'}, on no order yet.`} />
                 <Button kind="secondary" size="lg" renderIcon={ListChecked} className="sales-toolbar-action" onClick={() => setReviewing(true)}>Review jobs</Button>
               </div>
             )}

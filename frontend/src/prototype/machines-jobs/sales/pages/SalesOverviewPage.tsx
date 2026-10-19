@@ -43,7 +43,7 @@ function SalesOverview() {
   const attention: Attention[] = [
     ...views.filter(isStaleDraft).map((order) => ({ key: order.id, title: `${order.reference} · ${order.customerLabel}`, detail: `Draft untouched for ${daysOld(order.updatedAt)} days. Finalize or cancel it.`, to: `/sales/orders/${order.id}`, tag: { label: 'Old draft', type: 'warm-gray' as const } })),
     ...[...awaiting].filter((order) => !order.activeRequest).sort((a, b) => a.updatedAt.localeCompare(b.updatedAt)).slice(0, 3).map((order) => ({ key: order.id, title: `${order.reference} · ${order.customerLabel}`, detail: `${formatEur(order.outstanding)} outstanding of ${formatEur(order.net)}`, to: `/sales/orders/${order.id}`, tag: { label: order.settlement === 'partially_paid' ? 'Partially paid' : 'Awaiting payment', type: 'blue' as const } })),
-    ...readyCustomers.slice(0, 3).map((group) => ({ key: `ready-${group.customer.id}`, title: group.customer.displayName, detail: `${group.ready.length} ${group.ready.length === 1 ? 'job' : 'jobs'} ready to bill · ${formatEur(group.total)}`, to: '/sales/orders', tag: { label: 'Ready to bill', type: 'green' as const } })),
+    ...readyCustomers.slice(0, 3).map((group) => ({ key: `ready-${group.customer.id}`, title: group.customer.displayName, detail: `${group.ready.length} ${group.ready.length === 1 ? 'job' : 'jobs'} ready to bill · ${formatEur(group.total)}`, to: '/sales/orders?review=1', tag: { label: 'Ready to bill', type: 'green' as const } })),
     ...(canInvoices ? stepping.slice(0, 4).map(({ request, order }) => ({ key: request.id, title: `${request.reference} · ${order.reference} · ${order.customerLabel}`, detail: `${requestStateLabel[request.state]}. Next: ${(request.state === 'issued' ? requestNextStep.issued : requestNextStep[request.state]).toLowerCase()}`, to: `/sales/orders/${order.id}`, tag: { label: 'Invoice', type: 'purple' as const } })) : []),
   ];
   const recent = [...views].filter((order) => order.status !== 'draft' && order.status !== 'cancelled').sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 8);
@@ -53,7 +53,7 @@ function SalesOverview() {
     { key: 'today', label: 'Takings today', value: formatEur(figures.today.total), detail: breakdown(figures.today), to: '/sales/payments' },
     { key: 'awaiting', label: 'Awaiting payment', value: String(awaiting.length), detail: awaiting.length ? `${formatEur(round2(sum(awaiting.map((order) => order.outstanding))))} outstanding` : 'Everything is paid', to: '/sales/orders?view=awaiting' },
     { key: 'invoices', label: 'Invoice requests to handle', value: String(stepping.length), detail: stepping.length ? `${stepping.filter(({ request }) => request.state === 'issued').length} issued, waiting for the bank transfer` : 'No invoice waits for a step', to: '/sales/orders?view=invoice' },
-    { key: 'ready', label: 'Jobs ready to bill', value: String(readyJobs), detail: readyJobs ? `${readyCustomers.length} ${readyCustomers.length === 1 ? 'customer' : 'customers'}` : 'No finished job waits', to: '/sales/orders' },
+    { key: 'ready', label: 'Jobs ready to bill', value: String(readyJobs), detail: readyJobs ? `${formatEur(readyCustomers.reduce((total, group) => total + group.total, 0))} · ${readyCustomers.length} ${readyCustomers.length === 1 ? 'customer' : 'customers'}` : 'No finished job waits', to: '/sales/orders?review=1' },
   ];
 
   return (
