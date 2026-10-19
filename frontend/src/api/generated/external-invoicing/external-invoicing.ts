@@ -22,8 +22,10 @@ import type {
   CreateInvoiceRequest,
   ExternalInvoiceRequest,
   ExternalInvoiceRequestPage,
+  ForwardInvoiceRequestCommand,
   InvoiceRequestCommand,
   ListExternalInvoiceRequestsParams,
+  ReturnInvoiceRequestCommand,
   UUIDv7,
   UpdateInvoiceRequest
 } from '.././models';
@@ -121,28 +123,6 @@ export const updateExternalInvoiceRequest = async (requestId: UUIDv7,
 );}
 
 
-export const getMarkExternalInvoiceRequestReadyUrl = (requestId: UUIDv7,) => {
-
-
-
-
-  return `/api/v1/external-invoice-requests/${requestId}/ready`
-}
-
-export const markExternalInvoiceRequestReady = async (requestId: UUIDv7,
-    invoiceRequestCommand: InvoiceRequestCommand, options?: RequestInit): Promise<ExternalInvoiceRequest> => {
-
-  return apiFetch<ExternalInvoiceRequest>(getMarkExternalInvoiceRequestReadyUrl(requestId),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      invoiceRequestCommand,)
-  }
-);}
-
-
 export const getSubmitExternalInvoiceRequestUrl = (requestId: UUIDv7,) => {
 
 
@@ -165,24 +145,54 @@ export const submitExternalInvoiceRequest = async (requestId: UUIDv7,
 );}
 
 
-export const getRecordExternalInvoiceIssuedUrl = (requestId: UUIDv7,) => {
+/**
+ * Requires external_invoice_requests.approve. Moves a request that awaits approval back to the draft. The reason is required and stored as a request event.
+ * @summary Return an invoice request for correction
+ */
+export const getReturnExternalInvoiceRequestUrl = (requestId: UUIDv7,) => {
 
 
 
 
-  return `/api/v1/external-invoice-requests/${requestId}/record-issued`
+  return `/api/v1/external-invoice-requests/${requestId}/return`
 }
 
-export const recordExternalInvoiceIssued = async (requestId: UUIDv7,
-    invoiceRequestCommand: InvoiceRequestCommand, options?: RequestInit): Promise<ExternalInvoiceRequest> => {
+export const returnExternalInvoiceRequest = async (requestId: UUIDv7,
+    returnInvoiceRequestCommand: ReturnInvoiceRequestCommand, options?: RequestInit): Promise<ExternalInvoiceRequest> => {
 
-  return apiFetch<ExternalInvoiceRequest>(getRecordExternalInvoiceIssuedUrl(requestId),
+  return apiFetch<ExternalInvoiceRequest>(getReturnExternalInvoiceRequestUrl(requestId),
   {
     ...options,
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
-      invoiceRequestCommand,)
+      returnInvoiceRequestCommand,)
+  }
+);}
+
+
+/**
+ * Requires external_invoice_requests.approve. Issues a request that awaits approval once its readiness checklist is complete. The wiRef invoice number is optional. In the same transaction a payment of method external settles the order's open balance, so the order becomes paid.
+ * @summary Mark an invoice request as forwarded to wiRef
+ */
+export const getForwardExternalInvoiceRequestUrl = (requestId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/external-invoice-requests/${requestId}/forward`
+}
+
+export const forwardExternalInvoiceRequest = async (requestId: UUIDv7,
+    forwardInvoiceRequestCommand: ForwardInvoiceRequestCommand, options?: RequestInit): Promise<ExternalInvoiceRequest> => {
+
+  return apiFetch<ExternalInvoiceRequest>(getForwardExternalInvoiceRequestUrl(requestId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      forwardInvoiceRequestCommand,)
   }
 );}
 

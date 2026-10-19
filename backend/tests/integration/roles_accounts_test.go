@@ -480,7 +480,7 @@ func TestAccountlessPersonRoleMembershipUsesPersonVersionAndAudits(t *testing.T)
 		INSERT INTO people(id,first_name,last_name,email) VALUES($1,'Accountless','Member','accountless-role@example.test');
 		INSERT INTO roles(id,name,profile_image_required,laborordnung_mode) VALUES($2,'Accountless policy',true,'warning');
 		INSERT INTO pricing_groups(id,name) VALUES($3,'Independent pricing');
-		INSERT INTO person_pricing_group_assignments(person_id,pricing_group_id,assigned_by_account_id) VALUES($1,$3,$4)`, personID, roleID, pricingGroupID, actor.accountID); err != nil {
+		INSERT INTO role_pricing_groups(role_id,pricing_group_id,priority,updated_by_account_id) VALUES($2,$3,1,$4)`, personID, roleID, pricingGroupID, actor.accountID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -545,7 +545,7 @@ func TestAccountlessPersonRoleMembershipUsesPersonVersionAndAudits(t *testing.T)
 		t.Fatalf("removed Person = %#v", removed)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action='person.role_removed' AND resource_type='person' AND resource_id=$1`, 1, personID)
-	assertCount(t, pool, `SELECT count(*) FROM person_pricing_group_assignments WHERE person_id=$1 AND pricing_group_id=$2 AND version=1`, 1, personID, pricingGroupID)
+	assertCount(t, pool, `SELECT count(*) FROM role_pricing_groups WHERE role_id=$1 AND pricing_group_id=$2`, 1, roleID, pricingGroupID)
 }
 
 func TestRoleEffectivePermissionEvaluationUsesConfiguredContext(t *testing.T) {

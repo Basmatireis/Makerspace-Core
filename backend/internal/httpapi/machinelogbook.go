@@ -326,11 +326,48 @@ func (s *Server) SetBillingPartyPricingGroup(ctx context.Context, r openapi.SetB
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	_, err = s.machineLogbook.SetPartyPricingGroup(ctx, p, partyInput(r.Body.Party), uuidNullable(r.Body.PricingGroupId), r.Body.ExpectedVersion, requestIDPointer(ctx))
+	_, err = s.machineLogbook.SetPartyPricingGroup(ctx, p, machinelogbook.PartyReference{Kind: string(r.Body.Party.Kind), ID: r.Body.Party.Id}, uuidNullable(r.Body.PricingGroupId), r.Body.ExpectedVersion, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
 	return openapi.SetBillingPartyPricingGroup204Response{}, nil
+}
+
+func rolePricingGroupDTOs(items []machinelogbook.RolePricingGroup) openapi.RolePricingGroupList {
+	dto := make([]openapi.RolePricingGroup, 0, len(items))
+	for _, item := range items {
+		dto = append(dto, openapi.RolePricingGroup{RoleId: item.RoleID, RoleName: item.RoleName, PricingGroupId: item.PricingGroupID, PricingGroupName: item.PricingGroupName, Priority: int(item.Priority)})
+	}
+	return openapi.RolePricingGroupList{Items: dto}
+}
+func (s *Server) ListRolePricingGroups(ctx context.Context, _ openapi.ListRolePricingGroupsRequestObject) (openapi.ListRolePricingGroupsResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items, err := s.machineLogbook.ListRolePricingGroups(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.ListRolePricingGroups200JSONResponse(rolePricingGroupDTOs(items)), nil
+}
+func (s *Server) SetRolePricingGroups(ctx context.Context, r openapi.SetRolePricingGroupsRequestObject) (openapi.SetRolePricingGroupsResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	input := make([]machinelogbook.RolePricingGroupInput, 0, len(r.Body.Items))
+	for _, item := range r.Body.Items {
+		input = append(input, machinelogbook.RolePricingGroupInput{RoleID: item.RoleId, PricingGroupID: item.PricingGroupId, Priority: int32(item.Priority)})
+	}
+	items, err := s.machineLogbook.SetRolePricingGroups(ctx, p, input, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.SetRolePricingGroups200JSONResponse(rolePricingGroupDTOs(items)), nil
 }
 
 func (s *Server) ListMaterials(ctx context.Context, r openapi.ListMaterialsRequestObject) (openapi.ListMaterialsResponseObject, error) {

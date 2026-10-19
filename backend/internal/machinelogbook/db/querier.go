@@ -64,7 +64,7 @@ type Querier interface {
 	// through ON DELETE CASCADE.
 	DeleteOrganization(ctx context.Context, arg DeleteOrganizationParams) (int64, error)
 	DeleteOrganizationPricingAssignment(ctx context.Context, arg DeleteOrganizationPricingAssignmentParams) (uuid.UUID, error)
-	DeletePersonPricingAssignment(ctx context.Context, arg DeletePersonPricingAssignmentParams) (uuid.UUID, error)
+	DeleteRolePricingGroups(ctx context.Context) error
 	DeleteRunMeasures(ctx context.Context, runID uuid.UUID) error
 	DetachRunFromJob(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	FilamentSpoolIdentifierInUse(ctx context.Context, arg FilamentSpoolIdentifierInUseParams) (bool, error)
@@ -99,7 +99,8 @@ type Querier interface {
 	GetOrganizationDetail(ctx context.Context, id uuid.UUID) (GetOrganizationDetailRow, error)
 	GetOrganizationForUpdate(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationPricingGroup(ctx context.Context, organizationID uuid.UUID) (PricingGroup, error)
-	GetPersonPricingGroup(ctx context.Context, personID uuid.UUID) (PricingGroup, error)
+	// The active group of the person's highest-priority mapped role (larger priority wins).
+	GetPersonRolePricingGroup(ctx context.Context, personID uuid.UUID) (PricingGroup, error)
 	GetPricingGroup(ctx context.Context, id uuid.UUID) (PricingGroup, error)
 	GetPricingGroupForUpdate(ctx context.Context, id uuid.UUID) (PricingGroup, error)
 	GetPricingRuleForUpdate(ctx context.Context, id uuid.UUID) (PricingRule, error)
@@ -114,6 +115,7 @@ type Querier interface {
 	InsertManualRun(ctx context.Context, arg InsertManualRunParams) (MachineRun, error)
 	InsertMaterialTypeProcess(ctx context.Context, arg InsertMaterialTypeProcessParams) error
 	InsertPricingSnapshotRule(ctx context.Context, arg InsertPricingSnapshotRuleParams) (MachineJobPricingSnapshotRule, error)
+	InsertRolePricingGroup(ctx context.Context, arg InsertRolePricingGroupParams) error
 	InsertRunUsage(ctx context.Context, arg InsertRunUsageParams) (MachineRunUsage, error)
 	InsertSpoolInventoryTransaction(ctx context.Context, arg InsertSpoolInventoryTransactionParams) (InventoryTransaction, error)
 	InsertSpoolTransfer(ctx context.Context, arg InsertSpoolTransferParams) (InventoryTransaction, error)
@@ -152,6 +154,7 @@ type Querier interface {
 	ListPricingSnapshotRules(ctx context.Context, snapshotID uuid.UUID) ([]MachineJobPricingSnapshotRule, error)
 	ListRecentJobIDs(ctx context.Context, pageLimit int32) ([]uuid.UUID, error)
 	ListRetiredFilamentSpoolIdentifiers(ctx context.Context, spoolID uuid.UUID) ([]FilamentSpoolIdentifier, error)
+	ListRolePricingGroups(ctx context.Context) ([]ListRolePricingGroupsRow, error)
 	ListRunEvents(ctx context.Context, runID *uuid.UUID) ([]ListRunEventsRow, error)
 	ListRunMeasuresForRuns(ctx context.Context, runIds []uuid.UUID) ([]MachineRunMeasure, error)
 	ListRunUsagesForRuns(ctx context.Context, runIds []uuid.UUID) ([]ListRunUsagesForRunsRow, error)
@@ -162,6 +165,7 @@ type Querier interface {
 	ListWorkItemMeasureTotals(ctx context.Context, itemIds []uuid.UUID) ([]ListWorkItemMeasureTotalsRow, error)
 	ListWorkItems(ctx context.Context, arg ListWorkItemsParams) ([]ListWorkItemsRow, error)
 	LockFilamentSpoolCleanupCandidates(ctx context.Context, arg LockFilamentSpoolCleanupCandidatesParams) ([]LockFilamentSpoolCleanupCandidatesRow, error)
+	LockRolePricingGroups(ctx context.Context) error
 	MarkManualRunReplaced(ctx context.Context, id uuid.UUID) error
 	// True while a material or a pricing rule (active or not) uses the type. Pricing
 	// snapshots only keep a nullable pointer and their own label text.
@@ -181,6 +185,7 @@ type Querier interface {
 	RefreshMachineJobPrice(ctx context.Context, arg RefreshMachineJobPriceParams) (MachineJob, error)
 	RemoveOrganizationMember(ctx context.Context, arg RemoveOrganizationMemberParams) (uuid.UUID, error)
 	RetireFillIdentifiers(ctx context.Context, arg RetireFillIdentifiersParams) error
+	RoleExists(ctx context.Context, id uuid.UUID) (bool, error)
 	SearchBillingParties(ctx context.Context, arg SearchBillingPartiesParams) ([]SearchBillingPartiesRow, error)
 	SearchMachineJobOperators(ctx context.Context, arg SearchMachineJobOperatorsParams) ([]SearchMachineJobOperatorsRow, error)
 	SetMachineJobPriceAdjustment(ctx context.Context, arg SetMachineJobPriceAdjustmentParams) (MachineJob, error)
@@ -222,7 +227,6 @@ type Querier interface {
 	UpdateRecordedRunOutcome(ctx context.Context, arg UpdateRecordedRunOutcomeParams) (MachineRun, error)
 	UpsertMaterialFilamentProperties(ctx context.Context, arg UpsertMaterialFilamentPropertiesParams) (MaterialFilamentProperty, error)
 	UpsertOrganizationPricingAssignment(ctx context.Context, arg UpsertOrganizationPricingAssignmentParams) (OrganizationPricingGroupAssignment, error)
-	UpsertPersonPricingAssignment(ctx context.Context, arg UpsertPersonPricingAssignmentParams) (PersonPricingGroupAssignment, error)
 	UpsertRunMeasure(ctx context.Context, arg UpsertRunMeasureParams) error
 }
 

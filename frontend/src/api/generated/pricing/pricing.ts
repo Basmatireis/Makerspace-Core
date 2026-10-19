@@ -24,7 +24,9 @@ import type {
   PricingGroup,
   PricingGroupList,
   PricingRule,
+  RolePricingGroupList,
   SetBillingPartyPricingGroupRequest,
+  SetRolePricingGroupsRequest,
   UUIDv7,
   UpdatePricingGroupRequest,
   UpdatePricingRuleRequest
@@ -155,7 +157,56 @@ export const updatePricingRule = async (pricingRuleId: UUIDv7,
 
 
 /**
- * @summary Set or clear a billing party default pricing group
+ * Requires pricing.read. Highest priority first.
+ * @summary List the role to pricing group mapping
+ */
+export const getListRolePricingGroupsUrl = () => {
+
+
+
+
+  return `/api/v1/pricing-role-groups`
+}
+
+export const listRolePricingGroups = async ( options?: RequestInit): Promise<RolePricingGroupList> => {
+
+  return apiFetch<RolePricingGroupList>(getListRolePricingGroupsUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+/**
+ * Requires pricing.manage. Replaces the whole mapping atomically. Each role once, unique priorities, active groups. A job is priced by (1) the group set on the job, (2) the group of its organization, (3) the group of the customer's role with the largest priority, (4) the default group.
+ * @summary Replace the role to pricing group mapping
+ */
+export const getSetRolePricingGroupsUrl = () => {
+
+
+
+
+  return `/api/v1/pricing-role-groups`
+}
+
+export const setRolePricingGroups = async (setRolePricingGroupsRequest: SetRolePricingGroupsRequest, options?: RequestInit): Promise<RolePricingGroupList> => {
+
+  return apiFetch<RolePricingGroupList>(getSetRolePricingGroupsUrl(),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      setRolePricingGroupsRequest,)
+  }
+);}
+
+
+/**
+ * @summary Set or clear an organization's pricing group
  */
 export const getSetBillingPartyPricingGroupUrl = () => {
 

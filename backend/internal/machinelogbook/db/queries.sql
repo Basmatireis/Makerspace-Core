@@ -154,12 +154,10 @@ ORDER BY m.person_id, lower(o.name), o.id;
 SELECT party_kind, party_id, display_name, organization_kind, pricing_group_id, pricing_group_name,
        pricing_group_assignment_version FROM (
     SELECT 'person'::text AS party_kind, p.id AS party_id, btrim(p.first_name || ' ' || p.last_name) AS display_name,
-           NULL::text AS organization_kind, pg.id AS pricing_group_id, pg.name AS pricing_group_name,
-           COALESCE(a.version, 0)::bigint AS pricing_group_assignment_version,
+           NULL::text AS organization_kind, NULL::uuid AS pricing_group_id, NULL::text AS pricing_group_name,
+           0::bigint AS pricing_group_assignment_version,
            lower(p.last_name || ' ' || p.first_name) AS ordering
     FROM people p
-    LEFT JOIN person_pricing_group_assignments a ON a.person_id = p.id
-    LEFT JOIN pricing_groups pg ON pg.id = a.pricing_group_id
     WHERE sqlc.arg(search)::text = '' OR lower(p.first_name || ' ' || p.last_name) LIKE '%' || lower(sqlc.arg(search)::text) || '%'
     UNION ALL
     SELECT 'organization'::text, o.id, o.name, o.kind, pg.id, pg.name,
@@ -180,12 +178,8 @@ ORDER BY lower(p.last_name), lower(p.first_name), p.id
 LIMIT sqlc.arg(page_limit);
 
 -- name: GetBillingPerson :one
-SELECT p.id, btrim(p.first_name || ' ' || p.last_name) AS display_name,
-       pg.id AS pricing_group_id, pg.name AS pricing_group_name,
-       COALESCE(a.version, 0)::bigint AS pricing_group_assignment_version
+SELECT p.id, btrim(p.first_name || ' ' || p.last_name) AS display_name
 FROM people p
-LEFT JOIN person_pricing_group_assignments a ON a.person_id = p.id
-LEFT JOIN pricing_groups pg ON pg.id = a.pricing_group_id
 WHERE p.id = sqlc.arg(id);
 
 -- name: GetBillingOrganization :one
@@ -263,24 +257,38 @@ RETURNING *;
 SELECT * FROM pricing_rules WHERE pricing_group_id = sqlc.arg(pricing_group_id) AND active
 ORDER BY kind, material_type_id NULLS FIRST, machine_type_id NULLS FIRST, id;
 
--- name: GetPersonPricingGroup :one
-SELECT pg.* FROM person_pricing_group_assignments a JOIN pricing_groups pg ON pg.id = a.pricing_group_id
-WHERE a.person_id = sqlc.arg(person_id) AND pg.active;
+-- The active group of the person's highest-priority mapped role (larger priority wins).
+-- name: GetPersonRolePricingGroup :one
+SELECT pg.* FROM person_roles pr
+JOIN role_pricing_groups rpg ON rpg.role_id = pr.role_id
+JOIN pricing_groups pg ON pg.id = rpg.pricing_group_id
+WHERE pr.person_id = sqlc.arg(person_id) AND pg.active
+ORDER BY rpg.priority DESC
+LIMIT 1;
+
+-- name: LockRolePricingGroups :exec
+SELECT pg_advisory_xact_lock(hashtextextended('role_pricing_groups', 0));
+
+-- name: ListRolePricingGroups :many
+SELECT rpg.role_id, r.name AS role_name, rpg.pricing_group_id, pg.name AS pricing_group_name, rpg.priority
+FROM role_pricing_groups rpg
+JOIN roles r ON r.id = rpg.role_id
+JOIN pricing_groups pg ON pg.id = rpg.pricing_group_id
+ORDER BY rpg.priority DESC, rpg.role_id;
+
+-- name: DeleteRolePricingGroups :exec
+DELETE FROM role_pricing_groups;
+
+-- name: InsertRolePricingGroup :exec
+INSERT INTO role_pricing_groups (role_id, pricing_group_id, priority, updated_by_account_id)
+VALUES (sqlc.arg(role_id), sqlc.arg(pricing_group_id), sqlc.arg(priority), sqlc.arg(updated_by_account_id));
+
+-- name: RoleExists :one
+SELECT EXISTS (SELECT 1 FROM roles WHERE id = sqlc.arg(id));
 
 -- name: GetOrganizationPricingGroup :one
 SELECT pg.* FROM organization_pricing_group_assignments a JOIN pricing_groups pg ON pg.id = a.pricing_group_id
 WHERE a.organization_id = sqlc.arg(organization_id) AND pg.active;
-
--- name: UpsertPersonPricingAssignment :one
-INSERT INTO person_pricing_group_assignments (person_id, pricing_group_id, assigned_by_account_id)
-VALUES (sqlc.arg(person_id), sqlc.arg(pricing_group_id), sqlc.arg(assigned_by_account_id))
-ON CONFLICT (person_id) DO UPDATE SET pricing_group_id = EXCLUDED.pricing_group_id,
-    assigned_by_account_id = EXCLUDED.assigned_by_account_id, version = person_pricing_group_assignments.version + 1, updated_at = now()
-WHERE person_pricing_group_assignments.version = sqlc.arg(expected_version)
-RETURNING *;
-
--- name: DeletePersonPricingAssignment :one
-DELETE FROM person_pricing_group_assignments WHERE person_id = sqlc.arg(person_id) AND version = sqlc.arg(expected_version) RETURNING person_id;
 
 -- name: UpsertOrganizationPricingAssignment :one
 INSERT INTO organization_pricing_group_assignments (organization_id, pricing_group_id, assigned_by_account_id)
@@ -1105,9 +1113,9 @@ WITH items AS (
            (CASE WHEN j.customer_person_id IS NOT NULL THEN 'person' WHEN j.customer_organization_id IS NOT NULL THEN 'organization' END)::text,
            COALESCE(btrim(cp.first_name || ' ' || cp.last_name), co.name)::text,
            co.kind,
-           COALESCE(cpg.id, cog.id),
-           COALESCE(cpg.name, cog.name),
-           COALESCE(cpa.version, coa.version, 0)::bigint,
+           cog.id,
+           cog.name,
+           COALESCE(coa.version, 0)::bigint,
            j.operator_person_id, btrim(op.first_name || ' ' || op.last_name)::text,
            (CASE WHEN COALESCE(s.running, false) THEN 'running'
                  ELSE COALESCE(j.outcome_override, NULLIF(s.derived_outcome, 'unknown'), 'needs_outcome') END)::text,
@@ -1135,8 +1143,6 @@ WITH items AS (
         ORDER BY COALESCE(lrr.started_at, lrr.first_observed_at) DESC, lrr.id DESC LIMIT 1
     ) lr ON true
     LEFT JOIN people cp ON cp.id = j.customer_person_id
-    LEFT JOIN person_pricing_group_assignments cpa ON cpa.person_id = cp.id
-    LEFT JOIN pricing_groups cpg ON cpg.id = cpa.pricing_group_id
     LEFT JOIN organizations co ON co.id = j.customer_organization_id
     LEFT JOIN organization_pricing_group_assignments coa ON coa.organization_id = co.id
     LEFT JOIN pricing_groups cog ON cog.id = coa.pricing_group_id

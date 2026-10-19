@@ -7,7 +7,6 @@ import {
   type Order,
   type OrderCommand,
   type RecordOrderPayment,
-  type CounterSaleCommand,
   type ExternalInvoiceRequest,
   type InvoiceRequestCommand,
   type OrderPayment,
@@ -22,7 +21,6 @@ const id = "01995ea6-6d00-7000-8000-000000000101";
 const replacementId = "01995ea6-6d00-7000-8000-000000000102";
 const itemId = "01995ea6-6d00-7000-8000-000000000103";
 const requestId = "01995ea6-6d00-7000-8000-000000000104";
-const machineId = "01995ea6-6d00-7000-8000-000000000105";
 const at = "2026-10-06T10:00:00Z";
 const all = [
   PermissionId.ordersread,
@@ -38,6 +36,7 @@ const all = [
 function order(overrides: Partial<Order> = {}): Order {
   return {
     id,
+    createdBy: null,
     reference: "O-2026-000001",
     status: "draft",
     currency: "EUR",
@@ -117,6 +116,7 @@ describe("Orders workflows", () => {
     const operationId = "01995ea6-6d00-7000-8000-000000000108";
     const payment: OrderPayment = {
       id: paymentId,
+      recordedBy: null,
       reference: "P-2026-000001",
       entryKind: "receipt",
       method: "cash",
@@ -439,10 +439,11 @@ describe("Orders workflows", () => {
       screen.getByText(/No customer credit is created/),
     ).toBeInTheDocument();
   });
-  it("shows ready-request validation errors and keeps issuance separate from settlement", async () => {
+  it("shows submit-for-approval validation errors for a draft request", async () => {
     me();
     const r: ExternalInvoiceRequest = {
       id: requestId,
+      alreadyPaid: "0.00",
       reference: "W-2026-000001",
       orderId: id,
       orderReference: "O-2026-000001",
@@ -466,7 +467,7 @@ describe("Orders workflows", () => {
         HttpResponse.json(r),
       ),
       http.post(
-        `*/api/v1/external-invoice-requests/${requestId}/ready`,
+        `*/api/v1/external-invoice-requests/${requestId}/submit`,
         async ({ request }) => {
           submitted = (await request.json()) as InvoiceRequestCommand;
           return HttpResponse.json(
@@ -485,96 +486,18 @@ describe("Orders workflows", () => {
       name: "Recipient and service snapshot",
     });
     await user.click(
-      screen.getByRole("button", { name: "Mark ready for invoicing" }),
+      screen.getByRole("button", { name: "Submit for approval" }),
     );
     expect(
       await screen.findByText("Organizations require a contact person"),
     ).toBeInTheDocument();
     expect(submitted?.expectedVersion).toBe(1);
-    expect(screen.getByText(/does not establish payment/)).toBeInTheDocument();
+    expect(screen.getByText(/Already paid by cash or\s+card/)).toBeInTheDocument();
     expect(
       screen.getByLabelText("Organization contact person"),
     ).toBeInTheDocument();
     expect(
       screen.getByLabelText("Purchase order reference"),
     ).toBeInTheDocument();
-  });
-  it("reviews the exact counter-sale charge before recording and creates no customer identity", async () => {
-    me([
-      ...all,
-      PermissionId.machine_jobscreate,
-      PermissionId.machinesread,
-      PermissionId.pricingread,
-    ]);
-    let submitted: CounterSaleCommand | undefined;
-    server.use(
-      http.get("*/api/v1/machines", () =>
-        HttpResponse.json({
-          items: [{ id: machineId, name: "Printer" }],
-          page: 1,
-          pageSize: 100,
-          total: 1,
-        }),
-      ),
-      http.get("*/api/v1/pricing-groups", () =>
-        HttpResponse.json({ items: [] }),
-      ),
-      http.get("*/api/v1/machine-job-operators", () =>
-        HttpResponse.json({ items: [] }),
-      ),
-      http.post("*/api/v1/counter-sales/preview", () =>
-        HttpResponse.json({ totalAmount: "10.00", currency: "EUR" }),
-      ),
-      http.post("*/api/v1/counter-sales", async ({ request }) => {
-        submitted = (await request.json()) as CounterSaleCommand;
-        return HttpResponse.json(
-          order({
-            customerKind: "anonymous",
-            status: "finalized",
-            customer: null,
-            settlementState: "paid",
-            outstandingAmount: "0.00",
-          }),
-        );
-      }),
-    );
-    detail(order());
-    const user = userEvent.setup();
-    renderRoute(<App />, "/orders/counter-sale");
-    await screen.findByRole("heading", { name: "Immediate counter sale" });
-    expect(
-      screen.getByRole("button", { name: "Complete counter sale" }),
-    ).toBeDisabled();
-    await screen.findByRole("option", { name: "Printer" });
-    await user.selectOptions(screen.getByLabelText("Machine"), machineId);
-    await user.click(
-      screen.getByRole("button", { name: "Review calculated charge" }),
-    );
-    await screen.findByText("Calculated total: € 10.00");
-    await user.click(
-      screen.getByRole("button", { name: "Complete counter sale" }),
-    );
-    expect(
-      await screen.findByText("Immediate fulfillment must be confirmed"),
-    ).toBeInTheDocument();
-    expect(submitted).toBeUndefined();
-    await user.click(
-      screen.getByLabelText(
-        "Service is fulfilled now; no later pickup or follow-up is required",
-      ),
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Complete counter sale" }),
-    );
-    await waitFor(() =>
-      expect(submitted?.payments[0]).toMatchObject({
-        amount: "10.00",
-        method: "cash",
-      }),
-    );
-    expect(submitted?.job.manualJob?.customer).toBeUndefined();
-    expect(submitted?.job.manualJob?.operatorPersonId).toBe(
-      currentUserFixture().person.id,
-    );
   });
 });

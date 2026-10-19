@@ -23,7 +23,7 @@ func TestFinancialPermissionsBeforePersistence(t *testing.T) {
 	id := newID()
 	ctx := t.Context()
 	tests := map[string]func() error{
-		"read": func() error { _, e := s.Get(ctx, p, id); return e }, "list": func() error { _, e := s.List(ctx, p, "", "", 1, 25); return e }, "create": func() error { _, e := s.Create(ctx, p, OrderDraftInput{}, nil); return e }, "edit": func() error { _, e := s.Update(ctx, p, id, UpdateOrderDraftInput{}, nil); return e }, "items": func() error { _, e := s.ChangeItem(ctx, p, id, id, OrderItemInput{}, "add", nil); return e }, "finalize": func() error { _, e := s.Command(ctx, p, id, OrderCommand{}, "finalize", nil); return e }, "reverse": func() error { _, e := s.Command(ctx, p, id, OrderCommand{}, "reverse", nil); return e }, "payments": func() error { _, e := s.RecordPayment(ctx, p, id, RecordOrderPayment{}, nil); return e }, "payment reverse": func() error { _, e := s.ReversePayment(ctx, p, id, ReversePaymentCommand{}, nil); return e }, "payment read": func() error { _, e := s.GetPayment(ctx, p, id); return e }, "journal": func() error { _, e := s.ListPayments(ctx, p, "", nil, nil, 1, 25); return e }, "reconcile": func() error { _, e := s.Reconciliation(ctx, p, "", nil, nil, 1, 25); return e }, "request create": func() error { _, e := s.CreateRequest(ctx, p, id, CreateInvoiceRequest{}, nil); return e }, "request read": func() error { _, e := s.GetRequest(ctx, p, id); return e }, "request list": func() error { _, e := s.ListRequests(ctx, p, "", "", 1, 25); return e }, "request update": func() error { _, e := s.UpdateRequest(ctx, p, id, UpdateInvoiceRequest{}, nil); return e }, "request command": func() error { _, e := s.RequestCommand(ctx, p, id, InvoiceRequestCommand{}, "ready", nil); return e }, "counter sale": func() error { _, e := s.CounterSale(ctx, p, CounterSaleCommand{}, nil); return e }, "requirements": func() error { _, e := s.UpdateRequirements(ctx, p, id, UpdateInvoicingRequirements{}, nil); return e }, "association": func() error { _, e := s.JobAssociation(ctx, p, id); return e }}
+		"read": func() error { _, e := s.Get(ctx, p, id); return e }, "list": func() error { _, e := s.List(ctx, p, "", "", 1, 25); return e }, "create": func() error { _, e := s.Create(ctx, p, OrderDraftInput{}, nil); return e }, "edit": func() error { _, e := s.Update(ctx, p, id, UpdateOrderDraftInput{}, nil); return e }, "items": func() error { _, e := s.ChangeItem(ctx, p, id, id, OrderItemInput{}, "add", nil); return e }, "finalize": func() error { _, e := s.Command(ctx, p, id, OrderCommand{}, "finalize", nil); return e }, "reverse": func() error { _, e := s.Command(ctx, p, id, OrderCommand{}, "reverse", nil); return e }, "payments": func() error { _, e := s.RecordPayment(ctx, p, id, RecordOrderPayment{}, nil); return e }, "payment reverse": func() error { _, e := s.ReversePayment(ctx, p, id, ReversePaymentCommand{}, nil); return e }, "payment read": func() error { _, e := s.GetPayment(ctx, p, id); return e }, "journal": func() error { _, e := s.ListPayments(ctx, p, "", nil, nil, 1, 25); return e }, "reconcile": func() error { _, e := s.Reconciliation(ctx, p, "", nil, nil, 1, 25); return e }, "request create": func() error { _, e := s.CreateRequest(ctx, p, id, CreateInvoiceRequest{}, nil); return e }, "request read": func() error { _, e := s.GetRequest(ctx, p, id); return e }, "request list": func() error { _, e := s.ListRequests(ctx, p, "", "", 1, 25); return e }, "request update": func() error { _, e := s.UpdateRequest(ctx, p, id, UpdateInvoiceRequest{}, nil); return e }, "request return": func() error { _, e := s.RequestCommand(ctx, p, id, InvoiceRequestCommand{}, "return", nil); return e }, "request forward": func() error { _, e := s.RequestCommand(ctx, p, id, InvoiceRequestCommand{}, "forward", nil); return e }, "cash movement": func() error { _, e := s.CreateCashMovement(ctx, p, CashMovementInput{}, nil); return e }, "cash movements": func() error { _, e := s.ListCashMovements(ctx, p, "", nil, nil, 1, 25); return e }, "cash register": func() error { _, e := s.CashRegister(ctx, p, nil); return e }, "request command": func() error { _, e := s.RequestCommand(ctx, p, id, InvoiceRequestCommand{}, "submit", nil); return e }, "requirements": func() error { _, e := s.UpdateRequirements(ctx, p, id, UpdateInvoicingRequirements{}, nil); return e }, "association": func() error { _, e := s.JobAssociation(ctx, p, id); return e }}
 	for name, call := range tests {
 		t.Run(name, func(t *testing.T) {
 			if err := call(); !apperror.IsCode(err, "permission_denied") {
@@ -325,7 +325,7 @@ func TestConcurrentReceiptsAndAuditRollback(t *testing.T) {
 		t.Fatal("business write escaped audit rollback")
 	}
 }
-func TestJobSnapshotsClaimsAndAnonymousCounterSale(t *testing.T) {
+func TestJobSnapshotsAndClaims(t *testing.T) {
 	f := newFixture(t)
 	ctx := t.Context()
 	start := time.Now().UTC().Add(-time.Hour)
@@ -356,131 +356,5 @@ func TestJobSnapshotsClaimsAndAnonymousCounterSale(t *testing.T) {
 	retained, e := f.s.Get(ctx, f.p, o.ID)
 	if e != nil || !retained.Items[0].SourceChanged || retained.TotalAmount != "10.00" || retained.Items[0].Snapshot.EffectiveAmount != "10" {
 		t.Fatalf("source changed history %v %+v", e, retained)
-	}
-	input := CounterSaleCommand{OperationKey: newID(), ImmediateFulfillmentConfirmed: true, Job: CounterSaleJob{ManualJob: &ManualJob{MachineID: f.machine, StartsAt: start, EndsAt: start.Add(time.Hour), OperatorPersonID: f.person, Outcome: "successful", PricingGroupID: &f.group, Usages: []UsageInput{}}}, Payments: []PaymentInput{receipt("card", "10")}}
-	counter, e := f.s.CounterSale(ctx, f.p, input, &f.request)
-	if e != nil {
-		t.Fatal(e)
-	}
-	retry, e := f.s.CounterSale(ctx, f.p, input, &f.request)
-	if e != nil || retry.ID != counter.ID {
-		t.Fatalf("counter retry duplicated %v", e)
-	}
-	anonymous, e := f.jobs.GetJob(ctx, f.p, *counter.Items[0].SourceMachineJobID)
-	if e != nil || anonymous.Customer != nil || anonymous.Operator == nil {
-		t.Fatalf("identity confusion %v %+v", e, anonymous)
-	}
-	var count int
-	if e = f.pool.QueryRow(ctx, "SELECT count(*) FROM people").Scan(&count); e != nil || count != 1 {
-		t.Fatal("fake anonymous customer created")
-	}
-	input.OperationKey = newID()
-	input.Payments = []PaymentInput{receipt("cash", "9")}
-	var before int
-	if e = f.pool.QueryRow(ctx, "SELECT count(*) FROM machine_jobs").Scan(&before); e != nil {
-		t.Fatal(e)
-	}
-	if _, e = f.s.CounterSale(ctx, f.p, input, &f.request); e == nil {
-		t.Fatal("partial anonymous payment accepted")
-	}
-	var after int
-	_ = f.pool.QueryRow(ctx, "SELECT count(*) FROM machine_jobs").Scan(&after)
-	if after != before {
-		t.Fatal("counter failure left job behind")
-	}
-}
-func TestExternalInvoiceRequirementsEvidenceAndPayment(t *testing.T) {
-	f := newFixture(t)
-	ctx := t.Context()
-	_, e := f.s.UpdateRequirements(ctx, f.p, f.organization, UpdateInvoicingRequirements{RequirePurchaseOrderReference: true}, &f.request)
-	if e != nil {
-		t.Fatal(e)
-	}
-	o := f.draft(t, true, "10")
-	o, e = f.s.Command(ctx, f.p, o.ID, cmd(o), "finalize", &f.request)
-	if e != nil {
-		t.Fatal(e)
-	}
-	details := InvoiceRequestDetails{RecipientName: "Billing recipient", AddressLine1: "Street 1", PostalCode: "8010", Locality: "Graz", CountryCode: "AT", ServiceStartsOn: "2026-10-01", ServiceEndsOn: "2026-10-06", ServiceDescription: "Machine service"}
-	r, e := f.s.CreateRequest(ctx, f.p, o.ID, CreateInvoiceRequest{OperationKey: newID(), ExpectedVersion: o.Version, Details: details}, &f.request)
-	if e != nil {
-		t.Fatal(e)
-	}
-	rc := func() InvoiceRequestCommand {
-		return InvoiceRequestCommand{OperationKey: newID(), ExpectedVersion: r.Version}
-	}
-	if _, e = f.s.RequestCommand(ctx, f.p, r.ID, rc(), "ready", &f.request); e == nil {
-		t.Fatal("organization contact not required")
-	}
-	details.ContactName = "Contact"
-	r, e = f.s.UpdateRequest(ctx, f.p, r.ID, UpdateInvoiceRequest{ExpectedVersion: r.Version, Details: details}, &f.request)
-	if e != nil {
-		t.Fatal(e)
-	}
-	if _, e = f.s.RequestCommand(ctx, f.p, r.ID, rc(), "ready", &f.request); e == nil {
-		t.Fatal("purchase order not required")
-	}
-	details.PurchaseOrderReference = "PO-42"
-	r, e = f.s.UpdateRequest(ctx, f.p, r.ID, UpdateInvoiceRequest{ExpectedVersion: r.Version, Details: details}, &f.request)
-	if e != nil {
-		t.Fatal(e)
-	}
-	r, e = f.s.RequestCommand(ctx, f.p, r.ID, rc(), "ready", &f.request)
-	if e != nil {
-		t.Fatal(e)
-	}
-	if _, e = f.s.UpdateRequest(ctx, f.p, r.ID, UpdateInvoiceRequest{ExpectedVersion: r.Version, Details: details}, &f.request); !apperror.IsCode(e, "request_not_draft") {
-		t.Fatal(e)
-	}
-	r, e = f.s.RequestCommand(ctx, f.p, r.ID, rc(), "submit", &f.request)
-	if e != nil {
-		t.Fatal(e)
-	}
-	issued := rc()
-	issued.ExternalReference = "wiRef-42"
-	issued.EffectiveAt = time.Now()
-	issued.Amount = "10.00"
-	r, e = f.s.RequestCommand(ctx, f.p, r.ID, issued, "record-issued", &f.request)
-	if e != nil {
-		t.Fatal(e)
-	}
-	o, e = f.s.Get(ctx, f.p, o.ID)
-	if e != nil || o.SettlementState != "unpaid" {
-		t.Fatal("invoice issuance marked paid")
-	}
-	if _, e = f.s.RecordPayment(ctx, f.p, o.ID, RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("cash", "10")}, &f.request); !apperror.IsCode(e, "settlement_workflow_conflict") {
-		t.Fatal(e)
-	}
-	o, e = f.s.RecordPayment(ctx, f.p, o.ID, RecordOrderPayment{OperationKey: newID(), ExpectedVersion: o.Version, Payment: receipt("external", "10")}, &f.request)
-	if e != nil {
-		t.Fatal(e)
-	}
-	reverse := cmd(o)
-	reverse.Reason = "Correction"
-	if _, e = f.s.Command(ctx, f.p, o.ID, reverse, "reverse", &f.request); !apperror.IsCode(e, "external_reconciliation_required") {
-		t.Fatal(e)
-	}
-	r, e = f.s.RequestCommand(ctx, f.p, r.ID, rc(), "request-cancellation", &f.request)
-	if e != nil {
-		t.Fatal(e)
-	}
-	correction := rc()
-	correction.ExternalReference = "credit-note-42"
-	correction.ReconciliationKind = "credit_note"
-	correction.EffectiveAt = time.Now()
-	r, e = f.s.RequestCommand(ctx, f.p, r.ID, correction, "confirm-cancellation", &f.request)
-	if e != nil {
-		t.Fatal(e)
-	}
-	o, e = f.s.Get(ctx, f.p, o.ID)
-	if e != nil {
-		t.Fatal(e)
-	}
-	reverse = cmd(o)
-	reverse.Reason = "Externally corrected"
-	reverse.Reversals = []PaymentReversalInput{{PaymentID: *o.Allocations[0].PaymentID, ReasonKind: "external_correction", Reason: "External credit note", OccurredAt: time.Now(), ExternalReference: "credit-note-42"}}
-	o, e = f.s.Command(ctx, f.p, o.ID, reverse, "reverse", &f.request)
-	if e != nil || o.Status != "reversed" {
-		t.Fatalf("external correction failed %v %+v", e, o)
 	}
 }

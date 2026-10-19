@@ -79,13 +79,11 @@ export function CustomerPicker({
 }
 export function PaymentForm({
   defaultAmount,
-  external = false,
   pending,
   error,
   onSubmit,
 }: {
   defaultAmount: string;
-  external?: boolean;
   pending: boolean;
   error: unknown;
   onSubmit: (input: PaymentInput) => void;
@@ -99,7 +97,7 @@ export function PaymentForm({
     externalReference: string;
   }>({
     defaultValues: {
-      method: external ? "external" : "cash",
+      method: "cash",
       amount: defaultAmount,
       occurredAt: instantToZonedDateTimeValue(new Date()),
       externalSource: "",
@@ -118,13 +116,9 @@ export function PaymentForm({
           id={`${formId}-method`}
           labelText="Payment method"
           {...form.register("method")}
-          disabled={external}
         >
           <SelectItem value="cash" text="Cash" />
           <SelectItem value="card" text="Card" />
-          {external && (
-            <SelectItem value="external" text="Payment confirmed by wiRef" />
-          )}
         </Select>
         <TextInput
           id={`${formId}-amount`}
@@ -167,11 +161,7 @@ export function PaymentForm({
         {method !== "cash" && (
           <TextInput
             id={`${formId}-reference`}
-            labelText={
-              external
-                ? "wiRef payment confirmation reference"
-                : "Confirmed terminal transaction reference"
-            }
+            labelText="Confirmed terminal transaction reference"
             {...form.register("externalReference", {
               required: "Payment confirmation reference is required",
             })}

@@ -19,7 +19,13 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type {
+  CashMovement,
+  CashMovementPage,
+  CashRegister,
+  CreateCashMovementRequest,
+  GetCashRegisterParams,
   GetPaymentReconciliationParams,
+  ListCashMovementsParams,
   ListOrderPaymentsParams,
   Order,
   OrderPayment,
@@ -146,6 +152,93 @@ export const getPaymentReconciliation = async (params?: GetPaymentReconciliation
     method: 'GET'
 
 
+  }
+);}
+
+
+/**
+ * Requires payments.read and cash_movements.read. Cash receipts, cash refunds and corrections, withdrawals and deposits up to (excluding) `to`. Card and external payments never count.
+ * @summary Expected cash in the register
+ */
+export const getGetCashRegisterUrl = (params?: GetCashRegisterParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/payments/cash-register?${stringifiedParams}` : `/api/v1/payments/cash-register`
+}
+
+export const getCashRegister = async (params?: GetCashRegisterParams, options?: RequestInit): Promise<CashRegister> => {
+
+  return apiFetch<CashRegister>(getGetCashRegisterUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+/**
+ * Requires cash_movements.read. `from` is inclusive, `to` exclusive (occurrence time).
+ * @summary List cash movements
+ */
+export const getListCashMovementsUrl = (params?: ListCashMovementsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/v1/cash-movements?${stringifiedParams}` : `/api/v1/cash-movements`
+}
+
+export const listCashMovements = async (params?: ListCashMovementsParams, options?: RequestInit): Promise<CashMovementPage> => {
+
+  return apiFetch<CashMovementPage>(getListCashMovementsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+/**
+ * Requires cash_movements.record and cash_movements.read. Movements are immutable; a mistake is corrected by a new movement. Retrying the same operationKey with the same input returns the recorded movement. 409 insufficient_cash when a withdrawal exceeds what the register should hold.
+ * @summary Record a cash withdrawal or deposit
+ */
+export const getCreateCashMovementUrl = () => {
+
+
+
+
+  return `/api/v1/cash-movements`
+}
+
+export const createCashMovement = async (createCashMovementRequest: CreateCashMovementRequest, options?: RequestInit): Promise<CashMovement> => {
+
+  return apiFetch<CashMovement>(getCreateCashMovementUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      createCashMovementRequest,)
   }
 );}
 

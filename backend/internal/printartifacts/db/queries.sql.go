@@ -905,38 +905,6 @@ func (q *Queries) OperatorExists(ctx context.Context, personID uuid.UUID) (bool,
 	return exists, err
 }
 
-const resolvePricingGroup = `-- name: ResolvePricingGroup :one
-SELECT pg.id, pg.name, pg.description, pg.active, pg.is_default, pg.version, pg.created_at, pg.updated_at FROM pricing_groups pg
-WHERE pg.id = COALESCE(
-    $1,
-    (SELECT pricing_group_id FROM person_pricing_group_assignments WHERE person_id = $2),
-    (SELECT pricing_group_id FROM organization_pricing_group_assignments WHERE organization_id = $3),
-    (SELECT id FROM pricing_groups WHERE is_default LIMIT 1)
-) AND pg.active
-`
-
-type ResolvePricingGroupParams struct {
-	ExplicitID     *uuid.UUID
-	PersonID       *uuid.UUID
-	OrganizationID *uuid.UUID
-}
-
-func (q *Queries) ResolvePricingGroup(ctx context.Context, arg ResolvePricingGroupParams) (PricingGroup, error) {
-	row := q.db.QueryRow(ctx, resolvePricingGroup, arg.ExplicitID, arg.PersonID, arg.OrganizationID)
-	var i PricingGroup
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.Description,
-		&i.Active,
-		&i.IsDefault,
-		&i.Version,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const resolvePrinterErrorOccurrence = `-- name: ResolvePrinterErrorOccurrence :execrows
 UPDATE printer_error_occurrences SET resolved_at = $1, last_observed_at = GREATEST(last_observed_at, $1), updated_at = now()
 WHERE assignment_id = $2 AND source_family = $3

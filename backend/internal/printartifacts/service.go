@@ -544,10 +544,7 @@ func (s *Service) CreatePlannedJob(ctx context.Context, principal authorization.
 	default:
 		return machinelogbook.MachineJob{}, validation("validation_failed", "Customer must be a person or organization")
 	}
-	group, err := q.ResolvePricingGroup(ctx, db.ResolvePricingGroupParams{ExplicitID: input.PricingGroupID, PersonID: personID, OrganizationID: organizationID})
-	if errors.Is(err, pgx.ErrNoRows) {
-		return machinelogbook.MachineJob{}, validation("validation_failed", "An active pricing group is required")
-	}
+	groupID, groupName, _, err := machinelogbook.ResolvePricingGroup(ctx, tx, personID, organizationID, input.PricingGroupID)
 	if err != nil {
 		return machinelogbook.MachineJob{}, err
 	}
@@ -566,10 +563,10 @@ func (s *Service) CreatePlannedJob(ctx context.Context, principal authorization.
 		return machinelogbook.MachineJob{}, err
 	}
 	snapshotID := uuid.Must(uuid.NewV7())
-	if _, err = q.CreatePricingSnapshot(ctx, db.CreatePricingSnapshotParams{ID: snapshotID, MachineJobID: jobID, Revision: revision, PricingGroupID: &group.ID, PricingGroupName: group.Name, CapturedByAccountID: &principal.AccountID}); err != nil {
+	if _, err = q.CreatePricingSnapshot(ctx, db.CreatePricingSnapshotParams{ID: snapshotID, MachineJobID: jobID, Revision: revision, PricingGroupID: &groupID, PricingGroupName: groupName, CapturedByAccountID: &principal.AccountID}); err != nil {
 		return machinelogbook.MachineJob{}, err
 	}
-	if err = q.InsertPricingSnapshotRules(ctx, db.InsertPricingSnapshotRulesParams{SnapshotID: snapshotID, PricingGroupID: group.ID}); err != nil {
+	if err = q.InsertPricingSnapshotRules(ctx, db.InsertPricingSnapshotRulesParams{SnapshotID: snapshotID, PricingGroupID: groupID}); err != nil {
 		return machinelogbook.MachineJob{}, err
 	}
 	if _, err = q.ActivatePricingSnapshot(ctx, db.ActivatePricingSnapshotParams{SnapshotID: &snapshotID, ID: job.ID}); err != nil {

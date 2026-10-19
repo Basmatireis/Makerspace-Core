@@ -36,7 +36,6 @@ type Querier interface {
 	NextMachineJobSequence(ctx context.Context) (int64, error)
 	NextPricingSnapshotRevision(ctx context.Context, machineJobID uuid.UUID) (int32, error)
 	OperatorExists(ctx context.Context, personID uuid.UUID) (bool, error)
-	ResolvePricingGroup(ctx context.Context, arg ResolvePricingGroupParams) (PricingGroup, error)
 	ResolvePrinterErrorOccurrence(ctx context.Context, arg ResolvePrinterErrorOccurrenceParams) (int64, error)
 	SetArtifactPrimaryPreview(ctx context.Context, arg SetArtifactPrimaryPreviewParams) error
 	UpsertPrinterErrorOccurrence(ctx context.Context, arg UpsertPrinterErrorOccurrenceParams) (PrinterErrorOccurrence, error)

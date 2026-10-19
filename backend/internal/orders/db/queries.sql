@@ -121,7 +121,12 @@ UPDATE external_invoice_requests SET state=$2,version=version+1 WHERE id=$1;
 -- name: InsertRequestEvent :exec
 INSERT INTO external_invoice_request_events(id,request_id,kind,external_reference,reconciliation_kind,reason,effective_at,actor_account_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8);
 -- name: RequestEvents :many
-SELECT * FROM external_invoice_request_events WHERE request_id=$1 ORDER BY recorded_at,id;
+SELECT e.id,e.request_id,e.kind,e.external_reference,e.reconciliation_kind,e.reason,e.effective_at,e.recorded_at,
+ pe.id AS actor_person_id,btrim(pe.first_name||' '||pe.last_name)::text AS actor_name
+FROM external_invoice_request_events e LEFT JOIN accounts a ON a.id=e.actor_account_id LEFT JOIN people pe ON pe.id=a.person_id
+WHERE e.request_id=$1 ORDER BY e.recorded_at,e.id;
+-- name: RequestHasReference :one
+SELECT EXISTS(SELECT 1 FROM external_invoice_request_events WHERE request_id=$1 AND kind IN ('reference_added','reference_corrected')) AS has_reference;
 -- name: ListRequests :many
 SELECT * FROM external_invoice_requests WHERE (sqlc.arg(search)::text='' OR reference ILIKE '%'||sqlc.arg(search)||'%') AND (sqlc.arg(status)::text='' OR state=sqlc.arg(status)) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 -- name: CountRequests :one
@@ -132,3 +137,35 @@ SELECT id FROM organizations WHERE id=$1 FOR UPDATE;
 
 -- name: CommittedReplacement :one
 SELECT id,reference FROM orders WHERE replaces_order_id=$1 AND status IN ('finalized','reversed');
+
+-- name: GetActor :one
+SELECT pe.id,btrim(pe.first_name||' '||pe.last_name)::text AS display_name FROM accounts a JOIN people pe ON pe.id=a.person_id WHERE a.id=$1;
+-- name: SumCashCardAllocations :one
+SELECT COALESCE(sum(a.amount),0)::numeric AS amount FROM payment_allocations a JOIN payments p ON p.id=a.payment_id WHERE a.order_id=$1 AND p.method IN ('cash','card');
+-- name: SetRequestAlreadyPaid :exec
+UPDATE external_invoice_request_details SET already_paid=$2 WHERE request_id=$1;
+-- name: ActiveRequestReceipts :many
+SELECT p.* FROM payments p JOIN payment_allocations a ON a.payment_id=p.id
+WHERE a.order_id=$1 AND p.method='external' AND p.external_invoice_request_id=$2 AND p.entry_kind='receipt'
+GROUP BY p.id HAVING sum(a.amount)>0 ORDER BY p.id;
+
+-- name: LockCashRegister :exec
+SELECT pg_advisory_xact_lock(hashtextextended('cash_register',0));
+-- name: GetCashMovementByKey :one
+SELECT * FROM cash_movements WHERE operation_key=$1;
+-- name: NextCashMovementReference :one
+SELECT nextval('cash_movement_reference_sequence')::bigint;
+-- name: InsertCashMovement :one
+INSERT INTO cash_movements(id,reference,operation_key,kind,amount,reason,note,occurred_at,recorded_by_person_id)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *;
+-- name: ListCashMovements :many
+SELECT * FROM cash_movements WHERE (sqlc.arg(kind)::text='' OR kind=sqlc.arg(kind)) AND (sqlc.narg(from_time)::timestamptz IS NULL OR occurred_at>=sqlc.narg(from_time)) AND (sqlc.narg(to_time)::timestamptz IS NULL OR occurred_at<sqlc.narg(to_time))
+ORDER BY occurred_at DESC,id DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+-- name: CountCashMovements :one
+SELECT count(*) FROM cash_movements WHERE (sqlc.arg(kind)::text='' OR kind=sqlc.arg(kind)) AND (sqlc.narg(from_time)::timestamptz IS NULL OR occurred_at>=sqlc.narg(from_time)) AND (sqlc.narg(to_time)::timestamptz IS NULL OR occurred_at<sqlc.narg(to_time));
+-- name: CashPaymentFigures :one
+SELECT COALESCE(sum(amount) FILTER (WHERE entry_kind='receipt'),0)::numeric AS receipts,COALESCE(sum(amount) FILTER (WHERE entry_kind='reversal'),0)::numeric AS refunds
+FROM payments WHERE method='cash' AND (sqlc.narg(to_time)::timestamptz IS NULL OR occurred_at<sqlc.narg(to_time));
+-- name: CashMovementFigures :one
+SELECT COALESCE(sum(amount) FILTER (WHERE kind='withdrawal'),0)::numeric AS withdrawals,COALESCE(sum(amount) FILTER (WHERE kind='deposit'),0)::numeric AS deposits
+FROM cash_movements WHERE (sqlc.narg(to_time)::timestamptz IS NULL OR occurred_at<sqlc.narg(to_time));

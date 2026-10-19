@@ -26,6 +26,7 @@ import type { OrderPaymentReversesPaymentId } from './orderPaymentReversesPaymen
 import type { OrderPaymentReversedPaymentReference } from './orderPaymentReversedPaymentReference';
 import type { OrderPaymentReasonKind } from './orderPaymentReasonKind';
 import type { OrderAllocation } from './orderAllocation';
+import type { OrderPaymentRecordedBy } from './orderPaymentRecordedBy';
 
 export interface OrderPayment {
   id: UUIDv7;
@@ -45,4 +46,9 @@ export interface OrderPayment {
   externalSource: string;
   externalReference: string;
   allocations: OrderAllocation[];
+  /**
+   * Display name of the person who recorded the entry; null once that person was deleted.
+   * @nullable
+   */
+  recordedBy: OrderPaymentRecordedBy;
 }

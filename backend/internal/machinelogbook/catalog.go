@@ -6,6 +6,7 @@ import (
 	"net/mail"
 	"strings"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	machinelogbookdb "github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook/db"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
@@ -911,12 +912,14 @@ func (s *Service) UpdatePricingRule(ctx context.Context, p authorization.Princip
 	return pricingRuleFromRow(row, target.MaterialTypeName), nil
 }
 
+// SetPartyPricingGroup sets or clears the pricing group of an organization. People have no group of their own;
+// they are priced through the role mapping (see SetRolePricingGroups).
 func (s *Service) SetPartyPricingGroup(ctx context.Context, p authorization.Principal, party PartyReference, groupID *uuid.UUID, expected int64, requestID *uuid.UUID) (BillingParty, error) {
 	if err := require(p, authorization.PricingManage); err != nil {
 		return BillingParty{}, err
 	}
-	if party.Kind != "person" && party.Kind != "organization" {
-		return BillingParty{}, validation("invalid party kind")
+	if party.Kind != "organization" {
+		return BillingParty{}, validation("pricing groups are assigned to organizations; people are priced through their roles")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -933,11 +936,7 @@ func (s *Service) SetPartyPricingGroup(ctx context.Context, p authorization.Prin
 			return BillingParty{}, conflict("pricing_group_inactive", "Pricing group is inactive")
 		}
 		actor := p.AccountID
-		if party.Kind == "person" {
-			_, err = q.UpsertPersonPricingAssignment(ctx, machinelogbookdb.UpsertPersonPricingAssignmentParams{PersonID: party.ID, PricingGroupID: *groupID, AssignedByAccountID: &actor, ExpectedVersion: expected})
-		} else {
-			_, err = q.UpsertOrganizationPricingAssignment(ctx, machinelogbookdb.UpsertOrganizationPricingAssignmentParams{OrganizationID: party.ID, PricingGroupID: *groupID, AssignedByAccountID: &actor, ExpectedVersion: expected})
-		}
+		_, err = q.UpsertOrganizationPricingAssignment(ctx, machinelogbookdb.UpsertOrganizationPricingAssignmentParams{OrganizationID: party.ID, PricingGroupID: *groupID, AssignedByAccountID: &actor, ExpectedVersion: expected})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return BillingParty{}, apperror.StaleWrite
 		}
@@ -945,11 +944,7 @@ func (s *Service) SetPartyPricingGroup(ctx context.Context, p authorization.Prin
 			return BillingParty{}, databaseError(err)
 		}
 	} else {
-		if party.Kind == "person" {
-			_, err = q.DeletePersonPricingAssignment(ctx, machinelogbookdb.DeletePersonPricingAssignmentParams{PersonID: party.ID, ExpectedVersion: expected})
-		} else {
-			_, err = q.DeleteOrganizationPricingAssignment(ctx, machinelogbookdb.DeleteOrganizationPricingAssignmentParams{OrganizationID: party.ID, ExpectedVersion: expected})
-		}
+		_, err = q.DeleteOrganizationPricingAssignment(ctx, machinelogbookdb.DeleteOrganizationPricingAssignmentParams{OrganizationID: party.ID, ExpectedVersion: expected})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return BillingParty{}, apperror.StaleWrite
 		}
@@ -957,25 +952,13 @@ func (s *Service) SetPartyPricingGroup(ctx context.Context, p authorization.Prin
 			return BillingParty{}, err
 		}
 	}
-	var item BillingParty
-	if party.Kind == "person" {
-		row, loadErr := q.GetBillingPerson(ctx, party.ID)
-		if loadErr != nil {
-			return BillingParty{}, noRows(loadErr)
-		}
-		item = BillingParty{ID: row.ID, Kind: "person", DisplayName: row.DisplayName, PricingGroupAssignmentVersion: row.PricingGroupAssignmentVersion}
-		if row.PricingGroupID != nil && row.PricingGroupName != nil {
-			item.PricingGroup = &PricingGroupSummary{ID: *row.PricingGroupID, Name: *row.PricingGroupName}
-		}
-	} else {
-		row, loadErr := q.GetBillingOrganization(ctx, party.ID)
-		if loadErr != nil {
-			return BillingParty{}, noRows(loadErr)
-		}
-		item = BillingParty{ID: row.ID, Kind: "organization", DisplayName: row.DisplayName, OrganizationKind: &row.OrganizationKind, PricingGroupAssignmentVersion: row.PricingGroupAssignmentVersion}
-		if row.PricingGroupID != nil && row.PricingGroupName != nil {
-			item.PricingGroup = &PricingGroupSummary{ID: *row.PricingGroupID, Name: *row.PricingGroupName}
-		}
+	row, loadErr := q.GetBillingOrganization(ctx, party.ID)
+	if loadErr != nil {
+		return BillingParty{}, noRows(loadErr)
+	}
+	item := BillingParty{ID: row.ID, Kind: "organization", DisplayName: row.DisplayName, OrganizationKind: &row.OrganizationKind, PricingGroupAssignmentVersion: row.PricingGroupAssignmentVersion}
+	if row.PricingGroupID != nil && row.PricingGroupName != nil {
+		item.PricingGroup = &PricingGroupSummary{ID: *row.PricingGroupID, Name: *row.PricingGroupName}
 	}
 	if err = writeAudit(ctx, tx, p, "billing_party.pricing_group_updated", "billing_party", party.ID, requestID, []string{"pricingGroupId"}); err != nil {
 		return BillingParty{}, err
@@ -984,4 +967,110 @@ func (s *Service) SetPartyPricingGroup(ctx context.Context, p authorization.Prin
 		return BillingParty{}, err
 	}
 	return item, nil
+}
+
+// RolePricingGroup maps an account role to a pricing group. A larger priority wins when a person holds several mapped roles.
+type RolePricingGroup struct {
+	RoleID           uuid.UUID
+	RoleName         string
+	PricingGroupID   uuid.UUID
+	PricingGroupName string
+	Priority         int32
+}
+
+type RolePricingGroupInput struct {
+	RoleID         uuid.UUID
+	PricingGroupID uuid.UUID
+	Priority       int32
+}
+
+const maxRolePriority = 1_000_000
+
+func (s *Service) ListRolePricingGroups(ctx context.Context, p authorization.Principal) ([]RolePricingGroup, error) {
+	if err := require(p, authorization.PricingRead); err != nil {
+		return nil, err
+	}
+	return listRolePricingGroups(ctx, machinelogbookdb.New(s.pool))
+}
+
+func listRolePricingGroups(ctx context.Context, q *machinelogbookdb.Queries) ([]RolePricingGroup, error) {
+	rows, err := q.ListRolePricingGroups(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]RolePricingGroup, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, RolePricingGroup{RoleID: row.RoleID, RoleName: row.RoleName, PricingGroupID: row.PricingGroupID, PricingGroupName: row.PricingGroupName, Priority: row.Priority})
+	}
+	return items, nil
+}
+
+// SetRolePricingGroups replaces the whole role mapping atomically. Every role appears at most once, priorities are
+// unique, and every group must exist and be active.
+func (s *Service) SetRolePricingGroups(ctx context.Context, p authorization.Principal, input []RolePricingGroupInput, requestID *uuid.UUID) ([]RolePricingGroup, error) {
+	if err := require(p, authorization.PricingManage); err != nil {
+		return nil, err
+	}
+	if len(input) > 200 {
+		return nil, validation("at most 200 role mappings")
+	}
+	roles := map[uuid.UUID]bool{}
+	priorities := map[int32]bool{}
+	for _, item := range input {
+		if item.Priority < 1 || item.Priority > maxRolePriority {
+			return nil, validation("priority must be between 1 and 1000000")
+		}
+		if roles[item.RoleID] {
+			return nil, validation("each role can be mapped once")
+		}
+		if priorities[item.Priority] {
+			return nil, validation("priorities must be unique")
+		}
+		roles[item.RoleID], priorities[item.Priority] = true, true
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	q := machinelogbookdb.New(tx)
+	if err = q.LockRolePricingGroups(ctx); err != nil {
+		return nil, err
+	}
+	for _, item := range input {
+		ok, err := q.RoleExists(ctx, item.RoleID)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, apperror.NotFound
+		}
+		group, err := q.GetPricingGroup(ctx, item.PricingGroupID)
+		if err != nil {
+			return nil, noRows(err)
+		}
+		if !group.Active {
+			return nil, conflict("pricing_group_inactive", "Pricing group is inactive")
+		}
+	}
+	if err = q.DeleteRolePricingGroups(ctx); err != nil {
+		return nil, err
+	}
+	actor := p.AccountID
+	for _, item := range input {
+		if err = q.InsertRolePricingGroup(ctx, machinelogbookdb.InsertRolePricingGroupParams{RoleID: item.RoleID, PricingGroupID: item.PricingGroupID, Priority: item.Priority, UpdatedByAccountID: &actor}); err != nil {
+			return nil, databaseError(err)
+		}
+	}
+	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: accountPointer(p), Action: "pricing.role_groups_updated", ResourceType: "pricing_role_groups", RequestID: requestID, ChangedFields: []string{"roleMapping"}}); err != nil {
+		return nil, err
+	}
+	items, err := listRolePricingGroups(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

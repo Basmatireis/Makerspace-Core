@@ -502,7 +502,7 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
           <Tile>
             <h2>Settlement</h2>
             <Stack gap={5}>
-              {activeRequest ? (
+              {activeRequest && (
                 <p>
                   {can(PermissionId.external_invoice_requestsread) ? (
                     <Link to={`/external-invoicing/${activeRequest}`}>
@@ -514,7 +514,8 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
                   · {o.activeExternalRequestState} · external invoicing through
                   wiRef
                 </p>
-              ) : (
+              )}
+              {(!activeRequest || o.activeExternalRequestState === "draft") && (
                 <>
                   {can(PermissionId.paymentsrecord) &&
                     can(PermissionId.paymentsread) &&
@@ -527,10 +528,11 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
                         onSubmit={payment}
                       />
                     )}{" "}
-                  {can(PermissionId.external_invoice_requestsmanage) &&
+                  {!activeRequest &&
+                    can(PermissionId.external_invoice_requestsmanage) &&
                     can(PermissionId.external_invoice_requestsread) &&
                     o.customerKind !== "anonymous" &&
-                    o.settledAmount === "0.00" && (
+                    o.totalAmount !== "0.00" && (
                       <Button
                         kind="secondary"
                         onClick={() =>

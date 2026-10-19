@@ -109,15 +109,6 @@ INSERT INTO machine_jobs (
     sqlc.arg(operator_person_id), sqlc.narg(title), sqlc.narg(notes), sqlc.arg(artifact_id)
 ) RETURNING *;
 
--- name: ResolvePricingGroup :one
-SELECT pg.* FROM pricing_groups pg
-WHERE pg.id = COALESCE(
-    sqlc.narg(explicit_id),
-    (SELECT pricing_group_id FROM person_pricing_group_assignments WHERE person_id = sqlc.narg(person_id)),
-    (SELECT pricing_group_id FROM organization_pricing_group_assignments WHERE organization_id = sqlc.narg(organization_id)),
-    (SELECT id FROM pricing_groups WHERE is_default LIMIT 1)
-) AND pg.active;
-
 -- name: NextPricingSnapshotRevision :one
 SELECT (COALESCE(max(revision), 0) + 1)::integer FROM machine_job_pricing_snapshots WHERE machine_job_id = sqlc.arg(machine_job_id);
 

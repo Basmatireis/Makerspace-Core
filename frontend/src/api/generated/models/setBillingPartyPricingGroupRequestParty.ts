@@ -18,11 +18,13 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { SetBillingPartyPricingGroupRequestPartyKind } from './setBillingPartyPricingGroupRequestPartyKind';
+import type { UUIDv7 } from './uUIDv7';
 
-export type CounterSaleQuoteCurrency = typeof CounterSaleQuoteCurrency[keyof typeof CounterSaleQuoteCurrency];
-
-
-// eslint-disable-next-line @typescript-eslint/no-redeclare
-export const CounterSaleQuoteCurrency = {
-  EUR: 'EUR',
-} as const;
+/**
+ * Only organizations have a pricing group of their own; people are priced through their roles.
+ */
+export type SetBillingPartyPricingGroupRequestParty = {
+  kind: SetBillingPartyPricingGroupRequestPartyKind;
+  id: UUIDv7;
+};

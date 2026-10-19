@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
-	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/orders/db"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -401,91 +400,4 @@ func (s *Service) Command(ctx context.Context, p authorization.Principal, id uui
 		return result, err
 	}
 	return result, databaseError(tx.Commit(ctx))
-}
-func (s *Service) counterSale(ctx context.Context, p authorization.Principal, input CounterSaleCommand, preview bool, requestID *uuid.UUID) (Order, error) {
-	if err := require(p, authorization.OrdersRead, authorization.OrdersWrite, authorization.OrdersFinalize, authorization.PaymentsRead, authorization.PaymentsRecord); err != nil {
-		return Order{}, err
-	}
-	if !input.ImmediateFulfillmentConfirmed {
-		return Order{}, validation("Confirm immediate fulfillment and no future follow-up")
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return Order{}, err
-	}
-	defer tx.Rollback(ctx)
-	q := db.New(tx)
-	old, hash, err := beginOperation(ctx, q, p, input.OperationKey, "counter_sale", input)
-	if err != nil {
-		return Order{}, err
-	}
-	if old != nil && old.OrderID != nil {
-		return s.load(ctx, q, *old.OrderID)
-	}
-	o, err := s.create(ctx, tx, p, OrderDraftInput{FulfillmentMode: "immediate"}, nil, requestID)
-	if err != nil {
-		return Order{}, err
-	}
-	var job machinelogbook.MachineJob
-	if input.Job.ManualJob != nil {
-		v := input.Job.ManualJob
-		if v.Customer != nil {
-			return Order{}, validation("Anonymous counter-sale jobs must omit customer identity")
-		}
-		usages := []machinelogbook.UsageInput{}
-		for _, u := range v.Usages {
-			usages = append(usages, machinelogbook.UsageInput{MaterialID: u.MaterialID, SpoolID: u.SpoolID, Ownership: u.Ownership, ExternalMaterialName: u.ExternalMaterialName, Quantity: u.Quantity, QuantityBasis: u.QuantityBasis})
-		}
-		job, err = s.jobs.CreateManualJobInTransaction(ctx, tx, true, p, machinelogbook.JobInput{MachineID: v.MachineID, StartsAt: v.StartsAt, EndsAt: v.EndsAt, OperatorPersonID: v.OperatorPersonID, Outcome: v.Outcome, Notes: v.Notes, PricingGroupID: v.PricingGroupID, Usages: usages}, requestID)
-	} else {
-		return Order{}, validation("A machine job is required")
-	}
-	if err != nil {
-		return Order{}, err
-	}
-	if _, err = s.insertItem(ctx, tx, p, o, OrderItemInput{Kind: "machine_job", MachineJobID: job.ID, ExpectedJobVersion: job.Version}, requestID); err != nil {
-		return Order{}, err
-	}
-	for _, item := range input.ManualItems {
-		if item.Kind != "manual" {
-			return Order{}, validation("Additional counter-sale items must be manual")
-		}
-		if _, err = s.insertItem(ctx, tx, p, o, item, requestID); err != nil {
-			return Order{}, err
-		}
-	}
-	if preview {
-		return s.load(ctx, q, o.ID)
-	}
-	o, err = s.finalize(ctx, tx, p, o, requestID)
-	if err != nil {
-		return Order{}, err
-	}
-	for _, payment := range input.Payments {
-		if payment.Method == "external" {
-			return Order{}, validation("Anonymous counter sales require cash/card")
-		}
-		if _, err = s.receipt(ctx, tx, p, o, payment, input.OperationKey, requestID); err != nil {
-			return Order{}, err
-		}
-	}
-	if err = s.checkAnonymous(ctx, q, o); err != nil {
-		return Order{}, err
-	}
-	if err = finishOperation(ctx, q, p, input.OperationKey, "counter_sale", hash, &o.ID, nil); err != nil {
-		return Order{}, err
-	}
-	result, err := s.load(ctx, q, o.ID)
-	if err != nil {
-		return result, err
-	}
-	return result, databaseError(tx.Commit(ctx))
-}
-
-func (s *Service) CounterSale(ctx context.Context, p authorization.Principal, input CounterSaleCommand, requestID *uuid.UUID) (Order, error) {
-	return s.counterSale(ctx, p, input, false, requestID)
-}
-func (s *Service) PreviewCounterSale(ctx context.Context, p authorization.Principal, input CounterSaleCommand) (CounterSaleQuote, error) {
-	o, err := s.counterSale(ctx, p, input, true, nil)
-	return CounterSaleQuote{TotalAmount: o.TotalAmount, Currency: "EUR"}, err
 }

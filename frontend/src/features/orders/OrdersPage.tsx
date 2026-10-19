@@ -1,6 +1,6 @@
 import { Button, Tag } from "@carbon/react";
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { createOrder, listOrders } from "../../api/generated/orders/orders";
 import type { Order } from "../../api/generated/models";
 import { RefLink } from "../../app/RefLink";
@@ -73,18 +73,9 @@ export function OrdersPage() {
       width="wide"
       actions={
         hasPermission(user, PermissionId.orderswrite) ? (
-          <>
-            <Button onClick={() => create.mutate()} disabled={create.isPending}>
-              New draft
-            </Button>
-            {hasPermission(user, PermissionId.ordersfinalize) &&
-              hasPermission(user, PermissionId.paymentsrecord) &&
-              hasPermission(user, PermissionId.paymentsread) && (
-                <Button kind="secondary" as={Link} to="/orders/counter-sale">
-                  Counter sale
-                </Button>
-              )}
-          </>
+          <Button onClick={() => create.mutate()} disabled={create.isPending}>
+            New draft
+          </Button>
         ) : undefined
       }
     >

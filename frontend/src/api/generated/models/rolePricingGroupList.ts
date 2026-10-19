@@ -18,8 +18,8 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { CounterSaleManualJob } from './counterSaleManualJob';
+import type { RolePricingGroup } from './rolePricingGroup';
 
-export interface CounterSaleJob {
-  manualJob: CounterSaleManualJob;
+export interface RolePricingGroupList {
+  items: RolePricingGroup[];
 }

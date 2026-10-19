@@ -165,12 +165,8 @@ func (s *Service) CreateRequest(ctx context.Context, p authorization.Principal, 
 	if o.Status != "finalized" || o.CustomerKind == "anonymous" {
 		return ExternalInvoiceRequest{}, conflict("external_invoice_requires_customer", "External invoicing requires a finalized named-customer order")
 	}
-	balance, err := q.SumAllocations(ctx, &id)
-	if err != nil {
-		return ExternalInvoiceRequest{}, err
-	}
-	if !d(balance).IsZero() {
-		return ExternalInvoiceRequest{}, conflict("settlement_workflow_conflict", "Orders with payments cannot start external invoicing")
+	if !d(o.TotalAmount).IsPositive() {
+		return ExternalInvoiceRequest{}, conflict("nothing_to_invoice", "An order that charges nothing cannot be invoiced")
 	}
 	active, e := q.ActiveRequest(ctx, &id)
 	if e == nil {
@@ -218,6 +214,10 @@ func (s *Service) CreateRequest(ctx context.Context, p authorization.Principal, 
 	if err = s.saveDetails(ctx, q, r, details, false); err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
+	// An order with cash or card payments may be invoiced; the request records how much was already paid.
+	if err = s.syncAlreadyPaid(ctx, q, id); err != nil {
+		return ExternalInvoiceRequest{}, err
+	}
 	if err = q.BumpOrder(ctx, id); err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
@@ -245,7 +245,7 @@ func (s *Service) loadRequest(ctx context.Context, q *db.Queries, id uuid.UUID) 
 	if err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
-	v := ExternalInvoiceRequest{ID: r.ID, Reference: r.Reference, OrderID: r.OrderID, OrderReference: r.OrderReference, Provider: r.Provider, State: r.State, Currency: r.Currency, RequestedAmount: money(r.RequestedAmount), Details: detailsFromRow(d), RequirePurchaseOrderReference: d.RequirePurchaseOrderReference, RequirementsVersion: d.RequirementsVersion, SupersedesRequestID: r.SupersedesRequestID, Version: r.Version, CreatedAt: r.CreatedAt, ItemSummary: []OrderItem{}, Events: []InvoiceRequestEvent{}}
+	v := ExternalInvoiceRequest{ID: r.ID, Reference: r.Reference, OrderID: r.OrderID, OrderReference: r.OrderReference, Provider: r.Provider, State: r.State, Currency: r.Currency, RequestedAmount: money(r.RequestedAmount), AlreadyPaid: money(d.AlreadyPaid), Details: detailsFromRow(d), RequirePurchaseOrderReference: d.RequirePurchaseOrderReference, RequirementsVersion: d.RequirementsVersion, SupersedesRequestID: r.SupersedesRequestID, Version: r.Version, CreatedAt: r.CreatedAt, ItemSummary: []OrderItem{}, Events: []InvoiceRequestEvent{}}
 	if err = json.Unmarshal(d.ItemSummary, &v.ItemSummary); err != nil {
 		return v, err
 	}
@@ -254,7 +254,11 @@ func (s *Service) loadRequest(ctx context.Context, q *db.Queries, id uuid.UUID) 
 		return v, err
 	}
 	for _, e := range events {
-		v.Events = append(v.Events, InvoiceRequestEvent{ID: e.ID, Kind: e.Kind, ExternalReference: e.ExternalReference, ReconciliationKind: e.ReconciliationKind, Reason: e.Reason, EffectiveAt: e.EffectiveAt, RecordedAt: e.RecordedAt})
+		event := InvoiceRequestEvent{ID: e.ID, Kind: e.Kind, ExternalReference: e.ExternalReference, ReconciliationKind: e.ReconciliationKind, Reason: e.Reason, EffectiveAt: e.EffectiveAt, RecordedAt: e.RecordedAt}
+		if e.ActorPersonID != nil {
+			event.RecordedBy = &Actor{ID: *e.ActorPersonID, DisplayName: e.ActorName}
+		}
+		v.Events = append(v.Events, event)
 	}
 	return v, nil
 }
@@ -306,8 +310,11 @@ func lockRequest(ctx context.Context, q *db.Queries, id uuid.UUID) (db.ExternalI
 	return q.LockRequest(ctx, id)
 }
 func (s *Service) UpdateRequest(ctx context.Context, p authorization.Principal, id uuid.UUID, input UpdateInvoiceRequest, requestID *uuid.UUID) (ExternalInvoiceRequest, error) {
-	if err := require(p, authorization.OrdersRead, authorization.ExternalInvoiceRequestsRead, authorization.ExternalInvoiceRequestsManage); err != nil {
+	if err := require(p, authorization.OrdersRead, authorization.ExternalInvoiceRequestsRead); err != nil {
 		return ExternalInvoiceRequest{}, err
+	}
+	if !p.Has(authorization.ExternalInvoiceRequestsManage) && !p.Has(authorization.ExternalInvoiceRequestsApprove) {
+		return ExternalInvoiceRequest{}, apperror.PermissionDenied
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -322,8 +329,17 @@ func (s *Service) UpdateRequest(ctx context.Context, p authorization.Principal, 
 	if r.Version != input.ExpectedVersion {
 		return ExternalInvoiceRequest{}, apperror.StaleWrite
 	}
-	if r.State != "draft" {
-		return ExternalInvoiceRequest{}, conflict("request_not_draft", "Ready request details are immutable")
+	// Staff edit drafts; only approvers edit a request that awaits approval.
+	switch r.State {
+	case "draft":
+		err = require(p, authorization.ExternalInvoiceRequestsManage)
+	case "submitted":
+		err = require(p, authorization.ExternalInvoiceRequestsApprove)
+	default:
+		err = conflict("request_frozen", "Recipient details can only change while the request is a draft or awaiting approval")
+	}
+	if err != nil {
+		return ExternalInvoiceRequest{}, err
 	}
 	if err = s.saveDetails(ctx, q, r, input.Details, false); err != nil {
 		return ExternalInvoiceRequest{}, err
@@ -340,9 +356,82 @@ func (s *Service) UpdateRequest(ctx context.Context, p authorization.Principal, 
 	}
 	return v, databaseError(tx.Commit(ctx))
 }
+
+// settleByInvoice records the payment that an issued invoice stands for: method external, allocated to the
+// order for whatever is still open. Cash and card received earlier keep their own payments.
+func (s *Service) settleByInvoice(ctx context.Context, tx pgx.Tx, p authorization.Principal, o db.Order, r db.ExternalInvoiceRequest, op uuid.UUID, requestID *uuid.UUID) error {
+	q := db.New(tx)
+	allocated, err := q.SumAllocations(ctx, &o.ID)
+	if err != nil {
+		return err
+	}
+	open := d(o.TotalAmount).Sub(d(allocated))
+	if !open.IsPositive() {
+		return nil
+	}
+	n, err := q.NextPaymentReference(ctx)
+	if err != nil {
+		return err
+	}
+	payment, err := q.InsertPayment(ctx, db.InsertPaymentParams{ID: newID(), Reference: reference("P", n), EntryKind: "receipt", Method: "external", Amount: numeric(open), OccurredAt: time.Now().UTC(), ActorAccountID: &p.AccountID, ExternalSource: "wiRef", ExternalReference: r.Reference, ExternalInvoiceRequestID: &r.ID})
+	if err != nil {
+		return databaseError(err)
+	}
+	if err = s.allocate(ctx, q, p, payment, o, open, op); err != nil {
+		return err
+	}
+	return writeAudit(ctx, tx, p, "payment.recorded", "payment", payment.ID, requestID, "amount", "method", "allocations")
+}
+
+// reverseInvoiceSettlement undoes the external payments that an invoice request settled, once wiRef confirmed
+// the cancellation. The balance of the order opens again.
+func (s *Service) reverseInvoiceSettlement(ctx context.Context, tx pgx.Tx, p authorization.Principal, o db.Order, receipts []db.Payment, kind, externalReference string, effective time.Time, op uuid.UUID, requestID *uuid.UUID) error {
+	q := db.New(tx)
+	for _, original := range receipts {
+		n, err := q.NextPaymentReference(ctx)
+		if err != nil {
+			return err
+		}
+		reasonKind := "external_correction"
+		reversal, err := q.InsertPayment(ctx, db.InsertPaymentParams{ID: newID(), Reference: reference("P", n), EntryKind: "reversal", Method: original.Method, Amount: original.Amount, OccurredAt: effective.UTC(), ActorAccountID: &p.AccountID, ReversesPaymentID: &original.ID, ReversedPaymentReference: &original.Reference, ReversalReasonKind: &reasonKind, Reason: "Invoice cancelled in wiRef (" + kind + ")", ExternalSource: original.ExternalSource, ExternalReference: externalReference, ExternalInvoiceRequestID: original.ExternalInvoiceRequestID})
+		if err != nil {
+			return databaseError(err)
+		}
+		if err = s.allocate(ctx, q, p, original, o, d(original.Amount).Neg(), op); err != nil {
+			return err
+		}
+		if err = writeAudit(ctx, tx, p, "payment.reversed", "payment", reversal.ID, requestID, "reversal", "allocations"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Service) RequestCommand(ctx context.Context, p authorization.Principal, id uuid.UUID, input InvoiceRequestCommand, action string, requestID *uuid.UUID) (ExternalInvoiceRequest, error) {
-	if err := require(p, authorization.OrdersRead, authorization.ExternalInvoiceRequestsRead, authorization.ExternalInvoiceRequestsManage); err != nil {
+	if err := require(p, authorization.OrdersRead, authorization.ExternalInvoiceRequestsRead); err != nil {
 		return ExternalInvoiceRequest{}, err
+	}
+	switch action {
+	case "submit", "request-cancellation", "confirm-cancellation":
+		if err := require(p, authorization.ExternalInvoiceRequestsManage); err != nil {
+			return ExternalInvoiceRequest{}, err
+		}
+	case "return", "forward":
+		if err := require(p, authorization.ExternalInvoiceRequestsApprove); err != nil {
+			return ExternalInvoiceRequest{}, err
+		}
+	case "cancel", "reference-corrections":
+		// Which of the two is needed depends on the state; drafts need manage, a request awaiting approval needs approve.
+		if !p.Has(authorization.ExternalInvoiceRequestsManage) && !p.Has(authorization.ExternalInvoiceRequestsApprove) {
+			return ExternalInvoiceRequest{}, apperror.PermissionDenied
+		}
+	default:
+		return ExternalInvoiceRequest{}, validation("Unsupported request action")
+	}
+	input.Reason = strings.TrimSpace(input.Reason)
+	input.ExternalReference = strings.TrimSpace(input.ExternalReference)
+	if len(input.ExternalReference) > 200 || len(input.Reason) > 500 {
+		return ExternalInvoiceRequest{}, validation("Reference or reason is too long")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -368,48 +457,94 @@ func (s *Service) RequestCommand(ctx context.Context, p authorization.Principal,
 	if r.Version != input.ExpectedVersion {
 		return ExternalInvoiceRequest{}, apperror.StaleWrite
 	}
-	next := r.State
-	event := action
-	switch action {
-	case "ready":
-		if r.State != "draft" {
-			return ExternalInvoiceRequest{}, conflict("invalid_request_transition", "Only drafts can become ready")
-		}
-		d, e := q.GetRequestDetails(ctx, id)
+	var order *db.Order
+	if r.OrderID != nil {
+		o, e := q.GetOrder(ctx, *r.OrderID)
 		if e != nil {
 			return ExternalInvoiceRequest{}, e
 		}
-		if err = s.saveDetails(ctx, q, r, detailsFromRow(d), true); err != nil {
+		order = &o
+	}
+	type recorded struct{ kind, reference, reconciliation, reason string }
+	effective := input.EffectiveAt
+	if effective.IsZero() {
+		effective = time.Now().UTC()
+	}
+	next := r.State
+	events := []recorded{}
+	switch action {
+	case "submit":
+		if r.State != "draft" {
+			return ExternalInvoiceRequest{}, conflict("invalid_request_transition", "Only drafts can be submitted for approval")
+		}
+		if order == nil || order.Status != "finalized" {
+			return ExternalInvoiceRequest{}, conflict("order_not_finalized", "The order is no longer finalized")
+		}
+		details, e := q.GetRequestDetails(ctx, id)
+		if e != nil {
+			return ExternalInvoiceRequest{}, e
+		}
+		// The checklist has to be complete. The policy of the organization is captured now.
+		if err = s.saveDetails(ctx, q, r, detailsFromRow(details), true); err != nil {
 			return ExternalInvoiceRequest{}, err
 		}
-		next = "ready"
-	case "submit":
-		if r.State != "ready" {
-			return ExternalInvoiceRequest{}, conflict("invalid_request_transition", "Only ready requests can be submitted")
+		if err = s.syncAlreadyPaid(ctx, q, order.ID); err != nil {
+			return ExternalInvoiceRequest{}, err
 		}
 		next = "submitted"
-		event = "submitted"
-	case "record-issued":
+		events = append(events, recorded{kind: "submitted"})
+	case "return":
 		if r.State != "submitted" {
-			return ExternalInvoiceRequest{}, conflict("invalid_request_transition", "Only submitted requests can record an external invoice")
+			return ExternalInvoiceRequest{}, conflict("invalid_request_transition", "Only requests that await approval can be returned")
 		}
-		amount, amountErr := parseAmount(input.Amount, 2, false)
-		if input.ExternalReference == "" || input.EffectiveAt.IsZero() || amountErr != nil || !amount.Equal(d(r.RequestedAmount)) {
-			return ExternalInvoiceRequest{}, validation("External invoice reference, date and matching amount are required")
+		if input.Reason == "" {
+			return ExternalInvoiceRequest{}, validation("Say what has to be corrected")
+		}
+		next = "draft"
+		events = append(events, recorded{kind: "returned", reason: input.Reason})
+	case "forward":
+		if r.State != "submitted" {
+			return ExternalInvoiceRequest{}, conflict("invalid_request_transition", "Only requests that await approval can be forwarded to wiRef")
+		}
+		if order == nil || order.Status != "finalized" {
+			return ExternalInvoiceRequest{}, conflict("order_not_finalized", "The order is no longer finalized")
+		}
+		details, e := q.GetRequestDetails(ctx, id)
+		if e != nil {
+			return ExternalInvoiceRequest{}, e
+		}
+		// Approvers may have edited the details; the checklist must still be complete.
+		if err = s.saveDetails(ctx, q, r, detailsFromRow(details), true); err != nil {
+			return ExternalInvoiceRequest{}, err
 		}
 		next = "issued"
-		event = "issued_recorded"
+		events = append(events, recorded{kind: "issued"})
+		if input.ExternalReference != "" {
+			events = append(events, recorded{kind: "reference_added", reference: input.ExternalReference})
+		}
+		if err = s.settleByInvoice(ctx, tx, p, *order, r, input.OperationKey, requestID); err != nil {
+			return ExternalInvoiceRequest{}, err
+		}
 	case "cancel":
-		if r.State != "draft" && r.State != "ready" {
-			return ExternalInvoiceRequest{}, conflict("external_reconciliation_required", "Submitted requests require external cancellation evidence")
+		switch r.State {
+		case "draft":
+			err = require(p, authorization.ExternalInvoiceRequestsManage)
+		case "submitted":
+			err = require(p, authorization.ExternalInvoiceRequestsApprove)
+		default:
+			err = conflict("external_reconciliation_required", "Issued requests require external cancellation evidence")
+		}
+		if err != nil {
+			return ExternalInvoiceRequest{}, err
 		}
 		next = "cancelled"
+		events = append(events, recorded{kind: "cancelled", reason: input.Reason})
 	case "request-cancellation":
-		if r.State != "submitted" && r.State != "issued" {
-			return ExternalInvoiceRequest{}, conflict("invalid_request_transition", "Only submitted or issued requests require external cancellation")
+		if r.State != "issued" {
+			return ExternalInvoiceRequest{}, conflict("invalid_request_transition", "Only issued requests require external cancellation")
 		}
 		next = "cancellation_requested"
-		event = "cancellation_requested"
+		events = append(events, recorded{kind: "cancellation_requested", reason: input.Reason})
 	case "confirm-cancellation":
 		if r.State != "cancellation_requested" {
 			return ExternalInvoiceRequest{}, conflict("invalid_request_transition", "Request external cancellation first")
@@ -423,37 +558,60 @@ func (s *Service) RequestCommand(ctx context.Context, p authorization.Principal,
 			return ExternalInvoiceRequest{}, validation("Unsupported external accounting procedure")
 		}
 		next = "cancelled"
-		event = "cancelled"
+		events = append(events, recorded{kind: "cancelled", reference: input.ExternalReference, reconciliation: input.ReconciliationKind, reason: input.Reason})
+		if order != nil {
+			receipts, e := q.ActiveRequestReceipts(ctx, db.ActiveRequestReceiptsParams{OrderID: &order.ID, ExternalInvoiceRequestID: &id})
+			if e != nil {
+				return ExternalInvoiceRequest{}, e
+			}
+			if len(receipts) > 0 {
+				// The invoice settled the order; cancelling it gives money back, so the payment permissions apply.
+				if err = require(p, authorization.PaymentsRead, authorization.PaymentsReverse); err != nil {
+					return ExternalInvoiceRequest{}, err
+				}
+				if err = s.reverseInvoiceSettlement(ctx, tx, p, *order, receipts, input.ReconciliationKind, input.ExternalReference, effective, input.OperationKey, requestID); err != nil {
+					return ExternalInvoiceRequest{}, err
+				}
+			}
+		}
 	case "reference-corrections":
 		if r.State != "issued" && r.State != "cancellation_requested" {
-			return ExternalInvoiceRequest{}, conflict("invalid_request_transition", "Reference correction requires an issued invoice")
+			return ExternalInvoiceRequest{}, conflict("invalid_request_transition", "A wiRef invoice number requires an issued invoice")
 		}
-		if input.ExternalReference == "" || input.Reason == "" || input.EffectiveAt.IsZero() {
-			return ExternalInvoiceRequest{}, validation("Corrected reference, reason and date are required")
+		if input.ExternalReference == "" || input.EffectiveAt.IsZero() {
+			return ExternalInvoiceRequest{}, validation("Invoice number and date are required")
 		}
-		event = "reference_corrected"
-	default:
-		return ExternalInvoiceRequest{}, validation("Unsupported request action")
+		has, e := q.RequestHasReference(ctx, id)
+		if e != nil {
+			return ExternalInvoiceRequest{}, e
+		}
+		if has {
+			if input.Reason == "" {
+				return ExternalInvoiceRequest{}, validation("Say why the invoice number changes")
+			}
+			events = append(events, recorded{kind: "reference_corrected", reference: input.ExternalReference, reason: input.Reason})
+		} else {
+			events = append(events, recorded{kind: "reference_added", reference: input.ExternalReference, reason: input.Reason})
+		}
 	}
-	if len(input.ExternalReference) > 200 || len(input.Reason) > 500 {
-		return ExternalInvoiceRequest{}, validation("Reference or reason is too long")
-	}
-	effective := input.EffectiveAt
-	if effective.IsZero() {
-		effective = time.Now().UTC()
-	}
-	if err = q.InsertRequestEvent(ctx, db.InsertRequestEventParams{ID: newID(), RequestID: id, Kind: event, ExternalReference: input.ExternalReference, ReconciliationKind: input.ReconciliationKind, Reason: input.Reason, EffectiveAt: effective.UTC(), ActorAccountID: &p.AccountID}); err != nil {
-		return ExternalInvoiceRequest{}, err
+	for _, e := range events {
+		if err = q.InsertRequestEvent(ctx, db.InsertRequestEventParams{ID: newID(), RequestID: id, Kind: e.kind, ExternalReference: e.reference, ReconciliationKind: e.reconciliation, Reason: e.reason, EffectiveAt: effective.UTC(), ActorAccountID: &p.AccountID}); err != nil {
+			return ExternalInvoiceRequest{}, err
+		}
 	}
 	if err = q.TransitionRequest(ctx, db.TransitionRequestParams{ID: id, State: next}); err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
-	if r.OrderID != nil {
-		if err = q.BumpOrder(ctx, *r.OrderID); err != nil {
+	if order != nil {
+		if err = s.syncAlreadyPaid(ctx, q, order.ID); err != nil {
+			return ExternalInvoiceRequest{}, err
+		}
+		if err = q.BumpOrder(ctx, order.ID); err != nil {
 			return ExternalInvoiceRequest{}, err
 		}
 	}
-	if err = writeAudit(ctx, tx, p, "external_invoice_request."+event, "external_invoice_request", id, requestID, "state", "events"); err != nil {
+	auditEvent := events[0].kind
+	if err = writeAudit(ctx, tx, p, "external_invoice_request."+auditEvent, "external_invoice_request", id, requestID, "state", "events"); err != nil {
 		return ExternalInvoiceRequest{}, err
 	}
 	if err = finishOperation(ctx, q, p, input.OperationKey, kind, hash, r.OrderID, &id); err != nil {

@@ -29,11 +29,6 @@ const OrderDetailPage = lazy(() =>
     default: m.OrderDetailPage,
   })),
 );
-const CounterSalePage = lazy(() =>
-  import('../features/orders/CounterSalePage').then((m) => ({
-    default: m.CounterSalePage,
-  })),
-);
 const PaymentsPage = lazy(() =>
   import('../features/orders/PaymentsPage').then((m) => ({
     default: m.PaymentsPage,
@@ -259,22 +254,6 @@ export function App() {
           element={
             <PermissionRoute allOf={[PermissionId.ordersread]}>
               <OrdersPage />
-            </PermissionRoute>
-          }
-        />
-        <Route
-          path="orders/counter-sale"
-          element={
-            <PermissionRoute
-              allOf={[
-                PermissionId.ordersread,
-                PermissionId.orderswrite,
-                PermissionId.ordersfinalize,
-                PermissionId.paymentsread,
-                PermissionId.paymentsrecord,
-              ]}
-            >
-              <CounterSalePage />
             </PermissionRoute>
           }
         />

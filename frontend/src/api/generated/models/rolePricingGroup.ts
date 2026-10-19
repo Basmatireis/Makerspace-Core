@@ -19,14 +19,16 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
-import type { CounterSaleJob } from './counterSaleJob';
-import type { PaymentInput } from './paymentInput';
-import type { OrderItemInput } from './orderItemInput';
 
-export interface CounterSaleCommand {
-  operationKey: UUIDv7;
-  immediateFulfillmentConfirmed: boolean;
-  job: CounterSaleJob;
-  payments: PaymentInput[];
-  manualItems?: OrderItemInput[];
+export interface RolePricingGroup {
+  roleId: UUIDv7;
+  roleName: string;
+  pricingGroupId: UUIDv7;
+  pricingGroupName: string;
+  /**
+   * Unique. A person holding several mapped roles is priced by the role with the largest priority.
+   * @minimum 1
+   * @maximum 1000000
+   */
+  priority: number;
 }

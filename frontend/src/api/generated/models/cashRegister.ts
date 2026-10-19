@@ -18,9 +18,23 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { UUIDv7 } from './uUIDv7';
+import type { Money } from './money';
+import type { Decimal } from './decimal';
 
 /**
- * @nullable
+ * Only cash payments count. Card and external (wiRef) payments never change the register.
  */
-export type CounterSaleManualJobPricingGroupId = UUIDv7 | null;
+export interface CashRegister {
+  receipts: Money;
+  /** Cash refunds and corrections. */
+  refunds: Money;
+  withdrawals: Money;
+  deposits: Money;
+  /** receipts - refunds - withdrawals + deposits */
+  expected: Decimal;
+  /**
+   * Exclusive end of the period; null means everything recorded.
+   * @nullable
+   */
+  to: string | null;
+}

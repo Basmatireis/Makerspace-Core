@@ -120,6 +120,19 @@ type BrandingConfiguration struct {
 	UpdatedAt             time.Time
 }
 
+type CashMovement struct {
+	ID                 uuid.UUID
+	Reference          string
+	OperationKey       uuid.UUID
+	Kind               string
+	Amount             pgtype.Numeric
+	Reason             string
+	Note               string
+	OccurredAt         time.Time
+	RecordedByPersonID *uuid.UUID
+	CreatedAt          time.Time
+}
+
 type DeviceType struct {
 	ID          uuid.UUID
 	Name        string
@@ -303,6 +316,7 @@ type ExternalInvoiceRequestDetail struct {
 	RequirePurchaseOrderReference bool
 	ItemSummary                   []byte
 	SnapshotSchemaVersion         int32
+	AlreadyPaid                   pgtype.Numeric
 }
 
 type ExternalInvoiceRequestEvent struct {
@@ -999,15 +1013,6 @@ type Person struct {
 	ProfileImageSource  *string
 }
 
-type PersonPricingGroupAssignment struct {
-	PersonID            uuid.UUID
-	PricingGroupID      uuid.UUID
-	AssignedByAccountID *uuid.UUID
-	Version             int64
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
-}
-
 type PersonRole struct {
 	PersonID            uuid.UUID
 	RoleID              uuid.UUID
@@ -1309,6 +1314,14 @@ type RolePermissionGrant struct {
 type RolePermissionGrantDeviceType struct {
 	GrantID      uuid.UUID
 	DeviceTypeID uuid.UUID
+}
+
+type RolePricingGroup struct {
+	RoleID             uuid.UUID
+	PricingGroupID     uuid.UUID
+	Priority           int32
+	UpdatedByAccountID *uuid.UUID
+	UpdatedAt          time.Time
 }
 
 type ScimConnector struct {

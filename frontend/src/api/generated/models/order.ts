@@ -33,6 +33,7 @@ import type { OrderItem } from './orderItem';
 import type { OrderAllocation } from './orderAllocation';
 import type { OrderAdjustment } from './orderAdjustment';
 import type { Version } from './version';
+import type { OrderCreatedBy } from './orderCreatedBy';
 
 export interface Order {
   id: UUIDv7;
@@ -70,4 +71,9 @@ export interface Order {
   activeExternalRequestState?: string | null;
   /** @nullable */
   replacedByOrderReference?: string | null;
+  /**
+   * Display name of the person who created the order; null once that person was deleted.
+   * @nullable
+   */
+  createdBy: OrderCreatedBy;
 }

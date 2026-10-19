@@ -19,13 +19,15 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * submitted means awaiting approval; issued means forwarded to wiRef (the open balance is then settled by an external payment).
+ */
 export type ExternalInvoiceRequestState = typeof ExternalInvoiceRequestState[keyof typeof ExternalInvoiceRequestState];
 
 
 // eslint-disable-next-line @typescript-eslint/no-redeclare
 export const ExternalInvoiceRequestState = {
   draft: 'draft',
-  ready: 'ready',
   submitted: 'submitted',
   issued: 'issued',
   cancellation_requested: 'cancellation_requested',

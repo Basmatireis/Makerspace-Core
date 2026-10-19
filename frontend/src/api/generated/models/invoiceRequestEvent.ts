@@ -19,6 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
+import type { InvoiceRequestEventRecordedBy } from './invoiceRequestEventRecordedBy';
 
 export interface InvoiceRequestEvent {
   id: UUIDv7;
@@ -28,4 +29,6 @@ export interface InvoiceRequestEvent {
   reason: string;
   effectiveAt: string;
   recordedAt: string;
+  /** @nullable */
+  recordedBy: InvoiceRequestEventRecordedBy;
 }

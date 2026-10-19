@@ -93,32 +93,3 @@ func TestRunningJobCannotBeOrderedOrFinalized(t *testing.T) {
 		t.Fatalf("running job added to an order: %v", e)
 	}
 }
-
-func TestCounterSaleCreatesOneManualRunAndConsumesItsUsage(t *testing.T) {
-	f := newFixture(t)
-	ctx := t.Context()
-	material := f.stockedMaterial(t, "PLA counter")
-	start := time.Now().UTC().Add(-2 * time.Hour).Truncate(time.Second)
-	input := CounterSaleCommand{OperationKey: newID(), ImmediateFulfillmentConfirmed: true, Job: CounterSaleJob{ManualJob: &ManualJob{MachineID: f.machine, StartsAt: start, EndsAt: start.Add(time.Hour), OperatorPersonID: f.person, Outcome: "successful", PricingGroupID: &f.group, Usages: []UsageInput{{MaterialID: material, Quantity: "40"}}}}, Payments: []PaymentInput{receipt("card", "14")}}
-	counter, e := f.s.CounterSale(ctx, f.p, input, nil)
-	if e != nil {
-		t.Fatal(e)
-	}
-	job, e := f.jobs.GetJob(ctx, f.p, *counter.Items[0].SourceMachineJobID)
-	if e != nil || len(job.Runs) != 1 || job.Runs[0].Source != "manual" || len(job.Runs[0].Usages) != 1 || job.Runs[0].Usages[0].Quantity != "40" {
-		t.Fatalf("counter sale job: %v %+v", e, job.Runs)
-	}
-	var runs int
-	if e = f.pool.QueryRow(ctx, "SELECT count(*) FROM machine_runs WHERE job_id=$1", job.ID).Scan(&runs); e != nil || runs != 1 {
-		t.Fatalf("runs = %d %v", runs, e)
-	}
-	var consumed string
-	if e = f.pool.QueryRow(ctx, "SELECT COALESCE(sum(quantity_delta),0)::text FROM inventory_transactions WHERE material_id=$1 AND kind='machine_run_consumption'", material).Scan(&consumed); e != nil || consumed != "-40.000000" && consumed != "-40" {
-		t.Fatalf("consumption = %s %v", consumed, e)
-	}
-	// A counter sale whose manual run has not ended yet is a running job.
-	future := CounterSaleCommand{OperationKey: newID(), ImmediateFulfillmentConfirmed: true, Job: CounterSaleJob{ManualJob: &ManualJob{MachineID: f.machine, StartsAt: time.Now().UTC().Add(-time.Minute), EndsAt: time.Now().UTC().Add(time.Hour), OperatorPersonID: f.person, PricingGroupID: &f.group, Usages: []UsageInput{}}}, Payments: []PaymentInput{receipt("card", "10")}}
-	if _, e = f.s.CounterSale(ctx, f.p, future, nil); !apperror.IsCode(e, "job_running") {
-		t.Fatalf("counter sale of a running job: %v", e)
-	}
-}

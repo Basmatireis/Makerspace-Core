@@ -14,7 +14,7 @@ Dashboard; Open Days; Events; Attendance; Machines (Overview, Jobs, Review, Inve
 - Administration: Settings, Audit Log
 - Persistent secondary links: About, Imprint, Privacy policy
 
-The four feature groups use one Carbon SideNavMenu level. No empty groups; controlled expansion opens the active group on client navigation. Phone navigation closes after selection with appropriate focus. Preserve external legal links and configured branding. Settings children remain on their landing page; spools remain reachable from Inventory, Counter Sale from Orders, management from Open Days.
+The four feature groups use one Carbon SideNavMenu level. No empty groups; controlled expansion opens the active group on client navigation. Phone navigation closes after selection with appropriate focus. Preserve external legal links and configured branding. Settings children remain on their landing page; spools remain reachable from Inventory, management from Open Days.
 
 ## Permission mapping
 

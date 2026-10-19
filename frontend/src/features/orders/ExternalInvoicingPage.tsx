@@ -20,9 +20,9 @@ import {
   confirmExternalInvoiceCancellation,
   correctExternalInvoiceReference,
   getExternalInvoiceRequest,
+  forwardExternalInvoiceRequest,
   listExternalInvoiceRequests,
-  markExternalInvoiceRequestReady,
-  recordExternalInvoiceIssued,
+  returnExternalInvoiceRequest,
   requestExternalInvoiceCancellation,
   submitExternalInvoiceRequest,
   updateExternalInvoiceRequest,
@@ -32,8 +32,6 @@ import {
   updateOrganizationInvoicingRequirements,
   listOrganizations,
 } from "../../api/generated/organizations/organizations";
-import { getOrder } from "../../api/generated/orders/orders";
-import { recordOrderPayment } from "../../api/generated/payments/payments";
 import type {
   InvoiceRequestCommand,
   InvoiceRequestDetails,
@@ -45,16 +43,15 @@ import { DateInput } from "../../app/DateInput";
 import { ErrorState, FullPageLoading } from "../../app/PageState";
 import { useCurrentUser } from "../auth/auth";
 import { hasPermission, PermissionId } from "../auth/permissions";
-import { FinancialError, PaymentForm } from "./shared";
+import { FinancialError } from "./shared";
 import { financeKeys, useOperationKeys } from "./operations";
 import { formatMoney } from "./formatting";
 import { useState } from "react";
 
 const labels: Record<string, string> = {
   draft: "Draft",
-  ready: "Ready for invoicing",
-  submitted: "Submitted to wiRef",
-  issued: "Invoice issued externally",
+  submitted: "Awaiting approval",
+  issued: "Issued (forwarded to wiRef)",
   cancellation_requested: "External correction requested",
   cancelled: "Cancelled / externally reconciled",
 };
@@ -162,12 +159,6 @@ function ExternalInvoiceDetailPageContent({
     queryKey: [...financeKeys, "invoice", requestId],
     queryFn: () => getExternalInvoiceRequest(requestId),
   });
-  const order = useQuery({
-    queryKey: [...financeKeys, "detail", query.data?.orderId],
-    queryFn: () => getOrder(query.data!.orderId!),
-    enabled:
-      !!query.data?.orderId && hasPermission(user, PermissionId.ordersread),
-  });
   const form = useForm<InvoiceRequestDetails>({ values: query.data?.details });
   const mutation = useMutation({
     mutationFn: (fn: () => Promise<unknown>) => fn(),
@@ -188,6 +179,12 @@ function ExternalInvoiceDetailPageContent({
   const canManage =
     hasPermission(user, PermissionId.external_invoice_requestsmanage) &&
     hasPermission(user, PermissionId.ordersread);
+  const canApprove =
+    hasPermission(user, PermissionId.external_invoice_requestsapprove) &&
+    hasPermission(user, PermissionId.ordersread);
+  const canEdit =
+    (r.state === "draft" && canManage) ||
+    (r.state === "submitted" && canApprove);
   const run = (fn: () => Promise<unknown>) => mutation.mutate(fn);
   const command = (action: string): InvoiceRequestCommand => {
     const input = {
@@ -222,8 +219,10 @@ function ExternalInvoiceDetailPageContent({
             · {formatMoney(r.requestedAmount)} · wiRef
           </p>
           <p>
-            This request prepares external invoicing. Ready/submitted/issued
-            status does not establish payment.
+            Draft requests are submitted for approval. Once approved and
+            forwarded to wiRef the request is issued and the order is settled by
+            an invoice payment for its open balance. Already paid by cash or
+            card: {formatMoney(r.alreadyPaid)}.
           </p>
           {r.supersedesRequestId && (
             <p>
@@ -279,12 +278,12 @@ function ExternalInvoiceDetailPageContent({
                       purchaseOrderReference: "Purchase order reference",
                     }[n]
                   }
-                  readOnly={r.state !== "draft" || !canManage}
+                  readOnly={!canEdit}
                   {...form.register(n)}
                 />
               ))}
               {(["serviceStartsOn", "serviceEndsOn"] as const).map((n) =>
-                r.state === "draft" && canManage ? (
+                canEdit ? (
                   <Controller
                     key={n}
                     name={n}
@@ -314,7 +313,7 @@ function ExternalInvoiceDetailPageContent({
               <TextArea
                 id="invoice-service"
                 labelText="Type/description of service"
-                readOnly={r.state !== "draft" || !canManage}
+                readOnly={!canEdit}
                 {...form.register("serviceDescription")}
               />
               {r.requirePurchaseOrderReference && (
@@ -323,55 +322,81 @@ function ExternalInvoiceDetailPageContent({
                   organization configuration.
                 </p>
               )}
+              {canEdit && (
+                <Button type="submit" disabled={mutation.isPending}>
+                  Save request details
+                </Button>
+              )}
               {r.state === "draft" && canManage && (
                 <>
-                  <Button type="submit" disabled={mutation.isPending}>
-                    Save request details
-                  </Button>
                   <Button
                     kind="secondary"
                     disabled={mutation.isPending}
-                    onClick={() =>
-                      run(() =>
-                        markExternalInvoiceRequestReady(r.id, command("ready")),
-                      )
-                    }
-                  >
-                    Mark ready for invoicing
-                  </Button>
-                  <p>
-                    Save details before marking ready. Ready snapshots are
-                    frozen.
-                  </p>
-                </>
-              )}
-            </Stack>
-          </form>
-        </Tile>
-        {canManage && r.state !== "cancelled" && (
-          <Tile>
-            <h2>External workflow</h2>
-            <Stack gap={5}>
-              {r.state === "ready" && (
-                <>
-                  <p>
-                    Send the reviewed information to wiRef through your normal
-                    external process, then confirm submission here.
-                  </p>
-                  <Button
                     onClick={() =>
                       run(() =>
                         submitExternalInvoiceRequest(r.id, command("submit")),
                       )
                     }
                   >
-                    Confirm submitted to wiRef
+                    Submit for approval
+                  </Button>
+                  <p>
+                    Save details before submitting. The readiness checklist has
+                    to be complete.
+                  </p>
+                </>
+              )}
+            </Stack>
+          </form>
+        </Tile>
+        {(canManage || canApprove) && r.state !== "cancelled" && (
+          <Tile>
+            <h2>External workflow</h2>
+            <Stack gap={5}>
+              {r.state === "submitted" && canApprove && (
+                <>
+                  <p>
+                    Copy the reviewed data to wiRef through your normal process,
+                    then mark the request as forwarded. The wiRef invoice number
+                    is optional and can be added later.
+                  </p>
+                  <TextInput
+                    id="return-reason"
+                    labelText="Comment for returning (required to return)"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                  />
+                  <Button
+                    disabled={mutation.isPending}
+                    onClick={() =>
+                      run(() =>
+                        forwardExternalInvoiceRequest(r.id, {
+                          operationKey: command("forward").operationKey,
+                          expectedVersion: r.version,
+                        }),
+                      )
+                    }
+                  >
+                    Mark forwarded to wiRef
+                  </Button>
+                  <Button
+                    kind="secondary"
+                    disabled={!reason.trim() || mutation.isPending}
+                    onClick={() =>
+                      run(() =>
+                        returnExternalInvoiceRequest(r.id, {
+                          operationKey: command("return").operationKey,
+                          expectedVersion: r.version,
+                          reason,
+                        }),
+                      )
+                    }
+                  >
+                    Return for correction
                   </Button>
                 </>
               )}
-              {["submitted", "issued", "cancellation_requested"].includes(
-                r.state,
-              ) && (
+              {["issued", "cancellation_requested"].includes(r.state) && (
                 <>
                   <TextInput
                     id="issued-reference"
@@ -393,22 +418,10 @@ function ExternalInvoiceDetailPageContent({
                   />
                 </>
               )}
-              {r.state === "submitted" && (
-                <Button
-                  disabled={!externalReference || mutation.isPending}
-                  onClick={() =>
-                    run(() =>
-                      recordExternalInvoiceIssued(r.id, command("issued")),
-                    )
-                  }
-                >
-                  Record invoice issued externally
-                </Button>
-              )}
               {r.state === "issued" && (
                 <Button
                   kind="secondary"
-                  disabled={!externalReference || !reason || mutation.isPending}
+                  disabled={!externalReference || mutation.isPending}
                   onClick={() =>
                     run(() =>
                       correctExternalInvoiceReference(
@@ -418,10 +431,10 @@ function ExternalInvoiceDetailPageContent({
                     )
                   }
                 >
-                  Append reference correction
+                  Add or correct invoice number (a correction needs a reason)
                 </Button>
               )}
-              {(r.state === "submitted" || r.state === "issued") && (
+              {r.state === "issued" && canManage && (
                 <Button
                   kind="danger--tertiary"
                   disabled={mutation.isPending}
@@ -464,13 +477,13 @@ function ExternalInvoiceDetailPageContent({
                     Record external reconciliation evidence
                   </Button>
                   <p>
-                    Externally confirmed payments must also be corrected before
-                    Order reversal. The accounting procedure may be a credit
+                    Recording the reconciliation reverses the invoice payment that
+                    settled the order, which reopens its balance. The accounting procedure may be a credit
                     note, corrected invoice, reallocation, or cancellation.
                   </p>
                 </>
               )}
-              {(r.state === "draft" || r.state === "ready") && (
+              {((r.state === "draft" && canManage) || (r.state === "submitted" && canApprove)) && (
                 <Button
                   kind="danger--tertiary"
                   disabled={mutation.isPending}
@@ -482,33 +495,6 @@ function ExternalInvoiceDetailPageContent({
             </Stack>
           </Tile>
         )}
-        {r.state === "issued" &&
-          order.data &&
-          order.data.outstandingAmount !== "0.00" &&
-          hasPermission(user, PermissionId.paymentsrecord) &&
-          hasPermission(user, PermissionId.paymentsread) && (
-            <Tile>
-              <h2>Payment confirmed by wiRef</h2>
-              <PaymentForm
-                external
-                defaultAmount={order.data.outstandingAmount}
-                pending={mutation.isPending}
-                error={mutation.error}
-                onSubmit={(payment) =>
-                  run(() => {
-                    const input = {
-                      expectedVersion: order.data!.version,
-                      payment,
-                    };
-                    return recordOrderPayment(order.data!.id, {
-                      ...input,
-                      operationKey: key("external-payment", input),
-                    });
-                  })
-                }
-              />
-            </Tile>
-          )}
         <Tile>
           <h2>Handoff items</h2>
           {r.itemSummary.map((i) => (
@@ -527,6 +513,7 @@ function ExternalInvoiceDetailPageContent({
                 e.externalReference,
                 e.reconciliationKind.replaceAll("_", " "),
                 e.reason,
+                e.recordedBy?.displayName,
               ]
                 .filter(Boolean)
                 .join(" · ")}
@@ -559,10 +546,10 @@ function ExternalInvoiceDetailPageContent({
           }}
         >
           <p>{confirmation === "request-cancel"
-            ? "This records that the submitted or issued request now requires correction in wiRef. Existing request and external evidence remain in history."
+            ? "This records that the issued request now requires correction in wiRef. Existing request and external evidence remain in history."
             : confirmation === "confirm-cancel"
               ? `This appends ${(reconciliationKind ?? "cancellation").replaceAll("_", " ")} evidence with reference ${externalReference}. It does not erase the invoice request, payment, or accounting history.`
-              : "This cancels the draft or ready request. The order remains and the request record stays in history; no external invoice is changed."}</p>
+              : "This cancels the request before it was issued. The order remains and the request record stays in history; no external invoice is changed."}</p>
           {reason && <p>Reason: {reason}</p>}
         </DestructiveActionDialog>
       </Stack>

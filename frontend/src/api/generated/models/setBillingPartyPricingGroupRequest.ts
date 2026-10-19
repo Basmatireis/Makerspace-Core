@@ -18,11 +18,12 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { BillingPartyReference } from './billingPartyReference';
+import type { SetBillingPartyPricingGroupRequestParty } from './setBillingPartyPricingGroupRequestParty';
 import type { SetBillingPartyPricingGroupRequestPricingGroupId } from './setBillingPartyPricingGroupRequestPricingGroupId';
 
 export interface SetBillingPartyPricingGroupRequest {
-  party: BillingPartyReference;
+  /** Only organizations have a pricing group of their own; people are priced through their roles. */
+  party: SetBillingPartyPricingGroupRequestParty;
   /** @nullable */
   pricingGroupId?: SetBillingPartyPricingGroupRequestPricingGroupId;
   /** @minimum 0 */

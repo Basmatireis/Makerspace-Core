@@ -37,9 +37,12 @@ export interface ExternalInvoiceRequest {
   orderId: ExternalInvoiceRequestOrderId;
   orderReference: string;
   provider: ExternalInvoiceRequestProvider;
+  /** submitted means awaiting approval; issued means forwarded to wiRef (the open balance is then settled by an external payment). */
   state: ExternalInvoiceRequestState;
   currency: ExternalInvoiceRequestCurrency;
   requestedAmount: Money;
+  /** Cash and card received for the order. Follows the order's payments while the request is a draft and is frozen from submission on. */
+  alreadyPaid: Money;
   details: InvoiceRequestDetails;
   requirePurchaseOrderReference: boolean;
   requirementsVersion: number;

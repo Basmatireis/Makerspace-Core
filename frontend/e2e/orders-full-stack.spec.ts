@@ -175,54 +175,6 @@ test("persists Orders, payment carry-forward, anonymous checkout and wiRef recon
     page.getByRole("heading", { name: "Allocation history" }),
   ).toBeVisible();
   await accessibility(page);
-  // Price is reviewed before external terminal collection; completion is atomic.
-  const type = await parse<{ id: string }>(
-    await post("/machine-types", { name: "Orders E2E printer " + runTag }),
-  );
-  const machine = await parse<{ id: string }>(
-    await post("/machines", {
-      name: "Orders E2E counter printer " + runTag,
-      machineTypeId: type.id,
-      status: "active",
-      automaticCollectionEnabled: false,
-    }),
-  );
-  const group = await parse<{ id: string }>(
-    await post("/pricing-groups", {
-      name: "Orders E2E pricing " + runTag,
-      isDefault: false,
-    }),
-  );
-  await parse(
-    await post(`/pricing-groups/${group.id}/rules`, {
-      kind: "machine_runtime",
-      machineTypeId: type.id,
-      rate: "10",
-    }),
-  );
-  await page.goto("/orders/counter-sale");
-  await page.getByLabel("Machine", { exact: true }).selectOption(machine.id);
-  await page
-    .getByLabel("Pricing group", { exact: true })
-    .selectOption(group.id);
-  await page.getByRole("button", { name: "Review calculated charge" }).click();
-  await expect(page.getByText(/Calculated total:.*10.00/)).toBeVisible();
-  await page
-    .getByLabel(
-      "Service is fulfilled now; no later pickup or follow-up is required",
-    )
-    .press("Space");
-  await accessibility(page);
-  await page.getByRole("button", { name: "Complete counter sale" }).click();
-  await expect(page).toHaveURL(/\/orders\/[0-9a-f-]+$/);
-  const counter = await parse<Order>(
-    await page.request.get(
-      `${origin}/api/v1/orders/${page.url().split("/").at(-1)}`,
-    ),
-  );
-  expect(counter.customerKind).toBe("anonymous");
-  expect(counter.customer).toBeNull();
-  expect(counter.settlementState).toBe("paid");
   // wiRef recipient fields are only required on its separate request.
   let externalOrder = await parse<Order>(
     await post("/orders", {
@@ -285,32 +237,19 @@ test("persists Orders, payment carry-forward, anonymous checkout and wiRef recon
         ).version,
     )
     .toBe(2);
-  await page.getByRole("button", { name: "Mark ready for invoicing" }).click();
+  await page.getByRole("button", { name: "Submit for approval" }).click();
   await expect(
-    page.getByRole("button", { name: "Confirm submitted to wiRef" }),
+    page.getByRole("button", { name: "Mark forwarded to wiRef" }),
   ).toBeVisible();
   await accessibility(page);
-  await page
-    .getByRole("button", { name: "Confirm submitted to wiRef" })
-    .click();
+  await page.getByRole("button", { name: "Mark forwarded to wiRef" }).click();
+  // Issued means paid: the invoice settled the order.
+  await expect
+    .poll(async () => (await parse<Order>(await page.request.get(`${origin}/api/v1/orders/${externalOrder.id}`))).settlementState)
+    .toBe("paid");
   await page
     .getByLabel("External invoice/correction reference")
     .fill("wiRef-E2E-123");
-  await page
-    .getByRole("button", { name: "Record invoice issued externally" })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "Payment confirmed by wiRef" }),
-  ).toBeVisible();
-  await page
-    .getByLabel("wiRef payment confirmation reference")
-    .fill("wiRef-payment-E2E");
-  await page
-    .getByRole("button", { name: "Record payment", exact: true })
-    .click();
-  await expect(
-    page.getByRole("heading", { name: "Payment confirmed by wiRef" }),
-  ).toHaveCount(0);
   await page
     .getByRole("button", { name: "Request external correction" })
     .click();
@@ -343,21 +282,8 @@ test("persists Orders, payment carry-forward, anonymous checkout and wiRef recon
   });
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`/orders/${externalOrder.id}`);
-  const settled = await parse<Order>(
-    await page.request.get(`${origin}/api/v1/orders/${externalOrder.id}`),
-  );
+  // Confirming the cancellation reversed the invoice payment, so only the charge is left to reverse.
   await page.getByLabel("Reason", { exact: true }).fill("External credit note");
-  await page
-    .getByLabel(
-      `Reverse ${settled.allocations[0].paymentReference} in the same operation`,
-    )
-    .press("Space");
-  await page
-    .getByLabel("Payment correction", { exact: true })
-    .selectOption("external_correction");
-  await page
-    .getByLabel("Card/external correction reference")
-    .fill("credit-note-E2E");
   await page.getByRole("button", { name: "Reverse all charges" }).click();
   await page
     .getByRole("alertdialog", { name: "Reverse all order charges?" })

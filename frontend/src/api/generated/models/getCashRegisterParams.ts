@@ -18,26 +18,7 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { UUIDv7 } from './uUIDv7';
-import type { BillingPartyReference } from './billingPartyReference';
-import type { MachineJobOutcome } from './machineJobOutcome';
-import type { CounterSaleManualJobPricingGroupId } from './counterSaleManualJobPricingGroupId';
-import type { MachineJobUsageInput } from './machineJobUsageInput';
 
-export interface CounterSaleManualJob {
-  machineId: UUIDv7;
-  startsAt: string;
-  endsAt: string;
-  customer?: BillingPartyReference;
-  operatorPersonId: UUIDv7;
-  outcome: MachineJobOutcome;
-  /**
-   * @maxLength 2000
-   * @nullable
-   */
-  notes?: string | null;
-  /** @nullable */
-  pricingGroupId?: CounterSaleManualJobPricingGroupId;
-  /** @maxItems 50 */
-  usages: MachineJobUsageInput[];
-}
+export type GetCashRegisterParams = {
+to?: string;
+};

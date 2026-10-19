@@ -53,7 +53,7 @@ A printer profile holds the printing switch, an optional model (`bambu_h2d`, `ba
 
 Requested slot statuses are `available` or `unavailable`; `retired` only results from omitting a slot. Unchanged rows keep their version. The existing single-row endpoints for units and slots keep working. `GET /machines/{machineId}/printer/live-status` (`machines.read`) returns the latest connector snapshot (see the [printer connector](printer-connector.md#live-status)).
 
-Organizations are versioned billing parties with the type **company**, **institute**, **association**, or **other**. An identified job customer is either a Person or an Organization, represented by two mutually exclusive nullable foreign keys. Anonymous counter-sale jobs may omit both. Operators are People with enabled Accounts.
+Organizations are versioned billing parties with the type **company**, **institute**, **association**, or **other**. An identified job customer is either a Person or an Organization, represented by two mutually exclusive nullable foreign keys. Jobs created before counter sales were removed may still have neither. Operators are People with enabled Accounts.
 
 Organizations also carry an invoice address (address line, postal code, locality, ISO country code), an invoice contact name and an optional contact email; empty strings mean "not set". `PATCH /organizations/{id}` leaves omitted detail fields unchanged and clears a field when given an empty string. The purchase-order requirement stays in `organization_invoicing_requirements` (see [Orders](orders.md)) and is read and written through `/organizations/{id}/invoicing-requirements`; the organization page uses both endpoints. People can be associated with an organization (`organization_members`, unique per pair, removed with either side). Membership is informational: it never restricts who may bill an organization. It feeds the overview on the organization page and the job form, where choosing a person who belongs to exactly one active organization offers a one-click "Bill to <organization>" (the billing-party search returns `memberOrganizations` for people; nothing is switched automatically). Organizations are created, edited and assigned a pricing group on the **Directory › Organizations** pages (`/organizations`, `/organizations/:id`), not in Settings. Customer and operator searches return only identifiers and display names needed for assignment.
 
@@ -77,19 +77,22 @@ A **job** is the billable record of work on one machine. Jobs have an applicatio
 
 **Concurrency.** Operations lock the job before its runs. A rare conflict returns 409 `retry_conflict`, and the client retries.
 
-Anonymous creation is permitted only through the Orders counter-sale transaction, which always creates a new manual job and must fully settle an immediately fulfilled cash/card charge. Pricing is captured, every material is consumed, and audit events are written in the same transaction.
+Every new job has a customer; counter sales were removed. Jobs that exist without a customer (from the former counter sales) stay editable.
 
-Confirmed corrections use optimistic concurrency. Source and external identifiers remain immutable. Usage replacement creates compensating inventory transactions; immutable ledger history is never rewritten. A finalized Order does not lock operational job corrections: its immutable item snapshot remains unchanged and the UI/API reports source changes. Omitted customer on a factual correction preserves the current identity, including an anonymous job.
+Confirmed corrections use optimistic concurrency. Source and external identifiers remain immutable. Usage replacement creates compensating inventory transactions; immutable ledger history is never rewritten. A finalized Order does not lock operational job corrections: its immutable item snapshot remains unchanged and the UI/API reports source changes. Omitted customer on a factual correction preserves the current identity, including a job without customer.
 
-Legacy job billing fields and the billing endpoint were removed with migration 00028. The charge flow is **Machine Job → Order Item → Order → Payment or external wiRef invoicing**. [Orders](orders.md) describes frozen charge snapshots, full reversal/replacement, and atomic anonymous checkout.
+Legacy job billing fields and the billing endpoint were removed with migration 00028. The charge flow is **Machine Job → Order Item → Order → Payment or external wiRef invoicing**. [Orders](orders.md) describes frozen charge snapshots, and full reversal/replacement.
 
-## Pricing snapshots## Pricing snapshots
+## Pricing snapshots
 
-Pricing groups are independent of Roles. Resolution order is:
+Pricing groups are independent of Roles; Roles are mapped to groups in `role_pricing_groups` (`GET`/`PUT /pricing-role-groups`, `pricing.read`/`pricing.manage`; migration 00050). The mapping holds each role at most once with a unique positive `priority` (the larger number wins) and is replaced atomically. The group of a job resolves in this order, in `resolvePricingGroup` (also used for jobs planned from print artifacts):
 
-1. the explicit group on the create or reassignment request;
-2. the billing party's default group;
-3. the one active global default.
+1. the explicit group on the create, reassignment or correction request (a manual override; an inactive group is refused with 409 `pricing_group_inactive`);
+2. the group of the organization the job is billed to (`organization_pricing_group_assignments`);
+3. for a person customer, the group mapped to their highest-priority role;
+4. the one active global default.
+
+Inactive mapped groups are skipped (the next role, then the default applies). An organization without a group, and a person without a mapped role, use the default. The per-person pricing group assignment (`person_pricing_group_assignments`) was dropped in migration 00050 and `PUT /billing-party-pricing-group` now accepts organizations only; use the role mapping or the explicit group on the job instead. Price adjustments on a job are unchanged.
 
 If none resolves, manual creation fails until a group is selected. A group contains exact-decimal machine-runtime rules per machine type/hour, measure rules per machine type (see [Measure pricing](#measure-pricing)) and material rules per **material type** (a rate per unit of the type; the rule keeps the type's unit). A job's pricing snapshot stores each material rule with its label, the type name as selector, the unit and a `material_type_id`; usages match snapshot rules by type, so renaming or recolouring never changes a captured price. Snapshots taken before migration 00046 keep their category text and were backfilled with the matching type. Missing matched rules make pricing **incomplete** and leave the calculated total unset. An explicit zero rate is intentionally free.
 

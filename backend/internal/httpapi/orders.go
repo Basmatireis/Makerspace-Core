@@ -317,28 +317,6 @@ func (s *Server) ReplaceOrder(ctx context.Context, r openapi.ReplaceOrderRequest
 	}
 	return openapi.ReplaceOrder201JSONResponse(dto), nil
 }
-func (s *Server) CompleteCounterSale(ctx context.Context, r openapi.CompleteCounterSaleRequestObject) (openapi.CompleteCounterSaleResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if r.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	input, err := mapFinancialJSON[orders.CounterSaleCommand](r.Body)
-	if err != nil {
-		return nil, err
-	}
-	result, err := s.orders.CounterSale(ctx, p, input, requestIDPointer(ctx))
-	if err != nil {
-		return nil, err
-	}
-	dto, err := mapFinancialJSON[openapi.Order](result)
-	if err != nil {
-		return nil, err
-	}
-	return openapi.CompleteCounterSale201JSONResponse(dto), nil
-}
 func (s *Server) ListOrderPayments(ctx context.Context, r openapi.ListOrderPaymentsRequestObject) (openapi.ListOrderPaymentsResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
@@ -502,28 +480,6 @@ func (s *Server) UpdateExternalInvoiceRequest(ctx context.Context, r openapi.Upd
 	}
 	return openapi.UpdateExternalInvoiceRequest200JSONResponse(dto), nil
 }
-func (s *Server) MarkExternalInvoiceRequestReady(ctx context.Context, r openapi.MarkExternalInvoiceRequestReadyRequestObject) (openapi.MarkExternalInvoiceRequestReadyResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if r.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	input, err := mapFinancialJSON[orders.InvoiceRequestCommand](r.Body)
-	if err != nil {
-		return nil, err
-	}
-	result, err := s.orders.RequestCommand(ctx, p, r.RequestId, input, "ready", requestIDPointer(ctx))
-	if err != nil {
-		return nil, err
-	}
-	dto, err := mapFinancialJSON[openapi.ExternalInvoiceRequest](result)
-	if err != nil {
-		return nil, err
-	}
-	return openapi.MarkExternalInvoiceRequestReady201JSONResponse(dto), nil
-}
 func (s *Server) SubmitExternalInvoiceRequest(ctx context.Context, r openapi.SubmitExternalInvoiceRequestRequestObject) (openapi.SubmitExternalInvoiceRequestResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
@@ -545,28 +501,6 @@ func (s *Server) SubmitExternalInvoiceRequest(ctx context.Context, r openapi.Sub
 		return nil, err
 	}
 	return openapi.SubmitExternalInvoiceRequest201JSONResponse(dto), nil
-}
-func (s *Server) RecordExternalInvoiceIssued(ctx context.Context, r openapi.RecordExternalInvoiceIssuedRequestObject) (openapi.RecordExternalInvoiceIssuedResponseObject, error) {
-	p, err := requirePrincipal(ctx)
-	if err != nil {
-		return nil, err
-	}
-	if r.Body == nil {
-		return nil, invalidRequest("request body is required")
-	}
-	input, err := mapFinancialJSON[orders.InvoiceRequestCommand](r.Body)
-	if err != nil {
-		return nil, err
-	}
-	result, err := s.orders.RequestCommand(ctx, p, r.RequestId, input, "record-issued", requestIDPointer(ctx))
-	if err != nil {
-		return nil, err
-	}
-	dto, err := mapFinancialJSON[openapi.ExternalInvoiceRequest](result)
-	if err != nil {
-		return nil, err
-	}
-	return openapi.RecordExternalInvoiceIssued201JSONResponse(dto), nil
 }
 func (s *Server) RequestExternalInvoiceCancellation(ctx context.Context, r openapi.RequestExternalInvoiceCancellationRequestObject) (openapi.RequestExternalInvoiceCancellationResponseObject, error) {
 	p, err := requirePrincipal(ctx)
@@ -708,8 +642,7 @@ func (s *Server) GetJobOrderAssociation(ctx context.Context, r openapi.GetJobOrd
 	}
 	return openapi.GetJobOrderAssociation200JSONResponse(dto), nil
 }
-
-func (s *Server) PreviewCounterSale(ctx context.Context, r openapi.PreviewCounterSaleRequestObject) (openapi.PreviewCounterSaleResponseObject, error) {
+func (s *Server) ReturnExternalInvoiceRequest(ctx context.Context, r openapi.ReturnExternalInvoiceRequestRequestObject) (openapi.ReturnExternalInvoiceRequestResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
 		return nil, err
@@ -717,13 +650,91 @@ func (s *Server) PreviewCounterSale(ctx context.Context, r openapi.PreviewCounte
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	input, err := mapFinancialJSON[orders.CounterSaleCommand](r.Body)
+	input, err := mapFinancialJSON[orders.InvoiceRequestCommand](r.Body)
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.orders.PreviewCounterSale(ctx, p, input)
+	result, err := s.orders.RequestCommand(ctx, p, r.RequestId, input, "return", requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
-	return openapi.PreviewCounterSale200JSONResponse{TotalAmount: result.TotalAmount, Currency: openapi.CounterSaleQuoteCurrency(result.Currency)}, nil
+	dto, err := mapFinancialJSON[openapi.ExternalInvoiceRequest](result)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.ReturnExternalInvoiceRequest201JSONResponse(dto), nil
+}
+func (s *Server) ForwardExternalInvoiceRequest(ctx context.Context, r openapi.ForwardExternalInvoiceRequestRequestObject) (openapi.ForwardExternalInvoiceRequestResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	input, err := mapFinancialJSON[orders.InvoiceRequestCommand](r.Body)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.orders.RequestCommand(ctx, p, r.RequestId, input, "forward", requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	dto, err := mapFinancialJSON[openapi.ExternalInvoiceRequest](result)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.ForwardExternalInvoiceRequest201JSONResponse(dto), nil
+}
+func (s *Server) GetCashRegister(ctx context.Context, r openapi.GetCashRegisterRequestObject) (openapi.GetCashRegisterResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.orders.CashRegister(ctx, p, r.Params.To)
+	if err != nil {
+		return nil, err
+	}
+	dto, err := mapFinancialJSON[openapi.CashRegister](result)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.GetCashRegister200JSONResponse(dto), nil
+}
+func (s *Server) ListCashMovements(ctx context.Context, r openapi.ListCashMovementsRequestObject) (openapi.ListCashMovementsResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.orders.ListCashMovements(ctx, p, defaultString(stringEnum(r.Params.Kind)), r.Params.From, r.Params.To, defaultInt(r.Params.Page, 1), defaultInt(r.Params.PageSize, 25))
+	if err != nil {
+		return nil, err
+	}
+	dto, err := mapFinancialJSON[openapi.CashMovementPage](result)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.ListCashMovements200JSONResponse(dto), nil
+}
+func (s *Server) CreateCashMovement(ctx context.Context, r openapi.CreateCashMovementRequestObject) (openapi.CreateCashMovementResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	input, err := mapFinancialJSON[orders.CashMovementInput](r.Body)
+	if err != nil {
+		return nil, err
+	}
+	result, err := s.orders.CreateCashMovement(ctx, p, input, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	dto, err := mapFinancialJSON[openapi.CashMovement](result)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.CreateCashMovement201JSONResponse(dto), nil
 }

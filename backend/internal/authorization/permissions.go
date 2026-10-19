@@ -14,15 +14,18 @@ import (
 type Permission string
 
 const (
-	OrdersRead                    Permission = Permission(openapi.OrdersRead)
-	OrdersWrite                   Permission = Permission(openapi.OrdersWrite)
-	OrdersFinalize                Permission = Permission(openapi.OrdersFinalize)
-	OrdersReverse                 Permission = Permission(openapi.OrdersReverse)
-	PaymentsRead                  Permission = Permission(openapi.PaymentsRead)
-	PaymentsRecord                Permission = Permission(openapi.PaymentsRecord)
-	PaymentsReverse               Permission = Permission(openapi.PaymentsReverse)
-	ExternalInvoiceRequestsRead   Permission = Permission(openapi.ExternalInvoiceRequestsRead)
-	ExternalInvoiceRequestsManage Permission = Permission(openapi.ExternalInvoiceRequestsManage)
+	OrdersRead                     Permission = Permission(openapi.OrdersRead)
+	OrdersWrite                    Permission = Permission(openapi.OrdersWrite)
+	OrdersFinalize                 Permission = Permission(openapi.OrdersFinalize)
+	OrdersReverse                  Permission = Permission(openapi.OrdersReverse)
+	PaymentsRead                   Permission = Permission(openapi.PaymentsRead)
+	PaymentsRecord                 Permission = Permission(openapi.PaymentsRecord)
+	PaymentsReverse                Permission = Permission(openapi.PaymentsReverse)
+	ExternalInvoiceRequestsRead    Permission = Permission(openapi.ExternalInvoiceRequestsRead)
+	ExternalInvoiceRequestsManage  Permission = Permission(openapi.ExternalInvoiceRequestsManage)
+	ExternalInvoiceRequestsApprove Permission = Permission(openapi.ExternalInvoiceRequestsApprove)
+	CashMovementsRead              Permission = Permission(openapi.CashMovementsRead)
+	CashMovementsRecord            Permission = Permission(openapi.CashMovementsRecord)
 
 	PeopleReadSelf                     Permission = Permission(openapi.PeopleReadSelf)
 	PeopleReadAll                      Permission = Permission(openapi.PeopleReadAll)
@@ -117,7 +120,7 @@ type Definition struct {
 }
 
 var registry = []Permission{
-	OrdersRead, OrdersWrite, OrdersFinalize, OrdersReverse, PaymentsRead, PaymentsRecord, PaymentsReverse, ExternalInvoiceRequestsRead, ExternalInvoiceRequestsManage,
+	OrdersRead, OrdersWrite, OrdersFinalize, OrdersReverse, PaymentsRead, PaymentsRecord, PaymentsReverse, ExternalInvoiceRequestsRead, ExternalInvoiceRequestsManage, ExternalInvoiceRequestsApprove, CashMovementsRead, CashMovementsRecord,
 	PeopleReadSelf, PeopleReadAll, PeopleCreate, PeopleUpdateSelf, PeopleUpdateAll,
 	PeopleDelete, PeopleReadMatriculation, PeopleUpdateMatriculation,
 	PeopleProfileImageUpdateSelf, PeopleProfileImageUpdateAll, PeopleProfileImageRemoveSelf, PeopleProfileImageRemoveAll,
@@ -151,15 +154,18 @@ var known = func() map[Permission]struct{} {
 }()
 
 var descriptions = map[Permission]string{
-	OrdersRead:                    "Read internal orders and their charge snapshots.",
-	OrdersWrite:                   "Create and edit draft orders.",
-	OrdersFinalize:                "Finalize internal charges.",
-	OrdersReverse:                 "Reverse charges and commit replacements.",
-	PaymentsRead:                  "Read payments and reconciliation activity.",
-	PaymentsRecord:                "Record receipts and carry them to authorized replacements.",
-	PaymentsReverse:               "Record full refunds and payment corrections.",
-	ExternalInvoiceRequestsRead:   "Read external invoicing snapshots and evidence.",
-	ExternalInvoiceRequestsManage: "Prepare and manage external invoicing requests.",
+	OrdersRead:                     "Read internal orders and their charge snapshots.",
+	OrdersWrite:                    "Create and edit draft orders.",
+	OrdersFinalize:                 "Finalize internal charges.",
+	OrdersReverse:                  "Reverse charges and commit replacements.",
+	PaymentsRead:                   "Read payments and reconciliation activity.",
+	PaymentsRecord:                 "Record receipts and carry them to authorized replacements.",
+	PaymentsReverse:                "Record full refunds and payment corrections.",
+	ExternalInvoiceRequestsRead:    "Read external invoicing snapshots and evidence.",
+	ExternalInvoiceRequestsManage:  "Prepare and manage external invoicing requests.",
+	ExternalInvoiceRequestsApprove: "Approve external invoice requests: edit, return for correction, forward to wiRef, or cancel while they await approval.",
+	CashMovementsRead:              "Read cash withdrawals and deposits.",
+	CashMovementsRecord:            "Record cash withdrawals and deposits.",
 
 	PeopleReadSelf:                     "Read the person record linked to the current account.",
 	PeopleReadAll:                      "Read every person record.",

@@ -64,8 +64,10 @@ Authorization is based on application-registered permission identifiers. Backend
 | `orders.read`, `orders.write` | Read internal charge snapshots or manage drafts and item claims. Minimal payer/operator lookup accepts Order read. |
 | `orders.finalize`, `orders.reverse` | Freeze charges or append full reversal/linked replacement. Replacement also needs payment read/record. |
 | `payments.read`, `payments.record`, `payments.reverse` | Read journal/allocations, append receipts, or explicitly reverse whole receipts. Order read is required for mutations. |
-| `external_invoice_requests.read`, `external_invoice_requests.manage` | Read recipient/service snapshots or manage wiRef preparation and external evidence. Management also needs Order read. |
-| `pricing.read`, `pricing.manage` | Read pricing groups/rules or manage rates and party defaults. |
+| `external_invoice_requests.read`, `external_invoice_requests.manage` | Read recipient/service snapshots or manage wiRef preparation (create, edit and submit drafts, cancel drafts, request/confirm external cancellation, add invoice numbers). Management also needs Order read. Confirming a cancellation that reverses a settling payment also needs `payments.read` and `payments.reverse`. |
+| `external_invoice_requests.approve` | Approve invoice requests: edit a request that awaits approval, return it for correction, mark it as forwarded to wiRef (which settles the Order's open balance with an external payment), cancel it while it awaits approval, and add invoice numbers. |
+| `cash_movements.read`, `cash_movements.record` | Read cash withdrawals/deposits, or record them (also needs read). The expected cash in the register needs `payments.read` and `cash_movements.read`. |
+| `pricing.read`, `pricing.manage` | Read pricing groups/rules and the role mapping, or manage rates, organization defaults and the role to pricing group mapping. |
 | `statistics.read` | Read date-filtered machine-logbook operational and financial statistics. |
 
 ## Device-scoped grants

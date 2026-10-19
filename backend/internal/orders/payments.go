@@ -14,6 +14,22 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// syncAlreadyPaid keeps the cash and card figure of a draft invoice request in step with the order's payments.
+// From submission on the figure is frozen (payments are refused), so only drafts are touched.
+func (s *Service) syncAlreadyPaid(ctx context.Context, q *db.Queries, orderID uuid.UUID) error {
+	r, err := q.ActiveRequest(ctx, &orderID)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && r.State != "draft") {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	paid, err := q.SumCashCardAllocations(ctx, &orderID)
+	if err != nil {
+		return err
+	}
+	return q.SetRequestAlreadyPaid(ctx, db.SetRequestAlreadyPaidParams{RequestID: r.ID, AlreadyPaid: paid})
+}
 func (s *Service) allocate(ctx context.Context, q *db.Queries, p authorization.Principal, payment db.Payment, o db.Order, amount decimal.Decimal, op uuid.UUID) error {
 	return q.InsertAllocation(ctx, db.InsertAllocationParams{ID: newID(), PaymentID: &payment.ID, PaymentReference: payment.Reference, OrderID: &o.ID, OrderReference: o.Reference, Amount: numeric(amount), OperationID: op, ActorAccountID: &p.AccountID})
 }
@@ -24,6 +40,9 @@ func (s *Service) receipt(ctx context.Context, tx pgx.Tx, p authorization.Princi
 	if o.Status != "finalized" {
 		return db.Payment{}, conflict("order_not_finalized", "Payments require a finalized order")
 	}
+	if input.Method == "external" {
+		return db.Payment{}, conflict("invoice_settles_balance", "An issued wiRef invoice settles the open balance by itself; it cannot be recorded as a payment")
+	}
 	q := db.New(tx)
 	amount, err := parseAmount(input.Amount, 2, true)
 	if err != nil {
@@ -32,35 +51,27 @@ func (s *Service) receipt(ctx context.Context, tx pgx.Tx, p authorization.Princi
 	if input.OccurredAt.IsZero() {
 		return db.Payment{}, validation("Payment occurrence time is required")
 	}
-	if input.Method != "cash" && input.Method != "card" && input.Method != "external" {
+	if input.Method != "cash" && input.Method != "card" {
 		return db.Payment{}, validation("Unsupported payment method")
 	}
 	if input.Method == "card" && (strings.TrimSpace(input.ExternalSource) == "" || strings.TrimSpace(input.ExternalReference) == "") {
 		return db.Payment{}, validation("Card terminal and transaction references are required")
 	}
-	r, e := q.ActiveRequest(ctx, &o.ID)
-	var invoiceID *uuid.UUID
-	if e != nil && !errors.Is(e, pgx.ErrNoRows) {
+	// The request states what was already paid. From submission on that figure is frozen, until the request is returned or cancelled.
+	if r, e := q.ActiveRequest(ctx, &o.ID); e == nil {
+		if r.State != "draft" {
+			return db.Payment{}, conflict("invoice_amount_frozen", "The wiRef request "+r.Reference+" states what was already paid; return or cancel it before recording cash or card")
+		}
+	} else if !errors.Is(e, pgx.ErrNoRows) {
 		return db.Payment{}, e
-	}
-	if input.Method == "external" {
-		if e != nil || r.State != "issued" {
-			return db.Payment{}, conflict("external_reconciliation_required", "An externally issued invoice is required")
-		}
-		if strings.TrimSpace(input.ExternalReference) == "" {
-			return db.Payment{}, validation("External payment confirmation reference is required")
-		}
-		invoiceID = &r.ID
-	} else if e == nil {
-		return db.Payment{}, conflict("settlement_workflow_conflict", "An active wiRef request prevents cash/card recording")
 	}
 	receipts, err := q.ActiveReceipts(ctx, &o.ID)
 	if err != nil {
 		return db.Payment{}, err
 	}
 	for _, v := range receipts {
-		if (v.Method == "external") != (input.Method == "external") {
-			return db.Payment{}, conflict("settlement_workflow_conflict", "Cash/card and external settlement cannot be mixed")
+		if v.Method == "external" {
+			return db.Payment{}, conflict("settlement_workflow_conflict", "Cash/card cannot be added while an external invoice payment is active")
 		}
 	}
 	balance, err := q.SumAllocations(ctx, &o.ID)
@@ -74,7 +85,7 @@ func (s *Service) receipt(ctx context.Context, tx pgx.Tx, p authorization.Princi
 	if err != nil {
 		return db.Payment{}, err
 	}
-	payment, err := q.InsertPayment(ctx, db.InsertPaymentParams{ID: newID(), Reference: reference("P", n), EntryKind: "receipt", Method: input.Method, Amount: numeric(amount), OccurredAt: input.OccurredAt.UTC(), ActorAccountID: &p.AccountID, ExternalSource: strings.TrimSpace(input.ExternalSource), ExternalReference: strings.TrimSpace(input.ExternalReference), ExternalInvoiceRequestID: invoiceID})
+	payment, err := q.InsertPayment(ctx, db.InsertPaymentParams{ID: newID(), Reference: reference("P", n), EntryKind: "receipt", Method: input.Method, Amount: numeric(amount), OccurredAt: input.OccurredAt.UTC(), ActorAccountID: &p.AccountID, ExternalSource: strings.TrimSpace(input.ExternalSource), ExternalReference: strings.TrimSpace(input.ExternalReference)})
 	if err != nil {
 		return payment, databaseError(err)
 	}
@@ -82,6 +93,9 @@ func (s *Service) receipt(ctx context.Context, tx pgx.Tx, p authorization.Princi
 		return payment, err
 	}
 	if err = q.BumpOrder(ctx, o.ID); err != nil {
+		return payment, err
+	}
+	if err = s.syncAlreadyPaid(ctx, q, o.ID); err != nil {
 		return payment, err
 	}
 	return payment, writeAudit(ctx, tx, p, "payment.recorded", "payment", payment.ID, requestID, "amount", "method", "allocations")
@@ -124,8 +138,17 @@ func (s *Service) reverseReceipt(ctx context.Context, tx pgx.Tx, p authorization
 		if e != nil || r.State != "cancelled" {
 			return conflict("external_reconciliation_required", "Confirm external cancellation/correction first")
 		}
-	} else if input.ReasonKind != "refund" && input.ReasonKind != "recording_error" {
-		return validation("Select refund or recording error")
+	} else {
+		if input.ReasonKind != "refund" && input.ReasonKind != "recording_error" {
+			return validation("Select refund or recording error")
+		}
+		if r, e := q.ActiveRequest(ctx, &o.ID); e == nil {
+			if r.State != "draft" {
+				return conflict("invoice_amount_frozen", "The wiRef request "+r.Reference+" states what was already paid; return or cancel it first")
+			}
+		} else if !errors.Is(e, pgx.ErrNoRows) {
+			return e
+		}
 	}
 	occurred := input.OccurredAt.UTC()
 	if input.ReasonKind == "recording_error" {
@@ -146,6 +169,9 @@ func (s *Service) reverseReceipt(ctx context.Context, tx pgx.Tx, p authorization
 		return err
 	}
 	if err = q.BumpOrder(ctx, o.ID); err != nil {
+		return err
+	}
+	if err = s.syncAlreadyPaid(ctx, q, o.ID); err != nil {
 		return err
 	}
 	return writeAudit(ctx, tx, p, "payment.reversed", "payment", v.ID, requestID, "reversal", "allocations")
@@ -265,6 +291,9 @@ func (s *Service) loadPayment(ctx context.Context, q *db.Queries, id uuid.UUID) 
 		return OrderPayment{}, databaseError(err)
 	}
 	v := OrderPayment{ID: r.ID, Reference: r.Reference, EntryKind: r.EntryKind, Method: r.Method, Amount: money(r.Amount), OccurredAt: r.OccurredAt, RecordedAt: r.RecordedAt, ReversesPaymentID: r.ReversesPaymentID, ReversedPaymentReference: r.ReversedPaymentReference, ReasonKind: r.ReversalReasonKind, Reason: r.Reason, ExternalSource: r.ExternalSource, ExternalReference: r.ExternalReference, Allocations: []OrderAllocation{}}
+	if v.RecordedBy, err = s.actor(ctx, q, r.ActorAccountID); err != nil {
+		return v, err
+	}
 	a, err := q.PaymentAllocations(ctx, &id)
 	if err != nil {
 		return v, err

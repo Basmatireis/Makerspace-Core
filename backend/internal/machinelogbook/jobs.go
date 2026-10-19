@@ -173,35 +173,69 @@ func validateParty(ctx context.Context, q *machinelogbookdb.Queries, party Party
 	}
 }
 
+// Where the pricing group of a job comes from, in the order of precedence.
+const (
+	PricingSourceExplicit     = "explicit"
+	PricingSourceOrganization = "organization"
+	PricingSourceRole         = "role"
+	PricingSourceDefault      = "default"
+)
+
 func resolvePricingGroup(ctx context.Context, q *machinelogbookdb.Queries, personID, organizationID, explicit *uuid.UUID) (machinelogbookdb.PricingGroup, error) {
-	var group machinelogbookdb.PricingGroup
-	var err error
+	group, _, err := resolvePricingGroupSource(ctx, q, personID, organizationID, explicit)
+	return group, err
+}
+
+// resolvePricingGroupSource picks the pricing group of a job: the group set on the job, else the group
+// of the organization it is billed to, else the group mapped to the highest-priority role of the
+// person it is billed to, else the default group. Inactive mapped groups are skipped; an inactive
+// explicit group is refused.
+func resolvePricingGroupSource(ctx context.Context, q *machinelogbookdb.Queries, personID, organizationID, explicit *uuid.UUID) (machinelogbookdb.PricingGroup, string, error) {
 	if explicit != nil {
-		group, err = q.GetPricingGroup(ctx, *explicit)
+		group, err := q.GetPricingGroup(ctx, *explicit)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return group, apperror.NotFound
+			return group, "", apperror.NotFound
 		}
 		if err != nil {
-			return group, err
+			return group, "", err
+		}
+		if !group.Active {
+			return group, "", conflict("pricing_group_inactive", "Pricing group is inactive")
+		}
+		return group, PricingSourceExplicit, nil
+	}
+	if organizationID != nil {
+		group, err := q.GetOrganizationPricingGroup(ctx, *organizationID)
+		if err == nil {
+			return group, PricingSourceOrganization, nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return group, "", err
 		}
 	} else if personID != nil {
-		group, err = q.GetPersonPricingGroup(ctx, *personID)
-	} else if organizationID != nil {
-		group, err = q.GetOrganizationPricingGroup(ctx, *organizationID)
+		group, err := q.GetPersonRolePricingGroup(ctx, *personID)
+		if err == nil {
+			return group, PricingSourceRole, nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return group, "", err
+		}
 	}
-	if explicit == nil && (errors.Is(err, pgx.ErrNoRows) || (err == nil && group.ID == uuid.Nil)) {
-		group, err = q.GetDefaultPricingGroup(ctx)
-	}
+	group, err := q.GetDefaultPricingGroup(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return group, validation("pricingGroupId is required because no default pricing group resolves")
+		return group, "", validation("pricingGroupId is required because no default pricing group resolves")
 	}
 	if err != nil {
-		return group, err
+		return group, "", err
 	}
-	if !group.Active {
-		return group, conflict("pricing_group_inactive", "Pricing group is inactive")
-	}
-	return group, nil
+	return group, PricingSourceDefault, nil
+}
+
+// ResolvePricingGroup applies the pricing group precedence inside the caller's transaction, for features
+// that create jobs outside this package. It returns the group and its source.
+func ResolvePricingGroup(ctx context.Context, tx pgx.Tx, personID, organizationID, explicit *uuid.UUID) (uuid.UUID, string, string, error) {
+	group, source, err := resolvePricingGroupSource(ctx, machinelogbookdb.New(tx), personID, organizationID, explicit)
+	return group.ID, group.Name, source, err
 }
 
 // resolveUsageFills attaches the open fill of every spool usage, locking the
@@ -546,7 +580,7 @@ func (s *Service) CreateManualJob(ctx context.Context, p authorization.Principal
 		return MachineJob{}, err
 	}
 	defer tx.Rollback(ctx)
-	job, err := s.CreateManualJobInTransaction(ctx, tx, false, p, input, requestID)
+	job, err := s.CreateManualJobInTransaction(ctx, tx, p, input, requestID)
 	if err != nil {
 		return MachineJob{}, err
 	}
@@ -557,7 +591,7 @@ func (s *Service) CreateManualJob(ctx context.Context, p authorization.Principal
 }
 
 // CreateManualJobInTransaction creates a job with one manual run.
-func (s *Service) CreateManualJobInTransaction(ctx context.Context, tx pgx.Tx, anonymous bool, p authorization.Principal, input JobInput, requestID *uuid.UUID) (MachineJob, error) {
+func (s *Service) CreateManualJobInTransaction(ctx context.Context, tx pgx.Tx, p authorization.Principal, input JobInput, requestID *uuid.UUID) (MachineJob, error) {
 	if err := require(p, authorization.MachineJobsCreate); err != nil {
 		return MachineJob{}, err
 	}
@@ -582,7 +616,7 @@ func (s *Service) CreateManualJobInTransaction(ctx context.Context, tx pgx.Tx, a
 	if machine.Status == "retired" {
 		return MachineJob{}, conflict("machine_retired", "Retired machines cannot receive new jobs")
 	}
-	personID, organizationID, err := validateJobAssignments(ctx, q, input.Customer, input.OperatorPersonID, anonymous)
+	personID, organizationID, err := validateJobAssignments(ctx, q, input.Customer, input.OperatorPersonID, false)
 	if err != nil {
 		return MachineJob{}, err
 	}
@@ -628,11 +662,7 @@ func (s *Service) loadBillingParty(ctx context.Context, q *machinelogbookdb.Quer
 		if err != nil {
 			return nil, err
 		}
-		item := &BillingParty{ID: row.ID, Kind: "person", DisplayName: row.DisplayName, PricingGroupAssignmentVersion: row.PricingGroupAssignmentVersion}
-		if row.PricingGroupID != nil && row.PricingGroupName != nil {
-			item.PricingGroup = &PricingGroupSummary{ID: *row.PricingGroupID, Name: *row.PricingGroupName}
-		}
-		return item, nil
+		return &BillingParty{ID: row.ID, Kind: "person", DisplayName: row.DisplayName}, nil
 	}
 	if job.CustomerOrganizationID != nil {
 		row, err := q.GetBillingOrganization(ctx, *job.CustomerOrganizationID)

@@ -207,10 +207,10 @@ func TestJobStatusAndOutcomeGuard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = f.s.CreateManualJobInTransaction(ctx, tx, true, f.p, f.input(-time.Hour, 3*time.Hour, "failed"), &f.request)
+	_, err = f.s.CreateManualJobInTransaction(ctx, tx, f.p, f.input(-time.Hour, 3*time.Hour, "failed"), &f.request)
 	_ = tx.Rollback(ctx)
 	if !apperror.IsCode(err, "outcome_before_run_end") {
-		t.Fatalf("counter-sale path allowed an outcome before the run end: %v", err)
+		t.Fatalf("transactional path allowed an outcome before the run end: %v", err)
 	}
 	if _, err = f.s.CreateManualJob(ctx, f.p, f.input(-time.Hour, time.Hour, "bogus"), &f.request); !apperror.IsCode(err, "validation_failed") {
 		t.Fatalf("invalid outcome: %v", err)

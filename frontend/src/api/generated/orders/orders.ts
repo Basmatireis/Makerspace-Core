@@ -19,8 +19,6 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type {
-  CounterSaleCommand,
-  CounterSaleQuote,
   JobOrderAssociation,
   ListOrdersParams,
   Order,
@@ -350,27 +348,6 @@ export const replaceOrder = async (orderId: UUIDv7,
 );}
 
 
-export const getCompleteCounterSaleUrl = () => {
-
-
-
-
-  return `/api/v1/counter-sales`
-}
-
-export const completeCounterSale = async (counterSaleCommand: CounterSaleCommand, options?: RequestInit): Promise<Order> => {
-
-  return apiFetch<Order>(getCompleteCounterSaleUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      counterSaleCommand,)
-  }
-);}
-
-
 export const getGetJobOrderAssociationUrl = (machineJobId: UUIDv7,) => {
 
 
@@ -387,27 +364,6 @@ export const getJobOrderAssociation = async (machineJobId: UUIDv7, options?: Req
     method: 'GET'
 
 
-  }
-);}
-
-
-export const getPreviewCounterSaleUrl = () => {
-
-
-
-
-  return `/api/v1/counter-sales/preview`
-}
-
-export const previewCounterSale = async (counterSaleCommand: CounterSaleCommand, options?: RequestInit): Promise<CounterSaleQuote> => {
-
-  return apiFetch<CounterSaleQuote>(getPreviewCounterSaleUrl(),
-  {
-    ...options,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    body: JSON.stringify(
-      counterSaleCommand,)
   }
 );}
 

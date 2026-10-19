@@ -255,6 +255,21 @@ func (s *Service) Update(ctx context.Context, p authorization.Principal, id uuid
 	}
 	return result, databaseError(tx.Commit(ctx))
 }
+
+// actor resolves the display name of the person behind an account. Nil once the account or person was deleted.
+func (s *Service) actor(ctx context.Context, q *db.Queries, account *uuid.UUID) (*Actor, error) {
+	if account == nil {
+		return nil, nil
+	}
+	row, err := q.GetActor(ctx, *account)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &Actor{ID: row.ID, DisplayName: row.DisplayName}, nil
+}
 func allocation(v db.PaymentAllocation) OrderAllocation {
 	return OrderAllocation{ID: v.ID, PaymentID: v.PaymentID, PaymentReference: v.PaymentReference, OrderID: v.OrderID, OrderReference: v.OrderReference, Amount: d(v.Amount).StringFixed(2), OperationID: v.OperationID, CreatedAt: v.CreatedAt}
 }
@@ -269,6 +284,13 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 	}
 	if o.CustomerOrganizationID != nil {
 		v.Customer = &OrderCustomer{Kind: "organization", ID: *o.CustomerOrganizationID}
+	}
+	if o.CreatedByAccountID != nil {
+		actor, e := s.actor(ctx, q, o.CreatedByAccountID)
+		if e != nil {
+			return v, e
+		}
+		v.CreatedBy = actor
 	}
 	name, e := q.GetCustomerName(ctx, id)
 	if e == nil {

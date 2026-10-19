@@ -88,10 +88,6 @@ func TestSeparatedFinancialPermissions(t *testing.T) {
 	if _, e = f.s.CreateRequest(ctx, requestManager, o.ID, CreateInvoiceRequest{}, nil); !apperror.IsCode(e, "permission_denied") {
 		t.Fatal(e)
 	}
-	counter := CounterSaleCommand{OperationKey: newID(), ImmediateFulfillmentConfirmed: true}
-	if _, e = f.s.CounterSale(ctx, recorder, counter, nil); !apperror.IsCode(e, "permission_denied") {
-		t.Fatal(e)
-	}
 }
 
 func TestDraftEditingStaleVersionsAndConcurrentFinalization(t *testing.T) {
@@ -201,7 +197,7 @@ func TestLowerAnonymousReplacementRequiresExplicitWholeReceiptCorrection(t *test
 	}
 }
 
-func TestAnonymousPreviewInventoryAndOperationalCorrection(t *testing.T) {
+func TestOperationalCorrectionKeepsTheFinancialSnapshot(t *testing.T) {
 	f := newFixture(t)
 	ctx := t.Context()
 	materials := []uuid.UUID{}
@@ -223,40 +219,31 @@ func TestAnonymousPreviewInventoryAndOperationalCorrection(t *testing.T) {
 		t.Fatal(e)
 	}
 	start := time.Now().UTC().Add(-3 * time.Hour)
-	input := CounterSaleCommand{OperationKey: newID(), ImmediateFulfillmentConfirmed: true, Job: CounterSaleJob{ManualJob: &ManualJob{MachineID: f.machine, StartsAt: start, EndsAt: start.Add(time.Hour), OperatorPersonID: f.person, Outcome: "successful", PricingGroupID: &f.group, Usages: []UsageInput{{MaterialID: materials[0], Quantity: "10"}, {MaterialID: materials[1], Quantity: "20"}}}}}
-	quote, e := f.s.PreviewCounterSale(ctx, f.p, input)
-	if e != nil || quote.TotalAmount != "13.00" {
-		t.Fatalf("repeated category charge: %v %+v", e, quote)
-	}
-	var count int
-	if e = f.pool.QueryRow(ctx, "SELECT count(*) FROM machine_jobs").Scan(&count); e != nil || count != 0 {
-		t.Fatal("preview persisted a job", e, count)
-	}
-	for _, id := range materials {
-		m, e := f.jobs.GetMaterial(ctx, f.p, id)
-		if e != nil || m.Quantity != "100" {
-			t.Fatal("preview consumed stock", e, m)
-		}
-	}
-	input.Payments = []PaymentInput{receipt("cash", "13")}
-	o, e := f.s.CounterSale(ctx, f.p, input, nil)
+	job, e := f.jobs.CreateManualJob(ctx, f.p, machinelogbook.JobInput{MachineID: f.machine, StartsAt: start, EndsAt: start.Add(time.Hour), Customer: machinelogbook.PartyReference{Kind: "organization", ID: f.organization}, OperatorPersonID: f.person, Outcome: "successful", PricingGroupID: &f.group, Usages: []machinelogbook.UsageInput{{MaterialID: materials[0], Quantity: "10"}, {MaterialID: materials[1], Quantity: "20"}}}, nil)
 	if e != nil {
 		t.Fatal(e)
 	}
-	job, e := f.jobs.GetJob(ctx, f.p, *o.Items[0].SourceMachineJobID)
+	o, e := f.s.Create(ctx, f.p, OrderDraftInput{Customer: &OrderCustomer{Kind: "organization", ID: f.organization}, FulfillmentMode: "immediate"}, nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	o, e = f.s.ChangeItem(ctx, f.p, o.ID, uuid.Nil, OrderItemInput{Kind: "machine_job", MachineJobID: job.ID, ExpectedJobVersion: job.Version, ExpectedVersion: o.Version}, "add", nil)
+	if e != nil || o.TotalAmount != "13.00" {
+		t.Fatalf("repeated category charge: %v %+v", e, o)
+	}
+	o, e = f.s.Command(ctx, f.p, o.ID, cmd(o), "finalize", nil)
 	if e != nil {
 		t.Fatal(e)
 	}
 	endsAt, successful := start.Add(2*time.Hour), "successful"
 	runResult, e := f.jobs.UpdateRun(ctx, f.p, job.Runs[0].ID, job.Runs[0].Version, machinelogbook.RunUpdate{EndsAt: &endsAt, Outcome: &successful}, nil)
-	if e != nil || runResult.Job.Customer != nil {
-		t.Fatal("anonymous operational correction failed", e)
+	if e != nil {
+		t.Fatal("operational correction failed", e)
 	}
 	runResult, e = f.jobs.ReplaceRunUsages(ctx, f.p, runResult.Run.ID, runResult.Run.Version, []machinelogbook.UsageInput{{MaterialID: materials[0], Quantity: "5"}, {MaterialID: materials[1], Quantity: "20"}}, nil)
 	if e != nil {
 		t.Fatal(e)
 	}
-	job = *runResult.Job
 	retained, e := f.s.Get(ctx, f.p, o.ID)
 	if e != nil || retained.TotalAmount != "13.00" || !retained.Items[0].SourceChanged {
 		t.Fatal(e, retained)
@@ -279,46 +266,6 @@ func TestAnonymousPreviewInventoryAndOperationalCorrection(t *testing.T) {
 		if _, ok := fields[key]; ok {
 			t.Fatal("unnecessary identity in financial snapshot", key)
 		}
-	}
-}
-
-func TestAnonymousCounterSaleIsAtomic(t *testing.T) {
-	f := newFixture(t)
-	ctx := t.Context()
-	machine, e := f.jobs.GetMachine(ctx, f.p, f.machine)
-	if e != nil {
-		t.Fatal(e)
-	}
-	if _, e = f.jobs.UpdateMachine(ctx, f.p, machine.ID, machine.Version, machine.MachineType.ID, machine.Name, "active", nil, true, nil); e != nil {
-		t.Fatal(e)
-	}
-	start := time.Now().UTC().Add(-time.Hour)
-	countJobs := func() int {
-		var n int
-		if e := f.pool.QueryRow(ctx, "SELECT count(*) FROM machine_jobs WHERE machine_id=$1", f.machine).Scan(&n); e != nil {
-			t.Fatal(e)
-		}
-		return n
-	}
-	before := countJobs()
-	input := CounterSaleCommand{OperationKey: newID(), ImmediateFulfillmentConfirmed: true, Job: CounterSaleJob{ManualJob: &ManualJob{MachineID: f.machine, StartsAt: start, EndsAt: start.Add(time.Hour), OperatorPersonID: f.person, Outcome: "successful", PricingGroupID: &f.group, Usages: []UsageInput{}}}, Payments: []PaymentInput{receipt("card", "9")}}
-	if _, e = f.s.CounterSale(ctx, f.p, input, nil); e == nil {
-		t.Fatal("partial counter sale accepted")
-	}
-	if countJobs() != before {
-		t.Fatal("failed payment left a machine job behind")
-	}
-	input.OperationKey = newID()
-	input.Payments = []PaymentInput{receipt("card", "10")}
-	o, e := f.s.CounterSale(ctx, f.p, input, nil)
-	if e != nil || o.SettlementState != "paid" {
-		t.Fatal(e, o)
-	}
-	if countJobs() != before+1 {
-		t.Fatal("counter sale did not create exactly one machine job")
-	}
-	if _, e = f.pool.Exec(ctx, "UPDATE orders SET fulfillment_mode='deferred' WHERE id=$1", o.ID); e == nil {
-		t.Fatal("anonymous deferred history accepted")
 	}
 }
 

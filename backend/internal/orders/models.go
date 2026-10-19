@@ -6,6 +6,12 @@ import (
 	"github.com/google/uuid"
 )
 
+// Actor is the display name of the person behind a recorded action. It carries no other personal data.
+type Actor struct {
+	ID          uuid.UUID `json:"id"`
+	DisplayName string    `json:"displayName"`
+}
+
 type OrderCustomer struct {
 	Kind string    `json:"kind"`
 	ID   uuid.UUID `json:"id"`
@@ -157,6 +163,7 @@ type Order struct {
 	Version                        int64             `json:"version"`
 	CreatedAt                      time.Time         `json:"createdAt"`
 	UpdatedAt                      time.Time         `json:"updatedAt"`
+	CreatedBy                      *Actor            `json:"createdBy"`
 }
 
 type OrderPayment struct {
@@ -174,6 +181,7 @@ type OrderPayment struct {
 	ExternalSource           string            `json:"externalSource"`
 	ExternalReference        string            `json:"externalReference"`
 	Allocations              []OrderAllocation `json:"allocations"`
+	RecordedBy               *Actor            `json:"recordedBy"`
 }
 
 type OrderPage struct {
@@ -263,6 +271,7 @@ type InvoiceRequestEvent struct {
 	Reason             string    `json:"reason"`
 	EffectiveAt        time.Time `json:"effectiveAt"`
 	RecordedAt         time.Time `json:"recordedAt"`
+	RecordedBy         *Actor    `json:"recordedBy"`
 }
 
 type ExternalInvoiceRequest struct {
@@ -274,6 +283,7 @@ type ExternalInvoiceRequest struct {
 	State                         string                `json:"state"`
 	Currency                      string                `json:"currency"`
 	RequestedAmount               string                `json:"requestedAmount"`
+	AlreadyPaid                   string                `json:"alreadyPaid"`
 	Details                       InvoiceRequestDetails `json:"details"`
 	RequirePurchaseOrderReference bool                  `json:"requirePurchaseOrderReference"`
 	RequirementsVersion           int64                 `json:"requirementsVersion"`
@@ -288,18 +298,6 @@ type JobOrderAssociation struct {
 	OrderID        *uuid.UUID `json:"orderId"`
 	OrderReference *string    `json:"orderReference"`
 	SourceChanged  bool       `json:"sourceChanged"`
-}
-
-type CounterSaleJob struct {
-	ManualJob *ManualJob `json:"manualJob,omitempty"`
-}
-
-type CounterSaleCommand struct {
-	OperationKey                  uuid.UUID        `json:"operationKey"`
-	ImmediateFulfillmentConfirmed bool             `json:"immediateFulfillmentConfirmed"`
-	Job                           CounterSaleJob   `json:"job"`
-	Payments                      []PaymentInput   `json:"payments"`
-	ManualItems                   []OrderItemInput `json:"manualItems,omitempty"`
 }
 
 type JobUsage struct {
@@ -339,27 +337,41 @@ type PriceRule struct {
 	Rate         *string    `json:"rate"`
 	Missing      bool       `json:"missing"`
 }
-type UsageInput struct {
-	MaterialID           uuid.UUID  `json:"materialId,omitempty"`
-	SpoolID              *uuid.UUID `json:"spoolId"`
-	Ownership            string     `json:"ownership"`
-	ExternalMaterialName *string    `json:"externalMaterialName"`
-	Quantity             string     `json:"quantity"`
-	QuantityBasis        string     `json:"quantityBasis"`
-}
-type ManualJob struct {
-	MachineID        uuid.UUID      `json:"machineId"`
-	StartsAt         time.Time      `json:"startsAt"`
-	EndsAt           time.Time      `json:"endsAt"`
-	Customer         *OrderCustomer `json:"customer"`
-	OperatorPersonID uuid.UUID      `json:"operatorPersonId"`
-	Outcome          string         `json:"outcome"`
-	Notes            *string        `json:"notes"`
-	PricingGroupID   *uuid.UUID     `json:"pricingGroupId"`
-	Usages           []UsageInput   `json:"usages"`
+
+type CashMovementInput struct {
+	OperationKey uuid.UUID `json:"operationKey"`
+	Kind         string    `json:"kind"`
+	Amount       string    `json:"amount"`
+	Reason       string    `json:"reason"`
+	Note         string    `json:"note,omitempty"`
+	OccurredAt   time.Time `json:"occurredAt"`
 }
 
-type CounterSaleQuote struct {
-	TotalAmount string `json:"totalAmount"`
-	Currency    string `json:"currency"`
+type CashMovement struct {
+	ID         uuid.UUID `json:"id"`
+	Reference  string    `json:"reference"`
+	Kind       string    `json:"kind"`
+	Amount     string    `json:"amount"`
+	Reason     string    `json:"reason"`
+	Note       string    `json:"note"`
+	OccurredAt time.Time `json:"occurredAt"`
+	CreatedAt  time.Time `json:"createdAt"`
+	RecordedBy *Actor    `json:"recordedBy"`
+}
+
+type CashMovementPage struct {
+	Items    []CashMovement `json:"items"`
+	Page     int64          `json:"page"`
+	PageSize int64          `json:"pageSize"`
+	Total    int64          `json:"total"`
+}
+
+// CashRegister counts cash only: card and external (wiRef) payments never change it.
+type CashRegister struct {
+	Receipts    string     `json:"receipts"`
+	Refunds     string     `json:"refunds"`
+	Withdrawals string     `json:"withdrawals"`
+	Deposits    string     `json:"deposits"`
+	Expected    string     `json:"expected"`
+	To          *time.Time `json:"to"`
 }

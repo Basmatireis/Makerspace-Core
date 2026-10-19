@@ -14,17 +14,23 @@ import (
 type Querier interface {
 	ActiveReceipts(ctx context.Context, orderID *uuid.UUID) ([]Payment, error)
 	ActiveRequest(ctx context.Context, orderID *uuid.UUID) (ExternalInvoiceRequest, error)
+	ActiveRequestReceipts(ctx context.Context, arg ActiveRequestReceiptsParams) ([]Payment, error)
 	AllocatedOrderID(ctx context.Context, paymentID *uuid.UUID) (*uuid.UUID, error)
 	BumpOrder(ctx context.Context, id uuid.UUID) error
 	CaptureCustomer(ctx context.Context, arg CaptureCustomerParams) error
+	CashMovementFigures(ctx context.Context, toTime pgtype.Timestamptz) (CashMovementFiguresRow, error)
+	CashPaymentFigures(ctx context.Context, toTime pgtype.Timestamptz) (CashPaymentFiguresRow, error)
 	ClaimJob(ctx context.Context, arg ClaimJobParams) error
 	CommittedReplacement(ctx context.Context, replacesOrderID *uuid.UUID) (CommittedReplacementRow, error)
+	CountCashMovements(ctx context.Context, arg CountCashMovementsParams) (int64, error)
 	CountOrders(ctx context.Context, arg CountOrdersParams) (int64, error)
 	CountPayments(ctx context.Context, arg CountPaymentsParams) (int64, error)
 	CountRequests(ctx context.Context, arg CountRequestsParams) (int64, error)
 	CreateOrder(ctx context.Context, arg CreateOrderParams) (Order, error)
 	CreateRequest(ctx context.Context, arg CreateRequestParams) (ExternalInvoiceRequest, error)
 	CreateRequestDetails(ctx context.Context, arg CreateRequestDetailsParams) error
+	GetActor(ctx context.Context, id uuid.UUID) (GetActorRow, error)
+	GetCashMovementByKey(ctx context.Context, operationKey uuid.UUID) (CashMovement, error)
 	GetCustomerName(ctx context.Context, id uuid.UUID) (string, error)
 	GetItem(ctx context.Context, arg GetItemParams) (OrderItem, error)
 	GetJobClaim(ctx context.Context, machineJobID uuid.UUID) (GetJobClaimRow, error)
@@ -39,22 +45,26 @@ type Querier interface {
 	InsertAdjustment(ctx context.Context, arg InsertAdjustmentParams) error
 	InsertAdjustmentItems(ctx context.Context, arg InsertAdjustmentItemsParams) error
 	InsertAllocation(ctx context.Context, arg InsertAllocationParams) error
+	InsertCashMovement(ctx context.Context, arg InsertCashMovementParams) (CashMovement, error)
 	InsertItem(ctx context.Context, arg InsertItemParams) (OrderItem, error)
 	InsertPayment(ctx context.Context, arg InsertPaymentParams) (Payment, error)
 	InsertRequestEvent(ctx context.Context, arg InsertRequestEventParams) error
 	LatestRequest(ctx context.Context, orderID *uuid.UUID) (ExternalInvoiceRequest, error)
 	ListAdjustments(ctx context.Context, orderID *uuid.UUID) ([]OrderAdjustment, error)
 	ListAllocations(ctx context.Context, orderID *uuid.UUID) ([]PaymentAllocation, error)
+	ListCashMovements(ctx context.Context, arg ListCashMovementsParams) ([]CashMovement, error)
 	ListItems(ctx context.Context, orderID uuid.UUID) ([]ListItemsRow, error)
 	ListOrders(ctx context.Context, arg ListOrdersParams) ([]Order, error)
 	ListPayments(ctx context.Context, arg ListPaymentsParams) ([]Payment, error)
 	ListRequests(ctx context.Context, arg ListRequestsParams) ([]ExternalInvoiceRequest, error)
+	LockCashRegister(ctx context.Context) error
 	LockOperation(ctx context.Context, operationKey string) error
 	LockOrder(ctx context.Context, id uuid.UUID) (Order, error)
 	LockOrganizationRequirements(ctx context.Context, id uuid.UUID) error
 	LockPayment(ctx context.Context, id uuid.UUID) (Payment, error)
 	LockRequest(ctx context.Context, id uuid.UUID) (ExternalInvoiceRequest, error)
 	NextAdjustmentReference(ctx context.Context) (int64, error)
+	NextCashMovementReference(ctx context.Context) (int64, error)
 	NextOrderReference(ctx context.Context) (int64, error)
 	NextPaymentReference(ctx context.Context) (int64, error)
 	NextRequestReference(ctx context.Context) (int64, error)
@@ -64,10 +74,13 @@ type Querier interface {
 	ReleaseItemClaim(ctx context.Context, orderItemID uuid.UUID) error
 	ReleaseOrderClaims(ctx context.Context, orderID uuid.UUID) error
 	RemoveItem(ctx context.Context, arg RemoveItemParams) error
-	RequestEvents(ctx context.Context, requestID uuid.UUID) ([]ExternalInvoiceRequestEvent, error)
+	RequestEvents(ctx context.Context, requestID uuid.UUID) ([]RequestEventsRow, error)
+	RequestHasReference(ctx context.Context, requestID uuid.UUID) (bool, error)
 	SaveOperation(ctx context.Context, arg SaveOperationParams) error
 	SaveRequirements(ctx context.Context, arg SaveRequirementsParams) (OrganizationInvoicingRequirement, error)
+	SetRequestAlreadyPaid(ctx context.Context, arg SetRequestAlreadyPaidParams) error
 	SumAllocations(ctx context.Context, orderID *uuid.UUID) (pgtype.Numeric, error)
+	SumCashCardAllocations(ctx context.Context, orderID *uuid.UUID) (pgtype.Numeric, error)
 	TransitionOrder(ctx context.Context, arg TransitionOrderParams) error
 	TransitionRequest(ctx context.Context, arg TransitionRequestParams) error
 	UpdateDraft(ctx context.Context, arg UpdateDraftParams) (Order, error)

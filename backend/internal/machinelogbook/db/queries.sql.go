@@ -1397,20 +1397,13 @@ func (q *Queries) DeleteOrganizationPricingAssignment(ctx context.Context, arg D
 	return organization_id, err
 }
 
-const deletePersonPricingAssignment = `-- name: DeletePersonPricingAssignment :one
-DELETE FROM person_pricing_group_assignments WHERE person_id = $1 AND version = $2 RETURNING person_id
+const deleteRolePricingGroups = `-- name: DeleteRolePricingGroups :exec
+DELETE FROM role_pricing_groups
 `
 
-type DeletePersonPricingAssignmentParams struct {
-	PersonID        uuid.UUID
-	ExpectedVersion int64
-}
-
-func (q *Queries) DeletePersonPricingAssignment(ctx context.Context, arg DeletePersonPricingAssignmentParams) (uuid.UUID, error) {
-	row := q.db.QueryRow(ctx, deletePersonPricingAssignment, arg.PersonID, arg.ExpectedVersion)
-	var person_id uuid.UUID
-	err := row.Scan(&person_id)
-	return person_id, err
+func (q *Queries) DeleteRolePricingGroups(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteRolePricingGroups)
+	return err
 }
 
 const deleteRunMeasures = `-- name: DeleteRunMeasures :exec
@@ -1597,33 +1590,20 @@ func (q *Queries) GetBillingOrganization(ctx context.Context, id uuid.UUID) (Get
 }
 
 const getBillingPerson = `-- name: GetBillingPerson :one
-SELECT p.id, btrim(p.first_name || ' ' || p.last_name) AS display_name,
-       pg.id AS pricing_group_id, pg.name AS pricing_group_name,
-       COALESCE(a.version, 0)::bigint AS pricing_group_assignment_version
+SELECT p.id, btrim(p.first_name || ' ' || p.last_name) AS display_name
 FROM people p
-LEFT JOIN person_pricing_group_assignments a ON a.person_id = p.id
-LEFT JOIN pricing_groups pg ON pg.id = a.pricing_group_id
 WHERE p.id = $1
 `
 
 type GetBillingPersonRow struct {
-	ID                            uuid.UUID
-	DisplayName                   string
-	PricingGroupID                *uuid.UUID
-	PricingGroupName              *string
-	PricingGroupAssignmentVersion int64
+	ID          uuid.UUID
+	DisplayName string
 }
 
 func (q *Queries) GetBillingPerson(ctx context.Context, id uuid.UUID) (GetBillingPersonRow, error) {
 	row := q.db.QueryRow(ctx, getBillingPerson, id)
 	var i GetBillingPersonRow
-	err := row.Scan(
-		&i.ID,
-		&i.DisplayName,
-		&i.PricingGroupID,
-		&i.PricingGroupName,
-		&i.PricingGroupAssignmentVersion,
-	)
+	err := row.Scan(&i.ID, &i.DisplayName)
 	return i, err
 }
 
@@ -2516,13 +2496,18 @@ func (q *Queries) GetOrganizationPricingGroup(ctx context.Context, organizationI
 	return i, err
 }
 
-const getPersonPricingGroup = `-- name: GetPersonPricingGroup :one
-SELECT pg.id, pg.name, pg.description, pg.active, pg.is_default, pg.version, pg.created_at, pg.updated_at FROM person_pricing_group_assignments a JOIN pricing_groups pg ON pg.id = a.pricing_group_id
-WHERE a.person_id = $1 AND pg.active
+const getPersonRolePricingGroup = `-- name: GetPersonRolePricingGroup :one
+SELECT pg.id, pg.name, pg.description, pg.active, pg.is_default, pg.version, pg.created_at, pg.updated_at FROM person_roles pr
+JOIN role_pricing_groups rpg ON rpg.role_id = pr.role_id
+JOIN pricing_groups pg ON pg.id = rpg.pricing_group_id
+WHERE pr.person_id = $1 AND pg.active
+ORDER BY rpg.priority DESC
+LIMIT 1
 `
 
-func (q *Queries) GetPersonPricingGroup(ctx context.Context, personID uuid.UUID) (PricingGroup, error) {
-	row := q.db.QueryRow(ctx, getPersonPricingGroup, personID)
+// The active group of the person's highest-priority mapped role (larger priority wins).
+func (q *Queries) GetPersonRolePricingGroup(ctx context.Context, personID uuid.UUID) (PricingGroup, error) {
+	row := q.db.QueryRow(ctx, getPersonRolePricingGroup, personID)
 	var i PricingGroup
 	err := row.Scan(
 		&i.ID,
@@ -2985,6 +2970,28 @@ func (q *Queries) InsertPricingSnapshotRule(ctx context.Context, arg InsertPrici
 		&i.BlockSize,
 	)
 	return i, err
+}
+
+const insertRolePricingGroup = `-- name: InsertRolePricingGroup :exec
+INSERT INTO role_pricing_groups (role_id, pricing_group_id, priority, updated_by_account_id)
+VALUES ($1, $2, $3, $4)
+`
+
+type InsertRolePricingGroupParams struct {
+	RoleID             uuid.UUID
+	PricingGroupID     uuid.UUID
+	Priority           int32
+	UpdatedByAccountID *uuid.UUID
+}
+
+func (q *Queries) InsertRolePricingGroup(ctx context.Context, arg InsertRolePricingGroupParams) error {
+	_, err := q.db.Exec(ctx, insertRolePricingGroup,
+		arg.RoleID,
+		arg.PricingGroupID,
+		arg.Priority,
+		arg.UpdatedByAccountID,
+	)
+	return err
 }
 
 const insertRunUsage = `-- name: InsertRunUsage :one
@@ -4927,6 +4934,48 @@ func (q *Queries) ListRetiredFilamentSpoolIdentifiers(ctx context.Context, spool
 	return items, nil
 }
 
+const listRolePricingGroups = `-- name: ListRolePricingGroups :many
+SELECT rpg.role_id, r.name AS role_name, rpg.pricing_group_id, pg.name AS pricing_group_name, rpg.priority
+FROM role_pricing_groups rpg
+JOIN roles r ON r.id = rpg.role_id
+JOIN pricing_groups pg ON pg.id = rpg.pricing_group_id
+ORDER BY rpg.priority DESC, rpg.role_id
+`
+
+type ListRolePricingGroupsRow struct {
+	RoleID           uuid.UUID
+	RoleName         string
+	PricingGroupID   uuid.UUID
+	PricingGroupName string
+	Priority         int32
+}
+
+func (q *Queries) ListRolePricingGroups(ctx context.Context) ([]ListRolePricingGroupsRow, error) {
+	rows, err := q.db.Query(ctx, listRolePricingGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRolePricingGroupsRow{}
+	for rows.Next() {
+		var i ListRolePricingGroupsRow
+		if err := rows.Scan(
+			&i.RoleID,
+			&i.RoleName,
+			&i.PricingGroupID,
+			&i.PricingGroupName,
+			&i.Priority,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRunEvents = `-- name: ListRunEvents :many
 SELECT id, kind, occurred_at, payload FROM printer_events
 WHERE run_id = $1
@@ -5370,9 +5419,9 @@ WITH items AS (
            (CASE WHEN j.customer_person_id IS NOT NULL THEN 'person' WHEN j.customer_organization_id IS NOT NULL THEN 'organization' END)::text,
            COALESCE(btrim(cp.first_name || ' ' || cp.last_name), co.name)::text,
            co.kind,
-           COALESCE(cpg.id, cog.id),
-           COALESCE(cpg.name, cog.name),
-           COALESCE(cpa.version, coa.version, 0)::bigint,
+           cog.id,
+           cog.name,
+           COALESCE(coa.version, 0)::bigint,
            j.operator_person_id, btrim(op.first_name || ' ' || op.last_name)::text,
            (CASE WHEN COALESCE(s.running, false) THEN 'running'
                  ELSE COALESCE(j.outcome_override, NULLIF(s.derived_outcome, 'unknown'), 'needs_outcome') END)::text,
@@ -5400,8 +5449,6 @@ WITH items AS (
         ORDER BY COALESCE(lrr.started_at, lrr.first_observed_at) DESC, lrr.id DESC LIMIT 1
     ) lr ON true
     LEFT JOIN people cp ON cp.id = j.customer_person_id
-    LEFT JOIN person_pricing_group_assignments cpa ON cpa.person_id = cp.id
-    LEFT JOIN pricing_groups cpg ON cpg.id = cpa.pricing_group_id
     LEFT JOIN organizations co ON co.id = j.customer_organization_id
     LEFT JOIN organization_pricing_group_assignments coa ON coa.organization_id = co.id
     LEFT JOIN pricing_groups cog ON cog.id = coa.pricing_group_id
@@ -5607,6 +5654,15 @@ func (q *Queries) LockFilamentSpoolCleanupCandidates(ctx context.Context, arg Lo
 		return nil, err
 	}
 	return items, nil
+}
+
+const lockRolePricingGroups = `-- name: LockRolePricingGroups :exec
+SELECT pg_advisory_xact_lock(hashtextextended('role_pricing_groups', 0))
+`
+
+func (q *Queries) LockRolePricingGroups(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, lockRolePricingGroups)
+	return err
 }
 
 const markManualRunReplaced = `-- name: MarkManualRunReplaced :exec
@@ -5883,16 +5939,25 @@ func (q *Queries) RetireFillIdentifiers(ctx context.Context, arg RetireFillIdent
 	return err
 }
 
+const roleExists = `-- name: RoleExists :one
+SELECT EXISTS (SELECT 1 FROM roles WHERE id = $1)
+`
+
+func (q *Queries) RoleExists(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, roleExists, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const searchBillingParties = `-- name: SearchBillingParties :many
 SELECT party_kind, party_id, display_name, organization_kind, pricing_group_id, pricing_group_name,
        pricing_group_assignment_version FROM (
     SELECT 'person'::text AS party_kind, p.id AS party_id, btrim(p.first_name || ' ' || p.last_name) AS display_name,
-           NULL::text AS organization_kind, pg.id AS pricing_group_id, pg.name AS pricing_group_name,
-           COALESCE(a.version, 0)::bigint AS pricing_group_assignment_version,
+           NULL::text AS organization_kind, NULL::uuid AS pricing_group_id, NULL::text AS pricing_group_name,
+           0::bigint AS pricing_group_assignment_version,
            lower(p.last_name || ' ' || p.first_name) AS ordering
     FROM people p
-    LEFT JOIN person_pricing_group_assignments a ON a.person_id = p.id
-    LEFT JOIN pricing_groups pg ON pg.id = a.pricing_group_id
     WHERE $1::text = '' OR lower(p.first_name || ' ' || p.last_name) LIKE '%' || lower($1::text) || '%'
     UNION ALL
     SELECT 'organization'::text, o.id, o.name, o.kind, pg.id, pg.name,
@@ -7422,41 +7487,6 @@ func (q *Queries) UpsertOrganizationPricingAssignment(ctx context.Context, arg U
 	var i OrganizationPricingGroupAssignment
 	err := row.Scan(
 		&i.OrganizationID,
-		&i.PricingGroupID,
-		&i.AssignedByAccountID,
-		&i.Version,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const upsertPersonPricingAssignment = `-- name: UpsertPersonPricingAssignment :one
-INSERT INTO person_pricing_group_assignments (person_id, pricing_group_id, assigned_by_account_id)
-VALUES ($1, $2, $3)
-ON CONFLICT (person_id) DO UPDATE SET pricing_group_id = EXCLUDED.pricing_group_id,
-    assigned_by_account_id = EXCLUDED.assigned_by_account_id, version = person_pricing_group_assignments.version + 1, updated_at = now()
-WHERE person_pricing_group_assignments.version = $4
-RETURNING person_id, pricing_group_id, assigned_by_account_id, version, created_at, updated_at
-`
-
-type UpsertPersonPricingAssignmentParams struct {
-	PersonID            uuid.UUID
-	PricingGroupID      uuid.UUID
-	AssignedByAccountID *uuid.UUID
-	ExpectedVersion     int64
-}
-
-func (q *Queries) UpsertPersonPricingAssignment(ctx context.Context, arg UpsertPersonPricingAssignmentParams) (PersonPricingGroupAssignment, error) {
-	row := q.db.QueryRow(ctx, upsertPersonPricingAssignment,
-		arg.PersonID,
-		arg.PricingGroupID,
-		arg.AssignedByAccountID,
-		arg.ExpectedVersion,
-	)
-	var i PersonPricingGroupAssignment
-	err := row.Scan(
-		&i.PersonID,
 		&i.PricingGroupID,
 		&i.AssignedByAccountID,
 		&i.Version,

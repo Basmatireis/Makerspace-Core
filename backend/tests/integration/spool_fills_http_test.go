@@ -171,7 +171,7 @@ func TestFilamentSpoolFillsCleanupAndProductsOverHTTP(t *testing.T) {
 
 	var detail openapi.FilamentSpool
 	api(reader, http.MethodGet, "/filament-spools/"+spool.ID.String(), http.StatusOK, nil, &detail)
-	if detail.Fills == nil || len(*detail.Fills) != 1 || (*detail.Fills)[0].LeftoverOutcome != openapi.LeftoverOutcomeReturnedToStock || (*detail.Fills)[0].LeftoverG != "1000" {
+	if detail.Fills == nil || len(*detail.Fills) != 1 || (*detail.Fills)[0].LeftoverOutcome != openapi.ReturnedToStock || (*detail.Fills)[0].LeftoverG != "1000" {
 		t.Fatalf("fill history: %+v", detail.Fills)
 	}
 	var page openapi.FilamentSpoolPage
