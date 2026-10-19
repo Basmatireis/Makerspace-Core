@@ -237,3 +237,7 @@ Für jede Phase gilt:
    - Bestellen darf trotzdem jeder für jede Organisation.
    - Die Zuordnung dient der Übersicht und schlägt die Organisation beim Anlegen eines Jobs vor.
 9. **Reihenfolge:** wie oben.
+
+## To do
+
+- **Orders und Zahlungen serverseitig filtern:** Die Seiten Orders und Payments laden heute alle Einträge und filtern im Browser. Das reicht für eine Werkstatt. Wächst die Datenmenge deutlich, brauchen die APIs Filter für Bereich (Open/Paid/Cancelled), Rechnungsstatus, Kundentyp, Kunde, Zeitraum, Methode und Art. Dazu kommt serverseitiges Paging.
