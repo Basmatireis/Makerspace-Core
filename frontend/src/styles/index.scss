@@ -841,25 +841,6 @@ body.cds--body--with-modal-open .app-main > * {
   min-block-size: 3rem;
 }
 
-.people-filter-panel {
-  display: flex;
-  justify-content: flex-end;
-  padding: $spacing-05;
-  border-block-start: 1px solid var(--cds-border-subtle);
-  background: var(--cds-layer);
-}
-
-.people-filter-panel__fields {
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  gap: $spacing-03;
-}
-
-.people-filter-panel__field {
-  inline-size: 15rem;
-}
-
 .people-table-container .cds--data-table-content {
   inline-size: 100%;
   overflow-x: auto;
@@ -2022,7 +2003,6 @@ body.cds--body--with-modal-open .app-main > * {
 .table-actions { display: flex; gap: $spacing-02; }
 .lab-rules-warning { display: grid; gap: $spacing-03; margin-block-end: $spacing-06; padding: $spacing-05; border-inline-start: 4px solid var(--cds-support-warning); background: var(--cds-notification-background-warning); }
 
-.filter-bar { display: grid; grid-template-columns: minmax(18rem, 2fr) repeat(4, minmax(10rem, 1fr)); gap: $spacing-03; align-items: end; background: var(--cds-layer); }
 .table-page .cds--data-table-container { overflow-x: auto; }
 .table-page .cds--data-table { min-inline-size: 72rem; }
 .detail-grid { display: grid; grid-template-columns: repeat(2, minmax(22rem, 1fr)); gap: $spacing-05; }
@@ -2033,14 +2013,8 @@ body.cds--body--with-modal-open .app-main > * {
 .amount-list dd { margin: 0; text-align: end; }
 .form-error { color: var(--cds-support-error); }
 
-.activity-filters { display: grid; grid-template-columns: minmax(16rem, 1.5fr) repeat(3, minmax(12rem, 1fr)); align-items: end; gap: $spacing-03; }
 .activity-empty { display: grid; gap: $spacing-03; }
 .activity-empty p { color: var(--cds-text-secondary); }
-
-@media (max-width: 82rem) {
-  .filter-bar { grid-template-columns: repeat(2, 1fr); }
-  .activity-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
 
 @media (max-width: 65.98rem) {
   .app-main,
@@ -2141,22 +2115,6 @@ body.cds--body--with-modal-open .app-main > * {
     max-inline-size: none;
   }
 
-  .people-filter-panel {
-    padding: $spacing-03;
-  }
-
-  .people-filter-panel__fields {
-    inline-size: 100%;
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .people-filter-panel__field,
-  .people-filter-panel__fields > .cds--btn {
-    inline-size: 100%;
-    max-inline-size: none;
-  }
-
   .page-header__row,
   .section-heading,
   .role-assignment {
@@ -2189,7 +2147,7 @@ body.cds--body--with-modal-open .app-main > * {
     padding: $spacing-06;
   }
 
-  .detail-grid, .filter-bar, .activity-filters { grid-template-columns: 1fr; }
+  .detail-grid { grid-template-columns: 1fr; }
 }
 .app-date-time-input {
   display: grid;

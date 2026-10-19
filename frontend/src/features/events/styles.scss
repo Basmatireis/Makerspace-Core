@@ -180,20 +180,6 @@ progress::-moz-progress-bar {
   margin: $spacing-02 0 0;
 }
 
-.event-filter-panel {
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  gap: $spacing-03;
-  padding: $spacing-05;
-  border-block-start: 1px solid var(--cds-border-subtle);
-  background: var(--cds-layer);
-}
-
-.event-filter-panel .cds--dropdown__wrapper {
-  inline-size: 15rem;
-}
-
 .event-detail-summary {
   justify-content: flex-start;
   flex-wrap: wrap;
@@ -869,19 +855,9 @@ progress::-moz-progress-bar {
     max-inline-size: none;
   }
 
-  .event-filter-panel {
-    align-items: stretch;
-    flex-direction: column;
-    padding: $spacing-03;
-  }
-
   .event-banner-actions {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .event-filter-panel .cds--dropdown__wrapper {
-    inline-size: 100%;
   }
 
   .event-overview-grid,

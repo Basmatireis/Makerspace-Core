@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
-import { Button, Link as CarbonLink, MenuButton, MenuItem, MultiSelect, Tab, TabList, TabPanel, TabPanels, Tabs, Toggle } from '@carbon/react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Button, Link as CarbonLink, MenuButton, MenuItem } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { FilamentProduct, Material } from '../../api/generated/models';
 import { PageShell } from '../../app/PageShell';
+import { SectionSwitcher } from '../../app/SectionSwitcher';
 import { InventorySpoolsTable } from './components/InventorySpoolsTable';
 import { ProductsTable } from './components/ProductsTable';
 import { categoryLabel, formatQuantity, formatUnitCost, isFilament, materialUnitCost, NoInventoryAccess, StockTag, stockStateOptions, unitLabel } from './components/inventoryShared';
@@ -11,19 +12,18 @@ import { MaterialFormModal } from './dialogs/MaterialFormModal';
 import { ProductFormModal } from './dialogs/ProductFormModal';
 import { SpoolFormModal } from './dialogs/SpoolFormModal';
 import { activeSpoolCountsQuery, allMaterialsQuery } from './inventoryQueries';
-import { DirectoryTable, selectedOptions, useUrlState, type Column, type Option } from './shared/DirectoryTable';
+import { DirectoryTable, useUrlState, type Column, type Option } from './shared/DirectoryTable';
 import { machineLogbookPaths, type InventoryTab } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
 import { useCan } from './shared/useCan';
 import './styles/inventory.scss';
 
 const TABS: InventoryTab[] = ['materials', 'spools', 'products'];
-const MATERIAL_FILTERS = ['category', 'stock', 'inactive'];
 
 type MaterialRow = Material & { activeSpools: number | null };
 
-function MaterialsTable({ materials, canAdd, canRegister, onAdd, onRegister }: {
-  materials: Material[]; canAdd: boolean; canRegister: boolean; onAdd: () => void; onRegister: () => void;
+function MaterialsTable({ materials, canAdd, canRegister, onAdd, onRegister, switcher }: {
+  switcher: ReactNode; materials: Material[]; canAdd: boolean; canRegister: boolean; onAdd: () => void; onRegister: () => void;
 }) {
   const url = useUrlState('materials');
   const categoryIds = url.list('category');
@@ -83,26 +83,15 @@ function MaterialsTable({ materials, canAdd, canRegister, onAdd, onRegister }: {
 
   return (
     <DirectoryTable
-      id="materials" label="Materials" columns={columns} rows={rows} totalCount={materials.length}
+      switcher={switcher} id="materials" label="Materials" columns={columns} rows={rows} totalCount={materials.length}
       searchText={(row) => [row.name, row.category, row.color].filter(Boolean).join(' ')}
       defaultSort={{ key: 'material', direction: 'ASC' }}
-      hasActiveFilters={MATERIAL_FILTERS.some((key) => url.get(key))} onClearFilters={() => url.clear(MATERIAL_FILTERS)}
       toolbarAction={action}
-      filterFields={(
-        <>
-          <MultiSelect
-            id="materials-category-filter" className="mj-filter-panel__field" titleText="Category" label="All categories" items={categoryOptions}
-            itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(categoryOptions, categoryIds)} onChange={({ selectedItems }) => url.setList('category', selectedItems)}
-          />
-          <MultiSelect
-            id="materials-stock-filter" className="mj-filter-panel__field" titleText="Stock state" label="All states" items={stockStateOptions}
-            itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(stockStateOptions, stockIds) as typeof stockStateOptions} onChange={({ selectedItems }) => url.setList('stock', selectedItems)}
-          />
-          <div className="mj-filter-panel__field">
-            <Toggle id="materials-inactive-filter" size="sm" labelText="Show inactive" labelA="Hidden" labelB="Shown" toggled={showInactive} onToggle={(checked) => url.set({ inactive: checked ? '1' : null })} />
-          </div>
-        </>
-      )}
+      filterCategories={[
+        { key: 'category', label: 'Category', options: categoryOptions },
+        { key: 'stock', label: 'Stock state', options: stockStateOptions },
+        { key: 'inactive', label: 'Show', options: [{ id: '1', label: 'Inactive materials' }] },
+      ]}
       empty={{
         title: 'No materials yet', description: 'Add the materials the makerspace keeps in stock to track quantities and costs.',
         action: canAdd ? <Button kind="tertiary" onClick={onAdd}>Add material</Button> : undefined,
@@ -111,11 +100,11 @@ function MaterialsTable({ materials, canAdd, canRegister, onAdd, onRegister }: {
   );
 }
 
-function MaterialsTab({ canAdd, canRegister, onAdd, onRegister }: { canAdd: boolean; canRegister: boolean; onAdd: () => void; onRegister: () => void }) {
+function MaterialsTab({ canAdd, canRegister, onAdd, onRegister, switcher }: { switcher: ReactNode; canAdd: boolean; canRegister: boolean; onAdd: () => void; onRegister: () => void }) {
   const query = useQuery(allMaterialsQuery());
   return (
     <QueryBoundary query={query} errorMessage="The materials could not be loaded.">
-      {(materials) => <MaterialsTable materials={materials} canAdd={canAdd} canRegister={canRegister} onAdd={onAdd} onRegister={onRegister} />}
+      {(materials) => <MaterialsTable switcher={switcher} materials={materials} canAdd={canAdd} canRegister={canRegister} onAdd={onAdd} onRegister={onRegister} />}
     </QueryBoundary>
   );
 }
@@ -132,43 +121,26 @@ export function InventoryPage() {
   const canAdd = can('inventory.manage');
   const canRegister = can('filament_spools.manage') && can('inventory.manage');
 
+  const switcher = (
+    <SectionSwitcher
+      label="Inventory sections" selected={tab}
+      sections={[{ id: 'materials', label: 'Materials' }, { id: 'spools', label: 'Spools' }, { id: 'products', label: 'Products' }]}
+      onChange={(id) => setParams((current) => { const next = new URLSearchParams(current); next.set('tab', id); return next; }, { replace: true })}
+    />
+  );
   const header = { title: 'Inventory', description: 'Materials, filament spools and the filament product catalog.', breadcrumbs: [{ label: 'Workshop', to: machineLogbookPaths.overview() }, { label: 'Inventory' }], width: 'wide' as const };
   if (!can('inventory.read')) return <PageShell {...header}><NoInventoryAccess /></PageShell>;
 
   return (
     <PageShell {...header}>
-      <Tabs
-        selectedIndex={TABS.indexOf(tab)}
-        onChange={({ selectedIndex }) => setParams((current) => { const next = new URLSearchParams(current); next.set('tab', TABS[selectedIndex] ?? 'materials'); return next; }, { replace: true })}
-      >
-        <TabList aria-label="Inventory sections" contained>
-          <Tab>Materials</Tab>
-          <Tab>Spools</Tab>
-          <Tab>Products</Tab>
-        </TabList>
-        <TabPanels>
-          <TabPanel className="mj-tab-panel">
-            <div>
-              {tab === 'materials' && <MaterialsTab canAdd={canAdd} canRegister={canRegister} onAdd={() => setMaterialOpen(true)} onRegister={() => setSpoolOpen(true)} />}
-            </div>
-          </TabPanel>
-          <TabPanel className="mj-tab-panel">
-            <div>
-              {tab === 'spools' && <InventorySpoolsTable />}
-            </div>
-          </TabPanel>
-          <TabPanel className="mj-tab-panel">
-            <div>
-              {tab === 'products' && (
-                <ProductsTable
-                  id="products" canManage={canAdd}
-                  onAdd={() => { setEditing(undefined); setProductOpen(true); }} onEdit={(product) => { setEditing(product); setProductOpen(true); }}
-                />
-              )}
-            </div>
-          </TabPanel>
-        </TabPanels>
-      </Tabs>
+      {tab === 'materials' && <MaterialsTab switcher={switcher} canAdd={canAdd} canRegister={canRegister} onAdd={() => setMaterialOpen(true)} onRegister={() => setSpoolOpen(true)} />}
+      {tab === 'spools' && <InventorySpoolsTable switcher={switcher} />}
+      {tab === 'products' && (
+        <ProductsTable
+          switcher={switcher} id="products" canManage={canAdd}
+          onAdd={() => { setEditing(undefined); setProductOpen(true); }} onEdit={(product) => { setEditing(product); setProductOpen(true); }}
+        />
+      )}
       {materialOpen && <MaterialFormModal open onClose={() => setMaterialOpen(false)} />}
       {spoolOpen && <SpoolFormModal open onClose={() => setSpoolOpen(false)} />}
       {productOpen && <ProductFormModal open onClose={() => setProductOpen(false)} product={editing} />}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RefLink } from '../../app/RefLink';
 import { Accordion, AccordionItem, Button, InlineNotification, Link as CarbonLink, OverflowMenu, OverflowMenuItem, ProgressBar, Tile } from '@carbon/react';
 import { Add, Link as LinkIcon } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -167,7 +168,7 @@ export function RunDetailPage() {
                 <h2 className="mj-section-title">Job</h2>
                 <p>
                   Part of{' '}
-                  {canReadJobs ? <CarbonLink as={Link} to={machineLogbookPaths.job(jobRef.id)}>{jobRef.displayId}{jobRef.title ? ` ${jobRef.title}` : ''}</CarbonLink> : jobRef.displayId}
+                  <RefLink kind="job" reference={jobRef.displayId} id={jobRef.id}>{jobRef.displayId}{jobRef.title ? ` ${jobRef.title}` : ''}</RefLink>
                   <span className="mj-secondary">{job ? ` · ${job.customer?.displayName ?? 'No customer'}.` : '.'} Material and outcome from this run count towards the job.</span>
                 </p>
               </Tile>

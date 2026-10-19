@@ -183,6 +183,24 @@ describe("Orders workflows", () => {
       screen.queryByRole("button", { name: "New draft" }),
     ).not.toBeInTheDocument();
   });
+  it("filters the order list by lifecycle through the filter panel and links references", async () => {
+    me([PermissionId.ordersread]);
+    const requests: URL[] = [];
+    server.use(
+      http.get("*/api/v1/orders", ({ request }) => {
+        requests.push(new URL(request.url));
+        return HttpResponse.json({ items: [order()], page: 1, pageSize: 25, total: 1 });
+      }),
+    );
+    const user = userEvent.setup();
+    renderRoute(<App />, "/orders");
+    expect(await screen.findByRole("link", { name: "O-2026-000001" })).toHaveAttribute("href", `/orders/${id}`);
+    await user.click(screen.getByLabelText("Filters", { selector: "button" }));
+    await user.click(screen.getByRole("radio", { name: "finalized" }));
+    await user.click(screen.getByRole("button", { name: "Apply filters" }));
+    await waitFor(() => expect(requests.at(-1)?.searchParams.get("status")).toBe("finalized"));
+  });
+
   it("retains the selected payer while asynchronous search results refresh", async () => {
     me();
     let current = order({

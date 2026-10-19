@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Button, ComboBox, Link as CarbonLink, MultiSelect, OverflowMenu, OverflowMenuItem } from '@carbon/react';
+import { Button, ComboBox, Link as CarbonLink, OverflowMenu, OverflowMenuItem } from '@carbon/react';
 import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { listMachineLogbookWorkItems } from '../../api/generated/machine-logbook/machine-logbook';
 import type { JobBillingState, ListMachineLogbookWorkItemsParams, ListMachineLogbookWorkItemsSort, WorkItem, WorkItemSource, WorkItemStatus } from '../../api/generated/models';
 import { addCalendarDays, zonedDateTimeToISO } from '../../app/dateTime';
+import type { FilterCategory } from '../../app/BatchFilter';
 import { DateInput } from '../../app/DateInput';
 import { PageShell } from '../../app/PageShell';
 import { useCurrentUser } from '../auth/auth';
@@ -13,7 +14,7 @@ import { DeleteRunModal } from './dialogs/DeleteDialogs';
 import { JobFormModal } from './dialogs/JobFormModal';
 import { matchesName } from './dialogs/jobFormHelpers';
 import { billingPartySearchQuery, machineLogbookKeys, machinesQuery, materialsQuery, operatorSearchQuery } from './queries';
-import { DirectoryTable, selectedOptions, useServerTableState, useUrlState, type Column, type Option } from './shared/DirectoryTable';
+import { DirectoryTable, useServerTableState, type Column, type Option } from './shared/DirectoryTable';
 import { formatDateTime, formatDuration, formatMoney } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
@@ -22,7 +23,6 @@ import { useCan } from './shared/useCan';
 import './styles/jobs.scss';
 
 const sourceOptions: Option[] = [{ id: 'manual', label: 'Manual' }, { id: 'recorded', label: 'Recorded' }];
-const FILTER_KEYS = ['status', 'machine', 'source', 'customer', 'operator', 'material', 'billing', 'from', 'to'];
 const SORT_KEYS = ['startedAt', 'name', 'machine', 'customer', 'price'];
 const statusIds = jobRowStatusOptions.map((option) => option.id as string);
 const billingIds = billingStateOptions.map((option) => option.id as string);
@@ -32,6 +32,7 @@ const sourceIds = sourceOptions.map((option) => option.id);
 const nonEmpty = <T extends string>(items: T[]) => (items.length ? items : undefined);
 
 type Person = { id: string; displayName: string };
+const EMPTY_ITEMS: WorkItem[] = [];
 
 /** Row menu of an unassigned run; jobs are deleted from their own page. */
 function UnassignedRunActions({ item }: { item: WorkItem }) {
@@ -76,8 +77,8 @@ const columns: Column<WorkItem>[] = [
 
 const actionsColumn: Column<WorkItem> = { key: 'actions', header: 'Actions', render: (item) => <UnassignedRunActions item={item} /> };
 
-function JobsFilters({ rows }: { rows: WorkItem[] }) {
-  const url = useUrlState('');
+/** Columns of the jobs filter panel. Catalog lookups load once the person may read them; customer and operator are searched on the server. */
+function useJobsFilterCategories(rows: WorkItem[]): FilterCategory[] {
   const currentUser = useCurrentUser();
   const can = useCan();
   const canLookup = canLookupJobParties(currentUser);
@@ -88,7 +89,6 @@ function JobsFilters({ rows }: { rows: WorkItem[] }) {
   const parties = useQuery({ ...billingPartySearchQuery(customerSearch), enabled: canLookup, placeholderData: keepPreviousData });
   const operators = useQuery({ ...operatorSearchQuery(operatorSearch), enabled: canLookup, placeholderData: keepPreviousData });
 
-  const statusOptions = jobRowStatusOptions as Option[];
   // Without catalog access the machine filter offers the machines of the rows shown.
   const machineOptions: Option[] = useMemo(() => machines.data
     ? machines.data.items.map((machine) => ({ id: machine.id, label: machine.name }))
@@ -106,28 +106,47 @@ function JobsFilters({ rows }: { rows: WorkItem[] }) {
     for (const operator of operators.data?.items ?? []) known.set(operator.personId, { id: operator.personId, displayName: operator.displayName });
     return [...known.values()];
   }, [rows, operators.data]);
-  const customerId = url.get('customer');
-  const operatorId = url.get('operator');
 
-  return (
-    <>
-      <MultiSelect id="jobs-status-filter" className="mj-filter-panel__field" titleText="Status" label="All statuses" items={statusOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(statusOptions, url.list('status'))} onChange={({ selectedItems }) => url.setList('status', selectedItems)} />
-      <MultiSelect id="jobs-machine-filter" className="mj-filter-panel__field" titleText="Machine" label="All machines" items={machineOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(machineOptions, url.list('machine'))} onChange={({ selectedItems }) => url.setList('machine', selectedItems)} />
-      <MultiSelect id="jobs-source-filter" className="mj-filter-panel__field" titleText="Source" label="All sources" items={sourceOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(sourceOptions, url.list('source'))} onChange={({ selectedItems }) => url.setList('source', selectedItems)} />
-      {canLookup && (
-        <>
-          <ComboBox id="jobs-customer-filter" className="mj-filter-panel__field" titleText="Customer" placeholder="Any customer" items={people} itemToString={(item) => item?.displayName ?? ''} shouldFilterItem={matchesName} selectedItem={customerId ? people.find((person) => person.id === customerId) ?? { id: customerId, displayName: 'Selected customer' } : null} onInputChange={setCustomerSearch} onChange={({ selectedItem }) => url.set({ customer: selectedItem?.id ?? null })} />
-          <ComboBox id="jobs-operator-filter" className="mj-filter-panel__field" titleText="Operator" placeholder="Any operator" items={operatorList} itemToString={(item) => item?.displayName ?? ''} shouldFilterItem={matchesName} selectedItem={operatorId ? operatorList.find((operator) => operator.id === operatorId) ?? { id: operatorId, displayName: 'Selected operator' } : null} onInputChange={setOperatorSearch} onChange={({ selectedItem }) => url.set({ operator: selectedItem?.id ?? null })} />
-        </>
-      )}
-      {can('inventory.read') && (
-        <MultiSelect id="jobs-material-filter" className="mj-filter-panel__field" titleText="Material" label="All materials" items={materialOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(materialOptions, url.list('material'))} onChange={({ selectedItems }) => url.setList('material', selectedItems)} />
-      )}
-      <MultiSelect id="jobs-billing-filter" className="mj-filter-panel__field" titleText="Billing state" label="All billing states" items={billingStateOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(billingStateOptions, url.list('billing'))} onChange={({ selectedItems }) => url.setList('billing', selectedItems)} />
-      <div className="mj-filter-panel__field"><DateInput id="jobs-from-filter" labelText="From" value={url.get('from')} onChange={(value) => url.set({ from: value || null })} /></div>
-      <div className="mj-filter-panel__field"><DateInput id="jobs-to-filter" labelText="Through" value={url.get('to')} onChange={(value) => url.set({ to: value || null })} /></div>
-    </>
-  );
+  const categories: FilterCategory[] = [
+    { key: 'status', label: 'Status', options: jobRowStatusOptions as Option[] },
+    { key: 'machine', label: 'Machine', options: machineOptions },
+    { key: 'source', label: 'Source', options: sourceOptions },
+  ];
+  if (can('inventory.read')) categories.push({ key: 'material', label: 'Material', options: materialOptions });
+  categories.push({ key: 'billing', label: 'Billing state', options: billingStateOptions as Option[] });
+  if (canLookup) {
+    categories.push({
+      key: 'people', label: 'People', keys: ['customer', 'operator'],
+      render: ({ idPrefix, staged, set }) => {
+        const customerId = staged.customer?.[0];
+        const operatorId = staged.operator?.[0];
+        return (
+          <>
+            <ComboBox
+              autoAlign id={`${idPrefix}-customer`} titleText="Customer" placeholder="Any customer" items={people} itemToString={(item) => item?.displayName ?? ''} shouldFilterItem={matchesName}
+              selectedItem={customerId ? people.find((person) => person.id === customerId) ?? { id: customerId, displayName: 'Selected customer' } : null}
+              onInputChange={setCustomerSearch} onChange={({ selectedItem }) => set('customer', selectedItem ? [selectedItem.id] : [])}
+            />
+            <ComboBox
+              autoAlign id={`${idPrefix}-operator`} titleText="Operator" placeholder="Any operator" items={operatorList} itemToString={(item) => item?.displayName ?? ''} shouldFilterItem={matchesName}
+              selectedItem={operatorId ? operatorList.find((operator) => operator.id === operatorId) ?? { id: operatorId, displayName: 'Selected operator' } : null}
+              onInputChange={setOperatorSearch} onChange={({ selectedItem }) => set('operator', selectedItem ? [selectedItem.id] : [])}
+            />
+          </>
+        );
+      },
+    });
+  }
+  categories.push({
+    key: 'period', label: 'Started', keys: ['from', 'to'],
+    render: ({ idPrefix, staged, set }) => (
+      <>
+        <DateInput id={`${idPrefix}-from`} labelText="From" value={staged.from?.[0] ?? ''} onChange={(value) => set('from', value ? [value] : [])} />
+        <DateInput id={`${idPrefix}-to`} labelText="Through" value={staged.to?.[0] ?? ''} onChange={(value) => set('to', value ? [value] : [])} />
+      </>
+    ),
+  });
+  return categories;
 }
 
 export function JobsPage() {
@@ -137,7 +156,6 @@ export function JobsPage() {
   const [jobOpen, setJobOpen] = useState(false);
   const canCreate = can('machine_jobs.create');
   const canDelete = can('machine_jobs.delete');
-  const hasActiveFilters = FILTER_KEYS.some((key) => url.get(key));
 
   const sortKey = (SORT_KEYS.includes(table.sort.key) ? table.sort.key : 'startedAt') as ListMachineLogbookWorkItemsSort;
   const from = url.get('from');
@@ -163,6 +181,7 @@ export function JobsPage() {
     queryFn: ({ signal }) => listMachineLogbookWorkItems(params, { signal }),
     placeholderData: keepPreviousData,
   }));
+  const filterCategories = useJobsFilterCategories(query.data?.items ?? EMPTY_ITEMS);
 
   return (
     <PageShell
@@ -175,8 +194,7 @@ export function JobsPage() {
             mode="server" id="jobs" urlPrefix="" label="Jobs" columns={canDelete ? [...columns, actionsColumn] : columns} rows={page.items} total={page.total}
             sort={{ key: sortKey, direction: table.sort.direction }} onSortChange={table.setSort}
             toolbarClassName="mj-jobs-table-toolbar"
-            filterFields={<JobsFilters rows={page.items} />}
-            hasActiveFilters={hasActiveFilters} onClearFilters={() => url.clear(FILTER_KEYS)}
+            filterCategories={filterCategories}
             toolbarAction={canCreate ? <Button kind="primary" size="lg" onClick={() => setJobOpen(true)}>New job</Button> : undefined}
             empty={{
               title: 'No jobs yet', description: 'Jobs appear here when staff create them or when a machine reports a run.',

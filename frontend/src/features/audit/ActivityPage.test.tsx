@@ -87,9 +87,11 @@ describe('Audit Log', () => {
     const { router } = renderRoute(<App />, '/audit-log');
     await screen.findByText('No activity found');
 
-    await user.selectOptions(screen.getByLabelText('Actor type'), 'system');
+    await user.click(screen.getByRole('button', { name: 'Filters' }));
+    await user.click(screen.getByRole('radio', { name: 'System' }));
     await user.selectOptions(screen.getByLabelText('Action'), 'person.updated');
     await user.selectOptions(screen.getByLabelText('Target type'), 'person');
+    await user.click(screen.getByRole('button', { name: 'Apply filters' }));
     await user.type(screen.getByRole('searchbox', { name: 'Search current actor name' }), 'Ada');
 
     await waitFor(() => {

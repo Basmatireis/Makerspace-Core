@@ -1,0 +1,4 @@
+// Section switcher at the start of a table toolbar: layout glue around Carbon's contained tabs.
+.app-toolbar-switcher { display: flex; align-items: center; flex: 0 0 auto; padding-inline-start: 0; }
+.app-toolbar-switcher .cds--tabs { min-block-size: 3rem; }
+.app-toolbar-switcher .cds--tabs.cds--tabs--contained .cds--tabs__nav-item { block-size: 3rem; }

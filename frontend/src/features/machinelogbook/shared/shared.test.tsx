@@ -209,6 +209,27 @@ describe('DirectoryTable', () => {
     expect(await within(table).findByText('Alpha')).toBeInTheDocument();
   });
 
+  it('applies batch filter choices to the URL under the table prefix and resets them', async () => {
+    const user = userEvent.setup();
+    const rows = ['Alpha', 'Beta'].map((name) => ({ id: name, name }));
+    const { router } = renderRoute(
+      <DirectoryTable
+        id="things" label="Things" columns={columns} rows={rows} totalCount={2} searchText={(row) => row.name} defaultSort={{ key: 'name', direction: 'ASC' }}
+        filterCategories={[{ key: 'kind', label: 'Kind', options: [{ id: 'a', label: 'Kind A' }, { id: 'b', label: 'Kind B' }] }]}
+        empty={{ title: 'No things yet', description: 'Nothing here.' }}
+      />,
+      '/?thingspage=2',
+    );
+    await user.click(screen.getByLabelText('Filters', { selector: 'button' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Kind A' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Kind B' }));
+    await user.click(screen.getByRole('button', { name: 'Apply filters' }));
+    expect(router.state.location.search).toBe('?thingskind=a%2Cb');
+    await user.click(screen.getByLabelText('Filters (2 applied)', { selector: 'button' }));
+    await user.click(screen.getByRole('button', { name: 'Reset filters' }));
+    expect(router.state.location.search).toBe('');
+  });
+
   it('tells "nothing yet" from "nothing found"', () => {
     const empty = { title: 'No things yet', description: 'Nothing here.' };
     const first = renderRoute(<DirectoryTable id="things" label="Things" columns={columns} rows={[]} totalCount={0} searchText={() => ''} defaultSort={{ key: 'name', direction: 'ASC' }} empty={empty} />);

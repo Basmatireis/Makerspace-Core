@@ -1,14 +1,9 @@
 import { useMemo, type ReactNode } from 'react';
-import { Link as CarbonLink, MultiSelect } from '@carbon/react';
-import { Link } from 'react-router-dom';
+import { RefLink } from '../../../app/RefLink';
 import type { InventoryTransaction, MaterialUnit } from '../../../api/generated/models';
-import { DirectoryTable, selectedOptions, useUrlState, type Column } from '../shared/DirectoryTable';
+import { DirectoryTable, useUrlState, type Column } from '../shared/DirectoryTable';
 import { formatDateTime } from '../shared/format';
-import { machineLogbookPaths } from '../shared/paths';
-import { useCan } from '../shared/useCan';
 import { adjustmentReasonLabels, formatQuantity, formatSigned, formatSignedMoney, TransactionKindTag, transactionKindOptions } from './inventoryShared';
-
-const FILTER_KEYS = ['type'];
 
 type SpoolRef = { id: string | null | undefined; displayId: string | null | undefined; fillNumber: number | null | undefined };
 
@@ -23,8 +18,6 @@ export function InventoryLedgerTable({ id, transactions, unit, showSpool, showFi
   /** Material names by ID, used by `showFill` rows. */
   materialNames?: ReadonlyMap<string, string>;
 }) {
-  const can = useCan();
-  const canReadJobs = can('machine_jobs.read');
   const url = useUrlState(id);
   const typeIds = url.list('type');
   const own = (tx: InventoryTransaction): SpoolRef => ({ id: tx.spoolId, displayId: tx.spoolDisplayId, fillNumber: tx.fillNumber });
@@ -38,14 +31,12 @@ export function InventoryLedgerTable({ id, transactions, unit, showSpool, showFi
     const text = spoolText(ref);
     if (!text) return null;
     const label = `${text}${ref.fillNumber ? ` · fill ${ref.fillNumber}` : ''}`;
-    return ref.id ? <CarbonLink key={key} as={Link} to={machineLogbookPaths.spool(ref.id)}>{label}</CarbonLink> : <span key={key}>{label}</span>;
+    return <span key={key}><RefLink kind="spool" reference={ref.displayId ?? ''} id={ref.id}>{label}</RefLink></span>;
   };
 
   const reference = (tx: InventoryTransaction) => {
     const parts: ReactNode[] = [
-      tx.machineJobDisplayId && (tx.machineJobId && canReadJobs
-        ? <CarbonLink key="job" as={Link} to={machineLogbookPaths.job(tx.machineJobId)}>{tx.machineJobDisplayId}</CarbonLink>
-        : <span key="job">{tx.machineJobDisplayId}</span>),
+      tx.machineJobDisplayId && <span key="job"><RefLink kind="job" reference={tx.machineJobDisplayId} id={tx.machineJobId} /></span>,
       ...(showSpool ? (tx.kind === 'spool_transfer' ? [spoolLink('from', from(tx)), spoolLink('to', to(tx))] : [spoolLink('spool', own(tx))]) : []),
       showFill && tx.spoolDisplayId && tx.fillNumber && <span key="fill">Fill {tx.fillNumber} · {materialNames?.get(tx.materialId) ?? 'Material'}</span>,
       tx.supplier && <span key="supplier">{tx.supplier}</span>,
@@ -93,14 +84,7 @@ export function InventoryLedgerTable({ id, transactions, unit, showSpool, showFi
       id={id} label="Ledger" columns={columns} rows={rows} totalCount={transactions.length}
       searchText={(tx) => [tx.actorName, tx.note, tx.supplier, tx.machineJobDisplayId, ...spoolTexts(tx)].filter(Boolean).join(' ')}
       defaultSort={{ key: 'date', direction: 'DESC' }}
-      hasActiveFilters={FILTER_KEYS.some((key) => url.get(key))} onClearFilters={() => url.clear(FILTER_KEYS)}
-      filterFields={(
-        <MultiSelect
-          id={`${id}-type-filter`} className="mj-filter-panel__field" titleText="Type" label="All types" items={transactionKindOptions}
-          itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(transactionKindOptions, typeIds) as typeof transactionKindOptions}
-          onChange={({ selectedItems }) => url.setList('type', selectedItems)}
-        />
-      )}
+      filterCategories={[{ key: 'type', label: 'Type', options: transactionKindOptions }]}
       empty={{ title: 'No movements yet', description: 'Purchases, consumption, corrections and disposals appear here.' }}
     />
   );

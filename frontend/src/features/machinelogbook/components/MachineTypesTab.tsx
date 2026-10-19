@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button, DataTable, InlineNotification, Modal, OverflowMenu, OverflowMenuItem, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, Tag, TextInput, Toggle } from '@carbon/react';
 import { Add } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -48,7 +48,7 @@ function TypeNameModal({ type, types, onClose }: { type?: MachineType; types: Ma
   );
 }
 
-export function MachineTypesTab() {
+export function MachineTypesTab({ switcher }: { switcher?: ReactNode }) {
   const can = useCan();
   const client = useQueryClient();
   const notify = useNotify();
@@ -71,13 +71,13 @@ export function MachineTypesTab() {
   });
 
   return (
-    <div className="mj-tab-panel">
-      <p className="mj-secondary">Inactive types stay on existing machines but can't be chosen for new ones.</p>
+    <div className="mj-stack">
       <QueryBoundary query={types} errorMessage="The machine types could not be loaded.">
         <DataTable rows={items.map((type) => ({ id: type.id, name: type.name, status: type.active ? 'Active' : 'Inactive', printer: type.printer ? 'Printer' : '', machines: count(type.id) }))} headers={headers}>
           {({ rows, headers: tableHeaders, getRowProps, getTableProps }) => (
             <TableContainer className="mj-table-container">
               <TableToolbar aria-label="Machine types toolbar">
+                {switcher}
                 <TableToolbarContent>
                   {canManage && <Button kind="primary" size="lg" renderIcon={Add} onClick={() => setDialog({})}>Add type</Button>}
                 </TableToolbarContent>
@@ -124,6 +124,7 @@ export function MachineTypesTab() {
           )}
         </DataTable>
       </QueryBoundary>
+      <p className="mj-secondary">Inactive types stay on existing machines but can't be chosen for new ones.</p>
       {dialog && <TypeNameModal key={dialog.type?.id ?? 'new'} type={dialog.type} types={items} onClose={() => setDialog(null)} />}
     </div>
   );

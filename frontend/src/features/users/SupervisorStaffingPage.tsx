@@ -5,7 +5,6 @@ import {
   Dropdown,
   InlineNotification,
   Link as CarbonLink,
-  MultiSelect,
   Pagination,
   Table,
   TableBody,
@@ -19,11 +18,11 @@ import {
   TableToolbarSearch,
   Tag,
 } from '@carbon/react';
-import { Filter } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import type { SupervisorRowLaborordnungState } from '../../api/generated/models';
 import { getSupervisorDashboard } from '../../api/generated/supervisors/supervisors';
+import { BatchFilter, type FilterCategory, type FilterValues } from '../../app/BatchFilter';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
 import { useCurrentUser } from '../auth/auth';
@@ -58,13 +57,7 @@ export function SupervisorStaffingPage() {
   const currentUser = useCurrentUser();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [selectedProfilePictureStatuses, setSelectedProfilePictureStatuses] = useState<
-    Array<FilterOption<ProfilePictureStatus>>
-  >([]);
-  const [selectedLabRulesStatuses, setSelectedLabRulesStatuses] = useState<
-    Array<FilterOption<SupervisorRowLaborordnungState>>
-  >([]);
+  const [filters, setFilters] = useState<FilterValues>({});
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -110,8 +103,14 @@ export function SupervisorStaffingPage() {
     };
   });
   const normalizedSearch = search.trim().toLocaleLowerCase();
+  const selectedProfilePictureStatuses = PROFILE_PICTURE_STATUS_OPTIONS.filter((option) => filters.photo?.includes(option.value));
+  const selectedLabRulesStatuses = LAB_RULES_STATUS_OPTIONS.filter((option) => filters.labRules?.includes(option.value));
   const hasActiveFilters = selectedProfilePictureStatuses.length > 0
     || selectedLabRulesStatuses.length > 0;
+  const filterCategories: FilterCategory[] = [
+    { key: 'photo', label: 'Profile picture', options: PROFILE_PICTURE_STATUS_OPTIONS.map((option) => ({ id: option.value, label: option.label })) },
+    { key: 'labRules', label: 'Lab Rules', options: LAB_RULES_STATUS_OPTIONS.map((option) => ({ id: option.value, label: option.label })) },
+  ];
   const filteredRows = rows.filter((row) => {
     if (normalizedSearch && !row.name.toLocaleLowerCase().includes(normalizedSearch)) {
       return false;
@@ -179,15 +178,9 @@ export function SupervisorStaffingPage() {
                         setPage(1);
                       }}
                     />
-                    <Button
-                      hasIconOnly
-                      kind={hasActiveFilters ? 'primary' : 'ghost'}
-                      size="md"
-                      renderIcon={Filter}
-                      iconDescription="Filters"
-                      aria-expanded={filtersOpen}
-                      aria-controls="members-filters"
-                      onClick={() => setFiltersOpen((open) => !open)}
+                    <BatchFilter
+                      id="members" label="Members" categories={filterCategories} applied={filters}
+                      onApply={(values) => { setFilters(values); setPage(1); }} onReset={() => { setFilters({}); setPage(1); }}
                     />
                     <Dropdown
                       id="members-period-selector"
@@ -212,55 +205,6 @@ export function SupervisorStaffingPage() {
                     )}
                   </TableToolbarContent>
                 </TableToolbar>
-                {filtersOpen && (
-                  <div
-                    id="members-filters"
-                    className="people-filter-panel"
-                    role="region"
-                    aria-label="Members filters"
-                  >
-                    <div className="people-filter-panel__fields">
-                      <MultiSelect
-                        id="members-profile-picture-filter"
-                        className="people-filter-panel__field"
-                        titleText="Profile picture"
-                        label="All profile-picture statuses"
-                        items={PROFILE_PICTURE_STATUS_OPTIONS}
-                        itemToString={(option) => option?.label ?? ''}
-                        selectedItems={selectedProfilePictureStatuses}
-                        onChange={({ selectedItems }) => {
-                          setSelectedProfilePictureStatuses(selectedItems ?? []);
-                          setPage(1);
-                        }}
-                      />
-                      <MultiSelect
-                        id="members-lab-rules-filter"
-                        className="people-filter-panel__field"
-                        titleText="Lab Rules"
-                        label="All Lab Rules statuses"
-                        items={LAB_RULES_STATUS_OPTIONS}
-                        itemToString={(option) => option?.label ?? ''}
-                        selectedItems={selectedLabRulesStatuses}
-                        onChange={({ selectedItems }) => {
-                          setSelectedLabRulesStatuses(selectedItems ?? []);
-                          setPage(1);
-                        }}
-                      />
-                      <Button
-                        kind="ghost"
-                        size="md"
-                        disabled={!hasActiveFilters}
-                        onClick={() => {
-                          setSelectedProfilePictureStatuses([]);
-                          setSelectedLabRulesStatuses([]);
-                          setPage(1);
-                        }}
-                      >
-                        Clear filters
-                      </Button>
-                    </div>
-                  </div>
-                )}
                 <Table {...getTableProps()}>
                   <TableHead>
                     <TableRow>

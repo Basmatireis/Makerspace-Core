@@ -1,11 +1,11 @@
-import { useMemo } from 'react';
-import { Button, Link as CarbonLink, MultiSelect, Tag, Toggle } from '@carbon/react';
+import { useMemo, type ReactNode } from 'react';
+import { Button, Link as CarbonLink, Tag } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import type { FilamentProduct } from '../../../api/generated/models';
 import { allProductsQuery } from '../inventoryQueries';
 import { machineLogbookPaths } from '../shared/paths';
-import { DirectoryTable, selectedOptions, useUrlState, type Column, type Option } from '../shared/DirectoryTable';
+import { DirectoryTable, useUrlState, type Column, type Option } from '../shared/DirectoryTable';
 import { formatMoney } from '../shared/format';
 import { QueryBoundary } from '../shared/QueryBoundary';
 import { formatGrams, packagingOptions, PackagingTag } from './inventoryShared';
@@ -18,6 +18,8 @@ type Props = {
   canManage: boolean;
   onAdd: () => void;
   onEdit: (product: FilamentProduct) => void;
+  /** Section switcher for the toolbar when the table shares a page with sibling tables. */
+  switcher?: ReactNode;
 };
 
 /** Filament product catalog as a Directory-style table; used on the Inventory page and on a material's page. */
@@ -26,14 +28,13 @@ export function ProductsTable(props: Props) {
   return <QueryBoundary query={query} errorMessage="The products could not be loaded.">{(products) => <ProductsTableContent {...props} products={products} />}</QueryBoundary>;
 }
 
-function ProductsTableContent({ id, materialId, canManage, onAdd, onEdit, products }: Props & { products: FilamentProduct[] }) {
+function ProductsTableContent({ id, materialId, canManage, onAdd, onEdit, switcher, products }: Props & { products: FilamentProduct[] }) {
   const url = useUrlState(id);
   const fixedMaterial = materialId != null;
   const manufacturerIds = url.list('manufacturer');
   const materialIds = url.list('material');
   const packagingIds = url.list('packaging');
   const showInactive = url.get('inactive') === '1';
-  const filterKeys = fixedMaterial ? ['manufacturer', 'packaging', 'inactive'] : ['manufacturer', 'material', 'packaging', 'inactive'];
 
   const scoped = useMemo(() => products.filter((product) => !materialId || product.materialId === materialId), [products, materialId]);
   const manufacturerOptions: Option[] = [...new Set(scoped.map((product) => product.manufacturer))].sort().map((name) => ({ id: name, label: name }));
@@ -70,33 +71,17 @@ function ProductsTableContent({ id, materialId, canManage, onAdd, onEdit, produc
 
   return (
     <DirectoryTable
-      id={id} label="Products" columns={columns} rows={rows} totalCount={scoped.length}
+      id={id} label="Products" columns={columns} rows={rows} totalCount={scoped.length} switcher={switcher}
       searchText={(row) => [row.manufacturer, row.name, row.materialName, row.notes].filter(Boolean).join(' ')}
       defaultSort={{ key: 'product', direction: 'ASC' }}
-      hasActiveFilters={filterKeys.some((key) => url.get(key))} onClearFilters={() => url.clear(filterKeys)}
       onRowClick={canManage ? onEdit : undefined}
       toolbarAction={canManage ? <Button kind="primary" size="lg" onClick={onAdd}>Add product</Button> : undefined}
-      filterFields={(
-        <>
-          <MultiSelect
-            id={`${id}-manufacturer-filter`} className="mj-filter-panel__field" titleText="Manufacturer" label="All manufacturers" items={manufacturerOptions}
-            itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(manufacturerOptions, manufacturerIds)} onChange={({ selectedItems }) => url.setList('manufacturer', selectedItems)}
-          />
-          {!fixedMaterial && (
-            <MultiSelect
-              id={`${id}-material-filter`} className="mj-filter-panel__field" titleText="Material" label="All materials" items={materialOptions}
-              itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(materialOptions, materialIds)} onChange={({ selectedItems }) => url.setList('material', selectedItems)}
-            />
-          )}
-          <MultiSelect
-            id={`${id}-packaging-filter`} className="mj-filter-panel__field" titleText="Packaging" label="All packaging" items={packagingOptions}
-            itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(packagingOptions, packagingIds) as typeof packagingOptions} onChange={({ selectedItems }) => url.setList('packaging', selectedItems)}
-          />
-          <div className="mj-filter-panel__field">
-            <Toggle id={`${id}-inactive-filter`} size="sm" labelText="Show inactive" labelA="Hidden" labelB="Shown" toggled={showInactive} onToggle={(checked) => url.set({ inactive: checked ? '1' : null })} />
-          </div>
-        </>
-      )}
+      filterCategories={[
+        { key: 'manufacturer', label: 'Manufacturer', options: manufacturerOptions },
+        ...(fixedMaterial ? [] : [{ key: 'material', label: 'Material', options: materialOptions }]),
+        { key: 'packaging', label: 'Packaging', options: packagingOptions },
+        { key: 'inactive', label: 'Show', options: [{ id: '1', label: 'Inactive products' }] },
+      ]}
       empty={{
         title: 'No products yet', description: 'Add the filament products the makerspace buys, so a spool can be registered with one choice.',
         action: canManage ? <Button kind="tertiary" onClick={onAdd}>Add product</Button> : undefined,

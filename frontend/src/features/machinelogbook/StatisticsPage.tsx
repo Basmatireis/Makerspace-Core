@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { ContentSwitcher, Link as CarbonLink, InlineNotification, MultiSelect, SkeletonPlaceholder, SkeletonText, Switch, Tile, DataTableSkeleton } from '@carbon/react';
+import { ContentSwitcher, Link as CarbonLink, InlineNotification, SkeletonPlaceholder, SkeletonText, Switch, Tile, DataTableSkeleton } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { MachineLogbookStatistics, StatisticTotals } from '../../api/generated/models';
@@ -9,7 +9,7 @@ import { PageShell } from '../../app/PageShell';
 import { EmptyState } from '../../app/PageState';
 import type { RuntimeBucket, StatisticsChartsData } from './components/StatisticsCharts';
 import { statisticsQuery } from './queries';
-import { DirectoryTable, selectedOptions, useUrlState, type Column, type Option } from './shared/DirectoryTable';
+import { DirectoryTable, useUrlState, type Column, type Option } from './shared/DirectoryTable';
 import { formatMoney } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
@@ -200,14 +200,7 @@ export function StatisticsPage() {
           id="stats" urlPrefix="" label="Machines" columns={columns} rows={filtered} totalCount={machines.length}
           searchText={(row) => `${row.name} ${row.typeName}`} defaultSort={{ key: 'runtime', direction: 'DESC' }}
           empty={{ title: 'No machines found', description: 'Try different search terms or filters.' }}
-          hasActiveFilters={typeIds.length > 0} onClearFilters={() => url.clear(['type'])}
-          filterFields={(
-            <MultiSelect
-              id="stats-type-filter" className="mj-filter-panel__field" titleText="Type" label="All types" items={typeOptions}
-              itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(typeOptions, typeIds)}
-              onChange={({ selectedItems }) => url.setList('type', selectedItems)}
-            />
-          )}
+          filterCategories={[{ key: 'type', label: 'Type', options: typeOptions }]}
         />
       </>
     );

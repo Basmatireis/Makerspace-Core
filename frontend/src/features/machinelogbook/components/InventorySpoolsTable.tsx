@@ -1,12 +1,12 @@
-import { useMemo, useState } from 'react';
-import { Button, Link as CarbonLink, MenuButton, MenuItem, MultiSelect, TableToolbarAction, Toggle } from '@carbon/react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Button, Link as CarbonLink, MenuButton, MenuItem, TableToolbarAction } from '@carbon/react';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import type { FilamentSpool } from '../../../api/generated/models';
 import { ChangeFilamentModal } from '../dialogs/ChangeFilamentModal';
 import { CleanupSpoolsModal } from '../dialogs/CleanupSpoolsModal';
 import { SpoolFormModal } from '../dialogs/SpoolFormModal';
-import { DirectoryTable, selectedOptions, useUrlState, type Column, type Option } from '../shared/DirectoryTable';
+import { DirectoryTable, useUrlState, type Column, type Option } from '../shared/DirectoryTable';
 import { machineLogbookPaths } from '../shared/paths';
 import { QueryBoundary } from '../shared/QueryBoundary';
 import { useCan } from '../shared/useCan';
@@ -24,10 +24,12 @@ type Props = {
   materialId?: string;
   /** Material page presentation: a plain Register spool button, without Change filament or cleanup. Defaults to true when a material is set. */
   compact?: boolean;
+  /** Section switcher for the toolbar when the table shares a page with sibling tables. */
+  switcher?: ReactNode;
 };
 
 /** Spools as a Directory-style table: the full Spools tab of the Inventory page, or a material's compact list. */
-export function InventorySpoolsTable({ materialId, compact = Boolean(materialId) }: Props) {
+export function InventorySpoolsTable({ materialId, compact = Boolean(materialId), switcher }: Props) {
   const can = useCan();
   // Registering, refilling and cleaning up all move stock, so they need both permissions.
   const canRegister = can('filament_spools.manage') && can('inventory.manage');
@@ -45,7 +47,7 @@ export function InventorySpoolsTable({ materialId, compact = Boolean(materialId)
         {(spools) => (
           <SpoolsTable
             spools={spools} fixedMaterial={Boolean(materialId)} materialOptions={(materials.data ?? []).map((material) => ({ id: material.id, label: material.name }))}
-            canRegister={canRegister} compact={compact} onRegister={() => setDialog('register')} onChangeFilament={() => setDialog('refill')} onCleanup={() => setDialog('cleanup')}
+            canRegister={canRegister} compact={compact} switcher={switcher} onRegister={() => setDialog('register')} onChangeFilament={() => setDialog('refill')} onCleanup={() => setDialog('cleanup')}
           />
         )}
       </QueryBoundary>
@@ -62,12 +64,13 @@ type TableProps = {
   materialOptions: Option[];
   canRegister: boolean;
   compact: boolean;
+  switcher?: ReactNode;
   onRegister: () => void;
   onChangeFilament: () => void;
   onCleanup: () => void;
 };
 
-function SpoolsTable({ spools, fixedMaterial, materialOptions, canRegister, compact, onRegister, onChangeFilament, onCleanup }: TableProps) {
+function SpoolsTable({ spools, fixedMaterial, materialOptions, canRegister, compact, switcher, onRegister, onChangeFilament, onCleanup }: TableProps) {
   const url = useUrlState(ID);
   const materialIds = url.list('material');
   const statusIds = url.list('status');
@@ -76,7 +79,6 @@ function SpoolsTable({ spools, fixedMaterial, materialOptions, canRegister, comp
   const productIds = url.list('product');
   const manufacturerIds = url.list('manufacturer');
   const showArchived = url.get('archived') === '1';
-  const filterKeys = fixedMaterial ? ['product', 'manufacturer', 'kind', 'status', 'mounted', 'archived'] : ['material', 'product', 'manufacturer', 'kind', 'status', 'mounted', 'archived'];
 
   // A spool's product is its snapshot text (catalog products and fills recorded by hand), so the filter matches on that.
   const productOptions: Option[] = [...new Set(spools.map((spool) => spool.productName).filter((name): name is string => Boolean(name)))].sort().map((name) => ({ id: name, label: name }));
@@ -134,10 +136,9 @@ function SpoolsTable({ spools, fixedMaterial, materialOptions, canRegister, comp
 
   return (
     <DirectoryTable
-      id={ID} label="Spools" columns={columns} rows={rows} totalCount={spools.length}
+      id={ID} label="Spools" columns={columns} rows={rows} totalCount={spools.length} switcher={switcher}
       searchText={(spool) => [spool.displayId, spool.label, spool.manufacturer, spool.productName, spool.materialName, spool.storageLocation, spool.acquisitionReference, ...spool.identifiers.map((item) => item.value)].filter(Boolean).join(' ')}
       defaultSort={{ key: 'spool', direction: 'ASC' }}
-      hasActiveFilters={filterKeys.some((key) => url.get(key))} onClearFilters={() => url.clear(filterKeys)}
       toolbarMenu={canRegister && !compact ? <TableToolbarAction onClick={onCleanup}>Clean up archived spools</TableToolbarAction> : undefined}
       toolbarAction={canRegister ? (!compact ? (
         <MenuButton label="New" kind="primary" size="lg" menuAlignment="bottom-end">
@@ -145,39 +146,15 @@ function SpoolsTable({ spools, fixedMaterial, materialOptions, canRegister, comp
           <MenuItem label="Change filament" onClick={onChangeFilament} />
         </MenuButton>
       ) : <Button kind="primary" size="lg" onClick={onRegister}>Register spool</Button>) : undefined}
-      filterFields={(
-        <>
-          {!fixedMaterial && (
-            <MultiSelect
-              id={`${ID}-material-filter`} className="mj-filter-panel__field" titleText="Material" label="All materials" items={materialOptions}
-              itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(materialOptions, materialIds)} onChange={({ selectedItems }) => url.setList('material', selectedItems)}
-            />
-          )}
-          <MultiSelect
-            id={`${ID}-product-filter`} className="mj-filter-panel__field" titleText="Product" label="All products" items={productOptions}
-            itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(productOptions, productIds)} onChange={({ selectedItems }) => url.setList('product', selectedItems)}
-          />
-          <MultiSelect
-            id={`${ID}-manufacturer-filter`} className="mj-filter-panel__field" titleText="Manufacturer" label="All manufacturers" items={manufacturerOptions}
-            itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(manufacturerOptions, manufacturerIds)} onChange={({ selectedItems }) => url.setList('manufacturer', selectedItems)}
-          />
-          <MultiSelect
-            id={`${ID}-kind-filter`} className="mj-filter-panel__field" titleText="Type" label="All types" items={kindOptions}
-            itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(kindOptions, kindIds) as typeof kindOptions} onChange={({ selectedItems }) => url.setList('kind', selectedItems)}
-          />
-          <MultiSelect
-            id={`${ID}-status-filter`} className="mj-filter-panel__field" titleText="Status" label="All statuses" items={statusOptions}
-            itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(statusOptions, statusIds) as typeof statusOptions} onChange={({ selectedItems }) => url.setList('status', selectedItems)}
-          />
-          <MultiSelect
-            id={`${ID}-mounted-filter`} className="mj-filter-panel__field" titleText="Mounted" label="Any" items={mountedOptions}
-            itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(mountedOptions, mountedIds)} onChange={({ selectedItems }) => url.setList('mounted', selectedItems)}
-          />
-          <div className="mj-filter-panel__field">
-            <Toggle id={`${ID}-archived-filter`} size="sm" labelText="Show archived" labelA="Hidden" labelB="Shown" toggled={showArchived} onToggle={(checked) => url.set({ archived: checked ? '1' : null })} />
-          </div>
-        </>
-      )}
+      filterCategories={[
+        ...(fixedMaterial ? [] : [{ key: 'material', label: 'Material', options: materialOptions }]),
+        { key: 'product', label: 'Product', options: productOptions },
+        { key: 'manufacturer', label: 'Manufacturer', options: manufacturerOptions },
+        { key: 'kind', label: 'Type', options: kindOptions },
+        { key: 'status', label: 'Status', options: statusOptions },
+        { key: 'mounted', label: 'Mounted', options: mountedOptions },
+        { key: 'archived', label: 'Show', options: [{ id: '1', label: 'Archived spools' }] },
+      ]}
       empty={{
         title: 'No spools yet', description: 'Register a spool to track filament weight, location and printer slots.',
         action: canRegister ? <Button kind="tertiary" onClick={onRegister}>Register spool</Button> : undefined,

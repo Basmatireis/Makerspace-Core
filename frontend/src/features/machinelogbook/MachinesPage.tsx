@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
-import { Button, Link as CarbonLink, MultiSelect, Tab, TabList, TabPanel, TabPanels, Tabs } from '@carbon/react';
+import { Button, Link as CarbonLink } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { Machine, MachineAvailability, MachineCurrentItem } from '../../api/generated/models';
 import { PageShell } from '../../app/PageShell';
+import { SectionSwitcher } from '../../app/SectionSwitcher';
 import { ConnectorsTab } from './components/ConnectorsTab';
 import { MachineTypesTab } from './components/MachineTypesTab';
 import { MachineSetupWizard } from './dialogs/MachineSetupWizard';
 import { machineActivityQuery, machinesQuery } from './queries';
-import { DirectoryTable, selectedOptions, useUrlState, type Column, type Option } from './shared/DirectoryTable';
+import { DirectoryTable, useUrlState, type Column, type Option } from './shared/DirectoryTable';
 import { formatQuantity, formatRelative } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
@@ -32,7 +33,6 @@ const statusOptions: Option[] = [
 ];
 const collectionOptions: Option[] = [{ id: 'automatic', label: 'Automatic' }, { id: 'manual', label: 'Manual' }];
 const connectorOptions: Option[] = [{ id: 'connected', label: 'Connected' }, { id: 'issue', label: 'Issue' }, { id: 'none', label: 'None' }];
-const FILTER_KEYS = ['status', 'type', 'collection', 'connector'];
 type TabKey = 'machines' | 'connectors' | 'types';
 const tabLabels: Record<TabKey, string> = { machines: 'Machines', connectors: 'Connectors', types: 'Machine types' };
 
@@ -80,11 +80,12 @@ export function MachinesPage() {
   const tabs: TabKey[] = can('printer_connectors.read') ? ['machines', 'connectors', 'types'] : ['machines', 'types'];
   const requestedTab = params.get('tab') as TabKey | null;
   const tab: TabKey = requestedTab && tabs.includes(requestedTab) ? requestedTab : 'machines';
-  const selectTab = (index: number) => setParams((previous) => {
+  const selectTab = (id: string) => setParams((previous) => {
     const next = new URLSearchParams(previous);
-    if (tabs[index] === 'machines' || !tabs[index]) next.delete('tab'); else next.set('tab', tabs[index]);
+    if (id === 'machines') next.delete('tab'); else next.set('tab', id);
     return next;
   }, { replace: true });
+  const switcher = <SectionSwitcher label="Machine sections" sections={tabs.map((id) => ({ id, label: tabLabels[id] }))} selected={tab} onChange={selectTab} />;
   useNow();
   // A single makerspace has far fewer machines than one page holds, so the table filters, sorts and pages them in the browser.
   const machines = useQuery(machinesQuery({ pageSize: 100 }));
@@ -113,7 +114,6 @@ export function MachinesPage() {
   const typeIds = url.list('type');
   const collectionIds = url.list('collection');
   const connectorIds = url.list('connector');
-  const hasActiveFilters = FILTER_KEYS.some((key) => url.get(key));
   const typeOptions = useMemo<Option[]>(() => {
     const types = new Map(allRows.map((row) => [row.machine.machineType.id, row.machine.machineType.name]));
     return [...types].map(([id, label]) => ({ id, label })).sort((a, b) => a.label.localeCompare(b.label, 'en', { numeric: true }));
@@ -129,37 +129,28 @@ export function MachinesPage() {
       title="Machines" description="Machines in the workshop, their availability and recent activity." width="wide"
       breadcrumbs={[{ label: 'Workshop', to: machineLogbookPaths.overview() }, { label: 'Machines' }]}
     >
-      <Tabs selectedIndex={tabs.indexOf(tab)} onChange={({ selectedIndex }) => selectTab(selectedIndex)}>
-        <TabList aria-label="Machine sections" contained>
-          {tabs.map((key) => <Tab key={key}>{tabLabels[key]}</Tab>)}
-        </TabList>
-        <TabPanels>
-          <TabPanel><div className="mj-tab-panel">
-            <QueryBoundary query={query} errorMessage="The machines could not be loaded.">
-              <DirectoryTable<Row>
-                id="machines" urlPrefix="" label="Machines" columns={columns} rows={rows} totalCount={allRows.length}
-                searchText={(row) => [row.machine.name, row.machine.machineType.name, row.machine.externalIdentifier ?? ''].join(' ')}
-                defaultSort={{ key: 'machine', direction: 'ASC' }}
-                hasActiveFilters={hasActiveFilters} onClearFilters={() => url.clear(FILTER_KEYS)}
-                filterFields={(
-                  <>
-                    <MultiSelect id="machines-status-filter" className="mj-filter-panel__field" titleText="Status" label="Active machines" helperText="Retired machines only appear when selected." items={statusOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(statusOptions, statusIds)} onChange={({ selectedItems }) => url.setList('status', selectedItems)} />
-                    <MultiSelect id="machines-type-filter" className="mj-filter-panel__field" titleText="Type" label="All types" items={typeOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(typeOptions, typeIds)} onChange={({ selectedItems }) => url.setList('type', selectedItems)} />
-                    <MultiSelect id="machines-collection-filter" className="mj-filter-panel__field" titleText="Collection" label="All collection modes" items={collectionOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(collectionOptions, collectionIds)} onChange={({ selectedItems }) => url.setList('collection', selectedItems)} />
-                    <MultiSelect id="machines-connector-filter" className="mj-filter-panel__field" titleText="Connector" label="All connector states" items={connectorOptions} itemToString={(item) => item?.label ?? ''} selectedItems={selectedOptions(connectorOptions, connectorIds)} onChange={({ selectedItems }) => url.setList('connector', selectedItems)} />
-                  </>
-                )}
-                toolbarAction={canManage ? <Button kind="primary" size="lg" onClick={() => setFormOpen(true)}>Add machine</Button> : undefined}
-                empty={{
-                  title: 'No machines yet', description: 'Add a machine to start logging jobs.',
-                  action: canManage ? <Button kind="tertiary" onClick={() => setFormOpen(true)}>Add machine</Button> : undefined,
-                }}
-              />
-            </QueryBoundary>
-          </div></TabPanel>
-          {tabs.filter((key) => key !== 'machines').map((key) => <TabPanel key={key}>{key === 'connectors' ? <ConnectorsTab /> : <MachineTypesTab />}</TabPanel>)}
-        </TabPanels>
-      </Tabs>
+      {tab === 'machines' && (
+        <QueryBoundary query={query} errorMessage="The machines could not be loaded.">
+          <DirectoryTable<Row>
+            id="machines" urlPrefix="" label="Machines" columns={columns} rows={rows} totalCount={allRows.length} switcher={switcher}
+            searchText={(row) => [row.machine.name, row.machine.machineType.name, row.machine.externalIdentifier ?? ''].join(' ')}
+            defaultSort={{ key: 'machine', direction: 'ASC' }}
+            filterCategories={[
+              { key: 'status', label: 'Status', options: statusOptions, helperText: 'Retired machines only appear when selected.' },
+              { key: 'type', label: 'Type', options: typeOptions },
+              { key: 'collection', label: 'Collection', options: collectionOptions },
+              { key: 'connector', label: 'Connector', options: connectorOptions },
+            ]}
+            toolbarAction={canManage ? <Button kind="primary" size="lg" onClick={() => setFormOpen(true)}>Add machine</Button> : undefined}
+            empty={{
+              title: 'No machines yet', description: 'Add a machine to start logging jobs.',
+              action: canManage ? <Button kind="tertiary" onClick={() => setFormOpen(true)}>Add machine</Button> : undefined,
+            }}
+          />
+        </QueryBoundary>
+      )}
+      {tab === 'connectors' && <ConnectorsTab switcher={switcher} />}
+      {tab === 'types' && <MachineTypesTab switcher={switcher} />}
       {canManage && formOpen && <MachineSetupWizard open onClose={() => setFormOpen(false)} />}
     </PageShell>
   );

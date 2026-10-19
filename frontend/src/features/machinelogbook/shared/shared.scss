@@ -10,6 +10,9 @@
 @use '@carbon/styles/scss/components/toggletip';
 @use '@carbon/styles/scss/components/progress-bar';
 
+// Lists (timelines, attention lists, history) sit on the page surface instead of the layer colour.
+.cds--contained-list { background-color: var(--cds-background); }
+
 // Toasts -----------------------------------------------------------------------
 
 .mj-toasts { position: fixed; z-index: 9000; inset-block-end: $spacing-05; inset-inline-end: $spacing-05; display: grid; gap: $spacing-03; }
@@ -42,22 +45,12 @@
 .page-shell__content > *,
 .page-shell__content .cds--tabs { min-inline-size: 0; max-inline-size: 100%; }
 
-// Directory-style data table (replicates production .people-table-container / .people-filter-panel).
+// Directory-style data table (replicates production .people-table-container).
 // Used by every list: wrap DataTable in <TableContainer className="mj-table-container"> (see DirectoryTable).
 .mj-table-container { inline-size: 100%; min-inline-size: 0; }
 .mj-table-container .cds--table-toolbar,
 .mj-table-container .cds--toolbar-content { block-size: auto; min-block-size: 3rem; }
 .mj-table-container .cds--data-table-content { inline-size: 100%; overflow-x: auto; }
-.mj-filter-panel { padding: $spacing-05; border-block-start: 1px solid var(--cds-border-subtle); background: var(--cds-layer); }
-// More filters than the Directory's three, so they flow in a responsive grid instead of one row.
-.mj-filter-panel__fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); align-items: end; gap: $spacing-05 $spacing-03; }
-.mj-filter-panel__field { min-inline-size: 0; }
-.mj-filter-panel__field .cds--date-picker,
-.mj-filter-panel__field .cds--date-picker-container,
-.mj-filter-panel__field .cds--date-picker-input__wrapper,
-.mj-filter-panel__field .cds--date-picker-input__wrapper > span,
-.mj-filter-panel__field .cds--date-picker.cds--date-picker--single .cds--date-picker__input { inline-size: 100%; }
-.mj-filter-panel__fields > .cds--btn { grid-column: 1 / -1; justify-self: end; }
 
 // Whole-row click on tables whose rows open a page or dialog (the name is also a link or button for keyboard access).
 .mj-row-clickable { cursor: pointer; }
@@ -70,15 +63,14 @@
   .mj-table-container .cds--table-toolbar .cds--toolbar-content { flex-wrap: wrap; inline-size: 100%; min-inline-size: 0; }
   // Search fills the first row next to the filter icon; the primary button takes its own full-width row.
   .mj-table-container .cds--table-toolbar .cds--toolbar-content > .cds--search { flex: 1 1 0; inline-size: auto; max-inline-size: none; }
-  .mj-table-container .cds--table-toolbar .cds--toolbar-content > .cds--btn--icon-only { flex: 0 0 auto; }
+  .mj-table-container .cds--table-toolbar .cds--toolbar-content > .cds--btn--icon-only,
+  .mj-table-container .cds--table-toolbar .cds--toolbar-content > .app-batch-filter { flex: 0 0 auto; }
+  // A section switcher takes the first row of the toolbar; search and actions wrap below it.
+  .mj-table-container .cds--table-toolbar { flex-wrap: wrap; }
   .mj-table-container .cds--table-toolbar .cds--toolbar-content > .cds--btn:not(.cds--btn--icon-only) { flex: 1 1 100%; inline-size: 100%; max-inline-size: none; }
   // Menu button in a table toolbar: full width on the toolbar's own row, like a plain primary button.
   .mj-table-container .cds--table-toolbar .cds--toolbar-content > .cds--menu-button__container { flex: 1 1 100%; inline-size: 100%; }
   .mj-table-container .cds--table-toolbar .cds--toolbar-content > .cds--menu-button__container > .cds--btn { inline-size: 100%; max-inline-size: none; }
-  .mj-filter-panel { padding: $spacing-03; }
-  .mj-filter-panel__fields { grid-template-columns: 1fr; }
-  .mj-filter-panel__field,
-  .mj-filter-panel__fields > .cds--btn { justify-self: stretch; inline-size: 100%; max-inline-size: none; }
   .mj-hide-narrow { display: none; }
 }
 @media (min-width: 42rem) {

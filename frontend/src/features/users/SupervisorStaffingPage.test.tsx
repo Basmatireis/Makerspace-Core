@@ -123,17 +123,18 @@ describe('Members inside Directory', () => {
     const filterButton = screen.getByRole('button', { name: 'Filters' });
     expect(filterButton).toHaveAttribute('aria-expanded', 'false');
     await user.click(filterButton);
-    const filters = screen.getByRole('region', { name: 'Members filters' });
+    const filters = screen.getByRole('group', { name: 'Members filters' });
     expect(filterButton).toHaveAttribute('aria-expanded', 'true');
-    const profilePictureFilter = within(filters).getByRole('combobox', { name: 'Profile picture' });
-    expect(within(filters).getByRole('combobox', { name: 'Lab Rules' })).toBeInTheDocument();
-    await user.click(profilePictureFilter);
-    await user.click(screen.getByRole('option', { name: 'Complete' }));
+    const profilePictureFilter = within(filters).getByRole('group', { name: 'Profile picture' });
+    expect(within(filters).getByRole('group', { name: 'Lab Rules' })).toBeInTheDocument();
+    await user.click(within(profilePictureFilter).getByRole('checkbox', { name: 'Complete' }));
+    await user.click(within(filters).getByRole('button', { name: 'Apply filters' }));
     await waitFor(() => {
       expect(screen.queryByRole('link', { name: 'Grace Hopper' })).not.toBeInTheDocument();
     });
     expect(await screen.findByRole('heading', { name: 'No members found' })).toBeInTheDocument();
-    await user.click(within(filters).getByRole('button', { name: 'Clear filters' }));
+    await user.click(screen.getByRole('button', { name: 'Filters (1 applied)' }));
+    await user.click(screen.getByRole('button', { name: 'Reset filters' }));
     expect(screen.getByRole('link', { name: 'Grace Hopper' })).toBeInTheDocument();
 
     const search = screen.getByRole('searchbox', { name: 'Search members' });

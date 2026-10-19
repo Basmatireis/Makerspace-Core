@@ -3,17 +3,12 @@ import {
   Select,
   SelectItem,
   Stack,
-  StructuredListBody,
-  StructuredListCell,
-  StructuredListRow,
-  StructuredListWrapper,
   TextInput,
   Tile,
-  Pagination,
 } from "@carbon/react";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import {
   getOrderPayment,
   getPaymentReconciliation,
@@ -21,10 +16,12 @@ import {
 } from "../../api/generated/payments/payments";
 import { getOrder } from "../../api/generated/orders/orders";
 import type {
+  OrderPayment,
   PaymentInput,
   PaymentReversalInput,
 } from "../../api/generated/models";
 import { DateInput } from "../../app/DateInput";
+import { RefLink } from "../../app/RefLink";
 import { PageShell } from "../../app/PageShell";
 import { DestructiveActionDialog } from "../../app/DestructiveActionDialog";
 import { ErrorState, FullPageLoading } from "../../app/PageState";
@@ -34,33 +31,51 @@ import { formatDateTime } from "../../app/dateTime";
 import { formatMoney } from "./formatting";
 import { FinancialError, PaymentForm } from "./shared";
 import { financeKeys, useOperationKeys, cents } from "./operations";
+import { DirectoryTable, useServerTableState, type Column, type Option } from "../machinelogbook/shared/DirectoryTable";
+
+const PAGE_SIZES = [10, 25, 50, 100];
+const METHOD_OPTIONS: Option[] = [
+  { id: "cash", label: "Cash" },
+  { id: "card", label: "Card" },
+  { id: "external", label: "Externally confirmed" },
+];
+
+const columns: Column<OrderPayment>[] = [
+  {
+    key: "reference", header: "Payment",
+    render: (p) => (
+      <div className="mj-cell-stack">
+        <RefLink reference={p.reference} id={p.id} />
+        {p.reversedPaymentReference && <span className="mj-secondary">Reverses <RefLink reference={p.reversedPaymentReference} id={p.reversesPaymentId} /></span>}
+      </div>
+    ),
+  },
+  { key: "kind", header: "Method", render: (p) => `${p.method} · ${p.entryKind === "reversal" ? p.reasonKind : p.entryKind}` },
+  { key: "amount", header: "Amount", render: (p) => formatMoney(p.entryKind === "reversal" ? `-${p.amount}` : p.amount) },
+  { key: "occurredAt", header: "Date", narrow: true, render: (p) => formatDateTime(p.occurredAt) },
+];
 
 export function PaymentsPage() {
-  const [params, setParams] = useSearchParams();
-  const page = Number(params.get("page") || 1),
-    pageSize = Number(params.get("pageSize") || 25);
+  const table = useServerTableState("", { key: "", direction: "ASC" }, PAGE_SIZES, 25);
+  const { url } = table;
+  const from = url.get("from");
+  const to = url.get("to");
   const filters = {
-    page,
-    pageSize,
-    method: (params.get("method") || undefined) as
+    page: table.page,
+    pageSize: table.pageSize,
+    method: (url.get("method") || undefined) as
       | "cash"
       | "card"
       | "external"
       | undefined,
-    from: params.get("from") ? `${params.get("from")}T00:00:00Z` : undefined,
-    to: params.get("to") ? `${params.get("to")}T00:00:00Z` : undefined,
+    from: from ? `${from}T00:00:00Z` : undefined,
+    to: to ? `${to}T00:00:00Z` : undefined,
   };
   const query = useQuery({
     placeholderData: keepPreviousData,
     queryKey: [...financeKeys, "journal", filters],
     queryFn: () => getPaymentReconciliation(filters),
   });
-  const update = (name: string, value: string) => {
-    const next = new URLSearchParams(params);
-    next.set(name, value);
-    next.set("page", "1");
-    setParams(next, { replace: true });
-  };
   if (query.isPending) return <FullPageLoading label="Loading payments" />;
   if (query.isError)
     return (
@@ -76,31 +91,6 @@ export function PaymentsPage() {
       width="wide"
     >
       <Stack gap={6}>
-        <div className="filter-bar">
-          <Select
-            id="journal-method"
-            labelText="Method"
-            value={filters.method || ""}
-            onChange={(e) => update("method", e.target.value)}
-          >
-            <SelectItem value="" text="All methods" />
-            <SelectItem value="cash" text="Cash" />
-            <SelectItem value="card" text="Card" />
-            <SelectItem value="external" text="Externally confirmed" />
-          </Select>
-          <DateInput
-            id="journal-from"
-            labelText="From (UTC date)"
-            value={params.get("from") || ""}
-            onChange={(v) => update("from", v)}
-          />
-          <DateInput
-            id="journal-to"
-            labelText="Before (UTC date)"
-            value={params.get("to") || ""}
-            onChange={(v) => update("to", v)}
-          />
-        </div>
         <Tile>
           <p>
             Period totals across methods: cash {formatMoney(query.data.cash)} ·
@@ -112,40 +102,22 @@ export function PaymentsPage() {
             Recording-error corrections are distinguished from actual refunds.
           </p>
         </Tile>
-        <StructuredListWrapper>
-          <StructuredListBody>
-            {query.data.entries.map((p) => (
-              <StructuredListRow key={p.id}>
-                <StructuredListCell>
-                  <Link to={`/payments/${p.id}`}>{p.reference}</Link>
-                </StructuredListCell>
-                <StructuredListCell>
-                  {p.method} ·{" "}
-                  {p.entryKind === "reversal" ? p.reasonKind : p.entryKind}
-                </StructuredListCell>
-                <StructuredListCell>
-                  {formatMoney(
-                    p.entryKind === "reversal" ? `-${p.amount}` : p.amount,
-                  )}
-                </StructuredListCell>
-                <StructuredListCell>
-                  {formatDateTime(p.occurredAt)}
-                </StructuredListCell>
-              </StructuredListRow>
-            ))}
-          </StructuredListBody>
-        </StructuredListWrapper>
-        <Pagination
-          page={page}
-          pageSize={pageSize}
-          pageSizes={[10, 25, 50, 100]}
-          totalItems={query.data.total}
-          onChange={({ page, pageSize }) => {
-            const next = new URLSearchParams(params);
-            next.set("page", String(page));
-            next.set("pageSize", String(pageSize));
-            setParams(next);
-          }}
+        <DirectoryTable<OrderPayment>
+          mode="server" id="payments" urlPrefix="" label="Payments" columns={columns} searchable={false}
+          rows={query.data.entries} total={query.data.total} pageSizes={PAGE_SIZES} defaultPageSize={25}
+          filterCategories={[
+            { key: "method", label: "Method", options: METHOD_OPTIONS, single: true },
+            {
+              key: "period", label: "Period", keys: ["from", "to"],
+              render: ({ idPrefix, staged, set }) => (
+                <>
+                  <DateInput id={`${idPrefix}-from`} labelText="From (UTC date)" value={staged.from?.[0] ?? ""} onChange={(value) => set("from", value ? [value] : [])} />
+                  <DateInput id={`${idPrefix}-to`} labelText="Before (UTC date)" value={staged.to?.[0] ?? ""} onChange={(value) => set("to", value ? [value] : [])} />
+                </>
+              ),
+            },
+          ]}
+          empty={{ title: "No payments yet", description: "Recorded cash, card and externally confirmed payments appear here." }}
         />
       </Stack>
     </PageShell>
@@ -237,9 +209,7 @@ function PaymentDetailPageContent({ paymentId }: { paymentId: string }) {
           {p.reversesPaymentId && (
             <p>
               Reversal of{" "}
-              <Link to={`/payments/${p.reversesPaymentId}`}>
-                {p.reversedPaymentReference}
-              </Link>
+              <RefLink reference={p.reversedPaymentReference ?? ""} id={p.reversesPaymentId} />
             </p>
           )}
           <p>{p.reason}</p>
@@ -251,11 +221,7 @@ function PaymentDetailPageContent({ paymentId }: { paymentId: string }) {
           <h2>Allocation history</h2>
           {p.allocations.map((a) => (
             <p key={a.id}>
-              {a.orderId ? (
-                <Link to={`/orders/${a.orderId}`}>{a.orderReference}</Link>
-              ) : (
-                a.orderReference
-              )}
+              <RefLink reference={a.orderReference ?? ""} id={a.orderId} />
               : € {a.amount}
             </p>
           ))}

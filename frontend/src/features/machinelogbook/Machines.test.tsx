@@ -108,8 +108,8 @@ describe('Machines list', () => {
     renderPage('/machine-logbook/machines');
     await screen.findByRole('link', { name: 'Laser cutter' }, { timeout: 5000 });
     await user.click(iconButton('Filters'));
-    await user.click(screen.getByRole('combobox', { name: /Status/ }));
-    await user.click(await screen.findByRole('option', { name: 'Retired' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Retired' }));
+    await user.click(screen.getByRole('button', { name: 'Apply filters' }));
     expect(await screen.findByRole('link', { name: 'Old saw' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Laser cutter' })).not.toBeInTheDocument();
     expect(within(rowFor('Old saw')).getByText('Retired', { selector: '.mj-secondary' })).toBeInTheDocument();
@@ -131,8 +131,9 @@ describe('Machines list', () => {
     renderPage('/machine-logbook/machines?connector=issue');
     await screen.findByRole('link', { name: 'Bambu H2D' }, { timeout: 5000 });
     expect(screen.queryByRole('link', { name: 'Laser cutter' })).not.toBeInTheDocument();
-    await user.click(iconButton('Filters'));
-    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    await user.click(iconButton('Filters (1 applied)'));
+    expect(screen.getByRole('checkbox', { name: 'Issue' })).toBeChecked();
+    await user.click(screen.getByRole('button', { name: 'Reset filters' }));
     expect(await screen.findByRole('link', { name: 'Laser cutter' })).toBeInTheDocument();
   });
 

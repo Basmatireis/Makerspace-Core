@@ -14,7 +14,6 @@ import {
   ModalBody,
   ModalFooter,
   ModalHeader,
-  MultiSelect,
   Pagination,
   Stack,
   Table,
@@ -33,7 +32,7 @@ import {
   TableToolbarSearch,
   Tag,
 } from '@carbon/react';
-import { Add, Filter, TrashCan, UserFollow, UserRole } from '@carbon/icons-react';
+import { Add, TrashCan, UserFollow, UserRole } from '@carbon/icons-react';
 import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -52,6 +51,7 @@ import {
   deletePerson,
   getPersonMakerspaceStatus,
 } from '../../api/generated/people/people';
+import { BatchFilter, type FilterCategory, type FilterValues } from '../../app/BatchFilter';
 import { PageShell } from '../../app/PageShell';
 import { useLatestCallback } from '../../app/useLatestCallback';
 import { ErrorState, InlineLoadingState } from '../../app/PageState';
@@ -159,7 +159,6 @@ export function UsersPage() {
     searchParams.getAll('labRules').includes(option.value),
   );
   const [searchValue, setSearchValue] = useState(search);
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [batchAction, setBatchAction] = useState<BatchAction>(null);
   const [batchMembers, setBatchMembers] = useState<Person[]>([]);
   const [batchRole, setBatchRole] = useState<Role | null>(null);
@@ -443,19 +442,31 @@ export function UsersPage() {
       )
     : batchMembers;
 
-  const selectedRoles = (rolesQuery.data ?? []).filter((role) =>
-    selectedRoleIds.includes(role.id),
-  );
   const canFilter = showAccounts || mayReadRoles || mayReadLabRules;
   const hasActiveFilters = (mayReadRoles && selectedRoleIds.length > 0)
     || (showAccounts && selectedAccountStatusOptions.length > 0)
     || (mayReadLabRules && selectedLabRulesStatusOptions.length > 0);
+  const filterCategories: FilterCategory[] = [
+    ...(mayReadRoles ? [{
+      key: 'role', label: 'Role', options: (rolesQuery.data ?? []).map((role) => ({ id: role.id, label: role.name })),
+      helperText: rolesQuery.isPending ? 'Loading roles…' : rolesQuery.isError ? 'Roles could not be loaded.' : undefined,
+    }] : []),
+    ...(mayReadLabRules ? [{ key: 'labRules', label: 'Lab Rules', options: LAB_RULES_STATUS_OPTIONS.map((option) => ({ id: option.value, label: option.label })) }] : []),
+    ...(showAccounts ? [{ key: 'status', label: 'Status', options: ACCOUNT_STATUS_OPTIONS.map((option) => ({ id: option.value, label: option.label })) }] : []),
+  ];
+  const appliedFilters: FilterValues = {
+    role: selectedRoleIds,
+    labRules: selectedLabRulesStatusOptions.map((option) => option.value),
+    status: selectedAccountStatusOptions.map((option) => option.value),
+  };
 
-  const updateFilter = (key: 'role' | 'status' | 'labRules', values: string[]) => {
+  const applyFilters = (values: FilterValues) => {
     const next = new URLSearchParams(searchParams);
     next.set('page', '1');
-    next.delete(key);
-    for (const value of values) next.append(key, value);
+    for (const category of filterCategories) {
+      next.delete(category.key);
+      for (const value of values[category.key] ?? []) next.append(category.key, value);
+    }
     setSearchParams(next, { replace: true });
   };
 
@@ -599,16 +610,7 @@ export function UsersPage() {
                       onClear={() => setSearchValue('')}
                     />
                     {canFilter && (
-                      <Button
-                        hasIconOnly
-                        kind={hasActiveFilters ? 'primary' : 'ghost'}
-                        size="md"
-                        renderIcon={Filter}
-                        iconDescription="Filters"
-                        aria-expanded={filtersOpen}
-                        aria-controls="people-filters"
-                        onClick={() => setFiltersOpen((open) => !open)}
-                      />
+                      <BatchFilter id="people" label="People" categories={filterCategories} applied={appliedFilters} onApply={applyFilters} onReset={clearFilters} />
                     )}
                     {mayCreate && (
                       <Button
@@ -630,52 +632,6 @@ export function UsersPage() {
                     )}
                   </TableToolbarContent>
                 </TableToolbar>
-                {filtersOpen && (
-                  <div id="people-filters" className="people-filter-panel" role="region" aria-label="People filters">
-                    <div className="people-filter-panel__fields">
-                      {mayReadRoles && (
-                        <MultiSelect
-                          id="people-role-filter"
-                          className="people-filter-panel__field"
-                          titleText="Role"
-                          label={rolesQuery.isPending ? 'Loading roles…' : 'All roles'}
-                          items={rolesQuery.data ?? []}
-                          itemToString={(role) => role?.name ?? ''}
-                          selectedItems={selectedRoles}
-                          disabled={rolesQuery.isPending || rolesQuery.isError}
-                          onChange={({ selectedItems }) => updateFilter('role', (selectedItems ?? []).map((role) => role.id))}
-                        />
-                      )}
-                      {mayReadLabRules && (
-                        <MultiSelect
-                          id="people-lab-rules-filter"
-                          className="people-filter-panel__field"
-                          titleText="Lab Rules"
-                          label="All Lab Rules statuses"
-                          items={LAB_RULES_STATUS_OPTIONS}
-                          itemToString={(option) => option?.label ?? ''}
-                          selectedItems={selectedLabRulesStatusOptions}
-                          onChange={({ selectedItems }) => updateFilter('labRules', (selectedItems ?? []).map((option) => option.value))}
-                        />
-                      )}
-                      {showAccounts && (
-                        <MultiSelect
-                          id="people-account-status-filter"
-                          className="people-filter-panel__field"
-                          titleText="Status"
-                          label="All account statuses"
-                          items={ACCOUNT_STATUS_OPTIONS}
-                          itemToString={(option) => option?.label ?? ''}
-                          selectedItems={selectedAccountStatusOptions}
-                          onChange={({ selectedItems }) => updateFilter('status', (selectedItems ?? []).map((option) => option.value))}
-                        />
-                      )}
-                      <Button kind="ghost" size="md" disabled={!hasActiveFilters} onClick={clearFilters}>
-                        Clear filters
-                      </Button>
-                    </div>
-                  </div>
-                )}
                 <Table {...getTableProps()}>
                   <TableHead>
                     <TableRow>

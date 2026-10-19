@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { RefLink } from '../../app/RefLink';
 import {
-  Accordion, AccordionItem, Button, Select, SelectItem, DataTable, Link as CarbonLink, InlineNotification, OverflowMenu, OverflowMenuItem, Table, TableBody, TableCell, TableContainer,
+  Accordion, AccordionItem, Button, Select, SelectItem, DataTable, InlineNotification, OverflowMenu, OverflowMenuItem, Table, TableBody, TableCell, TableContainer,
   TableHead, TableHeader, TableRow, Tag, Tile,
 } from '@carbon/react';
 import { Edit } from '@carbon/icons-react';
@@ -213,7 +214,7 @@ function JobDetail({ job }: { job: MachineJob }) {
                             <TableCell><div className="mj-cell-stack"><span>{usage.materialName}</span><span className="mj-secondary">{usage.category}</span></div></TableCell>
                             <TableCell>
                               <div className="mj-cell-stack">
-                                <CarbonLink as={Link} to={machineLogbookPaths.run(run.id)}>{run.displayId}</CarbonLink>
+                                <RefLink kind="run" reference={run.displayId} id={run.id} />
                                 {run.usagesFromMachine && <span><FromMachineTag /></span>}
                               </div>
                             </TableCell>
@@ -267,7 +268,7 @@ function JobDetail({ job }: { job: MachineJob }) {
                 <h4 className="mj-section-title">Order</h4>
                 {association.isError ? <p className="mj-secondary">The order could not be loaded.</p> : association.data?.orderId ? (
                   <>
-                    <p><CarbonLink as={Link} to={`/orders/${association.data.orderId}`}>{association.data.orderReference}</CarbonLink></p>
+                    <p><RefLink kind="order" reference={association.data.orderReference ?? ''} id={association.data.orderId} /></p>
                     {association.data.sourceChanged && <InlineNotification kind="warning" lowContrast hideCloseButton title="Changed after charge" subtitle="This job changed after it was charged. The order amount has not been updated." />}
                   </>
                 ) : association.data ? <p className="mj-secondary">Not on an order.</p> : null}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   Button, CodeSnippet, ComposedModal, DataTable, InlineNotification, Link as CarbonLink, Modal, ModalBody, ModalFooter, ModalHeader, OverflowMenu, OverflowMenuItem,
   Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, Tag, TextInput,
@@ -75,7 +75,7 @@ function SecretModal({ secret, onClose }: { secret: string; onClose: () => void 
   );
 }
 
-export function ConnectorsTab() {
+export function ConnectorsTab({ switcher }: { switcher?: ReactNode }) {
   const can = useCan();
   const client = useQueryClient();
   const notify = useNotify();
@@ -119,13 +119,13 @@ export function ConnectorsTab() {
   const diagnosticConnector = items.find((connector) => connector.id === diagnostics);
 
   return (
-    <div className="mj-tab-panel">
-      <p className="mj-secondary">Connectors are the agents next to your printers. They observe printers and deliver events to Core. Printers are assigned to a connector from the printer's own setup.</p>
+    <div className="mj-stack">
       <QueryBoundary query={connectors} errorMessage="The printer connectors could not be loaded.">
         <DataTable rows={rows} headers={headers}>
           {({ rows: tableRows, headers: tableHeaders, getRowProps, getTableProps }) => (
             <TableContainer className="mj-table-container">
               <TableToolbar aria-label="Connectors toolbar">
+                {switcher}
                 <TableToolbarContent>
                   {canManage && <Button kind="primary" size="lg" renderIcon={Add} onClick={() => setAdding(true)}>Add connector</Button>}
                 </TableToolbarContent>
@@ -181,6 +181,7 @@ export function ConnectorsTab() {
           )}
         </DataTable>
       </QueryBoundary>
+      <p className="mj-secondary">Connectors are the agents next to your printers. They observe printers and deliver events to Core. Printers are assigned to a connector from the printer's own setup.</p>
       {adding && <AddConnectorModal canEnroll={canCredentials} onClose={() => setAdding(false)} onCreated={(value) => { setAdding(false); setSecret(value); }} />}
       {secret && <SecretModal secret={secret} onClose={() => setSecret(null)} />}
       {diagnosticConnector && <DiagnosticsModal connector={diagnosticConnector} onClose={() => setDiagnostics(null)} />}

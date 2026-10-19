@@ -1,12 +1,11 @@
 import { useState } from 'react';
+import { RefLink } from '../../../app/RefLink';
 import {
-  Button, DataTable, Link as CarbonLink, OverflowMenu, OverflowMenuItem, ProgressBar, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent,
+  Button, DataTable, OverflowMenu, OverflowMenuItem, ProgressBar, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent,
 } from '@carbon/react';
 import { Add, Link as LinkIcon } from '@carbon/icons-react';
-import { Link } from 'react-router-dom';
 import type { MachineJob, MachineRun } from '../../../api/generated/models';
 import { formatDateTime, formatDuration, formatTime } from '../shared/format';
-import { machineLogbookPaths } from '../shared/paths';
 import { FromMachineTag, isRunLive, RunOutcomeTag, runEnd, RunSourceTag, RunStateTag, runName, runProgress, runStateNow, usagesText } from '../shared/status';
 import '../styles/jobs.scss';
 
@@ -90,7 +89,7 @@ export function JobRunsTable({ job, now, canEdit, canDelete = false, canAttach, 
                     <TableRow key={key} {...props} className={isReplaced ? 'mj-run-row--replaced' : undefined}>
                       <TableCell>
                         <div className="mj-cell-stack">
-                          <CarbonLink as={Link} to={machineLogbookPaths.run(run.id)}>{run.displayId}</CarbonLink>
+                          <RefLink kind="run" reference={run.displayId} id={run.id} />
                           <span className="mj-secondary">{run.fileName ? runName(run) : 'No file name'}</span>
                           <span className="mj-secondary mj-show-narrow">{run.source === 'recorded' ? `Recorded${run.connectorName ? ` via ${run.connectorName}` : ''}` : 'Manual'} · {formatDateTime(run.startedAt)}</span>
                         </div>

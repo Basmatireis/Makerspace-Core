@@ -1,7 +1,7 @@
 import './styles.scss';
-import { Add, Edit, Filter, TrashCan, UserMultiple } from '@carbon/icons-react';
+import { Add, Edit, TrashCan, UserMultiple } from '@carbon/icons-react';
 import {
-  Button, DataTable, Dropdown, Link as CarbonLink, Pagination, Tag, Tile,
+  Button, DataTable, Link as CarbonLink, Pagination, Tag, Tile,
   Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow,
   TableToolbar, TableToolbarContent, TableToolbarSearch,
 } from '@carbon/react';
@@ -11,6 +11,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { deleteEvent, getGetEventBannerUrl } from '../../api/generated/events/events';
 import type { Event, EventStatus } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
+import { BatchFilter } from '../../app/BatchFilter';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
 import { EmptyState, ErrorState, InlineLoadingState } from '../../app/PageState';
@@ -31,20 +32,18 @@ const headers = [
   { key: 'owner', header: 'Owner' },
   { key: 'actions', header: 'Actions' },
 ];
-const statusOptions: Array<{ value: 'all' | EventStatus; label: string }> = [
-  { value: 'all', label: 'All statuses' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'planning', label: 'Planning' },
-  { value: 'confirmed', label: 'Confirmed' },
-  { value: 'completed', label: 'Completed' },
-  { value: 'cancelled', label: 'Cancelled' },
-  { value: 'archived', label: 'Archived' },
+const statusOptions: Array<{ id: EventStatus; label: string }> = [
+  { id: 'draft', label: 'Draft' },
+  { id: 'planning', label: 'Planning' },
+  { id: 'confirmed', label: 'Confirmed' },
+  { id: 'completed', label: 'Completed' },
+  { id: 'cancelled', label: 'Cancelled' },
+  { id: 'archived', label: 'Archived' },
 ];
 
 export type EventListState = {
   search: string;
-  status: 'all' | EventStatus;
-  filtersOpen: boolean;
+  statuses: EventStatus[];
   page: number;
   pageSize: number;
   scrollY: number;
@@ -74,8 +73,7 @@ export function EventsPage({ initialState, createOpen = false, onCloseCreate }: 
     || hasPermission(currentUser, PermissionId.eventsassign);
   const restoredState = initialState ?? (location.state as { eventList?: EventListState } | null)?.eventList;
   const [search, setSearch] = useState(restoredState?.search ?? '');
-  const [selectedStatus, setSelectedStatus] = useState(() => statusOptions.find((option) => option.value === restoredState?.status) ?? statusOptions[0]);
-  const [filtersOpen, setFiltersOpen] = useState(restoredState?.filtersOpen ?? false);
+  const [selectedStatuses, setSelectedStatuses] = useState<EventStatus[]>(restoredState?.statuses ?? []);
   const [page, setPage] = useState(restoredState?.page ?? 1);
   const [pageSize, setPageSize] = useState(restoredState?.pageSize ?? 25);
   const [deleteTarget, setDeleteTarget] = useState<Event | null>(null);
@@ -100,12 +98,12 @@ export function EventsPage({ initialState, createOpen = false, onCloseCreate }: 
   const filteredEvents = useMemo(() => {
     const normalizedSearch = search.trim().toLocaleLowerCase();
     return (query.data?.items ?? []).filter((event) => {
-      if (selectedStatus.value !== 'all' && event.status !== selectedStatus.value) return false;
+      if (selectedStatuses.length > 0 && !selectedStatuses.includes(event.status)) return false;
       if (!normalizedSearch) return true;
       return [event.name, event.location, event.ownerName, event.publicTitle]
         .some((value) => value?.toLocaleLowerCase().includes(normalizedSearch));
     });
-  }, [query.data, search, selectedStatus]);
+  }, [query.data, search, selectedStatuses]);
   const pageCount = Math.max(1, Math.ceil(filteredEvents.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const pageStart = (currentPage - 1) * pageSize;
@@ -121,8 +119,8 @@ export function EventsPage({ initialState, createOpen = false, onCloseCreate }: 
     owner: event.ownerName ?? '',
     actions: '',
   }));
-  const hasActiveFilters = selectedStatus.value !== 'all';
-  const listState = (): EventListState => ({ search, status: selectedStatus.value, filtersOpen, page: currentPage, pageSize, scrollY: window.scrollY });
+  const hasActiveFilters = selectedStatuses.length > 0;
+  const listState = (): EventListState => ({ search, statuses: selectedStatuses, page: currentPage, pageSize, scrollY: window.scrollY });
   const openCreate = () => {
     const state = { eventList: listState() };
     navigate('/events', { replace: true, state, flushSync: true });
@@ -143,11 +141,13 @@ export function EventsPage({ initialState, createOpen = false, onCloseCreate }: 
         <TableToolbar aria-label="Events table toolbar">
           <TableToolbarContent>
             <TableToolbarSearch id="events-search" labelText="Search events" placeholder="Search events" value={search} onChange={(_event, value) => { setSearch(value ?? ''); setPage(1); }} onClear={() => { setSearch(''); setPage(1); }} />
-            <Button hasIconOnly kind={hasActiveFilters ? 'primary' : 'ghost'} size="md" renderIcon={Filter} iconDescription="Filters" aria-expanded={filtersOpen} aria-controls="event-filters" onClick={() => setFiltersOpen((open) => !open)} />
+            <BatchFilter
+              id="events" label="Events" categories={[{ key: 'status', label: 'Status', options: statusOptions }]} applied={{ status: selectedStatuses }}
+              onApply={(values) => { setSelectedStatuses((values.status ?? []) as EventStatus[]); setPage(1); }} onReset={() => { setSelectedStatuses([]); setPage(1); }}
+            />
             {canManage && <Button ref={createButtonRef} renderIcon={Add} onClick={openCreate}>Create event</Button>}
           </TableToolbarContent>
         </TableToolbar>
-        {filtersOpen && <div id="event-filters" className="event-filter-panel" role="region" aria-label="Event filters"><Dropdown id="event-status-filter" titleText="Status" label="All statuses" items={statusOptions} itemToString={(item) => item?.label ?? ''} selectedItem={selectedStatus} onChange={({ selectedItem }) => { setSelectedStatus(selectedItem ?? statusOptions[0]); setPage(1); }} /><Button kind="ghost" size="md" disabled={!hasActiveFilters} onClick={() => { setSelectedStatus(statusOptions[0]); setPage(1); }}>Clear filters</Button></div>}
         <div className="events-desktop-list">
           <Table {...getTableProps()}>
             <TableHead><TableRow>{tableHeaders.map((header) => <TableHeader {...getHeaderProps({ header, isSortable: header.key !== 'actions' })} key={header.key} className={header.key === 'actions' ? 'events-table__actions-column' : undefined}>{header.header}</TableHeader>)}</TableRow></TableHead>

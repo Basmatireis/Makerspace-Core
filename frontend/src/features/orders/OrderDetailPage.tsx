@@ -44,6 +44,7 @@ import type {
 } from "../../api/generated/models";
 import { useCurrentUser } from "../auth/auth";
 import { hasPermission, PermissionId } from "../auth/permissions";
+import { RefLink } from "../../app/RefLink";
 import { PageShell } from "../../app/PageShell";
 import { DestructiveActionDialog } from "../../app/DestructiveActionDialog";
 import { ErrorState, FullPageLoading } from "../../app/PageState";
@@ -157,9 +158,7 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
         {o.replacedByOrderId && (
           <p>
             Replaced by{" "}
-            <Link to={`/orders/${o.replacedByOrderId}`}>
-              {o.replacedByOrderReference}
-            </Link>
+            <RefLink reference={o.replacedByOrderReference ?? ""} id={o.replacedByOrderId} />
             .
           </p>
         )}
@@ -167,9 +166,7 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
         {o.replacesOrderId && (
           <p>
             Replacement for{" "}
-            <Link to={`/orders/${o.replacesOrderId}`}>
-              {o.replacesOrderReference}
-            </Link>
+            <RefLink reference={o.replacesOrderReference ?? ""} id={o.replacesOrderId} />
             .{o.status === "draft" && " Commit from the original Order."}
           </p>
         )}
@@ -558,13 +555,7 @@ function OrderDetailContent({ orderId }: { orderId: string }) {
               <h3>Payment allocation history</h3>
               {o.allocations.map((a) => (
                 <p key={a.id}>
-                  {can(PermissionId.paymentsread) && a.paymentId ? (
-                    <Link to={`/payments/${a.paymentId}`}>
-                      {a.paymentReference}
-                    </Link>
-                  ) : (
-                    a.paymentReference
-                  )}
+                  <RefLink reference={a.paymentReference ?? ""} id={a.paymentId} />
                   : € {a.amount}
                 </p>
               ))}

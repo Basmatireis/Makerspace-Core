@@ -45,9 +45,10 @@ describe('Organizations list', () => {
     expect(breadcrumbs.getByText('Directory')).toBeInTheDocument();
 
     await user.click(screen.getByText('Filters', { selector: '.cds--tooltip-content' }).closest('.cds--popover-container')!.querySelector('button') as HTMLElement);
-    await user.selectOptions(screen.getByLabelText('Kind'), 'institute');
-    await user.selectOptions(screen.getByLabelText('Status'), 'false');
-    await user.selectOptions(screen.getByLabelText('Pricing group'), groupId);
+    await user.click(screen.getByRole('radio', { name: 'Institute' }));
+    await user.click(screen.getByRole('radio', { name: 'Inactive' }));
+    await user.click(screen.getByRole('radio', { name: 'Partners' }));
+    await user.click(screen.getByRole('button', { name: 'Apply filters' }));
     await waitFor(() => {
       const last = requests.at(-1)!;
       expect(last.searchParams.get('kind')).toBe('institute');

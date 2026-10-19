@@ -121,11 +121,11 @@ describe('People page', () => {
     const filtersButton = screen.getByRole('button', { name: 'Filters' });
     expect(filtersButton).toHaveAttribute('aria-expanded', 'false');
     await user.click(filtersButton);
-    const filters = screen.getByRole('region', { name: 'People filters' });
+    const filters = screen.getByRole('group', { name: 'People filters' });
     expect(filtersButton).toHaveAttribute('aria-expanded', 'true');
-    expect(within(filters).getByRole('combobox', { name: 'Role' })).toBeInTheDocument();
-    expect(within(filters).getByRole('combobox', { name: 'Lab Rules' })).toBeInTheDocument();
-    expect(within(filters).getByRole('combobox', { name: 'Status' })).toBeInTheDocument();
+    expect(within(filters).getByRole('group', { name: 'Role' })).toBeInTheDocument();
+    expect(within(filters).getByRole('group', { name: 'Lab Rules' })).toBeInTheDocument();
+    expect(within(filters).getByRole('group', { name: 'Status' })).toBeInTheDocument();
     const membersButton = screen.getByRole('button', { name: 'Members' });
     const tableToolbar = screen.getByLabelText('People table toolbar');
     expect(tableToolbar).toContainElement(membersButton);
@@ -180,11 +180,11 @@ describe('People page', () => {
     expect(requestedAccountStatuses).toEqual(['enabled', 'no_account']);
     expect(requestedLaborordnungStatuses).toEqual(['current', 'pending']);
 
-    await user.click(screen.getByRole('button', { name: 'Filters' }));
-    const filters = screen.getByRole('region', { name: 'People filters' });
-    expect(within(filters).getAllByText('2', { selector: '.cds--tag__label' })).toHaveLength(3);
+    await user.click(screen.getByRole('button', { name: 'Filters (6 applied)' }));
+    const filters = screen.getByRole('group', { name: 'People filters' });
+    expect(within(filters).getAllByRole('checkbox', { checked: true })).toHaveLength(6);
 
-    await user.click(within(filters).getByRole('button', { name: 'Clear filters' }));
+    await user.click(within(filters).getByRole('button', { name: 'Reset filters' }));
     await waitFor(() => expect(router.state.location.search).toBe('?page=1'));
   });
 

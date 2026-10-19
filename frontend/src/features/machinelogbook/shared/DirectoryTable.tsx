@@ -3,8 +3,8 @@ import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode }
 import {
   Button, DataTable, Pagination, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, TableToolbarMenu, TableToolbarSearch,
 } from '@carbon/react';
-import { Filter } from '@carbon/icons-react';
 import { useSearchParams } from 'react-router-dom';
+import { BatchFilter, toPatch, type FilterCategory, type FilterValues } from '../../../app/BatchFilter';
 import { EmptyState } from '../../../app/PageState';
 import './shared.scss';
 
@@ -48,11 +48,11 @@ const DEFAULT_PAGE_SIZES = [10, 25, 50];
  * (`q`, `page`, `pageSize`, `sort` as "key:ASC"). Use the values to build the query; pass `sort` and `setSort`
  * to the table.
  */
-export function useServerTableState(prefix: string, defaultSort: Sort, pageSizes: number[] = DEFAULT_PAGE_SIZES) {
+export function useServerTableState(prefix: string, defaultSort: Sort, pageSizes: number[] = DEFAULT_PAGE_SIZES, defaultPageSize: number = pageSizes[0]) {
   const url = useUrlState(prefix);
   const [sortKey, sortDirection] = url.get('sort').split(':');
   const sort: Sort = sortKey && (sortDirection === 'ASC' || sortDirection === 'DESC') ? { key: sortKey, direction: sortDirection } : defaultSort;
-  const pageSize = pageSizes.includes(Number(url.get('pageSize'))) ? Number(url.get('pageSize')) : pageSizes[0];
+  const pageSize = pageSizes.includes(Number(url.get('pageSize'))) ? Number(url.get('pageSize')) : defaultPageSize;
   const page = Math.max(1, Math.floor(Number(url.get('page'))) || 1);
   const setSort = (next: Sort) => url.set({ sort: `${next.key}:${next.direction}` });
   return { url, search: url.get('q'), page, pageSize, sort, setSort };
@@ -63,20 +63,27 @@ type CommonProps<T extends { id: string }> = {
   id: string;
   label: string;
   columns: Column<T>[];
-  filterFields?: ReactNode;
-  hasActiveFilters?: boolean;
+  /** Columns of the batch filter panel. Each category key is also the URL parameter (under the table prefix) that stores its applied choices. */
+  filterCategories?: FilterCategory[];
+  /** Section switcher shown at the start of the toolbar when sibling tables share a page. */
+  switcher?: ReactNode;
+  /** Runs when filters are reset (panel or empty state), in addition to clearing the `filterCategories` URL parameters. */
   onClearFilters?: () => void;
   toolbarAction?: ReactNode;
   /** Overflow items (`TableToolbarAction`) shown in a menu before the primary action. */
   toolbarMenu?: ReactNode;
   empty: { title: string; description: string; action?: ReactNode };
   pageSizes?: number[];
+  /** Page size when the URL names none; defaults to the first of `pageSizes`. Use the same value for `useServerTableState`. */
+  defaultPageSize?: number;
   /** Makes whole rows clickable (mouse convenience); the row must also offer a keyboard-reachable control that does the same. */
   onRowClick?: (row: T) => void;
   /** URL parameter prefix when it should differ from `id`; `''` gives plain `q`, `page`, `pageSize` parameters. */
   urlPrefix?: string;
   /** Extra class on the toolbar. */
   toolbarClassName?: string;
+  /** Set to false for a server table whose query has no search parameter: the toolbar then has no search field. */
+  searchable?: boolean;
 };
 
 type ClientProps<T extends { id: string }> = {
@@ -97,8 +104,8 @@ type ServerProps<T extends { id: string }> = {
   total: number;
   /** True when nothing exists at all, to tell "nothing yet" from "nothing found". Defaults to "no search or filter is active". */
   isEmptyDataset?: boolean;
-  sort: Sort;
-  onSortChange: (sort: Sort) => void;
+  sort?: Sort;
+  onSortChange?: (sort: Sort) => void;
   /** Milliseconds to wait after typing before the search reaches the URL (and so the query). */
   searchDebounceMs?: number;
 };
@@ -106,20 +113,22 @@ type ServerProps<T extends { id: string }> = {
 type Props<T extends { id: string }> = CommonProps<T> & (ClientProps<T> | ServerProps<T>);
 
 /**
- * Directory-style table shared by every list: expandable search, icon-only filter toggle with an inline panel,
- * primary action in the toolbar, sorting and pagination in the container. Client mode sorts and pages the full
+ * Directory-style table shared by every list: expandable search, a batch filter panel (staged choices applied at once),
+ * an optional section switcher, primary action in the toolbar, sorting and pagination in the container. Client mode sorts and pages the full
  * filtered list; server mode renders one page and reports sort, page and search through URL parameters.
  */
 export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
   const {
-    id, label, columns, filterFields, hasActiveFilters = false, onClearFilters, toolbarAction, toolbarMenu, empty, pageSizes = DEFAULT_PAGE_SIZES, onRowClick, urlPrefix = id, toolbarClassName,
+    id, label, columns, filterCategories, switcher, onClearFilters, toolbarAction, toolbarMenu, empty, pageSizes = DEFAULT_PAGE_SIZES, defaultPageSize = pageSizes[0], onRowClick, urlPrefix = id, toolbarClassName, searchable = true,
   } = props;
   const server = props.mode === 'server';
   const url = useUrlState(urlPrefix);
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterKeys = (filterCategories ?? []).flatMap((category) => category.keys ?? [category.key]);
+  const applied: FilterValues = Object.fromEntries(filterKeys.map((key) => [key, url.list(key)]));
+  const hasActiveFilters = filterKeys.some((key) => url.get(key));
   const [searchKey, setSearchKey] = useState(0);
   const [clientSort, setClientSort] = useState<Sort>(server ? { key: '', direction: 'ASC' } : props.defaultSort);
-  const sort = server ? props.sort : clientSort;
+  const sort = server ? props.sort ?? clientSort : clientSort;
   const search = url.get('q');
   const searchTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(searchTimer.current), []);
@@ -142,7 +151,7 @@ export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
   }, [clientRows, columns, clientSort, search, searchText]);
 
   const matching = server ? props.total : clientVisible.length;
-  const pageSize = pageSizes.includes(Number(url.get('pageSize'))) ? Number(url.get('pageSize')) : pageSizes[0];
+  const pageSize = pageSizes.includes(Number(url.get('pageSize'))) ? Number(url.get('pageSize')) : defaultPageSize;
   const lastPage = Math.ceil(matching / pageSize) || 1;
   const requestedPage = Math.max(1, Math.floor(Number(url.get('page'))) || 1);
   const page = Math.min(requestedPage, lastPage);
@@ -158,9 +167,9 @@ export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
     const next: Sort = sort.key === column.key
       ? { key: column.key, direction: sort.direction === 'ASC' ? 'DESC' : 'ASC' }
       : { key: column.key, direction: column.firstDirection ?? 'ASC' };
-    if (server) props.onSortChange(next); else setClientSort(next);
+    if (server && props.onSortChange) props.onSortChange(next); else setClientSort(next);
   };
-  const clearAll = () => { onClearFilters?.(); window.clearTimeout(searchTimer.current); url.clear(['q']); setSearchKey((key) => key + 1); };
+  const clearAll = () => { onClearFilters?.(); window.clearTimeout(searchTimer.current); url.clear(['q', ...filterKeys]); setSearchKey((key) => key + 1); };
   const onSearch = (value: string) => {
     window.clearTimeout(searchTimer.current);
     if (server && props.searchDebounceMs !== 0) searchTimer.current = window.setTimeout(() => url.set({ q: value }), props.searchDebounceMs ?? 300);
@@ -173,8 +182,9 @@ export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
       {({ rows: dataRows, headers: tableHeaders, getRowProps, getTableProps }) => (
         <TableContainer className="mj-table-container">
           <TableToolbar className={toolbarClassName} aria-label={`${label} table toolbar`}>
+            {switcher}
             <TableToolbarContent>
-              <TableToolbarSearch
+              {searchable && <TableToolbarSearch
                 key={searchKey}
                 id={`${id}-search`}
                 labelText={`Search ${label.toLowerCase()}`}
@@ -182,25 +192,17 @@ export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
                 defaultValue={search}
                 onChange={(_event, value) => onSearch(value ?? '')}
                 onClear={() => { window.clearTimeout(searchTimer.current); url.set({ q: null }); }}
-              />
-              {filterFields && (
-                <Button
-                  hasIconOnly kind={hasActiveFilters ? 'primary' : 'ghost'} size="md" renderIcon={Filter} iconDescription="Filters"
-                  aria-expanded={filtersOpen} aria-controls={`${id}-filters`} onClick={() => setFiltersOpen((open) => !open)}
+              />}
+              {filterCategories && filterCategories.length > 0 && (
+                <BatchFilter
+                  id={id} label={label} categories={filterCategories} applied={applied}
+                  onApply={(values) => url.set(toPatch(values, filterKeys))} onReset={() => { onClearFilters?.(); url.clear(filterKeys); }}
                 />
               )}
               {toolbarMenu && <TableToolbarMenu iconDescription="More actions">{toolbarMenu}</TableToolbarMenu>}
               {toolbarAction}
             </TableToolbarContent>
           </TableToolbar>
-          {filterFields && filtersOpen && (
-            <div id={`${id}-filters`} className="mj-filter-panel" role="region" aria-label={`${label} filters`}>
-              <div className="mj-filter-panel__fields">
-                {filterFields}
-                <Button kind="ghost" size="md" disabled={!hasActiveFilters} onClick={() => onClearFilters?.()}>Clear filters</Button>
-              </div>
-            </div>
-          )}
           <Table {...getTableProps()} aria-label={label}>
             <TableHead>
               <TableRow>
