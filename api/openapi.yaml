@@ -4843,6 +4843,29 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /machine-jobs/bulk-delete:
+    post:
+      tags: [Machine Jobs]
+      operationId: bulkDeleteMachineWork
+      summary: Delete several jobs and unassigned runs in one transaction
+      description: >-
+        Needs machine_jobs.delete. Applies the rules of deleteMachineJob (jobs) and deleteMachineRun (unassigned recorded runs) to every item in a single
+        transaction with one audit event per job and per run; the request is all-or-nothing.
+        deleteRuns deletes the recorded runs of the listed jobs as well, otherwise they are detached and become unassigned runs.
+        material reverse restores the consumed material of every deleted run to inventory with compensating ledger entries; keep or null leaves the ledger untouched.
+        Nothing is skipped silently: when any item cannot be deleted the whole request is refused with 409 bulk_blocked and details.items lists every blocking item
+        (kind, id, displayId, code, message) with the codes job_on_order, run_assigned, stale_write (the item changed since expectedVersion) and not_found.
+        Clients filter blocked items first (a job on an order, a run that belongs to a job) and show them as skipped.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/BulkDeleteMachineWorkRequest"}}}}
+      responses:
+        "204": {description: Everything deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /machine-jobs/{machineJobId}:
     parameters:
       - {name: machineJobId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
@@ -4943,6 +4966,44 @@ paths:
         "400": {$ref: "#/components/responses/BadRequest"}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-runs/bulk-create-jobs:
+    post:
+      tags: [Machine Runs]
+      operationId: bulkCreateMachineJobsFromRuns
+      summary: Create one job per unassigned recorded run
+      description: >-
+        Needs machine_jobs.create. Applies the rules of createMachineJobFromRun to every run in one transaction; customer, operator, notes and pricing group are shared,
+        each job is named after its run's file. All-or-nothing: blocked runs refuse the whole request with 409 bulk_blocked (details.items, codes run_already_assigned,
+        machine_retired, stale_write, not_found).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/BulkCreateMachineJobsRequest"}}}}
+      responses:
+        "201": {description: "Jobs created, in the order of the runs' start.", content: {application/json: {schema: {$ref: "#/components/schemas/BulkCreatedMachineJobs"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-runs/bulk-combine:
+    post:
+      tags: [Machine Runs]
+      operationId: bulkCombineMachineRuns
+      summary: Create one job that contains all selected unassigned recorded runs
+      description: >-
+        Needs machine_jobs.create. At least two runs, all on the same machine (a job has one machine): runs on different machines are refused with 422 runs_on_different_machines.
+        Blocked runs refuse the whole request with 409 bulk_blocked (details.items, codes run_already_assigned, machine_retired, stale_write, not_found).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/BulkCombineMachineRunsRequest"}}}}
+      responses:
+        "201": {description: Job created with all runs., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /machine-runs/{runId}:
@@ -5077,6 +5138,28 @@ paths:
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/DetachMachineRunRequest"}}}}
       responses:
         "200": {description: Run detached; returns the job., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /machine-jobs/{machineJobId}/runs/bulk-attach:
+    parameters:
+      - {name: machineJobId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    post:
+      tags: [Machine Runs]
+      operationId: bulkAttachMachineRuns
+      summary: Attach several unassigned recorded runs to a job on the same machine
+      description: >-
+        Needs machine_jobs.edit. Applies the rules of attachMachineRun to every run in one transaction, with a single version check of the job.
+        Blocked runs refuse the whole request with 409 bulk_blocked (details.items, codes run_already_assigned, run_machine_mismatch, artifact_mismatch, stale_write, not_found).
+        A stale job is refused with 409 stale_write.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/BulkAttachMachineRunsRequest"}}}}
+      responses:
+        "200": {description: Runs attached., content: {application/json: {schema: {$ref: "#/components/schemas/MachineJob"}}}}
         "401": {$ref: "#/components/responses/Unauthorized"}
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
@@ -11616,6 +11699,72 @@ components:
         outcome: {allOf: [{$ref: "#/components/schemas/MachineRunOutcome"}], nullable: true}
         usages: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/MachineJobUsageInput"}, description: "Makerspace material must belong to a material type usable for the machine's process (422 material_process_mismatch); customer material is free text."}
         measures: {allOf: [{$ref: "#/components/schemas/RunMeasures"}], description: "Only keys the machine's process supports (422 run_measure_unsupported)."}
+
+    BulkItem:
+      type: object
+      additionalProperties: false
+      required: [id, expectedVersion]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+
+    BulkDeleteMachineWorkRequest:
+      type: object
+      additionalProperties: false
+      required: [jobs, runs, deleteRuns]
+      properties:
+        jobs: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/BulkItem"}}
+        runs: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/BulkItem"}, description: Unassigned recorded runs.}
+        deleteRuns: {type: boolean, description: "Delete the recorded runs of the listed jobs as well; otherwise they are detached and become unassigned runs."}
+        material: {type: string, enum: [reverse, keep], nullable: true, description: "reverse restores consumed material to inventory; keep or null leaves the ledger untouched."}
+
+    BulkCreateMachineJobsRequest:
+      type: object
+      additionalProperties: false
+      required: [runs, customer, operatorPersonId]
+      properties:
+        runs: {type: array, minItems: 1, maxItems: 100, items: {$ref: "#/components/schemas/BulkItem"}}
+        customer: {$ref: "#/components/schemas/BillingPartyReference"}
+        operatorPersonId: {$ref: "#/components/schemas/UUIDv7"}
+        notes: {type: string, maxLength: 2000, nullable: true}
+        pricingGroupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+
+    BulkCreatedMachineJobs:
+      type: object
+      additionalProperties: false
+      required: [jobs]
+      properties:
+        jobs:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, displayId]
+            properties:
+              id: {$ref: "#/components/schemas/UUIDv7"}
+              displayId: {type: string}
+              title: {type: string, nullable: true}
+
+    BulkCombineMachineRunsRequest:
+      type: object
+      additionalProperties: false
+      required: [runs, customer, operatorPersonId]
+      properties:
+        runs: {type: array, minItems: 2, maxItems: 100, items: {$ref: "#/components/schemas/BulkItem"}}
+        title: {type: string, minLength: 1, maxLength: 200, nullable: true}
+        customer: {$ref: "#/components/schemas/BillingPartyReference"}
+        operatorPersonId: {$ref: "#/components/schemas/UUIDv7"}
+        notes: {type: string, maxLength: 2000, nullable: true}
+        pricingGroupId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+
+    BulkAttachMachineRunsRequest:
+      type: object
+      additionalProperties: false
+      required: [runs, replaceManualRuns, expectedJobVersion]
+      properties:
+        runs: {type: array, minItems: 1, maxItems: 100, items: {$ref: "#/components/schemas/BulkItem"}}
+        replaceManualRuns: {type: boolean}
+        expectedJobVersion: {$ref: "#/components/schemas/Version"}
 
     DeleteMachineJobRequest:
       type: object

@@ -151,8 +151,8 @@ The OpenAPI resource groups are:
 - **/machine-types**, **/machines**
 - **/organizations** (list with `search`, `active`, `kind`, `pricingGroupId` filters; `GET`/`PATCH`/`DELETE /organizations/{id}`; `GET`/`POST /organizations/{id}/members`; `DELETE /organizations/{id}/members/{personId}`), **/billing-parties**, **/machine-job-operators**
 - **/pricing-groups**, **/pricing-rules**, **/billing-party-pricing-group**
-- **/machine-jobs** with run creation (`POST /machine-jobs/{id}/runs`), price-adjustment, confirm, and Order-association subresources
-- **/machine-runs** with list, detail, patch, delete, usages, cancellation, and job attach, detach, and create subresources
+- **/machine-jobs** with run creation (`POST /machine-jobs/{id}/runs`), price-adjustment, confirm, and Order-association subresources, plus the [bulk operations](#bulk-operations-on-the-jobs-table) `POST /machine-jobs/bulk-delete` and `POST /machine-jobs/{id}/runs/bulk-attach`
+- **/machine-runs** with list, detail, patch, delete, usages, cancellation, and job attach, detach, and create subresources, plus `POST /machine-runs/bulk-create-jobs` and `POST /machine-runs/bulk-combine`
 - **/material-types** (list, create, get, update, delete)
 - **/materials** and purchase, consumption, correction, transaction, spool-transfer, and mark-empty subresources
 - **/filament-spools** (fills, finish, cleanup) and **/filament-products**
@@ -175,3 +175,23 @@ Deleting a job or a recorded run needs `machine_jobs.delete`; removing a manual 
 - `reverseConsumption` posts, per usage with net consumption in the ledger, a positive `adjustment` entry with reason `job_corrected` linked to the same run usage, at the consumption's unit cost: into the spool fill while it is still open, otherwise into loose stock (the note says so). The usages are deactivated. Without it the ledger and usages stay untouched. Statistics count these entries like other usage corrections.
 - Locks follow job, then runs. Audit events `machine_job.deleted` and `machine_run.deleted` commit with the mutation; audit metadata only allows UUIDs, so the choices are recorded as changed fields (`usages`, `inventory`, `recordedRunsDeleted`, `recordedRunsDetached`).
 - Connector events for a deleted recorded run are stored (idempotency) with application state `recorded` and reason `run_deleted`; they never change or resurrect the run and book no consumption.
+
+## Bulk operations on the Jobs table
+
+The Jobs table lists work items (jobs and unassigned recorded runs) and can act on a selection. Four endpoints apply the rules of the single operations to several items in **one transaction**: all-or-nothing, one audit event per affected job and run in the same transaction, and an optimistic version check per item (`{id, expectedVersion}`, at most 100 per list, no repeated IDs).
+
+| Endpoint | Permission | Single operation it repeats |
+| --- | --- | --- |
+| `POST /machine-jobs/bulk-delete` `{jobs, runs, deleteRuns, material}` | `machine_jobs.delete` | `DELETE /machine-jobs/{id}` and `DELETE /machine-runs/{id}` |
+| `POST /machine-runs/bulk-create-jobs` `{runs, customer, operatorPersonId, notes?, pricingGroupId?}` | `machine_jobs.create` | `POST /machine-runs/{id}/job` |
+| `POST /machine-runs/bulk-combine` `{runs, title?, customer, operatorPersonId, notes?, pricingGroupId?}` | `machine_jobs.create` | `POST /machine-runs/{id}/job`, with all runs in one job |
+| `POST /machine-jobs/{id}/runs/bulk-attach` `{runs, replaceManualRuns, expectedJobVersion}` | `machine_jobs.edit` | `PUT /machine-runs/{id}/job` |
+
+- **Blocked items refuse the whole request.** The service first locks and checks every item, then changes anything. If any item is blocked the answer is `409 bulk_blocked` and nothing changed; `details.items` lists every blocker as `{kind: job|run, id, displayId, code, message}`. Codes: `job_on_order` (delete), `run_assigned` (delete: a run listed under `runs` must be unassigned), `run_already_assigned`, `machine_retired`, `run_machine_mismatch`, `artifact_mismatch` (attach), `stale_write` (the item changed since `expectedVersion`) and `not_found`. The UI therefore filters blocked items first and shows them as "will be skipped"; the server check is the safety net for races. A stale job in bulk-attach answers a plain `409 stale_write`, an unknown job `404`.
+- **Delete.** `deleteRuns` deletes the recorded runs of the listed jobs too, otherwise they are detached into unassigned runs; manual runs always go with their job. `material: reverse` restores the consumed material of every deleted run with compensating ledger entries (see above), `keep` or `null` leaves the ledger untouched. Materials are locked in ID order before any is restored. Running recorded runs are accepted like in the single delete; the UI skips them.
+- **Create separate jobs** makes one job per run, named after the run's file (no title), numbered in the order the runs started, with the shared customer, operator, notes and pricing group. It answers `201 {jobs: [{id, displayId, title}]}`.
+- **Combine** needs at least two runs and a single machine, because a job has one machine: runs on different machines answer `422 runs_on_different_machines` (after the blocker check). It answers `201` with the full job; the pricing snapshot is captured once.
+- **Attach** takes one version check of the job, reverses and replaces its manual runs once with `replaceManualRuns`, and reprices the job once. Machine and print artifact rules are those of the single attach.
+- **Audit.** Create, combine and attach write `machine_job.created` / `machine_job.run_attached` for the job and `machine_run.assigned` (metadata `jobId`) for each run; delete writes `machine_job.deleted` and `machine_run.deleted` as the single operations do.
+
+In the UI the table's row selection (`DirectoryTable` `selection` option, Carbon `TableSelectAll`, `TableSelectRow` and `TableBatchActions`) survives paging and sorting and starts over when the search or a filter changes. Batch actions follow the selection and the permissions: **Delete** (always allowed with `machine_jobs.delete`; jobs on an order and running runs are listed as skipped, with links), **Create separate jobs** (unassigned, finished runs), **Create combined job** (at least two runs on the same machine) and **Attach to job** (runs of one machine, jobs of that machine). A notification explains why an action is unavailable. The delete dialog asks for reverse or keep when selected items consumed own material and offers "Also delete their recorded runs" when selected jobs have recorded runs. A refused request shows the blocking items in the dialog and keeps the selection.

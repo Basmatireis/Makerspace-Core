@@ -870,28 +870,11 @@ func (s *Service) AttachRun(ctx context.Context, p authorization.Principal, runI
 	}
 	fields := []string{"runs", "calculatedPrice", "effectivePrice"}
 	if replaceManualRuns {
-		runs, err := q.ListJobRunsForUpdate(ctx, &jobID)
+		replaced, err := s.replaceManualRuns(ctx, tx, q, p, jobID, requestID)
 		if err != nil {
 			return MachineJob{}, err
 		}
-		for _, existing := range runs {
-			if existing.Source != "manual" || (existing.State != nil && *existing.State == "replaced") {
-				continue
-			}
-			old, err := q.ListActiveRunUsagesForUpdate(ctx, existing.ID)
-			if err != nil {
-				return MachineJob{}, err
-			}
-			if len(old) > 0 {
-				if err = s.replaceRunUsages(ctx, tx, q, p, existing.ID, old, nil, time.Now().UTC(), requestID); err != nil {
-					return MachineJob{}, err
-				}
-				fields = append(fields, "usages", "inventory")
-			}
-			if err = q.MarkManualRunReplaced(ctx, existing.ID); err != nil {
-				return MachineJob{}, databaseError(err)
-			}
-		}
+		fields = append(fields, replaced...)
 	}
 	if _, err = q.AssignRunToJob(ctx, machinelogbookdb.AssignRunToJobParams{JobID: &jobID, ID: runID, MachineID: job.MachineID}); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -909,6 +892,36 @@ func (s *Service) AttachRun(ctx context.Context, p authorization.Principal, runI
 		return MachineJob{}, err
 	}
 	return s.loadJob(ctx, jobID)
+}
+
+// replaceManualRuns marks the manual runs of a locked job as replaced and
+// reverses their material with compensating inventory transactions. It
+// returns the audit fields it touched beyond the run list.
+func (s *Service) replaceManualRuns(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, p authorization.Principal, jobID uuid.UUID, requestID *uuid.UUID) ([]string, error) {
+	var fields []string
+	runs, err := q.ListJobRunsForUpdate(ctx, &jobID)
+	if err != nil {
+		return nil, err
+	}
+	for _, existing := range runs {
+		if existing.Source != "manual" || (existing.State != nil && *existing.State == "replaced") {
+			continue
+		}
+		old, err := q.ListActiveRunUsagesForUpdate(ctx, existing.ID)
+		if err != nil {
+			return nil, err
+		}
+		if len(old) > 0 {
+			if err = s.replaceRunUsages(ctx, tx, q, p, existing.ID, old, nil, time.Now().UTC(), requestID); err != nil {
+				return nil, err
+			}
+			fields = append(fields, "usages", "inventory")
+		}
+		if err = q.MarkManualRunReplaced(ctx, existing.ID); err != nil {
+			return nil, databaseError(err)
+		}
+	}
+	return fields, nil
 }
 
 // AttachPlannedRunSystem performs the connector-only exact-artifact attach in

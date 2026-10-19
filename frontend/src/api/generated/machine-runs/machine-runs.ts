@@ -21,6 +21,10 @@ the required session and CSRF credentials.
 import type {
   AddManualMachineRunRequest,
   AttachMachineRunRequest,
+  BulkAttachMachineRunsRequest,
+  BulkCombineMachineRunsRequest,
+  BulkCreateMachineJobsRequest,
+  BulkCreatedMachineJobs,
   CreateMachineJobFromRunRequest,
   DeleteMachineRunRequest,
   DetachMachineRunRequest,
@@ -71,6 +75,56 @@ export const listMachineRuns = async (params?: ListMachineRunsParams, options?: 
     method: 'GET'
 
 
+  }
+);}
+
+
+/**
+ * Needs machine_jobs.create. Applies the rules of createMachineJobFromRun to every run in one transaction; customer, operator, notes and pricing group are shared, each job is named after its run's file. All-or-nothing: blocked runs refuse the whole request with 409 bulk_blocked (details.items, codes run_already_assigned, machine_retired, stale_write, not_found).
+ * @summary Create one job per unassigned recorded run
+ */
+export const getBulkCreateMachineJobsFromRunsUrl = () => {
+
+
+
+
+  return `/api/v1/machine-runs/bulk-create-jobs`
+}
+
+export const bulkCreateMachineJobsFromRuns = async (bulkCreateMachineJobsRequest: BulkCreateMachineJobsRequest, options?: RequestInit): Promise<BulkCreatedMachineJobs> => {
+
+  return apiFetch<BulkCreatedMachineJobs>(getBulkCreateMachineJobsFromRunsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      bulkCreateMachineJobsRequest,)
+  }
+);}
+
+
+/**
+ * Needs machine_jobs.create. At least two runs, all on the same machine (a job has one machine): runs on different machines are refused with 422 runs_on_different_machines. Blocked runs refuse the whole request with 409 bulk_blocked (details.items, codes run_already_assigned, machine_retired, stale_write, not_found).
+ * @summary Create one job that contains all selected unassigned recorded runs
+ */
+export const getBulkCombineMachineRunsUrl = () => {
+
+
+
+
+  return `/api/v1/machine-runs/bulk-combine`
+}
+
+export const bulkCombineMachineRuns = async (bulkCombineMachineRunsRequest: BulkCombineMachineRunsRequest, options?: RequestInit): Promise<MachineJob> => {
+
+  return apiFetch<MachineJob>(getBulkCombineMachineRunsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      bulkCombineMachineRunsRequest,)
   }
 );}
 
@@ -273,6 +327,32 @@ export const detachMachineRun = async (runId: UUIDv7,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       detachMachineRunRequest,)
+  }
+);}
+
+
+/**
+ * Needs machine_jobs.edit. Applies the rules of attachMachineRun to every run in one transaction, with a single version check of the job. Blocked runs refuse the whole request with 409 bulk_blocked (details.items, codes run_already_assigned, run_machine_mismatch, artifact_mismatch, stale_write, not_found). A stale job is refused with 409 stale_write.
+ * @summary Attach several unassigned recorded runs to a job on the same machine
+ */
+export const getBulkAttachMachineRunsUrl = (machineJobId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/machine-jobs/${machineJobId}/runs/bulk-attach`
+}
+
+export const bulkAttachMachineRuns = async (machineJobId: UUIDv7,
+    bulkAttachMachineRunsRequest: BulkAttachMachineRunsRequest, options?: RequestInit): Promise<MachineJob> => {
+
+  return apiFetch<MachineJob>(getBulkAttachMachineRunsUrl(machineJobId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      bulkAttachMachineRunsRequest,)
   }
 );}
 

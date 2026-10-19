@@ -234,3 +234,84 @@ func mlUsageDTO(u machinelogbook.MachineJobUsage) openapi.MachineJobUsage {
 	}
 	return openapi.MachineJobUsage{Id: u.ID, MaterialId: nullableUUIDValue(u.MaterialID), SpoolId: nullableUUIDValue(u.SpoolID), SpoolDisplayId: nullableString(u.SpoolDisplayID), FillNumber: nullableInt32Value(u.FillNumber), Ownership: openapi.FilamentOwnership(u.Ownership), MaterialName: u.MaterialName, MaterialTypeId: nullableUUIDValue(u.MaterialTypeID), MaterialTypeName: u.MaterialTypeName, Unit: openapi.MaterialUnit(u.Unit), Quantity: u.Quantity, QuantityBasis: openapi.QuantityBasis(u.QuantityBasis), EstimationMethod: nullableString(u.EstimationMethod), CalculationVersion: nullableString(u.CalculationVersion), EstimateQuality: quality, ReportRevision: nullableValue(u.ReportRevision), StaffCorrected: u.StaffCorrected}
 }
+
+func bulkItems(values []openapi.BulkItem) []machinelogbook.BulkItem {
+	items := make([]machinelogbook.BulkItem, 0, len(values))
+	for _, v := range values {
+		items = append(items, machinelogbook.BulkItem{ID: v.Id, ExpectedVersion: v.ExpectedVersion})
+	}
+	return items
+}
+
+func (s *Server) BulkDeleteMachineWork(ctx context.Context, r openapi.BulkDeleteMachineWorkRequestObject) (openapi.BulkDeleteMachineWorkResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	material := nullableStringPointer(r.Body.Material)
+	input := machinelogbook.BulkDeleteInput{Jobs: bulkItems(r.Body.Jobs), Runs: bulkItems(r.Body.Runs), DeleteRecordedRuns: r.Body.DeleteRuns, ReverseConsumption: material != nil && *material == string(openapi.Reverse)}
+	if err := s.machineLogbook.BulkDelete(ctx, p, input, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.BulkDeleteMachineWork204Response{}, nil
+}
+
+func (s *Server) BulkCreateMachineJobsFromRuns(ctx context.Context, r openapi.BulkCreateMachineJobsFromRunsRequestObject) (openapi.BulkCreateMachineJobsFromRunsResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	created, err := s.machineLogbook.BulkCreateJobsFromRuns(ctx, p, machinelogbook.BulkRunJobInput{Runs: bulkItems(r.Body.Runs), Customer: partyInput(r.Body.Customer), OperatorPersonID: r.Body.OperatorPersonId, Notes: nullableStringPointer(r.Body.Notes), PricingGroupID: uuidNullable(r.Body.PricingGroupId)}, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	response := openapi.BulkCreateMachineJobsFromRuns201JSONResponse{Jobs: make([]struct {
+		DisplayId string                    `json:"displayId"`
+		Id        openapi.UUIDv7            `json:"id"`
+		Title     nullable.Nullable[string] `json:"title,omitempty"`
+	}, 0, len(created))}
+	for _, job := range created {
+		response.Jobs = append(response.Jobs, struct {
+			DisplayId string                    `json:"displayId"`
+			Id        openapi.UUIDv7            `json:"id"`
+			Title     nullable.Nullable[string] `json:"title,omitempty"`
+		}{DisplayId: job.DisplayID, Id: job.ID, Title: nullableString(job.Title)})
+	}
+	return response, nil
+}
+
+func (s *Server) BulkCombineMachineRuns(ctx context.Context, r openapi.BulkCombineMachineRunsRequestObject) (openapi.BulkCombineMachineRunsResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.machineLogbook.BulkCombineRuns(ctx, p, machinelogbook.BulkRunJobInput{Runs: bulkItems(r.Body.Runs), Title: nullableStringPointer(r.Body.Title), Customer: partyInput(r.Body.Customer), OperatorPersonID: r.Body.OperatorPersonId, Notes: nullableStringPointer(r.Body.Notes), PricingGroupID: uuidNullable(r.Body.PricingGroupId)}, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.BulkCombineMachineRuns201JSONResponse(mlJobDTO(item)), nil
+}
+
+func (s *Server) BulkAttachMachineRuns(ctx context.Context, r openapi.BulkAttachMachineRunsRequestObject) (openapi.BulkAttachMachineRunsResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.machineLogbook.BulkAttachRuns(ctx, p, machinelogbook.BulkAttachInput{JobID: r.MachineJobId, ExpectedJobVersion: r.Body.ExpectedJobVersion, Runs: bulkItems(r.Body.Runs), ReplaceManualRuns: r.Body.ReplaceManualRuns}, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.BulkAttachMachineRuns200JSONResponse(mlJobDTO(item)), nil
+}

@@ -27,7 +27,7 @@ import '../styles/jobs.scss';
 
 export type { JobInitialValues } from './jobFormHelpers';
 
-function JobPartyFields({ idPrefix, current }: { idPrefix: string; current?: MachineJob }) {
+export function JobPartyFields({ idPrefix, current }: { idPrefix: string; current?: MachineJob }) {
   const currentUser = useCurrentUser();
   const canLookup = canLookupJobParties(currentUser);
   const { control, register, setValue } = useFormContext<PartyValues>();

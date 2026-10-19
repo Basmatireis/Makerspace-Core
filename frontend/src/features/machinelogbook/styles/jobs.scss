@@ -36,3 +36,7 @@
 .mj-ink-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: $spacing-05; }
 .mj-ink-label { display: inline-flex; align-items: center; gap: $spacing-03; }
 .mj-area-helper { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: $spacing-05; align-items: end; }
+
+// Reasons listed in notifications (skipped items, unavailable batch actions, blocked requests).
+.mj-skip-list { margin-block-start: $spacing-02; padding-inline-start: $spacing-05; list-style: disc; @include type-style('body-compact-01'); }
+.mj-skip-list li + li { margin-block-start: $spacing-01; }

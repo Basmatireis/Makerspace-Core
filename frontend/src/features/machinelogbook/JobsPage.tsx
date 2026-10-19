@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Button, ComboBox, Link as CarbonLink, OverflowMenu, OverflowMenuItem } from '@carbon/react';
+import { Button, ComboBox, InlineNotification, Link as CarbonLink, OverflowMenu, OverflowMenuItem, TableBatchAction } from '@carbon/react';
+import { Link as LinkIcon, Merge, Split, TrashCan } from '@carbon/icons-react';
 import { keepPreviousData, queryOptions, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { listMachineLogbookWorkItems } from '../../api/generated/machine-logbook/machine-logbook';
@@ -10,9 +11,13 @@ import { DateInput } from '../../app/DateInput';
 import { PageShell } from '../../app/PageShell';
 import { useCurrentUser } from '../auth/auth';
 import { canLookupJobParties } from '../auth/permissions';
+import { AttachRunsModal } from './dialogs/AttachRunsModal';
+import { CreateCombinedJobModal, CreateSeparateJobsModal } from './dialogs/BulkJobModals';
 import { DeleteRunModal } from './dialogs/DeleteDialogs';
+import { DeleteSelectionModal } from './dialogs/DeleteSelectionModal';
 import { JobFormModal } from './dialogs/JobFormModal';
 import { matchesName } from './dialogs/jobFormHelpers';
+import { batchAvailability, canSelectWork, type BatchAction } from './bulkWork';
 import { billingPartySearchQuery, machineLogbookKeys, machinesQuery, materialsQuery, operatorSearchQuery } from './queries';
 import { DirectoryTable, useServerTableState, type Column, type Option } from './shared/DirectoryTable';
 import { formatDateTime, formatDuration, formatMoney } from './shared/format';
@@ -156,8 +161,11 @@ export function JobsPage() {
   const table = useServerTableState('', { key: 'startedAt', direction: 'DESC' });
   const { url } = table;
   const [jobOpen, setJobOpen] = useState(false);
+  const [selection, setSelection] = useState<{ key: string; items: WorkItem[] }>({ key: '', items: EMPTY_ITEMS });
+  const [batch, setBatch] = useState<BatchAction | null>(null);
   const canCreate = can('machine_jobs.create');
   const canDelete = can('machine_jobs.delete');
+  const selectable = canSelectWork(can);
 
   const sortKey = (SORT_KEYS.includes(table.sort.key) ? table.sort.key : 'startedAt') as ListMachineLogbookWorkItemsSort;
   const from = url.get('from');
@@ -185,17 +193,46 @@ export function JobsPage() {
   }));
   const filterCategories = useJobsFilterCategories(query.data?.items ?? EMPTY_ITEMS);
 
+  // The selection belongs to one search and filter: changing either starts over, so no action reaches rows that are no longer listed.
+  const selectionKey = JSON.stringify({ ...params, sort: undefined, direction: undefined, page: undefined, pageSize: undefined });
+  const selected = selection.key === selectionKey ? selection.items : EMPTY_ITEMS;
+  const setSelected = (items: WorkItem[]) => setSelection({ key: selectionKey, items });
+  // Selected rows keep their place across pages. Rows on the current page are refreshed from the list, so a background refetch
+  // does not leave a stale version in the selection.
+  const current = new Map((query.data?.items ?? EMPTY_ITEMS).map((item) => [item.id, item]));
+  const selectedItems = selected.map((item) => current.get(item.id) ?? item);
+  const availability = batchAvailability(selectedItems, can);
+  const unavailable = (Object.values(availability)).filter((item) => !item.enabled);
+  const selectedRuns = selectedItems.filter((item) => item.kind === 'run');
+  const clearSelection = () => setSelected(EMPTY_ITEMS);
+
   return (
     <PageShell
       title="Jobs" description="Running and finished jobs, and runs reported by machines." width="wide"
       breadcrumbs={[{ label: 'Workshop', to: machineLogbookPaths.overview() }, { label: 'Jobs' }]}
     >
+      {selectable && selectedItems.length > 0 && unavailable.length > 0 && (
+        <InlineNotification kind="info" lowContrast hideCloseButton title="Some actions are unavailable for this selection">
+          <ul className="mj-skip-list">{unavailable.map((item) => <li key={item.reason}>{item.reason}</li>)}</ul>
+        </InlineNotification>
+      )}
       <QueryBoundary query={query} errorMessage="Jobs could not be loaded.">
         {(page) => (
           <DirectoryTable
             mode="server" id="jobs" urlPrefix="" label="Jobs" columns={canDelete ? [...columns, actionsColumn] : columns} rows={page.items} total={page.total}
             sort={{ key: sortKey, direction: table.sort.direction }} onSortChange={table.setSort}
             toolbarClassName="mj-jobs-table-toolbar"
+            selection={selectable ? {
+              selected: selectedItems, onChange: setSelected, rowLabel: (item) => `Select ${workItemName(item)}`,
+              actions: (
+                <>
+                  <TableBatchAction renderIcon={TrashCan} disabled={!availability.delete.enabled} onClick={() => setBatch('delete')}>Delete</TableBatchAction>
+                  <TableBatchAction renderIcon={Split} disabled={!availability.separate.enabled} onClick={() => setBatch('separate')}>Create separate jobs</TableBatchAction>
+                  <TableBatchAction renderIcon={Merge} disabled={!availability.combined.enabled} onClick={() => setBatch('combined')}>Create combined job</TableBatchAction>
+                  <TableBatchAction renderIcon={LinkIcon} disabled={!availability.attach.enabled} onClick={() => setBatch('attach')}>Attach to job</TableBatchAction>
+                </>
+              ),
+            } : undefined}
             filterCategories={filterCategories}
             toolbarAction={canCreate ? <Button kind="primary" size="lg" onClick={() => setJobOpen(true)}>New job</Button> : undefined}
             empty={{
@@ -206,6 +243,10 @@ export function JobsPage() {
         )}
       </QueryBoundary>
       {canCreate && <JobFormModal open={jobOpen} onClose={() => setJobOpen(false)} mode="create" />}
+      <DeleteSelectionModal open={batch === 'delete'} onClose={() => setBatch(null)} items={selectedItems} onDone={clearSelection} />
+      <CreateSeparateJobsModal open={batch === 'separate'} onClose={() => setBatch(null)} runs={selectedRuns} onDone={clearSelection} />
+      <CreateCombinedJobModal open={batch === 'combined'} onClose={() => setBatch(null)} runs={selectedRuns} onDone={clearSelection} />
+      <AttachRunsModal open={batch === 'attach'} onClose={() => setBatch(null)} runs={selectedRuns} onDone={clearSelection} />
     </PageShell>
   );
 }

@@ -1,7 +1,8 @@
 /* eslint-disable react-refresh/only-export-components -- the table and its URL-state hooks belong together */
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import {
-  Button, DataTable, Pagination, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, TableToolbarMenu, TableToolbarSearch,
+  Button, DataTable, Pagination, Table, TableBatchActions, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableSelectAll, TableSelectRow, TableToolbar, TableToolbarContent,
+  TableToolbarMenu, TableToolbarSearch,
 } from '@carbon/react';
 import { useSearchParams } from 'react-router-dom';
 import { BatchFilter, toPatch, type FilterCategory, type FilterValues } from '../../../app/BatchFilter';
@@ -58,6 +59,20 @@ export function useServerTableState(prefix: string, defaultSort: Sort, pageSizes
   return { url, search: url.get('q'), page, pageSize, sort, setSort };
 }
 
+/**
+ * Row selection with batch actions. The table owns the checkboxes and the Carbon batch-action bar; the page owns the
+ * selected rows (so they survive paging and sorting) and the actions.
+ */
+export type Selection<T extends { id: string }> = {
+  /** The selected rows, including rows of other pages. */
+  selected: T[];
+  onChange: (rows: T[]) => void;
+  /** `TableBatchAction` elements shown while rows are selected. */
+  actions: ReactNode;
+  /** Accessible name of a row's checkbox, e.g. `Select J-2026-000001`. */
+  rowLabel: (row: T) => string;
+};
+
 type CommonProps<T extends { id: string }> = {
   /** Unique per page: element ids, aria labels and (unless `urlPrefix` is set) the URL parameter prefix. */
   id: string;
@@ -84,6 +99,8 @@ type CommonProps<T extends { id: string }> = {
   toolbarClassName?: string;
   /** Set to false for a server table whose query has no search parameter: the toolbar then has no search field. */
   searchable?: boolean;
+  /** Adds a checkbox column and a batch-action bar to the toolbar. */
+  selection?: Selection<T>;
 };
 
 type ClientProps<T extends { id: string }> = {
@@ -119,7 +136,7 @@ type Props<T extends { id: string }> = CommonProps<T> & (ClientProps<T> | Server
  */
 export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
   const {
-    id, label, columns, filterCategories, switcher, onClearFilters, toolbarAction, toolbarMenu, empty, pageSizes = DEFAULT_PAGE_SIZES, defaultPageSize = pageSizes[0], onRowClick, urlPrefix = id, toolbarClassName, searchable = true,
+    id, label, columns, filterCategories, switcher, onClearFilters, toolbarAction, toolbarMenu, empty, pageSizes = DEFAULT_PAGE_SIZES, defaultPageSize = pageSizes[0], onRowClick, urlPrefix = id, toolbarClassName, searchable = true, selection,
   } = props;
   const server = props.mode === 'server';
   const url = useUrlState(urlPrefix);
@@ -175,6 +192,16 @@ export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
     if (server && props.searchDebounceMs !== 0) searchTimer.current = window.setTimeout(() => url.set({ q: value }), props.searchDebounceMs ?? 300);
     else url.set({ q: value });
   };
+  const selectedIds = new Set((selection?.selected ?? []).map((row) => row.id));
+  const pageSelected = pageRows.filter((row) => selectedIds.has(row.id)).length;
+  const toggleRow = (row: T) => selection?.onChange(selectedIds.has(row.id) ? selection.selected.filter((item) => item.id !== row.id) : [...selection.selected, row]);
+  const togglePage = () => {
+    if (!selection) return;
+    const pageIds = new Set(pageRows.map((row) => row.id));
+    selection.onChange(pageSelected === pageRows.length
+      ? selection.selected.filter((row) => !pageIds.has(row.id))
+      : [...selection.selected.filter((row) => !pageIds.has(row.id)), ...pageRows]);
+  };
   const nothingYet = server ? (props.isEmptyDataset ?? (!search && !hasActiveFilters)) : (props.totalCount === 0);
 
   return (
@@ -182,6 +209,11 @@ export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
       {({ rows: dataRows, headers: tableHeaders, getRowProps, getTableProps }) => (
         <TableContainer className="mj-table-container">
           <TableToolbar className={toolbarClassName} aria-label={`${label} table toolbar`}>
+            {selection && (
+              <TableBatchActions shouldShowBatchActions={selection.selected.length > 0} totalSelected={selection.selected.length} onCancel={() => selection.onChange([])}>
+                {selection.actions}
+              </TableBatchActions>
+            )}
             {switcher}
             <TableToolbarContent>
               {searchable && <TableToolbarSearch
@@ -206,6 +238,12 @@ export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
           <Table {...getTableProps()} aria-label={label}>
             <TableHead>
               <TableRow>
+                {selection && (
+                  <TableSelectAll
+                    id={`${id}-select-all`} name={`${id}-select-all`} aria-label={`Select all ${label.toLowerCase()} on this page`}
+                    checked={pageRows.length > 0 && pageSelected === pageRows.length} indeterminate={pageSelected > 0 && pageSelected < pageRows.length} onSelect={togglePage}
+                  />
+                )}
                 {tableHeaders.map((header) => {
                   const column = columns.find((item) => item.key === header.key);
                   if (!column) return null;
@@ -228,9 +266,15 @@ export function DirectoryTable<T extends { id: string }>(props: Props<T>) {
                 const { key, ...rowProps } = getRowProps({ row: tableRow });
                 return (
                   <TableRow
-                    key={key} {...rowProps} className={onRowClick ? 'mj-row-clickable' : undefined}
+                    key={key} {...rowProps} isSelected={selectedIds.has(row.id)} className={onRowClick ? 'mj-row-clickable' : undefined}
                     onClick={onRowClick ? (event: MouseEvent<HTMLElement>) => { if (!(event.target as HTMLElement).closest('a, button, input, label')) onRowClick(row); } : undefined}
                   >
+                    {selection && (
+                      <TableSelectRow
+                        id={`${id}-select-${row.id}`} name={`${id}-select-${row.id}`} aria-label={selection.rowLabel(row)}
+                        checked={selectedIds.has(row.id)} onSelect={() => toggleRow(row)}
+                      />
+                    )}
                     {columns.map((column) => (
                       <TableCell key={column.key} className={column.narrow ? 'mj-hide-narrow' : undefined}>{column.render(row)}</TableCell>
                     ))}

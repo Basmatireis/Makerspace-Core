@@ -19,6 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type {
+  BulkDeleteMachineWorkRequest,
   CreateMachineJobRequest,
   DeleteMachineJobRequest,
   ListMachineJobsParams,
@@ -114,6 +115,31 @@ export const createMachineJob = async (createMachineJobRequest: CreateMachineJob
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       createMachineJobRequest,)
+  }
+);}
+
+
+/**
+ * Needs machine_jobs.delete. Applies the rules of deleteMachineJob (jobs) and deleteMachineRun (unassigned recorded runs) to every item in a single transaction with one audit event per job and per run; the request is all-or-nothing. deleteRuns deletes the recorded runs of the listed jobs as well, otherwise they are detached and become unassigned runs. material reverse restores the consumed material of every deleted run to inventory with compensating ledger entries; keep or null leaves the ledger untouched. Nothing is skipped silently: when any item cannot be deleted the whole request is refused with 409 bulk_blocked and details.items lists every blocking item (kind, id, displayId, code, message) with the codes job_on_order, run_assigned, stale_write (the item changed since expectedVersion) and not_found. Clients filter blocked items first (a job on an order, a run that belongs to a job) and show them as skipped.
+ * @summary Delete several jobs and unassigned runs in one transaction
+ */
+export const getBulkDeleteMachineWorkUrl = () => {
+
+
+
+
+  return `/api/v1/machine-jobs/bulk-delete`
+}
+
+export const bulkDeleteMachineWork = async (bulkDeleteMachineWorkRequest: BulkDeleteMachineWorkRequest, options?: RequestInit): Promise<void> => {
+
+  return apiFetch<void>(getBulkDeleteMachineWorkUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      bulkDeleteMachineWorkRequest,)
   }
 );}
 

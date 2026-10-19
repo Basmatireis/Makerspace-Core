@@ -48,6 +48,21 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 		{"machine_jobs.edit attach run", func() error { _, err := s.AttachRun(ctx, p, id, id, false, 1, nil); return err }},
 		{"machine_jobs.edit detach run", func() error { _, err := s.DetachRun(ctx, p, id, 1, nil); return err }},
 		{"machine_jobs.create from run", func() error { _, err := s.CreateJobFromRun(ctx, p, id, RunJobInput{}, nil); return err }},
+		{"machine_jobs.delete bulk delete", func() error {
+			return s.BulkDelete(ctx, p, BulkDeleteInput{Jobs: []BulkItem{{ID: id, ExpectedVersion: 1}}}, nil)
+		}},
+		{"machine_jobs.create bulk create jobs", func() error {
+			_, err := s.BulkCreateJobsFromRuns(ctx, p, BulkRunJobInput{Runs: []BulkItem{{ID: id, ExpectedVersion: 1}}}, nil)
+			return err
+		}},
+		{"machine_jobs.create bulk combine", func() error {
+			_, err := s.BulkCombineRuns(ctx, p, BulkRunJobInput{Runs: []BulkItem{{ID: id, ExpectedVersion: 1}, {ID: uuid.Must(uuid.NewV7()), ExpectedVersion: 1}}}, nil)
+			return err
+		}},
+		{"machine_jobs.edit bulk attach", func() error {
+			_, err := s.BulkAttachRuns(ctx, p, BulkAttachInput{JobID: id, ExpectedJobVersion: 1, Runs: []BulkItem{{ID: id, ExpectedVersion: 1}}}, nil)
+			return err
+		}},
 		{"machine_jobs.override_price set", func() error {
 			_, err := s.SetJobPriceAdjustment(ctx, p, id, 1, "fixed", "1", "test", nil)
 			return err

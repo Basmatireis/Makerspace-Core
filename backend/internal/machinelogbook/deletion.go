@@ -69,15 +69,12 @@ func (s *Service) reverseRunConsumption(ctx context.Context, tx pgx.Tx, q *machi
 			}
 		}
 	}
-	ordered := make([]uuid.UUID, 0, len(materialIDs))
+	ids := make([]uuid.UUID, 0, len(materialIDs))
 	for id := range materialIDs {
-		ordered = append(ordered, id)
+		ids = append(ids, id)
 	}
-	sort.Slice(ordered, func(i, j int) bool { return bytes.Compare(ordered[i][:], ordered[j][:]) < 0 })
-	for _, id := range ordered {
-		if _, err := q.GetMaterialForUpdate(ctx, id); err != nil {
-			return decimal.Zero, noRows(err)
-		}
+	if err := lockMaterials(ctx, q, ids...); err != nil {
+		return decimal.Zero, err
 	}
 	sort.SliceStable(usages, func(i, j int) bool {
 		a, b := usages[i].usage, usages[j].usage
@@ -183,6 +180,16 @@ func (s *Service) DeleteRun(ctx context.Context, p authorization.Principal, id u
 			return conflict("last_run", "The only run of a job cannot be deleted; delete the job instead")
 		}
 	}
+	if err = s.deleteRunRows(ctx, tx, q, p, run, reverseConsumption, requestID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// deleteRunRows tombstones a locked run, optionally reversing its consumption,
+// audits it and reprices the job it belonged to. The caller has checked
+// permissions, the version and the last-run rule.
+func (s *Service) deleteRunRows(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, p authorization.Principal, run machinelogbookdb.MachineRun, reverseConsumption bool, requestID *uuid.UUID) error {
 	deletedAt := pgTime(timePtr(s.now()))
 	reversed := false
 	if reverseConsumption {
@@ -192,21 +199,21 @@ func (s *Service) DeleteRun(ctx context.Context, p authorization.Principal, id u
 		}
 		reversed = quantity.IsPositive()
 	}
-	if err = q.SoftDeleteMachineRun(ctx, machinelogbookdb.SoftDeleteMachineRunParams{ID: id, DeletedAt: deletedAt, DeletedBy: deletedBy(p)}); err != nil {
+	if err := q.SoftDeleteMachineRun(ctx, machinelogbookdb.SoftDeleteMachineRunParams{ID: run.ID, DeletedAt: deletedAt, DeletedBy: deletedBy(p)}); err != nil {
 		return databaseError(err)
 	}
-	if err = auditDeletedRun(ctx, tx, p, run, reversed, requestID); err != nil {
+	if err := auditDeletedRun(ctx, tx, p, run, reversed, requestID); err != nil {
 		return err
 	}
 	if run.JobID != nil {
-		if _, err = s.settleJob(ctx, q, *run.JobID); err != nil {
+		if _, err := s.settleJob(ctx, q, *run.JobID); err != nil {
 			return err
 		}
-		if err = writeAudit(ctx, tx, p, "machine_job.repriced", "machine_job", *run.JobID, requestID, []string{"runs", "calculatedPrice", "effectivePrice"}); err != nil {
+		if err := writeAudit(ctx, tx, p, "machine_job.repriced", "machine_job", *run.JobID, requestID, []string{"runs", "calculatedPrice", "effectivePrice"}); err != nil {
 			return err
 		}
 	}
-	return tx.Commit(ctx)
+	return nil
 }
 
 // DeleteJob deletes a job and its manual runs. Its recorded runs are deleted
@@ -243,16 +250,27 @@ func (s *Service) DeleteJob(ctx context.Context, p authorization.Principal, id u
 	if err != nil {
 		return err
 	}
+	if err = s.deleteJobRows(ctx, tx, q, p, job, runs, input.DeleteRecordedRuns, input.ReverseConsumption, requestID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// deleteJobRows deletes a locked job with its locked runs: manual runs (and
+// recorded runs with deleteRecorded) are tombstoned, the other recorded runs
+// are detached. The caller has checked permissions, the version and the
+// order guard.
+func (s *Service) deleteJobRows(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, p authorization.Principal, job machinelogbookdb.MachineJob, runs []machinelogbookdb.MachineRun, deleteRecorded, reverseConsumption bool, requestID *uuid.UUID) error {
 	var deleting, detaching []machinelogbookdb.MachineRun
 	for _, run := range runs {
-		if run.Source == "manual" || input.DeleteRecordedRuns {
+		if run.Source == "manual" || deleteRecorded {
 			deleting = append(deleting, run)
 		} else {
 			detaching = append(detaching, run)
 		}
 	}
 	reversed := false
-	if input.ReverseConsumption {
+	if reverseConsumption {
 		quantity, err := s.reverseRunConsumption(ctx, tx, q, p, deleting, requestID)
 		if err != nil {
 			return err
@@ -261,19 +279,19 @@ func (s *Service) DeleteJob(ctx context.Context, p authorization.Principal, id u
 	}
 	at := pgTime(timePtr(s.now()))
 	for _, run := range deleting {
-		if err = q.SoftDeleteMachineRun(ctx, machinelogbookdb.SoftDeleteMachineRunParams{ID: run.ID, DeletedAt: at, DeletedBy: deletedBy(p)}); err != nil {
+		if err := q.SoftDeleteMachineRun(ctx, machinelogbookdb.SoftDeleteMachineRunParams{ID: run.ID, DeletedAt: at, DeletedBy: deletedBy(p)}); err != nil {
 			return databaseError(err)
 		}
-		if err = auditDeletedRun(ctx, tx, p, run, reversed, requestID); err != nil {
+		if err := auditDeletedRun(ctx, tx, p, run, reversed, requestID); err != nil {
 			return err
 		}
 	}
 	for _, run := range detaching {
-		if _, err = q.DetachRunFromJob(ctx, run.ID); err != nil {
+		if _, err := q.DetachRunFromJob(ctx, run.ID); err != nil {
 			return databaseError(err)
 		}
 	}
-	if _, err = q.SoftDeleteMachineJob(ctx, machinelogbookdb.SoftDeleteMachineJobParams{ID: id, ExpectedVersion: job.Version, DeletedAt: at, DeletedBy: deletedBy(p)}); err != nil {
+	if _, err := q.SoftDeleteMachineJob(ctx, machinelogbookdb.SoftDeleteMachineJobParams{ID: job.ID, ExpectedVersion: job.Version, DeletedAt: at, DeletedBy: deletedBy(p)}); err != nil {
 		if err == pgx.ErrNoRows {
 			return apperror.StaleWrite
 		}
@@ -292,8 +310,5 @@ func (s *Service) DeleteJob(ctx context.Context, p authorization.Principal, id u
 			break
 		}
 	}
-	if err = writeAudit(ctx, tx, p, "machine_job.deleted", "machine_job", id, requestID, fields); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
+	return writeAudit(ctx, tx, p, "machine_job.deleted", "machine_job", job.ID, requestID, fields)
 }
