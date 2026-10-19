@@ -6,7 +6,36 @@ The machine logbook records machine usage, material stock, pricing, charge-sourc
 
 Machine types and machines are versioned. A machine status is administrative only: **active**, **maintenance**, or **retired**. Availability is derived separately and never stored (see [Work items and machine activity](#work-items-and-machine-activity)). Printer connector state is shown separately. Referenced types and machines are retired instead of deleted.
 
-A machine type has a **printer** flag: machines of such a type get a printer setup (printer profile, spool inputs, connector assignment). The flag only drives the UI; migration 00043 sets it for types that already had a machine with a printer profile.
+### Processes
+
+A machine type has a **process** (migration 00047 replaced the `printer` flag): `fdm_printing`, `embroidery`, `uv_printing`, `laser_cutting`, `vinyl_cutting` or `other`. The process decides what a run records, which materials fit and whether a printer setup exists. The migration maps `printer = true`, and every type that owns a machine with a printer profile, to `fdm_printing`, everything else to `other`.
+
+| Process | Run measures | Typical material (unit) |
+|---|---|---|
+| `fdm_printing` | none | filament per material type (g), through spools |
+| `embroidery` | `stitches` | stabilizer (m), thread optional |
+| `uv_printing` | none | UV ink per colour (ml), DTF sticker paper (cm2), roll-to-film (m) |
+| `laser_cutting` | none | sheet material (cm2), customer material is free text |
+| `vinyl_cutting` | none | foil (cm2) |
+| `other` | none | free |
+
+Runtime is billable on every machine; a group that should not pay for time gets a 0 EUR/h rule. Only `fdm_printing` machines have a printer setup (printer profile, spool inputs, connector assignment): `PUT /machines/{id}/printer` and `PUT /machines/{id}/printer/setup` answer `409 machine_not_fdm_printing` for any other process. Everything FDM-specific (setup, wizard, connectors, spools, artifacts, live status, reported grams) is unchanged and gated on the process in the frontend as well. Changing a machine type's process is allowed; existing printer profiles and runs stay.
+
+### Units
+
+Material units are `g`, `m`, `ml`, `cm2`, `m2` and `piece` (`cm2` is new in 00047; `m2` stays for existing data). The frontend shows `cm2` as cm². Unit lists are validated in `machinelogbook.validUnit`, the OpenAPI `MaterialUnit` enum and the CHECK constraints of `material_types`, `materials`, `pricing_rules` and `machine_job_pricing_snapshot_rules`.
+
+### Materials by process
+
+`material_type_processes (material_type_id, process)` lists the processes a material type can be consumed on; new types need at least one (`POST /material-types` requires `processes`, `PUT` keeps them when omitted). The migration gives each existing type the process of every machine type its materials were consumed on, plus `fdm_printing` for gram types with a filament diameter, and `other` when there is no sign at all. For **new** makerspace usages (manual job, added run, usage replacement) the backend refuses material whose type does not include the machine's process: `422 material_process_mismatch`. Materials a run already uses stay allowed when its usage list is replaced, customer material (free text) is never checked, and recorded (connector) usages are not checked. The frontend picker lists only active materials of fitting types, plus the material of the row being edited.
+
+### Run measures
+
+`machine_run_measures (run_id, measure, value)` stores counted facts of a run; the only measure is `stitches` (exact whole number, `bigint`, at least 0). Runs and jobs expose `measures` (`{stitches?: integer}`; a job sums its runs that are not replaced). Manual run create/add (`measures` on the run input) and `PATCH /machine-runs/{id}` (manual runs; replaces the stored set when given) accept them; a measure the machine's process does not record answers `422 run_measure_unsupported`, an unknown or negative one `422 validation_failed`. Moving a job to a machine whose process cannot record its measures is refused the same way.
+
+### Measure pricing
+
+Pricing rule kind `machine_measure` prices a measure per machine type: `machineTypeId`, `measure`, the stored `blockSize` (1000 for stitches) and the rate per block, kept exactly (`numeric(20,6)`). The amount is `value x rate / blockSize` (multiplied first, so whole blocks are exact) and only the job total is rounded half-up to cents: 12,400 stitches at 0.50 per 1000 give 6.20. Rules are only accepted for machine types whose process records the measure, and one active rule per group, machine type and measure. A job's snapshot captures a `machine_measure` entry for every measure its machine's process records (rate, block size, unit `stitch`) plus any measure that already has a value. A value without a rate makes pricing **incomplete**; an explicit zero rate is free; a measure that first gets a value after the snapshot was taken (for example after a machine type changed its process) triggers a new snapshot of the same group.
 
 ### Printer setup
 
@@ -62,7 +91,7 @@ Pricing groups are independent of Roles. Resolution order is:
 2. the billing party's default group;
 3. the one active global default.
 
-If none resolves, manual creation fails until a group is selected. A group contains exact-decimal machine-runtime rules per machine type/hour and material rules per **material type** (a rate per unit of the type; the rule keeps the type's unit). A job's pricing snapshot stores each material rule with its label, the type name as selector, the unit and a `material_type_id`; usages match snapshot rules by type, so renaming or recolouring never changes a captured price. Snapshots taken before migration 00046 keep their category text and were backfilled with the matching type. Missing matched rules make pricing **incomplete** and leave the calculated total unset. An explicit zero rate is intentionally free.
+If none resolves, manual creation fails until a group is selected. A group contains exact-decimal machine-runtime rules per machine type/hour, measure rules per machine type (see [Measure pricing](#measure-pricing)) and material rules per **material type** (a rate per unit of the type; the rule keeps the type's unit). A job's pricing snapshot stores each material rule with its label, the type name as selector, the unit and a `material_type_id`; usages match snapshot rules by type, so renaming or recolouring never changes a captured price. Snapshots taken before migration 00046 keep their category text and were backfilled with the matching type. Missing matched rules make pricing **incomplete** and leave the calculated total unset. An explicit zero rate is intentionally free.
 
 Every confirmed job receives an immutable snapshot revision containing the group name, EUR currency, capture time, matched rate and unit, missing-rule markers, and source rule IDs for traceability. Customer or machine-type correction creates a new revision and retains older revisions. Timing and usage corrections recalculate against the active snapshot. The exact component sum is rounded half-up to cents only at the final total.
 
@@ -72,7 +101,7 @@ The calculated amount and the price adjustment are separate. An adjustment (`PUT
 
 Materials are versioned catalog records with a **material type**, unit, optional colour (name and `#RRGGBB` code), active state, and optional low-stock threshold.
 
-**Material types** (`/material-types`, migration 00046) are the level a price attaches to: PLA, PETG, TPU 95A and so on. A type has a name (unique ignoring case), a unit (`g`, `m`, `ml`, `m2`, `piece`), an active flag and a version. Reads need `inventory.read`, writes `inventory.manage`; every write is audited in its transaction. A material's unit always equals its type's unit: the service refuses a different explicit unit (422 `material_unit_mismatch`) and composite foreign keys on materials and pricing rules enforce it in the database. A type's unit can change only while no material or pricing rule uses it (409 `material_type_unit_in_use`). Deleting is a hard delete that only works for an unused type; otherwise it answers 409 `material_type_in_use` and the type should be deactivated, which keeps existing materials and rules but refuses new ones.
+**Material types** (`/material-types`, migration 00046) are the level a price attaches to: PLA, PETG, TPU 95A and so on. A type has a name (unique ignoring case), a unit (`g`, `m`, `ml`, `cm2`, `m2`, `piece`), the processes it can be consumed on, an active flag and a version. Reads need `inventory.read`, writes `inventory.manage`; every write is audited in its transaction. A material's unit always equals its type's unit: the service refuses a different explicit unit (422 `material_unit_mismatch`) and composite foreign keys on materials and pricing rules enforce it in the database. A type's unit can change only while no material or pricing rule uses it (409 `material_type_unit_in_use`). Deleting is a hard delete that only works for an unused type; otherwise it answers 409 `material_type_in_use` and the type should be deactivated, which keeps existing materials and rules but refuses new ones.
 
 **Colour** is captured only on the material: `colorName` (free text, up to 80 characters) and `colorHex` (`^#[0-9A-F]{6}$`, upper case). Spools, jobs and runs only display it. Colours from print files ("Detected in file") and from the printer's AMS ("Reported by printer") are detected values used for comparison only; the printer setup shows a hint when a mounted spool's material colour is clearly different (RGB distance above 80) from the reported tray colour, and the material form can take the reported colour with one click.
 
@@ -103,6 +132,9 @@ Frontend gates are presentation only. Services authorize every operation, includ
 Catalog, organization (including member add/remove; audit names only the changed fields, never the member or address values), pricing, job, run attach/detach/create, reassignment, correction, price adjustment, purchase, consumption, adjustment, disposal, and mark-empty mutations write an audit event in the same transaction. Audit metadata contains changed field names and non-sensitive identifiers only. It does not duplicate names, free-text notes, search text, external metadata, or override reasons.
 
 ## Work items and machine activity
+
+Work item lists carry a `consumption` summary per item (material summed per material type and unit, plus measures); the frontend writes it in each unit ("12,400 stitches · 0.4 m Stabilizer", "3.20 ml UV ink · 180 cm² DTF paper"). FDM runs and jobs that only used grams keep their per-material text.
+
 
 `GET /machine-logbook/work-items` lists every job plus every recorded run not assigned to a job in one paginated table (`machine_jobs.read`). The unified status is **running**, **unassigned** (an ended recorded run without a job), **needs_outcome** (outcome still unknown), or the recorded outcome. The `run` filter separates **manual** from **recorded** items. Filters cover search, status, machine, material, billing state (jobs only), customer, operator, and a start-time range where `to` is exclusive. Billing states are on_order, order_outdated, not_on_order, price_incomplete, and pending.
 

@@ -48,7 +48,7 @@ export function MachineDetailPage() {
   const machine = machineResult.data;
   const profile: PrinterProfile | undefined = printer.data;
   const profileAbsent = printer.isError && printer.error instanceof ApiError && printer.error.status === 404;
-  const showPrinterTab = Boolean(profile) || (canManage && Boolean(machine?.machineType.printer));
+  const showPrinterTab = Boolean(profile) || (canManage && machine?.machineType.process === 'fdm_printing');
   const canReadConnectors = can('printer_connectors.read');
   const { connection } = usePrinterConnection(machineId, canReadConnectors && showPrinterTab, printerSelected ? PRINTER_REFRESH_MS : undefined);
   const tabs: TabKey[] = ['overview', ...(canReadJobs ? ['jobs' as const] : []), ...(showPrinterTab ? ['printer' as const] : [])];

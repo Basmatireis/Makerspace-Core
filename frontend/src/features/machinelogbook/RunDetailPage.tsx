@@ -19,7 +19,7 @@ import { artifactQuery, jobQuery, machineLogbookKeys, runQuery } from './queries
 import { formatDateTime, formatDuration, formatQuantity, formatTime } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
-import { FromMachineTag, isRunLive, reportedUsageText, RunOutcomeTag, runEnd, runName, runProgress, RunSourceTag, RunStateTag, runStateNow, unresolvedReportedUsageItems, usagesText } from './shared/status';
+import { FromMachineTag, isRunLive, reportedUsageText, RunOutcomeTag, runEnd, runName, runProgress, RunSourceTag, RunStateTag, runStateNow, runConsumptionText, unresolvedReportedUsageItems } from './shared/status';
 import { useNotify } from './shared/toasts';
 import { useCan } from './shared/useCan';
 import { useNow } from './shared/useNow';
@@ -85,7 +85,7 @@ export function RunDetailPage() {
   const state = run ? runStateNow(run, now) : undefined;
   const end = run ? runEnd(run) : null;
   const progress = run ? runProgress(run, now) : 0;
-  const consumedMaterial = run && live && run.usages.length === 0 ? 'Pending final report' : run ? usagesText(run.usages) : '';
+  const consumedMaterial = run && live && run.usages.length === 0 ? 'Pending final report' : run ? runConsumptionText(run) : '';
   const reportedMaterial = run && live && run.reportedUsage == null && (run.reportedUsageItems?.length ?? 0) === 0 ? 'Pending final report' : run ? reportedUsageText(run) : '';
   const unresolvedMaterials = run ? unresolvedReportedUsageItems(run) : [];
   const plannedFilaments = artifact.data?.filaments.filter((filament) => filament.plannedWeightGrams != null && Number(filament.plannedWeightGrams) >= 0) ?? [];

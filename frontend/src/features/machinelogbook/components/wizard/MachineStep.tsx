@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Button, Checkbox, InlineNotification, RadioButton, RadioButtonGroup, RadioTile, Select, SelectItem, Stack, TextInput, TileGroup, Toggle } from '@carbon/react';
+import { Button, InlineNotification, RadioButton, RadioButtonGroup, RadioTile, Select, SelectItem, Stack, TextInput, TileGroup, Toggle } from '@carbon/react';
 import { Add } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, useWatch } from 'react-hook-form';
-import type { MachineStatus } from '../../../../api/generated/models';
+import type { MachineProcess, MachineStatus } from '../../../../api/generated/models';
 import { createMachineType } from '../../../../api/generated/machines/machines';
 import { machineLogbookKeys, machineTypesQuery } from '../../queries';
+import { processOptions } from '../../processConfig';
 import { printerModels, type PrinterModelId } from '../../printerSetup';
 import { useNotify } from '../../shared/toasts';
 import { useCan } from '../../shared/useCan';
@@ -24,7 +25,7 @@ export function MachineStep({ form, machine, onModelChange }: { form: SetupForm;
   const { control, register, setValue, formState: { errors } } = form;
   const [adding, setAdding] = useState(false);
   const [newType, setNewType] = useState('');
-  const [newPrinter, setNewPrinter] = useState(false);
+  const [newProcess, setNewProcess] = useState<MachineProcess>('fdm_printing');
   const typesQuery = useQuery(machineTypesQuery());
   const allTypes = typesQuery.data?.items ?? [];
   const typeId = useWatch({ control, name: 'machineTypeId' });
@@ -35,12 +36,12 @@ export function MachineStep({ form, machine, onModelChange }: { form: SetupForm;
   const taken = Boolean(trimmed) && allTypes.some((type) => type.name.toLowerCase() === trimmed.toLowerCase());
 
   const create = useMutation({
-    mutationFn: () => createMachineType({ name: trimmed, printer: newPrinter }),
+    mutationFn: () => createMachineType({ name: trimmed, process: newProcess }),
     onSuccess: async (created) => {
       notify({ kind: 'success', title: 'Machine type added', subtitle: created.name });
       await client.invalidateQueries({ queryKey: machineLogbookKeys.machineTypes() });
       setValue('machineTypeId', created.id, { shouldValidate: true });
-      setNewType(''); setNewPrinter(false); setAdding(false);
+      setNewType(''); setNewProcess('fdm_printing'); setAdding(false);
     },
   });
   const addType = () => { if (trimmed && !taken && !create.isPending) create.mutate(); };
@@ -70,7 +71,9 @@ export function MachineStep({ form, machine, onModelChange }: { form: SetupForm;
               onChange={(event) => setNewType(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addType(); } }}
             />
             <span className="mj-inline">
-              <Checkbox id="setup-new-type-printer" labelText="Printer type" checked={newPrinter} onChange={(_event, { checked }) => setNewPrinter(checked)} />
+              <Select id="setup-new-type-process" labelText="Process" size="sm" value={newProcess} onChange={(event) => setNewProcess(event.target.value as MachineProcess)}>
+                {processOptions.map((option) => <SelectItem key={option.id} value={option.id} text={option.label} />)}
+              </Select>
               <Button kind="tertiary" size="sm" disabled={!trimmed || taken || create.isPending} onClick={addType}>Add</Button>
               <Button kind="ghost" size="sm" onClick={() => { setAdding(false); setNewType(''); }}>Cancel</Button>
             </span>
@@ -99,7 +102,7 @@ export function MachineStep({ form, machine, onModelChange }: { form: SetupForm;
         helperText="Serial number or ID used by the machine's connector. Needs automatic collection."
         {...register('externalIdentifier', { maxLength: 200 })}
       />
-      {selectedType?.printer && (
+      {selectedType?.process === 'fdm_printing' && (
         <Controller
           control={control} name="modelId"
           render={({ field }) => (

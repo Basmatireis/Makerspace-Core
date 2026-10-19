@@ -988,17 +988,17 @@ func (q *Queries) CreateMachineJob(ctx context.Context, arg CreateMachineJobPara
 }
 
 const createMachineType = `-- name: CreateMachineType :one
-INSERT INTO machine_types (id, name, printer) VALUES ($1, $2, $3) RETURNING id, name, active, version, created_at, updated_at, printer
+INSERT INTO machine_types (id, name, process) VALUES ($1, $2, $3) RETURNING id, name, active, version, created_at, updated_at, process
 `
 
 type CreateMachineTypeParams struct {
 	ID      uuid.UUID
 	Name    string
-	Printer bool
+	Process string
 }
 
 func (q *Queries) CreateMachineType(ctx context.Context, arg CreateMachineTypeParams) (MachineType, error) {
-	row := q.db.QueryRow(ctx, createMachineType, arg.ID, arg.Name, arg.Printer)
+	row := q.db.QueryRow(ctx, createMachineType, arg.ID, arg.Name, arg.Process)
 	var i MachineType
 	err := row.Scan(
 		&i.ID,
@@ -1007,7 +1007,7 @@ func (q *Queries) CreateMachineType(ctx context.Context, arg CreateMachineTypePa
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Printer,
+		&i.Process,
 	)
 	return i, err
 }
@@ -1181,9 +1181,9 @@ func (q *Queries) CreatePricingGroup(ctx context.Context, arg CreatePricingGroup
 }
 
 const createPricingRule = `-- name: CreatePricingRule :one
-INSERT INTO pricing_rules (id, pricing_group_id, kind, machine_type_id, material_type_id, material_unit, rate)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, pricing_group_id, kind, machine_type_id, material_unit, rate, active, version, created_at, updated_at, material_type_id
+INSERT INTO pricing_rules (id, pricing_group_id, kind, machine_type_id, material_type_id, material_unit, measure, block_size, rate)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+RETURNING id, pricing_group_id, kind, machine_type_id, material_unit, rate, active, version, created_at, updated_at, material_type_id, measure, block_size
 `
 
 type CreatePricingRuleParams struct {
@@ -1193,6 +1193,8 @@ type CreatePricingRuleParams struct {
 	MachineTypeID  *uuid.UUID
 	MaterialTypeID *uuid.UUID
 	MaterialUnit   *string
+	Measure        *string
+	BlockSize      *int32
 	Rate           pgtype.Numeric
 }
 
@@ -1204,6 +1206,8 @@ func (q *Queries) CreatePricingRule(ctx context.Context, arg CreatePricingRulePa
 		arg.MachineTypeID,
 		arg.MaterialTypeID,
 		arg.MaterialUnit,
+		arg.Measure,
+		arg.BlockSize,
 		arg.Rate,
 	)
 	var i PricingRule
@@ -1219,6 +1223,8 @@ func (q *Queries) CreatePricingRule(ctx context.Context, arg CreatePricingRulePa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.MaterialTypeID,
+		&i.Measure,
+		&i.BlockSize,
 	)
 	return i, err
 }
@@ -1347,6 +1353,15 @@ func (q *Queries) DeleteMaterialType(ctx context.Context, arg DeleteMaterialType
 	return result.RowsAffected(), nil
 }
 
+const deleteMaterialTypeProcesses = `-- name: DeleteMaterialTypeProcesses :exec
+DELETE FROM material_type_processes WHERE material_type_id = $1
+`
+
+func (q *Queries) DeleteMaterialTypeProcesses(ctx context.Context, materialTypeID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteMaterialTypeProcesses, materialTypeID)
+	return err
+}
+
 const deleteOrganization = `-- name: DeleteOrganization :execrows
 DELETE FROM organizations WHERE id = $1 AND version = $2
 `
@@ -1396,6 +1411,15 @@ func (q *Queries) DeletePersonPricingAssignment(ctx context.Context, arg DeleteP
 	var person_id uuid.UUID
 	err := row.Scan(&person_id)
 	return person_id, err
+}
+
+const deleteRunMeasures = `-- name: DeleteRunMeasures :exec
+DELETE FROM machine_run_measures WHERE run_id = $1
+`
+
+func (q *Queries) DeleteRunMeasures(ctx context.Context, runID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteRunMeasures, runID)
+	return err
 }
 
 const detachRunFromJob = `-- name: DetachRunFromJob :one
@@ -1483,7 +1507,7 @@ func (q *Queries) FindFilamentSpoolByIdentifier(ctx context.Context, arg FindFil
 }
 
 const getActivePricingRulesByGroup = `-- name: GetActivePricingRulesByGroup :many
-SELECT id, pricing_group_id, kind, machine_type_id, material_unit, rate, active, version, created_at, updated_at, material_type_id FROM pricing_rules WHERE pricing_group_id = $1 AND active
+SELECT id, pricing_group_id, kind, machine_type_id, material_unit, rate, active, version, created_at, updated_at, material_type_id, measure, block_size FROM pricing_rules WHERE pricing_group_id = $1 AND active
 ORDER BY kind, material_type_id NULLS FIRST, machine_type_id NULLS FIRST, id
 `
 
@@ -1508,6 +1532,8 @@ func (q *Queries) GetActivePricingRulesByGroup(ctx context.Context, pricingGroup
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.MaterialTypeID,
+			&i.Measure,
+			&i.BlockSize,
 		); err != nil {
 			return nil, err
 		}
@@ -1869,7 +1895,7 @@ func (q *Queries) GetFilamentSpoolForUpdate(ctx context.Context, id uuid.UUID) (
 }
 
 const getMachine = `-- name: GetMachine :one
-SELECT m.id, m.machine_type_id, m.name, m.status, m.external_identifier, m.automatic_collection_enabled, m.last_ingested_at, m.version, m.created_at, m.updated_at, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.printer AS machine_type_printer, mt.version AS machine_type_version,
+SELECT m.id, m.machine_type_id, m.name, m.status, m.external_identifier, m.automatic_collection_enabled, m.last_ingested_at, m.version, m.created_at, m.updated_at, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.process AS machine_type_process, mt.version AS machine_type_version,
        mt.created_at AS machine_type_created_at, mt.updated_at AS machine_type_updated_at,
        count(j.id)::bigint AS job_count,
        COALESCE(sum(s.runtime_seconds)::bigint, 0)::bigint AS runtime_seconds,
@@ -1895,7 +1921,7 @@ type GetMachineRow struct {
 	UpdatedAt                  time.Time
 	MachineTypeName            string
 	MachineTypeActive          bool
-	MachineTypePrinter         bool
+	MachineTypeProcess         string
 	MachineTypeVersion         int64
 	MachineTypeCreatedAt       time.Time
 	MachineTypeUpdatedAt       time.Time
@@ -1920,7 +1946,7 @@ func (q *Queries) GetMachine(ctx context.Context, id uuid.UUID) (GetMachineRow, 
 		&i.UpdatedAt,
 		&i.MachineTypeName,
 		&i.MachineTypeActive,
-		&i.MachineTypePrinter,
+		&i.MachineTypeProcess,
 		&i.MachineTypeVersion,
 		&i.MachineTypeCreatedAt,
 		&i.MachineTypeUpdatedAt,
@@ -2075,8 +2101,19 @@ func (q *Queries) GetMachineJobRunSummary(ctx context.Context, jobID *uuid.UUID)
 	return i, err
 }
 
+const getMachineProcess = `-- name: GetMachineProcess :one
+SELECT mt.process FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id WHERE m.id = $1
+`
+
+func (q *Queries) GetMachineProcess(ctx context.Context, machineID uuid.UUID) (string, error) {
+	row := q.db.QueryRow(ctx, getMachineProcess, machineID)
+	var process string
+	err := row.Scan(&process)
+	return process, err
+}
+
 const getMachineType = `-- name: GetMachineType :one
-SELECT id, name, active, version, created_at, updated_at, printer FROM machine_types WHERE id = $1
+SELECT id, name, active, version, created_at, updated_at, process FROM machine_types WHERE id = $1
 `
 
 func (q *Queries) GetMachineType(ctx context.Context, id uuid.UUID) (MachineType, error) {
@@ -2089,13 +2126,13 @@ func (q *Queries) GetMachineType(ctx context.Context, id uuid.UUID) (MachineType
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Printer,
+		&i.Process,
 	)
 	return i, err
 }
 
 const getMachineTypeForUpdate = `-- name: GetMachineTypeForUpdate :one
-SELECT id, name, active, version, created_at, updated_at, printer FROM machine_types WHERE id = $1 FOR UPDATE
+SELECT id, name, active, version, created_at, updated_at, process FROM machine_types WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetMachineTypeForUpdate(ctx context.Context, id uuid.UUID) (MachineType, error) {
@@ -2108,7 +2145,7 @@ func (q *Queries) GetMachineTypeForUpdate(ctx context.Context, id uuid.UUID) (Ma
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Printer,
+		&i.Process,
 	)
 	return i, err
 }
@@ -2541,7 +2578,7 @@ func (q *Queries) GetPricingGroupForUpdate(ctx context.Context, id uuid.UUID) (P
 }
 
 const getPricingRuleForUpdate = `-- name: GetPricingRuleForUpdate :one
-SELECT id, pricing_group_id, kind, machine_type_id, material_unit, rate, active, version, created_at, updated_at, material_type_id FROM pricing_rules WHERE id = $1 FOR UPDATE
+SELECT id, pricing_group_id, kind, machine_type_id, material_unit, rate, active, version, created_at, updated_at, material_type_id, measure, block_size FROM pricing_rules WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetPricingRuleForUpdate(ctx context.Context, id uuid.UUID) (PricingRule, error) {
@@ -2559,6 +2596,8 @@ func (q *Queries) GetPricingRuleForUpdate(ctx context.Context, id uuid.UUID) (Pr
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.MaterialTypeID,
+		&i.Measure,
+		&i.BlockSize,
 	)
 	return i, err
 }
@@ -2880,10 +2919,24 @@ func (q *Queries) InsertManualRun(ctx context.Context, arg InsertManualRunParams
 	return i, err
 }
 
+const insertMaterialTypeProcess = `-- name: InsertMaterialTypeProcess :exec
+INSERT INTO material_type_processes (material_type_id, process) VALUES ($1, $2)
+`
+
+type InsertMaterialTypeProcessParams struct {
+	MaterialTypeID uuid.UUID
+	Process        string
+}
+
+func (q *Queries) InsertMaterialTypeProcess(ctx context.Context, arg InsertMaterialTypeProcessParams) error {
+	_, err := q.db.Exec(ctx, insertMaterialTypeProcess, arg.MaterialTypeID, arg.Process)
+	return err
+}
+
 const insertPricingSnapshotRule = `-- name: InsertPricingSnapshotRule :one
-INSERT INTO machine_job_pricing_snapshot_rules (id, snapshot_id, source_rule_id, kind, label, selector, material_type_id, unit, rate, missing)
+INSERT INTO machine_job_pricing_snapshot_rules (id, snapshot_id, source_rule_id, kind, label, selector, material_type_id, measure, block_size, unit, rate, missing)
 VALUES ($1, $2, $3, $4, $5, $6, $7,
-    $8, $9, $10) RETURNING id, snapshot_id, source_rule_id, kind, label, selector, unit, rate, missing, material_type_id
+    $8, $9, $10, $11, $12) RETURNING id, snapshot_id, source_rule_id, kind, label, selector, unit, rate, missing, material_type_id, measure, block_size
 `
 
 type InsertPricingSnapshotRuleParams struct {
@@ -2894,6 +2947,8 @@ type InsertPricingSnapshotRuleParams struct {
 	Label          string
 	Selector       string
 	MaterialTypeID *uuid.UUID
+	Measure        *string
+	BlockSize      *int32
 	Unit           string
 	Rate           pgtype.Numeric
 	Missing        bool
@@ -2908,6 +2963,8 @@ func (q *Queries) InsertPricingSnapshotRule(ctx context.Context, arg InsertPrici
 		arg.Label,
 		arg.Selector,
 		arg.MaterialTypeID,
+		arg.Measure,
+		arg.BlockSize,
 		arg.Unit,
 		arg.Rate,
 		arg.Missing,
@@ -2924,6 +2981,8 @@ func (q *Queries) InsertPricingSnapshotRule(ctx context.Context, arg InsertPrici
 		&i.Rate,
 		&i.Missing,
 		&i.MaterialTypeID,
+		&i.Measure,
+		&i.BlockSize,
 	)
 	return i, err
 }
@@ -4220,7 +4279,7 @@ func (q *Queries) ListMachineRunningRuns(ctx context.Context, now time.Time) ([]
 }
 
 const listMachineTypes = `-- name: ListMachineTypes :many
-SELECT id, name, active, version, created_at, updated_at, printer FROM machine_types ORDER BY active DESC, lower(name), id
+SELECT id, name, active, version, created_at, updated_at, process FROM machine_types ORDER BY active DESC, lower(name), id
 `
 
 func (q *Queries) ListMachineTypes(ctx context.Context) ([]MachineType, error) {
@@ -4239,7 +4298,7 @@ func (q *Queries) ListMachineTypes(ctx context.Context) ([]MachineType, error) {
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.Printer,
+			&i.Process,
 		); err != nil {
 			return nil, err
 		}
@@ -4252,7 +4311,7 @@ func (q *Queries) ListMachineTypes(ctx context.Context) ([]MachineType, error) {
 }
 
 const listMachines = `-- name: ListMachines :many
-SELECT m.id, m.machine_type_id, m.name, m.status, m.external_identifier, m.automatic_collection_enabled, m.last_ingested_at, m.version, m.created_at, m.updated_at, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.printer AS machine_type_printer, mt.version AS machine_type_version,
+SELECT m.id, m.machine_type_id, m.name, m.status, m.external_identifier, m.automatic_collection_enabled, m.last_ingested_at, m.version, m.created_at, m.updated_at, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.process AS machine_type_process, mt.version AS machine_type_version,
        mt.created_at AS machine_type_created_at, mt.updated_at AS machine_type_updated_at,
        count(j.id)::bigint AS job_count,
        COALESCE(sum(s.runtime_seconds)::bigint, 0)::bigint AS runtime_seconds,
@@ -4288,7 +4347,7 @@ type ListMachinesRow struct {
 	UpdatedAt                  time.Time
 	MachineTypeName            string
 	MachineTypeActive          bool
-	MachineTypePrinter         bool
+	MachineTypeProcess         string
 	MachineTypeVersion         int64
 	MachineTypeCreatedAt       time.Time
 	MachineTypeUpdatedAt       time.Time
@@ -4324,7 +4383,7 @@ func (q *Queries) ListMachines(ctx context.Context, arg ListMachinesParams) ([]L
 			&i.UpdatedAt,
 			&i.MachineTypeName,
 			&i.MachineTypeActive,
-			&i.MachineTypePrinter,
+			&i.MachineTypeProcess,
 			&i.MachineTypeVersion,
 			&i.MachineTypeCreatedAt,
 			&i.MachineTypeUpdatedAt,
@@ -4332,6 +4391,32 @@ func (q *Queries) ListMachines(ctx context.Context, arg ListMachinesParams) ([]L
 			&i.RuntimeSeconds,
 			&i.FailureRate,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMaterialTypeProcesses = `-- name: ListMaterialTypeProcesses :many
+SELECT material_type_id, process FROM material_type_processes
+WHERE material_type_id = ANY($1::uuid[])
+ORDER BY material_type_id, process
+`
+
+func (q *Queries) ListMaterialTypeProcesses(ctx context.Context, materialTypeIds []uuid.UUID) ([]MaterialTypeProcess, error) {
+	rows, err := q.db.Query(ctx, listMaterialTypeProcesses, materialTypeIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MaterialTypeProcess{}
+	for rows.Next() {
+		var i MaterialTypeProcess
+		if err := rows.Scan(&i.MaterialTypeID, &i.Process); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -4484,6 +4569,44 @@ func (q *Queries) ListMaterials(ctx context.Context, arg ListMaterialsParams) ([
 			&i.DiameterMm,
 			&i.AssignedQuantity,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMaterialsOutsideProcess = `-- name: ListMaterialsOutsideProcess :many
+SELECT m.id, m.name FROM materials m
+WHERE m.id = ANY($1::uuid[])
+  AND NOT EXISTS (SELECT 1 FROM material_type_processes p WHERE p.material_type_id = m.material_type_id AND p.process = $2::text)
+ORDER BY lower(m.name), m.id
+`
+
+type ListMaterialsOutsideProcessParams struct {
+	MaterialIds []uuid.UUID
+	Process     string
+}
+
+type ListMaterialsOutsideProcessRow struct {
+	ID   uuid.UUID
+	Name string
+}
+
+// Materials of the given ones whose type is not usable for the process.
+func (q *Queries) ListMaterialsOutsideProcess(ctx context.Context, arg ListMaterialsOutsideProcessParams) ([]ListMaterialsOutsideProcessRow, error) {
+	rows, err := q.db.Query(ctx, listMaterialsOutsideProcess, arg.MaterialIds, arg.Process)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMaterialsOutsideProcessRow{}
+	for rows.Next() {
+		var i ListMaterialsOutsideProcessRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -4650,10 +4773,10 @@ func (q *Queries) ListPricingGroups(ctx context.Context) ([]PricingGroup, error)
 }
 
 const listPricingRulesByGroup = `-- name: ListPricingRulesByGroup :many
-SELECT r.id, r.pricing_group_id, r.kind, r.machine_type_id, r.material_unit, r.rate, r.active, r.version, r.created_at, r.updated_at, r.material_type_id, mt.name AS material_type_name FROM pricing_rules r
+SELECT r.id, r.pricing_group_id, r.kind, r.machine_type_id, r.material_unit, r.rate, r.active, r.version, r.created_at, r.updated_at, r.material_type_id, r.measure, r.block_size, mt.name AS material_type_name FROM pricing_rules r
 LEFT JOIN material_types mt ON mt.id = r.material_type_id
 WHERE r.pricing_group_id = $1
-ORDER BY r.active DESC, r.kind, lower(mt.name) NULLS FIRST, r.machine_type_id NULLS FIRST, r.id
+ORDER BY r.active DESC, r.kind, lower(mt.name) NULLS FIRST, r.machine_type_id NULLS FIRST, r.measure NULLS FIRST, r.id
 `
 
 type ListPricingRulesByGroupRow struct {
@@ -4668,6 +4791,8 @@ type ListPricingRulesByGroupRow struct {
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 	MaterialTypeID   *uuid.UUID
+	Measure          *string
+	BlockSize        *int32
 	MaterialTypeName *string
 }
 
@@ -4692,6 +4817,8 @@ func (q *Queries) ListPricingRulesByGroup(ctx context.Context, pricingGroupID uu
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.MaterialTypeID,
+			&i.Measure,
+			&i.BlockSize,
 			&i.MaterialTypeName,
 		); err != nil {
 			return nil, err
@@ -4705,7 +4832,7 @@ func (q *Queries) ListPricingRulesByGroup(ctx context.Context, pricingGroupID uu
 }
 
 const listPricingSnapshotRules = `-- name: ListPricingSnapshotRules :many
-SELECT id, snapshot_id, source_rule_id, kind, label, selector, unit, rate, missing, material_type_id FROM machine_job_pricing_snapshot_rules WHERE snapshot_id = $1 ORDER BY kind, label, id
+SELECT id, snapshot_id, source_rule_id, kind, label, selector, unit, rate, missing, material_type_id, measure, block_size FROM machine_job_pricing_snapshot_rules WHERE snapshot_id = $1 ORDER BY kind, label, id
 `
 
 func (q *Queries) ListPricingSnapshotRules(ctx context.Context, snapshotID uuid.UUID) ([]MachineJobPricingSnapshotRule, error) {
@@ -4728,6 +4855,8 @@ func (q *Queries) ListPricingSnapshotRules(ctx context.Context, snapshotID uuid.
 			&i.Rate,
 			&i.Missing,
 			&i.MaterialTypeID,
+			&i.Measure,
+			&i.BlockSize,
 		); err != nil {
 			return nil, err
 		}
@@ -4828,6 +4957,32 @@ func (q *Queries) ListRunEvents(ctx context.Context, runID *uuid.UUID) ([]ListRu
 			&i.OccurredAt,
 			&i.Payload,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRunMeasuresForRuns = `-- name: ListRunMeasuresForRuns :many
+SELECT run_id, measure, value FROM machine_run_measures
+WHERE run_id = ANY($1::uuid[])
+ORDER BY run_id, measure
+`
+
+func (q *Queries) ListRunMeasuresForRuns(ctx context.Context, runIds []uuid.UUID) ([]MachineRunMeasure, error) {
+	rows, err := q.db.Query(ctx, listRunMeasuresForRuns, runIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []MachineRunMeasure{}
+	for rows.Next() {
+		var i MachineRunMeasure
+		if err := rows.Scan(&i.RunID, &i.Measure, &i.Value); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -5091,6 +5246,87 @@ func (q *Queries) ListRuns(ctx context.Context, arg ListRunsParams) ([]ListRunsR
 			&i.UsagesFromMachine,
 			&i.Total,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkItemMaterialTotals = `-- name: ListWorkItemMaterialTotals :many
+SELECT COALESCE(r.job_id, r.id)::uuid AS item_id, COALESCE(mt.name, 'External')::text AS material_type_name, COALESCE(m.unit, 'g')::text AS unit, sum(u.quantity)::numeric AS quantity
+FROM machine_run_usages u
+JOIN machine_runs r ON r.id = u.run_id
+LEFT JOIN materials m ON m.id = u.material_id
+LEFT JOIN material_types mt ON mt.id = m.material_type_id
+WHERE u.active AND r.deleted_at IS NULL AND r.state IS DISTINCT FROM 'replaced'
+  AND COALESCE(r.job_id, r.id) = ANY($1::uuid[])
+GROUP BY 1, 2, 3
+ORDER BY 1, 2, 3
+`
+
+type ListWorkItemMaterialTotalsRow struct {
+	ItemID           uuid.UUID
+	MaterialTypeName string
+	Unit             string
+	Quantity         pgtype.Numeric
+}
+
+// Material of jobs (their runs that are not replaced) and of unassigned runs, summed per material type and unit.
+func (q *Queries) ListWorkItemMaterialTotals(ctx context.Context, itemIds []uuid.UUID) ([]ListWorkItemMaterialTotalsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkItemMaterialTotals, itemIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkItemMaterialTotalsRow{}
+	for rows.Next() {
+		var i ListWorkItemMaterialTotalsRow
+		if err := rows.Scan(
+			&i.ItemID,
+			&i.MaterialTypeName,
+			&i.Unit,
+			&i.Quantity,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkItemMeasureTotals = `-- name: ListWorkItemMeasureTotals :many
+SELECT COALESCE(r.job_id, r.id)::uuid AS item_id, me.measure, sum(me.value)::bigint AS value
+FROM machine_run_measures me
+JOIN machine_runs r ON r.id = me.run_id
+WHERE r.deleted_at IS NULL AND r.state IS DISTINCT FROM 'replaced'
+  AND COALESCE(r.job_id, r.id) = ANY($1::uuid[])
+GROUP BY 1, 2
+ORDER BY 1, 2
+`
+
+type ListWorkItemMeasureTotalsRow struct {
+	ItemID  uuid.UUID
+	Measure string
+	Value   int64
+}
+
+func (q *Queries) ListWorkItemMeasureTotals(ctx context.Context, itemIds []uuid.UUID) ([]ListWorkItemMeasureTotalsRow, error) {
+	rows, err := q.db.Query(ctx, listWorkItemMeasureTotals, itemIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListWorkItemMeasureTotalsRow{}
+	for rows.Next() {
+		var i ListWorkItemMeasureTotalsRow
+		if err := rows.Scan(&i.ItemID, &i.Measure, &i.Value); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -6712,16 +6948,16 @@ func (q *Queries) UpdateMachineJobFacts(ctx context.Context, arg UpdateMachineJo
 }
 
 const updateMachineType = `-- name: UpdateMachineType :one
-UPDATE machine_types SET name = $1, active = $2, printer = $3,
+UPDATE machine_types SET name = $1, active = $2, process = $3,
     version = version + 1, updated_at = now()
 WHERE id = $4 AND version = $5
-RETURNING id, name, active, version, created_at, updated_at, printer
+RETURNING id, name, active, version, created_at, updated_at, process
 `
 
 type UpdateMachineTypeParams struct {
 	Name            string
 	Active          bool
-	Printer         bool
+	Process         string
 	ID              uuid.UUID
 	ExpectedVersion int64
 }
@@ -6730,7 +6966,7 @@ func (q *Queries) UpdateMachineType(ctx context.Context, arg UpdateMachineTypePa
 	row := q.db.QueryRow(ctx, updateMachineType,
 		arg.Name,
 		arg.Active,
-		arg.Printer,
+		arg.Process,
 		arg.ID,
 		arg.ExpectedVersion,
 	)
@@ -6742,7 +6978,7 @@ func (q *Queries) UpdateMachineType(ctx context.Context, arg UpdateMachineTypePa
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.Printer,
+		&i.Process,
 	)
 	return i, err
 }
@@ -7037,10 +7273,11 @@ func (q *Queries) UpdatePricingGroup(ctx context.Context, arg UpdatePricingGroup
 
 const updatePricingRule = `-- name: UpdatePricingRule :one
 UPDATE pricing_rules SET kind = $1, machine_type_id = $2,
-    material_type_id = $3, material_unit = $4, rate = $5,
-    active = $6, version = version + 1, updated_at = now()
-WHERE id = $7 AND version = $8
-RETURNING id, pricing_group_id, kind, machine_type_id, material_unit, rate, active, version, created_at, updated_at, material_type_id
+    material_type_id = $3, material_unit = $4, measure = $5,
+    block_size = $6, rate = $7,
+    active = $8, version = version + 1, updated_at = now()
+WHERE id = $9 AND version = $10
+RETURNING id, pricing_group_id, kind, machine_type_id, material_unit, rate, active, version, created_at, updated_at, material_type_id, measure, block_size
 `
 
 type UpdatePricingRuleParams struct {
@@ -7048,6 +7285,8 @@ type UpdatePricingRuleParams struct {
 	MachineTypeID   *uuid.UUID
 	MaterialTypeID  *uuid.UUID
 	MaterialUnit    *string
+	Measure         *string
+	BlockSize       *int32
 	Rate            pgtype.Numeric
 	Active          bool
 	ID              uuid.UUID
@@ -7060,6 +7299,8 @@ func (q *Queries) UpdatePricingRule(ctx context.Context, arg UpdatePricingRulePa
 		arg.MachineTypeID,
 		arg.MaterialTypeID,
 		arg.MaterialUnit,
+		arg.Measure,
+		arg.BlockSize,
 		arg.Rate,
 		arg.Active,
 		arg.ID,
@@ -7078,6 +7319,8 @@ func (q *Queries) UpdatePricingRule(ctx context.Context, arg UpdatePricingRulePa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.MaterialTypeID,
+		&i.Measure,
+		&i.BlockSize,
 	)
 	return i, err
 }
@@ -7221,4 +7464,20 @@ func (q *Queries) UpsertPersonPricingAssignment(ctx context.Context, arg UpsertP
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const upsertRunMeasure = `-- name: UpsertRunMeasure :exec
+INSERT INTO machine_run_measures (run_id, measure, value) VALUES ($1, $2, $3)
+ON CONFLICT (run_id, measure) DO UPDATE SET value = EXCLUDED.value
+`
+
+type UpsertRunMeasureParams struct {
+	RunID   uuid.UUID
+	Measure string
+	Value   int64
+}
+
+func (q *Queries) UpsertRunMeasure(ctx context.Context, arg UpsertRunMeasureParams) error {
+	_, err := q.db.Exec(ctx, upsertRunMeasure, arg.RunID, arg.Measure, arg.Value)
+	return err
 }

@@ -31,3 +31,8 @@
 
 // Replaced runs stay on the job as history; they read muted.
 .mj-run-row--replaced td { color: var(--cds-text-secondary); }
+
+// Process specific run fields: ink volumes per colour and the area helper of cutting machines.
+.mj-ink-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); gap: $spacing-05; }
+.mj-ink-label { display: inline-flex; align-items: center; gap: $spacing-03; }
+.mj-area-helper { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: $spacing-05; align-items: end; }

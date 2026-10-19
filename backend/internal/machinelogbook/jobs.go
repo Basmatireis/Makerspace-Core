@@ -298,33 +298,51 @@ func (s *Service) consumeUsages(ctx context.Context, tx pgx.Tx, q *machinelogboo
 }
 
 func snapshotRuleFromRow(row machinelogbookdb.MachineJobPricingSnapshotRule) PricingSnapshotRule {
-	return PricingSnapshotRule{SourceRuleID: row.SourceRuleID, Kind: row.Kind, Label: row.Label, Selector: row.Selector, Unit: row.Unit, Rate: nullableDecimal(row.Rate), Missing: row.Missing}
+	return PricingSnapshotRule{SourceRuleID: row.SourceRuleID, Kind: row.Kind, Label: row.Label, Selector: row.Selector, Unit: row.Unit, Measure: row.Measure, BlockSize: row.BlockSize, Rate: nullableDecimal(row.Rate), Missing: row.Missing}
 }
 
 func runtimeHours(seconds int64) decimal.Decimal {
 	return decimal.NewFromInt(seconds).Div(decimal.NewFromInt(3600))
 }
 
-// jobPricingInputs returns the runtime and the material a job is priced from:
-// the sum of its runs' runtime and the active usages of its runs that are not
-// replaced.
-func (s *Service) jobPricingInputs(ctx context.Context, q *machinelogbookdb.Queries, jobID uuid.UUID) (int64, []machinelogbookdb.ListRunUsagesForRunsRow, error) {
+// pricingInputs is what a job is priced from: the sum of its runs' runtime, the
+// active usages and the measures of its runs that are not replaced.
+type pricingInputs struct {
+	RuntimeSeconds int64
+	Usages         []machinelogbookdb.ListRunUsagesForRunsRow
+	Measures       RunMeasures
+}
+
+func (s *Service) jobPricingInputs(ctx context.Context, q *machinelogbookdb.Queries, jobID uuid.UUID) (pricingInputs, error) {
 	runIDs, err := q.ListActiveJobRunIDs(ctx, &jobID)
 	if err != nil {
-		return 0, nil, err
+		return pricingInputs{}, err
 	}
-	var runtime int64
+	inputs := pricingInputs{Measures: RunMeasures{}}
 	summary, err := q.GetMachineJobRunSummary(ctx, &jobID)
 	if err == nil {
-		runtime = summary.RuntimeSeconds
+		inputs.RuntimeSeconds = summary.RuntimeSeconds
 	} else if !errors.Is(err, pgx.ErrNoRows) {
-		return 0, nil, err
+		return pricingInputs{}, err
 	}
-	usages, err := q.ListRunUsagesForRuns(ctx, runIDs)
+	inputs.Usages, err = q.ListRunUsagesForRuns(ctx, runIDs)
 	if err != nil {
-		return 0, nil, err
+		return pricingInputs{}, err
 	}
-	return runtime, usages, nil
+	measures, err := q.ListRunMeasuresForRuns(ctx, runIDs)
+	if err != nil {
+		return pricingInputs{}, err
+	}
+	for _, m := range measures {
+		inputs.Measures[m.Measure] += m.Value
+	}
+	return inputs, nil
+}
+
+// measureAmount prices value units of a measure: value / blockSize * rate.
+// Multiplying first keeps the division exact for whole blocks.
+func measureAmount(value int64, blockSize int32, rate decimal.Decimal) decimal.Decimal {
+	return decimal.NewFromInt(value).Mul(rate).Div(decimal.NewFromInt32(blockSize))
 }
 
 func (s *Service) capturePricingSnapshot(ctx context.Context, q *machinelogbookdb.Queries, p authorization.Principal, job machinelogbookdb.MachineJob, group machinelogbookdb.PricingGroup, reason string) (machinelogbookdb.MachineJob, error) {
@@ -336,13 +354,18 @@ func (s *Service) capturePricingSnapshot(ctx context.Context, q *machinelogbookd
 	if err != nil {
 		return job, noRows(err)
 	}
-	runtimeSeconds, usages, err := s.jobPricingInputs(ctx, q, job.ID)
+	inputs, err := s.jobPricingInputs(ctx, q, job.ID)
 	if err != nil {
 		return job, err
 	}
+	runtimeSeconds, usages := inputs.RuntimeSeconds, inputs.Usages
+	machineType, err := q.GetMachineType(ctx, machine.MachineTypeID)
+	if err != nil {
+		return job, noRows(err)
+	}
 	complete := true
 	total := decimal.Zero
-	snapshotRules := make([]machinelogbookdb.InsertPricingSnapshotRuleParams, 0, len(usages)+1)
+	snapshotRules := make([]machinelogbookdb.InsertPricingSnapshotRuleParams, 0, len(usages)+2)
 	var runtime *machinelogbookdb.PricingRule
 	for i := range rules {
 		if rules[i].Kind == "machine_runtime" && rules[i].MachineTypeID != nil && *rules[i].MachineTypeID == machine.MachineTypeID {
@@ -362,6 +385,44 @@ func (s *Service) capturePricingSnapshot(ctx context.Context, q *machinelogbookd
 		total = total.Add(hours.Mul(decimalFromNumeric(runtime.Rate)))
 	}
 	snapshotRules = append(snapshotRules, runtimeEntry)
+	// Every measure the machine's process records gets an entry so the rate is
+	// fixed with the snapshot, plus any measure that already has a value.
+	measureSet := RunMeasures{}
+	for _, key := range processMeasures[machineType.Process] {
+		measureSet[key] = 0
+	}
+	for key, value := range inputs.Measures {
+		if value > 0 {
+			measureSet[key] = value
+		}
+	}
+	for _, key := range sortedMeasureKeys(measureSet) {
+		definition := measureDefinitions[key]
+		block := definition.BlockSize
+		entry := machinelogbookdb.InsertPricingSnapshotRuleParams{ID: newID(), Kind: "machine_measure", Label: definition.Label, Selector: key, Measure: &definition.Key, BlockSize: &block, Unit: definition.Unit}
+		var matched *machinelogbookdb.PricingRule
+		for i := range rules {
+			if rules[i].Kind == "machine_measure" && rules[i].MachineTypeID != nil && *rules[i].MachineTypeID == machine.MachineTypeID && rules[i].Measure != nil && *rules[i].Measure == key {
+				r := rules[i]
+				matched = &r
+				break
+			}
+		}
+		if matched == nil {
+			entry.Missing = true
+			if inputs.Measures[key] > 0 {
+				complete = false
+			}
+		} else {
+			entry.SourceRuleID = &matched.ID
+			entry.Rate = matched.Rate
+			if matched.BlockSize != nil {
+				entry.BlockSize = matched.BlockSize
+			}
+			total = total.Add(measureAmount(inputs.Measures[key], *entry.BlockSize, decimalFromNumeric(matched.Rate)))
+		}
+		snapshotRules = append(snapshotRules, entry)
+	}
 	for _, usage := range usages {
 		if usage.Ownership == "external" {
 			continue
@@ -419,6 +480,7 @@ type manualRunPlan struct {
 	StartsAt, EndsAt time.Time
 	Outcome          *string
 	Usages           []parsedUsage
+	Measures         RunMeasures
 }
 
 func planManualRun(input ManualRunInput, now time.Time) (manualRunPlan, error) {
@@ -436,12 +498,22 @@ func planManualRun(input ManualRunInput, now time.Time) (manualRunPlan, error) {
 	if err != nil {
 		return manualRunPlan{}, err
 	}
-	return manualRunPlan{StartsAt: input.StartsAt.UTC(), EndsAt: input.EndsAt.UTC(), Outcome: outcome, Usages: parsed}, nil
+	return manualRunPlan{StartsAt: input.StartsAt.UTC(), EndsAt: input.EndsAt.UTC(), Outcome: outcome, Usages: parsed, Measures: input.Measures}, nil
 }
 
 // storeManualRun inserts a manual run on the job's machine together with its
 // material usage, consuming inventory for it.
 func (s *Service) storeManualRun(ctx context.Context, tx pgx.Tx, q *machinelogbookdb.Queries, p authorization.Principal, job machinelogbookdb.MachineJob, plan manualRunPlan, requestID *uuid.UUID) (machinelogbookdb.MachineRun, error) {
+	process, err := machineProcess(ctx, q, job.MachineID)
+	if err != nil {
+		return machinelogbookdb.MachineRun{}, err
+	}
+	if err = validateMeasures(process, plan.Measures); err != nil {
+		return machinelogbookdb.MachineRun{}, err
+	}
+	if err = requireMaterialsForProcess(ctx, q, process, plan.Usages, nil); err != nil {
+		return machinelogbookdb.MachineRun{}, err
+	}
 	sequence, err := q.NextMachineRunSequence(ctx)
 	if err != nil {
 		return machinelogbookdb.MachineRun{}, err
@@ -449,6 +521,9 @@ func (s *Service) storeManualRun(ctx context.Context, tx pgx.Tx, q *machinelogbo
 	run, err := q.InsertManualRun(ctx, machinelogbookdb.InsertManualRunParams{ID: newID(), DisplayID: formatRunDisplayID(sequence, s.now()), MachineID: job.MachineID, JobID: &job.ID, StartedAt: pgTime(&plan.StartsAt), EndedAt: pgTime(&plan.EndsAt), Outcome: plan.Outcome})
 	if err != nil {
 		return run, databaseError(err)
+	}
+	if err = storeRunMeasures(ctx, q, run.ID, plan.Measures); err != nil {
+		return run, err
 	}
 	if err = s.resolveUsageFills(ctx, q, plan.Usages); err != nil {
 		return run, err
@@ -491,7 +566,7 @@ func (s *Service) CreateManualJobInTransaction(ctx context.Context, tx pgx.Tx, a
 	if err != nil {
 		return MachineJob{}, err
 	}
-	plan, err := planManualRun(ManualRunInput{StartsAt: input.StartsAt, EndsAt: input.EndsAt, Outcome: outcome, Usages: input.Usages}, now)
+	plan, err := planManualRun(ManualRunInput{StartsAt: input.StartsAt, EndsAt: input.EndsAt, Outcome: outcome, Usages: input.Usages, Measures: input.Measures}, now)
 	if err != nil {
 		return MachineJob{}, err
 	}
@@ -602,9 +677,11 @@ func (s *Service) jobFromRow(ctx context.Context, q *machinelogbookdb.Queries, r
 		}
 		item.Artifact = &ArtifactReference{ID: artifact.ID, SHA256: artifact.Sha256, ParserStatus: artifact.ParserStatus}
 	}
+	item.Measures = RunMeasures{}
 	for _, run := range runs {
 		if run.State != "replaced" {
 			item.Usages = append(item.Usages, run.Usages...)
+			item.Measures.add(run.Measures)
 		}
 	}
 	summary, err := q.GetMachineJobRunSummary(ctx, &row.ID)
@@ -774,6 +851,29 @@ func (s *Service) UpdateJobFacts(ctx context.Context, p authorization.Principal,
 		if recorded > 0 {
 			return MachineJob{}, conflict("machine_change_not_allowed", "The machine of a job with recorded runs cannot change")
 		}
+		if oldMachine.MachineTypeID != newMachine.MachineTypeID {
+			process, processErr := machineProcess(ctx, q, newMachine.ID)
+			if processErr != nil {
+				return MachineJob{}, processErr
+			}
+			runs, runsErr := q.ListJobRunsForUpdate(ctx, &id)
+			if runsErr != nil {
+				return MachineJob{}, runsErr
+			}
+			runIDs := make([]uuid.UUID, 0, len(runs))
+			for _, run := range runs {
+				runIDs = append(runIDs, run.ID)
+			}
+			measures, measuresErr := q.ListRunMeasuresForRuns(ctx, runIDs)
+			if measuresErr != nil {
+				return MachineJob{}, measuresErr
+			}
+			for _, m := range measures {
+				if m.Value > 0 && !processSupportsMeasure(process, m.Measure) {
+					return MachineJob{}, apperror.New(422, "run_measure_unsupported", "The new machine's process does not record the measures of this job's runs")
+				}
+			}
+		}
 	}
 	if override != nil {
 		summary, err := q.GetMachineJobRunSummary(ctx, &id)
@@ -865,13 +965,15 @@ func (s *Service) computeFromSnapshot(ctx context.Context, q *machinelogbookdb.Q
 	if err != nil {
 		return "", pgtype.Numeric{}, err
 	}
-	runtimeSeconds, usages, err := s.jobPricingInputs(ctx, q, job.ID)
+	inputs, err := s.jobPricingInputs(ctx, q, job.ID)
 	if err != nil {
 		return "", pgtype.Numeric{}, err
 	}
+	runtimeSeconds, usages := inputs.RuntimeSeconds, inputs.Usages
 	complete := true
 	total := decimal.Zero
 	var runtimeFound bool
+	coveredMeasures := map[string]bool{}
 	seenRules := map[string]bool{}
 	for _, rule := range rules {
 		key := rule.Kind + "/" + snapshotRuleSelector(rule) + "/" + rule.Unit
@@ -879,6 +981,19 @@ func (s *Service) computeFromSnapshot(ctx context.Context, q *machinelogbookdb.Q
 			continue
 		}
 		seenRules[key] = true
+		if rule.Kind == "machine_measure" && rule.Measure != nil {
+			coveredMeasures[*rule.Measure] = true
+			value := inputs.Measures[*rule.Measure]
+			if rule.Missing {
+				// No rate was configured when the snapshot was taken: a value cannot be priced.
+				if value > 0 {
+					complete = false
+				}
+			} else if rule.BlockSize != nil {
+				total = total.Add(measureAmount(value, *rule.BlockSize, decimalFromNumeric(rule.Rate)))
+			}
+			continue
+		}
 		if rule.Missing {
 			if rule.Kind == "machine_runtime" {
 				complete = false
@@ -907,6 +1022,11 @@ func (s *Service) computeFromSnapshot(ctx context.Context, q *machinelogbookdb.Q
 	}
 	if !runtimeFound {
 		complete = false
+	}
+	for key, value := range inputs.Measures {
+		if value > 0 && !coveredMeasures[key] {
+			complete = false
+		}
 	}
 	for _, usage := range usages {
 		if usage.Ownership == "external" {
@@ -969,11 +1089,25 @@ func (s *Service) coverUsages(ctx context.Context, q *machinelogbookdb.Queries, 
 	if err != nil {
 		return job, err
 	}
-	_, usages, err := s.jobPricingInputs(ctx, q, job.ID)
+	inputs, err := s.jobPricingInputs(ctx, q, job.ID)
 	if err != nil {
 		return job, err
 	}
+	usages := inputs.Usages
 	covered := true
+	for key, value := range inputs.Measures {
+		if value <= 0 {
+			continue
+		}
+		found := false
+		for _, rule := range rules {
+			if rule.Kind == "machine_measure" && rule.Measure != nil && *rule.Measure == key {
+				found = true
+				break
+			}
+		}
+		covered = covered && found
+	}
 	for _, usage := range usages {
 		if usage.Ownership == "external" {
 			continue

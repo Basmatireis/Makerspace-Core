@@ -9,7 +9,7 @@ const number = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 2 });
 
 export type { StockState };
 
-export const unitLabel = (unit: MaterialUnit) => (unit === 'm2' ? 'm²' : unit === 'piece' ? 'pcs' : unit);
+export const unitLabel = (unit: MaterialUnit) => (unit === 'm2' ? 'm²' : unit === 'cm2' ? 'cm²' : unit === 'piece' ? 'pcs' : unit);
 /** "1,250 g". The API sends decimal strings. */
 export const formatQuantity = (value: string | number, unit: MaterialUnit) => `${number.format(Number(value))} ${unitLabel(unit)}`;
 export const formatSigned = (value: string | number, unit: MaterialUnit) => {

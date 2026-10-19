@@ -176,12 +176,8 @@ func (s *Service) SaveSetup(ctx context.Context, p authorization.Principal, mach
 }
 
 func (s *Service) applySetup(ctx context.Context, tx pgx.Tx, machineID uuid.UUID, input SetupInput) error {
-	var exists bool
-	if err := tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM machines WHERE id=$1)", machineID).Scan(&exists); err != nil {
+	if err := requireFDMPrinting(ctx, tx, machineID); err != nil {
 		return err
-	}
-	if !exists {
-		return apperror.NotFound
 	}
 	q := db.New(tx)
 	profile, err := q.GetPrinterProfileForUpdate(ctx, machineID)

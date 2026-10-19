@@ -68,8 +68,8 @@ function renderPage(element: React.ReactElement, path: string, route = '*') {
 }
 
 const materialTypes: MaterialType[] = [
-  { id: ids.plaType, name: 'PLA', unit: 'g', active: true, materialCount: 1, pricingRuleCount: 2, version: 2, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-01T00:00:00Z' },
-  { id: ids.sheetType, name: 'Plywood', unit: 'm2', active: true, materialCount: 1, pricingRuleCount: 0, version: 1, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-01T00:00:00Z' },
+  { id: ids.plaType, name: 'PLA', unit: 'g', processes: ['fdm_printing'], active: true, materialCount: 1, pricingRuleCount: 2, version: 2, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-01T00:00:00Z' },
+  { id: ids.sheetType, name: 'Plywood', unit: 'm2', processes: ['laser_cutting'], active: true, materialCount: 1, pricingRuleCount: 0, version: 1, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-01T00:00:00Z' },
 ];
 
 function serveInventory(materials: Material[] = [filament, sheet], products: FilamentProduct[] = [product]) {

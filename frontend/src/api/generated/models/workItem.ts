@@ -26,6 +26,7 @@ import type { WorkItemStatus } from './workItemStatus';
 import type { WorkItemSource } from './workItemSource';
 import type { WorkItemEffectivePrice } from './workItemEffectivePrice';
 import type { WorkItemBilling } from './workItemBilling';
+import type { WorkItemConsumption } from './workItemConsumption';
 import type { Version } from './version';
 
 export interface WorkItem {
@@ -73,5 +74,6 @@ export interface WorkItem {
   /** @nullable */
   effectivePrice?: WorkItemEffectivePrice;
   billing?: WorkItemBilling;
+  consumption?: WorkItemConsumption;
   version?: Version;
 }

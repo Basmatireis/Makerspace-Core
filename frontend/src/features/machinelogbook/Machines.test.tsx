@@ -5,7 +5,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
 import { createMemoryRouter, Outlet, RouterProvider } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import { PermissionId, type FilamentSpool, type Machine, type MachineActivity, type PrinterProfile } from '../../api/generated/models';
+import { PermissionId, type FilamentSpool, type Machine, type MachineActivity, type MachineType, type PrinterProfile } from '../../api/generated/models';
 import { server } from '../../test/server';
 import { testQueryClient } from '../../test/render';
 import { MachineDetailPage } from './MachineDetailPage';
@@ -29,9 +29,9 @@ function renderPage(route: string) {
 const now = '2026-09-15T11:26:00Z';
 const laserTypeId = '0192f6f8-743e-7c77-a349-cd07c3e8b001';
 const printerTypeId = '0192f6f8-743e-7c77-a349-cd07c3e8b002';
-const types = [
-  { id: laserTypeId, name: 'Laser', active: true, printer: false, version: 3, createdAt: now, updatedAt: now },
-  { id: printerTypeId, name: '3D printer', active: true, printer: true, version: 1, createdAt: now, updatedAt: now },
+const types: MachineType[] = [
+  { id: laserTypeId, name: 'Laser', active: true, process: 'laser_cutting', version: 3, createdAt: now, updatedAt: now },
+  { id: printerTypeId, name: '3D printer', active: true, process: 'fdm_printing', version: 1, createdAt: now, updatedAt: now },
 ];
 
 function machine(id: string, name: string, overrides: Partial<Machine> = {}): Machine {
@@ -164,13 +164,14 @@ describe('Machines list', () => {
     expect(within(document.querySelector('.cds--table-toolbar') as HTMLElement).getByRole('button', { name: 'Add machine' })).toBeInTheDocument();
   });
 
-  it('lists the machine types with their printer flag and offers changes only with machines.manage', async () => {
+  it('lists the machine types with their process and offers changes only with machines.manage', async () => {
     setup([PermissionId.machinesread]);
     const readOnly = renderPage('/machine-logbook/machines?tab=types');
     const table = await screen.findByRole('table', { name: 'Machine types' }, { timeout: 5000 });
     expect(within(table).getByText('Laser')).toBeInTheDocument();
     expect(within(table).getByText('3D printer')).toBeInTheDocument();
-    expect(within(table).getAllByText('Printer')).toHaveLength(2); // column header and the tag of the printer type
+    expect(within(table).getByText('FDM 3D printing')).toBeInTheDocument();
+    expect(within(table).getByText('Laser cutting')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add type' })).not.toBeInTheDocument();
     expect(screen.queryByRole('switch')).not.toBeInTheDocument();
     readOnly.unmount();
@@ -178,11 +179,10 @@ describe('Machines list', () => {
     setup([PermissionId.machinesread, PermissionId.machinesmanage]);
     renderPage('/machine-logbook/machines?tab=types');
     expect(await screen.findByRole('button', { name: 'Add type' }, { timeout: 5000 })).toBeInTheDocument();
-    expect(screen.getByRole('switch', { name: '3D printer is a printer type' })).toBeChecked();
-    expect(screen.getByRole('switch', { name: 'Laser is a printer type' })).not.toBeChecked();
+    expect(iconButton('Actions for Laser')).toBeInTheDocument();
   });
 
-  it('creates, renames, deactivates and flags machine types with their version', async () => {
+  it('creates, renames and deactivates machine types and picks their process with their version', async () => {
     setup([PermissionId.machinesread, PermissionId.machinesmanage]);
     const patches: unknown[] = [];
     let created: unknown;
@@ -192,9 +192,7 @@ describe('Machines list', () => {
     );
     const user = userEvent.setup();
     renderPage('/machine-logbook/machines?tab=types');
-    await user.click(await screen.findByRole('switch', { name: 'Laser is a printer type' }, { timeout: 5000 }));
-    await waitFor(() => expect(patches).toContainEqual({ printer: true, expectedVersion: 3 }));
-
+    await screen.findByRole('table', { name: 'Machine types' }, { timeout: 5000 });
     await user.click(iconButton('Actions for Laser'));
     await user.click(await screen.findByText('Deactivate', { selector: '.cds--overflow-menu-options__option-content' }));
     await waitFor(() => expect(patches).toContainEqual({ active: false, expectedVersion: 3 }));
@@ -205,14 +203,15 @@ describe('Machines list', () => {
     await user.clear(within(rename).getByLabelText('Name'));
     await user.type(within(rename).getByLabelText('Name'), 'Laser line');
     await user.click(within(rename).getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(patches).toContainEqual({ name: 'Laser line', printer: false, expectedVersion: 3 }));
+    await waitFor(() => expect(patches).toContainEqual({ name: 'Laser line', process: 'laser_cutting', expectedVersion: 3 }));
 
     await user.click(screen.getByRole('button', { name: 'Add type' }));
     const add = await screen.findByRole('dialog', { name: 'Add machine type' });
     await user.type(within(add).getByLabelText('Name'), 'Vinyl');
-    await user.click(within(add).getByRole('switch', { name: 'Printer' }));
+    await user.selectOptions(within(add).getByLabelText('Process'), 'vinyl_cutting');
+    expect(within(add).getByText(/Plotter runtime/)).toBeInTheDocument();
     await user.click(within(add).getByRole('button', { name: 'Add type' }));
-    await waitFor(() => expect(created).toEqual({ name: 'Vinyl', printer: true }));
+    await waitFor(() => expect(created).toEqual({ name: 'Vinyl', process: 'vinyl_cutting' }));
   });
 
   it('rejects a machine type name that is already used', async () => {

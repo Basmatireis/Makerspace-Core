@@ -11,7 +11,7 @@ import { server } from '../../test/server';
 const machineId = '0192f6f8-743e-7c77-a349-cd07c3e8a911';
 const typeId = '0192f6f8-743e-7c77-a349-cd07c3e8a910';
 const now = '2026-09-15T11:26:00Z';
-const machine: Machine = { id: machineId, name: 'Laser cutter', machineType: { id: typeId, name: 'Laser', active: true, printer: false, version: 3, createdAt: now, updatedAt: now }, status: 'active', automaticCollectionEnabled: false, jobCount: 3, runtimeSeconds: 600, failureRate: '0', version: 7, createdAt: now, updatedAt: now };
+const machine: Machine = { id: machineId, name: 'Laser cutter', machineType: { id: typeId, name: 'Laser', active: true, process: 'laser_cutting', version: 3, createdAt: now, updatedAt: now }, status: 'active', automaticCollectionEnabled: false, jobCount: 3, runtimeSeconds: 600, failureRate: '0', version: 7, createdAt: now, updatedAt: now };
 function auth(permissions: PermissionId[]) { server.use(http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions)))); }
 function catalog() { server.use(http.get(`*/api/v1/machines/${machineId}`, () => HttpResponse.json(machine)), http.get('*/api/v1/machine-types', () => HttpResponse.json({ items: [machine.machineType] })), http.get('*/api/v1/machine-logbook/machine-activity', () => HttpResponse.json({ items: [{ machineId, availability: 'available' }] }))); }
 

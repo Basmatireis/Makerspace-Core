@@ -1,29 +1,30 @@
 import { useState, type ReactNode } from 'react';
-import { Button, DataTable, InlineNotification, Modal, OverflowMenu, OverflowMenuItem, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, Tag, TextInput, Toggle } from '@carbon/react';
+import { Button, DataTable, InlineNotification, Modal, OverflowMenu, OverflowMenuItem, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, Tag, TextInput, Select, SelectItem } from '@carbon/react';
 import { Add } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { MachineType } from '../../../api/generated/models';
+import type { MachineProcess, MachineType } from '../../../api/generated/models';
 import { createMachineType, updateMachineType } from '../../../api/generated/machines/machines';
 import { EmptyState } from '../../../app/PageState';
+import { processConfig, processOptions } from '../processConfig';
 import { machineLogbookKeys, machinesQuery, machineTypesQuery } from '../queries';
 import { QueryBoundary } from '../shared/QueryBoundary';
 import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
 
-const headers = [{ key: 'name', header: 'Name' }, { key: 'status', header: 'Status' }, { key: 'printer', header: 'Printer' }, { key: 'machines', header: 'Machines' }];
+const headers = [{ key: 'name', header: 'Name' }, { key: 'status', header: 'Status' }, { key: 'process', header: 'Process' }, { key: 'machines', header: 'Machines' }];
 
 function TypeNameModal({ type, types, onClose }: { type?: MachineType; types: MachineType[]; onClose: () => void }) {
   const client = useQueryClient();
   const notify = useNotify();
   const [name, setName] = useState(type?.name ?? '');
-  const [printer, setPrinter] = useState(type?.printer ?? false);
+  const [process, setProcess] = useState<MachineProcess>(type?.process ?? 'other');
   const trimmed = name.trim();
   const taken = Boolean(trimmed) && types.some((item) => item.id !== type?.id && item.name.toLowerCase() === trimmed.toLowerCase());
-  const unchanged = Boolean(type) && trimmed === type?.name && printer === type?.printer;
+  const unchanged = Boolean(type) && trimmed === type?.name && process === type?.process;
   const save = useMutation({
     mutationFn: () => type
-      ? updateMachineType(type.id, { name: trimmed, printer, expectedVersion: type.version })
-      : createMachineType({ name: trimmed, printer }),
+      ? updateMachineType(type.id, { name: trimmed, process, expectedVersion: type.version })
+      : createMachineType({ name: trimmed, process }),
     onSuccess: async (saved) => {
       notify({ kind: 'success', title: type ? 'Machine type saved' : 'Machine type added', subtitle: saved.name });
       onClose();
@@ -39,8 +40,10 @@ function TypeNameModal({ type, types, onClose }: { type?: MachineType; types: Ma
       <form onSubmit={(event) => { event.preventDefault(); submit(); }}>
         <Stack gap={5}>
           <TextInput id="type-name" labelText="Name" value={name} autoComplete="off" data-modal-primary-focus invalid={taken} invalidText="This name is already used." onChange={(event) => setName(event.target.value)} />
-          <Toggle id="type-printer" labelText="Printer" labelA="No" labelB="Yes" toggled={printer} onToggle={setPrinter} />
-          <p className="mj-secondary">Machines of a printer type get a model, a connector and spool inputs when they are set up.</p>
+          <Select id="type-process" labelText="Process" value={process} helperText={processConfig[process].description} onChange={(event) => setProcess(event.target.value as MachineProcess)}>
+            {processOptions.map((option) => <SelectItem key={option.id} value={option.id} text={option.label} />)}
+          </Select>
+          <p className="mj-secondary">Only FDM 3D printing machines get a printer setup with a model, a connector and spool inputs.</p>
           {save.isError && <InlineNotification kind="error" lowContrast hideCloseButton title="Machine type not saved" subtitle="Check that the name is unique. If someone else changed this type, close the dialog and reopen it." />}
         </Stack>
       </form>
@@ -59,11 +62,11 @@ export function MachineTypesTab({ switcher }: { switcher?: ReactNode }) {
   const items = types.data?.items ?? [];
   const count = (id: string) => (machines.data?.items ?? []).filter((machine) => machine.machineType.id === id).length;
   const patch = useMutation({
-    mutationFn: ({ type, ...change }: { type: MachineType; active?: boolean; printer?: boolean }) => updateMachineType(type.id, { ...change, expectedVersion: type.version }),
-    onSuccess: async (saved, change) => {
+    mutationFn: ({ type, ...change }: { type: MachineType; active?: boolean }) => updateMachineType(type.id, { ...change, expectedVersion: type.version }),
+    onSuccess: async (saved) => {
       notify({
         kind: 'success', subtitle: saved.name,
-        title: change.printer !== undefined ? (saved.printer ? 'Marked as printer type' : 'No longer a printer type') : saved.active ? 'Machine type activated' : 'Machine type deactivated',
+        title: saved.active ? 'Machine type activated' : 'Machine type deactivated',
       });
       await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
     },
@@ -73,7 +76,7 @@ export function MachineTypesTab({ switcher }: { switcher?: ReactNode }) {
   return (
     <div className="mj-stack">
       <QueryBoundary query={types} errorMessage="The machine types could not be loaded.">
-        <DataTable rows={items.map((type) => ({ id: type.id, name: type.name, status: type.active ? 'Active' : 'Inactive', printer: type.printer ? 'Printer' : '', machines: count(type.id) }))} headers={headers}>
+        <DataTable rows={items.map((type) => ({ id: type.id, name: type.name, status: type.active ? 'Active' : 'Inactive', process: processConfig[type.process].label, machines: count(type.id) }))} headers={headers}>
           {({ rows, headers: tableHeaders, getRowProps, getTableProps }) => (
             <TableContainer className="mj-table-container">
               <TableToolbar aria-label="Machine types toolbar">
@@ -97,14 +100,7 @@ export function MachineTypesTab({ switcher }: { switcher?: ReactNode }) {
                       <TableRow key={key} {...rowProps}>
                         <TableCell>{type.name}</TableCell>
                         <TableCell><Tag size="sm" type={type.active ? 'green' : 'gray'}>{type.active ? 'Active' : 'Inactive'}</Tag></TableCell>
-                        <TableCell>
-                          {canManage ? (
-                            <Toggle
-                              id={`type-printer-${type.id}`} size="sm" labelText={`${type.name} is a printer type`} hideLabel labelA="No" labelB="Yes" toggled={type.printer}
-                              disabled={patch.isPending} onToggle={(printer) => patch.mutate({ type, printer })}
-                            />
-                          ) : (type.printer ? <Tag size="sm" type="blue">Printer</Tag> : <span className="mj-secondary">No</span>)}
-                        </TableCell>
+                        <TableCell>{processConfig[type.process].label}</TableCell>
                         <TableCell>{machines.isSuccess ? count(type.id) : '—'}</TableCell>
                         {canManage && (
                           <TableCell className="cds--table-column-menu">

@@ -17,7 +17,7 @@ export type UsageRow = {
   materialLabel?: string;
   spoolLabel?: string;
 };
-export type UsagesValues = { usages: UsageRow[] };
+export type UsagesValues = { usages: UsageRow[]; stitches?: number | ''; ink?: Record<string, number | ''> };
 export type PartyValues = { customer: BillingParty | null; operator: Operator | null; notes: string };
 
 export const blankUsage = (): UsageRow => ({ ownership: 'makerspace', materialId: '', spoolId: '', externalName: '', quantity: '', quantityBasis: 'actual' });

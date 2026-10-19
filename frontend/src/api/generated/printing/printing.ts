@@ -55,6 +55,9 @@ export const getPrinterProfile = async (machineId: UUIDv7, options?: RequestInit
 );}
 
 
+/**
+ * Only machines whose machine type has the fdm_printing process; others answer 409 machine_not_fdm_printing.
+ */
 export const getConfigurePrinterProfileUrl = (machineId: UUIDv7,) => {
 
 
@@ -101,7 +104,7 @@ export const getPrinterLiveStatus = async (machineId: UUIDv7, options?: RequestI
 
 
 /**
- * The request is the desired state. Omitted slots are retired and omitted units are disabled; neither is deleted. A slot with a mounted spool cannot be removed (409 slot_occupied). Active positions are renumbered in the given order. The profile is created when the machine has none.
+ * The request is the desired state. Omitted slots are retired and omitted units are disabled; neither is deleted. A slot with a mounted spool cannot be removed (409 slot_occupied). Active positions are renumbered in the given order. The profile is created when the machine has none. Only machines whose machine type has the fdm_printing process; others answer 409 machine_not_fdm_printing.
  * @summary Atomically save the desired printer profile, spool input units, and slots
  */
 export const getSavePrinterSetupUrl = (machineId: UUIDv7,) => {

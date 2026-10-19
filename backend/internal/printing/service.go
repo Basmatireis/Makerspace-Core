@@ -175,6 +175,24 @@ func loadProfile(ctx context.Context, q *db.Queries, machineID uuid.UUID) (Profi
 	return item, nil
 }
 
+// requireFDMPrinting answers 404 for an unknown machine and 409
+// machine_not_fdm_printing when the machine's type has another process: only
+// FDM printers have a printer setup.
+func requireFDMPrinting(ctx context.Context, tx pgx.Tx, machineID uuid.UUID) error {
+	var process string
+	err := tx.QueryRow(ctx, "SELECT mt.process FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id WHERE m.id = $1", machineID).Scan(&process)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return apperror.NotFound
+	}
+	if err != nil {
+		return err
+	}
+	if process != "fdm_printing" {
+		return conflict("machine_not_fdm_printing", "Only machines with the FDM printing process have a printer setup")
+	}
+	return nil
+}
+
 func (s *Service) ConfigureProfile(ctx context.Context, p authorization.Principal, machineID uuid.UUID, enabled bool, expected int64, requestID *uuid.UUID) (Profile, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return Profile{}, err
@@ -184,12 +202,8 @@ func (s *Service) ConfigureProfile(ctx context.Context, p authorization.Principa
 		return Profile{}, err
 	}
 	defer tx.Rollback(ctx)
-	var exists bool
-	if err = tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM machines WHERE id=$1)", machineID).Scan(&exists); err != nil {
+	if err = requireFDMPrinting(ctx, tx, machineID); err != nil {
 		return Profile{}, err
-	}
-	if !exists {
-		return Profile{}, apperror.NotFound
 	}
 	row, err := db.New(tx).UpsertPrinterProfile(ctx, db.UpsertPrinterProfileParams{MachineID: machineID, Enabled: enabled, ExpectedVersion: expected})
 	if errors.Is(err, pgx.ErrNoRows) {

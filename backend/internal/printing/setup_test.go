@@ -35,7 +35,7 @@ func newSetupFixture(t *testing.T) *setupFixture {
 	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
 		t.Fatal(err)
 	}
-	machineType, err := f.jobs.CreateMachineType(ctx, f.principal, "Setup printer "+f.suffix, true, &f.request)
+	machineType, err := f.jobs.CreateMachineType(ctx, f.principal, "Setup printer "+f.suffix, "fdm_printing", &f.request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +295,7 @@ func TestSaveSetupRefusesToRemoveAMountedSlotAndRollsBack(t *testing.T) {
 	mountedSlot := slotsOf(created, units[0].ID)[0]
 
 	diameter, total := "1.75", "20"
-	materialType, err := f.jobs.CreateMaterialType(ctx, f.principal, "PLA "+f.suffix, "g", nil)
+	materialType, err := f.jobs.CreateMaterialType(ctx, f.principal, "PLA "+f.suffix, "g", []string{"fdm_printing", "other"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

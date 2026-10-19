@@ -48,7 +48,7 @@ func newIngestHarness(t *testing.T) *ingestHarness {
 	if _, err = pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
 		t.Fatal(err)
 	}
-	machineType, err := h.logbook.CreateMachineType(ctx, h.principal, "Ingest printer "+h.suffix, true, &requestID)
+	machineType, err := h.logbook.CreateMachineType(ctx, h.principal, "Ingest printer "+h.suffix, "fdm_printing", &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +175,7 @@ func (h *ingestHarness) mountSpool(name string, externalSlot *string, mountedAt 
 	h.t.Helper()
 	ctx := h.t.Context()
 	diameter, total := "1.75", "20"
-	materialType, err := h.logbook.CreateMaterialType(ctx, h.principal, "PLA "+name+" "+h.suffix, "g", nil)
+	materialType, err := h.logbook.CreateMaterialType(ctx, h.principal, "PLA "+name+" "+h.suffix, "g", []string{"fdm_printing", "other"}, nil)
 	if err != nil {
 		h.t.Fatal(err)
 	}
@@ -439,7 +439,7 @@ func TestIngestSettlesTheJobOfAnAttachedRunAndConsumesUnassignedRuns(t *testing.
 		t.Fatal(err)
 	}
 	rate := "10"
-	if _, err = h.logbook.CreatePricingRule(ctx, h.principal, group.ID, "machine_runtime", &h.machine.MachineType.ID, nil, rate, nil); err != nil {
+	if _, err = h.logbook.CreatePricingRule(ctx, h.principal, group.ID, "machine_runtime", &h.machine.MachineType.ID, nil, nil, rate, nil); err != nil {
 		t.Fatal(err)
 	}
 

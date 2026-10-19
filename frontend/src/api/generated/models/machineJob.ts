@@ -22,6 +22,7 @@ import type { UUIDv7 } from './uUIDv7';
 import type { PrintArtifactReference } from './printArtifactReference';
 import type { Machine } from './machine';
 import type { MachineRun } from './machineRun';
+import type { RunMeasures } from './runMeasures';
 import type { MachineJobCustomer } from './machineJobCustomer';
 import type { MachineJobOperator } from './machineJobOperator';
 import type { MachineJobOutcome } from './machineJobOutcome';
@@ -65,6 +66,8 @@ export interface MachineJob {
    * @minimum 0
    */
   durationSeconds: number;
+  /** Sum of the measures of all runs that are not replaced. */
+  measures: RunMeasures;
   /** @nullable */
   customer?: MachineJobCustomer;
   /** @nullable */

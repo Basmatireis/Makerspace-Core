@@ -28,7 +28,7 @@ func (s *Service) ListMachineTypes(ctx context.Context, p authorization.Principa
 	return items, nil
 }
 
-func (s *Service) CreateMachineType(ctx context.Context, p authorization.Principal, name string, printer bool, requestID *uuid.UUID) (MachineType, error) {
+func (s *Service) CreateMachineType(ctx context.Context, p authorization.Principal, name, process string, requestID *uuid.UUID) (MachineType, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return MachineType{}, err
 	}
@@ -36,17 +36,20 @@ func (s *Service) CreateMachineType(ctx context.Context, p authorization.Princip
 	if err != nil {
 		return MachineType{}, err
 	}
+	if !validProcess(process) {
+		return MachineType{}, validation("invalid machine process")
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return MachineType{}, err
 	}
 	defer tx.Rollback(ctx)
 	id := newID()
-	row, err := machinelogbookdb.New(tx).CreateMachineType(ctx, machinelogbookdb.CreateMachineTypeParams{ID: id, Name: name, Printer: printer})
+	row, err := machinelogbookdb.New(tx).CreateMachineType(ctx, machinelogbookdb.CreateMachineTypeParams{ID: id, Name: name, Process: process})
 	if err != nil {
 		return MachineType{}, databaseError(err)
 	}
-	if err = writeAudit(ctx, tx, p, "machine_type.created", "machine_type", id, requestID, []string{"name", "printer"}); err != nil {
+	if err = writeAudit(ctx, tx, p, "machine_type.created", "machine_type", id, requestID, []string{"name", "process"}); err != nil {
 		return MachineType{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -55,7 +58,7 @@ func (s *Service) CreateMachineType(ctx context.Context, p authorization.Princip
 	return machineTypeFromRow(row), nil
 }
 
-func (s *Service) UpdateMachineType(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, name *string, active, printer *bool, requestID *uuid.UUID) (MachineType, error) {
+func (s *Service) UpdateMachineType(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, name *string, active *bool, process *string, requestID *uuid.UUID) (MachineType, error) {
 	if err := require(p, authorization.MachinesManage); err != nil {
 		return MachineType{}, err
 	}
@@ -84,17 +87,20 @@ func (s *Service) UpdateMachineType(ctx context.Context, p authorization.Princip
 	if active != nil {
 		current.Active = *active
 	}
-	if printer != nil {
-		current.Printer = *printer
+	if process != nil {
+		if !validProcess(*process) {
+			return MachineType{}, validation("invalid machine process")
+		}
+		current.Process = *process
 	}
-	row, err := q.UpdateMachineType(ctx, machinelogbookdb.UpdateMachineTypeParams{Name: current.Name, Active: current.Active, Printer: current.Printer, ID: id, ExpectedVersion: expected})
+	row, err := q.UpdateMachineType(ctx, machinelogbookdb.UpdateMachineTypeParams{Name: current.Name, Active: current.Active, Process: current.Process, ID: id, ExpectedVersion: expected})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return MachineType{}, apperror.StaleWrite
 	}
 	if err != nil {
 		return MachineType{}, databaseError(err)
 	}
-	if err = writeAudit(ctx, tx, p, "machine_type.updated", "machine_type", id, requestID, []string{"name", "active", "printer"}); err != nil {
+	if err = writeAudit(ctx, tx, p, "machine_type.updated", "machine_type", id, requestID, []string{"name", "active", "process"}); err != nil {
 		return MachineType{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
@@ -114,11 +120,11 @@ func validateMachine(status string, automatic bool, external *string) error {
 }
 
 func machineFromGet(row machinelogbookdb.GetMachineRow) Machine {
-	return Machine{ID: row.ID, MachineType: MachineType{ID: row.MachineTypeID, Name: row.MachineTypeName, Active: row.MachineTypeActive, Printer: row.MachineTypePrinter, Version: row.MachineTypeVersion, CreatedAt: row.MachineTypeCreatedAt, UpdatedAt: row.MachineTypeUpdatedAt}, Name: row.Name, Status: row.Status, ExternalIdentifier: row.ExternalIdentifier, AutomaticCollectionEnabled: row.AutomaticCollectionEnabled, LastIngestedAt: nullableTime(row.LastIngestedAt), Version: row.Version, JobCount: row.JobCount, RuntimeSeconds: row.RuntimeSeconds, FailureRate: decimalString(row.FailureRate), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return Machine{ID: row.ID, MachineType: MachineType{ID: row.MachineTypeID, Name: row.MachineTypeName, Active: row.MachineTypeActive, Process: row.MachineTypeProcess, Version: row.MachineTypeVersion, CreatedAt: row.MachineTypeCreatedAt, UpdatedAt: row.MachineTypeUpdatedAt}, Name: row.Name, Status: row.Status, ExternalIdentifier: row.ExternalIdentifier, AutomaticCollectionEnabled: row.AutomaticCollectionEnabled, LastIngestedAt: nullableTime(row.LastIngestedAt), Version: row.Version, JobCount: row.JobCount, RuntimeSeconds: row.RuntimeSeconds, FailureRate: decimalString(row.FailureRate), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
 func machineFromList(row machinelogbookdb.ListMachinesRow) Machine {
-	return Machine{ID: row.ID, MachineType: MachineType{ID: row.MachineTypeID, Name: row.MachineTypeName, Active: row.MachineTypeActive, Printer: row.MachineTypePrinter, Version: row.MachineTypeVersion, CreatedAt: row.MachineTypeCreatedAt, UpdatedAt: row.MachineTypeUpdatedAt}, Name: row.Name, Status: row.Status, ExternalIdentifier: row.ExternalIdentifier, AutomaticCollectionEnabled: row.AutomaticCollectionEnabled, LastIngestedAt: nullableTime(row.LastIngestedAt), Version: row.Version, JobCount: row.JobCount, RuntimeSeconds: row.RuntimeSeconds, FailureRate: decimalString(row.FailureRate), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return Machine{ID: row.ID, MachineType: MachineType{ID: row.MachineTypeID, Name: row.MachineTypeName, Active: row.MachineTypeActive, Process: row.MachineTypeProcess, Version: row.MachineTypeVersion, CreatedAt: row.MachineTypeCreatedAt, UpdatedAt: row.MachineTypeUpdatedAt}, Name: row.Name, Status: row.Status, ExternalIdentifier: row.ExternalIdentifier, AutomaticCollectionEnabled: row.AutomaticCollectionEnabled, LastIngestedAt: nullableTime(row.LastIngestedAt), Version: row.Version, JobCount: row.JobCount, RuntimeSeconds: row.RuntimeSeconds, FailureRate: decimalString(row.FailureRate), CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
 func (s *Service) GetMachine(ctx context.Context, p authorization.Principal, id uuid.UUID) (Machine, error) {
@@ -650,7 +656,7 @@ func (s *Service) SearchOperators(ctx context.Context, p authorization.Principal
 }
 
 func pricingRuleFromRow(row machinelogbookdb.PricingRule, materialTypeName *string) PricingRule {
-	return PricingRule{ID: row.ID, PricingGroupID: row.PricingGroupID, Kind: row.Kind, MachineTypeID: row.MachineTypeID, MaterialTypeID: row.MaterialTypeID, MaterialTypeName: materialTypeName, MaterialUnit: row.MaterialUnit, Rate: decimalString(row.Rate), Active: row.Active, Version: row.Version}
+	return PricingRule{ID: row.ID, PricingGroupID: row.PricingGroupID, Kind: row.Kind, MachineTypeID: row.MachineTypeID, MaterialTypeID: row.MaterialTypeID, MaterialTypeName: materialTypeName, MaterialUnit: row.MaterialUnit, Measure: row.Measure, BlockSize: row.BlockSize, Rate: decimalString(row.Rate), Active: row.Active, Version: row.Version}
 }
 func (s *Service) pricingGroupFromRow(ctx context.Context, q *machinelogbookdb.Queries, row machinelogbookdb.PricingGroup) (PricingGroup, error) {
 	rules, err := q.ListPricingRulesByGroup(ctx, row.ID)
@@ -659,7 +665,7 @@ func (s *Service) pricingGroupFromRow(ctx context.Context, q *machinelogbookdb.Q
 	}
 	item := PricingGroup{ID: row.ID, Name: row.Name, Description: row.Description, Active: row.Active, IsDefault: row.IsDefault, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Rules: make([]PricingRule, 0, len(rules))}
 	for _, r := range rules {
-		item.Rules = append(item.Rules, pricingRuleFromRow(machinelogbookdb.PricingRule{ID: r.ID, PricingGroupID: r.PricingGroupID, Kind: r.Kind, MachineTypeID: r.MachineTypeID, MaterialUnit: r.MaterialUnit, Rate: r.Rate, Active: r.Active, Version: r.Version, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, MaterialTypeID: r.MaterialTypeID}, r.MaterialTypeName))
+		item.Rules = append(item.Rules, pricingRuleFromRow(machinelogbookdb.PricingRule{ID: r.ID, PricingGroupID: r.PricingGroupID, Kind: r.Kind, MachineTypeID: r.MachineTypeID, MaterialUnit: r.MaterialUnit, Measure: r.Measure, BlockSize: r.BlockSize, Rate: r.Rate, Active: r.Active, Version: r.Version, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, MaterialTypeID: r.MaterialTypeID}, r.MaterialTypeName))
 	}
 	return item, nil
 }
@@ -769,30 +775,59 @@ func (s *Service) UpdatePricingGroup(ctx context.Context, p authorization.Princi
 	return s.pricingGroupFromRow(ctx, machinelogbookdb.New(s.pool), row)
 }
 
-// resolveRuleTarget checks which selector a rule needs for its kind and, for
-// material rules, loads the material type whose unit the rule takes over.
-func resolveRuleTarget(ctx context.Context, q *machinelogbookdb.Queries, kind string, machineTypeID, materialTypeID *uuid.UUID, requireActiveType bool) (*string, *string, error) {
+// ruleTarget is what a pricing rule prices, resolved from its kind and selectors.
+type ruleTarget struct {
+	MaterialUnit, MaterialTypeName *string
+	Measure                        *string
+	BlockSize                      *int32
+}
+
+// resolveRuleTarget checks which selector a rule needs for its kind. For
+// material rules it loads the material type whose unit the rule takes over; for
+// measure rules it checks the machine type's process supports the measure and
+// takes the block size of the measure.
+func resolveRuleTarget(ctx context.Context, q *machinelogbookdb.Queries, kind string, machineTypeID, materialTypeID *uuid.UUID, measure *string, requireActiveType bool) (ruleTarget, error) {
 	switch kind {
 	case "machine_runtime":
-		if machineTypeID == nil || materialTypeID != nil {
-			return nil, nil, validation("machine runtime rules require only machineTypeId")
+		if machineTypeID == nil || materialTypeID != nil || measure != nil {
+			return ruleTarget{}, validation("machine runtime rules require only machineTypeId")
 		}
-		return nil, nil, nil
+		return ruleTarget{}, nil
 	case "material":
-		if machineTypeID != nil || materialTypeID == nil {
-			return nil, nil, validation("material rules require only materialTypeId")
+		if machineTypeID != nil || materialTypeID == nil || measure != nil {
+			return ruleTarget{}, validation("material rules require only materialTypeId")
 		}
 		materialType, err := resolveMaterialType(ctx, q, *materialTypeID, requireActiveType)
 		if err != nil {
-			return nil, nil, err
+			return ruleTarget{}, err
 		}
 		unit, name := materialType.Unit, materialType.Name
-		return &unit, &name, nil
+		return ruleTarget{MaterialUnit: &unit, MaterialTypeName: &name}, nil
+	case "machine_measure":
+		if machineTypeID == nil || materialTypeID != nil || measure == nil {
+			return ruleTarget{}, validation("machine measure rules require machineTypeId and measure")
+		}
+		definition, known := measureDefinitions[*measure]
+		if !known {
+			return ruleTarget{}, validation("unknown measure")
+		}
+		machineType, err := q.GetMachineType(ctx, *machineTypeID)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ruleTarget{}, validation("machineTypeId does not refer to a machine type")
+		}
+		if err != nil {
+			return ruleTarget{}, err
+		}
+		if !processSupportsMeasure(machineType.Process, definition.Key) {
+			return ruleTarget{}, apperror.New(422, "run_measure_unsupported", "The machine type's process does not record this measure")
+		}
+		block := definition.BlockSize
+		return ruleTarget{Measure: &definition.Key, BlockSize: &block}, nil
 	}
-	return nil, nil, validation("invalid pricing rule kind")
+	return ruleTarget{}, validation("invalid pricing rule kind")
 }
 
-func (s *Service) CreatePricingRule(ctx context.Context, p authorization.Principal, groupID uuid.UUID, kind string, machineTypeID, materialTypeID *uuid.UUID, rate string, requestID *uuid.UUID) (PricingRule, error) {
+func (s *Service) CreatePricingRule(ctx context.Context, p authorization.Principal, groupID uuid.UUID, kind string, machineTypeID, materialTypeID *uuid.UUID, measure *string, rate string, requestID *uuid.UUID) (PricingRule, error) {
 	if err := require(p, authorization.PricingManage); err != nil {
 		return PricingRule{}, err
 	}
@@ -806,7 +841,7 @@ func (s *Service) CreatePricingRule(ctx context.Context, p authorization.Princip
 	}
 	defer tx.Rollback(ctx)
 	q := machinelogbookdb.New(tx)
-	unit, typeName, err := resolveRuleTarget(ctx, q, kind, machineTypeID, materialTypeID, true)
+	target, err := resolveRuleTarget(ctx, q, kind, machineTypeID, materialTypeID, measure, true)
 	if err != nil {
 		return PricingRule{}, err
 	}
@@ -818,20 +853,20 @@ func (s *Service) CreatePricingRule(ctx context.Context, p authorization.Princip
 		return PricingRule{}, conflict("pricing_group_inactive", "Pricing group is inactive")
 	}
 	id := newID()
-	row, err := q.CreatePricingRule(ctx, machinelogbookdb.CreatePricingRuleParams{ID: id, PricingGroupID: groupID, Kind: kind, MachineTypeID: machineTypeID, MaterialTypeID: materialTypeID, MaterialUnit: unit, Rate: numeric})
+	row, err := q.CreatePricingRule(ctx, machinelogbookdb.CreatePricingRuleParams{ID: id, PricingGroupID: groupID, Kind: kind, MachineTypeID: machineTypeID, MaterialTypeID: materialTypeID, MaterialUnit: target.MaterialUnit, Measure: target.Measure, BlockSize: target.BlockSize, Rate: numeric})
 	if err != nil {
 		return PricingRule{}, databaseError(err)
 	}
-	if err = writeAudit(ctx, tx, p, "pricing_rule.created", "pricing_rule", id, requestID, []string{"kind", "selector", "rate"}); err != nil {
+	if err = writeAudit(ctx, tx, p, "pricing_rule.created", "pricing_rule", id, requestID, []string{"kind", "selector", "measure", "rate"}); err != nil {
 		return PricingRule{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return PricingRule{}, err
 	}
-	return pricingRuleFromRow(row, typeName), nil
+	return pricingRuleFromRow(row, target.MaterialTypeName), nil
 }
 
-func (s *Service) UpdatePricingRule(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, kind string, machineTypeID, materialTypeID *uuid.UUID, rate string, active bool, requestID *uuid.UUID) (PricingRule, error) {
+func (s *Service) UpdatePricingRule(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, kind string, machineTypeID, materialTypeID *uuid.UUID, measure *string, rate string, active bool, requestID *uuid.UUID) (PricingRule, error) {
 	if err := require(p, authorization.PricingManage); err != nil {
 		return PricingRule{}, err
 	}
@@ -856,24 +891,24 @@ func (s *Service) UpdatePricingRule(ctx context.Context, p authorization.Princip
 		return PricingRule{}, apperror.StaleWrite
 	}
 	// A rule may keep its deactivated type; choosing another type needs an active one.
-	unit, typeName, err := resolveRuleTarget(ctx, q, kind, machineTypeID, materialTypeID, !sameUUID(current.MaterialTypeID, materialTypeID))
+	target, err := resolveRuleTarget(ctx, q, kind, machineTypeID, materialTypeID, measure, !sameUUID(current.MaterialTypeID, materialTypeID))
 	if err != nil {
 		return PricingRule{}, err
 	}
-	row, err := q.UpdatePricingRule(ctx, machinelogbookdb.UpdatePricingRuleParams{Kind: kind, MachineTypeID: machineTypeID, MaterialTypeID: materialTypeID, MaterialUnit: unit, Rate: numeric, Active: active, ID: id, ExpectedVersion: expected})
+	row, err := q.UpdatePricingRule(ctx, machinelogbookdb.UpdatePricingRuleParams{Kind: kind, MachineTypeID: machineTypeID, MaterialTypeID: materialTypeID, MaterialUnit: target.MaterialUnit, Measure: target.Measure, BlockSize: target.BlockSize, Rate: numeric, Active: active, ID: id, ExpectedVersion: expected})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PricingRule{}, apperror.StaleWrite
 	}
 	if err != nil {
 		return PricingRule{}, databaseError(err)
 	}
-	if err = writeAudit(ctx, tx, p, "pricing_rule.updated", "pricing_rule", id, requestID, []string{"kind", "selector", "rate", "active"}); err != nil {
+	if err = writeAudit(ctx, tx, p, "pricing_rule.updated", "pricing_rule", id, requestID, []string{"kind", "selector", "measure", "rate", "active"}); err != nil {
 		return PricingRule{}, err
 	}
 	if err = tx.Commit(ctx); err != nil {
 		return PricingRule{}, err
 	}
-	return pricingRuleFromRow(row, typeName), nil
+	return pricingRuleFromRow(row, target.MaterialTypeName), nil
 }
 
 func (s *Service) SetPartyPricingGroup(ctx context.Context, p authorization.Principal, party PartyReference, groupID *uuid.UUID, expected int64, requestID *uuid.UUID) (BillingParty, error) {

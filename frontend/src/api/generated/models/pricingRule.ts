@@ -23,6 +23,7 @@ import type { PricingRuleKind } from './pricingRuleKind';
 import type { PricingRuleMachineTypeId } from './pricingRuleMachineTypeId';
 import type { PricingRuleMaterialTypeId } from './pricingRuleMaterialTypeId';
 import type { PricingRuleMaterialUnit } from './pricingRuleMaterialUnit';
+import type { PricingRuleMeasure } from './pricingRuleMeasure';
 import type { Decimal } from './decimal';
 import type { Version } from './version';
 
@@ -44,6 +45,17 @@ export interface PricingRule {
    * @nullable
    */
   materialUnit?: PricingRuleMaterialUnit;
+  /**
+   * Set on machine_measure rules together with machineTypeId.
+   * @nullable
+   */
+  measure?: PricingRuleMeasure;
+  /**
+   * Set on machine_measure rules: the rate is per this many units of the measure (1000 for stitches).
+   * @minimum 1
+   * @nullable
+   */
+  blockSize?: number | null;
   rate: Decimal;
   active: boolean;
   version: Version;

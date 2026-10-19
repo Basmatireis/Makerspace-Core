@@ -18,7 +18,7 @@ const machineId = '0192f6f8-743e-7c77-a349-cd07c3e8a911';
 
 const machine = {
   id: machineId,
-  machineType: { id: machineTypeId, name: '3D printer', active: true, version: 1, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z' },
+  machineType: { id: machineTypeId, name: '3D printer', active: true, process: 'fdm_printing', version: 1, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z' },
   name: 'Bambu H2D #1',
   status: 'active' as const,
   externalIdentifier: 'BH2D-1',

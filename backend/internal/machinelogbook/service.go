@@ -44,7 +44,8 @@ func NewService(pool *pgxpool.Pool, options ...Option) *Service {
 type MachineType struct {
 	ID                   uuid.UUID
 	Name                 string
-	Active, Printer      bool
+	Process              string
+	Active               bool
 	Version              int64
 	CreatedAt, UpdatedAt time.Time
 }
@@ -132,9 +133,13 @@ type PricingRule struct {
 	MaterialTypeID   *uuid.UUID
 	MaterialTypeName *string
 	MaterialUnit     *string
-	Rate             string
-	Active           bool
-	Version          int64
+	// Measure and BlockSize are set on machine_measure rules: Rate is the price
+	// per BlockSize units of the measure on machines of MachineTypeID.
+	Measure   *string
+	BlockSize *int32
+	Rate      string
+	Active    bool
+	Version   int64
 }
 
 // MaterialType is the level material prices attach to (PLA, PETG, ...). All
@@ -142,6 +147,7 @@ type PricingRule struct {
 type MaterialType struct {
 	ID                              uuid.UUID
 	Name, Unit                      string
+	Processes                       []string
 	Active                          bool
 	MaterialCount, PricingRuleCount int64
 	Version                         int64
@@ -223,6 +229,7 @@ type JobInput struct {
 	Notes            *string
 	PricingGroupID   *uuid.UUID
 	Usages           []UsageInput
+	Measures         RunMeasures
 }
 
 // JobUpdate carries the staff-editable facts of a job. The times, material and
@@ -243,6 +250,7 @@ type ManualRunInput struct {
 	StartsAt, EndsAt time.Time
 	Outcome          *string
 	Usages           []UsageInput
+	Measures         RunMeasures
 }
 
 type JobFilters struct {
@@ -423,6 +431,8 @@ type FilamentProductFilters struct {
 type PricingSnapshotRule struct {
 	SourceRuleID                *uuid.UUID
 	Kind, Label, Selector, Unit string
+	Measure                     *string
+	BlockSize                   *int32
 	Rate                        *string
 	Missing                     bool
 }
@@ -447,6 +457,7 @@ type MachineJob struct {
 	Runs                              []MachineRun
 	StartedAt, EndedAt, ExpectedEndAt *time.Time
 	DurationSeconds                   int64
+	Measures                          RunMeasures
 	Customer                          *BillingParty
 	Operator                          *Operator
 	Outcome                           string
@@ -640,7 +651,7 @@ func writeAudit(ctx context.Context, tx pgx.Tx, p authorization.Principal, actio
 }
 
 func machineTypeFromRow(row machinelogbookdb.MachineType) MachineType {
-	return MachineType{ID: row.ID, Name: row.Name, Active: row.Active, Printer: row.Printer, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return MachineType{ID: row.ID, Name: row.Name, Active: row.Active, Process: row.Process, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
 func formatDisplayID(sequence int64, now time.Time) string {

@@ -4,6 +4,7 @@ import { CheckmarkFilled, CircleDash, ErrorFilled, Flag, InProgress, Misuse, Pau
 import type {
   JobBillingState, MachineAvailability, MachineConnectorState, MachineCurrentItem, MachineJob, MachineJobOutcome, MachineJobUsage, MachineRun, MachineRunReportedUsageItem, MachineRunState, PriceAdjustmentKind, WorkItem, WorkItemBilling, WorkItemStatus,
 } from '../../../api/generated/models';
+import { consumptionSummary, sumUsages } from '../processConfig';
 import { formatMoney, formatQuantity } from './format';
 
 // ---------------------------------------------------------------------------
@@ -102,6 +103,16 @@ export function FromMachineTag({ size = 'sm' }: { size?: 'sm' | 'md' }) {
 /** "12.5 g PLA Black, 3 pcs Insert", or "None recorded". */
 export const usagesText = (usages: Pick<MachineJobUsage, 'quantity' | 'unit' | 'materialName'>[]) => usages.length
   ? usages.map((usage) => `${formatQuantity(usage.quantity)} ${usage.unit} ${usage.materialName}`).join(', ') : 'None recorded';
+
+/**
+ * What a run consumed in each unit: "12,400 stitches · 0.4 m Stabilizer", "3.20 ml UV ink · 180 cm² DTF paper".
+ * Runs that only used grams and have no measures keep the per-material text FDM always had.
+ */
+export function runConsumptionText(run: Pick<MachineRun, 'usages' | 'measures'>): string {
+  const gramsOnly = run.usages.every((usage) => usage.unit === 'g');
+  if (gramsOnly && Object.keys(run.measures ?? {}).length === 0) return usagesText(run.usages);
+  return consumptionSummary(sumUsages(run.usages), run.measures) ?? 'None recorded';
+}
 
 function reportUsageMatches(run: Pick<MachineRun, 'reportedUsageItems' | 'usages'>) {
   const matches = new Map<number, MachineJobUsage>();

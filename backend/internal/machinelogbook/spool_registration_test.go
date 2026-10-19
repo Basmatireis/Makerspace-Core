@@ -12,7 +12,7 @@ import (
 // mountSpool places the spool into a new machine slot and returns the names it was mounted under.
 func (f *fillFixture) mountSpool(t *testing.T, spool FilamentSpool) (machine Machine, unitName, slotName string) {
 	t.Helper()
-	typ, err := f.s.CreateMachineType(t.Context(), f.p, f.unique("Mount type"), false, &f.request)
+	typ, err := f.s.CreateMachineType(t.Context(), f.p, f.unique("Mount type"), "other", &f.request)
 	if err != nil {
 		t.Fatal(err)
 	}

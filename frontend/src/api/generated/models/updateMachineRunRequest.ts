@@ -19,6 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { UpdateMachineRunRequestOutcome } from './updateMachineRunRequestOutcome';
+import type { RunMeasures } from './runMeasures';
 import type { Version } from './version';
 
 export interface UpdateMachineRunRequest {
@@ -31,5 +32,7 @@ export interface UpdateMachineRunRequest {
    * @nullable
    */
   outcome: UpdateMachineRunRequestOutcome;
+  /** Manual runs only. When present, replaces the run's measures; keys the process does not support are refused (422 run_measure_unsupported). */
+  measures?: RunMeasures;
   expectedVersion: Version;
 }

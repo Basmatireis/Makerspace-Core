@@ -5,9 +5,10 @@ import type { MaterialType, MaterialUnit } from '../../../api/generated/models';
 import { materialTypesQuery } from '../inventoryQueries';
 import { DirectoryTable, useUrlState, type Column } from '../shared/DirectoryTable';
 import { QueryBoundary } from '../shared/QueryBoundary';
+import { processConfig } from '../processConfig';
 import { unitLabel } from './inventoryShared';
 
-const units: MaterialUnit[] = ['g', 'm', 'ml', 'm2', 'piece'];
+const units: MaterialUnit[] = ['g', 'm', 'ml', 'cm2', 'm2', 'piece'];
 
 type Props = { id: string; switcher?: ReactNode; canManage: boolean; onAdd: () => void; onEdit: (materialType: MaterialType) => void };
 
@@ -32,6 +33,7 @@ function MaterialTypesTableContent({ id, switcher, canManage, onAdd, onEdit, typ
         : <span>{row.name}</span>,
     },
     { key: 'unit', header: 'Unit', narrow: true, sortValue: (row) => row.unit, render: (row) => unitLabel(row.unit) },
+    { key: 'processes', header: 'Processes', sortValue: (row) => row.processes.join(','), render: (row) => row.processes.map((process) => processConfig[process].label).join(', ') },
     { key: 'materials', header: 'Materials', narrow: true, sortValue: (row) => row.materialCount, firstDirection: 'DESC', render: (row) => row.materialCount },
     { key: 'rules', header: 'Price rules', narrow: true, sortValue: (row) => row.pricingRuleCount, firstDirection: 'DESC', render: (row) => row.pricingRuleCount },
     { key: 'status', header: 'Status', narrow: true, sortValue: (row) => row.active ? 0 : 1, render: (row) => row.active ? <Tag type="green" size="sm">Active</Tag> : <Tag type="gray" size="sm">Inactive</Tag> },

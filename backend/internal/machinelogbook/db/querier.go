@@ -59,11 +59,13 @@ type Querier interface {
 	DeleteManualRun(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteMaterialFilamentProperties(ctx context.Context, materialID uuid.UUID) error
 	DeleteMaterialType(ctx context.Context, arg DeleteMaterialTypeParams) (int64, error)
+	DeleteMaterialTypeProcesses(ctx context.Context, materialTypeID uuid.UUID) error
 	// Members, the pricing group assignment and invoicing requirements go with it
 	// through ON DELETE CASCADE.
 	DeleteOrganization(ctx context.Context, arg DeleteOrganizationParams) (int64, error)
 	DeleteOrganizationPricingAssignment(ctx context.Context, arg DeleteOrganizationPricingAssignmentParams) (uuid.UUID, error)
 	DeletePersonPricingAssignment(ctx context.Context, arg DeletePersonPricingAssignmentParams) (uuid.UUID, error)
+	DeleteRunMeasures(ctx context.Context, runID uuid.UUID) error
 	DetachRunFromJob(ctx context.Context, id uuid.UUID) (MachineRun, error)
 	FilamentSpoolIdentifierInUse(ctx context.Context, arg FilamentSpoolIdentifierInUseParams) (bool, error)
 	FilamentSpoolMounted(ctx context.Context, spoolID uuid.UUID) (bool, error)
@@ -84,6 +86,7 @@ type Querier interface {
 	GetMachineJobForUpdate(ctx context.Context, id uuid.UUID) (MachineJob, error)
 	GetMachineJobOperator(ctx context.Context, id uuid.UUID) (GetMachineJobOperatorRow, error)
 	GetMachineJobRunSummary(ctx context.Context, jobID *uuid.UUID) (GetMachineJobRunSummaryRow, error)
+	GetMachineProcess(ctx context.Context, machineID uuid.UUID) (string, error)
 	GetMachineType(ctx context.Context, id uuid.UUID) (MachineType, error)
 	GetMachineTypeForUpdate(ctx context.Context, id uuid.UUID) (MachineType, error)
 	GetMaterial(ctx context.Context, id uuid.UUID) (GetMaterialRow, error)
@@ -109,6 +112,7 @@ type Querier interface {
 	InsertFilamentSpoolFill(ctx context.Context, arg InsertFilamentSpoolFillParams) (FilamentSpoolFill, error)
 	InsertInventoryTransaction(ctx context.Context, arg InsertInventoryTransactionParams) (InventoryTransaction, error)
 	InsertManualRun(ctx context.Context, arg InsertManualRunParams) (MachineRun, error)
+	InsertMaterialTypeProcess(ctx context.Context, arg InsertMaterialTypeProcessParams) error
 	InsertPricingSnapshotRule(ctx context.Context, arg InsertPricingSnapshotRuleParams) (MachineJobPricingSnapshotRule, error)
 	InsertRunUsage(ctx context.Context, arg InsertRunUsageParams) (MachineRunUsage, error)
 	InsertSpoolInventoryTransaction(ctx context.Context, arg InsertSpoolInventoryTransactionParams) (InventoryTransaction, error)
@@ -136,8 +140,11 @@ type Querier interface {
 	ListMachineRunningRuns(ctx context.Context, now time.Time) ([]ListMachineRunningRunsRow, error)
 	ListMachineTypes(ctx context.Context) ([]MachineType, error)
 	ListMachines(ctx context.Context, arg ListMachinesParams) ([]ListMachinesRow, error)
+	ListMaterialTypeProcesses(ctx context.Context, materialTypeIds []uuid.UUID) ([]MaterialTypeProcess, error)
 	ListMaterialTypes(ctx context.Context) ([]ListMaterialTypesRow, error)
 	ListMaterials(ctx context.Context, arg ListMaterialsParams) ([]ListMaterialsRow, error)
+	// Materials of the given ones whose type is not usable for the process.
+	ListMaterialsOutsideProcess(ctx context.Context, arg ListMaterialsOutsideProcessParams) ([]ListMaterialsOutsideProcessRow, error)
 	ListOrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]ListOrganizationMembersRow, error)
 	ListOrganizations(ctx context.Context, arg ListOrganizationsParams) ([]ListOrganizationsRow, error)
 	ListPricingGroups(ctx context.Context) ([]PricingGroup, error)
@@ -146,9 +153,13 @@ type Querier interface {
 	ListRecentJobIDs(ctx context.Context, pageLimit int32) ([]uuid.UUID, error)
 	ListRetiredFilamentSpoolIdentifiers(ctx context.Context, spoolID uuid.UUID) ([]FilamentSpoolIdentifier, error)
 	ListRunEvents(ctx context.Context, runID *uuid.UUID) ([]ListRunEventsRow, error)
+	ListRunMeasuresForRuns(ctx context.Context, runIds []uuid.UUID) ([]MachineRunMeasure, error)
 	ListRunUsagesForRuns(ctx context.Context, runIds []uuid.UUID) ([]ListRunUsagesForRunsRow, error)
 	ListRunningMachineNames(ctx context.Context, now time.Time) ([]string, error)
 	ListRuns(ctx context.Context, arg ListRunsParams) ([]ListRunsRow, error)
+	// Material of jobs (their runs that are not replaced) and of unassigned runs, summed per material type and unit.
+	ListWorkItemMaterialTotals(ctx context.Context, itemIds []uuid.UUID) ([]ListWorkItemMaterialTotalsRow, error)
+	ListWorkItemMeasureTotals(ctx context.Context, itemIds []uuid.UUID) ([]ListWorkItemMeasureTotalsRow, error)
 	ListWorkItems(ctx context.Context, arg ListWorkItemsParams) ([]ListWorkItemsRow, error)
 	LockFilamentSpoolCleanupCandidates(ctx context.Context, arg LockFilamentSpoolCleanupCandidatesParams) ([]LockFilamentSpoolCleanupCandidatesRow, error)
 	MarkManualRunReplaced(ctx context.Context, id uuid.UUID) error
@@ -212,6 +223,7 @@ type Querier interface {
 	UpsertMaterialFilamentProperties(ctx context.Context, arg UpsertMaterialFilamentPropertiesParams) (MaterialFilamentProperty, error)
 	UpsertOrganizationPricingAssignment(ctx context.Context, arg UpsertOrganizationPricingAssignmentParams) (OrganizationPricingGroupAssignment, error)
 	UpsertPersonPricingAssignment(ctx context.Context, arg UpsertPersonPricingAssignmentParams) (PersonPricingGroupAssignment, error)
+	UpsertRunMeasure(ctx context.Context, arg UpsertRunMeasureParams) error
 }
 
 var _ Querier = (*Queries)(nil)

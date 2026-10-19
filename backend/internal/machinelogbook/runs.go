@@ -57,6 +57,7 @@ type MachineRun struct {
 	Outcome                 *string
 	OutcomeFromMachine      bool
 	Usages                  []MachineJobUsage
+	Measures                RunMeasures
 	UsagesFromMachine       bool
 	ReportedUsage           *RunReportedUsage
 	ReportedUsageItems      []RunReportedUsageItem
@@ -99,6 +100,8 @@ type RunFilters struct {
 type RunUpdate struct {
 	StartsAt, EndsAt *time.Time
 	Outcome          *string
+	// Measures nil leaves the measures unchanged; non-nil (even empty) replaces them.
+	Measures RunMeasures
 }
 
 // RunJobInput is what staff supply to create a job from a recorded run.
@@ -137,7 +140,7 @@ func usageFromRow(u machinelogbookdb.ListRunUsagesForRunsRow) MachineJobUsage {
 func runFromRow(row machinelogbookdb.ListRunsRow, now time.Time) MachineRun {
 	started := row.RunStartedAt.UTC()
 	run := MachineRun{ID: row.ID, DisplayID: row.DisplayID, MachineID: row.MachineID, MachineName: row.MachineName, Source: row.Source, State: row.RunState, ConnectorName: row.ConnectorName, FileName: row.FileName,
-		StartedAt: started, Outcome: row.Outcome, UsagesFromMachine: row.UsagesFromMachine, Version: row.Version, Usages: []MachineJobUsage{}, ReportedUsageItems: []RunReportedUsageItem{}}
+		StartedAt: started, Outcome: row.Outcome, UsagesFromMachine: row.UsagesFromMachine, Version: row.Version, Usages: []MachineJobUsage{}, Measures: RunMeasures{}, ReportedUsageItems: []RunReportedUsageItem{}}
 	if row.ArtifactID != nil && row.ArtifactParserStatus != nil {
 		run.Artifact = &ArtifactReference{ID: *row.ArtifactID, SHA256: row.ArtifactSha256, ParserStatus: *row.ArtifactParserStatus}
 	}
@@ -207,6 +210,22 @@ func (s *Service) queryRuns(ctx context.Context, q *machinelogbookdb.Queries, pa
 	for i := range runs {
 		if list := byRun[runs[i].ID]; list != nil {
 			runs[i].Usages = list
+		}
+	}
+	measures, err := q.ListRunMeasuresForRuns(ctx, ids)
+	if err != nil {
+		return nil, 0, err
+	}
+	byMeasures := map[uuid.UUID]RunMeasures{}
+	for _, m := range measures {
+		if byMeasures[m.RunID] == nil {
+			byMeasures[m.RunID] = RunMeasures{}
+		}
+		byMeasures[m.RunID][m.Measure] = m.Value
+	}
+	for i := range runs {
+		if list := byMeasures[runs[i].ID]; list != nil {
+			runs[i].Measures = list
 		}
 	}
 	reported, err := q.ListLatestReportedUsageItemsForRuns(ctx, ids)
@@ -547,10 +566,26 @@ func (s *Service) UpdateRun(ctx context.Context, p authorization.Principal, id u
 		if err = validateOutcomeTiming(endsAt, outcome, now); err != nil {
 			return RunUpdateResult{}, err
 		}
+		if input.Measures != nil {
+			process, processErr := machineProcess(ctx, q, run.MachineID)
+			if processErr != nil {
+				return RunUpdateResult{}, processErr
+			}
+			if err = validateMeasures(process, input.Measures); err != nil {
+				return RunUpdateResult{}, err
+			}
+			if err = storeRunMeasures(ctx, q, id, input.Measures); err != nil {
+				return RunUpdateResult{}, err
+			}
+			fields = append(fields, "measures")
+		}
 		updated, err = q.UpdateManualRunFacts(ctx, machinelogbookdb.UpdateManualRunFactsParams{StartedAt: pgTime(&startsAt), EndedAt: pgTime(&endsAt), Outcome: outcome, ID: id, ExpectedVersion: expected})
 	} else {
 		if input.StartsAt != nil || input.EndsAt != nil {
 			return RunUpdateResult{}, apperror.New(422, "run_times_read_only", "The times of a recorded run come from the machine")
+		}
+		if input.Measures != nil {
+			return RunUpdateResult{}, apperror.New(422, "run_measures_read_only", "The measures of a recorded run come from the machine")
 		}
 		if run.State != nil && *run.State == "running" && outcome != nil {
 			return RunUpdateResult{}, apperror.New(422, "outcome_before_run_end", "An outcome cannot be recorded before the run has ended")
@@ -607,6 +642,21 @@ func (s *Service) ReplaceRunUsages(ctx context.Context, p authorization.Principa
 	}
 	old, err := q.ListActiveRunUsagesForUpdate(ctx, id)
 	if err != nil {
+		return RunUpdateResult{}, err
+	}
+	process, err := machineProcess(ctx, q, run.MachineID)
+	if err != nil {
+		return RunUpdateResult{}, err
+	}
+	// Material the run already used stays allowed, so correcting a run does not
+	// fail on material that no longer matches the process.
+	keep := map[uuid.UUID]bool{}
+	for _, u := range old {
+		if u.MaterialID != nil {
+			keep[*u.MaterialID] = true
+		}
+	}
+	if err = requireMaterialsForProcess(ctx, q, process, parsed, keep); err != nil {
 		return RunUpdateResult{}, err
 	}
 	if err = s.replaceRunUsages(ctx, tx, q, p, id, old, parsed, time.Now().UTC(), requestID); err != nil {

@@ -118,7 +118,7 @@ func newFixture(t *testing.T) *fixture {
 		t.Fatal(e)
 	}
 	f.organization = org.ID
-	typ, e := f.jobs.CreateMachineType(ctx, f.p, "Printer", false, &f.request)
+	typ, e := f.jobs.CreateMachineType(ctx, f.p, "Printer", "other", &f.request)
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -132,7 +132,7 @@ func newFixture(t *testing.T) *fixture {
 		t.Fatal(e)
 	}
 	f.group = group.ID
-	if _, e = f.jobs.CreatePricingRule(ctx, f.p, group.ID, "machine_runtime", &typ.ID, nil, "10", &f.request); e != nil {
+	if _, e = f.jobs.CreatePricingRule(ctx, f.p, group.ID, "machine_runtime", &typ.ID, nil, nil, "10", &f.request); e != nil {
 		t.Fatal(e)
 	}
 	return f

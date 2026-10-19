@@ -96,7 +96,7 @@ function WizardBody({ onClose, machine, profile: initialProfile, connection: ini
   });
   const values = form.watch();
   const type = (typesQuery.data?.items ?? []).find((item) => item.id === values.machineTypeId);
-  const printer = Boolean(type?.printer);
+  const printer = type?.process === 'fdm_printing';
   const modelId = (values.modelId || null) as PrinterModelId | null;
   const model = modelById(modelId);
   const steps: StepKey[] = editing ? [initialStep] : printer ? ['machine', 'connection', 'spools', 'review'] : ['machine', 'review'];

@@ -19,6 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { MaterialUnit } from './materialUnit';
+import type { MachineProcess } from './machineProcess';
 import type { Version } from './version';
 
 export interface UpdateMaterialTypeRequest {
@@ -28,6 +29,11 @@ export interface UpdateMaterialTypeRequest {
    */
   name: string;
   unit: MaterialUnit;
+  /**
+   * Omitted keeps the current processes.
+   * @minItems 1
+   */
+  processes?: MachineProcess[];
   expectedVersion: Version;
   active: boolean;
 }

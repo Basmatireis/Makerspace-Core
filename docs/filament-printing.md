@@ -30,6 +30,10 @@ All three operations below require `filament_spools.manage` and `inventory.manag
 
 `/filament-products` holds manufacturer, name, material, net weight, default price, packaging (**refill** or **spool**), notes, and an active flag. Reads need `inventory.read`; writes need `inventory.manage`. Manufacturer and name are unique ignoring case. Products can be edited or deactivated. **Snapshot rule:** a fill copies manufacturer and product name when it starts and keeps an optional product reference that is cleared if the product is removed, so catalog edits never rewrite history. The product's material remains the single source for stock; job pricing uses the material's type (`/material-types`), and the material's colour is the only colour staff enter. Spools display their material's colour and never hold their own.
 
+## Gated by process
+
+Everything on this page exists for machines whose machine type has the **FDM printing** process (`fdm_printing`, see [Processes](machine-logbook.md#processes)): the printer setup and wizard, connector assignments, spool inputs and mounting, artifacts, live status and reported grams. Other processes (embroidery, UV printing, cutting, other) have no printer setup; the backend answers `409 machine_not_fdm_printing` when one is requested, and the frontend neither shows the printer tab nor the wizard steps for them. Spool logic stays filament-only (grams).
+
 ## Generic printer topology
 
 A printer profile attaches to an existing Machine. It contains ordered input units and slots, such as a direct feed or multi-material unit. Staff can explicitly mount and unmount spools. The assignment table retains mount history and enforces one open assignment per slot and spool.

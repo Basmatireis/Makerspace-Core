@@ -21,6 +21,7 @@ the required session and CSRF credentials.
 import type { PricingRuleKind } from './pricingRuleKind';
 import type { UpdatePricingRuleRequestMachineTypeId } from './updatePricingRuleRequestMachineTypeId';
 import type { UpdatePricingRuleRequestMaterialTypeId } from './updatePricingRuleRequestMaterialTypeId';
+import type { UpdatePricingRuleRequestMeasure } from './updatePricingRuleRequestMeasure';
 import type { Decimal } from './decimal';
 import type { Version } from './version';
 
@@ -29,10 +30,15 @@ export interface UpdatePricingRuleRequest {
   /** @nullable */
   machineTypeId?: UpdatePricingRuleRequestMachineTypeId;
   /**
-   * Required for material rules, forbidden for runtime rules.
+   * Required for material rules, forbidden for runtime and measure rules.
    * @nullable
    */
   materialTypeId?: UpdatePricingRuleRequestMaterialTypeId;
+  /**
+   * Required for machine_measure rules (with machineTypeId), forbidden otherwise.
+   * @nullable
+   */
+  measure?: UpdatePricingRuleRequestMeasure;
   rate: Decimal;
   expectedVersion: Version;
   active: boolean;

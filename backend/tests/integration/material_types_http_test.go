@@ -100,7 +100,7 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	response := doJSON(t, nobodyClient, http.MethodGet, base, "", "", nil)
 	assertStatus(t, response, http.StatusForbidden)
 	response.Body.Close()
-	create := map[string]any{"name": "PLA", "unit": "g"}
+	create := map[string]any{"name": "PLA", "unit": "g", "processes": []string{"fdm_printing"}}
 	for name, who := range map[string]struct {
 		client *http.Client
 		csrf   string
@@ -120,7 +120,13 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	if created.Name != "PLA" || created.Unit != "g" || !created.Active || created.MaterialCount != 0 {
 		t.Fatalf("created = %+v", created)
 	}
-	response = doJSON(t, managerClient, http.MethodPost, base, origin, managerCSRF, map[string]any{"name": "pla", "unit": "g"})
+	if len(created.Processes) != 1 || created.Processes[0] != openapi.MachineProcessFdmPrinting {
+		t.Fatalf("processes = %v", created.Processes)
+	}
+	response = doJSON(t, managerClient, http.MethodPost, base, origin, managerCSRF, map[string]any{"name": "No process", "unit": "g", "processes": []string{}})
+	assertStatus(t, response, http.StatusBadRequest)
+	response.Body.Close()
+	response = doJSON(t, managerClient, http.MethodPost, base, origin, managerCSRF, map[string]any{"name": "pla", "unit": "g", "processes": []string{"fdm_printing"}})
 	assertStatus(t, response, http.StatusConflict)
 	response.Body.Close()
 
@@ -182,7 +188,7 @@ func TestMaterialTypeEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'material_type.deleted'`, 0)
 
 	// Unused: deleted with one audit event.
-	response = doJSON(t, managerClient, http.MethodPost, base, origin, managerCSRF, map[string]any{"name": "Unused", "unit": "m"})
+	response = doJSON(t, managerClient, http.MethodPost, base, origin, managerCSRF, map[string]any{"name": "Unused", "unit": "m", "processes": []string{"embroidery"}})
 	assertStatus(t, response, http.StatusCreated)
 	var unused openapi.MaterialType
 	decodeResponse(t, response, &unused)

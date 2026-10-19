@@ -4,24 +4,50 @@ import { Add, TrashCan } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, FormProvider, useFieldArray, useForm, useFormContext } from 'react-hook-form';
 import { replaceMachineRunUsages } from '../../../api/generated/machine-runs/machine-runs';
-import type { MachineRun } from '../../../api/generated/models';
+import type { MachineProcess, MachineRun } from '../../../api/generated/models';
 import { UnsavedChangesDialog } from '../../../app/UnsavedChangesDialog';
 import { useUnsavedChanges } from '../../../app/useUnsavedChanges';
-import { machineLogbookKeys, materialsQuery, spoolsQuery } from '../queries';
+import { materialTypesQuery } from '../inventoryQueries';
+import { materialsForProcess, processConfig, quantityStep, unitText } from '../processConfig';
+import { machineLogbookKeys, machineQuery, materialsQuery, spoolsQuery } from '../queries';
 import { formatQuantity } from '../shared/format';
 import { useCan } from '../shared/useCan';
 import { useNotify } from '../shared/toasts';
 import { blankUsage, jobOrderQuery, saveError, toUsageInputs, usageRowsFromUsages, type UsagesValues } from './jobFormHelpers';
+import { inkUsageInputs, splitInkUsages } from './processFormHelpers';
+import { InkFields } from './ProcessRunFields';
 import '../styles/jobs.scss';
 
-function UsageRowFields({ idPrefix, index, onRemove, canReadInventory }: { idPrefix: string; index: number; onRemove: () => void; canReadInventory: boolean }) {
+/** Width x height x count in centimetres gives the square centimetres of cut material; the result stays editable. */
+function AreaHelper({ idPrefix, onArea }: { idPrefix: string; onArea: (area: number) => void }) {
+  const [size, setSize] = useState({ width: 0, height: 0, count: 1 });
+  const change = (key: 'width' | 'height' | 'count', value: number | string) => {
+    const next = { ...size, [key]: Number(value) || 0 };
+    setSize(next);
+    onArea(Math.round(next.width * next.height * next.count * 100) / 100);
+  };
+  return (
+    <div className="mj-area-helper">
+      <NumberInput id={`${idPrefix}-width`} label="Width (cm)" min={0} step={0.1} allowEmpty hideSteppers value={size.width || ''} onChange={(_event, state) => change('width', state.value)} />
+      <NumberInput id={`${idPrefix}-height`} label="Height (cm)" min={0} step={0.1} allowEmpty hideSteppers value={size.height || ''} onChange={(_event, state) => change('height', state.value)} />
+      <NumberInput id={`${idPrefix}-count`} label="Count" min={1} step={1} allowEmpty hideSteppers value={size.count || ''} onChange={(_event, state) => change('count', state.value)} />
+    </div>
+  );
+}
+
+function UsageRowFields({ idPrefix, index, onRemove, canReadInventory, process }: { idPrefix: string; index: number; onRemove: () => void; canReadInventory: boolean; process?: MachineProcess }) {
   const { control, register, watch, setValue } = useFormContext<UsagesValues>();
   const row = watch(`usages.${index}`);
   const materials = useQuery({ ...materialsQuery({ page: 1, pageSize: 100 }), enabled: canReadInventory });
   const spools = useQuery({ ...spoolsQuery({ consumable: true, materialId: row.materialId, page: 1, pageSize: 100 }), enabled: canReadInventory && row.ownership === 'makerspace' && !!row.materialId });
-  const materialItems = (materials.data?.items ?? []).filter((item) => item.active || item.id === row.materialId);
-  const unit = materialItems.find((item) => item.id === row.materialId)?.unit;
+  const types = useQuery({ ...materialTypesQuery(), enabled: canReadInventory });
+  const config = process ? processConfig[process] : undefined;
+  // New choices are limited to active materials whose type fits the machine's process; the row's current material stays.
+  const materialItems = materialsForProcess(materials.data?.items ?? [], types.data, process, row.materialId, config);
+  const unit = (materials.data?.items ?? []).find((item) => item.id === row.materialId)?.unit;
   const spoolItems = spools.data?.items ?? [];
+  const showSpools = !process || process === 'fdm_printing';
+  const showArea = Boolean(config?.areaHelper && unit === 'cm2');
   return (
     <div className="mj-usage-row">
       <Select id={`${idPrefix}-ownership`} labelText="Ownership" {...register(`usages.${index}.ownership`)}>
@@ -37,16 +63,16 @@ function UsageRowFields({ idPrefix, index, onRemove, canReadInventory }: { idPre
             >
               <SelectItem value="" text="Select a material" />
               {row.materialId && !materialItems.some((item) => item.id === row.materialId) && <SelectItem value={row.materialId} text={row.materialLabel ?? 'Current material'} />}
-              {materialItems.map((item) => <SelectItem key={item.id} value={item.id} text={`${item.name} (${item.unit})`} />)}
+              {materialItems.map((item) => <SelectItem key={item.id} value={item.id} text={`${item.name} (${unitText(item.unit)})`} />)}
             </Select>
           )} />
-          <Controller control={control} name={`usages.${index}.spoolId`} render={({ field }) => (
+          {showSpools && <Controller control={control} name={`usages.${index}.spoolId`} render={({ field }) => (
             <Select id={`${idPrefix}-spool`} labelText="Spool (optional)" value={field.value} onChange={(event) => field.onChange(event.target.value)}>
               <SelectItem value="" text="Unassigned stock" />
               {row.spoolId && !spoolItems.some((spool) => spool.id === row.spoolId) && <SelectItem value={row.spoolId} text={row.spoolLabel ?? 'Current spool'} />}
               {spoolItems.map((spool) => <SelectItem key={spool.id} value={spool.id} text={`${spool.displayId}${spool.label ? ` · ${spool.label}` : ''} · ${formatQuantity(spool.remainingQuantity)} ${spool.unit ?? 'g'} left`} />)}
             </Select>
-          )} />
+          )} />}
         </>
       ) : (
         <TextInput id={`${idPrefix}-name`} labelText="Material name" {...register(`usages.${index}.externalName`, { required: true })} />
@@ -57,7 +83,7 @@ function UsageRowFields({ idPrefix, index, onRemove, canReadInventory }: { idPre
         rules={{ validate: (value) => Number(value) > 0 }}
         render={({ field: quantity, fieldState }) => (
           <NumberInput
-            id={`${idPrefix}-quantity`} label={unit ? `Quantity (${unit})` : 'Quantity'} allowEmpty min={0} step={1} hideSteppers
+            id={`${idPrefix}-quantity`} label={unit ? `Quantity (${unitText(unit)})` : 'Quantity'} allowEmpty min={0} step={quantityStep(unit)} hideSteppers
             value={quantity.value} invalid={fieldState.invalid} invalidText="Enter a quantity above zero."
             onChange={(_event, state) => quantity.onChange(state.value === '' ? '' : Number(state.value))}
           />
@@ -68,11 +94,13 @@ function UsageRowFields({ idPrefix, index, onRemove, canReadInventory }: { idPre
         <SelectItem value="estimated" text="Estimated" />
       </Select>
       <Button hasIconOnly kind="ghost" renderIcon={TrashCan} iconDescription="Remove material usage" tooltipPosition="left" onClick={onRemove} />
+      {showArea && <AreaHelper idPrefix={idPrefix} onArea={(area) => setValue(`usages.${index}.quantity`, area, { shouldDirty: true, shouldValidate: true })} />}
     </div>
   );
 }
 
-export function UsageRowsEditor({ idPrefix }: { idPrefix: string }) {
+/** Material rows of a run. `process` limits the materials to the ones the machine's process can use; the ink group of UV printing has its own fields. */
+export function UsageRowsEditor({ idPrefix, process }: { idPrefix: string; process?: MachineProcess }) {
   const can = useCan();
   const canReadInventory = can('inventory.read');
   const { control } = useFormContext<UsagesValues>();
@@ -80,9 +108,10 @@ export function UsageRowsEditor({ idPrefix }: { idPrefix: string }) {
   return (
     <Stack gap={5}>
       {!canReadInventory && <InlineNotification kind="info" lowContrast hideCloseButton title="Inventory lookup unavailable" subtitle="Inventory read access is needed to choose other materials or spools. Existing rows keep their material." />}
+      {process && processConfig[process].inkGroup && <InkFields idPrefix={idPrefix} process={process} />}
       {fields.length === 0 && <p className="mj-secondary">No material recorded. The run is priced for machine time only.</p>}
       {fields.map((field, index) => (
-        <UsageRowFields key={field.id} idPrefix={`${idPrefix}-${field.id}`} index={index} canReadInventory={canReadInventory} onRemove={() => remove(index)} />
+        <UsageRowFields key={field.id} idPrefix={`${idPrefix}-${field.id}`} index={index} canReadInventory={canReadInventory} process={process} onRemove={() => remove(index)} />
       ))}
       <div><Button kind="tertiary" size="sm" renderIcon={Add} onClick={() => append(blankUsage())}>Add material</Button></div>
     </Stack>
@@ -90,15 +119,24 @@ export function UsageRowsEditor({ idPrefix }: { idPrefix: string }) {
 }
 
 function UsageForm({ onClose, run }: { onClose: () => void; run: MachineRun }) {
-  const client = useQueryClient();
-  const notify = useNotify();
   const can = useCan();
   const association = useQuery({ ...jobOrderQuery(run.job?.id ?? ''), enabled: can('orders.read') && !!run.job });
-  const form = useForm<UsagesValues>({ defaultValues: { usages: usageRowsFromUsages(run.usages) } });
+  const machine = useQuery({ ...machineQuery(run.machineId), enabled: can('machines.read') });
+  const process = machine.data?.machineType.process;
+  // The form is built once the machine's process is known, so ink usages land in their own fields.
+  if (can('machines.read') && machine.isPending) return null;
+  return <UsageFormBody onClose={onClose} run={run} process={process} association={association.data} />;
+}
+
+function UsageFormBody({ onClose, run, process, association }: { onClose: () => void; run: MachineRun; process?: MachineProcess; association?: { orderId?: string | null; orderReference?: string | null } }) {
+  const client = useQueryClient();
+  const notify = useNotify();
+  const { ink, rest } = splitInkUsages(run.usages, process);
+  const form = useForm<UsagesValues>({ defaultValues: { usages: usageRowsFromUsages(rest), ink } });
   const guard = useUnsavedChanges({ isDirty: form.formState.isDirty });
   const [error, setError] = useState<string | null>(null);
   const mutation = useMutation({
-    mutationFn: (values: UsagesValues) => replaceMachineRunUsages(run.id, { usages: toUsageInputs(values.usages), expectedVersion: run.version }),
+    mutationFn: (values: UsagesValues) => replaceMachineRunUsages(run.id, { usages: [...toUsageInputs(values.usages), ...inkUsageInputs(values.ink ?? {})], expectedVersion: run.version }),
     onSuccess: async () => {
       await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
       notify({ kind: 'success', title: 'Material usage updated', subtitle: run.job ? `${run.displayId} saved; ${run.job.displayId} price recalculated.` : `${run.displayId} saved.` });
@@ -118,9 +156,9 @@ function UsageForm({ onClose, run }: { onClose: () => void; run: MachineRun }) {
             <Stack gap={6}>
               <p>Saving replaces the full list of material consumed by this run. Stock is adjusted and the calculated price is recalculated. Existing order charges stay unchanged.</p>
               {run.usagesFromMachine && <InlineNotification kind="info" lowContrast hideCloseButton title="Reported by the machine" subtitle="This material was consumed automatically from the machine's report. Saving replaces it with your entries." />}
-              {association.data?.orderId && <InlineNotification kind="warning" lowContrast hideCloseButton title={`On ${association.data.orderReference}`} subtitle="Correct the order separately after changing usage." />}
+              {association?.orderId && <InlineNotification kind="warning" lowContrast hideCloseButton title={`On ${association.orderReference}`} subtitle="Correct the order separately after changing usage." />}
               {error && <InlineNotification kind="error" lowContrast hideCloseButton title="Material usage not saved" subtitle={error} />}
-              <UsageRowsEditor idPrefix={`usage-${run.displayId}`} />
+              <UsageRowsEditor idPrefix={`usage-${run.displayId}`} process={process} />
             </Stack>
           </FormProvider>
         </ModalBody>

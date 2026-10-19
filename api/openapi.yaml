@@ -4662,6 +4662,7 @@ paths:
     put:
       tags: [Printing]
       operationId: configurePrinterProfile
+      description: Only machines whose machine type has the fdm_printing process; others answer 409 machine_not_fdm_printing.
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ConfigurePrinterRequest"}}}}
       responses:
@@ -4694,7 +4695,7 @@ paths:
       tags: [Printing]
       operationId: savePrinterSetup
       summary: Atomically save the desired printer profile, spool input units, and slots
-      description: "The request is the desired state. Omitted slots are retired and omitted units are disabled; neither is deleted. A slot with a mounted spool cannot be removed (409 slot_occupied). Active positions are renumbered in the given order. The profile is created when the machine has none."
+      description: "The request is the desired state. Omitted slots are retired and omitted units are disabled; neither is deleted. A slot with a mounted spool cannot be removed (409 slot_occupied). Active positions are renumbered in the given order. The profile is created when the machine has none. Only machines whose machine type has the fdm_printing process; others answer 409 machine_not_fdm_printing."
       security: [{sessionCookie: [], csrfHeader: []}]
       requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PrinterSetupRequest"}}}}
       responses:
@@ -10271,7 +10272,26 @@ components:
 
     MaterialUnit:
       type: string
-      enum: [g, m, ml, m2, piece]
+      enum: [g, m, ml, m2, cm2, piece]
+      description: "m2 stays for existing data; new square-measure material uses cm2."
+
+    MachineProcess:
+      type: string
+      enum: [fdm_printing, embroidery, uv_printing, laser_cutting, vinyl_cutting, other]
+      description: >-
+        What a machine type does. It decides what a run records and which materials fit. Only fdm_printing machines
+        have a printer setup (profile, spool inputs, connector).
+
+    RunMeasureKey:
+      type: string
+      enum: [stitches]
+
+    RunMeasures:
+      type: object
+      additionalProperties: false
+      description: "Counted facts of a run that are priced per block. Only the keys the machine's process supports are accepted (embroidery: stitches)."
+      properties:
+        stitches: {type: integer, format: int64, minimum: 0, description: Exact stitch count.}
 
     MachineStatus:
       type: string
@@ -10280,12 +10300,12 @@ components:
     MachineType:
       type: object
       additionalProperties: false
-      required: [id, name, active, printer, version, createdAt, updatedAt]
+      required: [id, name, active, process, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
         active: {type: boolean}
-        printer: {type: boolean, description: "Machines of this type have a printer setup (profile, spool inputs, connector)."}
+        process: {$ref: "#/components/schemas/MachineProcess"}
         version: {$ref: "#/components/schemas/Version"}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
@@ -10300,10 +10320,10 @@ components:
     CreateMachineTypeRequest:
       type: object
       additionalProperties: false
-      required: [name]
+      required: [name, process]
       properties:
         name: {type: string, minLength: 1, maxLength: 120}
-        printer: {type: boolean}
+        process: {$ref: "#/components/schemas/MachineProcess"}
 
     UpdateMachineTypeRequest:
       type: object
@@ -10313,7 +10333,7 @@ components:
         expectedVersion: {$ref: "#/components/schemas/Version"}
         name: {type: string, minLength: 1, maxLength: 120}
         active: {type: boolean}
-        printer: {type: boolean}
+        process: {$ref: "#/components/schemas/MachineProcess"}
 
     Machine:
       type: object
@@ -10521,7 +10541,7 @@ components:
 
     PricingRuleKind:
       type: string
-      enum: [machine_runtime, material]
+      enum: [machine_runtime, material, machine_measure]
 
     PricingRule:
       type: object
@@ -10535,6 +10555,8 @@ components:
         materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Set on material rules; the rate is per unit of this material type."}
         materialTypeName: {type: string, nullable: true}
         materialUnit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], nullable: true, description: The unit of the material type.}
+        measure: {allOf: [{$ref: "#/components/schemas/RunMeasureKey"}], nullable: true, description: "Set on machine_measure rules together with machineTypeId."}
+        blockSize: {type: integer, minimum: 1, nullable: true, description: "Set on machine_measure rules: the rate is per this many units of the measure (1000 for stitches)."}
         rate: {$ref: "#/components/schemas/Decimal"}
         active: {type: boolean}
         version: {$ref: "#/components/schemas/Version"}
@@ -10588,7 +10610,8 @@ components:
       properties:
         kind: {$ref: "#/components/schemas/PricingRuleKind"}
         machineTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required for material rules, forbidden for runtime rules."}
+        materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required for material rules, forbidden for runtime and measure rules."}
+        measure: {allOf: [{$ref: "#/components/schemas/RunMeasureKey"}], nullable: true, description: "Required for machine_measure rules (with machineTypeId), forbidden otherwise. The machine type's process must support the measure."}
         rate: {$ref: "#/components/schemas/Decimal"}
 
     UpdatePricingRuleRequest:
@@ -10598,7 +10621,8 @@ components:
       properties:
         kind: {$ref: "#/components/schemas/PricingRuleKind"}
         machineTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required for material rules, forbidden for runtime rules."}
+        materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required for material rules, forbidden for runtime and measure rules."}
+        measure: {allOf: [{$ref: "#/components/schemas/RunMeasureKey"}], nullable: true, description: "Required for machine_measure rules (with machineTypeId), forbidden otherwise."}
         rate: {$ref: "#/components/schemas/Decimal"}
         expectedVersion: {$ref: "#/components/schemas/Version"}
         active: {type: boolean}
@@ -10651,11 +10675,12 @@ components:
     MaterialType:
       type: object
       additionalProperties: false
-      required: [id, name, unit, active, materialCount, pricingRuleCount, version, createdAt, updatedAt]
+      required: [id, name, unit, processes, active, materialCount, pricingRuleCount, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
         unit: {$ref: "#/components/schemas/MaterialUnit"}
+        processes: {type: array, items: {$ref: "#/components/schemas/MachineProcess"}, description: "Processes whose machines can consume materials of this type in new runs."}
         active: {type: boolean}
         materialCount: {type: integer, format: int64, minimum: 0, description: Materials of this type.}
         pricingRuleCount: {type: integer, format: int64, minimum: 0, description: "Material pricing rules for this type, active or not."}
@@ -10673,10 +10698,11 @@ components:
     CreateMaterialTypeRequest:
       type: object
       additionalProperties: false
-      required: [name, unit]
+      required: [name, unit, processes]
       properties:
         name: {type: string, minLength: 1, maxLength: 120}
         unit: {$ref: "#/components/schemas/MaterialUnit"}
+        processes: {type: array, minItems: 1, uniqueItems: true, items: {$ref: "#/components/schemas/MachineProcess"}}
 
     UpdateMaterialTypeRequest:
       type: object
@@ -10685,6 +10711,7 @@ components:
       properties:
         name: {type: string, minLength: 1, maxLength: 120}
         unit: {$ref: "#/components/schemas/MaterialUnit"}
+        processes: {type: array, minItems: 1, uniqueItems: true, items: {$ref: "#/components/schemas/MachineProcess"}, description: "Omitted keeps the current processes."}
         expectedVersion: {$ref: "#/components/schemas/Version"}
         active: {type: boolean}
 
@@ -11512,7 +11539,7 @@ components:
     MachineRun:
       type: object
       additionalProperties: false
-      required: [id, displayId, machineId, machineName, source, state, startedAt, durationSeconds, usages, usagesFromMachine, reportedUsageItems, outcomeFromMachine, version]
+      required: [id, displayId, machineId, machineName, source, state, startedAt, durationSeconds, usages, measures, usagesFromMachine, reportedUsageItems, outcomeFromMachine, version]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         displayId: {type: string}
@@ -11531,6 +11558,7 @@ components:
         outcome: {allOf: [{$ref: "#/components/schemas/MachineRunOutcome"}], nullable: true, description: Null until recorded.}
         outcomeFromMachine: {type: boolean, description: The outcome was set from the machine's final state and not changed by staff.}
         usages: {type: array, items: {$ref: "#/components/schemas/MachineJobUsage"}}
+        measures: {$ref: "#/components/schemas/RunMeasures"}
         usagesFromMachine: {type: boolean, description: The usage was consumed automatically from the machine's report.}
         reportedUsage: {$ref: "#/components/schemas/MachineRunReportedUsage"}
         reportedUsageItems: {type: array, items: {$ref: "#/components/schemas/MachineRunReportedUsageItem"}}
@@ -11586,7 +11614,8 @@ components:
         startsAt: {type: string, format: date-time}
         endsAt: {type: string, format: date-time}
         outcome: {allOf: [{$ref: "#/components/schemas/MachineRunOutcome"}], nullable: true}
-        usages: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/MachineJobUsageInput"}}
+        usages: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/MachineJobUsageInput"}, description: "Makerspace material must belong to a material type usable for the machine's process (422 material_process_mismatch); customer material is free text."}
+        measures: {allOf: [{$ref: "#/components/schemas/RunMeasures"}], description: "Only keys the machine's process supports (422 run_measure_unsupported)."}
 
     DeleteMachineJobRequest:
       type: object
@@ -11613,6 +11642,7 @@ components:
         startsAt: {type: string, format: date-time, description: Manual runs only.}
         endsAt: {type: string, format: date-time, description: Manual runs only.}
         outcome: {allOf: [{$ref: "#/components/schemas/MachineRunOutcome"}], nullable: true, description: "Must be null while the run is running."}
+        measures: {allOf: [{$ref: "#/components/schemas/RunMeasures"}], description: "Manual runs only. When present, replaces the run's measures; keys the process does not support are refused (422 run_measure_unsupported)."}
         expectedVersion: {$ref: "#/components/schemas/Version"}
 
     ReplaceMachineRunUsagesRequest:
@@ -11745,7 +11775,9 @@ components:
         kind: {$ref: "#/components/schemas/PricingRuleKind"}
         label: {type: string}
         selector: {type: string}
-        unit: {type: string}
+        unit: {type: string, description: "hour, a material unit, or stitch for measure rules."}
+        measure: {allOf: [{$ref: "#/components/schemas/RunMeasureKey"}], nullable: true}
+        blockSize: {type: integer, minimum: 1, nullable: true, description: "Measure rules: the rate is per this many units."}
         rate: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
         missing: {type: boolean}
 
@@ -11768,7 +11800,7 @@ components:
     MachineJob:
       type: object
       additionalProperties: false
-      required: [id, displayId, machine, runs, durationSeconds, outcome, outcomeOverridden, status, pricingStatus, version, createdAt, updatedAt]
+      required: [id, displayId, machine, runs, measures, durationSeconds, outcome, outcomeOverridden, status, pricingStatus, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         displayId: {type: string}
@@ -11780,6 +11812,7 @@ components:
         endedAt: {type: string, format: date-time, nullable: true, description: End of the latest run; null while a run is running.}
         expectedEndAt: {type: string, format: date-time, nullable: true, description: Planned or estimated end while running.}
         durationSeconds: {type: integer, format: int64, minimum: 0, description: Sum of the runtime of all runs that are not replaced.}
+        measures: {allOf: [{$ref: "#/components/schemas/RunMeasures"}], description: Sum of the measures of all runs that are not replaced.}
         customer: {allOf: [{$ref: "#/components/schemas/BillingParty"}], nullable: true}
         operator: {allOf: [{$ref: "#/components/schemas/Operator"}], nullable: true}
         outcome:
@@ -11944,7 +11977,26 @@ components:
         progressPercent: {type: integer, minimum: 0, maximum: 100, nullable: true}
         effectivePrice: {allOf: [{$ref: "#/components/schemas/Money"}], nullable: true}
         billing: {$ref: "#/components/schemas/WorkItemBilling"}
+        consumption: {$ref: "#/components/schemas/WorkItemConsumption"}
         version: {$ref: "#/components/schemas/Version"}
+
+    WorkItemConsumption:
+      type: object
+      additionalProperties: false
+      description: "What the runs of the item consumed: material summed per material type and unit, plus run measures. Present on work item lists, not on the overview."
+      required: [materials, measures]
+      properties:
+        materials:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [materialTypeName, unit, quantity]
+            properties:
+              materialTypeName: {type: string, description: "\"External\" for material the customer brought."}
+              unit: {$ref: "#/components/schemas/MaterialUnit"}
+              quantity: {$ref: "#/components/schemas/Decimal"}
+        measures: {$ref: "#/components/schemas/RunMeasures"}
 
     WorkItemPage:
       type: object

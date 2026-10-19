@@ -98,7 +98,7 @@ func TestMachineRunOperationsRequireTheirPermissionsOverHTTP(t *testing.T) {
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	logbook := machinelogbook.NewService(pool)
-	machineType, err := logbook.CreateMachineType(ctx, master, "Printer", true, nil)
+	machineType, err := logbook.CreateMachineType(ctx, master, "Printer", "fdm_printing", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,7 @@ func TestMachineRunOperationsRequireTheirPermissionsOverHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = logbook.CreatePricingRule(ctx, master, group.ID, "machine_runtime", &machineType.ID, nil, "10", nil); err != nil {
+	if _, err = logbook.CreatePricingRule(ctx, master, group.ID, "machine_runtime", &machineType.ID, nil, nil, "10", nil); err != nil {
 		t.Fatal(err)
 	}
 	start := time.Now().UTC().Add(-3 * time.Hour).Truncate(time.Second)

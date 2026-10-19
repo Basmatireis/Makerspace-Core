@@ -12,6 +12,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/shopspring/decimal"
 )
 
 func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
@@ -27,7 +28,12 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 		call func() error
 	}{
 		{"machines.read", func() error { _, err := s.ListMachineTypes(ctx, p); return err }},
-		{"machines.manage", func() error { _, err := s.CreateMachineType(ctx, p, "Printer", false, nil); return err }},
+		{"machines.manage", func() error { _, err := s.CreateMachineType(ctx, p, "Printer", "other", nil); return err }},
+		{"machines.manage update machine type process", func() error {
+			process := "embroidery"
+			_, err := s.UpdateMachineType(ctx, p, id, 1, nil, nil, &process, nil)
+			return err
+		}},
 		{"machine_jobs.read", func() error { _, err := s.GetJob(ctx, p, id); return err }},
 		{"machine_jobs.create", func() error { _, err := s.CreateManualJob(ctx, p, jobInput, nil); return err }},
 		{"machine_jobs.edit", func() error { _, err := s.UpdateJobFacts(ctx, p, id, 1, JobUpdate{}, nil); return err }},
@@ -58,8 +64,11 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 		}},
 		{"inventory.read material types", func() error { _, err := s.ListMaterialTypes(ctx, p); return err }},
 		{"inventory.read material type", func() error { _, err := s.GetMaterialType(ctx, p, id); return err }},
-		{"inventory.manage create material type", func() error { _, err := s.CreateMaterialType(ctx, p, "PLA", "g", nil); return err }},
-		{"inventory.manage update material type", func() error { _, err := s.UpdateMaterialType(ctx, p, id, 1, "PLA", "g", true, nil); return err }},
+		{"inventory.manage create material type", func() error {
+			_, err := s.CreateMaterialType(ctx, p, "PLA", "g", []string{"fdm_printing", "other"}, nil)
+			return err
+		}},
+		{"inventory.manage update material type", func() error { _, err := s.UpdateMaterialType(ctx, p, id, 1, "PLA", "g", nil, true, nil); return err }},
 		{"inventory.manage delete material type", func() error { return s.DeleteMaterialType(ctx, p, id, 1, nil) }},
 		{"filament_spools.manage", func() error { _, err := s.CreateFilamentSpool(ctx, p, FilamentSpoolInput{}, nil); return err }},
 		{"filament_spools.manage change fill", func() error {
@@ -89,6 +98,20 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 		}},
 		{"pricing.read", func() error { _, err := s.ListPricingGroups(ctx, p); return err }},
 		{"pricing.manage", func() error { _, err := s.CreatePricingGroup(ctx, p, "Standard", nil, false, nil); return err }},
+		{"pricing.manage create measure rule", func() error {
+			measure := "stitches"
+			_, err := s.CreatePricingRule(ctx, p, id, "machine_measure", &id, nil, &measure, "0.5", nil)
+			return err
+		}},
+		{"pricing.manage update measure rule", func() error {
+			measure := "stitches"
+			_, err := s.UpdatePricingRule(ctx, p, id, 1, "machine_measure", &id, nil, &measure, "0.5", true, nil)
+			return err
+		}},
+		{"machine_jobs.edit update run measures", func() error {
+			_, err := s.UpdateRun(ctx, p, id, 1, RunUpdate{Measures: RunMeasures{"stitches": 1}}, nil)
+			return err
+		}},
 		{"statistics.read", func() error { _, err := s.Statistics(ctx, p, now.Add(-time.Hour), now); return err }},
 	}
 	for _, test := range tests {
@@ -101,6 +124,15 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 }
 
 func TestPricingHelpersAreExact(t *testing.T) {
+	if got := measureAmount(12400, 1000, decimal.RequireFromString("0.5")).String(); got != "6.2" {
+		t.Fatalf("12400 stitches at 0.5 per 1000 = %s", got)
+	}
+	if got := measureAmount(12345, 1000, decimal.RequireFromString("0.5")).String(); got != "6.1725" {
+		t.Fatalf("12345 stitches at 0.5 per 1000 = %s", got)
+	}
+	if got := measureAmount(1, 1000, decimal.RequireFromString("0.5")).String(); got != "0.0005" {
+		t.Fatalf("1 stitch at 0.5 per 1000 = %s", got)
+	}
 	if got := runtimeHours(5400).String(); got != "1.5" {
 		t.Fatalf("runtime hours = %s", got)
 	}
@@ -176,7 +208,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		_, _ = pool.Exec(cleanupCtx, `DELETE FROM people WHERE id = $1`, personID)
 	})
 
-	machineType, err := s.CreateMachineType(ctx, p, "Test printer "+suffix, false, &requestID)
+	machineType, err := s.CreateMachineType(ctx, p, "Test printer "+suffix, "other", &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +220,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	}
 	machineID = machine.ID
 	threshold := "100"
-	materialType, err := s.CreateMaterialType(ctx, p, "Test PLA "+suffix, "g", &requestID)
+	materialType, err := s.CreateMaterialType(ctx, p, "Test PLA "+suffix, "g", []string{"fdm_printing", "other"}, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,11 +248,11 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	pricingGroupID = group.ID
-	runtimeRule, err := s.CreatePricingRule(ctx, p, group.ID, "machine_runtime", &machineType.ID, nil, "0.5", &requestID)
+	runtimeRule, err := s.CreatePricingRule(ctx, p, group.ID, "machine_runtime", &machineType.ID, nil, nil, "0.5", &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	materialRule, err := s.CreatePricingRule(ctx, p, group.ID, "material", nil, &materialType.ID, "0.025", &requestID)
+	materialRule, err := s.CreatePricingRule(ctx, p, group.ID, "material", nil, &materialType.ID, nil, "0.025", &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -302,7 +334,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatalf("failed job consumption was not retained: %s", afterFailure.Quantity)
 	}
 
-	materialRule, err = s.UpdatePricingRule(ctx, p, materialRule.ID, materialRule.Version, "material", nil, &materialType.ID, "0.03", true, &requestID)
+	materialRule, err = s.UpdatePricingRule(ctx, p, materialRule.ID, materialRule.Version, "material", nil, &materialType.ID, nil, "0.03", true, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}

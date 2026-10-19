@@ -11,7 +11,7 @@ import (
 )
 
 func mlMachineTypeDTO(item machinelogbook.MachineType) openapi.MachineType {
-	return openapi.MachineType{Id: item.ID, Name: item.Name, Active: item.Active, Printer: item.Printer, Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
+	return openapi.MachineType{Id: item.ID, Name: item.Name, Active: item.Active, Process: openapi.MachineProcess(item.Process), Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
 }
 func mlMachineDTO(item machinelogbook.Machine) openapi.Machine {
 	return openapi.Machine{Id: item.ID, MachineType: mlMachineTypeDTO(item.MachineType), Name: item.Name, Status: openapi.MachineStatus(item.Status), ExternalIdentifier: nullableString(item.ExternalIdentifier), AutomaticCollectionEnabled: item.AutomaticCollectionEnabled, LastIngestedAt: nullableValue(item.LastIngestedAt), Version: item.Version, JobCount: item.JobCount, RuntimeSeconds: item.RuntimeSeconds, FailureRate: item.FailureRate, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
@@ -43,10 +43,73 @@ func mlPricingRuleDTO(item machinelogbook.PricingRule) openapi.PricingRule {
 	} else {
 		unit = nullable.NewNullableWithValue(openapi.MaterialUnit(*item.MaterialUnit))
 	}
-	return openapi.PricingRule{Id: item.ID, PricingGroupId: item.PricingGroupID, Kind: openapi.PricingRuleKind(item.Kind), MachineTypeId: nullableUUIDValue(item.MachineTypeID), MaterialTypeId: nullableUUIDValue(item.MaterialTypeID), MaterialTypeName: nullableString(item.MaterialTypeName), MaterialUnit: unit, Rate: item.Rate, Active: item.Active, Version: item.Version}
+	return openapi.PricingRule{Id: item.ID, PricingGroupId: item.PricingGroupID, Kind: openapi.PricingRuleKind(item.Kind), MachineTypeId: nullableUUIDValue(item.MachineTypeID), MaterialTypeId: nullableUUIDValue(item.MaterialTypeID), MaterialTypeName: nullableString(item.MaterialTypeName), MaterialUnit: unit, Measure: runMeasureKeyValue(item.Measure), BlockSize: nullableInt32Value(item.BlockSize), Rate: item.Rate, Active: item.Active, Version: item.Version}
 }
 func mlMaterialTypeDTO(item machinelogbook.MaterialType) openapi.MaterialType {
-	return openapi.MaterialType{Id: item.ID, Name: item.Name, Unit: openapi.MaterialUnit(item.Unit), Active: item.Active, MaterialCount: item.MaterialCount, PricingRuleCount: item.PricingRuleCount, Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
+	return openapi.MaterialType{Id: item.ID, Name: item.Name, Unit: openapi.MaterialUnit(item.Unit), Processes: machineProcessDTOs(item.Processes), Active: item.Active, MaterialCount: item.MaterialCount, PricingRuleCount: item.PricingRuleCount, Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
+}
+func machineProcessDTOs(values []string) []openapi.MachineProcess {
+	result := make([]openapi.MachineProcess, 0, len(values))
+	for _, value := range values {
+		result = append(result, openapi.MachineProcess(value))
+	}
+	return result
+}
+func machineProcessStrings(values []openapi.MachineProcess) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		result = append(result, string(value))
+	}
+	return result
+}
+
+// machineProcessStringsPointer keeps "omitted" (nil) apart from an empty list.
+func machineProcessStringsPointer(values *[]openapi.MachineProcess) []string {
+	if values == nil {
+		return nil
+	}
+	return machineProcessStrings(*values)
+}
+func machineProcessPointer(value *openapi.MachineProcess) *string {
+	if value == nil {
+		return nil
+	}
+	process := string(*value)
+	return &process
+}
+func runMeasureKeyNullable(value nullable.Nullable[openapi.RunMeasureKey]) *string {
+	if !value.IsSpecified() || value.IsNull() {
+		return nil
+	}
+	key := string(value.GetOrEmpty())
+	return &key
+}
+func runMeasureKeyValue(value *string) nullable.Nullable[openapi.RunMeasureKey] {
+	if value == nil {
+		return nullable.NewNullNullable[openapi.RunMeasureKey]()
+	}
+	return nullable.NewNullableWithValue(openapi.RunMeasureKey(*value))
+}
+
+// mlMeasuresDTO converts run measures; only measures with a value are present.
+func mlMeasuresDTO(values machinelogbook.RunMeasures) openapi.RunMeasures {
+	var result openapi.RunMeasures
+	if value, ok := values[machinelogbook.MeasureStitches]; ok {
+		result.Stitches = &value
+	}
+	return result
+}
+
+// runMeasuresInput converts request measures; nil stays nil (not given).
+func runMeasuresInput(value *openapi.RunMeasures) machinelogbook.RunMeasures {
+	if value == nil {
+		return nil
+	}
+	result := machinelogbook.RunMeasures{}
+	if value.Stitches != nil {
+		result[machinelogbook.MeasureStitches] = *value.Stitches
+	}
+	return result
 }
 func materialUnitPointer(value *openapi.MaterialUnit) *string {
 	if value == nil {
@@ -96,7 +159,7 @@ func mlJobDTO(item machinelogbook.MachineJob) openapi.MachineJob {
 	} else {
 		rules := make([]openapi.PricingSnapshotRule, 0, len(item.PricingSnapshot.Rules))
 		for _, r := range item.PricingSnapshot.Rules {
-			rules = append(rules, openapi.PricingSnapshotRule{SourceRuleId: nullableUUIDValue(r.SourceRuleID), Kind: openapi.PricingRuleKind(r.Kind), Label: r.Label, Selector: r.Selector, Unit: r.Unit, Rate: nullableDecimalValue(r.Rate), Missing: r.Missing})
+			rules = append(rules, openapi.PricingSnapshotRule{SourceRuleId: nullableUUIDValue(r.SourceRuleID), Kind: openapi.PricingRuleKind(r.Kind), Label: r.Label, Selector: r.Selector, Unit: r.Unit, Measure: runMeasureKeyValue(r.Measure), BlockSize: nullableInt32Value(r.BlockSize), Rate: nullableDecimalValue(r.Rate), Missing: r.Missing})
 		}
 		snapshot = nullable.NewNullableWithValue(openapi.MachineJobPricingSnapshot{Id: item.PricingSnapshot.ID, Revision: item.PricingSnapshot.Revision, PricingGroupName: item.PricingSnapshot.PricingGroupName, Currency: openapi.MachineJobPricingSnapshotCurrency(item.PricingSnapshot.Currency), Reason: openapi.MachineJobPricingSnapshotReason(item.PricingSnapshot.Reason), Complete: item.PricingSnapshot.Complete, CalculatedAmount: nullableMoney(item.PricingSnapshot.CalculatedAmount), Rules: rules, CapturedAt: item.PricingSnapshot.CapturedAt})
 	}
@@ -110,7 +173,7 @@ func mlJobDTO(item machinelogbook.MachineJob) openapi.MachineJob {
 	if item.Artifact != nil {
 		artifact = nullable.NewNullableWithValue(mlArtifactReferenceDTO(*item.Artifact))
 	}
-	return openapi.MachineJob{Id: item.ID, DisplayId: item.DisplayID, Title: nullableString(item.Title), Status: openapi.MachineJobStatus(item.Status), Artifact: artifact, PriceAdjustment: adjustment, Machine: mlMachineDTO(item.Machine), Runs: mlRunDTOs(item.Runs), StartedAt: nullableValue(item.StartedAt), EndedAt: nullableValue(item.EndedAt), ExpectedEndAt: nullableValue(item.ExpectedEndAt), DurationSeconds: item.DurationSeconds, Customer: customer, Operator: operator, Outcome: openapi.MachineJobOutcome(item.Outcome), OutcomeOverridden: item.OutcomeOverridden, Notes: nullableString(item.Notes), PricingStatus: openapi.PricingStatus(item.PricingStatus), PricingSnapshot: snapshot, CalculatedPrice: nullableMoney(item.CalculatedPrice), EffectivePrice: nullableMoney(item.EffectivePrice), Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
+	return openapi.MachineJob{Id: item.ID, DisplayId: item.DisplayID, Title: nullableString(item.Title), Status: openapi.MachineJobStatus(item.Status), Artifact: artifact, PriceAdjustment: adjustment, Machine: mlMachineDTO(item.Machine), Runs: mlRunDTOs(item.Runs), Measures: mlMeasuresDTO(item.Measures), StartedAt: nullableValue(item.StartedAt), EndedAt: nullableValue(item.EndedAt), ExpectedEndAt: nullableValue(item.ExpectedEndAt), DurationSeconds: item.DurationSeconds, Customer: customer, Operator: operator, Outcome: openapi.MachineJobOutcome(item.Outcome), OutcomeOverridden: item.OutcomeOverridden, Notes: nullableString(item.Notes), PricingStatus: openapi.PricingStatus(item.PricingStatus), PricingSnapshot: snapshot, CalculatedPrice: nullableMoney(item.CalculatedPrice), EffectivePrice: nullableMoney(item.EffectivePrice), Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
 }
 
 func mlArtifactReferenceDTO(item machinelogbook.ArtifactReference) openapi.PrintArtifactReference {
@@ -267,7 +330,23 @@ func mlWorkItemDTO(item machinelogbook.WorkItem) openapi.WorkItem {
 		progress = nullable.NewNullableWithValue(*item.ProgressPercent)
 	}
 	version := openapi.Version(item.Version)
-	return openapi.WorkItem{Kind: openapi.WorkItemKind(item.Kind), Id: item.ID, DisplayId: item.DisplayID, Title: nullableString(item.Title), FileName: nullableString(item.FileName),
+	var consumption *openapi.WorkItemConsumption
+	if item.Consumption.Materials != nil {
+		materials := make([]struct {
+			MaterialTypeName string               `json:"materialTypeName"`
+			Quantity         openapi.Decimal      `json:"quantity"`
+			Unit             openapi.MaterialUnit `json:"unit"`
+		}, 0, len(item.Consumption.Materials))
+		for _, m := range item.Consumption.Materials {
+			materials = append(materials, struct {
+				MaterialTypeName string               `json:"materialTypeName"`
+				Quantity         openapi.Decimal      `json:"quantity"`
+				Unit             openapi.MaterialUnit `json:"unit"`
+			}{m.MaterialTypeName, m.Quantity, openapi.MaterialUnit(m.Unit)})
+		}
+		consumption = &openapi.WorkItemConsumption{Materials: materials, Measures: mlMeasuresDTO(item.Consumption.Measures)}
+	}
+	return openapi.WorkItem{Consumption: consumption, Kind: openapi.WorkItemKind(item.Kind), Id: item.ID, DisplayId: item.DisplayID, Title: nullableString(item.Title), FileName: nullableString(item.FileName),
 		RunCount: item.RunCount, MachineId: item.MachineID, MachineName: item.MachineName,
 		Customer: customer, Operator: operator, Status: openapi.WorkItemStatus(item.Status), Source: openapi.WorkItemSource(item.Source), StartedAt: item.StartedAt,
 		EndsAt: nullableValue(item.EndsAt), EstimatedEndAt: nullableValue(item.EstimatedEndAt), ProgressPercent: progress, EffectivePrice: nullableMoney(item.EffectivePrice),

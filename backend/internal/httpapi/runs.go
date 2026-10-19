@@ -41,7 +41,7 @@ func (s *Server) UpdateMachineRun(ctx context.Context, r openapi.UpdateMachineRu
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.UpdateRun(ctx, p, r.RunId, r.Body.ExpectedVersion, machinelogbook.RunUpdate{StartsAt: r.Body.StartsAt, EndsAt: r.Body.EndsAt, Outcome: nullableStringPointer(r.Body.Outcome)}, requestIDPointer(ctx))
+	item, err := s.machineLogbook.UpdateRun(ctx, p, r.RunId, r.Body.ExpectedVersion, machinelogbook.RunUpdate{StartsAt: r.Body.StartsAt, EndsAt: r.Body.EndsAt, Outcome: nullableStringPointer(r.Body.Outcome), Measures: runMeasuresInput(r.Body.Measures)}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +153,7 @@ func (s *Server) AddManualMachineRun(ctx context.Context, r openapi.AddManualMac
 }
 
 func manualRunInput(value openapi.ManualRunInput) machinelogbook.ManualRunInput {
-	return machinelogbook.ManualRunInput{StartsAt: value.StartsAt, EndsAt: value.EndsAt, Outcome: nullableStringPointer(value.Outcome), Usages: usageInputs(value.Usages)}
+	return machinelogbook.ManualRunInput{StartsAt: value.StartsAt, EndsAt: value.EndsAt, Outcome: nullableStringPointer(value.Outcome), Usages: usageInputs(value.Usages), Measures: runMeasuresInput(value.Measures)}
 }
 
 func mlRunBase(item machinelogbook.MachineRun) openapi.MachineRun {
@@ -187,7 +187,7 @@ func mlRunBase(item machinelogbook.MachineRun) openapi.MachineRun {
 	}
 	return openapi.MachineRun{Id: item.ID, DisplayId: item.DisplayID, MachineId: item.MachineID, MachineName: item.MachineName, Source: openapi.MachineRunSource(item.Source), State: openapi.MachineRunState(item.State), Job: job,
 		ConnectorName: nullableString(item.ConnectorName), FileName: nullableString(item.FileName), StartedAt: item.StartedAt, EndedAt: nullableValue(item.EndedAt), EstimatedEndAt: nullableValue(item.EstimatedEndAt),
-		DurationSeconds: item.DurationSeconds, ProgressPercent: nullableInt(item.ProgressPercent), Outcome: outcome, OutcomeFromMachine: item.OutcomeFromMachine, Usages: usages, UsagesFromMachine: item.UsagesFromMachine,
+		DurationSeconds: item.DurationSeconds, ProgressPercent: nullableInt(item.ProgressPercent), Outcome: outcome, OutcomeFromMachine: item.OutcomeFromMachine, Usages: usages, Measures: mlMeasuresDTO(item.Measures), UsagesFromMachine: item.UsagesFromMachine,
 		ReportedUsage: reported, ReportedUsageItems: reportedItems, Artifact: artifact, Version: item.Version}
 }
 
@@ -209,7 +209,7 @@ func mlRunDetailDTO(item machinelogbook.RunDetail) openapi.MachineRunDetail {
 	}
 	return openapi.MachineRunDetail{Id: base.Id, DisplayId: base.DisplayId, MachineId: base.MachineId, MachineName: base.MachineName, Source: base.Source, State: base.State, Job: base.Job, ConnectorName: base.ConnectorName, FileName: base.FileName,
 		StartedAt: base.StartedAt, EndedAt: base.EndedAt, EstimatedEndAt: base.EstimatedEndAt, DurationSeconds: base.DurationSeconds, ProgressPercent: base.ProgressPercent, Outcome: base.Outcome, OutcomeFromMachine: base.OutcomeFromMachine,
-		Usages: base.Usages, UsagesFromMachine: base.UsagesFromMachine, ReportedUsage: base.ReportedUsage, ReportedUsageItems: base.ReportedUsageItems, Artifact: base.Artifact, Version: base.Version, Events: events}
+		Usages: base.Usages, Measures: base.Measures, UsagesFromMachine: base.UsagesFromMachine, ReportedUsage: base.ReportedUsage, ReportedUsageItems: base.ReportedUsageItems, Artifact: base.Artifact, Version: base.Version, Events: events}
 }
 
 func mlRunResultDTO(item machinelogbook.RunUpdateResult) openapi.MachineRunUpdateResult {

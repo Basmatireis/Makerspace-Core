@@ -20,6 +20,7 @@ the required session and CSRF credentials.
  */
 import type { ManualRunInputOutcome } from './manualRunInputOutcome';
 import type { MachineJobUsageInput } from './machineJobUsageInput';
+import type { RunMeasures } from './runMeasures';
 
 /**
  * An endsAt in the future starts a run that shows as running until then; outcome must then be null and is recorded later.
@@ -29,6 +30,11 @@ export interface ManualRunInput {
   endsAt: string;
   /** @nullable */
   outcome?: ManualRunInputOutcome;
-  /** @maxItems 50 */
+  /**
+   * Makerspace material must belong to a material type usable for the machine's process (422 material_process_mismatch); customer material is free text.
+   * @maxItems 50
+   */
   usages: MachineJobUsageInput[];
+  /** Only keys the machine's process supports (422 run_measure_unsupported). */
+  measures?: RunMeasures;
 }

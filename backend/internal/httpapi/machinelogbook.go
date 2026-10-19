@@ -30,7 +30,7 @@ func (s *Server) CreateMachineType(ctx context.Context, r openapi.CreateMachineT
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.CreateMachineType(ctx, p, r.Body.Name, r.Body.Printer != nil && *r.Body.Printer, requestIDPointer(ctx))
+	item, err := s.machineLogbook.CreateMachineType(ctx, p, r.Body.Name, string(r.Body.Process), requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (s *Server) UpdateMachineType(ctx context.Context, r openapi.UpdateMachineT
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.UpdateMachineType(ctx, p, r.MachineTypeId, r.Body.ExpectedVersion, r.Body.Name, r.Body.Active, r.Body.Printer, requestIDPointer(ctx))
+	item, err := s.machineLogbook.UpdateMachineType(ctx, p, r.MachineTypeId, r.Body.ExpectedVersion, r.Body.Name, r.Body.Active, machineProcessPointer(r.Body.Process), requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -298,7 +298,7 @@ func (s *Server) CreatePricingRule(ctx context.Context, r openapi.CreatePricingR
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.CreatePricingRule(ctx, p, r.PricingGroupId, string(r.Body.Kind), uuidNullable(r.Body.MachineTypeId), uuidNullable(r.Body.MaterialTypeId), string(r.Body.Rate), requestIDPointer(ctx))
+	item, err := s.machineLogbook.CreatePricingRule(ctx, p, r.PricingGroupId, string(r.Body.Kind), uuidNullable(r.Body.MachineTypeId), uuidNullable(r.Body.MaterialTypeId), runMeasureKeyNullable(r.Body.Measure), string(r.Body.Rate), requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +312,7 @@ func (s *Server) UpdatePricingRule(ctx context.Context, r openapi.UpdatePricingR
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.UpdatePricingRule(ctx, p, r.PricingRuleId, r.Body.ExpectedVersion, string(r.Body.Kind), uuidNullable(r.Body.MachineTypeId), uuidNullable(r.Body.MaterialTypeId), string(r.Body.Rate), r.Body.Active, requestIDPointer(ctx))
+	item, err := s.machineLogbook.UpdatePricingRule(ctx, p, r.PricingRuleId, r.Body.ExpectedVersion, string(r.Body.Kind), uuidNullable(r.Body.MachineTypeId), uuidNullable(r.Body.MaterialTypeId), runMeasureKeyNullable(r.Body.Measure), string(r.Body.Rate), r.Body.Active, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -498,7 +498,7 @@ func (s *Server) CreateMachineJob(ctx context.Context, r openapi.CreateMachineJo
 	if run.Outcome != nil {
 		outcome = *run.Outcome
 	}
-	item, err := s.machineLogbook.CreateManualJob(ctx, p, machinelogbook.JobInput{MachineID: r.Body.MachineId, StartsAt: run.StartsAt, EndsAt: run.EndsAt, Customer: partyInput(r.Body.Customer), OperatorPersonID: r.Body.OperatorPersonId, Outcome: outcome, Title: nullableStringPointer(r.Body.Title), Notes: nullableStringPointer(r.Body.Notes), PricingGroupID: uuidNullable(r.Body.PricingGroupId), Usages: run.Usages}, requestIDPointer(ctx))
+	item, err := s.machineLogbook.CreateManualJob(ctx, p, machinelogbook.JobInput{MachineID: r.Body.MachineId, StartsAt: run.StartsAt, EndsAt: run.EndsAt, Customer: partyInput(r.Body.Customer), OperatorPersonID: r.Body.OperatorPersonId, Outcome: outcome, Title: nullableStringPointer(r.Body.Title), Notes: nullableStringPointer(r.Body.Notes), PricingGroupID: uuidNullable(r.Body.PricingGroupId), Usages: run.Usages, Measures: run.Measures}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -671,7 +671,7 @@ func (s *Server) CreateMaterialType(ctx context.Context, r openapi.CreateMateria
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.CreateMaterialType(ctx, p, r.Body.Name, string(r.Body.Unit), requestIDPointer(ctx))
+	item, err := s.machineLogbook.CreateMaterialType(ctx, p, r.Body.Name, string(r.Body.Unit), machineProcessStrings(r.Body.Processes), requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -696,7 +696,7 @@ func (s *Server) UpdateMaterialType(ctx context.Context, r openapi.UpdateMateria
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.UpdateMaterialType(ctx, p, r.MaterialTypeId, r.Body.ExpectedVersion, r.Body.Name, string(r.Body.Unit), r.Body.Active, requestIDPointer(ctx))
+	item, err := s.machineLogbook.UpdateMaterialType(ctx, p, r.MaterialTypeId, r.Body.ExpectedVersion, r.Body.Name, string(r.Body.Unit), machineProcessStringsPointer(r.Body.Processes), r.Body.Active, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}

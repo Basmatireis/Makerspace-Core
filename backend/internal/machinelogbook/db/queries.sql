@@ -1,5 +1,5 @@
 -- name: CreateMachineType :one
-INSERT INTO machine_types (id, name, printer) VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(printer)) RETURNING *;
+INSERT INTO machine_types (id, name, process) VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(process)) RETURNING *;
 
 -- name: ListMachineTypes :many
 SELECT * FROM machine_types ORDER BY active DESC, lower(name), id;
@@ -11,7 +11,7 @@ SELECT * FROM machine_types WHERE id = sqlc.arg(id);
 SELECT * FROM machine_types WHERE id = sqlc.arg(id) FOR UPDATE;
 
 -- name: UpdateMachineType :one
-UPDATE machine_types SET name = sqlc.arg(name), active = sqlc.arg(active), printer = sqlc.arg(printer),
+UPDATE machine_types SET name = sqlc.arg(name), active = sqlc.arg(active), process = sqlc.arg(process),
     version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
@@ -22,7 +22,7 @@ VALUES (sqlc.arg(id), sqlc.arg(machine_type_id), sqlc.arg(name), sqlc.arg(status
 RETURNING *;
 
 -- name: GetMachine :one
-SELECT m.*, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.printer AS machine_type_printer, mt.version AS machine_type_version,
+SELECT m.*, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.process AS machine_type_process, mt.version AS machine_type_version,
        mt.created_at AS machine_type_created_at, mt.updated_at AS machine_type_updated_at,
        count(j.id)::bigint AS job_count,
        COALESCE(sum(s.runtime_seconds)::bigint, 0)::bigint AS runtime_seconds,
@@ -38,7 +38,7 @@ GROUP BY m.id, mt.id;
 SELECT * FROM machines WHERE id = sqlc.arg(id) FOR UPDATE;
 
 -- name: ListMachines :many
-SELECT m.*, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.printer AS machine_type_printer, mt.version AS machine_type_version,
+SELECT m.*, mt.name AS machine_type_name, mt.active AS machine_type_active, mt.process AS machine_type_process, mt.version AS machine_type_version,
        mt.created_at AS machine_type_created_at, mt.updated_at AS machine_type_updated_at,
        count(j.id)::bigint AS job_count,
        COALESCE(sum(s.runtime_seconds)::bigint, 0)::bigint AS runtime_seconds,
@@ -238,22 +238,23 @@ WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
 
 -- name: CreatePricingRule :one
-INSERT INTO pricing_rules (id, pricing_group_id, kind, machine_type_id, material_type_id, material_unit, rate)
-VALUES (sqlc.arg(id), sqlc.arg(pricing_group_id), sqlc.arg(kind), sqlc.narg(machine_type_id), sqlc.narg(material_type_id), sqlc.narg(material_unit), sqlc.arg(rate))
+INSERT INTO pricing_rules (id, pricing_group_id, kind, machine_type_id, material_type_id, material_unit, measure, block_size, rate)
+VALUES (sqlc.arg(id), sqlc.arg(pricing_group_id), sqlc.arg(kind), sqlc.narg(machine_type_id), sqlc.narg(material_type_id), sqlc.narg(material_unit), sqlc.narg(measure), sqlc.narg(block_size), sqlc.arg(rate))
 RETURNING *;
 
 -- name: ListPricingRulesByGroup :many
 SELECT r.*, mt.name AS material_type_name FROM pricing_rules r
 LEFT JOIN material_types mt ON mt.id = r.material_type_id
 WHERE r.pricing_group_id = sqlc.arg(pricing_group_id)
-ORDER BY r.active DESC, r.kind, lower(mt.name) NULLS FIRST, r.machine_type_id NULLS FIRST, r.id;
+ORDER BY r.active DESC, r.kind, lower(mt.name) NULLS FIRST, r.machine_type_id NULLS FIRST, r.measure NULLS FIRST, r.id;
 
 -- name: GetPricingRuleForUpdate :one
 SELECT * FROM pricing_rules WHERE id = sqlc.arg(id) FOR UPDATE;
 
 -- name: UpdatePricingRule :one
 UPDATE pricing_rules SET kind = sqlc.arg(kind), machine_type_id = sqlc.narg(machine_type_id),
-    material_type_id = sqlc.narg(material_type_id), material_unit = sqlc.narg(material_unit), rate = sqlc.arg(rate),
+    material_type_id = sqlc.narg(material_type_id), material_unit = sqlc.narg(material_unit), measure = sqlc.narg(measure),
+    block_size = sqlc.narg(block_size), rate = sqlc.arg(rate),
     active = sqlc.arg(active), version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version)
 RETURNING *;
@@ -944,9 +945,9 @@ VALUES (sqlc.arg(id), sqlc.arg(machine_job_id), sqlc.arg(revision), sqlc.narg(pr
     sqlc.arg(reason), sqlc.arg(complete), sqlc.narg(calculated_amount), sqlc.narg(captured_by_account_id)) RETURNING *;
 
 -- name: InsertPricingSnapshotRule :one
-INSERT INTO machine_job_pricing_snapshot_rules (id, snapshot_id, source_rule_id, kind, label, selector, material_type_id, unit, rate, missing)
+INSERT INTO machine_job_pricing_snapshot_rules (id, snapshot_id, source_rule_id, kind, label, selector, material_type_id, measure, block_size, unit, rate, missing)
 VALUES (sqlc.arg(id), sqlc.arg(snapshot_id), sqlc.narg(source_rule_id), sqlc.arg(kind), sqlc.arg(label), sqlc.arg(selector), sqlc.narg(material_type_id),
-    sqlc.arg(unit), sqlc.narg(rate), sqlc.arg(missing)) RETURNING *;
+    sqlc.narg(measure), sqlc.narg(block_size), sqlc.arg(unit), sqlc.narg(rate), sqlc.arg(missing)) RETURNING *;
 
 -- name: GetPricingSnapshot :one
 SELECT * FROM machine_job_pricing_snapshots WHERE id = sqlc.arg(id);
@@ -1315,6 +1316,39 @@ FROM inventory_transactions WHERE run_usage_id = sqlc.arg(run_usage_id);
 -- name: CreateMaterialType :one
 INSERT INTO material_types (id, name, unit) VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.arg(unit)) RETURNING *;
 
+-- name: InsertMaterialTypeProcess :exec
+INSERT INTO material_type_processes (material_type_id, process) VALUES (sqlc.arg(material_type_id), sqlc.arg(process));
+
+-- name: DeleteMaterialTypeProcesses :exec
+DELETE FROM material_type_processes WHERE material_type_id = sqlc.arg(material_type_id);
+
+-- name: ListMaterialTypeProcesses :many
+SELECT material_type_id, process FROM material_type_processes
+WHERE material_type_id = ANY(sqlc.arg(material_type_ids)::uuid[])
+ORDER BY material_type_id, process;
+
+-- name: GetMachineProcess :one
+SELECT mt.process FROM machines m JOIN machine_types mt ON mt.id = m.machine_type_id WHERE m.id = sqlc.arg(machine_id);
+
+-- name: ListMaterialsOutsideProcess :many
+-- Materials of the given ones whose type is not usable for the process.
+SELECT m.id, m.name FROM materials m
+WHERE m.id = ANY(sqlc.arg(material_ids)::uuid[])
+  AND NOT EXISTS (SELECT 1 FROM material_type_processes p WHERE p.material_type_id = m.material_type_id AND p.process = sqlc.arg(process)::text)
+ORDER BY lower(m.name), m.id;
+
+-- name: UpsertRunMeasure :exec
+INSERT INTO machine_run_measures (run_id, measure, value) VALUES (sqlc.arg(run_id), sqlc.arg(measure), sqlc.arg(value))
+ON CONFLICT (run_id, measure) DO UPDATE SET value = EXCLUDED.value;
+
+-- name: DeleteRunMeasures :exec
+DELETE FROM machine_run_measures WHERE run_id = sqlc.arg(run_id);
+
+-- name: ListRunMeasuresForRuns :many
+SELECT run_id, measure, value FROM machine_run_measures
+WHERE run_id = ANY(sqlc.arg(run_ids)::uuid[])
+ORDER BY run_id, measure;
+
 -- name: ListMaterialTypes :many
 SELECT t.*,
        (SELECT count(*) FROM materials m WHERE m.material_type_id = t.id)::bigint AS material_count,
@@ -1347,3 +1381,24 @@ SELECT (EXISTS (SELECT 1 FROM materials m WHERE m.material_type_id = sqlc.arg(id
 
 -- name: DeleteMaterialType :execrows
 DELETE FROM material_types WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version);
+
+-- name: ListWorkItemMaterialTotals :many
+-- Material of jobs (their runs that are not replaced) and of unassigned runs, summed per material type and unit.
+SELECT COALESCE(r.job_id, r.id)::uuid AS item_id, COALESCE(mt.name, 'External')::text AS material_type_name, COALESCE(m.unit, 'g')::text AS unit, sum(u.quantity)::numeric AS quantity
+FROM machine_run_usages u
+JOIN machine_runs r ON r.id = u.run_id
+LEFT JOIN materials m ON m.id = u.material_id
+LEFT JOIN material_types mt ON mt.id = m.material_type_id
+WHERE u.active AND r.deleted_at IS NULL AND r.state IS DISTINCT FROM 'replaced'
+  AND COALESCE(r.job_id, r.id) = ANY(sqlc.arg(item_ids)::uuid[])
+GROUP BY 1, 2, 3
+ORDER BY 1, 2, 3;
+
+-- name: ListWorkItemMeasureTotals :many
+SELECT COALESCE(r.job_id, r.id)::uuid AS item_id, me.measure, sum(me.value)::bigint AS value
+FROM machine_run_measures me
+JOIN machine_runs r ON r.id = me.run_id
+WHERE r.deleted_at IS NULL AND r.state IS DISTINCT FROM 'replaced'
+  AND COALESCE(r.job_id, r.id) = ANY(sqlc.arg(item_ids)::uuid[])
+GROUP BY 1, 2
+ORDER BY 1, 2;

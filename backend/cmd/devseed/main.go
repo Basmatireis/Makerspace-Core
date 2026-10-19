@@ -68,6 +68,7 @@ func ptr[T any](v T) *T { return &v }
 func f1(v float64) string { return strconv.FormatFloat(v, 'f', 1, 64) }
 func f2(v float64) string { return strconv.FormatFloat(v, 'f', 2, 64) }
 func f3(v float64) string { return strconv.FormatFloat(v, 'f', 3, 64) }
+func f4(v float64) string { return strconv.FormatFloat(v, 'f', 4, 64) }
 
 type party struct {
 	kind string
@@ -261,6 +262,7 @@ func main() {
 	s.setupConnector()
 	s.planEverything()
 	s.runTimeline()
+	s.seedProcessJobs()
 	s.finishPrints()
 	s.priceAdjustments()
 	s.createOrders()
@@ -520,19 +522,40 @@ func (s *seeder) createOrgsAndPricing() {
 
 	// Material types are what prices attach to; materials are variants of them.
 	for _, t := range [][2]string{{"PLA", "g"}, {"PETG", "g"}, {"TPU 95A", "g"}, {"ASA", "g"}, {"Plywood", "m2"}, {"Acrylic", "m2"}, {"MDF", "m2"}} {
-		s.materialType(t[0], t[1])
+		if t[1] == "g" {
+			s.materialType(t[0], t[1], "fdm_printing")
+		} else {
+			s.materialType(t[0], t[1], "laser_cutting", "other")
+		}
 	}
-	machineType := func(name string) uuid.UUID {
+	// Types for the other processes (embroidery, UV printing, plotting, cm2 sheets).
+	for _, t := range []struct {
+		name, unit string
+		processes  []string
+	}{
+		{"Stabilizer (tear-away)", "m", []string{"embroidery"}},
+		{"UV ink", "ml", []string{"uv_printing"}},
+		{"DTF sticker paper", "cm2", []string{"uv_printing"}},
+		{"Roll-to-film", "m", []string{"uv_printing"}},
+		{"Birch plywood", "cm2", []string{"laser_cutting", "other"}},
+		{"Vinyl foil", "cm2", []string{"vinyl_cutting", "other"}},
+	} {
+		s.materialType(t.name, t.unit, t.processes...)
+	}
+	machineType := func(name, process string) uuid.UUID {
 		id, create := s.claim("machine_types", name, "active")
 		if create != "" {
-			mt, err := ml.CreateMachineType(s.ctx, s.actor, create, strings.Contains(strings.ToLower(create), "printer"), nil)
+			mt, err := ml.CreateMachineType(s.ctx, s.actor, create, process, nil)
 			check("mt", err)
 			id = mt.ID
 		}
 		return id
 	}
-	ftype := machineType("FDM 3D printer")
-	ltype := machineType("Laser cutter")
+	ftype := machineType("FDM 3D printer", "fdm_printing")
+	ltype := machineType("Laser cutter", "laser_cutting")
+	etype := machineType("Embroidery machine", "embroidery")
+	utype := machineType("UV printer", "uv_printing")
+	ptype := machineType("Vinyl plotter", "vinyl_cutting")
 
 	// Rules are only added to groups this run created; reused groups keep
 	// their pricing.
@@ -547,7 +570,7 @@ func (s *seeder) createOrgsAndPricing() {
 			continue
 		}
 		rule := func(kind string, mt, material *uuid.UUID, rate float64) {
-			_, err := ml.CreatePricingRule(s.ctx, s.actor, g.id, kind, mt, material, f3(rate), nil)
+			_, err := ml.CreatePricingRule(s.ctx, s.actor, g.id, kind, mt, material, nil, f3(rate), nil)
 			check("rule", err)
 		}
 		material := func(name string) *uuid.UUID { id := s.matTypes[name]; return &id }
@@ -563,6 +586,43 @@ func (s *seeder) createOrgsAndPricing() {
 			rule("material", nil, material("Acrylic"), g.r.acr)
 		}
 		rule("material", nil, material("MDF"), g.r.mdf)
+	}
+	// Rules for the other processes. They are added to every group that does not
+	// price the machine type or material type yet, so reused databases get them too.
+	type processRates struct{ embroidery, stitches, uv, ink, dtf, film, stabilizer, plywood, vinyl, plotter float64 }
+	for _, g := range []struct {
+		id uuid.UUID
+		r  processRates
+	}{
+		{students, processRates{2, 0.35, 4, 0.9, 0.004, 3, 0.8, 0.0012, 0.002, 0}},
+		{staff, processRates{4, 0.5, 8, 1.2, 0.006, 4, 1, 0.0018, 0.003, 0}},
+		{ext, processRates{9, 1, 20, 2, 0.012, 8, 2, 0.004, 0.006, 6}},
+	} {
+		rule := func(kind string, mt, material *uuid.UUID, measure *string, rate float64) {
+			var selector uuid.UUID
+			switch {
+			case mt != nil:
+				selector = *mt
+			case material != nil:
+				selector = *material
+			}
+			if _, taken := s.existing("SELECT id FROM pricing_rules WHERE pricing_group_id = $1 AND kind = $2 AND active AND COALESCE(machine_type_id, material_type_id) = $3 AND measure IS NOT DISTINCT FROM $4::text", g.id, kind, selector, measure); taken {
+				return
+			}
+			_, err := ml.CreatePricingRule(s.ctx, s.actor, g.id, kind, mt, material, measure, f4(rate), nil)
+			check("rule", err)
+		}
+		typeID := func(name string) *uuid.UUID { id := s.matTypes[name]; return &id }
+		rule("machine_runtime", &etype, nil, nil, g.r.embroidery)
+		rule("machine_measure", &etype, nil, ptr("stitches"), g.r.stitches) // per 1000 stitches
+		rule("machine_runtime", &utype, nil, nil, g.r.uv)
+		rule("machine_runtime", &ptype, nil, nil, g.r.plotter) // 0 EUR/h: plotter time is not charged to members
+		rule("material", nil, typeID("UV ink"), nil, g.r.ink)
+		rule("material", nil, typeID("DTF sticker paper"), nil, g.r.dtf)
+		rule("material", nil, typeID("Roll-to-film"), nil, g.r.film)
+		rule("material", nil, typeID("Stabilizer (tear-away)"), nil, g.r.stabilizer)
+		rule("material", nil, typeID("Birch plywood"), nil, g.r.plywood)
+		rule("material", nil, typeID("Vinyl foil"), nil, g.r.vinyl)
 	}
 	assign := func(p party, g uuid.UUID) {
 		_, err := ml.SetPartyPricingGroup(s.ctx, s.actor, p.ref(), &g, 0, nil)
@@ -584,18 +644,25 @@ func (s *seeder) createOrgsAndPricing() {
 	}
 	s.machines["_ftype"] = &mach{id: ftype}
 	s.machines["_ltype"] = &mach{id: ltype}
+	s.machines["_etype"] = &mach{id: etype}
+	s.machines["_utype"] = &mach{id: utype}
+	s.machines["_ptype"] = &mach{id: ptype}
 	s.custs = append(s.custs, s.orgs["chair"], s.orgs["fs"], s.orgs["startup"])
 }
 
 // materialType returns the material type with this name, creating it when it
-// does not exist yet. An existing type keeps its unit.
-func (s *seeder) materialType(name, unit string) uuid.UUID {
+// does not exist yet. An existing type keeps its unit and processes.
+func (s *seeder) materialType(name, unit string, processes ...string) uuid.UUID {
 	if id, ok := s.matTypes[name]; ok {
 		return id
 	}
-	id, ok := s.existing("SELECT id FROM material_types WHERE lower(name) = lower($1)", name)
+	id, ok := s.existing("SELECT id FROM material_types WHERE lower(name) = lower($1) AND unit = $2", name, unit)
 	if !ok {
-		t, err := s.ml.CreateMaterialType(s.ctx, s.actor, name, unit, nil)
+		createName := name
+		if _, taken := s.existing("SELECT id FROM material_types WHERE lower(name) = lower($1)", name); taken {
+			createName = s.tagged(name) // same name, other unit: keep both
+		}
+		t, err := s.ml.CreateMaterialType(s.ctx, s.actor, createName, unit, processes, nil)
 		check("material type", err)
 		id = t.ID
 	}
@@ -630,6 +697,30 @@ func (s *seeder) createCatalog() {
 	for _, f := range [][2]string{{"Plywood 3 mm", "Plywood"}, {"Plywood 4 mm", "Plywood"}, {"Acrylic 3 mm clear", "Acrylic"}, {"MDF 3 mm", "MDF"}} {
 		material(f[0], f[1], "m2", nil, nil)
 	}
+	// Materials of the other processes. They stay out of newMats: the generic
+	// stock thresholds are sized for grams and square metres.
+	extra := func(name, typeName, unit string, colorName, colorHex *string) {
+		typeID := s.materialType(typeName, unit)
+		id, create := s.claim("materials", name, "active AND unit = $2", unit)
+		if create != "" {
+			m, err := ml.CreateMaterial(s.ctx, s.actor, machinelogbook.MaterialInput{Name: create, MaterialTypeID: typeID, ColorName: colorName, ColorHex: colorHex, LowStockThreshold: nil}, nil)
+			check("mat", err)
+			id = m.ID
+		}
+		s.mats[name] = &mat{id, name, typeName}
+	}
+	for _, ink := range []struct{ name, color, hex string }{
+		{"UV ink Cyan", "Cyan", "#00AEEF"}, {"UV ink Magenta", "Magenta", "#EC008C"}, {"UV ink Yellow", "Yellow", "#FFF200"},
+		{"UV ink Black", "Black", "#1A1A1A"}, {"UV ink White", "White", "#F5F5F5"},
+	} {
+		extra(ink.name, "UV ink", "ml", ptr(ink.color), ptr(ink.hex))
+	}
+	extra("DTF sticker paper A4", "DTF sticker paper", "cm2", nil, nil)
+	extra("Roll-to-film 30 cm", "Roll-to-film", "m", nil, nil)
+	extra("Tear-away stabilizer", "Stabilizer (tear-away)", "m", nil, nil)
+	extra("Birch plywood 4 mm sheet", "Birch plywood", "cm2", nil, nil)
+	extra("Vinyl foil matt white", "Vinyl foil", "cm2", nil, nil)
+
 	// Products are reused when they belong to the same material.
 	prod := func(key, maker, name, matName, pack string, weight, price float64, active bool) {
 		matID := s.mats[matName].id
@@ -694,6 +785,9 @@ func (s *seeder) setupPrinters() {
 	pr1 := mk("pr1", "Prusa MK4 #1", "_ftype", true, false, nil)
 	pr2 := mk("pr2", "Prusa MK4 #2", "_ftype", true, false, nil)
 	mk("laser", "Trotec Speedy 300", "_ltype", false, false, nil)
+	mk("embroidery", "Brother PR1055X", "_etype", false, false, nil)
+	mk("uv", "eufy Make E1", "_utype", false, false, nil)
+	mk("plotter", "Silhouette Cameo 5", "_ptype", false, false, nil)
 
 	profile := func(m *mach) {
 		_, err := s.printing.ConfigureProfile(s.ctx, s.actor, m.id, true, 0, nil)
@@ -1455,6 +1549,58 @@ func (s *seeder) runPlan(p *plan) {
 		check("manual job", err)
 	}
 	s.jobs = append(s.jobs, jobRec{id: job.ID, customer: p.customer, outcome: p.outcome, incomplete: job.PricingStatus != "complete", ends: p.end, machine: p.m.name, failedRun: p.outcome == "failed"})
+}
+
+// seedProcessJobs records a few jobs on the embroidery machine, the UV printer,
+// the laser cutter (cm2 plywood) and the plotter so every process has data.
+func (s *seeder) seedProcessJobs() {
+	type use struct {
+		name string
+		qty  string
+	}
+	type job struct {
+		machine  string
+		title    string
+		customer party
+		daysAgo  int
+		minutes  int
+		measures machinelogbook.RunMeasures
+		uses     []use
+	}
+	stock := map[string]struct {
+		qty, price float64
+	}{
+		"Tear-away stabilizer": {50, 20}, "UV ink Cyan": {200, 90}, "UV ink Magenta": {200, 90}, "UV ink Yellow": {200, 90},
+		"UV ink Black": {200, 90}, "UV ink White": {300, 140}, "DTF sticker paper A4": {20000, 60}, "Roll-to-film 30 cm": {30, 75},
+		"Birch plywood 4 mm sheet": {40000, 45}, "Vinyl foil matt white": {30000, 35},
+	}
+	bought := map[string]bool{}
+	jobs := []job{
+		{"embroidery", "Fachschaft polo logo", s.orgs["fs"], 9, 38, machinelogbook.RunMeasures{"stitches": 12400}, []use{{"Tear-away stabilizer", "0.4"}}},
+		{"embroidery", "Workshop patches", s.custs[2], 4, 72, machinelogbook.RunMeasures{"stitches": 31250}, []use{{"Tear-away stabilizer", "0.9"}}},
+		{"uv", "Phone case batch", s.custs[4], 7, 55, nil, []use{{"UV ink Cyan", "0.45"}, {"UV ink Magenta", "0.62"}, {"UV ink Yellow", "0.38"}, {"UV ink Black", "1.20"}, {"UV ink White", "1.85"}, {"DTF sticker paper A4", "180"}}},
+		{"uv", "Sticker sheets", s.orgs["startup"], 2, 41, nil, []use{{"UV ink Cyan", "0.20"}, {"UV ink Black", "0.75"}, {"UV ink White", "0.90"}, {"DTF sticker paper A4", "420"}, {"Roll-to-film 30 cm", "0.5"}}},
+		{"laser", "Birch coasters", s.custs[6], 5, 25, nil, []use{{"Birch plywood 4 mm sheet", "1450"}}},
+		{"plotter", "Window vinyl lettering", s.custs[8], 3, 18, nil, []use{{"Vinyl foil matt white", "2400"}}},
+	}
+	op := s.supervisors[0]
+	for i, j := range jobs {
+		m := s.machines[j.machine]
+		end := s.now.Add(-time.Duration(j.daysAgo)*24*time.Hour - time.Duration(i)*time.Hour)
+		start := end.Add(-time.Duration(j.minutes) * time.Minute)
+		var usages []machinelogbook.UsageInput
+		for _, u := range j.uses {
+			if !bought[u.name] {
+				bought[u.name] = true
+				st := stock[u.name]
+				s.purchase(u.name, st.qty, st.price, start.Add(-48*time.Hour), "Makerspace supplier", 3)
+			}
+			usages = append(usages, machinelogbook.UsageInput{MaterialID: s.mats[u.name].id, Ownership: "makerspace", Quantity: u.qty, QuantityBasis: "actual"})
+		}
+		job, err := s.ml.CreateManualJob(s.ctx, s.actor, machinelogbook.JobInput{MachineID: m.id, Title: ptr(j.title), StartsAt: start, EndsAt: end, Customer: j.customer.ref(), OperatorPersonID: op, Outcome: "successful", Usages: usages, Measures: j.measures}, nil)
+		check("process job "+j.title, err)
+		s.jobs = append(s.jobs, jobRec{id: job.ID, customer: j.customer, outcome: "successful", incomplete: job.PricingStatus != "complete", ends: end, machine: m.name})
+	}
 }
 
 func (s *seeder) unlinkedPrints() {

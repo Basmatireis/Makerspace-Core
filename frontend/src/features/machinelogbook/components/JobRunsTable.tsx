@@ -6,7 +6,7 @@ import {
 import { Add, Link as LinkIcon } from '@carbon/icons-react';
 import type { MachineJob, MachineRun } from '../../../api/generated/models';
 import { formatDateTime, formatDuration, formatTime } from '../shared/format';
-import { FromMachineTag, isRunLive, RunOutcomeTag, runEnd, RunSourceTag, RunStateTag, runName, runProgress, runStateNow, usagesText } from '../shared/status';
+import { FromMachineTag, isRunLive, RunOutcomeTag, runEnd, RunSourceTag, RunStateTag, runName, runProgress, runConsumptionText, runStateNow } from '../shared/status';
 import '../styles/jobs.scss';
 
 export type RunAction = 'edit' | 'usage' | 'cancel' | 'delete' | 'detach';
@@ -118,7 +118,7 @@ export function JobRunsTable({ job, now, canEdit, canDelete = false, canAttach, 
                       </TableCell>
                       <TableCell>
                         <div className="mj-cell-stack">
-                          <span>{usagesText(run.usages)}</span>
+                          <span>{runConsumptionText(run)}</span>
                           {run.usagesFromMachine && <span><FromMachineTag /></span>}
                         </div>
                       </TableCell>

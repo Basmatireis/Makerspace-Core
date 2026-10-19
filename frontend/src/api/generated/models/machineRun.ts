@@ -24,6 +24,7 @@ import type { MachineRunState } from './machineRunState';
 import type { MachineRunJobReference } from './machineRunJobReference';
 import type { MachineRunOutcomeProperty } from './machineRunOutcomeProperty';
 import type { MachineJobUsage } from './machineJobUsage';
+import type { RunMeasures } from './runMeasures';
 import type { MachineRunReportedUsage } from './machineRunReportedUsage';
 import type { MachineRunReportedUsageItem } from './machineRunReportedUsageItem';
 import type { PrintArtifactReference } from './printArtifactReference';
@@ -68,6 +69,7 @@ export interface MachineRun {
   /** The outcome was set from the machine's final state and not changed by staff. */
   outcomeFromMachine: boolean;
   usages: MachineJobUsage[];
+  measures: RunMeasures;
   /** The usage was consumed automatically from the machine's report. */
   usagesFromMachine: boolean;
   reportedUsage?: MachineRunReportedUsage;

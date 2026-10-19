@@ -16,9 +16,12 @@ import { machineLogbookPaths } from '../shared/paths';
 import { nameFromFile } from '../shared/status';
 import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
+import { processConfig } from '../processConfig';
 import { blankUsage, matchesName, saveError, toUsageInputs, type JobInitialValues, type PartyValues, type UsagesValues } from './jobFormHelpers';
 import { RunOutcomeField, RunTimingFields } from './RunFields';
 import { resolveTimes, runDefaults, runOutcomeChoices, type RunValues } from './runFormHelpers';
+import { inkUsageInputs, toMeasures } from './processFormHelpers';
+import { StitchesField } from './ProcessRunFields';
 import { UsageRowsEditor } from './UsageFormModal';
 import '../styles/jobs.scss';
 
@@ -102,6 +105,8 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
       outcomeOverride: job?.outcomeOverridden && job.outcome !== 'unknown' ? job.outcome as MachineRunOutcome : '',
       ...runDefaults(),
       usages: mode === 'create' && !fromRun ? [blankUsage()] : [],
+      stitches: '',
+      ink: {},
     },
   });
   const guard = useUnsavedChanges({ isDirty: form.formState.isDirty });
@@ -111,6 +116,9 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
   const machines = useQuery({ ...machinesQuery({ page: 1, pageSize: 100 }), enabled: canReadMachines && !fromRun });
   const canReadPricing = can('pricing.read');
   const pricing = useQuery({ ...pricingQuery(), enabled: canReadPricing && mode === 'create' });
+  const machineId = form.watch('machineId');
+  const process = (machines.data?.items ?? []).find((machine) => machine.id === machineId)?.machineType.process;
+  const config = process ? processConfig[process] : undefined;
   const machineChoices = useMemo(() => {
     const items = (machines.data?.items ?? []).filter((machine) => machine.status !== 'retired' || machine.id === job?.machine.id).map((machine) => ({ id: machine.id, name: machine.name }));
     if (job && !items.some((item) => item.id === job.machine.id)) items.unshift({ id: job.machine.id, name: job.machine.name });
@@ -132,7 +140,7 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
       return createMachineJob({
         machineId: values.machineId, customer: customer!, operatorPersonId, title, notes, pricingGroupId,
         // The outcome only exists once the first run has ended.
-        run: { ...first, outcome: new Date(first.endsAt).getTime() > Date.now() || !values.outcome ? null : values.outcome, usages: toUsageInputs(values.usages) },
+        run: { ...first, outcome: new Date(first.endsAt).getTime() > Date.now() || !values.outcome ? null : values.outcome, usages: [...toUsageInputs(values.usages), ...inkUsageInputs(values.ink ?? {})], measures: toMeasures({ stitches: values.stitches ?? '' }, process) },
       });
     },
     onSuccess: async (saved, { values }) => {
@@ -226,11 +234,12 @@ function JobForm({ onClose, mode, job, initialValues, run, onSaved }: JobFormPro
                   </div>
                   <RunTimingFields idPrefix="job-form" />
                   <RunOutcomeField idPrefix="job-form" />
+                  {config?.measures.includes('stitches') && <StitchesField idPrefix="job-form" />}
                   <div>
                     <h3 className="mj-section-title">Material usage</h3>
                     <p className="mj-secondary">Record everything consumed, including waste from failed outcomes. Stock is deducted when the job is saved.</p>
                   </div>
-                  <UsageRowsEditor idPrefix="job-form-usage" />
+                  <UsageRowsEditor idPrefix="job-form-usage" process={process} />
                 </Stack>
               )}
               {fromRun && (

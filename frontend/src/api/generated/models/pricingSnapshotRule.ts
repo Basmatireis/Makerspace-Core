@@ -20,6 +20,7 @@ the required session and CSRF credentials.
  */
 import type { PricingSnapshotRuleSourceRuleId } from './pricingSnapshotRuleSourceRuleId';
 import type { PricingRuleKind } from './pricingRuleKind';
+import type { PricingSnapshotRuleMeasure } from './pricingSnapshotRuleMeasure';
 import type { PricingSnapshotRuleRate } from './pricingSnapshotRuleRate';
 
 export interface PricingSnapshotRule {
@@ -28,7 +29,16 @@ export interface PricingSnapshotRule {
   kind: PricingRuleKind;
   label: string;
   selector: string;
+  /** hour, a material unit, or stitch for measure rules. */
   unit: string;
+  /** @nullable */
+  measure?: PricingSnapshotRuleMeasure;
+  /**
+   * Measure rules: the rate is per this many units.
+   * @minimum 1
+   * @nullable
+   */
+  blockSize?: number | null;
   /** @nullable */
   rate?: PricingSnapshotRuleRate;
   missing: boolean;

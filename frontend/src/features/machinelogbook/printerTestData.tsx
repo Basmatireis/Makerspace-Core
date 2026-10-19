@@ -25,8 +25,8 @@ export const now = '2026-09-15T11:26:00Z';
 export const printerTypeId = '0192f6f8-743e-7c77-a349-cd07c3e8b002';
 export const laserTypeId = '0192f6f8-743e-7c77-a349-cd07c3e8b001';
 export const types: MachineType[] = [
-  { id: laserTypeId, name: 'Laser', active: true, printer: false, version: 3, createdAt: now, updatedAt: now },
-  { id: printerTypeId, name: '3D printer', active: true, printer: true, version: 1, createdAt: now, updatedAt: now },
+  { id: laserTypeId, name: 'Laser', active: true, process: 'laser_cutting', version: 3, createdAt: now, updatedAt: now },
+  { id: printerTypeId, name: '3D printer', active: true, process: 'fdm_printing', version: 1, createdAt: now, updatedAt: now },
 ];
 
 export function machineOf(id: string, name: string, overrides: Partial<Machine> = {}): Machine {

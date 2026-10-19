@@ -76,7 +76,7 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, person_id, status) VALUES ($1, $2, 'enabled')`, accountID, personID); err != nil {
 		t.Fatal(err)
 	}
-	machineType, err := jobs.CreateMachineType(ctx, p, "Printer "+suffix, true, &requestID)
+	machineType, err := jobs.CreateMachineType(ctx, p, "Printer "+suffix, "fdm_printing", &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	diameter := "1.75"
-	materialType, err := jobs.CreateMaterialType(ctx, p, "PLA "+suffix, "g", &requestID)
+	materialType, err := jobs.CreateMaterialType(ctx, p, "PLA "+suffix, "g", []string{"fdm_printing", "other"}, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}

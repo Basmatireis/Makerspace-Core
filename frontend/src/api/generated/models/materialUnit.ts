@@ -19,6 +19,9 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * m2 stays for existing data; new square-measure material uses cm2.
+ */
 export type MaterialUnit = typeof MaterialUnit[keyof typeof MaterialUnit];
 
 
@@ -28,5 +31,6 @@ export const MaterialUnit = {
   m: 'm',
   ml: 'ml',
   m2: 'm2',
+  cm2: 'cm2',
   piece: 'piece',
 } as const;

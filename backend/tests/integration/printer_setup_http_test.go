@@ -119,7 +119,7 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	}
 	master := authorization.Principal{AccountID: accountID, PersonID: personID, Master: true}
 	logbook := machinelogbook.NewService(pool)
-	machineType, err := logbook.CreateMachineType(ctx, master, "Setup printer", true, nil)
+	machineType, err := logbook.CreateMachineType(ctx, master, "Setup printer", "fdm_printing", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,6 +164,27 @@ func TestPrinterSetupAndLiveStatusOverHTTP(t *testing.T) {
 	response = doJSON(t, managerClient, http.MethodPut, server.URL+setupPath, origin, managerCSRF, duplicate)
 	assertStatus(t, response, http.StatusUnprocessableEntity)
 	response.Body.Close()
+
+	// Only FDM printing machines have a printer setup: a machine of another process
+	// refuses both the setup and the profile endpoint, even for a manager.
+	embroideryType, err := logbook.CreateMachineType(ctx, master, "Setup embroidery", "embroidery", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	embroidery, err := logbook.CreateMachine(ctx, master, embroideryType.ID, "Setup embroidery 1", "active", nil, false, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for method, path := range map[string]string{"setup": "/api/v1/machines/" + embroidery.ID.String() + "/printer/setup", "profile": "/api/v1/machines/" + embroidery.ID.String() + "/printer"} {
+		body := setupBody(nil)
+		if method == "profile" {
+			body = map[string]any{"enabled": true, "expectedVersion": 0}
+		}
+		response = doJSON(t, managerClient, http.MethodPut, server.URL+path, origin, managerCSRF, body)
+		assertStatus(t, response, http.StatusConflict)
+		response.Body.Close()
+	}
+	assertCount(t, pool, `SELECT count(*) FROM printer_profiles WHERE machine_id = $1`, 0, embroidery.ID)
 
 	// Live status is readable with machines.read and absent until a connector reports.
 	for _, who := range []struct {

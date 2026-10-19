@@ -92,19 +92,19 @@ func newJobFixtureAt(t *testing.T, now time.Time) *jobFixture {
 			t.Fatal(err)
 		}
 	}
-	typ, err := f.s.CreateMachineType(ctx, f.p, "Jobs printer "+suffix, false, &f.request)
+	typ, err := f.s.CreateMachineType(ctx, f.p, "Jobs printer "+suffix, "other", &f.request)
 	must(err)
 	typeIDs = append(typeIDs, typ.ID)
 	f.machine, err = f.s.CreateMachine(ctx, f.p, typ.ID, "Jobs machine "+suffix, "active", nil, false, &f.request)
 	must(err)
 	machineIDs = append(machineIDs, f.machine.ID)
-	bareType, err := f.s.CreateMachineType(ctx, f.p, "Jobs bare "+suffix, false, &f.request)
+	bareType, err := f.s.CreateMachineType(ctx, f.p, "Jobs bare "+suffix, "other", &f.request)
 	must(err)
 	typeIDs = append(typeIDs, bareType.ID)
 	f.bareMachine, err = f.s.CreateMachine(ctx, f.p, bareType.ID, "Jobs bare machine "+suffix, "active", nil, false, &f.request)
 	must(err)
 	machineIDs = append(machineIDs, f.bareMachine.ID)
-	f.materialType, err = f.s.CreateMaterialType(ctx, f.p, "Jobs PLA "+suffix, "g", &f.request)
+	f.materialType, err = f.s.CreateMaterialType(ctx, f.p, "Jobs PLA "+suffix, "g", []string{"fdm_printing", "other"}, &f.request)
 	must(err)
 	f.material, err = f.s.CreateMaterial(ctx, f.p, MaterialInput{Name: "Jobs PLA " + suffix, MaterialTypeID: f.materialType.ID}, &f.request)
 	must(err)
@@ -113,9 +113,9 @@ func newJobFixtureAt(t *testing.T, now time.Time) *jobFixture {
 	f.material = purchase.Material
 	f.group, err = f.s.CreatePricingGroup(ctx, f.p, "Jobs pricing "+suffix, nil, false, &f.request)
 	must(err)
-	_, err = f.s.CreatePricingRule(ctx, f.p, f.group.ID, "machine_runtime", &typ.ID, nil, "10", &f.request)
+	_, err = f.s.CreatePricingRule(ctx, f.p, f.group.ID, "machine_runtime", &typ.ID, nil, nil, "10", &f.request)
 	must(err)
-	_, err = f.s.CreatePricingRule(ctx, f.p, f.group.ID, "material", nil, &f.materialType.ID, "0.1", &f.request)
+	_, err = f.s.CreatePricingRule(ctx, f.p, f.group.ID, "material", nil, &f.materialType.ID, nil, "0.1", &f.request)
 	must(err)
 	return f
 }

@@ -20,12 +20,15 @@ the required session and CSRF credentials.
  */
 import type { UUIDv7 } from './uUIDv7';
 import type { MaterialUnit } from './materialUnit';
+import type { MachineProcess } from './machineProcess';
 import type { Version } from './version';
 
 export interface MaterialType {
   id: UUIDv7;
   name: string;
   unit: MaterialUnit;
+  /** Processes whose machines can consume materials of this type in new runs. */
+  processes: MachineProcess[];
   active: boolean;
   /**
    * Materials of this type.

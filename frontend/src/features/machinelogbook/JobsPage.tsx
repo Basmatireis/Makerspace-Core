@@ -19,6 +19,7 @@ import { formatDateTime, formatDuration, formatMoney } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
 import { billingStateOptions, jobRowStatusOptions, JobRowStatusTag, workItemName, workItemSecondaryIds } from './shared/status';
+import { workItemConsumption } from './processConfig';
 import { useCan } from './shared/useCan';
 import './styles/jobs.scss';
 
@@ -70,6 +71,7 @@ const columns: Column<WorkItem>[] = [
       ? <div className="mj-cell-stack"><span>{item.customer?.displayName ?? '—'}</span>{item.operator && <span className="mj-secondary">{item.operator.displayName}</span>}</div>
       : '—',
   },
+  { key: 'consumption', header: 'Consumption', narrow: true, render: (item) => workItemConsumption(item.consumption) ?? '—' },
   { key: 'status', header: 'Status', render: (item) => <JobRowStatusTag status={item.status} size="sm" /> },
   { key: 'startedAt', header: 'Started', sortValue: () => 0, firstDirection: 'DESC', narrow: true, render: (item) => formatDateTime(item.startedAt) },
   { key: 'price', header: 'Price', sortValue: () => 0, firstDirection: 'DESC', render: (item) => formatMoney(item.effectivePrice) },

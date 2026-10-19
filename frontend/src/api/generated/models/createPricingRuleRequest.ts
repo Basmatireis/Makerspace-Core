@@ -21,6 +21,7 @@ the required session and CSRF credentials.
 import type { PricingRuleKind } from './pricingRuleKind';
 import type { CreatePricingRuleRequestMachineTypeId } from './createPricingRuleRequestMachineTypeId';
 import type { CreatePricingRuleRequestMaterialTypeId } from './createPricingRuleRequestMaterialTypeId';
+import type { CreatePricingRuleRequestMeasure } from './createPricingRuleRequestMeasure';
 import type { Decimal } from './decimal';
 
 export interface CreatePricingRuleRequest {
@@ -28,9 +29,14 @@ export interface CreatePricingRuleRequest {
   /** @nullable */
   machineTypeId?: CreatePricingRuleRequestMachineTypeId;
   /**
-   * Required for material rules, forbidden for runtime rules.
+   * Required for material rules, forbidden for runtime and measure rules.
    * @nullable
    */
   materialTypeId?: CreatePricingRuleRequestMaterialTypeId;
+  /**
+   * Required for machine_measure rules (with machineTypeId), forbidden otherwise. The machine type's process must support the measure.
+   * @nullable
+   */
+  measure?: CreatePricingRuleRequestMeasure;
   rate: Decimal;
 }

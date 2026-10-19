@@ -18,6 +18,7 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { MachineProcess } from './machineProcess';
 
 export interface CreateMachineTypeRequest {
   /**
@@ -25,5 +26,5 @@ export interface CreateMachineTypeRequest {
    * @maxLength 120
    */
   name: string;
-  printer?: boolean;
+  process: MachineProcess;
 }

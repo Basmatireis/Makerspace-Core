@@ -50,7 +50,7 @@ func newFillFixture(t *testing.T) *fillFixture {
 		_, _ = pool.Exec(cleanup, `DELETE FROM accounts WHERE id = $1`, account)
 		_, _ = pool.Exec(cleanup, `DELETE FROM people WHERE id = $1`, person)
 	})
-	materialType, err := f.s.CreateMaterialType(ctx, f.p, "Fill PLA "+f.suffix, "g", &f.request)
+	materialType, err := f.s.CreateMaterialType(ctx, f.p, "Fill PLA "+f.suffix, "g", []string{"fdm_printing", "other"}, &f.request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -650,7 +650,7 @@ func TestFinishFilamentSpool(t *testing.T) {
 
 	mount := func(spool FilamentSpool) {
 		t.Helper()
-		typ, err := f.s.CreateMachineType(ctx, f.p, f.unique("Finish type"), false, &f.request)
+		typ, err := f.s.CreateMachineType(ctx, f.p, f.unique("Finish type"), "other", &f.request)
 		if err != nil {
 			t.Fatal(err)
 		}

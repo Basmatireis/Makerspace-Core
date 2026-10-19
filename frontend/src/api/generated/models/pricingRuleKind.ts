@@ -26,4 +26,5 @@ export type PricingRuleKind = typeof PricingRuleKind[keyof typeof PricingRuleKin
 export const PricingRuleKind = {
   machine_runtime: 'machine_runtime',
   material: 'material',
+  machine_measure: 'machine_measure',
 } as const;

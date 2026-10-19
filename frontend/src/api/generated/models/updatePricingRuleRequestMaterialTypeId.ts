@@ -21,7 +21,7 @@ the required session and CSRF credentials.
 import type { UUIDv7 } from './uUIDv7';
 
 /**
- * Required for material rules, forbidden for runtime rules.
+ * Required for material rules, forbidden for runtime and measure rules.
  * @nullable
  */
 export type UpdatePricingRuleRequestMaterialTypeId = UUIDv7 | null;

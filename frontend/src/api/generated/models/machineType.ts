@@ -19,14 +19,14 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
+import type { MachineProcess } from './machineProcess';
 import type { Version } from './version';
 
 export interface MachineType {
   id: UUIDv7;
   name: string;
   active: boolean;
-  /** Machines of this type have a printer setup (profile, spool inputs, connector). */
-  printer: boolean;
+  process: MachineProcess;
   version: Version;
   createdAt: string;
   updatedAt: string;

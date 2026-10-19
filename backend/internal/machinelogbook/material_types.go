@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
@@ -16,8 +17,11 @@ import (
 
 var colorHexPattern = regexp.MustCompile(`^#[0-9A-F]{6}$`)
 
-func materialTypeFromList(row machinelogbookdb.ListMaterialTypesRow) MaterialType {
-	return MaterialType{ID: row.ID, Name: row.Name, Unit: row.Unit, Active: row.Active, MaterialCount: row.MaterialCount, PricingRuleCount: row.PricingRuleCount,
+func materialTypeFromList(row machinelogbookdb.ListMaterialTypesRow, processes []string) MaterialType {
+	if processes == nil {
+		processes = []string{}
+	}
+	return MaterialType{ID: row.ID, Name: row.Name, Unit: row.Unit, Processes: processes, Active: row.Active, MaterialCount: row.MaterialCount, PricingRuleCount: row.PricingRuleCount,
 		Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 
@@ -27,6 +31,65 @@ func validateMaterialTypeName(name string) (string, error) {
 		return "", validation("name is required and limited to 120 characters")
 	}
 	return name, nil
+}
+
+// validateProcesses checks a type's process list: at least one, all known, no
+// duplicates. The result is ordered like machineProcesses.
+func validateProcesses(processes []string) ([]string, error) {
+	if len(processes) == 0 {
+		return nil, validation("at least one process is required")
+	}
+	chosen := map[string]bool{}
+	for _, process := range processes {
+		if !validProcess(process) {
+			return nil, validation("invalid process")
+		}
+		chosen[process] = true
+	}
+	ordered := make([]string, 0, len(chosen))
+	for _, process := range machineProcesses {
+		if chosen[process] {
+			ordered = append(ordered, process)
+		}
+	}
+	return ordered, nil
+}
+
+// materialTypeProcesses loads the processes of the given types.
+func materialTypeProcesses(ctx context.Context, q *machinelogbookdb.Queries, ids []uuid.UUID) (map[uuid.UUID][]string, error) {
+	rows, err := q.ListMaterialTypeProcesses(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	byType := map[uuid.UUID][]string{}
+	for _, row := range rows {
+		byType[row.MaterialTypeID] = append(byType[row.MaterialTypeID], row.Process)
+	}
+	for _, list := range byType {
+		sort.Slice(list, func(i, j int) bool { return processRank(list[i]) < processRank(list[j]) })
+	}
+	return byType, nil
+}
+
+func processRank(process string) int {
+	for i, candidate := range machineProcesses {
+		if candidate == process {
+			return i
+		}
+	}
+	return len(machineProcesses)
+}
+
+func replaceMaterialTypeProcesses(ctx context.Context, q *machinelogbookdb.Queries, id uuid.UUID, processes []string) error {
+	if err := q.DeleteMaterialTypeProcesses(ctx, id); err != nil {
+		return err
+	}
+	for _, process := range processes {
+		if err := q.InsertMaterialTypeProcess(ctx, machinelogbookdb.InsertMaterialTypeProcessParams{MaterialTypeID: id, Process: process}); err != nil {
+			return databaseError(err)
+		}
+	}
+	return nil
 }
 
 func materialTypeConflict(err error) error {
@@ -47,9 +110,17 @@ func (s *Service) ListMaterialTypes(ctx context.Context, p authorization.Princip
 	if err != nil {
 		return nil, err
 	}
+	ids := make([]uuid.UUID, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	processes, err := materialTypeProcesses(ctx, machinelogbookdb.New(s.pool), ids)
+	if err != nil {
+		return nil, err
+	}
 	items := make([]MaterialType, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, materialTypeFromList(row))
+		items = append(items, materialTypeFromList(row, processes[row.ID]))
 	}
 	return items, nil
 }
@@ -58,14 +129,19 @@ func (s *Service) GetMaterialType(ctx context.Context, p authorization.Principal
 	if err := require(p, authorization.InventoryRead); err != nil {
 		return MaterialType{}, err
 	}
-	row, err := machinelogbookdb.New(s.pool).GetMaterialType(ctx, id)
+	q := machinelogbookdb.New(s.pool)
+	row, err := q.GetMaterialType(ctx, id)
 	if err != nil {
 		return MaterialType{}, noRows(err)
 	}
-	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row)), nil
+	processes, err := materialTypeProcesses(ctx, q, []uuid.UUID{id})
+	if err != nil {
+		return MaterialType{}, err
+	}
+	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row), processes[id]), nil
 }
 
-func (s *Service) CreateMaterialType(ctx context.Context, p authorization.Principal, name, unit string, requestID *uuid.UUID) (MaterialType, error) {
+func (s *Service) CreateMaterialType(ctx context.Context, p authorization.Principal, name, unit string, processes []string, requestID *uuid.UUID) (MaterialType, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return MaterialType{}, err
 	}
@@ -75,6 +151,10 @@ func (s *Service) CreateMaterialType(ctx context.Context, p authorization.Princi
 	}
 	if !validUnit(unit) {
 		return MaterialType{}, validation("invalid material unit")
+	}
+	processes, err = validateProcesses(processes)
+	if err != nil {
+		return MaterialType{}, err
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -86,7 +166,10 @@ func (s *Service) CreateMaterialType(ctx context.Context, p authorization.Princi
 	if _, err = q.CreateMaterialType(ctx, machinelogbookdb.CreateMaterialTypeParams{ID: id, Name: name, Unit: unit}); err != nil {
 		return MaterialType{}, materialTypeConflict(err)
 	}
-	if err = writeAudit(ctx, tx, p, "material_type.created", "material_type", id, requestID, []string{"name", "unit"}); err != nil {
+	if err = replaceMaterialTypeProcesses(ctx, q, id, processes); err != nil {
+		return MaterialType{}, err
+	}
+	if err = writeAudit(ctx, tx, p, "material_type.created", "material_type", id, requestID, []string{"name", "unit", "processes"}); err != nil {
 		return MaterialType{}, err
 	}
 	row, err := q.GetMaterialType(ctx, id)
@@ -96,13 +179,14 @@ func (s *Service) CreateMaterialType(ctx context.Context, p authorization.Princi
 	if err = tx.Commit(ctx); err != nil {
 		return MaterialType{}, err
 	}
-	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row)), nil
+	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row), processes), nil
 }
 
 // UpdateMaterialType renames, deactivates or reactivates a type. Its unit can
 // only change while no material or pricing rule uses the type, because those
-// keep the unit of their type.
-func (s *Service) UpdateMaterialType(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, name, unit string, active bool, requestID *uuid.UUID) (MaterialType, error) {
+// keep the unit of their type. Nil processes keeps the current ones; a given
+// list replaces them and must not be empty.
+func (s *Service) UpdateMaterialType(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, name, unit string, processes []string, active bool, requestID *uuid.UUID) (MaterialType, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return MaterialType{}, err
 	}
@@ -115,6 +199,12 @@ func (s *Service) UpdateMaterialType(ctx context.Context, p authorization.Princi
 	}
 	if !validUnit(unit) {
 		return MaterialType{}, validation("invalid material unit")
+	}
+	if processes != nil {
+		processes, err = validateProcesses(processes)
+		if err != nil {
+			return MaterialType{}, err
+		}
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -144,17 +234,26 @@ func (s *Service) UpdateMaterialType(ctx context.Context, p authorization.Princi
 		}
 		return MaterialType{}, materialTypeConflict(err)
 	}
-	if err = writeAudit(ctx, tx, p, "material_type.updated", "material_type", id, requestID, []string{"name", "unit", "active"}); err != nil {
+	if processes != nil {
+		if err = replaceMaterialTypeProcesses(ctx, q, id, processes); err != nil {
+			return MaterialType{}, err
+		}
+	}
+	if err = writeAudit(ctx, tx, p, "material_type.updated", "material_type", id, requestID, []string{"name", "unit", "processes", "active"}); err != nil {
 		return MaterialType{}, err
 	}
 	row, err := q.GetMaterialType(ctx, id)
 	if err != nil {
 		return MaterialType{}, err
 	}
+	stored, err := materialTypeProcesses(ctx, q, []uuid.UUID{id})
+	if err != nil {
+		return MaterialType{}, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return MaterialType{}, err
 	}
-	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row)), nil
+	return materialTypeFromList(machinelogbookdb.ListMaterialTypesRow(row), stored[id]), nil
 }
 
 // DeleteMaterialType hard-deletes a type that no material or pricing rule uses.

@@ -9,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { clearMachineJobPriceAdjustment } from '../../api/generated/machine-jobs/machine-jobs';
 import { cancelMachineRun, detachMachineRun, updateMachineRun } from '../../api/generated/machine-runs/machine-runs';
-import type { JobOrderAssociation, MachineJob, MachineRun, MachineRunOutcome, WorkItemBilling } from '../../api/generated/models';
+import type { JobOrderAssociation, MachineJob, MachineRun, MaterialUnit, MachineRunOutcome, WorkItemBilling } from '../../api/generated/models';
 import { ApiError } from '../../api/http-client';
 import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
 import { PageShell } from '../../app/PageShell';
@@ -24,6 +24,7 @@ import { runOutcomeChoices } from './dialogs/runFormHelpers';
 import { RunFormModal } from './dialogs/RunFormModal';
 import { UsageFormModal } from './dialogs/UsageFormModal';
 import { jobQuery, machineLogbookKeys, runsQuery } from './queries';
+import { jobConsumption, unitText } from './processConfig';
 import { formatDateTime, formatDuration, formatMoney, formatQuantity } from './shared/format';
 import { machineLogbookPaths } from './shared/paths';
 import { QueryBoundary } from './shared/QueryBoundary';
@@ -105,6 +106,8 @@ function JobDetail({ job }: { job: MachineJob }) {
   const price = job.effectivePrice == null ? null : Number(job.effectivePrice);
   const calculated = job.calculatedPrice == null ? null : Number(job.calculatedPrice);
   const runs = activeRuns(job);
+  // FDM jobs (grams only, no measures) keep the usage table as their only consumption display.
+  const consumption = runs.every((run) => run.usages.every((usage) => usage.unit === 'g') && Object.keys(run.measures).length === 0) ? null : jobConsumption({ runs, measures: job.measures });
   const replacedCount = job.runs.length - runs.length;
   const pendingOutcomes = status === 'needs_outcome' ? runsNeedingOutcome(job, now) : [];
 
@@ -179,6 +182,7 @@ function JobDetail({ job }: { job: MachineJob }) {
             <div><dt>Start</dt><dd>{job.startedAt ? formatDateTime(job.startedAt) : '—'}</dd></div>
             <div><dt>Runtime</dt><dd className="mj-cell-stack"><span>{formatDuration(job.durationSeconds)}</span>{runs.length > 1 && <span className="mj-secondary">All runs together</span>}</dd></div>
             <div><dt>{running && !job.endedAt ? 'Expected end' : 'End'}</dt><dd>{job.endedAt ? formatDateTime(job.endedAt) : job.expectedEndAt ? formatDateTime(job.expectedEndAt) : '—'}</dd></div>
+            {consumption && <div><dt>Consumption</dt><dd>{consumption}</dd></div>}
             <div><dt>Runs</dt><dd className="mj-cell-stack"><span>{runs.length}</span>{replacedCount > 0 && <span className="mj-secondary">{replacedCount} replaced</span>}</dd></div>
             <div>
               <dt>Outcome</dt>
@@ -257,7 +261,7 @@ function JobDetail({ job }: { job: MachineJob }) {
                   </dl>
                   <ul className="mj-rule-list">
                     {job.pricingSnapshot.rules.map((rule) => (
-                      <li key={`${rule.kind}-${rule.selector}-${rule.label}`}><span>{rule.label}</span>{rule.missing ? <Tag type="red" size="sm">No rate</Tag> : <span>{formatMoney(rule.rate)} / {rule.unit}</span>}</li>
+                      <li key={`${rule.kind}-${rule.selector}-${rule.label}`}><span>{rule.label}</span>{rule.missing ? <Tag type="red" size="sm">No rate</Tag> : <span>{formatMoney(rule.rate)} / {rule.kind === 'machine_measure' ? `${rule.blockSize ?? 1000} ${rule.measure ?? rule.unit}` : unitText(rule.unit as MaterialUnit)}</span>}</li>
                     ))}
                   </ul>
                 </AccordionItem>

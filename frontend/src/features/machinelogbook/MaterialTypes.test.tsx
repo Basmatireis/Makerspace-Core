@@ -19,7 +19,7 @@ vi.mock('../auth/auth', () => ({ useCurrentUser: () => ({ permissions: auth.perm
 
 const now = '2026-09-15T11:26:00Z';
 const type = (overrides: Partial<MaterialType>): MaterialType => ({
-  id: '0192f6f8-743e-7c77-a349-cd07c3e8f001', name: 'PLA', unit: 'g', active: true, materialCount: 3, pricingRuleCount: 2, version: 2, createdAt: now, updatedAt: now, ...overrides,
+  id: '0192f6f8-743e-7c77-a349-cd07c3e8f001', name: 'PLA', unit: 'g', processes: ['fdm_printing'], active: true, materialCount: 3, pricingRuleCount: 2, version: 2, createdAt: now, updatedAt: now, ...overrides,
 });
 const pla = type({});
 const unused = type({ id: '0192f6f8-743e-7c77-a349-cd07c3e8f002', name: 'Plywood', unit: 'm2', materialCount: 0, pricingRuleCount: 0, version: 1 });
@@ -73,8 +73,14 @@ describe('Material types section', () => {
     expect(await within(dialog).findByText('Enter a name.')).toBeInTheDocument();
     await user.type(within(dialog).getByLabelText('Name'), 'PETG-CF');
     await user.selectOptions(within(dialog).getByLabelText('Unit'), 'g');
+    // At least one process is required.
     await user.click(within(dialog).getByRole('button', { name: 'Add material type' }));
-    await waitFor(() => expect(submitted).toEqual({ name: 'PETG-CF', unit: 'g' }));
+    expect(await within(dialog).findByText('Choose at least one process.')).toBeInTheDocument();
+    expect(submitted).toBeUndefined();
+    await user.click(within(dialog).getByRole('checkbox', { name: 'FDM 3D printing' }));
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Other' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Add material type' }));
+    await waitFor(() => expect(submitted).toEqual({ name: 'PETG-CF', unit: 'g', processes: ['fdm_printing', 'other'] }));
     expect(await screen.findByText('Material type added')).toBeInTheDocument();
   });
 

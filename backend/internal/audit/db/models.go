@@ -519,6 +519,8 @@ type MachineJobPricingSnapshotRule struct {
 	Rate           pgtype.Numeric
 	Missing        bool
 	MaterialTypeID *uuid.UUID
+	Measure        *string
+	BlockSize      *int32
 }
 
 type MachineJobRunSummary struct {
@@ -560,6 +562,12 @@ type MachineRun struct {
 	ArtifactID            *uuid.UUID
 	DeletedAt             pgtype.Timestamptz
 	DeletedBy             *uuid.UUID
+}
+
+type MachineRunMeasure struct {
+	RunID   uuid.UUID
+	Measure string
+	Value   int64
 }
 
 type MachineRunReportedUsageItem struct {
@@ -613,7 +621,7 @@ type MachineType struct {
 	Version   int64
 	CreatedAt time.Time
 	UpdatedAt time.Time
-	Printer   bool
+	Process   string
 }
 
 type MailConfiguration struct {
@@ -710,6 +718,11 @@ type MaterialType struct {
 	Version   int64
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type MaterialTypeProcess struct {
+	MaterialTypeID uuid.UUID
+	Process        string
 }
 
 type OidcFlow struct {
@@ -1039,6 +1052,8 @@ type PricingRule struct {
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 	MaterialTypeID *uuid.UUID
+	Measure        *string
+	BlockSize      *int32
 }
 
 type PrintArtifact struct {

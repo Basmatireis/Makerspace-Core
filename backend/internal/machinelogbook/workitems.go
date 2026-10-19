@@ -36,7 +36,19 @@ type WorkItem struct {
 	ProgressPercent        *int
 	EffectivePrice         *string
 	Billing                *WorkItemBilling
+	Consumption            WorkItemConsumption
 	Version                int64
+}
+
+// WorkItemConsumption summarises what the runs of a work item consumed, per
+// material type and unit, and their run measures.
+type WorkItemConsumption struct {
+	Materials []ConsumedMaterial
+	Measures  RunMeasures
+}
+
+type ConsumedMaterial struct {
+	MaterialTypeName, Unit, Quantity string
 }
 
 type WorkItemFilters struct {
@@ -122,7 +134,49 @@ func (s *Service) ListWorkItems(ctx context.Context, p authorization.Principal, 
 			total = first[0].Total
 		}
 	}
-	return workItemsFromRows(rows, p.Has(authorization.OrdersRead)), total, nil
+	items := workItemsFromRows(rows, p.Has(authorization.OrdersRead))
+	if err = attachConsumption(ctx, q, items); err != nil {
+		return nil, 0, err
+	}
+	return items, total, nil
+}
+
+// attachConsumption fills the consumption summary of the listed items.
+func attachConsumption(ctx context.Context, q *machinelogbookdb.Queries, items []WorkItem) error {
+	ids := make([]uuid.UUID, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	materials, err := q.ListWorkItemMaterialTotals(ctx, ids)
+	if err != nil {
+		return err
+	}
+	measures, err := q.ListWorkItemMeasureTotals(ctx, ids)
+	if err != nil {
+		return err
+	}
+	byItem := map[uuid.UUID]*WorkItemConsumption{}
+	of := func(id uuid.UUID) *WorkItemConsumption {
+		if byItem[id] == nil {
+			byItem[id] = &WorkItemConsumption{Materials: []ConsumedMaterial{}, Measures: RunMeasures{}}
+		}
+		return byItem[id]
+	}
+	for _, row := range materials {
+		c := of(row.ItemID)
+		c.Materials = append(c.Materials, ConsumedMaterial{MaterialTypeName: row.MaterialTypeName, Unit: row.Unit, Quantity: decimalString(row.Quantity)})
+	}
+	for _, row := range measures {
+		of(row.ItemID).Measures[row.Measure] = row.Value
+	}
+	for i := range items {
+		if c := byItem[items[i].ID]; c != nil {
+			items[i].Consumption = *c
+		} else {
+			items[i].Consumption = WorkItemConsumption{Materials: []ConsumedMaterial{}, Measures: RunMeasures{}}
+		}
+	}
+	return nil
 }
 
 func workItemsFromRows(rows []machinelogbookdb.ListWorkItemsRow, includeOrder bool) []WorkItem {

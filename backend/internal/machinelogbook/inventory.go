@@ -16,7 +16,7 @@ import (
 )
 
 func validUnit(unit string) bool {
-	return unit == "g" || unit == "m" || unit == "ml" || unit == "m2" || unit == "piece"
+	return unit == "g" || unit == "m" || unit == "ml" || unit == "m2" || unit == "cm2" || unit == "piece"
 }
 func stockState(quantity decimal.Decimal, threshold pgtype.Numeric) string {
 	if quantity.IsZero() {

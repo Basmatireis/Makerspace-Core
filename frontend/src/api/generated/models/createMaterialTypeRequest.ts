@@ -19,6 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { MaterialUnit } from './materialUnit';
+import type { MachineProcess } from './machineProcess';
 
 export interface CreateMaterialTypeRequest {
   /**
@@ -27,4 +28,6 @@ export interface CreateMaterialTypeRequest {
    */
   name: string;
   unit: MaterialUnit;
+  /** @minItems 1 */
+  processes: MachineProcess[];
 }
