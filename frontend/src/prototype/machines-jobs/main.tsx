@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { createHashRouter, RouterProvider } from 'react-router-dom';
 import { PrototypeStoreProvider } from './store';
 import { PrototypeApp } from './PrototypeApp';
+import { SignageProvider } from './signage/SignageContext';
 import '../../styles/index.scss';
 import './prototype.scss';
 
@@ -13,7 +14,9 @@ const router = createHashRouter([{ path: '*', element: <PrototypeApp /> }]);
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <PrototypeStoreProvider>
-      <RouterProvider router={router} />
+      <SignageProvider>
+        <RouterProvider router={router} />
+      </SignageProvider>
     </PrototypeStoreProvider>
   </StrictMode>,
 );

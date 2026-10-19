@@ -23,9 +23,10 @@ export type Permission =
   | 'machine_jobs.edit' | 'machine_jobs.delete' | 'machine_jobs.override_price'
   | 'printer_slots.assign' | 'inventory.read' | 'inventory.manage' | 'filament_spools.manage' | 'orders.read' | 'orders.write' | 'orders.finalize' | 'payments.read' | 'payments.record'
   | 'orders.reverse' | 'payments.reverse' | 'external_invoice_requests.read' | 'external_invoice_requests.manage' | 'external_invoice_requests.approve' | 'pricing.read' | 'pricing.manage' | 'organizations.read' | 'organizations.manage'
-  | 'statistics.read' | 'printer_connectors.read' | 'printer_connectors.manage' | 'printer_connectors.credentials.manage';
+  | 'statistics.read' | 'printer_connectors.read' | 'printer_connectors.manage' | 'printer_connectors.credentials.manage'
+  | 'signage.read' | 'signage.manage' | 'signage.content.manage' | 'signage.publish' | 'signage.override' | 'local_services.manage';
 
-export type Role = 'supervisor' | 'operator' | 'viewer' | 'front_desk' | 'finance' | 'management';
+export type Role = 'supervisor' | 'operator' | 'viewer' | 'front_desk' | 'finance' | 'management' | 'content_editor';
 export type Scenario = 'normal' | 'loading' | 'error' | 'empty';
 /** Outcome of the simulated "Test connection" call in the machine setup wizard. */
 export type ConnectionTestMode = 'success' | 'unreachable' | 'wrong_code';
@@ -34,6 +35,7 @@ const ALL: Permission[] = [
   'machines.read', 'machines.manage', 'machine_jobs.read', 'machine_jobs.create', 'machine_jobs.edit', 'machine_jobs.delete', 'machine_jobs.override_price', 'printer_slots.assign', 'inventory.read', 'inventory.manage', 'filament_spools.manage',
   'orders.read', 'orders.write', 'orders.finalize', 'orders.reverse', 'payments.read', 'payments.record', 'payments.reverse', 'external_invoice_requests.read', 'external_invoice_requests.manage', 'external_invoice_requests.approve',
   'pricing.read', 'pricing.manage', 'organizations.read', 'organizations.manage', 'statistics.read', 'printer_connectors.read', 'printer_connectors.manage', 'printer_connectors.credentials.manage',
+  'signage.read', 'signage.manage', 'signage.content.manage', 'signage.publish', 'signage.override', 'local_services.manage',
 ];
 
 export const rolePresets: Record<Role, { label: string; description: string; permissions: Permission[] }> = {
@@ -42,7 +44,7 @@ export const rolePresets: Record<Role, { label: string; description: string; per
   viewer: { label: 'Read-only', description: 'Can look up machines and jobs only', permissions: ['machines.read', 'machine_jobs.read'] },
   front_desk: {
     label: 'Front desk', description: 'Creates and finalizes orders, records payments and cash movements; no reversals, no pricing edits, no invoice requests',
-    permissions: ['machines.read', 'machine_jobs.read', 'machine_jobs.create', 'inventory.read', 'orders.read', 'orders.write', 'orders.finalize', 'payments.read', 'payments.record', 'pricing.read'],
+    permissions: ['machines.read', 'machine_jobs.read', 'machine_jobs.create', 'inventory.read', 'orders.read', 'orders.write', 'orders.finalize', 'payments.read', 'payments.record', 'pricing.read', 'signage.read', 'signage.override'],
   },
   finance: {
     label: 'Finance', description: 'All sales, payments and invoicing; read-only workshop',
@@ -51,6 +53,10 @@ export const rolePresets: Record<Role, { label: string; description: string; per
   management: {
     label: 'Management', description: 'All sales permissions, including approving invoice requests; read-only workshop',
     permissions: ['machines.read', 'machine_jobs.read', 'inventory.read', 'statistics.read', 'orders.read', 'orders.write', 'orders.finalize', 'orders.reverse', 'payments.read', 'payments.record', 'payments.reverse', 'external_invoice_requests.read', 'external_invoice_requests.manage', 'external_invoice_requests.approve', 'pricing.read', 'pricing.manage', 'organizations.read', 'organizations.manage'],
+  },
+  content_editor: {
+    label: 'Content editor', description: 'Edits signage scenes, playlists and media; cannot pair, publish or change rules',
+    permissions: ['signage.read', 'signage.content.manage'],
   },
 };
 
