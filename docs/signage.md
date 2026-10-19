@@ -94,3 +94,13 @@ Separate Vite entry `frontend/player.html` → `src/player/main.tsx`; no Carbon,
 - Go unit tests: zone validation, rule validation, announcement rendering (vectors), ticket signing/verification, pairing code generation.
 - PostgreSQL integration tests (`backend/tests/integration/signage_*_test.go`): every permission (allowed and denied), pairing flow end to end incl. expiry and wrong code, device mode isolation (signage device cannot call staff APIs; staff cannot call player APIs without a device), publish manifest contents, reference-blocked deletes, announcement targeting/time windows, asset access limited to published assets, audit rows in the same transaction.
 - Frontend: engine unit tests (ported from the prototype), page tests for permission gating, player tests for rule evaluation and revision activation.
+
+## Phase 1b decisions
+
+- **Rule concurrency.** Rules have no version of their own: every rule write (create, update, enable toggle, delete, reorder) quotes the display's `expectedVersion` and bumps it. Responses return the full ordered rule list plus the new `displayVersion`. Reorder is `PUT /signage/displays/{id}/rule-order` with the complete id list. New rules are appended; deleting closes position gaps.
+- **Pairing details.** The device is created at claim time with an unusable random token digest; the first `paired` poll replaces it with the real token digest (`SetManagedDeviceTokenDigest`) and deletes the request. A claimed request stays collectable for 5 minutes. Poll-secret cookie: `makerspace_signage_pairing` (`__Host-` prefix in production), `Path=/`. Per-IP limit 10 codes/hour, 50 open requests, 10 wrong codes per account per 15 minutes (in-memory, single instance).
+- **Managed device type.** Paired devices use a device type named "Signage display", created on demand. Generic managed-device endpoints reject `signage_player` (422) and refuse to edit or rotate signage devices.
+- **Manifest response.** `GET /signage/player/manifest` answers `{unchanged, manifest?}` instead of a bare manifest; before the first publication it answers 404 `signage_not_published`. Only enabled rules are published. Pending changes are empty for a display that was never published.
+- **Revoked displays.** Revoking a display (or its managed device through the generic endpoint) makes the credential invalid (401); a device without a display answers 404.
+- **Assets.** Served with HTTP Range support when the storage reader is seekable (local storage); S3 storage streams the full body with `Accept-Ranges: none`.
+- **Live.** Open days and events come from the public calendar only (`events.ListUpcomingPublic`: published, planned or confirmed events with a public title, next public session, title/start/location only).

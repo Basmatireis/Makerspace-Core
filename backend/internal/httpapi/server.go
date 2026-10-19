@@ -116,7 +116,7 @@ func NewServer(pool *pgxpool.Pool, cfg config.Config) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("initialize printer connectors: %w", err)
 	}
-	signageService, err := signage.NewService(pool, cfg, fileService)
+	signageService, err := signage.NewService(pool, cfg, fileService, signage.WithPublicCalendar(publicCalendar{openDays: openDaysService, events: eventService}))
 	if err != nil {
 		return nil, fmt.Errorf("initialize signage: %w", err)
 	}

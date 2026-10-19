@@ -19,6 +19,9 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * `signage_player` is the only mode of a signage display's player device; it is set by pairing a display and rejected (422) by the generic managed-device endpoints.
+ */
 export type DeviceApplicationMode = typeof DeviceApplicationMode[keyof typeof DeviceApplicationMode];
 
 
@@ -26,4 +29,5 @@ export type DeviceApplicationMode = typeof DeviceApplicationMode[keyof typeof De
 export const DeviceApplicationMode = {
   visitor_terminal: 'visitor_terminal',
   staff_ui: 'staff_ui',
+  signage_player: 'signage_player',
 } as const;

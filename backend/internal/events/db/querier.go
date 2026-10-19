@@ -74,6 +74,9 @@ type Querier interface {
 	ListEvents(ctx context.Context) ([]ListEventsRow, error)
 	ListExpiredEventAssignmentsForUpdate(ctx context.Context, cutoff pgtype.Timestamptz) ([]ListExpiredEventAssignmentsForUpdateRow, error)
 	ListOwnEventAssignments(ctx context.Context, arg ListOwnEventAssignmentsParams) ([]EventShiftAssignment, error)
+	// One row per event: its next public scheduled session. Only already publicly visible events
+	// (published, with a public title) that are still planned or confirmed; returns nothing internal.
+	ListUpcomingPublicEventSessions(ctx context.Context, arg ListUpcomingPublicEventSessionsParams) ([]ListUpcomingPublicEventSessionsRow, error)
 	LockEventRequirement(ctx context.Context, id uuid.UUID) (EventShiftRequirement, error)
 	LockPersonForEventAssignment(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	MoveEventAssignment(ctx context.Context, arg MoveEventAssignmentParams) (EventShiftAssignment, error)

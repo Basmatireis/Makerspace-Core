@@ -2270,6 +2270,52 @@ func (q *Queries) ListOwnEventAssignments(ctx context.Context, arg ListOwnEventA
 	return items, nil
 }
 
+const listUpcomingPublicEventSessions = `-- name: ListUpcomingPublicEventSessions :many
+SELECT title, starts_at, location FROM (
+    SELECT DISTINCT ON (e.id) e.public_title::text AS title, es.starts_at,
+           COALESCE(NULLIF(btrim(es.location), ''), e.public_location, '')::text AS location
+    FROM events e JOIN event_sessions es ON es.event_id = e.id
+    WHERE e.is_public AND e.public_title IS NOT NULL AND e.status IN ('planning', 'confirmed')
+      AND es.is_public AND es.status = 'scheduled' AND es.ends_at > $1::timestamptz
+    ORDER BY e.id, es.starts_at
+) upcoming
+ORDER BY starts_at, title
+LIMIT $2::int
+`
+
+type ListUpcomingPublicEventSessionsParams struct {
+	Now      time.Time
+	RowLimit int32
+}
+
+type ListUpcomingPublicEventSessionsRow struct {
+	Title    string
+	StartsAt time.Time
+	Location string
+}
+
+// One row per event: its next public scheduled session. Only already publicly visible events
+// (published, with a public title) that are still planned or confirmed; returns nothing internal.
+func (q *Queries) ListUpcomingPublicEventSessions(ctx context.Context, arg ListUpcomingPublicEventSessionsParams) ([]ListUpcomingPublicEventSessionsRow, error) {
+	rows, err := q.db.Query(ctx, listUpcomingPublicEventSessions, arg.Now, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUpcomingPublicEventSessionsRow{}
+	for rows.Next() {
+		var i ListUpcomingPublicEventSessionsRow
+		if err := rows.Scan(&i.Title, &i.StartsAt, &i.Location); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockEventRequirement = `-- name: LockEventRequirement :one
 SELECT id, event_id, shift_id, name, description, required_count, eligibility_mode, version, created_at, updated_at FROM event_shift_requirements
 WHERE id = $1

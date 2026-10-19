@@ -389,6 +389,9 @@ func (s *Service) UpdateConfigured(ctx context.Context, principal authorization.
 	if current.Version != version {
 		return Device{}, apperror.StaleWrite
 	}
+	if isSignagePlayer(current.AllowedAppModes) {
+		return Device{}, validation("signage player devices are managed through signage displays")
+	}
 	now := time.Now().UTC()
 	expirationUnchanged := (expiresAt == nil && !current.ExpiresAt.Valid) ||
 		(expiresAt != nil && current.ExpiresAt.Valid && current.ExpiresAt.Time.Equal(*expiresAt))
@@ -477,7 +480,7 @@ func (s *Service) Delete(ctx context.Context, principal authorization.Principal,
 		return apperror.New(409, "managed_device_not_revoked", "A managed device must be revoked before deletion")
 	}
 	if _, err = q.DeleteManagedDevice(ctx, manageddevicesdb.DeleteManagedDeviceParams{ID: id, ExpectedVersion: version}); err != nil {
-		return err
+		return databaseError(err)
 	}
 	actor := principal.AccountID
 	if err = audit.Write(ctx, tx, audit.Event{ActorAccountID: &actor, Action: "managed_device.deleted", ResourceType: "managed_device", ResourceID: &id, RequestID: requestID}); err != nil {
@@ -731,6 +734,9 @@ func (s *Service) Rotate(ctx context.Context, principal authorization.Principal,
 	if current.RevokedAt.Valid {
 		return ProvisionedDevice{}, apperror.New(409, "managed_device_revoked", "A revoked managed device cannot rotate its token")
 	}
+	if isSignagePlayer(current.AllowedAppModes) {
+		return ProvisionedDevice{}, validation("signage player devices cannot rotate their token; pair the display again")
+	}
 	row, err := q.RotateManagedDeviceToken(ctx, manageddevicesdb.RotateManagedDeviceTokenParams{ID: id, ExpectedVersion: version, TokenDigest: digest, ExpiresAt: timestamp(expiresAt)})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ProvisionedDevice{}, apperror.StaleWrite
@@ -950,6 +956,9 @@ func validateDeviceSettings(settings DeviceSettings) (DeviceSettings, error) {
 	}
 	seenModes := map[string]bool{}
 	for _, mode := range settings.AllowedApplicationModes {
+		if mode == SignagePlayerMode {
+			return settings, validation("signage player devices are created by pairing a signage display")
+		}
 		if (mode != "visitor_terminal" && mode != "staff_ui") || seenModes[mode] {
 			return settings, validation("allowedApplicationModes must contain unique supported values")
 		}
@@ -1057,7 +1066,7 @@ func invalidRequest(reason string) *apperror.Error {
 }
 func databaseError(err error) error {
 	var p *pgconn.PgError
-	if errors.As(err, &p) && (p.Code == "23505" || p.Code == "23503") {
+	if errors.As(err, &p) && (p.Code == "23505" || p.Code == "23503" || p.Code == "23001") {
 		return apperror.Conflict
 	}
 	return err

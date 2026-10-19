@@ -30,10 +30,23 @@ type Service struct {
 	files    *files.Service
 	location *time.Location
 	now      func() time.Time
+	calendar PublicCalendar
+
+	pairingRequests *attemptLimiter // pairing codes handed out per client IP
+	claimFailures   *attemptLimiter // wrong pairing codes entered per staff account
+}
+
+// Option customises the service at construction.
+type Option func(*Service)
+
+// WithPublicCalendar supplies the already-public open days and events for the player live data.
+// Without it those lists stay empty.
+func WithPublicCalendar(calendar PublicCalendar) Option {
+	return func(s *Service) { s.calendar = calendar }
 }
 
 // NewService builds the service. Announcement times are rendered in the makerspace time zone.
-func NewService(pool *pgxpool.Pool, cfg config.Config, fileService *files.Service) (*Service, error) {
+func NewService(pool *pgxpool.Pool, cfg config.Config, fileService *files.Service, options ...Option) (*Service, error) {
 	timeZone := cfg.MakerspaceTimeZone
 	if timeZone == "" {
 		timeZone = "Europe/Vienna"
@@ -42,7 +55,15 @@ func NewService(pool *pgxpool.Pool, cfg config.Config, fileService *files.Servic
 	if err != nil {
 		return nil, fmt.Errorf("load makerspace timezone: %w", err)
 	}
-	return &Service{pool: pool, files: fileService, location: location, now: func() time.Time { return time.Now().UTC() }}, nil
+	service := &Service{
+		pool: pool, files: fileService, location: location, now: func() time.Time { return time.Now().UTC() },
+		pairingRequests: newAttemptLimiter(pairingRequestsPerWindow, pairingRequestWindow),
+		claimFailures:   newAttemptLimiter(claimFailuresPerWindow, claimFailureWindow),
+	}
+	for _, option := range options {
+		option(service)
+	}
+	return service, nil
 }
 
 // Reference names one entity that blocks a deletion.
@@ -90,7 +111,7 @@ func inUse(what string, references []Reference) error {
 
 func databaseError(err error) error {
 	var pgErr *pgconn.PgError
-	if errors.As(err, &pgErr) && (pgErr.Code == "23505" || pgErr.Code == "23503" || pgErr.Code == "23514") {
+	if errors.As(err, &pgErr) && (pgErr.Code == "23505" || pgErr.Code == "23503" || pgErr.Code == "23514" || pgErr.Code == "23001") {
 		return apperror.Conflict
 	}
 	return err

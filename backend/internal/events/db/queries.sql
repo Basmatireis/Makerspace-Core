@@ -468,3 +468,17 @@ SET first_name_snapshot = NULL, last_name_snapshot = NULL,
     version = version + 1, updated_at = now()
 WHERE id = sqlc.arg(id) AND personal_data_erased_at IS NULL
 RETURNING *;
+
+-- name: ListUpcomingPublicEventSessions :many
+-- One row per event: its next public scheduled session. Only already publicly visible events
+-- (published, with a public title) that are still planned or confirmed; returns nothing internal.
+SELECT title, starts_at, location FROM (
+    SELECT DISTINCT ON (e.id) e.public_title::text AS title, es.starts_at,
+           COALESCE(NULLIF(btrim(es.location), ''), e.public_location, '')::text AS location
+    FROM events e JOIN event_sessions es ON es.event_id = e.id
+    WHERE e.is_public AND e.public_title IS NOT NULL AND e.status IN ('planning', 'confirmed')
+      AND es.is_public AND es.status = 'scheduled' AND es.ends_at > sqlc.arg(now)::timestamptz
+    ORDER BY e.id, es.starts_at
+) upcoming
+ORDER BY starts_at, title
+LIMIT sqlc.arg(row_limit)::int;

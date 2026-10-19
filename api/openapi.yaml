@@ -47,6 +47,7 @@ tags:
   - name: Machine Logbook
   - name: Branding
   - name: Signage
+  - name: Signage Player
 
 paths:
   /health/live:
@@ -3474,6 +3475,301 @@ paths:
         "403": {$ref: "#/components/responses/Forbidden"}
         "404": {$ref: "#/components/responses/NotFound"}
         "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/displays:
+    get:
+      tags: [Signage]
+      operationId: listSignageDisplays
+      summary: List displays with status, publication state and pending changes
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Displays by name., content: {application/json: {schema: {$ref: "#/components/schemas/SignageDisplayList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Signage]
+      operationId: pairSignageDisplay
+      summary: Pair a display by the code its player shows
+      description: |
+        Requires `signage.manage`. Claims the open pairing request with that code and creates the display together with its signage-player managed device. Unknown, expired, already claimed and malformed codes all answer the same 422 `pairing_code_invalid`; repeated failures of one account answer 429.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PairSignageDisplayRequest"}}}}
+      responses:
+        "201": {description: Display created; the player receives its credential on its next poll., content: {application/json: {schema: {$ref: "#/components/schemas/SignageDisplay"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/displays/{displayId}:
+    parameters: [{$ref: "#/components/parameters/SignageDisplayId"}]
+    get:
+      tags: [Signage]
+      operationId: getSignageDisplay
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Display., content: {application/json: {schema: {$ref: "#/components/schemas/SignageDisplay"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    put:
+      tags: [Signage]
+      operationId: updateSignageDisplay
+      summary: Change the draft settings of a display
+      description: Requires `signage.manage`. Changes reach the player only with the next publication. A revoked display answers 409 `signage_display_revoked`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateSignageDisplayRequest"}}}}
+      responses:
+        "200": {description: Updated display., content: {application/json: {schema: {$ref: "#/components/schemas/SignageDisplay"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Signage]
+      operationId: deleteSignageDisplay
+      summary: Delete a revoked display and its managed device
+      description: Requires `signage.manage`. Answers 409 `signage_display_not_revoked` unless the display was revoked first.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: "Display, rules, publications and managed device deleted."}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/displays/{displayId}/revoke:
+    parameters: [{$ref: "#/components/parameters/SignageDisplayId"}]
+    post:
+      tags: [Signage]
+      operationId: revokeSignageDisplay
+      summary: Revoke a display and its player credential
+      description: Requires `signage.manage`. The player's credential stops working immediately; to bring the screen back, pair it again.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Revoked display., content: {application/json: {schema: {$ref: "#/components/schemas/SignageDisplay"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/displays/{displayId}/publish:
+    parameters: [{$ref: "#/components/parameters/SignageDisplayId"}]
+    post:
+      tags: [Signage]
+      operationId: publishSignageDisplay
+      summary: Publish the display's current drafts
+      description: Requires `signage.publish`. Builds the immutable manifest from the drafts in one transaction, increments the revision and keeps the latest five publications. A revoked display answers 409 `signage_display_revoked`.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      responses:
+        "200": {description: Display with its new published revision., content: {application/json: {schema: {$ref: "#/components/schemas/SignageDisplay"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/displays/{displayId}/rules:
+    parameters: [{$ref: "#/components/parameters/SignageDisplayId"}]
+    get:
+      tags: [Signage]
+      operationId: listSignageRules
+      summary: List the rules of a display in evaluation order
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Ordered rules and the display version every rule write must quote., content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Signage]
+      operationId: createSignageRule
+      summary: Append a rule to the display
+      description: Requires `signage.manage`. Rules share the display's optimistic-concurrency version (`expectedVersion` is the display version) and every rule write bumps it. The response carries the new version.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleRequest"}}}}
+      responses:
+        "201": {description: Rule created., content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/displays/{displayId}/rules/{ruleId}:
+    parameters: [{$ref: "#/components/parameters/SignageDisplayId"}, {$ref: "#/components/parameters/SignageRuleId"}]
+    put:
+      tags: [Signage]
+      operationId: updateSignageRule
+      summary: Replace all writable fields of a rule
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleRequest"}}}}
+      responses:
+        "200": {description: Updated rule list., content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    patch:
+      tags: [Signage]
+      operationId: setSignageRuleEnabled
+      summary: Enable or disable a rule
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SetSignageRuleEnabledRequest"}}}}
+      responses:
+        "200": {description: Updated rule list., content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Signage]
+      operationId: deleteSignageRule
+      summary: Delete a rule
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "200": {description: Remaining rules in order., content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/displays/{displayId}/rule-order:
+    parameters: [{$ref: "#/components/parameters/SignageDisplayId"}]
+    put:
+      tags: [Signage]
+      operationId: reorderSignageRules
+      summary: Set the complete rule order atomically
+      description: Requires `signage.manage`. `ruleIds` must list every rule of the display exactly once, first match wins.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ReorderSignageRulesRequest"}}}}
+      responses:
+        "200": {description: Rules in the new order., content: {application/json: {schema: {$ref: "#/components/schemas/SignageRuleList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /public/signage/pairing:
+    post:
+      tags: [Signage]
+      operationId: startSignagePairing
+      summary: An unpaired player requests a pairing code
+      description: |
+        Public. Creates a pairing request valid for 15 minutes and sets the HttpOnly `SameSite=Strict` poll-secret cookie (Secure in production). Rate-limited per client IP and capped globally; both answer 429.
+      security: []
+      responses:
+        "201": {description: Code to show on the screen., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Set-Cookie: {schema: {type: string}}}, content: {application/json: {schema: {$ref: "#/components/schemas/SignagePairingStart"}}}}
+        "429": {$ref: "#/components/responses/TooManyRequests"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    get:
+      tags: [Signage]
+      operationId: pollSignagePairing
+      summary: Poll the pairing request (every 3 seconds)
+      description: |
+        Public; identifies the request by the poll-secret cookie. `pending` until staff claim the code, `expired` when the request is gone or timed out. The first poll after the claim answers `paired` and sets the managed-device cookie exactly once, then the request is deleted.
+      security: []
+      responses:
+        "200": {description: Pairing state., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}, Set-Cookie: {schema: {type: string}}}, content: {application/json: {schema: {$ref: "#/components/schemas/SignagePairingPoll"}}}}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/player/manifest:
+    get:
+      tags: [Signage Player]
+      operationId: getSignagePlayerManifest
+      summary: The display's latest publication
+      description: Device credential of a signage player only; a user session is never accepted. Answers `unchanged` when `known` equals the latest revision and 404 `signage_not_published` before the first publication.
+      security: [{managedDeviceCookie: []}, {managedDeviceToken: []}]
+      parameters:
+        - {name: known, in: query, required: false, schema: {type: integer, minimum: 0, maximum: 1000000000}}
+      responses:
+        "200": {description: Manifest or unchanged marker., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/SignagePlayerManifestResponse"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/player/assets/{assetId}/{sha256}:
+    parameters:
+      - {$ref: "#/components/parameters/SignageAssetId"}
+      - {name: sha256, in: path, required: true, schema: {type: string, pattern: "^[0-9a-f]{64}$"}}
+    get:
+      tags: [Signage Player]
+      operationId: getSignagePlayerAsset
+      summary: Asset bytes of the display's latest publication
+      description: |
+        Device credential of a signage player only. Serves an asset only when the display's latest publication lists it with this checksum. Content-addressed, so responses are immutable (`Cache-Control: private, max-age=31536000, immutable`). HTTP Range requests are supported when the storage backend can seek (local storage); other backends answer the full body with `Accept-Ranges: none`.
+      security: [{managedDeviceCookie: []}, {managedDeviceToken: []}]
+      responses:
+        "200":
+          description: Asset bytes.
+          headers:
+            Cache-Control: {schema: {type: string}}
+            ETag: {schema: {type: string}}
+            X-Content-Type-Options: {schema: {type: string, enum: [nosniff]}}
+            Content-Security-Policy: {schema: {type: string}}
+          content:
+            image/png: {schema: {type: string, format: binary}}
+            image/jpeg: {schema: {type: string, format: binary}}
+            image/webp: {schema: {type: string, format: binary}}
+            video/mp4: {schema: {type: string, format: binary}}
+        "206":
+          description: Partial content for a Range request.
+          content:
+            video/mp4: {schema: {type: string, format: binary}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "416": {description: Range not satisfiable.}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/player/live:
+    get:
+      tags: [Signage Player]
+      operationId: getSignagePlayerLive
+      summary: Live machine status, announcements, open days and events
+      description: Device credential of a signage player only. Never contains customer data.
+      security: [{managedDeviceCookie: []}, {managedDeviceToken: []}]
+      responses:
+        "200": {description: Live data., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}, content: {application/json: {schema: {$ref: "#/components/schemas/SignagePlayerLive"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /signage/player/heartbeat:
+    post:
+      tags: [Signage Player]
+      operationId: postSignagePlayerHeartbeat
+      summary: Report player health (every 30 seconds)
+      description: Device credential of a signage player only. Upserts the display's ephemeral state; not audited.
+      security: [{managedDeviceCookie: []}, {managedDeviceToken: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/SignagePlayerHeartbeat"}}}}
+      responses:
+        "204": {description: Heartbeat recorded., headers: {Cache-Control: {$ref: "#/components/headers/NoStore"}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
   /visitor-enrollment/context:
@@ -7558,6 +7854,16 @@ components:
       in: path
       required: true
       schema: {$ref: "#/components/schemas/UUIDv7"}
+    SignageDisplayId:
+      name: displayId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
+    SignageRuleId:
+      name: ruleId
+      in: path
+      required: true
+      schema: {$ref: "#/components/schemas/UUIDv7"}
   responses:
     BadRequest:
       description: Malformed request, invalid JSON, or unsupported query value.
@@ -9245,7 +9551,8 @@ components:
       enum: [active, expired, revoked]
     DeviceApplicationMode:
       type: string
-      enum: [visitor_terminal, staff_ui]
+      description: "`signage_player` is the only mode of a signage display's player device; it is set by pairing a display and rejected (422) by the generic managed-device endpoints."
+      enum: [visitor_terminal, staff_ui, signage_player]
     DevicePlatform:
       type: string
       enum: [desktop, android]
@@ -14393,3 +14700,351 @@ components:
         displayIds: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/UUIDv7"}}
         startsAt: {type: string, format: date-time}
         endsAt: {type: string, format: date-time, nullable: true}
+
+    SignageDisplayStatus:
+      type: string
+      description: "`online` when the last heartbeat is under 90 seconds old."
+      enum: [online, offline, revoked]
+      x-enum-varnames: [SignageDisplayStatusOnline, SignageDisplayStatusOffline, SignageDisplayStatusRevoked]
+    SignageResolution:
+      type: object
+      additionalProperties: false
+      required: [width, height]
+      properties:
+        width: {type: integer, minimum: 320, maximum: 16384}
+        height: {type: integer, minimum: 320, maximum: 16384}
+    SignagePendingChangeKind:
+      type: string
+      enum: [display, rule, scene, playlist, asset]
+      x-enum-varnames: [SignagePendingChangeKindDisplay, SignagePendingChangeKindRule, SignagePendingChangeKindScene, SignagePendingChangeKindPlaylist, SignagePendingChangeKindAsset]
+    SignagePendingChangeType:
+      type: string
+      enum: [added, modified, removed]
+      x-enum-varnames: [SignagePendingChangeTypeAdded, SignagePendingChangeTypeModified, SignagePendingChangeTypeRemoved]
+    SignagePendingChange:
+      type: object
+      additionalProperties: false
+      required: [kind, name, change]
+      properties:
+        kind: {$ref: "#/components/schemas/SignagePendingChangeKind"}
+        name: {type: string, maxLength: 200}
+        change: {$ref: "#/components/schemas/SignagePendingChangeType"}
+    SignageDisplay:
+      type: object
+      additionalProperties: false
+      required: [id, managedDeviceId, name, location, orientation, resolution, visibleFromOutside, defaultPlaylistId, status, revokedAt, lastHeartbeatAt, publishedRevision, publishedAt, pendingChanges, reportedRevision, currentRule, currentSceneId, playerVersion, cacheUsedBytes, cacheQuotaBytes, errors, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        managedDeviceId: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        location: {type: string, maxLength: 150}
+        orientation: {$ref: "#/components/schemas/SignageOrientation"}
+        resolution: {$ref: "#/components/schemas/SignageResolution"}
+        visibleFromOutside: {type: boolean}
+        defaultPlaylistId: {$ref: "#/components/schemas/UUIDv7"}
+        status: {$ref: "#/components/schemas/SignageDisplayStatus"}
+        revokedAt: {type: string, format: date-time, nullable: true}
+        lastHeartbeatAt: {type: string, format: date-time, nullable: true}
+        publishedRevision: {type: integer, nullable: true, description: Null until the first publication.}
+        publishedAt: {type: string, format: date-time, nullable: true}
+        pendingChanges:
+          type: array
+          maxItems: 500
+          description: Differences between the drafts and the latest publication; empty when never published.
+          items: {$ref: "#/components/schemas/SignagePendingChange"}
+        reportedRevision: {type: integer, nullable: true, description: Revision the player reported in its last heartbeat.}
+        currentRule: {type: string, nullable: true, description: "Rule id or `default`, as reported by the player."}
+        currentSceneId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        playerVersion: {type: string, nullable: true}
+        cacheUsedBytes: {type: integer, format: int64, nullable: true}
+        cacheQuotaBytes: {type: integer, format: int64, nullable: true}
+        errors: {type: array, maxItems: 20, items: {type: string, maxLength: 200}}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    SignageDisplayList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties: {items: {type: array, items: {$ref: "#/components/schemas/SignageDisplay"}}}
+    PairSignageDisplayRequest:
+      type: object
+      additionalProperties: false
+      required: [code, name, location, orientation, resolution, visibleFromOutside, defaultPlaylistId]
+      properties:
+        code: {type: string, minLength: 1, maxLength: 20, description: The code shown on the screen; case and spaces are ignored.}
+        name: {type: string, minLength: 1, maxLength: 100}
+        location: {type: string, maxLength: 150}
+        orientation: {$ref: "#/components/schemas/SignageOrientation"}
+        resolution: {$ref: "#/components/schemas/SignageResolution"}
+        visibleFromOutside: {type: boolean}
+        defaultPlaylistId: {$ref: "#/components/schemas/UUIDv7"}
+    UpdateSignageDisplayRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, name, location, orientation, resolution, visibleFromOutside, defaultPlaylistId]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        name: {type: string, minLength: 1, maxLength: 100}
+        location: {type: string, maxLength: 150}
+        orientation: {$ref: "#/components/schemas/SignageOrientation"}
+        resolution: {$ref: "#/components/schemas/SignageResolution"}
+        visibleFromOutside: {type: boolean}
+        defaultPlaylistId: {$ref: "#/components/schemas/UUIDv7"}
+
+    SignageRuleConditionKind:
+      type: string
+      enum: [time_window, machine_printing, announcement_active, live_data_unavailable]
+      x-enum-varnames: [SignageRuleConditionKindTimeWindow, SignageRuleConditionKindMachinePrinting, SignageRuleConditionKindAnnouncementActive, SignageRuleConditionKindLiveDataUnavailable]
+    SignageMachineMatch:
+      type: string
+      enum: [any, all]
+      x-enum-varnames: [SignageMachineMatchAny, SignageMachineMatchAll]
+    SignageRuleTargetKind:
+      type: string
+      enum: [scene, playlist]
+      x-enum-varnames: [SignageRuleTargetKindScene, SignageRuleTargetKindPlaylist]
+    SignageMultiMode:
+      type: string
+      enum: [split, alternate]
+      x-enum-varnames: [SignageMultiModeSplit, SignageMultiModeAlternate]
+    SignageRule:
+      type: object
+      additionalProperties: false
+      required: [id, position, enabled, conditionKind, weekdays, timeFrom, timeTo, machineIds, machineMatch, announcementTemplateIds, targetKind, targetId, minSeconds, multiMode, alternateSeconds]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        position: {type: integer, minimum: 0}
+        enabled: {type: boolean}
+        conditionKind: {$ref: "#/components/schemas/SignageRuleConditionKind"}
+        weekdays: {type: array, maxItems: 7, items: {type: integer, minimum: 1, maximum: 7}, description: ISO weekdays (1 Monday to 7 Sunday); time windows only.}
+        timeFrom: {type: string, nullable: true, description: "HH:MM; time windows only. The window wraps past midnight when `timeTo` is earlier."}
+        timeTo: {type: string, nullable: true}
+        machineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}, description: Machine rules only.}
+        machineMatch: {allOf: [{$ref: "#/components/schemas/SignageMachineMatch"}], nullable: true}
+        announcementTemplateIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}, description: Announcement rules only; empty means any template.}
+        targetKind: {$ref: "#/components/schemas/SignageRuleTargetKind"}
+        targetId: {$ref: "#/components/schemas/UUIDv7"}
+        minSeconds: {type: integer, minimum: 0, maximum: 600}
+        multiMode: {$ref: "#/components/schemas/SignageMultiMode"}
+        alternateSeconds: {type: integer, minimum: 3, maximum: 600}
+    SignageRuleList:
+      type: object
+      additionalProperties: false
+      required: [items, displayVersion]
+      properties:
+        items: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/SignageRule"}}
+        displayVersion: {$ref: "#/components/schemas/Version"}
+    SignageRuleRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, enabled, conditionKind, targetKind, targetId, minSeconds, multiMode, alternateSeconds]
+      description: Fields that do not belong to the condition kind must be omitted or empty; otherwise 422.
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        enabled: {type: boolean}
+        conditionKind: {$ref: "#/components/schemas/SignageRuleConditionKind"}
+        weekdays: {type: array, maxItems: 7, items: {type: integer, minimum: 1, maximum: 7}}
+        timeFrom: {type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
+        timeTo: {type: string, pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"}
+        machineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}}
+        machineMatch: {$ref: "#/components/schemas/SignageMachineMatch"}
+        announcementTemplateIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}}
+        targetKind: {$ref: "#/components/schemas/SignageRuleTargetKind"}
+        targetId: {$ref: "#/components/schemas/UUIDv7"}
+        minSeconds: {type: integer, minimum: 0, maximum: 600}
+        multiMode: {$ref: "#/components/schemas/SignageMultiMode"}
+        alternateSeconds: {type: integer, minimum: 3, maximum: 600}
+    SetSignageRuleEnabledRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, enabled]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        enabled: {type: boolean}
+    ReorderSignageRulesRequest:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, ruleIds]
+      properties:
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        ruleIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}}
+
+    SignagePairingStart:
+      type: object
+      additionalProperties: false
+      required: [code, expiresAt]
+      properties:
+        code: {type: string, pattern: "^[A-HJ-NP-Z2-9]{6}$"}
+        expiresAt: {type: string, format: date-time}
+    SignagePairingPoll:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: {type: string, enum: [pending, expired, paired], x-enum-varnames: [SignagePairingPollStatusPending, SignagePairingPollStatusExpired, SignagePairingPollStatusPaired]}
+
+    SignagePlayerRule:
+      type: object
+      additionalProperties: false
+      required: [id, kind, weekdays, timeFrom, timeTo, machineIds, machineMatch, announcementTemplateIds, targetKind, targetId, minSeconds, multiMode, alternateSeconds]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        kind: {$ref: "#/components/schemas/SignageRuleConditionKind"}
+        weekdays: {type: array, maxItems: 7, items: {type: integer, minimum: 1, maximum: 7}}
+        timeFrom: {type: string, nullable: true}
+        timeTo: {type: string, nullable: true}
+        machineIds: {type: array, maxItems: 20, items: {$ref: "#/components/schemas/UUIDv7"}}
+        machineMatch: {allOf: [{$ref: "#/components/schemas/SignageMachineMatch"}], nullable: true}
+        announcementTemplateIds: {type: array, maxItems: 50, items: {$ref: "#/components/schemas/UUIDv7"}}
+        targetKind: {$ref: "#/components/schemas/SignageRuleTargetKind"}
+        targetId: {$ref: "#/components/schemas/UUIDv7"}
+        minSeconds: {type: integer, minimum: 0, maximum: 600}
+        multiMode: {$ref: "#/components/schemas/SignageMultiMode"}
+        alternateSeconds: {type: integer, minimum: 3, maximum: 600}
+    SignagePlayerScene:
+      type: object
+      additionalProperties: false
+      required: [id, name, orientation, layoutId, backgroundColor, backgroundAssetId, backgroundFit, backgroundDim, theme, zones, version]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        orientation: {$ref: "#/components/schemas/SignageOrientation"}
+        layoutId: {$ref: "#/components/schemas/SignageLayoutId"}
+        backgroundColor: {type: string, pattern: "^#[0-9a-f]{6}$"}
+        backgroundAssetId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        backgroundFit: {$ref: "#/components/schemas/SignageFit"}
+        backgroundDim: {type: integer, minimum: 0, maximum: 80}
+        theme: {type: string, enum: [dark, light], x-enum-varnames: [SignagePlayerSceneThemeDark, SignagePlayerSceneThemeLight]}
+        zones: {$ref: "#/components/schemas/SignageZones"}
+        version: {$ref: "#/components/schemas/Version"}
+    SignagePlayerPlaylist:
+      type: object
+      additionalProperties: false
+      required: [id, name, items, version]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        items: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SignagePlaylistItem"}}
+        version: {$ref: "#/components/schemas/Version"}
+    SignagePlayerAsset:
+      type: object
+      additionalProperties: false
+      required: [id, kind, name, contentType, sha256, sizeBytes, width, height, durationMs, url]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        kind: {$ref: "#/components/schemas/SignageAssetKind"}
+        name: {type: string}
+        contentType: {type: string}
+        sha256: {type: string, pattern: "^[0-9a-f]{64}$"}
+        sizeBytes: {type: integer, format: int64, minimum: 0}
+        width: {type: integer, nullable: true}
+        height: {type: integer, nullable: true}
+        durationMs: {type: integer, nullable: true}
+        url: {type: string, description: Path of the content-addressed asset endpoint.}
+    SignagePlayerManifestDisplay:
+      type: object
+      additionalProperties: false
+      required: [orientation, resolution, visibleFromOutside]
+      properties:
+        orientation: {$ref: "#/components/schemas/SignageOrientation"}
+        resolution: {$ref: "#/components/schemas/SignageResolution"}
+        visibleFromOutside: {type: boolean}
+    SignagePlayerManifest:
+      type: object
+      additionalProperties: false
+      required: [revision, display, rules, defaultPlaylistId, scenes, playlists, assets, layoutsVersion]
+      properties:
+        revision: {type: integer, minimum: 1}
+        display: {$ref: "#/components/schemas/SignagePlayerManifestDisplay"}
+        rules: {type: array, maxItems: 50, description: Enabled rules in evaluation order., items: {$ref: "#/components/schemas/SignagePlayerRule"}}
+        defaultPlaylistId: {$ref: "#/components/schemas/UUIDv7"}
+        scenes: {type: array, items: {$ref: "#/components/schemas/SignagePlayerScene"}}
+        playlists: {type: array, items: {$ref: "#/components/schemas/SignagePlayerPlaylist"}}
+        assets: {type: array, items: {$ref: "#/components/schemas/SignagePlayerAsset"}}
+        layoutsVersion: {type: integer, minimum: 1}
+    SignagePlayerManifestResponse:
+      type: object
+      additionalProperties: false
+      required: [unchanged]
+      properties:
+        unchanged: {type: boolean, description: True when the player already runs the requested `known` revision; `manifest` is then omitted.}
+        manifest: {$ref: "#/components/schemas/SignagePlayerManifest"}
+
+    SignagePlayerMachineState:
+      type: string
+      enum: [idle, preparing, printing, paused, finished, failed, unknown]
+      x-enum-varnames: [SignagePlayerMachineStateIdle, SignagePlayerMachineStatePreparing, SignagePlayerMachineStatePrinting, SignagePlayerMachineStatePaused, SignagePlayerMachineStateFinished, SignagePlayerMachineStateFailed, SignagePlayerMachineStateUnknown]
+    SignagePlayerLiveMachine:
+      type: object
+      additionalProperties: false
+      required: [machineId, name, state, progressPercent, remainingMinutes, observedAt, stale]
+      properties:
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        state: {$ref: "#/components/schemas/SignagePlayerMachineState"}
+        progressPercent: {type: integer, minimum: 0, maximum: 100, nullable: true}
+        remainingMinutes: {type: integer, minimum: 0, nullable: true}
+        observedAt: {type: string, format: date-time, nullable: true}
+        stale: {type: boolean, description: True when the last status is older than 3 minutes or missing; the state is then `unknown`.}
+    SignagePlayerLiveAnnouncement:
+      type: object
+      additionalProperties: false
+      required: [id, templateId, tone, title, body, startsAt, endsAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        templateId: {$ref: "#/components/schemas/UUIDv7"}
+        tone: {$ref: "#/components/schemas/SignageTone"}
+        title: {type: string}
+        body: {type: string}
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time, nullable: true}
+    SignagePlayerOpenDay:
+      type: object
+      additionalProperties: false
+      required: [startsAt, endsAt, status]
+      properties:
+        startsAt: {type: string, format: date-time}
+        endsAt: {type: string, format: date-time}
+        status: {type: string, maxLength: 40}
+    SignagePlayerEvent:
+      type: object
+      additionalProperties: false
+      required: [title, startsAt, location]
+      properties:
+        title: {type: string}
+        startsAt: {type: string, format: date-time}
+        location: {type: string, nullable: true}
+    SignagePlayerStream:
+      type: object
+      additionalProperties: false
+      required: [machineId, url, ticket, expiresAt]
+      properties:
+        machineId: {$ref: "#/components/schemas/UUIDv7"}
+        url: {type: string}
+        ticket: {type: string}
+        expiresAt: {type: string, format: date-time}
+    SignagePlayerLive:
+      type: object
+      additionalProperties: false
+      required: [serverTime, revision, machines, announcements, openDays, events, streams]
+      properties:
+        serverTime: {type: string, format: date-time}
+        revision: {type: integer, nullable: true, description: Latest published revision; null before the first publication.}
+        machines: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SignagePlayerLiveMachine"}}
+        announcements: {type: array, maxItems: 100, items: {$ref: "#/components/schemas/SignagePlayerLiveAnnouncement"}}
+        openDays: {type: array, maxItems: 5, items: {$ref: "#/components/schemas/SignagePlayerOpenDay"}}
+        events: {type: array, maxItems: 5, items: {$ref: "#/components/schemas/SignagePlayerEvent"}}
+        streams: {type: array, maxItems: 20, description: Camera stream tickets; always empty until the streaming gateway exists., items: {$ref: "#/components/schemas/SignagePlayerStream"}}
+    SignagePlayerHeartbeat:
+      type: object
+      additionalProperties: false
+      required: [errors]
+      properties:
+        revision: {type: integer, minimum: 1, maximum: 1000000000, nullable: true}
+        currentRule: {type: string, minLength: 1, maxLength: 64, nullable: true}
+        currentSceneId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        playerVersion: {type: string, minLength: 1, maxLength: 64, nullable: true}
+        cacheUsedBytes: {type: integer, format: int64, minimum: 0, nullable: true}
+        cacheQuotaBytes: {type: integer, format: int64, minimum: 0, nullable: true}
+        errors: {type: array, maxItems: 20, items: {type: string, maxLength: 200}}

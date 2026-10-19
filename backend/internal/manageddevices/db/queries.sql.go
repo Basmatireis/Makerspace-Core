@@ -227,6 +227,23 @@ func (q *Queries) DeleteManagedDevice(ctx context.Context, arg DeleteManagedDevi
 	return id, err
 }
 
+const ensureManagedDeviceTypeByName = `-- name: EnsureManagedDeviceTypeByName :exec
+INSERT INTO device_types (id, name, description)
+VALUES ($1, $2, $3)
+ON CONFLICT DO NOTHING
+`
+
+type EnsureManagedDeviceTypeByNameParams struct {
+	ID          uuid.UUID
+	Name        string
+	Description *string
+}
+
+func (q *Queries) EnsureManagedDeviceTypeByName(ctx context.Context, arg EnsureManagedDeviceTypeByNameParams) error {
+	_, err := q.db.Exec(ctx, ensureManagedDeviceTypeByName, arg.ID, arg.Name, arg.Description)
+	return err
+}
+
 const getDefaultSessionPolicy = `-- name: GetDefaultSessionPolicy :one
 SELECT id, name, idle_timeout_seconds, absolute_lifetime_seconds, post_session_destination, is_default, version, created_at, updated_at FROM session_policies WHERE is_default LIMIT 1
 `
@@ -254,6 +271,24 @@ SELECT id, name, description, version, created_at, updated_at FROM device_types 
 
 func (q *Queries) GetDeviceType(ctx context.Context, id uuid.UUID) (DeviceType, error) {
 	row := q.db.QueryRow(ctx, getDeviceType, id)
+	var i DeviceType
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getDeviceTypeByName = `-- name: GetDeviceTypeByName :one
+SELECT id, name, description, version, created_at, updated_at FROM device_types WHERE lower(name) = lower($1::text)
+`
+
+func (q *Queries) GetDeviceTypeByName(ctx context.Context, name string) (DeviceType, error) {
+	row := q.db.QueryRow(ctx, getDeviceTypeByName, name)
 	var i DeviceType
 	err := row.Scan(
 		&i.ID,
@@ -722,6 +757,23 @@ func (q *Queries) RotateManagedDeviceToken(ctx context.Context, arg RotateManage
 		&i.AllowedAppModes,
 	)
 	return i, err
+}
+
+const setManagedDeviceTokenDigest = `-- name: SetManagedDeviceTokenDigest :one
+UPDATE managed_devices SET token_digest = $1, version = version + 1, updated_at = now()
+WHERE id = $2 AND revoked_at IS NULL RETURNING id
+`
+
+type SetManagedDeviceTokenDigestParams struct {
+	TokenDigest []byte
+	ID          uuid.UUID
+}
+
+func (q *Queries) SetManagedDeviceTokenDigest(ctx context.Context, arg SetManagedDeviceTokenDigestParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, setManagedDeviceTokenDigest, arg.TokenDigest, arg.ID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
 }
 
 const touchManagedDevice = `-- name: TouchManagedDevice :exec

@@ -76,6 +76,12 @@ func (s *Service) statusOf(startsAt time.Time, now time.Time) string {
 
 // hydrate loads values, targets, templates and machine names and renders the announcements.
 func (s *Service) hydrate(ctx context.Context, q *signagedb.Queries, rows []signagedb.SignageAnnouncement) ([]Announcement, error) {
+	return s.hydrateFor(ctx, q, rows, "{display}", "{location}")
+}
+
+// hydrateFor renders the announcements for one display; the admin views keep the display
+// placeholders as typed because they do not depend on a showing display.
+func (s *Service) hydrateFor(ctx context.Context, q *signagedb.Queries, rows []signagedb.SignageAnnouncement, displayName, location string) ([]Announcement, error) {
 	if len(rows) == 0 {
 		return []Announcement{}, nil
 	}
@@ -156,7 +162,7 @@ func (s *Service) hydrate(ctx context.Context, q *signagedb.Queries, rows []sign
 		rendered := RenderAnnouncement(
 			RenderTemplate{Fields: renderFields(fields[row.TemplateID]), Title: template.Title, Body: template.Body, Tone: template.Tone},
 			announcementValues, RenderTiming{StartsAt: row.StartsAt, EndsAt: endsAt},
-			RenderContext{Now: now, TimeZone: s.location, DisplayName: "{display}", Location: "{location}", MachineNames: machineNames},
+			RenderContext{Now: now, TimeZone: s.location, DisplayName: displayName, Location: location, MachineNames: machineNames},
 		)
 		result = append(result, Announcement{
 			ID: row.ID, TemplateID: row.TemplateID, Values: announcementValues, AllDisplays: row.AllDisplays, DisplayIDs: displayIDs,

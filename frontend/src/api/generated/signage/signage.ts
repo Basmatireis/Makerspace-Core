@@ -23,21 +23,31 @@ import type {
   CreateSignagePlaylistRequest,
   CreateSignageSceneRequest,
   ListSignageAssetsParams,
+  PairSignageDisplayRequest,
   RenameSignageAssetRequest,
+  ReorderSignageRulesRequest,
+  SetSignageRuleEnabledRequest,
   SignageAnnouncement,
   SignageAnnouncementList,
   SignageAnnouncementTemplate,
   SignageAnnouncementTemplateList,
   SignageAsset,
   SignageAssetList,
+  SignageDisplay,
+  SignageDisplayList,
   SignageLayoutList,
+  SignagePairingPoll,
+  SignagePairingStart,
   SignagePlaylist,
   SignagePlaylistList,
+  SignageRuleList,
+  SignageRuleRequest,
   SignageScene,
   SignageSceneList,
   StartSignageAnnouncementRequest,
   UpdateSignageAnnouncementRequest,
   UpdateSignageAnnouncementTemplateRequest,
+  UpdateSignageDisplayRequest,
   UpdateSignagePlaylistRequest,
   UpdateSignageSceneRequest,
   VersionRequest
@@ -657,6 +667,383 @@ export const stopSignageAnnouncement = async (announcementId: string,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       versionRequest,)
+  }
+);}
+
+
+/**
+ * @summary List displays with status, publication state and pending changes
+ */
+export const getListSignageDisplaysUrl = () => {
+
+
+
+
+  return `/api/v1/signage/displays`
+}
+
+export const listSignageDisplays = async ( options?: RequestInit): Promise<SignageDisplayList> => {
+
+  return apiFetch<SignageDisplayList>(getListSignageDisplaysUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+/**
+ * Requires `signage.manage`. Claims the open pairing request with that code and creates the display together with its signage-player managed device. Unknown, expired, already claimed and malformed codes all answer the same 422 `pairing_code_invalid`; repeated failures of one account answer 429.
+
+ * @summary Pair a display by the code its player shows
+ */
+export const getPairSignageDisplayUrl = () => {
+
+
+
+
+  return `/api/v1/signage/displays`
+}
+
+export const pairSignageDisplay = async (pairSignageDisplayRequest: PairSignageDisplayRequest, options?: RequestInit): Promise<SignageDisplay> => {
+
+  return apiFetch<SignageDisplay>(getPairSignageDisplayUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      pairSignageDisplayRequest,)
+  }
+);}
+
+
+export const getGetSignageDisplayUrl = (displayId: string,) => {
+
+
+
+
+  return `/api/v1/signage/displays/${displayId}`
+}
+
+export const getSignageDisplay = async (displayId: string, options?: RequestInit): Promise<SignageDisplay> => {
+
+  return apiFetch<SignageDisplay>(getGetSignageDisplayUrl(displayId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+/**
+ * Requires `signage.manage`. Changes reach the player only with the next publication. A revoked display answers 409 `signage_display_revoked`.
+ * @summary Change the draft settings of a display
+ */
+export const getUpdateSignageDisplayUrl = (displayId: string,) => {
+
+
+
+
+  return `/api/v1/signage/displays/${displayId}`
+}
+
+export const updateSignageDisplay = async (displayId: string,
+    updateSignageDisplayRequest: UpdateSignageDisplayRequest, options?: RequestInit): Promise<SignageDisplay> => {
+
+  return apiFetch<SignageDisplay>(getUpdateSignageDisplayUrl(displayId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateSignageDisplayRequest,)
+  }
+);}
+
+
+/**
+ * Requires `signage.manage`. Answers 409 `signage_display_not_revoked` unless the display was revoked first.
+ * @summary Delete a revoked display and its managed device
+ */
+export const getDeleteSignageDisplayUrl = (displayId: string,) => {
+
+
+
+
+  return `/api/v1/signage/displays/${displayId}`
+}
+
+export const deleteSignageDisplay = async (displayId: string,
+    versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
+
+  return apiFetch<void>(getDeleteSignageDisplayUrl(displayId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      versionRequest,)
+  }
+);}
+
+
+/**
+ * Requires `signage.manage`. The player's credential stops working immediately; to bring the screen back, pair it again.
+ * @summary Revoke a display and its player credential
+ */
+export const getRevokeSignageDisplayUrl = (displayId: string,) => {
+
+
+
+
+  return `/api/v1/signage/displays/${displayId}/revoke`
+}
+
+export const revokeSignageDisplay = async (displayId: string,
+    versionRequest: VersionRequest, options?: RequestInit): Promise<SignageDisplay> => {
+
+  return apiFetch<SignageDisplay>(getRevokeSignageDisplayUrl(displayId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      versionRequest,)
+  }
+);}
+
+
+/**
+ * Requires `signage.publish`. Builds the immutable manifest from the drafts in one transaction, increments the revision and keeps the latest five publications. A revoked display answers 409 `signage_display_revoked`.
+ * @summary Publish the display's current drafts
+ */
+export const getPublishSignageDisplayUrl = (displayId: string,) => {
+
+
+
+
+  return `/api/v1/signage/displays/${displayId}/publish`
+}
+
+export const publishSignageDisplay = async (displayId: string, options?: RequestInit): Promise<SignageDisplay> => {
+
+  return apiFetch<SignageDisplay>(getPublishSignageDisplayUrl(displayId),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+/**
+ * @summary List the rules of a display in evaluation order
+ */
+export const getListSignageRulesUrl = (displayId: string,) => {
+
+
+
+
+  return `/api/v1/signage/displays/${displayId}/rules`
+}
+
+export const listSignageRules = async (displayId: string, options?: RequestInit): Promise<SignageRuleList> => {
+
+  return apiFetch<SignageRuleList>(getListSignageRulesUrl(displayId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+/**
+ * Requires `signage.manage`. Rules share the display's optimistic-concurrency version (`expectedVersion` is the display version) and every rule write bumps it. The response carries the new version.
+ * @summary Append a rule to the display
+ */
+export const getCreateSignageRuleUrl = (displayId: string,) => {
+
+
+
+
+  return `/api/v1/signage/displays/${displayId}/rules`
+}
+
+export const createSignageRule = async (displayId: string,
+    signageRuleRequest: SignageRuleRequest, options?: RequestInit): Promise<SignageRuleList> => {
+
+  return apiFetch<SignageRuleList>(getCreateSignageRuleUrl(displayId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      signageRuleRequest,)
+  }
+);}
+
+
+/**
+ * @summary Replace all writable fields of a rule
+ */
+export const getUpdateSignageRuleUrl = (displayId: string,
+    ruleId: string,) => {
+
+
+
+
+  return `/api/v1/signage/displays/${displayId}/rules/${ruleId}`
+}
+
+export const updateSignageRule = async (displayId: string,
+    ruleId: string,
+    signageRuleRequest: SignageRuleRequest, options?: RequestInit): Promise<SignageRuleList> => {
+
+  return apiFetch<SignageRuleList>(getUpdateSignageRuleUrl(displayId,ruleId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      signageRuleRequest,)
+  }
+);}
+
+
+/**
+ * @summary Enable or disable a rule
+ */
+export const getSetSignageRuleEnabledUrl = (displayId: string,
+    ruleId: string,) => {
+
+
+
+
+  return `/api/v1/signage/displays/${displayId}/rules/${ruleId}`
+}
+
+export const setSignageRuleEnabled = async (displayId: string,
+    ruleId: string,
+    setSignageRuleEnabledRequest: SetSignageRuleEnabledRequest, options?: RequestInit): Promise<SignageRuleList> => {
+
+  return apiFetch<SignageRuleList>(getSetSignageRuleEnabledUrl(displayId,ruleId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      setSignageRuleEnabledRequest,)
+  }
+);}
+
+
+/**
+ * @summary Delete a rule
+ */
+export const getDeleteSignageRuleUrl = (displayId: string,
+    ruleId: string,) => {
+
+
+
+
+  return `/api/v1/signage/displays/${displayId}/rules/${ruleId}`
+}
+
+export const deleteSignageRule = async (displayId: string,
+    ruleId: string,
+    versionRequest: VersionRequest, options?: RequestInit): Promise<SignageRuleList> => {
+
+  return apiFetch<SignageRuleList>(getDeleteSignageRuleUrl(displayId,ruleId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      versionRequest,)
+  }
+);}
+
+
+/**
+ * Requires `signage.manage`. `ruleIds` must list every rule of the display exactly once, first match wins.
+ * @summary Set the complete rule order atomically
+ */
+export const getReorderSignageRulesUrl = (displayId: string,) => {
+
+
+
+
+  return `/api/v1/signage/displays/${displayId}/rule-order`
+}
+
+export const reorderSignageRules = async (displayId: string,
+    reorderSignageRulesRequest: ReorderSignageRulesRequest, options?: RequestInit): Promise<SignageRuleList> => {
+
+  return apiFetch<SignageRuleList>(getReorderSignageRulesUrl(displayId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      reorderSignageRulesRequest,)
+  }
+);}
+
+
+/**
+ * Public. Creates a pairing request valid for 15 minutes and sets the HttpOnly `SameSite=Strict` poll-secret cookie (Secure in production). Rate-limited per client IP and capped globally; both answer 429.
+
+ * @summary An unpaired player requests a pairing code
+ */
+export const getStartSignagePairingUrl = () => {
+
+
+
+
+  return `/api/v1/public/signage/pairing`
+}
+
+export const startSignagePairing = async ( options?: RequestInit): Promise<SignagePairingStart> => {
+
+  return apiFetch<SignagePairingStart>(getStartSignagePairingUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+/**
+ * Public; identifies the request by the poll-secret cookie. `pending` until staff claim the code, `expired` when the request is gone or timed out. The first poll after the claim answers `paired` and sets the managed-device cookie exactly once, then the request is deleted.
+
+ * @summary Poll the pairing request (every 3 seconds)
+ */
+export const getPollSignagePairingUrl = () => {
+
+
+
+
+  return `/api/v1/public/signage/pairing`
+}
+
+export const pollSignagePairing = async ( options?: RequestInit): Promise<SignagePairingPoll> => {
+
+  return apiFetch<SignagePairingPoll>(getPollSignagePairingUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
   }
 );}
 

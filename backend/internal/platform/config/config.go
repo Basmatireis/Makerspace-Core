@@ -13,40 +13,41 @@ import (
 )
 
 type Config struct {
-	DatabaseURL             string
-	HTTPAddr                string
-	HTTPTrustedProxies      []netip.Prefix
-	Environment             string
-	PublicBaseURL           *url.URL
-	SessionCookieName       string
-	CSRFCookieName          string
-	ManagedDeviceCookieName string
-	OIDCFlowCookieName      string
-	EnrollmentCookieName    string
-	EnrollmentCSRFName      string
-	SessionCookieSecure     bool
-	SessionIdleTTL          time.Duration
-	SessionAbsoluteTTL      time.Duration
-	PasswordResetTTL        time.Duration
-	AuditRetention          time.Duration
-	EventSignupRetention    time.Duration
-	ShutdownTimeout         time.Duration
-	MakerspaceTimeZone      string
-	HolidayCountry          string
-	HolidaySubdivision      string
-	HolidayLanguage         string
-	ChallengeHMACKey        []byte
-	PINPepper               []byte
-	StorageBackend          string
-	LocalStorageRoot        string
-	S3Endpoint              string
-	S3Region                string
-	S3Bucket                string
-	S3AccessKeyID           string
-	S3SecretAccessKey       string
-	S3UsePathStyle          bool
-	S3DisableTLS            bool
-	EncryptionKeys          [][]byte
+	DatabaseURL              string
+	HTTPAddr                 string
+	HTTPTrustedProxies       []netip.Prefix
+	Environment              string
+	PublicBaseURL            *url.URL
+	SessionCookieName        string
+	CSRFCookieName           string
+	ManagedDeviceCookieName  string
+	OIDCFlowCookieName       string
+	EnrollmentCookieName     string
+	EnrollmentCSRFName       string
+	SignagePairingCookieName string
+	SessionCookieSecure      bool
+	SessionIdleTTL           time.Duration
+	SessionAbsoluteTTL       time.Duration
+	PasswordResetTTL         time.Duration
+	AuditRetention           time.Duration
+	EventSignupRetention     time.Duration
+	ShutdownTimeout          time.Duration
+	MakerspaceTimeZone       string
+	HolidayCountry           string
+	HolidaySubdivision       string
+	HolidayLanguage          string
+	ChallengeHMACKey         []byte
+	PINPepper                []byte
+	StorageBackend           string
+	LocalStorageRoot         string
+	S3Endpoint               string
+	S3Region                 string
+	S3Bucket                 string
+	S3AccessKeyID            string
+	S3SecretAccessKey        string
+	S3UsePathStyle           bool
+	S3DisableTLS             bool
+	EncryptionKeys           [][]byte
 }
 
 func Load() (Config, error) {
@@ -166,6 +167,7 @@ func Load() (Config, error) {
 	oidcFlowName := "makerspace_oidc_flow"
 	enrollmentName := "makerspace_enrollment"
 	enrollmentCSRFName := "makerspace_enrollment_csrf"
+	signagePairingName := "makerspace_signage_pairing"
 	if secure {
 		sessionName = "__Host-makerspace_session"
 		csrfName = "__Host-makerspace_csrf"
@@ -173,43 +175,45 @@ func Load() (Config, error) {
 		oidcFlowName = "__Host-makerspace_oidc_flow"
 		enrollmentName = "__Host-makerspace_enrollment"
 		enrollmentCSRFName = "__Host-makerspace_enrollment_csrf"
+		signagePairingName = "__Host-makerspace_signage_pairing"
 	}
 
 	return Config{
-		DatabaseURL:             strings.TrimSpace(os.Getenv("DATABASE_URL")),
-		HTTPAddr:                envOr("HTTP_ADDR", ":8080"),
-		HTTPTrustedProxies:      trustedProxies,
-		Environment:             environment,
-		PublicBaseURL:           base,
-		SessionCookieName:       sessionName,
-		CSRFCookieName:          csrfName,
-		ManagedDeviceCookieName: deviceName,
-		OIDCFlowCookieName:      oidcFlowName,
-		EnrollmentCookieName:    enrollmentName,
-		EnrollmentCSRFName:      enrollmentCSRFName,
-		SessionCookieSecure:     secure,
-		SessionIdleTTL:          idle,
-		SessionAbsoluteTTL:      absolute,
-		PasswordResetTTL:        resetTTL,
-		AuditRetention:          auditRetention,
-		EventSignupRetention:    eventSignupRetention,
-		ShutdownTimeout:         10 * time.Second,
-		MakerspaceTimeZone:      timeZone,
-		HolidayCountry:          holidayCountry,
-		HolidaySubdivision:      holidaySubdivision,
-		HolidayLanguage:         holidayLanguage,
-		ChallengeHMACKey:        challengeKey,
-		PINPepper:               pinPepper,
-		StorageBackend:          storageBackend,
-		LocalStorageRoot:        localStorageRoot,
-		S3Endpoint:              s3Endpoint,
-		S3Region:                strings.TrimSpace(os.Getenv("S3_REGION")),
-		S3Bucket:                strings.TrimSpace(os.Getenv("S3_BUCKET")),
-		S3AccessKeyID:           strings.TrimSpace(os.Getenv("S3_ACCESS_KEY_ID")),
-		S3SecretAccessKey:       os.Getenv("S3_SECRET_ACCESS_KEY"),
-		S3UsePathStyle:          s3PathStyle,
-		S3DisableTLS:            s3DisableTLS,
-		EncryptionKeys:          encryptionKeys,
+		DatabaseURL:              strings.TrimSpace(os.Getenv("DATABASE_URL")),
+		HTTPAddr:                 envOr("HTTP_ADDR", ":8080"),
+		HTTPTrustedProxies:       trustedProxies,
+		Environment:              environment,
+		PublicBaseURL:            base,
+		SessionCookieName:        sessionName,
+		CSRFCookieName:           csrfName,
+		ManagedDeviceCookieName:  deviceName,
+		OIDCFlowCookieName:       oidcFlowName,
+		EnrollmentCookieName:     enrollmentName,
+		EnrollmentCSRFName:       enrollmentCSRFName,
+		SignagePairingCookieName: signagePairingName,
+		SessionCookieSecure:      secure,
+		SessionIdleTTL:           idle,
+		SessionAbsoluteTTL:       absolute,
+		PasswordResetTTL:         resetTTL,
+		AuditRetention:           auditRetention,
+		EventSignupRetention:     eventSignupRetention,
+		ShutdownTimeout:          10 * time.Second,
+		MakerspaceTimeZone:       timeZone,
+		HolidayCountry:           holidayCountry,
+		HolidaySubdivision:       holidaySubdivision,
+		HolidayLanguage:          holidayLanguage,
+		ChallengeHMACKey:         challengeKey,
+		PINPepper:                pinPepper,
+		StorageBackend:           storageBackend,
+		LocalStorageRoot:         localStorageRoot,
+		S3Endpoint:               s3Endpoint,
+		S3Region:                 strings.TrimSpace(os.Getenv("S3_REGION")),
+		S3Bucket:                 strings.TrimSpace(os.Getenv("S3_BUCKET")),
+		S3AccessKeyID:            strings.TrimSpace(os.Getenv("S3_ACCESS_KEY_ID")),
+		S3SecretAccessKey:        os.Getenv("S3_SECRET_ACCESS_KEY"),
+		S3UsePathStyle:           s3PathStyle,
+		S3DisableTLS:             s3DisableTLS,
+		EncryptionKeys:           encryptionKeys,
 	}, nil
 }
 

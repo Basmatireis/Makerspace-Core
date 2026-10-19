@@ -12,10 +12,17 @@ import (
 )
 
 type Querier interface {
+	BumpSignageDisplayVersion(ctx context.Context, arg BumpSignageDisplayVersionParams) (int64, error)
+	ClaimSignagePairingRequest(ctx context.Context, arg ClaimSignagePairingRequestParams) error
+	CountOpenSignagePairingRequests(ctx context.Context, now time.Time) (int64, error)
+	CountSceneRulesWithOtherOrientation(ctx context.Context, arg CountSceneRulesWithOtherOrientationParams) (int64, error)
 	// Announcements -----------------------------------------------------------------------------------------------
 	CreateSignageAnnouncement(ctx context.Context, arg CreateSignageAnnouncementParams) (SignageAnnouncement, error)
 	// Assets ------------------------------------------------------------------------------------------------------
 	CreateSignageAsset(ctx context.Context, arg CreateSignageAssetParams) (uuid.UUID, error)
+	// Displays ----------------------------------------------------------------------------------------------------
+	CreateSignageDisplay(ctx context.Context, arg CreateSignageDisplayParams) (uuid.UUID, error)
+	CreateSignagePairingRequest(ctx context.Context, arg CreateSignagePairingRequestParams) error
 	// Playlists ---------------------------------------------------------------------------------------------------
 	CreateSignagePlaylist(ctx context.Context, arg CreateSignagePlaylistParams) (SignagePlaylist, error)
 	// Scenes ------------------------------------------------------------------------------------------------------
@@ -24,20 +31,32 @@ type Querier interface {
 	CreateSignageTemplate(ctx context.Context, arg CreateSignageTemplateParams) (SignageAnnouncementTemplate, error)
 	DeleteEndedAnnouncementsOfTemplate(ctx context.Context, arg DeleteEndedAnnouncementsOfTemplateParams) error
 	DeleteExpiredSignageAnnouncements(ctx context.Context, cutoff time.Time) ([]uuid.UUID, error)
+	// Pairing -----------------------------------------------------------------------------------------------------
+	DeleteExpiredSignagePairingRequests(ctx context.Context, now time.Time) error
 	DeleteSignageAnnouncement(ctx context.Context, arg DeleteSignageAnnouncementParams) (uuid.UUID, error)
 	DeleteSignageAnnouncementDisplays(ctx context.Context, announcementID uuid.UUID) error
 	DeleteSignageAnnouncementValues(ctx context.Context, announcementID uuid.UUID) error
 	DeleteSignageAnnouncementValuesNotIn(ctx context.Context, arg DeleteSignageAnnouncementValuesNotInParams) error
 	DeleteSignageAsset(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	DeleteSignageDisplay(ctx context.Context, arg DeleteSignageDisplayParams) (uuid.UUID, error)
+	DeleteSignagePairingRequest(ctx context.Context, id uuid.UUID) error
+	DeleteSignagePairingRequestByPollDigest(ctx context.Context, pollSecretDigest []byte) error
 	DeleteSignagePlaylist(ctx context.Context, arg DeleteSignagePlaylistParams) (uuid.UUID, error)
 	DeleteSignagePlaylistItems(ctx context.Context, playlistID uuid.UUID) error
+	DeleteSignageRule(ctx context.Context, arg DeleteSignageRuleParams) (int64, error)
 	DeleteSignageScene(ctx context.Context, arg DeleteSignageSceneParams) (uuid.UUID, error)
 	DeleteSignageTemplate(ctx context.Context, arg DeleteSignageTemplateParams) (uuid.UUID, error)
 	DeleteSignageTemplateFields(ctx context.Context, templateID uuid.UUID) error
+	GetLatestSignagePublication(ctx context.Context, displayID uuid.UUID) (GetLatestSignagePublicationRow, error)
+	GetOpenSignagePairingRequestByCode(ctx context.Context, arg GetOpenSignagePairingRequestByCodeParams) (uuid.UUID, error)
 	GetSignageAnnouncement(ctx context.Context, id uuid.UUID) (SignageAnnouncement, error)
 	GetSignageAnnouncementForUpdate(ctx context.Context, id uuid.UUID) (SignageAnnouncement, error)
 	GetSignageAsset(ctx context.Context, id uuid.UUID) (GetSignageAssetRow, error)
 	GetSignageAssetForUpdate(ctx context.Context, id uuid.UUID) (GetSignageAssetForUpdateRow, error)
+	GetSignageDisplayByDevice(ctx context.Context, managedDeviceID uuid.UUID) (GetSignageDisplayByDeviceRow, error)
+	GetSignageDisplayForUpdate(ctx context.Context, id uuid.UUID) (GetSignageDisplayForUpdateRow, error)
+	GetSignageDisplayView(ctx context.Context, id uuid.UUID) (GetSignageDisplayViewRow, error)
+	GetSignagePairingRequestForPoll(ctx context.Context, pollSecretDigest []byte) (GetSignagePairingRequestForPollRow, error)
 	GetSignagePlaylist(ctx context.Context, id uuid.UUID) (SignagePlaylist, error)
 	GetSignagePlaylistForUpdate(ctx context.Context, id uuid.UUID) (SignagePlaylist, error)
 	GetSignageScene(ctx context.Context, id uuid.UUID) (SignageScene, error)
@@ -47,10 +66,14 @@ type Querier interface {
 	InsertSignageAnnouncementDisplay(ctx context.Context, arg InsertSignageAnnouncementDisplayParams) error
 	InsertSignageAnnouncementValue(ctx context.Context, arg InsertSignageAnnouncementValueParams) error
 	InsertSignagePlaylistItem(ctx context.Context, arg InsertSignagePlaylistItemParams) error
+	InsertSignagePublication(ctx context.Context, arg InsertSignagePublicationParams) error
+	InsertSignageRule(ctx context.Context, arg InsertSignageRuleParams) error
 	InsertSignageTemplateField(ctx context.Context, arg InsertSignageTemplateFieldParams) error
 	ListAnnouncementsUsingTemplate(ctx context.Context, arg ListAnnouncementsUsingTemplateParams) ([]uuid.UUID, error)
 	ListDisplaysByDefaultPlaylist(ctx context.Context, playlistID uuid.UUID) ([]ListDisplaysByDefaultPlaylistRow, error)
+	ListLatestSignagePublications(ctx context.Context, displayIds []string) ([]ListLatestSignagePublicationsRow, error)
 	ListLiveSignageAnnouncements(ctx context.Context, now time.Time) ([]SignageAnnouncement, error)
+	ListLiveSignageAnnouncementsForDisplay(ctx context.Context, arg ListLiveSignageAnnouncementsForDisplayParams) ([]SignageAnnouncement, error)
 	ListPlaylistsReferencingScene(ctx context.Context, sceneID uuid.UUID) ([]ListPlaylistsReferencingSceneRow, error)
 	ListRulesFilteringTemplate(ctx context.Context, templateID uuid.UUID) ([]ListRulesFilteringTemplateRow, error)
 	ListRulesReferencingPlaylist(ctx context.Context, playlistID *uuid.UUID) ([]ListRulesReferencingPlaylistRow, error)
@@ -61,20 +84,40 @@ type Querier interface {
 	ListSignageAnnouncementValues(ctx context.Context, announcementIds []string) ([]SignageAnnouncementValue, error)
 	ListSignageAssetKinds(ctx context.Context, ids []string) ([]ListSignageAssetKindsRow, error)
 	ListSignageAssets(ctx context.Context, kind *string) ([]ListSignageAssetsRow, error)
+	ListSignageAssetsByIDs(ctx context.Context, ids []string) ([]ListSignageAssetsByIDsRow, error)
 	ListSignageDisplayIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
+	ListSignageDisplayViews(ctx context.Context) ([]ListSignageDisplayViewsRow, error)
+	ListSignageLiveStatuses(ctx context.Context, ids []string) ([]ListSignageLiveStatusesRow, error)
 	ListSignageMachineNames(ctx context.Context, ids []string) ([]ListSignageMachineNamesRow, error)
 	ListSignagePlaylistItems(ctx context.Context, playlistIds []string) ([]SignagePlaylistItem, error)
 	ListSignagePlaylists(ctx context.Context) ([]SignagePlaylist, error)
+	ListSignagePlaylistsByIDs(ctx context.Context, ids []string) ([]SignagePlaylist, error)
+	// Rules -------------------------------------------------------------------------------------------------------
+	ListSignageRules(ctx context.Context, displayIds []string) ([]ListSignageRulesRow, error)
 	ListSignageSceneIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
 	ListSignageScenes(ctx context.Context) ([]SignageScene, error)
+	// Publications and manifest content ---------------------------------------------------------------------------
+	ListSignageScenesByIDs(ctx context.Context, ids []string) ([]SignageScene, error)
 	ListSignageTemplateFields(ctx context.Context, templateIds []string) ([]SignageAnnouncementTemplateField, error)
+	ListSignageTemplateIDsByIDs(ctx context.Context, ids []string) ([]uuid.UUID, error)
 	ListSignageTemplateIDsForShare(ctx context.Context, ids []string) ([]uuid.UUID, error)
 	ListSignageTemplates(ctx context.Context) ([]SignageAnnouncementTemplate, error)
+	LockSignagePlaylistForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	LockSignageSceneForShare(ctx context.Context, id uuid.UUID) (LockSignageSceneForShareRow, error)
+	NextSignagePublicationRevision(ctx context.Context, displayID uuid.UUID) (int32, error)
+	PruneSignagePublications(ctx context.Context, arg PruneSignagePublicationsParams) error
 	RenameSignageAsset(ctx context.Context, arg RenameSignageAssetParams) (int64, error)
+	RevokeSignageDisplay(ctx context.Context, arg RevokeSignageDisplayParams) (uuid.UUID, error)
+	SetSignageRuleEnabled(ctx context.Context, arg SetSignageRuleEnabledParams) (int64, error)
+	SetSignageRulePosition(ctx context.Context, arg SetSignageRulePositionParams) error
 	UpdateSignageAnnouncement(ctx context.Context, arg UpdateSignageAnnouncementParams) (SignageAnnouncement, error)
+	UpdateSignageDisplay(ctx context.Context, arg UpdateSignageDisplayParams) (uuid.UUID, error)
 	UpdateSignagePlaylist(ctx context.Context, arg UpdateSignagePlaylistParams) (SignagePlaylist, error)
+	UpdateSignageRule(ctx context.Context, arg UpdateSignageRuleParams) (int64, error)
 	UpdateSignageScene(ctx context.Context, arg UpdateSignageSceneParams) (SignageScene, error)
 	UpdateSignageTemplate(ctx context.Context, arg UpdateSignageTemplateParams) (SignageAnnouncementTemplate, error)
+	// Player ------------------------------------------------------------------------------------------------------
+	UpsertSignageDisplayState(ctx context.Context, arg UpsertSignageDisplayStateParams) error
 }
 
 var _ Querier = (*Queries)(nil)

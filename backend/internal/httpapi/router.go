@@ -57,6 +57,7 @@ const (
 	visitorEnrollmentContextKey
 	printerConnectorContextKey
 	printerConnectorEnrollmentSecretContextKey
+	httpRequestContextKey
 )
 
 type operationState struct {
@@ -140,6 +141,10 @@ func NewHandler(pool *pgxpool.Pool, cfg config.Config, logger *slog.Logger) (htt
 
 func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if isSignagePlayerPath(r.URL.Path) || isSignagePairingPath(r.URL.Path) {
+			// The generated request objects carry neither cookies nor Range headers; these handlers read them from the raw request.
+			r = r.WithContext(context.WithValue(r.Context(), httpRequestContextKey, r))
+		}
 		if cookie, err := r.Cookie(s.config.OIDCFlowCookieName); err == nil {
 			r = r.WithContext(context.WithValue(r.Context(), oidcFlowTokenContextKey, cookie.Value))
 		}
@@ -209,6 +214,10 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 				writeAPIError(w, r, apperror.NotFound, logger)
 				return
 			}
+			if device.IsSignagePlayer() {
+				writeAPIError(w, r, apperror.New(http.StatusForbidden, "device_mode_denied", "This managed device may only run the signage player"), logger)
+				return
+			}
 			ctx := context.WithValue(r.Context(), visitorDeviceContextKey, *device)
 			if r.URL.Path != apiBasePath+"/visitor-enrollment/context" {
 				cookie, err := r.Cookie(s.config.EnrollmentCookieName)
@@ -263,6 +272,24 @@ func (s *Server) authenticationMiddleware(next http.Handler, logger *slog.Logger
 		}
 		ctx = auth.WithManagedDeviceContext(ctx, managedDeviceID)
 		r = r.WithContext(ctx)
+		if isSignagePlayerPath(r.URL.Path) {
+			// Player routes accept the credential of a signage player device and nothing else: never a user session.
+			if device == nil {
+				writeAPIError(w, r, apperror.Unauthenticated, logger)
+				return
+			}
+			if !device.IsSignagePlayer() {
+				writeAPIError(w, r, apperror.New(http.StatusForbidden, "device_mode_denied", "This managed device is not configured as a signage player"), logger)
+				return
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
+		if device != nil && device.IsSignagePlayer() && !isSignagePairingPath(r.URL.Path) {
+			// A signage player may reach the player routes and the pairing endpoints, never staff, visitor or public APIs.
+			writeAPIError(w, r, apperror.New(http.StatusForbidden, "device_mode_denied", "This managed device may only run the signage player"), logger)
+			return
+		}
 		if device != nil && !managedDeviceAllowsMode(*device, "staff_ui") && isStaffSessionEntryPath(r.URL.Path) {
 			writeAPIError(w, r, apperror.New(http.StatusForbidden, "device_mode_denied", "This managed device is not configured for staff sessions"), logger)
 			return
@@ -411,6 +438,7 @@ func noStoreMiddleware(next http.Handler) http.Handler {
 		if strings.HasPrefix(r.URL.Path, apiBasePath+"/auth/") || strings.HasPrefix(r.URL.Path, apiBasePath+"/printer-connector/") || strings.HasSuffix(r.URL.Path, "/password-reset") ||
 			strings.HasPrefix(r.URL.Path, apiBasePath+"/visitor-enrollment/") ||
 			strings.HasPrefix(r.URL.Path, apiBasePath+"/terminal/") || strings.HasPrefix(r.URL.Path, apiBasePath+"/public/surveys/") ||
+			isSignagePlayerPath(r.URL.Path) || isSignagePairingPath(r.URL.Path) ||
 			strings.HasPrefix(r.URL.Path, apiBasePath+"/visits") || strings.HasPrefix(r.URL.Path, apiBasePath+"/attendance/") ||
 			strings.HasPrefix(r.URL.Path, apiBasePath+"/public/event-signups/") ||
 			strings.HasSuffix(r.URL.Path, "/signups") ||
@@ -752,7 +780,7 @@ func isPublicPath(path string) bool {
 		apiBasePath + "/auth/pin/login",
 		apiBasePath + "/auth/password-reset/request", apiBasePath + "/auth/password-reset/complete-code",
 		apiBasePath + "/auth/invitations/complete", apiBasePath + "/auth/email-verification/complete",
-		apiBasePath + "/public/open-days", apiBasePath + "/public/open-days/calendar.ics",
+		apiBasePath + "/public/open-days", apiBasePath + "/public/open-days/calendar.ics", apiBasePath + "/public/signage/pairing",
 		apiBasePath + "/managed-devices/self/hardware":
 		return true
 	default:
@@ -782,6 +810,14 @@ func cookieValue(cookie *http.Cookie) string {
 		return ""
 	}
 	return cookie.Value
+}
+
+func isSignagePlayerPath(path string) bool {
+	return strings.HasPrefix(path, apiBasePath+"/signage/player/")
+}
+
+func isSignagePairingPath(path string) bool {
+	return path == apiBasePath+"/public/signage/pairing"
 }
 
 func isSCIMPath(path string) bool {

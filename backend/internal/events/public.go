@@ -584,3 +584,24 @@ func managementDigest(token string) ([]byte, error) {
 	}
 	return security.DigestToken(token), nil
 }
+
+// UpcomingPublicEvent is the minimal, already-public description of an upcoming event occurrence.
+type UpcomingPublicEvent struct {
+	Title    string
+	StartsAt time.Time
+	Location string
+}
+
+// ListUpcomingPublic returns the next public sessions, one per publicly visible event, soonest first.
+// It exposes only title, start and location.
+func (s *Service) ListUpcomingPublic(ctx context.Context, now time.Time, limit int) ([]UpcomingPublicEvent, error) {
+	rows, err := eventsdb.New(s.pool).ListUpcomingPublicEventSessions(ctx, eventsdb.ListUpcomingPublicEventSessionsParams{Now: now.UTC(), RowLimit: int32(limit)})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]UpcomingPublicEvent, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, UpcomingPublicEvent{Title: row.Title, StartsAt: row.StartsAt.UTC(), Location: row.Location})
+	}
+	return result, nil
+}

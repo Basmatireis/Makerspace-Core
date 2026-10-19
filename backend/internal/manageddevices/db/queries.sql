@@ -143,3 +143,15 @@ WHERE managed_device_id = sqlc.arg(managed_device_id);
 -- name: AddReportedDeviceCapability :exec
 INSERT INTO managed_device_reported_capabilities (managed_device_id, capability)
 VALUES (sqlc.arg(managed_device_id), sqlc.arg(capability));
+
+-- name: EnsureManagedDeviceTypeByName :exec
+INSERT INTO device_types (id, name, description)
+VALUES (sqlc.arg(id), sqlc.arg(name), sqlc.narg(description))
+ON CONFLICT DO NOTHING;
+
+-- name: GetDeviceTypeByName :one
+SELECT * FROM device_types WHERE lower(name) = lower(sqlc.arg(name)::text);
+
+-- name: SetManagedDeviceTokenDigest :one
+UPDATE managed_devices SET token_digest = sqlc.arg(token_digest), version = version + 1, updated_at = now()
+WHERE id = sqlc.arg(id) AND revoked_at IS NULL RETURNING id;

@@ -21,8 +21,10 @@ type Querier interface {
 	CreateSessionPolicy(ctx context.Context, arg CreateSessionPolicyParams) (SessionPolicy, error)
 	DeleteDeviceType(ctx context.Context, arg DeleteDeviceTypeParams) (uuid.UUID, error)
 	DeleteManagedDevice(ctx context.Context, arg DeleteManagedDeviceParams) (uuid.UUID, error)
+	EnsureManagedDeviceTypeByName(ctx context.Context, arg EnsureManagedDeviceTypeByNameParams) error
 	GetDefaultSessionPolicy(ctx context.Context) (SessionPolicy, error)
 	GetDeviceType(ctx context.Context, id uuid.UUID) (DeviceType, error)
+	GetDeviceTypeByName(ctx context.Context, name string) (DeviceType, error)
 	GetDeviceTypeForMutation(ctx context.Context, id uuid.UUID) (DeviceType, error)
 	GetManagedDevice(ctx context.Context, id uuid.UUID) (GetManagedDeviceRow, error)
 	GetManagedDeviceForMutation(ctx context.Context, id uuid.UUID) (ManagedDevice, error)
@@ -38,6 +40,7 @@ type Querier interface {
 	RevokeSessionsForManagedDevice(ctx context.Context, managedDeviceID *uuid.UUID) error
 	RevokeSessionsForPolicy(ctx context.Context, sessionPolicyID *uuid.UUID) error
 	RotateManagedDeviceToken(ctx context.Context, arg RotateManagedDeviceTokenParams) (ManagedDevice, error)
+	SetManagedDeviceTokenDigest(ctx context.Context, arg SetManagedDeviceTokenDigestParams) (uuid.UUID, error)
 	TouchManagedDevice(ctx context.Context, id uuid.UUID) error
 	UpdateDeviceType(ctx context.Context, arg UpdateDeviceTypeParams) (DeviceType, error)
 	UpdateManagedDevice(ctx context.Context, arg UpdateManagedDeviceParams) (ManagedDevice, error)
