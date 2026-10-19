@@ -1,20 +1,19 @@
-import { Button, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, Tag } from '@carbon/react';
-import { Currency } from '@carbon/icons-react';
+import { Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, Tag } from '@carbon/react';
 import { allocationSum, type OrderView } from '../logic';
 import { formatDateTime, formatEur, formatSignedEur } from '../format';
 import { methodLabel, reasonKindLabel } from '../labels';
 import { PaymentKindTag } from '../status';
-import { LinkifiedText, RefLink } from '../../components/RefLink';
+import { LinkifiedText, RefLink, RichNotification } from '../../components/RefLink';
 import type { Allocation, Order, Payment } from '../types';
 
 type Props = {
   order: OrderView; orders: Order[]; payments: Payment[]; allocations: Allocation[];
-  /** Why recording is not possible right now, shown instead of the button. Null when the button is available. */
-  recordBlocked: string | null; canRecord: boolean; bankTransfer?: boolean; onRecord: () => void;
+  /** Why recording is not possible right now, shown as a notice inside the list. Recording itself is the page's primary action. */
+  recordBlocked: string | null;
 };
 
 /** Receipts and refunds that touch this order, including payments carried over from or to a replacement. */
-export function PaymentsSection({ order, orders, payments, allocations, recordBlocked, canRecord, bankTransfer = false, onRecord }: Props) {
+export function PaymentsSection({ order, orders, payments, allocations, recordBlocked }: Props) {
   const touching = payments.filter((payment) => allocations.some((allocation) => allocation.paymentId === payment.id && allocation.orderId === order.id)
     || (payment.entryKind === 'reversal' && allocations.some((allocation) => allocation.paymentId === payment.id && allocation.orderId === order.id)))
     .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt));
@@ -35,15 +34,16 @@ export function PaymentsSection({ order, orders, payments, allocations, recordBl
     <TableContainer
       title="Payments" description={order.status === 'draft' ? 'Payments can be recorded once the order is finalized.' : 'Receipts are never edited. A mistake is undone by a reversal that stays on the record.'}
     >
-      <div className="sales-section-actions">
-        {canRecord && !recordBlocked && <Button kind="primary" size="md" renderIcon={Currency} onClick={onRecord}>{bankTransfer ? 'Record bank transfer' : 'Record payment'}</Button>}
-        {recordBlocked && <span className="mj-secondary"><LinkifiedText text={recordBlocked} /></span>}
-      </div>
       <Table aria-label="Payments of this order">
         <TableHead>
           <TableRow><TableHeader>Payment</TableHeader><TableHeader>Method</TableHeader><TableHeader>Time</TableHeader><TableHeader className="sales-num">Amount</TableHeader><TableHeader className="mj-hide-narrow">Recorded by</TableHeader></TableRow>
         </TableHead>
         <TableBody>
+          {recordBlocked && (
+            <TableRow className="sales-table-notice">
+              <TableCell colSpan={5}><RichNotification kind="info" title="Payments paused" className="sales-table-notice__box"><LinkifiedText text={recordBlocked} /></RichNotification></TableCell>
+            </TableRow>
+          )}
           {touching.length === 0 && <TableRow><TableCell colSpan={5}>No payments yet.</TableCell></TableRow>}
           {touching.map((payment) => {
             const detail = note(payment);

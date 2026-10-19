@@ -135,8 +135,7 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
               onRemove={(item) => act(() => store.removeOrderItem(order.id, item.id), { title: 'Item removed' })}
               onSave={(item, input) => act(() => store.updateOrderManualItem(order.id, item.id, input), { title: 'Item updated' })}
             />
-            <PaymentsSection order={order} orders={store.orders} payments={store.payments} allocations={store.allocations} canRecord={recorded && order.status === 'finalized' && order.outstanding > 0 && methods.length > 0}
-              recordBlocked={recordBlocked} bankTransfer={bankTransfer} onRecord={() => setDialog('pay')} />
+            <PaymentsSection order={order} orders={store.orders} payments={store.payments} allocations={store.allocations} recordBlocked={recordBlocked} />
             {order.latestRequest && <div id="order-invoice"><InvoiceSection order={order} request={order.latestRequest} /></div>}
           </div>
           <div className="mj-stack">

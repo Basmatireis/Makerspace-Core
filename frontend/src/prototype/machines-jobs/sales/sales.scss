@@ -124,3 +124,7 @@
 .sales-quote li { display: flex; justify-content: space-between; gap: $spacing-05; }
 .sales-total { display: flex; align-items: baseline; justify-content: space-between; padding-block-start: $spacing-04; border-block-start: 1px solid var(--cds-border-strong); @include type-style('heading-compact-02'); }
 .sales-total strong { @include type-style('productive-heading-05'); font-variant-numeric: tabular-nums; }
+
+// A notice that belongs to a table sits in its first row, edge to edge.
+.sales-table-notice > td { padding: 0 !important; }
+.sales-table-notice .sales-table-notice__box.cds--actionable-notification { max-inline-size: none; inline-size: 100%; margin: 0; }
