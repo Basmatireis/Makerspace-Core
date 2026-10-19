@@ -76,5 +76,5 @@
 
 // Section switcher at the start of a table toolbar.
 .mj-toolbar-switcher { display: flex; align-items: center; flex: 0 0 auto; padding-inline-start: 0; }
-.mj-toolbar-switcher .cds--content-switcher { inline-size: auto; }
-.mj-toolbar-switcher .cds--content-switcher-btn { min-inline-size: 8.5rem; }
+.mj-toolbar-switcher .cds--tabs { min-block-size: 3rem; }
+.mj-toolbar-switcher .cds--tabs.cds--tabs--contained .cds--tabs__nav-item { block-size: 3rem; }
