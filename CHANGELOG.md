@@ -31,6 +31,7 @@ Notable changes to Makerspace Core are documented here. Releases follow Semantic
 ### Fixed
 
 - Section switcher tabs point at real panels, the jobs batch bar and pricing tables no longer make narrow pages scroll sideways, and a paid order no longer says payments are paused.
+- Signing in after someone else signed out lands on the dashboard instead of the previous person's last page.
 
 ### Removed
 
