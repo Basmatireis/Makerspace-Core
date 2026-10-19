@@ -1,6 +1,6 @@
-import { LinkifiedText } from '../components/RefLink';
+import { LinkifiedText, RichNotification } from '../components/RefLink';
 import { useEffect, useState } from 'react';
-import { Checkbox, InlineNotification, Modal, RadioButton, RadioButtonGroup, Stack } from '@carbon/react';
+import { Checkbox, Modal, RadioButton, RadioButtonGroup, Stack } from '@carbon/react';
 import type { JobRow } from '../derived';
 import { deleteBlocker, hasBookedMaterial, runsOfJob } from '../runs';
 import { useSimulatedMutation, useStore, type DeleteSelectionInput } from '../store';
@@ -43,11 +43,9 @@ export function DeleteSelectionModal({ open, onClose, rows, onDone }: { open: bo
           {jobs.length + runs.length === 0 ? 'None of the selected items can be deleted.' : `${summary} will be deleted permanently. This can't be undone.`}
         </p>
         {skipped.length > 0 && (
-          <InlineNotification
-            kind="warning" lowContrast hideCloseButton title={`${plural(skipped.length, 'item')} will be skipped`}
-          >
+          <RichNotification kind="warning" title={`${plural(skipped.length, 'item')} will be skipped`}>
             <ul className="mj-skip-list">{skipped.map((reason) => <li key={reason}><LinkifiedText text={reason} onNavigate={onClose} /></li>)}</ul>
-          </InlineNotification>
+          </RichNotification>
         )}
         {linkedRuns > 0 && (
           <Checkbox

@@ -8,7 +8,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { connectorStatus, formatDateTime, formatRelative } from '../derived';
 import { nozzleLabel } from '../printerSetup';
 import { useStore } from '../store';
-import { LinkifiedText, NotificationBody } from './RefLink';
+import { LinkifiedText, RichNotification } from './RefLink';
 import type { ConnectorEventKind, ConnectorHost, ConnectorHostEvent, ConnectorRuntimeState, DetectedUnit, Machine, PrinterLiveStatus, PrinterProfile, PrinterRunState, Spool } from '../types';
 import { DetectedTrayCell } from './DetectedTrayCell';
 
@@ -123,7 +123,7 @@ function ConnectorPanel({ host, views, onSelect }: { host: ConnectorHost; views:
           <h4 className="mj-group-title">Quarantined events</h4>
           <Stack gap={3}>
             {quarantined.map((event) => (
-              <InlineNotification key={event.id} kind="warning" lowContrast hideCloseButton title={quarantineReasons[event.quarantine!.reason] ?? `Event quarantined (${event.quarantine!.reason})`} ><NotificationBody><LinkifiedText text={event.summary} /> · {relativeAge(event.receivedAt)}</NotificationBody></InlineNotification>
+              <RichNotification key={event.id} kind="warning" title={quarantineReasons[event.quarantine!.reason] ?? `Event quarantined (${event.quarantine!.reason})`} ><LinkifiedText text={event.summary} /> · {relativeAge(event.receivedAt)}</RichNotification>
             ))}
           </Stack>
         </div>

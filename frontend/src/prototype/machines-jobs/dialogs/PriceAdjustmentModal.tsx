@@ -1,6 +1,6 @@
-import { NotificationBody, RefLink } from '../components/RefLink';
+import { RichNotification, RefLink } from '../components/RefLink';
 import { Controller, useForm } from 'react-hook-form';
-import { InlineNotification, Modal, NumberInput, RadioButton, RadioButtonGroup, Stack, TextArea } from '@carbon/react';
+import { Modal, NumberInput, RadioButton, RadioButtonGroup, Stack, TextArea } from '@carbon/react';
 import { adjustmentKindLabels, adjustPrice, formatMoney } from '../derived';
 import { useSimulatedMutation, useStore } from '../store';
 import type { Job, PriceAdjustmentKind } from '../types';
@@ -45,7 +45,7 @@ function AdjustmentForm({ onClose, job }: { onClose: () => void; job: Job }) {
     >
       <Stack gap={6}>
         <p>The calculated price stays visible on the job. Existing order charges are not changed.</p>
-        {job.order && <InlineNotification kind="warning" lowContrast hideCloseButton title="On an order"><NotificationBody><RefLink reference={job.order.orderReference} id={job.order.orderId} onNavigate={onClose} />. The order is not updated automatically.</NotificationBody></InlineNotification>}
+        {job.order && <RichNotification kind="warning" title="On an order"><RefLink reference={job.order.orderReference} id={job.order.orderId} onNavigate={onClose} />. The order is not updated automatically.</RichNotification>}
         <Controller control={form.control} name="kind" render={({ field: kindField }) => (
           <RadioButtonGroup
             legendText="Adjustment" name={`adjust-kind-${job.id}`} orientation="vertical" valueSelected={kindField.value}

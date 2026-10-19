@@ -6,7 +6,7 @@ import { DestructiveActionDialog } from '../../../../app/DestructiveActionDialog
 import { PageShell } from '../../../../app/PageShell';
 import { EmptyState } from '../../../../app/PageState';
 import { QueryBoundary } from '../../components/QueryBoundary';
-import { LinkifiedText, NotificationBody, RefLink } from '../../components/RefLink';
+import { LinkifiedText, RichNotification, RefLink } from '../../components/RefLink';
 import { lookups, useStore } from '../../store';
 import { InvoiceSection } from '../components/InvoiceSection';
 import { OrderItemsTable } from '../components/OrderItemsTable';
@@ -95,13 +95,12 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
     >
       <div className="mj-stack">
         {order.replaces && draft && (
-          <InlineNotification kind="info" lowContrast hideCloseButton title="This draft replaces an order">
-            <NotificationBody><RefLink reference={order.replaces.reference} id={order.replaces.id} />. Change the items as needed, then commit the replacement. The original is reversed at that moment and its payments move over.</NotificationBody>
-          </InlineNotification>
+          <RichNotification kind="info" title="This draft replaces an order"><RefLink reference={order.replaces.reference} id={order.replaces.id} />. Change the items as needed, then commit the replacement. The original is reversed at that moment and its payments move over.
+          </RichNotification>
         )}
-        {order.replacedBy && <InlineNotification kind="info" lowContrast hideCloseButton title="This order was replaced"><NotificationBody><RefLink reference={order.replacedBy.reference} id={order.replacedBy.id} /> is charged now. This order no longer counts.</NotificationBody></InlineNotification>}
-        {order.replaces && !draft && <InlineNotification kind="info" lowContrast hideCloseButton title="This order replaces another one"><NotificationBody><RefLink reference={order.replaces.reference} id={order.replaces.id} />. Payments that were already made moved over to this order.</NotificationBody></InlineNotification>}
-        {draftBlockers.length > 0 && <InlineNotification kind="warning" lowContrast hideCloseButton title="Before you can continue"><NotificationBody><LinkifiedText text={draftBlockers.join(' ')} /></NotificationBody></InlineNotification>}
+        {order.replacedBy && <RichNotification kind="info" title="This order was replaced"><RefLink reference={order.replacedBy.reference} id={order.replacedBy.id} /> is charged now. This order no longer counts.</RichNotification>}
+        {order.replaces && !draft && <RichNotification kind="info" title="This order replaces another one"><RefLink reference={order.replaces.reference} id={order.replaces.id} />. Payments that were already made moved over to this order.</RichNotification>}
+        {draftBlockers.length > 0 && <RichNotification kind="warning" title="Before you can continue"><LinkifiedText text={draftBlockers.join(' ')} /></RichNotification>}
         {!draft && changedItems.length > 0 && (
           <InlineNotification kind="warning" lowContrast hideCloseButton title={`${changedItems.length === 1 ? 'A job' : `${changedItems.length} jobs`} changed after being charged`}
             subtitle="The order keeps the original charge. To change what is charged, use Correct order in the menu." />

@@ -1,4 +1,4 @@
-import { NotificationBody, RefLink } from '../components/RefLink';
+import { RichNotification, RefLink } from '../components/RefLink';
 import { useEffect, useMemo, useState } from 'react';
 import { ComboBox, InlineNotification, Modal, Stack, StructuredListBody, StructuredListCell, StructuredListHead, StructuredListRow, StructuredListWrapper } from '@carbon/react';
 import { formatDateTime, formatDuration, formatRelative, jobName, jobUsageText } from '../derived';
@@ -72,16 +72,15 @@ export function AttachToJobModal({ open, onClose, runs, onDone }: { open: boolea
                 ))}
               </StructuredListBody>
             </StructuredListWrapper>
-            <InlineNotification
-              kind="warning" lowContrast hideCloseButton title={plan.replacesManual ? 'Manual entry replaced' : 'Runs added'}
+            <RichNotification
+              kind="warning" title={plan.replacesManual ? 'Manual entry replaced' : 'Runs added'}
             >
-              <NotificationBody>
                 {plan.replacesManual
                   ? <><RefLink reference={selected.displayId} id={selected.id} onNavigate={onClose} /> uses the data of the recorded runs instead of its manual entry. Price is recalculated.</>
                   : <>Runtime and material of the new runs are added to <RefLink reference={selected.displayId} id={selected.id} onNavigate={onClose} />. Price is recalculated.</>}
-              </NotificationBody>
-            </InlineNotification>
-            {selected.order && <InlineNotification kind="warning" lowContrast hideCloseButton title="On an order"><NotificationBody><RefLink reference={selected.order.orderReference} id={selected.order.orderId} onNavigate={onClose} />. The job changes after it was charged; the order amount is not updated.</NotificationBody></InlineNotification>}
+              
+            </RichNotification>
+            {selected.order && <RichNotification kind="warning" title="On an order"><RefLink reference={selected.order.orderReference} id={selected.order.orderId} onNavigate={onClose} />. The job changes after it was charged; the order amount is not updated.</RichNotification>}
           </>
         )}
       </Stack>

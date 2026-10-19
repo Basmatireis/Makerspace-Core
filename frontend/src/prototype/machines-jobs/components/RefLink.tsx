@@ -1,3 +1,4 @@
+import { ActionableNotification } from '@carbon/react';
 import { Fragment, type ReactNode } from 'react';
 import { Link as CarbonLink } from '@carbon/react';
 import { Link, useLocation } from 'react-router-dom';
@@ -49,6 +50,10 @@ export function LinkifiedText({ text, onNavigate }: { text: string; onNavigate?:
 }
 
 /** Body of an inline notification that carries references: Carbon's title and subtitle props only take strings, its children render below them. */
-export function NotificationBody({ children }: { children: ReactNode }) {
-  return <div className="cds--inline-notification__subtitle">{children}</div>;
+/**
+ * An inline notification whose body may contain links. Carbon's InlineNotification throws on interactive children,
+ * so this uses the actionable variant without an action button.
+ */
+export function RichNotification({ kind, title, children, className }: { kind: 'info' | 'warning' | 'error' | 'success'; title: string; children: ReactNode; className?: string }) {
+  return <ActionableNotification inline lowContrast hideCloseButton kind={kind} title={title} subtitle={children} className={className} />;
 }

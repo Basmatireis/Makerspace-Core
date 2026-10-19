@@ -1,4 +1,4 @@
-import { NotificationBody, RefLink } from '../../components/RefLink';
+import { RichNotification, RefLink } from '../../components/RefLink';
 import { useMemo, useState } from 'react';
 import { Button, InlineNotification, Modal, ProgressIndicator, ProgressStep, RadioButton, RadioButtonGroup, RadioTile, Stack, StructuredListBody, StructuredListCell, StructuredListRow, StructuredListWrapper, TextArea, TextInput, TileGroup } from '@carbon/react';
 import { Link } from 'react-router-dom';
@@ -111,7 +111,7 @@ export function CorrectOrderModal({ order, replacement, onClose }: { order: Orde
 
   const blockers = (
     <Stack gap={4}>
-      {order.replacedBy && <InlineNotification kind="info" lowContrast hideCloseButton title="Already replaced"><NotificationBody><RefLink reference={order.replacedBy.reference} id={order.replacedBy.id} onNavigate={onClose} />. Correct the replacement instead; a replaced order cannot be changed again.</NotificationBody></InlineNotification>}
+      {order.replacedBy && <RichNotification kind="info" title="Already replaced"><RefLink reference={order.replacedBy.reference} id={order.replacedBy.id} onNavigate={onClose} />. Correct the replacement instead; a replaced order cannot be changed again.</RichNotification>}
       {blockedRequest && (
         <InlineNotification kind="warning" lowContrast hideCloseButton title={`${blockedRequest.reference} is ${requestStateLabel[blockedRequest.state].toLowerCase()}`}
           subtitle="Cancel or reconcile the invoice request in the order first. Core records what happened in wiRef; it does not change the accounting itself." />
@@ -156,7 +156,7 @@ export function CorrectOrderModal({ order, replacement, onClose }: { order: Orde
 
         {step === 'payments' && (
           <Stack gap={6}>
-            {committing && <InlineNotification kind="info" lowContrast hideCloseButton title={`New total ${formatEur(newTotal)}`}><NotificationBody><RefLink reference={original.reference} id={original.id} onNavigate={onClose} /> was {formatEur(sum(receipts.map((payment) => payment.amount)))} paid. Choose what happens to each payment.</NotificationBody></InlineNotification>}
+            {committing && <RichNotification kind="info" title={`New total ${formatEur(newTotal)}`}><RefLink reference={original.reference} id={original.id} onNavigate={onClose} /> was {formatEur(sum(receipts.map((payment) => payment.amount)))} paid. Choose what happens to each payment.</RichNotification>}
             {externalReceipt && <InlineNotification kind="error" lowContrast hideCloseButton title="A bank transfer was recorded against the invoice" subtitle="It cannot be moved or refunded here. Cancel the invoice request and record the external accounting correction on the original order first." />}
             {receipts.map((payment, position) => {
               const current = choice(payment);

@@ -1,4 +1,4 @@
-import { NotificationBody, RefLink } from '../components/RefLink';
+import { RichNotification, RefLink } from '../components/RefLink';
 import { useState } from 'react';
 import { Button, ComposedModal, InlineNotification, ModalBody, ModalFooter, ModalHeader, NumberInput, Select, SelectItem, Stack, TextInput } from '@carbon/react';
 import { Add, TrashCan } from '@carbon/icons-react';
@@ -90,7 +90,7 @@ function UsageForm({ onClose, job }: { onClose: () => void; job: Job }) {
           <FormProvider {...form}>
             <Stack gap={6}>
               <p>Saving replaces the full list of consumed material. Stock is adjusted and the calculated price is recalculated. Existing order charges stay unchanged.</p>
-              {job.order && <InlineNotification kind="warning" lowContrast hideCloseButton title="On an order"><NotificationBody><RefLink reference={job.order.orderReference} id={job.order.orderId} onNavigate={onClose} />. Correct the order separately after changing usage.</NotificationBody></InlineNotification>}
+              {job.order && <RichNotification kind="warning" title="On an order"><RefLink reference={job.order.orderReference} id={job.order.orderId} onNavigate={onClose} />. Correct the order separately after changing usage.</RichNotification>}
               {invalid && <InlineNotification kind="error" lowContrast hideCloseButton title="Check the material rows" subtitle="Every row needs a material and a quantity above zero." />}
               <UsageRowsEditor idPrefix={`usage-${job.id}`} />
             </Stack>
