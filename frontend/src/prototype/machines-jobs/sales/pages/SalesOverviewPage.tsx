@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { Button, ClickableTile, ContainedList, ContainedListItem, SkeletonText, Tag } from '@carbon/react';
 import { ArrowRight } from '@carbon/icons-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { PageShell } from '../../../../app/PageShell';
 import { ErrorState } from '../../../../app/PageState';
+import { RefLink } from '../../components/RefLink';
 import { useStore } from '../../store';
 import { RequirePermission } from '../components/RequirePermission';
 import { formatDateTime, formatEur, round2 } from '../format';
@@ -17,7 +18,7 @@ type Takings = ReturnType<typeof takings>;
 const breakdown = (value: Takings) => [`Cash ${formatEur(value.cash)}`, `Card ${formatEur(value.card)}`, ...(value.external ? [`Bank transfer ${formatEur(value.external)}`] : [])].join(' · ');
 const daysOld = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
 
-type Attention = { key: string; title: string; detail: string; to: string; tag: { label: string; type: 'warm-gray' | 'blue' | 'green' | 'purple' | 'red' } };
+type Attention = { key: string; title: ReactNode; detail: string; to: string; tag: { label: string; type: 'warm-gray' | 'blue' | 'green' | 'purple' | 'red' } };
 
 function SalesOverview() {
   const store = useStore();
@@ -41,10 +42,10 @@ function SalesOverview() {
   });
 
   const attention: Attention[] = [
-    ...views.filter(isStaleDraft).map((order) => ({ key: order.id, title: `${order.reference} · ${order.customerLabel}`, detail: `Draft untouched for ${daysOld(order.updatedAt)} days. Finalize or cancel it.`, to: `/sales/orders/${order.id}`, tag: { label: 'Old draft', type: 'warm-gray' as const } })),
-    ...[...awaiting].filter((order) => !order.activeRequest).sort((a, b) => a.updatedAt.localeCompare(b.updatedAt)).slice(0, 3).map((order) => ({ key: order.id, title: `${order.reference} · ${order.customerLabel}`, detail: `${formatEur(order.outstanding)} outstanding of ${formatEur(order.net)}`, to: `/sales/orders/${order.id}`, tag: { label: order.settlement === 'partially_paid' ? 'Partially paid' : 'Awaiting payment', type: 'blue' as const } })),
+    ...views.filter(isStaleDraft).map((order) => ({ key: order.id, title: <><RefLink reference={order.reference} id={order.id} /> · {order.customerLabel}</>, detail: `Draft untouched for ${daysOld(order.updatedAt)} days. Finalize or cancel it.`, to: `/sales/orders/${order.id}`, tag: { label: 'Old draft', type: 'warm-gray' as const } })),
+    ...[...awaiting].filter((order) => !order.activeRequest).sort((a, b) => a.updatedAt.localeCompare(b.updatedAt)).slice(0, 3).map((order) => ({ key: order.id, title: <><RefLink reference={order.reference} id={order.id} /> · {order.customerLabel}</>, detail: `${formatEur(order.outstanding)} outstanding of ${formatEur(order.net)}`, to: `/sales/orders/${order.id}`, tag: { label: order.settlement === 'partially_paid' ? 'Partially paid' : 'Awaiting payment', type: 'blue' as const } })),
     ...readyCustomers.slice(0, 3).map((group) => ({ key: `ready-${group.customer.id}`, title: group.customer.displayName, detail: `${group.ready.length} ${group.ready.length === 1 ? 'job' : 'jobs'} ready to bill · ${formatEur(group.total)}`, to: '/sales/orders?review=1', tag: { label: 'Ready to bill', type: 'green' as const } })),
-    ...(canInvoices ? stepping.slice(0, 4).map(({ request, order }) => ({ key: request.id, title: `${request.reference} · ${order.reference} · ${order.customerLabel}`, detail: `${requestStateLabel[request.state]}. Next: ${(request.state === 'issued' ? requestNextStep.issued : requestNextStep[request.state]).toLowerCase()}`, to: `/sales/orders/${order.id}`, tag: { label: 'Invoice', type: 'purple' as const } })) : []),
+    ...(canInvoices ? stepping.slice(0, 4).map(({ request, order }) => ({ key: request.id, title: <>{request.reference} · <RefLink reference={order.reference} id={order.id} /> · {order.customerLabel}</>, detail: `${requestStateLabel[request.state]}. Next: ${(request.state === 'issued' ? requestNextStep.issued : requestNextStep[request.state]).toLowerCase()}`, to: `/sales/orders/${order.id}`, tag: { label: 'Invoice', type: 'purple' as const } })) : []),
   ];
   const recent = [...views].filter((order) => order.status !== 'draft' && order.status !== 'cancelled').sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 8);
 
@@ -87,7 +88,7 @@ function SalesOverview() {
               {!loading && recent.length === 0 && <ContainedListItem>No orders yet.</ContainedListItem>}
               {!loading && recent.map((order: OrderView) => (
                 <ContainedListItem key={order.id} onClick={() => navigate(`/sales/orders/${order.id}`)} action={<OrderStatusTag order={order} size="sm" />}>
-                  <span className="mj-cell-stack"><strong>{order.reference} · {formatEur(order.total)}</strong><span className="mj-secondary">{order.customerLabel} · {formatDateTime(order.updatedAt)}</span></span>
+                  <span className="mj-cell-stack"><strong><RefLink reference={order.reference} id={order.id} /> · {formatEur(order.total)}</strong><span className="mj-secondary">{order.customerLabel} · {formatDateTime(order.updatedAt)}</span></span>
                 </ContainedListItem>
               ))}
             </ContainedList>

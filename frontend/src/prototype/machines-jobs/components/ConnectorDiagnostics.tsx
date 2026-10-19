@@ -8,6 +8,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { connectorStatus, formatDateTime, formatRelative } from '../derived';
 import { nozzleLabel } from '../printerSetup';
 import { useStore } from '../store';
+import { LinkifiedText, NotificationBody } from './RefLink';
 import type { ConnectorEventKind, ConnectorHost, ConnectorHostEvent, ConnectorRuntimeState, DetectedUnit, Machine, PrinterLiveStatus, PrinterProfile, PrinterRunState, Spool } from '../types';
 import { DetectedTrayCell } from './DetectedTrayCell';
 
@@ -73,7 +74,7 @@ function EventsTable({ events, caption }: { events: ConnectorHostEvent[]; captio
                     <TableExpandRow {...rowProps} aria-label={`Show raw payload of ${event.summary}`}>
                       <TableCell><span title={formatDateTime(event.receivedAt)}>{relativeAge(event.receivedAt)}</span></TableCell>
                       <TableCell>{eventLabels[event.kind]}</TableCell>
-                      <TableCell>{event.summary}</TableCell>
+                      <TableCell><LinkifiedText text={event.summary} /></TableCell>
                     </TableExpandRow>
                     {row.isExpanded && (
                       <TableExpandedRow colSpan={tableHeaders.length + 1}>
@@ -122,7 +123,7 @@ function ConnectorPanel({ host, views, onSelect }: { host: ConnectorHost; views:
           <h4 className="mj-group-title">Quarantined events</h4>
           <Stack gap={3}>
             {quarantined.map((event) => (
-              <InlineNotification key={event.id} kind="warning" lowContrast hideCloseButton title={quarantineReasons[event.quarantine!.reason] ?? `Event quarantined (${event.quarantine!.reason})`} subtitle={`${event.summary} · ${relativeAge(event.receivedAt)}`} />
+              <InlineNotification key={event.id} kind="warning" lowContrast hideCloseButton title={quarantineReasons[event.quarantine!.reason] ?? `Event quarantined (${event.quarantine!.reason})`} ><NotificationBody><LinkifiedText text={event.summary} /> · {relativeAge(event.receivedAt)}</NotificationBody></InlineNotification>
             ))}
           </Stack>
         </div>

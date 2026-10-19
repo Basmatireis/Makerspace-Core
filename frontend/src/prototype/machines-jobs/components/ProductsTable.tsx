@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { Button, Link as CarbonLink, Tag } from '@carbon/react';
 import { Link } from 'react-router-dom';
@@ -10,6 +11,8 @@ import { formatGrams, packagingOptions, PackagingTag, productInUse } from './inv
 type Row = FilamentProduct & { materialName: string; inUse: number };
 
 type Props = {
+  /** Section switcher for the toolbar when the table shares a page with sibling tables. */
+  switcher?: ReactNode;
   /** Unique per page. */
   id: string;
   /** Set on a material page: the Material column and filter are dropped. */
@@ -20,7 +23,7 @@ type Props = {
 };
 
 /** Filament product catalog as a Directory-style table; used on the Inventory page and on a material's page. */
-export function ProductsTable({ id, materialId, canManage, onAdd, onEdit }: Props) {
+export function ProductsTable({ switcher, id, materialId, canManage, onAdd, onEdit }: Props) {
   const { products, materials, spools } = useStore();
   const url = useUrlState(id);
   const fixedMaterial = materialId != null;
@@ -67,7 +70,7 @@ export function ProductsTable({ id, materialId, canManage, onAdd, onEdit }: Prop
 
   return (
     <DirectoryTable
-      id={id} label="Products" columns={columns} rows={rows} totalCount={scoped.length}
+      switcher={switcher} id={id} label="Products" columns={columns} rows={rows} totalCount={scoped.length}
       searchText={(row) => [row.manufacturer, row.name, row.materialName, row.notes].filter(Boolean).join(' ')}
       defaultSort={{ key: 'product', direction: 'ASC' }}
       onRowClick={canManage ? onEdit : undefined}

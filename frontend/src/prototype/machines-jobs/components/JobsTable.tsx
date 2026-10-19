@@ -1,7 +1,8 @@
+import { BillingTag } from './BillingTag';
 import type { ReactNode } from 'react';
 import { DataTable, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow } from '@carbon/react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BillingTag, effectivePrice, formatDateTime, formatMoney, jobStatus, JobRowStatusTag, jobName } from '../derived';
+import { effectivePrice, formatDateTime, formatMoney, jobStatus, JobRowStatusTag, jobName } from '../derived';
 import { useNow, useStore } from '../store';
 import type { Job } from '../types';
 import '../styles/jobs.scss';

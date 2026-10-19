@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Button, Link as CarbonLink, MenuButton, MenuItem, Tab, TabList, TabPanel, TabPanels, Tabs } from '@carbon/react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Button, Link as CarbonLink, MenuButton, MenuItem } from '@carbon/react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PageShell } from '../../../app/PageShell';
 import { DirectoryTable, useUrlState, type Column, type Option } from '../components/DirectoryTable';
@@ -7,6 +7,7 @@ import { InventorySpoolsTable } from '../components/InventorySpoolsTable';
 import { ProductsTable } from '../components/ProductsTable';
 import { formatQuantity, formatUnitCost, isFilament, looseStock, onSpoolsStock, NoInventoryAccess, StockTag, stockState, stockStateOptions, type StockState } from '../components/inventoryShared';
 import { QueryBoundary } from '../components/QueryBoundary';
+import { SectionSwitcher } from '../components/SectionSwitcher';
 import { ChangeFilamentModal } from '../dialogs/ChangeFilamentModal';
 import { CleanupSpoolsModal } from '../dialogs/CleanupSpoolsModal';
 import { MaterialFormModal } from '../dialogs/MaterialFormModal';
@@ -22,8 +23,8 @@ const EMPTY: { materials: Material[]; spools: Spool[] } = { materials: [], spool
 
 type MaterialRow = Material & { state: StockState; activeSpools: number | null };
 
-function MaterialsTable({ materials, spools, canAdd, canRegister, onAdd, onRegister }: {
-  materials: Material[]; spools: Spool[]; canAdd: boolean; canRegister: boolean; onAdd: () => void; onRegister: () => void;
+function MaterialsTable({ materials, spools, canAdd, canRegister, onAdd, onRegister, switcher }: {
+  switcher: ReactNode; materials: Material[]; spools: Spool[]; canAdd: boolean; canRegister: boolean; onAdd: () => void; onRegister: () => void;
 }) {
   const url = useUrlState('materials');
   const categoryIds = url.list('category');
@@ -79,7 +80,7 @@ function MaterialsTable({ materials, spools, canAdd, canRegister, onAdd, onRegis
 
   return (
     <DirectoryTable
-      id="materials" label="Materials" columns={columns} rows={rows} totalCount={materials.length}
+      switcher={switcher} id="materials" label="Materials" columns={columns} rows={rows} totalCount={materials.length}
       searchText={(row) => [row.name, row.category, row.color].filter(Boolean).join(' ')}
       defaultSort={{ key: 'material', direction: 'ASC' }}
       toolbarAction={action}
@@ -111,48 +112,37 @@ export function InventoryPage() {
   const canAdd = store.can('inventory.manage');
   const canRegister = store.can('filament_spools.manage');
 
+  const switcher = (
+    <SectionSwitcher
+      label="Inventory sections" selected={tab}
+      sections={[{ id: 'materials', label: 'Materials' }, { id: 'spools', label: 'Spools' }, { id: 'products', label: 'Products' }]}
+      onChange={(id) => setParams((current) => { const next = new URLSearchParams(current); next.set('tab', id); return next; }, { replace: true })}
+    />
+  );
   const header = { title: 'Inventory', description: 'Materials, filament spools and the filament product catalog.', breadcrumbs: [{ label: 'Workshop', to: '/' }, { label: 'Inventory' }], width: 'wide' as const };
   if (!store.can('inventory.read')) return <PageShell {...header}><NoInventoryAccess /></PageShell>;
 
   return (
     <PageShell {...header}>
       <QueryBoundary query={query} errorMessage="The inventory could not be loaded.">
-        <Tabs
-          selectedIndex={TABS.indexOf(tab)}
-          onChange={({ selectedIndex }) => setParams((current) => { const next = new URLSearchParams(current); next.set('tab', TABS[selectedIndex] ?? 'materials'); return next; }, { replace: true })}
-        >
-          <TabList aria-label="Inventory sections" contained>
-            <Tab>Materials</Tab>
-            <Tab>Spools</Tab>
-            <Tab>Products</Tab>
-          </TabList>
-          <TabPanels>
-            <TabPanel className="mj-tab-panel">
-              <div>
-                <MaterialsTable
-                  materials={query.data.materials} spools={query.data.spools} canAdd={canAdd} canRegister={canRegister}
-                  onAdd={() => setMaterialOpen(true)} onRegister={() => setSpoolOpen(true)}
-                />
-              </div>
-            </TabPanel>
-            <TabPanel className="mj-tab-panel">
-              <div>
-                <InventorySpoolsTable
-                  id="spools" spools={query.data.spools} canRegister={canRegister} onRegister={() => setSpoolOpen(true)}
-                  onChangeFilament={() => setRefillOpen(true)} onCleanup={() => setCleanupOpen(true)}
-                />
-              </div>
-            </TabPanel>
-            <TabPanel className="mj-tab-panel">
-              <div>
-                <ProductsTable
-                  id="products" canManage={canAdd}
-                  onAdd={() => { setEditing(undefined); setProductOpen(true); }} onEdit={(product) => { setEditing(product); setProductOpen(true); }}
-                />
-              </div>
-            </TabPanel>
-          </TabPanels>
-        </Tabs>
+        {tab === 'materials' && (
+          <MaterialsTable
+            switcher={switcher} materials={query.data.materials} spools={query.data.spools} canAdd={canAdd} canRegister={canRegister}
+            onAdd={() => setMaterialOpen(true)} onRegister={() => setSpoolOpen(true)}
+          />
+        )}
+        {tab === 'spools' && (
+          <InventorySpoolsTable
+            switcher={switcher} id="spools" spools={query.data.spools} canRegister={canRegister} onRegister={() => setSpoolOpen(true)}
+            onChangeFilament={() => setRefillOpen(true)} onCleanup={() => setCleanupOpen(true)}
+          />
+        )}
+        {tab === 'products' && (
+          <ProductsTable
+            switcher={switcher} id="products" canManage={canAdd}
+            onAdd={() => { setEditing(undefined); setProductOpen(true); }} onEdit={(product) => { setEditing(product); setProductOpen(true); }}
+          />
+        )}
       </QueryBoundary>
       <MaterialFormModal open={materialOpen} onClose={() => setMaterialOpen(false)} />
       <SpoolFormModal open={spoolOpen} onClose={() => setSpoolOpen(false)} />

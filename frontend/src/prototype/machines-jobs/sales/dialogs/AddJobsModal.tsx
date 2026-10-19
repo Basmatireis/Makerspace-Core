@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Checkbox, InlineNotification, Modal, Stack, Tag } from '@carbon/react';
 import { formatDateTimeRange } from '../../../../app/dateTime';
+import { RefLink } from '../../components/RefLink';
 import { effectivePrice, formatDuration, jobName } from '../../derived';
 import { useNow, useStore } from '../../store';
 import { formatEur } from '../format';
@@ -15,7 +16,13 @@ export function AddJobsModal({ order, onClose }: { order: OrderView; onClose: ()
   const eligible = useMemo(() => eligibleJobs(order, store.jobs, store.orders, store.prints, now), [order, store.jobs, store.orders, store.prints, now]);
   const others = store.jobs.filter((job) => job.customer?.id === order.customer?.id && !eligible.some((item) => item.id === job.id)
     && !order.items.some((item) => item.removedAt === null && item.sourceJobId === job.id));
-  const unavailable = others.map((job) => ({ job, reason: job.order ? `On order ${job.order.orderReference}` : orderOfJob(job, store.orders)?.order ? `In draft ${orderOfJob(job, store.orders)!.order.reference}` : jobBlocker(job, store.prints, now) ?? 'Not available' }));
+  const unavailable = others.map((job) => {
+    const draft = job.order ? null : orderOfJob(job, store.orders)?.order ?? null;
+    return {
+      job, linked: job.order ? { id: job.order.orderId, reference: job.order.orderReference } : draft ? { id: draft.id, reference: draft.reference } : null,
+      reason: job.order ? 'On order' : draft ? 'In draft' : jobBlocker(job, store.prints, now) ?? 'Not available',
+    };
+  });
   const { mutate, pending, error } = useSalesMutation(() => store.addOrderJobs(order.id, [...selected]));
 
   const submit = async () => {
@@ -39,8 +46,9 @@ export function AddJobsModal({ order, onClose }: { order: OrderView; onClose: ()
               const run = store.prints.find((print) => print.id === job.printId);
               return (
                 <div key={job.id} className="sales-job-picker__row">
-                  <Checkbox id={`add-job-${job.id}`} labelText={<span className="mj-title-with-thumb"><span className="mj-cell-stack"><strong>{jobName(job, run)}</strong><span className="mj-secondary">{job.displayId} · {formatDateTimeRange(job.startsAt, job.endsAt)} · {formatDuration(job.durationSeconds)}</span></span></span>}
+                  <Checkbox id={`add-job-${job.id}`} labelText={`Select ${job.displayId}`} hideLabel
                     checked={selected.has(job.id)} onChange={(_event, { checked }) => setSelected((current) => { const next = new Set(current); if (checked) next.add(job.id); else next.delete(job.id); return next; })} />
+                  <span className="mj-cell-stack sales-job-picker__text"><strong>{jobName(job, run)}</strong><span className="mj-secondary"><RefLink reference={job.displayId} id={job.id} onNavigate={onClose} /> · {formatDateTimeRange(job.startsAt, job.endsAt)} · {formatDuration(job.durationSeconds)}</span></span>
                   <strong>{formatEur(effectivePrice(job))}</strong>
                 </div>
               );
@@ -50,7 +58,7 @@ export function AddJobsModal({ order, onClose }: { order: OrderView; onClose: ()
         {unavailable.length > 0 && (
           <div>
             <p className="mj-secondary">Not available for this order:</p>
-            <ul className="sales-reason-list">{unavailable.map(({ job, reason }) => <li key={job.id}><span>{job.displayId} · {jobName(job, store.prints.find((print) => print.id === job.printId))}</span><Tag type="gray" size="sm">{reason}</Tag></li>)}</ul>
+            <ul className="sales-reason-list">{unavailable.map(({ job, reason, linked }) => <li key={job.id}><span><RefLink reference={job.displayId} id={job.id} onNavigate={onClose} /> · {jobName(job, store.prints.find((print) => print.id === job.printId))}</span><span className="mj-inline"><Tag type="gray" size="sm">{reason}</Tag>{linked && <RefLink reference={linked.reference} id={linked.id} onNavigate={onClose} />}</span></li>)}</ul>
           </div>
         )}
         {error && <InlineNotification kind="error" lowContrast hideCloseButton title="Could not add" subtitle={error} />}

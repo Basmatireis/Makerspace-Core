@@ -5,6 +5,7 @@ import { Link, useParams } from 'react-router-dom';
 import { PageShell } from '../../../../app/PageShell';
 import { EmptyState } from '../../../../app/PageState';
 import { QueryBoundary } from '../../components/QueryBoundary';
+import { LinkifiedText, RefLink } from '../../components/RefLink';
 import { useStore } from '../../store';
 import { LinkNotification } from '../components/LinkNotification';
 import { RequirePermission } from '../components/RequirePermission';
@@ -41,13 +42,13 @@ function PaymentDetail({ paymentId, views }: { paymentId: string; views: OrderVi
       <div className="mj-stack">
         {payment.entryKind === 'receipt' && !actionable && options.blocker && <InlineNotification kind="info" lowContrast hideCloseButton title="Nothing left to do with this payment" subtitle={options.blocker} />}
         {actionable && !canReverse && <InlineNotification kind="info" lowContrast hideCloseButton title="Refunds and corrections need the permission to reverse payments" subtitle="Ask someone with that permission, or switch the role in the prototype controls." />}
-        {original && <LinkNotification title={`This line undoes ${original.reference}`} subtitle={`${reasonKindLabel(payment.reasonKind!)}: ${payment.reason}`} label={`Open ${original.reference}`} to={`/sales/payments/${original.id}`} />}
-        {reversedBy && <LinkNotification kind="warning" title={`Reversed by ${reversedBy.reference}`} subtitle={`${reasonKindLabel(reversedBy.reasonKind!)}: ${reversedBy.reason}`} label={`Open ${reversedBy.reference}`} to={`/sales/payments/${reversedBy.id}`} />}
+        {original && <LinkNotification title="This line undoes another payment" subtitle={<><RefLink reference={original.reference} id={original.id} />. {reasonKindLabel(payment.reasonKind!)}: {payment.reason}</>} label={`Open ${original.reference}`} to={`/sales/payments/${original.id}`} />}
+        {reversedBy && <LinkNotification kind="warning" title="This payment was reversed" subtitle={<><RefLink reference={reversedBy.reference} id={reversedBy.id} />. {reasonKindLabel(reversedBy.reasonKind!)}: {reversedBy.reason}</>} label={`Open ${reversedBy.reference}`} to={`/sales/payments/${reversedBy.id}`} />}
 
         <div className="mj-detail-layout">
           <div className="mj-stack">
             <ContainedList label="What happened to this payment" kind="on-page">
-              {history.map((line, index) => <ContainedListItem key={`${line.at}-${index}`}><span className="mj-cell-stack"><span>{line.text}</span><span className="mj-secondary">{formatDateTime(line.at)}</span></span></ContainedListItem>)}
+              {history.map((line, index) => <ContainedListItem key={`${line.at}-${index}`}><span className="mj-cell-stack"><span><LinkifiedText text={line.text} /></span><span className="mj-secondary">{formatDateTime(line.at)}</span></span></ContainedListItem>)}
             </ContainedList>
           </div>
           <Tile>
@@ -59,7 +60,7 @@ function PaymentDetail({ paymentId, views }: { paymentId: string; views: OrderVi
               <div><dt>Recorded</dt><dd>{formatDateTime(payment.recordedAt)} by {payment.recordedBy}</dd></div>
               {payment.method === 'card' && <div><dt>Terminal</dt><dd>{payment.terminal}</dd></div>}
               {payment.transactionReference && <div><dt>{payment.method === 'external' ? 'wiRef confirmation' : 'Terminal reference'}</dt><dd>{payment.transactionReference}</dd></div>}
-              <div><dt>Order</dt><dd>{order ? <CarbonLink as={Link} to={`/sales/orders/${order.id}`}>{order.reference}</CarbonLink> : '—'}</dd></div>
+              <div><dt>Order</dt><dd>{order ? <RefLink reference={order.reference} id={order.id} /> : '—'}</dd></div>
               <div><dt>Customer</dt><dd>{order ? <CarbonLink as={Link} to={`/sales/orders?customer=${order.customer.id}`}>{order.customerLabel}</CarbonLink> : '—'}</dd></div>
             </dl>
           </Tile>

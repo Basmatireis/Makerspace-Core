@@ -1,3 +1,4 @@
+import { RefLink } from '../../components/RefLink';
 import { Button, Tag } from '@carbon/react';
 import { Printer } from '@carbon/icons-react';
 import { activeItems } from '../logic';
@@ -17,7 +18,7 @@ export function ReceiptPreview({ order, payments, operator, change }: { order: O
       <article className="sales-receipt" aria-label={`Receipt for ${order.reference}`}>
         <header className="sales-receipt__head">
           <strong>Makerspace Core</strong>
-          <span>Receipt for {order.reference}</span>
+          <span>Receipt for <RefLink reference={order.reference} id={order.id} /></span>
           <span>{formatDateTime(payments[0]?.occurredAt ?? order.updatedAt)}</span>
           {operator && <span>Served by {operator}</span>}
         </header>
@@ -32,7 +33,7 @@ export function ReceiptPreview({ order, payments, operator, change }: { order: O
         <div className="sales-receipt__total"><span>Total</span><span>{formatEur(order.net)}</span></div>
         {order.net === 0 ? <p className="sales-receipt__note">Free of charge, no payment due.</p> : (
           <ul className="sales-receipt__lines">
-            {payments.map((payment) => <li key={payment.id}><span>{methodLabel(payment.method)} · {payment.reference}</span><span>{formatEur(payment.amount)}</span></li>)}
+            {payments.map((payment) => <li key={payment.id}><span>{methodLabel(payment.method)} · <RefLink reference={payment.reference} id={payment.id} /></span><span>{formatEur(payment.amount)}</span></li>)}
             {change && <><li><span>Handed over</span><span>{formatEur(change.tendered)}</span></li><li><span>Change</span><span>{formatEur(change.change)}</span></li></>}
           </ul>
         )}

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { formatDateTime } from '../derived';
 import { useStore } from '../store';
 import type { InventoryTransaction, MaterialUnit } from '../types';
+import { LinkifiedText, RefLink } from './RefLink';
 import { DirectoryTable, useUrlState, type Column } from './DirectoryTable';
 import { formatQuantity, formatSigned, formatSignedMoney, TransactionKindTag, transactionKindOptions } from './inventoryShared';
 
@@ -28,7 +29,7 @@ export function InventoryLedgerTable({ id, transactions, unit, showSpool, showFi
     const job = jobName(tx);
     const spool = showSpool ? spoolName(tx) : null;
     const parts: ReactNode[] = [
-      tx.jobId && job && <CarbonLink key="job" as={Link} to={`/jobs/${tx.jobId}`}>{job}</CarbonLink>,
+      tx.jobId && job && <RefLink key="job" reference={job} id={tx.jobId} />,
       spool && tx.spoolId && (spoolExists(tx)
         ? <CarbonLink key="spool" as={Link} to={`/inventory/spools/${tx.spoolId}`}>{spool}{tx.fillNumber ? ` · fill ${tx.fillNumber}` : ''}</CarbonLink>
         : <span key="spool">{spool}{tx.fillNumber ? ` · fill ${tx.fillNumber}` : ''}</span>),
@@ -45,7 +46,7 @@ export function InventoryLedgerTable({ id, transactions, unit, showSpool, showFi
         <div className="mj-cell-stack">
           <span>{formatDateTime(tx.occurredAt)}</span>
           <span className="mj-secondary">{tx.by}</span>
-          {tx.note && <span className="mj-secondary mj-show-narrow">{tx.note}</span>}
+          {tx.note && <span className="mj-secondary mj-show-narrow"><LinkifiedText text={tx.note} /></span>}
         </div>
       ),
     },
@@ -66,7 +67,7 @@ export function InventoryLedgerTable({ id, transactions, unit, showSpool, showFi
     },
     { key: 'value', header: 'Value', narrow: true, sortValue: (tx) => tx.totalValue ?? 0, firstDirection: 'DESC', render: (tx) => formatSignedMoney(tx.totalValue) },
     { key: 'reference', header: 'Reference', narrow: true, render: reference },
-    { key: 'note', header: 'Note', narrow: true, render: (tx) => tx.note ?? '—' },
+    { key: 'note', header: 'Note', narrow: true, render: (tx) => tx.note ? <LinkifiedText text={tx.note} /> : '—' },
   ];
 
   return (

@@ -53,6 +53,8 @@ type Props<T extends { id: string }> = {
   /** Columns of the batch filter panel; each category key is also the URL parameter (under the table prefix) it is stored in. */
   filterCategories?: FilterCategory[];
   toolbarAction?: ReactNode;
+  /** Section switcher shown at the start of the toolbar, when sibling tables share a page. */
+  switcher?: ReactNode;
   /** Overflow items (`TableToolbarAction`) shown in a menu before the primary action. */
   toolbarMenu?: ReactNode;
   empty: { title: string; description: string; action?: ReactNode };
@@ -66,7 +68,7 @@ type Props<T extends { id: string }> = {
  * panel, primary action in the toolbar, client-side sort over the full filtered list, pagination in the container.
  */
 export function DirectoryTable<T extends { id: string }>({
-  id, label, columns, rows, totalCount, searchText, defaultSort, filterCategories, toolbarAction, toolbarMenu, empty, pageSizes = [10, 25, 50], onRowClick,
+  id, label, columns, rows, totalCount, searchText, defaultSort, filterCategories, toolbarAction, toolbarMenu, switcher, empty, pageSizes = [10, 25, 50], onRowClick,
 }: Props<T>) {
   const url = useUrlState(id);
   const [searchKey, setSearchKey] = useState(0);
@@ -105,6 +107,7 @@ export function DirectoryTable<T extends { id: string }>({
       {({ rows: dataRows, headers: tableHeaders, getRowProps, getTableProps }) => (
         <TableContainer className="mj-table-container">
           <TableToolbar aria-label={`${label} table toolbar`}>
+            {switcher}
             <TableToolbarContent>
               <TableToolbarSearch
                 key={searchKey}

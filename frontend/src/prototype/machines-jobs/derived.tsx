@@ -153,15 +153,6 @@ export function billingState(job: Job): BillingState {
   return 'ready';
 }
 
-export function BillingTag({ job }: { job: Job }) {
-  const state = billingState(job);
-  if (state === 'on_order') return <Tag type="cool-gray" size="sm">{job.order!.orderReference}</Tag>;
-  if (state === 'order_outdated') return <Tag type="red" size="sm">Order outdated</Tag>;
-  if (state === 'price_incomplete') return <Tag type="red" size="sm">Price incomplete</Tag>;
-  if (state === 'ready') return <Tag type="outline" size="sm">Not on order</Tag>;
-  return null;
-}
-
 // ---------------------------------------------------------------------------
 // Recorded run status (the type is still called Print)
 // ---------------------------------------------------------------------------

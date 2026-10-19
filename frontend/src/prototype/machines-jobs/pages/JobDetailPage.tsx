@@ -1,6 +1,7 @@
+import { BillingTag } from '../components/BillingTag';
 import { useState } from 'react';
 import {
-  Accordion, AccordionItem, Button, Select, SelectItem, DataTable, Link as CarbonLink, InlineNotification, OverflowMenu, OverflowMenuItem, ProgressBar, Table, TableBody, TableCell, TableContainer,
+  Accordion, AccordionItem, Button, Select, SelectItem, DataTable, InlineNotification, OverflowMenu, OverflowMenuItem, ProgressBar, Table, TableBody, TableCell, TableContainer,
   TableHead, TableHeader, TableRow, Tag, Tile,
 } from '@carbon/react';
 import { Edit, InProgress, Link as LinkIcon, StopOutline } from '@carbon/icons-react';
@@ -10,13 +11,14 @@ import { DestructiveActionDialog } from '../../../app/DestructiveActionDialog';
 import { PageShell } from '../../../app/PageShell';
 import { EmptyState } from '../../../app/PageState';
 import { QueryBoundary } from '../components/QueryBoundary';
-import { BillingTag, effectivePrice, formatDuration, formatMoney, formatTime, isManualRunning, JobRowStatusTag, jobStatus, PrintStateTag, runProgress, outcomeLabel, outcomeOptions, jobName, adjustmentSummary } from '../derived';
+import { effectivePrice, formatDuration, formatMoney, formatTime, isManualRunning, JobRowStatusTag, jobStatus, PrintStateTag, runProgress, outcomeLabel, outcomeOptions, jobName, adjustmentSummary } from '../derived';
 import { JobFormModal } from '../dialogs/JobFormModal';
 import { PriceAdjustmentModal } from '../dialogs/PriceAdjustmentModal';
 import { runsOfJob } from '../runs';
 import { LinkPrintModal } from '../dialogs/LinkPrintModal';
 import { UsageFormModal } from '../dialogs/UsageFormModal';
 import { orderOfJob } from '../sales/logic';
+import { LinkifiedText, RefLink } from '../components/RefLink';
 import { useNow, useSimulatedMutation, useSimulatedQuery, useStore } from '../store';
 import type { Job, JobOutcome } from '../types';
 import '../styles/jobs.scss';
@@ -100,7 +102,7 @@ function JobDetail({ job }: { job: Job }) {
             <div><dt>Operator</dt><dd>{job.operator?.displayName ?? '—'}</dd></div>
             <div><dt>Start</dt><dd>{formatZoned(job.startsAt)}</dd></div>
             <div><dt>Runtime</dt><dd className="mj-cell-stack"><span>{formatDuration(job.durationSeconds)}</span><span className="mj-secondary">Ends {formatZoned(job.endsAt)}</span></dd></div>
-            <div><dt>Source</dt><dd>{job.run === 'automatic' ? 'From printer' : 'Manual'}{job.externalId && <><br /><span className="mj-secondary">{job.externalId}</span></>}</dd></div>
+            <div><dt>Source</dt><dd>{job.run === 'automatic' ? 'From printer' : 'Manual'}{job.externalId && <><br /><span className="mj-secondary"><LinkifiedText text={job.externalId} /></span></>}</dd></div>
           </dl>
         </Tile>
         <Tile>
@@ -116,7 +118,7 @@ function JobDetail({ job }: { job: Job }) {
                   <div key={run.id} className="mj-stack">
                     <div className="mj-title-with-thumb">
                       <p>
-                        <CarbonLink as={Link} to={`/jobs/runs/${run.id}`}>{run.displayId}</CarbonLink>
+                        <RefLink reference={run.displayId} id={run.id} />
                         <span className="mj-secondary"> · {run.fileName} · via {run.connectorName}</span>
                       </p>
                       <PrintStateTag state={run.state} size="sm" />
@@ -218,7 +220,7 @@ function JobDetail({ job }: { job: Job }) {
                   <h4 className="mj-section-title">Order</h4>
                   {held ? (
                     <>
-                      <p><CarbonLink as={Link} to={`/sales/orders/${held.order.id}`}>{held.order.reference}</CarbonLink> <span className="mj-secondary">{held.claimed ? 'charges this job' : 'draft that contains this job'}</span></p>
+                      <p><RefLink reference={held.order.reference} id={held.order.id} /> <span className="mj-secondary">{held.claimed ? 'charges this job' : 'draft that contains this job'}</span></p>
                       {job.order?.sourceChanged && <InlineNotification kind="warning" lowContrast hideCloseButton title="Changed after charge" subtitle="This job changed after it was charged. The order amount has not been updated. Use Correct order on the order to change the charge." />}
                     </>
                   ) : job.pricingStatus === 'complete' && job.customer && !isManualRunning(job, now) && job.outcome !== 'unknown'

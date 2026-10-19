@@ -6,6 +6,7 @@ import { DestructiveActionDialog } from '../../../../app/DestructiveActionDialog
 import { PageShell } from '../../../../app/PageShell';
 import { EmptyState } from '../../../../app/PageState';
 import { QueryBoundary } from '../../components/QueryBoundary';
+import { LinkifiedText, NotificationBody, RefLink } from '../../components/RefLink';
 import { lookups, useStore } from '../../store';
 import { InvoiceSection } from '../components/InvoiceSection';
 import { OrderItemsTable } from '../components/OrderItemsTable';
@@ -94,12 +95,13 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
     >
       <div className="mj-stack">
         {order.replaces && draft && (
-          <InlineNotification kind="info" lowContrast hideCloseButton title={`This draft replaces ${order.replaces.reference}`}
-            subtitle="Change the items as needed, then commit the replacement. The original is reversed at that moment and its payments move over." />
+          <InlineNotification kind="info" lowContrast hideCloseButton title="This draft replaces an order">
+            <NotificationBody><RefLink reference={order.replaces.reference} id={order.replaces.id} />. Change the items as needed, then commit the replacement. The original is reversed at that moment and its payments move over.</NotificationBody>
+          </InlineNotification>
         )}
-        {order.replacedBy && <InlineNotification kind="info" lowContrast hideCloseButton title={`Replaced by ${order.replacedBy.reference}`} subtitle="This order no longer counts. Open the replacement to see what is charged now." />}
-        {order.replaces && !draft && <InlineNotification kind="info" lowContrast hideCloseButton title={`Replaces ${order.replaces.reference}`} subtitle="Payments that were already made moved over to this order." />}
-        {draftBlockers.length > 0 && <InlineNotification kind="warning" lowContrast hideCloseButton title="Before you can continue" subtitle={draftBlockers.join(' ')} />}
+        {order.replacedBy && <InlineNotification kind="info" lowContrast hideCloseButton title="This order was replaced"><NotificationBody><RefLink reference={order.replacedBy.reference} id={order.replacedBy.id} /> is charged now. This order no longer counts.</NotificationBody></InlineNotification>}
+        {order.replaces && !draft && <InlineNotification kind="info" lowContrast hideCloseButton title="This order replaces another one"><NotificationBody><RefLink reference={order.replaces.reference} id={order.replaces.id} />. Payments that were already made moved over to this order.</NotificationBody></InlineNotification>}
+        {draftBlockers.length > 0 && <InlineNotification kind="warning" lowContrast hideCloseButton title="Before you can continue"><NotificationBody><LinkifiedText text={draftBlockers.join(' ')} /></NotificationBody></InlineNotification>}
         {!draft && changedItems.length > 0 && (
           <InlineNotification kind="warning" lowContrast hideCloseButton title={`${changedItems.length === 1 ? 'A job' : `${changedItems.length} jobs`} changed after being charged`}
             subtitle="The order keeps the original charge. To change what is charged, use Correct order in the menu." />
@@ -142,8 +144,8 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
                 <div><dt>Hand-over</dt><dd>{order.fulfillmentMode === 'immediate' ? 'Handed over now' : 'Customer picks up later'}</dd></div>
                 <div><dt>Created</dt><dd>{formatDateTime(order.createdAt)}</dd></div>
                 <div><dt>Last change</dt><dd>{formatDateTime(order.updatedAt)}</dd></div>
-                {order.replaces && <div><dt>Replaces</dt><dd><CarbonLink as={Link} to={`/sales/orders/${order.replaces.id}`}>{order.replaces.reference}</CarbonLink></dd></div>}
-                {order.replacedBy && <div><dt>Replaced by</dt><dd><CarbonLink as={Link} to={`/sales/orders/${order.replacedBy.id}`}>{order.replacedBy.reference}</CarbonLink></dd></div>}
+                {order.replaces && <div><dt>Replaces</dt><dd><RefLink reference={order.replaces.reference} id={order.replaces.id} /></dd></div>}
+                {order.replacedBy && <div><dt>Replaced by</dt><dd><RefLink reference={order.replacedBy.reference} id={order.replacedBy.id} /></dd></div>}
                 {order.latestRequest && <div><dt>Invoice request</dt><dd>{order.latestRequest.reference}</dd></div>}
               </dl>
             </Tile>

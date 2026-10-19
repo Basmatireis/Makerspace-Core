@@ -1,3 +1,4 @@
+import { RefLink } from '../components/RefLink';
 import { useEffect, useMemo, useState } from 'react';
 import { ComboBox, InlineNotification, Modal, Stack } from '@carbon/react';
 import { ReplaceComparison } from '../components/ReplaceComparison';
@@ -31,7 +32,7 @@ export function LinkPrintModal({ open, onClose, job }: { open: boolean; onClose:
       onRequestSubmit={() => { if (selected) void link(selected, job); }} preventCloseOnClickOutside
     >
       <Stack gap={5}>
-        <p>Pick the recorded run that belongs to {job.displayId}.</p>
+        <p>Pick the recorded run that belongs to <RefLink reference={job.displayId} id={job.id} onNavigate={onClose} />.</p>
         <ComboBox autoAlign
           id="link-print-select" titleText="Run" placeholder="Search runs"
           helperText={`Unassigned runs on ${machine?.name ?? 'this machine'}, closest to the job start first.`}

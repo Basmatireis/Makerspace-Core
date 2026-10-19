@@ -12,6 +12,7 @@ import { RecordPaymentModal } from '../dialogs/RecordPaymentModal';
 import { invoiceRequestBlocker } from '../engine';
 import { RequestStateTag } from '../status';
 import { useMediaQuery } from '../useMediaQuery';
+import { LinkifiedText } from '../../components/RefLink';
 import { useStore } from '../../store';
 import type { InvoiceRequest, InvoiceRequestDetails } from '../types';
 import { RecipientDetailsForm } from './RecipientDetailsForm';
@@ -125,7 +126,7 @@ export function InvoiceSection({ order, request }: { order: OrderView; request: 
                 <ContainedListItem key={event.id} renderIcon={Receipt}>
                   <span className="mj-cell-stack">
                     <strong>{requestEventLabel[event.kind]}</strong>
-                    <span>{event.text}</span>
+                    <span><LinkifiedText text={event.text} /></span>
                     {(event.reconciliationKind || event.externalReference || event.effectiveOn) && (
                       <span className="mj-secondary">
                         {[event.reconciliationKind && reconciliationLabels[event.reconciliationKind].label, event.externalReference && `Reference ${event.externalReference}`, event.effectiveOn && `effective ${formatDate(`${event.effectiveOn}T12:00:00Z`)}`].filter(Boolean).join(' · ')}

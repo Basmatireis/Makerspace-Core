@@ -4,6 +4,7 @@ import { allocationSum, type OrderView } from '../logic';
 import { formatDateTime, formatEur, formatSignedEur } from '../format';
 import { methodLabel, reasonKindLabel } from '../labels';
 import { PaymentKindTag } from '../status';
+import { LinkifiedText, RefLink } from '../../components/RefLink';
 import type { Allocation, Order, Payment } from '../types';
 
 type Props = {
@@ -36,7 +37,7 @@ export function PaymentsSection({ order, orders, payments, allocations, recordBl
     >
       <div className="sales-section-actions">
         {canRecord && !recordBlocked && <Button kind="primary" size="md" renderIcon={Currency} onClick={onRecord}>{bankTransfer ? 'Record bank transfer' : 'Record payment'}</Button>}
-        {recordBlocked && <span className="mj-secondary">{recordBlocked}</span>}
+        {recordBlocked && <span className="mj-secondary"><LinkifiedText text={recordBlocked} /></span>}
       </div>
       <Table aria-label="Payments of this order">
         <TableHead>
@@ -53,10 +54,10 @@ export function PaymentsSection({ order, orders, payments, allocations, recordBl
                 <TableCell>
                   <div className="mj-cell-stack">
                     <span className="mj-inline">
-                      <strong>{payment.reference}</strong><PaymentKindTag payment={payment} />
-                      {reversed && <Tag type="warm-gray" size="sm">Reversed by {reversed.reference}</Tag>}
+                      <RefLink reference={payment.reference} id={payment.id} /><PaymentKindTag payment={payment} />
+                      {reversed && <><Tag type="warm-gray" size="sm">Reversed by</Tag><RefLink reference={reversed.reference} id={reversed.id} /></>}
                     </span>
-                    {detail && <span className="mj-secondary">{detail}</span>}
+                    {detail && <span className="mj-secondary"><LinkifiedText text={detail} /></span>}
                   </div>
                 </TableCell>
                 <TableCell>{methodLabel(payment.method)}</TableCell>

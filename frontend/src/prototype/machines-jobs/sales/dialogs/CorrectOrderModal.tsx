@@ -1,3 +1,4 @@
+import { NotificationBody, RefLink } from '../../components/RefLink';
 import { useMemo, useState } from 'react';
 import { Button, InlineNotification, Modal, ProgressIndicator, ProgressStep, RadioButton, RadioButtonGroup, RadioTile, Stack, StructuredListBody, StructuredListCell, StructuredListRow, StructuredListWrapper, TextArea, TextInput, TileGroup } from '@carbon/react';
 import { Link } from 'react-router-dom';
@@ -110,7 +111,7 @@ export function CorrectOrderModal({ order, replacement, onClose }: { order: Orde
 
   const blockers = (
     <Stack gap={4}>
-      {order.replacedBy && <InlineNotification kind="info" lowContrast hideCloseButton title={`Already replaced by ${order.replacedBy.reference}`} subtitle="Correct the replacement instead; a replaced order cannot be changed again." />}
+      {order.replacedBy && <InlineNotification kind="info" lowContrast hideCloseButton title="Already replaced"><NotificationBody><RefLink reference={order.replacedBy.reference} id={order.replacedBy.id} onNavigate={onClose} />. Correct the replacement instead; a replaced order cannot be changed again.</NotificationBody></InlineNotification>}
       {blockedRequest && (
         <InlineNotification kind="warning" lowContrast hideCloseButton title={`${blockedRequest.reference} is ${requestStateLabel[blockedRequest.state].toLowerCase()}`}
           subtitle="Cancel or reconcile the invoice request in the order first. Core records what happened in wiRef; it does not change the accounting itself." />
@@ -155,7 +156,7 @@ export function CorrectOrderModal({ order, replacement, onClose }: { order: Orde
 
         {step === 'payments' && (
           <Stack gap={6}>
-            {committing && <InlineNotification kind="info" lowContrast hideCloseButton title={`New total ${formatEur(newTotal)}`} subtitle={`${original.reference} was ${formatEur(sum(receipts.map((payment) => payment.amount)))} paid. Choose what happens to each payment.`} />}
+            {committing && <InlineNotification kind="info" lowContrast hideCloseButton title={`New total ${formatEur(newTotal)}`}><NotificationBody><RefLink reference={original.reference} id={original.id} onNavigate={onClose} /> was {formatEur(sum(receipts.map((payment) => payment.amount)))} paid. Choose what happens to each payment.</NotificationBody></InlineNotification>}
             {externalReceipt && <InlineNotification kind="error" lowContrast hideCloseButton title="A bank transfer was recorded against the invoice" subtitle="It cannot be moved or refunded here. Cancel the invoice request and record the external accounting correction on the original order first." />}
             {receipts.map((payment, position) => {
               const current = choice(payment);
@@ -163,7 +164,7 @@ export function CorrectOrderModal({ order, replacement, onClose }: { order: Orde
               return (
                 <Stack key={payment.id} gap={4} className="sales-receipt-choice">
                   <RadioButtonGroup
-                    legendText={`${payment.reference} · ${methodLabel(payment.method)} ${formatEur(payment.amount)} · ${formatDateTime(payment.occurredAt)}`} name={`receipt-${payment.id}`} orientation="vertical"
+                    legendText={<><RefLink reference={payment.reference} id={payment.id} onNavigate={onClose} /> · {methodLabel(payment.method)} {formatEur(payment.amount)} · {formatDateTime(payment.occurredAt)}</>} name={`receipt-${payment.id}`} orientation="vertical"
                     valueSelected={current.option} onChange={(value) => patch(payment.id, { option: value as Option })}
                   >
                     {options.includes('carry') && <RadioButton id={`rc-${payment.id}-carry`} value="carry" labelText="Carry over to the new order (no money moves)" />}
@@ -199,11 +200,11 @@ export function CorrectOrderModal({ order, replacement, onClose }: { order: Orde
               helperText="Kept with the order and shown in its timeline. Do not add personal data." invalid={reason.length > 0 && !reasonOk} invalidText="Give a reason of up to 500 characters" />
             <StructuredListWrapper isCondensed aria-label="Result of the correction">
               <StructuredListBody>
-                <StructuredListRow><StructuredListCell noWrap>Original order</StructuredListCell><StructuredListCell>{original.reference} · {formatEur(original.total)} → {order.status === 'reversed' ? 'stays reversed' : 'reversed (nothing charged)'}</StructuredListCell></StructuredListRow>
-                {committing && <StructuredListRow><StructuredListCell noWrap>New order</StructuredListCell><StructuredListCell>{replacement.reference} · {formatEur(newTotal)}</StructuredListCell></StructuredListRow>}
+                <StructuredListRow><StructuredListCell noWrap>Original order</StructuredListCell><StructuredListCell><RefLink reference={original.reference} id={original.id} onNavigate={onClose} /> · {formatEur(original.total)} → {order.status === 'reversed' ? 'stays reversed' : 'reversed (nothing charged)'}</StructuredListCell></StructuredListRow>
+                {committing && <StructuredListRow><StructuredListCell noWrap>New order</StructuredListCell><StructuredListCell><RefLink reference={replacement.reference} id={replacement.id} onNavigate={onClose} /> · {formatEur(newTotal)}</StructuredListCell></StructuredListRow>}
                 {receipts.map((payment) => (
                   <StructuredListRow key={payment.id}>
-                    <StructuredListCell noWrap>{payment.reference}</StructuredListCell>
+                    <StructuredListCell noWrap><RefLink reference={payment.reference} id={payment.id} onNavigate={onClose} /></StructuredListCell>
                     <StructuredListCell>{formatEur(payment.amount)} {methodLabel(payment.method).toLowerCase()}: {{ carry: 'carried over to the new order', refund: 'refunded', error: 'corrected (recorded by mistake)' }[choice(payment).option]}</StructuredListCell>
                   </StructuredListRow>
                 ))}

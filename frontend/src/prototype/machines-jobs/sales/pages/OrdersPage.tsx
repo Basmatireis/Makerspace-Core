@@ -1,15 +1,16 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import {
-  Button, ComboBox, InlineNotification, DataTable, Link as CarbonLink, Pagination, Table, TableBody,
+  Button, ComboBox, DataTable, Pagination, Table, TableBody,
   TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, TableToolbarSearch,
 } from '@carbon/react';
 import { Add, ListChecked } from '@carbon/icons-react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { DateInput } from '../../../../app/DateInput';
 import { PageShell } from '../../../../app/PageShell';
 import { EmptyState } from '../../../../app/PageState';
 import { BatchFilter, toPatch, type FilterValues } from '../../components/BatchFilter';
 import { QueryBoundary } from '../../components/QueryBoundary';
+import { RefLink } from '../../components/RefLink';
 import { useStore } from '../../store';
 import { RequirePermission } from '../components/RequirePermission';
 import { EditOrderModal } from '../dialogs/EditOrderModal';
@@ -40,7 +41,7 @@ const HEADERS: { key: string; header: string; sort?: SortKey; narrow?: boolean; 
 ];
 const list = (value: string | null) => (value ?? '').split(',').filter(Boolean);
 
-function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; loadingEmpty: boolean; notice?: ReactNode }) {
+function OrdersTable({ views, loadingEmpty, review }: { views: OrderView[]; loadingEmpty: boolean; review: { count: number; summary: string; onOpen: () => void } | null }) {
   const store = useStore();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -98,12 +99,12 @@ function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; load
     if (key === 'order') {
       return (
         <div className="mj-cell-stack">
-          <CarbonLink as={Link} to={`/sales/orders/${order.id}`} onClick={(event: React.MouseEvent) => event.stopPropagation()}>{order.reference}</CarbonLink>
+          <RefLink reference={order.reference} id={order.id} />
           <span className="mj-secondary">{order.customerLabel} · {activeItems(order).length} {activeItems(order).length === 1 ? 'item' : 'items'}</span>
         </div>
       );
     }
-    if (key === 'status') return <div className="mj-cell-stack"><OrderStatusTag order={order} size="sm" />{order.replacedBy && <span className="mj-secondary">Replaced by {order.replacedBy.reference}</span>}{order.replaces && <span className="mj-secondary">Replaces {order.replaces.reference}</span>}</div>;
+    if (key === 'status') return <div className="mj-cell-stack"><OrderStatusTag order={order} size="sm" />{order.replacedBy && <span className="mj-secondary">Replaced by <RefLink reference={order.replacedBy.reference} id={order.replacedBy.id} /></span>}{order.replaces && <span className="mj-secondary">Replaces <RefLink reference={order.replaces.reference} id={order.replaces.id} /></span>}</div>;
     if (key === 'payment') {
       if (order.status !== 'finalized') return <span className="mj-secondary">—</span>;
       if (order.net === 0) return <span className="mj-secondary">No payment due</span>;
@@ -158,10 +159,15 @@ function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; load
                     },
                   ]}
                 />
+                {review && (
+                  <>
+                    <span id="orders-review-hint" className="cds--visually-hidden">{review.summary}</span>
+                    <Button kind="secondary" size="lg" renderIcon={ListChecked} className="sales-toolbar-action" aria-describedby="orders-review-hint" title={review.summary} onClick={review.onOpen}>Review jobs ({review.count})</Button>
+                  </>
+                )}
                 {canWrite && <Button kind="primary" size="lg" renderIcon={Add} className="sales-toolbar-action" onClick={() => setCreating(true)}>New order</Button>}
               </TableToolbarContent>
             </TableToolbar>
-            {notice}
             <Table {...getTableProps()} aria-label="Orders">
               <TableHead>
                 <TableRow>
@@ -224,13 +230,7 @@ export function OrdersPage() {
         <QueryBoundary query={query} errorMessage="The orders could not be loaded.">
           <OrdersTable
             views={views} loadingEmpty={store.scenario === 'empty'}
-            notice={readyCount > 0 && (
-              <div className="sales-ready-bar">
-                <InlineNotification lowContrast hideCloseButton kind="info" className="sales-ready-notice" title={`${readyCount} finished ${readyCount === 1 ? 'job is' : 'jobs are'} ready to bill`}
-                  subtitle={`${formatEur(readyValue)} from ${readyCustomers} ${readyCustomers === 1 ? 'customer' : 'customers'}, on no order yet.`} />
-                <Button kind="secondary" size="lg" renderIcon={ListChecked} className="sales-toolbar-action" onClick={() => setReviewing(true)}>Review jobs</Button>
-              </div>
-            )}
+            review={readyCount > 0 ? { count: readyCount, summary: `${formatEur(readyValue)} from ${readyCustomers} ${readyCustomers === 1 ? 'customer' : 'customers'}`, onOpen: () => setReviewing(true) } : null}
           />
           {reviewing && <ReadyToBillModal jobs={data.jobs} orders={data.orders} prints={data.prints} canCreate={store.can('orders.write')} onClose={() => setReviewing(false)} />}
         </QueryBoundary>

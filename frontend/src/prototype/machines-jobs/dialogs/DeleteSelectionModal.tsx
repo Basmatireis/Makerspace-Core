@@ -1,3 +1,4 @@
+import { LinkifiedText } from '../components/RefLink';
 import { useEffect, useState } from 'react';
 import { Checkbox, InlineNotification, Modal, RadioButton, RadioButtonGroup, Stack } from '@carbon/react';
 import type { JobRow } from '../derived';
@@ -45,7 +46,7 @@ export function DeleteSelectionModal({ open, onClose, rows, onDone }: { open: bo
           <InlineNotification
             kind="warning" lowContrast hideCloseButton title={`${plural(skipped.length, 'item')} will be skipped`}
           >
-            <ul className="mj-skip-list">{skipped.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+            <ul className="mj-skip-list">{skipped.map((reason) => <li key={reason}><LinkifiedText text={reason} onNavigate={onClose} /></li>)}</ul>
           </InlineNotification>
         )}
         {linkedRuns > 0 && (

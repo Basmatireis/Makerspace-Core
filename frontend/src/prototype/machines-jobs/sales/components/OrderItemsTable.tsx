@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Button, IconButton, Link as CarbonLink, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, Tag, TextInput } from '@carbon/react';
+import { Button, IconButton, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, Tag, TextInput } from '@carbon/react';
 import { Checkmark, Close, Edit, Renew, TrashCan } from '@carbon/icons-react';
-import { Link } from 'react-router-dom';
 import { formatDateTimeRange } from '../../../../app/dateTime';
+import { RefLink } from '../../components/RefLink';
 import { formatDuration } from '../../derived';
 import type { Job } from '../../types';
 import { formatEur, formatQuantity, moneyText, parseMoney, parseQuantity } from '../format';
@@ -62,10 +62,10 @@ export function OrderItemsTable({ order, jobs, editable, busy, onRefresh, onRemo
                   <div className="mj-title-with-thumb">
                     
                     <div className="mj-cell-stack">
-                      {job ? <CarbonLink as={Link} to={`/jobs/${job.id}`}>{item.description}</CarbonLink> : <span>{item.description}</span>}
+                      {job ? <RefLink reference={job.displayId} id={job.id}>{item.description}</RefLink> : <span>{item.description}</span>}
                       {snapshot ? (
                         <>
-                          <span className="mj-secondary">{snapshot.displayId} · {snapshot.machineName} · {formatDateTimeRange(snapshot.startsAt, snapshot.endsAt)} ({formatDuration(snapshot.durationSeconds)})</span>
+                          <span className="mj-secondary">{job ? snapshot.displayId : <RefLink reference={snapshot.displayId} />} · {snapshot.machineName} · {formatDateTimeRange(snapshot.startsAt, snapshot.endsAt)} ({formatDuration(snapshot.durationSeconds)})</span>
                           <span className="mj-secondary">{snapshot.usages.map((usage) => `${formatQuantity(usage.quantity)} ${usage.unit} ${usage.materialName}`).join(', ') || 'No material'} · {snapshot.pricingGroupName} prices ({snapshot.pricingVia})</span>
                         </>
                       ) : <span className="mj-secondary">Manual item</span>}

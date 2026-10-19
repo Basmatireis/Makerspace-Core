@@ -11,6 +11,7 @@ import { EmptyState } from '../../../../app/PageState';
 import { timeInAppTimeZone } from '../../../../app/dateTime';
 import { BatchFilter, toPatch, type FilterValues } from '../../components/BatchFilter';
 import { QueryBoundary } from '../../components/QueryBoundary';
+import { RefLink } from '../../components/RefLink';
 import { useStore } from '../../store';
 import { RequirePermission } from '../components/RequirePermission';
 import { CashMovementModal } from '../dialogs/CashMovementModal';
@@ -181,14 +182,14 @@ function Cashbook({ lines, empty, canRecord, payments, movements }: { lines: Cas
                 <TableCell>{formatDateTime(line.at)}</TableCell>
                 <TableCell>
                   <div className="mj-cell-stack">
-                    <CarbonLink as={Link} to={`/sales/payments/${line.payment.id}`} onClick={(event: React.MouseEvent) => event.stopPropagation()}>{line.reference}</CarbonLink>
+                    <RefLink reference={line.reference} id={line.payment.id} />
                     <PaymentKindTag payment={line.payment} />
                     <span className="mj-secondary mj-show-narrow">{methodLabel(line.method)}</span>
                   </div>
                 </TableCell>
                 <TableCell>
                   <div className="mj-cell-stack">
-                    {line.order ? <CarbonLink as={Link} to={`/sales/orders/${line.order.id}`} onClick={(event: React.MouseEvent) => event.stopPropagation()}>{line.order.reference}</CarbonLink> : '—'}
+                    {line.order ? <RefLink reference={line.order.reference} id={line.order.id} /> : '—'}
                     {line.order && <CarbonLink as={Link} to={`/sales/orders?customer=${line.order.customer.id}`} onClick={(event: React.MouseEvent) => event.stopPropagation()}>{line.customerLabel}</CarbonLink>}
                   </div>
                 </TableCell>

@@ -122,7 +122,8 @@ export const itemChanged = (item: OrderItem, jobs: Job[]) => {
   return !!job && item.sourceJobVersion !== job.version;
 };
 
-export type ReadyRow = { job: Job; price: number | null; reason: string | null };
+/** `draft` is set when the job already sits in a draft order; `reason` is then "In draft" and the caller shows the order as a link. */
+export type ReadyRow = { job: Job; price: number | null; reason: string | null; draft: Order | null };
 export type ReadyGroup = { customer: BillingParty; rows: ReadyRow[]; ready: ReadyRow[]; total: number; oldestEnd: string };
 
 /** Finished jobs without an order, grouped by customer. Jobs that cannot be charged yet stay visible with their reason. */
@@ -131,8 +132,8 @@ export function readyToBill(jobs: Job[], orders: Order[], prints: Print[], now: 
   for (const job of jobs) {
     if (job.order) continue;
     const draft = orderOfJob(job, orders);
-    const reason = draft ? `Already in draft ${draft.order.reference}` : jobBlocker(job, prints, now);
-    const row: ReadyRow = { job, price: effectivePrice(job), reason };
+    const reason = draft ? 'In draft' : jobBlocker(job, prints, now);
+    const row: ReadyRow = { job, price: effectivePrice(job), reason, draft: draft?.order ?? null };
     const group = groups.get(job.customer.id) ?? { customer: job.customer, rows: [], ready: [], total: 0, oldestEnd: job.endsAt };
     group.rows.push(row);
     if (!reason) group.ready.push(row);

@@ -10,6 +10,7 @@ import { JobFormModal } from '../dialogs/JobFormModal';
 import { usageRowFromPrint } from '../dialogs/jobFormHelpers';
 import { LinkJobModal } from '../dialogs/LinkJobModal';
 import { formatDateTime, formatDuration, formatTime, printDurationSeconds, printEnd, PrintStateTag, printUsageText, nameFromFile } from '../derived';
+import { RefLink } from '../components/RefLink';
 import { useNow, useSimulatedMutation, useSimulatedQuery, useStore } from '../store';
 import type { Job, Machine, Print, PrintState } from '../types';
 import '../styles/prints.scss';
@@ -82,7 +83,7 @@ export function PrintDetailPage() {
                 <h2 className="mj-section-title">Assigned job</h2>
                 <p>
                   Assigned to{' '}
-                  {store.can('machine_jobs.read') ? <CarbonLink as={Link} to={`/jobs/${linkedJob.id}`}>{linkedJob.displayId}{linkedJob.title ? ` ${linkedJob.title}` : ''}</CarbonLink> : linkedJob.displayId}
+                  <><RefLink reference={linkedJob.displayId} id={linkedJob.id} />{linkedJob.title ? ` ${linkedJob.title}` : ''}</>
                   <span className="mj-secondary"> · {linkedJob.customer.displayName}. The job uses this run’s times and material.</span>
                 </p>
               </Tile>

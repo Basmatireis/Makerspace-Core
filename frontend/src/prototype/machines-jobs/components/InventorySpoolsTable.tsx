@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useMemo } from 'react';
 import { Button, Link as CarbonLink, MenuButton, MenuItem, TableToolbarAction } from '@carbon/react';
 import { Link } from 'react-router-dom';
@@ -11,6 +12,8 @@ import {
 const mountedOptions: Option[] = [{ id: 'mounted', label: 'Mounted' }, { id: 'free', label: 'Not mounted' }];
 
 type Props = {
+  /** Section switcher for the toolbar when the table shares a page with sibling tables. */
+  switcher?: ReactNode;
   /** Unique per page. */
   id: string;
   spools: Spool[];
@@ -25,7 +28,7 @@ type Props = {
 };
 
 /** Spools as a Directory-style table; used on the Inventory page and on a material's page. */
-export function InventorySpoolsTable({ id, spools, fixedMaterial = false, canRegister, onRegister, onChangeFilament, onCleanup }: Props) {
+export function InventorySpoolsTable({ switcher, id, spools, fixedMaterial = false, canRegister, onRegister, onChangeFilament, onCleanup }: Props) {
   const { machines, printerProfiles, materials } = useStore();
   const url = useUrlState(id);
   const materialIds = url.list('material');
@@ -104,7 +107,7 @@ export function InventorySpoolsTable({ id, spools, fixedMaterial = false, canReg
 
   return (
     <DirectoryTable
-      id={id} label="Spools" columns={columns} rows={rows} totalCount={spools.length}
+      switcher={switcher} id={id} label="Spools" columns={columns} rows={rows} totalCount={spools.length}
       searchText={(spool) => [spool.displayId, spool.label, spool.manufacturer, spool.productName, spool.materialName, spool.storageLocation, spool.acquisitionReference, mounts.get(spool.id)?.machineName, ...spool.identifiers.map((item) => item.value)].filter(Boolean).join(' ')}
       defaultSort={{ key: 'spool', direction: 'ASC' }}
       toolbarMenu={canRegister && onCleanup ? <TableToolbarAction onClick={onCleanup}>Clean up archived spools</TableToolbarAction> : undefined}

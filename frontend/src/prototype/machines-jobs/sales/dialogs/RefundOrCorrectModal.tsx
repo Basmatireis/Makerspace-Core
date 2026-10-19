@@ -1,6 +1,6 @@
+import { LinkifiedText, NotificationBody, RefLink } from '../../components/RefLink';
 import { useState } from 'react';
 import { InlineNotification, Modal, RadioButton, RadioButtonGroup, Stack, StructuredListBody, StructuredListCell, StructuredListRow, StructuredListWrapper, TextArea, TextInput } from '@carbon/react';
-import { Link } from 'react-router-dom';
 import { DateTimeInput } from '../../../../app/DateInput';
 import { instantToZonedDateTimeValue, isZonedDateTimeValue, zonedDateTimeValueToISO } from '../../../../app/dateTime';
 import { useStore } from '../../store';
@@ -47,10 +47,10 @@ export function RefundOrCorrectModal({ payment, order, onClose }: { payment: Pay
       preventCloseOnClickOutside onRequestClose={() => { if (!pending) onClose(); }} onRequestSubmit={() => { void submit(); }}
     >
       <Stack gap={6}>
-        <p>Receipts are never edited or deleted. This adds a new line that undoes <strong>{payment.reference}</strong> on <Link to={`/sales/orders/${order.id}`} onClick={onClose}>{order.reference}</Link>; both stay on the record.</p>
-        {options.blocker && <InlineNotification kind="error" lowContrast hideCloseButton title="This payment cannot be refunded or corrected" subtitle={options.blocker} />}
+        <p>Receipts are never edited or deleted. This adds a new line that undoes <RefLink reference={payment.reference} id={payment.id} onNavigate={onClose} /> on <RefLink reference={order.reference} id={order.id} onNavigate={onClose} />; both stay on the record.</p>
+        {options.blocker && <InlineNotification kind="error" lowContrast hideCloseButton title="This payment cannot be refunded or corrected"><NotificationBody><LinkifiedText text={options.blocker} onNavigate={onClose} /></NotificationBody></InlineNotification>}
         {options.prerequisite && (
-          <LinkNotification kind="warning" title="Cancel the wiRef request first" subtitle={`${options.prerequisite.text} Core records what happened in wiRef; it does not change the accounting itself.`} label="Open the request" to={options.prerequisite.to} onFollow={onClose} />
+          <LinkNotification kind="warning" title="Cancel the wiRef request first" subtitle={<><LinkifiedText text={options.prerequisite.text} onNavigate={onClose} /> Core records what happened in wiRef; it does not change the accounting itself.</>} label="Open the request" to={options.prerequisite.to} onFollow={onClose} />
         )}
         {!options.blocker && (
           <>
@@ -75,7 +75,7 @@ export function RefundOrCorrectModal({ payment, order, onClose }: { payment: Pay
 
             <StructuredListWrapper isCondensed aria-label="What will change">
               <StructuredListBody>
-                <StructuredListRow><StructuredListCell noWrap>{payment.reference}</StructuredListCell><StructuredListCell>{formatEur(payment.amount)} {methodLabel(payment.method).toLowerCase()} stays on the record and stops counting towards {order.reference}.</StructuredListCell></StructuredListRow>
+                <StructuredListRow><StructuredListCell noWrap><RefLink reference={payment.reference} id={payment.id} onNavigate={onClose} /></StructuredListCell><StructuredListCell>{formatEur(payment.amount)} {methodLabel(payment.method).toLowerCase()} stays on the record and stops counting towards <RefLink reference={order.reference} id={order.id} onNavigate={onClose} />.</StructuredListCell></StructuredListRow>
                 <StructuredListRow><StructuredListCell noWrap>New line</StructuredListCell><StructuredListCell>{kindWord}, −{formatEur(payment.amount)}{bookedAtOriginal ? ` at ${formatDateTime(payment.occurredAt)}` : ''}.</StructuredListCell></StructuredListRow>
                 <StructuredListRow><StructuredListCell noWrap>Order</StructuredListCell><StructuredListCell>{`${formatEur(order.outstanding)} outstanding becomes ${formatEur(order.outstanding + payment.amount)}.`}</StructuredListCell></StructuredListRow>
               </StructuredListBody>

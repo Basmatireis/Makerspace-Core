@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import {
-  Button, Checkbox, ComposedModal, InlineNotification, Link as CarbonLink, ModalBody, ModalFooter, ModalHeader, Table, TableBody, TableCell, TableContainer, TableExpandHeader, TableExpandRow, TableExpandedRow,
+  Button, Checkbox, ComposedModal, InlineNotification, ModalBody, ModalFooter, ModalHeader, Table, TableBody, TableCell, TableContainer, TableExpandHeader, TableExpandRow, TableExpandedRow,
   TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, TableToolbarSearch, Tag,
 } from '@carbon/react';
 import { Add } from '@carbon/icons-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { formatDateTimeRange } from '../../../../app/dateTime';
 import { EmptyState } from '../../../../app/PageState';
+import { RefLink } from '../../components/RefLink';
 import { jobName } from '../../derived';
 import { useNow, useStore } from '../../store';
 import type { Job, Print } from '../../types';
@@ -88,18 +89,18 @@ export function ReadyToBillModal({ jobs, orders, prints, canCreate, onClose }: {
                     open && (
                       <TableExpandedRow key={`${group.customer.id}-jobs`} colSpan={canCreate ? 6 : 5}>
                         <ul className="sales-ready-jobs">
-                          {group.rows.map(({ job, price, reason }) => {
+                          {group.rows.map(({ job, price, reason, draft }) => {
                             const run = prints.find((print) => print.id === job.printId);
                             return (
                               <li key={job.id} className="sales-ready-jobs__row">
                                 {canCreate && <Checkbox id={`ready-${job.id}`} labelText={`Select ${job.displayId}`} hideLabel disabled={!!reason} checked={selected.has(job.id)} onChange={() => setSelected((current) => toggle(current, job.id))} />}
                                 <div className="mj-title-with-thumb">
                                   <div className="mj-cell-stack">
-                                    <CarbonLink as={Link} to={`/jobs/${job.id}`} onClick={onClose}>{jobName(job, run)}</CarbonLink>
+                                    <RefLink reference={job.displayId} id={job.id} onNavigate={onClose}>{jobName(job, run)}</RefLink>
                                     <span className="mj-secondary">{job.displayId} · {formatDateTimeRange(job.startsAt, job.endsAt)}</span>
                                   </div>
                                 </div>
-                                <span className="mj-inline">{reason ? <Tag type="red" size="sm">{reason}</Tag> : <Tag type="green" size="sm">Ready</Tag>}<strong>{formatEur(price)}</strong></span>
+                                <span className="mj-inline">{reason ? <Tag type="red" size="sm">{reason}</Tag> : <Tag type="green" size="sm">Ready</Tag>}{draft && <RefLink reference={draft.reference} id={draft.id} onNavigate={onClose} />}<strong>{formatEur(price)}</strong></span>
                               </li>
                             );
                           })}

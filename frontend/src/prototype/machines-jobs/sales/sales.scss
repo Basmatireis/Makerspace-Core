@@ -28,6 +28,8 @@
 .sales-row-actions { text-align: end; white-space: nowrap; }
 .sales-timeline .cds--contained-list-item__content { min-inline-size: 0; }
 .sales-job-picker { display: grid; gap: $spacing-03; margin: 0; padding: 0; border: 0; }
+.sales-job-picker__text { flex: 1 1 auto; min-inline-size: 0; }
+.sales-job-picker__row .cds--checkbox-wrapper { flex: none; }
 .sales-job-picker__row { display: flex; align-items: center; justify-content: space-between; gap: $spacing-05; padding-block: $spacing-03; border-block-end: 1px solid var(--cds-border-subtle); }
 .sales-reason-list { display: grid; gap: $spacing-03; margin: $spacing-03 0 0; padding: 0; list-style: none; }
 .sales-reason-list li { display: flex; align-items: center; justify-content: space-between; gap: $spacing-05; @include type-style('body-compact-01'); }
@@ -100,6 +102,8 @@
   body * { visibility: hidden; }
   .sales-receipt, .sales-receipt * { visibility: visible; }
   .sales-receipt { position: absolute; inset-block-start: 0; inset-inline-start: 0; inline-size: 80mm; border: 0; }
+  // References stay links on screen but print as plain text on the receipt.
+  .sales-receipt a { color: inherit; text-decoration: none; }
 }
 
 // Tags in stacked cells keep their natural width instead of stretching.
@@ -113,9 +117,6 @@
 .sales-sum dd { margin: 0; font-variant-numeric: tabular-nums; }
 .sales-sum__total { padding-block-start: $spacing-02; border-block-start: 1px solid var(--cds-border-strong); font-weight: 600; }
 .sales-fieldset { margin: 0; padding: 0; border: 0; }
-.sales-ready-bar { display: flex; align-items: stretch; background: var(--cds-notification-background-info); }
-.sales-ready-notice.cds--inline-notification { flex: 1 1 auto; max-inline-size: none; margin: 0; }
-// The bar's action matches the toolbar's primary button in size.
 .sales-toolbar-action.cds--btn { min-inline-size: 11rem; }
 
 // Price quote (Pricing preview) ---------------------------------------------------------------------------------------------------
