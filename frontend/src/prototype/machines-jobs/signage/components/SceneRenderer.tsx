@@ -157,13 +157,22 @@ export type SceneRendererProps = {
   onSelectZone?: (zoneId: string) => void;
 };
 
+/** Colour, optionally layered under an image and a dimming veil (black for light text, white for dark text). */
+function sceneBackground(scene: Scene, media: Map<string, MediaItem>): string {
+  const image = scene.backgroundImage;
+  const item = image ? media.get(image.mediaId) : undefined;
+  if (!image || !item) return scene.background;
+  const veil = scene.theme === 'dark' ? `rgba(0, 0, 0, ${image.dim / 100})` : `rgba(255, 255, 255, ${image.dim / 100})`;
+  return `linear-gradient(${veil}, ${veil}), url("${item.src}") center / ${image.fit} no-repeat, ${scene.background}`;
+}
+
 export function SceneRenderer({ scene, screenOrientation, sim, now, media, playback, selectedZone, onSelectZone }: SceneRendererProps) {
   const lookup = useMemo(() => new Map(media.map((item) => [item.id, item])), [media]);
   if (!scene) return <div className="sg-scene sg-scene--empty" />;
   const orientation = screenOrientation ?? scene.orientation;
   const template = templateById(scene.templateId);
   const ctx: RenderContext = { sim, now, media: lookup, orientation, playback: playback ?? { activeMachines: printingMachines(sim), multiMode: null, alternateSeconds: 10 } };
-  const style = { '--u': orientation === 'portrait' ? '1cqw' : '0.5625cqw', background: scene.background, gridTemplateColumns: template.columns, gridTemplateRows: template.rows } as CSSProperties;
+  const style = { '--u': orientation === 'portrait' ? '1cqw' : '0.5625cqw', background: sceneBackground(scene, lookup), gridTemplateColumns: template.columns, gridTemplateRows: template.rows } as CSSProperties;
   return (
     <div className={`sg-scene sg-scene--${scene.theme}`} style={style}>
       {template.zones.map((zone) => {

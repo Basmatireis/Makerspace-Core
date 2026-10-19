@@ -41,7 +41,7 @@ export function widgetMediaIds(widget: Widget): string[] {
   }
 }
 
-export const sceneMediaIds = (scene: Scene): string[] => Object.values(scene.zones).flatMap(widgetMediaIds);
+export const sceneMediaIds = (scene: Scene): string[] => [...(scene.backgroundImage ? [scene.backgroundImage.mediaId] : []), ...Object.values(scene.zones).flatMap(widgetMediaIds)];
 
 export const loopSeconds = (playlist: Playlist) => playlist.items.reduce((sum, item) => sum + item.seconds, 0);
 

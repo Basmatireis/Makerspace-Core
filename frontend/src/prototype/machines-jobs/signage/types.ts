@@ -37,9 +37,18 @@ export type Scene = {
   /** One widget per zone of the template. */
   zones: Record<string, Widget>;
   background: string;
+  /** Optional image behind all zones; the colour still shows around a contained image. */
+  backgroundImage?: SceneBackgroundImage | null;
   theme: 'dark' | 'light';
   /** Offered as an announcement takeover. */
   announcement?: boolean;
+};
+
+export type SceneBackgroundImage = {
+  mediaId: string;
+  fit: 'cover' | 'contain';
+  /** 0–80 %: darkens (light text) or lightens (dark text) the image so zone content stays readable. */
+  dim: number;
 };
 
 export type Template = {

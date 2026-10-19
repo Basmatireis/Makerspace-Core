@@ -5,7 +5,7 @@ import type { MachineKey, MediaItem, TextSize, Widget } from '../types';
 
 type MachineOption = { id: MachineKey; label: string };
 
-function MediaPicker({ id, label, kind, media, value, onChange }: { id: string; label: string; kind: 'image' | 'video'; media: MediaItem[]; value: string | null; onChange: (id: string | null) => void }) {
+export function MediaPicker({ id, label, kind, media, value, onChange }: { id: string; label: string; kind: 'image' | 'video'; media: MediaItem[]; value: string | null; onChange: (id: string | null) => void }) {
   const items = media.filter((item) => item.kind === kind);
   return (
     <ComboBox<MediaItem> id={id} titleText={label} placeholder={`Choose ${kind === 'image' ? 'an image' : 'a video'} from Media`} items={items} itemToString={(item) => item?.name ?? ''} selectedItem={items.find((item) => item.id === value) ?? null}
@@ -13,7 +13,7 @@ function MediaPicker({ id, label, kind, media, value, onChange }: { id: string; 
   );
 }
 
-function FitField({ id, value, onChange }: { id: string; value: 'contain' | 'cover'; onChange: (fit: 'contain' | 'cover') => void }) {
+export function FitField({ id, value, onChange }: { id: string; value: 'contain' | 'cover'; onChange: (fit: 'contain' | 'cover') => void }) {
   return (
     <Select id={id} labelText="Fit" value={value} onChange={(event) => onChange(event.target.value as 'contain' | 'cover')}>
       <SelectItem value="cover" text="Cover (crop to fill)" /><SelectItem value="contain" text="Contain (show everything)" />

@@ -21,6 +21,12 @@ export function cameraFrame(color: string, layers: number) {
   return uri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 360" width="560" height="360"><defs><linearGradient id="w" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b2f36"/><stop offset="1" stop-color="#14161a"/></linearGradient></defs><rect width="560" height="360" fill="url(#w)"/><rect x="40" y="30" width="480" height="8" fill="#474c55"/><rect x="40" y="30" width="8" height="300" fill="#474c55"/><rect x="512" y="30" width="8" height="300" fill="#474c55"/><polygon points="280,215 470,265 280,315 90,265" fill="#3a3f47" stroke="#6f7782" stroke-width="2"/><polygon points="280,262 ${280 + 62},${262 - 14} ${280 + 62},${262 - 14 - height} 280,${262 - height} ${280 - 62},${262 - 14 - height} ${280 - 62},${262 - 14}" fill="${color}"/><polygon points="280,${262 - height} ${280 + 62},${262 - 14 - height} 280,${262 - 28 - height} ${280 - 62},${262 - 14 - height}" fill="#ffffff" fill-opacity="0.28"/><rect x="262" y="${70 + layers}" width="36" height="22" rx="3" fill="#8d96a3"/><rect x="277" y="${92 + layers}" width="6" height="${Math.max(10, 120 - height)}" fill="#c6c6c6"/></svg>`);
 }
 
+/** A text-free backdrop for scene backgrounds: a dark gradient with a faint workshop grid and soft shapes. */
+export function backdrop(from: string, to: string, w: number, h: number) {
+  const grid = Array.from({ length: 24 }, (_, index) => `<path d="M${(index * w) / 12} 0V${h}M0 ${(index * h) / 12}H${w}" stroke="#ffffff" stroke-opacity="0.06"/>`).join('');
+  return uri(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"><defs><linearGradient id="b" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/></linearGradient></defs><rect width="${w}" height="${h}" fill="url(#b)"/>${grid}<circle cx="${w * 0.85}" cy="${h * 0.2}" r="${Math.min(w, h) * 0.35}" fill="#ffffff" fill-opacity="0.07"/><circle cx="${w * 0.1}" cy="${h * 0.9}" r="${Math.min(w, h) * 0.25}" fill="#ffffff" fill-opacity="0.05"/></svg>`);
+}
+
 const day = 86_400_000;
 const hour = 3_600_000;
 const iso = (offsetMs: number) => new Date(Date.now() + offsetMs).toISOString();
@@ -39,6 +45,7 @@ export const mediaSeed: MediaItem[] = [
   mediaRow('media-safety', 'safety-rules.png', 'image', 1920, 1080, 1.2, 'PNG', poster(['Safety first'], 'Eye protection · Closed shoes · Ask if unsure', '#161616', '#525252', 1920, 1080, '#f1c21b'), 45),
   mediaRow('media-laser', 'laser-cutter-intro.jpg', 'image', 1920, 1080, 2.4, 'JPEG', poster(['Laser', 'cutting'], 'Book a slot at the desk', '#8a3800', '#f1c21b', 1920, 1080, '#161616'), 6),
   mediaRow('media-closed', 'closed-background.png', 'image', 1080, 1920, 0.4, 'PNG', poster(['Closed'], 'We are back tomorrow', '#750e13', '#da1e28', 1080, 1920), 100),
+  mediaRow('media-backdrop', 'workshop-backdrop.png', 'image', 1920, 1080, 0.6, 'PNG', backdrop('#0043ce', '#6929c4', 1920, 1080), 6),
   mediaRow('media-sponsors', 'sponsors-wall.png', 'image', 1920, 1080, 3.2, 'PNG', poster(['Thank you'], 'Our supporters and partners', '#198038', '#24a148', 1920, 1080), 3, 'Jonas Weber'),
   { ...mediaRow('media-timelapse', 'print-timelapse.mp4', 'video', 1920, 1080, 84.5, 'MP4 · H.264', poster(['Print', 'timelapse'], 'Video · 0:42', '#262626', '#6929c4', 1920, 1080), 15), checksum: 'sha256:9c1e07b24d5a6f10' },
   { ...mediaRow('media-intro', 'makerspace-intro.mp4', 'video', 1080, 1920, 120.3, 'MP4 · H.264', poster(['Meet the', 'makerspace'], 'Video · 1:05', '#001141', '#4589ff', 1080, 1920), 22), checksum: 'sha256:41ab39c0e7d8b215' },
@@ -83,7 +90,7 @@ export const scenesSeed: Scene[] = [
     },
   }),
   scene({
-    id: 'scene-overview', name: 'Workshop overview', orientation: 'landscape', templateId: 'grid2x2', background: '#262626',
+    id: 'scene-overview', name: 'Workshop overview', orientation: 'landscape', templateId: 'grid2x2', background: '#262626', backgroundImage: { mediaId: 'media-backdrop', fit: 'cover', dim: 40 },
     zones: {
       tl: { type: 'status', machineIds: ['h2d', 'x1c'], showProgress: true, showRemaining: true }, tr: { type: 'open_days', count: 3 },
       bl: { type: 'events', count: 3 }, br: { type: 'clock', mode: 'datetime' },

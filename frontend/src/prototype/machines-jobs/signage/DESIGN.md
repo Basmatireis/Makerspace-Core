@@ -61,7 +61,7 @@ Table toolbar with `SectionSwitcher` Scenes | Playlists (URL param `?section=`).
 
 ### Scene editor `/signage/scenes/:sceneId`
 Three columns on desktop (stack on narrow):
-- **Left – Structure**: template (change via modal; zones keep widgets by position), list of zones (click to select), scene settings (background colour field like the material colour field, theme dark/light text).
+- **Left – Structure**: template (change via modal; zones keep widgets by position), list of zones (click to select), scene settings (background colour field like the material colour field, optional background image from Media with fit cover/contain and a 0–80 % darken/lighten veil for readability, theme dark/light text). The colour stays visible around a contained image.
 - **Centre – Canvas**: scaled render of the scene in its aspect ratio; zones outlined, clicking a zone selects it, selected zone has a focus outline. Above the canvas: **Preview as** dropdown (Idle · H2D printing · Both printing · Camera unavailable · Live data stale) to see fallbacks.
 - **Right – Zone properties**: widget type select (Empty, Image, Video, Slideshow, Text, QR code, Clock, Camera, Machine status, Open days, Events) and widget-specific fields:
   - Image/Video: media picker (from Media), fit contain/cover. Video: muted loop.

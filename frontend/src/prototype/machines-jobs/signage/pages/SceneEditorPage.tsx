@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, ContainedList, ContainedListItem, InlineNotification, RadioButton, RadioButtonGroup, Select, SelectItem, Tag, TextInput, Tile } from '@carbon/react';
+import { Button, ContainedList, ContainedListItem, InlineNotification, NumberInput, RadioButton, RadioButtonGroup, Select, SelectItem, Tag, TextInput, Tile } from '@carbon/react';
 import { Launch } from '@carbon/icons-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { PageShell } from '../../../../app/PageShell';
@@ -9,7 +9,7 @@ import { RequirePermission } from '../../sales/components/RequirePermission';
 import { useNow, useStore } from '../../store';
 import { SceneRenderer, ScreenFrame } from '../components/SceneRenderer';
 import { TemplateSketch } from '../components/TemplatePicker';
-import { WidgetFields } from '../components/WidgetFields';
+import { FitField, MediaPicker, WidgetFields } from '../components/WidgetFields';
 import { ChangeTemplateModal } from '../dialogs/ChangeTemplateModal';
 import { displaySceneIds } from '../helpers';
 import { useSignage } from '../SignageContext';
@@ -90,6 +90,17 @@ function Editor({ sceneId, crumbs }: { sceneId: string; crumbs: { label: string;
                     onChange={(event) => signage.updateScene(scene.id, (current) => ({ ...current, background: event.target.value }))} />
                   <span className="sg-colour-field__swatch" style={{ background: backgroundValid ? scene.background : 'transparent' }} aria-hidden="true" />
                 </div>
+                <MediaPicker id="scene-settings-image" label="Background image (optional)" kind="image" media={signage.media} value={scene.backgroundImage?.mediaId ?? null}
+                  onChange={(mediaId) => signage.updateScene(scene.id, (current) => ({ ...current, backgroundImage: mediaId ? { fit: 'cover', dim: 30, ...current.backgroundImage, mediaId } : null }))} />
+                {scene.backgroundImage && (
+                  <>
+                    <FitField id="scene-settings-image-fit" value={scene.backgroundImage.fit}
+                      onChange={(fit) => signage.updateScene(scene.id, (current) => ({ ...current, backgroundImage: current.backgroundImage && { ...current.backgroundImage, fit } }))} />
+                    <NumberInput id="scene-settings-image-dim" label={scene.theme === 'dark' ? 'Darken image (%)' : 'Lighten image (%)'} helperText="Keeps text in the zones readable. The colour above shows around a contained image."
+                      min={0} max={80} step={10} value={scene.backgroundImage.dim}
+                      onChange={(_event, { value }) => { const dim = Number(value); if (Number.isFinite(dim)) signage.updateScene(scene.id, (current) => ({ ...current, backgroundImage: current.backgroundImage && { ...current.backgroundImage, dim: Math.min(80, Math.max(0, dim)) } })); }} />
+                  </>
+                )}
                 <RadioButtonGroup legendText="Text colour" name="scene-theme" valueSelected={scene.theme} onChange={(value) => signage.updateScene(scene.id, (current) => ({ ...current, theme: value as 'dark' | 'light' }))}>
                   <RadioButton id="scene-theme-dark" value="dark" labelText="Light text on dark" />
                   <RadioButton id="scene-theme-light" value="light" labelText="Dark text on light" />
