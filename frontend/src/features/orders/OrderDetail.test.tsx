@@ -169,6 +169,58 @@ describe('order detail: invoice approval', () => {
   });
 });
 
+describe('order detail: cancelled invoice requests', () => {
+  const second = '01995ea6-6d00-7000-8000-000000000204';
+  const cancelledRequest = invoiceRequest({
+    state: 'cancelled', supersedesRequestId: second,
+    events: [{ id: 'e9', kind: 'cancelled', externalReference: 'GS-77', reconciliationKind: 'credit_note', reason: 'Wrong recipient', effectiveAt: '2026-10-06T10:00:00Z', recordedAt: '2026-10-06T10:00:00Z', recordedBy: { id: 'x', displayName: 'Manager' } }],
+  });
+  const earlierRequest = invoiceRequest({ id: second, reference: 'W-2026-000000', state: 'cancelled', events: [] });
+  const afterCancellation = finalized({ latestExternalRequestId: ids.request, latestExternalRequestReference: 'W-2026-000001', latestExternalRequestState: 'cancelled' });
+
+  it('keeps the cancelled request with its reference and history, and offers a new request', async () => {
+    as(everything);
+    serve(afterCancellation, cancelledRequest);
+    server.use(http.get('*/api/v1/external-invoice-requests', () => HttpResponse.json({ items: [cancelledRequest, earlierRequest], page: 1, pageSize: 100, total: 2 })));
+    const user = userEvent.setup();
+    renderRoute(<App />, `/orders/${ids.order}`);
+    expect((await screen.findAllByText('This request is cancelled')).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Cancellation reference GS-77/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /History \(1\)/ })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Request invoice again' }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('lists earlier requests collapsed', async () => {
+    as(everything);
+    serve(afterCancellation, cancelledRequest);
+    let query: URL | undefined;
+    server.use(http.get('*/api/v1/external-invoice-requests', ({ request }) => { query = new URL(request.url); return HttpResponse.json({ items: [cancelledRequest, earlierRequest], page: 1, pageSize: 100, total: 2 }); }));
+    const user = userEvent.setup();
+    renderRoute(<App />, `/orders/${ids.order}`);
+    await user.click(await screen.findByRole('button', { name: 'Earlier requests (1)' }));
+    expect(await screen.findByRole('button', { name: /W-2026-000000/ })).toBeInTheDocument();
+    expect(query?.searchParams.get('orderId')).toBe(ids.order);
+  });
+
+  it('only shows the state without the permission to read requests', async () => {
+    as([PermissionId.ordersread]);
+    serve(afterCancellation);
+    renderRoute(<App />, `/orders/${ids.order}`);
+    expect(await screen.findByText(/Recipient details need the permission/)).toBeInTheDocument();
+    expect(screen.getAllByText('Cancelled').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Request invoice again' })).not.toBeInTheDocument();
+  });
+
+  it('does not offer a new request without the permission to manage them', async () => {
+    as(everything.filter((permission) => permission !== PermissionId.external_invoice_requestsmanage));
+    serve(afterCancellation, cancelledRequest);
+    renderRoute(<App />, `/orders/${ids.order}`);
+    expect((await screen.findAllByText('This request is cancelled')).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Request invoice again' })).not.toBeInTheDocument();
+  });
+});
+
 describe('order detail: draft', () => {
   it('edits a custom item with exact decimals and the current version', async () => {
     as(everything);

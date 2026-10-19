@@ -24,6 +24,7 @@ const ProfilePage = lazy(() => import('../features/profile/ProfilePage').then(({
 const SalesOverviewPage = lazy(() => import('../features/orders/SalesOverviewPage').then(({ SalesOverviewPage }) => ({ default: SalesOverviewPage })));
 const OrdersPage = lazy(() => import('../features/orders/OrdersPage').then(({ OrdersPage }) => ({ default: OrdersPage })));
 const OrderDetailPage = lazy(() => import('../features/orders/OrderDetailPage').then(({ OrderDetailPage }) => ({ default: OrderDetailPage })));
+const ReceiptPage = lazy(() => import('../features/orders/ReceiptPage').then(({ ReceiptPage }) => ({ default: ReceiptPage })));
 const PaymentsPage = lazy(() => import('../features/orders/PaymentsPage').then(({ PaymentsPage }) => ({ default: PaymentsPage })));
 const PaymentDetailPage = lazy(() => import('../features/orders/PaymentDetailPage').then(({ PaymentDetailPage }) => ({ default: PaymentDetailPage })));
 const PricingPage = lazy(() => import('../features/pricing/PricingPage').then(({ PricingPage }) => ({ default: PricingPage })));
@@ -217,6 +218,7 @@ export function App() {
           <Route path="sales" element={<PermissionRoute anyOf={[PermissionId.ordersread, PermissionId.paymentsread]}><SalesOverviewPage /></PermissionRoute>} />
           <Route path="orders" element={<PermissionRoute allOf={[PermissionId.ordersread]}><OrdersPage /></PermissionRoute>} />
           <Route path="orders/:orderId" element={<PermissionRoute allOf={[PermissionId.ordersread]}><OrderDetailPage /></PermissionRoute>} />
+          <Route path="orders/:orderId/receipt" element={<PermissionRoute allOf={[PermissionId.ordersread, PermissionId.paymentsread]}><ReceiptPage /></PermissionRoute>} />
           <Route path="payments" element={<PermissionRoute allOf={[PermissionId.paymentsread]}><PaymentsPage /></PermissionRoute>} />
           <Route path="payments/:paymentId" element={<PermissionRoute allOf={[PermissionId.paymentsread]}><PaymentDetailPage /></PermissionRoute>} />
           <Route path="pricing" element={<PermissionRoute allOf={[PermissionId.pricingread]}><PricingPage /></PermissionRoute>} />

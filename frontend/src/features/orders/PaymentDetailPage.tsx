@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Button, ContainedList, ContainedListItem, Link as CarbonLink, Tag, Tile } from '@carbon/react';
-import { Undo } from '@carbon/icons-react';
+import { Printer, Undo } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { OrderPayment } from '../../api/generated/models';
 import { PageShell } from '../../app/PageShell';
 import { ErrorState, FullPageLoading } from '../../app/PageState';
@@ -12,7 +12,7 @@ import { formatDateTime } from '../../app/dateTime';
 import { useCurrentUser } from '../auth/auth';
 import { hasPermission, PermissionId } from '../auth/permissions';
 import { methodLabel, reasonKindLabel } from './labels';
-import { allocatedOrder, customerLabel, describePaymentHistory, reversalOptions } from './logic';
+import { allocatedOrder, canPrintReceipt, customerLabel, describePaymentHistory, reversalOptions } from './logic';
 import { formatCents, formatSignedCents, toCents } from './money';
 import { orderQuery, paymentQuery, paymentsSinceQuery } from './queries';
 import { RefundOrCorrectModal } from './RefundOrCorrectModal';
@@ -32,6 +32,7 @@ export function PaymentDetailPage() {
 
 function PaymentDetail({ payment }: { payment: OrderPayment }) {
   const user = useCurrentUser();
+  const navigate = useNavigate();
   const [dialog, setDialog] = useState(false);
   const isReversal = payment.entryKind === 'reversal';
   const canOrders = hasPermission(user, PermissionId.ordersread);
@@ -43,6 +44,8 @@ function PaymentDetail({ payment }: { payment: OrderPayment }) {
   const source = isReversal ? original.data : payment;
   const target = source ? allocatedOrder(source.allocations) : null;
   const order = useQuery({ ...orderQuery(target?.id ?? ''), enabled: !!target?.id && canOrders });
+  // A receipt is for money received that still counts for a finalized order; the order itself needs orders.read.
+  const canReceipt = !isReversal && !reversedBy && canOrders && !!order.data && canPrintReceipt(order.data) && order.data.allocations.some((entry) => entry.paymentId === payment.id && toCents(entry.amount) > 0);
   const options = reversalOptions(payment, reversedBy, order.data ?? null);
   const actionable = options.kinds.length > 0 && options.blocker === null;
   const signed = isReversal ? -toCents(payment.amount) : toCents(payment.amount);
@@ -53,7 +56,10 @@ function PaymentDetail({ payment }: { payment: OrderPayment }) {
       className="sales-page" title={payment.reference} width="wide" breadcrumbs={crumbs}
       titleAdornment={<span className="mj-inline"><PaymentKindTag payment={payment} size="md" />{reversedBy && <Tag type="warm-gray" size="md">Reversed</Tag>}</span>}
       description={`${methodLabel(payment.method)} · ${formatSignedCents(signed)} · ${formatDateTime(payment.occurredAt)}`}
-      actions={actionable && canReverse && order.data ? <Button kind="danger--tertiary" renderIcon={Undo} onClick={() => setDialog(true)}>Refund or correct</Button> : undefined}
+      actions={<>
+        {canReceipt && order.data && <Button kind="tertiary" renderIcon={Printer} onClick={() => navigate(`/orders/${order.data.id}/receipt?payment=${payment.id}`)}>Print receipt</Button>}
+        {actionable && canReverse && order.data && <Button kind="danger--tertiary" renderIcon={Undo} onClick={() => setDialog(true)}>Refund or correct</Button>}
+      </>}
     >
       <div className="mj-stack">
         {payment.entryKind === 'receipt' && !actionable && options.blocker && order.data && <RichNotification kind="info" title="Nothing left to do with this payment">{options.blocker}</RichNotification>}

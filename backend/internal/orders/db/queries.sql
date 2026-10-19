@@ -128,9 +128,9 @@ WHERE e.request_id=$1 ORDER BY e.recorded_at,e.id;
 -- name: RequestHasReference :one
 SELECT EXISTS(SELECT 1 FROM external_invoice_request_events WHERE request_id=$1 AND kind IN ('reference_added','reference_corrected')) AS has_reference;
 -- name: ListRequests :many
-SELECT * FROM external_invoice_requests WHERE (sqlc.arg(search)::text='' OR reference ILIKE '%'||sqlc.arg(search)||'%') AND (sqlc.arg(status)::text='' OR state=sqlc.arg(status)) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
+SELECT * FROM external_invoice_requests WHERE (sqlc.arg(search)::text='' OR reference ILIKE '%'||sqlc.arg(search)||'%') AND (sqlc.arg(status)::text='' OR state=sqlc.arg(status)) AND (sqlc.narg(order_id)::uuid IS NULL OR order_id=sqlc.narg(order_id)) ORDER BY created_at DESC,id DESC LIMIT sqlc.arg(page_limit) OFFSET sqlc.arg(page_offset);
 -- name: CountRequests :one
-SELECT count(*) FROM external_invoice_requests WHERE (sqlc.arg(search)::text='' OR reference ILIKE '%'||sqlc.arg(search)||'%') AND (sqlc.arg(status)::text='' OR state=sqlc.arg(status));
+SELECT count(*) FROM external_invoice_requests WHERE (sqlc.arg(search)::text='' OR reference ILIKE '%'||sqlc.arg(search)||'%') AND (sqlc.arg(status)::text='' OR state=sqlc.arg(status)) AND (sqlc.narg(order_id)::uuid IS NULL OR order_id=sqlc.narg(order_id));
 
 -- name: LockOrganizationRequirements :exec
 SELECT id FROM organizations WHERE id=$1 FOR UPDATE;

@@ -111,7 +111,7 @@ function OrdersTable({ orders }: { orders: Order[] }) {
     {
       key: 'invoice', header: 'Invoice', narrow: true,
       render: (order) => {
-        const state = order.activeExternalRequestState;
+        const state = order.activeExternalRequestState ?? (order.latestExternalRequestState === 'cancelled' ? 'cancelled' : null);
         if (!state) return <span className="mj-secondary">—</span>;
         return <div className="mj-cell-stack"><RequestStateTag state={state} />{(state === 'draft' || state === 'submitted' || state === 'issued' || state === 'cancellation_requested') && <span className="mj-secondary">{requestNext({ state, events: [] }, order.settlementState === 'paid')}</span>}</div>;
       },

@@ -140,6 +140,9 @@ type Order struct {
 	ActiveExternalRequestID        *uuid.UUID        `json:"activeExternalRequestId"`
 	ActiveExternalRequestReference *string           `json:"activeExternalRequestReference"`
 	ActiveExternalRequestState     *string           `json:"activeExternalRequestState"`
+	LatestExternalRequestID        *uuid.UUID        `json:"latestExternalRequestId"`
+	LatestExternalRequestReference *string           `json:"latestExternalRequestReference"`
+	LatestExternalRequestState     *string           `json:"latestExternalRequestState"`
 	ReplacedByOrderID              *uuid.UUID        `json:"replacedByOrderId"`
 	ReplacedByOrderReference       *string           `json:"replacedByOrderReference"`
 	ID                             uuid.UUID         `json:"id"`

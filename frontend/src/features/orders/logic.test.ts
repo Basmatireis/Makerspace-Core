@@ -13,7 +13,7 @@ describe('money', () => {
     expect(toCents('-0.05')).toBe(-5);
     expect(fromCents(-5)).toBe('-0.05');
     expect(parseMoneyInput('12,5')).toBe(1250);
-    expect(parseMoneyInput('1.234,50')).toBe(123450);
+    expect(parseMoneyInput('1.234,50')).toBeNull();
     expect(parseMoneyInput('12.3456')).toBeNull();
   });
 });
@@ -28,8 +28,10 @@ describe('order sections', () => {
     expect(sectionOf({ status: 'finalized', settlementState: 'partially_paid' })).toBe('open');
   });
   it('maps the active request to the invoice filter and the accepted payment methods', () => {
-    expect(invoiceKey({ activeExternalRequestState: null })).toBe('none');
-    expect(invoiceKey({ activeExternalRequestState: 'cancellation_requested' })).toBe('issued');
+    expect(invoiceKey({ activeExternalRequestState: null, latestExternalRequestState: null })).toBe('none');
+    expect(invoiceKey({ activeExternalRequestState: 'cancellation_requested', latestExternalRequestState: 'cancellation_requested' })).toBe('issued');
+    expect(invoiceKey({ activeExternalRequestState: null, latestExternalRequestState: 'cancelled' })).toBe('cancelled');
+    expect(invoiceKey({ activeExternalRequestState: 'draft', latestExternalRequestState: 'draft' })).toBe('draft');
     expect(acceptsCashAndCard({ activeExternalRequestState: 'draft' })).toBe(true);
     expect(acceptsCashAndCard({ activeExternalRequestState: 'submitted' })).toBe(false);
     expect(acceptsCashAndCard({ activeExternalRequestState: null })).toBe(true);

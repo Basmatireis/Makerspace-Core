@@ -6241,6 +6241,12 @@ paths:
           schema:
             type: "string"
             maxLength: 200
+        -
+          name: "orderId"
+          in: "query"
+          description: "Only the requests of this order, latest first, cancelled ones included."
+          schema:
+            $ref: "#/components/schemas/UUIDv7"
   /external-invoice-requests/{requestId}:
     get:
       tags:
@@ -12696,6 +12702,17 @@ components:
           format: "uuid"
           nullable: true
         activeExternalRequestReference:
+          type: "string"
+          nullable: true
+        latestExternalRequestId:
+          type: "string"
+          format: "uuid"
+          nullable: true
+          description: "The most recently created invoice request of the order, whatever its state (null when there never was one). It differs from the active request after a cancellation. All requests of the order: GET /external-invoice-requests?orderId=..."
+        latestExternalRequestReference:
+          type: "string"
+          nullable: true
+        latestExternalRequestState:
           type: "string"
           nullable: true
         activeExternalRequestState:

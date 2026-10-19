@@ -15,6 +15,7 @@ const awaiting = finalized({ id: 'a1', reference: 'O-2026-000011', customerName:
 const submitted = finalized({ id: 's1', reference: 'O-2026-000012', customerName: 'Invoice customer', activeExternalRequestId: ids.request, activeExternalRequestReference: 'W-1', activeExternalRequestState: 'submitted' });
 const done = paid({ id: 'p1', reference: 'O-2026-000013', customerName: 'Paid customer' });
 const cancelled = order({ id: 'c1', reference: 'O-2026-000014', status: 'cancelled', customerName: 'Cancelled customer' });
+const reinvoice = finalized({ id: 'r1', reference: 'O-2026-000015', customerName: 'Cancelled invoice customer', latestExternalRequestId: ids.request, latestExternalRequestReference: 'W-1', latestExternalRequestState: 'cancelled' });
 const all = [draft, awaiting, submitted, done, cancelled];
 const rows = () => within(screen.getByRole('table', { name: 'Orders' })).getAllByRole('row').slice(1).map((row) => row.textContent ?? '');
 
@@ -60,6 +61,16 @@ describe('orders list', () => {
     await screen.findByRole('table', { name: 'Orders' });
     expect(rows()).toHaveLength(1);
     expect(rows()[0]).toContain('Awaiting approval');
+  });
+
+  it('filters orders whose latest invoice request was cancelled', async () => {
+    as(everything);
+    orderList([...all, reinvoice]);
+    renderRoute(<App />, '/orders?invoice=cancelled');
+    await screen.findByRole('table', { name: 'Orders' });
+    expect(rows()).toHaveLength(1);
+    expect(rows()[0]).toContain('Cancelled invoice customer');
+    expect(rows()[0]).toContain('Cancelled');
   });
 
   it('filters by invoice state and customer type through the filter panel', async () => {

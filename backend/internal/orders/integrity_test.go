@@ -58,7 +58,7 @@ func TestSeparatedFinancialPermissions(t *testing.T) {
 		"reverse":        func() error { _, e := f.s.Command(ctx, read, o.ID, cmd(o), "reverse", nil); return e },
 		"record":         func() error { _, e := f.s.RecordPayment(ctx, read, o.ID, RecordOrderPayment{}, nil); return e },
 		"payment read":   func() error { _, e := f.s.ListPayments(ctx, read, "", nil, nil, 1, 25); return e },
-		"recipient read": func() error { _, e := f.s.ListRequests(ctx, read, "", "", 1, 25); return e },
+		"recipient read": func() error { _, e := f.s.ListRequests(ctx, read, "", "", nil, 1, 25); return e },
 	}
 	for name, call := range cases {
 		t.Run(name, func(t *testing.T) {

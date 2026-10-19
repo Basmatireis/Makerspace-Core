@@ -14,13 +14,20 @@ export const everything = [
 ];
 
 export function order(overrides: Partial<Order> = {}): Order {
-  return {
+  const base: Order = {
     id: ids.order, createdBy: { id: ids.customer, displayName: 'Sara Kofler' }, reference: 'O-2026-000001', status: 'draft', currency: 'EUR', customerKind: 'organization',
     customer: { kind: 'organization', id: ids.customer }, customerName: 'Example institute', fulfillmentMode: 'immediate', totalAmount: '10.00', netCharge: '10.00', settledAmount: '0.00', outstandingAmount: '10.00',
     settlementState: 'unpaid', replacesOrderId: null, replacesOrderReference: null, replacedByOrderId: null, replacedByOrderReference: null, activeExternalRequestId: null, activeExternalRequestReference: null,
-    activeExternalRequestState: null,
+    activeExternalRequestState: null, latestExternalRequestId: null, latestExternalRequestReference: null, latestExternalRequestState: null,
     items: [{ id: ids.item, position: 1, kind: 'manual', description: 'Machine service', quantity: '1', unit: 'service', unitPrice: '10', amount: '10.00', sourceChanged: false, createdAt: at }],
     allocations: [], adjustments: [], version: 2, createdAt: at, updatedAt: at, ...overrides,
+  };
+  // Unless a test says otherwise, the latest request is the active one.
+  return {
+    ...base,
+    latestExternalRequestId: overrides.latestExternalRequestId === undefined ? base.activeExternalRequestId : base.latestExternalRequestId,
+    latestExternalRequestReference: overrides.latestExternalRequestReference === undefined ? base.activeExternalRequestReference : base.latestExternalRequestReference,
+    latestExternalRequestState: overrides.latestExternalRequestState === undefined ? base.activeExternalRequestState : base.latestExternalRequestState,
   };
 }
 

@@ -18,6 +18,7 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { UUIDv7 } from './uUIDv7';
 
 export type ListExternalInvoiceRequestsParams = {
 /**
@@ -38,4 +39,8 @@ search?: string;
  * @maxLength 200
  */
 status?: string;
+/**
+ * Only the requests of this order, latest first, cancelled ones included.
+ */
+orderId?: UUIDv7;
 };

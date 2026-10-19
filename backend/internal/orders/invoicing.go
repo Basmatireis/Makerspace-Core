@@ -268,7 +268,7 @@ func (s *Service) GetRequest(ctx context.Context, p authorization.Principal, id 
 	}
 	return s.loadRequest(ctx, db.New(s.pool), id)
 }
-func (s *Service) ListRequests(ctx context.Context, p authorization.Principal, search, status string, page, size int) (ExternalInvoiceRequestPage, error) {
+func (s *Service) ListRequests(ctx context.Context, p authorization.Principal, search, status string, orderID *uuid.UUID, page, size int) (ExternalInvoiceRequestPage, error) {
 	if err := require(p, authorization.ExternalInvoiceRequestsRead); err != nil {
 		return ExternalInvoiceRequestPage{}, err
 	}
@@ -277,12 +277,12 @@ func (s *Service) ListRequests(ctx context.Context, p authorization.Principal, s
 		return ExternalInvoiceRequestPage{}, err
 	}
 	q := db.New(s.pool)
-	rows, err := q.ListRequests(ctx, db.ListRequestsParams{Search: search, Status: status, PageLimit: limit, PageOffset: offset})
+	rows, err := q.ListRequests(ctx, db.ListRequestsParams{Search: search, Status: status, OrderID: orderID, PageLimit: limit, PageOffset: offset})
 	if err != nil {
 		return ExternalInvoiceRequestPage{}, err
 	}
 	v := ExternalInvoiceRequestPage{Items: []ExternalInvoiceRequest{}, Page: int64(page), PageSize: int64(size)}
-	v.Total, err = q.CountRequests(ctx, db.CountRequestsParams{Search: search, Status: status})
+	v.Total, err = q.CountRequests(ctx, db.CountRequestsParams{Search: search, Status: status, OrderID: orderID})
 	if err != nil {
 		return v, err
 	}

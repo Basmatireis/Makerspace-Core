@@ -275,16 +275,17 @@ func (q *Queries) CountPayments(ctx context.Context, arg CountPaymentsParams) (i
 }
 
 const countRequests = `-- name: CountRequests :one
-SELECT count(*) FROM external_invoice_requests WHERE ($1::text='' OR reference ILIKE '%'||$1||'%') AND ($2::text='' OR state=$2)
+SELECT count(*) FROM external_invoice_requests WHERE ($1::text='' OR reference ILIKE '%'||$1||'%') AND ($2::text='' OR state=$2) AND ($3::uuid IS NULL OR order_id=$3)
 `
 
 type CountRequestsParams struct {
-	Search string
-	Status string
+	Search  string
+	Status  string
+	OrderID *uuid.UUID
 }
 
 func (q *Queries) CountRequests(ctx context.Context, arg CountRequestsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countRequests, arg.Search, arg.Status)
+	row := q.db.QueryRow(ctx, countRequests, arg.Search, arg.Status, arg.OrderID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -1299,12 +1300,13 @@ func (q *Queries) ListPayments(ctx context.Context, arg ListPaymentsParams) ([]P
 }
 
 const listRequests = `-- name: ListRequests :many
-SELECT id, reference, order_id, order_reference, provider, state, currency, requested_amount, supersedes_request_id, version, created_at FROM external_invoice_requests WHERE ($1::text='' OR reference ILIKE '%'||$1||'%') AND ($2::text='' OR state=$2) ORDER BY created_at DESC,id DESC LIMIT $4 OFFSET $3
+SELECT id, reference, order_id, order_reference, provider, state, currency, requested_amount, supersedes_request_id, version, created_at FROM external_invoice_requests WHERE ($1::text='' OR reference ILIKE '%'||$1||'%') AND ($2::text='' OR state=$2) AND ($3::uuid IS NULL OR order_id=$3) ORDER BY created_at DESC,id DESC LIMIT $5 OFFSET $4
 `
 
 type ListRequestsParams struct {
 	Search     string
 	Status     string
+	OrderID    *uuid.UUID
 	PageOffset int32
 	PageLimit  int32
 }
@@ -1313,6 +1315,7 @@ func (q *Queries) ListRequests(ctx context.Context, arg ListRequestsParams) ([]E
 	rows, err := q.db.Query(ctx, listRequests,
 		arg.Search,
 		arg.Status,
+		arg.OrderID,
 		arg.PageOffset,
 		arg.PageLimit,
 	)

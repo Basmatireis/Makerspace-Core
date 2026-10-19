@@ -90,3 +90,28 @@
   .sales-ready-jobs__row { grid-template-columns: auto minmax(0, 1fr); }
   .sales-ready-jobs__row > :last-child { grid-column: 1 / -1; }
 }
+
+// Receipt: a paper-like page of Carbon tables; printing leaves only the receipt --------------------------------------------
+.sales-receipt { display: grid; gap: $spacing-05; max-inline-size: 48rem; padding: $spacing-07; background: var(--cds-layer); border: 1px solid var(--cds-border-subtle); }
+.sales-receipt__head { display: flex; align-items: center; gap: $spacing-05; padding-block-end: $spacing-04; border-block-end: 1px solid var(--cds-border-subtle); }
+.sales-receipt__logo { inline-size: 2.5rem; block-size: auto; }
+.sales-receipt__title { @include type-style('productive-heading-04'); margin: 0; }
+.sales-receipt__facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: $spacing-04; margin: 0; }
+.sales-receipt__facts dt { @include type-style('label-01'); color: var(--cds-text-secondary); }
+.sales-receipt__facts dd { margin: 0; }
+.sales-receipt__note { @include type-style('helper-text-01'); margin: 0; }
+.sales-receipt__foot { @include type-style('helper-text-01'); padding-block-start: $spacing-04; border-block-start: 1px solid var(--cds-border-subtle); color: var(--cds-text-secondary); }
+
+@media print {
+  body:has(.sales-receipt-page) { background: #fff; }
+  body:has(.sales-receipt-page) .cds--header,
+  body:has(.sales-receipt-page) .cds--side-nav,
+  body:has(.sales-receipt-page) .cds--side-nav__overlay,
+  .sales-receipt-page > .page-header { display: none !important; }
+  body:has(.sales-receipt-page) .app-main { margin: 0 !important; padding: 0 !important; min-height: 0; }
+  body:has(.sales-receipt-page) .app-main::before { display: none; }
+  .sales-receipt-page.page-shell { padding: 0; max-inline-size: none; }
+  .sales-receipt { max-inline-size: none; padding: 0; border: 0; background: #fff; color: #161616; break-inside: avoid-page; }
+  // References and links print as plain text.
+  .sales-receipt a { color: inherit; text-decoration: none; }
+}

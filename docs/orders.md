@@ -56,6 +56,14 @@ Confirming the external cancellation reverses the settling payment (a reversal w
 
 Recipient details are stored separately from the request header and stay editable while the request is a draft or awaiting approval (the item summary and `alreadyPaid` never change after submission); they freeze when it is issued. The UI exposes the purchase order configuration on the organization page (Directory › Organizations). Organization address and contact are stored on the organization (see [Machine logbook](machine-logbook.md)) and prefill the recipient details.
 
+**Cancelled requests stay visible.** An Order exposes its `active*` request (the one that is not cancelled) and `latestExternalRequestId/Reference/State`, the most recently created request in any state. After a cancellation the active request is empty and the latest one is the cancelled request, so the Order page keeps showing it with its state, cancellation reference and history, and offers "Request invoice again" (a new request that `supersedes` it). All requests of one Order, latest first and including cancelled ones, are listed by `GET /external-invoice-requests?orderId=...`; this needs `external_invoice_requests.read` like every request read, so the filter widens nothing. The Orders list filter "Invoice" has the value `cancelled` for Orders whose latest request was cancelled.
+
+## Receipts
+
+An Order that is finalized and has received payments (paid or partially paid) can print a receipt: "Print receipt" on the Order page opens `/orders/:id/receipt`, and on a payment page `/orders/:id/receipt?payment=:paymentId` shows only that payment. The route is lazy and needs `orders.read` and `payments.read`; the actions are hidden without them and for refund or correction lines. The page shows the makerspace name and logo from the branding settings, the Order reference, the date of the latest payment, the customer's display name, the items with quantity, unit price and amount, the total, the payments that still count (method, date, `P-…` reference, amount), the amount still outstanding, and a note when a wiRef invoice settled the Order. "Print" calls `window.print()`; print CSS hides the application header, navigation and page header.
+
+A receipt has **no number of its own**: it is identified by the Order reference and the payment references, and it states that it is not an invoice. Receipt numbering and PDF export are plan item D5.
+
 ## Cash register and cash movements
 
 The expected cash in the register counts **cash only**: cash receipts minus cash refunds and corrections, minus withdrawals, plus deposits, all recorded up to (excluding) the `to` instant of `GET /payments/cash-register`. Card and external (wiRef) payments, and their reversals, never change it.

@@ -433,7 +433,7 @@ func (s *Server) ListExternalInvoiceRequests(ctx context.Context, r openapi.List
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.orders.ListRequests(ctx, p, defaultString(r.Params.Search), defaultString(r.Params.Status), defaultInt(r.Params.Page, 1), defaultInt(r.Params.PageSize, 25))
+	result, err := s.orders.ListRequests(ctx, p, defaultString(r.Params.Search), defaultString(r.Params.Status), r.Params.OrderId, defaultInt(r.Params.Page, 1), defaultInt(r.Params.PageSize, 25))
 	if err != nil {
 		return nil, err
 	}

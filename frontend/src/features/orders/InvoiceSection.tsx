@@ -15,9 +15,9 @@ import { useNotify } from '../machinelogbook/shared/toasts';
 import { organizationRequirementsQuery } from '../organizations/queries';
 import { useMediaQuery } from './useMediaQuery';
 import { requestEventLabel, requestStateLabel, reconciliationLabels } from './labels';
-import { INVOICE_STEPS, invoiceNumberOf, isPaid, latestReturn, requestNext, requestProgress, requestReadiness } from './logic';
+import { cancellationOf, INVOICE_STEPS, invoiceNumberOf, invoiceRequestBlocker, isPaid, latestReturn, requestNext, requestProgress, requestReadiness } from './logic';
 import { formatCents, toCents } from './money';
-import { requestQuery, useFinanceMutation } from './queries';
+import { orderRequestsQuery, requestQuery, useFinanceMutation } from './queries';
 import { ReadinessChecklist } from './ReadinessChecklist';
 import { RecipientFields } from './RecipientFields';
 import { toRecipientValues, toRequestDetails, type RecipientValues } from './recipientValues';
@@ -42,24 +42,73 @@ function Frozen({ request }: { request: ExternalInvoiceRequest }) {
 
 /**
  * The invoice of an order, issued by wiRef: progress, the next step with every action of the state, recipient details, checklist and history.
- * Without permission to read requests only the state of the active request is shown.
+ * The latest request is shown in full, also when it was cancelled; earlier ones are listed collapsed.
+ * Without permission to read requests only the state of the latest request is shown.
  */
 export function InvoiceSection({ order }: { order: Order }) {
   const user = useCurrentUser();
   const canRead = hasPermission(user, PermissionId.external_invoice_requestsread);
-  const query = useQuery({ ...requestQuery(order.activeExternalRequestId ?? ''), enabled: !!order.activeExternalRequestId && canRead });
-  if (!order.activeExternalRequestId) return null;
+  const latestId = order.latestExternalRequestId;
+  const query = useQuery({ ...requestQuery(latestId ?? ''), enabled: !!latestId && canRead });
+  if (!latestId) return null;
   if (!canRead) {
     return (
       <Tile id="invoice" className="sales-invoice">
-        <h2 className="mj-section-title mj-inline">Invoice <RequestStateTag state={order.activeExternalRequestState ?? ''} size="md" /></h2>
-        <p className="mj-secondary">{order.activeExternalRequestReference}. Recipient details need the permission to read invoice requests.</p>
+        <h2 className="mj-section-title mj-inline">Invoice <RequestStateTag state={order.latestExternalRequestState ?? ''} size="md" /></h2>
+        <p className="mj-secondary">{order.latestExternalRequestReference}. Recipient details need the permission to read invoice requests.</p>
       </Tile>
     );
   }
   if (query.isPending) return <Tile id="invoice"><InlineLoadingState label="Loading invoice" /></Tile>;
   if (query.isError) return <ErrorState message="The invoice could not be loaded." onRetry={() => query.refetch()} />;
   return <InvoiceContent key={query.data.id} order={order} request={query.data} />;
+}
+
+/** The events of one request, newest first. */
+function RequestHistory({ events }: { events: ExternalInvoiceRequest['events'] }) {
+  return (
+    <ContainedList label="History" kind="disclosed" className="sales-timeline">
+      {events.length === 0 && <ContainedListItem>Nothing has happened yet.</ContainedListItem>}
+      {events.map((event) => (
+        <ContainedListItem key={event.id} renderIcon={Receipt}>
+          <span className="mj-cell-stack">
+            <strong>{requestEventLabel[event.kind] ?? event.kind.replaceAll('_', ' ')}</strong>
+            {event.reason && <span><LinkifiedText text={event.reason} targets={{}} /></span>}
+            {(event.reconciliationKind || event.externalReference) && (
+              <span className="mj-secondary">
+                {[event.reconciliationKind && (reconciliationLabels[event.reconciliationKind as keyof typeof reconciliationLabels]?.label ?? event.reconciliationKind), event.externalReference && `Reference ${event.externalReference}`, event.effectiveAt && `effective ${formatDate(event.effectiveAt)}`].filter(Boolean).join(' · ')}
+              </span>
+            )}
+            <span className="mj-secondary">{event.recordedBy?.displayName ?? 'Unknown'} · {formatDateTime(event.recordedAt)}</span>
+          </span>
+        </ContainedListItem>
+      ))}
+    </ContainedList>
+  );
+}
+
+/** Requests that came before the latest one (cancelled and requested again), collapsed. Their data and history stay readable. */
+function EarlierRequests({ orderId, latestId }: { orderId: string; latestId: string }) {
+  const query = useQuery(orderRequestsQuery(orderId));
+  const earlier = (query.data ?? []).filter((request) => request.id !== latestId);
+  if (earlier.length === 0) return null;
+  return (
+    <Accordion size="md">
+      <AccordionItem title={`Earlier requests (${earlier.length})`}>
+        <Accordion size="md">
+          {earlier.map((request) => (
+            <AccordionItem key={request.id} title={`${request.reference} · ${requestStateLabel[request.state] ?? request.state} · ${formatDate(request.createdAt)}`}>
+              <Stack gap={5}>
+                <dl className="mj-facts sales-facts"><div><dt>Invoice amount</dt><dd>{formatCents(toCents(request.requestedAmount))}</dd></div></dl>
+                <Frozen request={request} />
+                <RequestHistory events={[...request.events].sort((a, b) => b.recordedAt.localeCompare(a.recordedAt))} />
+              </Stack>
+            </AccordionItem>
+          ))}
+        </Accordion>
+      </AccordionItem>
+    </Accordion>
+  );
 }
 
 function InvoiceContent({ order, request }: { order: Order; request: ExternalInvoiceRequest }) {
@@ -72,6 +121,8 @@ function InvoiceContent({ order, request }: { order: Order; request: ExternalInv
   const canApprove = can(PermissionId.external_invoice_requestsapprove);
   const draft = request.state === 'draft';
   const awaiting = request.state === 'submitted';
+  const cancelled = request.state === 'cancelled';
+  const cancellation = cancelled ? cancellationOf(request) : null;
   // Staff edit the draft; while the request awaits approval only an approver edits it.
   const editable = (draft && canManage) || (awaiting && canApprove);
   const form = useForm<RecipientValues>({ values: toRecipientValues(request.details) });
@@ -98,6 +149,7 @@ function InvoiceContent({ order, request }: { order: Order; request: ExternalInv
     if (draft) primary = { label: 'Submit for approval', disabled: !ready || dirty, run: () => setDialog('submit') };
     else if (request.state === 'cancellation_requested') primary = { label: 'Confirm cancellation', run: () => setDialog('confirm-cancellation') };
   }
+  if (cancelled && canManage && invoiceRequestBlocker(order) === null) primary = { label: 'Request invoice again', run: () => setDialog('again') };
   if (awaiting && canApprove) {
     primary = { label: 'Copy for wiRef', disabled: !ready || dirty, run: () => setDialog('forward') };
     secondary = { label: 'Return for correction', run: () => setDialog('return') };
@@ -133,7 +185,7 @@ function InvoiceContent({ order, request }: { order: Order; request: ExternalInv
           <ProgressStep key={label} label={label} invalid={progress.invalid && index === progress.index} secondaryLabel={progress.invalid && index === progress.index ? requestStateLabel[request.state] : undefined} />
         ))}
       </ProgressIndicator>
-      <p className="mj-secondary sales-top-gap">{request.reference} · Next step: {requestNext(request, paid, ready)}</p>
+      <p className="mj-secondary sales-top-gap">{request.reference} · {cancelled ? 'This request is cancelled' : `Next step: ${requestNext(request, paid, ready)}`}</p>
 
       <dl className="mj-facts sales-facts sales-top-gap">
         <div><dt>Invoice amount</dt><dd>{formatCents(requested)}{toCents(order.netCharge) !== requested && ` (the order is now ${formatCents(toCents(order.netCharge))})`}</dd></div>
@@ -146,6 +198,18 @@ function InvoiceContent({ order, request }: { order: Order; request: ExternalInv
       </dl>
 
       <Stack gap={5} className="sales-top-gap">
+        {cancelled && (
+          <InlineNotification
+            kind="warning" lowContrast hideCloseButton title="This request is cancelled"
+            subtitle={[
+              cancellation?.reconciliationKind && (reconciliationLabels[cancellation.reconciliationKind as keyof typeof reconciliationLabels]?.label ?? cancellation.reconciliationKind),
+              cancellation?.externalReference && `Cancellation reference ${cancellation.externalReference}`,
+              cancellation?.reason,
+              cancellation && `${cancellation.recordedBy?.displayName ?? 'Unknown'}, ${formatDateTime(cancellation.recordedAt)}`,
+              'It no longer counts for the order.',
+            ].filter(Boolean).join(' · ')}
+          />
+        )}
         {request.state === 'cancellation_requested' && <InlineNotification kind="warning" lowContrast hideCloseButton title="Waiting for the cancellation in wiRef" subtitle="Cash and card stay switched off for the order. Once wiRef cancelled or corrected the invoice, confirm it with the reference." />}
         {request.state === 'issued' && paid && <InlineNotification kind="success" lowContrast hideCloseButton title="Issued, the order is paid" subtitle={`${order.reference} counts as paid: the invoice settles the balance. The customer pays wiRef by bank transfer outside Core.`} />}
         {awaiting && !canApprove && <InlineNotification kind="info" lowContrast hideCloseButton title="Waiting for approval" subtitle="An approver checks the data and forwards it to wiRef. Until then the request is read-only." />}
@@ -176,25 +240,10 @@ function InvoiceContent({ order, request }: { order: Order; request: ExternalInv
               )}
           </AccordionItem>
           <AccordionItem title={`History (${history.length})`}>
-            <ContainedList label="History" kind="disclosed" className="sales-timeline">
-              {history.length === 0 && <ContainedListItem>Nothing has happened yet.</ContainedListItem>}
-              {history.map((event) => (
-                <ContainedListItem key={event.id} renderIcon={Receipt}>
-                  <span className="mj-cell-stack">
-                    <strong>{requestEventLabel[event.kind] ?? event.kind.replaceAll('_', ' ')}</strong>
-                    {event.reason && <span><LinkifiedText text={event.reason} targets={{}} /></span>}
-                    {(event.reconciliationKind || event.externalReference) && (
-                      <span className="mj-secondary">
-                        {[event.reconciliationKind && (reconciliationLabels[event.reconciliationKind as keyof typeof reconciliationLabels]?.label ?? event.reconciliationKind), event.externalReference && `Reference ${event.externalReference}`, event.effectiveAt && `effective ${formatDate(event.effectiveAt)}`].filter(Boolean).join(' · ')}
-                      </span>
-                    )}
-                    <span className="mj-secondary">{event.recordedBy?.displayName ?? 'Unknown'} · {formatDateTime(event.recordedAt)}</span>
-                  </span>
-                </ContainedListItem>
-              ))}
-            </ContainedList>
+            <RequestHistory events={history} />
           </AccordionItem>
         </Accordion>
+        {request.supersedesRequestId && <EarlierRequests orderId={order.id} latestId={request.id} />}
       </Stack>
       {dialog === 'again' && <RequestInvoiceModal order={order} onClose={() => setDialog(null)} />}
       {dialog && dialog !== 'again' && (

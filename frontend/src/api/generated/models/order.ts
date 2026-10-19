@@ -67,6 +67,15 @@ export interface Order {
   replacedByOrderId?: string | null;
   /** @nullable */
   activeExternalRequestReference?: string | null;
+  /**
+   * The most recently created invoice request of the order, whatever its state (null when there never was one). It differs from the active request after a cancellation. All requests of the order: GET /external-invoice-requests?orderId=...
+   * @nullable
+   */
+  latestExternalRequestId?: string | null;
+  /** @nullable */
+  latestExternalRequestReference?: string | null;
+  /** @nullable */
+  latestExternalRequestState?: string | null;
   /** @nullable */
   activeExternalRequestState?: string | null;
   /** @nullable */

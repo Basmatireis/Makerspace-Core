@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button, Link as CarbonLink, MenuButton, MenuItem, Modal, OverflowMenu, OverflowMenuItem, Stack, Tile } from '@carbon/react';
-import { Currency, Document as DocumentIcon } from '@carbon/icons-react';
+import { Currency, Document as DocumentIcon, Printer } from '@carbon/icons-react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { cancelOrder, createReplacementOrder, finalizeOrder, refreshOrderItem, removeOrderItem } from '../../api/generated/orders/orders';
@@ -16,7 +16,7 @@ import { hasPermission, PermissionId } from '../auth/permissions';
 import { useNotify } from '../machinelogbook/shared/toasts';
 import { CorrectOrderModal } from './CorrectOrderModal';
 import { InvoiceSection } from './InvoiceSection';
-import { acceptsCashAndCard, activeItems, customerLabel, invoiceRequestBlocker } from './logic';
+import { acceptsCashAndCard, activeItems, canPrintReceipt, customerLabel, invoiceRequestBlocker } from './logic';
 import { customerKindLabel, requestStateLabel } from './labels';
 import { formatCents, toCents } from './money';
 import { useOperationKeys } from './operations';
@@ -97,7 +97,7 @@ function OrderDetail({ order }: { order: Order }) {
   const blocker = invoiceRequestBlocker(order);
   const canRequestInvoice = order.status === 'finalized' && canInvoiceManage && blocker === null;
   const invoiceAction = order.status !== 'finalized' ? null
-    : hasRequest ? { label: 'View invoice', run: () => document.getElementById('invoice')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+    : order.latestExternalRequestId ? { label: 'View invoice', run: () => document.getElementById('invoice')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
       : canRequestInvoice && outstanding === 0 ? { label: 'Request invoice', run: () => setDialog('invoice') } : null;
   const state = order.activeExternalRequestState;
   const notice = hasRequest && !accepts && order.status === 'finalized'
@@ -108,6 +108,7 @@ function OrderDetail({ order }: { order: Order }) {
       className="sales-page" title={order.reference} titleAdornment={<OrderStatusTag order={order} />} width="wide"
       description={`${customerLabel(order)} · created ${formatDateTime(order.createdAt)}${order.createdBy ? ` by ${order.createdBy.displayName}` : ''}`} breadcrumbs={crumbs}
       actions={<>
+        {canPrintReceipt(order) && can(PermissionId.paymentsread) && <Button kind="tertiary" renderIcon={Printer} onClick={() => navigate(`/orders/${order.id}/receipt`)}>Print receipt</Button>}
         {invoiceAction && <Button kind="secondary" renderIcon={DocumentIcon} onClick={invoiceAction.run}>{invoiceAction.label}</Button>}
         {primary && <Button kind="primary" renderIcon={primary.icon} disabled={primary.disabled} onClick={primary.run}>{primary.label}</Button>}
         {menu.length > 0 && <OverflowMenu aria-label="More order actions" iconDescription="More order actions" flipped>{menu}</OverflowMenu>}
@@ -160,7 +161,7 @@ function OrderDetail({ order }: { order: Order }) {
                 <div><dt>Hand-over</dt><dd>{order.fulfillmentMode === 'immediate' ? 'Handed over now' : 'Customer picks up later'}</dd></div>
                 <div><dt>Created</dt><dd>{formatDateTime(order.createdAt)}</dd></div>
                 <div><dt>Last change</dt><dd>{formatDateTime(order.updatedAt)}</dd></div>
-                {order.activeExternalRequestReference && <div><dt>Invoice request</dt><dd>{order.activeExternalRequestReference}</dd></div>}
+                {order.latestExternalRequestReference && <div><dt>Invoice request</dt><dd>{order.latestExternalRequestReference}{order.latestExternalRequestState === 'cancelled' && <span className="mj-secondary"> · cancelled</span>}</dd></div>}
                 {order.adjustments.map((adjustment) => <div key={adjustment.id}><dt>{adjustment.reference}</dt><dd>Full reversal · {formatCents(toCents(adjustment.amount))}<br /><span className="mj-secondary">{adjustment.reason}</span></dd></div>)}
               </dl>
             </Tile>

@@ -33,12 +33,12 @@ export function orderStatusKey(order: Pick<Order, 'status' | 'settlementState'>)
   return order.settlementState === 'paid' ? 'paid' : order.settlementState === 'no_payment_due' ? 'no_payment_due' : order.settlementState === 'partially_paid' ? 'partially_paid' : 'awaiting_payment';
 }
 
-/** The Invoice filter category: one value per order, taken from its active request. A cancellation request counts as issued. */
-export type InvoiceKey = 'none' | 'draft' | 'submitted' | 'issued';
-export const INVOICE_KEYS: InvoiceKey[] = ['none', 'draft', 'submitted', 'issued'];
-export function invoiceKey(order: Pick<Order, 'activeExternalRequestState'>): InvoiceKey {
+/** The Invoice filter category: one value per order, taken from its active request, or "cancelled" when its latest request was cancelled. A cancellation request counts as issued. */
+export type InvoiceKey = 'none' | 'draft' | 'submitted' | 'issued' | 'cancelled';
+export const INVOICE_KEYS: InvoiceKey[] = ['none', 'draft', 'submitted', 'issued', 'cancelled'];
+export function invoiceKey(order: Pick<Order, 'activeExternalRequestState' | 'latestExternalRequestState'>): InvoiceKey {
   const state = order.activeExternalRequestState;
-  if (!state) return 'none';
+  if (!state) return order.latestExternalRequestState === 'cancelled' ? 'cancelled' : 'none';
   return state === 'cancellation_requested' ? 'issued' : state === 'draft' || state === 'submitted' || state === 'issued' ? state : 'none';
 }
 
@@ -52,6 +52,10 @@ export function acceptsCashAndCard(order: Pick<Order, 'activeExternalRequestStat
   return !state || state === 'draft';
 }
 
+/** The event that cancelled a request: the wiRef reference and procedure when wiRef cancelled it, otherwise the local reason. */
+export const cancellationOf = (request: Pick<ExternalInvoiceRequest, 'events'>): InvoiceRequestEvent | null =>
+  [...request.events].reverse().find((event) => event.kind === 'cancelled') ?? null;
+
 /** Why no invoice can be requested for this order right now, or null. */
 export function invoiceRequestBlocker(order: Pick<Order, 'status' | 'customerKind' | 'totalAmount' | 'activeExternalRequestId' | 'activeExternalRequestReference'>): string | null {
   if (order.status !== 'finalized') return 'The order is not finalized';
@@ -59,6 +63,24 @@ export function invoiceRequestBlocker(order: Pick<Order, 'status' | 'customerKin
   if (toCents(order.totalAmount) <= 0) return 'Nothing is charged, so there is nothing to invoice';
   if (order.activeExternalRequestId) return `${order.activeExternalRequestReference ?? 'A request'} is already active for this order`;
   return null;
+}
+
+// Receipt --------------------------------------------------------------------------------------------------------------
+
+/** A receipt can be printed for a finalized order that has been paid, in part or in full. */
+export const canPrintReceipt = (order: Pick<Order, 'status' | 'settledAmount'>) => order.status === 'finalized' && toCents(order.settledAmount) > 0;
+
+/** The payments that count towards an order, with the net amount each contributes (refunded and reversed ones drop out). */
+export function receiptPaymentShares(order: Pick<Order, 'allocations'>): Array<{ paymentId: string; reference: string; amount: number }> {
+  const shares = new Map<string, { paymentId: string; reference: string; amount: number; at: string }>();
+  for (const entry of order.allocations) {
+    if (!entry.paymentId) continue;
+    const share = shares.get(entry.paymentId) ?? { paymentId: entry.paymentId, reference: entry.paymentReference, amount: 0, at: entry.createdAt };
+    share.amount += toCents(entry.amount);
+    if (entry.createdAt < share.at) share.at = entry.createdAt;
+    shares.set(entry.paymentId, share);
+  }
+  return [...shares.values()].filter((share) => share.amount > 0).sort((a, b) => a.at.localeCompare(b.at)).map(({ paymentId, reference, amount }) => ({ paymentId, reference, amount }));
 }
 
 // Payments -------------------------------------------------------------------------------------------------------------

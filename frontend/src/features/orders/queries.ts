@@ -1,5 +1,5 @@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getExternalInvoiceRequest } from '../../api/generated/external-invoicing/external-invoicing';
+import { getExternalInvoiceRequest, listExternalInvoiceRequests } from '../../api/generated/external-invoicing/external-invoicing';
 import { listMachineLogbookWorkItems } from '../../api/generated/machine-logbook/machine-logbook';
 import { getOrder, listOrders } from '../../api/generated/orders/orders';
 import { getCashRegister, getOrderPayment, listCashMovements, listOrderPayments } from '../../api/generated/payments/payments';
@@ -25,6 +25,11 @@ export const allOrdersQuery = () => queryOptions({
 export const orderQuery = (id: string) => queryOptions({ queryKey: [...financeKeys, 'detail', id], queryFn: () => getOrder(id) });
 export const paymentQuery = (id: string) => queryOptions({ queryKey: [...financeKeys, 'payment', id], queryFn: () => getOrderPayment(id) });
 export const requestQuery = (id: string) => queryOptions({ queryKey: [...financeKeys, 'request', id], queryFn: () => getExternalInvoiceRequest(id) });
+/** Every invoice request of an order, latest first, cancelled ones included. */
+export const orderRequestsQuery = (orderId: string) => queryOptions({
+  queryKey: [...financeKeys, 'requests-of', orderId],
+  queryFn: () => fetchAllPages((page) => listExternalInvoiceRequests({ orderId, page, pageSize: PAGE })),
+});
 
 /** Payments that occurred in [from, to). */
 export const periodPaymentsQuery = (from: string, to: string) => queryOptions({

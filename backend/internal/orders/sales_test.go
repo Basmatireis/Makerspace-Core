@@ -703,3 +703,30 @@ func TestRolePricingGroupMappingRules(t *testing.T) {
 		t.Fatal(e)
 	}
 }
+
+func TestCancelledRequestsStayVisibleOnTheOrder(t *testing.T) {
+	f := newFixture(t)
+	ctx := t.Context()
+	a := f.actors(t)
+	o := f.finalized(t, "10")
+	first := f.newRequest(t, a.staff, o)
+	first = f.ok(t, a.staff, first, "cancel", func(c *InvoiceRequestCommand) { c.Reason = "wrong recipient" })
+	o, _ = f.s.Get(ctx, f.p, o.ID)
+	if o.ActiveExternalRequestID != nil || o.LatestExternalRequestID == nil || *o.LatestExternalRequestID != first.ID || *o.LatestExternalRequestState != "cancelled" || *o.LatestExternalRequestReference != first.Reference {
+		t.Fatalf("latest request not exposed after cancellation: %+v", o)
+	}
+	second := f.newRequest(t, a.staff, o)
+	o, _ = f.s.Get(ctx, f.p, o.ID)
+	if o.ActiveExternalRequestID == nil || *o.ActiveExternalRequestID != second.ID || *o.LatestExternalRequestID != second.ID {
+		t.Fatalf("active/latest %+v", o)
+	}
+	other := f.finalized(t, "4")
+	f.newRequest(t, a.staff, other)
+	page, e := f.s.ListRequests(ctx, a.staff, "", "", &o.ID, 1, 25)
+	if e != nil || page.Total != 2 || len(page.Items) != 2 || page.Items[0].ID != second.ID || page.Items[1].ID != first.ID || page.Items[1].State != "cancelled" || len(page.Items[1].Events) == 0 {
+		t.Fatalf("order requests latest first: %v %+v", e, page)
+	}
+	// The order filter does not widen the permission: without the read permission the list stays denied.
+	_, e = f.s.ListRequests(ctx, f.principal(t, authorization.OrdersRead), "", "", &o.ID, 1, 25)
+	denied(t, e)
+}

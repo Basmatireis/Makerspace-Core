@@ -306,6 +306,14 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 	} else if !errors.Is(e, pgx.ErrNoRows) {
 		return v, e
 	}
+	latest, e := q.LatestRequest(ctx, &id)
+	if e == nil {
+		v.LatestExternalRequestID = &latest.ID
+		v.LatestExternalRequestReference = &latest.Reference
+		v.LatestExternalRequestState = &latest.State
+	} else if !errors.Is(e, pgx.ErrNoRows) {
+		return v, e
+	}
 	next, e := q.CommittedReplacement(ctx, &id)
 	if e == nil {
 		v.ReplacedByOrderID = &next.ID
