@@ -3922,6 +3922,23 @@ paths:
         "409": {$ref: "#/components/responses/Conflict"}
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Organizations]
+      operationId: deleteOrganization
+      summary: Delete a customer organization
+      description: >-
+        Requires `organizations.manage`. Permanently deletes the organization together with its members, pricing group assignment and invoicing requirements.
+        An organization that machine jobs, orders or invoice requests refer to cannot be deleted (409 organization_in_use); deactivate it instead.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Organization deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
 
   /organizations/{organizationId}/members:
     parameters:

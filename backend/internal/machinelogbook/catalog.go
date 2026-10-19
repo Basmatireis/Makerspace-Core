@@ -410,6 +410,50 @@ func (s *Service) CreateOrganization(ctx context.Context, p authorization.Princi
 	return organizationFromRow(row), nil
 }
 
+// DeleteOrganization hard-deletes an organization nothing historical refers to.
+// Members, the pricing group assignment and invoicing requirements cascade; the
+// remaining foreign keys are ON DELETE SET NULL, so referenced organizations are
+// refused instead of silently losing history.
+func (s *Service) DeleteOrganization(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, requestID *uuid.UUID) error {
+	if err := require(p, authorization.OrganizationsManage); err != nil {
+		return err
+	}
+	if expected < 1 {
+		return validation("expectedVersion must be positive")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	q := machinelogbookdb.New(tx)
+	current, err := q.GetOrganizationForUpdate(ctx, id)
+	if err != nil {
+		return noRows(err)
+	}
+	if current.Version != expected {
+		return apperror.StaleWrite
+	}
+	referenced, err := q.OrganizationIsReferenced(ctx, id)
+	if err != nil {
+		return err
+	}
+	if referenced {
+		return conflict("organization_in_use", "The organization is referenced by jobs, orders or invoice requests and cannot be deleted; deactivate it instead")
+	}
+	rows, err := q.DeleteOrganization(ctx, machinelogbookdb.DeleteOrganizationParams{ID: id, ExpectedVersion: expected})
+	if err != nil {
+		return databaseError(err)
+	}
+	if rows == 0 {
+		return apperror.StaleWrite
+	}
+	if err = writeAudit(ctx, tx, p, "organization.deleted", "organization", id, requestID, nil); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 func (s *Service) UpdateOrganization(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, name, kind string, active bool, details OrganizationDetailsInput, requestID *uuid.UUID) (Organization, error) {
 	if err := require(p, authorization.OrganizationsManage); err != nil {
 		return Organization{}, err

@@ -28,7 +28,7 @@ Organizations are versioned billing parties with the type **company**, **institu
 
 Organizations also carry an invoice address (address line, postal code, locality, ISO country code), an invoice contact name and an optional contact email; empty strings mean "not set". `PATCH /organizations/{id}` leaves omitted detail fields unchanged and clears a field when given an empty string. The purchase-order requirement stays in `organization_invoicing_requirements` (see [Orders](orders.md)) and is read and written through `/organizations/{id}/invoicing-requirements`; the organization page uses both endpoints. People can be associated with an organization (`organization_members`, unique per pair, removed with either side). Membership is informational: it never restricts who may bill an organization. It feeds the overview on the organization page and the job form, where choosing a person who belongs to exactly one active organization offers a one-click "Bill to <organization>" (the billing-party search returns `memberOrganizations` for people; nothing is switched automatically). Organizations are created, edited and assigned a pricing group on the **Directory › Organizations** pages (`/organizations`, `/organizations/:id`), not in Settings. Customer and operator searches return only identifiers and display names needed for assignment.
 
-Person references use ON DELETE SET NULL. Hard-deleting a Person therefore removes their PII without deleting non-PII machine, timing, usage, price, or inventory facts. Jobs do not retain person-name snapshots. Referenced Organizations are deactivated instead of deleted.
+Person references use ON DELETE SET NULL. Hard-deleting a Person therefore removes their PII without deleting non-PII machine, timing, usage, price, or inventory facts. Jobs do not retain person-name snapshots. Organizations referenced by machine jobs (including deleted ones), orders or invoice requests are deactivated instead of deleted: `DELETE /organizations/{id}` (body `{expectedVersion}`, `organizations.manage`) answers 409 `organization_in_use` for them, because those foreign keys are ON DELETE SET NULL and would otherwise silently erase history. An unreferenced organization is hard-deleted together with its members, pricing group assignment and invoicing requirements (ON DELETE CASCADE) in one transaction with an `organization.deleted` audit event that carries no field values; a stale version answers 409 `stale_write`. The organization page offers this as a danger action with a confirmation dialog.
 
 ## Jobs and runs
 
@@ -86,7 +86,7 @@ The module registers:
 - **machine_jobs.read**, **machine_jobs.create**, **machine_jobs.edit**, **machine_jobs.override_price** (price adjustments)
 - **inventory.read**, **inventory.manage**
 - **filament_spools.manage**, **printer_slots.assign**
-- **organizations.read**, **organizations.manage** (read covers the organization, its address and contact, and its people list; manage covers create, update and member changes)
+- **organizations.read**, **organizations.manage** (read covers the organization, its address and contact, and its people list; manage covers create, update, delete and member changes)
 - **pricing.read**, **pricing.manage**
 - **statistics.read**
 
@@ -109,7 +109,7 @@ Catalog, organization (including member add/remove; audit names only the changed
 The OpenAPI resource groups are:
 
 - **/machine-types**, **/machines**
-- **/organizations** (list with `search`, `active`, `kind`, `pricingGroupId` filters; `GET`/`PATCH /organizations/{id}`; `GET`/`POST /organizations/{id}/members`; `DELETE /organizations/{id}/members/{personId}`), **/billing-parties**, **/machine-job-operators**
+- **/organizations** (list with `search`, `active`, `kind`, `pricingGroupId` filters; `GET`/`PATCH`/`DELETE /organizations/{id}`; `GET`/`POST /organizations/{id}/members`; `DELETE /organizations/{id}/members/{personId}`), **/billing-parties**, **/machine-job-operators**
 - **/pricing-groups**, **/pricing-rules**, **/billing-party-pricing-group**
 - **/machine-jobs** with run creation (`POST /machine-jobs/{id}/runs`), price-adjustment, confirm, and Order-association subresources
 - **/machine-runs** with list, detail, patch, delete, usages, cancellation, and job attach, detach, and create subresources

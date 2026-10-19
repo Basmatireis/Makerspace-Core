@@ -57,6 +57,9 @@ type Querier interface {
 	DeleteFilamentSpoolIdentifier(ctx context.Context, arg DeleteFilamentSpoolIdentifierParams) (int64, error)
 	DeleteManualRun(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteMaterialFilamentProperties(ctx context.Context, materialID uuid.UUID) error
+	// Members, the pricing group assignment and invoicing requirements go with it
+	// through ON DELETE CASCADE.
+	DeleteOrganization(ctx context.Context, arg DeleteOrganizationParams) (int64, error)
 	DeleteOrganizationPricingAssignment(ctx context.Context, arg DeleteOrganizationPricingAssignmentParams) (uuid.UUID, error)
 	DeletePersonPricingAssignment(ctx context.Context, arg DeletePersonPricingAssignmentParams) (uuid.UUID, error)
 	DetachRunFromJob(ctx context.Context, id uuid.UUID) (MachineRun, error)
@@ -149,6 +152,9 @@ type Querier interface {
 	NextMachineRunSequence(ctx context.Context) (int64, error)
 	NextPricingSnapshotRevision(ctx context.Context, machineJobID uuid.UUID) (int32, error)
 	OperatorExists(ctx context.Context, personID uuid.UUID) (bool, error)
+	// True while any historical record points at the organization. Soft-deleted
+	// jobs count: their foreign key would otherwise be nulled out by the delete.
+	OrganizationIsReferenced(ctx context.Context, id uuid.UUID) (bool, error)
 	OverviewDailyActivity(ctx context.Context) ([]OverviewDailyActivityRow, error)
 	RecalculateMachineJobPrice(ctx context.Context, arg RecalculateMachineJobPriceParams) (MachineJob, error)
 	// Keeps the price of a running job current without bumping its version.

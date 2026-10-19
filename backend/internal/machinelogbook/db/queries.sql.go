@@ -1301,6 +1301,25 @@ func (q *Queries) DeleteMaterialFilamentProperties(ctx context.Context, material
 	return err
 }
 
+const deleteOrganization = `-- name: DeleteOrganization :execrows
+DELETE FROM organizations WHERE id = $1 AND version = $2
+`
+
+type DeleteOrganizationParams struct {
+	ID              uuid.UUID
+	ExpectedVersion int64
+}
+
+// Members, the pricing group assignment and invoicing requirements go with it
+// through ON DELETE CASCADE.
+func (q *Queries) DeleteOrganization(ctx context.Context, arg DeleteOrganizationParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteOrganization, arg.ID, arg.ExpectedVersion)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteOrganizationPricingAssignment = `-- name: DeleteOrganizationPricingAssignment :one
 DELETE FROM organization_pricing_group_assignments WHERE organization_id = $1 AND version = $2 RETURNING organization_id
 `
@@ -5215,6 +5234,21 @@ func (q *Queries) OperatorExists(ctx context.Context, personID uuid.UUID) (bool,
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const organizationIsReferenced = `-- name: OrganizationIsReferenced :one
+SELECT (EXISTS (SELECT 1 FROM machine_jobs j WHERE j.customer_organization_id = $1::uuid)
+    OR EXISTS (SELECT 1 FROM orders o WHERE o.customer_organization_id = $1::uuid)
+    OR EXISTS (SELECT 1 FROM external_invoice_request_details d WHERE d.recipient_organization_id = $1::uuid))::boolean AS referenced
+`
+
+// True while any historical record points at the organization. Soft-deleted
+// jobs count: their foreign key would otherwise be nulled out by the delete.
+func (q *Queries) OrganizationIsReferenced(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, organizationIsReferenced, id)
+	var referenced bool
+	err := row.Scan(&referenced)
+	return referenced, err
 }
 
 const overviewDailyActivity = `-- name: OverviewDailyActivity :many

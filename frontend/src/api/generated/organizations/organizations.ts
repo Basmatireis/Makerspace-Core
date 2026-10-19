@@ -31,7 +31,8 @@ import type {
   SearchBillingPartiesParams,
   UUIDv7,
   UpdateInvoicingRequirements,
-  UpdateOrganizationRequest
+  UpdateOrganizationRequest,
+  VersionRequest
 } from '.././models';
 
 import { apiFetch } from '../../http-client';
@@ -138,6 +139,32 @@ export const updateOrganization = async (organizationId: UUIDv7,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
     body: JSON.stringify(
       updateOrganizationRequest,)
+  }
+);}
+
+
+/**
+ * Requires `organizations.manage`. Permanently deletes the organization together with its members, pricing group assignment and invoicing requirements. An organization that machine jobs, orders or invoice requests refer to cannot be deleted (409 organization_in_use); deactivate it instead.
+ * @summary Delete a customer organization
+ */
+export const getDeleteOrganizationUrl = (organizationId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/organizations/${organizationId}`
+}
+
+export const deleteOrganization = async (organizationId: UUIDv7,
+    versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
+
+  return apiFetch<void>(getDeleteOrganizationUrl(organizationId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      versionRequest,)
   }
 );}
 

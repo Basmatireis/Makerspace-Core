@@ -60,7 +60,7 @@ Authorization is based on application-registered permission identifiers. Backend
 | `machine_jobs.delete` | Delete jobs and recorded runs (manual runs can also be removed with `machine_jobs.edit`) with a tombstone, optionally reversing their consumed material. |
 | `machine_jobs.override_price` | Set and clear price adjustments (fixed, discount, multiplier) while retaining calculated prices. |
 | `inventory.read`, `inventory.manage` | Read material balances/ledger and the filament product catalog, or mutate catalog, products, and stock through ledger-backed operations. Changing filament, finishing, and cleaning up spools also need `filament_spools.manage`. |
-| `organizations.read`, `organizations.manage` | Read billing organizations (including address, contact and associated people) or create/update/deactivate them and manage their associated people. |
+| `organizations.read`, `organizations.manage` | Read billing organizations (including address, contact and associated people) or create/update/deactivate/delete (only while unreferenced) them and manage their associated people. |
 | `orders.read`, `orders.write` | Read internal charge snapshots or manage drafts and item claims. Minimal payer/operator lookup accepts Order read. |
 | `orders.finalize`, `orders.reverse` | Freeze charges or append full reversal/linked replacement. Replacement also needs payment read/record. |
 | `payments.read`, `payments.record`, `payments.reverse` | Read journal/allocations, append receipts, or explicitly reverse whole receipts. Order read is required for mutations. |

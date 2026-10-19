@@ -231,14 +231,17 @@ export function App() {
           path="people"
           element={<PermissionRoute allOf={[PermissionId.peoplereadall]}><UsersPage /></PermissionRoute>}
         />
-        <Route
-          path="organizations"
-          element={<PermissionRoute allOf={[PermissionId.organizationsread]}><OrganizationsPage /></PermissionRoute>}
-        />
-        <Route
-          path="organizations/:organizationId"
-          element={<PermissionRoute allOf={[PermissionId.organizationsread]}><OrganizationDetailPage /></PermissionRoute>}
-        />
+        {/* The layout hosts the toast stack, so a deletion can confirm after leaving its page. */}
+        <Route element={<MachineLogbookLayout />}>
+          <Route
+            path="organizations"
+            element={<PermissionRoute allOf={[PermissionId.organizationsread]}><OrganizationsPage /></PermissionRoute>}
+          />
+          <Route
+            path="organizations/:organizationId"
+            element={<PermissionRoute allOf={[PermissionId.organizationsread]}><OrganizationDetailPage /></PermissionRoute>}
+          />
+        </Route>
         <Route
           path="people/staffing"
           element={<PermissionRoute allOf={[PermissionId.supervisor_dashboardread]}><SupervisorStaffingPage /></PermissionRoute>}

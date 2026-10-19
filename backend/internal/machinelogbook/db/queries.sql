@@ -77,6 +77,18 @@ SELECT * FROM organizations WHERE id = sqlc.arg(id);
 -- name: GetOrganizationForUpdate :one
 SELECT * FROM organizations WHERE id = sqlc.arg(id) FOR UPDATE;
 
+-- name: OrganizationIsReferenced :one
+-- True while any historical record points at the organization. Soft-deleted
+-- jobs count: their foreign key would otherwise be nulled out by the delete.
+SELECT (EXISTS (SELECT 1 FROM machine_jobs j WHERE j.customer_organization_id = sqlc.arg(id)::uuid)
+    OR EXISTS (SELECT 1 FROM orders o WHERE o.customer_organization_id = sqlc.arg(id)::uuid)
+    OR EXISTS (SELECT 1 FROM external_invoice_request_details d WHERE d.recipient_organization_id = sqlc.arg(id)::uuid))::boolean AS referenced;
+
+-- name: DeleteOrganization :execrows
+-- Members, the pricing group assignment and invoicing requirements go with it
+-- through ON DELETE CASCADE.
+DELETE FROM organizations WHERE id = sqlc.arg(id) AND version = sqlc.arg(expected_version);
+
 -- name: GetOrganizationDetail :one
 SELECT o.*, pg.id AS pricing_group_id, pg.name AS pricing_group_name,
        COALESCE(a.version, 0)::bigint AS pricing_group_assignment_version,

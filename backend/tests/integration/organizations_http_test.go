@@ -267,4 +267,80 @@ func TestOrganizationEndpointsEnforcePermissionsAndAuditOverHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM organization_members WHERE organization_id = $1`, 0, organization.Id)
+
+	// Deleting needs organizations.manage and the current version, and refuses
+	// organizations that history refers to.
+	deletePath := server.URL + orgPath
+	for name, who := range map[string]struct {
+		client *http.Client
+		csrf   string
+	}{"reader": {readerClient, readerCSRF}, "nobody": {nobodyClient, nobodyCSRF}, "creator": {creatorClient, creatorCSRF}} {
+		response = doJSON(t, who.client, http.MethodDelete, deletePath, origin, who.csrf, map[string]any{"expectedVersion": organization.Version})
+		if response.StatusCode != http.StatusForbidden {
+			t.Errorf("delete as %s = %d, want 403", name, response.StatusCode)
+		}
+		response.Body.Close()
+	}
+	assertCount(t, pool, `SELECT count(*) FROM organizations WHERE id = $1`, 1, organization.Id)
+	response = doJSON(t, managerClient, http.MethodDelete, server.URL+"/api/v1/organizations/"+uuid.Must(uuid.NewV7()).String(), origin, managerCSRF, map[string]any{"expectedVersion": 1})
+	assertStatus(t, response, http.StatusNotFound)
+	response.Body.Close()
+	response = doJSON(t, managerClient, http.MethodDelete, deletePath, origin, managerCSRF, map[string]any{"expectedVersion": organization.Version - 1})
+	assertStatus(t, response, http.StatusConflict)
+	response.Body.Close()
+	assertCount(t, pool, `SELECT count(*) FROM organizations WHERE id = $1`, 1, organization.Id)
+
+	// A referenced organization (here by a machine job) is refused with
+	// organization_in_use, and the reference is untouched.
+	machineTypeID, machineID, jobID := uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7()), uuid.Must(uuid.NewV7())
+	if _, err = pool.Exec(ctx, `INSERT INTO machine_types (id, name) VALUES ($1, 'Delete test type')`, machineTypeID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO machines (id, machine_type_id, name) VALUES ($1, $2, 'Delete test machine')`, machineID, machineTypeID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO machine_jobs (id, display_id, machine_id, customer_organization_id) VALUES ($1, 'J-2026-900001', $2, $3)`, jobID, machineID, organization.Id); err != nil {
+		t.Fatal(err)
+	}
+	response = doJSON(t, managerClient, http.MethodDelete, deletePath, origin, managerCSRF, map[string]any{"expectedVersion": organization.Version})
+	assertStatus(t, response, http.StatusConflict)
+	var problem struct {
+		Code string `json:"code"`
+	}
+	decodeResponse(t, response, &problem)
+	if problem.Code != "organization_in_use" {
+		t.Fatalf("code = %q, want organization_in_use", problem.Code)
+	}
+	assertCount(t, pool, `SELECT count(*) FROM organizations WHERE id = $1`, 1, organization.Id)
+	assertCount(t, pool, `SELECT count(*) FROM machine_jobs WHERE id = $1 AND customer_organization_id = $2`, 1, jobID, organization.Id)
+	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'organization.deleted'`, 0)
+	if _, err = pool.Exec(ctx, `DELETE FROM machine_jobs WHERE id = $1`, jobID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Unreferenced: members and pricing assignment go with it, atomically with
+	// one audit event that carries no names.
+	response = doJSON(t, managerClient, http.MethodPost, server.URL+orgPath+"/members", origin, managerCSRF, memberBody)
+	assertStatus(t, response, http.StatusCreated)
+	response.Body.Close()
+	pricingGroupID := uuid.Must(uuid.NewV7())
+	if _, err = pool.Exec(ctx, `INSERT INTO pricing_groups (id, name) VALUES ($1, 'Delete test group')`, pricingGroupID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = pool.Exec(ctx, `INSERT INTO organization_pricing_group_assignments (organization_id, pricing_group_id) VALUES ($1, $2)`, organization.Id, pricingGroupID); err != nil {
+		t.Fatal(err)
+	}
+	response = doJSON(t, managerClient, http.MethodGet, server.URL+orgPath, "", "", nil)
+	assertStatus(t, response, http.StatusOK)
+	decodeResponse(t, response, &organization)
+	response = doJSON(t, managerClient, http.MethodDelete, deletePath, origin, managerCSRF, map[string]any{"expectedVersion": organization.Version})
+	assertStatus(t, response, http.StatusNoContent)
+	response.Body.Close()
+	assertCount(t, pool, `SELECT count(*) FROM organizations WHERE id = $1`, 0, organization.Id)
+	assertCount(t, pool, `SELECT count(*) FROM organization_members WHERE organization_id = $1`, 0, organization.Id)
+	assertCount(t, pool, `SELECT count(*) FROM organization_pricing_group_assignments WHERE organization_id = $1`, 0, organization.Id)
+	assertCount(t, pool, `SELECT count(*) FROM audit_events WHERE action = 'organization.deleted' AND resource_id = $1 AND metadata::text NOT ILIKE '%atelier%'`, 1, organization.Id)
+	response = doJSON(t, managerClient, http.MethodDelete, deletePath, origin, managerCSRF, map[string]any{"expectedVersion": organization.Version})
+	assertStatus(t, response, http.StatusNotFound)
+	response.Body.Close()
 }

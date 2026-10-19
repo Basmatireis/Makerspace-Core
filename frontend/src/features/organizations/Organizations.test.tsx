@@ -180,3 +180,67 @@ describe('Organization page', () => {
     await waitFor(() => expect(calls.removed).toBe(personId));
   });
 });
+
+describe('Delete organization', () => {
+  function serveDetail() {
+    server.use(
+      http.get(`*/api/v1/organizations/${organizationId}`, () => HttpResponse.json(organization)),
+      http.get(`*/api/v1/organizations/${organizationId}/members`, () => HttpResponse.json({ items: [] })),
+      http.get('*/api/v1/organizations', () => HttpResponse.json({ items: [], page: 1, pageSize: 10, total: 0 })),
+    );
+  }
+
+  it('is not offered without organizations.manage', async () => {
+    as(PermissionId.organizationsread);
+    serveDetail();
+    renderRoute(<App />, `/organizations/${organizationId}`);
+    await screen.findByRole('heading', { name: 'Atelier GmbH' });
+    expect(screen.queryByRole('button', { name: 'Delete organization' })).not.toBeInTheDocument();
+  });
+
+  it('confirms in a danger dialog, sends the loaded version, then returns to the list with a toast', async () => {
+    let body: Record<string, unknown> | undefined;
+    as(PermissionId.organizationsread, PermissionId.organizationsmanage);
+    serveDetail();
+    server.use(http.delete(`*/api/v1/organizations/${organizationId}`, async ({ request }) => { body = await request.json() as Record<string, unknown>; return new HttpResponse(null, { status: 204 }); }));
+    const user = userEvent.setup();
+    const { router } = renderRoute(<App />, `/organizations/${organizationId}`);
+    await screen.findByRole('heading', { name: 'Atelier GmbH' });
+    await user.click(screen.getByRole('button', { name: 'Delete organization' }));
+    const dialog = await screen.findByRole('alertdialog');
+    expect(within(dialog).getByText('Delete this organization?')).toBeInTheDocument();
+    expect(body).toBeUndefined();
+    await user.click(within(dialog).getByRole('button', { name: 'Delete organization' }));
+    await waitFor(() => expect(body).toEqual({ expectedVersion: 4 }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/organizations'));
+    expect(await screen.findByText('Organization deleted')).toBeInTheDocument();
+  });
+
+  it('cancels without deleting', async () => {
+    const deleted = vi.fn();
+    as(PermissionId.organizationsread, PermissionId.organizationsmanage);
+    serveDetail();
+    server.use(http.delete(`*/api/v1/organizations/${organizationId}`, () => { deleted(); return new HttpResponse(null, { status: 204 }); }));
+    const user = userEvent.setup();
+    renderRoute(<App />, `/organizations/${organizationId}`);
+    await screen.findByRole('heading', { name: 'Atelier GmbH' });
+    await user.click(screen.getByRole('button', { name: 'Delete organization' }));
+    await user.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Cancel' }));
+    expect(deleted).not.toHaveBeenCalled();
+  });
+
+  it('shows organization_in_use inline with the hint to deactivate and stays on the page', async () => {
+    as(PermissionId.organizationsread, PermissionId.organizationsmanage);
+    serveDetail();
+    server.use(http.delete(`*/api/v1/organizations/${organizationId}`, () => HttpResponse.json({ code: 'organization_in_use', message: 'in use' }, { status: 409 })));
+    const user = userEvent.setup();
+    const { router } = renderRoute(<App />, `/organizations/${organizationId}`);
+    await screen.findByRole('heading', { name: 'Atelier GmbH' });
+    await user.click(screen.getByRole('button', { name: 'Delete organization' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete organization' }));
+    expect(await within(dialog).findByText(/Deactivate it instead/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Delete organization' })).toBeDisabled();
+    expect(router.state.location.pathname).toBe(`/organizations/${organizationId}`);
+  });
+});

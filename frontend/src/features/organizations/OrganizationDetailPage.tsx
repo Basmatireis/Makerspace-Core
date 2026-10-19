@@ -21,6 +21,7 @@ import { machineLogbookKeys, pricingQuery } from '../machinelogbook/queries';
 import { matchesName } from '../machinelogbook/dialogs/jobFormHelpers';
 import { machineLogbookPaths } from '../machinelogbook/shared/paths';
 import { QueryBoundary } from '../machinelogbook/shared/QueryBoundary';
+import { DeleteOrganizationModal } from './DeleteOrganizationModal';
 import { organizationKindLabels, organizationKinds, organizationPaths } from './presentation';
 import { memberCandidatesQuery, organizationKeys, organizationMembersQuery, organizationQuery, organizationRequirementsQuery } from './queries';
 
@@ -249,6 +250,16 @@ function MembersSection({ organization, canManage, canOpenPeople }: { organizati
   );
 }
 
+function DeleteSection({ organization }: { organization: Organization }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <DetailSection title="Delete organization" description="Permanently deletes the organization. This is only possible while no jobs, orders or invoice requests refer to it; deactivate it otherwise.">
+      <div><Button kind="danger--tertiary" renderIcon={TrashCan} onClick={() => setOpen(true)}>Delete organization</Button></div>
+      <DeleteOrganizationModal organization={organization} open={open} onClose={() => setOpen(false)} />
+    </DetailSection>
+  );
+}
+
 export function OrganizationDetailPage() {
   const { organizationId = '' } = useParams();
   const currentUser = useCurrentUser();
@@ -275,6 +286,7 @@ export function OrganizationDetailPage() {
                 <div><Button as={Link} to={machineLogbookPaths.jobs({ customer: data.id })} kind="tertiary">Show jobs</Button></div>
               </DetailSection>
             )}
+            {canManage && <DeleteSection organization={data} />}
           </Stack>
         )}
       </QueryBoundary>

@@ -153,6 +153,19 @@ func (s *Server) UpdateOrganization(ctx context.Context, r openapi.UpdateOrganiz
 	}
 	return openapi.UpdateOrganization200JSONResponse(mlOrganizationDTO(item)), nil
 }
+func (s *Server) DeleteOrganization(ctx context.Context, r openapi.DeleteOrganizationRequestObject) (openapi.DeleteOrganizationResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	if err = s.machineLogbook.DeleteOrganization(ctx, p, r.OrganizationId, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.DeleteOrganization204Response{}, nil
+}
 func (s *Server) GetOrganization(ctx context.Context, r openapi.GetOrganizationRequestObject) (openapi.GetOrganizationResponseObject, error) {
 	p, err := requirePrincipal(ctx)
 	if err != nil {
