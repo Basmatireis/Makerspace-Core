@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, ClickableTile, Link as CarbonLink, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, Tag } from '@carbon/react';
+import { Button, ClickableTile, Link as CarbonLink, OverflowMenu, OverflowMenuItem, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, Tag } from '@carbon/react';
 import { Add } from '@carbon/icons-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { PageShell } from '../../../../app/PageShell';
@@ -11,6 +11,7 @@ import { useUrlParams } from '../../sales/useUrlParams';
 import { useStore } from '../../store';
 import { SceneThumbnail } from '../components/SceneRenderer';
 import { AnnouncementTemplateModal } from '../dialogs/AnnouncementTemplateModal';
+import { DeleteTemplateModal } from '../dialogs/DeleteTemplateModal';
 import { NewPlaylistModal, NewSceneModal } from '../dialogs/NewContentModals';
 import { displayUsesPlaylist, formatLoop, loopSeconds, pluralize, sceneUsage } from '../helpers';
 import { useSignage } from '../SignageContext';
@@ -31,6 +32,7 @@ export function ContentPage() {
   const section = requested === 'playlists' || requested === 'announcements' ? requested : 'scenes';
   const [creating, setCreating] = useState<'scene' | 'playlist' | null>(null);
   const [editingTemplate, setEditingTemplate] = useState<AnnouncementTemplate | 'new' | null>(null);
+  const [deletingTemplate, setDeletingTemplate] = useState<AnnouncementTemplate | null>(null);
   const query = useSignageQuery({ scenes: signage.scenes, playlists: signage.playlists }, { scenes: [], playlists: [] });
   const canEdit = store.can('signage.content.manage');
   const { scenes, playlists } = query.data;
@@ -67,7 +69,7 @@ export function ContentPage() {
               signage.announcementTemplates.length === 0 ? <EmptyState title="No announcement templates yet" description="A template defines the fields and the message of a kind of announcement, such as “Closed”." action={create} /> : (
                 <TableContainer className="mj-table-container">
                   <Table aria-label="Announcement templates">
-                    <TableHead><TableRow><TableHeader>Name</TableHeader><TableHeader>Tone</TableHeader><TableHeader className="mj-hide-narrow">Message</TableHeader><TableHeader className="mj-hide-narrow">Fields</TableHeader><TableHeader>In use</TableHeader></TableRow></TableHead>
+                    <TableHead><TableRow><TableHeader>Name</TableHeader><TableHeader>Tone</TableHeader><TableHeader className="mj-hide-narrow">Message</TableHeader><TableHeader className="mj-hide-narrow">Fields</TableHeader><TableHeader>In use</TableHeader>{canEdit && <TableHeader><span className="cds--visually-hidden">Actions</span></TableHeader>}</TableRow></TableHead>
                     <TableBody>
                       {signage.announcementTemplates.map((template) => {
                         const inUse = signage.announcements.filter((item) => item.templateId === template.id && (!item.endsAt || Date.parse(item.endsAt) > Date.now())).length;
@@ -78,6 +80,14 @@ export function ContentPage() {
                             <TableCell className="mj-hide-narrow">{template.title}</TableCell>
                             <TableCell className="mj-hide-narrow">{template.fields.length === 0 ? '—' : template.fields.map((field) => field.label).join(', ')}</TableCell>
                             <TableCell>{inUse === 0 ? <span className="mj-secondary">Not in use</span> : pluralize(inUse, 'announcement')}</TableCell>
+                            {canEdit && (
+                              <TableCell className="cds--table-column-menu" onClick={(event) => event.stopPropagation()}>
+                                <OverflowMenu size="sm" flipped aria-label={`Actions for ${template.name}`} iconDescription={`Actions for ${template.name}`}>
+                                  <OverflowMenuItem itemText="Edit" onClick={() => setEditingTemplate(template)} />
+                                  <OverflowMenuItem itemText="Delete" isDelete hasDivider onClick={() => setDeletingTemplate(template)} />
+                                </OverflowMenu>
+                              </TableCell>
+                            )}
                           </TableRow>
                         );
                       })}
@@ -109,6 +119,7 @@ export function ContentPage() {
         </div>
         {creating === 'scene' && <NewSceneModal onClose={() => setCreating(null)} />}
         {creating === 'playlist' && <NewPlaylistModal onClose={() => setCreating(null)} />}
+        {deletingTemplate && <DeleteTemplateModal template={deletingTemplate} onClose={() => setDeletingTemplate(null)} />}
         {editingTemplate && <AnnouncementTemplateModal template={editingTemplate === 'new' ? undefined : editingTemplate} onClose={() => setEditingTemplate(null)} />}
       </PageShell>
     </RequirePermission>

@@ -114,6 +114,8 @@ A template has:
 - Live preview of the rendered message with sample values; editing the template shows "Used in N active announcements".
 Seed templates: **Closed** (fields: reason Choice [Holiday, Event, Maintenance, Illness], back_on Date and time; message "Closed today – {reason}" / "We are back {ends}." with ends = back_on), **Back soon** (fields: minutes Number; "Back in {minutes} minutes"), **Machine out of order** (fields: machine Machine, note Long text; "{machine} is out of order" / "{note}").
 
+**Deleting a template** (row overflow › Delete): blocked while anything uses it — active or scheduled announcements, display rules that filter on it, or Announcement zones that filter on it. The blocked dialog lists each use with a link. An unused template is deleted after confirmation, together with its ended announcements. Nothing is silently rewritten (a rule filter losing its only template would otherwise start matching every announcement).
+
 ### Starting / stopping (`signage.override`)
 New page **Signage › Announcements** (`/signage/announcements`) — side nav item between Displays and Content. Shows **Active** (and scheduled) announcements as a list: rendered title, template, displays, "until 14:30", Stop / Edit. Primary **New announcement** → modal (ComposedModal, size md):
 1. Template (tiles or select).

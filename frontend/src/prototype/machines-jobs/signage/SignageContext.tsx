@@ -35,6 +35,8 @@ type Api = State & {
   stopAllAnnouncements: () => void;
   startSampleClosed: () => void;
   saveAnnouncementTemplate: (template: AnnouncementTemplate) => void;
+  /** Removes the template and its ended announcements. Callers check announcementTemplateUsage first. */
+  deleteAnnouncementTemplate: (id: string) => void;
   revokeDisplay: (id: string) => void;
   deleteDisplay: (id: string) => void;
   rotateCredential: (id: string) => void;
@@ -145,6 +147,10 @@ export function SignageProvider({ children }: { children: ReactNode }) {
     stopAllAnnouncements: () => changeAnnouncements(() => []),
     startSampleClosed: () => changeAnnouncements((list) => [...list.filter((item) => item.id !== 'ann-sample-closed'), sampleClosedAnnouncement()]),
     saveAnnouncementTemplate: (template) => setState((s) => ({ ...s, announcementTemplates: s.announcementTemplates.some((item) => item.id === template.id) ? s.announcementTemplates.map((item) => item.id === template.id ? template : item) : [...s.announcementTemplates, template] })),
+    deleteAnnouncementTemplate: (id) => {
+      changeAnnouncements((list) => list.filter((item) => item.templateId !== id));
+      setState((s) => ({ ...s, announcementTemplates: s.announcementTemplates.filter((item) => item.id !== id) }));
+    },
     revokeDisplay: (id) => patchDisplay(id, (display) => ({ ...display, revoked: true, status: 'offline' })),
     deleteDisplay: (id) => setState((s) => ({ ...s, displays: s.displays.filter((display) => display.id !== id || !display.revoked) })),
     rotateCredential: () => store.notify({ kind: 'success', title: 'Credential rotated', subtitle: 'The player picks up its new credential on the next heartbeat.' }),

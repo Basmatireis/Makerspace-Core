@@ -1,5 +1,6 @@
 import { activeAnnouncementsFor, renderAnnouncement, resolvePlayback } from './engine';
 import { CLOSED_TEMPLATE_ID, sampleClosedAnnouncement } from './mockData';
+import { templateById } from './templates';
 import type { Announcement, AnnouncementField, AnnouncementTemplate, Display, RenderedAnnouncement, MachineSim, MediaItem, PlaybackResult, Playlist, Scene, Sim, Target, Widget } from './types';
 
 export const uid = (prefix: string) => `${prefix}-${Math.random().toString(36).slice(2, 8)}`;
@@ -136,3 +137,24 @@ export function sampleValues(fields: AnnouncementField[], now: Date): Record<str
   };
   return Object.fromEntries(fields.map((field) => [field.key, sample(field)]));
 }
+
+/** Where an announcement template is still in use. Any use blocks deletion, so nothing changes behaviour silently. */
+export type TemplateUsage = {
+  /** Active or scheduled announcements of this template (ended ones are removed with it). */
+  announcements: Announcement[];
+  rules: { display: Display; position: number }[];
+  widgets: { scene: Scene; zoneLabel: string }[];
+};
+
+export function announcementTemplateUsage(templateId: string, input: { announcements: Announcement[]; displays: Display[]; scenes: Scene[] }, now = Date.now()): TemplateUsage {
+  return {
+    announcements: input.announcements.filter((item) => item.templateId === templateId && (!item.endsAt || Date.parse(item.endsAt) > now)),
+    rules: input.displays.flatMap((display) => display.rules.flatMap((rule, index) => rule.condition.kind === 'announcement' && rule.condition.templateIds.includes(templateId) ? [{ display, position: index + 1 }] : [])),
+    widgets: input.scenes.flatMap((scene) => templateById(scene.templateId).zones.flatMap((zone) => {
+      const widget = scene.zones[zone.id];
+      return widget?.type === 'announcement' && widget.templateIds.includes(templateId) ? [{ scene, zoneLabel: zone.label }] : [];
+    })),
+  };
+}
+
+export const templateInUse = (usage: TemplateUsage) => usage.announcements.length + usage.rules.length + usage.widgets.length > 0;
