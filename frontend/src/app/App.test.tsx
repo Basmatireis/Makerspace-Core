@@ -235,6 +235,7 @@ describe('protected application routing', () => {
           PermissionId.ordersread,
           PermissionId.paymentsread,
           PermissionId.external_invoice_requestsread,
+          PermissionId.pricingread,
           PermissionId.oidcmanage,
           PermissionId.auditread,
         ])),
@@ -248,9 +249,11 @@ describe('protected application routing', () => {
     for (const group of ['Operations', 'Directory', 'Workshop', 'Sales & payments']) {
       await user.click(within(navigation).getByRole('button', { name: group }));
     }
-    for (const name of ['Open Days', 'Events', 'Attendance', 'People', 'Organizations', 'Staffing', 'Overview', 'Jobs', 'Machines', 'Inventory', 'Statistics', 'Orders', 'Payments', 'External invoicing']) {
+    for (const name of ['Open Days', 'Events', 'Attendance', 'People', 'Organizations', 'Staffing', 'Jobs', 'Machines', 'Inventory', 'Statistics', 'Orders', 'Payments', 'Pricing']) {
       expect(within(navigation).getByRole('link', { name })).toBeInTheDocument();
     }
+    expect(within(navigation).getAllByRole('link', { name: 'Overview' })).toHaveLength(2);
+    expect(within(navigation).queryByRole('link', { name: 'External invoicing' })).not.toBeInTheDocument();
     const workshop = within(navigation).getAllByRole('link').map((link) => link.getAttribute('href')).filter((href) => href?.startsWith('/machine-logbook'));
     expect(workshop).toEqual(['/machine-logbook', '/machine-logbook/jobs', '/machine-logbook/machines', '/machine-logbook/inventory', '/machine-logbook/statistics']);
     expect(within(navigation).getByText('Administration')).toBeInTheDocument();

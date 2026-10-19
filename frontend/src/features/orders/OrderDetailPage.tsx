@@ -1,871 +1,202 @@
-import {
-  Button,
-  Checkbox,
-  ComboBox,
-  InlineNotification,
-  Select,
-  SelectItem,
-  Stack,
-  StructuredListBody,
-  StructuredListCell,
-  StructuredListRow,
-  StructuredListWrapper,
-  Tag,
-  TextInput,
-  Tile,
-} from "@carbon/react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
-import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import {
-  addOrderItem,
-  cancelOrder,
-  checkoutOrder,
-  createReplacementOrder,
-  finalizeOrder,
-  getOrder,
-  listOrders,
-  refreshOrderItem,
-  removeOrderItem,
-  updateOrderItem,
-  replaceOrder,
-  reverseOrder,
-  updateOrder,
-} from "../../api/generated/orders/orders";
-import { recordOrderPayment } from "../../api/generated/payments/payments";
-import { createExternalInvoiceRequest } from "../../api/generated/external-invoicing/external-invoicing";
-import { listMachineJobs } from "../../api/generated/machine-jobs/machine-jobs";
-import type {
-  OrderCommand,
-  OrderCustomer,
-  PaymentInput,
-  PaymentReversalInput,
-} from "../../api/generated/models";
-import { useCurrentUser } from "../auth/auth";
-import { hasPermission, PermissionId } from "../auth/permissions";
-import { RefLink } from "../../app/RefLink";
-import { PageShell } from "../../app/PageShell";
-import { DestructiveActionDialog } from "../../app/DestructiveActionDialog";
-import { ErrorState, FullPageLoading } from "../../app/PageState";
-import { CustomerPicker, FinancialError, PaymentForm } from "./shared";
-import { financeKeys, useOperationKeys, cents } from "./operations";
-import { formatMoney } from "./formatting";
+import { useState } from 'react';
+import { Button, Link as CarbonLink, MenuButton, MenuItem, Modal, OverflowMenu, OverflowMenuItem, Stack, Tile } from '@carbon/react';
+import { Currency, Document as DocumentIcon } from '@carbon/icons-react';
+import { useQuery } from '@tanstack/react-query';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { cancelOrder, createReplacementOrder, finalizeOrder, refreshOrderItem, removeOrderItem } from '../../api/generated/orders/orders';
+import type { Order, OrderItem } from '../../api/generated/models';
+import { DestructiveActionDialog } from '../../app/DestructiveActionDialog';
+import { PageShell } from '../../app/PageShell';
+import { ErrorState, FullPageLoading } from '../../app/PageState';
+import { RefLink } from '../../app/RefLink';
+import { RichNotification } from '../../app/RichNotification';
+import { formatDateTime } from '../../app/dateTime';
+import { useCurrentUser } from '../auth/auth';
+import { hasPermission, PermissionId } from '../auth/permissions';
+import { useNotify } from '../machinelogbook/shared/toasts';
+import { CorrectOrderModal } from './CorrectOrderModal';
+import { InvoiceSection } from './InvoiceSection';
+import { acceptsCashAndCard, activeItems, customerLabel, invoiceRequestBlocker } from './logic';
+import { customerKindLabel, requestStateLabel } from './labels';
+import { formatCents, toCents } from './money';
+import { useOperationKeys } from './operations';
+import { AddJobsModal, CustomItemModal, EditOrderModal } from './OrderDialogs';
+import { OrderItemsTable } from './OrderItemsTable';
+import { PaymentsSection } from './PaymentsSection';
+import { orderQuery, useFinanceMutation } from './queries';
+import { RecordPaymentModal } from './RecordPaymentModal';
+import { RequestInvoiceModal } from './RequestInvoiceModal';
+import { OrderStatusTag } from './status';
+import './sales.scss';
+import '../machinelogbook/shared/shared.scss';
+
+type Dialog = 'edit' | 'jobs' | 'custom' | 'finalize' | 'cancel' | 'pay' | 'checkout' | 'correct' | 'invoice' | null;
+const crumbs = [{ label: 'Sales & payments', to: '/sales' }, { label: 'Orders', to: '/orders' }];
 
 export function OrderDetailPage() {
-  const { orderId = "" } = useParams();
-  return <OrderDetailContent key={orderId} orderId={orderId} />;
+  const { orderId = '' } = useParams();
+  const query = useQuery(orderQuery(orderId));
+  if (query.isPending) return <FullPageLoading label="Loading order" />;
+  if (query.isError) {
+    return (
+      <PageShell title="Order" breadcrumbs={crumbs} width="wide">
+        <ErrorState message="The order could not be loaded." onRetry={() => query.refetch()} />
+      </PageShell>
+    );
+  }
+  return <OrderDetail key={query.data.id} order={query.data} />;
 }
 
-function OrderDetailContent({ orderId }: { orderId: string }) {
+function OrderDetail({ order }: { order: Order }) {
   const user = useCurrentUser();
-  const client = useQueryClient();
   const navigate = useNavigate();
+  const notify = useNotify();
   const key = useOperationKeys();
-  const query = useQuery({
-    queryKey: [...financeKeys, "detail", orderId],
-    queryFn: () => getOrder(orderId),
-  });
-  const [customer, setCustomer] = useState<OrderCustomer | null | undefined>();
-  const [mode, setMode] = useState<"immediate" | "deferred" | undefined>();
-  const [reason, setReason] = useState("");
-  const [payCheckout, setPayCheckout] = useState(false);
-  const [jobSearch, setJobSearch] = useState("");
-  const [selectedJob, setSelectedJob] = useState<string>("");
-  const jobs = useQuery({
-    queryKey: [...financeKeys, "eligible-jobs", jobSearch],
-    queryFn: () =>
-      listMachineJobs({
-        search: jobSearch,
-        page: 1,
-        pageSize: 25,
-      }),
-    enabled:
-      query.data?.status === "draft" &&
-      hasPermission(user, PermissionId.machine_jobsread),
-  });
-  const [editingItem, setEditingItem] = useState<string>();
-  const [destructiveAction, setDestructiveAction] = useState<
-    | { kind: "remove-item"; itemId: string; description: string }
-    | { kind: "cancel-draft" }
-  >();
-  const form = useForm<{
-    description: string;
-    quantity: string;
-    unit: string;
-    unitPrice: string;
-  }>({
-    defaultValues: {
-      description: "",
-      quantity: "1",
-      unit: "piece",
-      unitPrice: "",
-    },
-  });
-  const refresh = async () => {
-    await client.invalidateQueries({ queryKey: financeKeys });
-    await client.invalidateQueries({ queryKey: ["machine-logbook"] });
-  };
-  const mutation = useMutation({
-    mutationFn: (fn: () => Promise<unknown>) => fn(),
-    onSuccess: async () => {
-      setDestructiveAction(undefined);
-      await refresh();
-    },
-  });
-  if (query.isPending) return <FullPageLoading label="Loading order" />;
-  if (query.isError)
-    return (
-      <ErrorState
-        message="Order could not be loaded."
-        onRetry={() => query.refetch()}
-      />
-    );
-  const o = query.data;
-  const can = (p: PermissionId) => hasPermission(user, p);
-  const command = (
-    action: string,
-    extra: Partial<OrderCommand> = {},
-  ): OrderCommand => {
-    const input = { expectedVersion: o.version, ...extra };
-    return { ...input, operationKey: key(action, input) };
-  };
-  const run = (fn: () => Promise<unknown>) => mutation.mutate(fn);
-  const activeRequest = o.activeExternalRequestId;
-  const currentCustomer = customer === undefined ? o.customer : customer;
-  const payment = (p: PaymentInput) =>
-    run(() => {
-      const input = { expectedVersion: o.version, payment: p };
-      return recordOrderPayment(o.id, {
-        ...input,
-        operationKey: key("payment", input),
-      });
-    });
+  const [dialog, setDialog] = useState<Dialog>(null);
+  const [editing, setEditing] = useState<OrderItem | null>(null);
+  const [removing, setRemoving] = useState<OrderItem | null>(null);
+  const close = () => setDialog(null);
+  const can = (permission: PermissionId) => hasPermission(user, permission);
+  const draft = order.status === 'draft';
+  const items = activeItems(order);
+  const canWrite = can(PermissionId.orderswrite);
+  const canFinalize = can(PermissionId.ordersfinalize);
+  const recorded = can(PermissionId.paymentsrecord) && can(PermissionId.paymentsread);
+  const canInvoiceManage = can(PermissionId.external_invoice_requestsmanage) && can(PermissionId.external_invoice_requestsread);
+  const changed = items.filter((item) => item.sourceChanged);
+  const original = useQuery({ ...orderQuery(order.replacesOrderId ?? ''), enabled: !!order.replacesOrderId && draft });
+  const outstanding = toCents(order.outstandingAmount);
+  const hasRequest = !!order.activeExternalRequestId;
+  const accepts = acceptsCashAndCard(order);
+
+  const command = (action: string, extra: object = {}) => { const input = { expectedVersion: order.version, ...extra }; return { ...input, operationKey: key(action, input) }; };
+  const mutation = useFinanceMutation(async (run: () => Promise<unknown>) => run(), () => close());
+
+  const draftBlockers = draft ? [
+    items.length === 0 && 'Add at least one item.',
+    changed.length > 0 && `${changed.map((item) => item.snapshot?.displayId).join(', ')} changed since ${changed.length === 1 ? 'it was' : 'they were'} added. Refresh ${changed.length === 1 ? 'it' : 'them'} first.`,
+  ].filter((value): value is string => !!value) : [];
+
+  // The primary action depends on where the order is in its life.
+  let primary: { label: string; icon?: typeof Currency; disabled?: boolean; run: () => void } | null = null;
+  if (draft && order.replacesOrderId) primary = canFinalize && can(PermissionId.ordersreverse) && original.data ? { label: 'Commit replacement…', disabled: draftBlockers.length > 0, run: () => setDialog('correct') } : null;
+  else if (draft && canFinalize && recorded) primary = { label: 'Finalize and take payment', icon: Currency, disabled: draftBlockers.length > 0, run: () => setDialog('checkout') };
+  else if (draft && canFinalize) primary = { label: 'Finalize', disabled: draftBlockers.length > 0, run: () => setDialog('finalize') };
+  else if (order.status === 'finalized' && outstanding > 0 && recorded && accepts) primary = { label: 'Record payment', icon: Currency, run: () => setDialog('pay') };
+  else if (order.status === 'reversed' && order.replacedByOrderId) primary = { label: `Open ${order.replacedByOrderReference}`, run: () => navigate(`/orders/${order.replacedByOrderId}`) };
+
+  const canCorrect = (order.status === 'finalized' || order.status === 'reversed') && !order.replacedByOrderId && can(PermissionId.ordersreverse);
+  const canReplace = (order.status === 'finalized' || order.status === 'reversed') && !order.replacedByOrderId && canWrite;
+  const menu = [
+    draft && canWrite && <OverflowMenuItem key="edit" itemText="Edit customer and hand-over" onClick={() => setDialog('edit')} />,
+    canReplace && <OverflowMenuItem key="replacement" itemText="Create replacement draft" onClick={() => mutation.mutate(async () => { const next = await createReplacementOrder(order.id, command('replacement')); navigate(`/orders/${next.id}`); })} />,
+    canCorrect && <OverflowMenuItem key="correct" itemText="Correct order…" onClick={() => setDialog('correct')} />,
+    draft && canWrite && <OverflowMenuItem key="cancel" itemText="Cancel draft" isDelete hasDivider onClick={() => setDialog('cancel')} />,
+  ].filter(Boolean);
+
+  const blocker = invoiceRequestBlocker(order);
+  const canRequestInvoice = order.status === 'finalized' && canInvoiceManage && blocker === null;
+  const invoiceAction = order.status !== 'finalized' ? null
+    : hasRequest ? { label: 'View invoice', run: () => document.getElementById('invoice')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+      : canRequestInvoice && outstanding === 0 ? { label: 'Request invoice', run: () => setDialog('invoice') } : null;
+  const state = order.activeExternalRequestState;
+  const notice = hasRequest && !accepts && order.status === 'finalized'
+    ? `${order.activeExternalRequestReference} is ${(requestStateLabel[state as keyof typeof requestStateLabel] ?? state ?? '').toLowerCase()}: cash and card can no longer be added. An issued invoice settles the balance by itself.` : null;
+
   return (
     <PageShell
-      title={o.reference}
-      description="Internal charge record"
-      breadcrumbs={[{ label: "Orders", to: "/orders" }, { label: o.reference }]}
-      width="wide"
-      actions={
-        <>
-          <Tag>{o.status}</Tag>
-          <Tag>{o.settlementState.replaceAll("_", " ")}</Tag>
-        </>
-      }
+      className="sales-page" title={order.reference} titleAdornment={<OrderStatusTag order={order} />} width="wide"
+      description={`${customerLabel(order)} · created ${formatDateTime(order.createdAt)}${order.createdBy ? ` by ${order.createdBy.displayName}` : ''}`} breadcrumbs={crumbs}
+      actions={<>
+        {invoiceAction && <Button kind="secondary" renderIcon={DocumentIcon} onClick={invoiceAction.run}>{invoiceAction.label}</Button>}
+        {primary && <Button kind="primary" renderIcon={primary.icon} disabled={primary.disabled} onClick={primary.run}>{primary.label}</Button>}
+        {menu.length > 0 && <OverflowMenu aria-label="More order actions" iconDescription="More order actions" flipped>{menu}</OverflowMenu>}
+      </>}
     >
-      <Stack gap={6}>
-        {o.replacedByOrderId && (
-          <p>
-            Replaced by{" "}
-            <RefLink reference={o.replacedByOrderReference ?? ""} id={o.replacedByOrderId} />
-            .
-          </p>
+      <div className="mj-stack">
+        {order.replacesOrderId && draft && (
+          <RichNotification kind="info" title="This draft replaces an order"><RefLink reference={order.replacesOrderReference ?? ''} id={order.replacesOrderId} kind="order" />. Change the items as needed, then commit the replacement. The original is reversed at that moment and its payments move over.</RichNotification>
         )}
-        <FinancialError error={mutation.error} />
-        {o.replacesOrderId && (
-          <p>
-            Replacement for{" "}
-            <RefLink reference={o.replacesOrderReference ?? ""} id={o.replacesOrderId} />
-            .{o.status === "draft" && " Commit from the original Order."}
-          </p>
-        )}
-        <Tile>
-          <h2>Customer and charge</h2>
-          {o.status === "draft" && can(PermissionId.orderswrite) ? (
-            <Stack gap={5}>
-              <CustomerPicker
-                value={currentCustomer}
-                customerName={o.customerName}
-                onChange={setCustomer}
-              />
-              <Select
-                id="fulfillment"
-                labelText="Fulfillment"
-                value={mode || o.fulfillmentMode}
-                onChange={(e) =>
-                  setMode(e.target.value as "immediate" | "deferred")
-                }
-              >
-                <SelectItem
-                  value="immediate"
-                  text="Immediate — no later pickup/follow-up"
-                />
-                <SelectItem
-                  value="deferred"
-                  text="Deferred — named customer required"
-                />
-              </Select>
-              <Button
-                disabled={mutation.isPending}
-                onClick={() =>
-                  run(() =>
-                    updateOrder(o.id, {
-                      customer: currentCustomer,
-                      fulfillmentMode: mode || o.fulfillmentMode,
-                      expectedVersion: o.version,
-                    }),
-                  )
-                }
-              >
-                Save draft details
-              </Button>
-            </Stack>
-          ) : (
-            <p>
-              {o.customerName || o.customerKind} · {o.fulfillmentMode}
-            </p>
-          )}
-          <dl className="amount-list">
-            <div>
-              <dt>Original charge</dt>
-              <dd>{formatMoney(o.totalAmount)}</dd>
-            </div>
-            <div>
-              <dt>Net charge</dt>
-              <dd>{formatMoney(o.netCharge)}</dd>
-            </div>
-            <div>
-              <dt>Allocated payments</dt>
-              <dd>{formatMoney(o.settledAmount)}</dd>
-            </div>
-            <div>
-              <dt>Outstanding</dt>
-              <dd>{formatMoney(o.outstandingAmount)}</dd>
-            </div>
-          </dl>
-        </Tile>
-        <Tile>
-          <h2>Items</h2>
-          <StructuredListWrapper>
-            <StructuredListBody>
-              {o.items
-                .filter((i) => !i.removedAt)
-                .map((i) => (
-                  <StructuredListRow key={i.id}>
-                    <StructuredListCell>
-                      {i.description}
-                      {i.sourceMachineJobId && (
-                        <p>
-                          <Link
-                            to={`/machine-logbook/jobs/${i.sourceMachineJobId}`}
-                          >
-                            Source job
-                          </Link>
-                        </p>
-                      )}
-                      {i.sourceChanged && (
-                        <InlineNotification
-                          kind="warning"
-                          title="Source job changed"
-                          subtitle="This charge snapshot is unchanged. Refresh while draft, or reverse/replace a finalized charge."
-                          hideCloseButton
-                        />
-                      )}
-                      {i.snapshot && (
-                        <p>
-                          {i.snapshot.pricing?.pricingGroupName} ·{" "}
-                          {i.snapshot.startsAt} – {i.snapshot.endsAt}
-                        </p>
-                      )}
-                    </StructuredListCell>
-                    <StructuredListCell>
-                      {i.quantity} {i.unit} × € {i.unitPrice}
-                    </StructuredListCell>
-                    <StructuredListCell>
-                      {formatMoney(i.amount)}
-                    </StructuredListCell>
-                    {o.status === "draft" && can(PermissionId.orderswrite) && (
-                      <StructuredListCell>
-                        {i.kind === "manual" && (
-                          <Button
-                            size="sm"
-                            kind="ghost"
-                            onClick={() => {
-                              setEditingItem(i.id);
-                              form.reset({
-                                description: i.description,
-                                quantity: i.quantity,
-                                unit: i.unit,
-                                unitPrice: i.unitPrice,
-                              });
-                            }}
-                          >
-                            Edit
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          kind="danger--tertiary"
-                          disabled={mutation.isPending}
-                          onClick={() => {
-                            mutation.reset();
-                            setDestructiveAction({ kind: "remove-item", itemId: i.id, description: i.description });
-                          }}
-                        >
-                          Remove
-                        </Button>
-                        {i.sourceChanged && (
-                          <Button
-                            size="sm"
-                            kind="ghost"
-                            onClick={() =>
-                              run(() =>
-                                refreshOrderItem(
-                                  o.id,
-                                  i.id,
-                                  command("refresh-" + i.id),
-                                ),
-                              )
-                            }
-                          >
-                            Refresh snapshot
-                          </Button>
-                        )}
-                      </StructuredListCell>
-                    )}
-                  </StructuredListRow>
-                ))}
-            </StructuredListBody>
-          </StructuredListWrapper>
-          {o.status === "draft" && can(PermissionId.orderswrite) && (
-            <Stack gap={5}>
-              <h3>{editingItem ? "Edit manual item" : "Add manual item"}</h3>
-              <form
-                onSubmit={form.handleSubmit((v) =>
-                  run(async () => {
-                    const input = {
-                      ...v,
-                      kind: "manual" as const,
-                      expectedVersion: o.version,
-                    };
-                    if (editingItem)
-                      await updateOrderItem(o.id, editingItem, input);
-                    else await addOrderItem(o.id, input);
-                    setEditingItem(undefined);
-                    form.reset({
-                      description: "",
-                      quantity: "1",
-                      unit: "piece",
-                      unitPrice: "",
-                    });
-                  }),
-                )}
-              >
-                <Stack gap={4}>
-                  {(
-                    ["description", "quantity", "unit", "unitPrice"] as const
-                  ).map((n) => (
-                    <TextInput
-                      key={n}
-                      id={"item-" + n}
-                      labelText={
-                        {
-                          description: "Description",
-                          quantity: "Quantity",
-                          unit: "Unit",
-                          unitPrice: "Unit price (€)",
-                        }[n]
-                      }
-                      {...form.register(n, { required: "Required" })}
-                      invalid={!!form.formState.errors[n]}
-                      invalidText={form.formState.errors[n]?.message}
-                    />
-                  ))}
-                  <Button type="submit" disabled={mutation.isPending}>
-                    {editingItem ? "Save item changes" : "Add manual item"}
-                  </Button>
-                  {editingItem && (
-                    <Button
-                      kind="ghost"
-                      onClick={() => {
-                        setEditingItem(undefined);
-                        form.reset({
-                          description: "",
-                          quantity: "1",
-                          unit: "piece",
-                          unitPrice: "",
-                        });
-                      }}
-                    >
-                      Cancel item edit
-                    </Button>
-                  )}
-                </Stack>
-              </form>
-              {can(PermissionId.machine_jobsread) && (
-                <>
-                  <h3>Add Machine Job</h3>
-                  <ComboBox
-                    id="order-job"
-                    titleText="Confirmed job"
-                    items={jobs.data?.items ?? []}
-                    itemToString={(j) =>
-                      j
-                        ? `${j.displayId} · ${j.machine.name} · ${formatMoney(j.effectivePrice)}`
-                        : ""
-                    }
-                    onInputChange={setJobSearch}
-                    onChange={({ selectedItem }) =>
-                      setSelectedJob(selectedItem?.id || "")
-                    }
-                  />
-                  <Button
-                    disabled={!selectedJob || mutation.isPending}
-                    onClick={() => {
-                      const job = jobs.data?.items.find(
-                        (j) => j.id === selectedJob,
-                      );
-                      if (job)
-                        run(() =>
-                          addOrderItem(o.id, {
-                            kind: "machine_job",
-                            machineJobId: job.id,
-                            expectedJobVersion: job.version,
-                            expectedVersion: o.version,
-                          }),
-                        );
-                    }}
-                  >
-                    Add job snapshot
-                  </Button>
-                </>
-              )}
-            </Stack>
-          )}
-        </Tile>
-        {o.status === "draft" &&
-          can(PermissionId.ordersfinalize) &&
-          !o.replacesOrderId && (
-            <Tile>
-              <h2>Finalize</h2>
-              <Stack gap={5}>
-                <p>
-                  Finalizing freezes these charges. Anonymous sales require full
-                  immediate cash/card settlement.
-                </p>
-                {o.customerKind !== "anonymous" && (
-                  <Button
-                    disabled={mutation.isPending}
-                    onClick={() =>
-                      run(() => finalizeOrder(o.id, command("finalize")))
-                    }
-                  >
-                    Finalize charges
-                  </Button>
-                )}
-                {can(PermissionId.paymentsrecord) &&
-                  can(PermissionId.paymentsread) && (
-                    <>
-                      <Checkbox
-                        id="checkout-now"
-                        labelText="Finalize and record full payment now"
-                        checked={payCheckout}
-                        onChange={(_, v) => setPayCheckout(v.checked)}
-                      />
-                      {payCheckout && (
-                        <PaymentForm
-                          key={o.version}
-                          defaultAmount={o.totalAmount}
-                          pending={mutation.isPending}
-                          error={mutation.error}
-                          onSubmit={(p) =>
-                            run(() =>
-                              checkoutOrder(
-                                o.id,
-                                command("checkout", {
-                                  payments: cents(p.amount) === 0n ? [] : [p],
-                                }),
-                              ),
-                            )
-                          }
-                        />
-                      )}
-                    </>
-                  )}
-                {can(PermissionId.orderswrite) && (
-                  <Button
-                    kind="danger--tertiary"
-                    disabled={mutation.isPending}
-                    onClick={() => {
-                      mutation.reset();
-                      setDestructiveAction({ kind: "cancel-draft" });
-                    }}
-                  >
-                    Cancel draft
-                  </Button>
-                )}
-              </Stack>
-            </Tile>
-          )}
-        {o.status === "finalized" && (
-          <Tile>
-            <h2>Settlement</h2>
-            <Stack gap={5}>
-              {activeRequest && (
-                <p>
-                  {can(PermissionId.external_invoice_requestsread) ? (
-                    <Link to={`/external-invoicing/${activeRequest}`}>
-                      {o.activeExternalRequestReference}
-                    </Link>
-                  ) : (
-                    o.activeExternalRequestReference
-                  )}{" "}
-                  · {o.activeExternalRequestState} · external invoicing through
-                  wiRef
-                </p>
-              )}
-              {(!activeRequest || o.activeExternalRequestState === "draft") && (
-                <>
-                  {can(PermissionId.paymentsrecord) &&
-                    can(PermissionId.paymentsread) &&
-                    o.outstandingAmount !== "0.00" && (
-                      <PaymentForm
-                        key={o.version}
-                        defaultAmount={o.outstandingAmount}
-                        pending={mutation.isPending}
-                        error={mutation.error}
-                        onSubmit={payment}
-                      />
-                    )}{" "}
-                  {!activeRequest &&
-                    can(PermissionId.external_invoice_requestsmanage) &&
-                    can(PermissionId.external_invoice_requestsread) &&
-                    o.customerKind !== "anonymous" &&
-                    o.totalAmount !== "0.00" && (
-                      <Button
-                        kind="secondary"
-                        onClick={() =>
-                          run(async () => {
-                            const input = {
-                              expectedVersion: o.version,
-                              details: { recipientName: o.customerName || "" },
-                            };
-                            const r = await createExternalInvoiceRequest(o.id, {
-                              ...input,
-                              operationKey: key("request", input),
-                            });
-                            navigate(`/external-invoicing/${r.id}`);
-                          })
-                        }
-                      >
-                        Prepare wiRef request
-                      </Button>
-                    )}
-                </>
-              )}
-              <h3>Payment allocation history</h3>
-              {o.allocations.map((a) => (
-                <p key={a.id}>
-                  <RefLink reference={a.paymentReference ?? ""} id={a.paymentId} />
-                  : € {a.amount}
-                </p>
-              ))}
-              <p>
-                Allocation transfers move settlement between Orders and do not
-                move cash/card money.
-              </p>
-            </Stack>
-          </Tile>
-        )}
-        {(o.status === "finalized" || o.status === "reversed") &&
-          !o.replacedByOrderId &&
-          can(PermissionId.orderswrite) && (
-            <Button
-              kind="secondary"
-              onClick={() =>
-                run(async () => {
-                  const next = await createReplacementOrder(
-                    o.id,
-                    command("replacements"),
-                  );
-                  navigate(`/orders/${next.id}`);
-                })
-              }
-            >
-              Create replacement draft
-            </Button>
-          )}
-        {(o.status === "finalized" || o.status === "reversed") &&
-          !o.replacedByOrderId &&
-          can(PermissionId.ordersreverse) && (
-            <CorrectionPanel
-              status={o.status}
-              orderId={o.id}
-              version={o.version}
-              reason={reason}
-              setReason={setReason}
-              run={run}
-              command={command}
-              canCarry={
-                can(PermissionId.ordersfinalize) &&
-                can(PermissionId.paymentsrecord) &&
-                can(PermissionId.paymentsread)
-              }
-              canReversePayments={
-                can(PermissionId.paymentsreverse) &&
-                can(PermissionId.paymentsread)
-              }
-              allocations={o.allocations}
-              pending={mutation.isPending}
-              error={mutation.error}
+        {order.replacedByOrderId && <RichNotification kind="info" title="This order was replaced"><RefLink reference={order.replacedByOrderReference ?? ''} id={order.replacedByOrderId} kind="order" /> is charged now. This order no longer counts.</RichNotification>}
+        {order.replacesOrderId && !draft && <RichNotification kind="info" title="This order replaces another one"><RefLink reference={order.replacesOrderReference ?? ''} id={order.replacesOrderId} kind="order" />. Payments that were already made moved over to this order.</RichNotification>}
+        {draftBlockers.length > 0 && <RichNotification kind="warning" title="Before you can continue">{draftBlockers.join(' ')}</RichNotification>}
+        {!draft && changed.length > 0 && <RichNotification kind="warning" title={`${changed.length === 1 ? 'A job' : `${changed.length} jobs`} changed after being charged`}>The order keeps the original charge. To change what is charged, use Correct order in the menu.</RichNotification>}
+        {mutation.error && <RichNotification kind="error" title="That did not work">{mutation.error.message}</RichNotification>}
+
+        <section className="sales-tiles" aria-label="Amounts">
+          <Tile className="sales-tile"><span className="sales-tile__label">{order.status === 'reversed' ? 'Total (reversed)' : 'Total'}</span><span className="sales-tile__value">{formatCents(toCents(order.totalAmount))}</span>
+            <span className="mj-secondary">{order.netCharge !== order.totalAmount ? `Net charge ${formatCents(toCents(order.netCharge))} after reversal` : `${items.length} ${items.length === 1 ? 'item' : 'items'}`}</span></Tile>
+          <Tile className="sales-tile"><span className="sales-tile__label">Paid</span><span className="sales-tile__value">{formatCents(toCents(order.settledAmount))}</span><span className="mj-secondary">Payments counting towards this order</span></Tile>
+          <Tile className="sales-tile"><span className="sales-tile__label">Outstanding</span><span className={`sales-tile__value${outstanding > 0 && !draft ? ' sales-num--due' : ''}`}>{draft ? '—' : formatCents(outstanding)}</span>
+            <span className="mj-secondary">{draft ? 'Not charged yet' : 'Net charge minus payments'}</span></Tile>
+        </section>
+
+        <div className="mj-detail-layout">
+          <div className="mj-stack">
+            {draft && canWrite && (
+              <div className="sales-section-actions">
+                <MenuButton label="Add items" kind="tertiary" size="md" menuAlignment="bottom-start">
+                  {can(PermissionId.machine_jobsread) ? <MenuItem label="Jobs…" onClick={() => setDialog('jobs')} /> : null}
+                  <MenuItem label="Custom item…" onClick={() => { setEditing(null); setDialog('custom'); }} />
+                </MenuButton>
+              </div>
+            )}
+            <OrderItemsTable
+              order={order} editable={draft && canWrite} busy={mutation.isPending}
+              onRefresh={(item) => mutation.mutate(async () => { await refreshOrderItem(order.id, item.id, command(`refresh-${item.id}`)); notify({ kind: 'success', title: 'Job refreshed', subtitle: 'The item now has the job’s current price.' }); })}
+              onRemove={(item) => { mutation.reset(); setRemoving(item); }}
+              onEdit={(item) => { setEditing(item); setDialog('custom'); }}
             />
-          )}
-        {o.adjustments.map((a) => (
-          <Tile key={a.id}>
-            <h2>{a.reference} — full reversal</h2>
-            <p>
-              {formatMoney(a.amount)} · {a.reason}
-            </p>
-          </Tile>
-        ))}
-        <DestructiveActionDialog
-          open={Boolean(destructiveAction)}
-          title={destructiveAction?.kind === "remove-item" ? "Remove item from draft?" : "Cancel draft order?"}
-          confirmLabel={destructiveAction?.kind === "remove-item" ? "Remove item" : "Cancel draft"}
-          pending={mutation.isPending}
-          error={mutation.error?.message}
-          onClose={() => { setDestructiveAction(undefined); mutation.reset(); }}
-          onConfirm={() => {
-            if (destructiveAction?.kind === "remove-item") {
-              run(() => removeOrderItem(o.id, destructiveAction.itemId, command("remove-" + destructiveAction.itemId)));
-            } else if (destructiveAction?.kind === "cancel-draft") {
-              run(() => cancelOrder(o.id, command("cancel")));
-            }
-          }}
-        >
-          <p>{destructiveAction?.kind === "remove-item"
-            ? `${destructiveAction.description} will be removed from this draft and excluded from its total. Other items are unchanged.`
-            : `Draft ${o.reference} will be cancelled. Its recorded details remain available, but the draft can no longer be edited or finalized.`}</p>
-        </DestructiveActionDialog>
-      </Stack>
+            <PaymentsSection order={order} notice={notice} canRead={can(PermissionId.paymentsread)} />
+            <InvoiceSection order={order} />
+          </div>
+          <div className="mj-stack">
+            <Tile>
+              <h2 className="mj-section-title">Details</h2>
+              <dl className="mj-facts sales-facts">
+                <div><dt>Customer</dt><dd>
+                  {order.customer ? <CarbonLink as={Link} to={`/orders?customer=${order.customer.id}`}>{customerLabel(order)}</CarbonLink> : customerLabel(order)}
+                  <br /><span className="mj-secondary">{customerKindLabel(order.customerKind)}{order.customer ? ' · all their orders' : ''}</span></dd></div>
+                <div><dt>Hand-over</dt><dd>{order.fulfillmentMode === 'immediate' ? 'Handed over now' : 'Customer picks up later'}</dd></div>
+                <div><dt>Created</dt><dd>{formatDateTime(order.createdAt)}</dd></div>
+                <div><dt>Last change</dt><dd>{formatDateTime(order.updatedAt)}</dd></div>
+                {order.activeExternalRequestReference && <div><dt>Invoice request</dt><dd>{order.activeExternalRequestReference}</dd></div>}
+                {order.adjustments.map((adjustment) => <div key={adjustment.id}><dt>{adjustment.reference}</dt><dd>Full reversal · {formatCents(toCents(adjustment.amount))}<br /><span className="mj-secondary">{adjustment.reason}</span></dd></div>)}
+              </dl>
+            </Tile>
+          </div>
+        </div>
+      </div>
+
+      {dialog === 'edit' && <EditOrderModal order={order} onClose={close} onSaved={() => undefined} />}
+      {dialog === 'jobs' && <AddJobsModal order={order} onClose={close} />}
+      {dialog === 'custom' && <CustomItemModal order={order} item={editing} onClose={close} />}
+      {dialog === 'pay' && <RecordPaymentModal order={order} mode="record" onClose={close} onRequestInvoice={canRequestInvoice ? () => setDialog('invoice') : undefined} />}
+      {dialog === 'checkout' && <RecordPaymentModal order={order} mode="checkout" onClose={close} onRequestInvoice={canInvoiceManage ? () => setDialog('invoice') : undefined} />}
+      {dialog === 'invoice' && <RequestInvoiceModal order={order} onClose={close} />}
+      {dialog === 'correct' && !order.replacesOrderId && <CorrectOrderModal order={order} canReversePayments={can(PermissionId.paymentsreverse) && can(PermissionId.paymentsread)} canCarry={canFinalize && recorded} onClose={close} />}
+      {dialog === 'correct' && order.replacesOrderId && original.data && (
+        <CorrectOrderModal order={original.data} initialReplacementId={order.id} canReversePayments={can(PermissionId.paymentsreverse) && can(PermissionId.paymentsread)} canCarry={canFinalize && recorded} onClose={close} />
+      )}
+      {dialog === 'finalize' && (
+        <Modal open size="sm" modalHeading="Finalize order" modalLabel={order.reference} primaryButtonText={mutation.isPending ? 'Finalizing…' : 'Finalize'} secondaryButtonText="Cancel" preventCloseOnClickOutside onRequestClose={close}
+          primaryButtonDisabled={mutation.isPending}
+          onRequestSubmit={() => mutation.mutate(async () => { await finalizeOrder(order.id, command('finalize')); notify({ kind: 'success', title: `${order.reference} finalized` }); })}>
+          <Stack gap={4}>
+            <p>Prices and items freeze, and the jobs on this order are reserved for it. Total: <strong>{formatCents(toCents(order.totalAmount))}</strong> for {customerLabel(order)}.</p>
+            <p className="mj-secondary">Later changes need a correction, which reverses this order and creates a replacement.</p>
+          </Stack>
+        </Modal>
+      )}
+      <DestructiveActionDialog open={dialog === 'cancel'} title="Cancel this draft?" confirmLabel="Cancel draft" cancelLabel="Keep draft" pending={mutation.isPending} error={mutation.error?.message} onClose={close}
+        onConfirm={() => mutation.mutate(async () => { await cancelOrder(order.id, command('cancel')); notify({ kind: 'success', title: 'Draft cancelled', subtitle: `${order.reference} was never charged; its jobs are free again.` }); })}>
+        <p>{order.reference} was never finalized, so nothing was charged. The draft is kept as cancelled and its jobs can go on another order.</p>
+      </DestructiveActionDialog>
+      <DestructiveActionDialog open={!!removing} title="Remove item from draft?" confirmLabel="Remove item" pending={mutation.isPending} error={mutation.error?.message} onClose={() => { setRemoving(null); mutation.reset(); }}
+        onConfirm={() => mutation.mutate(async () => { await removeOrderItem(order.id, removing!.id, command(`remove-${removing!.id}`)); setRemoving(null); })}>
+        <p>{removing?.description} will be removed from this draft and excluded from its total. Other items are unchanged.</p>
+      </DestructiveActionDialog>
     </PageShell>
   );
 }
-function CorrectionPanel({
-  orderId,
-  status,
-  version,
-  reason,
-  setReason,
-  run,
-  command,
-  canCarry,
-  canReversePayments,
-  allocations,
-  pending,
-  error,
-}: {
-  orderId: string;
-  status: string;
-  version: number;
-  reason: string;
-  setReason: (v: string) => void;
-  run: (fn: () => Promise<unknown>) => void;
-  command: (a: string, e?: Partial<OrderCommand>) => OrderCommand;
-  canCarry: boolean;
-  canReversePayments: boolean;
-  allocations: import("../../api/generated/models").OrderAllocation[];
-  pending: boolean;
-  error: Error | null;
-}) {
-  const [newPayment, setNewPayment] = useState<PaymentInput>();
-  const [addPayment, setAddPayment] = useState(false);
-  const [replacementId, setReplacementId] = useState("");
-  const [reverseIds, setReverseIds] = useState<string[]>([]);
-  const [correctionReference, setCorrectionReference] = useState("");
-  const [kind, setKind] =
-    useState<PaymentReversalInput["reasonKind"]>("refund");
-  const [occurredAt] = useState(() => new Date().toISOString());
-  const [confirmAction, setConfirmAction] = useState<"reverse" | "replace">();
-  useEffect(() => {
-    if (status !== "finalized" && confirmAction === "reverse") setConfirmAction(undefined);
-  }, [confirmAction, status]);
-  const candidates = useQuery({
-    queryKey: [...financeKeys, "replacement-candidates", orderId],
-    queryFn: () => listOrders({ status: "draft", page: 1, pageSize: 100 }),
-  });
-  const replacement = useQuery({
-    queryKey: [...financeKeys, "replacement", replacementId],
-    queryFn: () => getOrder(replacementId),
-    enabled: !!replacementId,
-  });
-  const receipts = [
-    ...new Map(
-      allocations
-        .filter((a) => a.paymentId)
-        .map((a) => [a.paymentId!, a.paymentReference]),
-    ).entries(),
-  ].filter(
-    ([id]) =>
-      allocations
-        .filter((a) => a.paymentId === id)
-        .reduce((sum, a) => sum + cents(a.amount), 0n) > 0n,
-  );
-  const reversals = (): PaymentReversalInput[] =>
-    reverseIds.map((paymentId) => ({
-      paymentId,
-      reasonKind: kind,
-      reason,
-      occurredAt,
-      externalReference: correctionReference,
-    }));
-  return (
-    <Tile>
-      <h2>Full reversal or replacement</h2>
-      <Stack gap={5}>
-        <TextInput
-          id="order-reversal-reason"
-          labelText="Reason"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-        />
-        {canReversePayments && receipts.length > 0 && (
-          <>
-            <p>
-              V1 reverses whole receipts. Select only payments actually refunded
-              or corrected.
-            </p>
-            {receipts.map(([id, ref]) => (
-              <Checkbox
-                key={id}
-                id={"reverse-" + id}
-                labelText={`Reverse ${ref} in the same operation`}
-                checked={reverseIds.includes(id)}
-                onChange={(_, v) =>
-                  setReverseIds(
-                    v.checked
-                      ? [...reverseIds, id]
-                      : reverseIds.filter((x) => x !== id),
-                  )
-                }
-              />
-            ))}
-            <Select
-              id="correction-kind"
-              labelText="Payment correction"
-              value={kind}
-              onChange={(e) =>
-                setKind(e.target.value as PaymentReversalInput["reasonKind"])
-              }
-            >
-              <SelectItem value="refund" text="Actual refund" />
-              <SelectItem
-                value="recording_error"
-                text="Recording error — no new money movement"
-              />
-              <SelectItem
-                value="external_correction"
-                text="External accounting correction"
-              />
-            </Select>
-            <TextInput
-              id="correction-reference"
-              labelText="Card/external correction reference"
-              value={correctionReference}
-              onChange={(e) => setCorrectionReference(e.target.value)}
-            />
-          </>
-        )}
-        {status === "finalized" && (
-          <Button
-            kind="danger"
-            disabled={!reason || pending}
-            onClick={() => setConfirmAction("reverse")}
-          >
-            Reverse all charges
-          </Button>
-        )}
-        {canCarry && (
-          <>
-            <Select
-              id="replacement-id"
-              labelText="Replacement draft"
-              value={replacementId}
-              onChange={(e) => setReplacementId(e.target.value)}
-            >
-              <SelectItem value="" text="Choose a replacement draft" />
-              {candidates.data?.items
-                .filter((o) => o.replacesOrderId === orderId)
-                .map((o) => (
-                  <SelectItem key={o.id} value={o.id} text={o.reference} />
-                ))}
-            </Select>
-            {replacement.data && (
-              <p>
-                {replacement.data.reference} ·{" "}
-                {formatMoney(replacement.data.totalAmount)}. Remaining original
-                receipts will transfer without money movement.
-              </p>
-            )}
-            <Checkbox
-              id="replacement-payment"
-              labelText="Record an additional confirmed cash/card payment with replacement"
-              checked={addPayment}
-              onChange={(_, v) => {
-                setAddPayment(v.checked);
-                setNewPayment(undefined);
-              }}
-            />
-            {addPayment && (
-              <PaymentForm
-                defaultAmount={replacement.data?.totalAmount || ""}
-                pending={pending}
-                error={null}
-                onSubmit={setNewPayment}
-              />
-            )}{" "}
-            {newPayment && (
-              <p>
-                Staged {newPayment.method} receipt: € {newPayment.amount}. It
-                commits with the replacement.
-              </p>
-            )}
-            <Button
-              disabled={
-                !replacement.data ||
-                !reason ||
-                pending ||
-                (addPayment && !newPayment)
-              }
-              onClick={() => setConfirmAction("replace")}
-            >
-              Commit replacement and carry payments
-            </Button>
-            <p>
-              If the new total is lower than the remaining payments, explicitly
-              reverse whole receipts first. No customer credit is created.
-            </p>
-          </>
-        )}
-        <DestructiveActionDialog
-          open={Boolean(confirmAction)}
-          title={confirmAction === "replace" ? "Commit replacement order?" : "Reverse all order charges?"}
-          confirmLabel={confirmAction === "replace" ? "Commit replacement" : "Reverse charges"}
-          pending={pending}
-          error={error?.message}
-          onClose={() => setConfirmAction(undefined)}
-          onConfirm={() => {
-            if (confirmAction === "reverse") {
-              run(() => reverseOrder(orderId, command("reverse", { reason, reversals: reversals() })));
-            } else if (confirmAction === "replace" && replacement.data) {
-              run(() => replaceOrder(orderId, command("replace", {
-                replacementOrderId: replacementId,
-                expectedReplacementVersion: replacement.data.version,
-                reason,
-                reversals: reversals(),
-                payments: newPayment ? [newPayment] : [],
-              })));
-            }
-          }}
-        >
-          <p>{confirmAction === "replace"
-            ? `The original order will be reversed and replaced by ${replacement.data?.reference ?? "the selected draft"}. Selected receipt reversals and any staged payment will be recorded in the same operation; remaining receipts transfer without money movement.`
-            : `All charges on this order will be reversed. ${reverseIds.length} selected receipt${reverseIds.length === 1 ? "" : "s"} will also be reversed; payment and order history remain as immutable financial evidence.`}</p>
-          <p>Reason: {reason}</p>
-        </DestructiveActionDialog>
-        <span className="visually-hidden">Order version {version}</span>
-      </Stack>
-    </Tile>
-  );
-}
+

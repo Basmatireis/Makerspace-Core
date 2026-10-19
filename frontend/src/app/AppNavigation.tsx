@@ -96,7 +96,7 @@ function activeGroupForPath(pathname: string): NavigationGroupId | null {
   if (pathname.startsWith('/open-days') || pathname.startsWith('/events') || pathname.startsWith('/attendance')) return 'operations';
   if (pathname.startsWith('/people') || pathname.startsWith('/organizations')) return 'people';
   if (pathname.startsWith('/machine-logbook')) return 'machines';
-  if (pathname.startsWith('/orders') || pathname.startsWith('/payments') || pathname.startsWith('/external-invoicing')) return 'sales';
+  if (pathname === '/sales' || pathname.startsWith('/orders') || pathname.startsWith('/payments') || pathname.startsWith('/pricing') || pathname.startsWith('/external-invoicing')) return 'sales';
   return null;
 }
 
@@ -144,14 +144,17 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
   }
 
   const sales: NavigationItem[] = [];
+  if (hasAnyPermission(currentUser, [PermissionId.ordersread, PermissionId.paymentsread])) {
+    sales.push({ label: 'Overview', to: '/sales', active: pathname === '/sales' });
+  }
   if (hasPermission(currentUser, PermissionId.ordersread)) {
     sales.push({ label: 'Orders', to: '/orders', active: pathname.startsWith('/orders') });
   }
   if (hasPermission(currentUser, PermissionId.paymentsread)) {
     sales.push({ label: 'Payments', to: '/payments', active: pathname.startsWith('/payments') });
   }
-  if (hasPermission(currentUser, PermissionId.external_invoice_requestsread)) {
-    sales.push({ label: 'External invoicing', to: '/external-invoicing', active: pathname.startsWith('/external-invoicing') });
+  if (hasPermission(currentUser, PermissionId.pricingread)) {
+    sales.push({ label: 'Pricing', to: '/pricing', active: pathname.startsWith('/pricing') });
   }
 
   const canReadAuditLog = hasPermission(currentUser, PermissionId.auditread);

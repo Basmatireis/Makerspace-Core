@@ -1,317 +1,196 @@
-import {
-  Button,
-  Select,
-  SelectItem,
-  Stack,
-  TextInput,
-  Tile,
-} from "@carbon/react";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-import { useParams } from "react-router-dom";
-import {
-  getOrderPayment,
-  getPaymentReconciliation,
-  reverseOrderPayment,
-} from "../../api/generated/payments/payments";
-import { getOrder } from "../../api/generated/orders/orders";
-import type {
-  OrderPayment,
-  PaymentInput,
-  PaymentReversalInput,
-} from "../../api/generated/models";
-import { DateInput } from "../../app/DateInput";
-import { RefLink } from "../../app/RefLink";
-import { PageShell } from "../../app/PageShell";
-import { DestructiveActionDialog } from "../../app/DestructiveActionDialog";
-import { ErrorState, FullPageLoading } from "../../app/PageState";
-import { useCurrentUser } from "../auth/auth";
-import { hasPermission, PermissionId } from "../auth/permissions";
-import { formatDateTime } from "../../app/dateTime";
-import { formatMoney } from "./formatting";
-import { FinancialError, PaymentForm } from "./shared";
-import { financeKeys, useOperationKeys, cents } from "./operations";
-import { DirectoryTable, useServerTableState, type Column, type Option } from "../machinelogbook/shared/DirectoryTable";
+import { useMemo, useState } from 'react';
+import { Button, Link as CarbonLink, RadioButton, RadioButtonGroup, Tile, Toggletip, ToggletipButton, ToggletipContent } from '@carbon/react';
+import { Add, Download, Information, Subtract } from '@carbon/icons-react';
+import { useQuery } from '@tanstack/react-query';
+import { Link, useNavigate } from 'react-router-dom';
+import type { CashMovementKind } from '../../api/generated/models';
+import { DateInput } from '../../app/DateInput';
+import { PageShell } from '../../app/PageShell';
+import { RefLink } from '../../app/RefLink';
+import { dateInAppTimeZone, formatDateTime } from '../../app/dateTime';
+import { useCurrentUser } from '../auth/auth';
+import { hasPermission, PermissionId } from '../auth/permissions';
+import { DirectoryTable, useUrlState, type Column } from '../machinelogbook/shared/DirectoryTable';
+import { QueryBoundary } from '../machinelogbook/shared/QueryBoundary';
+import { useNotify } from '../machinelogbook/shared/toasts';
+import { CashMovementModal } from './CashMovementModal';
+import { downloadCsv } from './csv';
+import { cashbookCsv } from './cashbookCsv';
+import { cashbookKindOptions, cashMovementReasonLabel, customerTypeOptions, methodFilterOptions, methodLabel } from './labels';
+import { cashbookLines, lineKindId, periodPresets, periodRange, periodText, takings, type CashbookLine, type PeriodPreset } from './logic';
+import { formatCents, formatSignedCents, toCents } from './money';
+import { allOrdersQuery, cashRegisterQuery, periodMovementsQuery, periodPaymentsQuery } from './queries';
+import { MovementKindTag, PaymentKindTag } from './status';
+import './sales.scss';
+import '../machinelogbook/shared/shared.scss';
 
-const PAGE_SIZES = [10, 25, 50, 100];
-const METHOD_OPTIONS: Option[] = [
-  { id: "cash", label: "Cash" },
-  { id: "card", label: "Card" },
-  { id: "external", label: "Externally confirmed" },
-];
 
-const columns: Column<OrderPayment>[] = [
-  {
-    key: "reference", header: "Payment",
-    render: (p) => (
-      <div className="mj-cell-stack">
-        <RefLink reference={p.reference} id={p.id} />
-        {p.reversedPaymentReference && <span className="mj-secondary">Reverses <RefLink reference={p.reversedPaymentReference} id={p.reversesPaymentId} /></span>}
-      </div>
-    ),
-  },
-  { key: "kind", header: "Method", render: (p) => `${p.method} · ${p.entryKind === "reversal" ? p.reasonKind : p.entryKind}` },
-  { key: "amount", header: "Amount", render: (p) => formatMoney(p.entryKind === "reversal" ? `-${p.amount}` : p.amount) },
-  { key: "occurredAt", header: "Date", narrow: true, render: (p) => formatDateTime(p.occurredAt) },
-];
+const amountText = (line: CashbookLine) => line.type === 'movement' || line.payment.entryKind === 'reversal' ? formatSignedCents(line.signed) : formatCents(line.signed);
 
-export function PaymentsPage() {
-  const table = useServerTableState("", { key: "", direction: "ASC" }, PAGE_SIZES, 25);
-  const { url } = table;
-  const from = url.get("from");
-  const to = url.get("to");
-  const filters = {
-    page: table.page,
-    pageSize: table.pageSize,
-    method: (url.get("method") || undefined) as
-      | "cash"
-      | "card"
-      | "external"
-      | undefined,
-    from: from ? `${from}T00:00:00Z` : undefined,
-    to: to ? `${to}T00:00:00Z` : undefined,
-  };
-  const query = useQuery({
-    placeholderData: keepPreviousData,
-    queryKey: [...financeKeys, "journal", filters],
-    queryFn: () => getPaymentReconciliation(filters),
-  });
-  if (query.isPending) return <FullPageLoading label="Loading payments" />;
-  if (query.isError)
-    return (
-      <ErrorState
-        message="Payments could not be loaded."
-        onRetry={() => query.refetch()}
-      />
-    );
-  return (
-    <PageShell
-      title="Payments"
-      description="Cashbook references and recorded cash/card activity. Allocation transfers do not move money."
-      width="wide"
-    >
-      <Stack gap={6}>
-        <Tile>
-          <p>
-            Period totals across methods: cash {formatMoney(query.data.cash)} ·
-            card {formatMoney(query.data.card)} · externally confirmed{" "}
-            {formatMoney(query.data.external)}
-          </p>
-          <p>
-            These are recorded activities, not a complete physical cash balance.
-            Recording-error corrections are distinguished from actual refunds.
-          </p>
-        </Tile>
-        <DirectoryTable<OrderPayment>
-          mode="server" id="payments" urlPrefix="" label="Payments" columns={columns} searchable={false}
-          rows={query.data.entries} total={query.data.total} pageSizes={PAGE_SIZES} defaultPageSize={25}
-          filterCategories={[
-            { key: "method", label: "Method", options: METHOD_OPTIONS, single: true },
-            {
-              key: "period", label: "Period", keys: ["from", "to"],
-              render: ({ idPrefix, staged, set }) => (
-                <>
-                  <DateInput id={`${idPrefix}-from`} labelText="From (UTC date)" value={staged.from?.[0] ?? ""} onChange={(value) => set("from", value ? [value] : [])} />
-                  <DateInput id={`${idPrefix}-to`} labelText="Before (UTC date)" value={staged.to?.[0] ?? ""} onChange={(value) => set("to", value ? [value] : [])} />
-                </>
-              ),
-            },
-          ]}
-          empty={{ title: "No payments yet", description: "Recorded cash, card and externally confirmed payments appear here." }}
-        />
-      </Stack>
-    </PageShell>
-  );
-}
-export function PaymentDetailPage() {
-  const { paymentId = "" } = useParams();
-  return <PaymentDetailPageContent key={paymentId} paymentId={paymentId} />;
-}
-
-function PaymentDetailPageContent({ paymentId }: { paymentId: string }) {
+function Cashbook() {
   const user = useCurrentUser();
-  const client = useQueryClient();
-  const key = useOperationKeys();
-  const [reason, setReason] = useState("");
-  const [reference, setReference] = useState("");
-  const [kind, setKind] =
-    useState<PaymentReversalInput["reasonKind"]>("refund");
-  const [occurredAt] = useState(() => new Date().toISOString());
-  const [replacement, setReplacement] = useState<PaymentInput>();
-  const [confirmReversal, setConfirmReversal] = useState(false);
-  const query = useQuery({
-    queryKey: [...financeKeys, "payment", paymentId],
-    queryFn: () => getOrderPayment(paymentId),
-  });
-  const allocated = query.data?.allocations;
-  const activeOrderId = allocated?.find(
-    (a) =>
-      a.orderId &&
-      allocated
-        .filter((v) => v.orderId === a.orderId)
-        .reduce((n, v) => n + cents(v.amount), 0n) > 0n,
-  )?.orderId;
-  const order = useQuery({
-    queryKey: [...financeKeys, "detail", activeOrderId],
-    queryFn: () => getOrder(activeOrderId!),
-    enabled: !!activeOrderId && hasPermission(user, PermissionId.ordersread),
-  });
-  const mutation = useMutation({
-    mutationFn: () => {
-      const input = {
-        expectedVersion: order.data!.version,
-        reversal: {
-          paymentId,
-          reasonKind: kind,
-          reason,
-          occurredAt,
-          externalReference: reference,
-        },
-        replacementPayment: replacement,
-      };
-      return reverseOrderPayment(paymentId, {
-        ...input,
-        operationKey: key("reverse", input),
-      });
+  const navigate = useNavigate();
+  const notify = useNotify();
+  const url = useUrlState('');
+  const [movement, setMovement] = useState<CashMovementKind | null>(null);
+  const canMovements = hasPermission(user, PermissionId.cash_movementsread);
+  const canRecord = hasPermission(user, PermissionId.cash_movementsrecord);
+  const canOrders = hasPermission(user, PermissionId.ordersread);
+  const preset = (periodPresets.find((item) => item.id === url.get('period'))?.id ?? 'today') as PeriodPreset;
+  const from = url.get('from');
+  const to = url.get('to');
+  const range = periodRange(preset, from, to);
+  const fromIso = new Date(range.from).toISOString();
+  const toIso = new Date(range.to).toISOString();
+
+  const payments = useQuery({ ...periodPaymentsQuery(fromIso, toIso), enabled: range.valid });
+  const movements = useQuery({ ...periodMovementsQuery(fromIso, toIso), enabled: range.valid && canMovements });
+  const register = useQuery({ ...cashRegisterQuery(toIso), enabled: range.valid && canMovements });
+  const orders = useQuery({ ...allOrdersQuery(), enabled: canOrders });
+  const lines = useMemo(() => cashbookLines(payments.data ?? [], movements.data ?? [], orders.data), [payments.data, movements.data, orders.data]);
+
+  const methods = url.list('method');
+  const kinds = url.list('kind');
+  const who = url.list('who');
+  const rows = useMemo(() => lines.filter((line) => (methods.length === 0 || methods.includes(line.method)) && (kinds.length === 0 || kinds.includes(lineKindId(line)))
+    && (who.length === 0 || (line.type === 'payment' && line.customerKind !== null && who.includes(line.customerKind)))), [lines, methods.join(','), kinds.join(','), who.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const paymentList = payments.data ?? [];
+  const net = takings(paymentList);
+  const count = (method: string | null) => {
+    const mine = paymentList.filter((payment) => method === null || payment.method === method);
+    const receipts = mine.filter((payment) => payment.entryKind === 'receipt').length;
+    const undone = mine.length - receipts;
+    return `${receipts} ${receipts === 1 ? 'receipt' : 'receipts'} · ${undone} ${undone === 1 ? 'refund or correction' : 'refunds or corrections'}`;
+  };
+  const tiles = [
+    { key: 'total', label: 'Net takings', value: net.total, detail: count(null) },
+    { key: 'cash', label: 'Cash', value: net.cash, detail: count('cash') },
+    { key: 'card', label: 'Card', value: net.card, detail: count('card') },
+    { key: 'external', label: 'Invoice (wiRef)', value: net.external, detail: count('external') },
+  ];
+  const figures = register.data;
+  const filename = `cashbook-${preset === 'custom' ? `${from}_${to}` : dateInAppTimeZone(new Date(range.from))}.csv`;
+
+  const columns: Column<CashbookLine>[] = [
+    { key: 'time', header: 'Time', sortValue: (line) => line.at, firstDirection: 'DESC', render: (line) => formatDateTime(line.at) },
+    {
+      key: 'payment', header: 'Payment',
+      render: (line) => line.type === 'payment' ? (
+        <div className="mj-cell-stack"><RefLink reference={line.reference} id={line.payment.id} kind="payment" /><PaymentKindTag payment={line.payment} /><span className="mj-secondary mj-show-narrow">{methodLabel(line.method)}</span></div>
+      ) : (
+        <div className="mj-cell-stack"><strong>{line.reference}</strong><MovementKindTag movement={line.movement} /><span className="mj-secondary mj-show-narrow">{methodLabel(line.method)}</span></div>
+      ),
     },
-    onSuccess: async () => {
-      setConfirmReversal(false);
-      await client.invalidateQueries({ queryKey: financeKeys });
+    {
+      key: 'order', header: 'Order and customer',
+      render: (line) => line.type === 'payment' ? (
+        <div className="mj-cell-stack">
+          {line.orderReference ? <RefLink reference={line.orderReference} id={line.orderId} kind="order" /> : '—'}
+          {line.order && line.customerId && <CarbonLink as={Link} to={`/orders?customer=${line.customerId}`}>{line.customerLabel}</CarbonLink>}
+        </div>
+      ) : <div className="mj-cell-stack"><span className="mj-secondary">Not tied to an order</span><span>{cashMovementReasonLabel[line.movement.reason]}{line.movement.note ? ` · ${line.movement.note}` : ''}</span></div>,
     },
-  });
-  if (query.isPending) return <FullPageLoading label="Loading payment" />;
-  if (query.isError)
-    return (
-      <ErrorState
-        message="Payment could not be loaded."
-        onRetry={() => query.refetch()}
-      />
-    );
-  const p = query.data;
+    { key: 'method', header: 'Method', narrow: true, render: (line) => methodLabel(line.method) },
+    { key: 'amount', header: 'Amount', sortValue: (line) => line.signed, firstDirection: 'DESC', render: (line) => <span className={`sales-num${line.signed < 0 ? ' sales-num--due' : ''}`}>{amountText(line)}</span> },
+    { key: 'by', header: 'Recorded by', narrow: true, render: (line) => line.recordedBy },
+  ];
+
   return (
-    <PageShell
-      title={p.reference}
-      description="Immutable payment evidence"
-      breadcrumbs={[
-        { label: "Payments", to: "/payments" },
-        { label: p.reference },
-      ]}
-    >
-      <Stack gap={6}>
-        <Tile>
-          <p>
-            {p.method} · {p.entryKind} · {formatMoney(p.amount)}
-          </p>
-          <p>
-            Occurred {formatDateTime(p.occurredAt)} · recorded{" "}
-            {formatDateTime(p.recordedAt)}
-          </p>
-          {p.reversesPaymentId && (
-            <p>
-              Reversal of{" "}
-              <RefLink reference={p.reversedPaymentReference ?? ""} id={p.reversesPaymentId} />
-            </p>
-          )}
-          <p>{p.reason}</p>
-          <p>
-            {p.externalSource} {p.externalReference}
-          </p>
-        </Tile>
-        <Tile>
-          <h2>Allocation history</h2>
-          {p.allocations.map((a) => (
-            <p key={a.id}>
-              <RefLink reference={a.orderReference ?? ""} id={a.orderId} />
-              : € {a.amount}
-            </p>
-          ))}
-        </Tile>
-        {p.entryKind === "receipt" &&
-          order.data &&
-          hasPermission(user, PermissionId.paymentsreverse) && (
-            <Tile>
-              <h2>Reverse the full payment</h2>
-              <Stack gap={5}>
-                <Select
-                  id="reverse-kind"
-                  labelText="Correction kind"
-                  value={kind}
-                  onChange={(e) =>
-                    setKind(
-                      e.target.value as PaymentReversalInput["reasonKind"],
-                    )
-                  }
-                >
-                  <SelectItem value="refund" text="Actual refund" />
-                  <SelectItem value="recording_error" text="Recording error" />
-                  {p.method === "external" && (
-                    <SelectItem
-                      value="external_correction"
-                      text="External accounting correction"
-                    />
+    <div className="mj-stack">
+      <p className="sales-period-note" aria-live="polite"><strong>{periodText(preset, range, from, to)}</strong></p>
+      <section className="sales-tiles" aria-label="Takings by method">
+        {tiles.map((tile) => (
+          <Tile key={tile.key} className="sales-tile">
+            <span className="sales-tile__label">{tile.label}</span>
+            <span className="sales-tile__value">{range.valid ? formatCents(tile.value) : '—'}</span>
+            <span className="mj-secondary">{range.valid ? tile.detail : 'Choose both dates'}</span>
+          </Tile>
+        ))}
+        {canMovements && (
+          <Tile className="sales-tile">
+            <span className="sales-tile__label mj-inline">Cash in register (expected)
+              <Toggletip align="bottom-start">
+                <ToggletipButton label="Show how the expected cash is calculated"><Information /></ToggletipButton>
+                <ToggletipContent>
+                  <p>Cash only. Card and invoice payments never go through the register.</p>
+                  <p>Everything in cash from the beginning up to the end of the period.</p>
+                  {figures && (
+                    <dl className="sales-sum">
+                      <div><dt>Cash receipts</dt><dd>{formatCents(toCents(figures.receipts))}</dd></div>
+                      <div><dt>− Cash refunds and corrections</dt><dd>{formatCents(toCents(figures.refunds))}</dd></div>
+                      <div><dt>− Cash withdrawals</dt><dd>{formatCents(toCents(figures.withdrawals))}</dd></div>
+                      <div><dt>+ Cash deposits</dt><dd>{formatCents(toCents(figures.deposits))}</dd></div>
+                      <div className="sales-sum__total"><dt>Expected in the register</dt><dd>{formatCents(toCents(figures.expected))}</dd></div>
+                    </dl>
                   )}
-                </Select>
-                <TextInput
-                  id="reverse-reason"
-                  labelText="Reason"
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                />
-                {p.method !== "cash" && (
-                  <TextInput
-                    id="reverse-reference"
-                    labelText="Correction evidence/reference"
-                    value={reference}
-                    onChange={(e) => setReference(e.target.value)}
-                  />
-                )}{" "}
-                {order.data.customerKind === "anonymous" &&
-                  hasPermission(user, PermissionId.paymentsrecord) && (
+                </ToggletipContent>
+              </Toggletip>
+            </span>
+            <span className="sales-tile__value">{range.valid && figures ? formatCents(toCents(figures.expected)) : '—'}</span>
+            <span className="mj-secondary">{range.valid ? `To the end of ${range.label.toLowerCase()}, after withdrawals and deposits` : 'Choose both dates'}</span>
+          </Tile>
+        )}
+      </section>
+      <DirectoryTable<CashbookLine>
+        id="payments" urlPrefix="" label="Payments" columns={columns} rows={rows} totalCount={lines.length} searchText={(line) => `${line.reference} ${line.type === 'payment' ? `${line.orderReference ?? ''} ${line.customerLabel} ${line.payment.externalReference}` : `${cashMovementReasonLabel[line.movement.reason]} ${line.movement.note}`} ${line.recordedBy}`}
+        defaultSort={{ key: 'time', direction: 'DESC' }} pageSizes={[10, 25, 50]} onRowClick={(line) => { if (line.type === 'payment') navigate(`/payments/${line.payment.id}`); }}
+        filterCategories={[
+          {
+            key: 'period', label: 'Period', keys: ['period', 'from', 'to'],
+            render: ({ idPrefix, staged, set }) => {
+              const chosen = staged.period?.[0] ?? 'today';
+              const [stagedFrom, stagedTo] = [staged.from?.[0] ?? '', staged.to?.[0] ?? ''];
+              return (
+                <>
+                  <RadioButtonGroup legendText={<span className="cds--visually-hidden">Period</span>} name={`${idPrefix}-preset`} orientation="vertical" valueSelected={chosen}
+                    onChange={(value) => { set('period', value === 'today' ? [] : [String(value)]); if (value !== 'custom') { set('from', []); set('to', []); } }}>
+                    {periodPresets.map((item) => <RadioButton key={item.id} id={`${idPrefix}-${item.id}`} value={item.id} labelText={item.label} />)}
+                  </RadioButtonGroup>
+                  {chosen === 'custom' && (
                     <>
-                      <p>
-                        An anonymous Order must remain fully paid. Confirm a
-                        replacement receipt in this same correction, or reverse
-                        the whole Order from its detail page.
-                      </p>
-                      <PaymentForm
-                        defaultAmount={p.amount}
-                        pending={false}
-                        error={null}
-                        onSubmit={setReplacement}
-                      />
-                      {replacement && (
-                        <p>
-                          Replacement receipt staged: {replacement.method}{" "}
-                          {formatMoney(replacement.amount)}
-                        </p>
-                      )}
+                      <DateInput id={`${idPrefix}-from`} labelText="From" value={stagedFrom} onChange={(value) => set('from', value ? [value] : [])} invalid={!!stagedFrom && !!stagedTo && stagedFrom > stagedTo} invalidText="Start must not be after the end" />
+                      <DateInput id={`${idPrefix}-to`} labelText="Through" value={stagedTo} onChange={(value) => set('to', value ? [value] : [])} />
                     </>
                   )}
-                <FinancialError error={mutation.error} />
-                <Button
-                  kind="danger"
-                  disabled={!reason || mutation.isPending}
-                  onClick={() => { mutation.reset(); setConfirmReversal(true); }}
-                >
-                  Record full reversal
-                </Button>
-                <DestructiveActionDialog
-                  open={confirmReversal}
-                  title={`Reverse payment ${p.reference}?`}
-                  confirmLabel="Record full reversal"
-                  pending={mutation.isPending}
-                  error={mutation.error?.message}
-                  onClose={() => { setConfirmReversal(false); mutation.reset(); }}
-                  onConfirm={() => mutation.mutate()}
-                >
-                  <p>The full {formatMoney(p.amount)} receipt will be reversed. The original payment, its allocations, and this correction remain as immutable financial evidence.</p>
-                  <p>Correction: {kind.replaceAll("_", " ")} · Reason: {reason}{reference ? ` · Evidence: ${reference}` : ""}</p>
-                  {replacement && <p>A replacement {replacement.method} receipt for {formatMoney(replacement.amount)} will be recorded in the same operation.</p>}
-                </DestructiveActionDialog>
-              </Stack>
-            </Tile>
-          )}
-      </Stack>
+                </>
+              );
+            },
+          },
+          { key: 'method', label: 'Method', options: methodFilterOptions },
+          { key: 'kind', label: 'Kind', options: canMovements ? cashbookKindOptions : cashbookKindOptions.slice(0, 3) },
+          { key: 'who', label: 'Customer', options: customerTypeOptions },
+        ]}
+        toolbarAction={(
+          <>
+            {canRecord && (
+              <>
+                <Button kind="ghost" size="md" renderIcon={Subtract} onClick={() => setMovement('withdrawal')}>Record cash withdrawal</Button>
+                <Button kind="ghost" size="md" renderIcon={Add} onClick={() => setMovement('deposit')}>Record cash deposit</Button>
+              </>
+            )}
+            <span className="sales-export">
+              <Button kind="ghost" size="md" renderIcon={Download} disabled={rows.length === 0} onClick={() => { downloadCsv(filename, cashbookCsv(rows)); notify({ kind: 'success', title: 'CSV exported', subtitle: `${rows.length} ${rows.length === 1 ? 'line' : 'lines'} of the current view were saved as ${filename}.` }); }}>Export CSV</Button>
+            </span>
+          </>
+        )}
+        empty={{ title: range.valid ? 'No payments in this period' : 'Choose a start and an end date', description: range.valid ? 'Pick another period to see earlier payments.' : 'A custom period needs both dates.' }}
+      />
+      {movement && <CashMovementModal kind={movement} onClose={() => setMovement(null)} />}
+    </div>
+  );
+}
+
+export function PaymentsPage() {
+  const user = useCurrentUser();
+  const url = useUrlState('');
+  const range = periodRange((periodPresets.find((item) => item.id === url.get('period'))?.id ?? 'today') as PeriodPreset, url.get('from'), url.get('to'));
+  const payments = useQuery({ ...periodPaymentsQuery(new Date(range.from).toISOString(), new Date(range.to).toISOString()), enabled: range.valid && hasPermission(user, PermissionId.paymentsread) });
+  return (
+    <PageShell className="sales-page" title="Payments" description="The cashbook: every receipt, refund, correction and cash movement." width="wide" breadcrumbs={[{ label: 'Sales & payments', to: '/sales' }, { label: 'Payments' }]}>
+      <QueryBoundary query={range.valid ? payments : { status: 'success', data: [], refetch: payments.refetch }} errorMessage="The payments could not be loaded.">
+        <Cashbook />
+      </QueryBoundary>
     </PageShell>
   );
 }

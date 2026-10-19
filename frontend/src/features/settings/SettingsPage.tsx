@@ -69,7 +69,7 @@ export function SettingsPage() {
         {canManageVisitorEnrollment && <Column sm={4} md={4} lg={5}><ClickableTile as={Link} to="/settings/visitor-enrollment" className="settings-tile"><Stack gap={5}><UserMultiple size={32} /><div><h2>Visitor enrollment</h2><p>Configure approved terminals, the initial Role, and authentication methods.</p></div></Stack></ClickableTile></Column>}
         {canManageMail && <Column sm={4} md={4} lg={5}><ClickableTile as={Link} to="/settings/mail" className="settings-tile"><Stack gap={5}><Email size={32} /><div><h2>Email delivery</h2><p>Configure SMTP, sender identity, and recovery-link delivery.</p></div></Stack></ClickableTile></Column>}
         {canManageBranding && <Column sm={4} md={4} lg={5}><ClickableTile as={Link} to="/settings/branding-legal" className="settings-tile"><Stack gap={5}><PaintBrush size={32} /><div><h2>Branding &amp; legal</h2><p>Configure organization identity, colors, assets, and public legal documents.</p></div></Stack></ClickableTile></Column>}
-        {canConfigureMachineLogbook && <Column sm={4} md={4} lg={5}><ClickableTile as={Link} to="/settings/machine-logbook" className="settings-tile"><Stack gap={5}><DataBase size={32} /><div><h2>Machines</h2><p>Configure pricing groups and rates.</p></div></Stack></ClickableTile></Column>}
+        {canConfigureMachineLogbook && <Column sm={4} md={4} lg={5}><ClickableTile as={Link} to="/pricing" className="settings-tile"><Stack gap={5}><DataBase size={32} /><div><h2>Pricing</h2><p>Pricing groups and rates now live under Sales &amp; payments.</p></div></Stack></ClickableTile></Column>}
       </Grid>
     </PageShell>
   );

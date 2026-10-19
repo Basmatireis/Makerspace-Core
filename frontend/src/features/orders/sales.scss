@@ -1,0 +1,92 @@
+@use '@carbon/styles/scss/spacing' as *;
+@use '@carbon/styles/scss/type' as *;
+
+// Layout glue for the Sales & payments screens. Controls, tables, tiles and lists are Carbon components.
+
+.sales-num { text-align: end; font-variant-numeric: tabular-nums; }
+.sales-num--due { color: var(--cds-text-error); }
+.sales-top-gap { margin-block-start: $spacing-03; }
+.sales-field-error { @include type-style('helper-text-01'); color: var(--cds-text-error); }
+
+// Tiles ----------------------------------------------------------------------------------------------------------------
+.sales-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: $spacing-05; }
+.sales-tile.cds--tile { display: grid; gap: $spacing-02; align-content: start; }
+.sales-tile__label { @include type-style('heading-compact-01'); }
+.sales-tile__value { @include type-style('productive-heading-05'); font-variant-numeric: tabular-nums; }
+.sales-facts { grid-template-columns: 1fr; }
+.sales-period-note { margin: 0; }
+
+// Contained lists, tables and tiles that sit on the page surface read as white panels.
+.sales-page .cds--contained-list,
+.sales-page .cds--contained-list .cds--contained-list__header { background: var(--cds-layer); }
+.sales-page .cds--data-table-container { background: var(--cds-layer); }
+
+// Order detail ---------------------------------------------------------------------------------------------------------
+.sales-section-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: $spacing-03; padding: $spacing-03 $spacing-05 0; }
+.sales-row-actions { text-align: end; white-space: nowrap; }
+.sales-checklist { display: grid; gap: $spacing-03; margin: 0; padding: 0; list-style: none; }
+.sales-checklist li { display: flex; align-items: center; gap: $spacing-03; }
+.sales-checklist__ok { color: var(--cds-support-success); flex: none; }
+.sales-checklist__bad { color: var(--cds-support-error); flex: none; }
+.sales-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: $spacing-05; min-inline-size: 0; }
+.sales-form-grid .cds--date-picker, .sales-form-grid .cds--date-picker-container, .sales-form-grid .cds--date-picker-input__wrapper, .sales-form-grid .cds--date-picker-input__wrapper > span,
+.sales-form-grid .cds--date-picker.cds--date-picker--single .cds--date-picker__input { inline-size: 100%; }
+.sales-toolbar-action.cds--btn { min-inline-size: 11rem; }
+
+// A notice that belongs to a table sits in its first row, edge to edge.
+.sales-table-notice > td { padding: 0 !important; }
+.sales-table-notice .sales-table-notice__box.cds--actionable-notification { max-inline-size: none; inline-size: 100%; margin: 0; }
+
+// Invoice section: header, notifications spanning the whole tile -----------------------------------------------------------
+.sales-invoice__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: $spacing-03; margin-block-end: $spacing-05; }
+.sales-invoice__head .mj-section-title { margin-block-end: 0; }
+.sales-progress { inline-size: 100%; }
+.sales-invoice .cds--inline-notification,
+.sales-invoice .cds--actionable-notification { max-inline-size: none; inline-size: 100%; }
+.sales-invoice__returned.cds--actionable-notification { margin-block: $spacing-05; }
+
+// Payment entry ------------------------------------------------------------------------------------------------------------
+.sales-modal-summary { display: flex; align-items: flex-end; justify-content: space-between; gap: $spacing-05; padding: $spacing-05; background: var(--cds-layer-accent); }
+.sales-modal-summary > div { display: grid; gap: $spacing-02; }
+.sales-modal-summary__amount { @include type-style('productive-heading-05'); }
+.sales-method-tiles > div { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: $spacing-03; }
+.sales-method-tile { display: flex; align-items: center; gap: $spacing-03; }
+.sales-payment-row { display: grid; gap: $spacing-05; }
+.sales-payment-row--split { padding: $spacing-05; border: 1px solid var(--cds-border-subtle); background: var(--cds-layer); }
+.sales-payment-row__head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: $spacing-03; }
+.sales-amount-line { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: $spacing-03; }
+.sales-amount-line:not(:has(.cds--btn)) { grid-template-columns: minmax(0, 1fr); }
+.sales-tender-buttons { display: flex; flex-wrap: wrap; gap: $spacing-03; }
+.sales-change.cds--tile { display: flex; align-items: center; justify-content: space-between; gap: $spacing-05; background: var(--cds-layer-accent); }
+.sales-change__amount { @include type-style('productive-heading-04'); font-variant-numeric: tabular-nums; }
+.sales-cover { display: flex; flex-wrap: wrap; align-items: center; gap: $spacing-03; }
+
+// Ready to bill -------------------------------------------------------------------------------------------------------------
+.sales-ready-jobs { display: grid; gap: $spacing-03; margin: 0; padding: $spacing-03 0; list-style: none; }
+.sales-ready-jobs__row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: $spacing-05; padding-block: $spacing-02; }
+.sales-ready-jobs__row:not(:has(.cds--checkbox-wrapper)) { grid-template-columns: minmax(0, 1fr) auto; }
+
+// Cashbook, cash tile -------------------------------------------------------------------------------------------------------
+.sales-export { display: inline-flex; align-items: center; gap: $spacing-02; padding-inline: $spacing-03; }
+.sales-sum { display: grid; gap: $spacing-02; margin: $spacing-03 0 0; min-inline-size: 16rem; }
+.sales-sum > div { display: flex; justify-content: space-between; gap: $spacing-05; }
+.sales-sum dd { margin: 0; font-variant-numeric: tabular-nums; }
+.sales-sum__total { padding-block-start: $spacing-02; border-block-start: 1px solid var(--cds-border-strong); font-weight: 600; }
+
+// Pricing -------------------------------------------------------------------------------------------------------------------
+.cds--tab-content.sales-tab-panel { padding: $spacing-05 0 0; background: transparent; }
+.cds--tab-content.sales-tab-panel[hidden] { display: none; }
+.sales-tab-count { margin-inline-start: $spacing-03; }
+.sales-rate { display: flex; align-items: center; justify-content: space-between; gap: $spacing-03; min-inline-size: 7rem; }
+.sales-rate-edit { display: flex; align-items: center; gap: $spacing-01; min-inline-size: 11rem; }
+.sales-rate-edit .cds--form-item { flex: 1; }
+.sales-rates td, .sales-rates th { white-space: nowrap; }
+.sales-tab-panel .mj-cell-stack { justify-items: start; }
+
+@media (max-width: 41.98rem) {
+  .sales-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: $spacing-03; }
+  .sales-tile__value { @include type-style('productive-heading-04'); }
+  .sales-method-tiles > div { grid-auto-flow: row; grid-template-columns: 1fr; }
+  .sales-ready-jobs__row { grid-template-columns: auto minmax(0, 1fr); }
+  .sales-ready-jobs__row > :last-child { grid-column: 1 / -1; }
+}

@@ -21,7 +21,7 @@
 .clickable-row { cursor: pointer; }
 .clickable-row:focus-within, .clickable-row:hover { background: var(--cds-layer-hover); }
 .job-id-cell { display: flex; align-items: center; gap: $spacing-02; }
-.material-layout h2, .configuration-list h3 { margin-block-end: $spacing-04; }
+.material-layout h2 { margin-block-end: $spacing-04; }
 .pricing-snapshot { margin-block: $spacing-05; padding: $spacing-05; background: var(--cds-layer-accent); }
 .pricing-snapshot ul { display: grid; gap: $spacing-02; margin: $spacing-04 0 0; padding: 0; list-style: none; }
 .pricing-snapshot li { display: flex; justify-content: space-between; gap: $spacing-04; }
@@ -46,9 +46,6 @@
 .material-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(22rem, 1fr); gap: $spacing-05; }
 .statistics-grid { display: grid; grid-template-columns: repeat(2, minmax(26rem, 1fr)); gap: $spacing-05; }
 .date-filter { display: flex; align-items: end; gap: $spacing-03; }
-.configuration-list { display: grid; gap: $spacing-04; }
-.configuration-table { inline-size: 100%; border-collapse: collapse; }
-.configuration-table th, .configuration-table td { padding: $spacing-03; text-align: start; border-block-end: 1px solid var(--cds-border-subtle); }
 
 @media (max-width: 82rem) {
   .metric-grid { grid-template-columns: repeat(3, 1fr); }

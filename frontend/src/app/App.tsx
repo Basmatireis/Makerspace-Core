@@ -10,6 +10,8 @@ import { NotFoundPage } from './NotFoundPage';
 import { InformationPage } from './InformationPage';
 import { FullPageLoading } from './PageState';
 import { machineLogbookPaths } from '../features/machinelogbook/shared/paths';
+import { useQuery } from '@tanstack/react-query';
+import { requestQuery } from '../features/orders/queries';
 import { DeviceBridgeProvider } from '../features/terminal/DeviceBridgeProvider';
 
 const ResetPasswordPage = lazy(() => import('../features/auth/ResetPasswordPage').then(({ ResetPasswordPage }) => ({ default: ResetPasswordPage })));
@@ -19,36 +21,12 @@ const EmailVerificationPage = lazy(() => import('../features/auth/ResetPasswordP
 const VisitorEnrollmentPage = lazy(() => import('../features/visitor/VisitorEnrollmentPage').then(({ VisitorEnrollmentPage }) => ({ default: VisitorEnrollmentPage })));
 const LegalPage = lazy(() => import('../features/branding/LegalPage').then(({ LegalPage }) => ({ default: LegalPage })));
 const ProfilePage = lazy(() => import('../features/profile/ProfilePage').then(({ ProfilePage }) => ({ default: ProfilePage })));
-const OrdersPage = lazy(() =>
-  import('../features/orders/OrdersPage').then((m) => ({
-    default: m.OrdersPage,
-  })),
-);
-const OrderDetailPage = lazy(() =>
-  import('../features/orders/OrderDetailPage').then((m) => ({
-    default: m.OrderDetailPage,
-  })),
-);
-const PaymentsPage = lazy(() =>
-  import('../features/orders/PaymentsPage').then((m) => ({
-    default: m.PaymentsPage,
-  })),
-);
-const PaymentDetailPage = lazy(() =>
-  import('../features/orders/PaymentsPage').then((m) => ({
-    default: m.PaymentDetailPage,
-  })),
-);
-const ExternalInvoicingPage = lazy(() =>
-  import('../features/orders/ExternalInvoicingPage').then((m) => ({
-    default: m.ExternalInvoicingPage,
-  })),
-);
-const ExternalInvoiceDetailPage = lazy(() =>
-  import('../features/orders/ExternalInvoicingPage').then((m) => ({
-    default: m.ExternalInvoiceDetailPage,
-  })),
-);
+const SalesOverviewPage = lazy(() => import('../features/orders/SalesOverviewPage').then(({ SalesOverviewPage }) => ({ default: SalesOverviewPage })));
+const OrdersPage = lazy(() => import('../features/orders/OrdersPage').then(({ OrdersPage }) => ({ default: OrdersPage })));
+const OrderDetailPage = lazy(() => import('../features/orders/OrderDetailPage').then(({ OrderDetailPage }) => ({ default: OrderDetailPage })));
+const PaymentsPage = lazy(() => import('../features/orders/PaymentsPage').then(({ PaymentsPage }) => ({ default: PaymentsPage })));
+const PaymentDetailPage = lazy(() => import('../features/orders/PaymentDetailPage').then(({ PaymentDetailPage }) => ({ default: PaymentDetailPage })));
+const PricingPage = lazy(() => import('../features/pricing/PricingPage').then(({ PricingPage }) => ({ default: PricingPage })));
 const MachineLogbookLayout = lazy(() => import('../features/machinelogbook/shared/MachineLogbookLayout').then(({ MachineLogbookLayout }) => ({ default: MachineLogbookLayout })));
 const MachineLogbookOverviewPage = lazy(() => import('../features/machinelogbook/OverviewPage').then(({ MachineLogbookOverviewPage }) => ({ default: MachineLogbookOverviewPage })));
 const JobsPage = lazy(() => import('../features/machinelogbook/JobsPage').then(({ JobsPage }) => ({ default: JobsPage })));
@@ -72,7 +50,6 @@ const SCIMConnectorsPage = lazy(() => import('../features/scim/SCIMConnectorsPag
 const VisitorEnrollmentSettingsPage = lazy(() => import('../features/visitor/VisitorEnrollmentSettingsPage').then(({ VisitorEnrollmentSettingsPage }) => ({ default: VisitorEnrollmentSettingsPage })));
 const MailSettingsPage = lazy(() => import('../features/mail/MailSettingsPage').then(({ MailSettingsPage }) => ({ default: MailSettingsPage })));
 const BrandingLegalSettingsPage = lazy(() => import('../features/branding/BrandingLegalSettingsPage').then(({ BrandingLegalSettingsPage }) => ({ default: BrandingLegalSettingsPage })));
-const ConfigurationPage = lazy(() => import('../features/machinelogbook/ConfigurationPage').then(({ ConfigurationPage }) => ({ default: ConfigurationPage })));
 const OrganizationsPage = lazy(() => import('../features/organizations/OrganizationsPage').then(({ OrganizationsPage }) => ({ default: OrganizationsPage })));
 const OrganizationDetailPage = lazy(() => import('../features/organizations/OrganizationDetailPage').then(({ OrganizationDetailPage }) => ({ default: OrganizationDetailPage })));
 const UsersPage = lazy(() => import('../features/users/UsersPage').then(({ UsersPage }) => ({ default: UsersPage })));
@@ -115,6 +92,15 @@ function LegacyRedirect({ from, to }: { from: string; to: string }) {
       replace
     />
   );
+}
+
+/** The former request page: the invoice now lives on its order. */
+function ExternalInvoiceRedirect() {
+  const { requestId = '' } = useParams();
+  const request = useQuery({ ...requestQuery(requestId), enabled: !!requestId });
+  if (request.isError || (request.data && !request.data.orderId)) return <Navigate to="/orders" replace />;
+  if (!request.data) return <FullPageLoading label="Loading page" />;
+  return <Navigate to={`/orders/${request.data.orderId}`} replace />;
 }
 
 function OpenDayScheduleRedirect() {
@@ -221,13 +207,19 @@ export function App() {
         <Route path="settings/visitor-enrollment" element={<PermissionRoute allOf={[PermissionId.visitor_enrollmentmanage]}><VisitorEnrollmentSettingsPage /></PermissionRoute>} />
         <Route path="settings/mail" element={<PermissionRoute allOf={[PermissionId.mailmanage]}><MailSettingsPage /></PermissionRoute>} />
         <Route path="settings/branding-legal" element={<PermissionRoute allOf={[PermissionId.brandingmanage]}><BrandingLegalSettingsPage /></PermissionRoute>} />
-        <Route path="settings/machine-logbook" element={<PermissionRoute allOf={[PermissionId.pricingread]}><ConfigurationPage /></PermissionRoute>} />
+        <Route path="settings/machine-logbook" element={<Navigate to="/pricing" replace />} />
         <Route
           path="people"
           element={<PermissionRoute allOf={[PermissionId.peoplereadall]}><UsersPage /></PermissionRoute>}
         />
         {/* The layout hosts the toast stack, so a deletion can confirm after leaving its page. */}
         <Route element={<MachineLogbookLayout />}>
+          <Route path="sales" element={<PermissionRoute anyOf={[PermissionId.ordersread, PermissionId.paymentsread]}><SalesOverviewPage /></PermissionRoute>} />
+          <Route path="orders" element={<PermissionRoute allOf={[PermissionId.ordersread]}><OrdersPage /></PermissionRoute>} />
+          <Route path="orders/:orderId" element={<PermissionRoute allOf={[PermissionId.ordersread]}><OrderDetailPage /></PermissionRoute>} />
+          <Route path="payments" element={<PermissionRoute allOf={[PermissionId.paymentsread]}><PaymentsPage /></PermissionRoute>} />
+          <Route path="payments/:paymentId" element={<PermissionRoute allOf={[PermissionId.paymentsread]}><PaymentDetailPage /></PermissionRoute>} />
+          <Route path="pricing" element={<PermissionRoute allOf={[PermissionId.pricingread]}><PricingPage /></PermissionRoute>} />
           <Route
             path="organizations"
             element={<PermissionRoute allOf={[PermissionId.organizationsread]}><OrganizationsPage /></PermissionRoute>}
@@ -249,58 +241,8 @@ export function App() {
           path="people/:personId"
           element={<PermissionRoute allOf={[PermissionId.peoplereadall]}><UserDetailPage /></PermissionRoute>}
         />
-        <Route
-          path="orders"
-          element={
-            <PermissionRoute allOf={[PermissionId.ordersread]}>
-              <OrdersPage />
-            </PermissionRoute>
-          }
-        />
-        <Route
-          path="orders/:orderId"
-          element={
-            <PermissionRoute allOf={[PermissionId.ordersread]}>
-              <OrderDetailPage />
-            </PermissionRoute>
-          }
-        />
-        <Route
-          path="payments"
-          element={
-            <PermissionRoute allOf={[PermissionId.paymentsread]}>
-              <PaymentsPage />
-            </PermissionRoute>
-          }
-        />
-        <Route
-          path="payments/:paymentId"
-          element={
-            <PermissionRoute allOf={[PermissionId.paymentsread]}>
-              <PaymentDetailPage />
-            </PermissionRoute>
-          }
-        />
-        <Route
-          path="external-invoicing"
-          element={
-            <PermissionRoute
-              allOf={[PermissionId.external_invoice_requestsread]}
-            >
-              <ExternalInvoicingPage />
-            </PermissionRoute>
-          }
-        />
-        <Route
-          path="external-invoicing/:requestId"
-          element={
-            <PermissionRoute
-              allOf={[PermissionId.external_invoice_requestsread]}
-            >
-              <ExternalInvoiceDetailPage />
-            </PermissionRoute>
-          }
-        />
+        <Route path="external-invoicing" element={<Navigate to="/orders?invoice=draft,submitted" replace />} />
+        <Route path="external-invoicing/:requestId" element={<ExternalInvoiceRedirect />} />
         <Route path="audit-log" element={<PermissionRoute allOf={[PermissionId.auditread]}><ActivityPage /></PermissionRoute>} />
         <Route path="about" element={<InformationPage title="About" />} />
         <Route path="settings/users/*" element={<LegacyRedirect from="/settings/users" to="/people" />} />
