@@ -145,7 +145,7 @@ export function PaymentEntryForm({ idPrefix, entry, onChange, due, requireFull, 
       )}
       {entry.preset === 'invoice' && (
         <Tile className="sales-invoice-choice">
-          <p><strong>No payment now.</strong> The order is finalized and an invoice is requested from wiRef for {formatEur(due)}.</p>
+          <p><strong>No payment now.</strong> An invoice is requested from wiRef for {formatEur(due)}.</p>
           <p className="mj-secondary">The customer pays by bank transfer to the HTU account once the invoice is issued. You check the recipient details in the next step.</p>
         </Tile>
       )}

@@ -72,17 +72,17 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
   const canCorrect = (order.status === 'finalized' || order.status === 'reversed') && can('orders.finalize') && (can('orders.reverse') || order.status === 'reversed') && recorded && !order.replacedBy;
   const menu = [
     draft && canWrite && <OverflowMenuItem key="edit" itemText="Edit customer and hand-over" onClick={() => setDialog('edit')} />,
-    draft && !order.replacesOrderId && checkoutPrimary && can('orders.finalize') && <OverflowMenuItem key="finalize" itemText="Finalize without payment" disabled={draftBlockers.length > 0} onClick={() => setDialog('finalize')} />,
     canCorrect && <OverflowMenuItem key="correct" itemText="Correct order…" onClick={() => setDialog('correct')} />,
     order.status === 'finalized' && order.net > 0 && receipts.length > 0 && primary?.label !== 'Print receipt' && <OverflowMenuItem key="receipt" itemText="Print receipt" onClick={() => navigate(`/sales/orders/${order.id}/receipt`)} />,
     !draft && canWrite && order.status !== 'cancelled' && primary?.label !== 'Duplicate as draft' && <OverflowMenuItem key="duplicate" itemText="Duplicate as draft" onClick={() => act(() => navigate(`/sales/orders/${store.duplicateOrder(order.id).orderId}`))} />,
     draft && canWrite && <OverflowMenuItem key="cancel" itemText="Cancel draft" isDelete hasDivider onClick={() => setDialog('cancel')} />,
   ].filter(Boolean);
 
-  // Invoice action next to the primary one: request an invoice, or jump to the running request.
+  // Unpaid orders request an invoice from the payment dialog; the header button covers paid orders and a running request.
+  const canInvoice = order.status === 'finalized' && !request && can('external_invoice_requests.manage') && invoiceBlocker === null;
   const invoiceAction = order.status !== 'finalized' ? null
     : request ? { label: 'View invoice', run: () => document.getElementById('order-invoice')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
-    : can('external_invoice_requests.manage') && invoiceBlocker === null ? { label: 'Request invoice', run: () => setDialog('invoice') } : null;
+    : canInvoice && order.outstanding === 0 ? { label: 'Request invoice', run: () => setDialog('invoice') } : null;
   const recordBlocked = request && methods.length === 0 ? `${request.reference} is ${requestStateLabel[request.state].toLowerCase()}: cash and card can no longer be added. A bank transfer is recorded once the invoice is issued.` : null;
   const customerRole = order.customer.kind === 'person' ? lookupRoles(order.customer.id) : null;
 
@@ -160,7 +160,7 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
       {dialog === 'edit' && <EditOrderModal order={order} onClose={close} onSaved={() => undefined} />}
       {dialog === 'jobs' && <AddJobsModal order={order} onClose={close} />}
       {(dialog === 'catalog' || dialog === 'custom') && <AddItemModal order={order} kind={dialog} onClose={close} />}
-      {dialog === 'pay' && <RecordPaymentModal order={order} mode="record" onClose={close} />}
+      {dialog === 'pay' && <RecordPaymentModal order={order} mode="record" onClose={close} onRequestInvoice={canInvoice ? () => setDialog('invoice') : undefined} />}
       {dialog === 'checkout' && <RecordPaymentModal order={order} mode="checkout" onClose={close} onRequestInvoice={can('external_invoice_requests.manage') ? () => setDialog('invoice') : undefined} />}
       {dialog === 'correct' && <CorrectOrderModal order={order} onClose={close} />}
       {dialog === 'commit' && original && <CorrectOrderModal order={original} replacement={order} onClose={close} />}

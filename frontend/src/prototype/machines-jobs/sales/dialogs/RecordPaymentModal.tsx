@@ -14,7 +14,7 @@ import type { PaymentMethod } from '../types';
  */
 export function RecordPaymentModal({ order, mode, onClose, onDone, onRequestInvoice }: {
   order: OrderView; mode: 'record' | 'checkout'; onClose: () => void; onDone?: () => void;
-  /** When set, checkout offers "Invoice": finalize without payment, then this opens the invoice request. */
+  /** When set, the modal offers "Invoice" instead of a payment (at checkout the order is finalized first); this opens the invoice request. */
   onRequestInvoice?: () => void;
 }) {
   const store = useStore();
@@ -23,7 +23,7 @@ export function RecordPaymentModal({ order, mode, onClose, onDone, onRequestInvo
   const methods = checkout ? (['cash', 'card'] as PaymentMethod[]) : acceptedMethods(order);
   const external = methods.length === 1 && methods[0] === 'external';
   const [entry, setEntry] = useState(() => ({ ...newPaymentEntry(due, methods.length ? methods : ['cash', 'card']) }));
-  const invoice = checkout && entry.preset === 'invoice';
+  const invoice = entry.preset === 'invoice';
   const check = checkEntry(entry, due, external, existingReferences(store.payments));
   const { mutate, pending, error } = useSalesMutation(() => {
     if (invoice) return store.finalizeOrder(order.id);
@@ -32,6 +32,8 @@ export function RecordPaymentModal({ order, mode, onClose, onDone, onRequestInvo
   });
 
   const submit = async () => {
+    // On a finalized order "Invoice" records nothing; it hands over to the invoice request.
+    if (invoice && !checkout) { onClose(); onRequestInvoice?.(); return; }
     const result = await mutate();
     if (!result.ok) return;
     if (invoice) {
@@ -48,7 +50,7 @@ export function RecordPaymentModal({ order, mode, onClose, onDone, onRequestInvo
   return (
     <Modal
       open size="md" modalHeading={checkout ? 'Finalize and take payment' : external ? 'Record bank transfer' : 'Record payment'} modalLabel={order.reference}
-      primaryButtonText={pending ? 'Saving…' : invoice ? 'Finalize and request invoice' : checkout ? 'Finalize and record payment' : external ? 'Record bank transfer' : 'Record payment'} secondaryButtonText="Cancel" primaryButtonDisabled={(!invoice && !check.ok) || pending || methods.length === 0}
+      primaryButtonText={pending ? 'Saving…' : invoice ? (checkout ? 'Finalize and request invoice' : 'Request invoice') : checkout ? 'Finalize and record payment' : external ? 'Record bank transfer' : 'Record payment'} secondaryButtonText="Cancel" primaryButtonDisabled={(!invoice && !check.ok) || pending || methods.length === 0}
       preventCloseOnClickOutside onRequestClose={() => { if (!pending) onClose(); }} onRequestSubmit={() => { void submit(); }}
     >
       <Stack gap={5}>
@@ -60,7 +62,7 @@ export function RecordPaymentModal({ order, mode, onClose, onDone, onRequestInvo
         {!external && !invoice && <p className="mj-secondary">Partial payments are fine; the rest stays outstanding.</p>}
         {external && <p>The invoice {order.activeRequest?.reference} was issued by wiRef. Record the bank transfer to the HTU account once it arrived, with the confirmation reference. Cash and card were recorded before the invoice.</p>}
         {methods.length === 0 && <InlineNotification kind="warning" lowContrast hideCloseButton title="No payment can be recorded right now" subtitle={`${order.activeRequest?.reference} is not issued yet. Cash and card can no longer be added, and a bank transfer is recorded after the invoice is issued.`} />}
-        {methods.length > 0 && <PaymentEntryForm idPrefix={`pay-${order.id}`} entry={entry} onChange={setEntry} due={due} requireFull={external} payments={store.payments} methods={methods} disabled={pending} allowInvoice={checkout && !!onRequestInvoice && order.total > 0} />}
+        {methods.length > 0 && <PaymentEntryForm idPrefix={`pay-${order.id}`} entry={entry} onChange={setEntry} due={due} requireFull={external} payments={store.payments} methods={methods} disabled={pending} allowInvoice={!!onRequestInvoice && due > 0 && !external} />}
         {error && <InlineNotification kind="error" lowContrast hideCloseButton title="Could not record" subtitle={error} />}
       </Stack>
     </Modal>
