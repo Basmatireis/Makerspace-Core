@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Checkbox, InlineNotification, Modal, Stack, Tag } from '@carbon/react';
 import { formatDateTimeRange } from '../../../../app/dateTime';
-import { RunThumb } from '../../components/RunPreview';
 import { effectivePrice, formatDuration, jobName } from '../../derived';
 import { useNow, useStore } from '../../store';
 import { formatEur } from '../format';
@@ -40,7 +39,7 @@ export function AddJobsModal({ order, onClose }: { order: OrderView; onClose: ()
               const run = store.prints.find((print) => print.id === job.printId);
               return (
                 <div key={job.id} className="sales-job-picker__row">
-                  <Checkbox id={`add-job-${job.id}`} labelText={<span className="mj-title-with-thumb"><RunThumb run={run} /><span className="mj-cell-stack"><strong>{jobName(job, run)}</strong><span className="mj-secondary">{job.displayId} · {formatDateTimeRange(job.startsAt, job.endsAt)} · {formatDuration(job.durationSeconds)}</span></span></span>}
+                  <Checkbox id={`add-job-${job.id}`} labelText={<span className="mj-title-with-thumb"><span className="mj-cell-stack"><strong>{jobName(job, run)}</strong><span className="mj-secondary">{job.displayId} · {formatDateTimeRange(job.startsAt, job.endsAt)} · {formatDuration(job.durationSeconds)}</span></span></span>}
                     checked={selected.has(job.id)} onChange={(_event, { checked }) => setSelected((current) => { const next = new Set(current); if (checked) next.add(job.id); else next.delete(job.id); return next; })} />
                   <strong>{formatEur(effectivePrice(job))}</strong>
                 </div>

@@ -125,7 +125,7 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
               </div>
             )}
             <OrderItemsTable
-              order={order} jobs={store.jobs} prints={store.prints} editable={draft && canWrite} busy={false}
+              order={order} jobs={store.jobs} editable={draft && canWrite} busy={false}
               onRefresh={(item) => act(() => store.refreshOrderItem(order.id, item.id), { title: 'Job refreshed', subtitle: 'The item now has the job’s current price.' })}
               onRemove={(item) => act(() => store.removeOrderItem(order.id, item.id), { title: 'Item removed' })}
               onSave={(item, input) => act(() => store.updateOrderManualItem(order.id, item.id, input), { title: 'Item updated' })}

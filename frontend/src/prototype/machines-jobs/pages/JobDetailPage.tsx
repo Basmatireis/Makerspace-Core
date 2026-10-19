@@ -13,7 +13,6 @@ import { QueryBoundary } from '../components/QueryBoundary';
 import { BillingTag, effectivePrice, formatDuration, formatMoney, formatTime, isManualRunning, JobRowStatusTag, jobStatus, PrintStateTag, runProgress, outcomeLabel, outcomeOptions, jobName, adjustmentSummary } from '../derived';
 import { JobFormModal } from '../dialogs/JobFormModal';
 import { PriceAdjustmentModal } from '../dialogs/PriceAdjustmentModal';
-import { RunThumb } from '../components/RunPreview';
 import { runsOfJob } from '../runs';
 import { LinkPrintModal } from '../dialogs/LinkPrintModal';
 import { UsageFormModal } from '../dialogs/UsageFormModal';
@@ -116,7 +115,6 @@ function JobDetail({ job }: { job: Job }) {
                 {runs.map((run) => (
                   <div key={run.id} className="mj-stack">
                     <div className="mj-title-with-thumb">
-                      <RunThumb run={run} />
                       <p>
                         <CarbonLink as={Link} to={`/jobs/runs/${run.id}`}>{run.displayId}</CarbonLink>
                         <span className="mj-secondary"> · {run.fileName} · via {run.connectorName}</span>

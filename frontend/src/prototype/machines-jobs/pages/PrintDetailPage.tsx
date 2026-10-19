@@ -8,7 +8,6 @@ import { DestructiveActionDialog } from '../../../app/DestructiveActionDialog';
 import { QueryBoundary } from '../components/QueryBoundary';
 import { JobFormModal } from '../dialogs/JobFormModal';
 import { usageRowFromPrint } from '../dialogs/jobFormHelpers';
-import { RunPreview } from '../components/RunPreview';
 import { LinkJobModal } from '../dialogs/LinkJobModal';
 import { formatDateTime, formatDuration, formatTime, printDurationSeconds, printEnd, PrintStateTag, printUsageText, nameFromFile } from '../derived';
 import { useNow, useSimulatedMutation, useSimulatedQuery, useStore } from '../store';
@@ -78,7 +77,6 @@ export function PrintDetailPage() {
                 />
               </Tile>
             )}
-            <RunPreview key={print.id} run={print} />
             {linkedJob && (
               <Tile>
                 <h2 className="mj-section-title">Assigned job</h2>

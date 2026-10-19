@@ -10,7 +10,6 @@ import { DateInput } from '../../../app/DateInput';
 import { PageShell } from '../../../app/PageShell';
 import { EmptyState } from '../../../app/PageState';
 import { QueryBoundary } from '../components/QueryBoundary';
-import { RunThumb } from '../components/RunPreview';
 import { billingState, buildJobRows, formatDateTime, formatDuration, formatMoney, jobRowStatusOptions, nameFromFile, JobRowStatusTag, type BillingState, type JobRow } from '../derived';
 import { AttachToJobModal } from '../dialogs/AttachToJobModal';
 import { CreateSeparateJobsModal } from '../dialogs/CreateSeparateJobsModal';
@@ -156,7 +155,6 @@ export function JobsPage() {
     if (key === 'job') {
       return (
         <div className="mj-title-with-thumb">
-          <RunThumb run={row.print} />
           <div className="mj-cell-stack">
             <CarbonLink as={Link} to={row.href}>{row.title}</CarbonLink>
             <span className="mj-secondary">{row.secondaryIds.length ? row.secondaryIds.join(' · ') : row.job ? `${formatDuration(row.job.durationSeconds)} · manual run` : ''}</span>
@@ -250,7 +248,7 @@ export function JobsPage() {
                   </div>
                 )}
                 {selectable && selectedRows.length > 0 && (unavailable.length > 0 || orderBlocker) && (
-                  <InlineNotification kind="info" lowContrast hideCloseButton title="Some actions are unavailable for this selection">
+                  <InlineNotification className="mj-full-width-notification" kind="info" lowContrast hideCloseButton title="Some actions are unavailable for this selection">
                     <ul className="mj-skip-list">{unavailable.map(([action, item]) => <li key={action}>{item.reason}</li>)}{orderBlocker && store.can('orders.read') && <li>{orderBlocker}</li>}</ul>
                   </InlineNotification>
                 )}

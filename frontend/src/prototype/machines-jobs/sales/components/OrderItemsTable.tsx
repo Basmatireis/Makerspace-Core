@@ -3,16 +3,15 @@ import { Button, IconButton, Link as CarbonLink, Table, TableBody, TableCell, Ta
 import { Checkmark, Close, Edit, Renew, TrashCan } from '@carbon/icons-react';
 import { Link } from 'react-router-dom';
 import { formatDateTimeRange } from '../../../../app/dateTime';
-import { RunThumb } from '../../components/RunPreview';
 import { formatDuration } from '../../derived';
-import type { Job, Print } from '../../types';
+import type { Job } from '../../types';
 import { formatEur, formatQuantity, moneyText, parseMoney, parseQuantity } from '../format';
 import { activeItems, itemChanged, sum, type OrderView } from '../logic';
 import type { ManualItemInput } from '../engine';
 import type { OrderItem } from '../types';
 
 type Props = {
-  order: OrderView; jobs: Job[]; prints: Print[]; editable: boolean; busy: boolean;
+  order: OrderView; jobs: Job[]; editable: boolean; busy: boolean;
   onRefresh: (item: OrderItem) => void; onRemove: (item: OrderItem) => void; onSave: (item: OrderItem, input: ManualItemInput) => void;
 };
 
@@ -37,7 +36,7 @@ function EditCells({ item, busy, onSave, onCancel }: { item: OrderItem; busy: bo
   );
 }
 
-export function OrderItemsTable({ order, jobs, prints, editable, busy, onRefresh, onRemove, onSave }: Props) {
+export function OrderItemsTable({ order, jobs, editable, busy, onRefresh, onRemove, onSave }: Props) {
   const [editing, setEditing] = useState<string | null>(null);
   const items = activeItems(order);
   const hasHistory = order.items.some((item) => item.removedAt !== null);
@@ -55,14 +54,13 @@ export function OrderItemsTable({ order, jobs, prints, editable, busy, onRefresh
           {items.map((item) => {
             if (editing === item.id) return <EditCells key={item.id} item={item} busy={busy} onCancel={() => setEditing(null)} onSave={(input) => { onSave(item, input); setEditing(null); }} />;
             const job = item.sourceJobId ? jobs.find((candidate) => candidate.id === item.sourceJobId) : undefined;
-            const run = job?.printId ? prints.find((print) => print.id === job.printId) : undefined;
             const snapshot = item.snapshot;
             const changed = itemChanged(item, jobs);
             return (
               <TableRow key={item.id}>
                 <TableCell>
                   <div className="mj-title-with-thumb">
-                    {item.kind === 'machine_job' && <RunThumb run={run} />}
+                    
                     <div className="mj-cell-stack">
                       {job ? <CarbonLink as={Link} to={`/jobs/${job.id}`}>{item.description}</CarbonLink> : <span>{item.description}</span>}
                       {snapshot ? (

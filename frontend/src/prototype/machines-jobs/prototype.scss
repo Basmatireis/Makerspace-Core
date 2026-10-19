@@ -1,3 +1,4 @@
+@use '@carbon/styles/scss/theme' as *;
 @use '@carbon/styles/scss/spacing' as *;
 @use '@carbon/styles/scss/type' as *;
 // Carbon modules used by the prototype that the production entry does not load.
@@ -82,3 +83,6 @@
 @media (min-width: 42rem) {
   .mj-show-narrow { display: none; }
 }
+
+// Lists (timelines, attention lists, history) sit on a white surface across the prototype.
+.cds--contained-list { background-color: $background; }

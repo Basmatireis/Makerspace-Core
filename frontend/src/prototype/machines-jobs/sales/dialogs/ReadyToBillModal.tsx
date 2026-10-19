@@ -7,7 +7,6 @@ import { Add } from '@carbon/icons-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { formatDateTimeRange } from '../../../../app/dateTime';
 import { EmptyState } from '../../../../app/PageState';
-import { RunThumb } from '../../components/RunPreview';
 import { jobName } from '../../derived';
 import { useNow, useStore } from '../../store';
 import type { Job, Print } from '../../types';
@@ -95,7 +94,6 @@ export function ReadyToBillModal({ jobs, orders, prints, canCreate, onClose }: {
                               <li key={job.id} className="sales-ready-jobs__row">
                                 {canCreate && <Checkbox id={`ready-${job.id}`} labelText={`Select ${job.displayId}`} hideLabel disabled={!!reason} checked={selected.has(job.id)} onChange={() => setSelected((current) => toggle(current, job.id))} />}
                                 <div className="mj-title-with-thumb">
-                                  <RunThumb run={run} />
                                   <div className="mj-cell-stack">
                                     <CarbonLink as={Link} to={`/jobs/${job.id}`} onClick={onClose}>{jobName(job, run)}</CarbonLink>
                                     <span className="mj-secondary">{job.displayId} · {formatDateTimeRange(job.startsAt, job.endsAt)}</span>

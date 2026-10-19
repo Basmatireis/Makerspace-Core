@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   ActionableNotification, Button, Checkbox, CheckboxGroup, DataTable, DismissibleTag, Link as CarbonLink, Pagination, Popover, PopoverContent, Select, SelectItem, Tab, TabList, Table, TableBody,
   TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, TableToolbarSearch, Tabs,
@@ -38,7 +38,7 @@ const HEADERS: { key: string; header: string; sort?: SortKey; narrow?: boolean; 
 ];
 const list = (value: string | null) => (value ?? '').split(',').filter(Boolean);
 
-function OrdersTable({ views, loadingEmpty }: { views: OrderView[]; loadingEmpty: boolean }) {
+function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; loadingEmpty: boolean; notice?: ReactNode }) {
   const store = useStore();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
@@ -139,6 +139,7 @@ function OrdersTable({ views, loadingEmpty }: { views: OrderView[]; loadingEmpty
       <DataTable key={`${page}-${pageSize}-${params.toString()}-${sort.key}-${sort.direction}`} rows={tableRows} headers={HEADERS.map(({ key, header }) => ({ key, header }))}>
         {({ rows, headers, getRowProps, getTableProps }) => (
           <TableContainer className="mj-table-container">
+            {notice}
             <TableToolbar aria-label="Orders table toolbar">
               <TableToolbarContent>
                 <TableToolbarSearch key={searchKey} id="orders-search" labelText="Search orders" placeholder="Search by reference or customer" defaultValue={search} onChange={(_event, value) => update({ q: value ?? '' })} onClear={() => update({ q: null })} />
@@ -216,13 +217,13 @@ export function OrdersPage() {
     <RequirePermission permission="orders.read" title="Orders" crumbs={[{ label: 'Sales & payments' }, { label: 'Orders' }]}>
       <PageShell title="Orders" description="Charges for jobs and items, what has been paid and what is invoiced." width="wide" breadcrumbs={[{ label: 'Sales & payments', to: '/sales' }, { label: 'Orders' }]}>
         <QueryBoundary query={query} errorMessage="The orders could not be loaded.">
-          <div className="mj-stack">
-            {readyCount > 0 && (
+          <OrdersTable
+            views={views} loadingEmpty={store.scenario === 'empty'}
+            notice={readyCount > 0 && (
               <ActionableNotification inline lowContrast hideCloseButton kind="info" className="sales-ready-notice" title={`${readyCount} finished ${readyCount === 1 ? 'job is' : 'jobs are'} ready to bill`}
                 subtitle={`${readyCustomers} ${readyCustomers === 1 ? 'customer' : 'customers'} have finished jobs that are on no order yet.`} actionButtonLabel="Review jobs" onActionButtonClick={() => setReviewing(true)} />
             )}
-            <OrdersTable views={views} loadingEmpty={store.scenario === 'empty'} />
-          </div>
+          />
           {reviewing && <ReadyToBillModal jobs={data.jobs} orders={data.orders} prints={data.prints} canCreate={store.can('orders.write')} onClose={() => setReviewing(false)} />}
         </QueryBoundary>
       </PageShell>

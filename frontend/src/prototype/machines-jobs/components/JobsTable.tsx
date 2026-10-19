@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { DataTable, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow } from '@carbon/react';
 import { Link, useNavigate } from 'react-router-dom';
-import { RunThumb } from './RunPreview';
 import { BillingTag, effectivePrice, formatDateTime, formatMoney, jobStatus, JobRowStatusTag, jobName } from '../derived';
 import { useNow, useStore } from '../store';
 import type { Job } from '../types';
@@ -55,7 +54,6 @@ export function JobsTable({ jobs, hideMachine = false, size = 'lg', title, empty
                   <TableRow key={key} {...rowProps} className="mj-table-row" onClick={() => navigate(`/jobs/${job.id}`)}>
                     <TableCell>
                       <div className="mj-title-with-thumb">
-                        <RunThumb run={prints.find((print) => print.id === job.printId)} />
                         <div className="mj-cell-stack">
                           <Link to={`/jobs/${job.id}`} onClick={(event) => event.stopPropagation()}>{jobName(job, prints.find((print) => print.id === job.printId))}</Link>
                           <span className="mj-secondary">{job.displayId} · {formatDateTime(job.startsAt)}</span>
