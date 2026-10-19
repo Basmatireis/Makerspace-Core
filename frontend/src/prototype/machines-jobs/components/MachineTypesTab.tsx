@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Button, DataTable, Modal, OverflowMenu, OverflowMenuItem, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, Tag, TextInput } from '@carbon/react';
 import { Add } from '@carbon/icons-react';
 import { EmptyState } from '../../../app/PageState';
@@ -28,7 +28,7 @@ function TypeNameModal({ type, open, onClose }: { type?: MachineType; open: bool
   );
 }
 
-export function MachineTypesTab() {
+export function MachineTypesTab({ switcher }: { switcher?: ReactNode }) {
   const store = useStore();
   const canManage = store.can('machines.manage');
   const [dialog, setDialog] = useState<{ type?: MachineType } | null>(null);
@@ -39,12 +39,12 @@ export function MachineTypesTab() {
   };
 
   return (
-    <div className="mj-tab-panel">
-      <p className="mj-secondary">Inactive types stay on existing machines but can't be chosen for new ones.</p>
+    <div className="mj-stack">
       <DataTable rows={store.machineTypes.map((type) => ({ id: type.id, name: type.name, status: type.active ? 'Active' : 'Inactive', machines: count(type.id) }))} headers={headers}>
         {({ rows, headers: tableHeaders, getRowProps, getTableProps }) => (
           <TableContainer className="mj-table-container">
             <TableToolbar aria-label="Machine types toolbar">
+              {switcher}
               <TableToolbarContent>
                 {canManage && <Button kind="primary" size="lg" renderIcon={Add} onClick={() => setDialog({})}>Add type</Button>}
               </TableToolbarContent>
@@ -82,6 +82,7 @@ export function MachineTypesTab() {
           </TableContainer>
         )}
       </DataTable>
+      <p className="mj-secondary">Inactive types stay on existing machines but can't be chosen for new ones.</p>
       <TypeNameModal key={dialog?.type?.id ?? 'new'} type={dialog?.type} open={Boolean(dialog)} onClose={() => setDialog(null)} />
     </div>
   );

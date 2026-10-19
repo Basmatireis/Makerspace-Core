@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Button, DataTable, Link as CarbonLink, Pagination, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader,
-  Tab, TabList, TabPanel, TabPanels, Tabs, TableRow, TableToolbar, TableToolbarContent, TableToolbarSearch,
+  TableRow, TableToolbar, TableToolbarContent, TableToolbarSearch,
 } from '@carbon/react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PageShell } from '../../../app/PageShell';
@@ -10,6 +10,7 @@ import { BatchFilter, toPatch, type FilterValues } from '../components/BatchFilt
 import { QueryBoundary } from '../components/QueryBoundary';
 import { ConnectorsTab } from '../components/ConnectorsTab';
 import { MachineTypesTab } from '../components/MachineTypesTab';
+import { SectionSwitcher } from '../components/SectionSwitcher';
 import { MachineSetupWizard } from '../dialogs/MachineSetupWizard';
 import { AvailabilityTag, ConnectorIssueTag, formatRelative, machineActivity, type MachineActivity } from '../derived';
 import { useNow, useSimulatedQuery, useStore } from '../store';
@@ -85,11 +86,13 @@ export function MachinesPage() {
   const tabs: TabKey[] = store.can('printer_connectors.read') ? ['machines', 'connectors', 'types'] : ['machines', 'types'];
   const requestedTab = params.get('tab') as TabKey | null;
   const tab: TabKey = requestedTab && tabs.includes(requestedTab) ? requestedTab : 'machines';
-  const selectTab = (index: number) => setParams((previous) => {
+  const selectTab = (id: string) => setParams((previous) => {
     const next = new URLSearchParams(previous);
-    if (tabs[index] === 'machines' || !tabs[index]) next.delete('tab'); else next.set('tab', tabs[index]);
+    if (id === 'machines') next.delete('tab'); else next.set('tab', id);
     return next;
   }, { replace: true });
+  const sectionLabels: Record<TabKey, string> = { machines: 'Machines', connectors: 'Connectors', types: 'Machine types' };
+  const switcher = <SectionSwitcher label="Machine sections" sections={tabs.map((id) => ({ id, label: sectionLabels[id] }))} selected={tab} onChange={selectTab} />;
   const statusIds = listParam(params.get('status'));
   const typeIds = listParam(params.get('type'));
   const collectionIds = listParam(params.get('collection'));
@@ -169,19 +172,13 @@ export function MachinesPage() {
       title="Machines" description="Machines in the workshop, their availability and recent activity." width="wide"
       breadcrumbs={[{ label: 'Workshop', to: '/' }, { label: 'Machines' }]}
     >
-      <Tabs selectedIndex={tabs.indexOf(tab)} onChange={({ selectedIndex }) => selectTab(selectedIndex)}>
-        <TabList aria-label="Machine sections" contained>
-          <Tab>Machines</Tab>
-          {tabs.includes('connectors') && <Tab>Connectors</Tab>}
-          <Tab>Machine types</Tab>
-        </TabList>
-        <TabPanels>
-          <TabPanel><div className="mj-tab-panel">
+      {tab === 'machines' && (
       <QueryBoundary query={query} errorMessage="The machines could not be loaded.">
         <DataTable key={tableKey} rows={tableRows} headers={headers}>
           {({ rows, headers: tableHeaders, getRowProps, getTableProps }) => (
             <TableContainer className="mj-table-container">
               <TableToolbar aria-label="Machines table toolbar">
+                {switcher}
                 <TableToolbarContent>
                   <TableToolbarSearch
                     key={searchKey}
@@ -255,11 +252,9 @@ export function MachinesPage() {
           )}
         </DataTable>
       </QueryBoundary>
-          </div></TabPanel>
-          {tabs.includes('connectors') && <TabPanel><ConnectorsTab /></TabPanel>}
-          <TabPanel><MachineTypesTab /></TabPanel>
-        </TabPanels>
-      </Tabs>
+      )}
+      {tab === 'connectors' && <ConnectorsTab switcher={switcher} />}
+      {tab === 'types' && <MachineTypesTab switcher={switcher} />}
       <MachineSetupWizard open={formOpen} onClose={() => setFormOpen(false)} />
     </PageShell>
   );

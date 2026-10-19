@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   Button, CodeSnippet, ComposedModal, DataTable, InlineNotification, Link as CarbonLink, Modal, ModalBody, ModalFooter, ModalHeader, OverflowMenu, OverflowMenuItem,
   Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, TableToolbar, TableToolbarContent, Tag, TextInput,
@@ -55,7 +55,7 @@ function SecretModal({ secret, onClose }: { secret: string; onClose: () => void 
   );
 }
 
-export function ConnectorsTab() {
+export function ConnectorsTab({ switcher }: { switcher?: ReactNode }) {
   const store = useStore();
   const canManage = store.can('printer_connectors.manage');
   const canCredentials = store.can('printer_connectors.credentials.manage');
@@ -71,12 +71,12 @@ export function ConnectorsTab() {
   const rows = store.connectorHosts.map((host) => ({ id: host.id, name: host.name, status: connectorStatus(host).label, heartbeat: host.lastHeartbeatAt ?? '', printers: printersOf(host).length, version: host.softwareVersion ?? '', queue: host.pendingEventCount }));
 
   return (
-    <div className="mj-tab-panel">
-      <p className="mj-secondary">Connectors are the agents next to your printers. They observe printers and deliver events to Core. Printers are assigned to a connector from the printer's own setup.</p>
+    <div className="mj-stack">
       <DataTable rows={rows} headers={headers}>
         {({ rows: tableRows, headers: tableHeaders, getRowProps, getTableProps }) => (
           <TableContainer className="mj-table-container">
             <TableToolbar aria-label="Connectors toolbar">
+              {switcher}
               <TableToolbarContent>
                 {canManage && <Button kind="primary" size="lg" renderIcon={Add} onClick={() => setAdding(true)}>Add connector</Button>}
               </TableToolbarContent>
@@ -130,6 +130,7 @@ export function ConnectorsTab() {
           </TableContainer>
         )}
       </DataTable>
+      <p className="mj-secondary">Connectors are the agents next to your printers. They observe printers and deliver events to Core. Printers are assigned to a connector from the printer's own setup.</p>
       {adding && <AddConnectorModal onClose={() => setAdding(false)} onCreated={(value) => { setAdding(false); setSecret(value); }} />}
       {secret && <SecretModal secret={secret} onClose={() => setSecret(null)} />}
       {diagnostics && <DiagnosticsModal host={store.connectorHosts.find((item) => item.id === diagnostics.id) ?? diagnostics} printers={printersOf(diagnostics)} onClose={() => setDiagnostics(null)} />}

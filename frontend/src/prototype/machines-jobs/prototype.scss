@@ -73,3 +73,8 @@
 
 // Lists (timelines, attention lists, history) sit on a white surface across the prototype.
 .cds--contained-list { background-color: $background; }
+
+// Section switcher at the start of a table toolbar.
+.mj-toolbar-switcher { display: flex; align-items: center; flex: 0 0 auto; padding-inline-start: 0; }
+.mj-toolbar-switcher .cds--content-switcher { inline-size: auto; }
+.mj-toolbar-switcher .cds--content-switcher-btn { min-inline-size: 8.5rem; }
