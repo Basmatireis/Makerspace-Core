@@ -101,11 +101,11 @@ function EditRunFormBody({ onClose, run, process }: { onClose: () => void; run: 
   const manual = run.source === 'manual';
   const showStitches = manual && !!process && processConfig[process].measures.includes('stitches');
   const endsAt = run.endedAt ?? run.estimatedEndAt ?? run.startedAt;
-  const form = useForm<RunValues & { stitches: number | '' }>({ defaultValues: { ...runDefaults({ startsAt: run.startedAt, endsAt, outcome: run.outcome ?? null }, false), stitches: run.measures.stitches ?? '' } });
+  const form = useForm<RunValues & { stitches: string }>({ defaultValues: { ...runDefaults({ startsAt: run.startedAt, endsAt, outcome: run.outcome ?? null }, false), stitches: run.measures.stitches == null ? '' : String(run.measures.stitches) } });
   const guard = useUnsavedChanges({ isDirty: form.formState.isDirty });
   const [error, setError] = useState<string | null>(null);
   const mutation = useMutation({
-    mutationFn: ({ values, times }: { values: RunValues & { stitches: number | '' }; times?: { startsAt: string; endsAt: string } }) => updateMachineRun(run.id, {
+    mutationFn: ({ values, times }: { values: RunValues & { stitches: string }; times?: { startsAt: string; endsAt: string } }) => updateMachineRun(run.id, {
       // Start and end exist only on manual runs; a running run cannot have an outcome yet.
       ...(times ?? {}),
       outcome: values.outcome && (!times || new Date(times.endsAt).getTime() <= Date.now()) ? values.outcome : null,

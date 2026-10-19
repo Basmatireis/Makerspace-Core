@@ -50,7 +50,7 @@ function RateCell({ group, selector, canEdit }: { group: PricingGroup; selector:
     return (
       <div className="sales-rate-edit">
         <TextInput id={`rate-${group.id}-${selector.key}`} labelText={`Rate for ${selector.label} in ${group.name}`} hideLabel size="sm" inputMode="decimal" value={text} autoFocus invalid={(text !== '' && parsed === null) || mutation.isError} invalidText={mutation.error?.message ?? 'e.g. 0,08'}
-          onChange={(event) => setText(event.target.value.replace(',', '.'))} onKeyDown={(event) => { if (event.key === 'Enter' && parsed !== null) mutation.mutate(); if (event.key === 'Escape') setEditing(false); }} />
+          onChange={(event) => setText(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && parsed !== null) mutation.mutate(); if (event.key === 'Escape') setEditing(false); }} />
         <IconButton label="Save rate" kind="ghost" size="sm" disabled={parsed === null || mutation.isPending} onClick={() => mutation.mutate()}><Checkmark /></IconButton>
         <IconButton label="Discard" kind="ghost" size="sm" onClick={() => setEditing(false)}><Close /></IconButton>
       </div>

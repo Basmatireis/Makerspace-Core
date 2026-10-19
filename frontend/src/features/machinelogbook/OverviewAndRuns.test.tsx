@@ -293,7 +293,7 @@ describe('Run detail page', () => {
     renderRun();
     await user.click(await screen.findByRole('button', { name: 'Map filament 1 to a spool' }));
     const dialog = await screen.findByRole('dialog', { name: 'Map reported material' });
-    expect(within(dialog).getByLabelText('Consumed quantity (g)')).toHaveValue(0.55);
+    expect(within(dialog).getByLabelText('Consumed quantity (g)')).toHaveValue('0.55');
     await user.selectOptions(within(dialog).getByLabelText('Spool used'), yellowSpool);
     await user.click(within(dialog).getByRole('button', { name: 'Map and consume' }));
 

@@ -89,7 +89,7 @@ describe('Change filament', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Next' }));
 
     // New filament: the spool's current refill product is preselected.
-    expect(await within(dialog).findByLabelText('Net weight of the new filament (g)')).toHaveValue(1000);
+    expect(await within(dialog).findByLabelText('Net weight of the new filament (g)')).toHaveValue('1000');
     expect(within(dialog).getByText(/Moves 1,000 g from loose stock to this spool\. The material total stays 5,050 g\. 5,050 g of loose stock is available\./)).toBeInTheDocument();
     await user.click(within(dialog).getByRole('button', { name: 'Next' }));
 

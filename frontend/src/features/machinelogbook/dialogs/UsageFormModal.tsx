@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { Button, ComposedModal, InlineNotification, ModalBody, ModalFooter, ModalHeader, NumberInput, Select, SelectItem, Stack, TextInput } from '@carbon/react';
+import { Button, ComposedModal, InlineNotification, ModalBody, ModalFooter, ModalHeader, Select, SelectItem, Stack, TextInput } from '@carbon/react';
 import { Add, TrashCan } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, FormProvider, useFieldArray, useForm, useFormContext } from 'react-hook-form';
 import { replaceMachineRunUsages } from '../../../api/generated/machine-runs/machine-runs';
 import type { MachineProcess, MachineRun } from '../../../api/generated/models';
+import { DecimalField } from '../../../app/DecimalField';
+import { decimalNumber, decimalValidator, parseDecimalText } from '../../../app/decimalInput';
 import { UnsavedChangesDialog } from '../../../app/UnsavedChangesDialog';
 import { useUnsavedChanges } from '../../../app/useUnsavedChanges';
 import { materialTypesQuery } from '../inventoryQueries';
-import { materialsForProcess, processConfig, quantityStep, unitText } from '../processConfig';
+import { materialsForProcess, processConfig, unitText } from '../processConfig';
 import { machineLogbookKeys, machineQuery, materialsQuery, spoolsQuery } from '../queries';
 import { formatQuantity } from '../shared/format';
 import { useCan } from '../shared/useCan';
@@ -20,17 +22,19 @@ import '../styles/jobs.scss';
 
 /** Width x height x count in centimetres gives the square centimetres of cut material; the result stays editable. */
 function AreaHelper({ idPrefix, onArea }: { idPrefix: string; onArea: (area: number) => void }) {
-  const [size, setSize] = useState({ width: 0, height: 0, count: 1 });
-  const change = (key: 'width' | 'height' | 'count', value: number | string) => {
-    const next = { ...size, [key]: Number(value) || 0 };
+  const [size, setSize] = useState({ width: '', height: '', count: '1' });
+  const change = (key: 'width' | 'height' | 'count', value: string) => {
+    const next = { ...size, [key]: value };
     setSize(next);
-    onArea(Math.round(next.width * next.height * next.count * 100) / 100);
+    const area = (decimalNumber(next.width) ?? 0) * (decimalNumber(next.height) ?? 0) * (decimalNumber(next.count, { integer: true }) ?? 0);
+    onArea(Math.round(area * 100) / 100);
   };
+  const invalid = (value: string, integer = false) => value.trim() !== '' && parseDecimalText(value, { integer }) === null;
   return (
     <div className="mj-area-helper">
-      <NumberInput id={`${idPrefix}-width`} label="Width (cm)" min={0} step={0.1} allowEmpty hideSteppers value={size.width || ''} onChange={(_event, state) => change('width', state.value)} />
-      <NumberInput id={`${idPrefix}-height`} label="Height (cm)" min={0} step={0.1} allowEmpty hideSteppers value={size.height || ''} onChange={(_event, state) => change('height', state.value)} />
-      <NumberInput id={`${idPrefix}-count`} label="Count" min={1} step={1} allowEmpty hideSteppers value={size.count || ''} onChange={(_event, state) => change('count', state.value)} />
+      <DecimalField id={`${idPrefix}-width`} labelText="Width (cm)" value={size.width} invalid={invalid(size.width)} invalidText="Enter a number, e.g. 12,5." onChange={(value) => change('width', value)} />
+      <DecimalField id={`${idPrefix}-height`} labelText="Height (cm)" value={size.height} invalid={invalid(size.height)} invalidText="Enter a number, e.g. 12,5." onChange={(value) => change('height', value)} />
+      <DecimalField id={`${idPrefix}-count`} labelText="Count" integer value={size.count} invalid={invalid(size.count, true)} invalidText="Enter a whole number." onChange={(value) => change('count', value)} />
     </div>
   );
 }
@@ -80,12 +84,12 @@ function UsageRowFields({ idPrefix, index, onRemove, canReadInventory, process }
       <Controller
         control={control}
         name={`usages.${index}.quantity`}
-        rules={{ validate: (value) => Number(value) > 0 }}
+        rules={{ validate: decimalValidator({ positive: true, requiredMessage: 'Enter a quantity above zero.' }) }}
         render={({ field: quantity, fieldState }) => (
-          <NumberInput
-            id={`${idPrefix}-quantity`} label={unit ? `Quantity (${unitText(unit)})` : 'Quantity'} allowEmpty min={0} step={quantityStep(unit)} hideSteppers
-            value={quantity.value} invalid={fieldState.invalid} invalidText="Enter a quantity above zero."
-            onChange={(_event, state) => quantity.onChange(state.value === '' ? '' : Number(state.value))}
+          <DecimalField
+            id={`${idPrefix}-quantity`} labelText={unit ? `Quantity (${unitText(unit)})` : 'Quantity'}
+            value={quantity.value} invalid={fieldState.invalid} invalidText={fieldState.error?.message ?? 'Enter a quantity above zero.'}
+            onChange={quantity.onChange}
           />
         )}
       />
@@ -94,7 +98,7 @@ function UsageRowFields({ idPrefix, index, onRemove, canReadInventory, process }
         <SelectItem value="estimated" text="Estimated" />
       </Select>
       <Button hasIconOnly kind="ghost" renderIcon={TrashCan} iconDescription="Remove material usage" tooltipPosition="left" onClick={onRemove} />
-      {showArea && <AreaHelper idPrefix={idPrefix} onArea={(area) => setValue(`usages.${index}.quantity`, area, { shouldDirty: true, shouldValidate: true })} />}
+      {showArea && <AreaHelper idPrefix={idPrefix} onArea={(area) => setValue(`usages.${index}.quantity`, String(area), { shouldDirty: true, shouldValidate: true })} />}
     </div>
   );
 }

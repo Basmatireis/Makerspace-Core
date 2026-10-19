@@ -730,11 +730,14 @@ describe('Job detail page', () => {
     await user.click(overflowButton());
     await user.click(await screen.findByText('Adjust price'));
     const dialog = await screen.findByRole('dialog');
-    await user.type(within(dialog).getByRole('spinbutton'), '20');
-    expect(within(dialog).getByText('€10.00')).toBeInTheDocument();
+    const discount = within(dialog).getByRole('textbox', { name: 'Discount (%)' });
+    await user.type(discount, '12,');
+    expect(discount).toHaveValue('12,');
+    await user.type(discount, '5');
+    expect(discount).toHaveValue('12,5');
     await user.type(within(dialog).getByLabelText('Reason'), 'Member discount');
     await user.click(within(dialog).getByRole('button', { name: 'Save adjustment' }));
-    await waitFor(() => expect(adjusted).toEqual({ kind: 'discount_percent', value: '20', reason: 'Member discount', expectedVersion: 3 }));
+    await waitFor(() => expect(adjusted).toEqual({ kind: 'discount_percent', value: '12.5', reason: 'Member discount', expectedVersion: 3 }));
     expect(await screen.findByText('Price adjusted')).toBeInTheDocument();
   });
 

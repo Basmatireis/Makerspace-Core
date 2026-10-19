@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- tags and the inventory derivations they render form one module */
 import { Tag } from '@carbon/react';
 import { CheckmarkFilled, ErrorFilled, WarningAltFilled } from '@carbon/icons-react';
+import { decimalNumber } from '../../../app/decimalInput';
 import { EmptyState } from '../../../app/PageState';
 import type { FilamentPackaging, FilamentProduct, InventoryAdjustmentReason, InventoryTransactionKind, Material, MaterialUnit, StockState } from '../../../api/generated/models';
 import { formatMoney } from '../shared/format';
@@ -81,10 +82,7 @@ export const isFilament = (material: Pick<Material, 'filamentDiameterMm'>) => ma
 
 /** Parses a typed decimal ("1,5" or "1.5"); null when empty or not a number. */
 export function parseDecimal(value: string): number | null {
-  const text = value.trim().replace(',', '.');
-  if (!text) return null;
-  const parsed = Number(text);
-  return Number.isFinite(parsed) ? parsed : null;
+  return decimalNumber(value);
 }
 
 /** API decimal (up to six fraction digits, no exponent) from a number. */

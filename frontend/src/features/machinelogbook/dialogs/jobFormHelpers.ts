@@ -4,6 +4,7 @@ import { ApiError } from '../../../api/http-client';
 import type {
   BillingParty, FilamentOwnership, ListMachineRunsParams, MachineJobUsage, MachineJobUsageInput, Operator, QuantityBasis,
 } from '../../../api/generated/models';
+import { decimalText, parseDecimalText } from '../../../app/decimalInput';
 import { machineLogbookKeys } from '../queries';
 
 export type UsageRow = {
@@ -11,13 +12,14 @@ export type UsageRow = {
   materialId: string;
   spoolId: string;
   externalName: string;
-  quantity: number | '';
+  /** Raw text as typed; see decimalInput. */
+  quantity: string;
   quantityBasis: QuantityBasis;
   /** Names shown while the catalog is unavailable or no longer lists the material or spool (never an ID). */
   materialLabel?: string;
   spoolLabel?: string;
 };
-export type UsagesValues = { usages: UsageRow[]; stitches?: number | ''; ink?: Record<string, number | ''> };
+export type UsagesValues = { usages: UsageRow[]; stitches?: string; ink?: Record<string, string> };
 export type PartyValues = { customer: BillingParty | null; operator: Operator | null; notes: string };
 
 export const blankUsage = (): UsageRow => ({ ownership: 'makerspace', materialId: '', spoolId: '', externalName: '', quantity: '', quantityBasis: 'actual' });
@@ -27,7 +29,7 @@ export const usageRowsFromUsages = (usages: MachineJobUsage[]): UsageRow[] => us
   materialId: usage.materialId ?? '',
   spoolId: usage.spoolId ?? '',
   externalName: usage.ownership === 'external' ? usage.materialName : '',
-  quantity: Number(usage.quantity),
+  quantity: decimalText(usage.quantity),
   quantityBasis: usage.quantityBasis,
   materialLabel: usage.materialName,
   spoolLabel: usage.spoolDisplayId ?? undefined,
@@ -39,7 +41,7 @@ export const toUsageInputs = (rows: UsageRow[]): MachineJobUsageInput[] => rows.
   materialId: row.ownership === 'makerspace' ? row.materialId : null,
   spoolId: row.ownership === 'makerspace' ? row.spoolId || null : null,
   externalMaterialName: row.ownership === 'external' ? row.externalName.trim() : null,
-  quantity: String(row.quantity),
+  quantity: parseDecimalText(row.quantity) ?? row.quantity,
   quantityBasis: row.quantityBasis,
 }));
 

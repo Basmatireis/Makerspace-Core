@@ -36,9 +36,6 @@ export const measureRateLabel = (measure: keyof RunMeasures, blockSize: number |
 
 export const unitText = (unit: MaterialUnit) => (unit === 'm2' ? 'm²' : unit === 'cm2' ? 'cm²' : unit === 'piece' ? 'pcs' : unit);
 
-/** Input step of a quantity in this unit: grams are whole numbers, everything else may be fractional. */
-export const quantityStep = (unit: MaterialUnit | undefined) => (unit === undefined || unit === 'g' || unit === 'piece' ? 1 : 0.01);
-
 /** Materials the picker may offer for a machine process: active ones whose type includes the process, plus the one already chosen. */
 export function materialsForProcess<M extends { id: string; active: boolean; materialTypeId: string; unit: MaterialUnit }>(
   materials: M[], types: Pick<MaterialType, 'id' | 'processes'>[] | undefined, process: MachineProcess | undefined, keepId?: string, config?: ProcessConfig,

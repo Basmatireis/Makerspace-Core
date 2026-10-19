@@ -1,6 +1,8 @@
 /* eslint-disable react-refresh/only-export-components -- the fields and their value helpers belong together */
-import { InlineNotification, NumberInput, RadioButton, RadioButtonGroup, Stack } from '@carbon/react';
+import { InlineNotification, RadioButton, RadioButtonGroup, Stack } from '@carbon/react';
 import { Controller, useFormContext, useWatch } from 'react-hook-form';
+import { DecimalField } from '../../../app/DecimalField';
+import { decimalNumber, decimalText, decimalValidator } from '../../../app/decimalInput';
 import { updateFilamentSpool } from '../../../api/generated/filament-spools/filament-spools';
 import type { FilamentLeftoverInput, FilamentSpool } from '../../../api/generated/models';
 import type { LeftoverBasis, LeftoverChoice } from '../fillPlan';
@@ -11,8 +13,9 @@ import { remainingOf, toNumber } from './spoolShared';
 /** Form values shared by every dialog that closes a fill. */
 export type LeftoverValues = {
   leftoverBasis: LeftoverBasis;
-  grossWeight: number | '';
-  tareWeight: number | '';
+  /** Typed text; see decimalInput. */
+  grossWeight: string;
+  tareWeight: string;
   leftoverOutcome: LeftoverChoice['outcome'];
 };
 
@@ -20,7 +23,7 @@ type LeftoverSpool = Pick<FilamentSpool, 'remainingQuantity' | 'tareWeightG' | '
 
 export const leftoverDefaults = (spool: LeftoverSpool | undefined): LeftoverValues => ({
   leftoverBasis: spool && remainingOf(spool) > 0 ? 'system' : 'none',
-  grossWeight: '', tareWeight: spool?.tareWeightG != null ? toNumber(spool.tareWeightG) : '', leftoverOutcome: 'returned_to_stock',
+  grossWeight: '', tareWeight: spool?.tareWeightG != null ? decimalText(spool.tareWeightG) : '', leftoverOutcome: 'returned_to_stock',
 });
 
 /** Turns the form values into the leftover that is previewed; `complete` is false while a weighed value is incomplete. */
@@ -28,8 +31,8 @@ export function resolveLeftover(spool: LeftoverSpool, values: LeftoverValues): {
   const outcome = values.leftoverOutcome;
   if (values.leftoverBasis === 'none') return { choice: { basis: 'none', leftoverG: 0, outcome }, complete: true };
   if (values.leftoverBasis === 'system') return { choice: { basis: 'system', leftoverG: remainingOf(spool), outcome }, complete: true };
-  const gross = values.grossWeight === '' ? null : Number(values.grossWeight);
-  const tare = values.tareWeight === '' ? null : Number(values.tareWeight);
+  const gross = decimalNumber(values.grossWeight);
+  const tare = decimalNumber(values.tareWeight);
   const complete = gross != null && tare != null && gross >= tare;
   return { choice: { basis: 'weighed', leftoverG: complete ? Math.round((gross - tare) * 100) / 100 : 0, outcome }, complete };
 }
@@ -38,7 +41,7 @@ export function resolveLeftover(spool: LeftoverSpool, values: LeftoverValues): {
 export function toLeftoverInput(spool: LeftoverSpool, values: LeftoverValues): FilamentLeftoverInput {
   const { choice } = resolveLeftover(spool, values);
   const disposition = choice.leftoverG > 0 ? choice.outcome : null;
-  if (choice.basis === 'weighed') return { basis: 'weighed', grossWeightG: toDecimal(Number(values.grossWeight)), disposition };
+  if (choice.basis === 'weighed') return { basis: 'weighed', grossWeightG: toDecimal(decimalNumber(values.grossWeight) ?? 0), disposition };
   return { basis: choice.basis, disposition };
 }
 
@@ -47,8 +50,8 @@ export function toLeftoverInput(spool: LeftoverSpool, values: LeftoverValues): F
  * record (or none is recorded), it is saved to the spool first. Resolves to the spool version to send with the next request.
  */
 export async function saveTareWeight(spool: FilamentSpool, values: LeftoverValues): Promise<number> {
-  if (values.leftoverBasis !== 'weighed' || values.tareWeight === '') return spool.version;
-  const tare = Number(values.tareWeight);
+  const tare = decimalNumber(values.tareWeight);
+  if (values.leftoverBasis !== 'weighed' || tare === null) return spool.version;
   if (spool.tareWeightG != null && toNumber(spool.tareWeightG) === tare) return spool.version;
   const updated = await updateFilamentSpool(spool.id, spoolUpdateBody(spool, { tareWeightG: toDecimal(tare) }));
   return updated.version;
@@ -95,23 +98,22 @@ export function LeftoverFields({ spool, idPrefix }: { spool: LeftoverSpool; idPr
         <>
           <Controller
             control={control} name="grossWeight"
-            rules={{ validate: (value, form) => value === '' ? 'Enter the weight of the spool.' : Number(value) < Number(form.tareWeight || 0) ? 'The spool cannot weigh less than its empty weight.' : true }}
+            rules={{ validate: (value, form) => { const valid = decimalValidator({ requiredMessage: 'Enter the weight of the spool.' })(value); return valid !== true ? valid : (decimalNumber(value) ?? 0) < (decimalNumber(form.tareWeight) ?? 0) ? 'The spool cannot weigh less than its empty weight.' : true; } }}
             render={({ field, fieldState }) => (
-              <NumberInput
-                id={`${idPrefix}-gross`} label="Weight of the spool with filament (g)" helperText="Place the whole spool on the scale." allowEmpty min={0} step={1} hideSteppers
-                value={field.value} invalid={fieldState.invalid} invalidText={fieldState.error?.message} onChange={(_event, state) => field.onChange(state.value === '' ? '' : Number(state.value))}
+              <DecimalField
+                id={`${idPrefix}-gross`} labelText="Weight of the spool with filament (g)" helperText="Place the whole spool on the scale."
+                value={field.value} invalid={fieldState.invalid} invalidText={fieldState.error?.message} onChange={field.onChange}
               />
             )}
           />
           <Controller
             control={control} name="tareWeight"
-            rules={{ validate: (value) => value === '' ? 'Enter the empty weight of the spool.' : Number(value) < 0 ? 'Enter a weight of zero or more.' : true }}
+            rules={{ validate: decimalValidator({ requiredMessage: 'Enter the empty weight of the spool.' }) }}
             render={({ field, fieldState }) => (
-              <NumberInput
-                id={`${idPrefix}-tare`} label="Empty spool weight (g)"
+              <DecimalField
+                id={`${idPrefix}-tare`} labelText="Empty spool weight (g)"
                 helperText={spool.tareWeightG != null ? 'From the spool record; subtracted from the weighed value. A different value updates the record.' : 'Not recorded for this spool; saved to the spool record and subtracted from the weighed value.'}
-                allowEmpty min={0} step={1} hideSteppers value={field.value} invalid={fieldState.invalid} invalidText={fieldState.error?.message}
-                onChange={(_event, state) => field.onChange(state.value === '' ? '' : Number(state.value))}
+                value={field.value} invalid={fieldState.invalid} invalidText={fieldState.error?.message} onChange={field.onChange}
               />
             )}
           />

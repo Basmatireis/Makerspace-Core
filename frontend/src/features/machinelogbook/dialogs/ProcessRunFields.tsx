@@ -1,6 +1,8 @@
-import { NumberInput, Stack } from '@carbon/react';
+import { Stack } from '@carbon/react';
 import { useQuery } from '@tanstack/react-query';
 import { Controller, useFormContext } from 'react-hook-form';
+import { DecimalField } from '../../../app/DecimalField';
+import { decimalValidator } from '../../../app/decimalInput';
 import type { MachineProcess } from '../../../api/generated/models';
 import { materialTypesQuery } from '../inventoryQueries';
 import { materialsForProcess } from '../processConfig';
@@ -15,12 +17,12 @@ export function StitchesField({ idPrefix }: { idPrefix: string }) {
   return (
     <Controller
       control={control} name="stitches"
-      rules={{ validate: (value) => value === undefined || value === '' || (Number.isInteger(Number(value)) && Number(value) >= 0) || 'Enter a whole number of stitches.' }}
+      rules={{ validate: (value) => decimalValidator({ integer: true, optional: true })(value) === true || 'Enter a whole number of stitches.' }}
       render={({ field, fieldState }) => (
-        <NumberInput
-          id={`${idPrefix}-stitches`} label="Stitches" helperText="Exact count from the machine, as a whole number. Priced per 1000 stitches." allowEmpty min={0} step={1} hideSteppers
+        <DecimalField
+          id={`${idPrefix}-stitches`} labelText="Stitches" helperText="Exact count from the machine, as a whole number. Priced per 1000 stitches." integer
           value={field.value ?? ''} invalid={fieldState.invalid} invalidText={fieldState.error?.message}
-          onChange={(_event, state) => field.onChange(state.value === '' ? '' : Number(state.value))}
+          onChange={field.onChange}
         />
       )}
     />
@@ -47,11 +49,12 @@ export function InkFields({ idPrefix, process }: { idPrefix: string; process: Ma
         {inks.map((material) => (
           <Controller
             key={material.id} control={control} name={`ink.${material.id}`}
-            render={({ field }) => (
-              <NumberInput
-                id={`${idPrefix}-ink-${material.id}`} allowEmpty min={0} step={0.01} hideSteppers
-                label={<span className="mj-ink-label">{material.colorHex && <span className="mj-swatch" style={{ backgroundColor: material.colorHex }} aria-hidden="true" />}{material.colorName ?? material.name} (ml)</span>}
-                value={field.value ?? ''} onChange={(_event, state) => field.onChange(state.value === '' ? '' : Number(state.value))}
+            rules={{ validate: decimalValidator({ optional: true, places: 2 }) }}
+            render={({ field, fieldState }) => (
+              <DecimalField
+                id={`${idPrefix}-ink-${material.id}`} invalid={fieldState.invalid} invalidText={fieldState.error?.message}
+                labelText={<span className="mj-ink-label">{material.colorHex && <span className="mj-swatch" style={{ backgroundColor: material.colorHex }} aria-hidden="true" />}{material.colorName ?? material.name} (ml)</span>}
+                value={field.value ?? ''} onChange={field.onChange}
               />
             )}
           />

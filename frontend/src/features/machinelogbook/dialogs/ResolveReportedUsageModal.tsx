@@ -1,15 +1,17 @@
 import { useState } from 'react';
-import { Button, ComposedModal, InlineNotification, ModalBody, ModalFooter, ModalHeader, NumberInput, Select, SelectItem, Stack } from '@carbon/react';
+import { Button, ComposedModal, InlineNotification, ModalBody, ModalFooter, ModalHeader, Select, SelectItem, Stack } from '@carbon/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 import { replaceMachineRunUsages } from '../../../api/generated/machine-runs/machine-runs';
 import type { MachineRun, MachineRunReportedUsageItem } from '../../../api/generated/models';
+import { DecimalField } from '../../../app/DecimalField';
+import { decimalText, decimalValidator, parseDecimalText } from '../../../app/decimalInput';
 import { machineLogbookKeys, spoolsQuery } from '../queries';
 import { formatQuantity } from '../shared/format';
 import { useNotify } from '../shared/toasts';
 import { saveError, toUsageInputs, usageRowsFromUsages } from './jobFormHelpers';
 
-type Values = { spoolId: string; quantity: number | '' };
+type Values = { spoolId: string; quantity: string };
 
 const itemName = (item: MachineRunReportedUsageItem) => item.slicerFilamentId
   ? `filament ${item.slicerFilamentId}`
@@ -26,7 +28,7 @@ export function ResolveReportedUsageModal({ open, onClose, run, item }: {
   const notify = useNotify();
   const [error, setError] = useState<string | null>(null);
   const reportedQuantity = item.estimatedQuantityGrams ?? item.plannedQuantityGrams ?? '';
-  const form = useForm<Values>({ defaultValues: { spoolId: '', quantity: reportedQuantity === '' ? '' : Number(reportedQuantity) } });
+  const form = useForm<Values>({ defaultValues: { spoolId: '', quantity: decimalText(reportedQuantity) } });
   const spools = useQuery({ ...spoolsQuery({ consumable: true, page: 1, pageSize: 100 }), enabled: open });
   const alreadyUsed = new Set(run.usages.map((usage) => usage.spoolId).filter(Boolean));
   const choices = (spools.data?.items ?? []).filter((spool) => spool.materialId && spool.unit === 'g' && !alreadyUsed.has(spool.id));
@@ -34,10 +36,10 @@ export function ResolveReportedUsageModal({ open, onClose, run, item }: {
   const mutation = useMutation({
     mutationFn: ({ spoolId, quantity }: Values) => {
       const spool = choices.find((candidate) => candidate.id === spoolId);
-      if (!spool?.materialId || quantity === '') throw new Error('Choose a spool and enter a quantity.');
+      if (!spool?.materialId || parseDecimalText(quantity) === null) throw new Error('Choose a spool and enter a quantity.');
       const usages = usageRowsFromUsages(run.usages);
       usages.push({
-        ownership: 'makerspace', materialId: spool.materialId, spoolId: spool.id, externalName: '', quantity,
+        ownership: 'makerspace', materialId: spool.materialId, spoolId: spool.id, externalName: '', quantity: parseDecimalText(quantity) ?? '',
         quantityBasis: 'estimated', materialLabel: spool.materialName ?? undefined, spoolLabel: spool.displayId,
       });
       return replaceMachineRunUsages(run.id, { usages: toUsageInputs(usages), expectedVersion: run.version });
@@ -47,7 +49,7 @@ export function ResolveReportedUsageModal({ open, onClose, run, item }: {
       await client.invalidateQueries({ queryKey: machineLogbookKeys.all });
       notify({
         kind: 'success', title: 'Reported material mapped',
-        subtitle: `${formatQuantity(values.quantity)} g was assigned to ${spool?.displayId ?? 'the selected spool'}; stock and calculated pricing were updated.`,
+        subtitle: `${formatQuantity(parseDecimalText(values.quantity) ?? '')} g was assigned to ${spool?.displayId ?? 'the selected spool'}; stock and calculated pricing were updated.`,
       });
       onClose();
     },
@@ -84,13 +86,13 @@ export function ResolveReportedUsageModal({ open, onClose, run, item }: {
             )}
           />
           <Controller
-            control={form.control} name="quantity" rules={{ validate: (value) => Number(value) > 0 }}
+            control={form.control} name="quantity" rules={{ validate: decimalValidator({ positive: true, requiredMessage: 'Enter a quantity above zero.' }) }}
             render={({ field, fieldState }) => (
-              <NumberInput
-                id="reported-material-quantity" label="Consumed quantity (g)" allowEmpty min={0} step={0.01} hideSteppers
-                value={field.value} invalid={fieldState.invalid} invalidText="Enter a quantity above zero."
+              <DecimalField
+                id="reported-material-quantity" labelText="Consumed quantity (g)"
+                value={field.value} invalid={fieldState.invalid} invalidText={fieldState.error?.message ?? 'Enter a quantity above zero.'}
                 helperText="The connector's estimate is prefilled; change it only if you have a better measurement."
-                onChange={(_event, state) => field.onChange(state.value === '' ? '' : Number(state.value))}
+                onChange={field.onChange}
               />
             )}
           />

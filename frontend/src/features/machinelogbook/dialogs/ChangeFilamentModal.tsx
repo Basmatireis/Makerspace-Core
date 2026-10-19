@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Controller, FormProvider, useFieldArray, useForm } from 'react-hook-form';
 import {
-  Button, Checkbox, CheckboxGroup, ComboBox, ComposedModal, InlineNotification, ModalBody, ModalFooter, ModalHeader, NumberInput, ProgressIndicator, ProgressStep,
+  Button, Checkbox, CheckboxGroup, ComboBox, ComposedModal, InlineNotification, ModalBody, ModalFooter, ModalHeader, ProgressIndicator, ProgressStep,
   RadioButton, RadioButtonGroup, Select, SelectItem, Stack, StructuredListBody, StructuredListCell, StructuredListHead, StructuredListRow, StructuredListWrapper, TextInput,
 } from '@carbon/react';
 import { Add, TrashCan } from '@carbon/icons-react';
@@ -9,6 +9,8 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { changeFilamentSpoolFill } from '../../../api/generated/filament-spools/filament-spools';
 import type { FilamentNewFillInputSource, FilamentProduct, FilamentSpool, FilamentSpoolIdentifierKind, InventoryTransactionKind } from '../../../api/generated/models';
 import { ErrorState, InlineLoadingState } from '../../../app/PageState';
+import { DecimalField } from '../../../app/DecimalField';
+import { decimalNumber, decimalText, decimalValidator } from '../../../app/decimalInput';
 import { LeftoverFields, leftoverDefaults, leftoverSummary, resolveLeftover, saveTareWeight, toLeftoverInput, type LeftoverValues } from '../components/LeftoverFields';
 import { ProductPicker } from '../components/ProductPicker';
 import { formatGrams, toDecimal, TransactionKindTag } from '../components/inventoryShared';
@@ -22,7 +24,7 @@ import { activeProductsQuery, allSpoolsQuery, filamentMaterialsQuery, spoolError
 type Values = LeftoverValues & {
   spoolId: string;
   productId: string; manual: boolean;
-  materialId: string; netWeight: number | ''; source: FilamentNewFillInputSource; price: number | ''; supplier: string; manufacturer: string; product: string;
+  materialId: string; netWeight: string; source: FilamentNewFillInputSource; price: string; supplier: string; manufacturer: string; product: string;
   keep: Record<string, boolean>;
   added: { kind: FilamentSpoolIdentifierKind; value: string }[];
 };
@@ -82,7 +84,7 @@ export function ChangeFilamentModal({ open, onClose, spool: preselected }: { ope
     const product = current?.active && current.packaging === 'refill' ? current : undefined;
     return {
       ...leftoverDefaults(spool), spoolId: spool?.id ?? '', productId: product?.id ?? '', manual: filled && !current,
-      materialId: product?.materialId ?? (filled && spool ? spool.materialId ?? '' : ''), netWeight: product ? toNumber(product.netWeightG) : 1000, source: 'loose_stock', price: '', supplier: '',
+      materialId: product?.materialId ?? (filled && spool ? spool.materialId ?? '' : ''), netWeight: product ? decimalText(product.netWeightG) : '1000', source: 'loose_stock', price: '', supplier: '',
       manufacturer: product?.manufacturer ?? (filled ? spool?.manufacturer ?? '' : ''), product: product?.name ?? (filled ? spool?.productName ?? '' : ''), keep: keepDefaults(spool), added: [blankTag()],
     };
   };
@@ -104,7 +106,7 @@ export function ChangeFilamentModal({ open, onClose, spool: preselected }: { ope
         leftover: refillOnly ? null : toLeftoverInput(spool, data),
         fill: {
           productId: data.manual ? null : data.productId || null, materialId: material.id, manufacturer: data.manufacturer.trim() || null, productName: data.product.trim() || null,
-          netWeightG: toDecimal(Number(data.netWeight)), source: data.source, totalPrice: data.source === 'purchase' && data.price !== '' ? toDecimal(Number(data.price)) : null, supplier: data.supplier.trim() || null,
+          netWeightG: toDecimal(decimalNumber(data.netWeight) ?? 0), source: data.source, totalPrice: data.source === 'purchase' && decimalNumber(data.price) !== null ? toDecimal(decimalNumber(data.price) ?? 0) : null, supplier: data.supplier.trim() || null,
         },
         keepIdentifierIds: spool.identifiers.filter((item) => data.keep[item.id]).map((item) => item.id),
         newIdentifiers: data.added.filter((item) => item.value.trim()).map((item) => ({ kind: item.kind, value: item.value.trim() })),
@@ -132,11 +134,11 @@ export function ChangeFilamentModal({ open, onClose, spool: preselected }: { ope
     setValue('productId', product?.id ?? '', { shouldValidate: Boolean(product) });
     if (!product) return;
     setValue('materialId', product.materialId, { shouldValidate: true });
-    setValue('netWeight', toNumber(product.netWeightG));
+    setValue('netWeight', decimalText(product.netWeightG));
     setValue('manufacturer', product.manufacturer);
     setValue('product', product.name);
     // The price only applies to a new purchase; it stays editable.
-    setValue('price', product.defaultPrice != null ? toNumber(product.defaultPrice) : '');
+    setValue('price', product.defaultPrice != null ? decimalText(product.defaultPrice) : '');
   };
   const setManual = (next: boolean) => {
     setValue('manual', next);
@@ -146,7 +148,7 @@ export function ChangeFilamentModal({ open, onClose, spool: preselected }: { ope
   const leftover = spool && !refillOnly ? resolveLeftover(spool, values) : null;
   const material = filaments.find((item) => item.id === values.materialId);
   const selectedProduct = products.find((item) => item.id === values.productId);
-  const net = values.netWeight === '' ? 0 : Number(values.netWeight);
+  const net = decimalNumber(values.netWeight) ?? 0;
 
   // Loose stock after the old fill has been closed: a returned leftover joins it, corrections and disposals leave the material.
   const stockAfterClose = (materialId: string) => {
@@ -191,7 +193,7 @@ export function ChangeFilamentModal({ open, onClose, spool: preselected }: { ope
     ...(material ? [{
       key: 'open-entry', change: <TransactionKindTag kind={values.source === 'purchase' ? 'purchase' : 'spool_transfer'} />,
       detail: values.source === 'purchase'
-        ? `+${formatGrams(net)} bought${values.price !== '' ? ` for ${Number(values.price).toFixed(2)} €` : ''}, booked to ${name}`
+        ? `+${formatGrams(net)} bought${decimalNumber(values.price) !== null ? ` for ${(decimalNumber(values.price) ?? 0).toFixed(2)} €` : ''}, booked to ${name}`
         : `${entryText('spool_transfer', net, spool?.displayId ?? '')}, total unchanged`,
     }] : []),
     {
@@ -300,15 +302,16 @@ export function ChangeFilamentModal({ open, onClose, spool: preselected }: { ope
                     control={control} name="netWeight"
                     rules={{
                       validate: (value, form) => {
-                        if (value === '' || Number(value) <= 0) return 'Enter a weight above zero.';
+                        const valid = decimalValidator({ positive: true, requiredMessage: 'Enter a weight above zero.' })(value);
+                        if (valid !== true) return valid;
                         const target = filaments.find((item) => item.id === form.materialId);
-                        return form.source === 'loose_stock' && target && Number(value) > stockAfterClose(target.id).loose ? `Only ${formatGrams(stockAfterClose(target.id).loose)} of loose stock is available.` : true;
+                        return form.source === 'loose_stock' && target && (decimalNumber(value) ?? 0) > stockAfterClose(target.id).loose ? `Only ${formatGrams(stockAfterClose(target.id).loose)} of loose stock is available.` : true;
                       },
                     }}
                     render={({ field, fieldState }) => (
-                      <NumberInput
-                        id="refill-weight" label="Net weight of the new filament (g)" helperText="Filament without the spool." allowEmpty min={0} step={50} hideSteppers
-                        value={field.value} invalid={fieldState.invalid} invalidText={fieldState.error?.message} onChange={(_event, state) => field.onChange(state.value === '' ? '' : Number(state.value))}
+                      <DecimalField
+                        id="refill-weight" labelText="Net weight of the new filament (g)" helperText="Filament without the spool."
+                        value={field.value} invalid={fieldState.invalid} invalidText={fieldState.error?.message} onChange={field.onChange}
                       />
                     )}
                   />
@@ -324,11 +327,11 @@ export function ChangeFilamentModal({ open, onClose, spool: preselected }: { ope
                   {values.source === 'purchase' && (
                     <>
                       <Controller
-                        control={control} name="price" rules={{ validate: (value, form) => form.source !== 'purchase' || (value !== '' && Number(value) >= 0) || 'Enter the total price, zero or more.' }}
+                        control={control} name="price" rules={{ validate: (value, form) => form.source !== 'purchase' || decimalValidator({ places: 2, requiredMessage: 'Enter the total price, zero or more.' })(value) }}
                         render={({ field, fieldState }) => (
-                          <NumberInput
-                            id="refill-price" label="Total price (€)" helperText="Updates the average acquisition cost." allowEmpty min={0} step={0.5} hideSteppers
-                            value={field.value} invalid={fieldState.invalid} invalidText={fieldState.error?.message} onChange={(_event, state) => field.onChange(state.value === '' ? '' : Number(state.value))}
+                          <DecimalField
+                            id="refill-price" labelText="Total price (€)" helperText="Updates the average acquisition cost."
+                            value={field.value} invalid={fieldState.invalid} invalidText={fieldState.error?.message} onChange={field.onChange}
                           />
                         )}
                       />

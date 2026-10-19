@@ -105,7 +105,7 @@ describe('process driven run form', () => {
     expect(within(dialog).getByLabelText('Magenta (ml)')).toBeInTheDocument();
     expect(within(dialog).queryByLabelText(/Old ink/)).not.toBeInTheDocument(); // inactive
     expect(dialog.querySelectorAll('.mj-swatch')).toHaveLength(2);
-    expect(cyan).toHaveAttribute('step', '0.01');
+    expect(cyan).toHaveAttribute('inputmode', 'decimal');
     await user.type(cyan, '0.4');
     // Substrates are added as rows; the picker offers them, not the ink.
     await user.click(within(dialog).getByRole('button', { name: 'Add material' }));
@@ -134,7 +134,7 @@ describe('process driven run form', () => {
     fireEvent.change(within(dialog).getByLabelText('Height (cm)'), { target: { value: '10' } });
     fireEvent.change(within(dialog).getByLabelText('Count'), { target: { value: '3' } });
     const quantity = within(dialog).getByLabelText('Quantity (cm²)');
-    await waitFor(() => expect(quantity).toHaveValue(600));
+    await waitFor(() => expect(quantity).toHaveValue('600'));
     await user.clear(quantity);
     await user.type(quantity, '575');
     await user.click(within(dialog).getByRole('button', { name: 'Add run' }));
@@ -155,10 +155,82 @@ describe('process driven run form', () => {
     ] });
     renderRoute(<ToastProvider><UsageFormModal open run={run} onClose={() => undefined} /></ToastProvider>);
     const dialog = await screen.findByRole('dialog', { name: 'Edit material usage' });
-    expect(await within(dialog).findByLabelText('Cyan (ml)')).toHaveValue(3.2);
+    expect(await within(dialog).findByLabelText('Cyan (ml)')).toHaveValue('3.2');
     await user.click(within(dialog).getByRole('button', { name: 'Save usage' }));
     await waitFor(() => expect(body).toBeDefined());
     expect(body?.usages).toEqual([expect.objectContaining({ materialId: t(13), quantity: '3.20' })]);
+  });
+});
+
+describe('decimal entry', () => {
+  it('keeps what is typed in a usage quantity and sends the comma value as a decimal', async () => {
+    let body: ReplaceMachineRunUsagesRequest | undefined;
+    server.use(
+      ...lookups,
+      http.get(`*/api/v1/machines/${ids.machine}`, () => HttpResponse.json({ ...machine, machineType: { ...machine.machineType, process: 'fdm_printing' } })),
+      http.put(`*/api/v1/machine-runs/${ids.manualRun}/usages`, async ({ request }) => { body = await request.json() as ReplaceMachineRunUsagesRequest; return HttpResponse.json({ run: manualRun() }); }),
+    );
+    const user = userEvent.setup();
+    const run = manualRun({ usages: [
+      { id: ids.usage, ownership: 'makerspace', materialId: t(11), spoolId: null, spoolDisplayId: null, materialName: 'PLA Black', materialTypeId: t(1), materialTypeName: 'PLA', unit: 'g', quantity: '10.000000', quantityBasis: 'actual', staffCorrected: false },
+    ] });
+    renderRoute(<ToastProvider><UsageFormModal open run={run} onClose={() => undefined} /></ToastProvider>);
+    const dialog = await screen.findByRole('dialog', { name: 'Edit material usage' });
+    const quantity = await within(dialog).findByLabelText(/^Quantity/);
+    await user.clear(quantity);
+    await user.type(quantity, '12.');
+    expect(quantity).toHaveValue('12.');
+    await user.type(quantity, '5');
+    expect(quantity).toHaveValue('12.5');
+    await user.clear(quantity);
+    await user.type(quantity, '1,');
+    expect(quantity).toHaveValue('1,');
+    await user.type(quantity, '5');
+    expect(quantity).toHaveValue('1,5');
+    await user.click(within(dialog).getByRole('button', { name: 'Save usage' }));
+    await waitFor(() => expect(body).toBeDefined());
+    expect(body?.usages).toEqual([expect.objectContaining({ materialId: t(11), quantity: '1.5' })]);
+  });
+
+  it('rejects thousands separators in a quantity', async () => {
+    server.use(...lookups, http.get(`*/api/v1/machines/${ids.machine}`, () => HttpResponse.json({ ...machine, machineType: { ...machine.machineType, process: 'fdm_printing' } })));
+    const user = userEvent.setup();
+    const run = manualRun({ usages: [
+      { id: ids.usage, ownership: 'makerspace', materialId: t(11), spoolId: null, spoolDisplayId: null, materialName: 'PLA Black', materialTypeId: t(1), materialTypeName: 'PLA', unit: 'g', quantity: '10', quantityBasis: 'actual', staffCorrected: false },
+    ] });
+    renderRoute(<ToastProvider><UsageFormModal open run={run} onClose={() => undefined} /></ToastProvider>);
+    const dialog = await screen.findByRole('dialog', { name: 'Edit material usage' });
+    const quantity = await within(dialog).findByLabelText(/^Quantity/);
+    await user.clear(quantity);
+    await user.type(quantity, '1.234,5');
+    await user.click(within(dialog).getByRole('button', { name: 'Save usage' }));
+    expect(await within(dialog).findByText('Enter the number without thousands separators, e.g. 1234,5.')).toBeInTheDocument();
+    expect(quantity).toHaveValue('1.234,5');
+  });
+
+  it('rejects decimals in the stitch count instead of clearing the field', async () => {
+    server.use(...lookups);
+    const user = userEvent.setup();
+    renderRoute(<ToastProvider><RunFormModal open mode="add" job={jobOn('embroidery')} onClose={() => undefined} /></ToastProvider>);
+    const dialog = await screen.findByRole('dialog');
+    const stitches = within(dialog).getByLabelText('Stitches');
+    await user.type(stitches, '1,5');
+    expect(stitches).toHaveValue('1,5');
+    await user.click(within(dialog).getByRole('button', { name: 'Add run' }));
+    expect(await within(dialog).findByText('Enter a whole number of stitches.')).toBeInTheDocument();
+    expect(stitches).toHaveValue('1,5');
+  });
+
+  it('accepts a comma in an ink amount', async () => {
+    let body: AddManualMachineRunRequest | undefined;
+    server.use(...lookups, http.post(`*/api/v1/machine-jobs/${ids.job}/runs`, async ({ request }) => { body = await request.json() as AddManualMachineRunRequest; return HttpResponse.json(jobOn('uv_printing'), { status: 201 }); }));
+    const user = userEvent.setup();
+    renderRoute(<ToastProvider><RunFormModal open mode="add" job={jobOn('uv_printing')} onClose={() => undefined} /></ToastProvider>);
+    const dialog = await screen.findByRole('dialog');
+    await user.type(await within(dialog).findByLabelText('Cyan (ml)'), '0,4');
+    await user.click(within(dialog).getByRole('button', { name: 'Add run' }));
+    await waitFor(() => expect(body).toBeDefined());
+    expect(body?.run.usages).toEqual([expect.objectContaining({ materialId: t(13), quantity: '0.40' })]);
   });
 });
 
