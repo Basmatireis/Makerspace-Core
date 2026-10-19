@@ -18,6 +18,31 @@ func uniqueYear() int {
 	return 1000 + (int(id[14])<<8|int(id[15]))%900
 }
 
+// emptyStatisticsYear picks a random year in which the shared test database has no statistics yet, so assertions on
+// whole-period totals are not disturbed by rows that earlier tests or runs left in the same year.
+func emptyStatisticsYear(t *testing.T, f *jobFixture) int {
+	t.Helper()
+	for range 50 {
+		y := uniqueYear()
+		from := time.Date(y, time.January, 1, 0, 0, 0, 0, time.UTC)
+		stats, err := f.s.Statistics(t.Context(), f.p, from, from.AddDate(1, 0, 0))
+		if err != nil {
+			t.Fatal(err)
+		}
+		empty := len(stats.Runtime) == 0
+		for _, m := range stats.Months {
+			if m.Charges != "0" || m.MaterialCost != "0" || m.Losses != "0" {
+				empty = false
+			}
+		}
+		if empty {
+			return y
+		}
+	}
+	t.Fatal("no empty statistics year found")
+	return 0
+}
+
 func dec(t *testing.T, value string) decimal.Decimal {
 	t.Helper()
 	d, err := decimal.NewFromString(value)
@@ -48,7 +73,7 @@ func (f *jobFixture) insertTransaction(t *testing.T, kind, reason string, quanti
 
 func TestStatisticsTotalsRuntimeAndCostSplit(t *testing.T) {
 	f := newJobFixture(t)
-	y := uniqueYear()
+	y := emptyStatisticsYear(t, f)
 	statsClock := time.Date(y, time.June, 15, 12, 0, 0, 0, time.UTC)
 	f.now = statsClock
 	ctx := t.Context()
