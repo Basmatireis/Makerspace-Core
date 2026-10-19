@@ -12,7 +12,7 @@ import { EmptyState } from '../../app/PageState';
 import { InventoryLedgerTable } from './components/InventoryLedgerTable';
 import { InventorySpoolsTable } from './components/InventorySpoolsTable';
 import { ProductsTable } from './components/ProductsTable';
-import { categoryLabel, formatQuantity, formatUnitCost, isFilament, materialUnitCost, NoInventoryAccess, StockTag, unitLabel } from './components/inventoryShared';
+import { formatQuantity, MaterialColor, formatUnitCost, isFilament, materialUnitCost, NoInventoryAccess, StockTag, unitLabel } from './components/inventoryShared';
 import { MaterialFormModal } from './dialogs/MaterialFormModal';
 import { ProductFormModal } from './dialogs/ProductFormModal';
 import { StockMovementModal, type MovementMode } from './dialogs/StockMovementModal';
@@ -77,7 +77,7 @@ function MaterialDetail({ material }: { material: Material }) {
   return (
     <PageShell
       title={material.name} titleAdornment={<StockTag state={material.stockState} />} width="wide"
-      description={`${categoryLabel(material.category)} · ${unitLabel(material.unit)}${material.active ? '' : ' · Inactive'}`}
+      description={`${material.materialTypeName} · ${unitLabel(material.unit)}${material.active ? '' : ' · Inactive'}`}
       breadcrumbs={[...crumbs, { label: material.name }]} actions={actions}
     >
       <div className="mj-stack">
@@ -89,9 +89,9 @@ function MaterialDetail({ material }: { material: Material }) {
             <div><dt>Low-stock threshold</dt><dd>{material.lowStockThreshold != null ? formatQuantity(material.lowStockThreshold, material.unit) : '—'}</dd></div>
             <div><dt>Avg. acquisition cost</dt><dd>{formatUnitCost(materialUnitCost(material), material.unit)}</dd></div>
             <div><dt>Stock value</dt><dd>{formatMoney(material.inventoryValue)}</dd></div>
-            <div><dt>Category</dt><dd>{categoryLabel(material.category)}</dd></div>
+            <div><dt>Material type</dt><dd>{material.materialTypeName}</dd></div>
             <div><dt>Unit</dt><dd>{unitLabel(material.unit)}</dd></div>
-            {material.color && <div><dt>Colour</dt><dd>{material.color}</dd></div>}
+            {(material.colorName || material.colorHex) && <div><dt>Colour</dt><dd><MaterialColor name={material.colorName} hex={material.colorHex} /></dd></div>}
             {material.filamentDiameterMm != null && <div><dt>Filament diameter</dt><dd>{Number(material.filamentDiameterMm)} mm</dd></div>}
           </dl>
         </Tile>

@@ -113,13 +113,13 @@ func (s *Service) Statistics(ctx context.Context, p authorization.Principal, fro
 		return Statistics{}, validation("to must be after from")
 	}
 	q := machinelogbookdb.New(s.pool)
-	result := Statistics{MaterialUsageByCategory: []StatisticPoint{}, MachineRuntimeHours: []StatisticPoint{}, MachineJobCounts: []StatisticPoint{}, AcquisitionCost: []StatisticPoint{}, CustomerCharges: []StatisticPoint{}, AdjustmentLoss: []StatisticPoint{}, MachineFailureRates: []StatisticPoint{}}
+	result := Statistics{MaterialUsageByType: []StatisticPoint{}, MachineRuntimeHours: []StatisticPoint{}, MachineJobCounts: []StatisticPoint{}, AcquisitionCost: []StatisticPoint{}, CustomerCharges: []StatisticPoint{}, AdjustmentLoss: []StatisticPoint{}, MachineFailureRates: []StatisticPoint{}}
 	material, err := q.StatisticMaterialUsage(ctx, machinelogbookdb.StatisticMaterialUsageParams{FromTime: from.UTC(), ToTime: to.UTC()})
 	if err != nil {
 		return result, err
 	}
 	for _, row := range material {
-		result.MaterialUsageByCategory = append(result.MaterialUsageByCategory, StatisticPoint{Key: row.Label, Label: row.Label, Value: decimalString(row.Value)})
+		result.MaterialUsageByType = append(result.MaterialUsageByType, StatisticPoint{Key: row.Key, Label: row.Label, Value: decimalString(row.Value)})
 	}
 	runtime, err := q.StatisticMachineRuntime(ctx, machinelogbookdb.StatisticMachineRuntimeParams{Now: s.now().UTC(), FromTime: from.UTC(), ToTime: to.UTC()})
 	if err != nil {
@@ -211,13 +211,13 @@ func (s *Service) fillPeriodStatistics(ctx context.Context, q *machinelogbookdb.
 	for _, row := range points {
 		result.Runtime = append(result.Runtime, StatisticRuntimePoint{BucketStart: row.BucketStart.Time.UTC(), MachineID: row.MachineID, Hours: decimalString(row.Hours)})
 	}
-	categories, err := q.StatisticMaterialCostByCategory(ctx, machinelogbookdb.StatisticMaterialCostByCategoryParams{FromTime: from, ToTime: to})
+	types, err := q.StatisticMaterialCostByType(ctx, machinelogbookdb.StatisticMaterialCostByTypeParams{FromTime: from, ToTime: to})
 	if err != nil {
 		return err
 	}
-	result.MaterialCostByCategory = make([]StatisticPoint, 0, len(categories))
-	for _, row := range categories {
-		result.MaterialCostByCategory = append(result.MaterialCostByCategory, StatisticPoint{Key: row.Label, Label: row.Label, Value: decimalString(row.Value)})
+	result.MaterialCostByType = make([]StatisticPoint, 0, len(types))
+	for _, row := range types {
+		result.MaterialCostByType = append(result.MaterialCostByType, StatisticPoint{Key: row.Key, Label: row.Label, Value: decimalString(row.Value)})
 	}
 	machines, err := q.StatisticMachineSummaries(ctx, machinelogbookdb.StatisticMachineSummariesParams{Now: now, FromTime: from, ToTime: to})
 	if err != nil {

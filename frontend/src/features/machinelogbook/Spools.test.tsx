@@ -32,7 +32,7 @@ const nfcId = id(10);
 const barcodeId = id(11);
 
 const material: Material = {
-  id: materialId, name: 'PLA Black', category: 'filament', color: 'Black', unit: 'g', active: true, lowStockThreshold: null, quantity: '5000', assignedQuantity: '600', unassignedQuantity: '4400',
+  id: materialId, name: 'PLA Black', materialTypeId: '0192f6f8-743e-7c77-a349-cd07c3e8e001', materialTypeName: 'PLA', colorName: 'Black', colorHex: '#1A1A1A', unit: 'g', active: true, lowStockThreshold: null, quantity: '5000', assignedQuantity: '600', unassignedQuantity: '4400',
   filamentDiameterMm: '1.75', averageUnitCost: '0.02', inventoryValue: '100', stockState: 'in_stock', inventoryVersion: 7, recentConsumption: '0', version: 3,
   createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z',
 };
@@ -44,7 +44,7 @@ const product = (overrides: Partial<FilamentProduct> = {}): FilamentProduct => (
 
 const spool = (overrides: Partial<FilamentSpool> = {}): FilamentSpool => ({
   id: id(20), displayId: 'S-2026-000001', kind: 'reusable', label: 'Bambu spool 01', status: 'loaded', fillNumber: 3, fillId: id(30), filledAt: '2026-10-02T08:00:00Z', archivedAt: null,
-  materialId, materialName: 'PLA Black', category: 'filament', color: 'Black', unit: 'g', productId, manufacturer: 'Bambu Lab', productName: 'PLA Basic Black',
+  materialId, materialName: 'PLA Black', materialTypeName: 'PLA', colorName: 'Black', colorHex: '#1A1A1A', unit: 'g', productId, manufacturer: 'Bambu Lab', productName: 'PLA Basic Black',
   initialNetWeightG: '1000', remainingQuantity: '600', tareWeightG: '200', acquiredOn: '2026-09-01', acquisitionReference: null, storageLocation: 'Shelf A', notes: null, lifecycle: 'active', mounted: false,
   identifiers: [
     { id: nfcId, kind: 'nfc', value: '04AA11', createdAt: '2026-10-02T08:00:00Z' },

@@ -63,7 +63,7 @@ func spoolFromGet(row machinelogbookdb.GetFilamentSpoolRow) FilamentSpool {
 	return FilamentSpool{MountedOn: spoolMount(row.MountMachineID, row.MountMachineName, row.MountInputUnitName, row.MountSlotID, row.MountSlotName), ID: row.ID, DisplayID: row.DisplayID, Kind: row.Kind, Label: row.Label,
 		Status: spoolStatus(row.Lifecycle, row.Kind, row.FillID != nil), FillNumber: row.FillNumber, FillID: row.FillID,
 		FilledAt: nullableTime(row.FilledAt), ArchivedAt: nullableTime(row.ArchivedAt), MaterialID: row.MaterialID,
-		MaterialName: row.MaterialName, Category: row.Category, Color: row.Color, Unit: row.Unit, ProductID: row.ProductID,
+		MaterialName: row.MaterialName, MaterialTypeName: row.MaterialTypeName, ColorName: row.ColorName, ColorHex: row.ColorHex, Unit: row.Unit, ProductID: row.ProductID,
 		Manufacturer: row.Manufacturer, ProductName: row.ProductName, InitialNetWeightG: nullableDecimal(row.InitialNetWeightG),
 		RemainingQuantity: decimalString(row.RemainingQuantity), TareWeightG: nullableDecimal(row.TareWeightG),
 		AcquiredOn: spoolDate(row.AcquiredOn), AcquisitionReference: row.AcquisitionReference, StorageLocation: row.StorageLocation,

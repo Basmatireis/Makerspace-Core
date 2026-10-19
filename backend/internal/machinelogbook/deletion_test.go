@@ -467,7 +467,7 @@ func TestDeletedJobsLeaveStatistics(t *testing.T) {
 	if before.Totals.Jobs != 3 {
 		t.Fatalf("jobs before = %d", before.Totals.Jobs)
 	}
-	assertDecimal(t, "material usage before", before.MaterialUsageByCategory[0].Value, "100")
+	assertDecimal(t, "material usage before", usageOfType(t, before, f.materialType.ID), "100")
 
 	if err = f.s.DeleteJob(ctx, f.p, gone.ID, DeleteJobInput{ExpectedVersion: gone.Version, ReverseConsumption: true}, &f.request); err != nil {
 		t.Fatal(err)
@@ -487,10 +487,7 @@ func TestDeletedJobsLeaveStatistics(t *testing.T) {
 	assertDecimal(t, "runtime after", after.Totals.RuntimeHours, "3")
 	assertDecimal(t, "failure rate after", after.Totals.FailureRate, "0")
 	assertDecimal(t, "material cost after reversal", after.Totals.MaterialCost, "0")
-	if len(after.MaterialUsageByCategory) != 1 {
-		t.Fatalf("material usage rows = %+v", after.MaterialUsageByCategory)
-	}
-	assertDecimal(t, "material usage after reversal", after.MaterialUsageByCategory[0].Value, "0")
+	assertDecimal(t, "material usage after reversal", usageOfType(t, after, f.materialType.ID), "0")
 	var main StatisticMachine
 	for _, m := range after.Machines {
 		if m.MachineID == f.machine.ID {
@@ -546,4 +543,17 @@ func TestDeleteRunAuthorizationBySource(t *testing.T) {
 	if err := h.s.DeleteJob(ctx, editor, job.ID, DeleteJobInput{ExpectedVersion: job.Version}, &h.request); !apperror.IsCode(err, "permission_denied") {
 		t.Fatalf("edit-only job delete: %v", err)
 	}
+}
+
+// usageOfType is the usage row of one material type; rows of other types can
+// belong to earlier test runs that happened to pick the same year.
+func usageOfType(t *testing.T, stats Statistics, typeID uuid.UUID) string {
+	t.Helper()
+	for _, point := range stats.MaterialUsageByType {
+		if point.Key == typeID.String() {
+			return point.Value
+		}
+	}
+	t.Fatalf("no material usage row for type %s in %+v", typeID, stats.MaterialUsageByType)
+	return ""
 }

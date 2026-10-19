@@ -59,7 +59,7 @@ func spoolDTO(item machinelogbook.FilamentSpool) openapi.FilamentSpool {
 	}
 	dto := openapi.FilamentSpool{Id: item.ID, DisplayId: item.DisplayID, Kind: openapi.FilamentSpoolKind(item.Kind), Label: nullableString(item.Label), Status: openapi.FilamentSpoolStatus(item.Status),
 		FillNumber: int(item.FillNumber), FillId: nullableUUIDValue(item.FillID), FilledAt: nullableTimeValue(item.FilledAt), ArchivedAt: nullableTimeValue(item.ArchivedAt),
-		MaterialId: nullableUUIDValue(item.MaterialID), MaterialName: nullableString(item.MaterialName), Category: nullableString(item.Category), Color: nullableString(item.Color), Unit: unit,
+		MaterialId: nullableUUIDValue(item.MaterialID), MaterialName: nullableString(item.MaterialName), MaterialTypeName: nullableString(item.MaterialTypeName), ColorName: nullableString(item.ColorName), ColorHex: nullableString(item.ColorHex), Unit: unit,
 		ProductId: nullableUUIDValue(item.ProductID), Manufacturer: nullableString(item.Manufacturer), ProductName: nullableString(item.ProductName), InitialNetWeightG: nullableDecimalValue(item.InitialNetWeightG),
 		RemainingQuantity: item.RemainingQuantity, TareWeightG: nullableDecimalValue(item.TareWeightG), AcquiredOn: acquired, AcquisitionReference: nullableString(item.AcquisitionReference),
 		StorageLocation: nullableString(item.StorageLocation), Notes: nullableString(item.Notes), Lifecycle: openapi.FilamentSpoolLifecycle(item.Lifecycle), Mounted: item.Mounted, MountedOn: spoolMountDTO(item.MountedOn),

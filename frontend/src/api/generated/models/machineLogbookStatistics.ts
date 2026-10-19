@@ -33,10 +33,10 @@ export interface MachineLogbookStatistics {
   /** week for periods up to 92 days, otherwise month. */
   runtimeGranularity: MachineLogbookStatisticsRuntimeGranularity;
   runtime: StatisticRuntimePoint[];
-  /** EUR per material category. */
-  materialCostByCategory: StatisticPoint[];
+  /** EUR per material type. */
+  materialCostByType: StatisticPoint[];
   machines: StatisticMachine[];
-  materialUsageByCategory: StatisticPoint[];
+  materialUsageByType: StatisticPoint[];
   machineRuntimeHours: StatisticPoint[];
   machineJobCounts: StatisticPoint[];
   acquisitionCost: StatisticPoint[];

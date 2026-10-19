@@ -177,7 +177,7 @@ export function StatisticsPage() {
       machines: byRuntime.map((row) => ({ id: row.id, name: row.name, runtimeHours: row.runtimeHours })),
       selectedMachineIds,
       onSelectMachines: (ids: string[]) => setParams((current) => { const next = new URLSearchParams(current); next.set('machines', ids.join(',')); return next; }, { replace: true }),
-      materialByCategory: stats.materialCostByCategory.map((point) => ({ label: point.label, value: Number(point.value) })),
+      materialByType: stats.materialCostByType.map((point) => ({ label: point.label, value: Number(point.value) })),
     };
     const typeOptions: Option[] = [...new Set(machines.map((row) => row.typeName))].sort().map((name) => ({ id: name, label: name }));
     const filtered = machines.filter((row) => typeIds.length === 0 || typeIds.includes(row.typeName));

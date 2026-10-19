@@ -175,7 +175,11 @@ func (h *ingestHarness) mountSpool(name string, externalSlot *string, mountedAt 
 	h.t.Helper()
 	ctx := h.t.Context()
 	diameter, total := "1.75", "20"
-	material, err := h.logbook.CreateMaterialWithFilament(ctx, h.principal, "Ingest "+name+" "+h.suffix, "pla", nil, "g", nil, &diameter, nil)
+	materialType, err := h.logbook.CreateMaterialType(ctx, h.principal, "PLA "+name+" "+h.suffix, "g", nil)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	material, err := h.logbook.CreateMaterial(ctx, h.principal, machinelogbook.MaterialInput{Name: "Ingest " + name + " " + h.suffix, MaterialTypeID: materialType.ID, FilamentDiameterMM: &diameter}, nil)
 	if err != nil {
 		h.t.Fatal(err)
 	}
@@ -435,7 +439,7 @@ func TestIngestSettlesTheJobOfAnAttachedRunAndConsumesUnassignedRuns(t *testing.
 		t.Fatal(err)
 	}
 	rate := "10"
-	if _, err = h.logbook.CreatePricingRule(ctx, h.principal, group.ID, "machine_runtime", &h.machine.MachineType.ID, nil, nil, rate, nil); err != nil {
+	if _, err = h.logbook.CreatePricingRule(ctx, h.principal, group.ID, "machine_runtime", &h.machine.MachineType.ID, nil, rate, nil); err != nil {
 		t.Fatal(err)
 	}
 

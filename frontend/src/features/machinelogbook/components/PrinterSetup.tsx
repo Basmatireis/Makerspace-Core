@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   ActionableNotification, Button, ComboBox, DataTable, InlineLoading, InlineNotification, Link as CarbonLink, Modal, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableHeader, TableRow, Tag, Tile, Toggle,
 } from '@carbon/react';
-import { Add, Link as LinkIcon, Unlink } from '@carbon/icons-react';
+import { Add, Link as LinkIcon, Unlink, WarningAlt } from '@carbon/icons-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import type { FilamentSpool, Machine, PrinterProfile, PrinterSlot, PrinterSlotStatus } from '../../../api/generated/models';
@@ -19,6 +19,7 @@ import { formatQuantity, formatRelative } from '../shared/format';
 import { machineLogbookPaths } from '../shared/paths';
 import { useNotify } from '../shared/toasts';
 import { useCan } from '../shared/useCan';
+import { colorsClearlyDiffer, reportedToMaterialHex } from '../colors';
 import { DetectedTrayCell } from './DetectedTrayCell';
 import type { StepKey } from './wizard/wizardTypes';
 
@@ -31,7 +32,7 @@ const slotTag: Record<PrinterSlotStatus, { label: string; type: 'green' | 'warm-
 const slotHeaders = [
   { key: 'slot', header: 'Slot' },
   { key: 'mapping', header: 'Printer slot' },
-  { key: 'detected', header: 'Detected' },
+  { key: 'detected', header: 'Reported by printer' },
   { key: 'spool', header: 'Mounted spool' },
   { key: 'actions', header: 'Actions' },
 ];
@@ -146,6 +147,8 @@ export function PrinterSetup({ machine, profile, connection, active = true }: { 
                       const slot = unitSlots.find((item) => item.id === tableRow.id);
                       if (!slot) return null;
                       const spool = spoolById(slot.spoolId);
+                      const tray = detection ? trayFor(detection, unit.externalIdentifier ?? null, slot.externalIdentifier ?? null) : null;
+                      const colorMismatch = Boolean(spool && tray && !tray.empty && colorsClearlyDiffer(spool.colorHex, tray.colorHex ? reportedToMaterialHex(tray.colorHex) : null));
                       const mapping = mappingLabel(detection, profile.model, unit.externalIdentifier ?? null, slot.externalIdentifier ?? null);
                       const { key, ...rowProps } = getRowProps({ row: tableRow });
                       return (
@@ -153,7 +156,10 @@ export function PrinterSetup({ machine, profile, connection, active = true }: { 
                           <TableCell><span className="mj-inline">{slot.name}{slot.status !== 'available' && <Tag type={slotTag[slot.status].type} size="sm">{slotTag[slot.status].label}</Tag>}</span></TableCell>
                           <TableCell>{mapping ?? <span className="mj-secondary">Not mapped</span>}</TableCell>
                           <TableCell>{detection ? <DetectedTrayCell tray={trayFor(detection, unit.externalIdentifier ?? null, slot.externalIdentifier ?? null)} unknownLabel={slot.externalIdentifier ? 'Not reported' : '—'} /> : <span className="mj-secondary">—</span>}</TableCell>
-                          <TableCell>{slot.spoolId ? (spool ? spoolLabel(spool) : slot.spoolDisplayId ?? 'Spool mounted') : <span className="mj-secondary">Empty</span>}</TableCell>
+                          <TableCell>
+                            {slot.spoolId ? (spool ? spoolLabel(spool) : slot.spoolDisplayId ?? 'Spool mounted') : <span className="mj-secondary">Empty</span>}
+                            {colorMismatch && <div className="mj-color-hint" role="note"><WarningAlt size={16} aria-hidden /> The material colour ({spool?.colorName ?? spool?.colorHex}) differs from the colour the printer reports for this slot.</div>}
+                          </TableCell>
                           <TableCell>
                             {canAssign && slot.spoolId && (
                               <Button kind="ghost" size="sm" renderIcon={Unlink} disabled={unmount.isPending} onClick={() => unmount.mutate({ slot, unit: unit.name })}>Unmount</Button>

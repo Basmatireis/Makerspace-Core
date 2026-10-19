@@ -18,9 +18,9 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { Version } from './version';
+import type { ColorHex } from './colorHex';
 
-export type UpdateMaterialRequestAllOf = {
-  expectedVersion: Version;
-  active: boolean;
-};
+/**
+ * @nullable
+ */
+export type UpdateMaterialRequestColorHex = ColorHex | null;

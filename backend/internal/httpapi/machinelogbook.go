@@ -298,7 +298,7 @@ func (s *Server) CreatePricingRule(ctx context.Context, r openapi.CreatePricingR
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.CreatePricingRule(ctx, p, r.PricingGroupId, string(r.Body.Kind), uuidNullable(r.Body.MachineTypeId), nullableStringPointer(r.Body.MaterialCategory), materialUnitNullable(r.Body.MaterialUnit), string(r.Body.Rate), requestIDPointer(ctx))
+	item, err := s.machineLogbook.CreatePricingRule(ctx, p, r.PricingGroupId, string(r.Body.Kind), uuidNullable(r.Body.MachineTypeId), uuidNullable(r.Body.MaterialTypeId), string(r.Body.Rate), requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +312,7 @@ func (s *Server) UpdatePricingRule(ctx context.Context, r openapi.UpdatePricingR
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.UpdatePricingRule(ctx, p, r.PricingRuleId, r.Body.ExpectedVersion, string(r.Body.Kind), uuidNullable(r.Body.MachineTypeId), nullableStringPointer(r.Body.MaterialCategory), materialUnitNullable(r.Body.MaterialUnit), string(r.Body.Rate), r.Body.Active, requestIDPointer(ctx))
+	item, err := s.machineLogbook.UpdatePricingRule(ctx, p, r.PricingRuleId, r.Body.ExpectedVersion, string(r.Body.Kind), uuidNullable(r.Body.MachineTypeId), uuidNullable(r.Body.MaterialTypeId), string(r.Body.Rate), r.Body.Active, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +338,7 @@ func (s *Server) ListMaterials(ctx context.Context, r openapi.ListMaterialsReque
 	if err != nil {
 		return nil, err
 	}
-	items, total, value, err := s.machineLogbook.ListMaterials(ctx, p, defaultString(r.Params.Search), defaultString(r.Params.Category), valueString(r.Params.StockState), defaultInt(r.Params.Page, 1), defaultInt(r.Params.PageSize, 25))
+	items, total, value, err := s.machineLogbook.ListMaterials(ctx, p, defaultString(r.Params.Search), r.Params.MaterialTypeId, valueString(r.Params.StockState), defaultInt(r.Params.Page, 1), defaultInt(r.Params.PageSize, 25))
 	if err != nil {
 		return nil, err
 	}
@@ -356,7 +356,9 @@ func (s *Server) CreateMaterial(ctx context.Context, r openapi.CreateMaterialReq
 	if r.Body == nil {
 		return nil, invalidRequest("request body is required")
 	}
-	item, err := s.machineLogbook.CreateMaterialWithFilament(ctx, p, r.Body.Name, r.Body.Category, nullableStringPointer(r.Body.Color), string(r.Body.Unit), decimalNullable(r.Body.LowStockThreshold), decimalNullable(r.Body.FilamentDiameterMm), requestIDPointer(ctx))
+	unit := materialUnitPointer(r.Body.Unit)
+	item, err := s.machineLogbook.CreateMaterial(ctx, p, machinelogbook.MaterialInput{Name: r.Body.Name, MaterialTypeID: r.Body.MaterialTypeId, Unit: unit, ColorName: nullableStringPointer(r.Body.ColorName), ColorHex: nullableStringPointer(r.Body.ColorHex),
+		LowStockThreshold: decimalNullable(r.Body.LowStockThreshold), FilamentDiameterMM: decimalNullable(r.Body.FilamentDiameterMm)}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -389,7 +391,8 @@ func (s *Server) UpdateMaterial(ctx context.Context, r openapi.UpdateMaterialReq
 		}
 		diameter = current.FilamentDiameterMM
 	}
-	item, err := s.machineLogbook.UpdateMaterialWithFilament(ctx, p, r.MaterialId, r.Body.ExpectedVersion, r.Body.Name, r.Body.Category, nullableStringPointer(r.Body.Color), string(r.Body.Unit), r.Body.Active, decimalNullable(r.Body.LowStockThreshold), diameter, requestIDPointer(ctx))
+	item, err := s.machineLogbook.UpdateMaterial(ctx, p, r.MaterialId, machinelogbook.MaterialInput{Name: r.Body.Name, MaterialTypeID: r.Body.MaterialTypeId, Unit: materialUnitPointer(r.Body.Unit), ColorName: nullableStringPointer(r.Body.ColorName), ColorHex: nullableStringPointer(r.Body.ColorHex),
+		LowStockThreshold: decimalNullable(r.Body.LowStockThreshold), FilamentDiameterMM: diameter, Active: r.Body.Active, ExpectedVersion: r.Body.ExpectedVersion}, requestIDPointer(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -643,4 +646,72 @@ func (s *Server) DeleteMachineJob(ctx context.Context, r openapi.DeleteMachineJo
 		return nil, err
 	}
 	return openapi.DeleteMachineJob204Response{}, nil
+}
+
+func (s *Server) ListMaterialTypes(ctx context.Context, _ openapi.ListMaterialTypesRequestObject) (openapi.ListMaterialTypesResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items, err := s.machineLogbook.ListMaterialTypes(ctx, p)
+	if err != nil {
+		return nil, err
+	}
+	dto := make([]openapi.MaterialType, 0, len(items))
+	for _, item := range items {
+		dto = append(dto, mlMaterialTypeDTO(item))
+	}
+	return openapi.ListMaterialTypes200JSONResponse{Items: dto}, nil
+}
+func (s *Server) CreateMaterialType(ctx context.Context, r openapi.CreateMaterialTypeRequestObject) (openapi.CreateMaterialTypeResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.machineLogbook.CreateMaterialType(ctx, p, r.Body.Name, string(r.Body.Unit), requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.CreateMaterialType201JSONResponse(mlMaterialTypeDTO(item)), nil
+}
+func (s *Server) GetMaterialType(ctx context.Context, r openapi.GetMaterialTypeRequestObject) (openapi.GetMaterialTypeResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	item, err := s.machineLogbook.GetMaterialType(ctx, p, r.MaterialTypeId)
+	if err != nil {
+		return nil, err
+	}
+	return openapi.GetMaterialType200JSONResponse(mlMaterialTypeDTO(item)), nil
+}
+func (s *Server) UpdateMaterialType(ctx context.Context, r openapi.UpdateMaterialTypeRequestObject) (openapi.UpdateMaterialTypeResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	item, err := s.machineLogbook.UpdateMaterialType(ctx, p, r.MaterialTypeId, r.Body.ExpectedVersion, r.Body.Name, string(r.Body.Unit), r.Body.Active, requestIDPointer(ctx))
+	if err != nil {
+		return nil, err
+	}
+	return openapi.UpdateMaterialType200JSONResponse(mlMaterialTypeDTO(item)), nil
+}
+func (s *Server) DeleteMaterialType(ctx context.Context, r openapi.DeleteMaterialTypeRequestObject) (openapi.DeleteMaterialTypeResponseObject, error) {
+	p, err := requirePrincipal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if r.Body == nil {
+		return nil, invalidRequest("request body is required")
+	}
+	if err = s.machineLogbook.DeleteMaterialType(ctx, p, r.MaterialTypeId, r.Body.ExpectedVersion, requestIDPointer(ctx)); err != nil {
+		return nil, err
+	}
+	return openapi.DeleteMaterialType204Response{}, nil
 }

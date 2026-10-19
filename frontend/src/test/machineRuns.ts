@@ -29,7 +29,7 @@ export const customer = { kind: 'organization' as const, id: ids.organization, d
 export const operator = { personId: ids.operator, displayName: 'Maria Hoffmann' };
 
 export const usage = (overrides: Partial<MachineRun['usages'][number]> = {}): MachineRun['usages'][number] => ({
-  id: ids.usage, ownership: 'makerspace', materialId: ids.material, spoolId: null, spoolDisplayId: null, materialName: 'PLA Black', category: 'pla', unit: 'g', quantity: '183.000', quantityBasis: 'actual',
+  id: ids.usage, ownership: 'makerspace', materialId: ids.material, spoolId: null, spoolDisplayId: null, materialName: 'PLA Black', materialTypeId: '0192f6f8-743e-7c77-a349-cd07c3e8e001', materialTypeName: 'PLA', unit: 'g', quantity: '183.000', quantityBasis: 'actual',
   staffCorrected: false,
   ...overrides,
 });

@@ -12,13 +12,14 @@ vi.mock('@carbon/charts-react', () => ({ LineChart: () => <div />, SimpleBarChar
 
 const now = '2026-09-15T11:26:00Z';
 const group: PricingGroup = { id: 'group-1', name: 'Partners', description: null, active: true, isDefault: false, version: 2, createdAt: now, updatedAt: now,
-  rules: [{ id: 'rule-1', pricingGroupId: 'group-1', kind: 'machine_runtime', machineTypeId: 'type-1', materialCategory: null, materialUnit: null, rate: '0.50', active: true, version: 3 }] };
+  rules: [{ id: 'rule-1', pricingGroupId: 'group-1', kind: 'machine_runtime', machineTypeId: 'type-1', materialTypeId: null, materialTypeName: null, materialUnit: null, rate: '0.50', active: true, version: 3 }] };
 
 function configure(permissions: PermissionId[]) {
   const reads = { pricing: 0, machines: 0 };
   server.use(
     http.get('*/api/v1/auth/me', () => HttpResponse.json(currentUserFixture(permissions))),
     http.get('*/api/v1/pricing-groups', () => { reads.pricing++; return HttpResponse.json({ items: [group] }); }),
+    http.get('*/api/v1/material-types', () => HttpResponse.json({ items: [{ id: 'type-pla', name: 'PLA', unit: 'g', active: true, materialCount: 1, pricingRuleCount: 0, version: 1, createdAt: now, updatedAt: now }] })),
     http.get('*/api/v1/machine-types', () => { reads.machines++; return HttpResponse.json({ items: [] }); }),
   );
   return reads;
@@ -75,7 +76,7 @@ describe('independent machine configuration access', () => {
   });
 
   it('allows material pricing without machine lookup access', async () => {
-    const reads = configure([PermissionId.pricingread, PermissionId.pricingmanage]);
+    const reads = configure([PermissionId.pricingread, PermissionId.pricingmanage, PermissionId.inventoryread]);
     let submitted: Record<string, unknown> | undefined;
     server.use(http.post('*/api/v1/pricing-groups/group-1/rules', async ({ request }) => { submitted = await request.json() as Record<string, unknown>; return HttpResponse.json({ ...group.rules[0], ...submitted }); }));
     const user = userEvent.setup();
@@ -84,10 +85,10 @@ describe('independent machine configuration access', () => {
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByLabelText('Rule kind')).toHaveValue('material');
     await user.selectOptions(within(dialog).getByLabelText('Pricing group'), 'group-1');
-    await user.type(within(dialog).getByLabelText('Normalized material category'), 'PLA');
+    await user.selectOptions(within(dialog).getByLabelText('Material type'), 'type-pla');
     await user.type(within(dialog).getByLabelText('Rate (€ per unit)'), '0.03');
     await user.click(within(dialog).getByRole('button', { name: 'Add rule' }));
-    await waitFor(() => expect(submitted).toMatchObject({ kind: 'material', machineTypeId: null, materialCategory: 'pla', rate: '0.03' }));
+    await waitFor(() => expect(submitted).toMatchObject({ kind: 'material', machineTypeId: null, materialTypeId: 'type-pla', rate: '0.03' }));
     expect(reads.machines).toBe(0);
   });
 });

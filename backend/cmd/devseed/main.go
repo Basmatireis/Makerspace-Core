@@ -194,7 +194,8 @@ type seeder struct {
 	custs       []party
 	orgs        map[string]party
 	mats        map[string]*mat
-	newMats     map[string]bool // materials created by this run
+	matTypes    map[string]uuid.UUID // material types by name
+	newMats     map[string]bool      // materials created by this run
 	prods       map[string]*product
 	machines    map[string]*mach
 	reus        []*reusable
@@ -238,7 +239,7 @@ func main() {
 	s := &seeder{ctx: ctx, pool: pool, cfg: cfg, rng: mrand.New(mrand.NewSource(*seed)), loc: loc, now: now,
 		tag:   hex.EncodeToString(tagBytes),
 		shift: time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, loc).Sub(anchor),
-		orgs:  map[string]party{}, mats: map[string]*mat{}, newMats: map[string]bool{}, prods: map[string]*product{}, machines: map[string]*mach{}, roles: map[string]uuid.UUID{}}
+		orgs:  map[string]party{}, mats: map[string]*mat{}, matTypes: map[string]uuid.UUID{}, newMats: map[string]bool{}, prods: map[string]*product{}, machines: map[string]*mach{}, roles: map[string]uuid.UUID{}}
 	log.Printf("devseed run %s (seed %d)", s.tag, *seed)
 	s.people = people.NewService(pool)
 	s.rolesSvc = roles.NewService(pool)
@@ -517,6 +518,10 @@ func (s *seeder) createOrgsAndPricing() {
 	staff, staffNew := group("University staff", "Employees of the university and its institutes", false)
 	ext, extNew := group("External", "Companies and private persons", false)
 
+	// Material types are what prices attach to; materials are variants of them.
+	for _, t := range [][2]string{{"PLA", "g"}, {"PETG", "g"}, {"TPU 95A", "g"}, {"ASA", "g"}, {"Plywood", "m2"}, {"Acrylic", "m2"}, {"MDF", "m2"}} {
+		s.materialType(t[0], t[1])
+	}
 	machineType := func(name string) uuid.UUID {
 		id, create := s.claim("machine_types", name, "active")
 		if create != "" {
@@ -541,18 +546,23 @@ func (s *seeder) createOrgsAndPricing() {
 		if !g.new {
 			continue
 		}
-		rule := func(kind string, mt *uuid.UUID, cat, unit *string, rate float64) {
-			_, err := ml.CreatePricingRule(s.ctx, s.actor, g.id, kind, mt, cat, unit, f2(rate), nil)
+		rule := func(kind string, mt, material *uuid.UUID, rate float64) {
+			_, err := ml.CreatePricingRule(s.ctx, s.actor, g.id, kind, mt, material, f3(rate), nil)
 			check("rule", err)
 		}
-		rule("machine_runtime", &ftype, nil, nil, g.r.fdm)
-		rule("machine_runtime", &ltype, nil, nil, g.r.laser)
-		rule("material", nil, ptr("filament"), ptr("g"), g.r.fil)
-		rule("material", nil, ptr("plywood"), ptr("m2"), g.r.ply)
+		material := func(name string) *uuid.UUID { id := s.matTypes[name]; return &id }
+		rule("machine_runtime", &ftype, nil, g.r.fdm)
+		rule("machine_runtime", &ltype, nil, g.r.laser)
+		// Filament is priced per type: PETG, ASA and TPU cost more than PLA.
+		rule("material", nil, material("PLA"), g.r.fil)
+		rule("material", nil, material("PETG"), g.r.fil*1.2)
+		rule("material", nil, material("ASA"), g.r.fil*1.3)
+		rule("material", nil, material("TPU 95A"), g.r.fil*2)
+		rule("material", nil, material("Plywood"), g.r.ply)
 		if !g.x { // External deliberately has no acrylic rule (incomplete pricing demo)
-			rule("material", nil, ptr("acrylic"), ptr("m2"), g.r.acr)
+			rule("material", nil, material("Acrylic"), g.r.acr)
 		}
-		rule("material", nil, ptr("mdf"), ptr("m2"), g.r.mdf)
+		rule("material", nil, material("MDF"), g.r.mdf)
 	}
 	assign := func(p party, g uuid.UUID) {
 		_, err := ml.SetPartyPricingGroup(s.ctx, s.actor, p.ref(), &g, 0, nil)
@@ -577,30 +587,48 @@ func (s *seeder) createOrgsAndPricing() {
 	s.custs = append(s.custs, s.orgs["chair"], s.orgs["fs"], s.orgs["startup"])
 }
 
+// materialType returns the material type with this name, creating it when it
+// does not exist yet. An existing type keeps its unit.
+func (s *seeder) materialType(name, unit string) uuid.UUID {
+	if id, ok := s.matTypes[name]; ok {
+		return id
+	}
+	id, ok := s.existing("SELECT id FROM material_types WHERE lower(name) = lower($1)", name)
+	if !ok {
+		t, err := s.ml.CreateMaterialType(s.ctx, s.actor, name, unit, nil)
+		check("material type", err)
+		id = t.ID
+	}
+	s.matTypes[name] = id
+	return id
+}
+
 func (s *seeder) createCatalog() {
 	ml := s.ml
-	// Materials are reused when name, category and unit match.
-	material := func(name, cat, unit string, color *string) {
-		id, create := s.claim("materials", name, "active AND category = $2 AND unit = $3", cat, unit)
+	// Materials are reused when name and unit match.
+	material := func(name, typeName, unit string, colorName, colorHex *string) {
+		typeID := s.materialType(typeName, unit)
+		id, create := s.claim("materials", name, "active AND unit = $2", unit)
 		if create != "" {
-			var m machinelogbook.Material
-			var err error
+			in := machinelogbook.MaterialInput{Name: create, MaterialTypeID: typeID, ColorName: colorName, ColorHex: colorHex}
 			if unit == "g" {
-				m, err = ml.CreateMaterialWithFilament(s.ctx, s.actor, create, cat, color, unit, nil, ptr("1.75"), nil)
-			} else {
-				m, err = ml.CreateMaterial(s.ctx, s.actor, create, cat, color, unit, nil, nil)
+				in.FilamentDiameterMM = ptr("1.75")
 			}
+			m, err := ml.CreateMaterial(s.ctx, s.actor, in, nil)
 			check("mat", err)
 			id = m.ID
 			s.newMats[name] = true
 		}
-		s.mats[name] = &mat{id, name, cat}
+		s.mats[name] = &mat{id, name, typeName}
 	}
-	for _, f := range [][2]string{{"PLA Black", "#1a1a1a"}, {"PLA White", "#f2f2f2"}, {"PLA Grey", "#8c8c8c"}, {"PLA Red", "#c62828"}, {"PETG Black", "#222222"}, {"PETG Clear", "#dde8ee"}, {"TPU 95A Black", "#111111"}, {"ASA White", "#fafafa"}} {
-		material(f[0], "filament", "g", ptr(f[1]))
+	for _, f := range []struct{ name, typeName, colorName, hex string }{
+		{"PLA Black", "PLA", "Black", "#1A1A1A"}, {"PLA White", "PLA", "White", "#F2F2F2"}, {"PLA Grey", "PLA", "Grey", "#8C8C8C"}, {"PLA Red", "PLA", "Red", "#C62828"},
+		{"PETG Black", "PETG", "Black", "#222222"}, {"PETG Clear", "PETG", "Clear", "#DDE8EE"}, {"TPU 95A Black", "TPU 95A", "Black", "#111111"}, {"ASA White", "ASA", "White", "#FAFAFA"},
+	} {
+		material(f.name, f.typeName, "g", ptr(f.colorName), ptr(f.hex))
 	}
-	for _, f := range [][2]string{{"Plywood 3 mm", "plywood"}, {"Plywood 4 mm", "plywood"}, {"Acrylic 3 mm clear", "acrylic"}, {"MDF 3 mm", "mdf"}} {
-		material(f[0], f[1], "m2", nil)
+	for _, f := range [][2]string{{"Plywood 3 mm", "Plywood"}, {"Plywood 4 mm", "Plywood"}, {"Acrylic 3 mm clear", "Acrylic"}, {"MDF 3 mm", "MDF"}} {
+		material(f[0], f[1], "m2", nil, nil)
 	}
 	// Products are reused when they belong to the same material.
 	prod := func(key, maker, name, matName, pack string, weight, price float64, active bool) {
@@ -1700,7 +1728,8 @@ func (s *seeder) setThresholds() {
 		if m.Unit == "g" {
 			diameter = ptr("1.75")
 		}
-		_, err := s.ml.UpdateMaterialWithFilament(s.ctx, s.actor, m.ID, m.Version, m.Name, m.Category, m.Color, m.Unit, true, ptr(strconv.FormatFloat(th, 'f', prec, 64)), diameter, nil)
+		_, err := s.ml.UpdateMaterial(s.ctx, s.actor, m.ID, machinelogbook.MaterialInput{Name: m.Name, MaterialTypeID: m.MaterialTypeID, ColorName: m.ColorName, ColorHex: m.ColorHex, Active: true,
+			LowStockThreshold: ptr(strconv.FormatFloat(th, 'f', prec, 64)), FilamentDiameterMM: diameter, ExpectedVersion: m.Version}, nil)
 		check("threshold "+name, err)
 	}
 }

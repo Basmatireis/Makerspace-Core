@@ -19,6 +19,7 @@ the required session and CSRF credentials.
  * OpenAPI spec version: 0.1.0
  */
 import type { UUIDv7 } from './uUIDv7';
+import type { MaterialColorHex } from './materialColorHex';
 import type { MaterialUnit } from './materialUnit';
 import type { MaterialLowStockThreshold } from './materialLowStockThreshold';
 import type { Decimal } from './decimal';
@@ -29,9 +30,16 @@ import type { Version } from './version';
 export interface Material {
   id: UUIDv7;
   name: string;
-  category: string;
+  materialTypeId: UUIDv7;
+  materialTypeName: string;
+  /**
+   * @maxLength 80
+   * @nullable
+   */
+  colorName?: string | null;
   /** @nullable */
-  color?: string | null;
+  colorHex?: MaterialColorHex;
+  /** The unit of the material type. */
   unit: MaterialUnit;
   active: boolean;
   /** @nullable */

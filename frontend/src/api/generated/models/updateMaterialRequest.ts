@@ -18,7 +18,33 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { CreateMaterialRequest } from './createMaterialRequest';
-import type { UpdateMaterialRequestAllOf } from './updateMaterialRequestAllOf';
+import type { UUIDv7 } from './uUIDv7';
+import type { UpdateMaterialRequestColorHex } from './updateMaterialRequestColorHex';
+import type { MaterialUnit } from './materialUnit';
+import type { UpdateMaterialRequestLowStockThreshold } from './updateMaterialRequestLowStockThreshold';
+import type { UpdateMaterialRequestFilamentDiameterMm } from './updateMaterialRequestFilamentDiameterMm';
+import type { Version } from './version';
 
-export type UpdateMaterialRequest = CreateMaterialRequest & UpdateMaterialRequestAllOf;
+export interface UpdateMaterialRequest {
+  /**
+   * @minLength 1
+   * @maxLength 150
+   */
+  name: string;
+  materialTypeId: UUIDv7;
+  /**
+   * @maxLength 80
+   * @nullable
+   */
+  colorName?: string | null;
+  /** @nullable */
+  colorHex?: UpdateMaterialRequestColorHex;
+  /** Optional. The unit always is the unit of the material type; a different value is refused with 422 material_unit_mismatch. */
+  unit?: MaterialUnit;
+  /** @nullable */
+  lowStockThreshold?: UpdateMaterialRequestLowStockThreshold;
+  /** @nullable */
+  filamentDiameterMm?: UpdateMaterialRequestFilamentDiameterMm;
+  expectedVersion: Version;
+  active: boolean;
+}

@@ -31,35 +31,58 @@ func stockState(quantity decimal.Decimal, threshold pgtype.Numeric) string {
 func materialFromGet(row machinelogbookdb.GetMaterialRow) Material {
 	q := decimalFromNumeric(row.Quantity)
 	assigned := decimalFromNumeric(row.AssignedQuantity)
-	return Material{ID: row.ID, Name: row.Name, Category: row.Category, Color: row.Color, Unit: row.Unit, Active: row.Active, LowStockThreshold: nullableDecimal(row.LowStockThreshold), FilamentDiameterMM: nullableDecimal(row.DiameterMm), Quantity: q.String(), AssignedQuantity: assigned.String(), UnassignedQuantity: q.Sub(assigned).String(), InventoryValue: decimalString(row.InventoryValue), AverageUnitCost: decimalString(row.AverageUnitCost), RecentConsumption: decimalString(row.RecentConsumption), StockState: stockState(q, row.LowStockThreshold), Version: row.Version, InventoryVersion: row.InventoryVersion, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return Material{ID: row.ID, Name: row.Name, MaterialTypeID: row.MaterialTypeID, MaterialTypeName: row.MaterialTypeName, ColorName: row.ColorName, ColorHex: row.ColorHex, Unit: row.Unit, Active: row.Active, LowStockThreshold: nullableDecimal(row.LowStockThreshold), FilamentDiameterMM: nullableDecimal(row.DiameterMm), Quantity: q.String(), AssignedQuantity: assigned.String(), UnassignedQuantity: q.Sub(assigned).String(), InventoryValue: decimalString(row.InventoryValue), AverageUnitCost: decimalString(row.AverageUnitCost), RecentConsumption: decimalString(row.RecentConsumption), StockState: stockState(q, row.LowStockThreshold), Version: row.Version, InventoryVersion: row.InventoryVersion, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
 }
 func materialFromList(row machinelogbookdb.ListMaterialsRow) Material {
-	q := decimalFromNumeric(row.Quantity)
-	assigned := decimalFromNumeric(row.AssignedQuantity)
-	return Material{ID: row.ID, Name: row.Name, Category: row.Category, Color: row.Color, Unit: row.Unit, Active: row.Active, LowStockThreshold: nullableDecimal(row.LowStockThreshold), FilamentDiameterMM: nullableDecimal(row.DiameterMm), Quantity: q.String(), AssignedQuantity: assigned.String(), UnassignedQuantity: q.Sub(assigned).String(), InventoryValue: decimalString(row.InventoryValue), AverageUnitCost: decimalString(row.AverageUnitCost), RecentConsumption: decimalString(row.RecentConsumption), StockState: stockState(q, row.LowStockThreshold), Version: row.Version, InventoryVersion: row.InventoryVersion, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}
+	return materialFromGet(machinelogbookdb.GetMaterialRow(row))
 }
 
-func validateMaterial(name, category, unit string, threshold *string) (string, string, pgtype.Numeric, error) {
+// MaterialInput is the editable part of a material. Unit is optional: the unit
+// always is the unit of the material type, and a different value is refused.
+type MaterialInput struct {
+	Name                string
+	MaterialTypeID      uuid.UUID
+	Unit                *string
+	ColorName, ColorHex *string
+	LowStockThreshold   *string
+	FilamentDiameterMM  *string
+	Active              bool
+	ExpectedVersion     int64
+}
+
+type validatedMaterial struct {
+	name                string
+	colorName, colorHex *string
+	threshold           pgtype.Numeric
+}
+
+func validateMaterial(in MaterialInput) (validatedMaterial, error) {
+	var v validatedMaterial
 	var err error
-	name, err = validateName(name)
-	if err != nil {
-		return "", "", pgtype.Numeric{}, err
+	if v.name, err = validateName(in.Name); err != nil {
+		return v, err
 	}
-	category = strings.ToLower(strings.TrimSpace(category))
-	if category == "" || len(category) > 100 {
-		return "", "", pgtype.Numeric{}, validation("category is required and limited to 100 characters")
+	if in.MaterialTypeID == uuid.Nil {
+		return v, validation("materialTypeId is required")
 	}
-	if !validUnit(unit) {
-		return "", "", pgtype.Numeric{}, validation("invalid material unit")
+	if v.colorName, v.colorHex, err = validateColor(in.ColorName, in.ColorHex); err != nil {
+		return v, err
 	}
-	numeric, err := pgNullableNumeric(threshold, false)
-	if err != nil {
-		return "", "", pgtype.Numeric{}, err
+	if v.threshold, err = pgNullableNumeric(in.LowStockThreshold, false); err != nil {
+		return v, err
 	}
-	if numeric.Valid && decimalFromNumeric(numeric).IsNegative() {
-		return "", "", pgtype.Numeric{}, validation("lowStockThreshold must be non-negative")
+	if v.threshold.Valid && decimalFromNumeric(v.threshold).IsNegative() {
+		return v, validation("lowStockThreshold must be non-negative")
 	}
-	return name, category, numeric, nil
+	return v, nil
+}
+
+// materialUnit is the unit of the type; an explicitly given other unit is refused.
+func materialUnit(materialType machinelogbookdb.MaterialType, requested *string) (string, error) {
+	if requested != nil && *requested != materialType.Unit {
+		return "", apperror.New(422, "material_unit_mismatch", "The material unit must equal the unit of its material type")
+	}
+	return materialType.Unit, nil
 }
 
 func (s *Service) GetMaterial(ctx context.Context, p authorization.Principal, id uuid.UUID) (Material, error) {
@@ -72,7 +95,7 @@ func (s *Service) GetMaterial(ctx context.Context, p authorization.Principal, id
 	}
 	return materialFromGet(row), nil
 }
-func (s *Service) ListMaterials(ctx context.Context, p authorization.Principal, search, category, state string, page, pageSize int) ([]Material, int64, string, error) {
+func (s *Service) ListMaterials(ctx context.Context, p authorization.Principal, search string, materialTypeID *uuid.UUID, state string, page, pageSize int) ([]Material, int64, string, error) {
 	if err := require(p, authorization.InventoryRead); err != nil {
 		return nil, 0, "", err
 	}
@@ -84,12 +107,12 @@ func (s *Service) ListMaterials(ctx context.Context, p authorization.Principal, 
 		return nil, 0, "", validation("invalid stock state")
 	}
 	q := machinelogbookdb.New(s.pool)
-	params := machinelogbookdb.ListMaterialsParams{Search: strings.TrimSpace(search), Category: strings.ToLower(strings.TrimSpace(category)), StockState: state, PageOffset: offset, PageLimit: limit}
+	params := machinelogbookdb.ListMaterialsParams{Search: strings.TrimSpace(search), MaterialTypeID: materialTypeID, StockState: state, PageOffset: offset, PageLimit: limit}
 	rows, err := q.ListMaterials(ctx, params)
 	if err != nil {
 		return nil, 0, "", err
 	}
-	total, err := q.CountMaterials(ctx, machinelogbookdb.CountMaterialsParams{Search: params.Search, Category: params.Category, StockState: params.StockState})
+	total, err := q.CountMaterials(ctx, machinelogbookdb.CountMaterialsParams{Search: params.Search, MaterialTypeID: params.MaterialTypeID, StockState: params.StockState})
 	if err != nil {
 		return nil, 0, "", err
 	}
@@ -104,35 +127,38 @@ func (s *Service) ListMaterials(ctx context.Context, p authorization.Principal, 
 	return items, total, decimalString(value), nil
 }
 
-func (s *Service) CreateMaterial(ctx context.Context, p authorization.Principal, name, category string, color *string, unit string, threshold *string, requestID *uuid.UUID) (Material, error) {
-	return s.CreateMaterialWithFilament(ctx, p, name, category, color, unit, threshold, nil, requestID)
-}
-
-func (s *Service) CreateMaterialWithFilament(ctx context.Context, p authorization.Principal, name, category string, color *string, unit string, threshold, filamentDiameter *string, requestID *uuid.UUID) (Material, error) {
+func (s *Service) CreateMaterial(ctx context.Context, p authorization.Principal, in MaterialInput, requestID *uuid.UUID) (Material, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return Material{}, err
 	}
-	name, category, numeric, err := validateMaterial(name, category, unit, threshold)
+	v, err := validateMaterial(in)
 	if err != nil {
 		return Material{}, err
 	}
-	color = cleanOptional(color)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Material{}, err
 	}
 	defer tx.Rollback(ctx)
 	q := machinelogbookdb.New(tx)
+	materialType, err := resolveMaterialType(ctx, q, in.MaterialTypeID, true)
+	if err != nil {
+		return Material{}, err
+	}
+	unit, err := materialUnit(materialType, in.Unit)
+	if err != nil {
+		return Material{}, err
+	}
 	id := newID()
-	_, err = q.CreateMaterial(ctx, machinelogbookdb.CreateMaterialParams{ID: id, Name: name, Category: category, Color: color, Unit: unit, LowStockThreshold: numeric})
+	_, err = q.CreateMaterial(ctx, machinelogbookdb.CreateMaterialParams{ID: id, Name: v.name, MaterialTypeID: materialType.ID, ColorName: v.colorName, ColorHex: v.colorHex, Unit: unit, LowStockThreshold: v.threshold})
 	if err != nil {
 		return Material{}, databaseError(err)
 	}
 	if _, err = q.CreateMaterialBalance(ctx, id); err != nil {
 		return Material{}, err
 	}
-	if filamentDiameter != nil {
-		diameter, parseErr := numericFromString(*filamentDiameter, true)
+	if in.FilamentDiameterMM != nil {
+		diameter, parseErr := numericFromString(*in.FilamentDiameterMM, true)
 		if parseErr != nil || unit != "g" {
 			return Material{}, validation("filamentDiameterMm requires a gram-denominated material")
 		}
@@ -140,7 +166,7 @@ func (s *Service) CreateMaterialWithFilament(ctx context.Context, p authorizatio
 			return Material{}, err
 		}
 	}
-	if err = writeAudit(ctx, tx, p, "material.created", "material", id, requestID, []string{"name", "category", "color", "unit", "lowStockThreshold"}); err != nil {
+	if err = writeAudit(ctx, tx, p, "material.created", "material", id, requestID, []string{"name", "materialTypeId", "colorName", "colorHex", "unit", "lowStockThreshold"}); err != nil {
 		return Material{}, err
 	}
 	row, err := q.GetMaterial(ctx, id)
@@ -153,22 +179,17 @@ func (s *Service) CreateMaterialWithFilament(ctx context.Context, p authorizatio
 	return materialFromGet(row), nil
 }
 
-func (s *Service) UpdateMaterial(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, name, category string, color *string, unit string, active bool, threshold *string, requestID *uuid.UUID) (Material, error) {
-	return s.UpdateMaterialWithFilament(ctx, p, id, expected, name, category, color, unit, active, threshold, nil, requestID)
-}
-
-func (s *Service) UpdateMaterialWithFilament(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, name, category string, color *string, unit string, active bool, threshold, filamentDiameter *string, requestID *uuid.UUID) (Material, error) {
+func (s *Service) UpdateMaterial(ctx context.Context, p authorization.Principal, id uuid.UUID, in MaterialInput, requestID *uuid.UUID) (Material, error) {
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return Material{}, err
 	}
-	if expected < 1 {
+	if in.ExpectedVersion < 1 {
 		return Material{}, validation("expectedVersion must be positive")
 	}
-	name, category, numeric, err := validateMaterial(name, category, unit, threshold)
+	v, err := validateMaterial(in)
 	if err != nil {
 		return Material{}, err
 	}
-	color = cleanOptional(color)
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return Material{}, err
@@ -179,8 +200,17 @@ func (s *Service) UpdateMaterialWithFilament(ctx context.Context, p authorizatio
 	if err != nil {
 		return Material{}, noRows(err)
 	}
-	if current.Version != expected {
+	if current.Version != in.ExpectedVersion {
 		return Material{}, apperror.StaleWrite
+	}
+	// A deactivated type stays valid for the materials that already use it.
+	materialType, err := resolveMaterialType(ctx, q, in.MaterialTypeID, in.MaterialTypeID != current.MaterialTypeID)
+	if err != nil {
+		return Material{}, err
+	}
+	unit, err := materialUnit(materialType, in.Unit)
+	if err != nil {
+		return Material{}, err
 	}
 	if current.Unit != unit && !decimalFromNumeric(current.Quantity).IsZero() {
 		return Material{}, conflict("material_unit_in_use", "Material unit cannot change while stock exists")
@@ -194,19 +224,19 @@ func (s *Service) UpdateMaterialWithFilament(ctx context.Context, p authorizatio
 			return Material{}, conflict("material_unit_in_use", "Material unit cannot change while filament spools exist")
 		}
 	}
-	_, err = q.UpdateMaterial(ctx, machinelogbookdb.UpdateMaterialParams{Name: name, Category: category, Color: color, Unit: unit, Active: active, LowStockThreshold: numeric, ID: id, ExpectedVersion: expected})
+	_, err = q.UpdateMaterial(ctx, machinelogbookdb.UpdateMaterialParams{Name: v.name, MaterialTypeID: materialType.ID, ColorName: v.colorName, ColorHex: v.colorHex, Unit: unit, Active: in.Active, LowStockThreshold: v.threshold, ID: id, ExpectedVersion: in.ExpectedVersion})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Material{}, apperror.StaleWrite
 	}
 	if err != nil {
 		return Material{}, databaseError(err)
 	}
-	if filamentDiameter == nil {
+	if in.FilamentDiameterMM == nil {
 		if err = q.DeleteMaterialFilamentProperties(ctx, id); err != nil {
 			return Material{}, err
 		}
 	} else {
-		diameter, parseErr := numericFromString(*filamentDiameter, true)
+		diameter, parseErr := numericFromString(*in.FilamentDiameterMM, true)
 		if parseErr != nil || unit != "g" {
 			return Material{}, validation("filamentDiameterMm requires a gram-denominated material")
 		}
@@ -214,7 +244,7 @@ func (s *Service) UpdateMaterialWithFilament(ctx context.Context, p authorizatio
 			return Material{}, err
 		}
 	}
-	if err = writeAudit(ctx, tx, p, "material.updated", "material", id, requestID, []string{"name", "category", "color", "unit", "active", "lowStockThreshold"}); err != nil {
+	if err = writeAudit(ctx, tx, p, "material.updated", "material", id, requestID, []string{"name", "materialTypeId", "colorName", "colorHex", "unit", "active", "lowStockThreshold"}); err != nil {
 		return Material{}, err
 	}
 	row, err := q.GetMaterial(ctx, id)

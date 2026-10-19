@@ -48,6 +48,7 @@ type Querier interface {
 	CreateMachineType(ctx context.Context, arg CreateMachineTypeParams) (MachineType, error)
 	CreateMaterial(ctx context.Context, arg CreateMaterialParams) (Material, error)
 	CreateMaterialBalance(ctx context.Context, materialID uuid.UUID) (MaterialBalance, error)
+	CreateMaterialType(ctx context.Context, arg CreateMaterialTypeParams) (MaterialType, error)
 	CreateOrganization(ctx context.Context, arg CreateOrganizationParams) (Organization, error)
 	CreatePricingGroup(ctx context.Context, arg CreatePricingGroupParams) (PricingGroup, error)
 	CreatePricingRule(ctx context.Context, arg CreatePricingRuleParams) (PricingRule, error)
@@ -57,6 +58,7 @@ type Querier interface {
 	DeleteFilamentSpoolIdentifier(ctx context.Context, arg DeleteFilamentSpoolIdentifierParams) (int64, error)
 	DeleteManualRun(ctx context.Context, id uuid.UUID) (int64, error)
 	DeleteMaterialFilamentProperties(ctx context.Context, materialID uuid.UUID) error
+	DeleteMaterialType(ctx context.Context, arg DeleteMaterialTypeParams) (int64, error)
 	// Members, the pricing group assignment and invoicing requirements go with it
 	// through ON DELETE CASCADE.
 	DeleteOrganization(ctx context.Context, arg DeleteOrganizationParams) (int64, error)
@@ -86,6 +88,9 @@ type Querier interface {
 	GetMachineTypeForUpdate(ctx context.Context, id uuid.UUID) (MachineType, error)
 	GetMaterial(ctx context.Context, id uuid.UUID) (GetMaterialRow, error)
 	GetMaterialForUpdate(ctx context.Context, id uuid.UUID) (GetMaterialForUpdateRow, error)
+	GetMaterialType(ctx context.Context, id uuid.UUID) (GetMaterialTypeRow, error)
+	GetMaterialTypeForShare(ctx context.Context, id uuid.UUID) (MaterialType, error)
+	GetMaterialTypeForUpdate(ctx context.Context, id uuid.UUID) (MaterialType, error)
 	GetOpenFilamentSpoolFill(ctx context.Context, spoolID uuid.UUID) (GetOpenFilamentSpoolFillRow, error)
 	GetOrganization(ctx context.Context, id uuid.UUID) (Organization, error)
 	GetOrganizationDetail(ctx context.Context, id uuid.UUID) (GetOrganizationDetailRow, error)
@@ -131,11 +136,12 @@ type Querier interface {
 	ListMachineRunningRuns(ctx context.Context, now time.Time) ([]ListMachineRunningRunsRow, error)
 	ListMachineTypes(ctx context.Context) ([]MachineType, error)
 	ListMachines(ctx context.Context, arg ListMachinesParams) ([]ListMachinesRow, error)
+	ListMaterialTypes(ctx context.Context) ([]ListMaterialTypesRow, error)
 	ListMaterials(ctx context.Context, arg ListMaterialsParams) ([]ListMaterialsRow, error)
 	ListOrganizationMembers(ctx context.Context, organizationID uuid.UUID) ([]ListOrganizationMembersRow, error)
 	ListOrganizations(ctx context.Context, arg ListOrganizationsParams) ([]ListOrganizationsRow, error)
 	ListPricingGroups(ctx context.Context) ([]PricingGroup, error)
-	ListPricingRulesByGroup(ctx context.Context, pricingGroupID uuid.UUID) ([]PricingRule, error)
+	ListPricingRulesByGroup(ctx context.Context, pricingGroupID uuid.UUID) ([]ListPricingRulesByGroupRow, error)
 	ListPricingSnapshotRules(ctx context.Context, snapshotID uuid.UUID) ([]MachineJobPricingSnapshotRule, error)
 	ListRecentJobIDs(ctx context.Context, pageLimit int32) ([]uuid.UUID, error)
 	ListRetiredFilamentSpoolIdentifiers(ctx context.Context, spoolID uuid.UUID) ([]FilamentSpoolIdentifier, error)
@@ -146,6 +152,9 @@ type Querier interface {
 	ListWorkItems(ctx context.Context, arg ListWorkItemsParams) ([]ListWorkItemsRow, error)
 	LockFilamentSpoolCleanupCandidates(ctx context.Context, arg LockFilamentSpoolCleanupCandidatesParams) ([]LockFilamentSpoolCleanupCandidatesRow, error)
 	MarkManualRunReplaced(ctx context.Context, id uuid.UUID) error
+	// True while a material or a pricing rule (active or not) uses the type. Pricing
+	// snapshots only keep a nullable pointer and their own label text.
+	MaterialTypeIsReferenced(ctx context.Context, id uuid.UUID) (bool, error)
 	NextFilamentSpoolFillNumber(ctx context.Context, spoolID uuid.UUID) (int32, error)
 	NextFilamentSpoolSequence(ctx context.Context) (int64, error)
 	NextMachineJobSequence(ctx context.Context) (int64, error)
@@ -175,7 +184,7 @@ type Querier interface {
 	StatisticMachineJobCounts(ctx context.Context, arg StatisticMachineJobCountsParams) ([]StatisticMachineJobCountsRow, error)
 	StatisticMachineRuntime(ctx context.Context, arg StatisticMachineRuntimeParams) ([]StatisticMachineRuntimeRow, error)
 	StatisticMachineSummaries(ctx context.Context, arg StatisticMachineSummariesParams) ([]StatisticMachineSummariesRow, error)
-	StatisticMaterialCostByCategory(ctx context.Context, arg StatisticMaterialCostByCategoryParams) ([]StatisticMaterialCostByCategoryRow, error)
+	StatisticMaterialCostByType(ctx context.Context, arg StatisticMaterialCostByTypeParams) ([]StatisticMaterialCostByTypeRow, error)
 	StatisticMaterialUsage(ctx context.Context, arg StatisticMaterialUsageParams) ([]StatisticMaterialUsageRow, error)
 	StatisticMonths(ctx context.Context, arg StatisticMonthsParams) ([]StatisticMonthsRow, error)
 	StatisticPeriodTotals(ctx context.Context, arg StatisticPeriodTotalsParams) (StatisticPeriodTotalsRow, error)
@@ -194,6 +203,7 @@ type Querier interface {
 	UpdateManualRunFacts(ctx context.Context, arg UpdateManualRunFactsParams) (MachineRun, error)
 	UpdateMaterial(ctx context.Context, arg UpdateMaterialParams) (Material, error)
 	UpdateMaterialBalance(ctx context.Context, arg UpdateMaterialBalanceParams) (MaterialBalance, error)
+	UpdateMaterialType(ctx context.Context, arg UpdateMaterialTypeParams) (MaterialType, error)
 	UpdateOpenFilamentSpoolFillSnapshot(ctx context.Context, arg UpdateOpenFilamentSpoolFillSnapshotParams) (int64, error)
 	UpdateOrganization(ctx context.Context, arg UpdateOrganizationParams) (Organization, error)
 	UpdatePricingGroup(ctx context.Context, arg UpdatePricingGroupParams) (PricingGroup, error)

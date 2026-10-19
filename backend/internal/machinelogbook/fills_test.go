@@ -25,6 +25,7 @@ type fillFixture struct {
 	now     time.Time
 	suffix  string
 	counter int
+	typeID  uuid.UUID
 }
 
 func newFillFixture(t *testing.T) *fillFixture {
@@ -45,9 +46,15 @@ func newFillFixture(t *testing.T) *fillFixture {
 		cleanup, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		_, _ = pool.Exec(cleanup, `DELETE FROM audit_events WHERE request_id = $1`, f.request)
+		_, _ = pool.Exec(cleanup, `DELETE FROM material_types WHERE id = $1`, f.typeID)
 		_, _ = pool.Exec(cleanup, `DELETE FROM accounts WHERE id = $1`, account)
 		_, _ = pool.Exec(cleanup, `DELETE FROM people WHERE id = $1`, person)
 	})
+	materialType, err := f.s.CreateMaterialType(ctx, f.p, "Fill PLA "+f.suffix, "g", &f.request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.typeID = materialType.ID
 	return f
 }
 
@@ -60,7 +67,7 @@ func (f *fillFixture) unique(prefix string) string {
 func (f *fillFixture) material(t *testing.T, stock string) Material {
 	t.Helper()
 	diameter := "1.75"
-	m, err := f.s.CreateMaterialWithFilament(t.Context(), f.p, f.unique("Fill PLA"), "pla", nil, "g", nil, &diameter, &f.request)
+	m, err := f.s.CreateMaterial(t.Context(), f.p, MaterialInput{Name: f.unique("Fill PLA"), MaterialTypeID: f.typeID, FilamentDiameterMM: &diameter}, &f.request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -941,7 +948,7 @@ func TestCleanUpDeletesOnlyQualifyingArchivedSingleUseSpools(t *testing.T) {
 
 func TestJobUsagesAttachToFillsAndSurviveSpoolDeletion(t *testing.T) {
 	jf := newJobFixture(t)
-	f := &fillFixture{pool: jf.pool, s: jf.s, p: jf.p, request: jf.request, now: jf.now, suffix: strings.ReplaceAll(jf.person.String(), "-", "")[:12]}
+	f := &fillFixture{pool: jf.pool, s: jf.s, p: jf.p, request: jf.request, now: jf.now, suffix: strings.ReplaceAll(jf.person.String(), "-", "")[:12], typeID: jf.materialType.ID}
 	ctx := t.Context()
 	m := f.material(t, "2000")
 	refill := f.spool(t, m, "reusable", "500")

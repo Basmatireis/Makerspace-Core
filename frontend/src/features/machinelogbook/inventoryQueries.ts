@@ -1,7 +1,7 @@
 import { queryOptions } from '@tanstack/react-query';
 import { listFilamentProducts } from '../../api/generated/filament-products/filament-products';
 import { listFilamentSpools } from '../../api/generated/filament-spools/filament-spools';
-import { listMaterials, listMaterialTransactions } from '../../api/generated/inventory/inventory';
+import { listMaterials, listMaterialTransactions, listMaterialTypes } from '../../api/generated/inventory/inventory';
 import { machineLogbookKeys } from './queries';
 
 const PAGE_SIZE = 100;
@@ -18,6 +18,13 @@ async function fetchAll<T>(load: (page: number) => Promise<{ items: T[]; total: 
 
 // All keys live under `machineLogbookKeys.all`, so every inventory mutation invalidates them together.
 const key = (...parts: (string | number)[]) => [...machineLogbookKeys.all, ...parts] as const;
+
+/** Every material type, active ones first. */
+export const materialTypesQuery = () => queryOptions({
+  queryKey: key('material-types'),
+  queryFn: ({ signal }) => listMaterialTypes({ signal }),
+  select: (data) => data.items,
+});
 
 /** Every material, active and inactive. */
 export const allMaterialsQuery = () => queryOptions({

@@ -23,6 +23,7 @@ import type { FilamentSpoolKind } from './filamentSpoolKind';
 import type { FilamentSpoolStatus } from './filamentSpoolStatus';
 import type { FilamentSpoolFillId } from './filamentSpoolFillId';
 import type { FilamentSpoolMaterialId } from './filamentSpoolMaterialId';
+import type { FilamentSpoolColorHex } from './filamentSpoolColorHex';
 import type { FilamentSpoolUnit } from './filamentSpoolUnit';
 import type { FilamentSpoolProductId } from './filamentSpoolProductId';
 import type { FilamentSpoolInitialNetWeightG } from './filamentSpoolInitialNetWeightG';
@@ -63,9 +64,14 @@ export interface FilamentSpool {
   /** @nullable */
   materialName?: string | null;
   /** @nullable */
-  category?: string | null;
+  materialTypeName?: string | null;
+  /**
+   * Colour of the material; spools never hold their own.
+   * @nullable
+   */
+  colorName?: string | null;
   /** @nullable */
-  color?: string | null;
+  colorHex?: FilamentSpoolColorHex;
   /** @nullable */
   unit?: FilamentSpoolUnit;
   /** @nullable */

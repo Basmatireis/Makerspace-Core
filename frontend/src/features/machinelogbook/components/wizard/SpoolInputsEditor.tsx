@@ -53,7 +53,7 @@ export function SpoolInputsEditor({ units, onChange, detection, model }: {
           }}
         />
         <div>
-          <p className="cds--label">Detected</p>
+          <p className="cds--label">Reported by printer</p>
           <div className="mj-slot-row__detected"><DetectedTrayCell tray={trayFor(detection, slot.unitExt ?? unit.ext, slot.ext)} unknownLabel={detection ? 'Not reported' : '—'} /></div>
         </div>
         <OverflowMenu aria-label={`More actions for ${slot.name || 'slot'}`} flipped size="md">

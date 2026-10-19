@@ -21,6 +21,7 @@ the required session and CSRF credentials.
 import type { MaterialUnit } from './materialUnit';
 
 /**
+ * The unit of the material type.
  * @nullable
  */
 export type PricingRuleMaterialUnit = MaterialUnit | null;

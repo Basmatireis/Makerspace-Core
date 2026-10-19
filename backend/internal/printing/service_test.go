@@ -85,7 +85,11 @@ func TestPrintingPostgresVerticalSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	diameter := "1.75"
-	material, err := jobs.CreateMaterialWithFilament(ctx, p, "Test filament "+suffix, "pla", nil, "g", nil, &diameter, &requestID)
+	materialType, err := jobs.CreateMaterialType(ctx, p, "PLA "+suffix, "g", &requestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	material, err := jobs.CreateMaterial(ctx, p, machinelogbook.MaterialInput{Name: "Test filament " + suffix, MaterialTypeID: materialType.ID, FilamentDiameterMM: &diameter}, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}

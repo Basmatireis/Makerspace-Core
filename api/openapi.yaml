@@ -4115,6 +4115,83 @@ paths:
         "422": {$ref: "#/components/responses/UnprocessableEntity"}
         "500": {$ref: "#/components/responses/InternalServerError"}
 
+  /material-types:
+    get:
+      tags: [Inventory]
+      operationId: listMaterialTypes
+      summary: List material types
+      description: Requires `inventory.read`. All types, active ones first; the list is not paged.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Material types., content: {application/json: {schema: {$ref: "#/components/schemas/MaterialTypeList"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    post:
+      tags: [Inventory]
+      operationId: createMaterialType
+      summary: Create a material type
+      description: Requires `inventory.manage`. Names are unique ignoring case (409 material_type_exists).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/CreateMaterialTypeRequest"}}}}
+      responses:
+        "201": {description: Material type created., content: {application/json: {schema: {$ref: "#/components/schemas/MaterialType"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
+  /material-types/{materialTypeId}:
+    parameters:
+      - {name: materialTypeId, in: path, required: true, schema: {$ref: "#/components/schemas/UUIDv7"}}
+    get:
+      tags: [Inventory]
+      operationId: getMaterialType
+      summary: Get a material type
+      description: Requires `inventory.read`.
+      security: [{sessionCookie: []}]
+      responses:
+        "200": {description: Material type., content: {application/json: {schema: {$ref: "#/components/schemas/MaterialType"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    patch:
+      tags: [Inventory]
+      operationId: updateMaterialType
+      summary: Update a material type
+      description: >-
+        Requires `inventory.manage`. Renames, deactivates or reactivates the type. The unit can only change while no material or pricing rule uses the type
+        (409 material_type_unit_in_use).
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/UpdateMaterialTypeRequest"}}}}
+      responses:
+        "200": {description: Material type updated., content: {application/json: {schema: {$ref: "#/components/schemas/MaterialType"}}}}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+    delete:
+      tags: [Inventory]
+      operationId: deleteMaterialType
+      summary: Delete a material type
+      description: >-
+        Requires `inventory.manage`. Permanently deletes a type that no material and no pricing rule uses. A referenced type answers 409 material_type_in_use;
+        deactivate it instead.
+      security: [{sessionCookie: [], csrfHeader: []}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/VersionRequest"}}}}
+      responses:
+        "204": {description: Material type deleted.}
+        "401": {$ref: "#/components/responses/Unauthorized"}
+        "403": {$ref: "#/components/responses/Forbidden"}
+        "404": {$ref: "#/components/responses/NotFound"}
+        "409": {$ref: "#/components/responses/Conflict"}
+        "422": {$ref: "#/components/responses/UnprocessableEntity"}
+        "500": {$ref: "#/components/responses/InternalServerError"}
+
   /materials:
     get:
       tags: [Inventory]
@@ -4123,7 +4200,7 @@ paths:
       security: [{sessionCookie: []}]
       parameters:
         - {name: search, in: query, schema: {type: string, maxLength: 200}}
-        - {name: category, in: query, schema: {type: string, maxLength: 100}}
+        - {name: materialTypeId, in: query, schema: {$ref: "#/components/schemas/UUIDv7"}}
         - {name: stockState, in: query, schema: {$ref: "#/components/schemas/StockState"}}
         - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
         - {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 25}}
@@ -10455,8 +10532,9 @@ components:
         pricingGroupId: {$ref: "#/components/schemas/UUIDv7"}
         kind: {$ref: "#/components/schemas/PricingRuleKind"}
         machineTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        materialCategory: {type: string, nullable: true}
-        materialUnit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], nullable: true}
+        materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Set on material rules; the rate is per unit of this material type."}
+        materialTypeName: {type: string, nullable: true}
+        materialUnit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], nullable: true, description: The unit of the material type.}
         rate: {$ref: "#/components/schemas/Decimal"}
         active: {type: boolean}
         version: {$ref: "#/components/schemas/Version"}
@@ -10510,18 +10588,20 @@ components:
       properties:
         kind: {$ref: "#/components/schemas/PricingRuleKind"}
         machineTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
-        materialCategory: {type: string, maxLength: 100, nullable: true}
-        materialUnit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], nullable: true}
+        materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required for material rules, forbidden for runtime rules."}
         rate: {$ref: "#/components/schemas/Decimal"}
 
     UpdatePricingRuleRequest:
-      allOf:
-        - $ref: "#/components/schemas/CreatePricingRuleRequest"
-        - type: object
-          required: [expectedVersion, active]
-          properties:
-            expectedVersion: {$ref: "#/components/schemas/Version"}
-            active: {type: boolean}
+      type: object
+      additionalProperties: false
+      required: [kind, rate, expectedVersion, active]
+      properties:
+        kind: {$ref: "#/components/schemas/PricingRuleKind"}
+        machineTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
+        materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: "Required for material rules, forbidden for runtime rules."}
+        rate: {$ref: "#/components/schemas/Decimal"}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        active: {type: boolean}
 
     SetBillingPartyPricingGroupRequest:
       type: object
@@ -10539,13 +10619,15 @@ components:
     Material:
       type: object
       additionalProperties: false
-      required: [id, name, category, unit, active, quantity, assignedQuantity, unassignedQuantity, averageUnitCost, inventoryValue, stockState, inventoryVersion, recentConsumption, version, createdAt, updatedAt]
+      required: [id, name, materialTypeId, materialTypeName, unit, active, quantity, assignedQuantity, unassignedQuantity, averageUnitCost, inventoryValue, stockState, inventoryVersion, recentConsumption, version, createdAt, updatedAt]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         name: {type: string}
-        category: {type: string}
-        color: {type: string, nullable: true}
-        unit: {$ref: "#/components/schemas/MaterialUnit"}
+        materialTypeId: {$ref: "#/components/schemas/UUIDv7"}
+        materialTypeName: {type: string}
+        colorName: {type: string, maxLength: 80, nullable: true}
+        colorHex: {allOf: [{$ref: "#/components/schemas/ColorHex"}], nullable: true}
+        unit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], description: The unit of the material type.}
         active: {type: boolean}
         lowStockThreshold: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
         quantity: {$ref: "#/components/schemas/Decimal"}
@@ -10561,6 +10643,51 @@ components:
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
 
+    ColorHex:
+      type: string
+      pattern: "^#[0-9A-F]{6}$"
+      description: "Colour code of a material as #RRGGBB with upper-case hexadecimal digits."
+
+    MaterialType:
+      type: object
+      additionalProperties: false
+      required: [id, name, unit, active, materialCount, pricingRuleCount, version, createdAt, updatedAt]
+      properties:
+        id: {$ref: "#/components/schemas/UUIDv7"}
+        name: {type: string}
+        unit: {$ref: "#/components/schemas/MaterialUnit"}
+        active: {type: boolean}
+        materialCount: {type: integer, format: int64, minimum: 0, description: Materials of this type.}
+        pricingRuleCount: {type: integer, format: int64, minimum: 0, description: "Material pricing rules for this type, active or not."}
+        version: {$ref: "#/components/schemas/Version"}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+
+    MaterialTypeList:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, items: {$ref: "#/components/schemas/MaterialType"}}
+
+    CreateMaterialTypeRequest:
+      type: object
+      additionalProperties: false
+      required: [name, unit]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 120}
+        unit: {$ref: "#/components/schemas/MaterialUnit"}
+
+    UpdateMaterialTypeRequest:
+      type: object
+      additionalProperties: false
+      required: [name, unit, expectedVersion, active]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 120}
+        unit: {$ref: "#/components/schemas/MaterialUnit"}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        active: {type: boolean}
+
     MaterialPage:
       type: object
       additionalProperties: false
@@ -10575,23 +10702,30 @@ components:
     CreateMaterialRequest:
       type: object
       additionalProperties: false
-      required: [name, category, unit]
+      required: [name, materialTypeId]
       properties:
         name: {type: string, minLength: 1, maxLength: 150}
-        category: {type: string, minLength: 1, maxLength: 100}
-        color: {type: string, maxLength: 80, nullable: true}
-        unit: {$ref: "#/components/schemas/MaterialUnit"}
+        materialTypeId: {$ref: "#/components/schemas/UUIDv7"}
+        colorName: {type: string, maxLength: 80, nullable: true}
+        colorHex: {allOf: [{$ref: "#/components/schemas/ColorHex"}], nullable: true}
+        unit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], description: "Optional. The unit always is the unit of the material type; a different value is refused with 422 material_unit_mismatch."}
         lowStockThreshold: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
         filamentDiameterMm: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
 
     UpdateMaterialRequest:
-      allOf:
-        - $ref: "#/components/schemas/CreateMaterialRequest"
-        - type: object
-          required: [expectedVersion, active]
-          properties:
-            expectedVersion: {$ref: "#/components/schemas/Version"}
-            active: {type: boolean}
+      type: object
+      additionalProperties: false
+      required: [name, materialTypeId, expectedVersion, active]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 150}
+        materialTypeId: {$ref: "#/components/schemas/UUIDv7"}
+        colorName: {type: string, maxLength: 80, nullable: true}
+        colorHex: {allOf: [{$ref: "#/components/schemas/ColorHex"}], nullable: true}
+        unit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], description: "Optional. The unit always is the unit of the material type; a different value is refused with 422 material_unit_mismatch."}
+        lowStockThreshold: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        filamentDiameterMm: {allOf: [{$ref: "#/components/schemas/Decimal"}], nullable: true}
+        expectedVersion: {$ref: "#/components/schemas/Version"}
+        active: {type: boolean}
 
     InventoryTransactionKind:
       type: string
@@ -10724,8 +10858,9 @@ components:
         archivedAt: {type: string, format: date-time, nullable: true}
         materialId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         materialName: {type: string, nullable: true}
-        category: {type: string, nullable: true}
-        color: {type: string, nullable: true}
+        materialTypeName: {type: string, nullable: true}
+        colorName: {type: string, nullable: true, description: Colour of the material; spools never hold their own.}
+        colorHex: {allOf: [{$ref: "#/components/schemas/ColorHex"}], nullable: true}
         unit: {allOf: [{$ref: "#/components/schemas/MaterialUnit"}], nullable: true}
         productId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true}
         manufacturer: {type: string, nullable: true, description: Snapshot taken when the fill started.}
@@ -11573,7 +11708,7 @@ components:
     MachineJobUsage:
       type: object
       additionalProperties: false
-      required: [id, ownership, materialName, category, unit, quantity, quantityBasis, staffCorrected]
+      required: [id, ownership, materialName, materialTypeName, unit, quantity, quantityBasis, staffCorrected]
       properties:
         id: {$ref: "#/components/schemas/UUIDv7"}
         ownership: {$ref: "#/components/schemas/FilamentOwnership"}
@@ -11582,7 +11717,8 @@ components:
         spoolDisplayId: {type: string, nullable: true, description: Snapshot; kept when the spool was deleted (spoolId null).}
         fillNumber: {type: integer, nullable: true}
         materialName: {type: string}
-        category: {type: string}
+        materialTypeId: {allOf: [{$ref: "#/components/schemas/UUIDv7"}], nullable: true, description: Null for material the customer brought.}
+        materialTypeName: {type: string, description: "\"External\" for material the customer brought."}
         unit: {$ref: "#/components/schemas/MaterialUnit"}
         quantity: {$ref: "#/components/schemas/Decimal"}
         quantityBasis: {$ref: "#/components/schemas/QuantityBasis"}
@@ -11923,16 +12059,16 @@ components:
     MachineLogbookStatistics:
       type: object
       additionalProperties: false
-      required: [materialUsageByCategory, machineRuntimeHours, machineJobCounts, acquisitionCost, customerCharges, adjustmentLoss, machineFailureRates, totals, previousTotals, months, runtimeGranularity, runtime, materialCostByCategory, machines]
+      required: [materialUsageByType, machineRuntimeHours, machineJobCounts, acquisitionCost, customerCharges, adjustmentLoss, machineFailureRates, totals, previousTotals, months, runtimeGranularity, runtime, materialCostByType, machines]
       properties:
         totals: {$ref: "#/components/schemas/StatisticTotals"}
         previousTotals: {allOf: [{$ref: "#/components/schemas/StatisticTotals"}], description: Totals of the period of equal length that ends the day before from.}
         months: {type: array, items: {$ref: "#/components/schemas/StatisticMonth"}}
         runtimeGranularity: {type: string, enum: [week, month], description: "week for periods up to 92 days, otherwise month."}
         runtime: {type: array, items: {$ref: "#/components/schemas/StatisticRuntimePoint"}}
-        materialCostByCategory: {type: array, items: {$ref: "#/components/schemas/StatisticPoint"}, description: EUR per material category.}
+        materialCostByType: {type: array, items: {$ref: "#/components/schemas/StatisticPoint"}, description: EUR per material type.}
         machines: {type: array, items: {$ref: "#/components/schemas/StatisticMachine"}}
-        materialUsageByCategory: {type: array, items: {$ref: "#/components/schemas/StatisticPoint"}}
+        materialUsageByType: {type: array, items: {$ref: "#/components/schemas/StatisticPoint"}}
         machineRuntimeHours: {type: array, items: {$ref: "#/components/schemas/StatisticPoint"}}
         machineJobCounts: {type: array, items: {$ref: "#/components/schemas/StatisticPoint"}}
         acquisitionCost: {type: array, items: {$ref: "#/components/schemas/StatisticPoint"}}

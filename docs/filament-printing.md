@@ -28,7 +28,7 @@ All three operations below require `filament_spools.manage` and `inventory.manag
 
 ## Filament product catalog
 
-`/filament-products` holds manufacturer, name, material, net weight, default price, packaging (**refill** or **spool**), notes, and an active flag. Reads need `inventory.read`; writes need `inventory.manage`. Manufacturer and name are unique ignoring case. Products can be edited or deactivated. **Snapshot rule:** a fill copies manufacturer and product name when it starts and keeps an optional product reference that is cleared if the product is removed, so catalog edits never rewrite history. The product's material remains the single source for stock and job pricing.
+`/filament-products` holds manufacturer, name, material, net weight, default price, packaging (**refill** or **spool**), notes, and an active flag. Reads need `inventory.read`; writes need `inventory.manage`. Manufacturer and name are unique ignoring case. Products can be edited or deactivated. **Snapshot rule:** a fill copies manufacturer and product name when it starts and keeps an optional product reference that is cleared if the product is removed, so catalog edits never rewrite history. The product's material remains the single source for stock; job pricing uses the material's type (`/material-types`), and the material's colour is the only colour staff enter. Spools display their material's colour and never hold their own.
 
 ## Generic printer topology
 

@@ -39,6 +39,8 @@ import { useLatestCallback } from '../../app/useLatestCallback';
 import { PermissionId, hasPermission } from '../auth/permissions';
 import { useCurrentUser } from '../auth/auth';
 import { CatalogFormModal as Modal } from './CatalogFormModal';
+import { unitLabel } from './components/inventoryShared';
+import { materialTypesQuery } from './inventoryQueries';
 import { machineLogbookKeys, machineTypesQuery, pricingQuery } from './queries';
 
 type GroupFields = { name: string; description: string; isDefault: boolean; active: boolean };
@@ -46,11 +48,12 @@ type RuleFields = {
   groupId: string;
   kind: PricingRuleKind;
   machineTypeId: string;
-  materialCategory: string;
-  materialUnit: 'g' | 'm' | 'ml' | 'm2' | 'piece';
+  materialTypeId: string;
   rate: string;
   active: boolean;
 };
+
+const ruleSelector = (rule: PricingRule) => `${rule.materialTypeName ?? 'Material type'} (${rule.materialUnit ? unitLabel(rule.materialUnit) : '—'})`;
 
 export function ConfigurationPage() {
   const currentUser = useCurrentUser();
@@ -60,13 +63,15 @@ export function ConfigurationPage() {
   const canManagePricing = hasPermission(currentUser, PermissionId.pricingmanage);
   const client = useQueryClient();
   const pricing = useQuery({ ...pricingQuery(), enabled: canReadPricing });
+  const canReadInventory = hasPermission(currentUser, PermissionId.inventoryread);
   const machineTypes = useQuery({ ...machineTypesQuery(), enabled: canReadPricing && canReadMachines });
+  const materialTypes = useQuery({ ...materialTypesQuery(), enabled: canReadPricing && canReadInventory });
   const [groupOpen, setGroupOpen] = useState(false);
   const [ruleOpen, setRuleOpen] = useState(false);
   const [editingGroup, setEditingGroup] = useState<PricingGroup | null>(null);
   const [editingRule, setEditingRule] = useState<PricingRule | null>(null);
   const groupForm = useForm<GroupFields>({ defaultValues: { isDefault: false, active: true } });
-  const ruleForm = useForm<RuleFields>({ defaultValues: { kind: 'machine_runtime', materialUnit: 'g', active: true } });
+  const ruleForm = useForm<RuleFields>({ defaultValues: { kind: 'machine_runtime', materialTypeId: '', active: true } });
   const kind = ruleForm.watch('kind');
   const guard = useUnsavedChanges({
     isDirty: (groupOpen && groupForm.formState.isDirty) || (ruleOpen && ruleForm.formState.isDirty),
@@ -92,8 +97,7 @@ export function ConfigurationPage() {
       const rule = {
         kind: values.kind,
         machineTypeId: values.kind === 'machine_runtime' ? values.machineTypeId : null,
-        materialCategory: values.kind === 'material' ? values.materialCategory.trim().toLowerCase() : null,
-        materialUnit: values.kind === 'material' ? values.materialUnit : null,
+        materialTypeId: values.kind === 'material' ? values.materialTypeId : null,
         rate: values.rate,
       };
       return editingRule
@@ -125,7 +129,7 @@ export function ConfigurationPage() {
   };
   const addRule = () => {
     setEditingRule(null);
-    ruleForm.reset({ groupId: '', kind: canReadMachines ? 'machine_runtime' : 'material', machineTypeId: '', materialCategory: '', materialUnit: 'g', rate: '', active: true });
+    ruleForm.reset({ groupId: '', kind: canReadMachines ? 'machine_runtime' : 'material', machineTypeId: '', materialTypeId: '', rate: '', active: true });
     ruleMutation.reset();
     setRuleOpen(true);
   };
@@ -135,8 +139,7 @@ export function ConfigurationPage() {
       groupId: rule.pricingGroupId,
       kind: rule.kind,
       machineTypeId: rule.machineTypeId ?? '',
-      materialCategory: rule.materialCategory ?? '',
-      materialUnit: rule.materialUnit ?? 'g',
+      materialTypeId: rule.materialTypeId ?? '',
       rate: rule.rate,
       active: rule.active,
     });
@@ -165,7 +168,7 @@ export function ConfigurationPage() {
                     <thead><tr><th>Kind</th><th>Selector</th><th>Rate</th><th>Status</th>{canManagePricing && <th>Actions</th>}</tr></thead>
                     <tbody>{group.rules.map((rule) => <tr key={rule.id}>
                       <td>{rule.kind.replace('_', ' ')}</td>
-                      <td>{rule.machineTypeId ? types.find((type) => type.id === rule.machineTypeId)?.name ?? rule.machineTypeId : `${rule.materialCategory} (${rule.materialUnit})`}</td>
+                      <td>{rule.machineTypeId ? types.find((type) => type.id === rule.machineTypeId)?.name ?? rule.machineTypeId : ruleSelector(rule)}</td>
                       <td>€ {rule.rate} / {rule.kind === 'machine_runtime' ? 'h' : rule.materialUnit}</td>
                       <td>{rule.active ? 'Active' : 'Inactive'}</td>
                       {canManagePricing && <td><Button hasIconOnly kind="ghost" size="sm" renderIcon={Edit} iconDescription={`Edit rule for ${group.name}`} onClick={() => editRule(rule)} /></td>}
@@ -174,7 +177,7 @@ export function ConfigurationPage() {
                   <div className="configuration-rule-cards">{group.rules.map((rule) => <Tile key={rule.id}>
                     <StructuredListWrapper aria-label={`Pricing rule for ${group.name}`}><StructuredListBody>
                       <DetailRow label="Kind" value={rule.kind.replace('_', ' ')} />
-                      <DetailRow label="Selector" value={rule.machineTypeId ? types.find((type) => type.id === rule.machineTypeId)?.name ?? rule.machineTypeId : `${rule.materialCategory} (${rule.materialUnit})`} />
+                      <DetailRow label="Selector" value={rule.machineTypeId ? types.find((type) => type.id === rule.machineTypeId)?.name ?? rule.machineTypeId : ruleSelector(rule)} />
                       <DetailRow label="Rate" value={`€ ${rule.rate} / ${rule.kind === 'machine_runtime' ? 'h' : rule.materialUnit}`} />
                       <DetailRow label="Status" value={rule.active ? 'Active' : 'Inactive'} />
                     </StructuredListBody></StructuredListWrapper>
@@ -231,9 +234,15 @@ export function ConfigurationPage() {
             {types.filter((type) => type.active || type.id === editingRule?.machineTypeId).map((type) => <SelectItem key={type.id} value={type.id} text={type.name} />)}
           </Select>
           : <>
-            <TextInput id="rule-material-category" labelText="Normalized material category" {...ruleForm.register('materialCategory', { validate: (value) => ruleForm.getValues('kind') !== 'material' || Boolean(value?.trim()) })} />
-            <Select id="rule-material-unit" labelText="Unit" {...ruleForm.register('materialUnit')}>
-              <SelectItem value="g" text="g" /><SelectItem value="m" text="m" /><SelectItem value="ml" text="ml" /><SelectItem value="m2" text="m²" /><SelectItem value="piece" text="piece" />
+            <Select
+              id="rule-material-type" labelText="Material type" invalid={Boolean(ruleForm.formState.errors.materialTypeId)} invalidText={ruleForm.formState.errors.materialTypeId?.message}
+              helperText={canReadInventory ? 'The rate applies to every material of this type, per unit of the type.' : 'Choosing a material type requires inventory read access.'}
+              disabled={!canReadInventory || materialTypes.isPending || materialTypes.isError}
+              {...ruleForm.register('materialTypeId', { validate: (value) => ruleForm.getValues('kind') !== 'material' || Boolean(value) || 'Choose a material type.' })}
+            >
+              <SelectItem value="" text="Select a material type" />
+              {editingRule?.materialTypeId && !(materialTypes.data ?? []).some((item) => item.id === editingRule.materialTypeId) && <SelectItem value={editingRule.materialTypeId} text={editingRule.materialTypeName ?? editingRule.materialTypeId} />}
+              {(materialTypes.data ?? []).filter((item) => item.active || item.id === editingRule?.materialTypeId).map((item) => <SelectItem key={item.id} value={item.id} text={`${item.name} (${unitLabel(item.unit)})`} />)}
             </Select>
           </>}
         <TextInput id="rule-rate" labelText={`Rate (€ per ${kind === 'machine_runtime' ? 'hour' : 'unit'})`} {...ruleForm.register('rate', { required: true })} />

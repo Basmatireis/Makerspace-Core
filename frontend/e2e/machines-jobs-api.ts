@@ -52,7 +52,7 @@ export const customer: BillingParty = {
 export const operator: Operator = { personId: ids.operator, displayName: 'Maria Hoffmann' };
 
 const material = (materialId: string, name: string, overrides: Partial<Material> = {}): Material => ({
-  id: materialId, name, category: 'filament', color: 'Black', unit: 'g', active: true, lowStockThreshold: '1000', quantity: '5000', assignedQuantity: '600', unassignedQuantity: '4400',
+  id: materialId, name, materialTypeId: id(900), materialTypeName: 'PLA', colorName: 'Black', colorHex: '#1A1A1A', unit: 'g', active: true, lowStockThreshold: '1000', quantity: '5000', assignedQuantity: '600', unassignedQuantity: '4400',
   filamentDiameterMm: '1.75', averageUnitCost: '0.018', inventoryValue: '90.00', stockState: 'in_stock', inventoryVersion: 7, recentConsumption: '240', version: 3,
   createdAt: created, updatedAt: created, ...overrides,
 });
@@ -69,7 +69,7 @@ const identifiers = [
 
 const spool = (overrides: Partial<FilamentSpool>): FilamentSpool => ({
   id: ids.spoolReusable, displayId: 'S-2026-000001', kind: 'reusable', label: 'Bambu spool 01', status: 'loaded', fillNumber: 3, fillId: ids.fillCurrent, filledAt: '2026-10-02T08:00:00Z',
-  archivedAt: null, materialId: ids.pla, materialName: 'PLA Black', category: 'filament', color: 'Black', unit: 'g', productId: ids.productRefill, manufacturer: 'Bambu Lab',
+  archivedAt: null, materialId: ids.pla, materialName: 'PLA Black', materialTypeName: 'PLA', colorName: 'Black', colorHex: '#1A1A1A', unit: 'g', productId: ids.productRefill, manufacturer: 'Bambu Lab',
   productName: 'PLA Basic Black', initialNetWeightG: '1000', remainingQuantity: '600', tareWeightG: '200', acquiredOn: '2026-09-01', acquisitionReference: null, storageLocation: 'Shelf A',
   notes: null, lifecycle: 'active', mounted: false, identifiers, fills: [], version: 5, createdAt: '2026-09-01T08:00:00Z', updatedAt: '2026-10-02T08:00:00Z', ...overrides,
 });
@@ -85,7 +85,7 @@ const pricingSnapshot = {
   rules: [{ kind: 'machine_runtime', label: '3D printer runtime', selector: '3D printer', unit: 'hour', rate: '5.00', missing: false }],
 };
 
-const usageOf = (n: number, quantity: string) => ({ id: id(n), ownership: 'makerspace' as const, materialId: ids.pla, spoolId: null, spoolDisplayId: null, materialName: 'PLA Black', category: 'filament', unit: 'g' as const, quantity, quantityBasis: 'actual' as const });
+const usageOf = (n: number, quantity: string) => ({ id: id(n), ownership: 'makerspace' as const, materialId: ids.pla, spoolId: null, spoolDisplayId: null, materialName: 'PLA Black', materialTypeId: id(900), materialTypeName: 'PLA', unit: 'g' as const, quantity, quantityBasis: 'actual' as const });
 
 type RunInit = Partial<MachineRun> & Pick<MachineRun, 'id' | 'displayId'>;
 /** A manual run. `endedAt` is always the real end here; the API shape (running → estimatedEndAt) is applied when it is served. */
@@ -116,7 +116,7 @@ export function createWorld(permissions: string[] = staffPermissions) {
 
   const materials: Material[] = [
     material(ids.pla, 'PLA Black'),
-    material(ids.plywood, 'Birch plywood', { category: 'sheet', color: null, unit: 'm2', lowStockThreshold: null, quantity: '12', assignedQuantity: '0', unassignedQuantity: '12', filamentDiameterMm: null, averageUnitCost: '9', inventoryValue: '108', inventoryVersion: 4, version: 1 }),
+    material(ids.plywood, 'Birch plywood', { materialTypeId: id(901), materialTypeName: 'Plywood', colorName: null, colorHex: null, unit: 'm2', lowStockThreshold: null, quantity: '12', assignedQuantity: '0', unassignedQuantity: '12', filamentDiameterMm: null, averageUnitCost: '9', inventoryValue: '108', inventoryVersion: 4, version: 1 }),
   ];
   const products: FilamentProduct[] = [
     product(ids.productRefill, 'Bambu Lab', 'PLA Basic Black', 'refill'),
@@ -300,8 +300,8 @@ function currentUser(permissions: string[]) {
 const pricingGroup = {
   id: ids.pricingGroup, name: 'Partner institute', description: 'Rates for partner institutes.', active: true, isDefault: true,
   rules: [
-    { id: id(150), kind: 'machine_runtime', machineTypeId: ids.typePrinter, materialCategory: null, materialUnit: null, rate: '0.50', active: true, version: 1, createdAt: created, updatedAt: created },
-    { id: id(151), kind: 'material', machineTypeId: null, materialCategory: 'filament', materialUnit: 'g', rate: '0.025', active: true, version: 1, createdAt: created, updatedAt: created },
+    { id: id(150), kind: 'machine_runtime', machineTypeId: ids.typePrinter, materialTypeId: null, materialTypeName: null, materialUnit: null, rate: '0.50', active: true, version: 1, createdAt: created, updatedAt: created },
+    { id: id(151), kind: 'material', machineTypeId: null, materialTypeId: id(900), materialTypeName: 'PLA', materialUnit: 'g', rate: '0.025', active: true, version: 1, createdAt: created, updatedAt: created },
   ],
   version: 1, createdAt: created, updatedAt: created,
 };

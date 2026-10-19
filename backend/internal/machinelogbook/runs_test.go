@@ -80,10 +80,10 @@ func newRunHarnessAt(t *testing.T, now time.Time) *runHarness {
 		}
 		h.assignments[machineID] = assignmentID
 	}
-	// A filament material with one spool; its category and unit match the pricing rule.
+	// A filament material with one spool; its material type has the pricing rule.
 	diameter := "1.75"
 	var err error
-	h.material, err = f.s.CreateMaterialWithFilament(ctx, f.p, "Prints PLA "+suffix, "pla", nil, "g", nil, &diameter, &f.request)
+	h.material, err = f.s.CreateMaterial(ctx, f.p, MaterialInput{Name: "Prints PLA " + suffix, MaterialTypeID: f.materialType.ID, FilamentDiameterMM: &diameter}, &f.request)
 	if err != nil {
 		t.Fatal(err)
 	}

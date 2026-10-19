@@ -47,12 +47,20 @@ func TestMachineLogbookOperationsRequireTheirPermissions(t *testing.T) {
 			return err
 		}},
 		{"machine_jobs.override_price clear", func() error { _, err := s.ClearJobPriceAdjustment(ctx, p, id, 1, nil); return err }},
-		{"inventory.read", func() error { _, _, _, err := s.ListMaterials(ctx, p, "", "", "", 1, 25); return err }},
+		{"inventory.read", func() error { _, _, _, err := s.ListMaterials(ctx, p, "", nil, "", 1, 25); return err }},
 		{"inventory.read spools", func() error {
 			_, _, err := s.ListFilamentSpools(ctx, p, SpoolFilters{Page: 1, PageSize: 25})
 			return err
 		}},
-		{"inventory.manage", func() error { _, err := s.CreateMaterial(ctx, p, "PLA", "pla", nil, "g", nil, nil); return err }},
+		{"inventory.manage", func() error {
+			_, err := s.CreateMaterial(ctx, p, MaterialInput{Name: "PLA", MaterialTypeID: id}, nil)
+			return err
+		}},
+		{"inventory.read material types", func() error { _, err := s.ListMaterialTypes(ctx, p); return err }},
+		{"inventory.read material type", func() error { _, err := s.GetMaterialType(ctx, p, id); return err }},
+		{"inventory.manage create material type", func() error { _, err := s.CreateMaterialType(ctx, p, "PLA", "g", nil); return err }},
+		{"inventory.manage update material type", func() error { _, err := s.UpdateMaterialType(ctx, p, id, 1, "PLA", "g", true, nil); return err }},
+		{"inventory.manage delete material type", func() error { return s.DeleteMaterialType(ctx, p, id, 1, nil) }},
 		{"filament_spools.manage", func() error { _, err := s.CreateFilamentSpool(ctx, p, FilamentSpoolInput{}, nil); return err }},
 		{"filament_spools.manage change fill", func() error {
 			_, err := s.ChangeFilamentSpoolFill(ctx, p, id, ChangeFillInput{}, nil)
@@ -133,7 +141,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var machineID, machineTypeID, materialID, pricingGroupID uuid.UUID
+	var machineID, machineTypeID, materialID, materialTypeID, pricingGroupID uuid.UUID
 	organizationIDs := make([]uuid.UUID, 0, 2)
 	t.Cleanup(func() {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -158,6 +166,9 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		if materialID != uuid.Nil {
 			_, _ = pool.Exec(cleanupCtx, `DELETE FROM materials WHERE id = $1`, materialID)
 		}
+		if materialTypeID != uuid.Nil {
+			_, _ = pool.Exec(cleanupCtx, `DELETE FROM material_types WHERE id = $1`, materialTypeID)
+		}
 		if machineTypeID != uuid.Nil {
 			_, _ = pool.Exec(cleanupCtx, `DELETE FROM machine_types WHERE id = $1`, machineTypeID)
 		}
@@ -177,7 +188,12 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	}
 	machineID = machine.ID
 	threshold := "100"
-	material, err := s.CreateMaterial(ctx, p, "Test PLA "+suffix, "pla", nil, "g", &threshold, &requestID)
+	materialType, err := s.CreateMaterialType(ctx, p, "Test PLA "+suffix, "g", &requestID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	materialTypeID = materialType.ID
+	material, err := s.CreateMaterial(ctx, p, MaterialInput{Name: "Test PLA " + suffix, MaterialTypeID: materialType.ID, LowStockThreshold: &threshold}, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,12 +216,11 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatal(err)
 	}
 	pricingGroupID = group.ID
-	runtimeRule, err := s.CreatePricingRule(ctx, p, group.ID, "machine_runtime", &machineType.ID, nil, nil, "0.5", &requestID)
+	runtimeRule, err := s.CreatePricingRule(ctx, p, group.ID, "machine_runtime", &machineType.ID, nil, "0.5", &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	category, unit := "pla", "g"
-	materialRule, err := s.CreatePricingRule(ctx, p, group.ID, "material", nil, &category, &unit, "0.025", &requestID)
+	materialRule, err := s.CreatePricingRule(ctx, p, group.ID, "material", nil, &materialType.ID, "0.025", &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -287,7 +302,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 		t.Fatalf("failed job consumption was not retained: %s", afterFailure.Quantity)
 	}
 
-	materialRule, err = s.UpdatePricingRule(ctx, p, materialRule.ID, materialRule.Version, "material", nil, &category, &unit, "0.03", true, &requestID)
+	materialRule, err = s.UpdatePricingRule(ctx, p, materialRule.ID, materialRule.Version, "material", nil, &materialType.ID, "0.03", true, &requestID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -400,7 +415,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(statistics.MaterialUsageByCategory) == 0 || len(statistics.MachineRuntimeHours) == 0 || len(statistics.MachineJobCounts) == 0 || len(statistics.MachineFailureRates) == 0 {
+	if len(statistics.MaterialUsageByType) == 0 || len(statistics.MachineRuntimeHours) == 0 || len(statistics.MachineJobCounts) == 0 || len(statistics.MachineFailureRates) == 0 {
 		t.Fatalf("statistics omitted expected series: %+v", statistics)
 	}
 

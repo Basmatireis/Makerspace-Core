@@ -43,7 +43,17 @@ func mlPricingRuleDTO(item machinelogbook.PricingRule) openapi.PricingRule {
 	} else {
 		unit = nullable.NewNullableWithValue(openapi.MaterialUnit(*item.MaterialUnit))
 	}
-	return openapi.PricingRule{Id: item.ID, PricingGroupId: item.PricingGroupID, Kind: openapi.PricingRuleKind(item.Kind), MachineTypeId: nullableUUIDValue(item.MachineTypeID), MaterialCategory: nullableString(item.MaterialCategory), MaterialUnit: unit, Rate: item.Rate, Active: item.Active, Version: item.Version}
+	return openapi.PricingRule{Id: item.ID, PricingGroupId: item.PricingGroupID, Kind: openapi.PricingRuleKind(item.Kind), MachineTypeId: nullableUUIDValue(item.MachineTypeID), MaterialTypeId: nullableUUIDValue(item.MaterialTypeID), MaterialTypeName: nullableString(item.MaterialTypeName), MaterialUnit: unit, Rate: item.Rate, Active: item.Active, Version: item.Version}
+}
+func mlMaterialTypeDTO(item machinelogbook.MaterialType) openapi.MaterialType {
+	return openapi.MaterialType{Id: item.ID, Name: item.Name, Unit: openapi.MaterialUnit(item.Unit), Active: item.Active, MaterialCount: item.MaterialCount, PricingRuleCount: item.PricingRuleCount, Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
+}
+func materialUnitPointer(value *openapi.MaterialUnit) *string {
+	if value == nil {
+		return nil
+	}
+	unit := string(*value)
+	return &unit
 }
 func mlPricingGroupDTO(item machinelogbook.PricingGroup) openapi.PricingGroup {
 	rules := make([]openapi.PricingRule, 0, len(item.Rules))
@@ -53,7 +63,7 @@ func mlPricingGroupDTO(item machinelogbook.PricingGroup) openapi.PricingGroup {
 	return openapi.PricingGroup{Id: item.ID, Name: item.Name, Description: nullableString(item.Description), Active: item.Active, IsDefault: item.IsDefault, Rules: rules, Version: item.Version, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
 }
 func mlMaterialDTO(item machinelogbook.Material) openapi.Material {
-	return openapi.Material{Id: item.ID, Name: item.Name, Category: item.Category, Color: nullableString(item.Color), Unit: openapi.MaterialUnit(item.Unit), Active: item.Active, LowStockThreshold: nullableDecimalValue(item.LowStockThreshold), FilamentDiameterMm: nullableDecimalValue(item.FilamentDiameterMM), Quantity: item.Quantity, AssignedQuantity: item.AssignedQuantity, UnassignedQuantity: item.UnassignedQuantity, InventoryValue: item.InventoryValue, AverageUnitCost: item.AverageUnitCost, RecentConsumption: item.RecentConsumption, StockState: openapi.StockState(item.StockState), Version: item.Version, InventoryVersion: item.InventoryVersion, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
+	return openapi.Material{Id: item.ID, Name: item.Name, MaterialTypeId: item.MaterialTypeID, MaterialTypeName: item.MaterialTypeName, ColorName: nullableString(item.ColorName), ColorHex: nullableString(item.ColorHex), Unit: openapi.MaterialUnit(item.Unit), Active: item.Active, LowStockThreshold: nullableDecimalValue(item.LowStockThreshold), FilamentDiameterMm: nullableDecimalValue(item.FilamentDiameterMM), Quantity: item.Quantity, AssignedQuantity: item.AssignedQuantity, UnassignedQuantity: item.UnassignedQuantity, InventoryValue: item.InventoryValue, AverageUnitCost: item.AverageUnitCost, RecentConsumption: item.RecentConsumption, StockState: openapi.StockState(item.StockState), Version: item.Version, InventoryVersion: item.InventoryVersion, CreatedAt: item.CreatedAt, UpdatedAt: item.UpdatedAt}
 }
 func mlInventoryTransactionDTO(item machinelogbook.InventoryTransaction) openapi.InventoryTransaction {
 	var reason nullable.Nullable[openapi.InventoryAdjustmentReason]
@@ -145,9 +155,9 @@ func mlStatisticsDTO(item machinelogbook.Statistics) openapi.MachineLogbookStati
 	for _, m := range item.Machines {
 		machines = append(machines, openapi.StatisticMachine{MachineId: m.MachineID, Name: m.Name, MachineTypeName: m.MachineTypeName, Jobs: m.Jobs, RuntimeHours: m.RuntimeHours, FailureRate: m.FailureRate, Charges: m.Charges, RuntimeShare: m.RuntimeShare})
 	}
-	return openapi.MachineLogbookStatistics{MaterialUsageByCategory: mlStatisticPoints(item.MaterialUsageByCategory), MachineRuntimeHours: mlStatisticPoints(item.MachineRuntimeHours), MachineJobCounts: mlStatisticPoints(item.MachineJobCounts), AcquisitionCost: mlStatisticPoints(item.AcquisitionCost), CustomerCharges: mlStatisticPoints(item.CustomerCharges), AdjustmentLoss: mlStatisticPoints(item.AdjustmentLoss), MachineFailureRates: mlStatisticPoints(item.MachineFailureRates),
+	return openapi.MachineLogbookStatistics{MaterialUsageByType: mlStatisticPoints(item.MaterialUsageByType), MachineRuntimeHours: mlStatisticPoints(item.MachineRuntimeHours), MachineJobCounts: mlStatisticPoints(item.MachineJobCounts), AcquisitionCost: mlStatisticPoints(item.AcquisitionCost), CustomerCharges: mlStatisticPoints(item.CustomerCharges), AdjustmentLoss: mlStatisticPoints(item.AdjustmentLoss), MachineFailureRates: mlStatisticPoints(item.MachineFailureRates),
 		Totals: mlStatisticTotalsDTO(item.Totals), PreviousTotals: mlStatisticTotalsDTO(item.PreviousTotals), Months: months, RuntimeGranularity: openapi.MachineLogbookStatisticsRuntimeGranularity(item.RuntimeGranularity),
-		Runtime: runtime, MaterialCostByCategory: mlStatisticPoints(item.MaterialCostByCategory), Machines: machines}
+		Runtime: runtime, MaterialCostByType: mlStatisticPoints(item.MaterialCostByType), Machines: machines}
 }
 func nullableValue[T any](value *T) nullable.Nullable[T] {
 	if value == nil {

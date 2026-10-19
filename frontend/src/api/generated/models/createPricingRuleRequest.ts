@@ -20,7 +20,7 @@ the required session and CSRF credentials.
  */
 import type { PricingRuleKind } from './pricingRuleKind';
 import type { CreatePricingRuleRequestMachineTypeId } from './createPricingRuleRequestMachineTypeId';
-import type { CreatePricingRuleRequestMaterialUnit } from './createPricingRuleRequestMaterialUnit';
+import type { CreatePricingRuleRequestMaterialTypeId } from './createPricingRuleRequestMaterialTypeId';
 import type { Decimal } from './decimal';
 
 export interface CreatePricingRuleRequest {
@@ -28,11 +28,9 @@ export interface CreatePricingRuleRequest {
   /** @nullable */
   machineTypeId?: CreatePricingRuleRequestMachineTypeId;
   /**
-   * @maxLength 100
+   * Required for material rules, forbidden for runtime rules.
    * @nullable
    */
-  materialCategory?: string | null;
-  /** @nullable */
-  materialUnit?: CreatePricingRuleRequestMaterialUnit;
+  materialTypeId?: CreatePricingRuleRequestMaterialTypeId;
   rate: Decimal;
 }

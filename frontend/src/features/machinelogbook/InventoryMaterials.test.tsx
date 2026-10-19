@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
-import type { CreateMaterialRequest, FilamentProduct, FilamentProductInput, InventoryTransaction, MarkMaterialEmptyRequest, Material, UpdateFilamentProductRequest } from '../../api/generated/models';
+import type { CreateMaterialRequest, FilamentProduct, FilamentProductInput, InventoryTransaction, MarkMaterialEmptyRequest, Material, MaterialType, UpdateFilamentProductRequest } from '../../api/generated/models';
 import { PermissionId } from '../../api/generated/models';
 import { server } from '../../test/server';
 import { testQueryClient } from '../../test/render';
@@ -28,18 +28,20 @@ vi.mock('./dialogs/SpoolFormModal', () => ({
 
 const ids = {
   pla: '0192f6f8-743e-7c77-a349-cd07c3e8d001',
+  plaType: '0192f6f8-743e-7c77-a349-cd07c3e8d0a1',
+  sheetType: '0192f6f8-743e-7c77-a349-cd07c3e8d0a2',
   sheet: '0192f6f8-743e-7c77-a349-cd07c3e8d002',
   product: '0192f6f8-743e-7c77-a349-cd07c3e8d010',
   spool: '0192f6f8-743e-7c77-a349-cd07c3e8d020',
 };
 
 const filament: Material = {
-  id: ids.pla, name: 'PLA Black', category: 'filament', color: 'Black', unit: 'g', active: true, lowStockThreshold: '1000',
+  id: ids.pla, name: 'PLA Black', materialTypeId: ids.plaType, materialTypeName: 'PLA', colorName: 'Black', colorHex: '#1A1A1A', unit: 'g', active: true, lowStockThreshold: '1000',
   quantity: '6107', assignedQuantity: '5000', unassignedQuantity: '1107', filamentDiameterMm: '1.75', averageUnitCost: '0.018', inventoryValue: '109.93',
   stockState: 'in_stock', inventoryVersion: 7, recentConsumption: '240', version: 3, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-09-15T11:26:00Z',
 };
 const sheet: Material = {
-  ...filament, id: ids.sheet, name: 'Birch plywood', category: 'sheet', color: null, unit: 'm2', lowStockThreshold: null, quantity: '12', assignedQuantity: '0', unassignedQuantity: '12',
+  ...filament, id: ids.sheet, name: 'Birch plywood', materialTypeId: ids.sheetType, materialTypeName: 'Plywood', colorName: null, colorHex: null, unit: 'm2', lowStockThreshold: null, quantity: '12', assignedQuantity: '0', unassignedQuantity: '12',
   filamentDiameterMm: null, averageUnitCost: '9', inventoryValue: '108', inventoryVersion: 4, version: 1,
 };
 const product: FilamentProduct = {
@@ -65,11 +67,17 @@ function renderPage(element: React.ReactElement, path: string, route = '*') {
   return { router };
 }
 
+const materialTypes: MaterialType[] = [
+  { id: ids.plaType, name: 'PLA', unit: 'g', active: true, materialCount: 1, pricingRuleCount: 2, version: 2, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-01T00:00:00Z' },
+  { id: ids.sheetType, name: 'Plywood', unit: 'm2', active: true, materialCount: 1, pricingRuleCount: 0, version: 1, createdAt: '2026-08-01T00:00:00Z', updatedAt: '2026-08-01T00:00:00Z' },
+];
+
 function serveInventory(materials: Material[] = [filament, sheet], products: FilamentProduct[] = [product]) {
   server.use(
     http.get('*/api/v1/materials', () => HttpResponse.json({ ...page(materials), totalInventoryValue: '218' })),
     http.get('*/api/v1/filament-spools', () => HttpResponse.json(page([{ id: ids.spool, materialId: ids.pla }, { id: ids.spool + '1', materialId: ids.pla }]))),
     http.get('*/api/v1/filament-products', () => HttpResponse.json(page(products))),
+    http.get('*/api/v1/material-types', () => HttpResponse.json({ items: materialTypes })),
   );
 }
 
@@ -130,11 +138,13 @@ describe('Inventory page', () => {
     await user.click((await screen.findAllByRole('button', { name: 'Add material' }))[0]);
     const dialog = await screen.findByRole('dialog');
     await user.type(within(dialog).getByLabelText('Name'), 'PETG Clear');
-    await user.type(within(dialog).getByLabelText('Category'), 'Filament');
+    await user.selectOptions(await within(dialog).findByLabelText('Material type'), ids.plaType);
+    await user.type(within(dialog).getByLabelText('Colour name (optional)'), 'Clear');
+    await user.type(within(dialog).getByLabelText('Colour code (optional)'), '#dde8ee');
     await user.type(within(dialog).getByLabelText('Filament diameter in mm (optional)'), '1.75');
     await user.type(within(dialog).getByLabelText('Low-stock threshold in g (optional)'), '1,5');
     await user.click(within(dialog).getByRole('button', { name: 'Add material' }));
-    await waitFor(() => expect(submitted).toEqual({ name: 'PETG Clear', category: 'Filament', unit: 'g', color: null, lowStockThreshold: '1.5', filamentDiameterMm: '1.75' }));
+    await waitFor(() => expect(submitted).toEqual({ name: 'PETG Clear', materialTypeId: ids.plaType, colorName: 'Clear', colorHex: '#DDE8EE', lowStockThreshold: '1.5', filamentDiameterMm: '1.75' }));
     expect(await screen.findByText('Material added')).toBeInTheDocument();
   });
 

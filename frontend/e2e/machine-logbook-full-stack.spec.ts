@@ -68,12 +68,13 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
     }),
     'create machine',
   );
+  const materialType = await parse<Identified>(await post('/material-types', { name: `E2E PLA ${Date.now()}`, unit: 'g' }), 'create material type');
   let material = await parse<Material>(
     await post('/materials', {
       name: 'E2E PLA blue',
-      category: 'pla-e2e',
-      color: 'Blue',
-      unit: 'g',
+      materialTypeId: materialType.id,
+      colorName: 'Blue',
+      colorHex: '#1E40AF',
       lowStockThreshold: '100',
     }),
     'create material',
@@ -113,8 +114,7 @@ test('persists the manual-run, cancel and price-adjustment workflow through the 
   await parse<Identified>(
     await post(`/pricing-groups/${pricingGroup.id}/rules`, {
       kind: 'material',
-      materialCategory: 'pla-e2e',
-      materialUnit: 'g',
+      materialTypeId: materialType.id,
       rate: '0.10',
     }),
     'create material rule',

@@ -131,7 +131,7 @@ func escapeLike(value string) string {
 }
 
 func usageFromRow(u machinelogbookdb.ListRunUsagesForRunsRow) MachineJobUsage {
-	return MachineJobUsage{ID: u.ID, MaterialID: u.MaterialID, SpoolID: u.SpoolID, Ownership: u.Ownership, MaterialName: u.MaterialName, Category: u.Category, Unit: u.Unit, Quantity: decimalString(u.Quantity), QuantityBasis: u.QuantityBasis, SpoolDisplayID: u.SpoolDisplayID, FillNumber: u.FillNumber, EstimationMethod: u.EstimationMethod, CalculationVersion: u.CalculationVersion, EstimateQuality: u.EstimateQuality, ReportRevision: u.ReportRevision, StaffCorrected: u.StaffCorrected}
+	return MachineJobUsage{ID: u.ID, MaterialID: u.MaterialID, SpoolID: u.SpoolID, Ownership: u.Ownership, MaterialName: u.MaterialName, MaterialTypeID: u.MaterialTypeID, MaterialTypeName: u.MaterialTypeName, Unit: u.Unit, Quantity: decimalString(u.Quantity), QuantityBasis: u.QuantityBasis, SpoolDisplayID: u.SpoolDisplayID, FillNumber: u.FillNumber, EstimationMethod: u.EstimationMethod, CalculationVersion: u.CalculationVersion, EstimateQuality: u.EstimateQuality, ReportRevision: u.ReportRevision, StaffCorrected: u.StaffCorrected}
 }
 
 func runFromRow(row machinelogbookdb.ListRunsRow, now time.Time) MachineRun {

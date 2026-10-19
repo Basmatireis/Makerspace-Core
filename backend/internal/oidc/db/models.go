@@ -447,6 +447,13 @@ type LaborordnungVersion struct {
 	UpdatedAt          time.Time
 }
 
+type LegacyMaterialType struct {
+	ID       interface{}
+	Category string
+	Unit     string
+	Name     interface{}
+}
+
 type Machine struct {
 	ID                         uuid.UUID
 	MachineTypeID              uuid.UUID
@@ -502,15 +509,16 @@ type MachineJobPricingSnapshot struct {
 }
 
 type MachineJobPricingSnapshotRule struct {
-	ID           uuid.UUID
-	SnapshotID   uuid.UUID
-	SourceRuleID *uuid.UUID
-	Kind         string
-	Label        string
-	Selector     string
-	Unit         string
-	Rate         pgtype.Numeric
-	Missing      bool
+	ID             uuid.UUID
+	SnapshotID     uuid.UUID
+	SourceRuleID   *uuid.UUID
+	Kind           string
+	Label          string
+	Selector       string
+	Unit           string
+	Rate           pgtype.Numeric
+	Missing        bool
+	MaterialTypeID *uuid.UUID
 }
 
 type MachineJobRunSummary struct {
@@ -667,14 +675,15 @@ type ManagedDeviceReportedCapability struct {
 type Material struct {
 	ID                uuid.UUID
 	Name              string
-	Category          string
-	Color             *string
 	Unit              string
 	Active            bool
 	LowStockThreshold pgtype.Numeric
 	Version           int64
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+	MaterialTypeID    uuid.UUID
+	ColorName         *string
+	ColorHex          *string
 }
 
 type MaterialBalance struct {
@@ -691,6 +700,16 @@ type MaterialFilamentProperty struct {
 	DiameterMm pgtype.Numeric
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
+}
+
+type MaterialType struct {
+	ID        uuid.UUID
+	Name      string
+	Unit      string
+	Active    bool
+	Version   int64
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type OidcFlow struct {
@@ -1009,17 +1028,17 @@ type PricingGroup struct {
 }
 
 type PricingRule struct {
-	ID               uuid.UUID
-	PricingGroupID   uuid.UUID
-	Kind             string
-	MachineTypeID    *uuid.UUID
-	MaterialCategory *string
-	MaterialUnit     *string
-	Rate             pgtype.Numeric
-	Active           bool
-	Version          int64
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID             uuid.UUID
+	PricingGroupID uuid.UUID
+	Kind           string
+	MachineTypeID  *uuid.UUID
+	MaterialUnit   *string
+	Rate           pgtype.Numeric
+	Active         bool
+	Version        int64
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	MaterialTypeID *uuid.UUID
 }
 
 type PrintArtifact struct {

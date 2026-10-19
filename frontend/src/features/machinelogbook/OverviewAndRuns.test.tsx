@@ -254,7 +254,7 @@ describe('Run detail page', () => {
 
     expect(await screen.findByRole('heading', { name: 'Filament estimate' })).toBeInTheDocument();
     expect(await screen.findByText('~90 g / 200 g planned · based on 45 % print progress')).toBeInTheDocument();
-    expect(screen.getByText('PLA · #ffffff: 120 g planned')).toBeInTheDocument();
+    expect(screen.getByText('PLA · #ffffff (detected in file): 120 g planned')).toBeInTheDocument();
     expect(screen.getByText(/Inventory is updated only after the run ends/)).toBeInTheDocument();
   });
 

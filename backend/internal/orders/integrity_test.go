@@ -205,8 +205,12 @@ func TestAnonymousPreviewInventoryAndOperationalCorrection(t *testing.T) {
 	f := newFixture(t)
 	ctx := t.Context()
 	materials := []uuid.UUID{}
+	plaType, e := f.jobs.CreateMaterialType(ctx, f.p, "PLA "+newID().String(), "g", nil)
+	if e != nil {
+		t.Fatal(e)
+	}
 	for _, name := range []string{"PLA black", "PLA white"} {
-		m, e := f.jobs.CreateMaterial(ctx, f.p, name, "pla", nil, "g", nil, nil)
+		m, e := f.jobs.CreateMaterial(ctx, f.p, machinelogbook.MaterialInput{Name: name, MaterialTypeID: plaType.ID}, nil)
 		if e != nil {
 			t.Fatal(e)
 		}
@@ -215,8 +219,7 @@ func TestAnonymousPreviewInventoryAndOperationalCorrection(t *testing.T) {
 		}
 		materials = append(materials, m.ID)
 	}
-	category, unit := "pla", "g"
-	if _, e := f.jobs.CreatePricingRule(ctx, f.p, f.group, "material", nil, &category, &unit, "0.1", nil); e != nil {
+	if _, e := f.jobs.CreatePricingRule(ctx, f.p, f.group, "material", nil, &plaType.ID, "0.1", nil); e != nil {
 		t.Fatal(e)
 	}
 	start := time.Now().UTC().Add(-3 * time.Hour)

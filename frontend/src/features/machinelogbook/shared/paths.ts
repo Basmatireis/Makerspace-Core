@@ -6,7 +6,7 @@ const withQuery = (path: string, query?: Record<string, string | undefined>) => 
 };
 const segment = (id: string) => encodeURIComponent(id);
 
-export type InventoryTab = 'materials' | 'spools' | 'products';
+export type InventoryTab = 'materials' | 'material-types' | 'spools' | 'products';
 export type MachineTab = 'printer';
 
 export const machineLogbookPaths = {

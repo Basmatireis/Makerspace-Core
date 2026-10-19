@@ -368,13 +368,13 @@ func (s *Service) capturePricingSnapshot(ctx context.Context, q *machinelogbookd
 		}
 		var matched *machinelogbookdb.PricingRule
 		for i := range rules {
-			if rules[i].Kind == "material" && rules[i].MaterialCategory != nil && rules[i].MaterialUnit != nil && *rules[i].MaterialCategory == usage.Category && *rules[i].MaterialUnit == usage.Unit {
+			if rules[i].Kind == "material" && rules[i].MaterialTypeID != nil && usage.MaterialTypeID != nil && *rules[i].MaterialTypeID == *usage.MaterialTypeID && rules[i].MaterialUnit != nil && *rules[i].MaterialUnit == usage.Unit {
 				r := rules[i]
 				matched = &r
 				break
 			}
 		}
-		entry := machinelogbookdb.InsertPricingSnapshotRuleParams{ID: newID(), Kind: "material", Label: usage.MaterialName, Selector: usage.Category, Unit: usage.Unit}
+		entry := machinelogbookdb.InsertPricingSnapshotRuleParams{ID: newID(), Kind: "material", Label: usage.MaterialName, Selector: usage.MaterialTypeName, MaterialTypeID: usage.MaterialTypeID, Unit: usage.Unit}
 		if matched == nil {
 			complete = false
 			entry.Missing = true
@@ -834,6 +834,22 @@ func (s *Service) UpdateJobFacts(ctx context.Context, p authorization.Principal,
 	return s.loadJob(ctx, id)
 }
 
+// snapshotRuleSelector identifies what a snapshot rule prices: the material type
+// for material rules (older rows were backfilled with it), else the stored text.
+func snapshotRuleSelector(rule machinelogbookdb.MachineJobPricingSnapshotRule) string {
+	if rule.Kind == "material" && rule.MaterialTypeID != nil {
+		return rule.MaterialTypeID.String()
+	}
+	return rule.Selector
+}
+
+// snapshotRuleCovers reports whether a material snapshot rule is the one for the
+// usage's material type and unit. A snapshot never changes, so a missing rule
+// still covers the usage: it records that this type had no price at capture time.
+func snapshotRuleCovers(rule machinelogbookdb.MachineJobPricingSnapshotRule, usage machinelogbookdb.ListRunUsagesForRunsRow) bool {
+	return rule.Kind == "material" && rule.MaterialTypeID != nil && usage.MaterialTypeID != nil && *rule.MaterialTypeID == *usage.MaterialTypeID && rule.Unit == usage.Unit
+}
+
 func sameUUID(a, b *uuid.UUID) bool {
 	if a == nil || b == nil {
 		return a == nil && b == nil
@@ -858,7 +874,7 @@ func (s *Service) computeFromSnapshot(ctx context.Context, q *machinelogbookdb.Q
 	var runtimeFound bool
 	seenRules := map[string]bool{}
 	for _, rule := range rules {
-		key := rule.Kind + "/" + rule.Selector + "/" + rule.Unit
+		key := rule.Kind + "/" + snapshotRuleSelector(rule) + "/" + rule.Unit
 		if seenRules[key] {
 			continue
 		}
@@ -869,7 +885,7 @@ func (s *Service) computeFromSnapshot(ctx context.Context, q *machinelogbookdb.Q
 			}
 			if rule.Kind == "material" {
 				for _, usage := range usages {
-					if usage.Ownership == "makerspace" && rule.Selector == usage.Category && rule.Unit == usage.Unit {
+					if usage.Ownership == "makerspace" && snapshotRuleCovers(rule, usage) {
 						complete = false
 						break
 					}
@@ -884,7 +900,7 @@ func (s *Service) computeFromSnapshot(ctx context.Context, q *machinelogbookdb.Q
 			continue
 		}
 		for _, usage := range usages {
-			if usage.Ownership == "makerspace" && rule.Kind == "material" && rule.Selector == usage.Category && rule.Unit == usage.Unit {
+			if usage.Ownership == "makerspace" && snapshotRuleCovers(rule, usage) {
 				total = total.Add(decimalFromNumeric(usage.Quantity).Mul(rate))
 			}
 		}
@@ -898,7 +914,7 @@ func (s *Service) computeFromSnapshot(ctx context.Context, q *machinelogbookdb.Q
 		}
 		found := false
 		for _, rule := range rules {
-			if rule.Kind == "material" && rule.Selector == usage.Category && rule.Unit == usage.Unit && !rule.Missing {
+			if snapshotRuleCovers(rule, usage) && !rule.Missing {
 				found = true
 				break
 			}
@@ -964,7 +980,7 @@ func (s *Service) coverUsages(ctx context.Context, q *machinelogbookdb.Queries, 
 		}
 		found := false
 		for _, rule := range rules {
-			if rule.Kind == "material" && rule.Selector == usage.Category && rule.Unit == usage.Unit {
+			if snapshotRuleCovers(rule, usage) {
 				found = true
 				break
 			}

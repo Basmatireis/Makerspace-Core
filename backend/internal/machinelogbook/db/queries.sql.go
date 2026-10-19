@@ -710,8 +710,9 @@ func (q *Queries) CountMaterialFills(ctx context.Context, materialID uuid.UUID) 
 
 const countMaterials = `-- name: CountMaterials :one
 SELECT count(*) FROM materials m JOIN material_balances b ON b.material_id = m.id
-WHERE ($1::text = '' OR lower(m.name) LIKE '%' || lower($1::text) || '%' OR lower(m.category) LIKE '%' || lower($1::text) || '%')
-  AND ($2::text = '' OR m.category = lower($2::text))
+JOIN material_types mt ON mt.id = m.material_type_id
+WHERE ($1::text = '' OR lower(m.name) LIKE '%' || lower($1::text) || '%' OR lower(mt.name) LIKE '%' || lower($1::text) || '%')
+  AND ($2::uuid IS NULL OR m.material_type_id = $2::uuid)
   AND ($3::text = '' OR
        ($3::text = 'empty' AND b.quantity = 0) OR
        ($3::text = 'low_stock' AND b.quantity > 0 AND m.low_stock_threshold IS NOT NULL AND b.quantity <= m.low_stock_threshold) OR
@@ -719,13 +720,13 @@ WHERE ($1::text = '' OR lower(m.name) LIKE '%' || lower($1::text) || '%' OR lowe
 `
 
 type CountMaterialsParams struct {
-	Search     string
-	Category   string
-	StockState string
+	Search         string
+	MaterialTypeID *uuid.UUID
+	StockState     string
 }
 
 func (q *Queries) CountMaterials(ctx context.Context, arg CountMaterialsParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countMaterials, arg.Search, arg.Category, arg.StockState)
+	row := q.db.QueryRow(ctx, countMaterials, arg.Search, arg.MaterialTypeID, arg.StockState)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -1012,15 +1013,16 @@ func (q *Queries) CreateMachineType(ctx context.Context, arg CreateMachineTypePa
 }
 
 const createMaterial = `-- name: CreateMaterial :one
-INSERT INTO materials (id, name, category, color, unit, low_stock_threshold)
-VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, category, color, unit, active, low_stock_threshold, version, created_at, updated_at
+INSERT INTO materials (id, name, material_type_id, color_name, color_hex, unit, low_stock_threshold)
+VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, name, unit, active, low_stock_threshold, version, created_at, updated_at, material_type_id, color_name, color_hex
 `
 
 type CreateMaterialParams struct {
 	ID                uuid.UUID
 	Name              string
-	Category          string
-	Color             *string
+	MaterialTypeID    uuid.UUID
+	ColorName         *string
+	ColorHex          *string
 	Unit              string
 	LowStockThreshold pgtype.Numeric
 }
@@ -1029,8 +1031,9 @@ func (q *Queries) CreateMaterial(ctx context.Context, arg CreateMaterialParams) 
 	row := q.db.QueryRow(ctx, createMaterial,
 		arg.ID,
 		arg.Name,
-		arg.Category,
-		arg.Color,
+		arg.MaterialTypeID,
+		arg.ColorName,
+		arg.ColorHex,
 		arg.Unit,
 		arg.LowStockThreshold,
 	)
@@ -1038,14 +1041,15 @@ func (q *Queries) CreateMaterial(ctx context.Context, arg CreateMaterialParams) 
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.Category,
-		&i.Color,
 		&i.Unit,
 		&i.Active,
 		&i.LowStockThreshold,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MaterialTypeID,
+		&i.ColorName,
+		&i.ColorHex,
 	)
 	return i, err
 }
@@ -1063,6 +1067,31 @@ func (q *Queries) CreateMaterialBalance(ctx context.Context, materialID uuid.UUI
 		&i.InventoryValue,
 		&i.AverageUnitCost,
 		&i.Version,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createMaterialType = `-- name: CreateMaterialType :one
+INSERT INTO material_types (id, name, unit) VALUES ($1, $2, $3) RETURNING id, name, unit, active, version, created_at, updated_at
+`
+
+type CreateMaterialTypeParams struct {
+	ID   uuid.UUID
+	Name string
+	Unit string
+}
+
+func (q *Queries) CreateMaterialType(ctx context.Context, arg CreateMaterialTypeParams) (MaterialType, error) {
+	row := q.db.QueryRow(ctx, createMaterialType, arg.ID, arg.Name, arg.Unit)
+	var i MaterialType
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Unit,
+		&i.Active,
+		&i.Version,
+		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
@@ -1152,19 +1181,19 @@ func (q *Queries) CreatePricingGroup(ctx context.Context, arg CreatePricingGroup
 }
 
 const createPricingRule = `-- name: CreatePricingRule :one
-INSERT INTO pricing_rules (id, pricing_group_id, kind, machine_type_id, material_category, material_unit, rate)
+INSERT INTO pricing_rules (id, pricing_group_id, kind, machine_type_id, material_type_id, material_unit, rate)
 VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, pricing_group_id, kind, machine_type_id, material_category, material_unit, rate, active, version, created_at, updated_at
+RETURNING id, pricing_group_id, kind, machine_type_id, material_unit, rate, active, version, created_at, updated_at, material_type_id
 `
 
 type CreatePricingRuleParams struct {
-	ID               uuid.UUID
-	PricingGroupID   uuid.UUID
-	Kind             string
-	MachineTypeID    *uuid.UUID
-	MaterialCategory *string
-	MaterialUnit     *string
-	Rate             pgtype.Numeric
+	ID             uuid.UUID
+	PricingGroupID uuid.UUID
+	Kind           string
+	MachineTypeID  *uuid.UUID
+	MaterialTypeID *uuid.UUID
+	MaterialUnit   *string
+	Rate           pgtype.Numeric
 }
 
 func (q *Queries) CreatePricingRule(ctx context.Context, arg CreatePricingRuleParams) (PricingRule, error) {
@@ -1173,7 +1202,7 @@ func (q *Queries) CreatePricingRule(ctx context.Context, arg CreatePricingRulePa
 		arg.PricingGroupID,
 		arg.Kind,
 		arg.MachineTypeID,
-		arg.MaterialCategory,
+		arg.MaterialTypeID,
 		arg.MaterialUnit,
 		arg.Rate,
 	)
@@ -1183,13 +1212,13 @@ func (q *Queries) CreatePricingRule(ctx context.Context, arg CreatePricingRulePa
 		&i.PricingGroupID,
 		&i.Kind,
 		&i.MachineTypeID,
-		&i.MaterialCategory,
 		&i.MaterialUnit,
 		&i.Rate,
 		&i.Active,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MaterialTypeID,
 	)
 	return i, err
 }
@@ -1299,6 +1328,23 @@ DELETE FROM material_filament_properties WHERE material_id=$1
 func (q *Queries) DeleteMaterialFilamentProperties(ctx context.Context, materialID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, deleteMaterialFilamentProperties, materialID)
 	return err
+}
+
+const deleteMaterialType = `-- name: DeleteMaterialType :execrows
+DELETE FROM material_types WHERE id = $1 AND version = $2
+`
+
+type DeleteMaterialTypeParams struct {
+	ID              uuid.UUID
+	ExpectedVersion int64
+}
+
+func (q *Queries) DeleteMaterialType(ctx context.Context, arg DeleteMaterialTypeParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteMaterialType, arg.ID, arg.ExpectedVersion)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteOrganization = `-- name: DeleteOrganization :execrows
@@ -1437,8 +1483,8 @@ func (q *Queries) FindFilamentSpoolByIdentifier(ctx context.Context, arg FindFil
 }
 
 const getActivePricingRulesByGroup = `-- name: GetActivePricingRulesByGroup :many
-SELECT id, pricing_group_id, kind, machine_type_id, material_category, material_unit, rate, active, version, created_at, updated_at FROM pricing_rules WHERE pricing_group_id = $1 AND active
-ORDER BY kind, material_category NULLS FIRST, machine_type_id NULLS FIRST, id
+SELECT id, pricing_group_id, kind, machine_type_id, material_unit, rate, active, version, created_at, updated_at, material_type_id FROM pricing_rules WHERE pricing_group_id = $1 AND active
+ORDER BY kind, material_type_id NULLS FIRST, machine_type_id NULLS FIRST, id
 `
 
 func (q *Queries) GetActivePricingRulesByGroup(ctx context.Context, pricingGroupID uuid.UUID) ([]PricingRule, error) {
@@ -1455,13 +1501,13 @@ func (q *Queries) GetActivePricingRulesByGroup(ctx context.Context, pricingGroup
 			&i.PricingGroupID,
 			&i.Kind,
 			&i.MachineTypeID,
-			&i.MaterialCategory,
 			&i.MaterialUnit,
 			&i.Rate,
 			&i.Active,
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.MaterialTypeID,
 		); err != nil {
 			return nil, err
 		}
@@ -1651,7 +1697,7 @@ SELECT s.id, s.display_id, s.kind, s.label, s.lifecycle, s.archived_at, s.tare_w
        s.storage_location, s.notes, s.version, s.created_at, s.updated_at,
        COALESCE(f.fill_number, (SELECT max(x.fill_number) FROM filament_spool_fills x WHERE x.spool_id=s.id), 0)::integer AS fill_number,
        f.id AS fill_id, f.filled_at, f.material_id, f.product_id, f.manufacturer, f.product_name, f.initial_net_weight_g,
-       m.name AS material_name, m.category, m.color, m.unit,
+       m.name AS material_name, mt.name AS material_type_name, m.color_name, m.color_hex, m.unit,
        (COALESCE((SELECT sum(t.quantity_delta) FROM inventory_transactions t WHERE t.fill_id=f.id), 0::numeric)
        + COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.to_fill_id=f.id), 0::numeric)
        - COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.from_fill_id=f.id), 0::numeric))::numeric AS remaining_quantity,
@@ -1661,6 +1707,7 @@ SELECT s.id, s.display_id, s.kind, s.label, s.lifecycle, s.archived_at, s.tare_w
 FROM filament_spools s
 LEFT JOIN filament_spool_fills f ON f.spool_id=s.id AND f.closed_at IS NULL
 LEFT JOIN materials m ON m.id=f.material_id
+LEFT JOIN material_types mt ON mt.id=m.material_type_id
 LEFT JOIN printer_spool_assignments pa ON pa.spool_id=s.id AND pa.unmounted_at IS NULL
 LEFT JOIN printer_slots pl ON pl.id=pa.slot_id
 LEFT JOIN printer_input_units mu ON mu.id=pl.input_unit_id
@@ -1692,8 +1739,9 @@ type GetFilamentSpoolRow struct {
 	ProductName          *string
 	InitialNetWeightG    pgtype.Numeric
 	MaterialName         *string
-	Category             *string
-	Color                *string
+	MaterialTypeName     *string
+	ColorName            *string
+	ColorHex             *string
 	Unit                 *string
 	RemainingQuantity    pgtype.Numeric
 	Mounted              bool
@@ -1731,8 +1779,9 @@ func (q *Queries) GetFilamentSpool(ctx context.Context, id uuid.UUID) (GetFilame
 		&i.ProductName,
 		&i.InitialNetWeightG,
 		&i.MaterialName,
-		&i.Category,
-		&i.Color,
+		&i.MaterialTypeName,
+		&i.ColorName,
+		&i.ColorHex,
 		&i.Unit,
 		&i.RemainingQuantity,
 		&i.Mounted,
@@ -2065,7 +2114,7 @@ func (q *Queries) GetMachineTypeForUpdate(ctx context.Context, id uuid.UUID) (Ma
 }
 
 const getMaterial = `-- name: GetMaterial :one
-SELECT m.id, m.name, m.category, m.color, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
+SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, mt.name AS material_type_name, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
        COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.occurred_at >= now() - interval '30 days'), 0)::numeric AS recent_consumption,
        fp.diameter_mm,
        COALESCE((SELECT sum(
@@ -2074,23 +2123,26 @@ SELECT m.id, m.name, m.category, m.color, m.unit, m.active, m.low_stock_threshol
            - COALESCE((SELECT sum(it.transfer_quantity) FROM inventory_transactions it WHERE it.from_fill_id=f.id), 0::numeric))
            FROM filament_spool_fills f WHERE f.material_id=m.id AND f.closed_at IS NULL),0)::numeric AS assigned_quantity
 FROM materials m JOIN material_balances b ON b.material_id = m.id
+JOIN material_types mt ON mt.id = m.material_type_id
 LEFT JOIN material_filament_properties fp ON fp.material_id=m.id
 LEFT JOIN inventory_transactions t ON t.material_id = m.id
 WHERE m.id = $1
-GROUP BY m.id, b.material_id, fp.material_id
+GROUP BY m.id, mt.id, b.material_id, fp.material_id
 `
 
 type GetMaterialRow struct {
 	ID                uuid.UUID
 	Name              string
-	Category          string
-	Color             *string
 	Unit              string
 	Active            bool
 	LowStockThreshold pgtype.Numeric
 	Version           int64
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+	MaterialTypeID    uuid.UUID
+	ColorName         *string
+	ColorHex          *string
+	MaterialTypeName  string
 	Quantity          pgtype.Numeric
 	InventoryValue    pgtype.Numeric
 	AverageUnitCost   pgtype.Numeric
@@ -2107,14 +2159,16 @@ func (q *Queries) GetMaterial(ctx context.Context, id uuid.UUID) (GetMaterialRow
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.Category,
-		&i.Color,
 		&i.Unit,
 		&i.Active,
 		&i.LowStockThreshold,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MaterialTypeID,
+		&i.ColorName,
+		&i.ColorHex,
+		&i.MaterialTypeName,
 		&i.Quantity,
 		&i.InventoryValue,
 		&i.AverageUnitCost,
@@ -2128,7 +2182,7 @@ func (q *Queries) GetMaterial(ctx context.Context, id uuid.UUID) (GetMaterialRow
 }
 
 const getMaterialForUpdate = `-- name: GetMaterialForUpdate :one
-SELECT m.id, m.name, m.category, m.color, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at
+SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at
 FROM materials m JOIN material_balances b ON b.material_id = m.id
 WHERE m.id = $1
 FOR UPDATE OF b, m
@@ -2137,14 +2191,15 @@ FOR UPDATE OF b, m
 type GetMaterialForUpdateRow struct {
 	ID                uuid.UUID
 	Name              string
-	Category          string
-	Color             *string
 	Unit              string
 	Active            bool
 	LowStockThreshold pgtype.Numeric
 	Version           int64
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+	MaterialTypeID    uuid.UUID
+	ColorName         *string
+	ColorHex          *string
 	Quantity          pgtype.Numeric
 	InventoryValue    pgtype.Numeric
 	AverageUnitCost   pgtype.Numeric
@@ -2158,19 +2213,94 @@ func (q *Queries) GetMaterialForUpdate(ctx context.Context, id uuid.UUID) (GetMa
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.Category,
-		&i.Color,
 		&i.Unit,
 		&i.Active,
 		&i.LowStockThreshold,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MaterialTypeID,
+		&i.ColorName,
+		&i.ColorHex,
 		&i.Quantity,
 		&i.InventoryValue,
 		&i.AverageUnitCost,
 		&i.InventoryVersion,
 		&i.BalanceUpdatedAt,
+	)
+	return i, err
+}
+
+const getMaterialType = `-- name: GetMaterialType :one
+SELECT t.id, t.name, t.unit, t.active, t.version, t.created_at, t.updated_at,
+       (SELECT count(*) FROM materials m WHERE m.material_type_id = t.id)::bigint AS material_count,
+       (SELECT count(*) FROM pricing_rules r WHERE r.material_type_id = t.id)::bigint AS pricing_rule_count
+FROM material_types t WHERE t.id = $1
+`
+
+type GetMaterialTypeRow struct {
+	ID               uuid.UUID
+	Name             string
+	Unit             string
+	Active           bool
+	Version          int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	MaterialCount    int64
+	PricingRuleCount int64
+}
+
+func (q *Queries) GetMaterialType(ctx context.Context, id uuid.UUID) (GetMaterialTypeRow, error) {
+	row := q.db.QueryRow(ctx, getMaterialType, id)
+	var i GetMaterialTypeRow
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Unit,
+		&i.Active,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.MaterialCount,
+		&i.PricingRuleCount,
+	)
+	return i, err
+}
+
+const getMaterialTypeForShare = `-- name: GetMaterialTypeForShare :one
+SELECT id, name, unit, active, version, created_at, updated_at FROM material_types WHERE id = $1 FOR SHARE
+`
+
+func (q *Queries) GetMaterialTypeForShare(ctx context.Context, id uuid.UUID) (MaterialType, error) {
+	row := q.db.QueryRow(ctx, getMaterialTypeForShare, id)
+	var i MaterialType
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Unit,
+		&i.Active,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getMaterialTypeForUpdate = `-- name: GetMaterialTypeForUpdate :one
+SELECT id, name, unit, active, version, created_at, updated_at FROM material_types WHERE id = $1 FOR UPDATE
+`
+
+func (q *Queries) GetMaterialTypeForUpdate(ctx context.Context, id uuid.UUID) (MaterialType, error) {
+	row := q.db.QueryRow(ctx, getMaterialTypeForUpdate, id)
+	var i MaterialType
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Unit,
+		&i.Active,
+		&i.Version,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -2411,7 +2541,7 @@ func (q *Queries) GetPricingGroupForUpdate(ctx context.Context, id uuid.UUID) (P
 }
 
 const getPricingRuleForUpdate = `-- name: GetPricingRuleForUpdate :one
-SELECT id, pricing_group_id, kind, machine_type_id, material_category, material_unit, rate, active, version, created_at, updated_at FROM pricing_rules WHERE id = $1 FOR UPDATE
+SELECT id, pricing_group_id, kind, machine_type_id, material_unit, rate, active, version, created_at, updated_at, material_type_id FROM pricing_rules WHERE id = $1 FOR UPDATE
 `
 
 func (q *Queries) GetPricingRuleForUpdate(ctx context.Context, id uuid.UUID) (PricingRule, error) {
@@ -2422,13 +2552,13 @@ func (q *Queries) GetPricingRuleForUpdate(ctx context.Context, id uuid.UUID) (Pr
 		&i.PricingGroupID,
 		&i.Kind,
 		&i.MachineTypeID,
-		&i.MaterialCategory,
 		&i.MaterialUnit,
 		&i.Rate,
 		&i.Active,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MaterialTypeID,
 	)
 	return i, err
 }
@@ -2751,21 +2881,22 @@ func (q *Queries) InsertManualRun(ctx context.Context, arg InsertManualRunParams
 }
 
 const insertPricingSnapshotRule = `-- name: InsertPricingSnapshotRule :one
-INSERT INTO machine_job_pricing_snapshot_rules (id, snapshot_id, source_rule_id, kind, label, selector, unit, rate, missing)
-VALUES ($1, $2, $3, $4, $5, $6,
-    $7, $8, $9) RETURNING id, snapshot_id, source_rule_id, kind, label, selector, unit, rate, missing
+INSERT INTO machine_job_pricing_snapshot_rules (id, snapshot_id, source_rule_id, kind, label, selector, material_type_id, unit, rate, missing)
+VALUES ($1, $2, $3, $4, $5, $6, $7,
+    $8, $9, $10) RETURNING id, snapshot_id, source_rule_id, kind, label, selector, unit, rate, missing, material_type_id
 `
 
 type InsertPricingSnapshotRuleParams struct {
-	ID           uuid.UUID
-	SnapshotID   uuid.UUID
-	SourceRuleID *uuid.UUID
-	Kind         string
-	Label        string
-	Selector     string
-	Unit         string
-	Rate         pgtype.Numeric
-	Missing      bool
+	ID             uuid.UUID
+	SnapshotID     uuid.UUID
+	SourceRuleID   *uuid.UUID
+	Kind           string
+	Label          string
+	Selector       string
+	MaterialTypeID *uuid.UUID
+	Unit           string
+	Rate           pgtype.Numeric
+	Missing        bool
 }
 
 func (q *Queries) InsertPricingSnapshotRule(ctx context.Context, arg InsertPricingSnapshotRuleParams) (MachineJobPricingSnapshotRule, error) {
@@ -2776,6 +2907,7 @@ func (q *Queries) InsertPricingSnapshotRule(ctx context.Context, arg InsertPrici
 		arg.Kind,
 		arg.Label,
 		arg.Selector,
+		arg.MaterialTypeID,
 		arg.Unit,
 		arg.Rate,
 		arg.Missing,
@@ -2791,6 +2923,7 @@ func (q *Queries) InsertPricingSnapshotRule(ctx context.Context, arg InsertPrici
 		&i.Unit,
 		&i.Rate,
 		&i.Missing,
+		&i.MaterialTypeID,
 	)
 	return i, err
 }
@@ -3480,7 +3613,7 @@ SELECT s.id, s.display_id, s.kind, s.label, s.lifecycle, s.archived_at, s.tare_w
        s.storage_location, s.notes, s.version, s.created_at, s.updated_at,
        COALESCE(f.fill_number, (SELECT max(x.fill_number) FROM filament_spool_fills x WHERE x.spool_id=s.id), 0)::integer AS fill_number,
        f.id AS fill_id, f.filled_at, f.material_id, f.product_id, f.manufacturer, f.product_name, f.initial_net_weight_g,
-       m.name AS material_name, m.category, m.color, m.unit,
+       m.name AS material_name, mt.name AS material_type_name, m.color_name, m.color_hex, m.unit,
        (COALESCE((SELECT sum(t.quantity_delta) FROM inventory_transactions t WHERE t.fill_id=f.id), 0::numeric)
        + COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.to_fill_id=f.id), 0::numeric)
        - COALESCE((SELECT sum(t.transfer_quantity) FROM inventory_transactions t WHERE t.from_fill_id=f.id), 0::numeric))::numeric AS remaining_quantity,
@@ -3490,6 +3623,7 @@ SELECT s.id, s.display_id, s.kind, s.label, s.lifecycle, s.archived_at, s.tare_w
 FROM filament_spools s
 LEFT JOIN filament_spool_fills f ON f.spool_id=s.id AND f.closed_at IS NULL
 LEFT JOIN materials m ON m.id=f.material_id
+LEFT JOIN material_types mt ON mt.id=m.material_type_id
 LEFT JOIN printer_spool_assignments pa ON pa.spool_id=s.id AND pa.unmounted_at IS NULL
 LEFT JOIN printer_slots pl ON pl.id=pa.slot_id
 LEFT JOIN printer_input_units mu ON mu.id=pl.input_unit_id
@@ -3552,8 +3686,9 @@ type ListFilamentSpoolsRow struct {
 	ProductName          *string
 	InitialNetWeightG    pgtype.Numeric
 	MaterialName         *string
-	Category             *string
-	Color                *string
+	MaterialTypeName     *string
+	ColorName            *string
+	ColorHex             *string
 	Unit                 *string
 	RemainingQuantity    pgtype.Numeric
 	Mounted              bool
@@ -3610,8 +3745,9 @@ func (q *Queries) ListFilamentSpools(ctx context.Context, arg ListFilamentSpools
 			&i.ProductName,
 			&i.InitialNetWeightG,
 			&i.MaterialName,
-			&i.Category,
-			&i.Color,
+			&i.MaterialTypeName,
+			&i.ColorName,
+			&i.ColorHex,
 			&i.Unit,
 			&i.RemainingQuantity,
 			&i.Mounted,
@@ -4206,8 +4342,58 @@ func (q *Queries) ListMachines(ctx context.Context, arg ListMachinesParams) ([]L
 	return items, nil
 }
 
+const listMaterialTypes = `-- name: ListMaterialTypes :many
+SELECT t.id, t.name, t.unit, t.active, t.version, t.created_at, t.updated_at,
+       (SELECT count(*) FROM materials m WHERE m.material_type_id = t.id)::bigint AS material_count,
+       (SELECT count(*) FROM pricing_rules r WHERE r.material_type_id = t.id)::bigint AS pricing_rule_count
+FROM material_types t
+ORDER BY t.active DESC, lower(t.name), t.id
+`
+
+type ListMaterialTypesRow struct {
+	ID               uuid.UUID
+	Name             string
+	Unit             string
+	Active           bool
+	Version          int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	MaterialCount    int64
+	PricingRuleCount int64
+}
+
+func (q *Queries) ListMaterialTypes(ctx context.Context) ([]ListMaterialTypesRow, error) {
+	rows, err := q.db.Query(ctx, listMaterialTypes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListMaterialTypesRow{}
+	for rows.Next() {
+		var i ListMaterialTypesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Unit,
+			&i.Active,
+			&i.Version,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.MaterialCount,
+			&i.PricingRuleCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMaterials = `-- name: ListMaterials :many
-SELECT m.id, m.name, m.category, m.color, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
+SELECT m.id, m.name, m.unit, m.active, m.low_stock_threshold, m.version, m.created_at, m.updated_at, m.material_type_id, m.color_name, m.color_hex, mt.name AS material_type_name, b.quantity, b.inventory_value, b.average_unit_cost, b.version AS inventory_version, b.updated_at AS balance_updated_at,
        COALESCE(-sum(t.quantity_delta) FILTER (WHERE t.quantity_delta < 0 AND t.occurred_at >= now() - interval '30 days'), 0)::numeric AS recent_consumption,
        fp.diameter_mm,
        COALESCE((SELECT sum(
@@ -4216,38 +4402,41 @@ SELECT m.id, m.name, m.category, m.color, m.unit, m.active, m.low_stock_threshol
            - COALESCE((SELECT sum(it.transfer_quantity) FROM inventory_transactions it WHERE it.from_fill_id=f.id), 0::numeric))
            FROM filament_spool_fills f WHERE f.material_id=m.id AND f.closed_at IS NULL),0)::numeric AS assigned_quantity
 FROM materials m JOIN material_balances b ON b.material_id = m.id
+JOIN material_types mt ON mt.id = m.material_type_id
 LEFT JOIN material_filament_properties fp ON fp.material_id=m.id
 LEFT JOIN inventory_transactions t ON t.material_id = m.id
-WHERE ($1::text = '' OR lower(m.name) LIKE '%' || lower($1::text) || '%' OR lower(m.category) LIKE '%' || lower($1::text) || '%')
-  AND ($2::text = '' OR m.category = lower($2::text))
+WHERE ($1::text = '' OR lower(m.name) LIKE '%' || lower($1::text) || '%' OR lower(mt.name) LIKE '%' || lower($1::text) || '%')
+  AND ($2::uuid IS NULL OR m.material_type_id = $2::uuid)
   AND ($3::text = '' OR
        ($3::text = 'empty' AND b.quantity = 0) OR
        ($3::text = 'low_stock' AND b.quantity > 0 AND m.low_stock_threshold IS NOT NULL AND b.quantity <= m.low_stock_threshold) OR
        ($3::text = 'in_stock' AND b.quantity > 0 AND (m.low_stock_threshold IS NULL OR b.quantity > m.low_stock_threshold)))
-GROUP BY m.id, b.material_id, fp.material_id
+GROUP BY m.id, mt.id, b.material_id, fp.material_id
 ORDER BY m.active DESC, lower(m.name), m.id
 LIMIT $5 OFFSET $4
 `
 
 type ListMaterialsParams struct {
-	Search     string
-	Category   string
-	StockState string
-	PageOffset int32
-	PageLimit  int32
+	Search         string
+	MaterialTypeID *uuid.UUID
+	StockState     string
+	PageOffset     int32
+	PageLimit      int32
 }
 
 type ListMaterialsRow struct {
 	ID                uuid.UUID
 	Name              string
-	Category          string
-	Color             *string
 	Unit              string
 	Active            bool
 	LowStockThreshold pgtype.Numeric
 	Version           int64
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+	MaterialTypeID    uuid.UUID
+	ColorName         *string
+	ColorHex          *string
+	MaterialTypeName  string
 	Quantity          pgtype.Numeric
 	InventoryValue    pgtype.Numeric
 	AverageUnitCost   pgtype.Numeric
@@ -4261,7 +4450,7 @@ type ListMaterialsRow struct {
 func (q *Queries) ListMaterials(ctx context.Context, arg ListMaterialsParams) ([]ListMaterialsRow, error) {
 	rows, err := q.db.Query(ctx, listMaterials,
 		arg.Search,
-		arg.Category,
+		arg.MaterialTypeID,
 		arg.StockState,
 		arg.PageOffset,
 		arg.PageLimit,
@@ -4276,14 +4465,16 @@ func (q *Queries) ListMaterials(ctx context.Context, arg ListMaterialsParams) ([
 		if err := rows.Scan(
 			&i.ID,
 			&i.Name,
-			&i.Category,
-			&i.Color,
 			&i.Unit,
 			&i.Active,
 			&i.LowStockThreshold,
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.MaterialTypeID,
+			&i.ColorName,
+			&i.ColorHex,
+			&i.MaterialTypeName,
 			&i.Quantity,
 			&i.InventoryValue,
 			&i.AverageUnitCost,
@@ -4459,31 +4650,49 @@ func (q *Queries) ListPricingGroups(ctx context.Context) ([]PricingGroup, error)
 }
 
 const listPricingRulesByGroup = `-- name: ListPricingRulesByGroup :many
-SELECT id, pricing_group_id, kind, machine_type_id, material_category, material_unit, rate, active, version, created_at, updated_at FROM pricing_rules WHERE pricing_group_id = $1
-ORDER BY active DESC, kind, material_category NULLS FIRST, machine_type_id NULLS FIRST, id
+SELECT r.id, r.pricing_group_id, r.kind, r.machine_type_id, r.material_unit, r.rate, r.active, r.version, r.created_at, r.updated_at, r.material_type_id, mt.name AS material_type_name FROM pricing_rules r
+LEFT JOIN material_types mt ON mt.id = r.material_type_id
+WHERE r.pricing_group_id = $1
+ORDER BY r.active DESC, r.kind, lower(mt.name) NULLS FIRST, r.machine_type_id NULLS FIRST, r.id
 `
 
-func (q *Queries) ListPricingRulesByGroup(ctx context.Context, pricingGroupID uuid.UUID) ([]PricingRule, error) {
+type ListPricingRulesByGroupRow struct {
+	ID               uuid.UUID
+	PricingGroupID   uuid.UUID
+	Kind             string
+	MachineTypeID    *uuid.UUID
+	MaterialUnit     *string
+	Rate             pgtype.Numeric
+	Active           bool
+	Version          int64
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+	MaterialTypeID   *uuid.UUID
+	MaterialTypeName *string
+}
+
+func (q *Queries) ListPricingRulesByGroup(ctx context.Context, pricingGroupID uuid.UUID) ([]ListPricingRulesByGroupRow, error) {
 	rows, err := q.db.Query(ctx, listPricingRulesByGroup, pricingGroupID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []PricingRule{}
+	items := []ListPricingRulesByGroupRow{}
 	for rows.Next() {
-		var i PricingRule
+		var i ListPricingRulesByGroupRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.PricingGroupID,
 			&i.Kind,
 			&i.MachineTypeID,
-			&i.MaterialCategory,
 			&i.MaterialUnit,
 			&i.Rate,
 			&i.Active,
 			&i.Version,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.MaterialTypeID,
+			&i.MaterialTypeName,
 		); err != nil {
 			return nil, err
 		}
@@ -4496,7 +4705,7 @@ func (q *Queries) ListPricingRulesByGroup(ctx context.Context, pricingGroupID uu
 }
 
 const listPricingSnapshotRules = `-- name: ListPricingSnapshotRules :many
-SELECT id, snapshot_id, source_rule_id, kind, label, selector, unit, rate, missing FROM machine_job_pricing_snapshot_rules WHERE snapshot_id = $1 ORDER BY kind, label, id
+SELECT id, snapshot_id, source_rule_id, kind, label, selector, unit, rate, missing, material_type_id FROM machine_job_pricing_snapshot_rules WHERE snapshot_id = $1 ORDER BY kind, label, id
 `
 
 func (q *Queries) ListPricingSnapshotRules(ctx context.Context, snapshotID uuid.UUID) ([]MachineJobPricingSnapshotRule, error) {
@@ -4518,6 +4727,7 @@ func (q *Queries) ListPricingSnapshotRules(ctx context.Context, snapshotID uuid.
 			&i.Unit,
 			&i.Rate,
 			&i.Missing,
+			&i.MaterialTypeID,
 		); err != nil {
 			return nil, err
 		}
@@ -4630,9 +4840,10 @@ func (q *Queries) ListRunEvents(ctx context.Context, runID *uuid.UUID) ([]ListRu
 
 const listRunUsagesForRuns = `-- name: ListRunUsagesForRuns :many
 SELECT u.id, u.material_id, u.quantity, u.active, u.created_at, u.updated_at, u.ownership, u.spool_id, u.external_material_name, u.quantity_basis, u.source_printer_event_id, u.fill_id, u.spool_display_id, u.fill_number, u.run_id, u.estimation_method, u.calculation_version, u.estimate_quality, u.report_revision, u.staff_corrected, COALESCE(m.name, u.external_material_name) AS material_name,
-       COALESCE(m.category, 'external') AS category, COALESCE(m.unit, 'g') AS unit
+       m.material_type_id, COALESCE(mt.name, 'External') AS material_type_name, COALESCE(m.unit, 'g') AS unit
 FROM machine_run_usages u
 LEFT JOIN materials m ON m.id = u.material_id
+LEFT JOIN material_types mt ON mt.id = m.material_type_id
 WHERE u.run_id = ANY($1::uuid[]) AND u.active
 ORDER BY lower(COALESCE(m.name, u.external_material_name)), u.id
 `
@@ -4659,7 +4870,8 @@ type ListRunUsagesForRunsRow struct {
 	ReportRevision       *int64
 	StaffCorrected       bool
 	MaterialName         string
-	Category             string
+	MaterialTypeID       *uuid.UUID
+	MaterialTypeName     string
 	Unit                 string
 }
 
@@ -4694,7 +4906,8 @@ func (q *Queries) ListRunUsagesForRuns(ctx context.Context, runIds []uuid.UUID) 
 			&i.ReportRevision,
 			&i.StaffCorrected,
 			&i.MaterialName,
-			&i.Category,
+			&i.MaterialTypeID,
+			&i.MaterialTypeName,
 			&i.Unit,
 		); err != nil {
 			return nil, err
@@ -5168,6 +5381,20 @@ WHERE id = $1 AND source = 'manual'
 func (q *Queries) MarkManualRunReplaced(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, markManualRunReplaced, id)
 	return err
+}
+
+const materialTypeIsReferenced = `-- name: MaterialTypeIsReferenced :one
+SELECT (EXISTS (SELECT 1 FROM materials m WHERE m.material_type_id = $1::uuid)
+    OR EXISTS (SELECT 1 FROM pricing_rules r WHERE r.material_type_id = $1::uuid))::boolean AS referenced
+`
+
+// True while a material or a pricing rule (active or not) uses the type. Pricing
+// snapshots only keep a nullable pointer and their own label text.
+func (q *Queries) MaterialTypeIsReferenced(ctx context.Context, id uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, materialTypeIsReferenced, id)
+	var referenced bool
+	err := row.Scan(&referenced)
+	return referenced, err
 }
 
 const nextFilamentSpoolFillNumber = `-- name: NextFilamentSpoolFillNumber :one
@@ -5990,34 +6217,35 @@ func (q *Queries) StatisticMachineSummaries(ctx context.Context, arg StatisticMa
 	return items, nil
 }
 
-const statisticMaterialCostByCategory = `-- name: StatisticMaterialCostByCategory :many
-SELECT m.category AS label, (-sum(t.inventory_value_delta))::numeric AS value
-FROM inventory_transactions t JOIN materials m ON m.id = t.material_id
+const statisticMaterialCostByType = `-- name: StatisticMaterialCostByType :many
+SELECT mt.id::text AS key, mt.name AS label, (-sum(t.inventory_value_delta))::numeric AS value
+FROM inventory_transactions t JOIN materials m ON m.id = t.material_id JOIN material_types mt ON mt.id = m.material_type_id
 WHERE (t.kind IN ('machine_run_consumption', 'manual_consumption') OR (t.kind = 'adjustment' AND t.adjustment_reason = 'job_corrected'))
   AND t.occurred_at >= $1 AND t.occurred_at < $2
-GROUP BY m.category ORDER BY m.category
+GROUP BY mt.id, mt.name ORDER BY lower(mt.name), mt.id
 `
 
-type StatisticMaterialCostByCategoryParams struct {
+type StatisticMaterialCostByTypeParams struct {
 	FromTime time.Time
 	ToTime   time.Time
 }
 
-type StatisticMaterialCostByCategoryRow struct {
+type StatisticMaterialCostByTypeRow struct {
+	Key   string
 	Label string
 	Value pgtype.Numeric
 }
 
-func (q *Queries) StatisticMaterialCostByCategory(ctx context.Context, arg StatisticMaterialCostByCategoryParams) ([]StatisticMaterialCostByCategoryRow, error) {
-	rows, err := q.db.Query(ctx, statisticMaterialCostByCategory, arg.FromTime, arg.ToTime)
+func (q *Queries) StatisticMaterialCostByType(ctx context.Context, arg StatisticMaterialCostByTypeParams) ([]StatisticMaterialCostByTypeRow, error) {
+	rows, err := q.db.Query(ctx, statisticMaterialCostByType, arg.FromTime, arg.ToTime)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []StatisticMaterialCostByCategoryRow{}
+	items := []StatisticMaterialCostByTypeRow{}
 	for rows.Next() {
-		var i StatisticMaterialCostByCategoryRow
-		if err := rows.Scan(&i.Label, &i.Value); err != nil {
+		var i StatisticMaterialCostByTypeRow
+		if err := rows.Scan(&i.Key, &i.Label, &i.Value); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -6029,11 +6257,11 @@ func (q *Queries) StatisticMaterialCostByCategory(ctx context.Context, arg Stati
 }
 
 const statisticMaterialUsage = `-- name: StatisticMaterialUsage :many
-SELECT m.category AS label, COALESCE(-sum(t.quantity_delta), 0)::numeric AS value
-FROM inventory_transactions t JOIN materials m ON m.id = t.material_id
+SELECT mt.id::text AS key, mt.name AS label, COALESCE(-sum(t.quantity_delta), 0)::numeric AS value
+FROM inventory_transactions t JOIN materials m ON m.id = t.material_id JOIN material_types mt ON mt.id = m.material_type_id
 WHERE (t.kind IN ('machine_run_consumption', 'manual_consumption') OR (t.kind = 'adjustment' AND t.adjustment_reason = 'job_corrected'))
   AND t.occurred_at >= $1 AND t.occurred_at < $2
-GROUP BY m.category ORDER BY m.category
+GROUP BY mt.id, mt.name ORDER BY lower(mt.name), mt.id
 `
 
 type StatisticMaterialUsageParams struct {
@@ -6042,6 +6270,7 @@ type StatisticMaterialUsageParams struct {
 }
 
 type StatisticMaterialUsageRow struct {
+	Key   string
 	Label string
 	Value pgtype.Numeric
 }
@@ -6055,7 +6284,7 @@ func (q *Queries) StatisticMaterialUsage(ctx context.Context, arg StatisticMater
 	items := []StatisticMaterialUsageRow{}
 	for rows.Next() {
 		var i StatisticMaterialUsageRow
-		if err := rows.Scan(&i.Label, &i.Value); err != nil {
+		if err := rows.Scan(&i.Key, &i.Label, &i.Value); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -6575,16 +6804,17 @@ func (q *Queries) UpdateManualRunFacts(ctx context.Context, arg UpdateManualRunF
 }
 
 const updateMaterial = `-- name: UpdateMaterial :one
-UPDATE materials SET name = $1, category = $2, color = $3, unit = $4,
-    active = $5, low_stock_threshold = $6, version = version + 1, updated_at = now()
-WHERE id = $7 AND version = $8
-RETURNING id, name, category, color, unit, active, low_stock_threshold, version, created_at, updated_at
+UPDATE materials SET name = $1, material_type_id = $2, color_name = $3, color_hex = $4, unit = $5,
+    active = $6, low_stock_threshold = $7, version = version + 1, updated_at = now()
+WHERE id = $8 AND version = $9
+RETURNING id, name, unit, active, low_stock_threshold, version, created_at, updated_at, material_type_id, color_name, color_hex
 `
 
 type UpdateMaterialParams struct {
 	Name              string
-	Category          string
-	Color             *string
+	MaterialTypeID    uuid.UUID
+	ColorName         *string
+	ColorHex          *string
 	Unit              string
 	Active            bool
 	LowStockThreshold pgtype.Numeric
@@ -6595,8 +6825,9 @@ type UpdateMaterialParams struct {
 func (q *Queries) UpdateMaterial(ctx context.Context, arg UpdateMaterialParams) (Material, error) {
 	row := q.db.QueryRow(ctx, updateMaterial,
 		arg.Name,
-		arg.Category,
-		arg.Color,
+		arg.MaterialTypeID,
+		arg.ColorName,
+		arg.ColorHex,
 		arg.Unit,
 		arg.Active,
 		arg.LowStockThreshold,
@@ -6607,14 +6838,15 @@ func (q *Queries) UpdateMaterial(ctx context.Context, arg UpdateMaterialParams) 
 	err := row.Scan(
 		&i.ID,
 		&i.Name,
-		&i.Category,
-		&i.Color,
 		&i.Unit,
 		&i.Active,
 		&i.LowStockThreshold,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MaterialTypeID,
+		&i.ColorName,
+		&i.ColorHex,
 	)
 	return i, err
 }
@@ -6649,6 +6881,41 @@ func (q *Queries) UpdateMaterialBalance(ctx context.Context, arg UpdateMaterialB
 		&i.InventoryValue,
 		&i.AverageUnitCost,
 		&i.Version,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const updateMaterialType = `-- name: UpdateMaterialType :one
+UPDATE material_types SET name = $1, unit = $2, active = $3, version = version + 1, updated_at = now()
+WHERE id = $4 AND version = $5
+RETURNING id, name, unit, active, version, created_at, updated_at
+`
+
+type UpdateMaterialTypeParams struct {
+	Name            string
+	Unit            string
+	Active          bool
+	ID              uuid.UUID
+	ExpectedVersion int64
+}
+
+func (q *Queries) UpdateMaterialType(ctx context.Context, arg UpdateMaterialTypeParams) (MaterialType, error) {
+	row := q.db.QueryRow(ctx, updateMaterialType,
+		arg.Name,
+		arg.Unit,
+		arg.Active,
+		arg.ID,
+		arg.ExpectedVersion,
+	)
+	var i MaterialType
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Unit,
+		&i.Active,
+		&i.Version,
+		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
@@ -6770,28 +7037,28 @@ func (q *Queries) UpdatePricingGroup(ctx context.Context, arg UpdatePricingGroup
 
 const updatePricingRule = `-- name: UpdatePricingRule :one
 UPDATE pricing_rules SET kind = $1, machine_type_id = $2,
-    material_category = $3, material_unit = $4, rate = $5,
+    material_type_id = $3, material_unit = $4, rate = $5,
     active = $6, version = version + 1, updated_at = now()
 WHERE id = $7 AND version = $8
-RETURNING id, pricing_group_id, kind, machine_type_id, material_category, material_unit, rate, active, version, created_at, updated_at
+RETURNING id, pricing_group_id, kind, machine_type_id, material_unit, rate, active, version, created_at, updated_at, material_type_id
 `
 
 type UpdatePricingRuleParams struct {
-	Kind             string
-	MachineTypeID    *uuid.UUID
-	MaterialCategory *string
-	MaterialUnit     *string
-	Rate             pgtype.Numeric
-	Active           bool
-	ID               uuid.UUID
-	ExpectedVersion  int64
+	Kind            string
+	MachineTypeID   *uuid.UUID
+	MaterialTypeID  *uuid.UUID
+	MaterialUnit    *string
+	Rate            pgtype.Numeric
+	Active          bool
+	ID              uuid.UUID
+	ExpectedVersion int64
 }
 
 func (q *Queries) UpdatePricingRule(ctx context.Context, arg UpdatePricingRuleParams) (PricingRule, error) {
 	row := q.db.QueryRow(ctx, updatePricingRule,
 		arg.Kind,
 		arg.MachineTypeID,
-		arg.MaterialCategory,
+		arg.MaterialTypeID,
 		arg.MaterialUnit,
 		arg.Rate,
 		arg.Active,
@@ -6804,13 +7071,13 @@ func (q *Queries) UpdatePricingRule(ctx context.Context, arg UpdatePricingRulePa
 		&i.PricingGroupID,
 		&i.Kind,
 		&i.MachineTypeID,
-		&i.MaterialCategory,
 		&i.MaterialUnit,
 		&i.Rate,
 		&i.Active,
 		&i.Version,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.MaterialTypeID,
 	)
 	return i, err
 }

@@ -22,6 +22,7 @@ import type { UUIDv7 } from './uUIDv7';
 import type { FilamentOwnership } from './filamentOwnership';
 import type { MachineJobUsageMaterialId } from './machineJobUsageMaterialId';
 import type { MachineJobUsageSpoolId } from './machineJobUsageSpoolId';
+import type { MachineJobUsageMaterialTypeId } from './machineJobUsageMaterialTypeId';
 import type { MaterialUnit } from './materialUnit';
 import type { Decimal } from './decimal';
 import type { QuantityBasis } from './quantityBasis';
@@ -42,7 +43,13 @@ export interface MachineJobUsage {
   /** @nullable */
   fillNumber?: number | null;
   materialName: string;
-  category: string;
+  /**
+   * Null for material the customer brought.
+   * @nullable
+   */
+  materialTypeId?: MachineJobUsageMaterialTypeId;
+  /** "External" for material the customer brought. */
+  materialTypeName: string;
   unit: MaterialUnit;
   quantity: Decimal;
   quantityBasis: QuantityBasis;

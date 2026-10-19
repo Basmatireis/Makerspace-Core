@@ -20,16 +20,17 @@ import (
 var jobsClock = time.Date(2020, time.March, 10, 12, 0, 0, 500_000_000, time.UTC)
 
 type jobFixture struct {
-	pool        *pgxpool.Pool
-	s           *Service
-	p           authorization.Principal
-	person      uuid.UUID
-	machine     Machine
-	bareMachine Machine // machine type without a runtime rule: pricing stays incomplete
-	group       PricingGroup
-	material    Material
-	request     uuid.UUID
-	now         time.Time
+	pool         *pgxpool.Pool
+	s            *Service
+	p            authorization.Principal
+	person       uuid.UUID
+	machine      Machine
+	bareMachine  Machine // machine type without a runtime rule: pricing stays incomplete
+	group        PricingGroup
+	materialType MaterialType
+	material     Material
+	request      uuid.UUID
+	now          time.Time
 }
 
 func newJobFixture(t *testing.T) *jobFixture { return newJobFixtureAt(t, jobsClock) }
@@ -76,6 +77,9 @@ func newJobFixtureAt(t *testing.T, now time.Time) *jobFixture {
 		if f.material.ID != uuid.Nil {
 			_, _ = pool.Exec(cleanup, `DELETE FROM materials WHERE id = $1`, f.material.ID)
 		}
+		if f.materialType.ID != uuid.Nil {
+			_, _ = pool.Exec(cleanup, `DELETE FROM material_types WHERE id = $1`, f.materialType.ID)
+		}
 		for _, id := range typeIDs {
 			_, _ = pool.Exec(cleanup, `DELETE FROM machine_types WHERE id = $1`, id)
 		}
@@ -100,17 +104,18 @@ func newJobFixtureAt(t *testing.T, now time.Time) *jobFixture {
 	f.bareMachine, err = f.s.CreateMachine(ctx, f.p, bareType.ID, "Jobs bare machine "+suffix, "active", nil, false, &f.request)
 	must(err)
 	machineIDs = append(machineIDs, f.bareMachine.ID)
-	f.material, err = f.s.CreateMaterial(ctx, f.p, "Jobs PLA "+suffix, "pla", nil, "g", nil, &f.request)
+	f.materialType, err = f.s.CreateMaterialType(ctx, f.p, "Jobs PLA "+suffix, "g", &f.request)
+	must(err)
+	f.material, err = f.s.CreateMaterial(ctx, f.p, MaterialInput{Name: "Jobs PLA " + suffix, MaterialTypeID: f.materialType.ID}, &f.request)
 	must(err)
 	purchase, err := f.s.AddPurchase(ctx, f.p, f.material.ID, f.material.InventoryVersion, "1000", "20", f.now, nil, nil, &f.request)
 	must(err)
 	f.material = purchase.Material
 	f.group, err = f.s.CreatePricingGroup(ctx, f.p, "Jobs pricing "+suffix, nil, false, &f.request)
 	must(err)
-	_, err = f.s.CreatePricingRule(ctx, f.p, f.group.ID, "machine_runtime", &typ.ID, nil, nil, "10", &f.request)
+	_, err = f.s.CreatePricingRule(ctx, f.p, f.group.ID, "machine_runtime", &typ.ID, nil, "10", &f.request)
 	must(err)
-	category, unit := "pla", "g"
-	_, err = f.s.CreatePricingRule(ctx, f.p, f.group.ID, "material", nil, &category, &unit, "0.1", &f.request)
+	_, err = f.s.CreatePricingRule(ctx, f.p, f.group.ID, "material", nil, &f.materialType.ID, "0.1", &f.request)
 	must(err)
 	return f
 }

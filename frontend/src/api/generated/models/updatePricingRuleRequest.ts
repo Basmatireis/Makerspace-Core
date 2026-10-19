@@ -18,7 +18,22 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { CreatePricingRuleRequest } from './createPricingRuleRequest';
-import type { UpdatePricingRuleRequestAllOf } from './updatePricingRuleRequestAllOf';
+import type { PricingRuleKind } from './pricingRuleKind';
+import type { UpdatePricingRuleRequestMachineTypeId } from './updatePricingRuleRequestMachineTypeId';
+import type { UpdatePricingRuleRequestMaterialTypeId } from './updatePricingRuleRequestMaterialTypeId';
+import type { Decimal } from './decimal';
+import type { Version } from './version';
 
-export type UpdatePricingRuleRequest = CreatePricingRuleRequest & UpdatePricingRuleRequestAllOf;
+export interface UpdatePricingRuleRequest {
+  kind: PricingRuleKind;
+  /** @nullable */
+  machineTypeId?: UpdatePricingRuleRequestMachineTypeId;
+  /**
+   * Required for material rules, forbidden for runtime rules.
+   * @nullable
+   */
+  materialTypeId?: UpdatePricingRuleRequestMaterialTypeId;
+  rate: Decimal;
+  expectedVersion: Version;
+  active: boolean;
+}

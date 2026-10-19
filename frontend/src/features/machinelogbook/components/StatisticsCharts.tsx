@@ -17,7 +17,7 @@ export type StatisticsChartsData = {
   machines: RuntimeMachine[];
   selectedMachineIds: string[];
   onSelectMachines: (ids: string[]) => void;
-  materialByCategory: LabelledValue[];
+  materialByType: LabelledValue[];
 };
 
 /** Runtime per selected machine over the weeks or months of the period, for comparing machines. */
@@ -77,7 +77,7 @@ function BarTile({ id, title, label, points, format, valueHeader }: {
       <SimpleBarChart data={data} options={baseOptions(label)} />
       <div className="visually-hidden"><table>
         <caption>{title}</caption>
-        <thead><tr><th scope="col">Category</th><th scope="col">{valueHeader}</th></tr></thead>
+        <thead><tr><th scope="col">Material type</th><th scope="col">{valueHeader}</th></tr></thead>
         <tbody>{points.map((point) => <tr key={point.label}><td>{point.label}</td><td>{format(point.value)}</td></tr>)}</tbody>
       </table></div>
     </Tile>
@@ -108,7 +108,7 @@ export default function StatisticsCharts({ data }: { data: StatisticsChartsData 
         </table></div>
       </Tile>
       <RuntimeTile data={data} />
-      <BarTile id="stats-material" title="Material usage by category (€ cost)" label="Material cost in euro per category" points={data.materialByCategory} format={formatMoney} valueHeader="Material cost" />
+      <BarTile id="stats-material" title="Material cost by material type (€)" label="Material cost in euro per material type" points={data.materialByType} format={formatMoney} valueHeader="Material cost" />
       <BarTile
         id="stats-losses" title="Losses from corrections and disposal (€)" label="Monthly losses from corrections and disposal in euro"
         points={months.map((point) => ({ label: point.label, value: point.losses }))} format={formatMoney} valueHeader="Loss"

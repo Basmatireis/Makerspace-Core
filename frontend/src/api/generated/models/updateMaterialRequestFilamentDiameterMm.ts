@@ -18,9 +18,9 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
-import type { MaterialUnit } from './materialUnit';
+import type { Decimal } from './decimal';
 
 /**
  * @nullable
  */
-export type CreatePricingRuleRequestMaterialUnit = MaterialUnit | null;
+export type UpdateMaterialRequestFilamentDiameterMm = Decimal | null;

@@ -110,10 +110,10 @@ func TestStatisticsTotalsRuntimeAndCostSplit(t *testing.T) {
 	assertDecimal(t, "month materialCost", stats.Months[0].MaterialCost, "4")
 	assertDecimal(t, "month losses", stats.Months[0].Losses, "3.5")
 
-	if len(stats.MaterialCostByCategory) != 1 || stats.MaterialCostByCategory[0].Key != "pla" {
-		t.Fatalf("material cost by category = %+v", stats.MaterialCostByCategory)
+	if len(stats.MaterialCostByType) != 1 || stats.MaterialCostByType[0].Key != f.materialType.ID.String() || stats.MaterialCostByType[0].Label != f.materialType.Name {
+		t.Fatalf("material cost by type = %+v", stats.MaterialCostByType)
 	}
-	assertDecimal(t, "pla cost", stats.MaterialCostByCategory[0].Value, "4")
+	assertDecimal(t, "pla cost", stats.MaterialCostByType[0].Value, "4")
 
 	if len(stats.Machines) != 2 {
 		t.Fatalf("machines = %+v", stats.Machines)

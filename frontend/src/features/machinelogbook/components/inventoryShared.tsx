@@ -34,9 +34,6 @@ export function formatUnitCost(cost: string | number | null | undefined, unit: M
 /** Average acquisition cost of a material; a material that never held stock has none yet. */
 export const materialUnitCost = (material: Pick<Material, 'averageUnitCost' | 'inventoryValue' | 'quantity'>) => Number(material.averageUnitCost) === 0 && Number(material.inventoryValue) === 0 && Number(material.quantity) === 0 ? null : material.averageUnitCost;
 
-/** "filament" → "Filament": the API stores categories in lower case. */
-export const categoryLabel = (category: string) => category.charAt(0).toUpperCase() + category.slice(1);
-
 export const stockStateOptions: { id: StockState; label: string }[] = [{ id: 'in_stock', label: 'In stock' }, { id: 'low_stock', label: 'Low' }, { id: 'empty', label: 'Empty' }];
 
 const stockMeta = {
@@ -79,8 +76,8 @@ export function NoInventoryAccess() {
   return <EmptyState title="No access to inventory" description="Your role does not include viewing inventory. Ask a workshop supervisor for access." />;
 }
 
-/** Filament is the only material that is tracked per spool. */
-export const isFilament = (material: Pick<Material, 'category'>) => material.category.trim().toLowerCase() === 'filament';
+/** Only materials with a filament diameter are tracked per spool. */
+export const isFilament = (material: Pick<Material, 'filamentDiameterMm'>) => material.filamentDiameterMm != null;
 
 /** Parses a typed decimal ("1,5" or "1.5"); null when empty or not a number. */
 export function parseDecimal(value: string): number | null {
@@ -94,3 +91,14 @@ export function parseDecimal(value: string): number | null {
 export const toDecimal = (value: number) => String(Number(value.toFixed(6)));
 /** API money (up to two fraction digits). */
 export const toMoney = (value: number) => value.toFixed(2);
+
+/** Colour swatch and name of a material; spools and lists only display the colour, they never hold their own. */
+export function MaterialColor({ name, hex }: { name?: string | null; hex?: string | null }) {
+  if (!name && !hex) return <span className="mj-secondary">—</span>;
+  return (
+    <span className="mj-inline">
+      {hex && <span className="mj-swatch" style={{ backgroundColor: hex }} role="img" aria-label={`Colour ${hex}`} />}
+      {name && <span>{name}</span>}
+    </span>
+  );
+}

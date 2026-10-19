@@ -18,9 +18,16 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { MaterialUnit } from './materialUnit';
 import type { Version } from './version';
 
-export type UpdatePricingRuleRequestAllOf = {
+export interface UpdateMaterialTypeRequest {
+  /**
+   * @minLength 1
+   * @maxLength 120
+   */
+  name: string;
+  unit: MaterialUnit;
   expectedVersion: Version;
   active: boolean;
-};
+}

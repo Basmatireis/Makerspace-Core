@@ -155,7 +155,7 @@ export function RunDetailPage() {
                     />
                     {plannedFilaments.length > 1 && (
                       <ul>
-                        {plannedFilaments.map((filament) => <li key={filament.filamentKey}>{[filament.filamentType, filament.color].filter(Boolean).join(' · ') || `Filament ${filament.filamentKey}`}: {formatQuantity(filament.plannedWeightGrams!)} g planned</li>)}
+                        {plannedFilaments.map((filament) => <li key={filament.filamentKey}>{[filament.filamentType, filament.color && `${filament.color} (detected in file)`].filter(Boolean).join(' · ') || `Filament ${filament.filamentKey}`}: {formatQuantity(filament.plannedWeightGrams!)} g planned</li>)}
                       </ul>
                     )}
                     <p className="mj-secondary">This is a display-only approximation. Inventory is updated only after the run ends and the final report is accepted.</p>

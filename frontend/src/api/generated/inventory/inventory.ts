@@ -22,6 +22,7 @@ import type {
   AddMaterialPurchaseRequest,
   CorrectMaterialStockRequest,
   CreateMaterialRequest,
+  CreateMaterialTypeRequest,
   InventoryMutationResult,
   InventoryTransactionPage,
   ListMaterialTransactionsParams,
@@ -29,12 +30,141 @@ import type {
   MarkMaterialEmptyRequest,
   Material,
   MaterialPage,
+  MaterialType,
+  MaterialTypeList,
   RecordMaterialConsumptionRequest,
   UUIDv7,
-  UpdateMaterialRequest
+  UpdateMaterialRequest,
+  UpdateMaterialTypeRequest,
+  VersionRequest
 } from '.././models';
 
 import { apiFetch } from '../../http-client';
+
+/**
+ * Requires `inventory.read`. All types, active ones first; the list is not paged.
+ * @summary List material types
+ */
+export const getListMaterialTypesUrl = () => {
+
+
+
+
+  return `/api/v1/material-types`
+}
+
+export const listMaterialTypes = async ( options?: RequestInit): Promise<MaterialTypeList> => {
+
+  return apiFetch<MaterialTypeList>(getListMaterialTypesUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+/**
+ * Requires `inventory.manage`. Names are unique ignoring case (409 material_type_exists).
+ * @summary Create a material type
+ */
+export const getCreateMaterialTypeUrl = () => {
+
+
+
+
+  return `/api/v1/material-types`
+}
+
+export const createMaterialType = async (createMaterialTypeRequest: CreateMaterialTypeRequest, options?: RequestInit): Promise<MaterialType> => {
+
+  return apiFetch<MaterialType>(getCreateMaterialTypeUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      createMaterialTypeRequest,)
+  }
+);}
+
+
+/**
+ * Requires `inventory.read`.
+ * @summary Get a material type
+ */
+export const getGetMaterialTypeUrl = (materialTypeId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/material-types/${materialTypeId}`
+}
+
+export const getMaterialType = async (materialTypeId: UUIDv7, options?: RequestInit): Promise<MaterialType> => {
+
+  return apiFetch<MaterialType>(getGetMaterialTypeUrl(materialTypeId),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+/**
+ * Requires `inventory.manage`. Renames, deactivates or reactivates the type. The unit can only change while no material or pricing rule uses the type (409 material_type_unit_in_use).
+ * @summary Update a material type
+ */
+export const getUpdateMaterialTypeUrl = (materialTypeId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/material-types/${materialTypeId}`
+}
+
+export const updateMaterialType = async (materialTypeId: UUIDv7,
+    updateMaterialTypeRequest: UpdateMaterialTypeRequest, options?: RequestInit): Promise<MaterialType> => {
+
+  return apiFetch<MaterialType>(getUpdateMaterialTypeUrl(materialTypeId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      updateMaterialTypeRequest,)
+  }
+);}
+
+
+/**
+ * Requires `inventory.manage`. Permanently deletes a type that no material and no pricing rule uses. A referenced type answers 409 material_type_in_use; deactivate it instead.
+ * @summary Delete a material type
+ */
+export const getDeleteMaterialTypeUrl = (materialTypeId: UUIDv7,) => {
+
+
+
+
+  return `/api/v1/material-types/${materialTypeId}`
+}
+
+export const deleteMaterialType = async (materialTypeId: UUIDv7,
+    versionRequest: VersionRequest, options?: RequestInit): Promise<void> => {
+
+  return apiFetch<void>(getDeleteMaterialTypeUrl(materialTypeId),
+  {
+    ...options,
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(
+      versionRequest,)
+  }
+);}
+
 
 /**
  * @summary List inventory materials and balances

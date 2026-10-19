@@ -18,6 +18,8 @@ the required session and CSRF credentials.
 
  * OpenAPI spec version: 0.1.0
  */
+import type { UUIDv7 } from './uUIDv7';
+import type { CreateMaterialRequestColorHex } from './createMaterialRequestColorHex';
 import type { MaterialUnit } from './materialUnit';
 import type { CreateMaterialRequestLowStockThreshold } from './createMaterialRequestLowStockThreshold';
 import type { CreateMaterialRequestFilamentDiameterMm } from './createMaterialRequestFilamentDiameterMm';
@@ -28,17 +30,16 @@ export interface CreateMaterialRequest {
    * @maxLength 150
    */
   name: string;
-  /**
-   * @minLength 1
-   * @maxLength 100
-   */
-  category: string;
+  materialTypeId: UUIDv7;
   /**
    * @maxLength 80
    * @nullable
    */
-  color?: string | null;
-  unit: MaterialUnit;
+  colorName?: string | null;
+  /** @nullable */
+  colorHex?: CreateMaterialRequestColorHex;
+  /** Optional. The unit always is the unit of the material type; a different value is refused with 422 material_unit_mismatch. */
+  unit?: MaterialUnit;
   /** @nullable */
   lowStockThreshold?: CreateMaterialRequestLowStockThreshold;
   /** @nullable */

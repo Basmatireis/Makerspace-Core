@@ -21,6 +21,7 @@ the required session and CSRF credentials.
 import type { UUIDv7 } from './uUIDv7';
 import type { PricingRuleKind } from './pricingRuleKind';
 import type { PricingRuleMachineTypeId } from './pricingRuleMachineTypeId';
+import type { PricingRuleMaterialTypeId } from './pricingRuleMaterialTypeId';
 import type { PricingRuleMaterialUnit } from './pricingRuleMaterialUnit';
 import type { Decimal } from './decimal';
 import type { Version } from './version';
@@ -31,9 +32,17 @@ export interface PricingRule {
   kind: PricingRuleKind;
   /** @nullable */
   machineTypeId?: PricingRuleMachineTypeId;
+  /**
+   * Set on material rules; the rate is per unit of this material type.
+   * @nullable
+   */
+  materialTypeId?: PricingRuleMaterialTypeId;
   /** @nullable */
-  materialCategory?: string | null;
-  /** @nullable */
+  materialTypeName?: string | null;
+  /**
+   * The unit of the material type.
+   * @nullable
+   */
   materialUnit?: PricingRuleMaterialUnit;
   rate: Decimal;
   active: boolean;

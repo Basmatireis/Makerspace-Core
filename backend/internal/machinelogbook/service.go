@@ -124,13 +124,28 @@ type Operator struct {
 }
 
 type PricingRule struct {
-	ID, PricingGroupID             uuid.UUID
-	Kind                           string
-	MachineTypeID                  *uuid.UUID
-	MaterialCategory, MaterialUnit *string
-	Rate                           string
-	Active                         bool
-	Version                        int64
+	ID, PricingGroupID uuid.UUID
+	Kind               string
+	MachineTypeID      *uuid.UUID
+	// MaterialTypeID, its name and MaterialUnit are set on material rules only;
+	// the unit is the unit of the type.
+	MaterialTypeID   *uuid.UUID
+	MaterialTypeName *string
+	MaterialUnit     *string
+	Rate             string
+	Active           bool
+	Version          int64
+}
+
+// MaterialType is the level material prices attach to (PLA, PETG, ...). All
+// materials of a type and its pricing rules share the type's unit.
+type MaterialType struct {
+	ID                              uuid.UUID
+	Name, Unit                      string
+	Active                          bool
+	MaterialCount, PricingRuleCount int64
+	Version                         int64
+	CreatedAt, UpdatedAt            time.Time
 }
 
 type PricingGroup struct {
@@ -145,8 +160,10 @@ type PricingGroup struct {
 
 type Material struct {
 	ID                                                 uuid.UUID
-	Name, Category, Unit                               string
-	Color                                              *string
+	Name, Unit                                         string
+	MaterialTypeID                                     uuid.UUID
+	MaterialTypeName                                   string
+	ColorName, ColorHex                                *string
 	Active                                             bool
 	LowStockThreshold                                  *string
 	FilamentDiameterMM                                 *string
@@ -237,16 +254,18 @@ type JobFilters struct {
 }
 
 type MachineJobUsage struct {
-	ID                                     uuid.UUID
-	MaterialID, SpoolID                    *uuid.UUID
-	MaterialName, Category, Unit, Quantity string
-	Ownership, QuantityBasis               string
-	SpoolDisplayID                         *string
-	FillNumber                             *int32
-	EstimationMethod, CalculationVersion   *string
-	EstimateQuality                        *string
-	ReportRevision                         *int64
-	StaffCorrected                         bool
+	ID                                   uuid.UUID
+	MaterialID, SpoolID                  *uuid.UUID
+	MaterialName, Unit, Quantity         string
+	MaterialTypeID                       *uuid.UUID
+	MaterialTypeName                     string
+	Ownership, QuantityBasis             string
+	SpoolDisplayID                       *string
+	FillNumber                           *int32
+	EstimationMethod, CalculationVersion *string
+	EstimateQuality                      *string
+	ReportRevision                       *int64
+	StaffCorrected                       bool
 }
 
 type ArtifactReference struct {
@@ -276,8 +295,9 @@ type FilamentSpool struct {
 	FillNumber                                   int32
 	FillID, MaterialID, ProductID                *uuid.UUID
 	FilledAt, ArchivedAt                         *time.Time
-	MaterialName, Category, Unit                 *string
-	Color, Manufacturer, ProductName             *string
+	MaterialName, MaterialTypeName, Unit         *string
+	ColorName, ColorHex                          *string
+	Manufacturer, ProductName                    *string
 	InitialNetWeightG                            *string
 	RemainingQuantity                            string
 	TareWeightG                                  *string
@@ -463,13 +483,13 @@ type Overview struct {
 }
 
 type Statistics struct {
-	MaterialUsageByCategory, MachineRuntimeHours, MachineJobCounts, AcquisitionCost, CustomerCharges, AdjustmentLoss, MachineFailureRates []StatisticPoint
-	Totals, PreviousTotals                                                                                                                StatisticTotals
-	Months                                                                                                                                []StatisticMonth
-	RuntimeGranularity                                                                                                                    string
-	Runtime                                                                                                                               []StatisticRuntimePoint
-	MaterialCostByCategory                                                                                                                []StatisticPoint
-	Machines                                                                                                                              []StatisticMachine
+	MaterialUsageByType, MachineRuntimeHours, MachineJobCounts, AcquisitionCost, CustomerCharges, AdjustmentLoss, MachineFailureRates []StatisticPoint
+	Totals, PreviousTotals                                                                                                            StatisticTotals
+	Months                                                                                                                            []StatisticMonth
+	RuntimeGranularity                                                                                                                string
+	Runtime                                                                                                                           []StatisticRuntimePoint
+	MaterialCostByType                                                                                                                []StatisticPoint
+	Machines                                                                                                                          []StatisticMachine
 }
 
 type StatisticTotals struct {

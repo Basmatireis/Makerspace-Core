@@ -211,7 +211,7 @@ function JobDetail({ job }: { job: MachineJob }) {
                         const { key, ...props } = getRowProps({ row });
                         return (
                           <TableRow key={key} {...props}>
-                            <TableCell><div className="mj-cell-stack"><span>{usage.materialName}</span><span className="mj-secondary">{usage.category}</span></div></TableCell>
+                            <TableCell><div className="mj-cell-stack"><span>{usage.materialName}</span><span className="mj-secondary">{usage.materialTypeName}</span></div></TableCell>
                             <TableCell>
                               <div className="mj-cell-stack">
                                 <RefLink kind="run" reference={run.displayId} id={run.id} />

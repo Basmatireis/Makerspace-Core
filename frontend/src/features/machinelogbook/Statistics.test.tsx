@@ -23,9 +23,9 @@ const statistics = {
   months: [{ month: '2026-09', charges: '900.00', materialCost: '200.00', losses: '12.00' }, { month: '2026-10', charges: '600.00', materialCost: '200.00', losses: '0.00' }],
   runtimeGranularity: 'month',
   runtime: [{ bucketStart: '2026-09-01', machineId: ids[0], hours: '10.0' }],
-  materialCostByCategory: [{ key: 'filament', label: 'Filament', value: '300.00' }],
+  materialCostByType: [{ key: 'type-pla', label: 'PLA', value: '300.00' }],
   machines: [machine(0, 'Alpha', '50.0', 10), machine(1, 'Bravo', '120.0', 40), machine(2, 'Charlie', '90.0', 30), machine(3, 'Delta', '10.0', 5)],
-  materialUsageByCategory: [], machineRuntimeHours: [], machineJobCounts: [], acquisitionCost: [], customerCharges: [], adjustmentLoss: [], machineFailureRates: [],
+  materialUsageByType: [], machineRuntimeHours: [], machineJobCounts: [], acquisitionCost: [], customerCharges: [], adjustmentLoss: [], machineFailureRates: [],
 };
 
 let requests: URLSearchParams[] = [];

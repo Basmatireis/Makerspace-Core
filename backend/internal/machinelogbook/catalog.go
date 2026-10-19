@@ -649,8 +649,8 @@ func (s *Service) SearchOperators(ctx context.Context, p authorization.Principal
 	return items, nil
 }
 
-func pricingRuleFromRow(row machinelogbookdb.PricingRule) PricingRule {
-	return PricingRule{ID: row.ID, PricingGroupID: row.PricingGroupID, Kind: row.Kind, MachineTypeID: row.MachineTypeID, MaterialCategory: row.MaterialCategory, MaterialUnit: row.MaterialUnit, Rate: decimalString(row.Rate), Active: row.Active, Version: row.Version}
+func pricingRuleFromRow(row machinelogbookdb.PricingRule, materialTypeName *string) PricingRule {
+	return PricingRule{ID: row.ID, PricingGroupID: row.PricingGroupID, Kind: row.Kind, MachineTypeID: row.MachineTypeID, MaterialTypeID: row.MaterialTypeID, MaterialTypeName: materialTypeName, MaterialUnit: row.MaterialUnit, Rate: decimalString(row.Rate), Active: row.Active, Version: row.Version}
 }
 func (s *Service) pricingGroupFromRow(ctx context.Context, q *machinelogbookdb.Queries, row machinelogbookdb.PricingGroup) (PricingGroup, error) {
 	rules, err := q.ListPricingRulesByGroup(ctx, row.ID)
@@ -659,7 +659,7 @@ func (s *Service) pricingGroupFromRow(ctx context.Context, q *machinelogbookdb.Q
 	}
 	item := PricingGroup{ID: row.ID, Name: row.Name, Description: row.Description, Active: row.Active, IsDefault: row.IsDefault, Version: row.Version, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Rules: make([]PricingRule, 0, len(rules))}
 	for _, r := range rules {
-		item.Rules = append(item.Rules, pricingRuleFromRow(r))
+		item.Rules = append(item.Rules, pricingRuleFromRow(machinelogbookdb.PricingRule{ID: r.ID, PricingGroupID: r.PricingGroupID, Kind: r.Kind, MachineTypeID: r.MachineTypeID, MaterialUnit: r.MaterialUnit, Rate: r.Rate, Active: r.Active, Version: r.Version, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, MaterialTypeID: r.MaterialTypeID}, r.MaterialTypeName))
 	}
 	return item, nil
 }
@@ -769,36 +769,31 @@ func (s *Service) UpdatePricingGroup(ctx context.Context, p authorization.Princi
 	return s.pricingGroupFromRow(ctx, machinelogbookdb.New(s.pool), row)
 }
 
-func validateRule(kind string, machineTypeID *uuid.UUID, category, unit *string) (*string, *string, error) {
-	if kind == "machine_runtime" {
-		if machineTypeID == nil || category != nil || unit != nil {
+// resolveRuleTarget checks which selector a rule needs for its kind and, for
+// material rules, loads the material type whose unit the rule takes over.
+func resolveRuleTarget(ctx context.Context, q *machinelogbookdb.Queries, kind string, machineTypeID, materialTypeID *uuid.UUID, requireActiveType bool) (*string, *string, error) {
+	switch kind {
+	case "machine_runtime":
+		if machineTypeID == nil || materialTypeID != nil {
 			return nil, nil, validation("machine runtime rules require only machineTypeId")
 		}
 		return nil, nil, nil
-	}
-	if kind == "material" {
-		if machineTypeID != nil || category == nil || unit == nil {
-			return nil, nil, validation("material rules require category and unit")
+	case "material":
+		if machineTypeID != nil || materialTypeID == nil {
+			return nil, nil, validation("material rules require only materialTypeId")
 		}
-		c := strings.ToLower(strings.TrimSpace(*category))
-		u := strings.TrimSpace(*unit)
-		if c == "" {
-			return nil, nil, validation("material category is required")
+		materialType, err := resolveMaterialType(ctx, q, *materialTypeID, requireActiveType)
+		if err != nil {
+			return nil, nil, err
 		}
-		if u != "g" && u != "m" && u != "ml" && u != "m2" && u != "piece" {
-			return nil, nil, validation("invalid material unit")
-		}
-		return &c, &u, nil
+		unit, name := materialType.Unit, materialType.Name
+		return &unit, &name, nil
 	}
 	return nil, nil, validation("invalid pricing rule kind")
 }
 
-func (s *Service) CreatePricingRule(ctx context.Context, p authorization.Principal, groupID uuid.UUID, kind string, machineTypeID *uuid.UUID, category, unit *string, rate string, requestID *uuid.UUID) (PricingRule, error) {
+func (s *Service) CreatePricingRule(ctx context.Context, p authorization.Principal, groupID uuid.UUID, kind string, machineTypeID, materialTypeID *uuid.UUID, rate string, requestID *uuid.UUID) (PricingRule, error) {
 	if err := require(p, authorization.PricingManage); err != nil {
-		return PricingRule{}, err
-	}
-	category, unit, err := validateRule(kind, machineTypeID, category, unit)
-	if err != nil {
 		return PricingRule{}, err
 	}
 	numeric, err := numericFromString(rate, false)
@@ -811,6 +806,10 @@ func (s *Service) CreatePricingRule(ctx context.Context, p authorization.Princip
 	}
 	defer tx.Rollback(ctx)
 	q := machinelogbookdb.New(tx)
+	unit, typeName, err := resolveRuleTarget(ctx, q, kind, machineTypeID, materialTypeID, true)
+	if err != nil {
+		return PricingRule{}, err
+	}
 	group, err := q.GetPricingGroup(ctx, groupID)
 	if err != nil {
 		return PricingRule{}, noRows(err)
@@ -819,7 +818,7 @@ func (s *Service) CreatePricingRule(ctx context.Context, p authorization.Princip
 		return PricingRule{}, conflict("pricing_group_inactive", "Pricing group is inactive")
 	}
 	id := newID()
-	row, err := q.CreatePricingRule(ctx, machinelogbookdb.CreatePricingRuleParams{ID: id, PricingGroupID: groupID, Kind: kind, MachineTypeID: machineTypeID, MaterialCategory: category, MaterialUnit: unit, Rate: numeric})
+	row, err := q.CreatePricingRule(ctx, machinelogbookdb.CreatePricingRuleParams{ID: id, PricingGroupID: groupID, Kind: kind, MachineTypeID: machineTypeID, MaterialTypeID: materialTypeID, MaterialUnit: unit, Rate: numeric})
 	if err != nil {
 		return PricingRule{}, databaseError(err)
 	}
@@ -829,19 +828,15 @@ func (s *Service) CreatePricingRule(ctx context.Context, p authorization.Princip
 	if err = tx.Commit(ctx); err != nil {
 		return PricingRule{}, err
 	}
-	return pricingRuleFromRow(row), nil
+	return pricingRuleFromRow(row, typeName), nil
 }
 
-func (s *Service) UpdatePricingRule(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, kind string, machineTypeID *uuid.UUID, category, unit *string, rate string, active bool, requestID *uuid.UUID) (PricingRule, error) {
+func (s *Service) UpdatePricingRule(ctx context.Context, p authorization.Principal, id uuid.UUID, expected int64, kind string, machineTypeID, materialTypeID *uuid.UUID, rate string, active bool, requestID *uuid.UUID) (PricingRule, error) {
 	if err := require(p, authorization.PricingManage); err != nil {
 		return PricingRule{}, err
 	}
 	if expected < 1 {
 		return PricingRule{}, validation("expectedVersion must be positive")
-	}
-	category, unit, err := validateRule(kind, machineTypeID, category, unit)
-	if err != nil {
-		return PricingRule{}, err
 	}
 	numeric, err := numericFromString(rate, false)
 	if err != nil || decimalFromNumeric(numeric).IsNegative() {
@@ -860,7 +855,12 @@ func (s *Service) UpdatePricingRule(ctx context.Context, p authorization.Princip
 	if current.Version != expected {
 		return PricingRule{}, apperror.StaleWrite
 	}
-	row, err := q.UpdatePricingRule(ctx, machinelogbookdb.UpdatePricingRuleParams{Kind: kind, MachineTypeID: machineTypeID, MaterialCategory: category, MaterialUnit: unit, Rate: numeric, Active: active, ID: id, ExpectedVersion: expected})
+	// A rule may keep its deactivated type; choosing another type needs an active one.
+	unit, typeName, err := resolveRuleTarget(ctx, q, kind, machineTypeID, materialTypeID, !sameUUID(current.MaterialTypeID, materialTypeID))
+	if err != nil {
+		return PricingRule{}, err
+	}
+	row, err := q.UpdatePricingRule(ctx, machinelogbookdb.UpdatePricingRuleParams{Kind: kind, MachineTypeID: machineTypeID, MaterialTypeID: materialTypeID, MaterialUnit: unit, Rate: numeric, Active: active, ID: id, ExpectedVersion: expected})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PricingRule{}, apperror.StaleWrite
 	}
@@ -873,7 +873,7 @@ func (s *Service) UpdatePricingRule(ctx context.Context, p authorization.Princip
 	if err = tx.Commit(ctx); err != nil {
 		return PricingRule{}, err
 	}
-	return pricingRuleFromRow(row), nil
+	return pricingRuleFromRow(row, typeName), nil
 }
 
 func (s *Service) SetPartyPricingGroup(ctx context.Context, p authorization.Principal, party PartyReference, groupID *uuid.UUID, expected int64, requestID *uuid.UUID) (BillingParty, error) {

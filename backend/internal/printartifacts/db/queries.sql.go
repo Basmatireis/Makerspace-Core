@@ -653,14 +653,16 @@ func (q *Queries) InsertArtifactPreview(ctx context.Context, arg InsertArtifactP
 }
 
 const insertPricingSnapshotRules = `-- name: InsertPricingSnapshotRules :exec
-INSERT INTO machine_job_pricing_snapshot_rules (id, snapshot_id, source_rule_id, kind, label, selector, unit, rate, missing)
+INSERT INTO machine_job_pricing_snapshot_rules (id, snapshot_id, source_rule_id, kind, label, selector, material_type_id, unit, rate, missing)
 SELECT uuidv7(), $1, r.id, r.kind,
-       CASE WHEN r.kind = 'machine_runtime' THEN 'Machine runtime' ELSE 'Material' END,
-       COALESCE(mt.name, r.material_category, '*'),
+       CASE WHEN r.kind = 'machine_runtime' THEN 'Machine runtime' ELSE COALESCE(mat.name, 'Material') END,
+       CASE WHEN r.kind = 'machine_runtime' THEN COALESCE(mt.name, '*') ELSE r.material_type_id::text END,
+       r.material_type_id,
        CASE WHEN r.kind = 'machine_runtime' THEN 'hour' ELSE COALESCE(r.material_unit, 'g') END,
        r.rate, false
 FROM pricing_rules r
 LEFT JOIN machine_types mt ON mt.id = r.machine_type_id
+LEFT JOIN material_types mat ON mat.id = r.material_type_id
 WHERE r.pricing_group_id = $2 AND r.active
 `
 

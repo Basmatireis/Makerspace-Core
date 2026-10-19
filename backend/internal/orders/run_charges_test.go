@@ -11,15 +11,18 @@ import (
 
 func (f *fixture) stockedMaterial(t *testing.T, name string) uuid.UUID {
 	t.Helper()
-	m, e := f.jobs.CreateMaterial(t.Context(), f.p, name, "pla", nil, "g", nil, nil)
+	materialType, e := f.jobs.CreateMaterialType(t.Context(), f.p, "PLA "+newID().String(), "g", nil)
+	if e != nil {
+		t.Fatal(e)
+	}
+	m, e := f.jobs.CreateMaterial(t.Context(), f.p, machinelogbook.MaterialInput{Name: name, MaterialTypeID: materialType.ID}, nil)
 	if e != nil {
 		t.Fatal(e)
 	}
 	if _, e = f.jobs.AddPurchase(t.Context(), f.p, m.ID, m.InventoryVersion, "1000", "20", time.Now(), nil, nil, nil); e != nil {
 		t.Fatal(e)
 	}
-	category, unit := "pla", "g"
-	if _, e = f.jobs.CreatePricingRule(t.Context(), f.p, f.group, "material", nil, &category, &unit, "0.1", nil); e != nil {
+	if _, e = f.jobs.CreatePricingRule(t.Context(), f.p, f.group, "material", nil, &materialType.ID, "0.1", nil); e != nil {
 		t.Fatal(e)
 	}
 	return m.ID

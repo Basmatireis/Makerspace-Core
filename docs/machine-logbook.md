@@ -62,7 +62,7 @@ Pricing groups are independent of Roles. Resolution order is:
 2. the billing party's default group;
 3. the one active global default.
 
-If none resolves, manual creation fails until a group is selected. A group contains exact-decimal machine-runtime rules per machine type/hour and material rules per normalized category/material unit. Missing matched rules make pricing **incomplete** and leave the calculated total unset. An explicit zero rate is intentionally free.
+If none resolves, manual creation fails until a group is selected. A group contains exact-decimal machine-runtime rules per machine type/hour and material rules per **material type** (a rate per unit of the type; the rule keeps the type's unit). A job's pricing snapshot stores each material rule with its label, the type name as selector, the unit and a `material_type_id`; usages match snapshot rules by type, so renaming or recolouring never changes a captured price. Snapshots taken before migration 00046 keep their category text and were backfilled with the matching type. Missing matched rules make pricing **incomplete** and leave the calculated total unset. An explicit zero rate is intentionally free.
 
 Every confirmed job receives an immutable snapshot revision containing the group name, EUR currency, capture time, matched rate and unit, missing-rule markers, and source rule IDs for traceability. Customer or machine-type correction creates a new revision and retains older revisions. Timing and usage corrections recalculate against the active snapshot. The exact component sum is rounded half-up to cents only at the final total.
 
@@ -70,7 +70,15 @@ The calculated amount and the price adjustment are separate. An adjustment (`PUT
 
 ## Inventory and valuation
 
-Materials are versioned catalog records with a normalized category, unit, optional color, active state, and optional low-stock threshold. **inventory_transactions** is an immutable ledger with purchase, machine-job consumption, manual consumption, adjustment, and disposal entries. The material balance is maintained transactionally with quantity, inventory value, weighted-average unit cost, and an inventory version.
+Materials are versioned catalog records with a **material type**, unit, optional colour (name and `#RRGGBB` code), active state, and optional low-stock threshold.
+
+**Material types** (`/material-types`, migration 00046) are the level a price attaches to: PLA, PETG, TPU 95A and so on. A type has a name (unique ignoring case), a unit (`g`, `m`, `ml`, `m2`, `piece`), an active flag and a version. Reads need `inventory.read`, writes `inventory.manage`; every write is audited in its transaction. A material's unit always equals its type's unit: the service refuses a different explicit unit (422 `material_unit_mismatch`) and composite foreign keys on materials and pricing rules enforce it in the database. A type's unit can change only while no material or pricing rule uses it (409 `material_type_unit_in_use`). Deleting is a hard delete that only works for an unused type; otherwise it answers 409 `material_type_in_use` and the type should be deactivated, which keeps existing materials and rules but refuses new ones.
+
+**Colour** is captured only on the material: `colorName` (free text, up to 80 characters) and `colorHex` (`^#[0-9A-F]{6}$`, upper case). Spools, jobs and runs only display it. Colours from print files ("Detected in file") and from the printer's AMS ("Reported by printer") are detected values used for comparison only; the printer setup shows a hint when a mounted spool's material colour is clearly different (RGB distance above 80) from the reported tray colour, and the material form can take the reported colour with one click.
+
+**Migration 00046.** Every distinct legacy (category, unit) of a material or material pricing rule becomes one type. A category of up to four characters is upper-cased ("pla" becomes "PLA"), longer ones use initcap ("filament" becomes "Filament"); a category used with several units gets the unit appended ("Sheet (m2)"). The old colour text becomes the colour name, the colour code stays empty and can be added later. Rates are unchanged. `materials.category` and `materials.color` and `pricing_rules.material_category` are dropped; the down migration restores category from the type name (lower case, without a unit suffix) and the colour from the colour name.
+
+Order snapshots keep the JSON key `category` for a usage's material; it now carries the material type name. **inventory_transactions** is an immutable ledger with purchase, machine-job consumption, manual consumption, adjustment, and disposal entries. The material balance is maintained transactionally with quantity, inventory value, weighted-average unit cost, and an inventory version.
 
 Gram-denominated filament Materials may define a diameter and contain physical Spools. Spool balances are derived from the same ledger through attributed transactions and zero-value transfers, while the Material exposes assigned and unassigned quantities. See [Filament spools and generic printer integration](filament-printing.md) for spools, fills, kinds, changing filament, and cleanup, and the product catalog.
 
@@ -102,7 +110,7 @@ Catalog, organization (including member add/remove; audit names only the changed
 
 `GET /machine-logbook/overview` returns the existing counts plus running now (running jobs and running unassigned recorded runs), machine names, needs outcome, `unassignedRuns`, billing issues (incomplete pricing or outdated order), and up to six active items. The fields that expose jobs are null without `machine_jobs.read`.
 
-`GET /machine-logbook/statistics` takes `from` and `to` dates, with `to` exclusive. It returns totals and `previousTotals` for the period of equal length ending the day before `from`, per-month charges, material cost and losses, runtime buckets (weekly up to 92 days, otherwise monthly), material cost by category, and per-machine figures. Material cost is the inventory value consumed by jobs and manual consumption net of job corrections; losses are the inventory value removed by disposals and by negative stock corrections other than job corrections. Runtime of a running job counts until now.
+`GET /machine-logbook/statistics` takes `from` and `to` dates, with `to` exclusive. It returns totals and `previousTotals` for the period of equal length ending the day before `from`, per-month charges, material cost and losses, runtime buckets (weekly up to 92 days, otherwise monthly), material usage and cost by material type (`materialUsageByType`, `materialCostByType`), and per-machine figures. Material cost is the inventory value consumed by jobs and manual consumption net of job corrections; losses are the inventory value removed by disposals and by negative stock corrections other than job corrections. Runtime of a running job counts until now.
 
 ## API and UI
 
@@ -113,6 +121,7 @@ The OpenAPI resource groups are:
 - **/pricing-groups**, **/pricing-rules**, **/billing-party-pricing-group**
 - **/machine-jobs** with run creation (`POST /machine-jobs/{id}/runs`), price-adjustment, confirm, and Order-association subresources
 - **/machine-runs** with list, detail, patch, delete, usages, cancellation, and job attach, detach, and create subresources
+- **/material-types** (list, create, get, update, delete)
 - **/materials** and purchase, consumption, correction, transaction, spool-transfer, and mark-empty subresources
 - **/filament-spools** (fills, finish, cleanup) and **/filament-products**
 - **/machine-logbook/overview**, **/machine-logbook/work-items**, **/machine-logbook/machine-activity**, **/machine-logbook/statistics**
