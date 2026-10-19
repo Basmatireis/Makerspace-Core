@@ -13,6 +13,7 @@ import {
   Information,
   Policy,
   Receipt,
+  Screen,
   Settings,
   Tools,
   UserMultiple,
@@ -27,7 +28,7 @@ import {
   PermissionId,
 } from '../features/auth/permissions';
 
-type NavigationGroupId = 'operations' | 'people' | 'machines' | 'sales';
+type NavigationGroupId = 'operations' | 'people' | 'machines' | 'sales' | 'signage';
 
 interface NavigationItem {
   label: string;
@@ -97,6 +98,7 @@ function activeGroupForPath(pathname: string): NavigationGroupId | null {
   if (pathname.startsWith('/people') || pathname.startsWith('/organizations')) return 'people';
   if (pathname.startsWith('/machine-logbook')) return 'machines';
   if (pathname === '/sales' || pathname.startsWith('/orders') || pathname.startsWith('/payments') || pathname.startsWith('/pricing') || pathname.startsWith('/external-invoicing')) return 'sales';
+  if (pathname.startsWith('/signage')) return 'signage';
   return null;
 }
 
@@ -157,6 +159,13 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
     sales.push({ label: 'Pricing', to: '/pricing', active: pathname.startsWith('/pricing') });
   }
 
+  // Displays and Announcements join this group with the display management screens.
+  const signage: NavigationItem[] = [];
+  if (hasPermission(currentUser, PermissionId.signageread)) {
+    signage.push({ label: 'Content', to: '/signage/content', active: pathname.startsWith('/signage/content') || pathname.startsWith('/signage/scenes') || pathname.startsWith('/signage/playlists') });
+    signage.push({ label: 'Media', to: '/signage/media', active: pathname.startsWith('/signage/media') });
+  }
+
   const canReadAuditLog = hasPermission(currentUser, PermissionId.auditread);
   const showAdministration = canAccessSettings(currentUser) || canReadAuditLog;
 
@@ -192,6 +201,7 @@ export function AppNavigation({ currentUser, legal, onNavigate }: AppNavigationP
         {renderGroup('machines', 'Workshop', Tools, machines)}
         {renderGroup('sales', 'Sales & payments', Receipt, sales)}
         {renderGroup('operations', 'Operations', Calendar, operations)}
+        {renderGroup('signage', 'Signage', Screen, signage)}
         {renderGroup('people', 'Directory', UserMultiple, people)}
         {showAdministration && (
           <>

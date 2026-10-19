@@ -1,0 +1,74 @@
+/* Shared scene renderer: plain CSS on purpose (no Carbon); the player app imports it too.
+   --u is 1/100 of the design width (see SceneRenderer), so a scene looks identical at any size. */
+.sg-frame { position: relative; container-type: inline-size; overflow: hidden; max-inline-size: 100%; background: #000; color: #fff; inline-size: 100%; }
+.sg-frame > .sg-scene, .sg-screen { position: absolute; inset: 0; }
+.sg-screen > .sg-scene { position: static; }
+.sg-scene { display: grid; inline-size: 100%; block-size: 100%; min-inline-size: 0; min-block-size: 0; color: #fff; font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+.sg-scene--light { color: #161616; }
+.sg-scene--empty { background: #000; }
+.sg-zone { position: relative; display: flex; min-inline-size: 0; min-block-size: 0; overflow: hidden; }
+.sg-zone--text, .sg-zone--status, .sg-zone--clock, .sg-zone--open_days, .sg-zone--events, .sg-zone--qr { padding: calc(var(--u) * 2); }
+.sg-zone > * { flex: 1 1 auto; min-inline-size: 0; }
+.sg-media { display: block; inline-size: 100%; block-size: 100%; object-fit: cover; }
+.sg-placeholder { display: grid; place-items: center; font-size: calc(var(--u) * 2.4); color: rgba(255, 255, 255, 0.6); border: 1px dashed rgba(255, 255, 255, 0.35); margin: calc(var(--u) * 1); }
+.sg-text { align-self: center; white-space: pre-wrap; font-weight: 600; line-height: 1.15; overflow-wrap: anywhere; }
+.sg-center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 1); text-align: center; font-size: calc(var(--u) * 3.2); }
+.sg-big { font-size: calc(var(--u) * 5); }
+.sg-clock { font-size: calc(var(--u) * 12); font-weight: 300; font-variant-numeric: tabular-nums; line-height: 1; }
+.sg-qr { display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * 3); }
+.sg-qr__code { flex: none; block-size: calc(var(--u) * 11); inline-size: calc(var(--u) * 11); }
+.sg-qr__text { display: flex; flex-direction: column; gap: calc(var(--u) * 0.5); font-size: calc(var(--u) * 3); }
+.sg-qr__text span { font-size: calc(var(--u) * 2.2); opacity: 0.75; }
+.sg-progress { flex: 1 1 auto; min-inline-size: calc(var(--u) * 8); block-size: calc(var(--u) * 1); background: rgba(255, 255, 255, 0.3); }
+.sg-progress__bar { block-size: 100%; background: #42be65; }
+
+/* Announcement widget: tone colours follow Carbon's support colours. */
+.sg-ann-list { display: flex; flex-direction: column; justify-content: center; gap: calc(var(--u) * 1); }
+.sg-ann-list--full, .sg-ann-list--banner { gap: 0; }
+.sg-ann { display: flex; flex-direction: column; gap: calc(var(--u) * 0.6); min-inline-size: 0; padding: calc(var(--u) * 1.6) calc(var(--u) * 2.4); color: #fff; background: #0f62fe; line-height: 1.15; overflow-wrap: anywhere; }
+.sg-ann--info { background: #0043ce; }
+.sg-ann--warning { background: #f1c21b; color: #161616; }
+.sg-ann--critical { background: #da1e28; }
+.sg-ann--neutral { background: #393939; }
+.sg-ann__title { font-weight: 600; }
+.sg-ann__body { white-space: pre-wrap; opacity: 0.92; }
+.sg-ann--banner { flex: 1 1 auto; flex-direction: row; flex-wrap: wrap; align-items: center; column-gap: calc(var(--u) * 2.4); row-gap: 0; padding-block: calc(var(--u) * 0.8); }
+.sg-ann--card { border-inline-start: calc(var(--u) * 1.2) solid rgba(255, 255, 255, 0.55); box-shadow: 0 calc(var(--u) * 0.5) calc(var(--u) * 1.5) rgba(0, 0, 0, 0.35); }
+.sg-ann--full { flex: 1 1 auto; align-items: center; justify-content: center; text-align: center; padding: calc(var(--u) * 6); gap: calc(var(--u) * 2); }
+.sg-zone--announcement > .sg-ann-list--card { padding: calc(var(--u) * 2); }
+.sg-zone--announcement > .sg-text { padding: calc(var(--u) * 2); }
+
+/* Camera: a neutral frame with the machine name; no fake video. */
+.sg-camera { position: relative; display: grid; place-items: center; overflow: hidden; inline-size: 100%; block-size: 100%; background: #262626; color: #8d8d8d; }
+.sg-camera__icon { inline-size: calc(var(--u) * 12); block-size: calc(var(--u) * 12); }
+.sg-camera__caption { position: absolute; inset-inline: 0; inset-block-end: 0; display: flex; align-items: center; gap: calc(var(--u) * 2); padding: calc(var(--u) * 1.5) calc(var(--u) * 2); background: linear-gradient(0deg, rgba(0, 0, 0, 0.75), transparent); font-size: calc(var(--u) * 2.6); color: #fff; }
+.sg-split { display: grid; gap: calc(var(--u) * 0.5); inline-size: 100%; block-size: 100%; }
+.sg-split--portrait { grid-template-rows: 1fr 1fr; }
+.sg-split--landscape { grid-template-columns: 1fr 1fr; }
+
+.sg-status { display: grid; align-content: center; gap: calc(var(--u) * 1.8); margin: 0; padding: 0; list-style: none; font-size: calc(var(--u) * 3); }
+.sg-status__head { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--u) * 2); }
+.sg-status__detail { display: flex; align-items: center; gap: calc(var(--u) * 2); margin-block-start: calc(var(--u) * 0.8); font-size: calc(var(--u) * 2.4); }
+.sg-status__state { padding: calc(var(--u) * 0.3) calc(var(--u) * 1.4); font-size: calc(var(--u) * 2.4); background: rgba(255, 255, 255, 0.18); }
+.sg-status__state--busy { background: #198038; color: #fff; }
+.sg-status__state--unknown { background: #f1c21b; color: #161616; }
+.sg-list { display: flex; flex-direction: column; gap: calc(var(--u) * 1); font-size: calc(var(--u) * 2.8); }
+.sg-list__title { font-size: calc(var(--u) * 3.2); margin-block-end: calc(var(--u) * 0.5); }
+.sg-list__row { display: flex; justify-content: space-between; gap: calc(var(--u) * 2); }
+.sg-list__row span:last-child { opacity: 0.8; text-align: end; }
+.sg-list__empty { opacity: 0.7; }
+.sg-fade { inline-size: 100%; block-size: 100%; animation: sg-fade-in 0.8s ease both; }
+.sg-thumb { pointer-events: none; }
+
+/* Zone selection on the editor canvas: real buttons, so zones work with the keyboard. */
+.sg-zone__select { position: absolute; inset: 0; z-index: 2; margin: 0; padding: 0; border: 0; background: transparent; cursor: pointer; outline: 1px dashed rgba(255, 255, 255, 0.55); outline-offset: -2px; text-align: start; }
+.sg-zone__select:hover { background: rgba(120, 169, 255, 0.18); }
+.sg-zone__select:focus-visible { outline: 3px solid #78a9ff; outline-offset: -3px; }
+.sg-zone--selected .sg-zone__select { outline: 3px solid #0f62fe; outline-offset: -3px; background: rgba(15, 98, 254, 0.14); }
+.sg-zone__label { position: absolute; inset-block-start: 4px; inset-inline-start: 4px; padding: 1px 6px; background: rgba(22, 22, 22, 0.85); color: #fff; font: 400 0.75rem/1.2 'IBM Plex Sans', system-ui, sans-serif; }
+.sg-zone--selected .sg-zone__label { background: #0f62fe; }
+
+@keyframes sg-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .sg-fade { animation: none; }
+}

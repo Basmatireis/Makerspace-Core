@@ -1,0 +1,51 @@
+import type { SignageOrientation, SignageScene, SignageTone } from '../../../api/generated/models';
+
+// Data contract of the shared scene renderer. The renderer is plain React and plain CSS: no Carbon, no TanStack Query
+// and no imports from src/app, because the separate player app imports it too. Widgets get everything through props.
+
+export type RenderScene = Pick<SignageScene, 'orientation' | 'layoutId' | 'backgroundColor' | 'backgroundAssetId' | 'backgroundFit' | 'backgroundDim' | 'theme' | 'zones'>;
+
+export type MachineState = 'idle' | 'preparing' | 'printing' | 'paused' | 'finished' | 'failed' | 'unknown';
+
+export type RenderMachine = {
+  machineId: string;
+  name: string;
+  state: MachineState;
+  progressPercent: number | null;
+  remainingMinutes: number | null;
+  /** True when the status is older than the live-data TTL; the widget then shows "Status unknown". */
+  stale: boolean;
+};
+
+/** A machine counts as printing while a job is prepared, running or paused. */
+export const isPrinting = (machine: Pick<RenderMachine, 'state' | 'stale'>) => !machine.stale && (machine.state === 'preparing' || machine.state === 'printing' || machine.state === 'paused');
+
+/** An announcement already rendered to text (see engine/announcements.ts or the live response). */
+export type RenderAnnouncement = { id: string; templateId: string; tone: SignageTone; title: string; body: string; startsAt: number };
+
+export type RenderOpenDay = { startsAt: string; endsAt: string; status: string };
+export type RenderEvent = { title: string; startsAt: string; location: string | null };
+
+export type RenderData = {
+  /** Epoch milliseconds; drives clocks, slideshows, rotation. */
+  now: number;
+  /** False when live data is unavailable: machine status shows "Status unknown" and cameras fall back. */
+  liveAvailable: boolean;
+  machines: readonly RenderMachine[];
+  /** Machines whose camera cannot be reached; their camera widgets show the configured fallback. */
+  unavailableCameras?: ReadonlySet<string>;
+  announcements: readonly RenderAnnouncement[];
+  openDays: readonly RenderOpenDay[];
+  events: readonly RenderEvent[];
+  /** Asset id to URL; null when the asset is unknown (it renders as a placeholder). */
+  assetUrl: (assetId: string) => string | null;
+  /** Overrides the camera widget's own "several machines print" setting when a rule decided it. */
+  multiMode?: 'split' | 'alternate' | null;
+  alternateSeconds?: number;
+  /** IANA time zone for clocks and dates; defaults to the device's. */
+  timeZone?: string;
+  /** Thumbnails: videos and slideshows stay still. */
+  still?: boolean;
+};
+
+export type { SignageOrientation };

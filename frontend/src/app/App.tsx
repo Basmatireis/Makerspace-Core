@@ -39,6 +39,10 @@ const FilamentSpoolDetailPage = lazy(() => import('../features/machinelogbook/Fi
 const MachinesPage = lazy(() => import('../features/machinelogbook/MachinesPage').then(({ MachinesPage }) => ({ default: MachinesPage })));
 const MachineDetailPage = lazy(() => import('../features/machinelogbook/MachineDetailPage').then(({ MachineDetailPage }) => ({ default: MachineDetailPage })));
 const StatisticsPage = lazy(() => import('../features/machinelogbook/StatisticsPage').then(({ StatisticsPage }) => ({ default: StatisticsPage })));
+const SignageContentPage = lazy(() => import('../features/signage/ContentPage').then(({ ContentPage }) => ({ default: ContentPage })));
+const SignageSceneEditorPage = lazy(() => import('../features/signage/SceneEditorPage').then(({ SceneEditorPage }) => ({ default: SceneEditorPage })));
+const SignagePlaylistDetailPage = lazy(() => import('../features/signage/PlaylistDetailPage').then(({ PlaylistDetailPage }) => ({ default: PlaylistDetailPage })));
+const SignageMediaPage = lazy(() => import('../features/signage/MediaPage').then(({ MediaPage }) => ({ default: MediaPage })));
 const OpenDaysPage = lazy(() => import('../features/opendays/OpenDaysPage').then(({ OpenDaysPage }) => ({ default: OpenDaysPage })));
 const OpenDayPeriodPage = lazy(() => import('../features/opendays/OpenDayPeriodPage').then(({ OpenDayPeriodPage }) => ({ default: OpenDayPeriodPage })));
 const OpenDayDetailPage = lazy(() => import('../features/opendays/OpenDayDetailPage').then(({ OpenDayDetailPage }) => ({ default: OpenDayDetailPage })));
@@ -187,6 +191,10 @@ export function App() {
           path="open-days/manage"
           element={<PermissionRoute allOf={[PermissionId.open_daysmanage]}><OpenDayManagementPage /></PermissionRoute>}
         />
+        <Route path="signage/content" element={<PermissionRoute allOf={[PermissionId.signageread]}><SignageContentPage /></PermissionRoute>} />
+        <Route path="signage/scenes/:sceneId" element={<PermissionRoute allOf={[PermissionId.signageread]}><SignageSceneEditorPage /></PermissionRoute>} />
+        <Route path="signage/playlists/:playlistId" element={<PermissionRoute allOf={[PermissionId.signageread]}><SignagePlaylistDetailPage /></PermissionRoute>} />
+        <Route path="signage/media" element={<PermissionRoute allOf={[PermissionId.signageread]}><SignageMediaPage /></PermissionRoute>} />
         <Route
           path="settings"
           element={<SettingsRoute />}
