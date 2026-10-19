@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
   ActionableNotification, Button, Header, HeaderGlobalAction, HeaderGlobalBar, HeaderMenuButton, HeaderName, HeaderPanel, RadioButton, RadioButtonGroup,
   Select, SelectItem, SideNav, SideNavItems, SideNavLink, SkipToContent, Stack, Tag, Theme, ToastNotification,
 } from '@carbon/react';
-import { Chemistry, Dashboard, Reset, Tools, Catalog, InventoryManagement, ChartColumn, Currency, Receipt, Wallet, Tag as TagIcon } from '@carbon/icons-react';
+import { Chemistry, Dashboard, Reset, Tools, Catalog, InventoryManagement, ChartColumn, Currency, Receipt, Wallet, Tag as TagIcon, Screen, Image as ImageIcon, Document, Settings } from '@carbon/icons-react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { rolePresets, useStore, type ConnectionTestMode, type Permission, type Role, type Scenario, type Toast } from './store';
 import { OverviewPage } from './pages/OverviewPage';
@@ -23,6 +23,15 @@ import { ReceiptPage } from './sales/pages/ReceiptPage';
 import { PaymentsPage } from './sales/pages/PaymentsPage';
 import { PaymentDetailPage } from './sales/pages/PaymentDetailPage';
 import { PricingPage } from './sales/pages/PricingPage';
+import { ContentPage } from './signage/pages/ContentPage';
+import { DisplayDetailPage } from './signage/pages/DisplayDetailPage';
+import { DisplaysPage } from './signage/pages/DisplaysPage';
+import { LocalServicesPage } from './signage/pages/LocalServicesPage';
+import { MediaPage } from './signage/pages/MediaPage';
+import { PlayerPage } from './signage/pages/PlayerPage';
+import { PlaylistDetailPage } from './signage/pages/PlaylistDetailPage';
+import { SceneEditorPage } from './signage/pages/SceneEditorPage';
+import { SignageSimulationControls } from './signage/components/SignageSimulationControls';
 
 type NavItem = { label: string; to: string; icon: typeof Dashboard; match: (path: string) => boolean };
 
@@ -41,6 +50,16 @@ const SALES_NAV: SalesNavItem[] = [
   { label: 'Orders', to: '/sales/orders', icon: Receipt, match: (p) => p.startsWith('/sales/orders'), needs: [['orders.read']] },
   { label: 'Payments', to: '/sales/payments', icon: Wallet, match: (p) => p.startsWith('/sales/payments'), needs: [['payments.read']] },
   { label: 'Pricing', to: '/sales/pricing', icon: TagIcon, match: (p) => p.startsWith('/sales/pricing'), needs: [['pricing.read']] },
+];
+
+const SIGNAGE_NAV: SalesNavItem[] = [
+  { label: 'Displays', to: '/signage', icon: Screen, match: (p) => p === '/signage' || p.startsWith('/signage/displays'), needs: [['signage.read']] },
+  { label: 'Content', to: '/signage/content', icon: Document, match: (p) => p.startsWith('/signage/content') || p.startsWith('/signage/scenes') || p.startsWith('/signage/playlists'), needs: [['signage.read']] },
+  { label: 'Media', to: '/signage/media', icon: ImageIcon, match: (p) => p.startsWith('/signage/media'), needs: [['signage.read']] },
+];
+
+const SETTINGS_NAV: SalesNavItem[] = [
+  { label: 'Local services', to: '/settings/local-services', icon: Settings, match: (p) => p.startsWith('/settings/local-services'), needs: [['local_services.manage']] },
 ];
 
 /** Old bookmarks used "prints" for what the UI now calls runs. */
@@ -99,18 +118,29 @@ function PrototypeControls() {
         <SelectItem value="unreachable" text="Printer unreachable" />
         <SelectItem value="wrong_code" text="Wrong access code" />
       </Select>
+      <SignageSimulationControls />
       <Button kind="tertiary" size="sm" renderIcon={Reset} onClick={store.reset}>Reset prototype data</Button>
     </Stack>
   );
 }
 
 export function PrototypeApp() {
+  const location = useLocation();
+  // The fullscreen player is its own app: no header, no side navigation.
+  if (location.pathname.startsWith('/signage/play/')) return <Routes><Route path="/signage/play/:displayId" element={<PlayerPage />} /></Routes>;
+  return <Shell />;
+}
+
+function Shell() {
   const store = useStore();
   const location = useLocation();
   const narrow = useIsNarrow();
   const [navOpen, setNavOpen] = useState(!narrow);
   const [panelOpen, setPanelOpen] = useState(false);
-  const salesItems = SALES_NAV.filter((item) => item.needs.some((group) => group.every((permission) => store.can(permission))));
+  const allowed = (item: SalesNavItem) => item.needs.some((group) => group.every((permission) => store.can(permission)));
+  const salesItems = SALES_NAV.filter(allowed);
+  const signageItems = SIGNAGE_NAV.filter(allowed);
+  const settingsItems = SETTINGS_NAV.filter(allowed);
   useEffect(() => { setNavOpen(!narrow); }, [narrow]);
   useEffect(() => { if (narrow) setNavOpen(false); }, [narrow, location.pathname]);
   useEffect(() => { document.getElementById('main-content')?.scrollTo?.(0, 0); window.scrollTo(0, 0); }, [location.pathname]);
@@ -140,15 +170,19 @@ export function PrototypeApp() {
                   </SideNavLink>
                 );
               })}
-              {salesItems.length > 0 && <li className="app-side-nav__heading prototype-nav__heading">Sales &amp; payments</li>}
-              {salesItems.map((item) => {
-                const active = item.match(location.pathname);
-                return (
-                  <SideNavLink key={item.to} as={Link} to={item.to} renderIcon={item.icon} isActive={active} aria-current={active ? 'page' : undefined} onClick={() => narrow && setNavOpen(false)}>
-                    {item.label}
-                  </SideNavLink>
-                );
-              })}
+              {([['Sales & payments', salesItems], ['Signage', signageItems], ['Settings', settingsItems]] as [string, SalesNavItem[]][]).map(([heading, items]) => items.length > 0 && (
+                <Fragment key={heading}>
+                  <li className="app-side-nav__heading prototype-nav__heading">{heading}</li>
+                  {items.map((item) => {
+                    const active = item.match(location.pathname);
+                    return (
+                      <SideNavLink key={item.to} as={Link} to={item.to} renderIcon={item.icon} isActive={active} aria-current={active ? 'page' : undefined} onClick={() => narrow && setNavOpen(false)}>
+                        {item.label}
+                      </SideNavLink>
+                    );
+                  })}
+                </Fragment>
+              ))}
             </SideNavItems>
           </SideNav>
         </Header>
@@ -176,6 +210,13 @@ export function PrototypeApp() {
           <Route path="/sales/payments" element={<PaymentsPage />} />
           <Route path="/sales/payments/:paymentId" element={<PaymentDetailPage />} />
           <Route path="/sales/pricing" element={<PricingPage />} />
+          <Route path="/signage" element={<DisplaysPage />} />
+          <Route path="/signage/displays/:displayId" element={<DisplayDetailPage />} />
+          <Route path="/signage/content" element={<ContentPage />} />
+          <Route path="/signage/scenes/:sceneId" element={<SceneEditorPage />} />
+          <Route path="/signage/playlists/:playlistId" element={<PlaylistDetailPage />} />
+          <Route path="/signage/media" element={<MediaPage />} />
+          <Route path="/settings/local-services" element={<LocalServicesPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
