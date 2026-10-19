@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components -- the entry form and its pure validation belong together */
 import { useState } from 'react';
 import { Button, IconButton, Select, SelectItem, Stack, Tag, TextInput, Tile, TileGroup, RadioTile } from '@carbon/react';
-import { Add, Currency, TrashCan, Wallet, Edit } from '@carbon/icons-react';
+import { Add, Currency, Document, TrashCan, Wallet, Edit } from '@carbon/icons-react';
 import { DateTimeInput } from '../../../../app/DateInput';
 import { instantToZonedDateTimeValue, isZonedDateTimeValue, zonedDateTimeValueToISO } from '../../../../app/dateTime';
 import { formatEur, moneyText, parseMoney, round2 } from '../format';
@@ -13,7 +13,8 @@ import type { Payment, PaymentInput, PaymentMethod } from '../types';
 // cash with change calculator, card with terminal reference, split payments and an editable payment time.
 
 export type PaymentRow = { key: string; method: PaymentMethod; amount: string; tendered: string; terminal: string; reference: string };
-export type PaymentPreset = 'cash' | 'card' | 'split';
+/** `invoice`: nothing is paid now; the order is invoiced via wiRef and paid by bank transfer later. */
+export type PaymentPreset = 'cash' | 'card' | 'split' | 'invoice';
 export type PaymentEntryState = { preset: PaymentPreset; rows: PaymentRow[]; time: string };
 
 let counter = 0;
@@ -28,6 +29,7 @@ export function newPaymentEntry(due: number, methods: PaymentMethod[] = ['cash',
 
 export function presetEntry(entry: PaymentEntryState, preset: PaymentPreset, due: number): PaymentEntryState {
   if (preset === 'split') return { ...entry, preset, rows: [row('cash', ''), row('card', due)] };
+  if (preset === 'invoice') return { ...entry, preset, rows: [] };
   return { ...entry, preset, rows: [row(preset, due)] };
 }
 
@@ -119,8 +121,10 @@ function RowFields({ item, check, idPrefix, disabled, onChange }: { item: Paymen
   );
 }
 
-export function PaymentEntryForm({ idPrefix, entry, onChange, due, requireFull, payments, methods = ['cash', 'card'], disabled = false }: {
+export function PaymentEntryForm({ idPrefix, entry, onChange, due, requireFull, payments, methods = ['cash', 'card'], disabled = false, allowInvoice = false }: {
   idPrefix: string; entry: PaymentEntryState; onChange: (entry: PaymentEntryState) => void; due: number; requireFull: boolean; payments: Payment[]; methods?: PaymentMethod[]; disabled?: boolean;
+  /** Offers "Invoice": finalize without a payment and request an invoice from wiRef instead. */
+  allowInvoice?: boolean;
 }) {
   const [editTime, setEditTime] = useState(false);
   const check = checkEntry(entry, due, requireFull, existingReferences(payments));
@@ -136,8 +140,16 @@ export function PaymentEntryForm({ idPrefix, entry, onChange, due, requireFull, 
           <RadioTile id={`${idPrefix}-cash`} value="cash"><span className="sales-method-tile"><Currency size={20} />Cash</span></RadioTile>
           <RadioTile id={`${idPrefix}-card`} value="card"><span className="sales-method-tile"><Wallet size={20} />Card</span></RadioTile>
           <RadioTile id={`${idPrefix}-split`} value="split"><span className="sales-method-tile"><Add size={20} />Split</span></RadioTile>
+          {allowInvoice && <RadioTile id={`${idPrefix}-invoice`} value="invoice"><span className="sales-method-tile"><Document size={20} />Invoice</span></RadioTile>}
         </TileGroup>
       )}
+      {entry.preset === 'invoice' && (
+        <Tile className="sales-invoice-choice">
+          <p><strong>No payment now.</strong> The order is finalized and an invoice is requested from wiRef for {formatEur(due)}.</p>
+          <p className="mj-secondary">The customer pays by bank transfer to the HTU account once the invoice is issued. You check the recipient details in the next step.</p>
+        </Tile>
+      )}
+      {entry.preset !== 'invoice' && <>
       {entry.rows.map((item, index) => {
         const errors = check.rowErrors[item.key] ?? {};
         return (
@@ -175,6 +187,7 @@ export function PaymentEntryForm({ idPrefix, entry, onChange, due, requireFull, 
         )}
         {check.timeError && <p className="sales-field-error">{check.timeError}</p>}
       </div>
+      </>}
     </Stack>
   );
 }

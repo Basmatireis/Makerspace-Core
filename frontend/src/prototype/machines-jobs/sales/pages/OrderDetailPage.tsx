@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button, InlineNotification, Link as CarbonLink, MenuButton, MenuItem, Modal, OverflowMenu, OverflowMenuItem, Stack, Tile } from '@carbon/react';
-import { Currency, Printer } from '@carbon/icons-react';
+import { Currency, Document as DocumentIcon, Printer } from '@carbon/icons-react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { DestructiveActionDialog } from '../../../../app/DestructiveActionDialog';
 import { PageShell } from '../../../../app/PageShell';
@@ -73,13 +73,16 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
   const menu = [
     draft && canWrite && <OverflowMenuItem key="edit" itemText="Edit customer and hand-over" onClick={() => setDialog('edit')} />,
     draft && !order.replacesOrderId && checkoutPrimary && can('orders.finalize') && <OverflowMenuItem key="finalize" itemText="Finalize without payment" disabled={draftBlockers.length > 0} onClick={() => setDialog('finalize')} />,
-    order.status === 'finalized' && can('external_invoice_requests.manage') && invoiceBlocker === null && <OverflowMenuItem key="invoice" itemText="Request invoice…" onClick={() => setDialog('invoice')} />,
     canCorrect && <OverflowMenuItem key="correct" itemText="Correct order…" onClick={() => setDialog('correct')} />,
     order.status === 'finalized' && order.net > 0 && receipts.length > 0 && primary?.label !== 'Print receipt' && <OverflowMenuItem key="receipt" itemText="Print receipt" onClick={() => navigate(`/sales/orders/${order.id}/receipt`)} />,
     !draft && canWrite && order.status !== 'cancelled' && primary?.label !== 'Duplicate as draft' && <OverflowMenuItem key="duplicate" itemText="Duplicate as draft" onClick={() => act(() => navigate(`/sales/orders/${store.duplicateOrder(order.id).orderId}`))} />,
     draft && canWrite && <OverflowMenuItem key="cancel" itemText="Cancel draft" isDelete hasDivider onClick={() => setDialog('cancel')} />,
   ].filter(Boolean);
 
+  // Invoice action next to the primary one: request an invoice, or jump to the running request.
+  const invoiceAction = order.status !== 'finalized' ? null
+    : request ? { label: 'View invoice', run: () => document.getElementById('order-invoice')?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }
+    : can('external_invoice_requests.manage') && invoiceBlocker === null ? { label: 'Request invoice', run: () => setDialog('invoice') } : null;
   const recordBlocked = request && methods.length === 0 ? `${request.reference} is ${requestStateLabel[request.state].toLowerCase()}: cash and card can no longer be added. A bank transfer is recorded once the invoice is issued.` : null;
   const customerRole = order.customer.kind === 'person' ? lookupRoles(order.customer.id) : null;
 
@@ -89,6 +92,7 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
       description={`${order.customerLabel} · created ${formatDateTime(order.createdAt)} by ${order.createdBy}`}
       breadcrumbs={[{ label: 'Sales & payments', to: '/sales' }, { label: 'Orders', to: '/sales/orders' }]}
       actions={<>
+        {invoiceAction && <Button kind="secondary" renderIcon={DocumentIcon} onClick={invoiceAction.run}>{invoiceAction.label}</Button>}
         {primary && <Button kind="primary" renderIcon={primary.icon} disabled={primary.disabled} onClick={primary.run}>{primary.label}</Button>}
         {menu.length > 0 && <OverflowMenu aria-label="More order actions" iconDescription="More order actions" flipped>{menu}</OverflowMenu>}
       </>}
@@ -133,7 +137,7 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
             />
             <PaymentsSection order={order} orders={store.orders} payments={store.payments} allocations={store.allocations} canRecord={recorded && order.status === 'finalized' && order.outstanding > 0 && methods.length > 0}
               recordBlocked={recordBlocked} bankTransfer={bankTransfer} onRecord={() => setDialog('pay')} />
-            {order.latestRequest && <InvoiceSection order={order} request={order.latestRequest} />}
+            {order.latestRequest && <div id="order-invoice"><InvoiceSection order={order} request={order.latestRequest} /></div>}
           </div>
           <div className="mj-stack">
             <Tile>
@@ -157,7 +161,7 @@ function OrderDetail({ order, views }: { order: OrderView; views: OrderView[] })
       {dialog === 'jobs' && <AddJobsModal order={order} onClose={close} />}
       {(dialog === 'catalog' || dialog === 'custom') && <AddItemModal order={order} kind={dialog} onClose={close} />}
       {dialog === 'pay' && <RecordPaymentModal order={order} mode="record" onClose={close} />}
-      {dialog === 'checkout' && <RecordPaymentModal order={order} mode="checkout" onClose={close} />}
+      {dialog === 'checkout' && <RecordPaymentModal order={order} mode="checkout" onClose={close} onRequestInvoice={can('external_invoice_requests.manage') ? () => setDialog('invoice') : undefined} />}
       {dialog === 'correct' && <CorrectOrderModal order={order} onClose={close} />}
       {dialog === 'commit' && original && <CorrectOrderModal order={original} replacement={order} onClose={close} />}
       {dialog === 'invoice' && <RequestInvoiceModal order={order} onClose={close} />}
