@@ -210,7 +210,7 @@ export function OrdersPage() {
               <div className="sales-ready-bar">
                 <InlineNotification lowContrast hideCloseButton kind="info" className="sales-ready-notice" title={`${readyCount} finished ${readyCount === 1 ? 'job is' : 'jobs are'} ready to bill`}
                   subtitle={`${readyCustomers} ${readyCustomers === 1 ? 'customer' : 'customers'} have finished jobs that are on no order yet.`} />
-                <Button kind="tertiary" size="lg" renderIcon={ListChecked} className="sales-toolbar-action" onClick={() => setReviewing(true)}>Review jobs</Button>
+                <Button kind="secondary" size="lg" renderIcon={ListChecked} className="sales-toolbar-action" onClick={() => setReviewing(true)}>Review jobs</Button>
               </div>
             )}
           />
