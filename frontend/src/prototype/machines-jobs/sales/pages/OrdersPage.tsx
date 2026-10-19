@@ -19,6 +19,7 @@ import { customerKindLabel } from '../labels';
 import { activeItems, readyToBill, requestNext, requestReadiness, type OrderView } from '../logic';
 import { OrderStatusTag, RequestStateTag } from '../status';
 import { useSalesData } from '../useSalesData';
+import { SectionSwitcher } from '../../components/SectionSwitcher';
 import '../sales.scss';
 
 type SortKey = 'order' | 'payment' | 'total' | 'updated';
@@ -47,7 +48,10 @@ function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; load
   const [searchKey, setSearchKey] = useState(0);
   const [sort, setSort] = useState<{ key: SortKey; direction: 'ASC' | 'DESC' }>({ key: 'updated', direction: 'DESC' });
   const canWrite = store.can('orders.write');
-  const selectedViews = VIEWS.filter((item) => list(params.get('view')).includes(item.id));
+  const paidView = VIEWS.find((item) => item.id === 'paid')!;
+  const section: 'open' | 'paid' = params.get('section') === 'paid' ? 'paid' : 'open';
+  const sectionViews = VIEWS.filter((item) => item.id !== 'paid');
+  const selectedViews = section === 'open' ? sectionViews.filter((item) => list(params.get('view')).includes(item.id)) : [];
   const types = list(params.get('type'));
   const from = params.get('from') ?? '';
   const to = params.get('to') ?? '';
@@ -70,7 +74,8 @@ function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; load
     const needle = search.trim().toLowerCase();
     return views.filter((order) => {
       const day = dateInAppTimeZone(order.createdAt);
-      return (selectedViews.length === 0 || selectedViews.some((item) => item.has(order)))
+      return (section === 'paid' ? paidView.has(order) : !paidView.has(order))
+        && (selectedViews.length === 0 || selectedViews.some((item) => item.has(order)))
         && (types.length === 0 || types.includes(order.customerKind))
         && (!customerId || order.customer.id === customerId)
         && (!from || day >= from) && (!to || day <= to)
@@ -80,7 +85,7 @@ function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; load
       const x = value(a); const y = value(b);
       return (typeof x === 'number' && typeof y === 'number' ? x - y : String(x).localeCompare(String(y))) * direction;
     });
-  }, [views, sort, search, selectedViews.map((item) => item.id).join(','), types.join(','), from, to, customerId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [views, sort, search, section, selectedViews.map((item) => item.id).join(','), types.join(','), from, to, customerId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pageSize = PAGE_SIZES.includes(Number(params.get('pageSize'))) ? Number(params.get('pageSize')) : 10;
   const page = Math.max(1, Math.min(Number(params.get('page')) || 1, Math.ceil(visible.length / pageSize) || 1));
@@ -121,12 +126,17 @@ function OrdersTable({ views, loadingEmpty, notice }: { views: OrderView[]; load
         {({ rows, headers, getRowProps, getTableProps }) => (
           <TableContainer className="mj-table-container">
             <TableToolbar aria-label="Orders table toolbar">
+              <SectionSwitcher
+                label="Order sections" selected={section}
+                sections={[{ id: 'open', label: `Open (${views.filter((order) => !paidView.has(order)).length})` }, { id: 'paid', label: `Paid (${counts.paid})` }]}
+                onChange={(id) => update({ section: id === 'paid' ? 'paid' : null, view: null })}
+              />
               <TableToolbarContent>
                 <TableToolbarSearch key={searchKey} id="orders-search" labelText="Search orders" placeholder="Search by reference or customer" defaultValue={search} onChange={(_event, value) => update({ q: value ?? '' })} onClear={() => update({ q: null })} />
                 <BatchFilter
                   id="orders" label="Orders" applied={appliedFilters} onApply={(values) => update(toPatch(values, [...FILTER_KEYS]))} onReset={() => update(Object.fromEntries(FILTER_KEYS.map((key) => [key, null])))}
                   categories={[
-                    { key: 'view', label: 'Status', options: VIEWS.map((item) => ({ id: item.id, label: `${item.label} (${counts[item.id]})` })) },
+                    ...(section === 'open' ? [{ key: 'view', label: 'Status', options: sectionViews.map((item) => ({ id: item.id, label: `${item.label} (${counts[item.id]})` })) }] : []),
                     { key: 'type', label: 'Customer type', options: TYPE_OPTIONS },
                     {
                       key: 'customer', label: 'Customer', keys: ['customer'],
