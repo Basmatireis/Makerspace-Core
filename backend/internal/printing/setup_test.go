@@ -10,6 +10,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/google/uuid"
 )
 
@@ -112,7 +113,7 @@ func slotsOf(p Profile, unitID uuid.UUID, status ...string) []Slot {
 		if s.InputUnitID != unitID {
 			continue
 		}
-		if len(status) == 0 || s.Status == status[0] || (status[0] == "active" && s.Status != "retired") {
+		if len(status) == 0 || string(s.Status) == status[0] || (status[0] == "active" && s.Status != SlotRetired) {
 			result = append(result, s)
 		}
 	}
@@ -120,12 +121,12 @@ func slotsOf(p Profile, unitID uuid.UUID, status ...string) []Slot {
 }
 
 func h2dSetup() SetupInput {
-	return SetupInput{Enabled: true, Model: str("bambu_h2d"), InputUnits: []SetupUnitInput{
-		{Name: "AMS 2 Pro", Nozzle: str("left"), ExternalIdentifier: str("0"), Slots: []SetupSlotInput{
+	return SetupInput{Enabled: true, Model: optional.Of(PrinterModel("bambu_h2d")), InputUnits: []SetupUnitInput{
+		{Name: "AMS 2 Pro", Nozzle: optional.Of(Nozzle("left")), ExternalIdentifier: str("0"), Slots: []SetupSlotInput{
 			{Name: "Slot 1", Status: "available", ExternalIdentifier: str("0")},
 			{Name: "Slot 2", Status: "available", ExternalIdentifier: str("1")},
 		}},
-		{Name: "AMS HT", Nozzle: str("right"), ExternalIdentifier: str("128"), Slots: []SetupSlotInput{
+		{Name: "AMS HT", Nozzle: optional.Of(Nozzle("right")), ExternalIdentifier: str("128"), Slots: []SetupSlotInput{
 			{Name: "Slot 1", Status: "available", ExternalIdentifier: str("0")},
 		}},
 	}}
@@ -148,9 +149,9 @@ func TestSaveSetupValidatesBeforeTouchingTheDatabase(t *testing.T) {
 	dupSlots := h2dSetup()
 	dupSlots.InputUnits[0].Slots[1].ExternalIdentifier = str("0")
 	badModel := h2dSetup()
-	badModel.Model = str("toaster")
+	badModel.Model = optional.Of(PrinterModel("toaster"))
 	badNozzle := h2dSetup()
-	badNozzle.InputUnits[0].Nozzle = str("middle")
+	badNozzle.InputUnits[0].Nozzle = optional.Of(Nozzle("middle"))
 	badStatus := h2dSetup()
 	badStatus.InputUnits[0].Slots[0].Status = "retired"
 	dupID := h2dSetup()
@@ -208,17 +209,17 @@ func TestSaveSetupCreatesAndEditsTheProfile(t *testing.T) {
 	first, second := units[0], units[1]
 	firstSlots := slotsOf(created, first.ID)
 	secondSlots := slotsOf(created, second.ID)
-	edit := SetupInput{Enabled: true, Model: str("bambu_h2d"), InputUnits: []SetupUnitInput{
+	edit := SetupInput{Enabled: true, Model: optional.Of(PrinterModel("bambu_h2d")), InputUnits: []SetupUnitInput{
 		{
 			ID:                 &second.ID,
 			Name:               "AMS HT renamed",
-			Nozzle:             str("right"),
+			Nozzle:             optional.Of(Nozzle("right")),
 			ExternalIdentifier: str("128"),
 			Slots: []SetupSlotInput{
 				{ID: &secondSlots[0].ID, Name: "Slot 1", Status: "available", ExternalIdentifier: str("0")},
 			},
 		},
-		{ID: &first.ID, Name: "AMS 2 Pro", Nozzle: str("left"), ExternalIdentifier: str("0"), Slots: []SetupSlotInput{
+		{ID: &first.ID, Name: "AMS 2 Pro", Nozzle: optional.Of(Nozzle("left")), ExternalIdentifier: str("0"), Slots: []SetupSlotInput{
 			{ID: &firstSlots[1].ID, Name: "Slot 2 first", Status: "unavailable", ExternalIdentifier: str("0")},
 			{ID: &firstSlots[0].ID, Name: "Slot 1 second", Status: "available", ExternalIdentifier: str("1")},
 		}},
@@ -258,8 +259,8 @@ func TestSaveSetupCreatesAndEditsTheProfile(t *testing.T) {
 	}
 
 	// Removing a slot retires it; removing a unit disables it and retires its slots.
-	removeOne := SetupInput{Enabled: true, Model: str("bambu_h2d"), InputUnits: []SetupUnitInput{
-		{ID: &first.ID, Name: "AMS 2 Pro", Nozzle: str("left"), ExternalIdentifier: str("0"), Slots: []SetupSlotInput{
+	removeOne := SetupInput{Enabled: true, Model: optional.Of(PrinterModel("bambu_h2d")), InputUnits: []SetupUnitInput{
+		{ID: &first.ID, Name: "AMS 2 Pro", Nozzle: optional.Of(Nozzle("left")), ExternalIdentifier: str("0"), Slots: []SetupSlotInput{
 			{ID: &firstSlots[0].ID, Name: "Slot 1 second", Status: "available", ExternalIdentifier: str("1")},
 		}},
 	}}
@@ -285,12 +286,12 @@ func TestSaveSetupCreatesAndEditsTheProfile(t *testing.T) {
 	}
 
 	// A retired identifier can be reused by a new slot, and a removed unit can be added back by ID.
-	again := SetupInput{Enabled: false, Model: str("generic"), InputUnits: []SetupUnitInput{
+	again := SetupInput{Enabled: false, Model: optional.Of(PrinterModel("generic")), InputUnits: []SetupUnitInput{
 		{ID: &first.ID, Name: "AMS 2 Pro", Nozzle: nil, ExternalIdentifier: str("0"), Slots: []SetupSlotInput{
 			{ID: &firstSlots[0].ID, Name: "Slot 1 second", Status: "available", ExternalIdentifier: str("1")},
 			{Name: "New slot", Status: "available", ExternalIdentifier: str("0")},
 		}},
-		{ID: &second.ID, Name: "AMS HT", Nozzle: str("right"), ExternalIdentifier: str("128"), Slots: []SetupSlotInput{
+		{ID: &second.ID, Name: "AMS HT", Nozzle: optional.Of(Nozzle("right")), ExternalIdentifier: str("128"), Slots: []SetupSlotInput{
 			{ID: &secondSlots[0].ID, Name: "Slot 1", Status: "available", ExternalIdentifier: str("0")},
 		}},
 	}}
@@ -419,7 +420,7 @@ func TestSaveSetupRefusesToRemoveAMountedSlotAndRollsBack(t *testing.T) {
 	}
 	dropUnit := SetupInput{
 		Enabled:    true,
-		Model:      str("bambu_h2d"),
+		Model:      optional.Of(PrinterModel("bambu_h2d")),
 		InputUnits: []SetupUnitInput{h2dSetup().InputUnits[1]},
 	}
 	dropUnit.InputUnits[0].ID = &units[1].ID

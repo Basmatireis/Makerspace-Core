@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"github.com/google/uuid"
 	"github.com/oapi-codegen/nullable"
@@ -61,7 +62,7 @@ func profileDTO(v printing.Profile) openapi.PrinterProfile {
 		UpdatedAt:   v.UpdatedAt,
 	}
 }
-func nullableEnum[T ~string](value *string) nullable.Nullable[T] {
+func nullableEnum[T, F ~string](value *F) nullable.Nullable[T] {
 	if value == nil {
 		return nullable.NewNullNullable[T]()
 	}
@@ -179,7 +180,7 @@ func (s *Server) CreatePrinterSlot(
 		r.InputUnitId,
 		r.Body.Name,
 		r.Body.Position,
-		string(r.Body.Status),
+		printing.SlotStatus(r.Body.Status),
 		nullableStringPointer(r.Body.ExternalIdentifier),
 		requestIDPointer(ctx),
 	)
@@ -206,7 +207,7 @@ func (s *Server) UpdatePrinterSlot(
 		r.SlotId,
 		r.Body.Name,
 		r.Body.Position,
-		string(r.Body.Status),
+		printing.SlotStatus(r.Body.Status),
 		nullableStringPointer(r.Body.ExternalIdentifier),
 		r.Body.ExpectedVersion,
 		requestIDPointer(ctx),
@@ -271,7 +272,7 @@ func (s *Server) SavePrinterSetup(
 	}
 	input := printing.SetupInput{
 		Enabled:    r.Body.Enabled,
-		Model:      nullableStringPointer(r.Body.Model),
+		Model:      optional.Convert[printing.PrinterModel](nullableStringPointer(r.Body.Model)),
 		InputUnits: make([]printing.SetupUnitInput, 0, len(r.Body.InputUnits)),
 	}
 	if expected := nullableInt64Pointer(r.Body.ExpectedVersion); expected != nil {
@@ -281,7 +282,7 @@ func (s *Server) SavePrinterSetup(
 		item := printing.SetupUnitInput{
 			ID:                 setupUUID(unit.Id),
 			Name:               unit.Name,
-			Nozzle:             nullableStringPointer(unit.Nozzle),
+			Nozzle:             optional.Convert[printing.Nozzle](nullableStringPointer(unit.Nozzle)),
 			ExternalIdentifier: nullableStringPointer(unit.ExternalIdentifier),
 			Slots:              make([]printing.SetupSlotInput, 0, len(unit.Slots)),
 		}
@@ -291,7 +292,7 @@ func (s *Server) SavePrinterSetup(
 				printing.SetupSlotInput{
 					ID:                 setupUUID(slot.Id),
 					Name:               slot.Name,
-					Status:             string(slot.Status),
+					Status:             printing.SlotStatus(slot.Status),
 					ExternalIdentifier: nullableStringPointer(slot.ExternalIdentifier),
 				},
 			)

@@ -7,6 +7,7 @@ import (
 	_ "time/tzdata"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/printing"
 	"github.com/google/uuid"
 )
 
@@ -384,7 +385,7 @@ func (s *seeder) setupPrinters() {
 		return u.ID
 	}
 	addSlot := func(m *mach, unitID uuid.UUID, name string, pos int, ext string) *slot {
-		sl, err := s.printing.CreateSlot(s.ctx, s.actor, unitID, name, pos, "available", ptr(ext), nil)
+		sl, err := s.printing.CreateSlot(s.ctx, s.actor, unitID, name, pos, printing.SlotAvailable, ptr(ext), nil)
 		check("slot", err)
 		sp := &slot{id: sl.ID, ext: ext, name: name}
 		m.slots = append(m.slots, sp)

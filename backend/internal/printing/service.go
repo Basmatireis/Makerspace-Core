@@ -14,6 +14,7 @@ import (
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	printerconnectorsdb "github.com/Basmatireis/Makerspace-Core/backend/internal/printerconnectors/db"
 	db "github.com/Basmatireis/Makerspace-Core/backend/internal/printing/db"
 	"github.com/google/uuid"
@@ -36,7 +37,7 @@ type InputUnit struct {
 	ID, MachineID      uuid.UUID
 	Name               string
 	Position           int
-	Nozzle             *string
+	Nozzle             *Nozzle
 	ExternalIdentifier *string
 	Enabled            bool
 	Version            int64
@@ -46,7 +47,7 @@ type Slot struct {
 	InputUnitName, Name        string
 	Position                   int
 	ExternalIdentifier         *string
-	Status                     string
+	Status                     SlotStatus
 	AssignmentID, SpoolID      *uuid.UUID
 	SpoolDisplayID             *string
 	MountedAt                  *time.Time
@@ -56,30 +57,31 @@ type Profile struct {
 	MachineID            uuid.UUID
 	MachineName          string
 	Enabled              bool
-	Model                *string
+	Model                *PrinterModel
 	InputUnits           []InputUnit
 	Slots                []Slot
 	Version              int64
 	CreatedAt, UpdatedAt time.Time
 }
 type PrinterEvent struct {
-	ID                       uuid.UUID
-	SourceID, EventKey, Kind string
-	ProtocolVersion          int
-	OccurredAt, ReceivedAt   time.Time
-	Payload                  json.RawMessage
+	ID                     uuid.UUID
+	SourceID, EventKey     string
+	Kind                   EventKind
+	ProtocolVersion        int
+	OccurredAt, ReceivedAt time.Time
+	Payload                json.RawMessage
 }
 
 type ConnectorEventInput struct {
 	EventID, ConnectorID, AssignmentID, MachineID uuid.UUID
 	RunID                                         *uuid.UUID
 	ConfigurationVersion, Sequence                int64
-	Kind                                          string
+	Kind                                          EventKind
 	OccurredAt                                    time.Time
 	ExternalPrintID                               *string
 	Payload                                       json.RawMessage
 	ReportRevision                                *int64
-	ApplicationState                              string
+	ApplicationState                              ApplicationState
 	ApplicationReason                             *string
 }
 
@@ -107,11 +109,11 @@ func dbError(err error) error {
 	}
 	return err
 }
-func clean(value *string) *string {
+func clean[T ~string](value *T) *T {
 	if value == nil {
 		return nil
 	}
-	v := strings.TrimSpace(*value)
+	v := T(strings.TrimSpace(string(*value)))
 	if v == "" {
 		return nil
 	}
@@ -160,7 +162,7 @@ func inputUnit(row db.PrinterInputUnit) InputUnit {
 		MachineID:          row.MachineID,
 		Name:               row.Name,
 		Position:           int(row.Position),
-		Nozzle:             row.Nozzle,
+		Nozzle:             optional.Convert[Nozzle](row.Nozzle),
 		ExternalIdentifier: row.ExternalIdentifier,
 		Enabled:            row.Enabled,
 		Version:            row.Version,
@@ -175,7 +177,7 @@ func slotFromGet(row db.GetPrinterSlotRow) Slot {
 		Name:               row.Name,
 		Position:           int(row.Position),
 		ExternalIdentifier: row.ExternalIdentifier,
-		Status:             row.Status,
+		Status:             SlotStatus(row.Status),
 		AssignmentID:       row.AssignmentID,
 		SpoolID:            row.SpoolID,
 		SpoolDisplayID:     row.SpoolDisplayID,
@@ -192,7 +194,7 @@ func slotFromList(row db.ListPrinterSlotsRow) Slot {
 		Name:               row.Name,
 		Position:           int(row.Position),
 		ExternalIdentifier: row.ExternalIdentifier,
-		Status:             row.Status,
+		Status:             SlotStatus(row.Status),
 		AssignmentID:       row.AssignmentID,
 		SpoolID:            row.SpoolID,
 		SpoolDisplayID:     row.SpoolDisplayID,
@@ -225,7 +227,7 @@ func loadProfile(ctx context.Context, q *db.Queries, machineID uuid.UUID) (Profi
 		MachineID:   row.MachineID,
 		MachineName: row.MachineName,
 		Enabled:     row.Enabled,
-		Model:       row.Model,
+		Model:       optional.Convert[PrinterModel](row.Model),
 		Version:     row.Version,
 		CreatedAt:   row.CreatedAt,
 		UpdatedAt:   row.UpdatedAt,
@@ -252,7 +254,7 @@ func requireFDMPrinting(ctx context.Context, tx pgx.Tx, machineID uuid.UUID) err
 	if err != nil {
 		return err
 	}
-	if process != "fdm_printing" {
+	if MachineProcess(process) != ProcessFDMPrinting {
 		return apperror.Conflicting(
 			"machine_not_fdm_printing",
 			"Only machines with the FDM printing process have a printer setup",
@@ -436,7 +438,7 @@ func (s *Service) CreateSlot(
 	inputUnitID uuid.UUID,
 	name string,
 	position int,
-	status string,
+	status SlotStatus,
 	external *string,
 	requestID *uuid.UUID,
 ) (Slot, error) {
@@ -445,7 +447,7 @@ func (s *Service) CreateSlot(
 	}
 	name = strings.TrimSpace(name)
 	if name == "" || len(name) > 120 || position < 0 ||
-		(status != "available" && status != "unavailable" && status != "retired") {
+		(status != SlotAvailable && status != SlotUnavailable && status != SlotRetired) {
 		return Slot{}, apperror.Invalid("invalid printer slot")
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -466,7 +468,7 @@ func (s *Service) CreateSlot(
 			Name:               name,
 			Position:           int32(position),
 			ExternalIdentifier: clean(external),
-			Status:             status,
+			Status:             string(status),
 		},
 	); err != nil {
 		return Slot{}, dbError(err)
@@ -496,7 +498,7 @@ func (s *Service) UpdateSlot(
 	slotID uuid.UUID,
 	name string,
 	position int,
-	status string,
+	status SlotStatus,
 	external *string,
 	expected int64,
 	requestID *uuid.UUID,
@@ -507,7 +509,7 @@ func (s *Service) UpdateSlot(
 	name = strings.TrimSpace(name)
 	external = clean(external)
 	if name == "" || len(name) > 120 || position < 0 || expected < 1 || (external != nil && len(*external) > 200) ||
-		(status != "available" && status != "unavailable" && status != "retired") {
+		(status != SlotAvailable && status != SlotUnavailable && status != SlotRetired) {
 		return Slot{}, apperror.Invalid("invalid printer slot")
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -526,7 +528,7 @@ func (s *Service) UpdateSlot(
 			Name:               name,
 			Position:           int32(position),
 			ExternalIdentifier: external,
-			Status:             status,
+			Status:             string(status),
 			ExpectedVersion:    expected,
 		},
 	); errors.Is(
@@ -581,7 +583,7 @@ func (s *Service) Mount(
 	if err != nil {
 		return Slot{}, noRows(err)
 	}
-	if slot.Status != "available" {
+	if SlotStatus(slot.Status) != SlotAvailable {
 		return Slot{}, apperror.Conflicting("slot_unavailable", "Printer slot is not available")
 	}
 	// A spool can be mounted while it is active and its open fill still holds stock.
@@ -593,7 +595,7 @@ func (s *Service) Mount(
 	if err != nil {
 		return Slot{}, err
 	}
-	if lifecycle != "active" || !remaining.Valid || !decimal.NewFromBigInt(remaining.Int, remaining.Exp).IsPositive() {
+	if SpoolLifecycle(lifecycle) != SpoolActive || !remaining.Valid || !decimal.NewFromBigInt(remaining.Int, remaining.Exp).IsPositive() {
 		return Slot{}, apperror.Conflicting(
 			"spool_unavailable",
 			"Only active spools with an open, nonempty fill can be mounted",
@@ -702,7 +704,7 @@ func connectorEventFromRow(row printerconnectorsdb.PrinterEvent) PrinterEvent {
 		SourceID:        row.SourceID,
 		EventKey:        row.EventKey,
 		ProtocolVersion: int(row.ProtocolVersion),
-		Kind:            row.Kind,
+		Kind:            EventKind(row.Kind),
 		OccurredAt:      row.OccurredAt,
 		ReceivedAt:      row.ReceivedAt,
 		Payload:         row.Payload,
@@ -725,13 +727,13 @@ func (s *Service) IngestConnectorEvent(
 		return PrinterEvent{}, false, apperror.Invalid("invalid printer event")
 	}
 	switch input.Kind {
-	case "identity",
-		"connectivity",
-		"operational_state",
-		"progress",
-		"slot_observation",
-		"consumption_report",
-		"terminal_outcome":
+	case EventIdentity,
+		EventConnectivity,
+		EventOperationalState,
+		EventProgress,
+		EventSlotObservation,
+		EventConsumptionReport,
+		EventTerminalOutcome:
 	default:
 		return PrinterEvent{}, false, apperror.Invalid("invalid printer event kind")
 	}
@@ -739,11 +741,11 @@ func (s *Service) IngestConnectorEvent(
 	if json.Unmarshal(input.Payload, &payloadObject) != nil || payloadObject == nil {
 		return PrinterEvent{}, false, apperror.Invalid("printer event payload must be a JSON object")
 	}
-	if input.ApplicationState != "applied" && input.ApplicationState != "review_required" &&
-		input.ApplicationState != "recorded" {
+	if input.ApplicationState != ApplicationApplied && input.ApplicationState != ApplicationReviewRequired &&
+		input.ApplicationState != ApplicationRecorded {
 		return PrinterEvent{}, false, apperror.Invalid("invalid printer event application state")
 	}
-	if input.Kind == "consumption_report" {
+	if input.Kind == EventConsumptionReport {
 		if input.ReportRevision == nil || *input.ReportRevision < 1 {
 			return PrinterEvent{}, false, apperror.Invalid("consumption reports require a positive report revision")
 		}
@@ -756,7 +758,7 @@ func (s *Service) IngestConnectorEvent(
 		EventID, AssignmentID, MachineID uuid.UUID
 		RunID                            *uuid.UUID
 		ConfigurationVersion, Sequence   int64
-		Kind                             string
+		Kind                             EventKind
 		OccurredAt                       time.Time
 		ExternalPrintID                  *string
 		Payload                          json.RawMessage
@@ -822,7 +824,7 @@ func (s *Service) IngestConnectorEvent(
 			Fingerprint:          fp,
 			ProtocolVersion:      1,
 			MachineID:            &input.MachineID,
-			Kind:                 input.Kind,
+			Kind:                 string(input.Kind),
 			OccurredAt:           input.OccurredAt.UTC(),
 			SourceSequence:       &input.Sequence,
 			ExternalPrintID:      clean(input.ExternalPrintID),
@@ -831,7 +833,7 @@ func (s *Service) IngestConnectorEvent(
 			AssignmentID:         &input.AssignmentID,
 			RunID:                input.RunID,
 			ConfigurationVersion: &input.ConfigurationVersion,
-			ApplicationState:     input.ApplicationState,
+			ApplicationState:     string(input.ApplicationState),
 			ApplicationReason:    input.ApplicationReason,
 			ReportRevision:       input.ReportRevision,
 		},
