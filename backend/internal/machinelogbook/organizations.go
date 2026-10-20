@@ -19,7 +19,7 @@ func organizationFromRow(row machinelogbookdb.Organization) Organization {
 	return Organization{
 		ID:     row.ID,
 		Name:   row.Name,
-		Kind:   row.Kind,
+		Kind:   OrganizationKind(row.Kind),
 		Active: row.Active,
 		OrganizationDetails: OrganizationDetails{
 			AddressLine:  row.AddressLine,
@@ -34,8 +34,8 @@ func organizationFromRow(row machinelogbookdb.Organization) Organization {
 		UpdatedAt: row.UpdatedAt,
 	}
 }
-func validateOrganizationKind(kind string) error {
-	if kind != "company" && kind != "institute" && kind != "association" && kind != "other" {
+func validateOrganizationKind(kind OrganizationKind) error {
+	if kind != OrganizationCompany && kind != OrganizationInstitute && kind != OrganizationAssociation && kind != OrganizationOther {
 		return apperror.Invalid("invalid organization kind")
 	}
 	return nil
@@ -105,7 +105,7 @@ func organizationDetailFromRow(row machinelogbookdb.GetOrganizationDetailRow) Or
 	item := Organization{
 		ID:     row.ID,
 		Name:   row.Name,
-		Kind:   row.Kind,
+		Kind:   OrganizationKind(row.Kind),
 		Active: row.Active,
 		OrganizationDetails: OrganizationDetails{
 			AddressLine:  row.AddressLine,
@@ -170,7 +170,7 @@ func (s *Service) ListOrganizations(
 		machinelogbookdb.ListOrganizationsParams{
 			Search:         search,
 			Active:         f.Active,
-			Kind:           f.Kind,
+			Kind:           pointerAs[string](f.Kind),
 			PricingGroupID: f.PricingGroupID,
 			PageOffset:     offset,
 			PageLimit:      limit,
@@ -184,7 +184,7 @@ func (s *Service) ListOrganizations(
 		machinelogbookdb.CountOrganizationsParams{
 			Search:         search,
 			Active:         f.Active,
-			Kind:           f.Kind,
+			Kind:           pointerAs[string](f.Kind),
 			PricingGroupID: f.PricingGroupID,
 		},
 	)
@@ -201,7 +201,8 @@ func (s *Service) ListOrganizations(
 func (s *Service) CreateOrganization(
 	ctx context.Context,
 	p authorization.Principal,
-	name, kind string,
+	name string,
+	kind OrganizationKind,
 	details OrganizationDetailsInput,
 	requestID *uuid.UUID,
 ) (Organization, error) {
@@ -232,7 +233,7 @@ func (s *Service) CreateOrganization(
 			machinelogbookdb.CreateOrganizationParams{
 				ID:           id,
 				Name:         name,
-				Kind:         kind,
+				Kind:         string(kind),
 				AddressLine:  merged.AddressLine,
 				PostalCode:   merged.PostalCode,
 				Locality:     merged.Locality,
@@ -320,7 +321,8 @@ func (s *Service) UpdateOrganization(
 	p authorization.Principal,
 	id uuid.UUID,
 	expected int64,
-	name, kind string,
+	name string,
+	kind OrganizationKind,
 	active bool,
 	details OrganizationDetailsInput,
 	requestID *uuid.UUID,
@@ -360,7 +362,7 @@ func (s *Service) UpdateOrganization(
 		ctx,
 		machinelogbookdb.UpdateOrganizationParams{
 			Name:            name,
-			Kind:            kind,
+			Kind:            string(kind),
 			Active:          active,
 			AddressLine:     merged.AddressLine,
 			PostalCode:      merged.PostalCode,
@@ -543,9 +545,9 @@ func (s *Service) SearchBillingParties(
 	for _, row := range rows {
 		item := BillingParty{
 			ID:                            row.PartyID,
-			Kind:                          row.PartyKind,
+			Kind:                          PartyKind(row.PartyKind),
 			DisplayName:                   row.DisplayName,
-			OrganizationKind:              row.OrganizationKind,
+			OrganizationKind:              pointerAs[OrganizationKind](row.OrganizationKind),
 			PricingGroupAssignmentVersion: row.PricingGroupAssignmentVersion,
 		}
 		if row.PricingGroupID != nil && row.PricingGroupName != nil {
@@ -561,7 +563,7 @@ func (s *Service) SearchBillingParties(
 func (s *Service) attachMemberOrganizations(ctx context.Context, items []BillingParty) ([]BillingParty, error) {
 	var ids []uuid.UUID
 	for _, item := range items {
-		if item.Kind == "person" {
+		if item.Kind == PartyPerson {
 			ids = append(ids, item.ID)
 		}
 	}
@@ -580,7 +582,7 @@ func (s *Service) attachMemberOrganizations(ctx context.Context, items []Billing
 		)
 	}
 	for i := range items {
-		if items[i].Kind == "person" {
+		if items[i].Kind == PartyPerson {
 			items[i].MemberOrganizations = append([]OrganizationReference{}, byPerson[items[i].ID]...)
 		}
 	}

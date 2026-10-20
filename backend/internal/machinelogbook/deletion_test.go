@@ -690,7 +690,7 @@ func TestDeletedJobsLeaveStatistics(t *testing.T) {
 	f.now = time.Date(y, time.June, 15, 12, 0, 0, 0, time.UTC)
 	ctx := t.Context()
 	day := func(d, hour int) time.Time { return time.Date(y, time.June, d, hour, 0, 0, 0, time.UTC) }
-	mk := func(start time.Time, duration time.Duration, outcome string, grams string) MachineJob {
+	mk := func(start time.Time, duration time.Duration, outcome JobOutcome, grams string) MachineJob {
 		input := JobInput{
 			MachineID:        f.machine.ID,
 			StartsAt:         start,

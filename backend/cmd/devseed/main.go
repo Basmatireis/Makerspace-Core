@@ -69,7 +69,7 @@ type party struct {
 }
 
 func (p party) ref() machinelogbook.PartyReference {
-	return machinelogbook.PartyReference{Kind: p.kind, ID: p.id}
+	return machinelogbook.PartyReference{Kind: machinelogbook.PartyKind(p.kind), ID: p.id}
 }
 
 type mat struct {

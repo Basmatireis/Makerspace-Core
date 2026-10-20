@@ -377,7 +377,7 @@ func TestOperationalCorrectionKeepsTheFinancialSnapshot(t *testing.T) {
 	if e != nil {
 		t.Fatal(e)
 	}
-	endsAt, successful := start.Add(2*time.Hour), "successful"
+	endsAt, successful := start.Add(2*time.Hour), machinelogbook.RunOutcomeSuccessful
 	runResult, e := f.jobs.UpdateRun(
 		ctx,
 		f.p,

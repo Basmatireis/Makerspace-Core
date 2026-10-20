@@ -19,7 +19,7 @@ func pricingRuleFromRow(row machinelogbookdb.PricingRule, materialTypeName *stri
 	return PricingRule{
 		ID:               row.ID,
 		PricingGroupID:   row.PricingGroupID,
-		Kind:             row.Kind,
+		Kind:             PricingRuleKind(row.Kind),
 		MachineTypeID:    row.MachineTypeID,
 		MaterialTypeID:   row.MaterialTypeID,
 		MaterialTypeName: materialTypeName,
@@ -244,18 +244,18 @@ type ruleTarget struct {
 func resolveRuleTarget(
 	ctx context.Context,
 	q *machinelogbookdb.Queries,
-	kind string,
+	kind PricingRuleKind,
 	machineTypeID, materialTypeID *uuid.UUID,
 	measure *string,
 	requireActiveType bool,
 ) (ruleTarget, error) {
 	switch kind {
-	case "machine_runtime":
+	case PricingRuleMachineRuntime:
 		if machineTypeID == nil || materialTypeID != nil || measure != nil {
 			return ruleTarget{}, apperror.Invalid("machine runtime rules require only machineTypeId")
 		}
 		return ruleTarget{}, nil
-	case "material":
+	case PricingRuleMaterial:
 		if machineTypeID != nil || materialTypeID == nil || measure != nil {
 			return ruleTarget{}, apperror.Invalid("material rules require only materialTypeId")
 		}
@@ -265,7 +265,7 @@ func resolveRuleTarget(
 		}
 		unit, name := materialType.Unit, materialType.Name
 		return ruleTarget{MaterialUnit: &unit, MaterialTypeName: &name}, nil
-	case "machine_measure":
+	case PricingRuleMachineMeasure:
 		if machineTypeID == nil || materialTypeID != nil || measure == nil {
 			return ruleTarget{}, apperror.Invalid("machine measure rules require machineTypeId and measure")
 		}
@@ -297,7 +297,7 @@ func (s *Service) CreatePricingRule(
 	ctx context.Context,
 	p authorization.Principal,
 	groupID uuid.UUID,
-	kind string,
+	kind PricingRuleKind,
 	machineTypeID, materialTypeID *uuid.UUID,
 	measure *string,
 	rate string,
@@ -333,7 +333,7 @@ func (s *Service) CreatePricingRule(
 		machinelogbookdb.CreatePricingRuleParams{
 			ID:             id,
 			PricingGroupID: groupID,
-			Kind:           kind,
+			Kind:           string(kind),
 			MachineTypeID:  machineTypeID,
 			MaterialTypeID: materialTypeID,
 			MaterialUnit:   target.MaterialUnit,
@@ -368,7 +368,7 @@ func (s *Service) UpdatePricingRule(
 	p authorization.Principal,
 	id uuid.UUID,
 	expected int64,
-	kind string,
+	kind PricingRuleKind,
 	machineTypeID, materialTypeID *uuid.UUID,
 	measure *string,
 	rate string,
@@ -414,7 +414,7 @@ func (s *Service) UpdatePricingRule(
 	row, err := q.UpdatePricingRule(
 		ctx,
 		machinelogbookdb.UpdatePricingRuleParams{
-			Kind:            kind,
+			Kind:            string(kind),
 			MachineTypeID:   machineTypeID,
 			MaterialTypeID:  materialTypeID,
 			MaterialUnit:    target.MaterialUnit,
@@ -463,7 +463,7 @@ func (s *Service) SetPartyPricingGroup(
 	if err := require(p, authorization.PricingManage); err != nil {
 		return BillingParty{}, err
 	}
-	if party.Kind != "organization" {
+	if party.Kind != PartyOrganization {
 		return BillingParty{}, apperror.Invalid(
 			"pricing groups are assigned to organizations; people are priced through their roles",
 		)
@@ -519,9 +519,9 @@ func (s *Service) SetPartyPricingGroup(
 	}
 	item := BillingParty{
 		ID:                            row.ID,
-		Kind:                          "organization",
+		Kind:                          PartyOrganization,
 		DisplayName:                   row.DisplayName,
-		OrganizationKind:              &row.OrganizationKind,
+		OrganizationKind:              pointerAs[OrganizationKind](&row.OrganizationKind),
 		PricingGroupAssignmentVersion: row.PricingGroupAssignmentVersion,
 	}
 	if row.PricingGroupID != nil && row.PricingGroupName != nil {

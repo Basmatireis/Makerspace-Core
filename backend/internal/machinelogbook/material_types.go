@@ -180,7 +180,7 @@ func (s *Service) CreateMaterialType(
 	if err != nil {
 		return MaterialType{}, err
 	}
-	if !validUnit(unit) {
+	if !validUnit(MaterialUnit(unit)) {
 		return MaterialType{}, apperror.Invalid("invalid material unit")
 	}
 	processes, err = validateProcesses(processes)
@@ -249,7 +249,7 @@ func (s *Service) UpdateMaterialType(
 	if err != nil {
 		return MaterialType{}, err
 	}
-	if !validUnit(unit) {
+	if !validUnit(MaterialUnit(unit)) {
 		return MaterialType{}, apperror.Invalid("invalid material unit")
 	}
 	if processes != nil {

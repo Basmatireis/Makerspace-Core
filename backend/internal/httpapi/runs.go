@@ -22,8 +22,8 @@ func (s *Server) ListMachineRuns(
 		machinelogbook.RunFilters{
 			Search:    defaultString(r.Params.Search),
 			MachineID: r.Params.MachineId,
-			States:    stringSlice(r.Params.State),
-			Source:    stringEnum(r.Params.Source),
+			States:    enumSlice[machinelogbook.RunState](stringSlice(r.Params.State)),
+			Source:    enumPointer[machinelogbook.RunSource](r.Params.Source),
 			Assigned:  r.Params.Assigned,
 			From:      r.Params.From,
 			To:        r.Params.To,
@@ -76,7 +76,7 @@ func (s *Server) UpdateMachineRun(
 		machinelogbook.RunUpdate{
 			StartsAt: r.Body.StartsAt,
 			EndsAt:   r.Body.EndsAt,
-			Outcome:  nullableStringPointer(r.Body.Outcome),
+			Outcome:  enumPointer[machinelogbook.RunOutcome](nullableStringPointer(r.Body.Outcome)),
 			Measures: runMeasuresInput(r.Body.Measures),
 		},
 		requestIDPointer(ctx),
@@ -257,7 +257,7 @@ func manualRunInput(value openapi.ManualRunInput) machinelogbook.ManualRunInput 
 	return machinelogbook.ManualRunInput{
 		StartsAt: value.StartsAt,
 		EndsAt:   value.EndsAt,
-		Outcome:  nullableStringPointer(value.Outcome),
+		Outcome:  enumPointer[machinelogbook.RunOutcome](nullableStringPointer(value.Outcome)),
 		Usages:   usageInputs(value.Usages),
 		Measures: runMeasuresInput(value.Measures),
 	}

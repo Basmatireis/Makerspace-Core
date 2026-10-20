@@ -39,24 +39,25 @@ type parsedUsage struct {
 
 // parseOutcome validates a run outcome. An empty value or "unknown" records no
 // outcome yet.
-func parseOutcome(value string) (*string, error) {
+func parseOutcome(value JobOutcome) (*RunOutcome, error) {
 	switch value {
-	case "", "unknown":
+	case "", JobOutcomeUnknown:
 		return nil, nil
-	case "successful", "partial_failure", "failed", "cancelled":
-		return &value, nil
+	case JobOutcomeSuccessful, JobOutcomePartialFailure, JobOutcomeFailed, JobOutcomeCancelled:
+		outcome := RunOutcome(value)
+		return &outcome, nil
 	}
 	return nil, apperror.Invalid("invalid outcome")
 }
 
-func validateOptionalOutcome(value *string) (*string, error) {
+func validateOptionalOutcome(value *RunOutcome) (*RunOutcome, error) {
 	if value == nil {
 		return nil, nil
 	}
-	if *value == "unknown" || *value == "" {
+	if JobOutcome(*value) == JobOutcomeUnknown || *value == "" {
 		return nil, apperror.Invalid("invalid outcome")
 	}
-	return parseOutcome(*value)
+	return parseOutcome(JobOutcome(*value))
 }
 func validateInterval(startsAt, endsAt time.Time) error {
 	if startsAt.IsZero() || endsAt.IsZero() || !endsAt.After(startsAt) {
@@ -69,16 +70,16 @@ func parseUsages(inputs []UsageInput) ([]parsedUsage, error) {
 	seen := map[string]bool{}
 	for _, input := range inputs {
 		if input.Ownership == "" {
-			input.Ownership = "makerspace"
+			input.Ownership = OwnershipMakerspace
 		}
 		if input.QuantityBasis == "" {
-			input.QuantityBasis = "actual"
+			input.QuantityBasis = QuantityBasisActual
 		}
-		if input.QuantityBasis != "actual" && input.QuantityBasis != "estimated" {
+		if input.QuantityBasis != QuantityBasisActual && input.QuantityBasis != QuantityBasisEstimated {
 			return nil, apperror.Invalid("invalid quantityBasis")
 		}
 		switch input.Ownership {
-		case "makerspace":
+		case OwnershipMakerspace:
 			if input.MaterialID == uuid.Nil || input.ExternalMaterialName != nil {
 				return nil, apperror.Invalid("makerspace usage requires a material")
 			}
@@ -90,7 +91,7 @@ func parseUsages(inputs []UsageInput) ([]parsedUsage, error) {
 				return nil, apperror.Invalid("makerspace usage sources must be unique")
 			}
 			seen[key] = true
-		case "external":
+		case OwnershipExternal:
 			if input.SpoolID != nil || optional.Trimmed(input.ExternalMaterialName) == nil {
 				return nil, apperror.Invalid("external usage requires a material description and cannot use a spool")
 			}
@@ -112,9 +113,9 @@ func parseUsages(inputs []UsageInput) ([]parsedUsage, error) {
 			parsedUsage{
 				MaterialID:           materialID,
 				SpoolID:              input.SpoolID,
-				Ownership:            input.Ownership,
+				Ownership:            string(input.Ownership),
 				ExternalMaterialName: input.ExternalMaterialName,
-				QuantityBasis:        input.QuantityBasis,
+				QuantityBasis:        string(input.QuantityBasis),
 				Quantity:             quantity,
 				UsageID:              ids.New(),
 			},
@@ -141,7 +142,7 @@ func usageSortKey(item parsedUsage) string {
 func (s *Service) resolveUsageFills(ctx context.Context, q *machinelogbookdb.Queries, items []parsedUsage) error {
 	order := make([]int, 0, len(items))
 	for i := range items {
-		if items[i].Ownership != "external" && items[i].SpoolID != nil {
+		if UsageOwnership(items[i].Ownership) != OwnershipExternal && items[i].SpoolID != nil {
 			order = append(order, i)
 		}
 	}
@@ -247,7 +248,7 @@ func (s *Service) consumeUsages(
 	requestID *uuid.UUID,
 ) error {
 	for _, item := range items {
-		if item.Ownership == "external" {
+		if UsageOwnership(item.Ownership) == OwnershipExternal {
 			continue
 		}
 		current, err := q.GetMaterialForUpdate(ctx, *item.MaterialID)
@@ -266,7 +267,7 @@ func (s *Service) consumeUsages(
 			*item.MaterialID,
 			current.InventoryVersion,
 			inventoryMutation{
-				Kind:          "machine_run_consumption",
+				Kind:          InventoryMachineConsumption,
 				QuantityDelta: item.Quantity.Neg(),
 				UnitCost:      average,
 				ValueDelta:    item.Quantity.Mul(average).Neg(),

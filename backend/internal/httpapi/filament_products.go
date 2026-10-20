@@ -44,9 +44,9 @@ func (s *Server) ListFilamentProducts(
 			Search:       defaultString(params.Search),
 			MaterialID:   params.MaterialId,
 			Manufacturer: defaultString(params.Manufacturer),
-			Packaging: valueString(
+			Packaging: machinelogbook.Packaging(valueString(
 				params.Packaging,
-			),
+			)),
 			IncludeInactive: valueBool(params.IncludeInactive),
 			Page:            defaultInt(params.Page, 1),
 			PageSize:        defaultInt(params.PageSize, 25),
@@ -105,7 +105,7 @@ func (s *Server) CreateFilamentProduct(
 			DefaultPrice: decimalMoneyNullable(
 				body.DefaultPrice,
 			),
-			Packaging: string(body.Packaging),
+			Packaging: machinelogbook.Packaging(body.Packaging),
 			Notes:     nullableStringPointer(body.Notes),
 			Active:    true,
 		},
@@ -141,7 +141,7 @@ func (s *Server) UpdateFilamentProduct(
 			DefaultPrice: decimalMoneyNullable(
 				body.DefaultPrice,
 			),
-			Packaging:       string(body.Packaging),
+			Packaging:       machinelogbook.Packaging(body.Packaging),
 			Notes:           nullableStringPointer(body.Notes),
 			Active:          body.Active,
 			ExpectedVersion: body.ExpectedVersion,

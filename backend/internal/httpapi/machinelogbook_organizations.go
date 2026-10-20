@@ -26,7 +26,7 @@ func (s *Server) ListOrganizations(
 		machinelogbook.OrganizationFilters{
 			Search:         defaultString(r.Params.Search),
 			Active:         r.Params.Active,
-			Kind:           kind,
+			Kind:           enumPointer[machinelogbook.OrganizationKind](kind),
 			PricingGroupID: r.Params.PricingGroupId,
 			Page:           defaultInt(r.Params.Page, 1),
 			PageSize:       defaultInt(r.Params.PageSize, 25),
@@ -62,7 +62,7 @@ func (s *Server) CreateOrganization(
 		ctx,
 		p,
 		r.Body.Name,
-		string(r.Body.Kind),
+		machinelogbook.OrganizationKind(r.Body.Kind),
 		machinelogbook.OrganizationDetailsInput{
 			AddressLine:  r.Body.AddressLine,
 			PostalCode:   r.Body.PostalCode,
@@ -96,7 +96,7 @@ func (s *Server) UpdateOrganization(
 		r.OrganizationId,
 		r.Body.ExpectedVersion,
 		r.Body.Name,
-		string(r.Body.Kind),
+		machinelogbook.OrganizationKind(r.Body.Kind),
 		r.Body.Active,
 		machinelogbook.OrganizationDetailsInput{
 			AddressLine:  r.Body.AddressLine,

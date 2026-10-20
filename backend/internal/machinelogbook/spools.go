@@ -42,16 +42,16 @@ func pgTimestamp(value time.Time) pgtype.Timestamptz {
 // spoolStatus derives the display status: archived spools are archived;
 // single-use spools are active; reusable spools are loaded while a fill is open
 // and need a refill otherwise.
-func spoolStatus(lifecycle, kind string, hasOpenFill bool) string {
+func spoolStatus(lifecycle SpoolLifecycle, kind SpoolKind, hasOpenFill bool) SpoolStatus {
 	switch {
-	case lifecycle == "archived":
-		return "archived"
-	case kind == "single_use":
-		return "active"
+	case lifecycle == SpoolArchived:
+		return SpoolStatusArchived
+	case kind == SpoolSingleUse:
+		return SpoolStatusActive
 	case hasOpenFill:
-		return "loaded"
+		return SpoolStatusLoaded
 	default:
-		return "needs_refill"
+		return SpoolStatusNeedsRefill
 	}
 }
 
@@ -85,9 +85,9 @@ func spoolFromGet(row machinelogbookdb.GetFilamentSpoolRow) FilamentSpool {
 		),
 		ID:                row.ID,
 		DisplayID:         row.DisplayID,
-		Kind:              row.Kind,
+		Kind:              SpoolKind(row.Kind),
 		Label:             row.Label,
-		Status:            spoolStatus(row.Lifecycle, row.Kind, row.FillID != nil),
+		Status:            spoolStatus(SpoolLifecycle(row.Lifecycle), SpoolKind(row.Kind), row.FillID != nil),
 		FillNumber:        row.FillNumber,
 		FillID:            row.FillID,
 		FilledAt:          nullableTime(row.FilledAt),
@@ -110,7 +110,7 @@ func spoolFromGet(row machinelogbookdb.GetFilamentSpoolRow) FilamentSpool {
 		AcquisitionReference: row.AcquisitionReference,
 		StorageLocation:      row.StorageLocation,
 		Notes:                row.Notes,
-		Lifecycle:            row.Lifecycle,
+		Lifecycle:            SpoolLifecycle(row.Lifecycle),
 		Mounted:              row.Mounted,
 		Version:              row.Version,
 		CreatedAt:            row.CreatedAt,
@@ -123,7 +123,7 @@ func spoolFromList(row machinelogbookdb.ListFilamentSpoolsRow) FilamentSpool {
 }
 
 func identifierFromRow(row machinelogbookdb.FilamentSpoolIdentifier) FilamentSpoolIdentifier {
-	return FilamentSpoolIdentifier{ID: row.ID, Kind: row.Kind, Value: row.Value, CreatedAt: row.CreatedAt}
+	return FilamentSpoolIdentifier{ID: row.ID, Kind: IdentifierKind(row.Kind), Value: row.Value, CreatedAt: row.CreatedAt}
 }
 
 func identifiersFromRows(rows []machinelogbookdb.FilamentSpoolIdentifier) []FilamentSpoolIdentifier {
@@ -190,7 +190,7 @@ func (s *Service) loadSpool(
 				),
 				UsedG:       decimalString(fill.UsedG),
 				LeftoverG:   decimalString(fill.LeftoverG),
-				Outcome:     outcome,
+				Outcome:     FillOutcome(outcome),
 				FilledAt:    fill.FilledAt,
 				ClosedAt:    fill.ClosedAt.Time,
 				Identifiers: identifiers,
@@ -211,8 +211,8 @@ func (s *Service) GetFilamentSpool(
 	return s.loadSpool(ctx, machinelogbookdb.New(s.pool), id, true)
 }
 
-func validSpoolStatus(status string) bool {
-	return status == "loaded" || status == "needs_refill" || status == "active" || status == "archived"
+func validSpoolStatus(status SpoolStatus) bool {
+	return status == SpoolStatusLoaded || status == SpoolStatusNeedsRefill || status == SpoolStatusActive || status == SpoolStatusArchived
 }
 
 func (s *Service) ListFilamentSpools(
@@ -223,10 +223,10 @@ func (s *Service) ListFilamentSpools(
 	if err := require(p, authorization.InventoryRead); err != nil {
 		return nil, 0, err
 	}
-	if f.Lifecycle != "" && f.Lifecycle != "active" && f.Lifecycle != "archived" {
+	if f.Lifecycle != "" && f.Lifecycle != SpoolActive && f.Lifecycle != SpoolArchived {
 		return nil, 0, apperror.Invalid("invalid spool lifecycle")
 	}
-	if f.Kind != "" && f.Kind != "reusable" && f.Kind != "single_use" {
+	if f.Kind != "" && f.Kind != SpoolReusable && f.Kind != SpoolSingleUse {
 		return nil, 0, apperror.Invalid("invalid spool kind")
 	}
 	statuses := make([]string, 0, len(f.Statuses))
@@ -234,7 +234,7 @@ func (s *Service) ListFilamentSpools(
 		if !validSpoolStatus(status) {
 			return nil, 0, apperror.Invalid("invalid spool status")
 		}
-		statuses = append(statuses, status)
+		statuses = append(statuses, string(status))
 	}
 	offset, limit, err := pageBounds(f.Page, f.PageSize)
 	if err != nil {
@@ -244,11 +244,11 @@ func (s *Service) ListFilamentSpools(
 	params := machinelogbookdb.ListFilamentSpoolsParams{
 		Search:     strings.TrimSpace(f.Search),
 		MaterialID: f.MaterialID,
-		Lifecycle:  f.Lifecycle,
+		Lifecycle:  string(f.Lifecycle),
 		Location: strings.TrimSpace(
 			f.Location,
 		),
-		Kind:         f.Kind,
+		Kind:         string(f.Kind),
 		Statuses:     statuses,
 		Mounted:      f.Mounted,
 		ProductID:    f.ProductID,
@@ -295,18 +295,19 @@ func (s *Service) ListFilamentSpools(
 func (s *Service) LookupFilamentSpool(
 	ctx context.Context,
 	p authorization.Principal,
-	kind, value string,
+	kind IdentifierKind,
+	value string,
 ) (FilamentSpool, error) {
 	if err := require(p, authorization.InventoryRead); err != nil {
 		return FilamentSpool{}, err
 	}
-	if kind != "barcode" && kind != "qr" && kind != "nfc" {
+	if kind != IdentifierBarcode && kind != IdentifierQR && kind != IdentifierNFC {
 		return FilamentSpool{}, apperror.Invalid("invalid identifier kind")
 	}
 	id, err := machinelogbookdb.New(s.pool).
 		FindFilamentSpoolByIdentifier(
 			ctx,
-			machinelogbookdb.FindFilamentSpoolByIdentifierParams{Kind: kind, Value: strings.TrimSpace(value)},
+			machinelogbookdb.FindFilamentSpoolByIdentifierParams{Kind: string(kind), Value: strings.TrimSpace(value)},
 		)
 	if err != nil {
 		return FilamentSpool{}, noRows(err)
@@ -314,7 +315,7 @@ func (s *Service) LookupFilamentSpool(
 	return s.loadSpool(ctx, machinelogbookdb.New(s.pool), id, false)
 }
 
-func validSpoolKind(kind string) bool { return kind == "reusable" || kind == "single_use" }
+func validSpoolKind(kind SpoolKind) bool { return kind == SpoolReusable || kind == SpoolSingleUse }
 
 func validateOptionalText(value *string, field string, max int) (*string, error) {
 	value = optional.Trimmed(value)
@@ -336,18 +337,18 @@ func (s *Service) CreateFilamentSpool(
 	if err := require(p, authorization.InventoryManage); err != nil {
 		return FilamentSpool{}, err
 	}
-	if input.StockMode != "new_acquisition" && input.StockMode != "existing_stock" && input.StockMode != "empty" {
+	if input.StockMode != StockModeNewAcquisition && input.StockMode != StockModeExistingStock && input.StockMode != StockModeEmpty {
 		return FilamentSpool{}, apperror.Invalid("invalid stockMode")
 	}
 	kind := input.Kind
 	if kind == "" {
-		kind = "single_use"
+		kind = SpoolSingleUse
 	}
 	if !validSpoolKind(kind) {
 		return FilamentSpool{}, apperror.Invalid("invalid spool kind")
 	}
-	empty := input.StockMode == "empty"
-	if empty && kind != "reusable" {
+	empty := input.StockMode == StockModeEmpty
+	if empty && kind != SpoolReusable {
 		return FilamentSpool{}, unprocessable(
 			"empty_requires_reusable",
 			"Only reusable spools can be registered without a fill",
@@ -433,7 +434,7 @@ func (s *Service) CreateFilamentSpool(
 		machinelogbookdb.CreateFilamentSpoolParams{
 			ID:          id,
 			DisplayID:   fmt.Sprintf("S-%04d-%06d", s.now().UTC().Year(), sequence),
-			Kind:        kind,
+			Kind:        string(kind),
 			Label:       label,
 			TareWeightG: tare,
 			AcquiredOn: pgDate(
@@ -524,7 +525,7 @@ func (s *Service) fillNewSpool(
 		FillNumber:     fill.FillNumber,
 		MaterialID:     input.MaterialID,
 	}
-	if input.StockMode == "new_acquisition" {
+	if input.StockMode == StockModeNewAcquisition {
 		if input.TotalPrice == nil {
 			return apperror.Invalid("totalPrice is required for a new acquisition")
 		}
@@ -540,7 +541,7 @@ func (s *Service) fillNewSpool(
 			input.MaterialID,
 			input.ExpectedInventoryVersion,
 			inventoryMutation{
-				Kind:          "purchase",
+				Kind:          InventoryPurchase,
 				QuantityDelta: weight,
 				UnitCost:      price.Div(weight),
 				ValueDelta:    price,
@@ -589,7 +590,7 @@ func (s *Service) UpdateFilamentSpool(
 	if err := require(p, authorization.FilamentSpoolsManage); err != nil {
 		return FilamentSpool{}, err
 	}
-	if in.ExpectedVersion < 1 || (in.Lifecycle != "active" && in.Lifecycle != "archived") ||
+	if in.ExpectedVersion < 1 || (in.Lifecycle != SpoolActive && in.Lifecycle != SpoolArchived) ||
 		(in.Kind != nil && !validSpoolKind(*in.Kind)) {
 		return FilamentSpool{}, apperror.Invalid("invalid spool update")
 	}
@@ -622,7 +623,7 @@ func (s *Service) UpdateFilamentSpool(
 	if current.Version != in.ExpectedVersion {
 		return FilamentSpool{}, apperror.StaleWrite
 	}
-	kind := current.Kind
+	kind := SpoolKind(current.Kind)
 	if in.Kind != nil {
 		kind = *in.Kind
 	}
@@ -633,7 +634,7 @@ func (s *Service) UpdateFilamentSpool(
 	}
 	archivedAt := current.ArchivedAt
 	switch {
-	case in.Lifecycle == "archived" && current.Lifecycle != "archived":
+	case in.Lifecycle == SpoolArchived && SpoolLifecycle(current.Lifecycle) != SpoolArchived:
 		if hasOpen && !decimalFromNumeric(open.RemainingQuantity).IsZero() {
 			return FilamentSpool{}, apperror.Conflicting(
 				"spool_has_stock",
@@ -652,8 +653,8 @@ func (s *Service) UpdateFilamentSpool(
 		); err != nil {
 			return FilamentSpool{}, err
 		}
-	case in.Lifecycle == "active" && current.Lifecycle == "archived":
-		if kind == "single_use" && !hasOpen {
+	case in.Lifecycle == SpoolActive && SpoolLifecycle(current.Lifecycle) == SpoolArchived:
+		if kind == SpoolSingleUse && !hasOpen {
 			return FilamentSpool{}, apperror.Conflicting(
 				"spool_without_fill",
 				"A finished single-use spool cannot be restored",
@@ -664,7 +665,7 @@ func (s *Service) UpdateFilamentSpool(
 	_, err = q.UpdateFilamentSpool(
 		ctx,
 		machinelogbookdb.UpdateFilamentSpoolParams{
-			Kind:                 kind,
+			Kind:                 string(kind),
 			Label:                label,
 			TareWeightG:          tare,
 			AcquiredOn:           pgDate(in.AcquiredOn),
@@ -673,7 +674,7 @@ func (s *Service) UpdateFilamentSpool(
 				in.StorageLocation,
 			),
 			Notes:           optional.Trimmed(in.Notes),
-			Lifecycle:       in.Lifecycle,
+			Lifecycle:       string(in.Lifecycle),
 			ArchivedAt:      archivedAt,
 			ID:              id,
 			ExpectedVersion: in.ExpectedVersion,
@@ -719,14 +720,15 @@ func (s *Service) AddFilamentSpoolIdentifier(
 	ctx context.Context,
 	p authorization.Principal,
 	spoolID uuid.UUID,
-	kind, value string,
+	kind IdentifierKind,
+	value string,
 	requestID *uuid.UUID,
 ) (FilamentSpoolIdentifier, error) {
 	if err := require(p, authorization.FilamentSpoolsManage); err != nil {
 		return FilamentSpoolIdentifier{}, err
 	}
 	value = strings.TrimSpace(value)
-	if (kind != "barcode" && kind != "qr" && kind != "nfc") || value == "" || len(value) > 255 {
+	if (kind != IdentifierBarcode && kind != IdentifierQR && kind != IdentifierNFC) || value == "" || len(value) > 255 {
 		return FilamentSpoolIdentifier{}, apperror.Invalid("invalid spool identifier")
 	}
 	tx, err := s.pool.Begin(ctx)
@@ -751,7 +753,7 @@ func (s *Service) AddFilamentSpoolIdentifier(
 			ID:      ids.New(),
 			SpoolID: spoolID,
 			FillID:  open.ID,
-			Kind:    kind,
+			Kind:    string(kind),
 			Value:   value,
 		},
 	)
@@ -967,9 +969,9 @@ func (s *Service) ConsumeFilamentSpool(
 	if material.InventoryVersion != expectedInventory {
 		return InventoryMutationResult{}, apperror.StaleWrite
 	}
-	kind := "manual_consumption"
+	kind := InventoryManualConsumption
 	if disposal {
-		kind = "disposal"
+		kind = InventoryDisposal
 	}
 	average := decimalFromNumeric(material.AverageUnitCost)
 	result, err := s.applyInventoryMutation(
@@ -1064,7 +1066,7 @@ func (s *Service) CorrectFilamentSpoolStock(
 		ref.MaterialID,
 		expectedInventory,
 		inventoryMutation{
-			Kind:          "adjustment",
+			Kind:          InventoryAdjustment,
 			QuantityDelta: delta,
 			UnitCost:      unitCost,
 			ValueDelta:    delta.Mul(unitCost),

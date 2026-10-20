@@ -153,8 +153,8 @@ func (s *Service) UpdateMachineType(
 	return machineTypeFromRow(row), nil
 }
 
-func validateMachine(status string, automatic bool, external *string) error {
-	if status != "active" && status != "maintenance" && status != "retired" {
+func validateMachine(status MachineStatus, automatic bool, external *string) error {
+	if status != MachineStatusActive && status != MachineStatusMaintenance && status != MachineStatusRetired {
 		return apperror.Invalid("invalid machine status")
 	}
 	if optional.Trimmed(external) != nil && !automatic {
@@ -176,7 +176,7 @@ func machineFromGet(row machinelogbookdb.GetMachineRow) Machine {
 			UpdatedAt: row.MachineTypeUpdatedAt,
 		},
 		Name:                       row.Name,
-		Status:                     row.Status,
+		Status:                     MachineStatus(row.Status),
 		ExternalIdentifier:         row.ExternalIdentifier,
 		AutomaticCollectionEnabled: row.AutomaticCollectionEnabled,
 		LastIngestedAt:             nullableTime(row.LastIngestedAt),
@@ -202,7 +202,7 @@ func machineFromList(row machinelogbookdb.ListMachinesRow) Machine {
 			UpdatedAt: row.MachineTypeUpdatedAt,
 		},
 		Name:                       row.Name,
-		Status:                     row.Status,
+		Status:                     MachineStatus(row.Status),
 		ExternalIdentifier:         row.ExternalIdentifier,
 		AutomaticCollectionEnabled: row.AutomaticCollectionEnabled,
 		LastIngestedAt:             nullableTime(row.LastIngestedAt),
@@ -275,7 +275,8 @@ func (s *Service) CreateMachine(
 	ctx context.Context,
 	p authorization.Principal,
 	machineTypeID uuid.UUID,
-	name, status string,
+	name string,
+	status MachineStatus,
 	external *string,
 	automatic bool,
 	requestID *uuid.UUID,
@@ -312,7 +313,7 @@ func (s *Service) CreateMachine(
 			ID:                         id,
 			MachineTypeID:              machineTypeID,
 			Name:                       name,
-			Status:                     status,
+			Status:                     string(status),
 			ExternalIdentifier:         external,
 			AutomaticCollectionEnabled: automatic,
 		},
@@ -344,7 +345,8 @@ func (s *Service) UpdateMachine(
 	id uuid.UUID,
 	expected int64,
 	machineTypeID uuid.UUID,
-	name, status string,
+	name string,
+	status MachineStatus,
 	external *string,
 	automatic bool,
 	requestID *uuid.UUID,
@@ -389,7 +391,7 @@ func (s *Service) UpdateMachine(
 		machinelogbookdb.UpdateMachineParams{
 			MachineTypeID:              machineTypeID,
 			Name:                       name,
-			Status:                     status,
+			Status:                     string(status),
 			ExternalIdentifier:         external,
 			AutomaticCollectionEnabled: automatic,
 			ID:                         id,

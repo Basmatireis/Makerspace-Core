@@ -18,10 +18,10 @@ import (
 
 func customerReference(o db.Order) *OrderCustomer {
 	if o.CustomerPersonID != nil {
-		return &OrderCustomer{Kind: "person", ID: *o.CustomerPersonID}
+		return &OrderCustomer{Kind: CustomerPerson, ID: *o.CustomerPersonID}
 	}
 	if o.CustomerOrganizationID != nil {
-		return &OrderCustomer{Kind: "organization", ID: *o.CustomerOrganizationID}
+		return &OrderCustomer{Kind: CustomerOrganization, ID: *o.CustomerOrganizationID}
 	}
 	return nil
 }
@@ -93,7 +93,7 @@ func (s *Service) finalize(
 		return o, apperror.Invalid("Order total exceeds supported precision")
 	}
 	c := customerReference(o)
-	if o.CustomerKind != "anonymous" {
+	if CustomerKind(o.CustomerKind) != CustomerAnonymous {
 		if c == nil {
 			return o, apperror.Conflicting("customer_unavailable", "Choose a current customer before finalizing")
 		}
@@ -108,7 +108,7 @@ func (s *Service) finalize(
 			return o, e
 		}
 	}
-	if o.CustomerKind == "anonymous" && o.FulfillmentMode != "immediate" {
+	if CustomerKind(o.CustomerKind) == CustomerAnonymous && FulfillmentMode(o.FulfillmentMode) != FulfillmentImmediate {
 		return o, apperror.Conflicting(
 			"anonymous_requires_full_settlement",
 			"Deferred fulfillment requires a named customer",
@@ -116,7 +116,7 @@ func (s *Service) finalize(
 	}
 	if err = q.TransitionOrder(
 		ctx,
-		db.TransitionOrderParams{ID: o.ID, Status: "finalized", TotalAmount: numeric(total)},
+		db.TransitionOrderParams{ID: o.ID, Status: string(OrderFinalized), TotalAmount: numeric(total)},
 	); err != nil {
 		return o, databaseError(err)
 	}
@@ -148,7 +148,7 @@ func (s *Service) reverse(
 	if err := require(p, authorization.OrdersReverse); err != nil {
 		return err
 	}
-	if o.Status != "finalized" {
+	if OrderStatus(o.Status) != OrderFinalized {
 		return apperror.Conflicting("order_not_finalized", "Only finalized orders can be reversed")
 	}
 	reason = strings.TrimSpace(reason)
@@ -160,7 +160,7 @@ func (s *Service) reverse(
 	if e != nil && !errors.Is(e, pgx.ErrNoRows) {
 		return e
 	}
-	if e == nil && r.State != "cancelled" {
+	if e == nil && InvoiceState(r.State) != InvoiceCancelled {
 		return apperror.Conflicting(
 			"external_reconciliation_required",
 			"Cancel or reconcile the active external invoice request first",
@@ -220,7 +220,7 @@ func (s *Service) reverse(
 	}
 	if err = q.TransitionOrder(
 		ctx,
-		db.TransitionOrderParams{ID: o.ID, Status: "reversed", TotalAmount: o.TotalAmount},
+		db.TransitionOrderParams{ID: o.ID, Status: string(OrderReversed), TotalAmount: o.TotalAmount},
 	); err != nil {
 		return err
 	}
@@ -232,14 +232,14 @@ func (s *Service) Command(
 	p authorization.Principal,
 	id uuid.UUID,
 	input OrderCommand,
-	action string,
+	action OrderAction,
 	requestID *uuid.UUID,
 ) (Order, error) {
 	perm := authorization.OrdersFinalize
-	if action == "cancel" || action == "replacements" {
+	if action == OrderActionCancel || action == OrderActionReplacements {
 		perm = authorization.OrdersWrite
 	}
-	if action == "reverse" || action == "replace" {
+	if action == OrderActionReverse || action == OrderActionReplace {
 		perm = authorization.OrdersReverse
 	}
 	if err := require(p, authorization.OrdersRead, perm); err != nil {
@@ -250,7 +250,7 @@ func (s *Service) Command(
 			return Order{}, err
 		}
 	}
-	if len(input.Payments) > 0 || action == "checkout" {
+	if len(input.Payments) > 0 || action == OrderActionCheckout {
 		if err := require(p, authorization.PaymentsRead, authorization.PaymentsRecord); err != nil {
 			return Order{}, err
 		}
@@ -262,7 +262,7 @@ func (s *Service) Command(
 	defer func() { _ = tx.Rollback(ctx) }()
 	q := db.New(tx)
 	kind := "order." + action
-	old, hash, err := beginOperation(ctx, q, p, input.OperationKey, kind, struct {
+	old, hash, err := beginOperation(ctx, q, p, input.OperationKey, string(kind), struct {
 		ID    uuid.UUID
 		Input OrderCommand
 	}{id, input})
@@ -276,7 +276,7 @@ func (s *Service) Command(
 		return s.load(ctx, q, *old.OrderID)
 	}
 	var o, replacement db.Order
-	if action == "replace" {
+	if action == OrderActionReplace {
 		if input.ReplacementOrderID == uuid.Nil {
 			return Order{}, apperror.Invalid("Replacement order is required")
 		}
@@ -304,20 +304,20 @@ func (s *Service) Command(
 	}
 	resultID := id
 	switch action {
-	case "cancel":
+	case OrderActionCancel:
 		if err = draft(o); err == nil {
 			err = q.ReleaseOrderClaims(ctx, id)
 		}
 		if err == nil {
 			err = q.TransitionOrder(
 				ctx,
-				db.TransitionOrderParams{ID: id, Status: "cancelled", TotalAmount: o.TotalAmount},
+				db.TransitionOrderParams{ID: id, Status: string(OrderCancelled), TotalAmount: o.TotalAmount},
 			)
 		}
 		if err == nil {
 			err = writeAudit(ctx, tx, p, "order.cancelled", "order", id, requestID, "status")
 		}
-	case "finalize", "checkout":
+	case OrderActionFinalize, OrderActionCheckout:
 		if o.ReplacesOrderReference != nil {
 			return Order{}, apperror.Conflicting(
 				"replacement_commit_required",
@@ -335,7 +335,7 @@ func (s *Service) Command(
 		if err == nil {
 			err = s.checkAnonymous(ctx, q, o)
 		}
-	case "reverse":
+	case OrderActionReverse:
 		for _, r := range input.Reversals {
 			if err = s.reverseReceipt(ctx, tx, p, o, r, input.OperationKey, requestID); err != nil {
 				break
@@ -344,8 +344,8 @@ func (s *Service) Command(
 		if err == nil {
 			err = s.reverse(ctx, tx, p, o, input.Reason, requestID)
 		}
-	case "replacements":
-		if o.Status != "finalized" && o.Status != "reversed" {
+	case OrderActionReplacements:
+		if OrderStatus(o.Status) != OrderFinalized && OrderStatus(o.Status) != OrderReversed {
 			return Order{}, apperror.Conflicting(
 				"order_not_finalized",
 				"Replacement requires finalized or reversed original",
@@ -364,7 +364,7 @@ func (s *Service) Command(
 			ctx,
 			tx,
 			p,
-			OrderDraftInput{Customer: customerReference(o), FulfillmentMode: o.FulfillmentMode},
+			OrderDraftInput{Customer: customerReference(o), FulfillmentMode: FulfillmentMode(o.FulfillmentMode)},
 			&o,
 			requestID,
 		)
@@ -379,7 +379,7 @@ func (s *Service) Command(
 					continue
 				}
 				v := OrderItemInput{
-					Kind:        i.Kind,
+					Kind:        OrderItemKind(i.Kind),
 					Description: i.Description,
 					Quantity:    d(i.Quantity).String(),
 					Unit:        i.Unit,
@@ -393,7 +393,7 @@ func (s *Service) Command(
 					}
 					v.MachineJobID = job.ID
 					v.ExpectedJobVersion = job.Version
-				} else if i.Kind == "machine_job" {
+				} else if OrderItemKind(i.Kind) == ItemMachineJob {
 					err = apperror.Conflicting(
 						"source_unavailable",
 						"The original job is unavailable; add a manual replacement item explicitly",
@@ -404,7 +404,7 @@ func (s *Service) Command(
 			}
 			resultID = next.ID
 		}
-	case "replace":
+	case OrderActionReplace:
 		if err = require(
 			p,
 			authorization.OrdersFinalize,
@@ -422,11 +422,11 @@ func (s *Service) Command(
 		if replacement.ReplacesOrderID == nil || *replacement.ReplacesOrderID != id {
 			return Order{}, apperror.Invalid("Replacement is not linked to this original")
 		}
-		if o.Status != "finalized" && o.Status != "reversed" {
+		if OrderStatus(o.Status) != OrderFinalized && OrderStatus(o.Status) != OrderReversed {
 			return Order{}, apperror.Conflicting("order_not_finalized", "Original is no longer replaceable")
 		}
 		r, e := q.LatestRequest(ctx, &id)
-		if e == nil && r.State != "cancelled" {
+		if e == nil && InvoiceState(r.State) != InvoiceCancelled {
 			return Order{}, apperror.Conflicting("external_reconciliation_required", "Resolve external invoicing first")
 		}
 		if e != nil && !errors.Is(e, pgx.ErrNoRows) {
@@ -443,7 +443,7 @@ func (s *Service) Command(
 		}
 		paid := decimal.Zero
 		for _, payment := range receipts {
-			if payment.Method == "external" {
+			if PaymentMethod(payment.Method) == PaymentExternal {
 				return Order{}, apperror.Conflicting(
 					"external_reconciliation_required",
 					"External payments cannot be carried forward",
@@ -470,7 +470,7 @@ func (s *Service) Command(
 				return Order{}, err
 			}
 		}
-		if o.Status == "finalized" {
+		if OrderStatus(o.Status) == OrderFinalized {
 			if err = s.reverse(ctx, tx, p, o, input.Reason, requestID); err != nil {
 				return Order{}, err
 			}
@@ -518,7 +518,7 @@ func (s *Service) Command(
 	if err != nil {
 		return Order{}, databaseError(err)
 	}
-	if err = finishOperation(ctx, q, p, input.OperationKey, kind, hash, &resultID, nil); err != nil {
+	if err = finishOperation(ctx, q, p, input.OperationKey, string(kind), hash, &resultID, nil); err != nil {
 		return Order{}, err
 	}
 	result, err := s.load(ctx, q, resultID)

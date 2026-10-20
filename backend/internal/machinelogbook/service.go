@@ -51,7 +51,8 @@ type MachineType struct {
 type Machine struct {
 	ID                                uuid.UUID
 	MachineType                       MachineType
-	Name, Status                      string
+	Name                              string
+	Status                            MachineStatus
 	ExternalIdentifier                *string
 	AutomaticCollectionEnabled        bool
 	LastIngestedAt                    *time.Time
@@ -61,9 +62,10 @@ type Machine struct {
 }
 
 type Organization struct {
-	ID         uuid.UUID
-	Name, Kind string
-	Active     bool
+	ID     uuid.UUID
+	Name   string
+	Kind   OrganizationKind
+	Active bool
 	OrganizationDetails
 	MemberCount                   int64
 	PricingGroup                  *PricingGroupSummary
@@ -87,7 +89,7 @@ type OrganizationDetailsInput struct {
 type OrganizationFilters struct {
 	Search         string
 	Active         *bool
-	Kind           *string
+	Kind           *OrganizationKind
 	PricingGroupID *uuid.UUID
 	Page, PageSize int
 }
@@ -110,8 +112,9 @@ type PricingGroupSummary struct {
 
 type BillingParty struct {
 	ID                            uuid.UUID
-	Kind, DisplayName             string
-	OrganizationKind              *string
+	Kind                          PartyKind
+	DisplayName                   string
+	OrganizationKind              *OrganizationKind
 	PricingGroup                  *PricingGroupSummary
 	PricingGroupAssignmentVersion int64
 	MemberOrganizations           []OrganizationReference
@@ -124,7 +127,7 @@ type Operator struct {
 
 type PricingRule struct {
 	ID, PricingGroupID uuid.UUID
-	Kind               string
+	Kind               PricingRuleKind
 	MachineTypeID      *uuid.UUID
 	// MaterialTypeID, its name and MaterialUnit are set on material rules only;
 	// the unit is the unit of the type.
@@ -173,24 +176,25 @@ type Material struct {
 	FilamentDiameterMM                                 *string
 	Quantity, AssignedQuantity, UnassignedQuantity     string
 	InventoryValue, AverageUnitCost, RecentConsumption string
-	StockState                                         string
+	StockState                                         StockState
 	Version, InventoryVersion                          int64
 	CreatedAt, UpdatedAt                               time.Time
 }
 
 type InventoryTransaction struct {
-	ID, MaterialID                                                uuid.UUID
-	Kind, QuantityDelta, UnitAcquisitionCost, InventoryValueDelta string
-	TotalPurchasePrice                                            *string
-	OccurredAt, CreatedAt                                         time.Time
-	Supplier, Note, AdjustmentReason                              *string
-	MachineJobID                                                  *uuid.UUID
-	MachineJobDisplayID                                           *string
-	SpoolID, FromSpoolID, ToSpoolID                               *uuid.UUID
-	SpoolDisplayID, FromSpoolDisplayID, ToSpoolDisplayID          *string
-	FillNumber, FromFillNumber, ToFillNumber                      *int32
-	TransferQuantity                                              *string
-	ActorName                                                     *string
+	ID, MaterialID                                          uuid.UUID
+	Kind                                                    InventoryKind
+	QuantityDelta, UnitAcquisitionCost, InventoryValueDelta string
+	TotalPurchasePrice                                      *string
+	OccurredAt, CreatedAt                                   time.Time
+	Supplier, Note, AdjustmentReason                        *string
+	MachineJobID                                            *uuid.UUID
+	MachineJobDisplayID                                     *string
+	SpoolID, FromSpoolID, ToSpoolID                         *uuid.UUID
+	SpoolDisplayID, FromSpoolDisplayID, ToSpoolDisplayID    *string
+	FillNumber, FromFillNumber, ToFillNumber                *int32
+	TransferQuantity                                        *string
+	ActorName                                               *string
 }
 
 type InventoryMutationResult struct {
@@ -199,20 +203,22 @@ type InventoryMutationResult struct {
 }
 
 type PartyReference struct {
-	Kind string
+	Kind PartyKind
 	ID   uuid.UUID
 }
 type UsageInput struct {
-	MaterialID              uuid.UUID
-	SpoolID                 *uuid.UUID
-	Ownership               string
-	ExternalMaterialName    *string
-	Quantity, QuantityBasis string
+	MaterialID           uuid.UUID
+	SpoolID              *uuid.UUID
+	Ownership            UsageOwnership
+	ExternalMaterialName *string
+	Quantity             string
+	QuantityBasis        QuantityBasis
 }
 
 type PriceAdjustment struct {
-	Kind, Value, Reason string
-	AdjustedAt          time.Time
+	Kind          PriceAdjustmentKind
+	Value, Reason string
+	AdjustedAt    time.Time
 }
 
 // JobInput creates a job together with its first, manual run. Outcome "" or
@@ -223,7 +229,7 @@ type JobInput struct {
 	StartsAt, EndsAt time.Time
 	Customer         PartyReference
 	OperatorPersonID uuid.UUID
-	Outcome          string
+	Outcome          JobOutcome
 	Notes            *string
 	PricingGroupID   *uuid.UUID
 	Usages           []UsageInput
@@ -240,13 +246,13 @@ type JobUpdate struct {
 	OperatorPersonID uuid.UUID
 	Notes            *string
 	PricingGroupID   *uuid.UUID
-	OutcomeOverride  *string
+	OutcomeOverride  *RunOutcome
 }
 
 // ManualRunInput is a manually entered run. A nil Outcome records none yet.
 type ManualRunInput struct {
 	StartsAt, EndsAt time.Time
-	Outcome          *string
+	Outcome          *RunOutcome
 	Usages           []UsageInput
 	Measures         RunMeasures
 }
@@ -254,7 +260,7 @@ type ManualRunInput struct {
 type JobFilters struct {
 	Search                                        string
 	MachineID, CustomerID, OperatorID, MaterialID *uuid.UUID
-	Outcome                                       *string
+	Outcome                                       *JobOutcome
 	From, To                                      *time.Time
 	Page, PageSize                                int
 }
@@ -265,11 +271,12 @@ type MachineJobUsage struct {
 	MaterialName, Unit, Quantity         string
 	MaterialTypeID                       *uuid.UUID
 	MaterialTypeName                     string
-	Ownership, QuantityBasis             string
+	Ownership                            UsageOwnership
+	QuantityBasis                        QuantityBasis
 	SpoolDisplayID                       *string
 	FillNumber                           *int32
 	EstimationMethod, CalculationVersion *string
-	EstimateQuality                      *string
+	EstimateQuality                      *EstimateQuality
 	ReportRevision                       *int64
 	StaffCorrected                       bool
 }
@@ -280,9 +287,10 @@ type ArtifactReference struct {
 }
 
 type FilamentSpoolIdentifier struct {
-	ID          uuid.UUID
-	Kind, Value string
-	CreatedAt   time.Time
+	ID        uuid.UUID
+	Kind      IdentifierKind
+	Value     string
+	CreatedAt time.Time
 }
 
 // FilamentSpool is a physical spool. Material, product, weights and
@@ -296,7 +304,9 @@ type SpoolMount struct {
 
 type FilamentSpool struct {
 	ID                                           uuid.UUID
-	DisplayID, Kind, Status                      string
+	DisplayID                                    string
+	Kind                                         SpoolKind
+	Status                                       SpoolStatus
 	Label                                        *string
 	FillNumber                                   int32
 	FillID, MaterialID, ProductID                *uuid.UUID
@@ -309,7 +319,7 @@ type FilamentSpool struct {
 	TareWeightG                                  *string
 	AcquiredOn                                   *time.Time
 	AcquisitionReference, StorageLocation, Notes *string
-	Lifecycle                                    string
+	Lifecycle                                    SpoolLifecycle
 	Mounted                                      bool
 	MountedOn                                    *SpoolMount
 	Identifiers                                  []FilamentSpoolIdentifier
@@ -320,21 +330,24 @@ type FilamentSpool struct {
 
 // FilamentSpoolFill is a closed fill of a spool.
 type FilamentSpoolFill struct {
-	ID, MaterialID                               uuid.UUID
-	ProductID                                    *uuid.UUID
-	FillNumber                                   int32
-	MaterialName                                 string
-	Manufacturer, ProductName                    *string
-	InitialNetWeightG, UsedG, LeftoverG, Outcome string
-	FilledAt, ClosedAt                           time.Time
-	Identifiers                                  []FilamentSpoolIdentifier
+	ID, MaterialID                      uuid.UUID
+	ProductID                           *uuid.UUID
+	FillNumber                          int32
+	MaterialName                        string
+	Manufacturer, ProductName           *string
+	InitialNetWeightG, UsedG, LeftoverG string
+	Outcome                             FillOutcome
+	FilledAt, ClosedAt                  time.Time
+	Identifiers                         []FilamentSpoolIdentifier
 }
 
 type FilamentSpoolInput struct {
-	Kind, Label                                  string
+	Kind                                         SpoolKind
+	Label                                        string
 	ProductID                                    *uuid.UUID
 	MaterialID                                   uuid.UUID
-	InitialNetWeightG, StockMode                 string
+	InitialNetWeightG                            string
+	StockMode                                    StockMode
 	Supplier                                     *string
 	TotalPrice                                   *string
 	Manufacturer, ProductName, TareWeightG       *string
@@ -346,37 +359,44 @@ type FilamentSpoolInput struct {
 
 type FilamentSpoolUpdate struct {
 	ExpectedVersion                               int64
-	Kind                                          *string
+	Kind                                          *SpoolKind
 	Label, Manufacturer, ProductName, TareWeightG *string
 	AcquiredOn                                    *time.Time
 	AcquisitionReference, StorageLocation, Notes  *string
-	Lifecycle                                     string
+	Lifecycle                                     SpoolLifecycle
 }
 
 type SpoolFilters struct {
-	Search, Lifecycle, Location, Kind, Manufacturer string
-	MaterialID, ProductID                           *uuid.UUID
-	Statuses                                        []string
-	Mounted                                         *bool
-	Consumable                                      bool
-	Page, PageSize                                  int
+	Search, Location, Manufacturer string
+	Lifecycle                      SpoolLifecycle
+	Kind                           SpoolKind
+	MaterialID, ProductID          *uuid.UUID
+	Statuses                       []SpoolStatus
+	Mounted                        *bool
+	Consumable                     bool
+	Page, PageSize                 int
 }
 
 // LeftoverInput describes what is left on a fill that is being closed.
 type LeftoverInput struct {
-	Basis                     string
-	GrossWeightG, Disposition *string
+	Basis        LeftoverBasis
+	GrossWeightG *string
+	Disposition  *LeftoverDisposition
 }
 
 type NewFillInput struct {
 	ProductID                 *uuid.UUID
 	MaterialID                uuid.UUID
 	Manufacturer, ProductName *string
-	NetWeightG, Source        string
+	NetWeightG                string
+	Source                    FillSource
 	TotalPrice, Supplier      *string
 }
 
-type NewSpoolIdentifier struct{ Kind, Value string }
+type NewSpoolIdentifier struct {
+	Kind  IdentifierKind
+	Value string
+}
 
 type ChangeFillInput struct {
 	Leftover          *LeftoverInput
@@ -405,44 +425,48 @@ type FilamentProduct struct {
 	Manufacturer, Name       string
 	MaterialName, NetWeightG string
 	DefaultPrice, Notes      *string
-	Packaging                string
+	Packaging                Packaging
 	Active                   bool
 	InUseCount, Version      int64
 	CreatedAt, UpdatedAt     time.Time
 }
 
 type FilamentProductInput struct {
-	Manufacturer, Name, NetWeightG, Packaging string
-	MaterialID                                uuid.UUID
-	DefaultPrice, Notes                       *string
-	Active                                    bool
-	ExpectedVersion                           int64
+	Manufacturer, Name, NetWeightG string
+	Packaging                      Packaging
+	MaterialID                     uuid.UUID
+	DefaultPrice, Notes            *string
+	Active                         bool
+	ExpectedVersion                int64
 }
 
 type FilamentProductFilters struct {
-	Search, Manufacturer, Packaging string
-	MaterialID                      *uuid.UUID
-	IncludeInactive                 bool
-	Page, PageSize                  int
+	Search, Manufacturer string
+	Packaging            Packaging
+	MaterialID           *uuid.UUID
+	IncludeInactive      bool
+	Page, PageSize       int
 }
 
 type PricingSnapshotRule struct {
-	SourceRuleID                *uuid.UUID
-	Kind, Label, Selector, Unit string
-	Measure                     *string
-	BlockSize                   *int32
-	Rate                        *string
-	Missing                     bool
+	SourceRuleID          *uuid.UUID
+	Kind                  PricingRuleKind
+	Label, Selector, Unit string
+	Measure               *string
+	BlockSize             *int32
+	Rate                  *string
+	Missing               bool
 }
 
 type PricingSnapshot struct {
-	ID                                 uuid.UUID
-	Revision                           int
-	PricingGroupName, Currency, Reason string
-	Complete                           bool
-	CalculatedAmount                   *string
-	Rules                              []PricingSnapshotRule
-	CapturedAt                         time.Time
+	ID                         uuid.UUID
+	Revision                   int
+	PricingGroupName, Currency string
+	Reason                     SnapshotReason
+	Complete                   bool
+	CalculatedAmount           *string
+	Rules                      []PricingSnapshotRule
+	CapturedAt                 time.Time
 }
 
 type MachineJob struct {
@@ -450,7 +474,7 @@ type MachineJob struct {
 	DisplayID                         string
 	Title                             *string
 	Artifact                          *ArtifactReference
-	Status                            string
+	Status                            JobStatus
 	Machine                           Machine
 	Runs                              []MachineRun
 	StartedAt, EndedAt, ExpectedEndAt *time.Time
@@ -458,13 +482,13 @@ type MachineJob struct {
 	Measures                          RunMeasures
 	Customer                          *BillingParty
 	Operator                          *Operator
-	Outcome                           string
+	Outcome                           JobOutcome
 	OutcomeOverridden                 bool
 	Notes                             *string
 	// Usages is the material of all runs that are not replaced. It feeds order
 	// snapshots and is not part of the API representation.
 	Usages                          []MachineJobUsage
-	PricingStatus                   string
+	PricingStatus                   PricingStatus
 	PricingSnapshot                 *PricingSnapshot
 	CalculatedPrice, EffectivePrice *string
 	PriceAdjustment                 *PriceAdjustment

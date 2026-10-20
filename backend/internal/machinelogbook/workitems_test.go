@@ -206,7 +206,11 @@ func TestWorkItemsUnifyJobsAndUnassignedRuns(t *testing.T) {
 	if _, listed := byID[w.linkedRun]; listed {
 		t.Fatal("a run assigned to a job must only appear through the job")
 	}
-	type expectation struct{ kind, status, source string }
+	type expectation struct {
+		kind   WorkItemKind
+		status WorkItemStatus
+		source RunSource
+	}
 	for id, want := range map[uuid.UUID]expectation{
 		w.running.ID: {"job", "running", "manual"}, w.needsOutcome.ID: {
 			"job",
@@ -264,33 +268,33 @@ func TestWorkItemFilters(t *testing.T) {
 		}
 		sameIDs(t, label, items, want...)
 	}
-	only("status", WorkItemFilters{Statuses: []string{"running", "running_unassigned"}}, w.running.ID, w.printing)
-	only("status unlinked", WorkItemFilters{Statuses: []string{"unassigned"}}, w.ended)
-	only("status needs_outcome", WorkItemFilters{Statuses: []string{"needs_outcome", "cancelled"}}, w.needsOutcome.ID)
+	only("status", WorkItemFilters{Statuses: []WorkItemStatus{"running", "running_unassigned"}}, w.running.ID, w.printing)
+	only("status unlinked", WorkItemFilters{Statuses: []WorkItemStatus{"unassigned"}}, w.ended)
+	only("status needs_outcome", WorkItemFilters{Statuses: []WorkItemStatus{"needs_outcome", "cancelled"}}, w.needsOutcome.ID)
 	only("machine", WorkItemFilters{MachineIDs: []uuid.UUID{w.bareMachine.ID}}, w.noPrice.ID, w.printing, w.ended)
 	only(
 		"source manual",
-		WorkItemFilters{Sources: []string{"manual"}},
+		WorkItemFilters{Sources: []RunSource{"manual"}},
 		w.running.ID,
 		w.needsOutcome.ID,
 		w.recorded.ID,
 		w.noPrice.ID,
 	)
-	only("source recorded", WorkItemFilters{Sources: []string{"recorded"}}, w.linked.ID, w.printing, w.ended)
+	only("source recorded", WorkItemFilters{Sources: []RunSource{"recorded"}}, w.linked.ID, w.printing, w.ended)
 	only("job material", WorkItemFilters{MaterialIDs: []uuid.UUID{w.jobFixture.material.ID}}, w.recorded.ID)
 	only("print material", WorkItemFilters{MaterialIDs: []uuid.UUID{w.material.ID}}, w.ended)
-	only("billing excludes prints", WorkItemFilters{Billing: []string{"price_incomplete"}}, w.noPrice.ID)
-	only("billing none match", WorkItemFilters{Billing: []string{"on_order", "order_outdated"}})
+	only("billing excludes prints", WorkItemFilters{Billing: []BillingState{"price_incomplete"}}, w.noPrice.ID)
+	only("billing none match", WorkItemFilters{Billing: []BillingState{"on_order", "order_outdated"}})
 	only(
 		"customer excludes prints",
-		WorkItemFilters{CustomerID: &w.person, Statuses: []string{"successful"}},
+		WorkItemFilters{CustomerID: &w.person, Statuses: []WorkItemStatus{"successful"}},
 		w.recorded.ID,
 		w.linked.ID,
 		w.noPrice.ID,
 	)
 	only(
 		"operator",
-		WorkItemFilters{OperatorID: &w.person, Statuses: []string{"unassigned", "running_unassigned", "running"}},
+		WorkItemFilters{OperatorID: &w.person, Statuses: []WorkItemStatus{"unassigned", "running_unassigned", "running"}},
 		w.running.ID,
 	)
 	stranger := ids.New()
@@ -339,7 +343,7 @@ func (w *workItemFixture) printingDisplayID(t *testing.T) string {
 
 func TestWorkItemSortingAndPagination(t *testing.T) {
 	w := newWorkItemFixture(t)
-	order := func(sort, direction string) []WorkItem {
+	order := func(sort string, direction SortDirection) []WorkItem {
 		t.Helper()
 		items, _ := w.list(t, WorkItemFilters{Sort: sort, Direction: direction})
 		return items
@@ -365,7 +369,7 @@ func TestWorkItemSortingAndPagination(t *testing.T) {
 		}
 		return strings.ToLower(item.DisplayID)
 	}
-	for _, direction := range []string{"asc", "desc"} {
+	for _, direction := range []SortDirection{SortAsc, SortDesc} {
 		names := order("name", direction)
 		sorted := slices.IsSortedFunc(names, func(a, b WorkItem) int {
 			if direction == "desc" {
@@ -471,7 +475,7 @@ func TestWorkItemsAndActivityRequireTheirPermissions(t *testing.T) {
 func TestMachineActivityAvailabilityAndConnector(t *testing.T) {
 	h := newLiveRunHarness(t)
 	ctx := t.Context()
-	extra := func(name, status string) Machine {
+	extra := func(name string, status MachineStatus) Machine {
 		t.Helper()
 		m, err := h.s.CreateMachine(
 			ctx,
@@ -567,7 +571,7 @@ func TestMachineActivityAvailabilityAndConnector(t *testing.T) {
 	}
 	all := fetch(h.p)
 	// A run is running until its planned end, as the job aggregates see it.
-	for id, want := range map[uuid.UUID]string{
+	for id, want := range map[uuid.UUID]MachineAvailability{
 		h.machine.ID:     "in_use",
 		h.bareMachine.ID: "in_use",
 		retired.ID:       "retired",
@@ -700,14 +704,14 @@ func TestOverviewWorkItemCountsAndActiveItems(t *testing.T) {
 			t.Fatalf("%s = %d on this fixture's machines, want %d", label, total, want)
 		}
 	}
-	scoped("running+printing", WorkItemFilters{Statuses: []string{"running", "running_unassigned"}}, 2)
+	scoped("running+printing", WorkItemFilters{Statuses: []WorkItemStatus{"running", "running_unassigned"}}, 2)
 	// The attached run has no outcome yet, so its job waits for one as well.
-	scoped("needs_outcome", WorkItemFilters{Statuses: []string{"needs_outcome"}}, 2)
-	scoped("unlinked", WorkItemFilters{Statuses: []string{"unassigned"}}, 1)
-	scoped("billing issues", WorkItemFilters{Billing: []string{"price_incomplete", "order_outdated"}}, 1)
+	scoped("needs_outcome", WorkItemFilters{Statuses: []WorkItemStatus{"needs_outcome"}}, 2)
+	scoped("unlinked", WorkItemFilters{Statuses: []WorkItemStatus{"unassigned"}}, 1)
+	scoped("billing issues", WorkItemFilters{Billing: []BillingState{"price_incomplete", "order_outdated"}}, 1)
 	scoped(
 		"active",
-		WorkItemFilters{Statuses: []string{"running", "running_unassigned", "unassigned", "needs_outcome"}},
+		WorkItemFilters{Statuses: []WorkItemStatus{"running", "running_unassigned", "unassigned", "needs_outcome"}},
 		5,
 	)
 	for _, name := range []string{h.machine.Name, h.bareMachine.Name} {
@@ -718,7 +722,9 @@ func TestOverviewWorkItemCountsAndActiveItems(t *testing.T) {
 	if len(after.ActiveItems) == 0 || len(after.ActiveItems) > 6 {
 		t.Fatalf("active items = %d", len(after.ActiveItems))
 	}
-	rank := map[string]int{"running": 1, "running_unassigned": 2, "unassigned": 3, "needs_outcome": 4}
+	rank := map[WorkItemStatus]int{
+		WorkItemRunning: 1, WorkItemRunningUnassigned: 2, WorkItemUnassigned: 3, WorkItemNeedsOutcome: 4,
+	}
 	var mine []uuid.UUID
 	for i, item := range after.ActiveItems {
 		if rank[item.Status] == 0 {

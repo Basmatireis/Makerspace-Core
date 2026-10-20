@@ -27,7 +27,7 @@ func validateParty(
 		return nil, nil, nil
 	}
 	switch party.Kind {
-	case "person":
+	case PartyPerson:
 		ok, err = q.BillingPersonExists(ctx, party.ID)
 		if err != nil {
 			return nil, nil, err
@@ -36,7 +36,7 @@ func validateParty(
 			return nil, nil, apperror.NotFound
 		}
 		return &party.ID, nil, nil
-	case "organization":
+	case PartyOrganization:
 		ok, err = q.ActiveOrganizationExists(ctx, party.ID)
 		if err != nil {
 			return nil, nil, err
@@ -50,12 +50,15 @@ func validateParty(
 	}
 }
 
-// Where the pricing group of a job comes from, in the order of precedence.
+// PricingSource is where the pricing group of a job comes from.
+type PricingSource string
+
+// The pricing group sources, in the order of precedence.
 const (
-	PricingSourceExplicit     = "explicit"
-	PricingSourceOrganization = "organization"
-	PricingSourceRole         = "role"
-	PricingSourceDefault      = "default"
+	PricingSourceExplicit     PricingSource = "explicit"
+	PricingSourceOrganization PricingSource = "organization"
+	PricingSourceRole         PricingSource = "role"
+	PricingSourceDefault      PricingSource = "default"
 )
 
 func resolvePricingGroup(
@@ -75,7 +78,7 @@ func resolvePricingGroupSource(
 	ctx context.Context,
 	q *machinelogbookdb.Queries,
 	personID, organizationID, explicit *uuid.UUID,
-) (machinelogbookdb.PricingGroup, string, error) {
+) (machinelogbookdb.PricingGroup, PricingSource, error) {
 	if explicit != nil {
 		group, err := q.GetPricingGroup(ctx, *explicit)
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -122,7 +125,7 @@ func ResolvePricingGroup(
 	ctx context.Context,
 	tx pgx.Tx,
 	personID, organizationID, explicit *uuid.UUID,
-) (uuid.UUID, string, string, error) {
+) (uuid.UUID, string, PricingSource, error) {
 	group, source, err := resolvePricingGroupSource(ctx, machinelogbookdb.New(tx), personID, organizationID, explicit)
 	return group.ID, group.Name, source, err
 }
@@ -130,7 +133,7 @@ func ResolvePricingGroup(
 func snapshotRuleFromRow(row machinelogbookdb.MachineJobPricingSnapshotRule) PricingSnapshotRule {
 	return PricingSnapshotRule{
 		SourceRuleID: row.SourceRuleID,
-		Kind:         row.Kind,
+		Kind:         PricingRuleKind(row.Kind),
 		Label:        row.Label,
 		Selector:     row.Selector,
 		Unit:         row.Unit,
@@ -195,7 +198,7 @@ func (s *Service) capturePricingSnapshot(
 	p authorization.Principal,
 	job machinelogbookdb.MachineJob,
 	group machinelogbookdb.PricingGroup,
-	reason string,
+	reason SnapshotReason,
 ) (machinelogbookdb.MachineJob, error) {
 	rules, err := q.GetActivePricingRulesByGroup(ctx, group.ID)
 	if err != nil {
@@ -219,7 +222,7 @@ func (s *Service) capturePricingSnapshot(
 	snapshotRules := make([]machinelogbookdb.InsertPricingSnapshotRuleParams, 0, len(usages)+2)
 	var runtime *machinelogbookdb.PricingRule
 	for i := range rules {
-		if rules[i].Kind == "machine_runtime" && rules[i].MachineTypeID != nil &&
+		if PricingRuleKind(rules[i].Kind) == PricingRuleMachineRuntime && rules[i].MachineTypeID != nil &&
 			*rules[i].MachineTypeID == machine.MachineTypeID {
 			r := rules[i]
 			runtime = &r
@@ -228,7 +231,7 @@ func (s *Service) capturePricingSnapshot(
 	}
 	runtimeEntry := machinelogbookdb.InsertPricingSnapshotRuleParams{
 		ID:       ids.New(),
-		Kind:     "machine_runtime",
+		Kind:     string(PricingRuleMachineRuntime),
 		Label:    "Machine runtime",
 		Selector: machine.MachineTypeID.String(),
 		Unit:     "hour",
@@ -259,7 +262,7 @@ func (s *Service) capturePricingSnapshot(
 		block := definition.BlockSize
 		entry := machinelogbookdb.InsertPricingSnapshotRuleParams{
 			ID:        ids.New(),
-			Kind:      "machine_measure",
+			Kind:      string(PricingRuleMachineMeasure),
 			Label:     definition.Label,
 			Selector:  key,
 			Measure:   &definition.Key,
@@ -268,7 +271,7 @@ func (s *Service) capturePricingSnapshot(
 		}
 		var matched *machinelogbookdb.PricingRule
 		for i := range rules {
-			if rules[i].Kind == "machine_measure" && rules[i].MachineTypeID != nil &&
+			if PricingRuleKind(rules[i].Kind) == PricingRuleMachineMeasure && rules[i].MachineTypeID != nil &&
 				*rules[i].MachineTypeID == machine.MachineTypeID &&
 				rules[i].Measure != nil &&
 				*rules[i].Measure == key {
@@ -293,12 +296,12 @@ func (s *Service) capturePricingSnapshot(
 		snapshotRules = append(snapshotRules, entry)
 	}
 	for _, usage := range usages {
-		if usage.Ownership == "external" {
+		if UsageOwnership(usage.Ownership) == OwnershipExternal {
 			continue
 		}
 		var matched *machinelogbookdb.PricingRule
 		for i := range rules {
-			if rules[i].Kind == "material" && rules[i].MaterialTypeID != nil && usage.MaterialTypeID != nil &&
+			if PricingRuleKind(rules[i].Kind) == PricingRuleMaterial && rules[i].MaterialTypeID != nil && usage.MaterialTypeID != nil &&
 				*rules[i].MaterialTypeID == *usage.MaterialTypeID &&
 				rules[i].MaterialUnit != nil &&
 				*rules[i].MaterialUnit == usage.Unit {
@@ -309,7 +312,7 @@ func (s *Service) capturePricingSnapshot(
 		}
 		entry := machinelogbookdb.InsertPricingSnapshotRuleParams{
 			ID:             ids.New(),
-			Kind:           "material",
+			Kind:           string(PricingRuleMaterial),
 			Label:          usage.MaterialName,
 			Selector:       usage.MaterialTypeName,
 			MaterialTypeID: usage.MaterialTypeID,
@@ -331,11 +334,11 @@ func (s *Service) capturePricingSnapshot(
 	}
 	snapshotID := ids.New()
 	calculated := pgtype.Numeric{}
-	status := "incomplete"
+	status := PricingIncomplete
 	if complete {
 		total = total.Round(2)
 		calculated = numericFromDecimal(total)
-		status = "complete"
+		status = PricingComplete
 	}
 	_, err = q.CreatePricingSnapshot(
 		ctx,
@@ -345,7 +348,7 @@ func (s *Service) capturePricingSnapshot(
 			Revision:            revision,
 			PricingGroupID:      &group.ID,
 			PricingGroupName:    group.Name,
-			Reason:              reason,
+			Reason:              string(reason),
 			Complete:            complete,
 			CalculatedAmount:    calculated,
 			CapturedByAccountID: accountPointer(p),
@@ -364,7 +367,7 @@ func (s *Service) capturePricingSnapshot(
 		ctx,
 		machinelogbookdb.ActivatePricingSnapshotParams{
 			SnapshotID:      &snapshotID,
-			PricingStatus:   status,
+			PricingStatus:   string(status),
 			CalculatedPrice: calculated,
 			EffectivePrice:  effectivePriceForRow(job, calculated),
 			ID:              job.ID,
@@ -380,7 +383,7 @@ func (s *Service) capturePricingSnapshot(
 // snapshotRuleSelector identifies what a snapshot rule prices: the material type
 // for material rules (older rows were backfilled with it), else the stored text.
 func snapshotRuleSelector(rule machinelogbookdb.MachineJobPricingSnapshotRule) string {
-	if rule.Kind == "material" && rule.MaterialTypeID != nil {
+	if PricingRuleKind(rule.Kind) == PricingRuleMaterial && rule.MaterialTypeID != nil {
 		return rule.MaterialTypeID.String()
 	}
 	return rule.Selector
@@ -393,7 +396,7 @@ func snapshotRuleCovers(
 	rule machinelogbookdb.MachineJobPricingSnapshotRule,
 	usage machinelogbookdb.ListRunUsagesForRunsRow,
 ) bool {
-	return rule.Kind == "material" && rule.MaterialTypeID != nil && usage.MaterialTypeID != nil &&
+	return PricingRuleKind(rule.Kind) == PricingRuleMaterial && rule.MaterialTypeID != nil && usage.MaterialTypeID != nil &&
 		*rule.MaterialTypeID == *usage.MaterialTypeID &&
 		rule.Unit == usage.Unit
 }
@@ -412,7 +415,7 @@ func (s *Service) computeFromSnapshot(
 	ctx context.Context,
 	q *machinelogbookdb.Queries,
 	job machinelogbookdb.MachineJob,
-) (string, pgtype.Numeric, error) {
+) (PricingStatus, pgtype.Numeric, error) {
 	rules, err := q.ListPricingSnapshotRules(ctx, *job.ActivePricingSnapshotID)
 	if err != nil {
 		return "", pgtype.Numeric{}, err
@@ -433,7 +436,7 @@ func (s *Service) computeFromSnapshot(
 			continue
 		}
 		seenRules[key] = true
-		if rule.Kind == "machine_measure" && rule.Measure != nil {
+		if PricingRuleKind(rule.Kind) == PricingRuleMachineMeasure && rule.Measure != nil {
 			coveredMeasures[*rule.Measure] = true
 			value := inputs.Measures[*rule.Measure]
 			if rule.Missing {
@@ -447,12 +450,12 @@ func (s *Service) computeFromSnapshot(
 			continue
 		}
 		if rule.Missing {
-			if rule.Kind == "machine_runtime" {
+			if PricingRuleKind(rule.Kind) == PricingRuleMachineRuntime {
 				complete = false
 			}
-			if rule.Kind == "material" {
+			if PricingRuleKind(rule.Kind) == PricingRuleMaterial {
 				for _, usage := range usages {
-					if usage.Ownership == "makerspace" && snapshotRuleCovers(rule, usage) {
+					if UsageOwnership(usage.Ownership) == OwnershipMakerspace && snapshotRuleCovers(rule, usage) {
 						complete = false
 						break
 					}
@@ -461,13 +464,13 @@ func (s *Service) computeFromSnapshot(
 			continue
 		}
 		rate := decimalFromNumeric(rule.Rate)
-		if rule.Kind == "machine_runtime" {
+		if PricingRuleKind(rule.Kind) == PricingRuleMachineRuntime {
 			runtimeFound = true
 			total = total.Add(runtimeHours(runtimeSeconds).Mul(rate))
 			continue
 		}
 		for _, usage := range usages {
-			if usage.Ownership == "makerspace" && snapshotRuleCovers(rule, usage) {
+			if UsageOwnership(usage.Ownership) == OwnershipMakerspace && snapshotRuleCovers(rule, usage) {
 				total = total.Add(decimalFromNumeric(usage.Quantity).Mul(rate))
 			}
 		}
@@ -481,7 +484,7 @@ func (s *Service) computeFromSnapshot(
 		}
 	}
 	for _, usage := range usages {
-		if usage.Ownership == "external" {
+		if UsageOwnership(usage.Ownership) == OwnershipExternal {
 			continue
 		}
 		found := false
@@ -496,9 +499,9 @@ func (s *Service) computeFromSnapshot(
 		}
 	}
 	if !complete {
-		return "incomplete", pgtype.Numeric{}, nil
+		return PricingIncomplete, pgtype.Numeric{}, nil
 	}
-	return "complete", numericFromDecimal(total.Round(2)), nil
+	return PricingComplete, numericFromDecimal(total.Round(2)), nil
 }
 
 // recalculateFromSnapshot reprices the job and bumps its version.
@@ -517,7 +520,7 @@ func (s *Service) recalculateFromSnapshot(
 	updated, err := q.RecalculateMachineJobPrice(
 		ctx,
 		machinelogbookdb.RecalculateMachineJobPriceParams{
-			PricingStatus:   status,
+			PricingStatus:   string(status),
 			CalculatedPrice: amount,
 			EffectivePrice:  effectivePriceForRow(job, amount),
 			ID:              job.ID,
@@ -547,7 +550,7 @@ func (s *Service) refreshPriceKeepingVersion(
 	return q.RefreshMachineJobPrice(
 		ctx,
 		machinelogbookdb.RefreshMachineJobPriceParams{
-			PricingStatus:   status,
+			PricingStatus:   string(status),
 			CalculatedPrice: amount,
 			EffectivePrice:  effectivePriceForRow(job, amount),
 			ID:              job.ID,
@@ -582,7 +585,7 @@ func (s *Service) coverUsages(
 		}
 		found := false
 		for _, rule := range rules {
-			if rule.Kind == "machine_measure" && rule.Measure != nil && *rule.Measure == key {
+			if PricingRuleKind(rule.Kind) == PricingRuleMachineMeasure && rule.Measure != nil && *rule.Measure == key {
 				found = true
 				break
 			}
@@ -590,7 +593,7 @@ func (s *Service) coverUsages(
 		covered = covered && found
 	}
 	for _, usage := range usages {
-		if usage.Ownership == "external" {
+		if UsageOwnership(usage.Ownership) == OwnershipExternal {
 			continue
 		}
 		found := false
@@ -616,7 +619,7 @@ func (s *Service) coverUsages(
 	if err != nil {
 		return job, err
 	}
-	return s.capturePricingSnapshot(ctx, q, authorization.Principal{}, job, group, "manual_reprice")
+	return s.capturePricingSnapshot(ctx, q, authorization.Principal{}, job, group, SnapshotManualReprice)
 }
 
 // settleJob reprices a locked job after its runs or their material changed.
@@ -663,13 +666,13 @@ func (s *Service) ChargeSource(
 	}
 	// Progress events reprice a running job without a version bump, so a
 	// charge snapshot of it could not be kept in step.
-	if job.Status == "running" {
+	if job.Status == JobStatusRunning {
 		return MachineJob{}, apperror.Conflicting(
 			"job_running",
 			"A job with a running run cannot be ordered until its runs have ended",
 		)
 	}
-	if job.Status == "planned" {
+	if job.Status == JobStatusPlanned {
 		return MachineJob{}, apperror.Conflicting("job_planned", "A planned job cannot be ordered until it has a run")
 	}
 	return job, nil

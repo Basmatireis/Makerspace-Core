@@ -31,7 +31,7 @@ type BulkItem struct {
 // request is all-or-nothing: when any item is blocked nothing changes and the
 // request is refused with 409 bulk_blocked listing every blocker.
 type BulkBlocker struct {
-	Kind      string // job or run
+	Kind      WorkItemKind
 	ID        uuid.UUID
 	DisplayID string
 	Code      string
@@ -153,7 +153,7 @@ func (s *Service) BulkDelete(
 			blockers = append(
 				blockers,
 				BulkBlocker{
-					Kind:      "job",
+					Kind:      WorkItemJob,
 					ID:        item.ID,
 					DisplayID: job.DisplayID,
 					Code:      "stale_write",
@@ -170,7 +170,7 @@ func (s *Service) BulkDelete(
 			blockers = append(
 				blockers,
 				BulkBlocker{
-					Kind:      "job",
+					Kind:      WorkItemJob,
 					ID:        item.ID,
 					DisplayID: job.DisplayID,
 					Code:      "job_on_order",
@@ -203,7 +203,7 @@ func (s *Service) BulkDelete(
 			blockers = append(
 				blockers,
 				BulkBlocker{
-					Kind:      "run",
+					Kind:      WorkItemRun,
 					ID:        item.ID,
 					DisplayID: run.DisplayID,
 					Code:      "run_assigned",
@@ -214,7 +214,7 @@ func (s *Service) BulkDelete(
 			blockers = append(
 				blockers,
 				BulkBlocker{
-					Kind:      "run",
+					Kind:      WorkItemRun,
 					ID:        item.ID,
 					DisplayID: run.DisplayID,
 					Code:      "stale_write",
@@ -233,7 +233,7 @@ func (s *Service) BulkDelete(
 		var deleting []machinelogbookdb.MachineRun
 		for _, entry := range jobs {
 			for _, run := range entry.runs {
-				if run.Source == "manual" || input.DeleteRecordedRuns {
+				if RunSource(run.Source) == RunSourceManual || input.DeleteRecordedRuns {
 					deleting = append(deleting, run)
 				}
 			}
@@ -281,7 +281,7 @@ func (s *Service) lockRunMaterials(
 			return err
 		}
 		for _, u := range active {
-			if u.Ownership != "external" && u.MaterialID != nil {
+			if UsageOwnership(u.Ownership) != OwnershipExternal && u.MaterialID != nil {
 				materialIDs[*u.MaterialID] = true
 			}
 		}
@@ -338,7 +338,7 @@ func (s *Service) lockUnassignedRuns(
 			blockers = append(
 				blockers,
 				BulkBlocker{
-					Kind:      "run",
+					Kind:      WorkItemRun,
 					ID:        item.ID,
 					DisplayID: run.DisplayID,
 					Code:      "run_already_assigned",
@@ -349,7 +349,7 @@ func (s *Service) lockUnassignedRuns(
 			blockers = append(
 				blockers,
 				BulkBlocker{
-					Kind:      "run",
+					Kind:      WorkItemRun,
 					ID:        item.ID,
 					DisplayID: run.DisplayID,
 					Code:      "stale_write",
@@ -386,7 +386,7 @@ func (s *Service) lockActiveMachines(
 		if err != nil {
 			return nil, noRows(err)
 		}
-		retired[id] = machine.Status == "retired"
+		retired[id] = MachineStatus(machine.Status) == MachineStatusRetired
 	}
 	var blockers []BulkBlocker
 	for _, run := range runs {
@@ -394,7 +394,7 @@ func (s *Service) lockActiveMachines(
 			blockers = append(
 				blockers,
 				BulkBlocker{
-					Kind:      "run",
+					Kind:      WorkItemRun,
 					ID:        run.ID,
 					DisplayID: run.DisplayID,
 					Code:      "machine_retired",
@@ -517,7 +517,7 @@ func (s *Service) BulkCreateJobsFromRuns(
 			}
 			return nil, databaseError(err)
 		}
-		if job, err = s.capturePricingSnapshot(ctx, q, p, job, group, "initial"); err != nil {
+		if job, err = s.capturePricingSnapshot(ctx, q, p, job, group, SnapshotInitial); err != nil {
 			return nil, err
 		}
 		if err = writeAudit(
@@ -621,7 +621,7 @@ func (s *Service) BulkCombineRuns(
 			return MachineJob{}, databaseError(err)
 		}
 	}
-	if job, err = s.capturePricingSnapshot(ctx, q, p, job, group, "initial"); err != nil {
+	if job, err = s.capturePricingSnapshot(ctx, q, p, job, group, SnapshotInitial); err != nil {
 		return MachineJob{}, err
 	}
 	if err = writeAudit(
@@ -699,7 +699,7 @@ func (s *Service) BulkAttachRuns(
 			blockers = append(
 				blockers,
 				BulkBlocker{
-					Kind:      "run",
+					Kind:      WorkItemRun,
 					ID:        run.ID,
 					DisplayID: run.DisplayID,
 					Code:      "run_machine_mismatch",
@@ -710,7 +710,7 @@ func (s *Service) BulkAttachRuns(
 			blockers = append(
 				blockers,
 				BulkBlocker{
-					Kind:      "run",
+					Kind:      WorkItemRun,
 					ID:        run.ID,
 					DisplayID: run.DisplayID,
 					Code:      "artifact_mismatch",

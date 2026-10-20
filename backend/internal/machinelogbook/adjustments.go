@@ -26,7 +26,7 @@ var maxAdjustmentValue = decimal.NewFromInt(1_000_000_000_000)
 // jobStatus derives the display status of a job: a recorded outcome wins,
 // otherwise the job is running until its end and then waits for an outcome.
 // validateOutcomeTiming rejects outcomes recorded before the run has ended.
-func validateOutcomeTiming(endsAt time.Time, outcome *string, now time.Time) error {
+func validateOutcomeTiming(endsAt time.Time, outcome *RunOutcome, now time.Time) error {
 	if outcome != nil && endsAt.After(now) {
 		return apperror.New(
 			http.StatusUnprocessableEntity,
@@ -45,21 +45,21 @@ func cleanTitle(value *string) (*string, error) {
 	return title, nil
 }
 
-func validatePriceAdjustment(kind string, value decimal.Decimal) error {
+func validatePriceAdjustment(kind PriceAdjustmentKind, value decimal.Decimal) error {
 	switch kind {
-	case "fixed":
+	case AdjustmentFixed:
 		if value.IsNegative() {
 			return apperror.Invalid("a fixed price must not be negative")
 		}
-	case "discount_percent":
+	case AdjustmentDiscountPercent:
 		if !value.IsPositive() || value.GreaterThan(decimal.NewFromInt(100)) {
 			return apperror.Invalid("a percent discount must be greater than 0 and at most 100")
 		}
-	case "discount_amount":
+	case AdjustmentDiscountAmount:
 		if !value.IsPositive() {
 			return apperror.Invalid("a discount amount must be greater than 0")
 		}
-	case "multiplier":
+	case AdjustmentMultiplier:
 		if !value.IsPositive() || value.GreaterThan(decimal.NewFromInt(100)) {
 			return apperror.Invalid("a multiplier must be greater than 0 and at most 100")
 		}
@@ -76,20 +76,20 @@ func validatePriceAdjustment(kind string, value decimal.Decimal) error {
 // an adjustment. A nil kind means no adjustment. Relative kinds cannot be
 // applied to an unknown calculated price and yield nil; the result is rounded
 // to cents like the calculation itself and never negative.
-func applyPriceAdjustment(calculated *decimal.Decimal, kind *string, value decimal.Decimal) *decimal.Decimal {
+func applyPriceAdjustment(calculated *decimal.Decimal, kind *PriceAdjustmentKind, value decimal.Decimal) *decimal.Decimal {
 	var result decimal.Decimal
 	switch {
 	case kind == nil:
 		return calculated
-	case *kind == "fixed":
+	case *kind == AdjustmentFixed:
 		result = value
 	case calculated == nil:
 		return nil
-	case *kind == "discount_percent":
+	case *kind == AdjustmentDiscountPercent:
 		result = calculated.Mul(decimal.NewFromInt(100).Sub(value).Div(decimal.NewFromInt(100)))
-	case *kind == "discount_amount":
+	case *kind == AdjustmentDiscountAmount:
 		result = calculated.Sub(value)
-	case *kind == "multiplier":
+	case *kind == AdjustmentMultiplier:
 		result = calculated.Mul(value)
 	default:
 		return nil
@@ -110,7 +110,7 @@ func effectivePriceForRow(job machinelogbookdb.MachineJob, calculated pgtype.Num
 		value := decimalFromNumeric(calculated)
 		calc = &value
 	}
-	result := applyPriceAdjustment(calc, job.PriceAdjustmentKind, decimalFromNumeric(job.PriceAdjustmentValue))
+	result := applyPriceAdjustment(calc, pointerAs[PriceAdjustmentKind](job.PriceAdjustmentKind), decimalFromNumeric(job.PriceAdjustmentValue))
 	if result == nil {
 		return pgtype.Numeric{}
 	}
@@ -122,7 +122,8 @@ func (s *Service) SetJobPriceAdjustment(
 	p authorization.Principal,
 	id uuid.UUID,
 	expected int64,
-	kind, value, reason string,
+	kind PriceAdjustmentKind,
+	value, reason string,
 	requestID *uuid.UUID,
 ) (MachineJob, error) {
 	if err := require(p, authorization.MachineJobsOverridePrice); err != nil {
@@ -156,13 +157,14 @@ func (s *Service) SetJobPriceAdjustment(
 	if current.Version != expected {
 		return MachineJob{}, apperror.StaleWrite
 	}
-	current.PriceAdjustmentKind = &kind
+	adjustmentKind := string(kind)
+	current.PriceAdjustmentKind = &adjustmentKind
 	current.PriceAdjustmentValue = numericFromDecimal(amount)
 	actor := p.AccountID
 	_, err = q.SetMachineJobPriceAdjustment(
 		ctx,
 		machinelogbookdb.SetMachineJobPriceAdjustmentParams{
-			Kind:            &kind,
+			Kind:            &adjustmentKind,
 			Value:           numericFromDecimal(amount),
 			Reason:          &reason,
 			ActorAccountID:  &actor,

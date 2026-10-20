@@ -69,9 +69,9 @@ func (s *Service) cashMovement(ctx context.Context, q *db.Queries, row db.CashMo
 	v := CashMovement{
 		ID:         row.ID,
 		Reference:  row.Reference,
-		Kind:       row.Kind,
+		Kind:       CashMovementKind(row.Kind),
 		Amount:     money(row.Amount),
-		Reason:     row.Reason,
+		Reason:     CashMovementReason(row.Reason),
 		Note:       row.Note,
 		OccurredAt: row.OccurredAt,
 		CreatedAt:  row.CreatedAt,
@@ -98,7 +98,7 @@ func (s *Service) ListCashMovements(
 	if err := require(p, authorization.CashMovementsRead); err != nil {
 		return CashMovementPage{}, err
 	}
-	if kind != "" && kind != "withdrawal" && kind != "deposit" {
+	if kind != "" && CashMovementKind(kind) != CashWithdrawal && CashMovementKind(kind) != CashDeposit {
 		return CashMovementPage{}, apperror.Invalid("Unsupported cash movement kind")
 	}
 	limit, offset, err := pageBounds(page, size)
@@ -150,11 +150,11 @@ func (s *Service) CreateCashMovement(
 	if input.OperationKey == uuid.Nil {
 		return CashMovement{}, apperror.Invalid("operationKey is required")
 	}
-	if input.Kind != "withdrawal" && input.Kind != "deposit" {
+	if input.Kind != CashWithdrawal && input.Kind != CashDeposit {
 		return CashMovement{}, apperror.Invalid("Unsupported cash movement kind")
 	}
 	switch input.Reason {
-	case "bank_deposit", "safe", "float", "other":
+	case CashReasonBankDeposit, CashReasonSafe, CashReasonFloat, CashReasonOther:
 	default:
 		return CashMovement{}, apperror.Invalid("Unsupported cash movement reason")
 	}
@@ -166,7 +166,7 @@ func (s *Service) CreateCashMovement(
 	if len(note) > 500 {
 		return CashMovement{}, apperror.Invalid("The note can have up to 500 characters")
 	}
-	if input.Reason == "other" && note == "" {
+	if input.Reason == CashReasonOther && note == "" {
 		return CashMovement{}, apperror.Invalid("Say what the money was for in the note")
 	}
 	if input.OccurredAt.IsZero() {
@@ -188,7 +188,7 @@ func (s *Service) CreateCashMovement(
 	}
 	existing, err := q.GetCashMovementByKey(ctx, input.OperationKey)
 	if err == nil {
-		same := existing.Kind == input.Kind && d(existing.Amount).Equal(amount) && existing.Reason == input.Reason &&
+		same := CashMovementKind(existing.Kind) == input.Kind && d(existing.Amount).Equal(amount) && CashMovementReason(existing.Reason) == input.Reason &&
 			existing.Note == note &&
 			existing.OccurredAt.Equal(occurred) &&
 			((existing.RecordedByPersonID == nil && p.PersonID == uuid.Nil) ||
@@ -204,7 +204,7 @@ func (s *Service) CreateCashMovement(
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return CashMovement{}, err
 	}
-	if input.Kind == "withdrawal" {
+	if input.Kind == CashWithdrawal {
 		at := occurred.Add(time.Microsecond)
 		held, e := cashFiguresUntil(ctx, q, &at)
 		if e != nil {
@@ -235,9 +235,9 @@ func (s *Service) CreateCashMovement(
 			ID:                 ids.New(),
 			Reference:          reference("C", n),
 			OperationKey:       input.OperationKey,
-			Kind:               input.Kind,
+			Kind:               string(input.Kind),
 			Amount:             numeric(amount),
-			Reason:             input.Reason,
+			Reason:             string(input.Reason),
 			Note:               note,
 			OccurredAt:         occurred,
 			RecordedByPersonID: person,

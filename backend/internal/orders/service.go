@@ -133,7 +133,7 @@ func checkVersion(o db.Order, expected int64) error {
 	return nil
 }
 func draft(o db.Order) error {
-	if o.Status != "draft" {
+	if OrderStatus(o.Status) != OrderDraft {
 		return apperror.Conflicting("order_not_draft", "Only draft orders may be edited")
 	}
 	return nil
@@ -203,15 +203,15 @@ func (s *Service) validateCustomer(
 	ctx context.Context,
 	q *db.Queries,
 	c *OrderCustomer,
-) (string, *uuid.UUID, *uuid.UUID, string, *string, error) {
+) (CustomerKind, *uuid.UUID, *uuid.UUID, string, *string, error) {
 	if c == nil {
-		return "anonymous", nil, nil, "", nil, nil
+		return CustomerAnonymous, nil, nil, "", nil, nil
 	}
 	switch c.Kind {
-	case "person":
+	case CustomerPerson:
 		v, e := q.GetPerson(ctx, c.ID)
 		return c.Kind, &c.ID, nil, v.DisplayName, nil, databaseError(e)
-	case "organization":
+	case CustomerOrganization:
 		v, e := q.GetOrganization(ctx, c.ID)
 		if e != nil {
 			return "", nil, nil, "", nil, databaseError(e)
@@ -237,7 +237,7 @@ func (s *Service) create(
 	if err != nil {
 		return db.Order{}, err
 	}
-	if input.FulfillmentMode != "immediate" && input.FulfillmentMode != "deferred" {
+	if input.FulfillmentMode != FulfillmentImmediate && input.FulfillmentMode != FulfillmentDeferred {
 		return db.Order{}, apperror.Invalid("Invalid fulfillment mode")
 	}
 	n, err := q.NextOrderReference(ctx)
@@ -247,10 +247,10 @@ func (s *Service) create(
 	params := db.CreateOrderParams{
 		ID:                     ids.New(),
 		Reference:              reference("O", n),
-		CustomerKind:           kind,
+		CustomerKind:           string(kind),
 		CustomerPersonID:       person,
 		CustomerOrganizationID: org,
-		FulfillmentMode:        input.FulfillmentMode,
+		FulfillmentMode:        string(input.FulfillmentMode),
 		CreatedByAccountID:     &p.AccountID,
 	}
 	if original != nil {
@@ -323,17 +323,17 @@ func (s *Service) Update(
 	if err = draft(o); err != nil {
 		return Order{}, err
 	}
-	if input.FulfillmentMode != "immediate" && input.FulfillmentMode != "deferred" {
+	if input.FulfillmentMode != FulfillmentImmediate && input.FulfillmentMode != FulfillmentDeferred {
 		return Order{}, apperror.Invalid("Invalid fulfillment mode")
 	}
 	_, err = q.UpdateDraft(
 		ctx,
 		db.UpdateDraftParams{
 			ID:                     id,
-			CustomerKind:           kind,
+			CustomerKind:           string(kind),
 			CustomerPersonID:       person,
 			CustomerOrganizationID: org,
-			FulfillmentMode:        input.FulfillmentMode,
+			FulfillmentMode:        string(input.FulfillmentMode),
 		},
 	)
 	if err == nil {
@@ -383,10 +383,10 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 	v := Order{
 		ID:                     o.ID,
 		Reference:              o.Reference,
-		Status:                 o.Status,
+		Status:                 OrderStatus(o.Status),
 		Currency:               o.Currency,
-		CustomerKind:           o.CustomerKind,
-		FulfillmentMode:        o.FulfillmentMode,
+		CustomerKind:           CustomerKind(o.CustomerKind),
+		FulfillmentMode:        FulfillmentMode(o.FulfillmentMode),
 		TotalAmount:            money(o.TotalAmount),
 		ReplacesOrderID:        o.ReplacesOrderID,
 		ReplacesOrderReference: o.ReplacesOrderReference,
@@ -398,10 +398,10 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 		Adjustments:            []OrderAdjustment{},
 	}
 	if o.CustomerPersonID != nil {
-		v.Customer = &OrderCustomer{Kind: "person", ID: *o.CustomerPersonID}
+		v.Customer = &OrderCustomer{Kind: CustomerPerson, ID: *o.CustomerPersonID}
 	}
 	if o.CustomerOrganizationID != nil {
-		v.Customer = &OrderCustomer{Kind: "organization", ID: *o.CustomerOrganizationID}
+		v.Customer = &OrderCustomer{Kind: CustomerOrganization, ID: *o.CustomerOrganizationID}
 	}
 	if o.CreatedByAccountID != nil {
 		actor, e := s.actor(ctx, q, o.CreatedByAccountID)
@@ -420,7 +420,8 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 	if e == nil {
 		v.ActiveExternalRequestID = &active.ID
 		v.ActiveExternalRequestReference = &active.Reference
-		v.ActiveExternalRequestState = &active.State
+		activeState := InvoiceState(active.State)
+		v.ActiveExternalRequestState = &activeState
 	} else if !errors.Is(e, pgx.ErrNoRows) {
 		return v, e
 	}
@@ -428,7 +429,8 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 	if e == nil {
 		v.LatestExternalRequestID = &latest.ID
 		v.LatestExternalRequestReference = &latest.Reference
-		v.LatestExternalRequestState = &latest.State
+		latestState := InvoiceState(latest.State)
+		v.LatestExternalRequestState = &latestState
 	} else if !errors.Is(e, pgx.ErrNoRows) {
 		return v, e
 	}
@@ -448,7 +450,7 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 		item := OrderItem{
 			ID:                 i.ID,
 			Position:           int64(i.Position),
-			Kind:               i.Kind,
+			Kind:               OrderItemKind(i.Kind),
 			Description:        i.Description,
 			Quantity:           d(i.Quantity).String(),
 			Unit:               i.Unit,
@@ -472,7 +474,7 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 			total = total.Add(d(i.Amount))
 		}
 	}
-	if o.Status == "draft" {
+	if OrderStatus(o.Status) == OrderDraft {
 		v.TotalAmount = total.StringFixed(2)
 	} else {
 		total = d(o.TotalAmount)
@@ -506,13 +508,13 @@ func (s *Service) load(ctx context.Context, q *db.Queries, id uuid.UUID) (Order,
 	v.NetCharge = total.StringFixed(2)
 	v.SettledAmount = settled.StringFixed(2)
 	v.OutstandingAmount = total.Sub(settled).StringFixed(2)
-	v.SettlementState = "unpaid"
+	v.SettlementState = SettlementUnpaid
 	if total.IsZero() {
-		v.SettlementState = "no_payment_due"
+		v.SettlementState = SettlementNoPaymentDue
 	} else if settled.Equal(total) {
-		v.SettlementState = "paid"
+		v.SettlementState = SettlementPaid
 	} else if settled.IsPositive() {
-		v.SettlementState = "partially_paid"
+		v.SettlementState = SettlementPartiallyPaid
 	}
 	return v, nil
 }

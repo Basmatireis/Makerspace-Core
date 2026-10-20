@@ -156,9 +156,9 @@ func leftoverInput(v openapi.FilamentLeftoverInput) machinelogbook.LeftoverInput
 		disposition = &value
 	}
 	return machinelogbook.LeftoverInput{
-		Basis:        string(v.Basis),
+		Basis:        machinelogbook.LeftoverBasis(v.Basis),
 		GrossWeightG: decimalNullable(v.GrossWeightG),
-		Disposition:  disposition,
+		Disposition:  enumPointer[machinelogbook.LeftoverDisposition](disposition),
 	}
 }
 
@@ -182,11 +182,11 @@ func (s *Server) ListFilamentSpools(
 	filters := machinelogbook.SpoolFilters{
 		Search:     defaultString(params.Search),
 		MaterialID: params.MaterialId,
-		Lifecycle:  valueString(params.Lifecycle),
+		Lifecycle:  machinelogbook.SpoolLifecycle(valueString(params.Lifecycle)),
 		Location:   defaultString(params.Location),
-		Kind: valueString(
+		Kind: machinelogbook.SpoolKind(valueString(
 			params.Kind,
-		),
+		)),
 		Mounted:      params.Mounted,
 		ProductID:    params.ProductId,
 		Manufacturer: defaultString(params.Manufacturer),
@@ -196,7 +196,7 @@ func (s *Server) ListFilamentSpools(
 	}
 	if params.Status != nil {
 		for _, status := range *params.Status {
-			filters.Statuses = append(filters.Statuses, string(status))
+			filters.Statuses = append(filters.Statuses, machinelogbook.SpoolStatus(status))
 		}
 	}
 	items, total, e := s.machineLogbook.ListFilamentSpools(ctx, p, filters)
@@ -238,7 +238,7 @@ func (s *Server) LookupFilamentSpool(
 	if e != nil {
 		return nil, e
 	}
-	item, e := s.machineLogbook.LookupFilamentSpool(ctx, p, string(r.Params.Kind), r.Params.Value)
+	item, e := s.machineLogbook.LookupFilamentSpool(ctx, p, machinelogbook.IdentifierKind(r.Params.Kind), r.Params.Value)
 	if e != nil {
 		return nil, e
 	}
@@ -265,12 +265,12 @@ func (s *Server) CreateFilamentSpool(
 		ctx,
 		p,
 		machinelogbook.FilamentSpoolInput{
-			Kind:                     kind,
+			Kind:                     machinelogbook.SpoolKind(kind),
 			Label:                    defaultString(nullableStringPointer(body.Label)),
 			ProductID:                uuidNullable(body.ProductId),
 			MaterialID:               valueOrZero(body.MaterialId),
 			InitialNetWeightG:        valueOrZero(body.InitialNetWeightG),
-			StockMode:                string(body.StockMode),
+			StockMode:                machinelogbook.StockMode(body.StockMode),
 			Supplier:                 nullableStringPointer(body.Supplier),
 			TotalPrice:               decimalMoneyNullable(body.TotalPrice),
 			Manufacturer:             nullableStringPointer(body.Manufacturer),
@@ -309,7 +309,7 @@ func (s *Server) UpdateFilamentSpool(
 		r.SpoolId,
 		machinelogbook.FilamentSpoolUpdate{
 			ExpectedVersion:      body.ExpectedVersion,
-			Kind:                 stringEnum(body.Kind),
+			Kind:                 enumPointer[machinelogbook.SpoolKind](body.Kind),
 			Label:                nullableStringPointer(body.Label),
 			Manufacturer:         nullableStringPointer(body.Manufacturer),
 			ProductName:          nullableStringPointer(body.ProductName),
@@ -318,7 +318,7 @@ func (s *Server) UpdateFilamentSpool(
 			AcquisitionReference: nullableStringPointer(body.AcquisitionReference),
 			StorageLocation:      nullableStringPointer(body.StorageLocation),
 			Notes:                nullableStringPointer(body.Notes),
-			Lifecycle:            string(body.Lifecycle),
+			Lifecycle:            machinelogbook.SpoolLifecycle(body.Lifecycle),
 		},
 		requestIDPointer(ctx),
 	)
@@ -343,7 +343,7 @@ func (s *Server) AddFilamentSpoolIdentifier(
 		ctx,
 		p,
 		r.SpoolId,
-		string(r.Body.Kind),
+		machinelogbook.IdentifierKind(r.Body.Kind),
 		r.Body.Value,
 		requestIDPointer(ctx),
 	)
@@ -525,7 +525,7 @@ func (s *Server) ChangeFilamentSpoolFill(
 			Manufacturer: nullableStringPointer(body.Fill.Manufacturer),
 			ProductName:  nullableStringPointer(body.Fill.ProductName),
 			NetWeightG:   body.Fill.NetWeightG,
-			Source:       string(body.Fill.Source),
+			Source:       machinelogbook.FillSource(body.Fill.Source),
 			TotalPrice:   decimalMoneyNullable(body.Fill.TotalPrice),
 			Supplier:     nullableStringPointer(body.Fill.Supplier),
 		}}
@@ -537,7 +537,7 @@ func (s *Server) ChangeFilamentSpoolFill(
 	for _, identifier := range body.NewIdentifiers {
 		input.NewIdentifiers = append(
 			input.NewIdentifiers,
-			machinelogbook.NewSpoolIdentifier{Kind: string(identifier.Kind), Value: identifier.Value},
+			machinelogbook.NewSpoolIdentifier{Kind: machinelogbook.IdentifierKind(identifier.Kind), Value: identifier.Value},
 		)
 	}
 	item, e := s.machineLogbook.ChangeFilamentSpoolFill(ctx, p, r.SpoolId, input, requestIDPointer(ctx))

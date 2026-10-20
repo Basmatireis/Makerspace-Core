@@ -10,7 +10,7 @@ import (
 )
 
 type MachineCurrentItem struct {
-	Kind            string
+	Kind            WorkItemKind
 	ID              uuid.UUID
 	DisplayID       string
 	Title, FileName *string
@@ -25,7 +25,7 @@ type MachineConnectorState struct {
 
 type MachineActivity struct {
 	MachineID        uuid.UUID
-	Availability     string
+	Availability     MachineAvailability
 	Current          *MachineCurrentItem
 	Connector        *MachineConnectorState
 	LastJobStartedAt *time.Time
@@ -71,7 +71,7 @@ func (s *Service) MachineActivity(ctx context.Context, p authorization.Principal
 	canReadJobs := p.Has(authorization.MachineJobsRead)
 	result := make([]MachineActivity, 0, len(machines))
 	for _, machine := range machines {
-		item := MachineActivity{MachineID: machine.ID, Availability: "available"}
+		item := MachineActivity{MachineID: machine.ID, Availability: AvailabilityAvailable}
 		if last, ok := lastByMachine[machine.ID]; ok {
 			item.LastJobStartedAt = &last
 		}
@@ -84,15 +84,15 @@ func (s *Service) MachineActivity(ctx context.Context, p authorization.Principal
 		}
 		current, inUse := runByMachine[machine.ID]
 		switch {
-		case machine.Status == "retired" || machine.Status == "maintenance":
-			item.Availability = machine.Status
+		case MachineStatus(machine.Status) == MachineStatusRetired || MachineStatus(machine.Status) == MachineStatusMaintenance:
+			item.Availability = MachineAvailability(machine.Status)
 		case inUse:
-			item.Availability = "in_use"
+			item.Availability = AvailabilityInUse
 		}
 		if canReadJobs && inUse {
 			if current.JobID != nil && current.JobDisplayID != nil {
 				item.Current = &MachineCurrentItem{
-					Kind:      "job",
+					Kind:      WorkItemJob,
 					ID:        *current.JobID,
 					DisplayID: *current.JobDisplayID,
 					Title:     current.JobTitle,
@@ -102,7 +102,7 @@ func (s *Service) MachineActivity(ctx context.Context, p authorization.Principal
 				}
 			} else {
 				item.Current = &MachineCurrentItem{
-					Kind:      "run",
+					Kind:      WorkItemRun,
 					ID:        current.ID,
 					DisplayID: current.DisplayID,
 					FileName:  current.FileName,

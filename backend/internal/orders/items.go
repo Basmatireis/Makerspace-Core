@@ -126,13 +126,13 @@ func (s *Service) insertItem(
 	params := db.InsertItemParams{
 		ID:                 ids.New(),
 		OrderID:            o.ID,
-		Kind:               input.Kind,
+		Kind:               string(input.Kind),
 		Description:        strings.TrimSpace(input.Description),
 		Unit:               strings.TrimSpace(input.Unit),
 		CreatedByAccountID: &p.AccountID,
 	}
 	switch input.Kind {
-	case "manual":
+	case ItemManual:
 		qty, err := parseAmount(input.Quantity, 6, true)
 		if err != nil {
 			return db.OrderItem{}, err
@@ -148,7 +148,7 @@ func (s *Service) insertItem(
 		params.Quantity = numeric(qty)
 		params.UnitPrice = numeric(price)
 		params.Amount = numeric(amount)
-	case "machine_job":
+	case ItemMachineJob:
 		job, err := s.jobs.ChargeSource(ctx, tx, p, input.MachineJobID)
 		if err != nil {
 			return db.OrderItem{}, err
@@ -215,7 +215,7 @@ func (s *Service) ChangeItem(
 	p authorization.Principal,
 	id, itemID uuid.UUID,
 	input OrderItemInput,
-	action string,
+	action ItemAction,
 	requestID *uuid.UUID,
 ) (Order, error) {
 	if err := require(p, authorization.OrdersRead, authorization.OrdersWrite); err != nil {
@@ -237,7 +237,7 @@ func (s *Service) ChangeItem(
 	if err = draft(o); err != nil {
 		return Order{}, err
 	}
-	if action != "add" {
+	if action != ItemActionAdd {
 		old, e := q.GetItem(ctx, db.GetItemParams{ID: itemID, OrderID: id})
 		if e != nil {
 			return Order{}, databaseError(e)
@@ -254,7 +254,7 @@ func (s *Service) ChangeItem(
 		if e = writeAudit(ctx, tx, p, "order.item_removed", "order", id, requestID, "items"); e != nil {
 			return Order{}, e
 		}
-		if action == "refresh" {
+		if action == ItemActionRefresh {
 			if old.SourceMachineJobID == nil {
 				return Order{}, apperror.Invalid("Only job items can be refreshed")
 			}
@@ -263,14 +263,14 @@ func (s *Service) ChangeItem(
 				return Order{}, e
 			}
 			input = OrderItemInput{
-				Kind:               "machine_job",
+				Kind:               ItemMachineJob,
 				MachineJobID:       job.ID,
 				ExpectedJobVersion: job.Version,
 				Description:        old.Description,
 			}
 		}
 	}
-	if action == "remove" {
+	if action == ItemActionRemove {
 		err = q.BumpOrder(ctx, id)
 	} else {
 		_, err = s.insertItem(ctx, tx, p, o, input, requestID)
@@ -278,7 +278,7 @@ func (s *Service) ChangeItem(
 	if err != nil {
 		return Order{}, databaseError(err)
 	}
-	if action == "refresh" {
+	if action == ItemActionRefresh {
 		if err = writeAudit(ctx, tx, p, "order.item_refreshed", "order", id, requestID, "items"); err != nil {
 			return Order{}, err
 		}

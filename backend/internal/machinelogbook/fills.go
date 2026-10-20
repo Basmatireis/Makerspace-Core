@@ -56,7 +56,7 @@ func (s *Service) lockConsumableFill(
 	if err != nil {
 		return spool, fillRef{}, decimal.Zero, noRows(err)
 	}
-	if spool.Lifecycle != "active" {
+	if SpoolLifecycle(spool.Lifecycle) != SpoolActive {
 		return spool, fillRef{}, decimal.Zero, apperror.Conflicting(
 			"spool_not_consumable",
 			"The spool is archived or has no open fill",
@@ -178,7 +178,7 @@ func (s *Service) checkFillMaterialAndProduct(
 	if err != nil {
 		return nil, nil, noRows(err)
 	}
-	if detail.Unit != "g" || !detail.DiameterMm.Valid {
+	if MaterialUnit(detail.Unit) != UnitGram || !detail.DiameterMm.Valid {
 		return nil, nil, apperror.Conflicting(
 			"material_not_filament",
 			"Spools require a gram-denominated material with filament properties",
@@ -211,7 +211,8 @@ func (s *Service) checkFillMaterialAndProduct(
 
 type leftoverPlan struct {
 	Remaining, Leftover decimal.Decimal
-	Disposition, Reason string
+	Disposition         LeftoverDisposition
+	Reason              string
 }
 
 // planLeftover derives what is left on a fill from the chosen basis and
@@ -219,9 +220,9 @@ type leftoverPlan struct {
 func planLeftover(tare pgtype.Numeric, remaining decimal.Decimal, in LeftoverInput) (leftoverPlan, error) {
 	plan := leftoverPlan{Remaining: remaining, Reason: "inventory_count"}
 	switch in.Basis {
-	case "system":
+	case LeftoverSystem:
 		plan.Leftover = decimal.Max(remaining, decimal.Zero)
-	case "weighed":
+	case LeftoverWeighed:
 		if in.GrossWeightG == nil {
 			return plan, apperror.Invalid("grossWeightG is required for a weighed leftover")
 		}
@@ -233,13 +234,13 @@ func planLeftover(tare pgtype.Numeric, remaining decimal.Decimal, in LeftoverInp
 			return plan, unprocessable("tare_required", "The spool needs a tare weight to weigh the leftover")
 		}
 		plan.Leftover = decimal.Max(gross.Sub(decimalFromNumeric(tare)), decimal.Zero)
-	case "none":
+	case LeftoverNone:
 		plan.Leftover = decimal.Zero
 		plan.Reason = "mark_empty"
 	default:
 		return plan, apperror.Invalid("invalid leftover basis")
 	}
-	if in.Disposition != nil && *in.Disposition != "returned_to_stock" && *in.Disposition != "disposed" {
+	if in.Disposition != nil && *in.Disposition != DispositionReturnedToStock && *in.Disposition != DispositionDisposed {
 		return plan, apperror.Invalid("invalid leftover disposition")
 	}
 	if plan.Leftover.IsPositive() {
@@ -280,7 +281,7 @@ func (s *Service) closeFill(
 			ref.MaterialID,
 			anyInventoryVersion,
 			inventoryMutation{
-				Kind:             "adjustment",
+				Kind:             InventoryAdjustment,
 				QuantityDelta:    diff,
 				UnitCost:         average,
 				ValueDelta:       diff.Mul(average),
@@ -294,11 +295,11 @@ func (s *Service) closeFill(
 			return err
 		}
 	}
-	outcome := "used_up"
+	outcome := FillUsedUp
 	if plan.Leftover.IsPositive() {
-		outcome = plan.Disposition
+		outcome = FillOutcome(plan.Disposition)
 		switch plan.Disposition {
-		case "returned_to_stock":
+		case DispositionReturnedToStock:
 			if err := s.insertFillTransfer(
 				ctx,
 				q,
@@ -313,7 +314,7 @@ func (s *Service) closeFill(
 			); err != nil {
 				return databaseError(err)
 			}
-		case "disposed":
+		case DispositionDisposed:
 			material, err := q.GetMaterialForUpdate(ctx, ref.MaterialID)
 			if err != nil {
 				return noRows(err)
@@ -328,7 +329,7 @@ func (s *Service) closeFill(
 				ref.MaterialID,
 				anyInventoryVersion,
 				inventoryMutation{
-					Kind:             "disposal",
+					Kind:             InventoryDisposal,
 					QuantityDelta:    plan.Leftover.Neg(),
 					UnitCost:         average,
 					ValueDelta:       plan.Leftover.Mul(average).Neg(),
@@ -349,7 +350,7 @@ func (s *Service) closeFill(
 			ID:              ref.FillID,
 			ClosedAt:        pgTimestamp(occurredAt),
 			LeftoverG:       numericFromDecimal(plan.Leftover),
-			LeftoverOutcome: &outcome,
+			LeftoverOutcome: pointerAs[string](&outcome),
 		},
 	); err != nil {
 		return databaseError(err)
@@ -360,7 +361,9 @@ func (s *Service) closeFill(
 	)
 }
 
-func validIdentifierKind(kind string) bool { return kind == "barcode" || kind == "qr" || kind == "nfc" }
+func validIdentifierKind(kind IdentifierKind) bool {
+	return kind == IdentifierBarcode || kind == IdentifierQR || kind == IdentifierNFC
+}
 
 // ChangeFilamentSpoolFill closes the open fill of a reusable spool (when there
 // is one) and starts the next fill in a single transaction.
@@ -386,8 +389,8 @@ func (s *Service) ChangeFilamentSpoolFill(
 	}
 	var price decimal.Decimal
 	switch in.Fill.Source {
-	case "loose_stock":
-	case "purchase":
+	case FillSourceLooseStock:
+	case FillSourcePurchase:
 		if in.Fill.TotalPrice == nil {
 			return FilamentSpool{}, apperror.Invalid("totalPrice is required for a purchase")
 		}
@@ -432,10 +435,10 @@ func (s *Service) ChangeFilamentSpoolFill(
 	if err != nil {
 		return FilamentSpool{}, noRows(err)
 	}
-	if spool.Kind != "reusable" {
+	if SpoolKind(spool.Kind) != SpoolReusable {
 		return FilamentSpool{}, apperror.Conflicting("spool_not_reusable", "Only reusable spools can be refilled")
 	}
-	if spool.Lifecycle == "archived" {
+	if SpoolLifecycle(spool.Lifecycle) == SpoolArchived {
 		return FilamentSpool{}, apperror.Conflicting("spool_archived", "An archived spool cannot be refilled")
 	}
 	if spool.Version != in.ExpectedVersion {
@@ -531,7 +534,7 @@ func (s *Service) ChangeFilamentSpoolFill(
 		return FilamentSpool{}, databaseError(err)
 	}
 	newRef := refFromFill(spool, fill)
-	if in.Fill.Source == "loose_stock" {
+	if in.Fill.Source == FillSourceLooseStock {
 		detail, detailErr := q.GetMaterial(ctx, in.Fill.MaterialID)
 		if detailErr != nil {
 			return FilamentSpool{}, detailErr
@@ -554,18 +557,21 @@ func (s *Service) ChangeFilamentSpoolFill(
 		); err != nil {
 			return FilamentSpool{}, databaseError(err)
 		}
-	} else if _, err = s.applyInventoryMutation(ctx, tx, q, p, in.Fill.MaterialID, anyInventoryVersion, inventoryMutation{Kind: "purchase", QuantityDelta: weight, UnitCost: price.Div(weight), ValueDelta: price, TotalPrice: &price, OccurredAt: in.OccurredAt, Supplier: supplier, Fill: &newRef, KeepSpoolVersion: true}, requestID); err != nil {
+	} else if _, err = s.applyInventoryMutation(ctx, tx, q, p, in.Fill.MaterialID, anyInventoryVersion, inventoryMutation{
+		Kind: InventoryPurchase, QuantityDelta: weight, UnitCost: price.Div(weight), ValueDelta: price,
+		TotalPrice: &price, OccurredAt: in.OccurredAt, Supplier: supplier, Fill: &newRef, KeepSpoolVersion: true,
+	}, requestID); err != nil {
 		return FilamentSpool{}, err
 	}
 
 	wanted := make([]NewSpoolIdentifier, 0, len(kept)+len(newIdentifiers))
 	for _, identifier := range kept {
-		wanted = append(wanted, NewSpoolIdentifier{Kind: identifier.Kind, Value: identifier.Value})
+		wanted = append(wanted, NewSpoolIdentifier{Kind: IdentifierKind(identifier.Kind), Value: identifier.Value})
 	}
 	wanted = append(wanted, newIdentifiers...)
 	seen := map[string]bool{}
 	for i, identifier := range wanted {
-		key := identifier.Kind + "/" + strings.ToLower(identifier.Value)
+		key := string(identifier.Kind) + "/" + strings.ToLower(identifier.Value)
 		if seen[key] {
 			return FilamentSpool{}, apperror.Conflicting("identifier_in_use", "An identifier is used twice")
 		}
@@ -573,7 +579,7 @@ func (s *Service) ChangeFilamentSpoolFill(
 		if i >= len(kept) {
 			inUse, useErr := q.FilamentSpoolIdentifierInUse(
 				ctx,
-				machinelogbookdb.FilamentSpoolIdentifierInUseParams{Kind: identifier.Kind, Value: identifier.Value},
+				machinelogbookdb.FilamentSpoolIdentifierInUseParams{Kind: string(identifier.Kind), Value: identifier.Value},
 			)
 			if useErr != nil {
 				return FilamentSpool{}, useErr
@@ -591,7 +597,7 @@ func (s *Service) ChangeFilamentSpoolFill(
 				ID:      ids.New(),
 				SpoolID: spoolID,
 				FillID:  fill.ID,
-				Kind:    identifier.Kind,
+				Kind:    string(identifier.Kind),
 				Value:   identifier.Value,
 			},
 		); err != nil {
@@ -696,7 +702,7 @@ func (s *Service) FinishFilamentSpool(
 	); err != nil {
 		return FilamentSpool{}, err
 	}
-	if spool.Kind == "single_use" && spool.Lifecycle == "active" {
+	if SpoolKind(spool.Kind) == SpoolSingleUse && SpoolLifecycle(spool.Lifecycle) == SpoolActive {
 		_, err = q.ArchiveFilamentSpool(
 			ctx,
 			machinelogbookdb.ArchiveFilamentSpoolParams{

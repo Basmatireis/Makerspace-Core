@@ -30,12 +30,12 @@ func (s *Service) replaceRunUsages(
 ) error {
 	materialIDs := map[uuid.UUID]bool{}
 	for _, u := range old {
-		if u.Ownership == "makerspace" && u.MaterialID != nil {
+		if UsageOwnership(u.Ownership) == OwnershipMakerspace && u.MaterialID != nil {
 			materialIDs[*u.MaterialID] = true
 		}
 	}
 	for _, u := range parsed {
-		if u.Ownership == "makerspace" && u.MaterialID != nil {
+		if UsageOwnership(u.Ownership) == OwnershipMakerspace && u.MaterialID != nil {
 			materialIDs[*u.MaterialID] = true
 		}
 	}
@@ -53,7 +53,7 @@ func (s *Service) replaceRunUsages(
 		versions[materialID] = row.InventoryVersion
 	}
 	for _, u := range old {
-		if u.Ownership != "external" {
+		if UsageOwnership(u.Ownership) != OwnershipExternal {
 			row, err := q.GetMaterialForUpdate(ctx, *u.MaterialID)
 			if err != nil {
 				return err
@@ -73,7 +73,7 @@ func (s *Service) replaceRunUsages(
 				*u.MaterialID,
 				versions[*u.MaterialID],
 				inventoryMutation{
-					Kind:          "adjustment",
+					Kind:          InventoryAdjustment,
 					QuantityDelta: quantity,
 					UnitCost:      average,
 					ValueDelta:    quantity.Mul(average),
@@ -99,7 +99,7 @@ func (s *Service) replaceRunUsages(
 		return err
 	}
 	for _, u := range parsed {
-		if u.Ownership == "external" {
+		if UsageOwnership(u.Ownership) == OwnershipExternal {
 			continue
 		}
 		row, err := q.GetMaterialForUpdate(ctx, *u.MaterialID)
@@ -116,7 +116,7 @@ func (s *Service) replaceRunUsages(
 			*u.MaterialID,
 			versions[*u.MaterialID],
 			inventoryMutation{
-				Kind:          "machine_run_consumption",
+				Kind:          InventoryMachineConsumption,
 				QuantityDelta: u.Quantity.Neg(),
 				UnitCost:      average,
 				ValueDelta:    u.Quantity.Mul(average).Neg(),
@@ -211,14 +211,14 @@ func tryLockRunChain(
 }
 
 // manualRunState is the state a manual run has at a point in time.
-func manualRunState(run machinelogbookdb.MachineRun, now time.Time) string {
+func manualRunState(run machinelogbookdb.MachineRun, now time.Time) RunState {
 	if run.State != nil {
-		return *run.State
+		return RunState(*run.State)
 	}
 	if run.EndedAt.Valid && run.EndedAt.Time.After(now) {
-		return "running"
+		return RunStateRunning
 	}
-	return "finished"
+	return RunStateFinished
 }
 
 // finishRunChange reprices the run's job, audits the change and returns the
@@ -307,8 +307,8 @@ func (s *Service) UpdateRun(
 	now := s.now()
 	fields := []string{"outcome"}
 	var updated machinelogbookdb.MachineRun
-	if run.Source == "manual" {
-		if manualRunState(run, now) == "replaced" {
+	if RunSource(run.Source) == RunSourceManual {
+		if manualRunState(run, now) == RunStateReplaced {
 			return RunUpdateResult{}, apperror.Conflicting("run_replaced", "A replaced run cannot be changed")
 		}
 		startsAt, endsAt := run.StartedAt.Time, run.EndedAt.Time
@@ -344,7 +344,7 @@ func (s *Service) UpdateRun(
 			machinelogbookdb.UpdateManualRunFactsParams{
 				StartedAt:       pgTime(&startsAt),
 				EndedAt:         pgTime(&endsAt),
-				Outcome:         outcome,
+				Outcome:         pointerAs[string](outcome),
 				ID:              id,
 				ExpectedVersion: expected,
 			},
@@ -364,7 +364,7 @@ func (s *Service) UpdateRun(
 				"The measures of a recorded run come from the machine",
 			)
 		}
-		if run.State != nil && *run.State == "running" && outcome != nil {
+		if run.State != nil && RunState(*run.State) == RunStateRunning && outcome != nil {
 			return RunUpdateResult{}, apperror.New(
 				422,
 				"outcome_before_run_end",
@@ -373,7 +373,7 @@ func (s *Service) UpdateRun(
 		}
 		updated, err = q.UpdateRecordedRunOutcome(
 			ctx,
-			machinelogbookdb.UpdateRecordedRunOutcomeParams{Outcome: outcome, ID: id, ExpectedVersion: expected},
+			machinelogbookdb.UpdateRecordedRunOutcomeParams{Outcome: pointerAs[string](outcome), ID: id, ExpectedVersion: expected},
 		)
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -428,7 +428,7 @@ func (s *Service) ReplaceRunUsages(
 	if run.Version != expected {
 		return RunUpdateResult{}, apperror.StaleWrite
 	}
-	if run.State != nil && *run.State == "replaced" {
+	if run.State != nil && RunState(*run.State) == RunStateReplaced {
 		return RunUpdateResult{}, apperror.Conflicting("run_replaced", "A replaced run cannot be changed")
 	}
 	old, err := q.ListActiveRunUsagesForUpdate(ctx, id)
@@ -506,7 +506,7 @@ func (s *Service) CancelRun(
 		return MachineJob{}, apperror.StaleWrite
 	}
 	now := s.now()
-	if run.Source != "manual" || manualRunState(run, now) != "running" {
+	if RunSource(run.Source) != RunSourceManual || manualRunState(run, now) != RunStateRunning {
 		return MachineJob{}, apperror.Conflicting("run_not_running", "Only a running manual run can be cancelled")
 	}
 	endsAt := now.UTC().Truncate(time.Second)
@@ -577,7 +577,7 @@ func (s *Service) AddManualRun(
 	if err != nil {
 		return MachineJob{}, err
 	}
-	if machine.Status == "retired" {
+	if MachineStatus(machine.Status) == MachineStatusRetired {
 		return MachineJob{}, apperror.Conflicting("machine_retired", "Retired machines cannot receive new runs")
 	}
 	if _, err = s.storeManualRun(ctx, tx, q, p, job, plan, requestID); err != nil {

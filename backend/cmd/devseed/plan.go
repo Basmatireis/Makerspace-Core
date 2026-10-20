@@ -587,7 +587,7 @@ func (s *seeder) runPlan(p *plan) {
 		EndsAt:           p.end,
 		Customer:         p.customer.ref(),
 		OperatorPersonID: p.operator,
-		Outcome:          p.outcome,
+		Outcome:          machinelogbook.JobOutcome(p.outcome),
 		Notes:            p.notes,
 		Usages:           usages,
 	}

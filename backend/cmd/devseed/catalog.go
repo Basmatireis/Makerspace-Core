@@ -20,7 +20,7 @@ func (s *seeder) createOrgsAndPricing() {
 				s.ctx,
 				s.actor,
 				create,
-				kind,
+				machinelogbook.OrganizationKind(kind),
 				machinelogbook.OrganizationDetailsInput{},
 				nil,
 			)
@@ -106,7 +106,7 @@ func (s *seeder) createOrgsAndPricing() {
 			continue
 		}
 		rule := func(kind string, mt, material *uuid.UUID, rate float64) {
-			_, err := ml.CreatePricingRule(s.ctx, s.actor, g.id, kind, mt, material, nil, f3(rate), nil)
+			_, err := ml.CreatePricingRule(s.ctx, s.actor, g.id, machinelogbook.PricingRuleKind(kind), mt, material, nil, f3(rate), nil)
 			check("rule", err)
 		}
 		material := func(name string) *uuid.UUID { id := s.matTypes[name]; return &id }
@@ -151,7 +151,7 @@ func (s *seeder) createOrgsAndPricing() {
 			); taken {
 				return
 			}
-			_, err := ml.CreatePricingRule(s.ctx, s.actor, g.id, kind, mt, material, measure, f4(rate), nil)
+			_, err := ml.CreatePricingRule(s.ctx, s.actor, g.id, machinelogbook.PricingRuleKind(kind), mt, material, measure, f4(rate), nil)
 			check("rule", err)
 		}
 		typeID := func(name string) *uuid.UUID { id := s.matTypes[name]; return &id }
@@ -312,7 +312,7 @@ func (s *seeder) createCatalog() {
 				Manufacturer: maker,
 				Name:         createName,
 				NetWeightG:   f1(weight),
-				Packaging:    pack,
+				Packaging:    machinelogbook.Packaging(pack),
 				MaterialID:   matID,
 				DefaultPrice: ptr(f2(price)),
 				Active:       true,

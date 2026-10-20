@@ -18,17 +18,18 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func validUnit(unit string) bool {
-	return unit == "g" || unit == "m" || unit == "ml" || unit == "m2" || unit == "cm2" || unit == "piece"
+func validUnit(unit MaterialUnit) bool {
+	return unit == UnitGram || unit == UnitMeter || unit == UnitMilliliter || unit == UnitSquareMeter ||
+		unit == UnitSquareCentimeter || unit == UnitPiece
 }
-func stockState(quantity decimal.Decimal, threshold pgtype.Numeric) string {
+func stockState(quantity decimal.Decimal, threshold pgtype.Numeric) StockState {
 	if quantity.IsZero() {
-		return "empty"
+		return StockEmpty
 	}
 	if threshold.Valid && quantity.LessThanOrEqual(decimalFromNumeric(threshold)) {
-		return "low_stock"
+		return StockLow
 	}
-	return "in_stock"
+	return StockInStock
 }
 
 func materialFromGet(row machinelogbookdb.GetMaterialRow) Material {
@@ -130,7 +131,7 @@ func (s *Service) ListMaterials(
 	p authorization.Principal,
 	search string,
 	materialTypeID *uuid.UUID,
-	state string,
+	state StockState,
 	page, pageSize int,
 ) ([]Material, int64, string, error) {
 	if err := require(p, authorization.InventoryRead); err != nil {
@@ -140,14 +141,14 @@ func (s *Service) ListMaterials(
 	if err != nil {
 		return nil, 0, "", err
 	}
-	if state != "" && state != "empty" && state != "low_stock" && state != "in_stock" {
+	if state != "" && state != StockEmpty && state != StockLow && state != StockInStock {
 		return nil, 0, "", apperror.Invalid("invalid stock state")
 	}
 	q := machinelogbookdb.New(s.pool)
 	params := machinelogbookdb.ListMaterialsParams{
 		Search:         strings.TrimSpace(search),
 		MaterialTypeID: materialTypeID,
-		StockState:     state,
+		StockState:     string(state),
 		PageOffset:     offset,
 		PageLimit:      limit,
 	}
@@ -225,7 +226,7 @@ func (s *Service) CreateMaterial(
 	}
 	if in.FilamentDiameterMM != nil {
 		diameter, parseErr := numericFromString(*in.FilamentDiameterMM, true)
-		if parseErr != nil || unit != "g" {
+		if parseErr != nil || MaterialUnit(unit) != UnitGram {
 			return Material{}, apperror.Invalid("filamentDiameterMm requires a gram-denominated material")
 		}
 		if _, err = q.UpsertMaterialFilamentProperties(
@@ -340,7 +341,7 @@ func (s *Service) UpdateMaterial(
 		}
 	} else {
 		diameter, parseErr := numericFromString(*in.FilamentDiameterMM, true)
-		if parseErr != nil || unit != "g" {
+		if parseErr != nil || MaterialUnit(unit) != UnitGram {
 			return Material{}, apperror.Invalid("filamentDiameterMm requires a gram-denominated material")
 		}
 		if _, err = q.UpsertMaterialFilamentProperties(
@@ -376,7 +377,7 @@ func transactionFromRow(row machinelogbookdb.InventoryTransaction) InventoryTran
 	return InventoryTransaction{
 		ID:                  row.ID,
 		MaterialID:          row.MaterialID,
-		Kind:                row.Kind,
+		Kind:                InventoryKind(row.Kind),
 		QuantityDelta:       decimalString(row.QuantityDelta),
 		UnitAcquisitionCost: decimalString(row.UnitAcquisitionCost),
 		InventoryValueDelta: decimalString(row.InventoryValueDelta),
@@ -474,7 +475,7 @@ func (s *Service) ListMaterialTransactions(
 const anyInventoryVersion int64 = -1
 
 type inventoryMutation struct {
-	Kind                                string
+	Kind                                InventoryKind
 	QuantityDelta, UnitCost, ValueDelta decimal.Decimal
 	TotalPrice                          *decimal.Decimal
 	OccurredAt                          time.Time
@@ -591,7 +592,7 @@ func (s *Service) applyInventoryMutation(
 			machinelogbookdb.InsertSpoolInventoryTransactionParams{
 				ID:                  ids.New(),
 				MaterialID:          id,
-				Kind:                m.Kind,
+				Kind:                string(m.Kind),
 				QuantityDelta:       numericFromDecimal(m.QuantityDelta),
 				UnitAcquisitionCost: numericFromDecimal(m.UnitCost),
 				InventoryValueDelta: numericFromDecimal(m.ValueDelta),
@@ -614,7 +615,7 @@ func (s *Service) applyInventoryMutation(
 			machinelogbookdb.InsertInventoryTransactionParams{
 				ID:                  ids.New(),
 				MaterialID:          id,
-				Kind:                m.Kind,
+				Kind:                string(m.Kind),
 				QuantityDelta:       numericFromDecimal(m.QuantityDelta),
 				UnitAcquisitionCost: numericFromDecimal(m.UnitCost),
 				InventoryValueDelta: numericFromDecimal(m.ValueDelta),
@@ -644,7 +645,7 @@ func (s *Service) applyInventoryMutation(
 		ctx,
 		tx,
 		p,
-		action,
+		string(action),
 		"material",
 		id,
 		requestID,
@@ -698,7 +699,7 @@ func (s *Service) AddPurchase(
 		id,
 		expected,
 		inventoryMutation{
-			Kind:          "purchase",
+			Kind:          InventoryPurchase,
 			QuantityDelta: qty,
 			UnitCost:      price.Div(qty),
 			ValueDelta:    price,
@@ -753,9 +754,9 @@ func (s *Service) RecordConsumption(
 		return InventoryMutationResult{}, apperror.StaleWrite
 	}
 	average := decimalFromNumeric(current.AverageUnitCost)
-	kind := "manual_consumption"
+	kind := InventoryManualConsumption
 	if disposal {
-		kind = "disposal"
+		kind = InventoryDisposal
 	}
 	result, err := s.applyInventoryMutation(
 		ctx,
@@ -850,7 +851,7 @@ func (s *Service) CorrectStock(
 		id,
 		expected,
 		inventoryMutation{
-			Kind:          "adjustment",
+			Kind:          InventoryAdjustment,
 			QuantityDelta: delta,
 			UnitCost:      unitCost,
 			ValueDelta:    valueDelta,
@@ -912,7 +913,7 @@ func (s *Service) MarkEmpty(
 		id,
 		expected,
 		inventoryMutation{
-			Kind:          "adjustment",
+			Kind:          InventoryAdjustment,
 			QuantityDelta: qty.Neg(),
 			UnitCost:      average,
 			ValueDelta:    value.Neg(),

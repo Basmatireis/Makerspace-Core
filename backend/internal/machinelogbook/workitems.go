@@ -15,7 +15,7 @@ import (
 // WorkItemBilling is the billing state of a job. The order fields are order
 // data and are only filled for callers allowed to read orders.
 type WorkItemBilling struct {
-	State          string
+	State          BillingState
 	OrderID        *uuid.UUID
 	OrderReference *string
 }
@@ -23,7 +23,7 @@ type WorkItemBilling struct {
 // WorkItem is one row of the unified table: a machine job, or a recorded run
 // that no job is assigned to.
 type WorkItem struct {
-	Kind                   string
+	Kind                   WorkItemKind
 	ID                     uuid.UUID
 	DisplayID              string
 	Title, FileName        *string
@@ -32,7 +32,8 @@ type WorkItem struct {
 	MachineName            string
 	Customer               *BillingParty
 	Operator               *Operator
-	Status, Source         string
+	Status                 WorkItemStatus
+	Source                 RunSource
 	StartedAt              time.Time
 	EndsAt, EstimatedEndAt *time.Time
 	ProgressPercent        *int
@@ -54,32 +55,37 @@ type ConsumedMaterial struct {
 }
 
 type WorkItemFilters struct {
-	Search                     string
-	Statuses, Sources, Billing []string
-	MachineIDs, MaterialIDs    []uuid.UUID
-	CustomerID, OperatorID     *uuid.UUID
-	From, To                   *time.Time
-	Sort, Direction            string
-	Page, PageSize             int
+	Search                  string
+	Statuses                []WorkItemStatus
+	Sources                 []RunSource
+	Billing                 []BillingState
+	MachineIDs, MaterialIDs []uuid.UUID
+	CustomerID, OperatorID  *uuid.UUID
+	From, To                *time.Time
+	Sort                    string
+	Direction               SortDirection
+	Page, PageSize          int
 }
 
 var (
-	workItemStatuses = []string{
-		"running",
-		"running_unassigned",
-		"unassigned",
-		"needs_outcome",
-		"successful",
-		"partial_failure",
-		"failed",
-		"cancelled",
+	workItemStatuses = []WorkItemStatus{
+		WorkItemRunning,
+		WorkItemRunningUnassigned,
+		WorkItemUnassigned,
+		WorkItemNeedsOutcome,
+		WorkItemSuccessful,
+		WorkItemPartialFailure,
+		WorkItemFailed,
+		WorkItemCancelled,
 	}
-	workItemSources = []string{"manual", "recorded"}
-	billingStates   = []string{"on_order", "order_outdated", "not_on_order", "price_incomplete", "pending"}
-	workItemSorts   = []string{"startedAt", "name", "machine", "customer", "price"}
+	workItemSources = []RunSource{RunSourceManual, RunSourceRecorded}
+	billingStates   = []BillingState{
+		BillingOnOrder, BillingOrderOutdated, BillingNotOnOrder, BillingPriceIncomplete, BillingPending,
+	}
+	workItemSorts = []string{"startedAt", "name", "machine", "customer", "price"}
 )
 
-func containsAll(allowed, values []string) bool {
+func containsAll[T comparable](allowed, values []T) bool {
 	for _, value := range values {
 		found := false
 		for _, candidate := range allowed {
@@ -118,12 +124,12 @@ func (s *Service) ListWorkItems(
 		filters.Sort = "startedAt"
 	}
 	if filters.Direction == "" {
-		filters.Direction = "desc"
+		filters.Direction = SortDesc
 	}
 	if !containsAll(
 		workItemSorts,
 		[]string{filters.Sort},
-	) || (filters.Direction != "asc" && filters.Direction != "desc") ||
+	) || (filters.Direction != SortAsc && filters.Direction != SortDesc) ||
 		!containsAll(workItemStatuses, filters.Statuses) ||
 		!containsAll(workItemSources, filters.Sources) ||
 		!containsAll(billingStates, filters.Billing) {
@@ -131,13 +137,13 @@ func (s *Service) ListWorkItems(
 	}
 	params := machinelogbookdb.ListWorkItemsParams{
 		Statuses: nonNil(
-			filters.Statuses,
-		), MachineIds: nonNil(filters.MachineIDs), Sources: nonNil(filters.Sources), MaterialIds: nonNil(filters.MaterialIDs),
-		BillingStates: nonNil(filters.Billing), CustomerID: filters.CustomerID, OperatorPersonID: filters.OperatorID,
+			sliceAs[string](filters.Statuses),
+		), MachineIds: nonNil(filters.MachineIDs), Sources: nonNil(sliceAs[string](filters.Sources)), MaterialIds: nonNil(filters.MaterialIDs),
+		BillingStates: nonNil(sliceAs[string](filters.Billing)), CustomerID: filters.CustomerID, OperatorPersonID: filters.OperatorID,
 		FromTime: pgTime(
 			filters.From,
 		), ToTime: pgTime(filters.To), Search: escapeLike(strings.TrimSpace(filters.Search)),
-		SortKey: filters.Sort, SortDirection: filters.Direction, PageOffset: offset, PageLimit: limit,
+		SortKey: filters.Sort, SortDirection: string(filters.Direction), PageOffset: offset, PageLimit: limit,
 	}
 	q := machinelogbookdb.New(s.pool)
 	rows, err := q.ListWorkItems(ctx, params)
@@ -220,7 +226,7 @@ func workItemsFromRows(rows []machinelogbookdb.ListWorkItemsRow, includeOrder bo
 
 func workItemFromRow(row machinelogbookdb.ListWorkItemsRow, includeOrder bool) WorkItem {
 	item := WorkItem{
-		Kind:        row.Kind,
+		Kind:        WorkItemKind(row.Kind),
 		ID:          row.ID,
 		DisplayID:   row.DisplayID,
 		Title:       row.Title,
@@ -228,8 +234,8 @@ func workItemFromRow(row machinelogbookdb.ListWorkItemsRow, includeOrder bool) W
 		RunCount:    int(row.RunCount),
 		MachineID:   row.MachineID,
 		MachineName: row.MachineName,
-		Status:      row.Status,
-		Source:      row.Source,
+		Status:      WorkItemStatus(row.Status),
+		Source:      RunSource(row.Source),
 		StartedAt:   row.StartedAt.UTC(),
 		EndsAt: nullableTime(
 			row.EndsAt,
@@ -245,9 +251,9 @@ func workItemFromRow(row machinelogbookdb.ListWorkItemsRow, includeOrder bool) W
 	if row.CustomerID != nil && row.CustomerKind != nil && row.CustomerName != nil {
 		party := &BillingParty{
 			ID:                            *row.CustomerID,
-			Kind:                          *row.CustomerKind,
+			Kind:                          PartyKind(*row.CustomerKind),
 			DisplayName:                   *row.CustomerName,
-			OrganizationKind:              row.CustomerOrganizationKind,
+			OrganizationKind:              pointerAs[OrganizationKind](row.CustomerOrganizationKind),
 			PricingGroupAssignmentVersion: row.CustomerPricingGroupAssignmentVersion,
 		}
 		if row.CustomerPricingGroupID != nil && row.CustomerPricingGroupName != nil {
@@ -262,7 +268,7 @@ func workItemFromRow(row machinelogbookdb.ListWorkItemsRow, includeOrder bool) W
 		item.Operator = &Operator{PersonID: *row.OperatorPersonID, DisplayName: *row.OperatorName}
 	}
 	if row.BillingState != nil {
-		billing := &WorkItemBilling{State: *row.BillingState}
+		billing := &WorkItemBilling{State: BillingState(*row.BillingState)}
 		if includeOrder {
 			billing.OrderID, billing.OrderReference = row.BillingOrderID, row.BillingOrderReference
 		}
@@ -275,18 +281,19 @@ func workItemFromRow(row machinelogbookdb.ListWorkItemsRow, includeOrder bool) W
 func (s *Service) countWorkItems(
 	ctx context.Context,
 	q *machinelogbookdb.Queries,
-	statuses, billing []string,
+	statuses []WorkItemStatus,
+	billing []BillingState,
 ) (int64, error) {
 	rows, err := q.ListWorkItems(
 		ctx,
 		machinelogbookdb.ListWorkItemsParams{
-			Statuses:      nonNil(statuses),
-			BillingStates: nonNil(billing),
+			Statuses:      nonNil(sliceAs[string](statuses)),
+			BillingStates: nonNil(sliceAs[string](billing)),
 			MachineIds:    []uuid.UUID{},
 			Sources:       []string{},
 			MaterialIds:   []uuid.UUID{},
 			SortKey:       "startedAt",
-			SortDirection: "desc",
+			SortDirection: string(SortDesc),
 			PageLimit:     1,
 		},
 	)

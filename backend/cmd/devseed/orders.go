@@ -8,6 +8,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/ids"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/orders"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -29,7 +30,7 @@ func (s *seeder) priceAdjustments() {
 		job, err := s.ml.GetJob(s.ctx, s.actor, r.id)
 		check("get job", err)
 		_, err = s.mlAt(r.ends.Add(36*time.Hour)).
-			SetJobPriceAdjustment(s.ctx, s.actor, r.id, job.Version, kind, val, reason, nil)
+			SetJobPriceAdjustment(s.ctx, s.actor, r.id, job.Version, machinelogbook.PriceAdjustmentKind(kind), val, reason, nil)
 		check("adjust", err)
 		r.used = true
 	}
@@ -90,7 +91,7 @@ func (s *seeder) createOrders() {
 		o, err := s.orders.Create(
 			s.ctx,
 			s.actor,
-			orders.OrderDraftInput{Customer: &orders.OrderCustomer{Kind: c.kind, ID: c.id}, FulfillmentMode: mode},
+			orders.OrderDraftInput{Customer: &orders.OrderCustomer{Kind: orders.CustomerKind(c.kind), ID: c.id}, FulfillmentMode: orders.FulfillmentMode(mode)},
 			nil,
 		)
 		check("order create", err)

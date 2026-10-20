@@ -87,7 +87,7 @@ func (s *Service) reverseRunConsumption(
 		}
 		for _, u := range active {
 			usages = append(usages, pending{usage: u, run: run})
-			if u.Ownership != "external" && u.MaterialID != nil {
+			if UsageOwnership(u.Ownership) != OwnershipExternal && u.MaterialID != nil {
 				materialIDs[*u.MaterialID] = true
 			}
 		}
@@ -112,7 +112,7 @@ func (s *Service) reverseRunConsumption(
 	total := decimal.Zero
 	for _, item := range usages {
 		u := item.usage
-		if u.Ownership != "external" && u.MaterialID != nil {
+		if UsageOwnership(u.Ownership) != OwnershipExternal && u.MaterialID != nil {
 			ledger, err := q.SumRunUsageLedger(ctx, &u.ID)
 			if err != nil {
 				return decimal.Zero, err
@@ -138,7 +138,7 @@ func (s *Service) reverseRunConsumption(
 					*u.MaterialID,
 					anyInventoryVersion,
 					inventoryMutation{
-						Kind:          "adjustment",
+						Kind:          InventoryAdjustment,
 						QuantityDelta: quantity,
 						UnitCost:      unitCost,
 						ValueDelta:    value,
@@ -212,7 +212,7 @@ func (s *Service) DeleteRun(
 	if err != nil {
 		return err
 	}
-	if run.Source == "recorded" {
+	if RunSource(run.Source) == RunSourceRecorded {
 		if err = require(p, authorization.MachineJobsDelete); err != nil {
 			return err
 		}
@@ -220,7 +220,7 @@ func (s *Service) DeleteRun(
 	if run.Version != expected {
 		return apperror.StaleWrite
 	}
-	if run.JobID != nil && (run.State == nil || *run.State != "replaced") {
+	if run.JobID != nil && (run.State == nil || RunState(*run.State) != RunStateReplaced) {
 		active, err := q.ListActiveJobRunIDs(ctx, run.JobID)
 		if err != nil {
 			return err
@@ -357,7 +357,7 @@ func (s *Service) deleteJobRows(
 ) error {
 	var deleting, detaching []machinelogbookdb.MachineRun
 	for _, run := range runs {
-		if run.Source == "manual" || deleteRecorded {
+		if RunSource(run.Source) == RunSourceManual || deleteRecorded {
 			deleting = append(deleting, run)
 		} else {
 			detaching = append(detaching, run)
@@ -410,7 +410,7 @@ func (s *Service) deleteJobRows(
 		fields = append(fields, "recordedRunsDetached")
 	}
 	for _, run := range deleting {
-		if run.Source == "recorded" {
+		if RunSource(run.Source) == RunSourceRecorded {
 			fields = append(fields, "recordedRunsDeleted")
 			break
 		}

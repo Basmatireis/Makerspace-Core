@@ -125,7 +125,7 @@ func (f *fillFixture) refresh(t *testing.T, m Material) Material {
 	return fresh
 }
 
-func (f *fillFixture) spoolInput(m Material, kind, weight string) FilamentSpoolInput {
+func (f *fillFixture) spoolInput(m Material, kind SpoolKind, weight string) FilamentSpoolInput {
 	tare := "200"
 	return FilamentSpoolInput{
 		Kind:                     kind,
@@ -148,7 +148,7 @@ func (f *fillFixture) refresh2(m Material) int64 {
 }
 
 // spool creates a spool whose first fill takes weight grams from loose stock.
-func (f *fillFixture) spool(t *testing.T, m Material, kind, weight string) FilamentSpool {
+func (f *fillFixture) spool(t *testing.T, m Material, kind SpoolKind, weight string) FilamentSpool {
 	t.Helper()
 	spool, err := f.s.CreateFilamentSpool(t.Context(), f.p, f.spoolInput(m, kind, weight), &f.request)
 	if err != nil {
@@ -158,7 +158,7 @@ func (f *fillFixture) spool(t *testing.T, m Material, kind, weight string) Filam
 }
 
 // purchasedSpool creates a spool whose fill is bought, so its ledger has no transfer rows.
-func (f *fillFixture) purchasedSpool(t *testing.T, m Material, kind, weight string) FilamentSpool {
+func (f *fillFixture) purchasedSpool(t *testing.T, m Material, kind SpoolKind, weight string) FilamentSpool {
 	t.Helper()
 	input := f.spoolInput(m, kind, weight)
 	input.StockMode, input.TotalPrice = "new_acquisition", ptr("10")
@@ -357,17 +357,17 @@ func TestChangeFilamentLeftoverBasisAndDisposition(t *testing.T) {
 		name         string
 		leftover     LeftoverInput
 		wantClosing  func(display string) []string
-		wantOutcome  string
+		wantOutcome  FillOutcome
 		wantLeftover string
 		wantTotal    string // material total after the change
 	}{
-		{"system returned to stock", LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")},
+		{"system returned to stock", LeftoverInput{Basis: "system", Disposition: ptr(DispositionReturnedToStock)},
 			func(d string) []string { return []string{fmt.Sprintf("transfer 600 %s#1->loose", d)} }, "returned_to_stock", "600", "1600"},
-		{"system disposed", LeftoverInput{Basis: "system", Disposition: ptr("disposed")},
+		{"system disposed", LeftoverInput{Basis: "system", Disposition: ptr(DispositionDisposed)},
 			func(d string) []string { return []string{fmt.Sprintf("disposal/disposed -600 %s#1", d)} }, "disposed", "600", "1000"},
 		{
 			"weighed below system returned",
-			LeftoverInput{Basis: "weighed", GrossWeightG: ptr("700"), Disposition: ptr("returned_to_stock")},
+			LeftoverInput{Basis: "weighed", GrossWeightG: ptr("700"), Disposition: ptr(DispositionReturnedToStock)},
 			func(d string) []string {
 				return []string{
 					fmt.Sprintf("adjustment/inventory_count -100 %s#1", d),
@@ -380,7 +380,7 @@ func TestChangeFilamentLeftoverBasisAndDisposition(t *testing.T) {
 		},
 		{
 			"weighed above system disposed",
-			LeftoverInput{Basis: "weighed", GrossWeightG: ptr("900"), Disposition: ptr("disposed")},
+			LeftoverInput{Basis: "weighed", GrossWeightG: ptr("900"), Disposition: ptr(DispositionDisposed)},
 			func(d string) []string {
 				return []string{
 					fmt.Sprintf("adjustment/inventory_count 100 %s#1", d),
@@ -438,7 +438,7 @@ func TestChangeFilamentToAnotherMaterialMovesOnlyThroughLedgerRows(t *testing.T)
 	changed, err := f.change(
 		t,
 		spool.ID,
-		&LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")},
+		&LeftoverInput{Basis: "system", Disposition: ptr(DispositionReturnedToStock)},
 		f.newFill(newMaterial, "400"),
 	)
 	if err != nil {
@@ -460,7 +460,7 @@ func TestChangeFilamentValidationAndPurchase(t *testing.T) {
 	m := f.material(t, "1000")
 	spool := f.spool(t, m, "reusable", "600")
 	ctx := t.Context()
-	leftover := &LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")}
+	leftover := &LeftoverInput{Basis: "system", Disposition: ptr(DispositionReturnedToStock)}
 
 	expectNoChange := func(label string, err error, code string) {
 		t.Helper()
@@ -483,7 +483,7 @@ func TestChangeFilamentValidationAndPurchase(t *testing.T) {
 	_, err = f.change(
 		t,
 		spool.ID,
-		&LeftoverInput{Basis: "weighed", GrossWeightG: ptr("500"), Disposition: ptr("disposed")},
+		&LeftoverInput{Basis: "weighed", GrossWeightG: ptr("500"), Disposition: ptr(DispositionDisposed)},
 		f.newFill(m, "10"),
 	)
 	if err != nil {
@@ -631,7 +631,7 @@ func TestChangeFilamentProductRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	spool := f.spool(t, m, "reusable", "200")
-	leftover := &LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")}
+	leftover := &LeftoverInput{Basis: "system", Disposition: ptr(DispositionReturnedToStock)}
 
 	fill := f.newFill(m, "100")
 	fill.ProductID = &product.ID
@@ -723,8 +723,8 @@ func TestChangeFilamentIdentifiers(t *testing.T) {
 	ctx := t.Context()
 	spool := f.spool(t, m, "reusable", "300")
 	stranger := f.spool(t, m, "reusable", "300")
-	tag := func(kind string) string { return strings.ToUpper(kind) + "-" + f.suffix }
-	add := func(id uuid.UUID, kind string) FilamentSpoolIdentifier {
+	tag := func(kind IdentifierKind) string { return strings.ToUpper(string(kind)) + "-" + f.suffix }
+	add := func(id uuid.UUID, kind IdentifierKind) FilamentSpoolIdentifier {
 		t.Helper()
 		identifier, err := f.s.AddFilamentSpoolIdentifier(ctx, f.p, id, kind, tag(kind), &f.request)
 		if err != nil {
@@ -738,7 +738,7 @@ func TestChangeFilamentIdentifiers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	leftover := &LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")}
+	leftover := &LeftoverInput{Basis: "system", Disposition: ptr(DispositionReturnedToStock)}
 	run := func(keep []uuid.UUID, fresh []NewSpoolIdentifier) (FilamentSpool, error) {
 		current := f.get(t, spool.ID)
 		return f.s.ChangeFilamentSpoolFill(
@@ -785,7 +785,7 @@ func TestChangeFilamentIdentifiers(t *testing.T) {
 	}
 	values := map[string]bool{}
 	for _, identifier := range changed.Identifiers {
-		values[identifier.Kind+":"+identifier.Value] = true
+		values[string(identifier.Kind)+":"+identifier.Value] = true
 		if identifier.ID == nfc.ID {
 			t.Fatal("kept identifier was not re-inserted for the new fill")
 		}
@@ -818,7 +818,7 @@ func TestChangeFilamentRefusalsAndPermissions(t *testing.T) {
 	f := newFillFixture(t)
 	m := f.material(t, "2000")
 	ctx := t.Context()
-	leftover := &LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")}
+	leftover := &LeftoverInput{Basis: "system", Disposition: ptr(DispositionReturnedToStock)}
 
 	single := f.spool(t, m, "single_use", "100")
 	if _, err := f.change(t, single.ID, leftover, f.newFill(m, "50")); !apperror.IsCode(err, "spool_not_reusable") {
@@ -831,7 +831,7 @@ func TestChangeFilamentRefusalsAndPermissions(t *testing.T) {
 		f.p,
 		archived.ID,
 		FinishSpoolInput{
-			Leftover:        LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")},
+			Leftover:        LeftoverInput{Basis: "system", Disposition: ptr(DispositionReturnedToStock)},
 			OccurredAt:      f.now.Add(time.Hour),
 			ExpectedVersion: archived.Version,
 		},
@@ -963,7 +963,7 @@ func TestFinishFilamentSpool(t *testing.T) {
 		f.p,
 		single.ID,
 		FinishSpoolInput{
-			Leftover:        LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")},
+			Leftover:        LeftoverInput{Basis: "system", Disposition: ptr(DispositionReturnedToStock)},
 			OccurredAt:      f.now.Add(time.Hour),
 			ExpectedVersion: single.Version,
 		},
@@ -1003,7 +1003,7 @@ func TestFinishFilamentSpool(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.s.FinishFilamentSpool(ctx, f.p, untared.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "weighed", GrossWeightG: ptr("500"), Disposition: ptr("disposed")}, OccurredAt: f.now.Add(time.Hour), ExpectedVersion: untared.Version}, &f.request); !apperror.IsCode(
+	if _, err = f.s.FinishFilamentSpool(ctx, f.p, untared.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "weighed", GrossWeightG: ptr("500"), Disposition: ptr(DispositionDisposed)}, OccurredAt: f.now.Add(time.Hour), ExpectedVersion: untared.Version}, &f.request); !apperror.IsCode(
 		err,
 		"tare_required",
 	) {
@@ -1014,7 +1014,7 @@ func TestFinishFilamentSpool(t *testing.T) {
 		f.p,
 		reusable.ID,
 		FinishSpoolInput{
-			Leftover:        LeftoverInput{Basis: "weighed", GrossWeightG: ptr("450"), Disposition: ptr("disposed")},
+			Leftover:        LeftoverInput{Basis: "weighed", GrossWeightG: ptr("450"), Disposition: ptr(DispositionDisposed)},
 			OccurredAt:      f.now.Add(time.Hour),
 			ExpectedVersion: reusable.Version,
 		},
@@ -1052,7 +1052,7 @@ func TestSpoolMovementsRequireAnOpenFill(t *testing.T) {
 		f.p,
 		empty.ID,
 		FinishSpoolInput{
-			Leftover:        LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")},
+			Leftover:        LeftoverInput{Basis: "system", Disposition: ptr(DispositionReturnedToStock)},
 			OccurredAt:      f.now.Add(time.Hour),
 			ExpectedVersion: empty.Version,
 		},
@@ -1179,14 +1179,14 @@ func TestSpoolListFiltersAndStatus(t *testing.T) {
 		}
 	}
 	check("kind reusable", SpoolFilters{Kind: "reusable"}, reusable.ID, waiting.ID)
-	check("needs_refill", SpoolFilters{Statuses: []string{"needs_refill"}}, waiting.ID)
-	check("loaded or active", SpoolFilters{Statuses: []string{"loaded", "active"}}, reusable.ID, single.ID)
-	check("archived", SpoolFilters{Statuses: []string{"archived"}}, gone.ID)
+	check("needs_refill", SpoolFilters{Statuses: []SpoolStatus{"needs_refill"}}, waiting.ID)
+	check("loaded or active", SpoolFilters{Statuses: []SpoolStatus{"loaded", "active"}}, reusable.ID, single.ID)
+	check("archived", SpoolFilters{Statuses: []SpoolStatus{"archived"}}, gone.ID)
 	check("consumable", SpoolFilters{Consumable: true}, reusable.ID, single.ID)
 	check("lifecycle archived", SpoolFilters{Lifecycle: "archived"}, gone.ID)
 	check("not mounted", SpoolFilters{Mounted: ptr(false)}, reusable.ID, single.ID, waiting.ID, gone.ID)
 	check("mounted", SpoolFilters{Mounted: ptr(true)})
-	if _, _, err = f.s.ListFilamentSpools(ctx, f.p, SpoolFilters{Statuses: []string{"bogus"}, Page: 1, PageSize: 10}); !apperror.IsCode(
+	if _, _, err = f.s.ListFilamentSpools(ctx, f.p, SpoolFilters{Statuses: []SpoolStatus{"bogus"}, Page: 1, PageSize: 10}); !apperror.IsCode(
 		err,
 		"validation_failed",
 	) {
@@ -1400,7 +1400,7 @@ func TestJobUsagesAttachToFillsAndSurviveSpoolDeletion(t *testing.T) {
 		f.p,
 		emptied.ID,
 		FinishSpoolInput{
-			Leftover:        LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")},
+			Leftover:        LeftoverInput{Basis: "system", Disposition: ptr(DispositionReturnedToStock)},
 			OccurredAt:      f.now.Add(time.Minute),
 			ExpectedVersion: emptied.Version,
 		},
@@ -1417,7 +1417,7 @@ func TestJobUsagesAttachToFillsAndSurviveSpoolDeletion(t *testing.T) {
 
 	// Refilling moves the spool on to fill 2; the recorded usage keeps fill 1.
 	current := f.get(t, refill.ID)
-	if _, err = f.s.ChangeFilamentSpoolFill(ctx, f.p, refill.ID, ChangeFillInput{Leftover: &LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")}, Fill: f.newFill(m, "200"), OccurredAt: f.now.Add(time.Hour), ExpectedVersion: current.Version}, &f.request); err != nil {
+	if _, err = f.s.ChangeFilamentSpoolFill(ctx, f.p, refill.ID, ChangeFillInput{Leftover: &LeftoverInput{Basis: "system", Disposition: ptr(DispositionReturnedToStock)}, Fill: f.newFill(m, "200"), OccurredAt: f.now.Add(time.Hour), ExpectedVersion: current.Version}, &f.request); err != nil {
 		t.Fatal(err)
 	}
 	reloaded, err := jf.s.GetJob(ctx, jf.p, job.ID)
@@ -1516,7 +1516,7 @@ func TestCleanUpKeepsTransferRowsOfDeletedSpools(t *testing.T) {
 	m := f.material(t, "1000")
 	ctx := t.Context()
 	spool := f.spool(t, m, "single_use", "300")
-	if _, err := f.s.FinishFilamentSpool(ctx, f.p, spool.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")}, OccurredAt: f.now.Add(time.Hour), ExpectedVersion: spool.Version}, &f.request); err != nil {
+	if _, err := f.s.FinishFilamentSpool(ctx, f.p, spool.ID, FinishSpoolInput{Leftover: LeftoverInput{Basis: "system", Disposition: ptr(DispositionReturnedToStock)}, OccurredAt: f.now.Add(time.Hour), ExpectedVersion: spool.Version}, &f.request); err != nil {
 		t.Fatal(err)
 	}
 	f.now = f.now.AddDate(0, 2, 0)

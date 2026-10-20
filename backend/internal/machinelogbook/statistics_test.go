@@ -80,7 +80,7 @@ func TestStatisticsTotalsRuntimeAndCostSplit(t *testing.T) {
 	f.now = statsClock
 	ctx := t.Context()
 	day := func(d, hour int) time.Time { return time.Date(y, time.June, d, hour, 0, 0, 0, time.UTC) }
-	job := func(machine Machine, start time.Time, duration time.Duration, outcome string) MachineJob {
+	job := func(machine Machine, start time.Time, duration time.Duration, outcome JobOutcome) MachineJob {
 		input := JobInput{
 			MachineID:        machine.ID,
 			StartsAt:         start,

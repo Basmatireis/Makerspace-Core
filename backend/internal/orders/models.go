@@ -3,6 +3,7 @@ package orders
 import (
 	"time"
 
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/machinelogbook"
 	"github.com/google/uuid"
 )
 
@@ -13,47 +14,47 @@ type Actor struct {
 }
 
 type OrderCustomer struct {
-	Kind string    `json:"kind"`
-	ID   uuid.UUID `json:"id"`
+	Kind CustomerKind `json:"kind"`
+	ID   uuid.UUID    `json:"id"`
 }
 
 type OrderDraftInput struct {
-	Customer        *OrderCustomer `json:"customer,omitempty"`
-	FulfillmentMode string         `json:"fulfillmentMode"`
+	Customer        *OrderCustomer  `json:"customer,omitempty"`
+	FulfillmentMode FulfillmentMode `json:"fulfillmentMode"`
 }
 
 type UpdateOrderDraftInput struct {
-	PreserveCustomer bool           `json:"-"`
-	Customer         *OrderCustomer `json:"customer,omitempty"`
-	FulfillmentMode  string         `json:"fulfillmentMode"`
-	ExpectedVersion  int64          `json:"expectedVersion"`
+	PreserveCustomer bool            `json:"-"`
+	Customer         *OrderCustomer  `json:"customer,omitempty"`
+	FulfillmentMode  FulfillmentMode `json:"fulfillmentMode"`
+	ExpectedVersion  int64           `json:"expectedVersion"`
 }
 
 type OrderItemInput struct {
-	Kind               string    `json:"kind"`
-	Description        string    `json:"description,omitempty"`
-	Quantity           string    `json:"quantity,omitempty"`
-	Unit               string    `json:"unit,omitempty"`
-	UnitPrice          string    `json:"unitPrice,omitempty"`
-	MachineJobID       uuid.UUID `json:"machineJobId,omitempty"`
-	ExpectedJobVersion int64     `json:"expectedJobVersion,omitempty"`
-	ExpectedVersion    int64     `json:"expectedVersion"`
+	Kind               OrderItemKind `json:"kind"`
+	Description        string        `json:"description,omitempty"`
+	Quantity           string        `json:"quantity,omitempty"`
+	Unit               string        `json:"unit,omitempty"`
+	UnitPrice          string        `json:"unitPrice,omitempty"`
+	MachineJobID       uuid.UUID     `json:"machineJobId,omitempty"`
+	ExpectedJobVersion int64         `json:"expectedJobVersion,omitempty"`
+	ExpectedVersion    int64         `json:"expectedVersion"`
 }
 
 type PaymentInput struct {
-	Method            string    `json:"method"`
-	Amount            string    `json:"amount"`
-	OccurredAt        time.Time `json:"occurredAt"`
-	ExternalSource    string    `json:"externalSource,omitempty"`
-	ExternalReference string    `json:"externalReference,omitempty"`
+	Method            PaymentMethod `json:"method"`
+	Amount            string        `json:"amount"`
+	OccurredAt        time.Time     `json:"occurredAt"`
+	ExternalSource    string        `json:"externalSource,omitempty"`
+	ExternalReference string        `json:"externalReference,omitempty"`
 }
 
 type PaymentReversalInput struct {
-	PaymentID         uuid.UUID `json:"paymentId"`
-	ReasonKind        string    `json:"reasonKind"`
-	Reason            string    `json:"reason"`
-	OccurredAt        time.Time `json:"occurredAt"`
-	ExternalReference string    `json:"externalReference,omitempty"`
+	PaymentID         uuid.UUID      `json:"paymentId"`
+	ReasonKind        ReversalReason `json:"reasonKind"`
+	Reason            string         `json:"reason"`
+	OccurredAt        time.Time      `json:"occurredAt"`
+	ExternalReference string         `json:"externalReference,omitempty"`
 }
 
 type OrderCommand struct {
@@ -80,30 +81,30 @@ type ReversePaymentCommand struct {
 }
 
 type JobChargeSnapshot struct {
-	DisplayID           string          `json:"displayId"`
-	MachineID           uuid.UUID       `json:"machineId"`
-	MachineName         string          `json:"machineName"`
-	MachineTypeID       uuid.UUID       `json:"machineTypeId"`
-	MachineTypeName     string          `json:"machineTypeName"`
-	StartsAt            time.Time       `json:"startsAt"`
-	EndsAt              time.Time       `json:"endsAt"`
-	DurationNanoseconds string          `json:"durationNanoseconds"`
-	Outcome             string          `json:"outcome"`
-	Usages              []JobUsage      `json:"usages"`
-	Pricing             PricingEvidence `json:"pricing"`
-	PricingStatus       string          `json:"pricingStatus"`
-	CalculatedAmount    *string         `json:"calculatedAmount,omitempty"`
-	FinalAmount         *string         `json:"finalAmount,omitempty"`
-	EffectiveAmount     string          `json:"effectiveAmount"`
-	OverrideReason      *string         `json:"overrideReason,omitempty"`
-	OverriddenAt        *time.Time      `json:"overriddenAt,omitempty"`
-	CapturedAt          time.Time       `json:"capturedAt"`
+	DisplayID           string                       `json:"displayId"`
+	MachineID           uuid.UUID                    `json:"machineId"`
+	MachineName         string                       `json:"machineName"`
+	MachineTypeID       uuid.UUID                    `json:"machineTypeId"`
+	MachineTypeName     string                       `json:"machineTypeName"`
+	StartsAt            time.Time                    `json:"startsAt"`
+	EndsAt              time.Time                    `json:"endsAt"`
+	DurationNanoseconds string                       `json:"durationNanoseconds"`
+	Outcome             machinelogbook.JobOutcome    `json:"outcome"`
+	Usages              []JobUsage                   `json:"usages"`
+	Pricing             PricingEvidence              `json:"pricing"`
+	PricingStatus       machinelogbook.PricingStatus `json:"pricingStatus"`
+	CalculatedAmount    *string                      `json:"calculatedAmount,omitempty"`
+	FinalAmount         *string                      `json:"finalAmount,omitempty"`
+	EffectiveAmount     string                       `json:"effectiveAmount"`
+	OverrideReason      *string                      `json:"overrideReason,omitempty"`
+	OverriddenAt        *time.Time                   `json:"overriddenAt,omitempty"`
+	CapturedAt          time.Time                    `json:"capturedAt"`
 }
 
 type OrderItem struct {
 	ID                 uuid.UUID          `json:"id"`
 	Position           int64              `json:"position"`
-	Kind               string             `json:"kind"`
+	Kind               OrderItemKind      `json:"kind"`
 	Description        string             `json:"description"`
 	Quantity           string             `json:"quantity"`
 	Unit               string             `json:"unit"`
@@ -139,25 +140,25 @@ type OrderAdjustment struct {
 type Order struct {
 	ActiveExternalRequestID        *uuid.UUID        `json:"activeExternalRequestId"`
 	ActiveExternalRequestReference *string           `json:"activeExternalRequestReference"`
-	ActiveExternalRequestState     *string           `json:"activeExternalRequestState"`
+	ActiveExternalRequestState     *InvoiceState     `json:"activeExternalRequestState"`
 	LatestExternalRequestID        *uuid.UUID        `json:"latestExternalRequestId"`
 	LatestExternalRequestReference *string           `json:"latestExternalRequestReference"`
-	LatestExternalRequestState     *string           `json:"latestExternalRequestState"`
+	LatestExternalRequestState     *InvoiceState     `json:"latestExternalRequestState"`
 	ReplacedByOrderID              *uuid.UUID        `json:"replacedByOrderId"`
 	ReplacedByOrderReference       *string           `json:"replacedByOrderReference"`
 	ID                             uuid.UUID         `json:"id"`
 	Reference                      string            `json:"reference"`
-	Status                         string            `json:"status"`
+	Status                         OrderStatus       `json:"status"`
 	Currency                       string            `json:"currency"`
-	CustomerKind                   string            `json:"customerKind"`
+	CustomerKind                   CustomerKind      `json:"customerKind"`
 	Customer                       *OrderCustomer    `json:"customer"`
 	CustomerName                   *string           `json:"customerName"`
-	FulfillmentMode                string            `json:"fulfillmentMode"`
+	FulfillmentMode                FulfillmentMode   `json:"fulfillmentMode"`
 	TotalAmount                    string            `json:"totalAmount"`
 	NetCharge                      string            `json:"netCharge"`
 	SettledAmount                  string            `json:"settledAmount"`
 	OutstandingAmount              string            `json:"outstandingAmount"`
-	SettlementState                string            `json:"settlementState"`
+	SettlementState                SettlementState   `json:"settlementState"`
 	ReplacesOrderID                *uuid.UUID        `json:"replacesOrderId"`
 	ReplacesOrderReference         *string           `json:"replacesOrderReference"`
 	Items                          []OrderItem       `json:"items"`
@@ -172,14 +173,14 @@ type Order struct {
 type OrderPayment struct {
 	ID                       uuid.UUID         `json:"id"`
 	Reference                string            `json:"reference"`
-	EntryKind                string            `json:"entryKind"`
-	Method                   string            `json:"method"`
+	EntryKind                PaymentEntryKind  `json:"entryKind"`
+	Method                   PaymentMethod     `json:"method"`
 	Amount                   string            `json:"amount"`
 	OccurredAt               time.Time         `json:"occurredAt"`
 	RecordedAt               time.Time         `json:"recordedAt"`
 	ReversesPaymentID        *uuid.UUID        `json:"reversesPaymentId"`
 	ReversedPaymentReference *string           `json:"reversedPaymentReference"`
-	ReasonKind               *string           `json:"reasonKind"`
+	ReasonKind               *ReversalReason   `json:"reasonKind"`
 	Reason                   string            `json:"reason"`
 	ExternalSource           string            `json:"externalSource"`
 	ExternalReference        string            `json:"externalReference"`
@@ -257,24 +258,24 @@ type UpdateInvoiceRequest struct {
 }
 
 type InvoiceRequestCommand struct {
-	OperationKey       uuid.UUID `json:"operationKey"`
-	ExpectedVersion    int64     `json:"expectedVersion"`
-	ExternalReference  string    `json:"externalReference,omitempty"`
-	ReconciliationKind string    `json:"reconciliationKind,omitempty"`
-	Reason             string    `json:"reason,omitempty"`
-	EffectiveAt        time.Time `json:"effectiveAt,omitempty"`
-	Amount             string    `json:"amount,omitempty"`
+	OperationKey       uuid.UUID          `json:"operationKey"`
+	ExpectedVersion    int64              `json:"expectedVersion"`
+	ExternalReference  string             `json:"externalReference,omitempty"`
+	ReconciliationKind ReconciliationKind `json:"reconciliationKind,omitempty"`
+	Reason             string             `json:"reason,omitempty"`
+	EffectiveAt        time.Time          `json:"effectiveAt,omitempty"`
+	Amount             string             `json:"amount,omitempty"`
 }
 
 type InvoiceRequestEvent struct {
-	ID                 uuid.UUID `json:"id"`
-	Kind               string    `json:"kind"`
-	ExternalReference  string    `json:"externalReference"`
-	ReconciliationKind string    `json:"reconciliationKind"`
-	Reason             string    `json:"reason"`
-	EffectiveAt        time.Time `json:"effectiveAt"`
-	RecordedAt         time.Time `json:"recordedAt"`
-	RecordedBy         *Actor    `json:"recordedBy"`
+	ID                 uuid.UUID          `json:"id"`
+	Kind               InvoiceEventKind   `json:"kind"`
+	ExternalReference  string             `json:"externalReference"`
+	ReconciliationKind ReconciliationKind `json:"reconciliationKind"`
+	Reason             string             `json:"reason"`
+	EffectiveAt        time.Time          `json:"effectiveAt"`
+	RecordedAt         time.Time          `json:"recordedAt"`
+	RecordedBy         *Actor             `json:"recordedBy"`
 }
 
 type ExternalInvoiceRequest struct {
@@ -283,7 +284,7 @@ type ExternalInvoiceRequest struct {
 	OrderID                       *uuid.UUID            `json:"orderId"`
 	OrderReference                string                `json:"orderReference"`
 	Provider                      string                `json:"provider"`
-	State                         string                `json:"state"`
+	State                         InvoiceState          `json:"state"`
 	Currency                      string                `json:"currency"`
 	RequestedAmount               string                `json:"requestedAmount"`
 	AlreadyPaid                   string                `json:"alreadyPaid"`
@@ -304,62 +305,62 @@ type JobOrderAssociation struct {
 }
 
 type JobUsage struct {
-	ID                 uuid.UUID  `json:"id"`
-	MaterialID         *uuid.UUID `json:"materialId,omitempty"`
-	SpoolID            *uuid.UUID `json:"spoolId,omitempty"`
-	SpoolDisplayID     *string    `json:"spoolDisplayId,omitempty"`
-	Ownership          string     `json:"ownership"`
-	MaterialName       string     `json:"materialName"`
-	Category           string     `json:"category"`
-	Unit               string     `json:"unit"`
-	Quantity           string     `json:"quantity"`
-	QuantityBasis      string     `json:"quantityBasis"`
-	EstimationMethod   *string    `json:"estimationMethod,omitempty"`
-	CalculationVersion *string    `json:"calculationVersion,omitempty"`
-	EstimateQuality    *string    `json:"estimateQuality,omitempty"`
-	ReportRevision     *int64     `json:"reportRevision,omitempty"`
-	StaffCorrected     bool       `json:"staffCorrected,omitempty"`
+	ID                 uuid.UUID                       `json:"id"`
+	MaterialID         *uuid.UUID                      `json:"materialId,omitempty"`
+	SpoolID            *uuid.UUID                      `json:"spoolId,omitempty"`
+	SpoolDisplayID     *string                         `json:"spoolDisplayId,omitempty"`
+	Ownership          machinelogbook.UsageOwnership   `json:"ownership"`
+	MaterialName       string                          `json:"materialName"`
+	Category           string                          `json:"category"`
+	Unit               string                          `json:"unit"`
+	Quantity           string                          `json:"quantity"`
+	QuantityBasis      machinelogbook.QuantityBasis    `json:"quantityBasis"`
+	EstimationMethod   *string                         `json:"estimationMethod,omitempty"`
+	CalculationVersion *string                         `json:"calculationVersion,omitempty"`
+	EstimateQuality    *machinelogbook.EstimateQuality `json:"estimateQuality,omitempty"`
+	ReportRevision     *int64                          `json:"reportRevision,omitempty"`
+	StaffCorrected     bool                            `json:"staffCorrected,omitempty"`
 }
 type PricingEvidence struct {
-	ID               uuid.UUID   `json:"id"`
-	Revision         int         `json:"revision"`
-	PricingGroupName string      `json:"pricingGroupName"`
-	Currency         string      `json:"currency"`
-	Reason           string      `json:"reason"`
-	Complete         bool        `json:"complete"`
-	CalculatedAmount *string     `json:"calculatedAmount"`
-	CapturedAt       time.Time   `json:"capturedAt"`
-	Rules            []PriceRule `json:"rules"`
+	ID               uuid.UUID                     `json:"id"`
+	Revision         int                           `json:"revision"`
+	PricingGroupName string                        `json:"pricingGroupName"`
+	Currency         string                        `json:"currency"`
+	Reason           machinelogbook.SnapshotReason `json:"reason"`
+	Complete         bool                          `json:"complete"`
+	CalculatedAmount *string                       `json:"calculatedAmount"`
+	CapturedAt       time.Time                     `json:"capturedAt"`
+	Rules            []PriceRule                   `json:"rules"`
 }
 type PriceRule struct {
-	SourceRuleID *uuid.UUID `json:"sourceRuleId"`
-	Kind         string     `json:"kind"`
-	Label        string     `json:"label"`
-	Selector     string     `json:"selector"`
-	Unit         string     `json:"unit"`
-	Rate         *string    `json:"rate"`
-	Missing      bool       `json:"missing"`
+	SourceRuleID *uuid.UUID                     `json:"sourceRuleId"`
+	Kind         machinelogbook.PricingRuleKind `json:"kind"`
+	Label        string                         `json:"label"`
+	Selector     string                         `json:"selector"`
+	Unit         string                         `json:"unit"`
+	Rate         *string                        `json:"rate"`
+	Missing      bool                           `json:"missing"`
 }
 
 type CashMovementInput struct {
-	OperationKey uuid.UUID `json:"operationKey"`
-	Kind         string    `json:"kind"`
-	Amount       string    `json:"amount"`
-	Reason       string    `json:"reason"`
-	Note         string    `json:"note,omitempty"`
-	OccurredAt   time.Time `json:"occurredAt"`
+	OperationKey uuid.UUID          `json:"operationKey"`
+	Kind         CashMovementKind   `json:"kind"`
+	Amount       string             `json:"amount"`
+	Reason       CashMovementReason `json:"reason"`
+	Note         string             `json:"note,omitempty"`
+	OccurredAt   time.Time          `json:"occurredAt"`
 }
 
 type CashMovement struct {
-	ID         uuid.UUID `json:"id"`
-	Reference  string    `json:"reference"`
-	Kind       string    `json:"kind"`
-	Amount     string    `json:"amount"`
-	Reason     string    `json:"reason"`
-	Note       string    `json:"note"`
-	OccurredAt time.Time `json:"occurredAt"`
-	CreatedAt  time.Time `json:"createdAt"`
-	RecordedBy *Actor    `json:"recordedBy"`
+	ID         uuid.UUID          `json:"id"`
+	Reference  string             `json:"reference"`
+	Kind       CashMovementKind   `json:"kind"`
+	Amount     string             `json:"amount"`
+	Reason     CashMovementReason `json:"reason"`
+	Note       string             `json:"note"`
+	OccurredAt time.Time          `json:"occurredAt"`
+	CreatedAt  time.Time          `json:"createdAt"`
+	RecordedBy *Actor             `json:"recordedBy"`
 }
 
 type CashMovementPage struct {

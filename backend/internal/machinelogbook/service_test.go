@@ -746,7 +746,7 @@ func TestMachineLogbookPostgresVerticalSlice(t *testing.T) {
 			CustomerID: &organization2.ID,
 			OperatorID: &personID,
 			MaterialID: &material.ID,
-			Outcome:    stringPointer("successful"),
+			Outcome:    ptr(JobOutcomeSuccessful),
 			From:       timePointer(startsAt.Add(-time.Minute)),
 			To:         timePointer(startsAt.Add(24 * time.Hour)),
 			Page:       1,

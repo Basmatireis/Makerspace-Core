@@ -20,7 +20,7 @@ func (s *Server) ListMaterials(
 		p,
 		defaultString(r.Params.Search),
 		r.Params.MaterialTypeId,
-		valueString(r.Params.StockState),
+		machinelogbook.StockState(valueString(r.Params.StockState)),
 		defaultInt(r.Params.Page, 1),
 		defaultInt(r.Params.PageSize, 25),
 	)

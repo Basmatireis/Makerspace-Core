@@ -48,7 +48,7 @@ func (s *Service) CreateJobFromRun(
 	if err != nil {
 		return MachineJob{}, noRows(err)
 	}
-	if machine.Status == "retired" {
+	if MachineStatus(machine.Status) == MachineStatusRetired {
 		return MachineJob{}, apperror.Conflicting("machine_retired", "Retired machines cannot receive new jobs")
 	}
 	personID, organizationID, err := validateJobAssignments(ctx, q, input.Customer, input.OperatorPersonID, false)
@@ -82,7 +82,7 @@ func (s *Service) CreateJobFromRun(
 		}
 		return MachineJob{}, databaseError(err)
 	}
-	job, err = s.capturePricingSnapshot(ctx, q, p, job, group, "initial")
+	job, err = s.capturePricingSnapshot(ctx, q, p, job, group, SnapshotInitial)
 	if err != nil {
 		return MachineJob{}, err
 	}
@@ -209,7 +209,7 @@ func (s *Service) replaceManualRuns(
 		return nil, err
 	}
 	for _, existing := range runs {
-		if existing.Source != "manual" || (existing.State != nil && *existing.State == "replaced") {
+		if RunSource(existing.Source) != RunSourceManual || (existing.State != nil && RunState(*existing.State) == RunStateReplaced) {
 			continue
 		}
 		old, err := q.ListActiveRunUsagesForUpdate(ctx, existing.ID)
@@ -339,7 +339,7 @@ func (s *Service) DetachRun(
 	if err != nil {
 		return MachineJob{}, err
 	}
-	if run.Source != "recorded" {
+	if RunSource(run.Source) != RunSourceRecorded {
 		return MachineJob{}, apperror.Conflicting("run_not_recorded", "Only recorded runs can be detached")
 	}
 	if job == nil {
@@ -365,7 +365,7 @@ func (s *Service) DetachRun(
 		if earliest := start.Add(time.Second); end.Before(earliest) {
 			end = earliest
 		}
-		plan := manualRunPlan{StartsAt: start.UTC(), EndsAt: end.UTC(), Outcome: run.Outcome}
+		plan := manualRunPlan{StartsAt: start.UTC(), EndsAt: end.UTC(), Outcome: pointerAs[RunOutcome](run.Outcome)}
 		if _, err = s.storeManualRun(ctx, tx, q, p, *job, plan, requestID); err != nil {
 			return MachineJob{}, err
 		}

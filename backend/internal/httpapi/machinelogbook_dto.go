@@ -503,7 +503,7 @@ func decimalNullable(value nullable.Nullable[openapi.Decimal]) *string {
 	return &v
 }
 func partyInput(value openapi.BillingPartyReference) machinelogbook.PartyReference {
-	return machinelogbook.PartyReference{Kind: string(value.Kind), ID: value.Id}
+	return machinelogbook.PartyReference{Kind: machinelogbook.PartyKind(value.Kind), ID: value.Id}
 }
 func usageInputs(values []openapi.MachineJobUsageInput) []machinelogbook.UsageInput {
 	items := make([]machinelogbook.UsageInput, 0, len(values))
@@ -517,10 +517,10 @@ func usageInputs(values []openapi.MachineJobUsageInput) []machinelogbook.UsageIn
 			machinelogbook.UsageInput{
 				MaterialID:           materialID,
 				SpoolID:              uuidNullable(v.SpoolId),
-				Ownership:            string(v.Ownership),
+				Ownership:            machinelogbook.UsageOwnership(v.Ownership),
 				ExternalMaterialName: nullableStringPointer(v.ExternalMaterialName),
 				Quantity:             v.Quantity,
-				QuantityBasis:        string(v.QuantityBasis),
+				QuantityBasis:        machinelogbook.QuantityBasis(v.QuantityBasis),
 			},
 		)
 	}
@@ -702,4 +702,25 @@ func mlMemberOrganizationsDTO(items []machinelogbook.OrganizationReference) *[]o
 		out = append(out, openapi.OrganizationReference{Id: item.ID, Name: item.Name})
 	}
 	return &out
+}
+
+// enumPointer converts an optional transport value to an optional domain value.
+func enumPointer[To, From ~string](value *From) *To {
+	if value == nil {
+		return nil
+	}
+	converted := To(*value)
+	return &converted
+}
+
+// enumSlice converts transport values to domain values.
+func enumSlice[To, From ~string](values []From) []To {
+	if values == nil {
+		return nil
+	}
+	converted := make([]To, len(values))
+	for i, value := range values {
+		converted[i] = To(value)
+	}
+	return converted
 }

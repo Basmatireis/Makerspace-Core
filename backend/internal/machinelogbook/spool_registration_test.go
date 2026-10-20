@@ -103,7 +103,7 @@ func TestCreateEmptyReusableSpool(t *testing.T) {
 		f.p,
 		SpoolFilters{
 			Search:   spool.DisplayID,
-			Statuses: []string{"needs_refill"},
+			Statuses: []SpoolStatus{"needs_refill"},
 			Kind:     "reusable",
 			Page:     1,
 			PageSize: 100,
@@ -146,7 +146,7 @@ func TestCreateEmptySpoolRules(t *testing.T) {
 	m := f.material(t, "500")
 	base := FilamentSpoolInput{Label: f.unique("Rules"), StockMode: "empty", OccurredAt: f.now}
 
-	for _, kind := range []string{"", "single_use"} {
+	for _, kind := range []SpoolKind{"", SpoolSingleUse} {
 		input := base
 		input.Kind = kind
 		if _, err := f.s.CreateFilamentSpool(ctx, f.p, input, &f.request); !apperror.IsCode(

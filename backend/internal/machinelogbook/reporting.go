@@ -87,7 +87,7 @@ func (s *Service) fillOverviewWorkItems(
 ) error {
 	now := s.now().UTC()
 	var err error
-	count := func(statuses, billing []string) *int64 {
+	count := func(statuses []WorkItemStatus, billing []BillingState) *int64 {
 		if err != nil {
 			return nil
 		}
@@ -95,10 +95,10 @@ func (s *Service) fillOverviewWorkItems(
 		total, err = s.countWorkItems(ctx, q, statuses, billing)
 		return &total
 	}
-	result.RunningNow = count([]string{"running", "running_unassigned"}, nil)
-	result.NeedsOutcome = count([]string{"needs_outcome"}, nil)
-	result.UnassignedRuns = count([]string{"unassigned"}, nil)
-	result.BillingIssues = count(nil, []string{"price_incomplete", "order_outdated"})
+	result.RunningNow = count([]WorkItemStatus{WorkItemRunning, WorkItemRunningUnassigned}, nil)
+	result.NeedsOutcome = count([]WorkItemStatus{WorkItemNeedsOutcome}, nil)
+	result.UnassignedRuns = count([]WorkItemStatus{WorkItemUnassigned}, nil)
+	result.BillingIssues = count(nil, []BillingState{BillingPriceIncomplete, BillingOrderOutdated})
 	if err != nil {
 		return err
 	}
@@ -109,14 +109,16 @@ func (s *Service) fillOverviewWorkItems(
 	rows, err := q.ListWorkItems(
 		ctx,
 		machinelogbookdb.ListWorkItemsParams{
-			Statuses:      []string{"running", "running_unassigned", "unassigned", "needs_outcome"},
+			Statuses: sliceAs[string]([]WorkItemStatus{
+				WorkItemRunning, WorkItemRunningUnassigned, WorkItemUnassigned, WorkItemNeedsOutcome,
+			}),
 			MachineIds:    []uuid.UUID{},
 			Sources:       []string{},
 			MaterialIds:   []uuid.UUID{},
 			BillingStates: []string{},
 			ActiveOrder:   true,
 			SortKey:       "startedAt",
-			SortDirection: "desc",
+			SortDirection: string(SortDesc),
 			PageLimit:     6,
 		},
 	)

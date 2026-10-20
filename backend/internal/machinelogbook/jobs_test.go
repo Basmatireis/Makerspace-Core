@@ -164,7 +164,7 @@ func newJobFixtureAt(t *testing.T, now time.Time) *jobFixture {
 	return f
 }
 
-func (f *jobFixture) input(startOffset, duration time.Duration, outcome string) JobInput {
+func (f *jobFixture) input(startOffset, duration time.Duration, outcome JobOutcome) JobInput {
 	start := f.now.Truncate(time.Second).Add(startOffset)
 	return JobInput{
 		MachineID:        f.machine.ID,
@@ -195,7 +195,7 @@ func (f *jobFixture) edit(t *testing.T, job MachineJob, change func(*JobUpdate))
 		update.Customer = PartyReference{Kind: job.Customer.Kind, ID: job.Customer.ID}
 	}
 	if job.OutcomeOverridden {
-		outcome := job.Outcome
+		outcome := RunOutcome(job.Outcome)
 		update.OutcomeOverride = &outcome
 	}
 	if change != nil {
@@ -209,7 +209,7 @@ func (f *jobFixture) edit(t *testing.T, job MachineJob, change func(*JobUpdate))
 }
 
 // retime moves the first run of the job and returns the updated job.
-func (f *jobFixture) retime(t *testing.T, job MachineJob, startsAt, endsAt time.Time, outcome *string) MachineJob {
+func (f *jobFixture) retime(t *testing.T, job MachineJob, startsAt, endsAt time.Time, outcome *RunOutcome) MachineJob {
 	t.Helper()
 	run := job.Runs[0]
 	result, err := f.s.UpdateRun(
@@ -226,7 +226,7 @@ func (f *jobFixture) retime(t *testing.T, job MachineJob, startsAt, endsAt time.
 	return *result.Job
 }
 
-func (f *jobFixture) adjust(t *testing.T, job MachineJob, kind, value string) MachineJob {
+func (f *jobFixture) adjust(t *testing.T, job MachineJob, kind PriceAdjustmentKind, value string) MachineJob {
 	t.Helper()
 	adjusted, err := f.s.SetJobPriceAdjustment(
 		t.Context(),
@@ -249,7 +249,7 @@ func (f *jobFixture) addRun(
 	t *testing.T,
 	job MachineJob,
 	offset, duration time.Duration,
-	outcome *string,
+	outcome *RunOutcome,
 	usages ...UsageInput,
 ) MachineJob {
 	t.Helper()
@@ -268,7 +268,7 @@ func (f *jobFixture) addRun(
 	return added
 }
 
-func outcomePtr(value string) *string { return &value }
+func outcomePtr(value RunOutcome) *RunOutcome { return &value }
 
 func price(value *string) string {
 	if value == nil {
@@ -512,7 +512,7 @@ func TestAdditionalRunsSumUpAndDeriveTheOutcome(t *testing.T) {
 	}
 
 	// Derived outcome rules over the runs' outcomes.
-	cases := []struct{ first, second, want string }{
+	cases := []struct{ first, second, want RunOutcome }{
 		{"successful", "successful", "successful"},
 		{"cancelled", "cancelled", "cancelled"},
 		{"failed", "failed", "failed"},
@@ -520,9 +520,9 @@ func TestAdditionalRunsSumUpAndDeriveTheOutcome(t *testing.T) {
 		{"failed", "cancelled", "partial_failure"},
 	}
 	for _, c := range cases {
-		j := f.create(t, f.input(-10*time.Hour, time.Hour, c.first))
+		j := f.create(t, f.input(-10*time.Hour, time.Hour, JobOutcome(c.first)))
 		j = f.addRun(t, j, -5*time.Hour, time.Hour, outcomePtr(c.second))
-		if j.Outcome != c.want || j.Status != c.want {
+		if j.Outcome != JobOutcome(c.want) || j.Status != JobStatus(c.want) {
 			t.Fatalf("%s + %s = %s/%s want %s", c.first, c.second, j.Outcome, j.Status, c.want)
 		}
 	}
@@ -774,7 +774,10 @@ func TestPriceAdjustmentKinds(t *testing.T) {
 	if price(job.CalculatedPrice) != "3.33" || price(job.EffectivePrice) != "3.33" || job.PriceAdjustment != nil {
 		t.Fatalf("unadjusted job: %+v", job)
 	}
-	cases := []struct{ kind, value, want string }{
+	cases := []struct {
+		kind        PriceAdjustmentKind
+		value, want string
+	}{
 		{"fixed", "7.5", "7.5"},
 		{"fixed", "0", "0"},
 		{"discount_percent", "15", "2.83"},  // 3.33 * 0.85 = 2.8305
@@ -808,7 +811,10 @@ func TestPriceAdjustmentKinds(t *testing.T) {
 		t.Fatalf("stored effective price = %q err=%v", stored, err)
 	}
 
-	for _, invalid := range []struct{ kind, value, reason string }{
+	for _, invalid := range []struct {
+		kind          PriceAdjustmentKind
+		value, reason string
+	}{
 		{"fixed", "-1", "r"}, {"discount_percent", "0", "r"}, {
 			"discount_percent",
 			"100.01",
@@ -979,7 +985,10 @@ func TestRelativeAdjustmentWithIncompletePricingHasNoEffectivePrice(t *testing.T
 	if job.CalculatedPrice != nil || job.EffectivePrice != nil || job.PricingStatus != "incomplete" {
 		t.Fatalf("incomplete job: %+v", job)
 	}
-	for _, kind := range []struct{ kind, value string }{
+	for _, kind := range []struct {
+		kind  PriceAdjustmentKind
+		value string
+	}{
 		{"discount_percent", "10"},
 		{"discount_amount", "1"},
 		{"multiplier", "2"},

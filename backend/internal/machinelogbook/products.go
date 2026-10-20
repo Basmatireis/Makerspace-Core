@@ -27,7 +27,7 @@ func productFromGet(row machinelogbookdb.GetFilamentProductRow) FilamentProduct 
 			row.NetWeightG,
 		),
 		DefaultPrice: nullableDecimal(row.DefaultPrice),
-		Packaging:    row.Packaging,
+		Packaging:    Packaging(row.Packaging),
 		Notes:        row.Notes,
 		Active:       row.Active,
 		InUseCount:   row.InUseCount,
@@ -57,10 +57,10 @@ func validateProduct(in FilamentProductInput) (validatedProduct, error) {
 	if v.name == "" || len(v.name) > 200 {
 		return v, apperror.Invalid("name is required and limited to 200 characters")
 	}
-	if in.Packaging != "refill" && in.Packaging != "spool" {
+	if in.Packaging != PackagingRefill && in.Packaging != PackagingSpool {
 		return v, apperror.Invalid("invalid packaging")
 	}
-	v.packaging = in.Packaging
+	v.packaging = string(in.Packaging)
 	var err error
 	if v.netWeight, err = numericFromString(in.NetWeightG, true); err != nil {
 		return v, apperror.Invalid("netWeightG must be positive")
@@ -106,7 +106,7 @@ func (s *Service) ListFilamentProducts(
 	if err := require(p, authorization.InventoryRead); err != nil {
 		return nil, 0, err
 	}
-	if f.Packaging != "" && f.Packaging != "refill" && f.Packaging != "spool" {
+	if f.Packaging != "" && f.Packaging != PackagingRefill && f.Packaging != PackagingSpool {
 		return nil, 0, apperror.Invalid("invalid packaging")
 	}
 	offset, limit, err := pageBounds(f.Page, f.PageSize)
@@ -121,7 +121,7 @@ func (s *Service) ListFilamentProducts(
 			Search:          search,
 			MaterialID:      f.MaterialID,
 			Manufacturer:    manufacturer,
-			Packaging:       f.Packaging,
+			Packaging:       string(f.Packaging),
 			IncludeInactive: f.IncludeInactive,
 			PageOffset:      offset,
 			PageLimit:       limit,
@@ -136,7 +136,7 @@ func (s *Service) ListFilamentProducts(
 			Search:          search,
 			MaterialID:      f.MaterialID,
 			Manufacturer:    manufacturer,
-			Packaging:       f.Packaging,
+			Packaging:       string(f.Packaging),
 			IncludeInactive: f.IncludeInactive,
 		},
 	)

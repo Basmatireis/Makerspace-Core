@@ -19,7 +19,8 @@ import (
 // stored the event.
 type RecordedRunEvent struct {
 	RunID, ConnectorID uuid.UUID
-	Kind               string
+	// Kind is the connector event kind; it is a RunEventKind value.
+	Kind string
 }
 
 // ApplyRecordedRunEvent settles what a connector event implies for a recorded
@@ -44,12 +45,12 @@ func (s *Service) ApplyRecordedRunEvent(ctx context.Context, tx pgx.Tx, event Re
 	if err != nil {
 		return err
 	}
-	if run.Source != "recorded" {
+	if RunSource(run.Source) != RunSourceRecorded {
 		return nil
 	}
 	connector := authorization.Principal{}
 	var fields []string
-	if event.Kind == "terminal_outcome" {
+	if RunEventKind(event.Kind) == RunEventTerminalOutcome {
 		updated, err := q.SetRecordedRunOutcomeFromMachine(ctx, run.ID)
 		if err == nil {
 			run = updated
@@ -86,7 +87,7 @@ func (s *Service) ApplyRecordedRunEvent(ctx context.Context, tx pgx.Tx, event Re
 		return nil
 	}
 	job := *lockedJob
-	if len(fields) == 0 && event.Kind != "terminal_outcome" {
+	if len(fields) == 0 && RunEventKind(event.Kind) != RunEventTerminalOutcome {
 		_, err = s.refreshPriceKeepingVersion(ctx, q, job)
 		return err
 	}
@@ -117,7 +118,7 @@ func (s *Service) consumeReportedUsage(
 	actor authorization.Principal,
 	run machinelogbookdb.MachineRun,
 ) (bool, error) {
-	if run.State == nil || *run.State == "running" {
+	if run.State == nil || RunState(*run.State) == RunStateRunning {
 		return false, nil
 	}
 	items, err := q.ListLatestReportedUsageItemsForRuns(ctx, []uuid.UUID{run.ID})
@@ -163,9 +164,9 @@ func (s *Service) consumeReportedUsage(
 			{
 				MaterialID:    *spool.MaterialID,
 				SpoolID:       run.ReportedSpoolID,
-				Ownership:     "makerspace",
+				Ownership:     OwnershipMakerspace,
 				Quantity:      decimalString(run.ReportedQuantityG),
-				QuantityBasis: *run.ReportedQuantityBasis,
+				QuantityBasis: QuantityBasis(*run.ReportedQuantityBasis),
 			},
 		},
 	)
@@ -237,7 +238,7 @@ func (s *Service) consumeItemizedReportedUsage(
 	parsed := make([]parsedUsage, 0, len(items))
 	for _, item := range items {
 		if item.SourcePrinterEventID != eventID || item.SpoolID == nil || !item.EstimatedQuantityG.Valid ||
-			item.Quality == "unresolved" {
+			EstimateQuality(item.Quality) == EstimateQualityUnresolved {
 			continue
 		}
 		quantity := decimalFromNumeric(item.EstimatedQuantityG)
@@ -257,8 +258,8 @@ func (s *Service) consumeItemizedReportedUsage(
 			parsedUsage{
 				MaterialID:           spool.MaterialID,
 				SpoolID:              item.SpoolID,
-				Ownership:            "makerspace",
-				QuantityBasis:        "estimated",
+				Ownership:            string(OwnershipMakerspace),
+				QuantityBasis:        string(QuantityBasisEstimated),
 				Quantity:             quantity,
 				UsageID:              ids.New(),
 				SourcePrinterEventID: &eventID,

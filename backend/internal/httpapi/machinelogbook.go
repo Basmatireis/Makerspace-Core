@@ -118,7 +118,7 @@ func (s *Server) CreateMachine(
 		p,
 		r.Body.MachineTypeId,
 		r.Body.Name,
-		string(r.Body.Status),
+		machinelogbook.MachineStatus(r.Body.Status),
 		nullableStringPointer(r.Body.ExternalIdentifier),
 		r.Body.AutomaticCollectionEnabled,
 		requestIDPointer(ctx),
@@ -162,7 +162,7 @@ func (s *Server) UpdateMachine(
 		r.Body.ExpectedVersion,
 		r.Body.MachineTypeId,
 		r.Body.Name,
-		string(r.Body.Status),
+		machinelogbook.MachineStatus(r.Body.Status),
 		nullableStringPointer(r.Body.ExternalIdentifier),
 		r.Body.AutomaticCollectionEnabled,
 		requestIDPointer(ctx),
@@ -213,7 +213,7 @@ func (s *Server) ListMachineJobs(
 			CustomerID: r.Params.CustomerId,
 			OperatorID: r.Params.OperatorPersonId,
 			MaterialID: r.Params.MaterialId,
-			Outcome:    stringEnum(r.Params.Outcome),
+			Outcome:    enumPointer[machinelogbook.JobOutcome](r.Params.Outcome),
 			From:       r.Params.From,
 			To:         r.Params.To,
 			Page:       defaultInt(r.Params.Page, 1),
@@ -247,9 +247,9 @@ func (s *Server) CreateMachineJob(
 		return nil, invalidRequest("request body is required")
 	}
 	run := manualRunInput(r.Body.Run)
-	outcome := ""
+	outcome := machinelogbook.JobOutcome("")
 	if run.Outcome != nil {
-		outcome = *run.Outcome
+		outcome = machinelogbook.JobOutcome(*run.Outcome)
 	}
 	item, err := s.machineLogbook.CreateManualJob(
 		ctx,
@@ -314,7 +314,7 @@ func (s *Server) UpdateMachineJob(
 			MachineID:        r.Body.MachineId,
 			Customer:         customer,
 			OperatorPersonID: r.Body.OperatorPersonId,
-			OutcomeOverride:  nullableStringPointer(r.Body.OutcomeOverride),
+			OutcomeOverride:  enumPointer[machinelogbook.RunOutcome](nullableStringPointer(r.Body.OutcomeOverride)),
 			Title:            nullableStringPointer(r.Body.Title),
 			Notes:            nullableStringPointer(r.Body.Notes),
 			PricingGroupID:   uuidNullable(r.Body.PricingGroupId),
@@ -343,7 +343,7 @@ func (s *Server) SetMachineJobPriceAdjustment(
 		p,
 		r.MachineJobId,
 		r.Body.ExpectedVersion,
-		string(r.Body.Kind),
+		machinelogbook.PriceAdjustmentKind(r.Body.Kind),
 		r.Body.Value,
 		r.Body.Reason,
 		requestIDPointer(ctx),
@@ -405,11 +405,11 @@ func (s *Server) ListMachineLogbookWorkItems(
 		p,
 		machinelogbook.WorkItemFilters{
 			Search:   defaultString(r.Params.Search),
-			Statuses: stringSlice(r.Params.Status),
-			Sources:  stringSlice(r.Params.Source),
-			Billing: stringSlice(
+			Statuses: enumSlice[machinelogbook.WorkItemStatus](stringSlice(r.Params.Status)),
+			Sources:  enumSlice[machinelogbook.RunSource](stringSlice(r.Params.Source)),
+			Billing: enumSlice[machinelogbook.BillingState](stringSlice(
 				r.Params.Billing,
-			),
+			)),
 			MachineIDs:  derefSlice(r.Params.MachineId),
 			MaterialIDs: derefSlice(r.Params.MaterialId),
 			CustomerID:  r.Params.CustomerId,
@@ -417,7 +417,7 @@ func (s *Server) ListMachineLogbookWorkItems(
 			From:        r.Params.From,
 			To:          r.Params.To,
 			Sort:        defaultString(stringEnum(r.Params.Sort)),
-			Direction:   defaultString(stringEnum(r.Params.Direction)),
+			Direction:   machinelogbook.SortDirection(defaultString(stringEnum(r.Params.Direction))),
 			Page:        page,
 			PageSize:    size,
 		},

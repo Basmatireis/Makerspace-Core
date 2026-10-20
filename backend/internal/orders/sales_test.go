@@ -56,7 +56,7 @@ func (f *fixture) finalized(t *testing.T, amount string) Order {
 	return o
 }
 
-func (f *fixture) pay(t *testing.T, o Order, method, amount string) Order {
+func (f *fixture) pay(t *testing.T, o Order, method PaymentMethod, amount string) Order {
 	t.Helper()
 	o, e := f.s.RecordPayment(
 		t.Context(),
@@ -89,7 +89,7 @@ func (f *fixture) newRequest(t *testing.T, who authorization.Principal, o Order)
 func (f *fixture) act(
 	who authorization.Principal,
 	r ExternalInvoiceRequest,
-	action string,
+	action InvoiceAction,
 	mod func(*InvoiceRequestCommand),
 ) (ExternalInvoiceRequest, error) {
 	c := InvoiceRequestCommand{OperationKey: ids.New(), ExpectedVersion: r.Version}
@@ -103,7 +103,7 @@ func (f *fixture) ok(
 	t *testing.T,
 	who authorization.Principal,
 	r ExternalInvoiceRequest,
-	action string,
+	action InvoiceAction,
 	mod func(*InvoiceRequestCommand),
 ) ExternalInvoiceRequest {
 	t.Helper()
@@ -199,7 +199,7 @@ func TestInvoiceApprovalWorkflowAndSettlement(t *testing.T) {
 	if e != nil || r.Details.ServiceDescription != "Edited by approver" || r.State != "submitted" {
 		t.Fatalf("approver edit %v %+v", e, r)
 	}
-	for _, action := range []string{"return", "forward"} {
+	for _, action := range []InvoiceAction{InvoiceActionReturn, InvoiceActionForward} {
 		_, e = f.act(a.staff, r, action, func(c *InvoiceRequestCommand) { c.Reason = "x" })
 		denied(t, e)
 	}
@@ -513,7 +513,7 @@ func TestInvoiceRequestNeedsACharge(t *testing.T) {
 
 func (f *fixture) cashMove(
 	who authorization.Principal,
-	kind, amount, reason, note string,
+	kind CashMovementKind, amount string, reason CashMovementReason, note string,
 	at time.Time,
 ) (CashMovement, error) {
 	return f.s.CreateCashMovement(
@@ -796,7 +796,7 @@ func TestRolePricingGroupResolution(t *testing.T) {
 	); e != nil {
 		t.Fatal(e)
 	}
-	resolve := func(personID, orgID, explicit *uuid.UUID) (uuid.UUID, string, error) {
+	resolve := func(personID, orgID, explicit *uuid.UUID) (uuid.UUID, machinelogbook.PricingSource, error) {
 		tx, e := f.pool.Begin(ctx)
 		if e != nil {
 			t.Fatal(e)
@@ -805,7 +805,7 @@ func TestRolePricingGroupResolution(t *testing.T) {
 		id, _, source, e := machinelogbook.ResolvePricingGroup(ctx, tx, personID, orgID, explicit)
 		return id, source, e
 	}
-	check := func(label string, id uuid.UUID, source string, e error, want uuid.UUID, wantSource string) {
+	check := func(label string, id uuid.UUID, source machinelogbook.PricingSource, e error, want uuid.UUID, wantSource machinelogbook.PricingSource) {
 		t.Helper()
 		if e != nil || id != want || source != wantSource {
 			t.Fatalf("%s: %v %s %v", label, id, source, e)

@@ -627,7 +627,7 @@ func TestRunMeasuresAreValidatedAgainstTheProcess(t *testing.T) {
 		f.p,
 		job.Runs[0].ID,
 		job.Runs[0].Version,
-		RunUpdate{Outcome: ptr("successful")},
+		RunUpdate{Outcome: ptr(RunOutcomeSuccessful)},
 		&f.request,
 	)
 	if err != nil || kept.Run.Measures[MeasureStitches] != 12400 {
@@ -836,7 +836,7 @@ func TestMeasurePricingIsIncompleteWithoutARuleAndFreeAtZero(t *testing.T) {
 		_, _ = f.pool.Exec(context.Background(), `DELETE FROM pricing_groups WHERE id = $1`, zeroGroup.ID)
 	})
 	for _, rule := range []struct {
-		kind    string
+		kind    PricingRuleKind
 		machine *uuid.UUID
 		measure *string
 	}{{"machine_runtime", &f.embroideryType.ID, nil}, {"machine_measure", &f.embroideryType.ID, ptr(MeasureStitches)}} {

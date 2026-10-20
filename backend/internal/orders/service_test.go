@@ -199,7 +199,7 @@ func (f *fixture) draft(t *testing.T, named bool, amount string) Order {
 func cmd(o Order) OrderCommand {
 	return OrderCommand{OperationKey: ids.New(), ExpectedVersion: o.Version}
 }
-func receipt(method, amount string) PaymentInput {
+func receipt(method PaymentMethod, amount string) PaymentInput {
 	return PaymentInput{
 		Method:            method,
 		Amount:            amount,

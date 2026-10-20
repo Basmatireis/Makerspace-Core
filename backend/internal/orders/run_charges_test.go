@@ -87,7 +87,7 @@ func TestOrderItemSnapshotIsBuiltFromAllRuns(t *testing.T) {
 	}
 	reprintStart := start.Add(2 * time.Hour)
 	reprintEnd := reprintStart.Add(2 * time.Hour)
-	outcome := "successful"
+	outcome := machinelogbook.RunOutcomeSuccessful
 	job, e = f.jobs.AddManualRun(
 		ctx,
 		f.p,

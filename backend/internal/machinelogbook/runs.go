@@ -42,14 +42,15 @@ type RunJobReference struct {
 type MachineRun struct {
 	ID, MachineID           uuid.UUID
 	DisplayID, MachineName  string
-	Source, State           string
+	Source                  RunSource
+	State                   RunState
 	Job                     *RunJobReference
 	ConnectorName, FileName *string
 	StartedAt               time.Time
 	EndedAt, EstimatedEndAt *time.Time
 	DurationSeconds         int64
 	ProgressPercent         *int
-	Outcome                 *string
+	Outcome                 *RunOutcome
 	OutcomeFromMachine      bool
 	Usages                  []MachineJobUsage
 	Measures                RunMeasures
@@ -63,7 +64,7 @@ type MachineRun struct {
 // RunEvent exposes what a machine event reported, never its raw payload.
 type RunEvent struct {
 	ID              uuid.UUID
-	Kind            string
+	Kind            RunEventKind
 	OccurredAt      time.Time
 	State           *string
 	ProgressPercent *int
@@ -83,8 +84,8 @@ type RunUpdateResult struct {
 type RunFilters struct {
 	Search         string
 	MachineID      *uuid.UUID
-	States         []string
-	Source         *string
+	States         []RunState
+	Source         *RunSource
 	Assigned       *bool
 	From, To       *time.Time
 	Page, PageSize int
@@ -94,7 +95,7 @@ type RunFilters struct {
 // clears the outcome.
 type RunUpdate struct {
 	StartsAt, EndsAt *time.Time
-	Outcome          *string
+	Outcome          *RunOutcome
 	// Measures nil leaves the measures unchanged; non-nil (even empty) replaces them.
 	Measures RunMeasures
 }
@@ -108,18 +109,20 @@ type RunJobInput struct {
 	PricingGroupID   *uuid.UUID
 }
 
-var runStates = []string{"running", "finished", "failed", "cancelled", "unknown", "replaced"}
+var runStates = []RunState{
+	RunStateRunning, RunStateFinished, RunStateFailed, RunStateCancelled, RunStateUnknown, RunStateReplaced,
+}
 
 // machineOutcome maps a recorded run's final state to the outcome the machine
 // implies.
-func machineOutcome(state string) string {
+func machineOutcome(state RunState) RunOutcome {
 	switch state {
-	case "finished":
-		return "successful"
-	case "failed":
-		return "failed"
-	case "cancelled":
-		return "cancelled"
+	case RunStateFinished:
+		return RunOutcomeSuccessful
+	case RunStateFailed:
+		return RunOutcomeFailed
+	case RunStateCancelled:
+		return RunOutcomeCancelled
 	}
 	return ""
 }
@@ -133,18 +136,18 @@ func usageFromRow(u machinelogbookdb.ListRunUsagesForRunsRow) MachineJobUsage {
 		ID:                 u.ID,
 		MaterialID:         u.MaterialID,
 		SpoolID:            u.SpoolID,
-		Ownership:          u.Ownership,
+		Ownership:          UsageOwnership(u.Ownership),
 		MaterialName:       u.MaterialName,
 		MaterialTypeID:     u.MaterialTypeID,
 		MaterialTypeName:   u.MaterialTypeName,
 		Unit:               u.Unit,
 		Quantity:           decimalString(u.Quantity),
-		QuantityBasis:      u.QuantityBasis,
+		QuantityBasis:      QuantityBasis(u.QuantityBasis),
 		SpoolDisplayID:     u.SpoolDisplayID,
 		FillNumber:         u.FillNumber,
 		EstimationMethod:   u.EstimationMethod,
 		CalculationVersion: u.CalculationVersion,
-		EstimateQuality:    u.EstimateQuality,
+		EstimateQuality:    pointerAs[EstimateQuality](u.EstimateQuality),
 		ReportRevision:     u.ReportRevision,
 		StaffCorrected:     u.StaffCorrected,
 	}
@@ -157,12 +160,12 @@ func runFromRow(row machinelogbookdb.ListRunsRow, now time.Time) MachineRun {
 		DisplayID:          row.DisplayID,
 		MachineID:          row.MachineID,
 		MachineName:        row.MachineName,
-		Source:             row.Source,
-		State:              row.RunState,
+		Source:             RunSource(row.Source),
+		State:              RunState(row.RunState),
 		ConnectorName:      row.ConnectorName,
 		FileName:           row.FileName,
 		StartedAt:          started,
-		Outcome:            row.Outcome,
+		Outcome:            pointerAs[RunOutcome](row.Outcome),
 		UsagesFromMachine:  row.UsagesFromMachine,
 		Version:            row.Version,
 		Usages:             []MachineJobUsage{},
@@ -180,9 +183,9 @@ func runFromRow(row machinelogbookdb.ListRunsRow, now time.Time) MachineRun {
 		run.Job = &RunJobReference{ID: *row.JobID, DisplayID: *row.JobDisplayID, Title: row.JobTitle}
 	}
 	end := nullableTime(row.EndedAt)
-	if row.Source == "manual" {
+	if RunSource(row.Source) == RunSourceManual {
 		// A running manual run ends at its planned end.
-		if row.RunState == "running" {
+		if RunState(row.RunState) == RunStateRunning {
 			run.EstimatedEndAt = end
 		} else {
 			run.EndedAt = end
@@ -200,7 +203,7 @@ func runFromRow(row machinelogbookdb.ListRunsRow, now time.Time) MachineRun {
 			effective = *run.EstimatedEndAt
 		}
 		run.DurationSeconds = max(0, int64(effective.Sub(started).Seconds()))
-		run.OutcomeFromMachine = row.Outcome != nil && *row.Outcome == machineOutcome(row.RunState)
+		run.OutcomeFromMachine = row.Outcome != nil && RunOutcome(*row.Outcome) == machineOutcome(RunState(row.RunState))
 	}
 	if row.ProgressPercent != nil {
 		percent := int(*row.ProgressPercent)
@@ -355,7 +358,7 @@ func (s *Service) ListRuns(
 		return nil, 0, apperror.Invalid("to must be after from")
 	}
 	if !containsAll(runStates, filters.States) ||
-		(filters.Source != nil && *filters.Source != "manual" && *filters.Source != "recorded") {
+		(filters.Source != nil && *filters.Source != RunSourceManual && *filters.Source != RunSourceRecorded) {
 		return nil, 0, apperror.Invalid("unsupported run filter")
 	}
 	return s.queryRuns(
@@ -364,8 +367,8 @@ func (s *Service) ListRuns(
 		machinelogbookdb.ListRunsParams{
 			Search:     escapeLike(strings.TrimSpace(filters.Search)),
 			MachineID:  filters.MachineID,
-			States:     filters.States,
-			Source:     filters.Source,
+			States:     sliceAs[string](filters.States),
+			Source:     pointerAs[string](filters.Source),
 			Assigned:   filters.Assigned,
 			FromTime:   pgTime(filters.From),
 			ToTime:     pgTime(filters.To),
@@ -398,13 +401,13 @@ func (s *Service) GetRun(ctx context.Context, p authorization.Principal, id uuid
 // runEventFromRow keeps the few reported facts the run page shows and drops
 // everything else in the connector payload.
 func runEventFromRow(row machinelogbookdb.ListRunEventsRow) RunEvent {
-	event := RunEvent{ID: row.ID, Kind: row.Kind, OccurredAt: row.OccurredAt}
+	event := RunEvent{ID: row.ID, Kind: RunEventKind(row.Kind), OccurredAt: row.OccurredAt}
 	var values map[string]any
 	if json.Unmarshal(row.Payload, &values) != nil {
 		return event
 	}
 	key := "state"
-	if row.Kind == "terminal_outcome" {
+	if RunEventKind(row.Kind) == RunEventTerminalOutcome {
 		key = "outcome"
 	}
 	if value, ok := values[key].(string); ok && value != "" && len(value) <= 64 {
@@ -414,7 +417,7 @@ func runEventFromRow(row machinelogbookdb.ListRunEventsRow) RunEvent {
 		percent := int(value + 0.5)
 		event.ProgressPercent = &percent
 	}
-	if value, ok := values["quantityGrams"].(string); ok && row.Kind == "consumption_report" {
+	if value, ok := values["quantityGrams"].(string); ok && RunEventKind(row.Kind) == RunEventConsumptionReport {
 		if parsed, err := decimal.NewFromString(strings.TrimSpace(value)); err == nil && parsed.IsPositive() {
 			quantity := parsed.String()
 			event.Quantity = &quantity

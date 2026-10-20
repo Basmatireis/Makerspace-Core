@@ -142,7 +142,7 @@ func requireMaterialsForProcess(
 ) error {
 	ids := make([]uuid.UUID, 0, len(items))
 	for _, item := range items {
-		if item.Ownership == "makerspace" && item.MaterialID != nil && !keep[*item.MaterialID] {
+		if UsageOwnership(item.Ownership) == OwnershipMakerspace && item.MaterialID != nil && !keep[*item.MaterialID] {
 			ids = append(ids, *item.MaterialID)
 		}
 	}

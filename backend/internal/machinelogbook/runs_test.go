@@ -204,7 +204,7 @@ func (h *runHarness) insertRun(t *testing.T, spec runSpec) uuid.UUID {
 func (h *runHarness) insertEvent(
 	t *testing.T,
 	runID, machineID uuid.UUID,
-	kind string,
+	kind RunEventKind,
 	occurredAt time.Time,
 	payload string,
 ) uuid.UUID {
@@ -280,7 +280,7 @@ func (h *runHarness) finish(t *testing.T, runID uuid.UUID, state string, ended t
 }
 
 // apply runs the logbook's reaction to a connector event in its own transaction.
-func (h *runHarness) apply(t *testing.T, runID uuid.UUID, kind string) {
+func (h *runHarness) apply(t *testing.T, runID uuid.UUID, kind RunEventKind) {
 	t.Helper()
 	tx, err := h.pool.Begin(t.Context())
 	if err != nil {
@@ -290,7 +290,7 @@ func (h *runHarness) apply(t *testing.T, runID uuid.UUID, kind string) {
 	if err = h.s.ApplyRecordedRunEvent(
 		t.Context(),
 		tx,
-		RecordedRunEvent{RunID: runID, ConnectorID: h.connectorID, Kind: kind},
+		RecordedRunEvent{RunID: runID, ConnectorID: h.connectorID, Kind: string(kind)},
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -754,7 +754,7 @@ func TestListAndGetRuns(t *testing.T) {
 	if items := list(RunFilters{}); len(items) != 3 || items[0].ID != running {
 		t.Fatalf("newest first: %+v", items)
 	}
-	recorded, no, yes := "recorded", false, true
+	recorded, no, yes := RunSourceRecorded, false, true
 	if items := list(RunFilters{Source: &recorded, Assigned: &no}); len(items) != 1 || items[0].ID != running ||
 		items[0].State != "running" {
 		t.Fatalf("unassigned recorded = %+v", items)
@@ -762,7 +762,7 @@ func TestListAndGetRuns(t *testing.T) {
 	if items := list(RunFilters{Assigned: &yes}); len(items) != 2 {
 		t.Fatalf("assigned = %d", len(items))
 	}
-	if items := list(RunFilters{States: []string{"finished"}, Source: &recorded}); len(items) != 1 ||
+	if items := list(RunFilters{States: []RunState{"finished"}, Source: &recorded}); len(items) != 1 ||
 		items[0].ID != finished ||
 		items[0].Job == nil ||
 		items[0].Job.ID != job.ID ||
@@ -779,7 +779,7 @@ func TestListAndGetRuns(t *testing.T) {
 	if _, _, err := h.s.ListRuns(
 		ctx,
 		h.p,
-		RunFilters{States: []string{"bogus"}, Page: 1, PageSize: 10},
+		RunFilters{States: []RunState{"bogus"}, Page: 1, PageSize: 10},
 	); !apperror.IsCode(
 		err,
 		"validation_failed",

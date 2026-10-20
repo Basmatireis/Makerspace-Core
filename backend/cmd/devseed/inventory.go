@@ -110,7 +110,7 @@ func (s *seeder) newReusable(at time.Time, key, label, mode string) *reusable {
 		ProductID:                &p.id,
 		MaterialID:               s.mats[p.mat].id,
 		InitialNetWeightG:        f1(p.weight),
-		StockMode:                mode,
+		StockMode:                machinelogbook.StockMode(mode),
 		TareWeightG:              ptr("250"),
 		AcquiredOn:               &at,
 		StorageLocation:          ptr("AMS"),
@@ -166,27 +166,27 @@ func (s *seeder) leftover(sp machinelogbook.FilamentSpool, exhausted bool) *mach
 		return &machinelogbook.LeftoverInput{
 			Basis:        "weighed",
 			GrossWeightG: ptr(f1(tare + math.Floor(rem))),
-			Disposition:  ptr("disposed"),
+			Disposition:  ptr(machinelogbook.DispositionDisposed),
 		}
 	}
 	switch r := s.rng.Float64(); {
 	case r < 0.4:
-		return &machinelogbook.LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")}
+		return &machinelogbook.LeftoverInput{Basis: "system", Disposition: ptr(machinelogbook.DispositionReturnedToStock)}
 	case r < 0.75:
 		return &machinelogbook.LeftoverInput{
 			Basis:        "weighed",
 			GrossWeightG: ptr(f1(tare + math.Floor(rem*0.96))),
-			Disposition:  ptr("returned_to_stock"),
+			Disposition:  ptr(machinelogbook.DispositionReturnedToStock),
 		}
 	default:
 		if rem < 120 {
 			return &machinelogbook.LeftoverInput{
 				Basis:        "weighed",
 				GrossWeightG: ptr(f1(tare + math.Floor(rem))),
-				Disposition:  ptr("disposed"),
+				Disposition:  ptr(machinelogbook.DispositionDisposed),
 			}
 		}
-		return &machinelogbook.LeftoverInput{Basis: "system", Disposition: ptr("returned_to_stock")}
+		return &machinelogbook.LeftoverInput{Basis: "system", Disposition: ptr(machinelogbook.DispositionReturnedToStock)}
 	}
 }
 

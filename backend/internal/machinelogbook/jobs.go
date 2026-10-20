@@ -20,7 +20,7 @@ import (
 // manualRunPlan is a validated manual run that is ready to be stored.
 type manualRunPlan struct {
 	StartsAt, EndsAt time.Time
-	Outcome          *string
+	Outcome          *RunOutcome
 	Usages           []parsedUsage
 	Measures         RunMeasures
 }
@@ -83,7 +83,7 @@ func (s *Service) storeManualRun(
 			JobID:     &job.ID,
 			StartedAt: pgTime(&plan.StartsAt),
 			EndedAt:   pgTime(&plan.EndsAt),
-			Outcome:   plan.Outcome,
+			Outcome:   pointerAs[string](plan.Outcome),
 		},
 	)
 	if err != nil {
@@ -166,7 +166,7 @@ func (s *Service) CreateManualJobInTransaction(
 	if err != nil {
 		return MachineJob{}, noRows(err)
 	}
-	if machine.Status == "retired" {
+	if MachineStatus(machine.Status) == MachineStatusRetired {
 		return MachineJob{}, apperror.Conflicting("machine_retired", "Retired machines cannot receive new jobs")
 	}
 	personID, organizationID, err := validateJobAssignments(ctx, q, input.Customer, input.OperatorPersonID, false)
@@ -194,7 +194,7 @@ func (s *Service) CreateManualJobInTransaction(
 	if _, err = s.storeManualRun(ctx, tx, q, p, job, plan, requestID); err != nil {
 		return MachineJob{}, err
 	}
-	job, err = s.capturePricingSnapshot(ctx, q, p, job, group, "initial")
+	job, err = s.capturePricingSnapshot(ctx, q, p, job, group, SnapshotInitial)
 	if err != nil {
 		return MachineJob{}, err
 	}
@@ -258,7 +258,7 @@ func (s *Service) loadBillingParty(
 		if err != nil {
 			return nil, err
 		}
-		return &BillingParty{ID: row.ID, Kind: "person", DisplayName: row.DisplayName}, nil
+		return &BillingParty{ID: row.ID, Kind: PartyPerson, DisplayName: row.DisplayName}, nil
 	}
 	if job.CustomerOrganizationID != nil {
 		row, err := q.GetBillingOrganization(ctx, *job.CustomerOrganizationID)
@@ -270,9 +270,9 @@ func (s *Service) loadBillingParty(
 		}
 		item := &BillingParty{
 			ID:                            row.ID,
-			Kind:                          "organization",
+			Kind:                          PartyOrganization,
 			DisplayName:                   row.DisplayName,
-			OrganizationKind:              &row.OrganizationKind,
+			OrganizationKind:              pointerAs[OrganizationKind](&row.OrganizationKind),
 			PricingGroupAssignmentVersion: row.PricingGroupAssignmentVersion,
 		}
 		if row.PricingGroupID != nil && row.PricingGroupName != nil {
@@ -311,10 +311,10 @@ func (s *Service) jobFromRow(
 		Title:             row.Title,
 		Machine:           machineFromGet(machineRow),
 		Runs:              runs,
-		Outcome:           "unknown",
+		Outcome:           JobOutcomeUnknown,
 		OutcomeOverridden: row.OutcomeOverride != nil,
 		Notes:             row.Notes,
-		PricingStatus:     row.PricingStatus,
+		PricingStatus:     PricingStatus(row.PricingStatus),
 		CalculatedPrice:   nullableDecimal(row.CalculatedPrice),
 		EffectivePrice:    nullableDecimal(row.EffectivePrice),
 		Version:           row.Version,
@@ -335,7 +335,7 @@ func (s *Service) jobFromRow(
 	}
 	item.Measures = RunMeasures{}
 	for _, run := range runs {
-		if run.State != "replaced" {
+		if run.State != RunStateReplaced {
 			item.Usages = append(item.Usages, run.Usages...)
 			item.Measures.add(run.Measures)
 		}
@@ -345,7 +345,7 @@ func (s *Service) jobFromRow(
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return MachineJob{}, err
 	}
-	derived := "unknown"
+	derived := JobOutcomeUnknown
 	if hasSummary {
 		item.StartedAt, item.EndedAt, item.ExpectedEndAt = anyTime(
 			summary.StartedAt,
@@ -355,25 +355,25 @@ func (s *Service) jobFromRow(
 			summary.ExpectedEndAt,
 		)
 		item.DurationSeconds = summary.RuntimeSeconds
-		derived = summary.DerivedOutcome
+		derived = JobOutcome(summary.DerivedOutcome)
 	}
 	effective := derived
 	if row.OutcomeOverride != nil {
-		effective = *row.OutcomeOverride
+		effective = JobOutcome(*row.OutcomeOverride)
 	}
 	switch {
 	case !hasSummary && row.ArtifactID != nil:
-		item.Status = "planned"
+		item.Status = JobStatusPlanned
 	case hasSummary && summary.Running:
-		item.Status = "running"
-	case effective == "unknown":
-		item.Status, item.Outcome = "needs_outcome", "unknown"
+		item.Status = JobStatusRunning
+	case effective == JobOutcomeUnknown:
+		item.Status, item.Outcome = JobStatusNeedsOutcome, JobOutcomeUnknown
 	default:
-		item.Status, item.Outcome = effective, effective
+		item.Status, item.Outcome = JobStatus(effective), effective
 	}
 	if row.PriceAdjustmentKind != nil {
 		item.PriceAdjustment = &PriceAdjustment{
-			Kind:       *row.PriceAdjustmentKind,
+			Kind:       PriceAdjustmentKind(*row.PriceAdjustmentKind),
 			Value:      decimalString(row.PriceAdjustmentValue),
 			Reason:     optional.Value(row.PriceAdjustmentReason),
 			AdjustedAt: row.PriceAdjustedAt.Time,
@@ -405,7 +405,7 @@ func (s *Service) jobFromRow(
 			Revision:         int(snapshot.Revision),
 			PricingGroupName: snapshot.PricingGroupName,
 			Currency:         snapshot.Currency,
-			Reason:           snapshot.Reason,
+			Reason:           SnapshotReason(snapshot.Reason),
 			Complete:         snapshot.Complete,
 			CalculatedAmount: nullableDecimal(snapshot.CalculatedAmount),
 			CapturedAt:       snapshot.CapturedAt,
@@ -463,7 +463,7 @@ func (s *Service) ListJobs(
 		CustomerID: filters.CustomerID,
 		OperatorID: filters.OperatorID,
 		MaterialID: filters.MaterialID,
-		Outcome:    filters.Outcome,
+		Outcome:    pointerAs[string](filters.Outcome),
 		FromTime:   pgTime(filters.From),
 		ToTime:     pgTime(filters.To),
 		PageOffset: offset,
@@ -552,7 +552,7 @@ func (s *Service) UpdateJobFacts(
 		return MachineJob{}, noRows(err)
 	}
 	if newMachine.ID != oldMachine.ID {
-		if newMachine.Status == "retired" {
+		if MachineStatus(newMachine.Status) == MachineStatusRetired {
 			return MachineJob{}, apperror.Conflicting("machine_retired", "Retired machines cannot receive jobs")
 		}
 		recorded, err := q.CountJobRecordedRuns(ctx, &id)
@@ -608,9 +608,9 @@ func (s *Service) UpdateJobFacts(
 	}
 	if input.Customer.Kind == "" {
 		if current.CustomerPersonID != nil {
-			input.Customer = PartyReference{Kind: "person", ID: *current.CustomerPersonID}
+			input.Customer = PartyReference{Kind: PartyPerson, ID: *current.CustomerPersonID}
 		} else if current.CustomerOrganizationID != nil {
-			input.Customer = PartyReference{Kind: "organization", ID: *current.CustomerOrganizationID}
+			input.Customer = PartyReference{Kind: PartyOrganization, ID: *current.CustomerOrganizationID}
 		}
 	}
 	personID, organizationID, err := validateJobAssignments(
@@ -630,7 +630,7 @@ func (s *Service) UpdateJobFacts(
 			CustomerPersonID:       personID,
 			CustomerOrganizationID: organizationID,
 			OperatorPersonID:       &input.OperatorPersonID,
-			OutcomeOverride:        override,
+			OutcomeOverride:        pointerAs[string](override),
 			Title:                  title,
 			Notes:                  optional.Trimmed(input.Notes),
 			ID:                     id,
@@ -650,12 +650,12 @@ func (s *Service) UpdateJobFacts(
 		if err != nil {
 			return MachineJob{}, err
 		}
-		reason := "machine_changed"
+		reason := SnapshotMachineChanged
 		if partyChanged {
-			reason = "customer_changed"
+			reason = SnapshotCustomerChanged
 		}
 		if input.PricingGroupID != nil {
-			reason = "manual_reprice"
+			reason = SnapshotManualReprice
 		}
 		_, err = s.capturePricingSnapshot(ctx, q, p, updated, group, reason)
 		if err != nil {
