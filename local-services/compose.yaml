@@ -74,6 +74,7 @@ services:
       # Optional: ACME directory (Let's Encrypt staging for tests) and the resolvers for the DNS checks.
       ACME_CA_DIR: ${ACME_CA_DIR:-}
       ACME_DNS_RESOLVERS: ${ACME_DNS_RESOLVERS:-}
+      ACME_DNS_PROPAGATION_WAIT: ${ACME_DNS_PROPAGATION_WAIT:-}
       STREAM_TLS_CERT_FILE: /certs/fullchain.pem
       STREAM_TLS_KEY_FILE: /certs/privkey.pem
       STREAM_LISTEN_ADDR: ":8443"
@@ -104,6 +105,8 @@ services:
 
   go2rtc:
     <<: *hardened
+    # The go2rtc image runs tini as its own init; Docker's init in front of it only adds a warning.
+    init: false
     # Pinned to the tag AND the verified multi-arch digest of alexxit/go2rtc 1.9.14. Re-verify the
     # digest (docker buildx imagetools inspect alexxit/go2rtc:<tag>) when upgrading.
     image: alexxit/go2rtc:1.9.14@sha256:675c318b23c06fd862a61d262240c9a63436b4050d177ffc68a32710d9e05bae

@@ -226,6 +226,7 @@ With local services in stack 4 the volume names start with `makerspace-local-ser
 |---|---|
 | Log says "Core rejects this connector's credential (revoked or deleted)" | the connector or gateway was revoked or deleted in Core. Create a new one (Delete works for active and revoked entries), put its secret into `CONNECTOR_ENROLLMENT_SECRET` (gateway: `STREAM_ENROLLMENT_SECRET`) in `.env` and restart; no volume has to be deleted |
 | `make dev-connector` or `make dev-streaming` stops with "not enrolled" | put the one-time secret into that stack's `.env` (see above) and run it again; secrets expire after 15 minutes, create a new one in Core if needed |
+| Gateway log repeats "Waiting for DNS record propagation" until the 2-minute timeout | the network's router answers DNS on port 53 itself, so the gateway never sees the new TXT record; set `ACME_DNS_PROPAGATION_WAIT=60s` in `.env` and run `docker compose up -d` (Let's Encrypt still validates the record from the internet) |
 | Container exits with "not enrolled and ..._ENROLLMENT_SECRET is not set" | same: the identity is missing from the data volume (new volume after a project rename, or `docker compose down --volumes`); put a fresh secret into `.env` and start again |
 | Enrollment fails with 401 or 429 | secret expired, used already or mistyped; Core answers 429 after 20 failed attempts in 15 minutes |
 | `docker compose` complains `Set MAKERSPACE_VERSION` / `Set CORE_URL` | the variable is missing in that directory's `.env` |

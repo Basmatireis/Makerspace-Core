@@ -75,7 +75,13 @@ func (o *legoObtainer) obtain(domain string) ([]byte, []byte, error) {
 	}
 	// The recursive resolvers are explicit: the local resolver (for example dnsmasq with rebind
 	// protection) may refuse public names that point to private addresses.
-	if err = client.Challenge.SetDNS01Provider(provider, dns01.AddRecursiveNameservers(dns01.ParseNameservers(o.options.Resolvers))); err != nil {
+	challengeOptions := []dns01.ChallengeOption{dns01.AddRecursiveNameservers(dns01.ParseNameservers(o.options.Resolvers))}
+	if o.options.PropagationWait > 0 {
+		// Some routers answer every port-53 query themselves (cached), so the gateway cannot see the
+		// new record; wait instead and let Let's Encrypt validate from the internet.
+		challengeOptions = append(challengeOptions, dns01.PropagationWait(o.options.PropagationWait, true))
+	}
+	if err = client.Challenge.SetDNS01Provider(provider, challengeOptions...); err != nil {
 		return nil, nil, err
 	}
 	if user.Registration == nil {

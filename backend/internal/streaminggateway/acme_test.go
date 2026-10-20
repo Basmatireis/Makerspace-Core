@@ -374,3 +374,16 @@ func TestHealthAndHeartbeatWaitingForCertificate(t *testing.T) {
 		t.Fatalf("health file %s", raw)
 	}
 }
+
+func TestParseACMEPropagationWait(t *testing.T) {
+	for input, want := range map[string]time.Duration{"": 0, "0": 0, " 60s ": time.Minute, "2m": 2 * time.Minute} {
+		if got, err := ParseACMEPropagationWait(input); err != nil || got != want {
+			t.Fatalf("%q: got %v, %v", input, got, err)
+		}
+	}
+	for _, input := range []string{"abc", "500ms", "11m", "-5s"} {
+		if _, err := ParseACMEPropagationWait(input); err == nil {
+			t.Fatalf("%q: expected an error", input)
+		}
+	}
+}

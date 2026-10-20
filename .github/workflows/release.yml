@@ -167,6 +167,8 @@ jobs:
           file: ${{ matrix.dockerfile }}
           target: final
           platforms: linux/amd64,linux/arm64
+          build-args: |
+            VERSION=${{ needs.tag.outputs.version }}
           push: true
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}

@@ -42,6 +42,9 @@ type ACMEOptions struct {
 	CADir string
 	// Resolvers are recursive resolvers (host:port) for the propagation checks; empty means the defaults.
 	Resolvers []string
+	// PropagationWait, when set, replaces the DNS propagation check by a fixed wait before Let's Encrypt
+	// validates (for networks whose router intercepts or caches DNS traffic on port 53).
+	PropagationWait time.Duration
 	// Obtainer replaces the Let's Encrypt client (tests).
 	Obtainer CertObtainer
 }
@@ -384,4 +387,21 @@ func writeFileAtomic(path string, data []byte) error {
 		return err
 	}
 	return os.Rename(temporary, path)
+}
+
+// MaxACMEPropagationWait bounds ACME_DNS_PROPAGATION_WAIT.
+const MaxACMEPropagationWait = 10 * time.Minute
+
+// ParseACMEPropagationWait parses ACME_DNS_PROPAGATION_WAIT ("" or "0" = check propagation, as by
+// default; otherwise a duration such as "60s" between 1 s and 10 min that is waited instead).
+func ParseACMEPropagationWait(value string) (time.Duration, error) {
+	value = strings.TrimSpace(value)
+	if value == "" || value == "0" {
+		return 0, nil
+	}
+	wait, err := time.ParseDuration(value)
+	if err != nil || wait < time.Second || wait > MaxACMEPropagationWait {
+		return 0, fmt.Errorf("ACME_DNS_PROPAGATION_WAIT must be a duration between 1s and 10m, for example 60s")
+	}
+	return wait, nil
 }

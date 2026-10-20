@@ -113,7 +113,12 @@ func acmeOptions(domain string) (*streaminggateway.ACMEOptions, error) {
 	if err != nil {
 		return nil, err
 	}
+	wait, err := streaminggateway.ParseACMEPropagationWait(os.Getenv("ACME_DNS_PROPAGATION_WAIT"))
+	if err != nil {
+		return nil, err
+	}
 	return &streaminggateway.ACMEOptions{
+		PropagationWait: wait,
 		Domain:          domain,
 		Email:           strings.TrimSpace(os.Getenv("ACME_EMAIL")),
 		CloudflareToken: strings.TrimSpace(os.Getenv("CLOUDFLARE_DNS_API_TOKEN")),
