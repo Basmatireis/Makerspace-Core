@@ -57,11 +57,14 @@ type Identity struct {
 }
 
 type Colors struct{ Primary, Secondary, Accent, Background string }
-type Legal struct{ Mode, Markdown, ExternalURL string }
+type Legal struct {
+	Mode                  LegalMode
+	Markdown, ExternalURL string
+}
 
 type Asset struct {
 	Slot             Slot
-	Mode             string
+	Mode             AssetMode
 	URL              *string
 	OriginalFilename *string
 	ContentType      *string
@@ -86,9 +89,11 @@ type ConfigurationInput struct {
 }
 
 type PublicLegalDocument struct {
-	Kind, Title, Mode string
-	Markdown          *string
-	ExternalURL       *string
+	Kind        LegalKind
+	Title       string
+	Mode        LegalMode
+	Markdown    *string
+	ExternalURL *string
 }
 
 type PublicAsset struct {
@@ -137,19 +142,19 @@ func (s *Service) get(ctx context.Context) (Configuration, error) {
 	assets := make(map[Slot]Asset, len(allSlots))
 	for _, slot := range allSlots {
 		defaultURL := defaultAssetURLs[slot]
-		assets[slot] = Asset{Slot: slot, Mode: "default", URL: &defaultURL}
+		assets[slot] = Asset{Slot: slot, Mode: AssetDefault, URL: &defaultURL}
 	}
 	for _, override := range overrides {
 		slot := Slot(override.Slot)
 		asset := Asset{
 			Slot:             slot,
-			Mode:             override.Mode,
+			Mode:             AssetMode(override.Mode),
 			OriginalFilename: override.OriginalFilename,
 			ContentType:      override.ContentType,
 			Size:             override.SizeBytes,
 			UpdatedAt:        &override.UpdatedAt,
 		}
-		if override.Mode == "custom" {
+		if AssetMode(override.Mode) == AssetCustom {
 			digest := hex.EncodeToString(override.Sha256)
 			value := fmt.Sprintf("/api/v1/public/branding/assets/%s/%s", slot, digest)
 			asset.URL = &value
@@ -198,10 +203,10 @@ func (s *Service) Update(
 		ApplicationName: input.Identity.ApplicationName, Tagline: input.Identity.Tagline,
 		PrimaryColor: input.Colors.Primary, SecondaryColor: input.Colors.Secondary,
 		AccentColor: input.Colors.Accent, BackgroundColor: input.Colors.Background,
-		ImprintMode:        input.Imprint.Mode,
+		ImprintMode:        string(input.Imprint.Mode),
 		ImprintMarkdown:    input.Imprint.Markdown,
 		ImprintExternalUrl: input.Imprint.ExternalURL,
-		PrivacyMode:        input.Privacy.Mode,
+		PrivacyMode:        string(input.Privacy.Mode),
 		PrivacyMarkdown:    input.Privacy.Markdown,
 		PrivacyExternalUrl: input.Privacy.ExternalURL,
 		UpdatedByAccountID: &actor, ExpectedVersion: input.ExpectedVersion,
@@ -265,7 +270,7 @@ func (s *Service) PutAsset(
 			_ = s.files.Delete(context.Background(), principal, stored.ID, requestID)
 		}
 	}()
-	oldFile, err := s.mutateAsset(ctx, principal, slot, expectedVersion, "custom", &stored.ID, requestID)
+	oldFile, err := s.mutateAsset(ctx, principal, slot, expectedVersion, AssetCustom, &stored.ID, requestID)
 	if err != nil {
 		return Configuration{}, err
 	}
@@ -286,7 +291,7 @@ func (s *Service) RemoveAsset(
 	if !principal.Has(authorization.BrandingManage) {
 		return Configuration{}, apperror.PermissionDenied
 	}
-	oldFile, err := s.mutateAsset(ctx, principal, slot, expectedVersion, "none", nil, requestID)
+	oldFile, err := s.mutateAsset(ctx, principal, slot, expectedVersion, AssetNone, nil, requestID)
 	if err != nil {
 		return Configuration{}, err
 	}
@@ -306,7 +311,7 @@ func (s *Service) RestoreDefaultAsset(
 	if !principal.Has(authorization.BrandingManage) {
 		return Configuration{}, apperror.PermissionDenied
 	}
-	oldFile, err := s.mutateAsset(ctx, principal, slot, expectedVersion, "default", nil, requestID)
+	oldFile, err := s.mutateAsset(ctx, principal, slot, expectedVersion, AssetDefault, nil, requestID)
 	if err != nil {
 		return Configuration{}, err
 	}
@@ -321,7 +326,7 @@ func (s *Service) mutateAsset(
 	principal authorization.Principal,
 	slot Slot,
 	expectedVersion int64,
-	mode string,
+	mode AssetMode,
 	fileID *uuid.UUID,
 	requestID *uuid.UUID,
 ) (*uuid.UUID, error) {
@@ -353,7 +358,7 @@ func (s *Service) mutateAsset(
 	}
 	actor := principal.AccountID
 	switch mode {
-	case "custom":
+	case AssetCustom:
 		if fileID == nil {
 			return nil, errors.New("custom branding asset requires a file")
 		}
@@ -361,12 +366,12 @@ func (s *Service) mutateAsset(
 			ctx,
 			brandingdb.UpsertCustomAssetParams{Slot: string(slot), FileID: fileID, UpdatedByAccountID: &actor},
 		)
-	case "none":
+	case AssetNone:
 		_, err = queries.UpsertRemovedAsset(
 			ctx,
 			brandingdb.UpsertRemovedAssetParams{Slot: string(slot), UpdatedByAccountID: &actor},
 		)
-	case "default":
+	case AssetDefault:
 		err = queries.DeleteAssetOverride(ctx, string(slot))
 	default:
 		return nil, errors.New("invalid branding asset mode")
@@ -387,9 +392,9 @@ func (s *Service) mutateAsset(
 	}
 	action := "branding.asset_updated"
 	switch mode {
-	case "none":
+	case AssetNone:
 		action = "branding.asset_removed"
-	case "default":
+	case AssetDefault:
 		action = "branding.asset_default_restored"
 	}
 	if err := audit.Write(
@@ -411,7 +416,7 @@ func (s *Service) mutateAsset(
 	return oldFile, nil
 }
 
-func (s *Service) PublicLegal(ctx context.Context, kind string) (PublicLegalDocument, error) {
+func (s *Service) PublicLegal(ctx context.Context, kind LegalKind) (PublicLegalDocument, error) {
 	configuration, err := s.get(ctx)
 	if err != nil {
 		return PublicLegalDocument{}, err
@@ -419,15 +424,15 @@ func (s *Service) PublicLegal(ctx context.Context, kind string) (PublicLegalDocu
 	var title string
 	var legal Legal
 	switch kind {
-	case "imprint":
+	case LegalImprint:
 		title, legal = "Imprint", configuration.Imprint
-	case "privacy":
+	case LegalPrivacy:
 		title, legal = "Privacy policy", configuration.Privacy
 	default:
 		return PublicLegalDocument{}, apperror.NotFound
 	}
 	document := PublicLegalDocument{Kind: kind, Title: title, Mode: legal.Mode}
-	if legal.Mode == "external" {
+	if legal.Mode == LegalExternal {
 		document.ExternalURL = &legal.ExternalURL
 	} else {
 		document.Markdown = &legal.Markdown
@@ -471,8 +476,8 @@ func fromRow(row brandingdb.BrandingConfiguration, assets map[Slot]Asset) Config
 			Accent:     row.AccentColor,
 			Background: row.BackgroundColor,
 		},
-		Imprint: Legal{Mode: row.ImprintMode, Markdown: row.ImprintMarkdown, ExternalURL: row.ImprintExternalUrl},
-		Privacy: Legal{Mode: row.PrivacyMode, Markdown: row.PrivacyMarkdown, ExternalURL: row.PrivacyExternalUrl},
+		Imprint: Legal{Mode: LegalMode(row.ImprintMode), Markdown: row.ImprintMarkdown, ExternalURL: row.ImprintExternalUrl},
+		Privacy: Legal{Mode: LegalMode(row.PrivacyMode), Markdown: row.PrivacyMarkdown, ExternalURL: row.PrivacyExternalUrl},
 		Assets:  assets, Version: row.Version, UpdatedAt: row.UpdatedAt,
 	}
 }
@@ -517,7 +522,7 @@ func validateConfiguration(input *ConfigurationInput) error {
 }
 
 func validateLegal(value Legal) error {
-	if value.Mode != "internal" && value.Mode != "external" {
+	if value.Mode != LegalInternal && value.Mode != LegalExternal {
 		return validation("legal mode is invalid")
 	}
 	if len([]byte(value.Markdown)) > 102400 || len(value.ExternalURL) > 2048 {
@@ -533,7 +538,7 @@ func validateLegal(value Legal) error {
 			return validation("external legal URL must be an absolute HTTP(S) URL without credentials")
 		}
 	}
-	if value.Mode == "external" && value.ExternalURL == "" {
+	if value.Mode == LegalExternal && value.ExternalURL == "" {
 		return validation("external legal URL is required in external mode")
 	}
 	return nil

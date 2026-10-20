@@ -25,7 +25,7 @@ func (s *Server) GetPublicLegalDocument(
 	ctx context.Context,
 	request openapi.GetPublicLegalDocumentRequestObject,
 ) (openapi.GetPublicLegalDocumentResponseObject, error) {
-	document, err := s.branding.PublicLegal(ctx, string(request.Document))
+	document, err := s.branding.PublicLegal(ctx, branding.LegalKind(request.Document))
 	if err != nil {
 		return nil, err
 	}
@@ -126,12 +126,12 @@ func (s *Server) UpdateBrandingConfiguration(
 			Background: request.Body.Colors.Background,
 		},
 		Imprint: branding.Legal{
-			Mode:        string(request.Body.Imprint.Mode),
+			Mode:        branding.LegalMode(request.Body.Imprint.Mode),
 			Markdown:    request.Body.Imprint.Markdown,
 			ExternalURL: request.Body.Imprint.ExternalUrl,
 		},
 		Privacy: branding.Legal{
-			Mode:        string(request.Body.Privacy.Mode),
+			Mode:        branding.LegalMode(request.Body.Privacy.Mode),
 			Markdown:    request.Body.Privacy.Markdown,
 			ExternalURL: request.Body.Privacy.ExternalUrl,
 		},
@@ -251,9 +251,9 @@ func publicBrandingConfigurationDTO(value branding.Configuration, timeZone strin
 	if timeZone == "" {
 		timeZone = "Europe/Vienna" // the default the services fall back to
 	}
-	legalLink := func(kind string, value branding.Legal) openapi.PublicLegalLink {
-		href := "/legal/" + kind
-		if value.Mode == "external" {
+	legalLink := func(kind branding.LegalKind, value branding.Legal) openapi.PublicLegalLink {
+		href := "/legal/" + string(kind)
+		if value.Mode == branding.LegalExternal {
 			href = value.ExternalURL
 		}
 		return openapi.PublicLegalLink{Mode: openapi.PublicLegalLinkMode(value.Mode), Href: href}
@@ -272,8 +272,8 @@ func publicBrandingConfigurationDTO(value branding.Configuration, timeZone strin
 			), AuthenticationBackgroundUrl: nullableString(value.Assets[branding.AuthenticationBackground].URL),
 		},
 		Legal: openapi.PublicLegalLinks{
-			Imprint: legalLink("imprint", value.Imprint),
-			Privacy: legalLink("privacy", value.Privacy),
+			Imprint: legalLink(branding.LegalImprint, value.Imprint),
+			Privacy: legalLink(branding.LegalPrivacy, value.Privacy),
 		},
 	}
 }
