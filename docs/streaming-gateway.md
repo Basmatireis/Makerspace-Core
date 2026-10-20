@@ -103,7 +103,7 @@ The development file (`streaming-gateway/compose.development.yaml`) differs from
 
 The following came from documentation and the go2rtc container, not from a Bambu printer yet:
 
-- RTSPS source `rtspx://bblp:<LAN access code>@<ip>:322/streaming/live/1`: **verified on a Bambu Lab H2D on 2026-10-20** (LAN mode, liveview on; H.264 High profile, delivered to Chromium over WebRTC/UDP). Still to verify on an X1 Carbon. (`rtspx` = RTSPS without certificate verification, needed for the self-signed printer certificate.)
+- RTSPS source `rtspx://bblp:<LAN access code>@<ip>:322/streaming/live/1`: **verified on a Bambu Lab H2D and an X1 Carbon on 2026-10-20** (LAN mode, liveview on; H.264, delivered to Chromium over WebRTC/UDP). (`rtspx` = RTSPS without certificate verification, needed for the self-signed printer certificate.)
 - go2rtc stops the printer connection after the last viewer (printers allow few concurrent RTSP clients).
 - go2rtc's `/api/streams` reports no resolution or frame rate, so those fields stay empty.
 - Browsers on the display accept the advertised ICE candidate `STREAM_LAN_ADDRESS:8555`, over UDP and the TCP fallback.
