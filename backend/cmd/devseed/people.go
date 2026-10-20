@@ -13,6 +13,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/admin"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -114,7 +115,7 @@ func (s *seeder) ensureRoles() {
 			ptr(r.desc),
 			r.grants,
 			false,
-			"not_required",
+			laborordnung.ModeNotRequired,
 			r.dashboard,
 			nil,
 		)

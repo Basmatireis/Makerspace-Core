@@ -30,7 +30,7 @@ const MaxPDFBytes = 25 << 20
 
 type Version struct {
 	ID            uuid.UUID
-	Status        string
+	Status        VersionStatus
 	HumanRevision string
 	PDFFileID     uuid.UUID
 	SHA256        string
@@ -40,8 +40,8 @@ type Version struct {
 }
 
 type Status struct {
-	Mode                   string
-	State                  string
+	Mode                   Mode
+	State                  State
 	ActionRequired         bool
 	CurrentVersion         *Version
 	LatestConfirmedVersion *Version
@@ -54,7 +54,7 @@ type Request struct {
 	PersonName                string
 	RequiredVersion           Version
 	PreviousVersion           *Version
-	Status                    string
+	Status                    RequestStatus
 	RequestedAt               time.Time
 	CompletedAt               *time.Time
 	PhysicalDocumentReference *string
@@ -228,7 +228,7 @@ func (s *Service) OpenPDF(
 			return files.File{}, nil, err
 		}
 		current, err := queries.GetCurrentVersion(ctx)
-		if mode == "not_required" || err != nil || current.ID != id {
+		if Mode(mode) == ModeNotRequired || err != nil || current.ID != id {
 			return files.File{}, nil, apperror.PermissionDenied
 		}
 	}
@@ -250,13 +250,13 @@ func (s *Service) Evaluate(ctx context.Context, personID uuid.UUID) (Status, err
 	if err != nil {
 		return Status{}, err
 	}
-	status := Status{Mode: mode, State: "not_required"}
-	if mode == "not_required" {
+	status := Status{Mode: Mode(mode), State: StateNotRequired}
+	if Mode(mode) == ModeNotRequired {
 		return status, nil
 	}
 	current, err := queries.GetCurrentVersion(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
-		status.State = "no_published_version"
+		status.State = StateNoPublishedVersion
 		return status, nil
 	}
 	if err != nil {
@@ -276,11 +276,11 @@ func (s *Service) Evaluate(ctx context.Context, personID uuid.UUID) (Status, err
 		value := versionFromRow(confirmed)
 		status.LatestConfirmedVersion = &value
 		if completed.RequiredVersionID == current.ID {
-			status.State = "current"
+			status.State = StateCurrent
 			return status, nil
 		}
 	}
-	status.State = "outdated"
+	status.State = StateOutdated
 	status.ActionRequired = true
 	pending, pendingErr := queries.GetPendingRequestForStatus(ctx, personID)
 	if pendingErr == nil && pending.RequiredVersionID == current.ID {
@@ -323,7 +323,7 @@ func (s *Service) RequestOwnConfirmation(
 	if err != nil {
 		return Request{}, false, err
 	}
-	if mode == "not_required" {
+	if Mode(mode) == ModeNotRequired {
 		return Request{}, false, apperror.New(
 			http.StatusConflict,
 			"lab_rules_not_required",
@@ -458,7 +458,7 @@ func (s *Service) Confirm(
 	if err != nil {
 		return Request{}, err
 	}
-	if current.Status != "pending" {
+	if RequestStatus(current.Status) != RequestPending {
 		return Request{}, apperror.New(
 			http.StatusConflict,
 			"laborordnung_request_not_pending",
@@ -525,7 +525,7 @@ func (s *Service) hydrateRequest(
 		PersonID:                  row.PersonID,
 		PersonName:                name.FirstName + " " + name.LastName,
 		RequiredVersion:           versionFromRow(required),
-		Status:                    row.Status,
+		Status:                    RequestStatus(row.Status),
 		RequestedAt:               row.RequestedAt,
 		PhysicalDocumentReference: row.PhysicalDocumentReference,
 		ArchiveNote:               row.ArchiveNote,
@@ -550,7 +550,7 @@ func (s *Service) hydrateRequest(
 func versionFromRow(row laborordnungdb.LaborordnungVersion) Version {
 	result := Version{
 		ID:            row.ID,
-		Status:        row.Status,
+		Status:        VersionStatus(row.Status),
 		HumanRevision: row.HumanRevision,
 		PDFFileID:     row.PdfFileID,
 		SHA256:        hex.EncodeToString(row.PdfSha256),

@@ -23,14 +23,6 @@ func nullableString(value *string) nullable.Nullable[string] {
 	return nullable.NewNullableWithValue(*value)
 }
 
-func stringPointer[T ~string](value *T) *string {
-	if value == nil {
-		return nil
-	}
-	converted := string(*value)
-	return &converted
-}
-
 func optionalString[T ~string](value nullable.Nullable[T]) people.OptionalString {
 	return people.OptionalString{Set: value.IsSpecified(), Value: nullableStringPointer(value)}
 }

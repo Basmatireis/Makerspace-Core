@@ -15,6 +15,7 @@ import (
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/audit"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/apperror"
 	rolesdb "github.com/Basmatireis/Makerspace-Core/backend/internal/roles/db"
 	"github.com/google/uuid"
@@ -27,10 +28,10 @@ type Role struct {
 	ID                   uuid.UUID
 	Name                 string
 	Description          *string
-	SystemKey            *string
+	SystemKey            *authorization.SystemKey
 	PermissionGrants     []authorization.PermissionGrant
 	ProfileImageRequired bool
-	LaborordnungMode     string
+	LaborordnungMode     laborordnung.Mode
 	SupervisorDashboard  bool
 	Version              int64
 	CreatedAt            time.Time
@@ -60,7 +61,7 @@ func (s *Service) Create(
 	grants []authorization.PermissionGrant,
 	requestID *uuid.UUID,
 ) (Role, error) {
-	return s.CreateWithBehaviors(ctx, principal, name, description, grants, false, "not_required", false, requestID)
+	return s.CreateWithBehaviors(ctx, principal, name, description, grants, false, laborordnung.ModeNotRequired, false, requestID)
 }
 
 func (s *Service) CreateWithBehaviors(
@@ -70,7 +71,7 @@ func (s *Service) CreateWithBehaviors(
 	description *string,
 	grants []authorization.PermissionGrant,
 	profileImageRequired bool,
-	laborordnungMode string,
+	laborordnungMode laborordnung.Mode,
 	supervisorDashboard bool,
 	requestID *uuid.UUID,
 ) (Role, error) {
@@ -79,13 +80,13 @@ func (s *Service) CreateWithBehaviors(
 	}
 	name = strings.TrimSpace(name)
 	description = optional.Trimmed(description)
-	if name == "" || len([]rune(name)) > 100 || strings.EqualFold(name, "master") {
+	if name == "" || len([]rune(name)) > 100 || strings.EqualFold(name, string(authorization.SystemKeyMaster)) {
 		return Role{}, apperror.InvalidField("role name is invalid or reserved")
 	}
 	if description != nil && len([]rune(*description)) > 500 {
 		return Role{}, apperror.InvalidField("description is too long")
 	}
-	if laborordnungMode != "not_required" && laborordnungMode != "warning" && laborordnungMode != "blocking" {
+	if !laborordnungMode.Valid() {
 		return Role{}, apperror.InvalidField("Lab Rules mode is invalid")
 	}
 	grants, err := validateGrants(principal, grants)
@@ -106,7 +107,7 @@ func (s *Service) CreateWithBehaviors(
 			Name:                 name,
 			Description:          description,
 			ProfileImageRequired: profileImageRequired,
-			LaborordnungMode:     laborordnungMode,
+			LaborordnungMode:     string(laborordnungMode),
 			SupervisorDashboard:  supervisorDashboard,
 		},
 	)
@@ -397,7 +398,7 @@ func (s *Service) EvaluatePermissions(
 			return nil, err
 		}
 		permissions := authorization.EffectivePermissions(role.PermissionGrants, evaluation)
-		if role.SystemKey != nil && *role.SystemKey == "master" {
+		if role.SystemKey != nil && *role.SystemKey == authorization.SystemKeyMaster {
 			permissions = authorization.Registry()
 		}
 		result = append(result, EffectivePermissionEvaluation{
@@ -441,7 +442,7 @@ func (s *Service) UpdateWithBehaviors(
 	descriptionSet bool,
 	description *string,
 	profileImageRequired *bool,
-	laborordnungMode *string,
+	laborordnungMode *laborordnung.Mode,
 	supervisorDashboard *bool,
 	requestID *uuid.UUID,
 ) (Role, error) {
@@ -473,7 +474,7 @@ func (s *Service) UpdateWithBehaviors(
 	}
 	newName, newDescription := current.Name, current.Description
 	newProfileImageRequired := current.ProfileImageRequired
-	newLaborordnungMode := current.LaborordnungMode
+	newLaborordnungMode := laborordnung.Mode(current.LaborordnungMode)
 	newSupervisorDashboard := current.SupervisorDashboard
 	changed := make([]string, 0, 5)
 	if name != nil {
@@ -496,10 +497,10 @@ func (s *Service) UpdateWithBehaviors(
 		newSupervisorDashboard = *supervisorDashboard
 		changed = append(changed, "supervisorDashboard")
 	}
-	if newLaborordnungMode != "not_required" && newLaborordnungMode != "warning" && newLaborordnungMode != "blocking" {
+	if !newLaborordnungMode.Valid() {
 		return Role{}, apperror.InvalidField("Lab Rules mode is invalid")
 	}
-	if newName == "" || len([]rune(newName)) > 100 || strings.EqualFold(newName, "master") {
+	if newName == "" || len([]rune(newName)) > 100 || strings.EqualFold(newName, string(authorization.SystemKeyMaster)) {
 		return Role{}, apperror.InvalidField("role name is invalid or reserved")
 	}
 	if newDescription != nil && len([]rune(*newDescription)) > 500 {
@@ -513,7 +514,7 @@ func (s *Service) UpdateWithBehaviors(
 			Name:                 newName,
 			Description:          newDescription,
 			ProfileImageRequired: newProfileImageRequired,
-			LaborordnungMode:     newLaborordnungMode,
+			LaborordnungMode:     string(newLaborordnungMode),
 			SupervisorDashboard:  newSupervisorDashboard,
 		},
 	)
@@ -607,7 +608,7 @@ func (s *Service) Delete(
 
 func fromRow(ctx context.Context, queries *rolesdb.Queries, row rolesdb.Role) (Role, error) {
 	grants := make([]authorization.PermissionGrant, 0)
-	if row.SystemKey != nil && *row.SystemKey == "master" {
+	if row.SystemKey != nil && authorization.SystemKey(*row.SystemKey) == authorization.SystemKeyMaster {
 		for _, permission := range authorization.Registry() {
 			grants = append(
 				grants,
@@ -656,10 +657,10 @@ func fromRow(ctx context.Context, queries *rolesdb.Queries, row rolesdb.Role) (R
 		ID:                   row.ID,
 		Name:                 row.Name,
 		Description:          row.Description,
-		SystemKey:            row.SystemKey,
+		SystemKey:            optional.Convert[authorization.SystemKey](row.SystemKey),
 		PermissionGrants:     grants,
 		ProfileImageRequired: row.ProfileImageRequired,
-		LaborordnungMode:     row.LaborordnungMode,
+		LaborordnungMode:     laborordnung.Mode(row.LaborordnungMode),
 		SupervisorDashboard:  row.SupervisorDashboard,
 		Version:              row.Version,
 		CreatedAt:            row.CreatedAt,

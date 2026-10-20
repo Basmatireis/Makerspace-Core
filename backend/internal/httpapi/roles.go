@@ -4,8 +4,10 @@ import (
 	"context"
 
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/authorization"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/laborordnung"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/openapi"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/people"
+	"github.com/Basmatireis/Makerspace-Core/backend/internal/platform/optional"
 	"github.com/Basmatireis/Makerspace-Core/backend/internal/roles"
 	"github.com/google/uuid"
 	"github.com/oapi-codegen/nullable"
@@ -108,9 +110,9 @@ func (s *Server) CreateRole(
 		grants = append(grants, grantDomain(grant))
 	}
 	profileImageRequired := request.Body.ProfileImageRequired != nil && *request.Body.ProfileImageRequired
-	laborordnungMode := "not_required"
+	laborordnungMode := laborordnung.ModeNotRequired
 	if request.Body.LaborordnungMode != nil {
-		laborordnungMode = string(*request.Body.LaborordnungMode)
+		laborordnungMode = laborordnung.Mode(*request.Body.LaborordnungMode)
 	}
 	supervisorDashboard := request.Body.SupervisorDashboard != nil && *request.Body.SupervisorDashboard
 	role, err := s.roles.CreateWithBehaviors(
@@ -192,7 +194,7 @@ func (s *Server) UpdateRole(
 		request.Body.Description.IsSpecified(),
 		nullableStringPointer(request.Body.Description),
 		request.Body.ProfileImageRequired,
-		stringPointer(request.Body.LaborordnungMode),
+		optional.Convert[laborordnung.Mode](request.Body.LaborordnungMode),
 		request.Body.SupervisorDashboard,
 		requestIDPointer(ctx),
 	)
