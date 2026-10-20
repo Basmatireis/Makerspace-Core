@@ -1,6 +1,6 @@
 import { formatDateTime, formatTime } from '../../../app/dateTime';
 
-// Same conventions as the prototype (and features/machinelogbook/formatting.ts, whose formatDecimal stays the
+// Same conventions as features/machinelogbook/formatting.ts (whose formatDecimal stays the
 // reference for plain decimals). The API sends money and quantities as decimal strings.
 
 export { formatDateTime, formatTime };

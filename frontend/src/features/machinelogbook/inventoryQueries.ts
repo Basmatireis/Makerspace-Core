@@ -6,7 +6,7 @@ import { machineLogbookKeys } from './queries';
 
 const PAGE_SIZE = 100;
 
-/** Loads every page of a paged list. The inventory tables sort, filter and page on the client, as in the prototype. */
+/** Loads every page of a paged list. The inventory tables sort, filter and page on the client. */
 async function fetchAll<T>(load: (page: number) => Promise<{ items: T[]; total: number }>): Promise<T[]> {
   const items: T[] = [];
   for (let page = 1; ; page += 1) {

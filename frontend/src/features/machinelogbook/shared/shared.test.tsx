@@ -81,7 +81,7 @@ describe('Machines & Jobs shared helpers', () => {
     expect(unresolvedReportedUsageItems(report)).toHaveLength(0);
   });
 
-  it('formats prices, durations and adjustments like the prototype', () => {
+  it('formats prices, durations and adjustments consistently', () => {
     expect(formatMoney('5')).toBe('€5.00');
     expect(formatMoney(null)).toBe('—');
     expect(formatDuration(7500)).toBe('2 h 5 min');
@@ -102,7 +102,7 @@ describe('Machines & Jobs shared helpers', () => {
     expect(billingStateOptions.map((option) => option.id)).toEqual(['on_order', 'order_outdated', 'not_on_order', 'price_incomplete', 'pending']);
   });
 
-  it('builds production paths for the prototype links', () => {
+  it('builds production paths for the machine logbook links', () => {
     expect(machineLogbookPaths.jobs()).toBe('/machine-logbook/jobs');
     expect(machineLogbookPaths.jobs({ status: 'unassigned', q: undefined })).toBe('/machine-logbook/jobs?status=unassigned');
     expect(machineLogbookPaths.run('p1')).toBe('/machine-logbook/jobs/runs/p1');

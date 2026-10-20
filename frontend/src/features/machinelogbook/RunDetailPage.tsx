@@ -256,7 +256,7 @@ export function RunDetailPage() {
         return item ? <ResolveReportedUsageModal open onClose={() => setResolutionLine(null)} run={run} item={item} /> : null;
       })()}
       {run && canCreate && dialog === 'create' && (
-        // As in the prototype the page stays open after saving; the form confirms with "Job created".
+        // The page stays open after saving; the form confirms with "Job created".
         <JobFormModal open mode="create" onClose={close} run={run} onSaved={() => undefined} />
       )}
     </PageShell>
